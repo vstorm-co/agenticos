@@ -16,19 +16,29 @@ import { cn } from "@/lib/utils";
 export function MoreOptions({
   label,
   defaultOpen = false,
+  open: controlled,
+  onOpenChange,
   children,
 }: {
   label: string;
   defaultOpen?: boolean;
+  /** Held by the caller, for a fold that has to open itself - see `onOpenChange`. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   children: ReactNode;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
+  const [own, setOwn] = useState(defaultOpen);
+  const open = controlled ?? own;
+  const toggle = () => {
+    setOwn(!open);
+    onOpenChange?.(!open);
+  };
   return (
     <div>
       <button
         type="button"
         aria-expanded={open}
-        onClick={() => setOpen((current) => !current)}
+        onClick={toggle}
         className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 text-sm font-medium transition-colors"
       >
         <ChevronRight

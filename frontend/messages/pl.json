@@ -2355,8 +2355,6 @@
     "create": "Utwórz",
     "createKnowledgeBase": "Utwórz bazę wiedzy",
     "creating": "Tworzenie...",
-    "customized": "dostosowane",
-    "deploymentDefaults": "domyślne wdrożenia",
     "chooseKey": "Wybierz klucz",
     "describeImages": "Opisuj obrazy",
     "describedByModelIndexed": "Opisane przez model i zaindeksowane",
@@ -2514,7 +2512,9 @@
     "ocrServerHint": "Dokąd LiteParse wysyła strony do odczytu. Wbudowany Tesseract działa wewnątrz workera.",
     "builtInTesseract": "Wbudowany Tesseract",
     "createKbDescription": "Wgraj do niej dokumenty, gdy już powstanie. Agenci przeszukują ją, gdy jest do nich dołączona albo wybrana w czacie.",
-    "whoCanSearchIt": "Kto może ją przeszukiwać"
+    "whoCanSearchIt": "Kto może ją przeszukiwać",
+    "parsingDetails": "Dzielenie na fragmenty, OCR i obrazy",
+    "moreOptions": "Więcej opcji"
   },
   "knowledgeBases": {
     "active": "Aktywna",

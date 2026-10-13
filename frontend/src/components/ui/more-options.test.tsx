@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { MoreOptions } from "./more-options";
 
@@ -29,6 +29,27 @@ describe("MoreOptions", () => {
       </MoreOptions>,
     );
 
+    expect(screen.getByText("A note")).toBeVisible();
+  });
+
+  it("is held by a caller that has to open it itself, and reports a click", async () => {
+    const onOpenChange = vi.fn();
+    const { rerender } = render(
+      <MoreOptions label="More options" open={false} onOpenChange={onOpenChange}>
+        <p>A note</p>
+      </MoreOptions>,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "More options" }));
+    expect(onOpenChange).toHaveBeenCalledWith(true);
+    // Still the caller's to open: nothing shows until it says so.
+    expect(screen.queryByText("A note")).toBeNull();
+
+    rerender(
+      <MoreOptions label="More options" open onOpenChange={onOpenChange}>
+        <p>A note</p>
+      </MoreOptions>,
+    );
     expect(screen.getByText("A note")).toBeVisible();
   });
 });

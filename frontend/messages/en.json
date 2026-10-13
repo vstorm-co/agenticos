@@ -2355,8 +2355,6 @@
     "create": "Create",
     "createKnowledgeBase": "Create knowledge base",
     "creating": "Creating...",
-    "customized": "customized",
-    "deploymentDefaults": "deployment defaults",
     "chooseKey": "Choose a key",
     "describeImages": "Describe images",
     "describedByModelIndexed": "Described by a model and indexed",
@@ -2514,7 +2512,9 @@
     "ocrServerHint": "Where LiteParse sends pages to be read. The built-in Tesseract runs inside the worker.",
     "builtInTesseract": "Built-in Tesseract",
     "createKbDescription": "Upload documents into it once it exists. Agents search it when it is attached to them or picked in chat.",
-    "whoCanSearchIt": "Who can search it"
+    "whoCanSearchIt": "Who can search it",
+    "parsingDetails": "Chunking, OCR and images",
+    "moreOptions": "More options"
   },
   "knowledgeBases": {
     "active": "Active",

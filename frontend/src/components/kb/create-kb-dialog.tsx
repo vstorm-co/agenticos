@@ -7,7 +7,6 @@ import {
   type Audience,
 } from "@/components/sharing/audience-picker";
 import { useState } from "react";
-import { ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,6 +20,7 @@ import {
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MoreOptions } from "@/components/ui/more-options";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -30,7 +30,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { EmbeddingProviderFields, useEmbeddingProviders } from "@/components/kb/embedding-picker";
-import { IngestionSettings } from "@/components/kb/ingestion-settings";
+import { IngestionSettings, ParserCards } from "@/components/kb/ingestion-settings";
 import { ProviderRow } from "@/components/vault/provider-row";
 import { useKnowledgeBases } from "@/hooks";
 import { submitFailure } from "@/lib/api-error";
@@ -96,6 +96,16 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
   const chosen = !sameIngestion(ingestion, DEFAULT_INGESTION_CONFIG);
   const localProblems = chosen ? ingestionProblems(ingestion, t) : {};
   const canSubmit = name.trim().length > 0 && Object.keys(localProblems).length === 0;
+  // The parsing details open themselves when they hold something required -
+  // LlamaParse's key - or something refused, and never close themselves: a
+  // fold shutting the moment its last problem is fixed takes the field being
+  // typed into with it.
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const parsingNeedsAttention =
+    ingestion.pdf_parser === "llamaparse" ||
+    Object.keys(localProblems).length > 0 ||
+    INGESTION_FORM_FIELDS.some((field) => field !== "pdf_parser" && field in errors);
+  if (parsingNeedsAttention && !detailsOpen) setDetailsOpen(true);
 
   const reset = () => {
     setName("");
@@ -106,6 +116,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
     setEmbeddingProvider(null);
     setEmbeddingSecretId(null);
     setEmbeddingEndpointId(null);
+    setDetailsOpen(false);
     setErrors({});
   };
 
@@ -176,7 +187,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
           <DialogDescription>{t("createKbDescription")}</DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col gap-4">
-          <div className={cn(DIALOG_BODY, "scrollbar-thin space-y-4")}>
+          <div className={cn(DIALOG_BODY, "scrollbar-thin space-y-6")}>
             <div data-tour="kb-dialog-name">
               <FormField label={t("name")} htmlFor="kb-name" error={errors.name}>
                 <Input
@@ -189,136 +200,117 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                 />
               </FormField>
             </div>
-            <FormField
-              label={t("descriptionOptional")}
-              htmlFor="kb-description"
-              error={errors.description}
-            >
-              <Textarea
-                id="kb-description"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder={t("whatDocumentsWillKb")}
-                maxLength={MAX_DESCRIPTION}
-                rows={2}
-              />
-            </FormField>
             <div className="space-y-1.5" data-tour="kb-dialog-scope">
               <Label>{t("whoCanSearchIt")}</Label>
               <AudiencePicker value={audience} onChange={setAudience} />
             </div>
 
             {/*
-              Folded away like the parsing section: the *model* is frozen at
-              creation (the vector column is created at its width), so it
-              matters - but the default is right for almost everyone. The
-              provider and the key are not frozen and can be changed on the
-              collection's own page afterwards.
+              Open, not folded: the model is frozen at creation (the vector
+              column is made at its width) and the key decides whose account
+              pays, so these are choices somebody has to see to make - and a
+              collection without a key is refused.
             */}
-            <details
-              className="group border-border rounded-lg border"
-              data-tour="kb-dialog-embeddings"
-            >
-              <summary className="text-foreground flex cursor-pointer list-none items-center gap-1.5 p-3 text-sm">
-                <ChevronRight className="h-3.5 w-3.5 transition-transform group-open:rotate-90" />
-                {t("embeddings")}
-                {model && <span className="text-muted-foreground ml-auto text-xs">{model}</span>}
-              </summary>
-              <div className="space-y-4 border-t p-4">
+            <section className="space-y-3" data-tour="kb-dialog-embeddings">
+              <div className="space-y-1">
+                <h3 className="text-foreground text-sm font-semibold">{t("embeddings")}</h3>
                 <p className="text-muted-foreground text-xs">{t("frozenAtCreationCollection")}</p>
-                {embeddingModels === undefined ? (
-                  // In flight and refused are not the same sentence. The model is
-                  // frozen at creation - the vector column is made at its width -
-                  // so this is the one choice in the dialog nobody can revisit, and
-                  // a failure that silently removes it is worth more than a
-                  // spinner. With no list there is no provider, model or key to
-                  // name, so the collection will be refused - which is what the
-                  // message says rather than leaving somebody to find out on submit.
-                  modelsUnreadable ? (
-                    <p className="text-destructive text-sm">{t("modelsUnreadable")}</p>
-                  ) : (
-                    <p className="text-muted-foreground text-sm">{t("loadingModels")}</p>
-                  )
-                ) : (
-                  <>
-                    <EmbeddingProviderFields
-                      models={embeddingModels}
-                      provider={provider}
-                      secretId={embeddingSecretId}
-                      endpointId={embeddingEndpointId}
-                      onProvider={setEmbeddingProvider}
-                      onSecretId={setEmbeddingSecretId}
-                      onEndpointId={setEmbeddingEndpointId}
-                      idPrefix="kb-new-embedding"
-                    />
-                    {(errors.embedding_provider ??
-                      errors.embedding_secret_id ??
-                      errors.embedding_endpoint_id) !== undefined && (
-                      <p className="text-destructive text-xs">
-                        {errors.embedding_provider ??
-                          errors.embedding_secret_id ??
-                          errors.embedding_endpoint_id}
-                      </p>
-                    )}
-                    <div className="space-y-1.5">
-                      <Label htmlFor="kb-embedding-model">{t("model")}</Label>
-                      {/*
-                        Mounted only once the list is, never mounted empty. A Radix
-                        select inside a form keeps a hidden native `<select>` in step
-                        with its value: the `<option>` elements are registered by the
-                        items a render later, so a value that arrives with its
-                        options is assigned to a `<select>` that has none, reads back
-                        as `""`, and clobbers the state it was about to display.
-                      */}
-                      <Select value={model} onValueChange={setEmbeddingModel}>
-                        <SelectTrigger id="kb-embedding-model">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {offered.map((entry) => (
-                            <SelectItem
-                              key={entry.model}
-                              value={entry.model}
-                              // Without this every row answers to the provider's
-                              // name - the mark's title is part of the item's text -
-                              // and typing a model id finds nothing.
-                              textValue={entry.model}
-                              // In the list rather than in the row: the trigger draws
-                              // whatever the row draws, and the width is a comparison
-                              // against the other options.
-                              trailing={
-                                <span className="text-muted-foreground ml-auto shrink-0 pl-2 text-xs">
-                                  {t("dimensions", { count: entry.dim })}
-                                </span>
-                              }
-                            >
-                              <ProviderRow provider={provider} name={entry.model} />
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <p className="text-muted-foreground text-xs">{t("widthIsFixed")}</p>
-                    </div>
-                  </>
-                )}
               </div>
-            </details>
+              {embeddingModels === undefined ? (
+                // In flight and refused are not the same sentence. With no list
+                // there is no provider, model or key to name, so the collection
+                // will be refused - which is what the message says rather than
+                // leaving somebody to find out on submit.
+                modelsUnreadable ? (
+                  <p className="text-destructive text-sm">{t("modelsUnreadable")}</p>
+                ) : (
+                  <p className="text-muted-foreground text-sm">{t("loadingModels")}</p>
+                )
+              ) : (
+                <>
+                  <EmbeddingProviderFields
+                    models={embeddingModels}
+                    provider={provider}
+                    secretId={embeddingSecretId}
+                    endpointId={embeddingEndpointId}
+                    onProvider={setEmbeddingProvider}
+                    onSecretId={setEmbeddingSecretId}
+                    onEndpointId={setEmbeddingEndpointId}
+                    idPrefix="kb-new-embedding"
+                  />
+                  {(errors.embedding_provider ??
+                    errors.embedding_secret_id ??
+                    errors.embedding_endpoint_id) !== undefined && (
+                    <p className="text-destructive text-xs">
+                      {errors.embedding_provider ??
+                        errors.embedding_secret_id ??
+                        errors.embedding_endpoint_id}
+                    </p>
+                  )}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="kb-embedding-model">{t("model")}</Label>
+                    {/*
+                      Mounted only once the list is, never mounted empty. A Radix
+                      select inside a form keeps a hidden native `<select>` in step
+                      with its value: the `<option>` elements are registered by the
+                      items a render later, so a value that arrives with its
+                      options is assigned to a `<select>` that has none, reads back
+                      as `""`, and clobbers the state it was about to display.
+                    */}
+                    <Select value={model} onValueChange={setEmbeddingModel}>
+                      <SelectTrigger id="kb-embedding-model">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {offered.map((entry) => (
+                          <SelectItem
+                            key={entry.model}
+                            value={entry.model}
+                            // Without this every row answers to the provider's
+                            // name - the mark's title is part of the item's text -
+                            // and typing a model id finds nothing.
+                            textValue={entry.model}
+                            // In the list rather than in the row: the trigger draws
+                            // whatever the row draws, and the width is a comparison
+                            // against the other options.
+                            trailing={
+                              <span className="text-muted-foreground ml-auto shrink-0 pl-2 text-xs">
+                                {t("dimensions", { count: entry.dim })}
+                              </span>
+                            }
+                          >
+                            <ProviderRow provider={provider} name={entry.model} />
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-muted-foreground text-xs">{t("widthIsFixed")}</p>
+                  </div>
+                </>
+              )}
+            </section>
 
             {/*
-              Folded away, because creating a collection is a two-field job and
-              most people will never open this. It is a disclosure rather than a
-              step in a wizard for the same reason: a wizard would make everybody
-              walk past parser options to reach a button they could already press.
+              The parser is the one parsing decision most people make, so it is
+              three choices on the page; chunking, OCR and image descriptions
+              wait folded. The fold opens itself when it holds something
+              required - LlamaParse's key - or something refused.
             */}
-            <details className="group border-border rounded-lg border">
-              <summary className="text-foreground flex cursor-pointer list-none items-center gap-1.5 p-3 text-sm">
-                <ChevronRight className="h-3.5 w-3.5 transition-transform group-open:rotate-90" />
+            <section className="space-y-3">
+              <h3 className="text-foreground text-sm font-semibold">
                 {t("howDocumentsAreParsed")}
-                <span className="text-muted-foreground ml-auto text-xs">
-                  {chosen ? t("customized") : t("deploymentDefaults")}
-                </span>
-              </summary>
-              <div className="space-y-4 border-t p-4">
+              </h3>
+              <ParserCards
+                value={ingestion}
+                onChange={setIngestion}
+                disabled={isSubmitting}
+                error={errors.pdf_parser}
+              />
+              <MoreOptions
+                label={t("parsingDetails")}
+                open={detailsOpen}
+                onOpenChange={setDetailsOpen}
+              >
                 <p className="text-muted-foreground text-xs">{t("leftAloneCollectionInherits")}</p>
                 <IngestionSettings
                   idPrefix="kb-new"
@@ -326,9 +318,27 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                   onChange={setIngestion}
                   errors={{ ...localProblems, ...errors }}
                   disabled={isSubmitting}
+                  withoutParser
                 />
-              </div>
-            </details>
+              </MoreOptions>
+            </section>
+
+            <MoreOptions label={t("moreOptions")}>
+              <FormField
+                label={t("descriptionOptional")}
+                htmlFor="kb-description"
+                error={errors.description}
+              >
+                <Textarea
+                  id="kb-description"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder={t("whatDocumentsWillKb")}
+                  maxLength={MAX_DESCRIPTION}
+                  rows={2}
+                />
+              </FormField>
+            </MoreOptions>
           </div>
 
           <DialogFooter>
