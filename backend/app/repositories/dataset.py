@@ -227,7 +227,6 @@ async def list_cases(
     return list(result.scalars().all())
 
 
-# Tags listed per dataset in its stats; the page behind it lists every case.
 TOP_TAGS = 3
 
 

@@ -742,11 +742,8 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
       ...mcpDialogSteps(ROUTES.MCP_SERVERS),
     ],
   },
-  // Creating a dataset, then teaching what a good case is: the walk does not stop
-  // at an empty dataset, because an empty one is the part nobody needs help with.
-  // It follows the reader into the dataset they made, opens the case editor, and
-  // frames each group of fields with what it is for - ending on the save the
-  // expectation rule guards, and on where the next cases will come from.
+  // The walk goes on past the empty dataset into its first case: an empty dataset
+  // is the part nobody needs help with.
   "create-dataset": {
     id: "create-dataset",
     permission: Perm.datasetsEdit,
