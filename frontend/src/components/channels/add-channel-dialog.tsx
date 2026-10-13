@@ -57,6 +57,8 @@ interface AddChannelDialogProps {
   onOpenChange: (open: boolean) => void;
   onSubmit: (bot: ChannelBotCreate) => Promise<unknown>;
   isPending: boolean;
+  /** The platform picked first - the Builder opens this from a platform's tile. */
+  initialPlatform?: ChannelPlatform;
 }
 
 /**
@@ -80,10 +82,11 @@ export function AddChannelDialog({
   onOpenChange,
   onSubmit,
   isPending,
+  initialPlatform = "mattermost",
 }: AddChannelDialogProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("pages.channels");
-  const [platform, setPlatform] = useState<ChannelPlatform>("mattermost");
+  const [platform, setPlatform] = useState<ChannelPlatform>(initialPlatform);
   const [name, setName] = useState("");
   const [token, setToken] = useState("");
   const [serverUrl, setServerUrl] = useState("");
@@ -108,7 +111,7 @@ export function AddChannelDialog({
     name.trim().length > 0 && token.trim().length >= MIN_TOKEN && !missingServerUrl && !badReaction;
 
   function reset() {
-    setPlatform("mattermost");
+    setPlatform(initialPlatform);
     setName("");
     setToken("");
     setServerUrl("");
