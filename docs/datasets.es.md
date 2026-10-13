@@ -1,5 +1,5 @@
 ---
-source_sha: "4934dfd7bbcb"
+source_sha: "ccd82f221e92"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -36,6 +36,15 @@ referencia, un contraejemplo, una llamada a herramienta esperada o una
 comprobación, al menos una de las cuatro. Un caso con solo una entrada no podría
 fallar nunca, así que se rechaza: el formulario no lo guarda, la API responde 422
 señalando `reference_answer` y una importación nombra la fila.
+
+Un buen caso es pequeño: una pregunta y lo único que una respuesta correcta
+tiene que acertar. Normalmente basta con una respuesta de referencia o un
+contraejemplo. Añade llamadas a herramientas esperadas cuando el agent tenga que
+actuar y no solo responder, comprobaciones cuando una regla pueda enunciarse con
+exactitud, y la conversación antes de la entrada solo cuando la pregunta dependa
+de ella. La nota es para quien lea el caso después: qué salió mal o qué protege.
+Al crear tu primer dataset, la consola ofrece un recorrido guiado que termina
+escribiendo su primer caso, campo por campo.
 
 Un caso tomado de una conversación también guarda un enlace al run, a la
 conversación y al mensaje de los que procede. La pregunta y la respuesta se

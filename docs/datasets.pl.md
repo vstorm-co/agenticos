@@ -1,5 +1,5 @@
 ---
-source_sha: "4934dfd7bbcb"
+source_sha: "ccd82f221e92"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -37,6 +37,15 @@ kontrprzykład, oczekiwane wywołanie narzędzia albo sprawdzenie - co najmniej
 jedno z czterech. Przypadek z samym wejściem nigdy nie mógłby nie przejść, więc
 jest odrzucany: formularz go nie zapisze, API odpowiada 422 ze wskazaniem
 `reference_answer`, a import podaje numer wiersza.
+
+Dobry przypadek jest mały: jedno pytanie i ta jedna rzecz, którą poprawna
+odpowiedź musi zrobić dobrze. Zwykle wystarczy odpowiedź wzorcowa albo
+kontrprzykład. Oczekiwane wywołania narzędzi dodaj, gdy agent ma działać, a nie
+tylko odpowiadać, sprawdzenia - gdy regułę da się podać dokładnie, a rozmowę
+przed wejściem - tylko gdy pytanie od niej zależy. Notatka jest dla następnego
+czytelnika: co poszło źle albo czego przypadek pilnuje. Przy tworzeniu
+pierwszego datasetu konsola proponuje przewodnik, który kończy się napisaniem
+pierwszego przypadku pole po polu.
 
 Przypadek wzięty z rozmowy zachowuje też odnośnik do runa, rozmowy i
 wiadomości, z których pochodzi. Pytanie i odpowiedź są kopiowane do przypadku,

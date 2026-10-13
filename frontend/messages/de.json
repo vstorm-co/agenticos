@@ -2740,7 +2740,7 @@
       },
       "create-dataset": {
         "title": "Ein Dataset anlegen?",
-        "body": "Ein Dataset enthält die Fragen, an denen Ihre Agents getestet werden. Möchten Sie jetzt Ihr erstes anlegen? Wir führen Sie durch."
+        "body": "Ein Dataset enthält die Fragen, an denen Ihre Agents getestet werden. Möchten Sie jetzt Ihr erstes anlegen und gemeinsam einen ersten guten Fall schreiben? Wir führen Sie durch."
       }
     },
     "steps": {
@@ -3231,6 +3231,42 @@
       "flow-dataset-field-create": {
         "title": "Anlegen",
         "body": "Wählen Sie Erstellen. Wir machen weiter, sobald es gespeichert ist."
+      },
+      "flow-dataset-open": {
+        "title": "Öffnen Sie Ihr Dataset",
+        "body": "Es ist die erste Karte - die zuletzt geänderte. Öffnen Sie sie, um den ersten Fall hinzuzufügen."
+      },
+      "flow-dataset-add-case": {
+        "title": "Fügen Sie Ihren ersten Fall hinzu",
+        "body": "Wählen Sie Fall hinzufügen. Ein Fall ist eine Frage und die Beschreibung einer guten Antwort darauf."
+      },
+      "flow-dataset-case-question": {
+        "title": "Was der Agent gefragt wird",
+        "body": "Die Eingabe ist die Nachricht, auf die der Agent antwortet. Fügen Sie das Gespräch davor nur hinzu, wenn die Frage von früheren Zügen abhängt. Dann wählen Sie Weiter."
+      },
+      "flow-dataset-case-answers": {
+        "title": "Eine gute Antwort und eine schlechte",
+        "body": "Die Referenzantwort sagt, was eine gute Antwort enthält; ein Judge vergleicht die Antwort des Agents damit. Das Gegenbeispiel ist eine Antwort, die bekanntermaßen falsch ist - oft die negativ bewertete. Meist genügt eines von beiden."
+      },
+      "flow-dataset-case-tools": {
+        "title": "Die Tools, die er aufrufen soll",
+        "body": "Listen Sie die Tools auf, die der Agent aufrufen muss, mit den Argumenten, die übereinstimmen müssen. Wählen Sie den Abgleich: in beliebiger Reihenfolge, in dieser Reihenfolge mit anderen dazwischen oder genau diese und keine anderen."
+      },
+      "flow-dataset-case-checks": {
+        "title": "Regeln für die Antwort",
+        "body": "Eine Prüfung ist eine Regel, nach der die Antwort bewertet wird, etwa dass sie 30 Tage nennt. Jede nennt ihren Typ und die Parameter dieser Regel."
+      },
+      "flow-dataset-case-labels": {
+        "title": "Tags und eine Notiz",
+        "body": "Tags gruppieren Ergebnisse, etwa billing oder refusal. Die Notiz sagt, wozu der Fall da ist - was schiefging oder was er absichert."
+      },
+      "flow-dataset-case-save": {
+        "title": "Speichern Sie den Fall",
+        "body": "Ein Fall muss sagen, woran die Antwort gemessen wird: eine Referenzantwort, ein Gegenbeispiel, ein Tool-Aufruf oder eine Prüfung. Solange keines davon da ist, bleibt Fall speichern aus und sagt, was fehlt."
+      },
+      "flow-dataset-sources": {
+        "title": "Woher die nächsten Fälle kommen",
+        "body": "Schreiben Sie sie hier, oder importieren Sie hier eine CSV- oder JSONL-Datei. Bewerten Sie im Chat eine Antwort positiv oder negativ und fügen Sie sie hinzu - ein Daumen nach oben behält sie als Referenz, einer nach unten als Gegenbeispiel. In der Aktivität fügen Sie einen beliebigen Agent-Zug eines Runs hinzu."
       }
     }
   },

@@ -35,6 +35,14 @@ case with only an input could never fail, so it is refused: the form will not
 save it, the API answers 422 naming `reference_answer`, and an import names the
 row.
 
+A good case is small: one question, and the one thing a right answer has to get
+right. A reference answer or a counter-example is usually enough. Add expected
+tool calls when the agent has to act rather than answer, checks when a rule can
+be stated exactly, and the conversation before the input only when the question
+depends on it. The note is for the next reader: what went wrong, or what the
+case guards. Creating your first dataset in the console offers a guided walk
+that ends on writing its first case field by field.
+
 A case taken from a conversation also keeps a link to the run, the conversation
 and the message it came from. The question and the answer are copied into the
 case, so the case stays complete after the run itself is removed by retention.

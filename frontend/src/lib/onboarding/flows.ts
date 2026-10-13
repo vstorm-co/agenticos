@@ -1,6 +1,7 @@
 import { ROUTES } from "@/lib/constants";
 import {
   AGENT_BUILDER,
+  DATASET_DETAIL,
   KB_DETAIL,
   ORG_GROUPS,
   ORG_MEMBERS,
@@ -47,10 +48,12 @@ export type FlowId =
  * hung when "Connect" defaulted to personal for a server the org already had. The
  * fork that branches on whether an agent has one to bind reads `hasOrgMcp`, which
  * stays org-only. `model` is a model profile (`useModelProviders`), the resource a
- * new agent needs before it can run.
+ * new agent needs before it can run. `case` is a case added to a dataset, read as
+ * the cases the most recently changed datasets hold - the one a case was just
+ * added to is the newest change.
  */
 export type FlowResource =
-  "agent" | "model" | "skill" | "kb" | "mcp" | "org" | "group" | "routine" | "dataset";
+  "agent" | "model" | "skill" | "kb" | "mcp" | "org" | "group" | "routine" | "dataset" | "case";
 
 /**
  * How a step knows it is finished. Five shapes.
@@ -220,6 +223,23 @@ export interface CreationFlow {
   id: FlowId;
   permission?: Permission;
   steps: readonly FlowStep[];
+}
+
+/**
+ * The case editor, one group of fields per stop: what the agent is asked, what a
+ * good and a bad answer are, the tools it should call, the rules it is checked
+ * by, and the labels. Each holds the save shut, so the walk reaches the rule that
+ * a case has to expect something before the button that enforces it.
+ */
+function caseEditorSteps(): FlowStep[] {
+  return ["question", "answers", "tools", "checks", "labels"].map((group) => ({
+    id: `flow-dataset-case-${group}`,
+    page: DATASET_DETAIL,
+    target: `case-group-${group}`,
+    permission: Perm.datasetsEdit,
+    inOverlay: true,
+    blockSubmit: "case-save",
+  }));
 }
 
 /**
@@ -722,11 +742,11 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
       ...mcpDialogSteps(ROUTES.MCP_SERVERS),
     ],
   },
-  // Starting a routine. One step, and deliberately not two: the page's two buttons
-  // open two different dialogs - a cadence form and the portal grid - and a walk
-  // that picked one for the reader would teach the wrong half. So it points at the
-  // pair, says what each is for, and ends when a routine appears in the list,
-  // whichever door it came through.
+  // Creating a dataset, then teaching what a good case is: the walk does not stop
+  // at an empty dataset, because an empty one is the part nobody needs help with.
+  // It follows the reader into the dataset they made, opens the case editor, and
+  // frames each group of fields with what it is for - ending on the save the
+  // expectation rule guards, and on where the next cases will come from.
   "create-dataset": {
     id: "create-dataset",
     permission: Perm.datasetsEdit,
@@ -754,8 +774,43 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
         inOverlay: true,
         signal: { kind: "created", resource: "dataset" },
       },
+      // The list is sorted by most recent change, so the first card is the one
+      // just created; the reader makes the move, which is what `arrived` waits on.
+      {
+        id: "flow-dataset-open",
+        target: "dataset-card-open",
+        permission: Perm.datasetsEdit,
+        signal: { kind: "arrived", page: DATASET_DETAIL },
+      },
+      {
+        id: "flow-dataset-add-case",
+        page: DATASET_DETAIL,
+        target: "datasets-add-case",
+        permission: Perm.datasetsEdit,
+        signal: { kind: "opened" },
+      },
+      ...caseEditorSteps(),
+      {
+        id: "flow-dataset-case-save",
+        page: DATASET_DETAIL,
+        target: "case-save",
+        permission: Perm.datasetsEdit,
+        inOverlay: true,
+        signal: { kind: "created", resource: "case" },
+      },
+      {
+        id: "flow-dataset-sources",
+        page: DATASET_DETAIL,
+        target: "dataset-file-actions",
+        permission: Perm.datasetsEdit,
+      },
     ],
   },
+  // Starting a routine. One step, and deliberately not two: the page's two buttons
+  // open two different dialogs - a cadence form and the portal grid - and a walk
+  // that picked one for the reader would teach the wrong half. So it points at the
+  // pair, says what each is for, and ends when a routine appears in the list,
+  // whichever door it came through.
   "create-routine": {
     id: "create-routine",
     // The floor a trigger is actually created at is per resource, and the

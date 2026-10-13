@@ -1480,7 +1480,7 @@
       },
       "create-dataset": {
         "title": "Utworzyć dataset?",
-        "body": "Dataset zawiera pytania, na których testujesz agentów. Chcesz teraz utworzyć pierwszy? Przeprowadzimy Cię przez to."
+        "body": "Dataset trzyma pytania, na których testujesz agentów. Chcesz utworzyć pierwszy i razem napisać pierwszy dobry przypadek? Przeprowadzimy cię przez to."
       }
     },
     "steps": {
@@ -1935,6 +1935,42 @@
       "flow-dataset-field-create": {
         "title": "Utwórz go",
         "body": "Wybierz Utwórz. Pójdziemy dalej, gdy tylko zostanie zapisany."
+      },
+      "flow-dataset-open": {
+        "title": "Otwórz swój dataset",
+        "body": "To pierwsza karta - ostatnio zmieniona. Otwórz ją, żeby dodać pierwszy przypadek."
+      },
+      "flow-dataset-add-case": {
+        "title": "Dodaj pierwszy przypadek",
+        "body": "Wybierz Dodaj przypadek. Przypadek to jedno pytanie i opis tego, jak wygląda dobra odpowiedź."
+      },
+      "flow-dataset-case-question": {
+        "title": "O co pytany jest agent",
+        "body": "Wejście to wiadomość, na którą odpowiada agent. Rozmowę przed nim dodaj tylko wtedy, gdy pytanie zależy od wcześniejszych tur. Potem wybierz Dalej."
+      },
+      "flow-dataset-case-answers": {
+        "title": "Dobra odpowiedź i zła",
+        "body": "Odpowiedź wzorcowa mówi, co zawiera dobra odpowiedź; judge porównuje z nią odpowiedź agenta. Kontrprzykład to odpowiedź, o której wiadomo, że jest błędna - często ta oceniona łapką w dół. Zwykle wystarczy jedna z nich."
+      },
+      "flow-dataset-case-tools": {
+        "title": "Narzędzia, które powinien wywołać",
+        "body": "Wypisz narzędzia, które agent musi wywołać, z argumentami, które muszą się zgadzać. Wybierz sposób dopasowania: w dowolnej kolejności, w tej kolejności z innymi pomiędzy albo dokładnie te i żadnych innych."
+      },
+      "flow-dataset-case-checks": {
+        "title": "Reguły dotyczące odpowiedzi",
+        "body": "Sprawdzenie to reguła, według której oceniana jest odpowiedź, np. że wspomina 30 dni. Każde podaje swój typ i parametry tej reguły."
+      },
+      "flow-dataset-case-labels": {
+        "title": "Tagi i notatka",
+        "body": "Tagi grupują wyniki, np. billing albo refusal. Notatka mówi, po co jest przypadek - co poszło źle albo czego pilnuje."
+      },
+      "flow-dataset-case-save": {
+        "title": "Zapisz przypadek",
+        "body": "Przypadek musi mówić, z czym porównuje się odpowiedź: odpowiedź wzorcowa, kontrprzykład, wywołanie narzędzia albo sprawdzenie. Dopóki nie ma żadnego, Zapisz przypadek jest nieaktywne i mówi, czego brakuje."
+      },
+      "flow-dataset-sources": {
+        "title": "Skąd biorą się kolejne przypadki",
+        "body": "Pisz je tutaj albo importuj tu plik CSV lub JSONL. W czacie oceń odpowiedź łapką w górę albo w dół i dodaj ją - łapka w górę zachowuje ją jako wzorcową, łapka w dół jako kontrprzykład. W Aktywności dodaj dowolną turę agenta z runa."
       }
     }
   },

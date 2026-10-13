@@ -1,5 +1,5 @@
 ---
-source_sha: "4934dfd7bbcb"
+source_sha: "ccd82f221e92"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -37,6 +37,15 @@ ein Gegenbeispiel, ein erwarteter Tool-Aufruf oder eine Prüfung - mindestens
 eines davon. Ein Fall nur mit einer Eingabe könnte nie scheitern, deshalb wird er
 abgelehnt: Das Formular speichert ihn nicht, die API antwortet mit 422 und nennt
 `reference_answer`, und ein Import nennt die Zeile.
+
+Ein guter Fall ist klein: eine Frage und das eine, was eine richtige Antwort
+richtig machen muss. Meist genügt eine Referenzantwort oder ein Gegenbeispiel.
+Fügen Sie erwartete Tool-Aufrufe hinzu, wenn der Agent handeln statt nur
+antworten soll, Prüfungen, wenn sich eine Regel genau angeben lässt, und das
+Gespräch vor der Eingabe nur, wenn die Frage davon abhängt. Die Notiz ist für
+die nächste Person, die den Fall liest: was schiefging oder was er absichert.
+Beim Anlegen Ihres ersten Datasets bietet die Konsole eine geführte Tour an, die
+mit dem ersten Fall endet, Feld für Feld.
 
 Ein Fall aus einem Gespräch behält außerdem einen Verweis auf den Run, das
 Gespräch und die Nachricht, aus denen er stammt. Frage und Antwort werden in den
