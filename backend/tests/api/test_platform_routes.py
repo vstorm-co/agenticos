@@ -1586,6 +1586,13 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # to whoever published the page, because `chat_files.user_id` is NOT NULL
         # and a stranger has nobody to be.
         ("POST", f"{V1}/embed/{{public_key}}/files"),
+        # Dictation on a hosted page or a widget set to `server` (#1797). Admitted
+        # as the surface it arrives on - a widget by its allow-list and token, a
+        # page by its continuity key - and refused unless that embed's own setting
+        # is `server`. Nothing is stored; each attempt is a paid call to the
+        # organization's provider, bounded per address, per link and, for a `jwt`
+        # widget, per visitor.
+        ("POST", f"{V1}/embed/{{public_key}}/dictation"),
     }
 )
 

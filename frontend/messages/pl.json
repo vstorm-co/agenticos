@@ -2039,7 +2039,36 @@
     "attach": "Załącz plik",
     "removeAttachment": "Usuń {name}",
     "uploadFailed": "Nie udało się załączyć tego pliku.",
-    "uploading": "Załączam…"
+    "uploading": "Załączam…",
+    "dictation": {
+      "dismiss": "Zamknij",
+      "discard": "Odrzuć",
+      "retry": "Ponów",
+      "retryCountdown": "Ponów za {seconds} s",
+      "tryAgain": "Spróbuj ponownie",
+      "recordAgain": "Nagraj ponownie",
+      "hint": {
+        "requesting": "<strong>Zezwól na mikrofon</strong> w okienku przeglądarki, aby zacząć nagrywanie.",
+        "micDenied": "<strong>Mikrofon jest zablokowany dla tej strony.</strong> Kliknij ikonę po lewej stronie paska adresu, ustaw Mikrofon na Zezwalaj i spróbuj ponownie.",
+        "micInsecure": "<strong>Ta strona nie może użyć mikrofonu.</strong> Przeglądarki udostępniają mikrofon tylko na bezpiecznych stronach (HTTPS). Napisz wiadomość zamiast tego.",
+        "micNotFound": "<strong>Nie znaleziono mikrofonu.</strong> Podłącz mikrofon albo sprawdź, czy system pozwala przeglądarce z niego korzystać, i spróbuj ponownie.",
+        "micBusy": "<strong>Mikrofon się nie uruchomił.</strong> Może go używać inna aplikacja. Zamknij ją i spróbuj ponownie.",
+        "nearLimit": "<strong>Zostało {remaining}.</strong> Po {limit} nagranie zatrzyma się i zostanie przepisane.",
+        "silent": "<strong>Nie słychać Cię - czy mikrofon jest wyciszony?</strong> Nagrywanie trwa dalej.",
+        "tooShort": "<strong>To trwało krócej niż sekundę,</strong> więc nic nie zostało wysłane. Naciśnij mikrofon, powiedz coś, a potem naciśnij Zatrzymaj.",
+        "empty": "<strong>W nagraniu nie ma mowy.</strong> Sprawdź, czy mikrofon nie jest wyciszony, i nagraj ponownie.",
+        "tooLarge": "<strong>To nagranie jest za długie do przepisania.</strong> Spróbuj krótszego.",
+        "unsupported": "<strong>Ta przeglądarka nagrywa dźwięk w formacie, którego nie przyjmujemy.</strong> Spróbuj aktualnego Chrome albo Firefoksa.",
+        "failedTitle": "Transkrypcja się nie zakończyła.",
+        "providerErrorBody": "Usługa transkrypcji odpowiedziała błędem.",
+        "timeoutBody": "Usługa transkrypcji nie odpowiedziała na czas.",
+        "offlineBody": "Nie udało się połączyć z serwerem.",
+        "rateLimitedBody": "Za dużo nagrań w ciągu minuty.",
+        "keptBody": "Twoje nagranie ({duration}) zostaje zachowane, dopóki nie ponowisz próby albo go nie odrzucisz.",
+        "notSetUpTitle": "Wprowadzanie głosowe jest teraz niedostępne.",
+        "notSetUpBody": "Napisz wiadomość zamiast tego."
+      }
+    }
   },
   "mcp": {
     "accessToken": "Token dostępu",
@@ -2881,8 +2910,6 @@
     "pageAllowFilesHint": "Jedyna rzecz tutaj, która pozwala obcej osobie coś przechować na tym wdrożeniu. Plik przechodzi przez te same kontrole i parser co przesłanie członka, przy mniejszym limicie i limicie na odwiedzającego - a agent czyta go tak, jak czyta każdy załącznik.",
     "pageAllowNewConversation": "Przycisk do rozpoczęcia nowego wątku",
     "pageAllowNewConversationHint": "Stary wątek nie jest usuwany. Przestaje być tym, który wznawia ta przeglądarka.",
-    "pageAllowVoice": "Mikrofon w polu tworzenia wiadomości",
-    "pageAllowVoiceHint": "Dyktowanie z użyciem przeglądarki samego odwiedzającego. Żaden dźwięk nie dociera do tego wdrożenia i nic nie jest tu transkrybowane - ale przeglądarka, która to oferuje, przekazuje dźwięk swojemu dostawcy, więc jest to wyłączone, dopóki tego nie włączysz.",
     "pageCapabilities": "Co oferuje strona",
     "pageShowThinking": "Rozumowanie agenta",
     "pageShowThinkingHint": "Co model mówi sam do siebie, zanim odpowie. Nie jest napisane, by ktokolwiek to czytał, i nie jest odpowiedzią, za którą możesz ręczyć.",
@@ -3144,7 +3171,16 @@
     "voiceLanguageOption": "{name} ({code})",
     "voiceNoteChannelsOnly": "{engine, select, off {Dyktowanie w czacie jest w tej organizacji wyłączone} other {Dyktowanie w czacie działa w tej organizacji w przeglądarce}}, więc to ustawienie zmienia tylko transkrypcję wiadomości głosowych wysyłanych do botów kanałowych tego agenta.",
     "voiceNoteNoProvider": "Organizacja nie ma providera speech-to-text, więc dyktowanie do tego agenta jest niedostępne, dopóki nie wybierzesz go tutaj.",
-    "voiceNoteOwnProvider": "Organizacja nie ma własnego providera; dyktowanie do tego agenta korzysta z wybranego tutaj."
+    "voiceNoteOwnProvider": "Organizacja nie ma własnego providera; dyktowanie do tego agenta korzysta z wybranego tutaj.",
+    "embedDictation": "Wprowadzanie głosowe",
+    "embedDictationOff": "Wyłączone",
+    "embedDictationOffHint": "Bez mikrofonu.",
+    "embedDictationBrowser": "Przeglądarka",
+    "embedDictationBrowserHint": "Transkrybuje przeglądarka odwiedzającego i wysyła dźwięk swojemu dostawcy - Google, Apple i innym. Nic nie trafia do tego wdrożenia i nie każda przeglądarka to oferuje.",
+    "embedDictationServer": "Serwer",
+    "embedDictationServerHint": "Nagrywane na stronie i transkrybowane przez providera mowy na tekst tej organizacji, na jej koszt. Dźwięk nie jest przechowywany.",
+    "embedDictationServerUnavailable": "Serwer wymaga providera mowy na tekst z poświadczeniem, wybranego na karcie Głos organizacji albo tego agenta.",
+    "embedDictationServerDrift": "Dla tego agenta nie odpowiada teraz żaden provider mowy na tekst, więc odwiedzający nie widzą mikrofonu, dopóki któryś nie zacznie."
   },
   "steps": {
     "skills-gallery": {

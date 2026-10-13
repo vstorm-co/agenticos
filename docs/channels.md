@@ -102,6 +102,9 @@ In the Builder, open the agent → **Availability** → *Website widget*. You ch
   pricing page"*, *"Answer in German"*. It never replaces the agent's own
   instructions, which belong to the published version.
 - **Rate limit** — messages per visitor per minute.
+- **Voice input** — `off`, `browser` or `server`, which decides where a
+  visitor's voice goes. See
+  [dictation on a widget or a hosted page](#dictation-on-a-widget-or-a-hosted-page).
 
 !!! danger "An empty origin list allows nothing, and that is on purpose"
 
@@ -503,18 +506,18 @@ will not load.
 
 ### What it offers
 
-Two switches, and both are the operator's rather than the page's — a capability
-a page turned on for itself would be one nobody could turn off.
+Three choices, and every one is the operator's rather than the page's — a
+capability a page turned on for itself would be one nobody could turn off.
 
 - **A button to start a fresh thread**, on by default. It mints a new continuity
   key, so the old thread is not deleted: it stops being the one that browser
   resumes.
-- **A microphone in the composer**, off by default. It dictates into the box
-  using the *visitor's own browser*, so no audio reaches this deployment and
-  nothing is transcribed here — but a browser that offers speech recognition
-  hands the audio to its vendor, which is the half worth reading before turning
-  it on for the public. A browser without one is shown no microphone rather than
-  a button that does nothing.
+- **Voice input**, off by default: `browser` dictates with the visitor's own
+  browser, and `server` with the organization's speech-to-text provider. Which
+  one decides where a visitor's voice goes - see
+  [dictation on a widget or a hosted page](#dictation-on-a-widget-or-a-hosted-page).
+  A page published before the choice existed keeps what it had: its old
+  *microphone in the composer* became `browser`, and no microphone became `off`.
 - **A way to attach a file**, off by default. See below: it is the only thing on
   this surface that lets a stranger *store* something.
 
@@ -684,6 +687,95 @@ another route — is served as **nothing at all** rather than as a script.
 
 The page is `noindex`. A secret link is not a page to be indexed, and a crawler
 that follows one has published it.
+
+---
+
+## Dictation on a widget or a hosted page
+
+A widget and a hosted page each have a `dictation` setting: `off`, `browser` or
+`server`. **`browser`** uses the visitor's own browser to recognise speech, so
+the audio goes to the browser's vendor - Google for Chrome, Apple for Safari -
+and nothing reaches this deployment. A browser without a recogniser, Firefox
+among them, is shown no microphone. **`server`** records in the page and sends
+the audio here, where the organization's speech-to-text provider transcribes it:
+the agent's override if it has one, the organization's default otherwise - the
+same resolution as [dictation in chat](ml-services.md#dictation-in-chat).
+
+The organization's engine for `/chat` has no say over either surface. An
+organization that keeps its members on the browser's recogniser can still give
+a public page `server` dictation, and the other way round.
+
+**Switching `server` on is refused** while no provider with a credential
+resolves for the agent, and the embed form shows the choice disabled with the
+reason. Only the switch is checked, so a page whose key was deleted later can
+still be renamed. While nothing resolves, its public config says `off` and
+visitors see no microphone rather than one that fails. The agent must also be
+published: a recording for an agent nobody runs is refused before anything is
+paid for.
+
+**The hosted page** uses the console composer's own recorder: the recording bar
+with its waveform and timer, the hints under the box, and the voice glow. Its
+copy follows the visitor's language and names no administrator or setting.
+**The widget** has a plain-JavaScript recorder of its own: a microphone button,
+a level bar in the accent colour, a timer, Stop and Cancel, and one line under
+the box when something goes wrong. Its copy is English, like the rest of the
+widget, and it has no glow. On both, the text lands in the box and is never
+sent by itself; Enter stops a recording and Escape discards it.
+
+The recording format follows the provider, from the backend's speech-to-text
+catalog: WebM, Ogg or MP4 as `MediaRecorder` makes it, or 16 kHz mono WAV for
+Mistral, which documents neither WebM nor Opus.
+
+### The endpoint
+
+`POST /api/v1/embed/{public_key}/dictation` takes a multipart `file` and an
+optional `duration`, and answers `{"text": ...}`. Admission follows the surface.
+A **widget** is admitted as its socket is: the `Origin` has to be on its
+allow-list, and in `jwt` mode the visitor's token travels as a form field named
+`token` - never in the URL, which lands in access logs, and never in a header,
+which would need a CORS preflight that somebody else's site does not pass. A
+**hosted page** sends its continuity key in `X-Visitor-Key`, a custom header
+that only this deployment's own origin may send. A **raw socket** has nothing
+to dictate into and is answered 404.
+
+Refusals carry the same `details.reason` as the
+[composer's route](ml-services.md#dictation-in-chat): 400 `empty`,
+`unsupported_type` or `too_large`, 503 `not_configured`, `provider_error` or
+`timeout`. Anything about the embed itself - unknown, paused, not on `server`,
+an origin it does not allow - is 404. Once a widget is admitted, every answer
+carries its origin in `Access-Control-Allow-Origin`, refusals included;
+otherwise a browser hides the reason and a recording that was too long would
+read to the visitor as being offline.
+
+### What it costs, and what bounds it
+
+A transcription is **outside every model budget**: the embed's budget counts
+the runs, not the dictations. What bounds a stranger's spend is two rate limits
+and the organization's longest dictation. Each address may send
+`RATE_LIMIT_EMBED_DICTATION_PER_MINUTE` recordings a minute (6 by default), and
+so may each visitor of a `jwt` widget, by the token's subject. Each page or
+widget accepts `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` a minute (30 by
+default) from everybody together, however many addresses a script rotates
+through.
+
+!!! danger "The worst case for a leaked or public link"
+
+    The link's limit times the longest dictation: 30 recordings a minute of up
+    to 300 seconds each is 150 minutes of audio every minute. At about
+    $0.006 a minute, which is `whisper-1`'s list price, that is near $0.90 a
+    minute, $54 an hour, or $1,300 a day, billed to the organization's provider
+    account. Lower `dictation_max_seconds` or the link limit, pause the embed, or
+    keep it on `browser` where that is too much.
+
+Every attempt that reaches the provider leaves a usage record with the surface
+(`hosted` or `widget`) and the agent, and **no person**: a visitor is not a
+member, and the call is not the publisher's. The audio is never stored.
+
+**The microphone prompt is the customer's site's.** The browser asks on behalf
+of the page the widget runs on, so a site that sends
+`Permissions-Policy: microphone=()`, an `<iframe>` without `allow="microphone"`,
+or plain HTTP blocks it. The widget says so under its box rather than failing
+silently.
 
 ---
 

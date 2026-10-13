@@ -1,5 +1,5 @@
 ---
-source_sha: "693e6e8005c9"
+source_sha: "7af862cc8573"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -117,6 +117,9 @@ wählen:
   nie die eigenen Instruktionen des Agents, die zur veröffentlichten Version
   gehören.
 - **Rate limit** — Nachrichten pro Besucher pro Minute.
+- **Voice input** — `off`, `browser` oder `server`; das entscheidet, wohin die
+  Stimme eines Besuchers geht. Siehe
+  [Diktat im Widget oder auf einer gehosteten Seite](#dictation-on-a-widget-or-a-hosted-page).
 
 !!! danger "Eine leere Origin-Liste erlaubt nichts, und das ist Absicht"
 
@@ -551,20 +554,21 @@ jemandem keine Seite ist, die nicht lädt.
 
 ### Was sie anbietet { #what-it-offers }
 
-Zwei Schalter, und beide gehören dem Betreiber und nicht der Seite — eine
+Drei Einstellungen, und jede gehört dem Betreiber und nicht der Seite — eine
 Capability, die eine Seite für sich selbst einschaltet, wäre eine, die niemand
 ausschalten könnte.
 
 - **Eine Schaltfläche, um einen frischen Thread zu beginnen**, standardmäßig an.
   Sie prägt einen neuen Kontinuitätsschlüssel, sodass der alte Thread nicht
   gelöscht wird: er ist nur nicht mehr der, den dieser Browser wieder aufnimmt.
-- **Ein Mikrofon im Eingabefeld**, standardmäßig aus. Es diktiert in das Feld
-  über den *Browser des Besuchers selbst*, sodass kein Audio dieses Deployment
-  erreicht und hier nichts transkribiert wird — aber ein Browser, der
-  Spracherkennung anbietet, übergibt das Audio seinem Anbieter, und das ist die
-  Hälfte, die es sich vor dem Einschalten für die Öffentlichkeit zu lesen lohnt.
-  Einem Browser ohne Spracherkennung wird kein Mikrofon gezeigt statt einer
-  Schaltfläche, die nichts tut.
+- **Spracheingabe**, standardmäßig aus: `browser` diktiert über den eigenen
+  Browser des Besuchers, `server` über den Speech-to-Text-Provider der
+  Organisation. Welche von beiden es ist, entscheidet, wohin die Stimme eines
+  Besuchers geht - siehe
+  [Diktat im Widget oder auf einer gehosteten Seite](#dictation-on-a-widget-or-a-hosted-page).
+  Eine Seite, die veröffentlicht wurde, bevor es diese Wahl gab, behält, was sie
+  hatte: ihr altes *Mikrofon im Eingabefeld* wurde zu `browser`, und kein
+  Mikrofon wurde zu `off`.
 - **Eine Möglichkeit, eine Datei anzuhängen**, standardmäßig aus. Siehe unten: es
   ist das Einzige auf dieser Oberfläche, das einen Fremden etwas *speichern*
   lässt.
@@ -754,6 +758,104 @@ ausgeliefert statt als Skript.
 
 Die Seite ist `noindex`. Ein geheimer Link ist keine Seite, die indexiert werden
 soll, und ein Crawler, der einem folgt, hat ihn veröffentlicht.
+
+---
+
+## Diktat im Widget oder auf einer gehosteten Seite { #dictation-on-a-widget-or-a-hosted-page }
+
+Ein Widget und eine gehostete Seite haben jeweils eine Einstellung `dictation`:
+`off`, `browser` oder `server`. **`browser`** lässt den eigenen Browser des
+Besuchers die Sprache erkennen, sodass das Audio an den Anbieter des Browsers
+geht - Google bei Chrome, Apple bei Safari - und nichts dieses Deployment
+erreicht. Einem Browser ohne Spracherkennung, Firefox darunter, wird kein
+Mikrofon gezeigt. **`server`** nimmt in der Seite auf und schickt das Audio
+hierher, wo der Speech-to-Text-Provider der Organisation es transkribiert: der
+Override des Agents, wenn er einen hat, sonst die Voreinstellung der
+Organisation - dieselbe Auflösung wie beim
+[Diktieren im Chat](ml-services.md#dictation-in-chat).
+
+Die Engine der Organisation für `/chat` hat über keine der beiden Oberflächen
+etwas zu sagen. Eine Organisation, die ihre Mitglieder bei der Spracherkennung
+des Browsers hält, kann einer öffentlichen Seite trotzdem `server`-Diktat geben,
+und umgekehrt.
+
+**Das Einschalten von `server` wird abgelehnt**, solange sich für den Agent kein
+Provider mit Zugangsdaten auflöst, und das Embed-Formular zeigt die Wahl
+deaktiviert, mit dem Grund. Geprüft wird nur das Umschalten, sodass eine Seite,
+deren Schlüssel später gelöscht wurde, sich weiterhin umbenennen lässt. Solange
+sich nichts auflöst, sagt ihre öffentliche Konfiguration `off`, und Besucher
+sehen kein Mikrofon statt eines, das scheitert. Der Agent muss außerdem
+veröffentlicht sein: eine Aufnahme für einen Agent, den niemand ausführt, wird
+abgelehnt, bevor irgendetwas bezahlt wird.
+
+**Die gehostete Seite** benutzt den eigenen Recorder des Eingabefelds der
+Konsole: die Aufnahmeleiste mit Wellenform und Timer, die Hinweise unter dem Feld
+und das Voice-Glow. Ihre Texte folgen der Sprache des Besuchers und nennen
+keinen Administrator und keine Einstellung. **Das Widget** hat einen eigenen
+Recorder in reinem JavaScript: eine Mikrofon-Schaltfläche, einen Pegelbalken in
+der Akzentfarbe, einen Timer, Stop und Cancel und eine Zeile unter dem Feld,
+wenn etwas schiefgeht. Seine Texte sind Englisch, wie der Rest des Widgets, und
+es hat kein Glow. Auf beiden landet der Text im Feld und wird nie von selbst
+gesendet; Enter beendet eine Aufnahme, und Escape verwirft sie.
+
+Das Aufnahmeformat folgt dem Provider, aus dem Speech-to-Text-Katalog des
+Backends: WebM, Ogg oder MP4, wie `MediaRecorder` es erzeugt, oder WAV mit 16 kHz
+und Mono für Mistral, das weder WebM noch Opus dokumentiert.
+
+### Der Endpoint { #the-endpoint }
+
+`POST /api/v1/embed/{public_key}/dictation` nimmt ein Multipart-`file` und eine
+optionale `duration` und antwortet mit `{"text": ...}`. Die Zulassung folgt der
+Oberfläche. Ein **Widget** wird so zugelassen wie sein Socket: der `Origin` muss
+auf seiner Allow-Liste stehen, und im `jwt`-Modus reist das Token des Besuchers
+als Formularfeld namens `token` - nie in der URL, die in Zugriffslogs landet,
+und nie in einem Header, der einen CORS-Preflight bräuchte, den die Website
+eines anderen nicht besteht. Eine **gehostete Seite** schickt ihren
+Kontinuitätsschlüssel in `X-Visitor-Key`, einem eigenen Header, den nur der
+eigene Origin dieses Deployments senden darf. Ein **rohes Socket** hat nichts,
+in das es diktieren könnte, und bekommt 404.
+
+Ablehnungen tragen denselben `details.reason` wie die
+[Route des Eingabefelds](ml-services.md#dictation-in-chat): 400 `empty`,
+`unsupported_type` oder `too_large`, 503 `not_configured`, `provider_error` oder
+`timeout`. Alles, was das Embed selbst betrifft - unbekannt, pausiert, nicht auf
+`server`, ein Origin, den es nicht erlaubt -, ist 404. Sobald ein Widget
+zugelassen ist, trägt jede Antwort seinen Origin in
+`Access-Control-Allow-Origin`, Ablehnungen eingeschlossen; sonst verbirgt ein
+Browser den Grund, und eine zu lange Aufnahme sähe für den Besucher so aus, als
+wäre er offline.
+
+### Was es kostet und was es begrenzt { #what-it-costs-and-what-bounds-it }
+
+Eine Transkription liegt **außerhalb jedes Modell-Budgets**: das Budget des
+Embeds zählt die Runs, nicht die Diktate. Was die Ausgaben eines Fremden
+begrenzt, sind zwei Rate-Limits und das längste Diktat der Organisation. Jede
+Adresse darf `RATE_LIMIT_EMBED_DICTATION_PER_MINUTE` Aufnahmen pro Minute senden
+(standardmäßig 6), und ebenso jeder Besucher eines `jwt`-Widgets, nach dem
+Subject seines Tokens. Jede Seite und jedes Widget nimmt
+`RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` pro Minute an (standardmäßig 30),
+von allen zusammen, durch wie viele Adressen ein Skript auch rotiert.
+
+!!! danger "Der schlimmste Fall für einen geleakten oder öffentlichen Link"
+
+    Das Limit des Links mal das längste Diktat: 30 Aufnahmen pro Minute zu je
+    bis zu 300 Sekunden sind 150 Minuten Audio pro Minute. Bei etwa
+    0,006 $ pro Minute, dem Listenpreis von `whisper-1`, sind das fast 0,90 $ pro
+    Minute, 54 $ pro Stunde oder 1.300 $ pro Tag, abgerechnet über das
+    Provider-Konto der Organisation. Senken Sie `dictation_max_seconds` oder das
+    Limit des Links, pausieren Sie das Embed, oder bleiben Sie bei `browser`, wo
+    das zu viel ist.
+
+Jeder Versuch, der den Provider erreicht, hinterlässt einen Nutzungsdatensatz mit
+der Oberfläche (`hosted` oder `widget`) und dem Agent, und **ohne Person**: ein
+Besucher ist kein Mitglied, und der Aufruf gehört nicht dem, der veröffentlicht
+hat. Das Audio wird nie gespeichert.
+
+**Die Mikrofon-Abfrage gehört der Website des Kunden.** Der Browser fragt im
+Namen der Seite, auf der das Widget läuft, also blockiert sie eine Website, die
+`Permissions-Policy: microphone=()` sendet, ein `<iframe>` ohne
+`allow="microphone"` oder reines HTTP. Das Widget sagt das unter seinem Feld,
+statt stillschweigend zu scheitern.
 
 ---
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "3b62656f6e5b"
+source_sha: "09ecc078a9fd"
 ---
 
 # Bezpieczeństwo { #security }
@@ -53,6 +53,7 @@ skonfigurowało, i każde jest granicą, o którą przegląd u klienta zapyta.
 | Serwery MCP | Wywołania narzędzi i ich argumenty | Tylko dla narzędzi, do których agent jest podpięty |
 | Dostawca web search (Tavily, DuckDuckGo) | Zapytanie wyszukiwania | Tylko gdy przyznana jest capability wyszukiwania |
 | Provider embeddingów | Tekst dokumentu, przy ingest | Tylko dla bazy wiedzy, której provider jest zdalny |
+| Provider speech-to-text | Nagranie: notatka głosowa z kanału, dyktowanie w `/chat` albo nagranie odwiedzającego na hostowanej stronie lub w widgecie ustawionych na `server` | Zawsze, gdy któreś jest transkrybowane. Dyktowanie odwiedzającego jest anonimowe i poza każdym budżetem modelu, więc ogranicza je rate limit linku razy najdłuższe dyktowanie - [kanały](channels.md#dictation-on-a-widget-or-a-hosted-page) rozpisują najgorszy przypadek. Przy `browser` przeglądarka odwiedzającego wysyła zamiast tego dźwięk do własnego dostawcy i nic nie przechodzi tędy |
 
 ## Co jest gdzie szyfrowane { #what-is-encrypted-where }
 

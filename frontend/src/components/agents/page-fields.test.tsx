@@ -16,6 +16,7 @@ import { DEFAULT_PAGE_CONFIG, type EmbedVariable, type PageConfig } from "@/type
  */
 
 const onChange = vi.fn();
+const READY = { available: true, wasServer: false };
 
 function fields(config: Partial<PageConfig> = {}, variables: EmbedVariable[] = []) {
   render(
@@ -25,6 +26,7 @@ function fields(config: Partial<PageConfig> = {}, variables: EmbedVariable[] = [
       disabled={false}
       hasCustomLogo={false}
       onUpload={vi.fn()}
+      serverDictation={READY}
       onChange={onChange}
     />,
   );
@@ -95,12 +97,12 @@ describe("what the page is allowed to offer", () => {
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ allow_files: true }));
   });
 
-  it("carries a decision to offer a microphone", async () => {
+  it("carries a decision about the microphone, and where its audio goes", async () => {
     fields();
 
-    await userEvent.click(screen.getByRole("checkbox", { name: /A microphone/ }));
+    await userEvent.click(screen.getByRole("radio", { name: /Server/ }));
 
-    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ allow_voice: true }));
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ dictation: "server" }));
   });
 });
 
@@ -161,6 +163,7 @@ describe("the picture", () => {
         disabled={false}
         hasCustomLogo={false}
         onUpload={onUpload}
+        serverDictation={READY}
         onChange={onChange}
       />,
     );
@@ -183,6 +186,7 @@ describe("the picture", () => {
         disabled={false}
         hasCustomLogo
         onUpload={vi.fn()}
+        serverDictation={READY}
         onChange={onChange}
       />,
     );

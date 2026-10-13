@@ -38,7 +38,7 @@ from app.core.permissions import AuthContext
 from app.db.models.agent import Agent
 from app.db.models.local_service import LocalServiceKind
 from app.db.models.ml_service_call import MLCallStatus, MLServiceCall, TranscriptionSurface
-from app.db.models.organization import DictationEngine
+from app.db.models.organization import DictationEngine, Organization
 from app.repositories import ml_service_call_repo
 from app.repositories import organization as organization_repo
 from app.repositories.ml_service_call import CallFilters, UsageSummary
@@ -46,6 +46,7 @@ from app.services import speech_to_text, transcription, transcription_usage
 from app.services.local_service import LocalServiceService
 from app.services.ml import parsing, pii
 from app.services.ml.catalog import SERVICE_CATALOG, MLServiceEntry
+from app.services.speech_to_text import RecordingFormat
 from app.services.speech_to_text_settings import SpeechToTextSettingsService
 from app.services.transcription import Recording, TranscriptionService
 from app.services.transcription_usage import TranscriptionCall
@@ -75,13 +76,24 @@ records, so one posted here is not a dictation.
 
 
 @dataclass(frozen=True)
+class ServerDictation:
+    """Whether a recording for one agent would reach a provider, and in what format."""
+
+    available: bool
+    provider: str | None
+    format: RecordingFormat
+
+
+@dataclass(frozen=True)
 class DictationStatus:
     """What the composer needs before offering the microphone for one agent."""
 
     engine: DictationEngine
     ready: bool
+    server_available: bool
     max_seconds: int
     provider: str | None
+    format: RecordingFormat
 
 
 @dataclass(frozen=True)
@@ -243,12 +255,60 @@ class MLService:
     ) -> str:
         """Transcribe a composer recording for one agent (#1797).
 
-        The caller has already proven run access on `agent`. The engine choice
-        and the longest dictation are the organization's; the provider, model
-        and language resolve through `speech_to_text_settings` - the agent's
-        published override first, then the organization. Nothing is kept but the
-        usage record: the audio is discarded when this returns, and the text
-        goes back in the response only.
+        The caller has already proven run access on `agent`. The gate is the
+        organization's engine for `/chat`: anything but `server` refuses as
+        `not_configured`. Everything after the gate is `transcribe_dictation`,
+        which the hosted page and the widget share.
+
+        Raises:
+            ConfigurationError: `reason="not_configured"` - the engine is not
+                `server`, no pair resolves, or the provider has no credential here.
+            BadRequestError: `reason` `empty`, `unsupported_type` or `too_large`.
+            ExternalServiceError: `reason` `provider_error` or `timeout`.
+        """
+        org = await organization_repo.get_by_id(self.db, ctx.organization_id)
+        return await self.transcribe_dictation(
+            TranscriptionCall(
+                organization_id=ctx.organization_id,
+                requested_by_user_id=ctx.subject_id,
+                surface="chat",
+                provider=None,
+                model=None,
+                agent_id=agent.id,
+            ),
+            organization=org if org is not None and org.chat_dictation == "server" else None,
+            agent=agent,
+            content=content,
+            mime_type=mime_type,
+            reported_seconds=reported_seconds,
+        )
+
+    async def transcribe_dictation(
+        self,
+        call: TranscriptionCall,
+        *,
+        organization: Organization | None,
+        agent: Agent,
+        content: bytes,
+        mime_type: str,
+        reported_seconds: float | None = None,
+    ) -> str:
+        """Transcribe one dictation for `agent`, past whichever gate its surface has.
+
+        **No `AuthContext`, on purpose.** The composer has a signed-in member; the
+        hosted page and the widget have a stranger, and nothing about them belongs
+        in a context. So the caller decides whether this surface may dictate at
+        all - the organization's `/chat` engine for the composer, the embed's own
+        `dictation` setting for a page or a widget - and says who the call is
+        attributed to in `call`. `organization` is `None` when that gate is shut,
+        and the refusal is then the same `not_configured` either way. Usage is
+        never attributed to whoever published an embed: a visitor's dictation is
+        the agent's and the surface's, with no requester.
+
+        The provider, model and language resolve through
+        `speech_to_text_settings` - the agent's published override first, then
+        the organization. Nothing is kept but the usage record: the audio is
+        discarded when this returns, and the text goes back in the response only.
 
         The byte cap is the organization's longest dictation at
         `DICTATION_BYTES_PER_SECOND`, never above what transcription accepts.
@@ -261,29 +321,20 @@ class MLService:
         longest dictation, never by an hour.
 
         Raises:
-            ConfigurationError: `reason="not_configured"` - the engine is not
-                `server`, no pair resolves, or the provider has no credential here.
+            ConfigurationError: `reason="not_configured"` - the gate is shut, no
+                pair resolves, or the provider has no credential here.
             BadRequestError: `reason` `empty`, `unsupported_type` or `too_large`.
             ExternalServiceError: `reason` `provider_error` or `timeout`.
         """
         started = time.monotonic()
-        call = TranscriptionCall(
-            organization_id=ctx.organization_id,
-            requested_by_user_id=ctx.subject_id,
-            surface="chat",
-            provider=None,
-            model=None,
-            agent_id=agent.id,
-        )
         reported: float | None = None
         try:
-            org = await organization_repo.get_by_id(self.db, ctx.organization_id)
             resolved = (
                 await SpeechToTextSettingsService(self.db).for_agent(agent)
-                if org is not None and org.chat_dictation == "server"
+                if organization is not None
                 else None
             )
-            if org is None or resolved is None:
+            if organization is None or resolved is None:
                 raise ConfigurationError(
                     message="Server dictation is not set up for this agent.",
                     details={"reason": "not_configured"},
@@ -301,7 +352,8 @@ class MLService:
                     reason="unsupported_type",
                 )
             cap = min(
-                org.dictation_max_seconds * DICTATION_BYTES_PER_SECOND, transcription.MAX_BYTES
+                organization.dictation_max_seconds * DICTATION_BYTES_PER_SECOND,
+                transcription.MAX_BYTES,
             )
             if reported_seconds is not None:
                 reported = min(max(reported_seconds, 0.0), cap / DICTATION_BYTES_PER_SECOND)
@@ -309,7 +361,7 @@ class MLService:
                 raise refused_field(
                     "file",
                     "The recording is longer than this organization's "
-                    f"{org.dictation_max_seconds}-second limit.",
+                    f"{organization.dictation_max_seconds}-second limit.",
                     reason="too_large",
                 )
             result = await TranscriptionService(self.db).transcribe(
@@ -318,7 +370,7 @@ class MLService:
                     filename=f"recording.{transcription.RECORDING_EXTENSIONS[base_type]}",
                     mime_type=base_type,
                 ),
-                organization_id=ctx.organization_id,
+                organization_id=call.organization_id,
                 provider=resolved.provider,
                 model=resolved.model,
                 language=resolved.language,
@@ -345,11 +397,11 @@ class MLService:
         """Whether the composer can dictate to this agent, and on which provider.
 
         Read before the microphone is offered, so a recording is not made only
-        to be refused. `ready` needs all of it: the organization's engine is
-        `server`, a pair resolves for this agent, the catalog still offers it,
-        and the organization holds a credential for its provider - checked for
-        existence, never opened. The provider is returned whatever the engine,
-        because the composer records in the format that provider accepts.
+        to be refused. `ready` is the organization's `/chat` engine being
+        `server` *and* `server_dictation` saying a provider is there to reach;
+        `server_available` is the second half alone, which is what the embed
+        form asks - a hosted page and a widget have a switch of their own and
+        the `/chat` engine does not gate them.
 
         An agent with nothing published answers from the organization alone,
         as dictation itself would - never a refusal.
@@ -360,19 +412,41 @@ class MLService:
                 message="Organization not found",
                 details={"organization_id": ctx.organization_id},
             )
-        resolved = await SpeechToTextSettingsService(self.db).for_agent(agent)
-        ready = (
-            org.chat_dictation == "server"
-            and resolved is not None
-            and speech_to_text.is_offered(resolved.provider, resolved.model)
-            and resolved.provider
-            in await TranscriptionService(self.db).credentialed_providers(ctx.organization_id)
-        )
+        server = await self.server_dictation(agent)
         return DictationStatus(
             engine=org.chat_dictation,
-            ready=ready,
+            ready=org.chat_dictation == "server" and server.available,
+            server_available=server.available,
             max_seconds=org.dictation_max_seconds,
-            provider=resolved.provider if resolved is not None else None,
+            provider=server.provider,
+            format=server.format,
+        )
+
+    async def server_dictation(self, agent: Agent) -> ServerDictation:
+        """Whether a recording for `agent` would reach a provider, whatever the gate.
+
+        `available` needs a pair that resolves for this agent, the catalog still
+        offering it, and the organization holding a credential for its provider -
+        checked for existence, never opened. Configured, not proven: a revoked
+        key fails on the first recording. The provider and the format are
+        returned whether or not it is available, because a browser records in
+        the format that provider accepts.
+
+        No `AuthContext`: the embed service asks this for an anonymous visitor's
+        page, so the organization is the agent's own and never a caller's.
+        """
+        resolved = await SpeechToTextSettingsService(self.db).for_agent(agent)
+        provider = resolved.provider if resolved is not None else None
+        available = (
+            resolved is not None
+            and speech_to_text.is_offered(resolved.provider, resolved.model)
+            and resolved.provider
+            in await TranscriptionService(self.db).credentialed_providers(agent.organization_id)
+        )
+        return ServerDictation(
+            available=available,
+            provider=provider,
+            format=speech_to_text.recording_format(provider),
         )
 
     async def speech_to_text_credentials(self, ctx: AuthContext) -> frozenset[str]:

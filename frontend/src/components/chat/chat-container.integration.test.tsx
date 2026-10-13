@@ -20,9 +20,12 @@ import {
  * asserting on `delegations` proves the state; this proves what the reader gets.
  */
 
-const { get } = vi.hoisted(() => ({ get: vi.fn() }));
+const { get, post } = vi.hoisted(() => ({
+  get: vi.fn(),
+  post: vi.fn(async () => ({ text: "hello" })),
+}));
 vi.mock("@/lib/api-client", () => ({
-  apiClient: { get, post: vi.fn(), patch: vi.fn(), put: vi.fn(), delete: vi.fn() },
+  apiClient: { get, post, patch: vi.fn(), put: vi.fn(), delete: vi.fn() },
   ApiError: class extends Error {},
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -35,12 +38,22 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 const dictation = vi.hoisted(() => ({
   phase: "idle" as string,
   reason: null as string | null,
-  /** The provider the container last handed the recorder. */
-  provider: undefined as string | null | undefined,
+  /** The format the container last handed the recorder. */
+  format: undefined as string | undefined,
+  /** Where the container last told the recorder to send a recording. */
+  send: undefined as
+    ((recording: Blob, seconds: number, signal: AbortSignal) => unknown) | null | undefined,
 }));
 vi.mock("@/hooks/use-dictation", () => ({
-  useDictation: ({ provider }: { provider: string | null }) => {
-    dictation.provider = provider;
+  useDictation: ({
+    format,
+    send,
+  }: {
+    format: string;
+    send: ((recording: Blob, seconds: number, signal: AbortSignal) => unknown) | null;
+  }) => {
+    dictation.format = format;
+    dictation.send = send;
     return {
       state: {
         phase: dictation.phase,
@@ -86,10 +99,14 @@ const organization = vi.hoisted(() => ({ current: null as Record<string, unknown
 
 /** What `GET /agents/{id}/dictation` answers for every agent. */
 const readiness = vi.hoisted(() => ({
-  current: { engine: "server", ready: true, max_seconds: 300, provider: "openai" } as Record<
-    string,
-    unknown
-  >,
+  current: {
+    engine: "server",
+    ready: true,
+    server_available: true,
+    max_seconds: 300,
+    provider: "openai",
+    format: "webm",
+  } as Record<string, unknown>,
 }));
 
 const { socket } = vi.hoisted(() => ({
@@ -182,7 +199,8 @@ beforeEach(() => {
   readiness.current = { engine: "server", ready: true, max_seconds: 300, provider: "openai" };
   dictation.phase = "idle";
   dictation.reason = null;
-  dictation.provider = undefined;
+  dictation.format = undefined;
+  dictation.send = undefined;
   useAuthStore.setState({
     accessToken: "t-1",
     user: SIGNED_IN as never,
@@ -305,23 +323,38 @@ describe("the chat container - server dictation", () => {
     expect(strip).toBeEmptyDOMElement();
   });
 
-  it("tells the recorder the agent's provider, which picks the format", async () => {
+  it("tells the recorder the format the agent's readiness names", async () => {
     // An agent overriding to Mistral in an organization on OpenAI records WAV,
-    // which Mistral takes, rather than the WebM it refuses.
+    // which Mistral takes, rather than the WebM it refuses - and the backend's
+    // catalog says so, not a list of providers kept here.
     organization.current = { ...organization.current, speech_to_text_provider: "openai" };
-    readiness.current = { ...readiness.current, provider: "mistral" };
+    readiness.current = { ...readiness.current, provider: "mistral", format: "wav" };
     useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
     mount();
 
-    await waitFor(() => expect(dictation.provider).toBe("mistral"));
+    await waitFor(() => expect(dictation.format).toBe("wav"));
     expect(get).toHaveBeenCalledWith("/agents/a-1/dictation");
   });
 
-  it("tells the recorder there is no provider before the organization is read", () => {
+  it("records WebM and has nowhere to send before an agent is chosen", () => {
     organization.current = null;
     mount();
 
-    expect(dictation.provider).toBeNull();
+    expect(dictation.format).toBe("webm");
+    expect(dictation.send).toBeNull();
+  });
+
+  it("sends a recording to the agent chosen", async () => {
+    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
+    mount();
+    const recording = new Blob(["a"], { type: "audio/webm" });
+
+    await expect(dictation.send!(recording, 2, new AbortController().signal)).resolves.toBe(
+      "hello",
+    );
+    expect(post).toHaveBeenCalledWith("/agents/a-1/dictation", expect.any(FormData), {
+      signal: expect.any(AbortSignal),
+    });
   });
 
   it("offers the microphone once the agent's readiness says yes", async () => {

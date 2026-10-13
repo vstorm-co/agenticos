@@ -128,3 +128,67 @@ def test_it_is_valid_javascript():
         )
 
     assert result.returncode == 0, result.stderr
+
+
+def _voice() -> str:
+    """The voice section alone, so an assertion about it is not satisfied by the chat."""
+    return RENDERED.split("function mountVoice")[1].split("function mount()")[0]
+
+
+def test_a_recording_goes_to_the_embeds_own_dictation_route():
+    """Server dictation posts to the public route, which admits the widget by its
+    allow-list exactly as the socket does (#1797)."""
+    assert '"/api/v1/embed/" + KEY + "/dictation"' in RENDERED
+
+
+@pytest.mark.security
+def test_the_recording_request_carries_no_custom_header():
+    """A custom header is a CORS preflight, which the global policy refuses for
+    somebody else's site - so the token travels as a form field, never in the URL
+    where access logs keep it."""
+    voice = _voice()
+    assert "headers:" not in voice
+    assert 'body.append("token", token)' in voice
+    assert "?token=" not in voice
+
+
+def test_the_wav_path_resamples_before_it_encodes():
+    """The server caps a recording at 32,768 bytes a second, which 16 kHz mono
+    PCM fits and the 48 kHz a microphone delivers would not."""
+    assert "createResampler(context.sampleRate)" in RENDERED
+    assert "toPcm16(resample(mixToMono(channels)))" in RENDERED
+    assert 'config.dictation_format === "wav"' in RENDERED
+
+
+def test_the_text_is_put_in_the_box_and_never_sent():
+    """The visitor reads and edits a transcript before it becomes a message."""
+    assert "socket.send" not in _voice()
+    assert "input.value = value + text" in _voice()
+
+
+def test_every_refusal_the_route_names_has_a_sentence():
+    for reason in (
+        "requesting",
+        "too_short",
+        "mic_denied",
+        "mic_not_found",
+        "mic_busy",
+        "mic_insecure",
+        "unsupported_type",
+        "empty",
+        "too_large",
+        "provider_error",
+        "timeout",
+        "rate_limited",
+        "offline",
+        "unavailable",
+    ):
+        assert f"    {reason}: " in RENDERED
+
+
+def test_reduced_motion_holds_the_level_still():
+    assert "prefers-reduced-motion: reduce" in RENDERED
+
+
+def test_browser_mode_is_offered_only_where_the_browser_has_a_recogniser():
+    assert 'if (mode === "browser" && !Recognition) return;' in RENDERED

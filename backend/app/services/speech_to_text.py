@@ -24,12 +24,21 @@ so it runs on the credential the organization already configured for that provid
 """
 
 from dataclasses import dataclass
+from typing import Literal
 
 from pydantic import TypeAdapter
 
 from app.agents.model_resolver import PROVIDERS
 from app.core import catalog
 from app.core.secret_kinds import SecretKind
+
+RecordingFormat = Literal["webm", "wav"]
+"""What a browser records a dictation in for one provider.
+
+`webm` is whatever `MediaRecorder` makes - WebM or Ogg Opus, or MP4 on Safari.
+`wav` is 16 kHz mono 16-bit PCM the page builds itself, for a provider that
+documents neither WebM nor Opus.
+"""
 
 
 @dataclass(frozen=True)
@@ -74,6 +83,15 @@ class SpeechToTextEntry:
     `usage`, Mistral's) is sent nothing it might not accept.
     """
 
+    recording_format: RecordingFormat = "webm"
+    """What a browser records a dictation in for this provider (#1797).
+
+    In the file rather than in each client, because three clients record - the
+    console's composer, the hosted page and the plain-JS widget - and a list of
+    WAV-only providers kept in each was three lists to keep in step. Mistral
+    documents WAV and MP3 input and never WebM or Opus, so it is `wav`.
+    """
+
 
 CATALOG: tuple[SpeechToTextEntry, ...] = catalog.load(
     "speech_to_text_models.json", TypeAdapter(tuple[SpeechToTextEntry, ...])
@@ -93,6 +111,7 @@ class SpeechToTextProvider:
     base_url: str
     models: tuple[SpeechToTextModel, ...]
     response_format: str | None = None
+    recording_format: RecordingFormat = "webm"
 
 
 def providers() -> tuple[SpeechToTextProvider, ...]:
@@ -120,6 +139,7 @@ def providers() -> tuple[SpeechToTextProvider, ...]:
                 base_url=entry.base_url,
                 models=entry.models,
                 response_format=entry.response_format,
+                recording_format=entry.recording_format,
             )
         )
     return tuple(found)
@@ -128,6 +148,17 @@ def providers() -> tuple[SpeechToTextProvider, ...]:
 def by_provider(provider: str) -> SpeechToTextProvider | None:
     """The offering for one provider id, or None where it cannot transcribe."""
     return next((entry for entry in providers() if entry.provider == provider), None)
+
+
+def recording_format(provider: str | None) -> RecordingFormat:
+    """The format a browser records a dictation in for `provider`.
+
+    `webm` where no provider resolves or the catalog no longer offers it: the
+    recording is then refused as `not_configured` whatever its format, so the
+    answer only has to be one a browser can make.
+    """
+    entry = by_provider(provider) if provider is not None else None
+    return entry.recording_format if entry is not None else "webm"
 
 
 def is_offered(provider: str, model: str) -> bool:

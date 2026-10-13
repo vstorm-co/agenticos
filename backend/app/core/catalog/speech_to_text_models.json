@@ -42,6 +42,7 @@
   {
     "provider": "mistral",
     "api": "transcriptions",
+    "recording_format": "wav",
     "base_url": "https://api.mistral.ai/v1",
     "models": [
       {

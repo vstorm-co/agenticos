@@ -6,6 +6,7 @@ import { QueryClient } from "@tanstack/react-query";
 
 import {
   dictate,
+  dictateOnPage,
   dictationReason,
   dictationStatus,
   invalidateSpeechSettings,
@@ -32,6 +33,7 @@ describe("dictate", () => {
     ["audio/webm;codecs=opus", "recording.webm"],
     ["audio/ogg;codecs=opus", "recording.ogg"],
     ["audio/mp4", "recording.mp4"],
+    ["audio/wav", "recording.wav"],
     ["audio/x-unknown", "recording.webm"],
   ])("sends a %s recording as %s to the agent's dictation route", async (type, name) => {
     const signal = new AbortController().signal;
@@ -60,6 +62,57 @@ describe("dictate", () => {
   });
 });
 
+describe("dictateOnPage", () => {
+  const target = { apiUrl: "https://api.test", publicKey: "pk/1", visitorKey: "v".repeat(32) };
+
+  it("posts to the page's own route with the visitor's key in a header", async () => {
+    const fetcher = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(JSON.stringify({ text: "hi" }), { status: 200 }));
+    const signal = new AbortController().signal;
+
+    const text = await dictateOnPage(target, new Blob(["a"], { type: "audio/wav" }), 3, signal);
+
+    expect(text).toBe("hi");
+    const [url, init] = fetcher.mock.calls[0]!;
+    expect(url).toBe("https://api.test/api/v1/embed/pk%2F1/dictation");
+    expect(init?.headers).toEqual({ "X-Visitor-Key": target.visitorKey });
+    expect(init?.signal).toBe(signal);
+    const form = init?.body as FormData;
+    expect((form.get("file") as File).name).toBe("recording.wav");
+    expect(form.get("duration")).toBe("3");
+    fetcher.mockRestore();
+  });
+
+  it("turns a refusal into the ApiError the composer's reasons read", async () => {
+    const fetcher = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          error: { code: "X", message: "Too long", details: { reason: "too_large" } },
+        }),
+        { status: 400 },
+      ),
+    );
+
+    const refused = dictateOnPage(target, new Blob(["a"]), 1, new AbortController().signal);
+
+    await expect(refused).rejects.toBeInstanceOf(ApiError);
+    await refused.catch((error: unknown) => expect(dictationReason(error)).toBe("too_large"));
+    fetcher.mockRestore();
+  });
+
+  it("reads a refusal with no body as its status", async () => {
+    const fetcher = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("<html>gateway</html>", { status: 429 }));
+
+    const refused = dictateOnPage(target, new Blob(["a"]), 1, new AbortController().signal);
+
+    await refused.catch((error: unknown) => expect(dictationReason(error)).toBe("rate_limited"));
+    fetcher.mockRestore();
+  });
+});
+
 describe("dictationReason", () => {
   it.each<[string, unknown, string | null]>([
     ["the server's not_configured", refusal(503, { reason: "not_configured" }), "not_configured"],
@@ -74,6 +127,7 @@ describe("dictationReason", () => {
     ["the server's timeout", refusal(503, { reason: "timeout" }), "timeout"],
     ["a 429 from the rate limiter", refusal(429, { retry_after_seconds: 40 }), "rate_limited"],
     ["a 413 from the body-limit middleware", refusal(413), "too_large"],
+    ["a 404 from an embed that stopped taking recordings", refusal(404), "not_configured"],
     ["a reason the client does not know", refusal(400, { reason: "novel" }), "provider_error"],
     ["any other refusal", refusal(500), "provider_error"],
     ["a fetch that never left the browser", new TypeError("Failed to fetch"), "offline"],

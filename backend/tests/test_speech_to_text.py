@@ -190,3 +190,14 @@ def _ml(credentialed: frozenset[str]) -> MagicMock:
     ml = MagicMock()
     ml.speech_to_text_credentials = AsyncMock(return_value=credentialed)
     return ml
+
+
+@pytest.mark.parametrize(
+    ("provider", "recorded_as"),
+    [("mistral", "wav"), ("openai", "webm"), ("groq", "webm"), (None, "webm"), ("nobody", "webm")],
+)
+def test_the_recording_format_is_the_catalogs_to_say(provider: str | None, recorded_as: str):
+    """One answer for the composer, the hosted page and the widget alike (#1797):
+    Mistral documents WAV and never WebM or Opus. A provider that does not resolve
+    gets a format a browser can make - its recording is refused anyway."""
+    assert speech_to_text.recording_format(provider) == recorded_as

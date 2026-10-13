@@ -365,6 +365,7 @@ from app.core.exceptions import (
     RateLimitError,
 )
 from app.services import rate_limit
+from app.api.embed_cors import allow_embed_origin
 from app.core.security import encode_untrusted, verify_token
 from app.db.models.user import User
 
@@ -922,6 +923,20 @@ async def limit_embed_upload(
         ),
         "Too many uploads. Try again shortly.",
     )
+
+
+async def limit_embed_dictation(request: Request, public_key: str) -> None:
+    """Refuse a caller sending recordings to a hosted page or a widget too fast.
+
+    Per address and then per link, both before the key is looked up - see
+    `rate_limit.embed_dictation_allowed`, which also says why the link has a
+    ceiling of its own. A refusal is readable by the site that asked: it runs
+    before admission and says the same to every origin (`app.api.embed_cors`).
+    """
+    decision = await rate_limit.embed_dictation_allowed(request, public_key=public_key)
+    if not decision.allowed:
+        allow_embed_origin(request, request.headers.get("origin"))
+    _refuse_if_over(decision, "Too many dictations in the last minute. Wait and try again.")
 
 
 class RequireOrgRole:

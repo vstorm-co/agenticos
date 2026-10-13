@@ -21,6 +21,7 @@ from pydantic import Field
 from app.db.models.ml_service_call import TranscriptionSurface
 from app.db.models.organization import DictationEngine
 from app.schemas.base import BaseSchema, TimestampSchema
+from app.services.speech_to_text import RecordingFormat
 
 if TYPE_CHECKING:
     from app.repositories.ml_service_call import UsageSummary
@@ -141,12 +142,26 @@ class DictationStatusRead(BaseSchema):
             "first recording."
         )
     )
+    server_available: bool = Field(
+        description=(
+            "`ready` without the engine: a provider and model resolve for this agent, "
+            "the catalog offers them and a credential exists. What a hosted page or a "
+            "widget set to `server` needs, since the `/chat` engine does not gate them."
+        )
+    )
     max_seconds: int = Field(description="The organization's longest dictation, in seconds")
     provider: str | None = Field(
         description=(
             "The provider a recording would go to - the agent's override or the "
-            "organization's - so the composer records a format it accepts. Null "
-            "when none resolves."
+            "organization's. Null when none resolves."
+        )
+    )
+    format: RecordingFormat = Field(
+        description=(
+            "What the browser records in for that provider: `webm` (what MediaRecorder "
+            "makes) or `wav` (16 kHz mono 16-bit PCM, for a provider that takes neither "
+            "WebM nor Opus). Decided by the speech-to-text catalog, so every client "
+            "records the same way."
         )
     )
 
@@ -225,8 +240,9 @@ class MLServiceCallRead(BaseSchema, TimestampSchema):
         default=None,
         description=(
             "Where a transcription arrived: `chat` (dictation in the composer), `channel` "
-            "(a bot's voice note) or `api` (`POST /ml/audio/transcriptions`). Null for other "
-            "services and for older rows"
+            "(a bot's voice note), `api` (`POST /ml/audio/transcriptions`), `hosted` or "
+            "`widget` (a visitor dictating on a hosted page or in a website widget). Null "
+            "for other services and for older rows"
         ),
     )
     agent_id: UUID | None = Field(

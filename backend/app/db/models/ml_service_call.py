@@ -53,10 +53,11 @@ class MLCallStatus(StrEnum):
     FAILED = "failed"
 
 
-TranscriptionSurface = Literal["chat", "channel", "api"]
+TranscriptionSurface = Literal["chat", "channel", "api", "hosted", "widget"]
 """Where a transcription arrived: dictation in `/chat`, a channel bot's voice
-note, or `POST /ml/audio/transcriptions`. A string column rather than an enum,
-so the hosted page and the widget can join it without a migration."""
+note, `POST /ml/audio/transcriptions`, or a visitor dictating on a hosted page or
+in a website widget. A string column rather than an enum, which is how the last
+two joined without a migration."""
 
 
 class MLServiceCall(Base, TimestampMixin):

@@ -66,6 +66,21 @@ Two things are versioned separately from this file and worth knowing about:
   `GET /api/v1/ml/calls/summary` (`runs:view`) adds it up; the organization's
   Voice card shows it in one line. See
   [Transcriptions](docs/ml-services.md#transcriptions).
+- **Dictation on a hosted page and in the website widget (#1797).** Each has a
+  `dictation` setting - Off, Browser or Server - and Server transcribes a
+  visitor's recording on the organization's own provider through the public
+  `POST /api/v1/embed/{public_key}/dictation`, admitted as the surface is (a
+  widget by its allow-list and token, a page by its visitor key). The page uses
+  the composer's recorder, hints and glow; the widget has a plain-JS recorder of
+  its own, WAV encoder and resampler included. Switching Server on is refused
+  while no provider and credential resolve, and a page or widget whose provider
+  goes away offers no microphone. Rows record surface `hosted` or `widget` and
+  no person. `RATE_LIMIT_EMBED_DICTATION_PER_MINUTE` (6, per address and per
+  `jwt` visitor) and `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` (30, per
+  link) bound the spend. The recording format comes from the speech-to-text
+  catalog, as `format` on `GET /api/v1/agents/{agent_id}/dictation` with
+  `server_available` beside it. See
+  [Dictation on a widget or a hosted page](docs/channels.md#dictation-on-a-widget-or-a-hosted-page).
 - **A Voice glow preference**: Vivid, Subtle (the default) or Off, per
   browser, and no glow under reduced motion.
 - **An Appearance card under Settings → Profile** with the theme, the Voice glow
@@ -75,6 +90,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **A hosted page's `allow_voice` is now `dictation` (#1797).** `true` reads as
+  `browser` and `false` as `off`, both on stored rows
+  (`0109_embed_dictation.py`, reversible) and on any config still sent with the
+  old field, so no page loses its microphone.
 - **Transcription prefers a keyed profile, and falls back to a keyless one.**
   With several profiles for one provider, the first keyed one transcribes; a
   keyless profile with its own endpoint is used only when there is no keyed

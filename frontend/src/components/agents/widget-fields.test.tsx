@@ -21,6 +21,7 @@ function fields(config: Partial<WidgetConfig> = {}) {
     <WidgetFields
       config={{ ...DEFAULT_WIDGET_CONFIG, ...config }}
       disabled={false}
+      serverDictation={{ available: true, wasServer: false }}
       onChange={onChange}
     />,
   );
@@ -103,5 +104,15 @@ describe("where the bubble sits and what colour it is", () => {
     await userEvent.type(screen.getAllByLabelText("Accent colour")[1]!, "#");
 
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ accent: "#" }));
+  });
+});
+
+describe("the bubble's microphone", () => {
+  it("carries the choice of browser dictation", async () => {
+    fields();
+
+    await userEvent.click(screen.getByRole("radio", { name: /Browser/ }));
+
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ dictation: "browser" }));
   });
 });

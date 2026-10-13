@@ -1,5 +1,5 @@
 ---
-source_sha: "e9bf1439df36"
+source_sha: "ccd0a3bcc61d"
 ---
 
 # Usługi ML { #the-ml-services }
@@ -194,17 +194,24 @@ i język.
 
 `GET /api/v1/agents/{agent_id}/dictation`, z tym samym dostępem, mówi, czy
 mikrofon zadziała, zanim ktokolwiek zacznie nagrywać: `engine`, `max_seconds`,
-`provider` i `ready`. `ready` wymaga silnika `server`, pary, która rozwiązuje się
-dla tego agenta, katalogu, który nadal ją oferuje, oraz poświadczenia dla jej
-dostawcy w organizacji — sprawdzanego pod kątem istnienia, nigdy nie
-otwieranego. `provider` to ten, do którego trafiłoby nagranie, co decyduje o
-formacie, w jakim nagrywa pole wiadomości. Agent bez niczego opublikowanego
-odpowiada według ustawień organizacji.
+`provider`, `format`, `ready` i `server_available`. `server_available` wymaga
+pary, która rozwiązuje się dla tego agenta, katalogu, który nadal ją oferuje,
+oraz poświadczenia dla jej dostawcy w organizacji — sprawdzanego pod kątem
+istnienia, nigdy nie otwieranego; `ready` to to samo plus silnik `server`.
+Formularz embeda czyta `server_available`, bo
+[hostowana strona i widget](channels.md#dictation-on-a-widget-or-a-hosted-page)
+nie zależą od silnika `/chat`.
+
+`provider` to ten, do którego trafiłoby nagranie, a `format` to, w czym dla
+niego nagrywać — `webm` albo `wav`, według katalogu speech-to-text, więc żaden
+klient nie trzyma własnej listy. Agent bez niczego opublikowanego odpowiada
+według ustawień organizacji.
 
 Nagranie musi być `audio/webm`, `audio/ogg`, `audio/mp4` albo `audio/wav`, z
 dopuszczalnym sufiksem kodeka, a `audio/x-wav` i `audio/wave` są czytane jako
 `audio/wav`, a `audio/x-m4a` jako `audio/mp4`. Pierwsze trzy tworzy `MediaRecorder` przeglądarek; WAV pole
-wiadomości nagrywa samo, gdy dostawcą jest Mistral (zob. uwagę niżej). Dostawca
+wiadomości nagrywa samo, gdy `format` mówi `wav`, co katalog mówi dla Mistrala
+(zob. uwagę niżej). Dostawca
 otrzymuje nagranie jako `recording.webm`, `recording.ogg`, `recording.m4a` albo
 `recording.wav`, według tej samej tabeli, która nazywa notatkę głosową z kanału
 `voice.<ext>`.

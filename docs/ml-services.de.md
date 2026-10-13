@@ -1,5 +1,5 @@
 ---
-source_sha: "e9bf1439df36"
+source_sha: "ccd0a3bcc61d"
 ---
 
 # Die ML-Dienste { #the-ml-services }
@@ -204,18 +204,24 @@ Engine und das längste Diktat gehören immer der Organisation; der Agent kann n
 
 `GET /api/v1/agents/{agent_id}/dictation` sagt mit demselben Zugriff, ob das
 Mikrofon funktionieren wird, bevor jemand aufnimmt: `engine`, `max_seconds`,
-`provider` und `ready`. `ready` verlangt die Engine `server`, ein Paar, das sich
-für diesen Agent auflöst, einen Katalog, der es noch anbietet, und Zugangsdaten
-für seinen Anbieter in der Organisation - auf ihr Vorhandensein geprüft, nie
-geöffnet. `provider` ist der Anbieter, den eine Aufnahme erreichen würde, und
-entscheidet, in welchem Format das Eingabefeld aufnimmt. Ein Agent ohne
-veröffentlichte Version antwortet aus den Einstellungen der Organisation.
+`provider`, `format`, `ready` und `server_available`. `server_available`
+verlangt ein Paar, das sich für diesen Agent auflöst, einen Katalog, der es noch
+anbietet, und Zugangsdaten für seinen Anbieter in der Organisation - auf ihr
+Vorhandensein geprüft, nie geöffnet; `ready` ist das und die Engine `server`.
+Das Embed-Formular liest `server_available`, denn eine
+[gehostete Seite oder ein Widget](channels.md#dictation-on-a-widget-or-a-hosted-page)
+hängt nicht an der Engine von `/chat`.
+
+`provider` ist der Anbieter, den eine Aufnahme erreichen würde, und `format`,
+worin für ihn aufgenommen wird - `webm` oder `wav`, aus dem
+Speech-to-Text-Katalog, sodass kein Client eine eigene Liste führt. Ein Agent
+ohne veröffentlichte Version antwortet aus den Einstellungen der Organisation.
 
 Die Aufnahme muss `audio/webm`, `audio/ogg`, `audio/mp4` oder `audio/wav`
 sein, ein Codec-Suffix ist erlaubt, und `audio/x-wav` sowie `audio/wave` werden
 als `audio/wav` gelesen, `audio/x-m4a` als `audio/mp4`. Die ersten drei erzeugt `MediaRecorder` in Browsern;
-WAV nimmt das Eingabefeld selbst auf, wenn der Anbieter Mistral ist (siehe den
-Hinweis unten). Der Anbieter erhält die Aufnahme als `recording.webm`,
+WAV nimmt das Eingabefeld selbst auf, wenn `format` `wav` sagt, was der Katalog
+für Mistral sagt (siehe den Hinweis unten). Der Anbieter erhält die Aufnahme als `recording.webm`,
 `recording.ogg`, `recording.m4a` oder `recording.wav`, nach derselben Tabelle,
 die eine Sprachnotiz aus einem Kanal `voice.<ext>` nennt.
 

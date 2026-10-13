@@ -1,18 +1,32 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { MessageSquarePlus, Mic, MicOff, Paperclip, Send, User, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { DictationBar } from "@/components/chat/dictation-bar";
+import { dictationHint, DictationStrip } from "@/components/chat/dictation-strip";
 import { MarkdownContent } from "@/components/chat/markdown-content";
 import { useFollowContent } from "@/hooks/use-follow-content";
 import { TurnParts } from "@/components/chat/turn-parts";
 import { usePublicConfig } from "@/components/public-config/public-config-provider";
 import { Button, Input } from "@/components/ui";
+import { useMicrophone, VoiceGlow } from "@/components/ui/voice-glow";
+import { useChanged } from "@/hooks/use-changed";
+import { useDictation } from "@/hooks/use-dictation";
+import { dictateOnPage, type DictationSend } from "@/lib/dictation-api";
 import { cn } from "@/lib/utils";
 import type { MessagePart } from "@/types";
 import type { HostedPageConfig } from "@/types/hosted";
+
+/**
+ * The browser's voice processing for a recording that is transcribed, as the
+ * console's composer asks for it: what a speech model wants to hear.
+ */
+const DICTATION_CONSTRAINTS = {
+  constraints: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+};
 
 /**
  * One turn of the thread, in the shape web chat renders.
@@ -281,6 +295,7 @@ function suppliedFromUrl(allowed: string[]): Record<string, string> {
  */
 export function HostedChat({ config }: { config: HostedPageConfig }) {
   const t = useTranslations("hosted");
+  const tDictation = useTranslations("hosted.dictation");
   const { apiUrl, wsUrl } = usePublicConfig();
   // Same origin, not the address the API gave. `img-src 'self' blob: data: https:`
   // excludes an API on plain `http`, which is every development checkout and any
@@ -321,6 +336,81 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
   const threadContentRef = useRef<HTMLDivElement | null>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const filePicker = useRef<HTMLInputElement | null>(null);
+  const draftRef = useRef<HTMLInputElement | null>(null);
+
+  // Server dictation: the console composer's recorder, bar, strip and glow,
+  // pointed at this page's own route. `server` arrives only while a provider
+  // and credential resolve - the backend sends `off` otherwise - so there is no
+  // crossed-out microphone here and no account of the operator's setup.
+  const server = config.dictation === "server";
+  const mic = useMicrophone(DICTATION_CONSTRAINTS);
+  const sendRecording = useMemo<DictationSend | null>(
+    () =>
+      server
+        ? (recording, seconds, signal) =>
+            dictateOnPage(
+              {
+                apiUrl,
+                publicKey: config.public_key,
+                visitorKey: visitorKeyFor(config.public_key),
+              },
+              recording,
+              seconds,
+              signal,
+            )
+        : null,
+    [server, apiUrl, config.public_key],
+  );
+  const { state: dictation, actions: dictationActions } = useDictation({
+    mic,
+    send: sendRecording,
+    maxSeconds: config.dictation_max_seconds,
+    format: config.dictation_format,
+  });
+  const dictating =
+    dictation.phase === "requesting" ||
+    dictation.phase === "recording" ||
+    dictation.phase === "transcribing";
+  // Into the draft once per transcript, during render so the text never shows a
+  // frame late; never sent - the visitor reads and edits it first.
+  const transcript = dictation.transcript;
+  if (useChanged(transcript?.id ?? null) && transcript !== null) {
+    const join = draft !== "" && !/\s$/.test(draft) ? " " : "";
+    setDraft(draft + join + transcript.text);
+  }
+  // Escape discards a recording wherever focus is: the composer is the only
+  // thing on this page, and the bar that replaces the box holds the focus.
+  const cancelDictation = dictationActions.cancel;
+  useEffect(() => {
+    if (!dictating) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      cancelDictation();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [dictating, cancelDictation]);
+  const transcriptId = transcript?.id ?? null;
+  useEffect(() => {
+    if (transcriptId !== null) draftRef.current?.focus();
+  }, [transcriptId]);
+  const dictationStrip = server
+    ? dictationHint(
+        {
+          state: dictation,
+          actions: dictationActions,
+          maxSeconds: config.dictation_max_seconds,
+          unavailable: null,
+          voiceSettingsHref: null,
+          agentVoiceHref: null,
+          // Never reached: there is no crossed-out microphone to explain here.
+          closeExplanation: dictationActions.dismiss,
+          visitor: true,
+        },
+        tDictation,
+      )
+    : null;
 
   useEffect(() => {
     const visitor = visitorKeyFor(config.public_key);
@@ -393,7 +483,7 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
   }, []);
 
   /**
-   * Dictate into the box using the browser's own recogniser.
+   * Dictate into the box using the browser's own recogniser - `browser` mode.
    *
    * Nothing is sent anywhere by us: the transcript arrives as text and lands in
    * the draft, exactly as if it had been typed. A browser that has no recogniser
@@ -577,81 +667,114 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
           and the edge. It used to be a bordered input with three buttons beside it on
           a hairline - the same controls, arranged like a form rather than like a
           composer. What is *not* in the card is the usage strip that sits at the top
-          of the dashboard's: what a turn cost is the operator's business. */}
-      <form
-        className="bg-card border-border focus-within:border-foreground/30 mb-4 rounded-2xl border transition-colors"
-        onSubmit={(event) => {
-          event.preventDefault();
-          send();
-        }}
+          of the dashboard's: what a turn cost is the operator's business. The glow
+          and the strip under the card are server dictation's, lit only while a
+          recording is open or on its way. */}
+      <VoiceGlow
+        className="mb-4"
+        stream={mic.stream}
+        active={dictation.phase === "recording" || dictation.phase === "transcribing"}
+        processing={dictation.phase === "transcribing"}
       >
-        <div className="flex items-end gap-2 px-3 py-2 sm:px-4">
-          <Input
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            placeholder={t("placeholder")}
-            aria-label={t("placeholder")}
-            disabled={closed !== null}
-            className="min-h-[40px] flex-1 border-0 bg-transparent shadow-none focus-visible:ring-0"
-          />
-          <div className="flex shrink-0 items-center gap-0.5 pb-1">
-            {config.allow_files && (
-              <>
-                <input
-                  ref={filePicker}
-                  type="file"
-                  className="hidden"
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    if (file) void attach(file);
-                    // Cleared so choosing the same file twice fires again, which is
-                    // what somebody does after a refused upload.
-                    event.target.value = "";
-                  }}
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-9 w-9"
-                  disabled={closed !== null || uploading}
-                  onClick={() => filePicker.current?.click()}
-                  aria-label={t("attach")}
-                >
-                  <Paperclip className="text-muted-foreground h-4 w-4" />
-                </Button>
-              </>
-            )}
-            {config.allow_voice && canDictate && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9"
-                onClick={toggleDictation}
+        <form
+          className={cn(
+            "bg-card border-border focus-within:border-foreground/30 rounded-2xl border transition-colors",
+            dictationStrip !== null && "rounded-b-none",
+          )}
+          onSubmit={(event) => {
+            event.preventDefault();
+            send();
+          }}
+        >
+          {dictating ? (
+            <div className="px-3 py-1 sm:px-4">
+              <DictationBar state={dictation} actions={dictationActions} />
+            </div>
+          ) : (
+            <div className="flex items-end gap-2 px-3 py-2 sm:px-4">
+              <Input
+                ref={draftRef}
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+                placeholder={t("placeholder")}
+                aria-label={t("placeholder")}
                 disabled={closed !== null}
-                aria-label={listening ? t("stopDictation") : t("startDictation")}
-              >
-                {listening ? (
-                  <MicOff className="text-destructive h-4 w-4 animate-pulse" />
-                ) : (
-                  <Mic className="text-muted-foreground h-4 w-4" />
+                className="min-h-[40px] flex-1 border-0 bg-transparent shadow-none focus-visible:ring-0"
+              />
+              <div className="flex shrink-0 items-center gap-0.5 pb-1">
+                {config.allow_files && (
+                  <>
+                    <input
+                      ref={filePicker}
+                      type="file"
+                      className="hidden"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        if (file) void attach(file);
+                        // Cleared so choosing the same file twice fires again, which is
+                        // what somebody does after a refused upload.
+                        event.target.value = "";
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-9 w-9"
+                      disabled={closed !== null || uploading}
+                      onClick={() => filePicker.current?.click()}
+                      aria-label={t("attach")}
+                    >
+                      <Paperclip className="text-muted-foreground h-4 w-4" />
+                    </Button>
+                  </>
                 )}
-              </Button>
-            )}
-            <Button
-              type="submit"
-              size="icon"
-              className="h-9 w-9 rounded-full text-white hover:opacity-90"
-              style={{ backgroundColor: "var(--hosted-accent)" }}
-              disabled={closed !== null || (draft.trim() === "" && attached.length === 0)}
-            >
-              <Send className="h-4 w-4" />
-              <span className="sr-only">{t("send")}</span>
-            </Button>
-          </div>
-        </div>
-      </form>
+                {server && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9"
+                    onClick={() => void dictationActions.start()}
+                    disabled={closed !== null}
+                    aria-label={t("startDictation")}
+                  >
+                    <Mic className="text-muted-foreground h-4 w-4" />
+                  </Button>
+                )}
+                {config.dictation === "browser" && canDictate && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9"
+                    onClick={toggleDictation}
+                    disabled={closed !== null}
+                    aria-label={listening ? t("stopDictation") : t("startDictation")}
+                  >
+                    {listening ? (
+                      <MicOff className="text-destructive h-4 w-4 animate-pulse" />
+                    ) : (
+                      <Mic className="text-muted-foreground h-4 w-4" />
+                    )}
+                  </Button>
+                )}
+                <Button
+                  type="submit"
+                  size="icon"
+                  className="h-9 w-9 rounded-full text-white hover:opacity-90"
+                  style={{ backgroundColor: "var(--hosted-accent)" }}
+                  disabled={closed !== null || (draft.trim() === "" && attached.length === 0)}
+                >
+                  <Send className="h-4 w-4" />
+                  <span className="sr-only">{t("send")}</span>
+                </Button>
+              </div>
+            </div>
+          )}
+        </form>
+        <DictationStrip hint={dictationStrip} />
+      </VoiceGlow>
     </div>
   );
 }

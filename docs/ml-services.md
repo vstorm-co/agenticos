@@ -192,17 +192,24 @@ organization's; the agent can only change which provider, model and language.
 
 `GET /api/v1/agents/{agent_id}/dictation`, with the same access, says whether
 the microphone will work before anybody records: `engine`, `max_seconds`,
-`provider` and `ready`. `ready` needs the `server` engine, a pair that resolves
-for this agent, the catalog still offering it, and a credential for its provider
-in the organization - checked for existence, never opened. `provider` is the one
-a recording would reach, which decides the format the composer records in. An
-agent with nothing published answers from the organization's settings.
+`provider`, `format`, `ready` and `server_available`. `server_available` needs a
+pair that resolves for this agent, the catalog still offering it, and a
+credential for its provider in the organization - checked for existence, never
+opened; `ready` is that and the `server` engine. The embed form reads
+`server_available`, because a [hosted page or a widget](channels.md#dictation-on-a-widget-or-a-hosted-page)
+is not gated by the `/chat` engine.
+
+`provider` is the one a recording would reach, and `format` what to record in
+for it - `webm` or `wav`, from the speech-to-text catalog, so no client keeps a
+list of its own. An agent with nothing published answers from the
+organization's settings.
 
 The recording has to be `audio/webm`, `audio/ogg`, `audio/mp4` or `audio/wav`,
 a codec suffix allowed, with `audio/x-wav` and `audio/wave` read as `audio/wav`
 and `audio/x-m4a` as `audio/mp4`.
 The first three are what browsers' `MediaRecorder` produces; the composer
-records WAV itself when the provider is Mistral (see the note below). The
+records WAV itself when `format` says `wav`, which the catalog says for Mistral
+(see the note below). The
 provider receives the recording as `recording.webm`, `recording.ogg`,
 `recording.m4a` or `recording.wav`, from the same table that names a channel
 voice note `voice.<ext>`.

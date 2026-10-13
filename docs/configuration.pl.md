@@ -1,5 +1,5 @@
 ---
-source_sha: "db94b4a1df4b"
+source_sha: "001671da2c7b"
 ---
 
 # Konfiguracja { #configuration }
@@ -1082,7 +1082,7 @@ Walidacja produkcyjna: `CORS_ORIGINS` nie może zawierać `"*"` przy
 
 Stosowane do powierzchni, do których może sięgnąć obcy, i tylko do nich: publicznego
 API runów, skryptu widżetu, jego configu, handshake'u socketu którejkolwiek z tych
-powierzchni, configu i logo hostowanej strony oraz uploadu odwiedzającego. Własne
+powierzchni, configu i logo hostowanej strony oraz uploadu i dyktowania odwiedzającego. Własne
 trasy konsoli są za sesją i nie są mierzone — czy całe API powinno nosić sufit, to
 osobna decyzja, nie ta.
 
@@ -1095,6 +1095,8 @@ osobna decyzja, nie ta.
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Pliki, które odwiedzający może zapisać na hostowanej stronie. Liczone **na adres i na klucz odwiedzającego**, a pozwolić muszą oba — klucz bije przeglądarka, więc liczenie tylko jego niczego nie ogranicza |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | [Usługi ML](ml-services.md), na wywołującego. Te endpointy wykonują pracę synchronicznie, więc nieograniczony wywołujący zajmuje pulę parsowania, a nie budżet |
 | `RATE_LIMIT_DICTATION_PER_MINUTE` | `10` | [Dyktowanie w czacie](ml-services.md#dictation-in-chat), na osobę, na osobnym liczniku, żeby dyktowanie i integracja wywołująca usługi ML nie zużywały sobie nawzajem limitu. Każde dyktowanie to wywołanie płatnego providera organizacji |
+| `RATE_LIMIT_EMBED_DICTATION_PER_MINUTE` | `6` | [Dyktowanie w widżecie lub na hostowanej stronie](channels.md#dictation-on-a-widget-or-a-hosted-page), na adres, a w widżecie `jwt` także na odwiedzającego. Każde dyktowanie to wywołanie płatnego providera organizacji, poza każdym budżetem modelu |
+| `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` | `30` | To samo, na stronę albo widżet, od wszystkich odwiedzających razem — sufit tego, ile kosztuje wyciekły link: tyle nagrań na minutę, każde do najdłuższego dyktowania organizacji |
 | `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Czy `X-Forwarded-For` nazywa wołającego |
 
 **Co dostaje odrzucony wołający** to własna koperta błędu tego API z

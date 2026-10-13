@@ -40,6 +40,13 @@ export interface DictationHintInput {
   agentVoiceHref: string | null;
   /** Closes the explanation of a crossed-out microphone. */
   closeExplanation: () => void;
+  /**
+   * A hosted page's visitor rather than a member: nobody to ask and nowhere to
+   * go, so "not set up" says what to do instead and names no admin or setting.
+   * `t` is then the visitor's own namespace, whose copy says nothing about
+   * this organization or its console.
+   */
+  visitor?: boolean;
 }
 
 type Translate = ReturnType<typeof useTranslations>;
@@ -82,7 +89,19 @@ const SETUP_LINK = "text-foreground font-medium underline underline-offset-[3px]
  * The explanation for an engine that is on but not set up: whom to ask, or
  * where to go - the organization's default, this agent's own, or both.
  */
-function notSetUp(t: Translate, orgHref: string | null, agentHref: string | null): ReactNode {
+function notSetUp(
+  t: Translate,
+  orgHref: string | null,
+  agentHref: string | null,
+  visitor = false,
+): ReactNode {
+  if (visitor) {
+    return (
+      <>
+        {strong(t("hint.notSetUpTitle"))} {t("hint.notSetUpBody")}
+      </>
+    );
+  }
   return (
     <>
       {strong(t("hint.notSetUpTitle"))} {t("hint.notSetUpBody")}{" "}
@@ -118,6 +137,7 @@ export function dictationHint(input: DictationHintInput, t: Translate): StripHin
     voiceSettingsHref,
     agentVoiceHref,
     closeExplanation,
+    visitor = false,
   } = input;
   const dismiss = <StripButton onClick={actions.dismiss}>{t("dismiss")}</StripButton>;
   const close = <StripButton onClick={closeExplanation}>{t("dismiss")}</StripButton>;
@@ -251,7 +271,7 @@ export function dictationHint(input: DictationHintInput, t: Translate): StripHin
         key: "notConfigured",
         tone: "hint",
         icon: MicOff,
-        message: notSetUp(t, voiceSettingsHref, agentVoiceHref),
+        message: notSetUp(t, voiceSettingsHref, agentVoiceHref, visitor),
         actions: dismiss,
       };
     case "empty":

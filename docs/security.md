@@ -48,6 +48,7 @@ each is a boundary a client's review will ask about.
 | MCP servers | Tool calls and their arguments | Only for the tools an agent is bound to |
 | A web-search vendor (Tavily, DuckDuckGo) | The search query | Only when the search capability is granted |
 | An embedding provider | Document text, at ingestion | Only for a knowledge base whose provider is remote |
+| A speech-to-text provider | A recording: a channel voice note, a dictation in `/chat`, or a visitor's on a hosted page or widget set to `server` | Whenever one is transcribed. A visitor's dictation is anonymous and outside every model budget, so what bounds it is the link's rate limit times the longest dictation - [channels](channels.md#dictation-on-a-widget-or-a-hosted-page) works through the worst case. On `browser`, the visitor's browser sends the audio to its own vendor instead, and nothing passes through here |
 
 ## What is encrypted where
 

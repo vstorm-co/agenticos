@@ -1,5 +1,5 @@
 ---
-source_sha: "e9bf1439df36"
+source_sha: "ccd0a3bcc61d"
 ---
 
 # Los servicios de ML { #the-ml-services }
@@ -200,18 +200,23 @@ el proveedor, el modelo y el idioma.
 
 `GET /api/v1/agents/{agent_id}/dictation`, con el mismo acceso, dice si el
 micrófono funcionará antes de que nadie grabe: `engine`, `max_seconds`,
-`provider` y `ready`. `ready` exige el motor `server`, un par que se resuelva
-para este agent, que el catálogo lo siga ofreciendo y una credencial para su
-proveedor en la organización — se comprueba que existe, nunca se abre.
-`provider` es aquel al que llegaría una grabación, que decide el formato en que
-graba el cuadro de mensaje. Un agent sin nada publicado responde con los ajustes
+`provider`, `format`, `ready` y `server_available`. `server_available` exige un
+par que se resuelva para este agent, que el catálogo lo siga ofreciendo y una
+credencial para su proveedor en la organización — se comprueba que existe,
+nunca se abre; `ready` es eso más el motor `server`. El formulario del embed lee
+`server_available`, porque una [página alojada o un widget](channels.md#dictation-on-a-widget-or-a-hosted-page)
+no depende del motor de `/chat`.
+
+`provider` es aquel al que llegaría una grabación, y `format` en qué grabar para
+él — `webm` o `wav`, según el catálogo de speech-to-text, así que ningún cliente
+mantiene una lista propia. Un agent sin nada publicado responde con los ajustes
 de la organización.
 
 La grabación tiene que ser `audio/webm`, `audio/ogg`, `audio/mp4` o
 `audio/wav`, con sufijo de códec permitido, y `audio/x-wav` y `audio/wave` se
 leen como `audio/wav`, y `audio/x-m4a` como `audio/mp4`. Los tres primeros son lo que produce el `MediaRecorder`
-de los navegadores; el WAV lo graba el propio cuadro de mensaje cuando el
-proveedor es Mistral (ver la nota más abajo). El proveedor recibe la grabación
+de los navegadores; el WAV lo graba el propio cuadro de mensaje cuando `format`
+dice `wav`, que es lo que dice el catálogo para Mistral (ver la nota más abajo). El proveedor recibe la grabación
 como `recording.webm`, `recording.ogg`, `recording.m4a` o `recording.wav`,
 según la misma tabla que nombra `voice.<ext>` a una nota de voz de un canal.
 

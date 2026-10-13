@@ -18,12 +18,19 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.core.exceptions import AppException, BadRequestError, ExternalServiceError, NotFoundError
+from app.core.exceptions import (
+    AppException,
+    BadRequestError,
+    ConfigurationError,
+    ExternalServiceError,
+    NotFoundError,
+)
 from app.core.permissions import AuthContext, OrgRoleName
 from app.repositories.ml_service_call import CallFilters
 from app.services.ml import parsing
 from app.services.ml.facade import MLService
 from app.services.transcription import TranscriptionResult
+from app.services.transcription_usage import TranscriptionCall
 
 pytestmark = pytest.mark.anyio
 
@@ -789,6 +796,79 @@ async def test_dictation_readiness_follows_the_resolved_pair(
     assert (status.ready, status.provider) == (ready, provider)
     assert status.engine == org.chat_dictation
     assert status.max_seconds == org.dictation_max_seconds
+
+
+async def test_the_embed_form_learns_availability_without_the_chat_engine() -> None:
+    """A hosted page or a widget on `server` is not gated by the `/chat` engine,
+    so the form asks `server_available` - and the format is the catalog's."""
+    with (
+        patch(
+            "app.services.ml.facade.organization_repo.get_by_id",
+            new=AsyncMock(
+                return_value=_speech_org(
+                    chat_dictation="browser",
+                    speech_to_text_provider="mistral",
+                    speech_to_text_model="voxtral-mini-latest",
+                )
+            ),
+        ),
+        patch(
+            "app.services.ml.facade.TranscriptionService.credentialed_providers",
+            new=AsyncMock(return_value=frozenset({"mistral"})),
+        ),
+    ):
+        status = await MLService(_db()).dictation_status(_ctx(), agent=_AGENT)
+
+    assert (status.ready, status.server_available, status.format) == (False, True, "wav")
+
+
+async def test_a_visitors_dictation_is_recorded_against_its_surface_and_no_person(
+    recorded: Any,
+) -> None:
+    """The ctx-free core the hosted page and the widget call: the caller states
+    the attribution, and nobody is named as having asked."""
+    call = TranscriptionCall(
+        organization_id=_ORG, surface="widget", provider=None, model=None, agent_id=_AGENT.id
+    )
+    with (
+        patch(
+            "app.services.ml.facade.organization_repo.get_by_id",
+            new=AsyncMock(return_value=_speech_org(chat_dictation="off")),
+        ),
+        patch(
+            "app.services.ml.facade.TranscriptionService.transcribe",
+            new=AsyncMock(return_value=_heard("hello")),
+        ) as transcribe,
+    ):
+        text = await MLService(_db()).transcribe_dictation(
+            call,
+            organization=_speech_org(chat_dictation="off"),
+            agent=_AGENT,
+            content=b"a",
+            mime_type="audio/webm",
+        )
+
+    assert text == "hello"
+    assert transcribe.await_args.kwargs["organization_id"] == _ORG
+    written = recorded.await_args.kwargs
+    assert (written["surface"], written["agent_id"]) == ("widget", _AGENT.id)
+    assert written["requested_by_user_id"] is None
+    assert (written["provider"], written["model"]) == ("openai", "gpt-4o-transcribe")
+
+
+async def test_a_shut_gate_is_not_configured_and_resolves_nothing(recorded: Any) -> None:
+    call = TranscriptionCall(organization_id=_ORG, surface="hosted", provider=None, model=None)
+    with (
+        patch(f"{_SETTINGS}.SpeechToTextSettingsService.for_agent", new=AsyncMock()) as resolved,
+        pytest.raises(ConfigurationError) as refused,
+    ):
+        await MLService(_db()).transcribe_dictation(
+            call, organization=None, agent=_AGENT, content=b"a", mime_type="audio/webm"
+        )
+
+    assert refused.value.details == {"reason": "not_configured"}
+    resolved.assert_not_awaited()
+    assert recorded.await_args.kwargs["status"] == "failed"
 
 
 async def test_dictation_readiness_for_an_unpublished_agent_answers_from_the_org() -> None:

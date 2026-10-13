@@ -1,9 +1,11 @@
 import type { QueryClient } from "@tanstack/react-query";
 
 import { apiClient } from "@/lib/api-client";
-import { ApiError } from "@/lib/api-error";
+import { ApiError, parseErrorMessage } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
-import type { DictationEngine } from "@/types";
+import type { DictationEngine, RecordingFormat } from "@/types/organization";
+
+export type { RecordingFormat };
 
 /** Whether the composer can dictate to one agent, as the server resolves it. */
 export interface DictationStatus {
@@ -15,10 +17,31 @@ export interface DictationStatus {
    * the organization holds a credential for the provider.
    */
   ready: boolean;
+  /**
+   * `ready` without the `/chat` engine: a provider, a model and a credential
+   * resolve for this agent. What a hosted page or a widget on `server` needs.
+   */
+  server_available: boolean;
   max_seconds: number;
-  /** Where a recording would go, which decides the format it is recorded in. */
+  /** Where a recording would go: the agent's override or the organization's. */
   provider: string | null;
+  /** What to record in for that provider, as the backend's catalog says. */
+  format: RecordingFormat;
 }
+
+/**
+ * Sends one recording somewhere that turns it into text.
+ *
+ * The composer posts to its agent, a hosted page to its public key; the hook
+ * that records takes this rather than knowing either. It rejects with an
+ * `ApiError` carrying the server's `details.reason`, a `TypeError` when the
+ * request never left, or an `AbortError` when it was cancelled.
+ */
+export type DictationSend = (
+  recording: Blob,
+  seconds: number,
+  signal: AbortSignal,
+) => Promise<string>;
 
 /** One agent's or one channel bot's share of the organization's transcription. */
 export interface TranscriptionUsageGroup {
@@ -71,8 +94,8 @@ export function invalidateSpeechSettings(queryClient: QueryClient): Promise<void
  * Why a dictation did not become text.
  *
  * The first six are the server's own `details.reason`; the last two are what
- * the browser can tell without one - a 429 from the per-user limit, and a
- * request that never reached the server at all.
+ * the browser can tell without one - a 429 from a rate limit, and a request
+ * that never reached the server at all.
  */
 export type DictationReason =
   | "not_configured"
@@ -98,7 +121,20 @@ const EXTENSION: Record<string, string> = {
   "audio/webm": "webm",
   "audio/ogg": "ogg",
   "audio/mp4": "mp4",
+  "audio/wav": "wav",
 };
+
+/** The form both dictation routes read: the recording, and how long it is. */
+function dictationForm(recording: Blob, seconds: number): FormData {
+  const base = recording.type.split(";")[0]!.trim();
+  const file = new File([recording], `recording.${EXTENSION[base] ?? "webm"}`, {
+    type: recording.type,
+  });
+  const form = new FormData();
+  form.append("file", file);
+  form.append("duration", String(Math.max(0, seconds)));
+  return form;
+}
 
 /**
  * Send one composer recording for transcription; the audio is not kept.
@@ -115,17 +151,42 @@ export async function dictate(
   seconds: number,
   signal: AbortSignal,
 ): Promise<string> {
-  const base = recording.type.split(";")[0]!.trim();
-  const file = new File([recording], `recording.${EXTENSION[base] ?? "webm"}`, {
-    type: recording.type,
-  });
-  const form = new FormData();
-  form.append("file", file);
-  form.append("duration", String(Math.max(0, seconds)));
-  const { text } = await apiClient.post<{ text: string }>(`/agents/${agentId}/dictation`, form, {
-    signal,
-  });
+  const { text } = await apiClient.post<{ text: string }>(
+    `/agents/${agentId}/dictation`,
+    dictationForm(recording, seconds),
+    { signal },
+  );
   return text;
+}
+
+/**
+ * Send a hosted page visitor's recording; the audio is not kept.
+ *
+ * Straight to the API rather than through a route handler of ours, the way the
+ * page's file uploads go: the page has no session to proxy, and what admits the
+ * request is the public key in the path and the visitor's continuity key in
+ * `X-Visitor-Key` - a header, because the key is a bearer credential for the
+ * whole transcript and a query string lands in access logs. A refusal becomes
+ * the same `ApiError` the composer's does, so `dictationReason` reads it alike.
+ */
+export async function dictateOnPage(
+  target: { apiUrl: string; publicKey: string; visitorKey: string },
+  recording: Blob,
+  seconds: number,
+  signal: AbortSignal,
+): Promise<string> {
+  const response = await fetch(
+    `${target.apiUrl}/api/v1/embed/${encodeURIComponent(target.publicKey)}/dictation`,
+    {
+      method: "POST",
+      body: dictationForm(recording, seconds),
+      headers: { "X-Visitor-Key": target.visitorKey },
+      signal,
+    },
+  );
+  const body: unknown = await response.json().catch(() => null);
+  if (!response.ok) throw new ApiError(response.status, parseErrorMessage(body), body);
+  return (body as { text: string }).text;
 }
 
 /**
@@ -133,8 +194,10 @@ export async function dictate(
  *
  * The server's `details.reason` wins. A 413 without one is the body-limit
  * middleware refusing before the route ran, which is the same answer for the
- * person: the recording is too large. A `TypeError` is what `fetch` throws when
- * the request never left the browser.
+ * person: the recording is too large. A 404 is an embed whose operator has
+ * since turned server dictation off, which for the person is the same as it not
+ * being set up. A `TypeError` is what `fetch` throws when the request never left
+ * the browser.
  */
 export function dictationReason(error: unknown): DictationReason | null {
   // Not every runtime makes a `DOMException` an `Error`, so both are asked.
@@ -149,6 +212,7 @@ export function dictationReason(error: unknown): DictationReason | null {
     }
     if (error.status === 429) return "rate_limited";
     if (error.status === 413) return "too_large";
+    if (error.status === 404) return "not_configured";
   }
   return "provider_error";
 }

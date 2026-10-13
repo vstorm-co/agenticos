@@ -1,5 +1,5 @@
 ---
-source_sha: "693e6e8005c9"
+source_sha: "7af862cc8573"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -108,6 +108,9 @@ W Builderze otwórz agenta → **Availability** → *Website widget*. Wybierasz:
   na stronie z cennikiem"*, *„Odpowiadaj po polsku"*. Nigdy nie zastępuje
   własnych instrukcji agenta, które należą do opublikowanej wersji.
 - **Rate limit** — wiadomości na odwiedzającego na minutę.
+- **Voice input** — `off`, `browser` albo `server`, co decyduje, dokąd trafia
+  głos odwiedzającego. Zobacz
+  [dyktowanie w widgecie lub na hostowanej stronie](#dictation-on-a-widget-or-a-hosted-page).
 
 !!! danger "Pusta lista originów nie pozwala na nic i jest to zamierzone"
 
@@ -518,19 +521,19 @@ nieaktualna wartość w czyjejś przeglądarce to nie strona, która się nie za
 
 ### Co oferuje { #what-it-offers }
 
-Dwa przełączniki, i oba należą do operatora, a nie do strony — capability, którą
+Trzy wybory, i każdy należy do operatora, a nie do strony — capability, którą
 strona włączyłaby sobie sama, byłaby taką, której nikt nie mógłby wyłączyć.
 
 - **Przycisk do rozpoczęcia świeżego wątku**, domyślnie włączony. Wybija nowy
   klucz ciągłości, więc stary wątek nie jest usuwany: przestaje być tym, który ta
   przeglądarka wznawia.
-- **Mikrofon w composerze**, domyślnie wyłączony. Dyktuje do pola przez *własną
-  przeglądarkę odwiedzającego*, więc żadne audio nie dociera do tego deploymentu
-  i nic nie jest tutaj transkrybowane — ale przeglądarka, która oferuje
-  rozpoznawanie mowy, przekazuje audio swojemu dostawcy, i to jest ta połowa
-  warta przeczytania przed włączeniem tego dla publiczności. Przeglądarce bez
-  rozpoznawania mowy nie jest pokazywany żaden mikrofon, zamiast przycisku, który
-  nic nie robi.
+- **Voice input**, domyślnie wyłączony: `browser` dyktuje przez własną
+  przeglądarkę odwiedzającego, a `server` przez providera speech-to-text
+  organizacji. Wybór decyduje, dokąd trafia głos odwiedzającego — zobacz
+  [dyktowanie w widgecie lub na hostowanej stronie](#dictation-on-a-widget-or-a-hosted-page).
+  Strona opublikowana, zanim ten wybór istniał, zachowuje to, co miała: jej
+  dawny *mikrofon w composerze* stał się `browser`, a brak mikrofonu stał się
+  `off`.
 - **Sposób na załączenie pliku**, domyślnie wyłączony. Zobacz niżej: to jedyna
   rzecz na tej powierzchni, która pozwala obcemu coś *zapisać*.
 
@@ -707,6 +710,99 @@ Zapisany `.html` albo `.svg` — stąd albo z awatara wgranego lata temu inną d
 
 Strona jest `noindex`. Sekretny link to nie strona do zaindeksowania, a crawler,
 który za nim pójdzie, właśnie ją opublikował.
+
+---
+
+## Dyktowanie w widgecie lub na hostowanej stronie { #dictation-on-a-widget-or-a-hosted-page }
+
+Widget i hostowana strona mają każde własne ustawienie `dictation`: `off`, `browser`
+albo `server`. **`browser`** używa własnej przeglądarki odwiedzającego do
+rozpoznawania mowy, więc audio trafia do dostawcy przeglądarki — Google dla
+Chrome'a, Apple dla Safari — i nic nie dociera do tego deploymentu.
+Przeglądarce bez rozpoznawania mowy, w tym Firefoksowi, nie jest pokazywany
+żaden mikrofon. **`server`** nagrywa na stronie i wysyła audio tutaj, gdzie
+transkrybuje je provider speech-to-text organizacji: nadpisanie agenta, jeśli
+je ma, a w przeciwnym razie domyślny provider organizacji — to samo
+rozwiązywanie co w [dyktowaniu w czacie](ml-services.md#dictation-in-chat).
+
+Silnik organizacji dla `/chat` nie ma nic do powiedzenia na żadnej z tych
+powierzchni. Organizacja, która trzyma swoich członków na rozpoznawaniu mowy
+w przeglądarce, nadal może dać publicznej stronie dyktowanie `server`, i na
+odwrót.
+
+**Włączenie `server` jest odrzucane**, dopóki dla agenta nie rozwiązuje się
+żaden provider z poświadczeniem, a formularz embeda pokazuje ten wybór jako
+wyłączony, z powodem. Sprawdzane jest tylko samo przełączenie, więc stronie,
+której klucz usunięto później, nadal można zmienić nazwę. Dopóki nic się nie
+rozwiązuje, jej publiczna konfiguracja mówi `off`, a odwiedzający nie widzą
+żadnego mikrofonu, zamiast takiego, który zawodzi. Agent musi też być
+opublikowany: nagranie dla agenta, którego nikt nie uruchamia, jest odrzucane,
+zanim za cokolwiek zostanie zapłacone.
+
+**Hostowana strona** używa rejestratora samego composera konsoli: paska
+nagrywania z falą dźwięku i licznikiem czasu, podpowiedzi pod polem i poświaty
+głosu. Jej teksty idą za językiem odwiedzającego i nie wymieniają żadnego
+administratora ani ustawienia. **Widget** ma własny rejestrator w czystym
+JavaScripcie: przycisk mikrofonu, pasek poziomu w kolorze akcentu, licznik
+czasu, Stop i Cancel oraz jedną linijkę pod polem, gdy coś pójdzie nie tak. Jego
+teksty są po angielsku, jak reszta widgetu, i nie ma poświaty. Na obu tekst
+ląduje w polu i nigdy nie jest wysyłany sam; Enter zatrzymuje nagrywanie,
+a Escape je odrzuca.
+
+Format nagrania wynika z providera, według katalogu speech-to-text backendu:
+WebM, Ogg albo MP4 tak, jak tworzy je `MediaRecorder`, albo WAV 16 kHz mono dla
+Mistrala, który nie dokumentuje ani WebM, ani Opus.
+
+### Endpoint { #the-endpoint }
+
+`POST /api/v1/embed/{public_key}/dictation` przyjmuje multipartowe `file`
+i opcjonalne `duration`, a odpowiada `{"text": ...}`. Wpuszczanie zależy od
+powierzchni. **Widget** jest wpuszczany tak jak jego socket: `Origin` musi być
+na jego liście dozwolonych, a w trybie `jwt` token odwiedzającego podróżuje jako
+pole formularza o nazwie `token` — nigdy w URL-u, który ląduje w logach dostępu,
+i nigdy w nagłówku, który wymagałby preflightu CORS, którego cudza strona nie
+przejdzie. **Hostowana strona** wysyła swój klucz ciągłości w `X-Visitor-Key`,
+własnym nagłówku, który może wysłać tylko origin tego deploymentu. **Surowy
+socket** nie ma do czego dyktować i dostaje odpowiedź 404.
+
+Odmowy niosą ten sam `details.reason` co
+[route composera](ml-services.md#dictation-in-chat): 400 `empty`,
+`unsupported_type` albo `too_large`, 503 `not_configured`, `provider_error` albo
+`timeout`. Wszystko, co dotyczy samego embeda — nieznany, zapauzowany, nie na
+`server`, origin, na który nie pozwala — to 404. Gdy widget zostanie wpuszczony,
+każda odpowiedź niesie jego origin w `Access-Control-Allow-Origin`, łącznie
+z odmowami; inaczej przeglądarka ukrywa powód, a za długie nagranie wyglądałoby
+dla odwiedzającego jak brak połączenia.
+
+### Ile to kosztuje i co to ogranicza { #what-it-costs-and-what-bounds-it }
+
+Transkrypcja jest **poza każdym budżetem modelu**: budżet embeda liczy runy,
+a nie dyktowania. To, co ogranicza wydatki obcego, to dwa rate limity
+i najdłuższe dyktowanie organizacji. Każdy adres może wysłać
+`RATE_LIMIT_EMBED_DICTATION_PER_MINUTE` nagrań na minutę (domyślnie 6), i tyle
+samo każdy odwiedzający widgetu `jwt`, według subjectu tokena. Każda strona albo
+widget przyjmuje `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` na minutę
+(domyślnie 30) od wszystkich razem, przez ile adresów by skrypt nie rotował.
+
+!!! danger "Najgorszy przypadek dla wyciekniętego albo publicznego linku"
+
+    Limit linku razy najdłuższe dyktowanie: 30 nagrań na minutę, każde do
+    300 sekund, to 150 minut audio co minutę. Przy około $0.006 za minutę, czyli
+    cenie katalogowej `whisper-1`, to blisko $0.90 na minutę, $54 na godzinę
+    albo $1,300 na dzień, na rachunek konta organizacji u providera. Obniż
+    `dictation_max_seconds` albo limit linku, zapauzuj embed albo zostaw go na
+    `browser`, gdy to za dużo.
+
+Każda próba, która dociera do providera, zostawia zapis zużycia z powierzchnią
+(`hosted` albo `widget`) i agentem, i **bez żadnej osoby**: odwiedzający nie
+jest członkiem, a wywołanie nie należy do publikującego. Audio nigdy nie jest
+przechowywane.
+
+**Monit o mikrofon należy do strony klienta.** Przeglądarka pyta w imieniu
+strony, na której działa widget, więc strona wysyłająca
+`Permissions-Policy: microphone=()`, `<iframe>` bez `allow="microphone"` albo
+zwykły HTTP go blokuje. Widget mówi to pod swoim polem, zamiast zawodzić po
+cichu.
 
 ---
 

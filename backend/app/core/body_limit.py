@@ -91,9 +91,10 @@ class BodySizeLimitMiddleware:
         declared = _declared_length(scope)
         limit = max_body_bytes()
         if declared is not None and declared > limit:
+            path = str(scope.get("path", ""))
             logger.warning(
                 "request_body_too_large",
-                extra={"declared_bytes": declared, "limit_bytes": limit, "path": scope.get("path")},
+                extra={"declared_bytes": declared, "limit_bytes": limit, "path": path},
             )
             response = JSONResponse(
                 status_code=413,
@@ -104,11 +105,29 @@ class BodySizeLimitMiddleware:
                         "details": {"limit_mb": settings.MAX_UPLOAD_SIZE_MB},
                     }
                 },
+                headers=_widget_cors(scope, path),
             )
             await response(scope, receive, send)
             return
 
         await self.app(scope, receive, send)
+
+
+def _widget_cors(scope: Scope, path: str) -> dict[str, str] | None:
+    """The CORS header for a widget's dictation, so its 413 reaches it as one (#1797).
+
+    A widget posts from somebody else's origin, and a refusal it cannot read
+    reaches its `fetch` as a network error - "offline" for a recording that was
+    too large. The origin is echoed without being checked, because this runs
+    before anything has read the embed and the answer is the same for every
+    origin: there is nothing about the embed in it to learn.
+    """
+    if not (path.startswith("/api/v1/embed/") and path.endswith("/dictation")):
+        return None
+    for name, value in scope.get("headers", []):
+        if name == b"origin":
+            return {"Access-Control-Allow-Origin": value.decode("latin-1"), "Vary": "Origin"}
+    return None
 
 
 def _declared_length(scope: Scope) -> int | None:

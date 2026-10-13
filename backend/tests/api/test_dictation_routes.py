@@ -166,9 +166,18 @@ async def test_the_upload_is_read_no_further_than_transcription_accepts(
 
 
 async def test_readiness_is_answered_for_an_agent_the_caller_may_run(client: AsyncClient) -> None:
-    """The same access as dictating, so a Viewer holding a run grant is told."""
+    """The same access as dictating, so a Viewer holding a run grant is told -
+    and the format comes from the backend's catalog, not from a list each client
+    keeps of its own."""
     agent_id = uuid.uuid4()
-    status = DictationStatus(engine="server", ready=True, max_seconds=120, provider="mistral")
+    status = DictationStatus(
+        engine="server",
+        ready=True,
+        server_available=True,
+        max_seconds=120,
+        provider="mistral",
+        format="wav",
+    )
     with (
         patch(_REGISTRY, new=AsyncMock(return_value=MagicMock())) as get,
         patch(_STATUS, new=AsyncMock(return_value=status)) as read,
@@ -179,8 +188,10 @@ async def test_readiness_is_answered_for_an_agent_the_caller_may_run(client: Asy
     assert response.json() == {
         "engine": "server",
         "ready": True,
+        "server_available": True,
         "max_seconds": 120,
         "provider": "mistral",
+        "format": "wav",
     }
     assert get.await_args.args[1] == agent_id
     assert get.await_args.kwargs["perm"] == Perm.AGENTS_RUN

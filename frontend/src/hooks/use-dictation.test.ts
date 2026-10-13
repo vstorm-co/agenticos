@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { UseMicrophoneResult } from "voice-glow";
 
 import { ApiError } from "@/lib/api-error";
+import type { DictationSend } from "@/lib/dictation-api";
 
 import { useDictation, type UseDictationOptions } from "./use-dictation";
 
@@ -73,11 +74,25 @@ const api = vi.hoisted(() => ({
       (agentId: string, recording: Blob, seconds: number, signal: AbortSignal) => Promise<string>
     >(),
 }));
-vi.mock("@/lib/dictation-api", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/dictation-api")>()),
-  dictate: (agentId: string, recording: Blob, seconds: number, signal: AbortSignal) =>
-    api.dictate(agentId, recording, seconds, signal),
-}));
+
+/**
+ * What the composer hands the hook: a sender bound to one agent. One per agent
+ * and kept, so a rerender with the same agent hands the hook the same function
+ * the way the composer's `useMemo` does.
+ */
+const senders = new Map<string, DictationSend>();
+function senderFor(agentId: string | null): DictationSend | null {
+  if (agentId === null) return null;
+  if (!senders.has(agentId)) {
+    senders.set(agentId, (recording, seconds, signal) =>
+      api.dictate(agentId, recording, seconds, signal),
+    );
+  }
+  return senders.get(agentId)!;
+}
+
+/** The hook's options as these tests state them: an agent rather than a sender. */
+type Props = Omit<UseDictationOptions, "send"> & { agentId: string | null };
 
 /** A `MediaRecorder` whose stop hands over one chunk and then says it stopped. */
 class FakeRecorder extends EventTarget {
@@ -137,11 +152,12 @@ function fakeMic(overrides: Partial<UseMicrophoneResult> = {}): UseMicrophoneRes
   };
 }
 
-function setup(options: Partial<UseDictationOptions> = {}) {
+function setup(options: Partial<Props> = {}) {
   const mic = options.mic ?? fakeMic();
-  const view = renderHook((props: UseDictationOptions) => useDictation(props), {
-    initialProps: { mic, agentId: "a1", maxSeconds: 300, provider: null, ...options },
-  });
+  const view = renderHook(
+    ({ agentId, ...props }: Props) => useDictation({ ...props, send: senderFor(agentId) }),
+    { initialProps: { mic, agentId: "a1", maxSeconds: 300, format: "webm", ...options } as Props },
+  );
   return { ...view, mic };
 }
 
@@ -273,7 +289,7 @@ describe("useDictation", () => {
   it("sends through the agent chosen when the mic was pressed, not a later one", async () => {
     const view = setup();
     await record(view);
-    view.rerender({ mic: view.mic, agentId: "a2", maxSeconds: 300, provider: null });
+    view.rerender({ mic: view.mic, agentId: "a2", maxSeconds: 300, format: "webm" });
     await wait(1500);
 
     await act(async () => view.result.current.actions.stop());
@@ -768,8 +784,7 @@ function speak(...channels: number[][]): void {
 const TENTH = 4800;
 
 describe("useDictation - WAV, for a provider that does not take WebM or Opus", () => {
-  const mistral = (options: Partial<UseDictationOptions> = {}) =>
-    setup({ provider: "mistral", ...options });
+  const mistral = (options: Partial<Props> = {}) => setup({ format: "wav", ...options });
 
   it("records 16 kHz mono 16-bit WAV from the stream instead of using MediaRecorder", async () => {
     const view = mistral();
@@ -807,7 +822,7 @@ describe("useDictation - WAV, for a provider that does not take WebM or Opus", (
   });
 
   it("keeps MediaRecorder for every other provider", async () => {
-    const view = setup({ provider: "openai" });
+    const view = setup({ format: "webm" });
 
     await record(view);
 
@@ -815,9 +830,9 @@ describe("useDictation - WAV, for a provider that does not take WebM or Opus", (
     expect(audio.processors).toHaveLength(0);
   });
 
-  it("reads the provider when the mic is pressed, after the organization has loaded", async () => {
+  it("reads the format when the mic is pressed, after the agent's readiness has loaded", async () => {
     const view = setup();
-    view.rerender({ mic: view.mic, agentId: "a1", maxSeconds: 300, provider: "mistral" });
+    view.rerender({ mic: view.mic, agentId: "a1", maxSeconds: 300, format: "wav" });
 
     await record(view);
 

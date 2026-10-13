@@ -4,10 +4,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { getAudioContext, type UseMicrophoneResult } from "voice-glow";
 
 import {
-  dictate,
   dictationReason,
   retryAfterSeconds,
   type DictationReason,
+  type DictationSend,
+  type RecordingFormat,
 } from "@/lib/dictation-api";
 import { createResampler, mixToMono, toPcm16, wavBlob } from "@/lib/wav-encoder";
 
@@ -35,11 +36,6 @@ const ATTACK = 0.35;
 const RELEASE = 0.08;
 /** The level reaches React at most this often - it is sampled on every frame. */
 const LEVEL_EVERY_MS = 70;
-/**
- * Providers that are sent a WAV file instead of what `MediaRecorder` makes.
- * Mistral documents WAV and MP3 input, never WebM or Opus.
- */
-const WAV_PROVIDERS: ReadonlySet<string> = new Set(["mistral"]);
 /** Samples per Web Audio callback: about 85 ms at 48 kHz, the most a stop loses. */
 const WAV_BUFFER_SIZE = 4096;
 /** These failures keep the recording, because sending it again can succeed. */
@@ -78,7 +74,7 @@ export interface DictationState {
 }
 
 export interface DictationActions {
-  /** Opens the mic via `mic.start()` and records; captures `agentId` at this moment. */
+  /** Opens the mic via `mic.start()` and records; captures `send` at this moment. */
   start(): Promise<void>;
   /** Stop recording and transcribe what was said. */
   stop(): void;
@@ -93,15 +89,19 @@ export interface DictationActions {
 export interface UseDictationOptions {
   /** The microphone the composer's glow also listens to: one capture, shared. */
   mic: UseMicrophoneResult;
-  /** The agent the recording is sent through, read when the mic is pressed. */
-  agentId: string | null;
+  /**
+   * Where the recording goes - the composer's agent, a hosted page's key - read
+   * when the mic is pressed, so a retry goes where the recording was meant for.
+   * Null offers nothing to record into, and `start` does nothing.
+   */
+  send: DictationSend | null;
   /** The organization's longest dictation; the recording stops itself there. */
   maxSeconds: number;
   /**
-   * The organization's speech-to-text provider, read when the mic is pressed.
-   * It decides the format: a WAV file for one that does not take WebM or Opus.
+   * What to record in, from the backend's speech-to-text catalog, read when the
+   * mic is pressed: `wav` for a provider that takes neither WebM nor Opus.
    */
-  provider: string | null;
+  format: RecordingFormat;
 }
 
 /** One recording, whichever way it is made. */
@@ -220,7 +220,8 @@ function micFailure(mic: UseMicrophoneResult): MicFailure {
 
 /**
  * Records the composer's microphone and turns the recording into text on the
- * organization's speech-to-text provider.
+ * organization's speech-to-text provider - for the console's composer and for a
+ * hosted page alike, which differ only in where `send` posts the recording.
  *
  * It drives the caller's `mic` rather than opening its own, so the glow around
  * the composer and the recorder read one capture. Every way out - stop, cancel,
@@ -232,7 +233,7 @@ function micFailure(mic: UseMicrophoneResult): MicFailure {
  * that can succeed on a second try is held in memory until Retry, Discard or
  * unmount, and never stored anywhere.
  */
-export function useDictation({ mic, agentId, maxSeconds, provider }: UseDictationOptions): {
+export function useDictation({ mic, send: sendTo, maxSeconds, format }: UseDictationOptions): {
   state: DictationState;
   actions: DictationActions;
 } {
@@ -249,17 +250,17 @@ export function useDictation({ mic, agentId, maxSeconds, provider }: UseDictatio
   // `getUserMedia` prompt is answered the render it started in is long gone.
   const micRef = useRef(mic);
   const maxRef = useRef(maxSeconds);
-  const providerRef = useRef(provider);
+  const formatRef = useRef(format);
   useEffect(() => {
     micRef.current = mic;
     maxRef.current = maxSeconds;
-    providerRef.current = provider;
+    formatRef.current = format;
   });
 
   /** Bumped by every start, cancel, dismiss and unmount; stale work checks it and stops. */
   const sessionRef = useRef(0);
   const phaseRef = useRef<DictationPhase>("idle");
-  const agentRef = useRef<string | null>(null);
+  const sendRef = useRef<DictationSend | null>(null);
   const recorderRef = useRef<Recorder | null>(null);
   const blobRef = useRef<Blob | null>(null);
   /** How long the kept recording is, by the browser's clock - sent with it, and again on a retry. */
@@ -310,7 +311,7 @@ export function useDictation({ mic, agentId, maxSeconds, provider }: UseDictatio
       clearCountdown();
       moveTo("transcribing");
       try {
-        const text = await dictate(agentRef.current!, blob, secondsRef.current, controller.signal);
+        const text = await sendRef.current!(blob, secondsRef.current, controller.signal);
         if (session !== sessionRef.current) return;
         blobRef.current = null;
         transcriptIdRef.current += 1;
@@ -410,10 +411,7 @@ export function useDictation({ mic, agentId, maxSeconds, provider }: UseDictatio
         secondsRef.current = (Date.now() - startedAt) / 1000;
         void send(blob);
       };
-      const open =
-        providerRef.current !== null && WAV_PROVIDERS.has(providerRef.current)
-          ? wavRecorder
-          : mediaRecorder;
+      const open = formatRef.current === "wav" ? wavRecorder : mediaRecorder;
       const recorder = open(stream, done);
       if (recorder === null) {
         fail("unsupported_type");
@@ -456,9 +454,9 @@ export function useDictation({ mic, agentId, maxSeconds, provider }: UseDictatio
   const start = useCallback(async () => {
     const current = phaseRef.current;
     if (current === "requesting" || current === "recording" || current === "transcribing") return;
-    if (agentId === null) return;
+    if (sendTo === null) return;
     const session = ++sessionRef.current;
-    agentRef.current = agentId;
+    sendRef.current = sendTo;
     blobRef.current = null;
     clearCountdown();
     setFailure(null);
@@ -484,7 +482,7 @@ export function useDictation({ mic, agentId, maxSeconds, provider }: UseDictatio
       return;
     }
     record(stream, session);
-  }, [agentId, clearCountdown, moveTo, record]);
+  }, [sendTo, clearCountdown, moveTo, record]);
 
   const stop = useCallback(() => {
     const recorder = recorderRef.current;

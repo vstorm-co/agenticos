@@ -1,5 +1,5 @@
 ---
-source_sha: "693e6e8005c9"
+source_sha: "7af862cc8573"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -109,6 +109,9 @@ En el Builder, abre el agent → **Availability** → *Website widget*. Eliges:
   página de precios»*, *«Responde en alemán»*. Nunca sustituye a las instrucciones
   propias del agent, que pertenecen a la versión publicada.
 - **Rate limit** — mensajes por visitante y minuto.
+- **Entrada de voz** — `off`, `browser` o `server`, que decide adónde va la voz
+  de un visitante. Ver
+  [dictado en un widget o en una página alojada](#dictation-on-a-widget-or-a-hosted-page).
 
 !!! danger "Una lista de orígenes vacía no permite nada, y es a propósito"
 
@@ -525,18 +528,19 @@ que un valor caducado en el navegador de alguien no es una página que no carga.
 
 ### Qué ofrece { #what-it-offers }
 
-Dos interruptores, y los dos son del operador y no de la página — una capability
-que una página se activara a sí misma sería una que nadie podría desactivar.
+Tres opciones, y todas son del operador y no de la página — una capability que
+una página se activara a sí misma sería una que nadie podría desactivar.
 
 - **Un botón para empezar un hilo nuevo**, activado por defecto. Acuña una clave
   de continuidad nueva, así que el hilo viejo no se borra: deja de ser el que
   retoma ese navegador.
-- **Un micrófono en el composer**, desactivado por defecto. Dicta en la caja
-  usando el *propio navegador del visitante*, así que ningún audio llega a este
-  despliegue y aquí no se transcribe nada — pero un navegador que ofrece
-  reconocimiento de voz le entrega el audio a su proveedor, que es la mitad que
-  merece leerse antes de activarlo para el público. A un navegador que no lo
-  ofrece no se le muestra micrófono, en vez de un botón que no hace nada.
+- **Entrada de voz**, desactivada por defecto: `browser` dicta con el propio
+  navegador del visitante, y `server` con el provider de speech-to-text de la
+  organización. Cuál de los dos decide adónde va la voz de un visitante - ver
+  [dictado en un widget o en una página alojada](#dictation-on-a-widget-or-a-hosted-page).
+  Una página publicada antes de que existiera la opción conserva lo que tenía:
+  su antiguo *micrófono en el composer* pasó a ser `browser`, y sin micrófono
+  pasó a ser `off`.
 - **Una forma de adjuntar un fichero**, desactivada por defecto. Ver más abajo: es
   lo único en esta superficie que permite a un desconocido *almacenar* algo.
 
@@ -712,6 +716,98 @@ por otra ruta — se sirve como **absolutamente nada** en lugar de como un scrip
 
 La página lleva `noindex`. Un enlace secreto no es una página para indexar, y un
 rastreador que siga uno lo ha publicado.
+
+---
+
+## Dictado en un widget o en una página alojada { #dictation-on-a-widget-or-a-hosted-page }
+
+Un widget y una página alojada tienen cada uno un ajuste `dictation`: `off`,
+`browser` o `server`. **`browser`** usa el propio navegador del visitante para
+reconocer la voz, así que el audio va al fabricante del navegador - Google en
+Chrome, Apple en Safari - y nada llega a este despliegue. A un navegador sin
+reconocedor, Firefox entre ellos, no se le muestra micrófono. **`server`** graba
+en la página y envía el audio aquí, donde lo transcribe el provider de
+speech-to-text de la organización: la anulación del agent si la tiene, y si no,
+el predeterminado de la organización - la misma resolución que el
+[dictado en el chat](ml-services.md#dictation-in-chat).
+
+El motor de la organización para `/chat` no influye en ninguna de las dos
+superficies. Una organización que mantiene a sus miembros en el reconocedor del
+navegador puede igualmente dar a una página pública el dictado `server`, y al
+revés.
+
+**Activar `server` se rechaza** mientras no se resuelva para el agent ningún
+provider con credencial, y el formulario del embed muestra la opción
+desactivada junto con el motivo. Solo se comprueba el cambio, así que una página
+cuya clave se borró después todavía puede renombrarse. Mientras no se resuelva
+nada, su config pública dice `off` y los visitantes no ven micrófono, en vez de
+uno que falla. El agent además tiene que estar publicado: una grabación para un
+agent que nadie ejecuta se rechaza antes de pagar nada.
+
+**La página alojada** usa la propia grabadora del composer de la consola: la
+barra de grabación con su forma de onda y su temporizador, las indicaciones bajo
+la caja y el brillo de voz. Sus textos siguen el idioma del visitante y no
+nombran a ningún administrador ni ajuste. **El widget** tiene una grabadora
+propia en JavaScript plano: un botón de micrófono, una barra de nivel en el
+color de acento, un temporizador, Stop y Cancel, y una línea bajo la caja cuando
+algo sale mal. Sus textos están en inglés, como el resto del widget, y no tiene
+brillo. En ambos, el texto cae en la caja y nunca se envía solo; Enter detiene
+una grabación y Escape la descarta.
+
+El formato de grabación sigue al provider, según el catálogo de speech-to-text
+del backend: WebM, Ogg o MP4 tal como lo produce `MediaRecorder`, o WAV mono de
+16 kHz para Mistral, que no documenta ni WebM ni Opus.
+
+### El endpoint { #the-endpoint }
+
+`POST /api/v1/embed/{public_key}/dictation` recibe un `file` multipart y un
+`duration` opcional, y responde `{"text": ...}`. La admisión sigue a la
+superficie. Un **widget** se admite como su socket: el `Origin` tiene que estar
+en su lista de permitidos, y en modo `jwt` el token del visitante viaja como
+campo de formulario `token` - nunca en la URL, que acaba en los logs de acceso,
+ni en una cabecera, que necesitaría un preflight de CORS que el sitio de otro no
+supera. Una **página alojada** envía su clave de continuidad en `X-Visitor-Key`,
+una cabecera propia que solo puede enviar el origen de este despliegue. Un
+**socket en crudo** no tiene dónde dictar y recibe un 404.
+
+Los rechazos llevan el mismo `details.reason` que la
+[ruta del composer](ml-services.md#dictation-in-chat): 400 `empty`,
+`unsupported_type` o `too_large`, 503 `not_configured`, `provider_error` o
+`timeout`. Todo lo relativo al propio embed - desconocido, en pausa, no en
+`server`, un origen que no permite - es 404. Una vez admitido un widget, cada
+respuesta lleva su origen en `Access-Control-Allow-Origin`, rechazos incluidos;
+si no, el navegador oculta el motivo y una grabación demasiado larga le parecería
+al visitante una falta de conexión.
+
+### Lo que cuesta y lo que lo limita { #what-it-costs-and-what-bounds-it }
+
+Una transcripción está **fuera de todo budget de modelo**: el budget del embed
+cuenta los runs, no los dictados. Lo que limita el gasto de un desconocido son
+dos rate limits y el dictado más largo de la organización. Cada dirección puede
+enviar `RATE_LIMIT_EMBED_DICTATION_PER_MINUTE` grabaciones por minuto (6 por
+defecto), y lo mismo cada visitante de un widget `jwt`, según el sujeto del
+token. Cada página o widget acepta `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE`
+por minuto (30 por defecto) de todos a la vez, por muchas direcciones que vaya
+rotando un script.
+
+!!! danger "El peor caso para un enlace filtrado o público"
+
+    El límite del enlace por el dictado más largo: 30 grabaciones por minuto de
+    hasta 300 segundos cada una son 150 minutos de audio cada minuto. A unos
+    $0.006 por minuto, que es el precio de lista de `whisper-1`, eso son cerca
+    de $0.90 por minuto, $54 por hora o $1300 al día, cobrados a la cuenta del
+    provider de la organización. Baja `dictation_max_seconds` o el límite del
+    enlace, pon el embed en pausa, o déjalo en `browser` donde eso sea demasiado.
+
+Cada intento que llega al provider deja un registro de uso con la superficie
+(`hosted` o `widget`) y el agent, y **ninguna persona**: un visitante no es
+miembro, y la llamada no es del que publicó la página. El audio nunca se guarda.
+
+**El aviso del micrófono es del sitio del cliente.** El navegador pregunta en
+nombre de la página en la que se ejecuta el widget, así que un sitio que envía
+`Permissions-Policy: microphone=()`, un `<iframe>` sin `allow="microphone"` o
+HTTP sin cifrar lo bloquea. El widget lo dice bajo su caja en vez de fallar en
+silencio.
 
 ---
 

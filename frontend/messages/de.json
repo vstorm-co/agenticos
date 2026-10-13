@@ -405,8 +405,6 @@
     "pageAllowFilesHint": "Das Einzige hier, was einem Fremden erlaubt, etwas auf diesem Deployment abzulegen. Die Datei durchläuft dieselben Prüfungen und denselben Parser wie der Upload eines Mitglieds, unter einer kleineren Obergrenze und einem Limit pro Besucher – und der Agent liest sie, wie er jeden Anhang liest.",
     "pageAllowNewConversation": "Eine Schaltfläche, um einen frischen Strang zu beginnen",
     "pageAllowNewConversationHint": "Der alte Strang wird nicht gelöscht. Er ist nur nicht mehr der, den dieser Browser fortsetzt.",
-    "pageAllowVoice": "Ein Mikrofon im Eingabefeld",
-    "pageAllowVoiceHint": "Diktat über den Browser des Besuchers. Es erreicht kein Audio dieses Deployment, und hier wird nichts transkribiert – aber ein Browser, der das anbietet, übergibt das Audio seinem Anbieter, deshalb ist dies aus, bis Sie es einschalten.",
     "pageCapabilities": "Was die Seite anbietet",
     "pageShowThinking": "Das Reasoning des Agents",
     "pageShowThinkingHint": "Was das Modell zu sich selbst sagt, bevor es antwortet. Es ist nicht zum Lesen geschrieben und keine Antwort, für die Sie einstehen können.",
@@ -675,7 +673,16 @@
     "voiceNoteChannelsOnly": "{engine, select, off {Diktieren im Chat ist in dieser Organisation ausgeschaltet} other {Diktieren im Chat läuft in dieser Organisation im Browser}}, daher ändert dies nur, wie Sprachnachrichten an die Kanal-Bots dieses Agents transkribiert werden.",
     "voiceNoteNoProvider": "Die Organisation hat keinen Speech-to-Text-Provider, daher ist Diktieren an diesen Agent nicht verfügbar, bis hier einer ausgewählt wird.",
     "voiceNoteOwnProvider": "Die Organisation hat keinen eigenen Provider; Diktieren an diesen Agent nutzt den hier ausgewählten.",
-    "voiceTitle": "Stimme"
+    "voiceTitle": "Stimme",
+    "embedDictation": "Spracheingabe",
+    "embedDictationOff": "Aus",
+    "embedDictationOffHint": "Kein Mikrofon.",
+    "embedDictationBrowser": "Browser",
+    "embedDictationBrowserHint": "Der Browser des Besuchers transkribiert und sendet das Audio an seinen Anbieter – Google, Apple und andere. Nichts erreicht dieses Deployment, und nicht jeder Browser bietet es an.",
+    "embedDictationServer": "Server",
+    "embedDictationServerHint": "Auf der Seite aufgenommen und vom Speech-to-Text-Provider dieser Organisation transkribiert, auf ihre Rechnung. Das Audio wird nicht gespeichert.",
+    "embedDictationServerUnavailable": "Server braucht einen Speech-to-Text-Provider mit Zugangsdaten, gewählt auf der Karte Stimme der Organisation oder dieses Agents.",
+    "embedDictationServerDrift": "Für diesen Agent antwortet gerade kein Speech-to-Text-Provider, deshalb sehen Besucher kein Mikrofon, bis wieder einer antwortet."
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -2129,7 +2136,36 @@
     "attach": "Datei anhängen",
     "removeAttachment": "{name} entfernen",
     "uploadFailed": "Diese Datei konnte nicht angehängt werden.",
-    "uploading": "Wird angehängt …"
+    "uploading": "Wird angehängt …",
+    "dictation": {
+      "dismiss": "Schließen",
+      "discard": "Verwerfen",
+      "retry": "Erneut versuchen",
+      "retryCountdown": "Erneut versuchen in {seconds} s",
+      "tryAgain": "Erneut versuchen",
+      "recordAgain": "Neu aufnehmen",
+      "hint": {
+        "requesting": "<strong>Erlauben Sie den Mikrofonzugriff</strong> im Dialog Ihres Browsers, um die Aufnahme zu starten.",
+        "micDenied": "<strong>Mikrofon für diese Website blockiert.</strong> Klicken Sie auf das Symbol links neben der Adressleiste, stellen Sie Mikrofon auf Zulassen und versuchen Sie es erneut.",
+        "micInsecure": "<strong>Diese Seite kann das Mikrofon nicht verwenden.</strong> Browser geben das Mikrofon nur auf sicheren Seiten (HTTPS) frei. Bitte tippen Sie Ihre Nachricht stattdessen.",
+        "micNotFound": "<strong>Kein Mikrofon gefunden.</strong> Schließen Sie eines an oder prüfen Sie, ob Ihr System dem Browser den Zugriff erlaubt, und versuchen Sie es erneut.",
+        "micBusy": "<strong>Das Mikrofon ist nicht gestartet.</strong> Möglicherweise verwendet eine andere App es. Schließen Sie sie und versuchen Sie es erneut.",
+        "nearLimit": "<strong>Noch {remaining}.</strong> Bei {limit} stoppt die Aufnahme und wird transkribiert.",
+        "silent": "<strong>Wir hören Sie nicht – ist Ihr Mikrofon stummgeschaltet?</strong> Die Aufnahme läuft weiter.",
+        "tooShort": "<strong>Das war kürzer als eine Sekunde,</strong> daher wurde nichts gesendet. Klicken Sie auf das Mikrofon, sprechen Sie und klicken Sie dann auf Stopp.",
+        "empty": "<strong>In dieser Aufnahme ist keine Sprache.</strong> Prüfen Sie, ob das Mikrofon stummgeschaltet ist, und nehmen Sie erneut auf.",
+        "tooLarge": "<strong>Diese Aufnahme ist zu lang zum Transkribieren.</strong> Versuchen Sie eine kürzere.",
+        "unsupported": "<strong>Dieser Browser nimmt Audio in einem Format auf, das wir nicht annehmen.</strong> Versuchen Sie ein aktuelles Chrome oder Firefox.",
+        "failedTitle": "Die Transkription wurde nicht abgeschlossen.",
+        "providerErrorBody": "Der Transkriptionsdienst hat mit einem Fehler geantwortet.",
+        "timeoutBody": "Der Transkriptionsdienst hat nicht rechtzeitig geantwortet.",
+        "offlineBody": "Der Server war nicht erreichbar.",
+        "rateLimitedBody": "Zu viele Aufnahmen in einer Minute.",
+        "keptBody": "Ihre Aufnahme ({duration}) bleibt erhalten, bis Sie sie erneut senden oder verwerfen.",
+        "notSetUpTitle": "Spracheingabe ist gerade nicht verfügbar.",
+        "notSetUpBody": "Bitte tippen Sie Ihre Nachricht stattdessen."
+      }
+    }
   },
   "invitations": {
     "acceptSuccess": "Der Organisation beigetreten!",

@@ -546,8 +546,9 @@ async def dictation_status(agent_id: UUID, registry: AgentRegistrySvc, ml: MLSvc
 
     The same access as dictating: anyone who may run the agent, a grant included,
     and a 404 for an agent the caller may not run. Read before the microphone is
-    offered, so nobody records only to be refused, and for the provider the
-    recording format follows - Mistral takes WAV where the others take WebM.
+    offered, so nobody records only to be refused, and for the format to record
+    in - Mistral takes WAV where the others take WebM. `server_available` is the
+    same answer without the `/chat` engine, for the embed form.
 
     An agent with nothing published answers from the organization's settings,
     never with a refusal.
@@ -557,8 +558,10 @@ async def dictation_status(agent_id: UUID, registry: AgentRegistrySvc, ml: MLSvc
     return DictationStatusRead(
         engine=status.engine,
         ready=status.ready,
+        server_available=status.server_available,
         max_seconds=status.max_seconds,
         provider=status.provider,
+        format=status.format,
     )
 
 

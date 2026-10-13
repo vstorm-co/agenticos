@@ -317,6 +317,31 @@ describe("dictationHint", () => {
     expect(names).toEqual(buttons);
   });
 
+  it("tells a hosted page's visitor what to do instead, naming no admin and no setting", () => {
+    // A visitor has nobody to ask and nowhere to go: the copy is the visitor's own
+    // namespace, and the sentence about the admin is not built at all.
+    function Visitor(input: DictationHintInput) {
+      const t = useTranslations("hosted.dictation");
+      return <DictationStrip hint={dictationHint(input, t)} />;
+    }
+    const { container } = render(
+      <Visitor
+        state={dictationState({ phase: "failed", reason: "not_configured" })}
+        actions={fakeActions()}
+        maxSeconds={300}
+        unavailable={null}
+        voiceSettingsHref={null}
+        agentVoiceHref={null}
+        closeExplanation={vi.fn()}
+        visitor
+      />,
+    );
+
+    expect(container.textContent).toMatch(
+      /^Voice input isn't available right now\. Please type your message instead\.Dismiss$/,
+    );
+  });
+
   it("links an org:settings holder to the Voice card instead of asking an admin", () => {
     show({ unavailable: "not_ready", href: "/orgs/o1/members#org-voice" });
 

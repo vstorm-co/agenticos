@@ -151,8 +151,10 @@ async function stubDictation(page: Page, onPost: (route: Route) => Promise<void>
         body: JSON.stringify({
           engine: "server",
           ready: true,
+          server_available: true,
           max_seconds: 300,
           provider: "openai",
+          format: "webm",
         }),
       });
       return;

@@ -219,7 +219,8 @@ async def list_ml_calls(
         default=None, description="Voice notes that arrived on this channel bot"
     ),
     surface: TranscriptionSurface | None = Query(
-        default=None, description="Transcriptions from `chat`, `channel` or `api`"
+        default=None,
+        description="Transcriptions from `chat`, `channel`, `api`, `hosted` or `widget`",
     ),
     since: datetime | None = Query(default=None, description="Calls at or after this moment"),
     until: datetime | None = Query(default=None, description="Calls before this moment"),

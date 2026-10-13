@@ -59,6 +59,7 @@ import { Beam } from "@/components/ui/beam";
 import { useMicrophone, VoiceGlow } from "@/components/ui/voice-glow";
 import { useDictation, useDictationStatus, useOrganizationList, usePermissions } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
+import { dictate, type DictationSend } from "@/lib/dictation-api";
 import { cn } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
 import { dictationHint, DictationStrip } from "./dictation-strip";
@@ -526,15 +527,22 @@ function ChatUI({
   // `VoiceGlow`); with the server engine it is the one being recorded.
   const mic = useMicrophone(engine === "server" ? DICTATION_CONSTRAINTS : undefined);
   const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
-  // Readiness and the provider are the agent's: its published speech-to-text
-  // override can name another engine than the organization's, and the provider
-  // decides the format recorded - Mistral takes WAV, the others WebM.
+  // Readiness and the format are the agent's: its published speech-to-text
+  // override can name another engine than the organization's, and the backend's
+  // catalog says what to record for it - Mistral takes WAV, the others WebM.
   const status = useDictationStatus(engine === "server" ? selectedAgentId : null);
+  const sendDictation = useMemo<DictationSend | null>(
+    () =>
+      selectedAgentId === null
+        ? null
+        : (recording, seconds, signal) => dictate(selectedAgentId, recording, seconds, signal),
+    [selectedAgentId],
+  );
   const { state: dictationState, actions: dictationActions } = useDictation({
     mic,
-    agentId: selectedAgentId,
+    send: sendDictation,
     maxSeconds,
-    provider: status?.provider ?? null,
+    format: status?.format ?? "webm",
   });
   const { can } = usePermissions();
   const voiceSettingsHref =
