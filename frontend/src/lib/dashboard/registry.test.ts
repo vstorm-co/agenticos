@@ -66,7 +66,7 @@ const GATE_TABLE: Record<WidgetId, Permission | "app_admin" | "everyone"> = {
 };
 
 describe("the widget catalog", () => {
-  it("holds all thirty-six widgets", () => {
+  it("holds all thirty-eight widgets", () => {
     expect(WIDGET_IDS).toHaveLength(38);
   });
 
