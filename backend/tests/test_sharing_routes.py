@@ -1,7 +1,7 @@
 """Tests for the generated sharing routes.
 
 The five sharing endpoints exist once per resource type - agents, collections,
-skills, context files, vault secrets, artifacts - generated from one definition.
+skills, context files, vault secrets, artifacts, datasets - generated from one definition.
 What is worth testing is the generation itself: that each type really gets all
 five, that they are wired to the right resource type, and that a row from
 another organization is refused before the sharing service is ever reached.
@@ -19,6 +19,7 @@ from app.api.routes.v1._sharing_loaders import (
     load_artifact,
     load_collection,
     load_context,
+    load_dataset,
     load_secret,
     load_skill,
 )
@@ -27,6 +28,7 @@ from app.api.routes.v1.sharing import (
     artifact_sharing_router,
     collection_sharing_router,
     context_sharing_router,
+    dataset_sharing_router,
     secret_sharing_router,
     skill_sharing_router,
 )
@@ -41,6 +43,7 @@ ROUTERS = (
     ("context", context_sharing_router),
     ("secrets", secret_sharing_router),
     ("artifacts", artifact_sharing_router),
+    ("datasets", dataset_sharing_router),
 )
 
 LOADERS = (
@@ -50,6 +53,7 @@ LOADERS = (
     ("context", load_context, "Context file not found", "context_id"),
     ("secret", load_secret, "Secret not found", "secret_id"),
     ("artifact", load_artifact, "Artifact not found", "artifact_id"),
+    ("dataset", load_dataset, "Dataset not found", "dataset_id"),
 )
 
 

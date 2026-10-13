@@ -708,6 +708,9 @@ class ConversationService:
             include_favourite=False,
         )
         attachments = await personal_data_repo.attachment_paths_in(self.db, conversation_id)
+        await personal_data_repo.unlink_dataset_cases_from_conversation(
+            self.db, conversation_id, organization_id=organization_id
+        )
         await conversation_repo.delete_conversation(self.db, db_conversation=conversation)
         if attachments:
             spawn_after_commit(

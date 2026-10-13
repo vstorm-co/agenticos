@@ -44,6 +44,7 @@ export const ROUTES = {
   WORKSPACE_DETAIL: (id: string) => `/workspaces/${id}`,
   SKILLS: "/skills",
   CONTEXT: "/context",
+  DATASETS: "/datasets",
   ARTIFACTS: "/artifacts",
   ARTIFACT_DETAIL: (id: string) => `/artifacts/${id}`,
   ORG_SETTINGS: (id: string) => `/orgs/${id}/settings`,

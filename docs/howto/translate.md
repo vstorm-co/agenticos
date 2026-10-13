@@ -147,8 +147,8 @@ repository, and in every English page of this site. Translating them here and
 nowhere else gives one product two vocabularies, and a Polish reader who looks
 up the translated word finds nothing.
 
-**agent · spec · capability · skill · embed · budget · run · prompt · provider ·
-token · vault · workspace · sandbox · MCP**
+**agent · spec · capability · skill · dataset · embed · budget · run · prompt ·
+provider · token · vault · workspace · sandbox · MCP**
 
 Inflect them rather than replacing them, and translate everything around them.
 
@@ -177,6 +177,7 @@ reader meets both. So the choice is made once, here:
 | spec | der Spec | ten spec, speca | el spec |
 | capability | die Capability | ta capability (nieodmienne) | la capability |
 | skill | der Skill | ten skill, skilla | el skill |
+| dataset | das Dataset | ten dataset, datasetu | el dataset |
 | embed | das Embed | ten embed, embeda | el embed |
 | budget | das Budget | ten budżet | el budget |
 | run | der Run | ten run, runa | el run |

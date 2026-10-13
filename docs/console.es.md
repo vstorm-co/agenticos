@@ -1,5 +1,5 @@
 ---
-source_sha: "e7e0d166cfc5"
+source_sha: "f9095b371b20"
 ---
 
 # La consola { #the-console }
@@ -153,6 +153,7 @@ una respuesta sobre la página. Ciérralo y seguirá cerrado para ese recorrido.
 | **Knowledge** | Colecciones, documentos, fuentes de sincronización, ajustes de ingesta | [Procesamiento de archivos](file-processing.md) |
 | **Skills** | Procedimientos escritos que un agent carga cuando hacen falta | [Skills](skills.md) |
 | **Context** | Conocimiento permanente ligado a muchos agents | [Archivos de contexto](context.md) |
+| **Datasets** | Casos de prueba versionados, importados, exportados o añadidos desde una respuesta valorada | [Datasets](datasets.md) |
 | **Routines** | Horarios y disparadores por evento | [Disparadores](triggers.md) |
 | **Runs** | Qué se ejecutó, cuánto costó, qué tocó, si falló | [Governance](governance.md#audit) |
 | **Sandboxes / Workspaces** | Sesiones aisladas de archivos y shell en las que trabajó un agent | [La sandbox](sandbox.md) |

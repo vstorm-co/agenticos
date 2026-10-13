@@ -70,6 +70,7 @@ CONTEXT = ResourceType(key="context", view=Perm.CONTEXT_VIEW, edit=Perm.CONTEXT_
 # permission that gated the entire vault.
 SECRET = ResourceType(key="secret", view=Perm.SECRETS_VIEW, edit=Perm.SECRETS_EDIT)
 ARTIFACT = ResourceType(key="artifact", view=Perm.ARTIFACTS_VIEW, edit=Perm.ARTIFACTS_EDIT)
+DATASET = ResourceType(key="dataset", view=Perm.DATASETS_VIEW, edit=Perm.DATASETS_EDIT)
 
 
 # The grant level a member needs before a scope-based check is even consulted.
@@ -88,6 +89,9 @@ _PERM_MIN_GRANT: dict[Perm, GrantLevel] = {
     Perm.SECRETS_EDIT: GrantLevel.EDIT,
     Perm.ARTIFACTS_VIEW: GrantLevel.READ,
     Perm.ARTIFACTS_EDIT: GrantLevel.EDIT,
+    Perm.DATASETS_VIEW: GrantLevel.READ,
+    Perm.DATASETS_RUN: GrantLevel.USE,
+    Perm.DATASETS_EDIT: GrantLevel.EDIT,
 }
 
 

@@ -790,6 +790,34 @@ async def get_recent_messages(
     )
 
 
+async def get_messages_before(
+    db: AsyncSession, conversation_id: UUID, *, organization_id: UUID, ordinal: int, limit: int
+) -> list[Message]:
+    """The last `limit` messages written before `ordinal`, still oldest first.
+
+    The conversation so far at one turn - what a test case taken from that turn
+    replays as its prefix. Bounded for the same reason `get_messages_after` is,
+    and without the attachments for the same reason too.
+    """
+    in_conversation = (
+        Message.conversation_id == conversation_id,
+        Message.ordinal < ordinal,
+        Message.conversation_id.in_(
+            select(Conversation.id).where(Conversation.organization_id == organization_id)
+        ),
+    )
+    total = await db.scalar(select(func.count(Message.id)).where(*in_conversation))
+    query = (
+        select(Message)
+        .where(*in_conversation)
+        .order_by(Message.ordinal.asc())
+        .offset(max(0, (total or 0) - limit))
+        .limit(limit)
+    )
+    result = await db.execute(query)
+    return list(result.scalars().all())
+
+
 async def get_messages_after(
     db: AsyncSession, conversation_id: UUID, *, ordinal: int, limit: int
 ) -> list[Message]:
