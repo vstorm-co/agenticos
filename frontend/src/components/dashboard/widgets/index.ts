@@ -24,6 +24,7 @@ import { McpHealthWidget } from "./mcp-health";
 import { MembersWidget } from "./members";
 import { ModelMixWidget } from "./model-mix";
 import { MyActivityWidget } from "./my-activity";
+import { MySummaryWidget } from "./my-summary";
 import { MyAgentsWidget } from "./my-agents";
 import { MyQualityWidget } from "./my-quality";
 import { MyTopAgentsWidget } from "./my-top-agents";
@@ -82,6 +83,7 @@ export const WIDGET_COMPONENTS: Record<WidgetId, ComponentType<DashboardWidgetPr
   "my-agents": MyAgentsWidget,
   conversations: ConversationsWidget,
   "my-activity": MyActivityWidget,
+  "my-summary": MySummaryWidget,
   "my-top-agents": MyTopAgentsWidget,
   "my-quality": MyQualityWidget,
   "shared-with-you": SharedWithYouWidget,

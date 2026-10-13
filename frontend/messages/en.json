@@ -1363,7 +1363,12 @@
       "artifactVersion": "Version {version} · open the page",
       "artifactUnchanged": "Unchanged, still version {version} · open the page",
       "askingYou": "Waiting for your answer",
-      "askedYou": "Asked you"
+      "askedYou": "Asked you",
+      "listMemory": "List memories",
+      "readMemory": "Read a memory",
+      "writeMemory": "Save to memory",
+      "editMemory": "Update a memory",
+      "deleteMemory": "Forget a memory"
     },
     "turnWasStopped": "stopped",
     "unfavourite": "Remove from favourites",
@@ -1584,8 +1589,9 @@
         "review": "Review",
         "title": "Waiting on a decision",
         "waiting": "waiting {ago}",
-        "wants": "wants to call {tool}",
-        "description": "Runs paused on a tool call, waiting for a decision."
+        "description": "Runs paused on a tool call, waiting for a decision.",
+        "someAgent": "An agent",
+        "forPerson": "for {email} · waiting {ago}"
       },
       "budget-headroom": {
         "empty": {
@@ -2066,6 +2072,18 @@
           "title": "No department ratings yet",
           "description": "When people in a department rate answers, how helpful they were shows here, department by department."
         }
+      },
+      "my-summary": {
+        "title": "Your period",
+        "description": "Your runs, how many finished, what is waiting on a decision and what it cost.",
+        "runs": "Your runs",
+        "finished": "Finished",
+        "finishedOf": "of {total} runs",
+        "waiting": "Waiting on you",
+        "review": "Review them",
+        "nothingWaiting": "Nothing waiting",
+        "spent": "Spent",
+        "spentLabel": "{amount} spent"
       }
     },
     "edit": {
@@ -2211,6 +2229,15 @@
         "label": "Deployment",
         "description": "The whole deployment - every organization, the services and answer quality."
       }
+    },
+    "greeting": {
+      "morning": "Good morning",
+      "afternoon": "Good afternoon",
+      "evening": "Good evening",
+      "morningNamed": "Good morning, {name}",
+      "afternoonNamed": "Good afternoon, {name}",
+      "eveningNamed": "Good evening, {name}",
+      "summary": "Your agents ran <b>{runs, plural, =0 {nothing} =1 {once} other {# times}}</b> in this period. {waiting, plural, =0 {Nothing is waiting on you.} =1 {<b>One call</b> is waiting on you.} other {<b># calls</b> are waiting on you.}}"
     }
   },
   "errors": {

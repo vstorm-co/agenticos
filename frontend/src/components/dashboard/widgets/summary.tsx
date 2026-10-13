@@ -53,6 +53,7 @@ export function SummaryWidget({ title, hint, period, seeAll, options }: Dashboar
             // the card spent on nothing.
             <div className="grid flex-1 grid-cols-2 gap-5 lg:grid-cols-4">
               <Figure
+                tone="indigo"
                 label={t("runs")}
                 value={<AnimatedTally value={runs} />}
                 delta={
@@ -63,12 +64,14 @@ export function SummaryWidget({ title, hint, period, seeAll, options }: Dashboar
                 spark={days.map((day) => day.runs)}
               />
               <Figure
+                tone="teal"
                 label={t("completed")}
                 value={formatCompletedShare(completedShare(statusTally(usage.by_status ?? [])))}
                 caption={t("completedOf", { total: runs })}
                 spark={days.map((day) => day.completed)}
               />
               <Figure
+                tone="violet"
                 label={t("spend")}
                 value={
                   <AnimatedAmount
@@ -84,6 +87,7 @@ export function SummaryWidget({ title, hint, period, seeAll, options }: Dashboar
                 spark={days.map((day) => Number(day.cost_usd))}
               />
               <Figure
+                tone="amber"
                 label={t("people")}
                 value={<AnimatedTally value={active} />}
                 caption={t("ofMembers", { total: usage.active_users?.total_members ?? 0 })}

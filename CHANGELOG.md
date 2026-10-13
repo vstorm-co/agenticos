@@ -488,6 +488,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **The dashboard in colour, and the Me view opening on you.** Charts take
+  an indigo ink and each figure its own colour - runs, finished, spend and
+  people are told apart before they are read. The Me view opens on a greeting
+  and one sentence of the period, then four figures of your own (runs,
+  finished, waiting on you, spent), then the calls waiting on you beside your
+  conversations. An approval names the agent with its face and the tool in
+  words - *Architect · Save to memory* rather than `write_memory`; a recent
+  failure carries the agent's face and its first clause; spend names each
+  provider with its logo; the agents you use most wear their avatars.
 - **MCP servers read as one kind of card, and connect in one click.** Every
   card, on the servers page and in the Builder, is the server's logo in its own
   colours, its name, two lines of what it does and one foot saying where it

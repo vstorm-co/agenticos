@@ -1,5 +1,5 @@
 ---
-source_sha: "645616e02da8"
+source_sha: "e9cdb78d6372"
 ---
 
 # Konsola { #the-console }
@@ -29,7 +29,7 @@ możesz otworzyć:
 
 | Widok | Odpowiada na |
 |---|---|
-| **Ja** | Twoi agenci, Twoje rozmowy, Twoja aktywność, co Ci udostępniono i co na Ciebie czeka |
+| **Ja** | Powitanie i Twój okres w jednym zdaniu; Twoje runy, ile się skończyło, co na Ciebie czeka i ile to kosztowało; potem wywołania czekające na Ciebie, Twoje rozmowy, Twoi agenci i co Ci udostępniono |
 | **Organizacja** | Układalna strona opisana niżej |
 | **Grupa** | Członkowie jednej [grupy](departments.md) - ich runy, wydatki, modele, kiedy pracują i kto korzysta najwięcej. Grupę wybierasz obok przełącznika |
 | **Wdrożenie** | Tylko dla [admina deploymentu](permissions.md) — sumy platformy, kondycja, najbardziej obciążeni najemcy, oceny |

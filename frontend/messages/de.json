@@ -1363,7 +1363,12 @@
       "artifactVersion": "Version {version} · Seite öffnen",
       "artifactUnchanged": "Unverändert, weiterhin Version {version} · Seite öffnen",
       "askingYou": "Warte auf Ihre Antwort",
-      "askedYou": "Hat Sie gefragt"
+      "askedYou": "Hat Sie gefragt",
+      "listMemory": "Erinnerungen auflisten",
+      "readMemory": "Erinnerung lesen",
+      "writeMemory": "Im Gedächtnis speichern",
+      "editMemory": "Erinnerung aktualisieren",
+      "deleteMemory": "Erinnerung vergessen"
     },
     "turnWasStopped": "gestoppt",
     "unfavourite": "Aus den Favoriten entfernen",
@@ -1584,8 +1589,9 @@
         "review": "Prüfen",
         "title": "Wartet auf eine Entscheidung",
         "waiting": "wartet {ago}",
-        "wants": "möchte {tool} aufrufen",
-        "description": "Runs, die bei einem Tool-Aufruf angehalten haben und auf eine Entscheidung warten."
+        "description": "Runs, die bei einem Tool-Aufruf angehalten haben und auf eine Entscheidung warten.",
+        "someAgent": "Ein Agent",
+        "forPerson": "für {email} · wartet {ago}"
       },
       "budget-headroom": {
         "empty": {
@@ -2066,6 +2072,18 @@
           "title": "Noch keine Bewertungen aus Abteilungen",
           "description": "Sobald Personen einer Abteilung Antworten bewerten, steht hier, wie hilfreich sie waren, Abteilung für Abteilung."
         }
+      },
+      "my-summary": {
+        "title": "Ihr Zeitraum",
+        "description": "Ihre Runs, wie viele fertig wurden, was auf eine Entscheidung wartet und was es gekostet hat.",
+        "runs": "Ihre Runs",
+        "finished": "Fertig",
+        "finishedOf": "von {total} Runs",
+        "waiting": "Wartet auf Sie",
+        "review": "Ansehen",
+        "nothingWaiting": "Nichts wartet",
+        "spent": "Ausgegeben",
+        "spentLabel": "{amount} ausgegeben"
       }
     },
     "edit": {
@@ -2211,6 +2229,15 @@
         "label": "Deployment",
         "description": "Das ganze Deployment - jede Organisation, die Dienste und die Antwortqualität."
       }
+    },
+    "greeting": {
+      "morning": "Guten Morgen",
+      "afternoon": "Guten Tag",
+      "evening": "Guten Abend",
+      "morningNamed": "Guten Morgen, {name}",
+      "afternoonNamed": "Guten Tag, {name}",
+      "eveningNamed": "Guten Abend, {name}",
+      "summary": "Ihre Agents liefen in diesem Zeitraum <b>{runs, plural, =0 {gar nicht} =1 {einmal} other {#-mal}}</b>. {waiting, plural, =0 {Nichts wartet auf Sie.} =1 {<b>Ein Aufruf</b> wartet auf Sie.} other {<b># Aufrufe</b> warten auf Sie.}}"
     }
   },
   "errors": {

@@ -291,14 +291,39 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
   // memory - the agent's own file store. An index and a note read back as text, so the
   // generic renderer serves; `delete_memory` is `edit` because `StepKind` has no delete.
   // All of it `staysClosed`: bookkeeping, not an answer.
-  list_memory: { kind: "list", render: "generic", captionKey: "memoryChecking", staysClosed: true },
-  read_memory: { kind: "read", render: "generic", captionKey: "memoryReading", staysClosed: true },
-  write_memory: { kind: "write", render: "generic", captionKey: "memorySaving", staysClosed: true },
-  edit_memory: { kind: "edit", render: "generic", captionKey: "memoryUpdating", staysClosed: true },
+  list_memory: {
+    kind: "list",
+    render: "generic",
+    captionKey: "memoryChecking",
+    displayNameKey: "listMemory",
+    staysClosed: true,
+  },
+  read_memory: {
+    kind: "read",
+    render: "generic",
+    captionKey: "memoryReading",
+    displayNameKey: "readMemory",
+    staysClosed: true,
+  },
+  write_memory: {
+    kind: "write",
+    render: "generic",
+    captionKey: "memorySaving",
+    displayNameKey: "writeMemory",
+    staysClosed: true,
+  },
+  edit_memory: {
+    kind: "edit",
+    render: "generic",
+    captionKey: "memoryUpdating",
+    displayNameKey: "editMemory",
+    staysClosed: true,
+  },
   delete_memory: {
     kind: "edit",
     render: "generic",
     captionKey: "memoryForgetting",
+    displayNameKey: "deleteMemory",
     staysClosed: true,
   },
   remember: {
@@ -521,4 +546,16 @@ export function toolEntry(name: string): ToolEntry | null {
  */
 export function isWorkspaceTool(name: string): boolean {
   return TOOL_CATALOG[name]?.render === "workspace";
+}
+
+/**
+ * A tool's name as a person reads it, in `chat.tools`: the catalog's own name
+ * where it has one - "Save to memory" - and the identifier spelled as words
+ * otherwise, so `create_issue` reads "Create issue" rather than as code.
+ */
+export function toolLabel(name: string, t: (key: string) => string): string {
+  const key = toolEntry(name)?.displayNameKey;
+  if (key !== undefined) return t(key);
+  const words = name.split(/[_-]+/).filter(Boolean).join(" ");
+  return words === "" ? name : words.charAt(0).toUpperCase() + words.slice(1);
 }

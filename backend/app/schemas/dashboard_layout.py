@@ -129,6 +129,7 @@ WIDGET_IDS: frozenset[str] = frozenset(
         "my-agents",
         "conversations",
         "my-activity",
+        "my-summary",
         "my-top-agents",
         "my-quality",
         "shared-with-you",

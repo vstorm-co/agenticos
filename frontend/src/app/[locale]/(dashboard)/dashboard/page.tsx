@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { DashboardEditor } from "@/components/dashboard/dashboard-editor";
 import { DashboardPresetMenu } from "@/components/dashboard/dashboard-preset-menu";
 import { FilterRow } from "@/components/dashboard/filter-row";
+import { MeHeader } from "@/components/dashboard/me-header";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { StartChecklist } from "@/components/dashboard/start-checklist";
 import { ViewSwitcher } from "@/components/dashboard/view-switcher";
@@ -297,11 +298,15 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <PageHeader
-        title={t("title")}
-        description={t(`views.${view}.description`)}
-        actions={headerActions}
-      />
+      {view === "me" ? (
+        <MeHeader period={period} canRun={can(Perm.agentsRun)} actions={headerActions} />
+      ) : (
+        <PageHeader
+          title={t("title")}
+          description={t(`views.${view}.description`)}
+          actions={headerActions}
+        />
+      )}
       <ViewSwitcher
         views={available}
         view={view}

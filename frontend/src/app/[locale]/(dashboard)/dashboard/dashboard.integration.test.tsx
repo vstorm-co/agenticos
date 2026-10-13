@@ -382,7 +382,7 @@ describe("the steward's dashboard", () => {
     expect(failures.length).toBeGreaterThan(0);
     // The cards on other endpoints are unaffected - every card fails alone.
     expect(
-      (await screen.findAllByText("dashboard.widgets.approvals.wants")).length,
+      (await screen.findAllByRole("link", { name: "dashboard.widgets.approvals.review" })).length,
     ).toBeGreaterThan(0);
 
     const before = callsTo("/stats/usage").length;

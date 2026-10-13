@@ -48,6 +48,7 @@ export type WidgetId =
   | "my-agents"
   | "conversations"
   | "my-activity"
+  | "my-summary"
   | "my-top-agents"
   | "my-quality"
   | "shared-with-you"
@@ -509,6 +510,14 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultRows: "r3",
     category: "workspace",
     seeAll: ROUTES.CHAT,
+  },
+  "my-summary": {
+    id: "my-summary",
+    gate: holds(Perm.agentsRun),
+    defaultSpan: "s12",
+    defaultRows: "r3",
+    category: "workspace",
+    options: { period: true },
   },
   "my-activity": {
     id: "my-activity",

@@ -316,21 +316,27 @@ const ME_SECTIONS: SectionDef[] = [
     id: "workspace",
     titleKey: null,
     entries: [
-      { widget: "my-activity", span: "s8", rows: "r3" },
-      { widget: "my-quality", span: "s4", rows: "r3" },
-      { widget: "my-agents", span: "s6", rows: "r4" },
-      { widget: "conversations", span: "s6", rows: "r4" },
+      // The four figures first: what ran, what finished, what waits on you and
+      // what it cost, each in its own colour - the answer the rest is detail of.
+      // It replaced the activity chart, which drew the same runs a second time.
+      { widget: "my-summary", span: "s12", rows: "r2" },
+      // Then what a person acts on: the calls waiting on them beside the
+      // conversations they left open. The queue sat at the foot of the page,
+      // under three cards of history, which is the wrong way round.
+      { widget: "approvals", span: "s6", rows: "r3" },
+      { widget: "conversations", span: "s6", rows: "r3" },
+      { widget: "my-agents", span: "s6", rows: "r3" },
       { widget: "my-top-agents", span: "s6", rows: "r3" },
-      { widget: "shared-with-you", span: "s6", rows: "r3" },
+      // Short: both are often still empty, and an empty card a third of a
+      // screen tall is a third of a screen that says nothing.
+      { widget: "my-quality", span: "s6", rows: "r2" },
+      { widget: "shared-with-you", span: "s6", rows: "r2" },
     ],
   },
   {
     id: "attention",
     titleKey: "attention",
-    entries: [
-      { widget: "approvals", span: "s6", rows: "r3" },
-      { widget: "notifications", span: "s6", rows: "r3" },
-    ],
+    entries: [{ widget: "notifications", span: "s12", rows: "r2" }],
   },
 ];
 

@@ -40,8 +40,25 @@ export interface FigureProps {
   meter?: number;
   /** `lg` is for the one figure a view leads with. */
   size?: "md" | "lg";
+  /**
+   * The colour this measure is drawn in - a dot by its label, its sparkline,
+   * its meter. A row of figures gives each its own, so runs, spend and people
+   * are told apart before they are read; one figure alone takes the chart ink.
+   */
+  tone?: FigureTone;
   className?: string;
 }
+
+/** The measure colours, one per series of the categorical ramp. */
+export type FigureTone = "indigo" | "teal" | "amber" | "rose" | "violet";
+
+const TONE_INK: Record<FigureTone, string> = {
+  indigo: "var(--series-1)",
+  teal: "var(--series-2)",
+  amber: "var(--series-3)",
+  rose: "var(--series-4)",
+  violet: "var(--series-5)",
+};
 
 /**
  * One figure, drawn the one way this product draws a figure.
@@ -67,13 +84,25 @@ export function Figure({
   spark,
   meter,
   size = "md",
+  tone,
   className,
 }: FigureProps) {
+  const ink = tone === undefined ? "var(--color-chart)" : TONE_INK[tone];
   return (
     <div className={cn("flex min-w-0 flex-col", className)}>
       {label ? (
-        <p className="text-muted-foreground truncate text-xs tracking-wide uppercase" title={label}>
-          {label}
+        <p
+          className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs tracking-wide uppercase"
+          title={label}
+        >
+          {tone && (
+            <span
+              aria-hidden
+              className="size-2 shrink-0 rounded-full"
+              style={{ background: ink }}
+            />
+          )}
+          <span className="truncate">{label}</span>
         </p>
       ) : null}
       <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1">
@@ -107,7 +136,7 @@ export function Figure({
         // numbers the series becomes a chart rather than a 36px line floating
         // above an inch of nothing.
         <div className="min-h-9 w-full flex-1 pt-3">
-          <FigureSpark spark={spark} />
+          <FigureSpark spark={spark} color={ink} />
         </div>
       ) : meter !== undefined ? (
         // At the foot, where a sparkline's baseline would be, so a row of
@@ -115,8 +144,11 @@ export function Figure({
         <div className="mt-auto pt-3">
           <div className="bg-track h-1.5 w-full overflow-hidden rounded-full">
             <div
-              className="bg-chart h-full rounded-full transition-[width] duration-500"
-              style={{ width: `${Math.round(Math.min(Math.max(meter, 0), 1) * 100)}%` }}
+              className="h-full rounded-full transition-[width] duration-500"
+              style={{
+                width: `${Math.round(Math.min(Math.max(meter, 0), 1) * 100)}%`,
+                background: ink,
+              }}
             />
           </div>
         </div>

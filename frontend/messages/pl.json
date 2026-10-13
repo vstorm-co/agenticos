@@ -1363,7 +1363,12 @@
       "artifactVersion": "Wersja {version} · otwórz stronę",
       "artifactUnchanged": "Bez zmian, nadal wersja {version} · otwórz stronę",
       "askingYou": "Czekam na twoją odpowiedź",
-      "askedYou": "Zapytał cię"
+      "askedYou": "Zapytał cię",
+      "listMemory": "Lista wspomnień",
+      "readMemory": "Odczyt wspomnienia",
+      "writeMemory": "Zapis do pamięci",
+      "editMemory": "Aktualizacja wspomnienia",
+      "deleteMemory": "Zapomnienie wspomnienia"
     },
     "turnWasStopped": "zatrzymano",
     "unfavourite": "Usuń z ulubionych",
@@ -1584,8 +1589,9 @@
         "review": "Przejrzyj",
         "title": "Czeka na decyzję",
         "waiting": "czeka {ago}",
-        "wants": "chce wywołać {tool}",
-        "description": "Uruchomienia wstrzymane na wywołaniu narzędzia, czekające na decyzję."
+        "description": "Uruchomienia wstrzymane na wywołaniu narzędzia, czekające na decyzję.",
+        "someAgent": "Agent",
+        "forPerson": "dla {email} · czeka {ago}"
       },
       "budget-headroom": {
         "empty": {
@@ -2066,6 +2072,18 @@
           "title": "Brak ocen z działów",
           "description": "Gdy osoby z działu ocenią odpowiedzi, zobaczysz tu, jak pomocne były, dział po dziale."
         }
+      },
+      "my-summary": {
+        "title": "Twój okres",
+        "description": "Twoje runy, ile się skończyło, co czeka na decyzję i ile to kosztowało.",
+        "runs": "Twoje runy",
+        "finished": "Ukończone",
+        "finishedOf": "z {total} runów",
+        "waiting": "Czeka na Ciebie",
+        "review": "Przejrzyj",
+        "nothingWaiting": "Nic nie czeka",
+        "spent": "Wydane",
+        "spentLabel": "wydano {amount}"
       }
     },
     "edit": {
@@ -2211,6 +2229,15 @@
         "label": "Wdrożenie",
         "description": "Całe wdrożenie - każda organizacja, usługi i jakość odpowiedzi."
       }
+    },
+    "greeting": {
+      "morning": "Dzień dobry",
+      "afternoon": "Dzień dobry",
+      "evening": "Dobry wieczór",
+      "morningNamed": "Dzień dobry, {name}",
+      "afternoonNamed": "Dzień dobry, {name}",
+      "eveningNamed": "Dobry wieczór, {name}",
+      "summary": "Twoje agenty uruchomiono <b>{runs, plural, =0 {ani razu} =1 {raz} few {# razy} many {# razy} other {# razy}}</b> w tym okresie. {waiting, plural, =0 {Nic nie czeka na Ciebie.} =1 {<b>Jedno wywołanie</b> czeka na Ciebie.} few {<b># wywołania</b> czekają na Ciebie.} many {<b># wywołań</b> czeka na Ciebie.} other {<b># wywołań</b> czeka na Ciebie.}}"
     }
   },
   "errors": {

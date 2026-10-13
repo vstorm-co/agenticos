@@ -1,5 +1,5 @@
 ---
-source_sha: "645616e02da8"
+source_sha: "e9cdb78d6372"
 ---
 
 # La consola { #the-console }
@@ -29,7 +29,7 @@ puedes abrir:
 
 | Vista | Responde a |
 |---|---|
-| **Me** | Tus agents, tus conversaciones, tu actividad, lo que han compartido contigo y lo que te espera |
+| **Me** | Un saludo y tu periodo en una frase; tus runs, cuántos terminaron, lo que te espera y lo que costó; después las llamadas que te esperan, tus conversaciones, tus agents y lo que han compartido contigo |
 | **Organization** | La página que se ordena, descrita abajo |
 | **Group** | Los miembros de un [grupo](departments.md) - sus runs, gasto, modelos, cuándo trabajan y quién lo usa más. El grupo se elige junto al selector |
 | **Deployment** | Solo para un [administrador del despliegue](permissions.md) — totales de la plataforma, salud, inquilinos más activos, valoraciones |

@@ -1,5 +1,5 @@
 ---
-source_sha: "645616e02da8"
+source_sha: "e9cdb78d6372"
 ---
 
 # Die Konsole { #the-console }
@@ -29,7 +29,7 @@ an, die Sie öffnen dürfen:
 
 | Ansicht | Beantwortet |
 |---|---|
-| **Ich** | Ihre Agents, Ihre Unterhaltungen, Ihre Aktivität, was mit Ihnen geteilt wurde und was auf Sie wartet |
+| **Ich** | Eine Begrüßung und Ihr Zeitraum in einem Satz; Ihre Runs, wie viele fertig wurden, was auf Sie wartet und was es gekostet hat; dann die Aufrufe, die auf Sie warten, Ihre Unterhaltungen, Ihre Agents und was mit Ihnen geteilt wurde |
 | **Organisation** | Die anordenbare Seite unten |
 | **Gruppe** | Die Mitglieder einer [Gruppe](departments.md) - ihre Runs, Ausgaben, Modelle, wann sie arbeiten und wer es am meisten nutzt. Die Gruppe wählen Sie neben dem Schalter |
 | **Deployment** | Nur für einen [Deployment-Admin](permissions.md) — Plattformsummen, Health, aktivste Tenants, Bewertungen |

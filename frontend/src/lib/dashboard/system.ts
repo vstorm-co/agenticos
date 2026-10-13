@@ -31,22 +31,23 @@
  *
  * | Job                            | Token                                    |
  * |--------------------------------|------------------------------------------|
- * | A data mark (bar, line, area)  | `--color-chart` (`brand-500`)            |
- * | The unfilled part of that bar  | `--color-track` (`brand-100` / `brand-900`) |
+ * | A data mark (bar, line, area)  | `--color-chart` (indigo)                 |
+ * | The unfilled part of that bar  | `--color-track` (the same hue, near the surface) |
  * | An area wash                   | the mark at 22% at the line, fading to 0 |
  * | A gridline or axis             | one step off surface, solid hairline     |
  * | A quiet surface                | `bg-muted` - the one token               |
  * | State                          | `success` / `warning` / `destructive`, reserved, always labelled |
  *
- * Measured, not judged: `brand-500` is 3.74:1 on the light card and 5.07:1 on
- * the dark one, both clear of the 3:1 floor a mark owes its surface, and both
- * quieter than the `brand-600` that shipped (4.99:1 light). The track is
- * deliberately under any floor - it carries no value, only a bar's extent, and
- * every list that draws one prints the number beside it.
+ * In colour since 2026-10-13: the near-grey ink this replaced made a page of
+ * eleven cards read as one grey block. The mark clears the 3:1 floor a mark
+ * owes its surface in both themes; the track is deliberately under any floor -
+ * it carries no value, only a bar's extent, and every list that draws one
+ * prints the number beside it.
  *
- * Nominal categories - surfaces, models, agents - keep **one** hue. That is the
- * rule, not an omission: colouring each bar differently spends the identity
- * channel re-encoding what bar length already says.
+ * Nominal categories - surfaces, models, agents - keep **one** hue for the
+ * bar, and say which row is which with the row's own face: the agent's avatar,
+ * the provider's or the service's logo. Colouring each bar differently would
+ * spend the identity channel re-encoding what bar length already says.
  *
  * The exception, and the only one: a chart whose segments are *parts of one
  * whole* - a ring, a stacked meter - where a segment's position says nothing

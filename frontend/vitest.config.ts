@@ -65,6 +65,12 @@ export default defineConfig({
         "src/components/dashboard/widgets/routines.tsx",
         // The notifications card (#1598).
         "src/components/dashboard/widgets/notifications.tsx",
+        // The colour pass (2026-10-13): a person's four figures, and the cards
+        // that gained faces and readable names.
+        "src/components/dashboard/widgets/my-summary.tsx",
+        "src/components/dashboard/widgets/approvals.tsx",
+        "src/components/dashboard/agent-face.tsx",
+        "src/components/dashboard/me-header.tsx",
         "src/components/dashboard/widgets/artifacts.tsx",
         // Department budgets (#2072): the dashboard card and the group page's.
         "src/components/dashboard/widgets/department-spend.tsx",

@@ -7,6 +7,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { useAgents, useRecentFailures } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import { timeAgo } from "@/lib/utils";
+import { AgentFace } from "../agent-face";
 import { WidgetFrame } from "../widget-frame";
 import { TriangleAlert } from "lucide-react";
 
@@ -83,6 +84,17 @@ function groupFailures(
  * something needs a look, asked of /runs as a list because that is the
  * operator's actual question.
  */
+/**
+ * A failure's first clause - what happened - without the advice after it. The
+ * run's message reads "The run did not finish (RuntimeError) - retry it, and
+ * check…"; one line of a card has room for the first half, and the whole
+ * sentence is a hover away and on the run itself.
+ */
+function headline(message: string): string {
+  const cut = message.indexOf(" - ");
+  return cut > 0 ? message.slice(0, cut) : message;
+}
+
 export function RecentFailuresWidget({ title, hint, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.recent-failures");
   const tTime = useTranslations("time");
@@ -120,9 +132,10 @@ export function RecentFailuresWidget({ title, hint, seeAll, options }: Dashboard
         <ul className="space-y-2">
           {groups.map((group) => (
             <li key={group.key} className="flex items-center gap-3 text-sm">
+              <AgentFace agentId={group.agentId} className="size-8" />
               <span className="min-w-0 flex-1">
                 <span className="flex min-w-0 items-center gap-1.5">
-                  <span className="text-foreground truncate">
+                  <span className="text-foreground truncate font-medium">
                     {names.get(group.agentId) ?? t("unknownAgent")}
                   </span>
                   {/* The count is the whole point of grouping, so it is on the
@@ -133,8 +146,11 @@ export function RecentFailuresWidget({ title, hint, seeAll, options }: Dashboard
                     </span>
                   ) : null}
                 </span>
-                <span className="text-muted-foreground block truncate text-xs">
-                  {group.message}
+                <span
+                  className="text-muted-foreground block truncate text-xs"
+                  title={group.message}
+                >
+                  {headline(group.message)}
                   {group.startedAt ? ` · ${timeAgo(group.startedAt, tTime, locale)}` : ""}
                 </span>
               </span>

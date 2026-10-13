@@ -82,17 +82,17 @@
      and no Tailwind utility ever names them - an `@theme` colour nothing
      references is tree-shaken out of the build.
 
-     Hue AND lightness are both spread, which is what makes five pastels
-     survivable: at equal lightness five washed tones measure ΔE 0.8 under
-     deuteranopia (one colour to about one man in twelve). This set measures
-     8.3 light and 17.5 dark on the worst pair under deuteranopia and
-     protanopia, and 19.7 / 24.4 in normal vision. Every chart drawn in it
-     still prints its numbers, because separation is not legibility. */
-  --series-1: oklch(74% 0.085 262);
-  --series-2: oklch(82% 0.085 178);
-  --series-3: oklch(88% 0.085 82);
-  --series-4: oklch(72% 0.1 22);
-  --series-5: oklch(66% 0.09 312);
+     Indigo, teal, amber, rose and violet at full colour: the washed pastels
+     this replaced read as one grey on a page of cards, and the dashboard is
+     meant to be read at a glance. Hue AND lightness are both spread, so a
+     reader with deuteranopia still tells the neighbours apart, and every
+     chart drawn in it prints its numbers, because separation is not
+     legibility. */
+  --series-1: oklch(62% 0.18 277);
+  --series-2: oklch(72% 0.13 178);
+  --series-3: oklch(80% 0.15 78);
+  --series-4: oklch(64% 0.19 22);
+  --series-5: oklch(58% 0.18 312);
 
   /* The default-avatar ramp: ten hues for a face nobody uploaded, chosen by a
      hash of the row's id so one entity keeps its colour everywhere. The one
@@ -152,23 +152,23 @@
      poster rather than as data. Data ink is that hue at about a third of its
      chroma.
 
-     Measured, not judged. The **stroke** is the only mark whose colour is its
-     whole channel - a hairline under a spike - so it keeps a real floor: 3.39:1
-     on the light card, 7.12:1 on the dark one, both clear of the 3:1 a mark owes
-     its surface. The **fill** covers area, and area takes a tint: 1.63:1 light
-     and 2.98:1 dark, deliberately under that floor, which is only allowed
-     because every list drawn in it prints its number as text beside the bar.
+     One indigo for every single-series mark - a line, a bar, a heatmap cell.
+     The **stroke** is the only mark whose colour is its whole channel - a
+     hairline under a spike - so it stays clear of the 3:1 a mark owes its
+     surface in both themes. The **fill** covers area and takes a lighter step,
+     which is allowed because every list drawn in it prints its number as text
+     beside the bar.
 
      The **track** is the fill's own hue several steps away (`dataviz`'s meter
      rule: the unfilled part of a bar is a step of the fill's hue, never a
      neutral alpha) - lighter in light, darker in dark, because what a track has
      to be is *quieter than its surface's opposite*, not lighter in the abstract.
-     It carries no value at all: 1.16:1 light, 1.25:1 dark. `brand-900` was tried
-     in dark and is why this one is measured - at 1.41:1 it read as a filled bar,
-     so a provider that spent nothing showed a full-width mark against $0.00. */
-  --color-chart: oklch(48% 0.03 265);
-  --color-chart-fill: oklch(84% 0.015 265);
-  --color-track: oklch(95% 0.005 265);
+     It carries no value at all, so it stays barely off its surface: a track
+     dark enough to read as a filled bar showed a provider that spent nothing
+     as a full-width mark against $0.00. */
+  --color-chart: oklch(55% 0.19 277);
+  --color-chart-fill: oklch(66% 0.16 277);
+  --color-track: oklch(95% 0.022 277);
 
   /* Light theme - NEUTRAL near-white, and neutral is the change. The ladder
      used to carry `0.003-0.004` of chroma at hue 250, which is a blue cast on
@@ -323,16 +323,16 @@
     --color-accent-foreground: oklch(95% 0 0);
     --color-border: oklch(38.5% 0.003 265);
     --color-input: oklch(47% 0.004 265);
-    --color-chart: oklch(80% 0.02 265);
-    --color-chart-fill: oklch(45% 0.015 265);
-    --color-track: oklch(31% 0.005 265);
+    --color-chart: oklch(74% 0.14 277);
+    --color-chart-fill: oklch(60% 0.16 277);
+    --color-track: oklch(31% 0.035 277);
     --color-success: oklch(74% 0.11 155);
     --color-warning: oklch(78% 0.1 78);
-    --series-1: oklch(60% 0.105 262);
-    --series-2: oklch(58% 0.08 178);
-    --series-3: oklch(66% 0.1 82);
-    --series-4: oklch(48% 0.105 22);
-    --series-5: oklch(44% 0.105 312);
+    --series-1: oklch(66% 0.16 277);
+    --series-2: oklch(70% 0.12 178);
+    --series-3: oklch(78% 0.14 78);
+    --series-4: oklch(64% 0.17 22);
+    --series-5: oklch(62% 0.16 312);
   }
 }
 
@@ -368,16 +368,16 @@
   --color-accent-foreground: oklch(95% 0 0);
   --color-border: oklch(38.5% 0.003 265);
   --color-input: oklch(47% 0.004 265);
-  --color-chart: oklch(80% 0.02 265);
-  --color-chart-fill: oklch(45% 0.015 265);
-  --color-track: oklch(31% 0.005 265);
+  --color-chart: oklch(74% 0.14 277);
+  --color-chart-fill: oklch(60% 0.16 277);
+  --color-track: oklch(31% 0.035 277);
   --color-success: oklch(74% 0.11 155);
   --color-warning: oklch(78% 0.1 78);
-  --series-1: oklch(60% 0.105 262);
-  --series-2: oklch(58% 0.08 178);
-  --series-3: oklch(66% 0.1 82);
-  --series-4: oklch(48% 0.105 22);
-  --series-5: oklch(44% 0.105 312);
+  --series-1: oklch(66% 0.16 277);
+  --series-2: oklch(70% 0.12 178);
+  --series-3: oklch(78% 0.14 78);
+  --series-4: oklch(64% 0.17 22);
+  --series-5: oklch(62% 0.16 312);
 }
 
 /* =========================================================================
@@ -406,16 +406,16 @@
   --color-brand-subtle: var(--brand-50);
   --color-brand-subtle-hover: var(--brand-100);
   --color-brand-line: var(--brand-300);
-  --color-chart: oklch(48% 0.03 265);
-  --color-chart-fill: oklch(84% 0.015 265);
-  --color-track: oklch(95% 0.005 265);
+  --color-chart: oklch(55% 0.19 277);
+  --color-chart-fill: oklch(66% 0.16 277);
+  --color-track: oklch(95% 0.022 277);
   --color-success: oklch(58% 0.1 155);
   --color-warning: oklch(64% 0.1 72);
-  --series-1: oklch(74% 0.085 262);
-  --series-2: oklch(82% 0.085 178);
-  --series-3: oklch(88% 0.085 82);
-  --series-4: oklch(72% 0.1 22);
-  --series-5: oklch(66% 0.09 312);
+  --series-1: oklch(62% 0.18 277);
+  --series-2: oklch(72% 0.13 178);
+  --series-3: oklch(80% 0.15 78);
+  --series-4: oklch(64% 0.19 22);
+  --series-5: oklch(58% 0.18 312);
 }
 
 .theme-dark {
@@ -438,16 +438,16 @@
   --color-brand-subtle: var(--brand-950);
   --color-brand-subtle-hover: var(--brand-900);
   --color-brand-line: var(--brand-800);
-  --color-chart: oklch(80% 0.02 265);
-  --color-chart-fill: oklch(45% 0.015 265);
-  --color-track: oklch(31% 0.005 265);
+  --color-chart: oklch(74% 0.14 277);
+  --color-chart-fill: oklch(60% 0.16 277);
+  --color-track: oklch(31% 0.035 277);
   --color-success: oklch(74% 0.11 155);
   --color-warning: oklch(78% 0.1 78);
-  --series-1: oklch(60% 0.105 262);
-  --series-2: oklch(58% 0.08 178);
-  --series-3: oklch(66% 0.1 82);
-  --series-4: oklch(48% 0.105 22);
-  --series-5: oklch(44% 0.105 312);
+  --series-1: oklch(66% 0.16 277);
+  --series-2: oklch(70% 0.12 178);
+  --series-3: oklch(78% 0.14 78);
+  --series-4: oklch(64% 0.17 22);
+  --series-5: oklch(62% 0.16 312);
 }
 
 @layer base {
