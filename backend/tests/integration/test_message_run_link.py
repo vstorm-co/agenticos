@@ -436,3 +436,62 @@ class TestWhichConversationsAreAtWork:
 
     async def test_no_conversations_asks_nothing(self, db) -> None:
         assert await conversation_repo.running_since(db, []) == {}
+
+
+class TestWhatAReaderHasNotSeen:
+    """The unread mark: an answer newer than the reader's last read of the thread."""
+
+    async def _answer(
+        self, db, conversation: Conversation, *, at: datetime, role: str = "assistant"
+    ) -> None:
+        await _turn(db, conversation, role=role, content="…", at=at)
+
+    async def test_an_answer_is_unread_until_the_reader_opens_the_thread(self, db) -> None:
+        organization = await _org(db)
+        reader = await _user(db)
+        conversation = await _conversation(db, organization, reader)
+        await self._answer(db, conversation, at=datetime.now(UTC) - timedelta(minutes=1))
+
+        assert await conversation_repo.unread_ids(
+            db, user_id=reader.id, conversation_ids=[conversation.id]
+        ) == {conversation.id}
+
+        await conversation_repo.mark_read(db, user_id=reader.id, conversation_id=conversation.id)
+        # Twice is not an error: the mark only moves forward.
+        await conversation_repo.mark_read(db, user_id=reader.id, conversation_id=conversation.id)
+        assert (
+            await conversation_repo.unread_ids(
+                db, user_id=reader.id, conversation_ids=[conversation.id]
+            )
+            == set()
+        )
+
+        await self._answer(db, conversation, at=datetime.now(UTC) + timedelta(minutes=1))
+        assert await conversation_repo.unread_ids(
+            db, user_id=reader.id, conversation_ids=[conversation.id]
+        ) == {conversation.id}
+
+    async def test_the_readers_own_message_and_another_readers_open_leave_it_alone(
+        self, db
+    ) -> None:
+        organization = await _org(db)
+        reader = await _user(db)
+        other = await _user(db)
+        asked = await _conversation(db, organization, reader)
+        await self._answer(db, asked, at=datetime.now(UTC), role="user")
+        shared = await _conversation(db, organization, reader)
+        await self._answer(db, shared, at=datetime.now(UTC) - timedelta(minutes=1))
+        await conversation_repo.mark_read(db, user_id=other.id, conversation_id=shared.id)
+
+        unread = await conversation_repo.unread_ids(
+            db, user_id=reader.id, conversation_ids=[asked.id, shared.id]
+        )
+
+        # Nothing answered yet in one; somebody else's read of the other is theirs.
+        assert unread == {shared.id}
+
+    async def test_no_conversations_asks_nothing(self, db) -> None:
+        assert (
+            await conversation_repo.unread_ids(db, user_id=uuid.uuid4(), conversation_ids=[])
+            == set()
+        )

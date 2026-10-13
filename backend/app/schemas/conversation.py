@@ -357,6 +357,14 @@ class ConversationRead(ConversationBase, TimestampSchema):
             "everybody who can see it."
         ),
     )
+    unread: bool = Field(
+        default=False,
+        description=(
+            "Whether this conversation holds an answer the caller has not seen since "
+            "they last had it open. Set on a listing; `POST /conversations/{id}/read` "
+            "clears it."
+        ),
+    )
     running_since: datetime | None = Field(
         default=None,
         description=(

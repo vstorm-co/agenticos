@@ -1,5 +1,5 @@
 ---
-source_sha: "a1c5acaca78b"
+source_sha: "645616e02da8"
 ---
 
 # Die Konsole { #the-console }
@@ -226,6 +226,12 @@ welcher Agent antwortet, und der Run verhält sich genau so, wie er es in Slack
 oder hinter der API täte — dasselbe Budget, dasselbe Tor für Freigaben, dieselbe
 Audit-Spur, weil [jede Oberfläche durch einen einzigen Runner
 läuft](channels.md).
+
+**Die Liste der Unterhaltungen** zeigt, mit wem jeder Thread ist und wann er
+sich zuletzt bewegt hat. Einer, dessen Run noch arbeitet, zeigt einen Spinner und
+wie lange er schon läuft; einer mit einer Antwort, die Sie seit dem letzten Öffnen
+nicht gesehen haben, trägt einen Punkt, den das Öffnen löscht - nur für Sie, denn
+einen geteilten Thread liest jeder seiner Leser für sich.
 
 Drei Dinge im Eingabefeld sind wissenswert.
 

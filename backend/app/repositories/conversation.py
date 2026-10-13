@@ -20,6 +20,7 @@ from app.db.models.channel_session import ChannelSession
 from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.conversation_favourite import ConversationFavourite
+from app.db.models.conversation_last_read import ConversationLastRead
 from app.db.models.user import User
 from app.repositories._search import contains_ci
 
@@ -448,6 +449,56 @@ async def favourite_ids(
         select(ConversationFavourite.conversation_id).where(
             ConversationFavourite.user_id == user_id,
             ConversationFavourite.conversation_id.in_(conversation_ids),
+        )
+    )
+    return set(result.scalars().all())
+
+
+async def mark_read(db: AsyncSession, *, user_id: UUID, conversation_id: UUID) -> None:
+    """Record that this reader has the conversation open now.
+
+    An upsert that only ever moves forward, so a retried or late request cannot
+    make an answer the reader has seen look new again; the database's clock, the
+    one an answer's `created_at` was stamped by, so the two compare.
+    """
+    stmt = pg_insert(ConversationLastRead).values(user_id=user_id, conversation_id=conversation_id)
+    await db.execute(
+        stmt.on_conflict_do_update(
+            index_elements=["user_id", "conversation_id"],
+            set_={"read_at": func.greatest(ConversationLastRead.read_at, stmt.excluded.read_at)},
+        )
+    )
+
+
+async def unread_ids(
+    db: AsyncSession, *, user_id: UUID, conversation_ids: Collection[UUID]
+) -> set[UUID]:
+    """Which of these conversations have an answer this reader has not seen.
+
+    One query for a page. Unread while the newest assistant message is newer than
+    the reader's last read of it, or when they have never opened it and it has an
+    answer - a routine's run-log, a thread somebody shared.
+    """
+    if not conversation_ids:
+        return set()
+    last_answer = (
+        select(Message.conversation_id, func.max(Message.created_at).label("at"))
+        .where(Message.conversation_id.in_(list(conversation_ids)), Message.role == "assistant")
+        .group_by(Message.conversation_id)
+        .subquery()
+    )
+    result = await db.execute(
+        select(last_answer.c.conversation_id)
+        .outerjoin(
+            ConversationLastRead,
+            (ConversationLastRead.conversation_id == last_answer.c.conversation_id)
+            & (ConversationLastRead.user_id == user_id),
+        )
+        .where(
+            or_(
+                ConversationLastRead.read_at.is_(None),
+                last_answer.c.at > ConversationLastRead.read_at,
+            )
         )
     )
     return set(result.scalars().all())

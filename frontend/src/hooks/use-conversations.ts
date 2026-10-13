@@ -482,6 +482,39 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
     [queryClient],
   );
 
+  const patchUnread = useCallback(
+    (id: string, unread: boolean) => {
+      queryClient.setQueriesData<ConversationListResponse>(
+        { queryKey: qk.conversations.list() },
+        (prev) =>
+          prev === undefined
+            ? prev
+            : {
+                ...prev,
+                items: prev.items.map((item) => (item.id === id ? { ...item, unread } : item)),
+              },
+      );
+    },
+    [queryClient],
+  );
+
+  /**
+   * Record that the reader has this conversation open, so it is no longer unread.
+   * The mark goes at once; a refusal puts it back, with no toast - the thread is
+   * still on screen, and the next listing says the same either way.
+   */
+  const markRead = useCallback(
+    async (id: string) => {
+      patchUnread(id, false);
+      try {
+        await apiClient.post(`/conversations/${id}/read`, {});
+      } catch {
+        patchUnread(id, true);
+      }
+    },
+    [patchUnread],
+  );
+
   const setFavourite = useCallback(
     async (id: string, favourite: boolean) => {
       // The account this started as, for the same reason every other request
@@ -645,6 +678,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
     archiveConversation,
     unarchiveConversation,
     setFavourite,
+    markRead,
     deleteConversation,
     renameConversation,
     startNewChat,

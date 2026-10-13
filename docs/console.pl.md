@@ -1,5 +1,5 @@
 ---
-source_sha: "a1c5acaca78b"
+source_sha: "645616e02da8"
 ---
 
 # Konsola { #the-console }
@@ -209,6 +209,11 @@ Miejsce, w którym rozmawiasz z opublikowanym agentem. Selektor wybiera, który
 agent odpowiada, a run zachowuje się dokładnie tak, jak zachowałby się w Slacku
 albo za API — ten sam budżet, ta sama bramka zatwierdzeń, ten sam ślad audytowy,
 bo [każda powierzchnia przechodzi przez jeden runner](channels.md).
+
+**Lista rozmów** mówi, z kim jest każdy wątek i kiedy ostatnio się zmienił.
+Wątek, którego run wciąż pracuje, ma kręcący się wskaźnik i czas trwania; wątek
+z odpowiedzią, której nie widziałeś od ostatniego otwarcia, ma kropkę, a otwarcie
+go ją gasi - tylko dla ciebie, bo udostępniony wątek każdy czytelnik czyta osobno.
 
 Trzy rzeczy w kompozytorze, które warto znać.
 

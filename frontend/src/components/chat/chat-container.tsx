@@ -141,7 +141,7 @@ export function ChatContainer({
   // search box, and reading the two facts below off *that* would flip the
   // composer to writable the moment somebody typed a search that excluded the
   // thread they have open.
-  const { conversations, fetchConversations, refreshConversations, selectConversation } =
+  const { conversations, fetchConversations, refreshConversations, selectConversation, markRead } =
     useConversations();
   const prevConversationIdRef = useRef<string | null | undefined>(undefined);
 
@@ -157,6 +157,15 @@ export function ChatContainer({
     (conversation) => conversation.id === currentConversationId,
   )?.agents;
   const soleAgentId = conversationAgents?.length === 1 ? conversationAgents[0]?.id : undefined;
+
+  // The open conversation is read: when it is opened unread, and when an answer
+  // arrives while it is open and the next listing calls it unread.
+  const openIsUnread =
+    conversations.find((conversation) => conversation.id === currentConversationId)?.unread ===
+    true;
+  useEffect(() => {
+    if (currentConversationId && openIsUnread) void markRead(currentConversationId);
+  }, [currentConversationId, openIsUnread, markRead]);
 
   const handleConversationCreated = useCallback(() => {
     fetchConversations();

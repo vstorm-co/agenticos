@@ -1,5 +1,5 @@
 ---
-source_sha: "a1c5acaca78b"
+source_sha: "645616e02da8"
 ---
 
 # La consola { #the-console }
@@ -211,6 +211,12 @@ Donde hablas con un agent publicado. El selector elige qué agent responde, y el
 run se comporta exactamente igual que en Slack o detrás de la API — mismo budget,
 misma puerta de aprobación, mismo rastro de auditoría, porque
 [todas las superficies pasan por un único runner](channels.md).
+
+**La lista de conversaciones** dice con quién es cada hilo y cuándo se movió por
+última vez. Uno cuyo run sigue trabajando muestra un indicador giratorio y cuánto
+lleva; uno con una respuesta que no has visto desde la última vez que lo abriste
+lleva un punto, que abrirlo borra - solo para ti, porque cada lector de un hilo
+compartido lo lee por separado.
 
 Tres cosas del compositor que conviene saber.
 

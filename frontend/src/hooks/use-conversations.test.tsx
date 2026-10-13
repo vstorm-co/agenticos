@@ -115,6 +115,19 @@ describe("the conversation list", () => {
     vi.useRealTimers();
   });
 
+  it("marks a thread read at once, and puts the mark back if the server refuses", async () => {
+    serve({ items: [conversation("c-1", { unread: true })] });
+    const result = await hook();
+
+    await act(async () => result.current.markRead("c-1"));
+    expect(apiClient.post).toHaveBeenCalledWith("/conversations/c-1/read", {});
+    await waitFor(() => expect(result.current.conversations[0]?.unread).toBe(false));
+
+    vi.mocked(apiClient.post).mockRejectedValueOnce(new Error("offline"));
+    await act(async () => result.current.markRead("c-1"));
+    await waitFor(() => expect(result.current.conversations[0]?.unread).toBe(true));
+  });
+
   it("counts what matches rather than what was fetched", async () => {
     // A page is thirty rows and the deployment holds more: `total` is the
     // server's count of the list, which is what the sidebar puts on screen.

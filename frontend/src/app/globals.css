@@ -833,6 +833,39 @@
   }
 }
 
+/* A conversation with an answer the reader has not seen: a soft blue dot - the
+   colour chat apps give "new" - with a slow halo breathing out of it. The one hue
+   the neutral list carries, so it is read before anything else on the row. Still,
+   with no halo, under reduced motion. */
+.unread-dot {
+  background: oklch(64% 0.15 245);
+}
+.unread-dot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: inherit;
+  animation: unread-halo 2.4s ease-out infinite;
+}
+@keyframes unread-halo {
+  0% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  70%,
+  100% {
+    transform: scale(2.6);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .unread-dot::after {
+    animation: none;
+    opacity: 0;
+  }
+}
+
 /* A line of text a light passes over while the agent works - "Working for 5s". The
    words stay readable at every frame: the sweep is the foreground over the muted
    colour, not a fade. Still, in the muted colour, without motion. */

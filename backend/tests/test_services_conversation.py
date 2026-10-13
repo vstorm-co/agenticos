@@ -365,6 +365,7 @@ class TestATriggerRunLogReadsThroughItsAgent:
             repo.set_favourite = AsyncMock()
             repo.agents_in_conversations = AsyncMock(return_value={})
             repo.running_since = AsyncMock(return_value={})
+            repo.unread_ids = AsyncMock(return_value=set())
             share.get_share = AsyncMock(return_value=None)
             membership.confirms_participation = AsyncMock(return_value=False)
             triggers.get_by_conversation_id = AsyncMock(return_value=MagicMock(agent_id=uuid4()))
@@ -689,6 +690,7 @@ class TestParticipationDoesNotCarryTheWrite:
             mock_repo.get_conversation_by_id = AsyncMock(return_value=conversation)
             mock_repo.agents_in_conversations = AsyncMock(return_value={})
             mock_repo.running_since = AsyncMock(return_value={})
+            mock_repo.unread_ids = AsyncMock(return_value=set())
             mock_repo.favourite_ids = AsyncMock(return_value=set())
             mock_share_repo.get_share = AsyncMock(return_value=MagicMock(permission="view"))
 
@@ -792,6 +794,7 @@ class TestConversationServiceListConversations:
             mock_repo.count_conversations = AsyncMock(return_value=2)
             mock_repo.agents_in_conversations = AsyncMock(return_value={})
             mock_repo.running_since = AsyncMock(return_value={})
+            mock_repo.unread_ids = AsyncMock(return_value=set())
 
             items, total = await service.list_conversations(
                 skip=0, limit=50, organization_id=TEST_ORG_ID
@@ -820,6 +823,43 @@ class TestConversationServiceListConversations:
         assert [item.running_since for item in items] == [started, None]
 
     @pytest.mark.anyio
+    async def test_a_row_says_whether_it_holds_an_answer_its_reader_has_not_seen(
+        self, service: ConversationService
+    ):
+        seen, new = MockConversation(id=uuid4()), MockConversation(id=uuid4())
+
+        with patch("app.services.conversation.conversation_repo") as mock_repo:
+            mock_repo.unread_ids = AsyncMock(return_value={new.id})
+            await service._attach_unread([seen, new], user_id=uuid4())
+            # A listing with no reader - the admin one - asks nothing.
+            await service._attach_unread([seen], user_id=None)
+            await service._attach_unread([], user_id=uuid4())
+
+        assert [seen.unread, new.unread] == [False, True]
+        mock_repo.unread_ids.assert_awaited_once()
+
+    @pytest.mark.anyio
+    async def test_marking_a_conversation_read_checks_it_may_be_read(
+        self, service: ConversationService
+    ):
+        conversation = MockConversation(id=uuid4())
+        reader = uuid4()
+
+        with patch("app.services.conversation.conversation_repo") as mock_repo:
+            mock_repo.mark_read = AsyncMock()
+            with patch.object(
+                service, "get_conversation", AsyncMock(return_value=conversation)
+            ) as read:
+                await service.mark_read(
+                    conversation.id, organization_id=TEST_ORG_ID, user_id=reader
+                )
+
+        read.assert_awaited_once()
+        mock_repo.mark_read.assert_awaited_once_with(
+            service.db, user_id=reader, conversation_id=conversation.id
+        )
+
+    @pytest.mark.anyio
     async def test_list_conversations_with_pagination(self, service: ConversationService):
         """list_conversations passes skip and limit to repository."""
         with patch("app.services.conversation.conversation_repo") as mock_repo:
@@ -827,6 +867,7 @@ class TestConversationServiceListConversations:
             mock_repo.count_conversations = AsyncMock(return_value=0)
             mock_repo.agents_in_conversations = AsyncMock(return_value={})
             mock_repo.running_since = AsyncMock(return_value={})
+            mock_repo.unread_ids = AsyncMock(return_value=set())
 
             await service.list_conversations(skip=10, limit=5, organization_id=TEST_ORG_ID)
 
@@ -842,6 +883,7 @@ class TestConversationServiceListConversations:
             mock_repo.count_conversations = AsyncMock(return_value=0)
             mock_repo.agents_in_conversations = AsyncMock(return_value={})
             mock_repo.running_since = AsyncMock(return_value={})
+            mock_repo.unread_ids = AsyncMock(return_value=set())
 
             await service.list_conversations(
                 skip=0, limit=50, include_archived=True, organization_id=TEST_ORG_ID
@@ -861,6 +903,7 @@ class TestConversationServiceListConversations:
             mock_repo.count_conversations = AsyncMock(return_value=0)
             mock_repo.agents_in_conversations = AsyncMock(return_value={})
             mock_repo.running_since = AsyncMock(return_value={})
+            mock_repo.unread_ids = AsyncMock(return_value=set())
 
             await service.list_conversations(
                 organization_id=TEST_ORG_ID,
@@ -884,6 +927,7 @@ class TestConversationServiceListConversations:
             mock_repo.count_conversations = AsyncMock(return_value=0)
             mock_repo.agents_in_conversations = AsyncMock(return_value={})
             mock_repo.running_since = AsyncMock(return_value={})
+            mock_repo.unread_ids = AsyncMock(return_value=set())
 
             await service.list_conversations(
                 organization_id=TEST_ORG_ID, sort_by="title", sort_dir="asc"
@@ -910,6 +954,7 @@ class TestConversationServiceListConversations:
             mock_repo.count_conversations = AsyncMock(return_value=0)
             mock_repo.agents_in_conversations = AsyncMock(return_value={})
             mock_repo.running_since = AsyncMock(return_value={})
+            mock_repo.unread_ids = AsyncMock(return_value=set())
             mock_membership.confirmed_participant_threads = AsyncMock(return_value=vetted)
 
             await service.list_conversations(user_id=reader, organization_id=TEST_ORG_ID)
@@ -936,6 +981,7 @@ class TestConversationServiceListConversations:
             mock_repo.count_conversations = AsyncMock(return_value=0)
             mock_repo.agents_in_conversations = AsyncMock(return_value={})
             mock_repo.running_since = AsyncMock(return_value={})
+            mock_repo.unread_ids = AsyncMock(return_value=set())
             mock_membership.confirmed_participant_threads = AsyncMock()
 
             await service.list_conversations(organization_id=TEST_ORG_ID)
@@ -2250,6 +2296,7 @@ class TestAFavouriteBelongsToTheReader:
             conversation_repo, "agents_in_conversations", AsyncMock(return_value={})
         )
         monkeypatch.setattr(conversation_repo, "running_since", AsyncMock(return_value={}))
+        monkeypatch.setattr(conversation_repo, "unread_ids", AsyncMock(return_value=set()))
         monkeypatch.setattr(conversation_repo, "favourite_ids", AsyncMock(return_value=set()))
         stored = AsyncMock()
         monkeypatch.setattr(conversation_repo, "set_favourite", stored)
@@ -2282,6 +2329,7 @@ class TestAFavouriteBelongsToTheReader:
             conversation_repo, "agents_in_conversations", AsyncMock(return_value={})
         )
         monkeypatch.setattr(conversation_repo, "running_since", AsyncMock(return_value={}))
+        monkeypatch.setattr(conversation_repo, "unread_ids", AsyncMock(return_value=set()))
         monkeypatch.setattr(
             conversation_repo, "favourite_ids", AsyncMock(return_value={conversation.id})
         )
@@ -2306,6 +2354,7 @@ class TestAFavouriteBelongsToTheReader:
             conversation_repo, "agents_in_conversations", AsyncMock(return_value={})
         )
         monkeypatch.setattr(conversation_repo, "running_since", AsyncMock(return_value={}))
+        monkeypatch.setattr(conversation_repo, "unread_ids", AsyncMock(return_value=set()))
         asked = AsyncMock(return_value=set())
         monkeypatch.setattr(conversation_repo, "favourite_ids", asked)
         service = ConversationService(AsyncMock())
@@ -2331,6 +2380,7 @@ class TestAFavouriteBelongsToTheReader:
             conversation_repo, "agents_in_conversations", AsyncMock(return_value={})
         )
         monkeypatch.setattr(conversation_repo, "running_since", AsyncMock(return_value={}))
+        monkeypatch.setattr(conversation_repo, "unread_ids", AsyncMock(return_value=set()))
         asked = AsyncMock(return_value=set())
         monkeypatch.setattr(conversation_repo, "favourite_ids", asked)
 
@@ -2402,6 +2452,7 @@ class TestAFavouriteBelongsToTheReader:
             conversation_repo, "agents_in_conversations", AsyncMock(return_value={})
         )
         monkeypatch.setattr(conversation_repo, "running_since", AsyncMock(return_value={}))
+        monkeypatch.setattr(conversation_repo, "unread_ids", AsyncMock(return_value=set()))
         asked = AsyncMock(return_value=set())
         monkeypatch.setattr(conversation_repo, "favourite_ids", asked)
 

@@ -215,6 +215,27 @@ async def archive_conversation(
     )
 
 
+@router.post("/{conversation_id}/read", status_code=status.HTTP_204_NO_CONTENT)
+async def mark_conversation_read(
+    conversation_id: UUID,
+    conversation_service: ConversationSvc,
+    current_user: CurrentUser,
+    active_org: ActiveOrg,
+    ctx: Auth,
+) -> None:
+    """Record that the caller has the conversation open, which clears its unread mark.
+
+    The caller's own: a shared thread opened by one reader stays unread for the
+    others. Authorized as a read, as a favourite is.
+    """
+    await conversation_service.mark_read(
+        conversation_id,
+        organization_id=active_org.id,
+        user_id=current_user.id,
+        ctx=ctx,
+    )
+
+
 @router.post("/{conversation_id}/favourite", response_model=ConversationRead)
 async def favourite_conversation(
     conversation_id: UUID,

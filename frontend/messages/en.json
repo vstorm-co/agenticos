@@ -1168,7 +1168,8 @@
       "searching": "Searching…",
       "noSearchResults": "No conversation matches.",
       "untitled": "Untitled",
-      "title": "Chats"
+      "title": "Chats",
+      "unread": "New answer"
     },
     "skipComment": "Skip comment",
     "sourceCount": "{count, plural, =1 {1 source} other {# sources}}",

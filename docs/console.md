@@ -199,6 +199,12 @@ the run behaves exactly as it would in Slack or behind the API — same budget,
 same approval gate, same audit trail, because
 [every surface goes through one runner](channels.md).
 
+**The list of conversations** says who each thread is with and when it last
+moved. One whose run is still at work shows a spinner and how long it has been
+going; one with an answer you have not seen since you last had it open carries a
+dot, which opening it clears - for you only, since a shared thread is read by each
+of its readers separately.
+
 Three things in the composer worth knowing.
 
 **Your own accounts.** An agent bound to

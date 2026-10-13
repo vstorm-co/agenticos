@@ -501,7 +501,50 @@ class ConversationService:
         await self._attach_agents(items)
         await self._attach_favourites(items, user_id=user_id)
         await self._attach_running(items)
+        await self._attach_unread(items, user_id=user_id)
         return items, total
+
+    async def _attach_unread(
+        self, conversations: Sequence[Conversation], *, user_id: UUID | None
+    ) -> None:
+        """Say, per row, whether it holds an answer this reader has not seen. One
+        query for the page, and none for a listing with no reader - the admin one,
+        where being read belongs to nobody in particular."""
+        if not conversations:
+            return
+        unread = (
+            set()
+            if user_id is None
+            else await conversation_repo.unread_ids(
+                self.db,
+                user_id=user_id,
+                conversation_ids=[conversation.id for conversation in conversations],
+            )
+        )
+        for conversation in conversations:
+            conversation.unread = conversation.id in unread  # ty: ignore[unresolved-attribute]
+
+    async def mark_read(
+        self,
+        conversation_id: UUID,
+        *,
+        organization_id: UUID,
+        user_id: UUID,
+        ctx: AuthContext | None = None,
+    ) -> None:
+        """Record that this reader has the conversation open, so it is not unread.
+
+        Checked as a read, as a favourite is: somebody a conversation was shared
+        with reads it exactly as its owner does.
+        """
+        conversation = await self.get_conversation(
+            conversation_id,
+            organization_id=organization_id,
+            user_id=user_id,
+            include_favourite=False,
+            ctx=ctx,
+        )
+        await conversation_repo.mark_read(self.db, user_id=user_id, conversation_id=conversation.id)
 
     async def _attach_running(self, conversations: Sequence[Conversation]) -> None:
         """Say, per row, since when a run has been at work in it, so a list can

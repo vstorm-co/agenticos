@@ -79,6 +79,7 @@ function ConversationItem({
   };
 
   const displayTitle = conversation.title || t("newConversation");
+  const unread = conversation.unread === true && !isActive;
   const agents = conversation.agents ?? [];
   const agentLabel =
     agents.length === 0
@@ -139,7 +140,7 @@ function ConversationItem({
             <span
               className={cn(
                 "truncate text-[13px] leading-5 font-semibold",
-                isActive ? "text-foreground" : "text-foreground/85",
+                isActive || unread ? "text-foreground" : "text-foreground/85",
               )}
             >
               {displayTitle}
@@ -152,6 +153,16 @@ function ConversationItem({
             )}
           </div>
         </div>
+      )}
+
+      {/* An answer arrived while the reader was elsewhere. Not on the open row,
+          which is being read as it arrives. */}
+      {unread && (
+        <span
+          role="status"
+          aria-label={t("sidebar.unread")}
+          className="unread-dot relative h-2 w-2 shrink-0 rounded-full"
+        />
       )}
 
       {/* Only once it is starred. As a *button* it was redundant - the same

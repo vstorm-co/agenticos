@@ -144,6 +144,23 @@ describe("what the sidebar says about the list", () => {
     expect(within(quiet).queryByText(/Working/)).toBeNull();
   });
 
+  it("marks a thread with an answer the reader has not seen, but not the open one", async () => {
+    useConversationStore.getState().setCurrentConversationId("c-2");
+    serve([
+      { ...conversation("c-1", "New answer here"), unread: true },
+      { ...conversation("c-2", "Open one"), unread: true },
+      conversation("c-3", "Seen one"),
+    ] as unknown as ReturnType<typeof conversation>[]);
+    mount();
+    await screen.findAllByText("New answer here");
+
+    const row = (title: string) =>
+      within(list()).getByText(title).closest("[class*='group']") as HTMLElement;
+    expect(within(row("New answer here")).getByRole("status", { name: "New answer" })).toBeTruthy();
+    expect(within(row("Open one")).queryByRole("status", { name: "New answer" })).toBeNull();
+    expect(within(row("Seen one")).queryByRole("status", { name: "New answer" })).toBeNull();
+  });
+
   it("reads the plain list by day, with no count over it", async () => {
     serve(
       [

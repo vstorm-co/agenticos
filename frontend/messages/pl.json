@@ -1168,7 +1168,8 @@
       "searching": "Szukam…",
       "noSearchResults": "Żadna rozmowa nie pasuje.",
       "untitled": "Bez tytułu",
-      "title": "Czaty"
+      "title": "Czaty",
+      "unread": "Nowa odpowiedź"
     },
     "skipComment": "Pomiń komentarz",
     "sourceCount": "{count, plural, one {1 źródło} few {# źródła} many {# źródeł} other {# źródła}}",
