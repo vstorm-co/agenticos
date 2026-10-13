@@ -1169,7 +1169,8 @@
       "noSearchResults": "Żadna rozmowa nie pasuje.",
       "untitled": "Bez tytułu",
       "title": "Czaty",
-      "unread": "Nowa odpowiedź"
+      "unread": "Nowa odpowiedź",
+      "unreadHeading": "Nieprzeczytane"
     },
     "skipComment": "Pomiń komentarz",
     "sourceCount": "{count, plural, one {1 źródło} few {# źródła} many {# źródeł} other {# źródła}}",

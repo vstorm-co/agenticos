@@ -18,6 +18,7 @@ import {
   Star,
   ChevronLeft,
   ChevronRight,
+  Inbox,
   Loader2,
   MessageSquare,
   MoreVertical,
@@ -118,7 +119,7 @@ function ConversationItem({
           <span
             role="status"
             aria-label={t("sidebar.unread")}
-            className="unread-dot ring-background absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full ring-2"
+            className="unread-dot ring-background absolute -top-px -right-px h-2 w-2 rounded-full ring-2"
           />
         )}
       </span>
@@ -170,31 +171,6 @@ function ConversationItem({
           </div>
         </div>
       )}
-
-      {/* Only once it is starred. As a *button* it was redundant - the same
-          toggle is in the menu beside it, two rows down - and the redundancy
-          cost every row in the list eight characters of title, because a
-          control at `opacity-0` still takes its width. What it is not
-          redundant as is a *marker*: it is the only thing on a row saying
-          which band that row is in, so a favourited conversation keeps it and
-          everything else gets the width back. */}
-      {conversation.is_favourite ? (
-        <Button
-          variant="ghost"
-          size="sm"
-          aria-label={t("unfavourite")}
-          aria-pressed
-          // Neutral, like the rest of the list: the band it sits in already says
-          // it is a favourite, and a brown-gold star was the one tint on the page.
-          className="text-muted-foreground/70 hover:text-foreground h-6 w-6 shrink-0 p-0"
-          onClick={(e) => {
-            e.stopPropagation();
-            onFavourite(false);
-          }}
-        >
-          <Star className="h-3.5 w-3.5 fill-current" />
-        </Button>
-      ) : null}
 
       <div className="relative">
         <Button
@@ -443,16 +419,27 @@ function ConversationList({
    * look for what archiving just moved.
    */
   const bands = useMemo(() => {
-    const firstOther = conversations.findIndex(
-      (conversation) => conversation.is_favourite !== true,
-    );
+    // Threads with an answer the reader has not seen lead the list, as an inbox
+    // does, and leave the band they would otherwise sit in. Not the open one,
+    // which is being read, nor in the archive.
+    const unread = isArchivedView
+      ? []
+      : conversations.filter(
+          (conversation) =>
+            conversation.unread === true && conversation.id !== currentConversationId,
+        );
+    const remaining = conversations.filter((conversation) => !unread.includes(conversation));
+    const firstOther = remaining.findIndex((conversation) => conversation.is_favourite !== true);
     const starred = isArchivedView
       ? []
-      : conversations.slice(0, firstOther === -1 ? conversations.length : firstOther);
-    const rest = conversations.slice(starred.length);
+      : remaining.slice(0, firstOther === -1 ? remaining.length : firstOther);
+    const rest = remaining.slice(starred.length);
     return [
+      ...(unread.length > 0
+        ? [{ key: "unread", heading: ts("unreadHeading"), icon: "unread" as const, rows: unread }]
+        : []),
       ...(starred.length > 0
-        ? [{ key: "favourites", heading: t("favourites"), starred: true, rows: starred }]
+        ? [{ key: "favourites", heading: t("favourites"), icon: "star" as const, rows: starred }]
         : []),
       // Under the date they were last active, the way a chat product's history
       // reads, when the list is in that order; any other order has no dates to
@@ -461,14 +448,14 @@ function ConversationList({
         ? byAge(rest).map(({ age, rows }) => ({
             key: age,
             heading: ts(`age.${age}`),
-            starred: false,
+            icon: null,
             rows,
           }))
         : rest.length > 0
-          ? [{ key: "rest", heading: null, starred: false, rows: rest }]
+          ? [{ key: "rest", heading: null, icon: null, rows: rest }]
           : []),
     ];
-  }, [conversations, isArchivedView, datedOrder, t, ts]);
+  }, [conversations, currentConversationId, isArchivedView, datedOrder, t, ts]);
 
   return (
     <>
@@ -554,11 +541,12 @@ function ConversationList({
                 {ts("counted", { count: total })}
               </p>
             )}
-            {bands.map(({ key, heading, starred, rows }) => (
+            {bands.map(({ key, heading, icon, rows }) => (
               <div key={key} className="space-y-0.5">
                 {heading !== null && (
                   <p className="text-muted-foreground flex items-center gap-1 px-2 pt-3 pb-1 text-xs font-medium">
-                    {starred && <Star className="h-3 w-3 fill-current" aria-hidden />}
+                    {icon === "star" && <Star className="h-3 w-3 fill-current" aria-hidden />}
+                    {icon === "unread" && <Inbox className="h-3 w-3" aria-hidden />}
                     {heading}
                   </p>
                 )}

@@ -1169,7 +1169,8 @@
       "noSearchResults": "No conversation matches.",
       "untitled": "Untitled",
       "title": "Chats",
-      "unread": "New answer"
+      "unread": "New answer",
+      "unreadHeading": "Unread"
     },
     "skipComment": "Skip comment",
     "sourceCount": "{count, plural, =1 {1 source} other {# sources}}",

@@ -838,24 +838,24 @@
    the neutral list carries, so it is read before anything else on the row. Still,
    with no halo, under reduced motion. */
 .unread-dot {
-  background: oklch(64% 0.15 245);
+  background: oklch(68% 0.11 245);
 }
 .unread-dot::after {
   content: "";
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: oklch(64% 0.15 245);
-  animation: unread-halo 2.4s ease-out infinite;
+  background: oklch(68% 0.11 245);
+  animation: unread-halo 2.8s ease-out infinite;
 }
 @keyframes unread-halo {
   0% {
     transform: scale(1);
-    opacity: 0.55;
+    opacity: 0.35;
   }
   70%,
   100% {
-    transform: scale(2.6);
+    transform: scale(2.2);
     opacity: 0;
   }
 }

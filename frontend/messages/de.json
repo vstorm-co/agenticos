@@ -1169,7 +1169,8 @@
       "noSearchResults": "Keine Unterhaltung passt.",
       "untitled": "Ohne Titel",
       "title": "Chats",
-      "unread": "Neue Antwort"
+      "unread": "Neue Antwort",
+      "unreadHeading": "Ungelesen"
     },
     "skipComment": "Kommentar überspringen",
     "sourceCount": "{count, plural, =1 {1 Quelle} other {# Quellen}}",

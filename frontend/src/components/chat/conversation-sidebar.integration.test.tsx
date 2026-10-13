@@ -389,31 +389,42 @@ describe("the favourites band", () => {
     );
   });
 
-  it("keeps the star on a row that is starred, because it marks the band", async () => {
-    // The one thing the star was not redundant as: nothing else on a row says
-    // which band it is in.
+  it("draws no star on a starred row, since the band it sits in says so", async () => {
     serve([conversation("c-1", "Rota cover", true)]);
     mount();
     await within(list()).findByText("Rota cover");
 
-    expect(
-      within(list()).getByRole("button", { name: "Remove from favourites" }),
-    ).toBeInTheDocument();
+    expect(within(list()).getByText("Favourites")).toBeInTheDocument();
+    expect(within(list()).queryByRole("button", { name: "Remove from favourites" })).toBeNull();
   });
 
-  it("offers to remove it once it is starred", async () => {
+  it("removes a favourite from the row's menu", async () => {
     serve([conversation("c-1", "Rota cover", true)]);
     vi.mocked(apiClient.delete).mockResolvedValue({});
     mount();
     await within(list()).findByText("Rota cover");
 
-    const star = within(list()).getByRole("button", { name: "Remove from favourites" });
-    expect(star).toHaveAttribute("aria-pressed", "true");
-    await userEvent.click(star);
+    await userEvent.click(within(list()).getByRole("button", { name: "Conversation actions" }));
+    await userEvent.click(within(list()).getByRole("button", { name: /Remove from favourites/ }));
 
     await waitFor(() =>
       expect(apiClient.delete).toHaveBeenCalledWith("/conversations/c-1/favourite"),
     );
+  });
+
+  it("leads with the threads holding an answer not yet seen", async () => {
+    serve([
+      conversation("c-1", "Starred and new", true),
+      { ...conversation("c-2", "New answer"), unread: true },
+      { ...conversation("c-3", "Starred and new too", true), unread: true },
+    ] as unknown as ReturnType<typeof conversation>[]);
+    mount();
+    await within(list()).findByText("New answer");
+
+    const headings = within(list())
+      .getAllByText(/^(Unread|Favourites)$/)
+      .map((heading) => heading.textContent);
+    expect(headings).toEqual(["Unread", "Favourites"]);
   });
 
   it("does not band the archive, where a star still exists but has no band", async () => {
