@@ -26,7 +26,8 @@ const state = vi.hoisted(() => ({
   downloadError: null as string | null,
 }));
 
-vi.mock("@/lib/workspace-files", () => ({
+vi.mock("@/lib/workspace-files", async (importOriginal) => ({
+  documentName: (await importOriginal<typeof import("@/lib/workspace-files")>()).documentName,
   workspaceFileAccess: (source: { id: string }, path: string) => ({
     id: source.id,
     path,
@@ -114,7 +115,10 @@ describe("WorkspaceBrowser", () => {
           preview: null,
           thumbnail: null,
           workspace_id: "w-1",
+          agent_id: "a-1",
           agent_name: "Analyst",
+          agent_slug: "analyst",
+          agent_has_avatar: false,
           access_label: "Everybody who talks to this agent",
           from_upload: false,
         },
@@ -141,13 +145,17 @@ describe("WorkspaceBrowser", () => {
     render(<WorkspaceBrowser />);
 
     expect(screen.getByRole("link", { name: "Analyst" })).toHaveAttribute("href", "/documents/w-1");
-    expect(screen.getByText(/Everybody who talks to this agent/)).toBeVisible();
+    // Who else can see it is the workspace's sentence, on the agent's name.
+    expect(screen.getByRole("link", { name: "Analyst" })).toHaveAttribute(
+      "title",
+      "Everybody who talks to this agent",
+    );
   });
 
   it("opens a file into the viewer, because the next question is what is in it", async () => {
     render(<WorkspaceBrowser />);
 
-    await userEvent.click(screen.getByRole("button", { name: /report\.csv CSV/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Open report.csv" }));
 
     expect(await screen.findByRole("dialog")).toBeVisible();
     expect(state.read).toContain("/report.csv");
@@ -156,7 +164,7 @@ describe("WorkspaceBrowser", () => {
   it("closes the viewer again", async () => {
     // The flat grid owns the open state, so the way out is its callback.
     render(<WorkspaceBrowser />);
-    await userEvent.click(screen.getByRole("button", { name: /report\.csv CSV/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Open report.csv" }));
     await screen.findByRole("dialog");
 
     await userEvent.click(screen.getByRole("button", { name: "Close" }));
@@ -182,10 +190,36 @@ describe("WorkspaceBrowser", () => {
     expect(screen.getByText(/^BIN$/)).toBeVisible();
   });
 
+  it("names an attachment as it was given, and dates a file it can", async () => {
+    // `uploads/0d7d5756-` is the platform's filing; the person called it
+    // `handbook.md`, and the full path stays on the name as its tooltip.
+    state.flat = {
+      ...state.flat!,
+      items: [
+        {
+          ...state.flat!.items[0]!,
+          path: "/uploads/0d7d5756-handbook.md",
+          from_upload: true,
+          preview: "# Handbook",
+          modified_at: new Date(Date.now() - 2 * 3600_000).toISOString(),
+        },
+        { ...state.flat!.items[0]!, path: "/notes.txt", preview: "plain words" },
+      ],
+    };
+    render(<WorkspaceBrowser />);
+
+    expect(screen.getByText("handbook.md")).toHaveAttribute(
+      "title",
+      "/uploads/0d7d5756-handbook.md",
+    );
+    expect(screen.getByText(/MD · .* · 2h ago/)).toBeVisible();
+    expect(screen.getByText("plain words")).toBeInTheDocument();
+  });
+
   it("offers a download for every file, without opening it first", async () => {
     render(<WorkspaceBrowser />);
 
-    await userEvent.click(screen.getByRole("button", { name: "Download /report.csv" }));
+    await userEvent.click(screen.getByRole("button", { name: "Download report.csv" }));
 
     expect(state.downloaded).toEqual([["w-1", "/report.csv"]]);
   });
@@ -271,15 +305,15 @@ describe("WorkspaceBrowser", () => {
 
     // Alphabetical by default, so the order is deterministic before anybody sorts.
     const paths = () => screen.getAllByText(/\.csv/).map((node) => node.textContent?.split(" ")[0]);
-    expect(paths()).toEqual(["/new.csv", "/old.csv"]);
+    expect(paths()).toEqual(["new.csv", "old.csv"]);
 
     await userEvent.click(screen.getByRole("combobox", { name: "Sort files" }));
     await userEvent.click(screen.getByRole("option", { name: "By size" }));
-    expect(paths()).toEqual(["/old.csv", "/new.csv"]);
+    expect(paths()).toEqual(["old.csv", "new.csv"]);
 
     await userEvent.click(screen.getByRole("combobox", { name: "Sort files" }));
     await userEvent.click(screen.getByRole("option", { name: "By modified" }));
-    expect(paths()).toEqual(["/new.csv", "/old.csv"]);
+    expect(paths()).toEqual(["new.csv", "old.csv"]);
   });
 
   it("groups by agent, and orders one agent's own files by path", async () => {
@@ -300,7 +334,7 @@ describe("WorkspaceBrowser", () => {
     await userEvent.click(screen.getByRole("combobox", { name: "Sort files" }));
     await userEvent.click(screen.getByRole("option", { name: "By agent" }));
 
-    expect(paths()).toEqual(["/alpha.csv", "/zeta.csv", "/mid.csv"]);
+    expect(paths()).toEqual(["alpha.csv", "zeta.csv", "mid.csv"]);
   });
 
   it("shows a stored file's first lines on its tile", async () => {
@@ -330,7 +364,7 @@ describe("WorkspaceBrowser", () => {
     render(<WorkspaceBrowser />);
 
     // `hidden`: the tile's peek is decorative and out of the accessibility tree.
-    expect(screen.getByRole("img", { name: "/chart.png", hidden: true })).toBeVisible();
+    expect(screen.getByRole("img", { name: "chart.png", hidden: true })).toBeVisible();
   });
 
   it("draws an image with no thumbnail as its mark, not a broken picture", async () => {
@@ -340,7 +374,7 @@ describe("WorkspaceBrowser", () => {
     };
     render(<WorkspaceBrowser />);
 
-    expect(screen.queryByRole("img", { name: "/photo.png" })).toBeNull();
+    expect(screen.queryByRole("img", { name: "photo.png" })).toBeNull();
   });
 
   it("says nothing is held rather than showing an empty list", async () => {
@@ -385,7 +419,10 @@ describe("who put a file in the workspace", () => {
     preview: null,
     thumbnail: null,
     workspace_id: "w-1",
+    agent_id: "a-1",
     agent_name: "Analyst",
+    agent_slug: "analyst",
+    agent_has_avatar: false,
     access_label: "Whoever is in that conversation",
     from_upload: true,
   };
@@ -415,14 +452,14 @@ describe("who put a file in the workspace", () => {
     await userEvent.click(screen.getByRole("combobox", { name: "Who put it there" }));
     await userEvent.click(screen.getByRole("option", { name: "Attached" }));
 
-    expect(screen.getByText("/uploads/8b1e-book.pdf")).toBeVisible();
-    expect(screen.queryByText("/summary.md")).toBeNull();
+    expect(screen.getByText("8b1e-book.pdf")).toBeVisible();
+    expect(screen.queryByText("summary.md")).toBeNull();
   });
 
   it("shows both when nobody narrowed it", () => {
     render(<WorkspaceBrowser />);
 
-    expect(screen.getByText("/uploads/8b1e-book.pdf")).toBeVisible();
-    expect(screen.getByText("/summary.md")).toBeVisible();
+    expect(screen.getByText("8b1e-book.pdf")).toBeVisible();
+    expect(screen.getByText("summary.md")).toBeVisible();
   });
 });

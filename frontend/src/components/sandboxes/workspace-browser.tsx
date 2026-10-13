@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Download, FolderOpen } from "lucide-react";
+import { FolderOpen } from "lucide-react";
 
 import {
   ListCard,
@@ -16,15 +16,14 @@ import {
   Skeleton,
   useListControls,
 } from "@/components/ui";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import { FileCard, FileViewer } from "@/components/files";
+import { FileViewer } from "@/components/files";
+import { DocumentTile } from "@/components/sandboxes/document-tile";
 import { useAllWorkspaceFiles } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import { suffixOf } from "@/lib/file-kinds";
-import { workspaceFileAccess } from "@/lib/workspace-files";
-import { cn } from "@/lib/utils";
+import { documentName, workspaceFileAccess } from "@/lib/workspace-files";
 import type { FlatFile } from "@/lib/sandbox-workspaces-api";
 import { useTranslations } from "next-intl";
 
@@ -99,7 +98,6 @@ export function WorkspaceBrowser() {
 function FlatFiles() {
   const t = useTranslations("sandboxes");
   const router = useRouter();
-  const tc = useTranslations("common");
   const { listing, isLoading, error } = useAllWorkspaceFiles(true);
   const [opened, setOpened] = useState<FlatFile | null>(null);
   const [sort, setSort] = useState<FlatSort>("name");
@@ -169,57 +167,23 @@ function FlatFiles() {
       {list.matched === 0 ? (
         <p className="text-muted-foreground py-8 text-center text-sm">{t("noFileMatches")}</p>
       ) : (
-        /* Tiles rather than rows, on the card every other surface shows a file
-           as - so a CSV looks like the same thing here, in the chat panel and in
-           the composer. The card carries the preview or the thumbnail, the
-           suffix and the size;
-           the line under it carries what only this view knows: the agent holding
-           the file and who else can see it. */
-        <ul className="rise-in grid grid-cols-1 items-start gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        /* Four across on a wide screen: a document is recognised by its first
+           lines and its name, and a fourth column shows a quarter more of them
+           before the first scroll. One card per file, with the agent holding it
+           and where it came from inside the card rather than hung under it. */
+        <ul className="rise-in grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {list.visible.map((file) => (
-            <li key={key(file)} className="space-y-1">
-              <FileCard
-                name={file.path}
-                size={file.size}
-                preview={file.preview}
-                imageUrl={file.thumbnail}
+            <li key={key(file)}>
+              <DocumentTile
+                file={file}
                 onOpen={() => setOpened(file)}
-                className="w-full"
+                onDownload={() =>
+                  void workspaceFileAccess(
+                    { kind: "workspace", id: file.workspace_id },
+                    file.path,
+                  ).download()
+                }
               />
-              {/* Said on the tile rather than only filterable: a PDF a person
-                  attached and a PDF an agent produced are read for different
-                  reasons, and the path is not always the answer - `report.csv` at
-                  a workspace root could be either. */}
-              <p className="text-muted-foreground flex items-center gap-1 px-1 text-xs">
-                <span
-                  className={cn(
-                    "shrink-0 rounded px-1 py-0.5 text-xs",
-                    file.from_upload ? "bg-accent text-foreground" : "text-muted-foreground",
-                  )}
-                >
-                  {file.from_upload ? t("workspaces.fromMe") : t("workspaces.fromTheAgent")}
-                </span>
-                <Link
-                  href={ROUTES.DOCUMENT_FOLDER(file.workspace_id)}
-                  className="truncate hover:underline"
-                >
-                  {file.agent_name}
-                </Link>
-                <span className="truncate">· {file.access_label}</span>
-                <button
-                  type="button"
-                  aria-label={tc("downloadNamed", { name: file.path })}
-                  onClick={() =>
-                    void workspaceFileAccess(
-                      { kind: "workspace", id: file.workspace_id },
-                      file.path,
-                    ).download()
-                  }
-                  className="hover:text-foreground ml-auto shrink-0 rounded-md p-1"
-                >
-                  <Download className="h-3.5 w-3.5" />
-                </button>
-              </p>
             </li>
           ))}
         </ul>
@@ -235,7 +199,7 @@ function FlatFiles() {
       {opened !== null && (
         <FileViewer
           file={{
-            name: opened.path.split("/").filter(Boolean).pop() ?? opened.path,
+            name: documentName(opened.path, opened.from_upload),
             path: opened.path,
             size: opened.size,
             modifiedAt: opened.modified_at,

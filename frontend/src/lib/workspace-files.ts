@@ -71,3 +71,19 @@ export function workspaceFileAccess(source: FileSource, path: string): FileAcces
     },
   };
 }
+
+/** The id an attachment is filed under, ahead of its own name - `uploads/<8 hex>-<name>`. */
+const UPLOAD_PREFIX = /^[0-9a-f]{8}-/;
+
+/**
+ * A workspace file as a person calls it: its own name, without the folders over it.
+ *
+ * An attachment is stored as `uploads/0d7d5756-handbook.pdf` - the hex keeps two
+ * files called `handbook.pdf` apart - and that prefix is the platform's filing,
+ * not the name the person gave it. Only an attachment loses it: an agent's own
+ * file is named by the agent, hex and all.
+ */
+export function documentName(path: string, fromUpload: boolean): string {
+  const base = path.split("/").filter(Boolean).pop() ?? path;
+  return fromUpload ? base.replace(UPLOAD_PREFIX, "") || base : base;
+}

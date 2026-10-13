@@ -48,7 +48,11 @@ export interface WorkspaceFiles {
 /** One file in the flat view, with the workspace it came from named beside it. */
 export interface FlatFile extends WorkspaceFile {
   workspace_id: string;
+  agent_id: string;
   agent_name: string;
+  /** The handle the agent's generated face is drawn from; empty once it is deleted. */
+  agent_slug: string;
+  agent_has_avatar: boolean;
   access_label: string;
   /**
    * Whether a person attached this file rather than an agent writing it.
