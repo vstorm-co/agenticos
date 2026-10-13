@@ -77,7 +77,7 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
   const tErrors = useTranslations("errors");
   const t = useTranslations("agents");
   const tAgents = useTranslations("pages.agents");
-  const { create } = useAgents();
+  const { create, categoryOptions, tagOptions } = useAgents();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   // Organization by default. An agent is a thing a company builds, and one
@@ -211,6 +211,8 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
                   inputLabel={tAgents("addCategory")}
                   removeLabel={(value) => tAgents("removeCategory", { value })}
                   placeholder={tAgents("addCategoryPlaceholder")}
+                  suggestions={categoryOptions}
+                  suggestionsLabel={tAgents("inCategoryUse")}
                   maxItems={MAX_AGENT_CATEGORIES}
                   maxLength={MAX_LABEL}
                 />
@@ -223,6 +225,8 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
                   inputLabel={tAgents("addTag")}
                   removeLabel={(value) => tAgents("removeTag", { value })}
                   placeholder={tAgents("addTagPlaceholder")}
+                  suggestions={tagOptions}
+                  suggestionsLabel={tAgents("inTagUse")}
                   maxItems={MAX_AGENT_TAGS}
                   maxLength={MAX_LABEL}
                 />

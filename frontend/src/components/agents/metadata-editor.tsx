@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 
 import { ChipsInput } from "@/components/agents/chips-input";
 import { Label } from "@/components/ui";
-import { useAgent } from "@/hooks";
+import { useAgent, useAgents } from "@/hooks";
 import { MAX_AGENT_CATEGORIES, MAX_AGENT_TAGS } from "@/lib/agent-labels";
 
 /** The longest label the server stores, enforced here before it is sent. */
@@ -42,6 +42,8 @@ export function MetadataEditor({
   tags: string[];
 }) {
   const t = useTranslations("pages.agents");
+  // The labels already in use across the agents the caller can list.
+  const { categoryOptions, tagOptions } = useAgents();
   const { setMetadata } = useAgent(agentId);
   const [draftCategories, setDraftCategories] = useState(categories);
   const [draftTags, setDraftTags] = useState(tags);
@@ -90,6 +92,8 @@ export function MetadataEditor({
           inputLabel={t("addCategory")}
           removeLabel={(value) => t("removeCategory", { value })}
           placeholder={t("addCategoryPlaceholder")}
+          suggestions={categoryOptions}
+          suggestionsLabel={t("inCategoryUse")}
           maxItems={MAX_AGENT_CATEGORIES}
           maxLength={MAX_LABEL_LENGTH}
           disabled={setMetadata.isPending}
@@ -109,6 +113,8 @@ export function MetadataEditor({
           inputLabel={t("addTag")}
           removeLabel={(value) => t("removeTag", { value })}
           placeholder={t("addTagPlaceholder")}
+          suggestions={tagOptions}
+          suggestionsLabel={t("inTagUse")}
           maxItems={MAX_AGENT_TAGS}
           maxLength={MAX_LABEL_LENGTH}
           disabled={setMetadata.isPending}

@@ -3792,7 +3792,9 @@
       "testPanelOpen": "Testen",
       "testPanelShortcut": "Neben dem Builder testen (T)",
       "firstPublishNext": "Er ist im Chat und über die API live. Wählen Sie als Nächstes, wo ihn die Leute sonst erreichen - ein Website-Widget, eine gehostete Seite, Slack oder Telegram.",
-      "openAvailability": "Availability öffnen"
+      "openAvailability": "Availability öffnen",
+      "inCategoryUse": "Bereits verwendete Kategorien",
+      "inTagUse": "Bereits verwendete Tags"
     },
     "auth": {
       "backSign": "Zurück zur Anmeldung",
