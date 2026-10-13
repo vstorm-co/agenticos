@@ -45,7 +45,13 @@ import type {
 } from "@/types/secrets";
 import type { StorableSecretKind } from "@/types/secrets";
 import { useTranslations } from "next-intl";
-import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_CONFIRM, DIALOG_FORM } from "@/lib/dialog-sizes";
+import {
+  DIALOG_BODY,
+  DIALOG_COLUMN,
+  DIALOG_CONFIRM,
+  DIALOG_FORM,
+  DIALOG_SCROLL_GUTTER,
+} from "@/lib/dialog-sizes";
 
 /** What the backend accepts, so an over-long value is refused before it is sent. */
 const MAX_NAME = 128;
@@ -489,7 +495,7 @@ export function RotateSecretDialog({
         </DialogHeader>
 
         {secret && info && (
-          <div className="max-h-[60vh] scrollbar-thin space-y-4 overflow-y-auto px-1">
+          <div className={cn("max-h-[60vh] space-y-4 overflow-y-auto pl-1", DIALOG_SCROLL_GUTTER)}>
             <p className="text-muted-foreground text-xs">
               {t("nameCurrentlyEnds", { name: info.name })}{" "}
               <span className="font-mono">····{secret.hint}</span>

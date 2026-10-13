@@ -28,7 +28,7 @@ import {
   DialogTitle,
 } from "@/components/ui";
 import { ErrorState, LoadingState } from "@/components/states";
-import { DIALOG_CANVAS, DIALOG_FILL } from "@/lib/dialog-sizes";
+import { DIALOG_CANVAS, DIALOG_FILL, DIALOG_SCROLL_GUTTER } from "@/lib/dialog-sizes";
 import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { useAgentTemplates } from "@/hooks/use-agent-templates";
@@ -113,7 +113,7 @@ function IndustryCards({
   const t = useTranslations("agentTemplates");
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto">
+    <div className={cn("min-h-0 flex-1 overflow-y-auto", DIALOG_SCROLL_GUTTER)}>
       <div className="grid grid-cols-1 gap-4 p-1 sm:grid-cols-2 lg:grid-cols-3">
         {industries.map((industry) => {
           const Icon = INDUSTRY_ICONS[industry.id] ?? Library;
@@ -159,7 +159,7 @@ function IndustryTemplates({
         {t("back")}
       </Button>
 
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-1">
+      <div className={cn("min-h-0 flex-1 space-y-3 overflow-y-auto p-1", DIALOG_SCROLL_GUTTER)}>
         {industry.templates.map((template) => (
           <TemplateRow
             key={template.key}

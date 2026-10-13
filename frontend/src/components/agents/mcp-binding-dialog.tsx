@@ -219,7 +219,7 @@ export function McpBindingDialog({
         </DialogHeader>
 
         {/* The scrollbar sits in the dialog's padding, not over the controls. */}
-        <div className={cn(DIALOG_BODY, "-mr-5 min-w-0 space-y-6 pr-5")}>
+        <div className={cn(DIALOG_BODY, "min-w-0 space-y-6")}>
           <section className="space-y-2.5">
             <h3 className="text-sm font-medium">{t("whoseAccount")}</h3>
             <div

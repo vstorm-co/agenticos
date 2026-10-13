@@ -24,7 +24,8 @@ import {
 } from "@/components/channels/transcription-fields";
 import { useCopySlackManifest } from "@/hooks/use-channel-bots";
 import { submitFailure } from "@/lib/api-error";
-import { DIALOG_FORM } from "@/lib/dialog-sizes";
+import { DIALOG_FORM, DIALOG_SCROLL_GUTTER } from "@/lib/dialog-sizes";
+import { cn } from "@/lib/utils";
 import type { AnswerStyle, ChannelBot, ChannelBotUpdate, ChannelPlatform } from "@/types/channels";
 import { useTranslations } from "next-intl";
 
@@ -206,7 +207,7 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
         <DialogDescription>{t("editChannelDescription")}</DialogDescription>
       </DialogHeader>
 
-      <div className="max-h-[65vh] scrollbar-thin space-y-5 overflow-y-auto px-1">
+      <div className={cn("max-h-[65vh] space-y-5 overflow-y-auto pl-1", DIALOG_SCROLL_GUTTER)}>
         <div className="text-muted-foreground flex items-center gap-2.5 text-sm">
           <ChannelPlatformIcon platform={bot.platform} />
           <span>{PLATFORM_LABEL[bot.platform]}</span>
