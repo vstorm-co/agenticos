@@ -19,7 +19,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.core.exceptions import NotFoundError
-from app.repositories import channel_bot_repo, conversation_repo, dataset_repo, personal_data_repo
+from app.repositories import (
+    agent_repo,
+    channel_bot_repo,
+    conversation_repo,
+    credential_repo,
+    dataset_repo,
+    personal_data_repo,
+)
 from app.services.conversation import ConversationService
 
 # (module, function name) pairs whose tenant argument must be required.
@@ -47,6 +54,8 @@ TENANT_REQUIRED = [
     (dataset_repo, "copy_membership"),
     (conversation_repo, "get_messages_before"),
     (personal_data_repo, "unlink_dataset_cases_from_conversation"),
+    (agent_repo, "get_system"),
+    (credential_repo, "oldest_profile"),
 ]
 
 # Deliberately unscoped, each documented at its definition.

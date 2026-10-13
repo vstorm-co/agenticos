@@ -24,6 +24,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import ARRAY as PG_ARRAY
 from sqlalchemy.dialects.postgresql import JSONB
@@ -123,6 +124,12 @@ class Agent(Base, TimestampMixin):
         nullable=True,
     )
 
+    # Set on an agent the platform seeds into every organization - the eval judge,
+    # the case generator - and names which one it is (`app.agents.system_agents`).
+    # The key, not the slug, is how the platform finds it again: the slug derives
+    # from a name people may change, and a person's own agent may already hold it.
+    system_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
     # Declared here as well as in the migration: a schema built from the models
     # - which is what the integration tests and some dev setups do - would
     # otherwise accept values the production database rejects, and the tests
@@ -136,6 +143,13 @@ class Agent(Base, TimestampMixin):
         # comment above says: a schema built from the models must carry them too.
         Index("ix_agents_categories", "categories", postgresql_using="gin"),
         Index("ix_agents_tags", "tags", postgresql_using="gin"),
+        Index(
+            "uq_agents_org_system_key",
+            "organization_id",
+            "system_key",
+            unique=True,
+            postgresql_where=text("system_key IS NOT NULL"),
+        ),
     )
 
     @property

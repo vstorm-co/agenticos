@@ -104,6 +104,15 @@ class Organization(Base, TimestampMixin):
         Boolean, nullable=False, default=False, server_default="false"
     )
 
+    # Whether the model-backed parts of evals and authoring run here at all: the
+    # judge, the case generator, the authoring assistant, knowledge-gap drafts.
+    # Off is enforced by the service that would start the run, so a client that
+    # still shows the control is refused rather than obeyed. Deterministic checks
+    # and a person's verdicts do not call a model and stay available.
+    ai_assistance_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
+
     # How long this organization's data lives, per class, in days. `None` on the
     # column means it has never had an opinion and takes the deployment's
     # defaults; a class absent from the mapping means the same for that class

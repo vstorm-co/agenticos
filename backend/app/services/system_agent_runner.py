@@ -1,0 +1,159 @@
+"""Run a system agent for a typed result.
+
+The judge, the case generator and the authoring assistant each hand a system
+agent a prompt and want a structured answer back. They run it the same way any
+agent runs - `AgentRunnerService.execute`, budget-checked before each model
+call, priced, recorded in Activity under the `eval` surface - and read the answer
+here, so none of them builds a second path to a model.
+
+The runner answers in text, so the shape is asked for in the prompt: the JSON
+schema of the result type is appended to every call, and the answer is validated
+against it. In the prompt rather than the agent's instructions, because those are
+the organization's to edit, and an edit may change how the agent judges but must
+not change whether its answer can be read.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+from dataclasses import dataclass
+from uuid import UUID
+
+from pydantic import TypeAdapter
+from pydantic import ValidationError as PydanticValidationError
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.exceptions import (
+    SystemAgentOutputError,
+    SystemAgentRunError,
+    SystemAgentUnavailableError,
+)
+from app.core.permissions import AuthContext, Perm
+from app.db.models.agent import AgentStatus
+from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
+from app.services.access import AGENT, resolve_access
+from app.services.agent_runner import AgentRunnerService
+from app.services.ai_assistance import AiAssistanceService
+from app.services.system_agents import SystemAgentService
+
+_FENCE = re.compile(r"^```[a-zA-Z]*\s*\n?|\n?```\s*$")
+
+
+@dataclass(frozen=True)
+class SystemAgentResult[T]:
+    """What a system agent answered, and the run that answered it.
+
+    Attributes:
+        output: The answer, validated as the caller's result type.
+        run: The recorded run - its id, cost and status, as Activity shows them.
+    """
+
+    output: T
+    run: AgentRun
+
+
+def output_contract(output_type: type[object]) -> str:
+    """The instruction appended to a prompt that fixes the answer's shape."""
+    schema = json.dumps(TypeAdapter(output_type).json_schema(), separators=(",", ":"))
+    return (
+        "Answer with one JSON object and nothing else - no prose before or after it. "
+        f"It must validate against this JSON schema:\n{schema}"
+    )
+
+
+def parse_output[T](text: str, output_type: type[T]) -> T:
+    """Read a JSON answer, tolerating a code fence around it.
+
+    Raises:
+        pydantic.ValidationError: When the text is not JSON of that shape.
+    """
+    body = _FENCE.sub("", text.strip()).strip()
+    return TypeAdapter(output_type).validate_json(body)
+
+
+class SystemAgentRunner:
+    """Run an organization's system agent and read its answer as a typed result."""
+
+    def __init__(self, db: AsyncSession) -> None:
+        self.db = db
+        self.agents = SystemAgentService(db)
+
+    async def run[T](
+        self,
+        ctx: AuthContext,
+        *,
+        key: str,
+        prompt: str,
+        output_type: type[T],
+        model_profile_id: UUID | None = None,
+    ) -> SystemAgentResult[T]:
+        """Run system agent `key` on `prompt` as the caller, and validate its answer.
+
+        The caller's own access applies: the run is attributed to them, charged to
+        the agent's and the organization's budgets, and refused if they may not
+        run the agent. The AI assistance switch is checked first, so no system
+        agent runs in an organization that switched it off.
+
+        Args:
+            ctx: Who is asking; the run is theirs.
+            key: The system agent, as registered in `app.agents.system_agents`.
+            prompt: The task. The result type's JSON schema is appended to it.
+            output_type: What the answer is validated as.
+            model_profile_id: Run on this model rather than the one the agent
+                publishes on.
+
+        Raises:
+            AiAssistanceDisabledError: The organization switched AI assistance off.
+            SystemAgentUnavailableError: The agent cannot run - `not_seeded`,
+                `unpublished`, `archived`, or `no_access` for this caller.
+            SystemAgentRunError: The run was recorded but ended without an answer:
+                a budget refusal, a guardrail block, a failure, a parked approval.
+            SystemAgentOutputError: The agent answered in a shape that does not
+                validate. Not retried.
+        """
+        await AiAssistanceService(self.db).require_enabled(organization_id=ctx.organization_id)
+        agent = await self.agents.ensure(organization_id=ctx.organization_id, key=key)
+        if agent.status == AgentStatus.ARCHIVED.value:
+            raise SystemAgentUnavailableError(
+                message=f"'{agent.name}' is archived. Restore it to use it again.",
+                key=key,
+                reason="archived",
+            )
+        if agent.current_version_id is None:
+            raise SystemAgentUnavailableError(
+                message=f"'{agent.name}' has no published version. Pick a model and publish it.",
+                key=key,
+                reason="unpublished",
+            )
+        if not await resolve_access(self.db, ctx, agent, Perm.AGENTS_RUN, resource_type=AGENT):
+            raise SystemAgentUnavailableError(
+                message=f"You may not run '{agent.name}'. Ask for access to it.",
+                key=key,
+                reason="no_access",
+            )
+
+        text, run = await AgentRunnerService(self.db).execute(
+            ctx,
+            agent.id,
+            f"{prompt}\n\n{output_contract(output_type)}",
+            surface=RunSurface.EVAL,
+            model_profile_id=model_profile_id,
+        )
+        if run.status != RunStatus.COMPLETED.value:
+            raise SystemAgentRunError(
+                message=f"'{agent.name}' did not finish: {run.status}",
+                run_id=run.id,
+                status=run.status,
+            )
+        try:
+            output = parse_output(text, output_type)
+        except PydanticValidationError as exc:
+            raise SystemAgentOutputError(
+                message=(
+                    f"'{agent.name}' answered in a form that could not be read. Its run "
+                    "is in Activity."
+                ),
+                run_id=run.id,
+            ) from exc
+        return SystemAgentResult(output=output, run=run)
