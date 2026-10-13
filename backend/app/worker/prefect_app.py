@@ -29,6 +29,7 @@ from app.core.config import settings
 from app.core.logging import setup_logging
 from app.worker.tasks.approval_tasks import approval_expiry_sweep_flow
 from app.worker.tasks.invitation_tasks import invitation_expiry_sweep_flow
+from app.worker.tasks.knowledge_gap_tasks import group_knowledge_gaps_flow
 from app.worker.tasks.mcp_tasks import mcp_connection_sweep_flow
 from app.worker.tasks.notification_tasks import (
     notification_delivery_sweep_flow,
@@ -137,6 +138,15 @@ async def main() -> None:
     deployments.append(
         await mcp_connection_sweep_flow.ato_deployment(
             name="mcp-connection-sweep",
+            schedules=[_every(900)],
+        )
+    )
+    # Every 15 minutes: a knowledge gap is read by a person deciding what to
+    # write, so a question asked this morning appearing in a topic by lunch is
+    # in time. A knowledge base with no new misses costs no embedding call.
+    deployments.append(
+        await group_knowledge_gaps_flow.ato_deployment(
+            name="group-knowledge-gaps",
             schedules=[_every(900)],
         )
     )

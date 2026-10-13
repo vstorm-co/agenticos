@@ -54,6 +54,9 @@ TENANT_REQUIRED = [
     (conversation_repo, "get_messages_before"),
     (personal_data_repo, "unlink_dataset_cases_from_conversation"),
     (knowledge_gap_repo, "record_searches"),
+    (knowledge_gap_repo, "ungrouped_misses"),
+    (knowledge_gap_repo, "topics_in_space"),
+    (knowledge_gap_repo, "create_topic"),
 ]
 
 # Deliberately unscoped, each documented at its definition.
@@ -64,6 +67,8 @@ CROSS_TENANT_BY_DESIGN = [
     (personal_data_repo, "unlink_dataset_cases_of"),
     (personal_data_repo, "knowledge_searches_of"),
     (personal_data_repo, "purge_knowledge_searches_of"),
+    (knowledge_gap_repo, "knowledge_bases_with_ungrouped_misses"),
+    (knowledge_gap_repo, "delete_empty_topics"),
 ]
 
 

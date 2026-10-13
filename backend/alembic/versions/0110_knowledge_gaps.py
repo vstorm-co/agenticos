@@ -4,8 +4,10 @@
 run, with the best cosine similarity it returned, so the searches that found
 nothing relevant can be told apart afterwards. Rows cascade with their run and
 their conversation, so retention and deletion reach them with no code of their
-own. Nothing existing is touched, so the downgrade drops the new tables and
-loses only what was written into them.
+own. `knowledge_gap_topics` groups the misses of one knowledge base by meaning
+and `knowledge_gap_members` says which searches each topic holds; a topic copies
+no text of its own. Nothing existing is touched, so the downgrade drops the new
+tables and loses only what was written into them.
 
 Revision ID: 0110_knowledge_gaps
 Revises: 0106_datasets
@@ -94,9 +96,94 @@ def upgrade() -> None:
         unique=False,
         postgresql_using="gin",
     )
+    op.create_table(
+        "knowledge_gap_topics",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("organization_id", sa.UUID(), nullable=False),
+        sa.Column("knowledge_base_id", sa.UUID(), nullable=False),
+        sa.Column("centroid", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+        sa.Column("embedding_model", sa.String(length=128), nullable=False),
+        sa.Column("status", sa.String(length=16), server_default="open", nullable=False),
+        sa.Column("dismissed_by_user_id", sa.UUID(), nullable=True),
+        sa.Column("dismissed_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.CheckConstraint(
+            "status IN ('open', 'dismissed')",
+            name=op.f("knowledge_gap_topics_ck_knowledge_gap_topic_status_check"),
+        ),
+        sa.ForeignKeyConstraint(
+            ["organization_id"],
+            ["organizations.id"],
+            name=op.f("knowledge_gap_topics_organization_id_fkey"),
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["knowledge_base_id"],
+            ["knowledge_bases.id"],
+            name=op.f("knowledge_gap_topics_knowledge_base_id_fkey"),
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["dismissed_by_user_id"],
+            ["users.id"],
+            name=op.f("knowledge_gap_topics_dismissed_by_user_id_fkey"),
+            ondelete="SET NULL",
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("knowledge_gap_topics_pkey")),
+    )
+    op.create_index(
+        op.f("knowledge_gap_topics_organization_id_idx"),
+        "knowledge_gap_topics",
+        ["organization_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("knowledge_gap_topics_knowledge_base_id_idx"),
+        "knowledge_gap_topics",
+        ["knowledge_base_id"],
+        unique=False,
+    )
+    op.create_table(
+        "knowledge_gap_members",
+        sa.Column("topic_id", sa.UUID(), nullable=False),
+        sa.Column("search_id", sa.UUID(), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["topic_id"],
+            ["knowledge_gap_topics.id"],
+            name=op.f("knowledge_gap_members_topic_id_fkey"),
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["search_id"],
+            ["knowledge_searches.id"],
+            name=op.f("knowledge_gap_members_search_id_fkey"),
+            ondelete="CASCADE",
+        ),
+        sa.PrimaryKeyConstraint("topic_id", "search_id", name=op.f("knowledge_gap_members_pkey")),
+    )
+    op.create_index(
+        op.f("knowledge_gap_members_search_id_idx"),
+        "knowledge_gap_members",
+        ["search_id"],
+        unique=False,
+    )
 
 
 def downgrade() -> None:
+    op.drop_index(op.f("knowledge_gap_members_search_id_idx"), table_name="knowledge_gap_members")
+    op.drop_table("knowledge_gap_members")
+    op.drop_index(
+        op.f("knowledge_gap_topics_knowledge_base_id_idx"), table_name="knowledge_gap_topics"
+    )
+    op.drop_index(
+        op.f("knowledge_gap_topics_organization_id_idx"), table_name="knowledge_gap_topics"
+    )
+    op.drop_table("knowledge_gap_topics")
     op.drop_index(
         "ix_knowledge_searches_knowledge_base_ids",
         table_name="knowledge_searches",

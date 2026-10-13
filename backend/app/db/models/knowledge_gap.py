@@ -9,13 +9,35 @@ A search is user content - the model phrased it from somebody's question - so it
 lives exactly as long as the run and the conversation it came from: both foreign
 keys cascade, and run retention, conversation deletion and a person's erasure
 take it with them.
+
+`knowledge_gap_topics` groups the misses of one knowledge base by meaning, in
+that collection's own embedding space, and `knowledge_gap_members` says which
+searches a topic holds. A search over two collections is a member of one topic
+in each, because their embedding models need not agree. Topics are assigned
+incrementally and keep their ids, so a person's decision about one - dismissing
+it - is still about the same questions after more arrive.
+
+A topic copies no text. Its name, its count and its examples are read from the
+searches it still holds, so when those go with their conversation the topic has
+nothing left to say about anybody, and the next grouping pass removes it.
 """
 
 import uuid
 from datetime import datetime
+from enum import StrEnum
 
-from sqlalchemy import DateTime, Float, ForeignKey, Index, Integer, Text, func
-from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    func,
+)
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -78,3 +100,80 @@ class KnowledgeSearch(Base):
 
     def __repr__(self) -> str:
         return f"<KnowledgeSearch(id={self.id}, run={self.run_id}, top={self.top_similarity})>"
+
+
+class TopicStatus(StrEnum):
+    """Whether a topic still asks for content."""
+
+    OPEN = "open"
+    DISMISSED = "dismissed"
+    """A person decided it needs nothing. It keeps absorbing its questions, so it
+    does not come back as a new topic the next time one is asked."""
+
+
+class KnowledgeGapTopic(Base):
+    """Questions one knowledge base could not answer, grouped by meaning."""
+
+    __tablename__ = "knowledge_gap_topics"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    knowledge_base_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("knowledge_bases.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    # The mean of the members' embeddings. Only comparable with vectors of
+    # `embedding_model`: a collection moved to another model starts new topics.
+    centroid: Mapped[list[float]] = mapped_column(JSONB, nullable=False)
+    embedding_model: Mapped[str] = mapped_column(String(128), nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(16), nullable=False, default=TopicStatus.OPEN.value, server_default="open"
+    )
+    dismissed_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    dismissed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    __table_args__ = (
+        CheckConstraint("status IN ('open', 'dismissed')", name="ck_knowledge_gap_topic_status"),
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<KnowledgeGapTopic(id={self.id}, kb={self.knowledge_base_id}, status={self.status})>"
+        )
+
+
+class KnowledgeGapMember(Base):
+    """One search held by one topic."""
+
+    __tablename__ = "knowledge_gap_members"
+
+    topic_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("knowledge_gap_topics.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    search_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("knowledge_searches.id", ondelete="CASCADE"),
+        primary_key=True,
+        index=True,
+    )
+
+    def __repr__(self) -> str:
+        return f"<KnowledgeGapMember(topic={self.topic_id}, search={self.search_id})>"
