@@ -569,7 +569,7 @@ dowiedzieć się, kto komu może delegować.
 ## Agenci systemowi { #system-agents }
 
 Niektórych agentów uruchamia platforma, a nie człowiek: **Eval judge** ocenia
-odpowiedzi na potrzeby [oceniania zbiorów danych](datasets.md#judge), a
+odpowiedzi na potrzeby [oceniania datasetów](datasets.md#judge), a
 **Knowledge gap drafter** pisze szkic fragmentu, którego brakuje przy
 [luce w wiedzy](knowledge-gaps.md#drafting-the-missing-content). To są
 **agenci systemowi**. Każda organizacja dostaje ich przy utworzeniu, a

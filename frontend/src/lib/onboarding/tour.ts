@@ -471,9 +471,8 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.runsView,
   },
 
-  // A dataset, entered from the list. Its scoring and its scores are tabs, so each
-  // stop selects its own; the scores stop anchors on the review filter rather than
-  // the list, which can hold any number of results.
+  // Each tab stop selects its own tab; the scores stop anchors on the review filter
+  // because the list below it can hold any number of results.
   {
     id: "dataset-scoring",
     page: DATASET_DETAIL,

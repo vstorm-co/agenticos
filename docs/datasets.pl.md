@@ -126,13 +126,13 @@ zredagowano, nigdy same wartości.
 
 ## Ocenianie { #scoring }
 
-Zbiór danych określa, jak oceniane są jego przypadki, na karcie **Scoring**. Do
+Dataset określa, jak oceniane są jego przypadki, na karcie **Scoring**. Do
 jednego przypadku mogą mieć zastosowanie cztery oceniacze, a każdy z nich
 włącza się albo wyłącza i oznacza jako wymagany albo nie:
 
 | Oceniacz | Co porównuje | Koszt |
 |---|---|---|
-| Sprawdzenia | Odpowiedź z regułami przypadku oraz z domyślnymi regułami, które zbiór nadaje każdemu przypadkowi | Nic |
+| Sprawdzenia | Odpowiedź z regułami przypadku oraz z domyślnymi regułami, które dataset nadaje każdemu przypadkowi | Nic |
 | Wywołania narzędzi | Narzędzia wywołane przez agenta z oczekiwanymi wywołaniami przypadku | Nic |
 | Sędzia | Odpowiedź z rubryką nazwanych kryteriów, ocenianą przez sędziego evali | Jeden run sędziego |
 | Odpowiedź wzorcowa | Odpowiedź z odpowiedzią wzorcową przypadku, ocenianą przez sędziego evali | Ten sam run sędziego |
@@ -167,7 +167,7 @@ jest sprawdzany przy zapisie przypadku, a reguła czyta najwyżej pierwsze 100 0
 znaków odpowiedzi, więc jeden wzorzec nie może spowolnić oceniania.
 
 Sprawdzenie `judge` to kryterium tylko dla jednego przypadku, oceniane w tym
-samym runie sędziego co rubryka zbioru. Używaj go do tego, czego reguła nie
+samym runie sędziego co rubryka datasetu. Używaj go do tego, czego reguła nie
 wyrazi, np. „odmawia i nie ujawnia adresu klienta”.
 
 ### Wywołania narzędzi { #trajectory }
@@ -191,7 +191,7 @@ organizacji (zobacz [Agenci systemowi](concepts.md#system-agents)). Działa jako
 osoba, która poprosiła o ocenę: sprawdzany jest jej dostęp do niego, przed
 wywołaniem modelu sprawdzany jest jego własny budżet i budżet organizacji, a
 jego run pojawia się w Activity pod powierzchnią `eval`. Jego instrukcje można
-edytować jak instrukcje każdego agenta, a zbiór może wskazać dla niego inny
+edytować jak instrukcje każdego agenta, a dataset może wskazać dla niego inny
 model.
 
 Każde kryterium jest oceniane od 1 do górnej granicy skali i zalicza na progu
@@ -203,10 +203,10 @@ regułach nadal oceniają.
 
 ### Przegląd i werdykty { #review }
 
-Zbiór danych może wysyłać wyniki do **kolejki przeglądu**: żadnych, dopóki ktoś
+Dataset może wysyłać wyniki do **kolejki przeglądu**: żadnych, dopóki ktoś
 jakiegoś nie wyśle, każdy wynik, który nie zaliczył, albo każdy wynik. Karta
-Scores pokazuje wyniki zbioru, a karta pulpitu **Awaiting review** pokazuje
-kolejkę ze wszystkich zbiorów, które widzisz.
+Scores pokazuje wyniki datasetu, a karta pulpitu **Awaiting review** pokazuje
+kolejkę ze wszystkich datasetów, które widzisz.
 
 Werdykt osoby jest zapisywany obok wyników oceniaczy i rozstrzyga o rezultacie.
 Nigdy nie zmienia tego, co powiedział sędzia: oceny i uzasadnienia sędziego
@@ -215,14 +215,14 @@ wynik znowu czeka na przegląd.
 
 ### Ocenianie runa { #scoring-a-run }
 
-W **Activity** otwórz run i wybierz **Score against a case**. Wybierz zbiór i
+W **Activity** otwórz run i wybierz **Score against a case**. Wybierz dataset i
 przypadek, a odpowiedź i wywołania narzędzi runa zostaną ocenione każdym
-oceniaczem, który zbiór konfiguruje. Run bez transkryptu nie ma odpowiedzi do
+oceniaczem, który dataset konfiguruje. Run bez transkryptu nie ma odpowiedzi do
 oceny.
 
 | Aby | Potrzebujesz |
 |---|---|
-| Zmienić sposób oceniania zbioru | `datasets:edit` na nim |
+| Zmienić sposób oceniania datasetu | `datasets:edit` na nim |
 | Ocenić run względem niego | `datasets:run` na nim oraz `runs:view` |
 | Czytać jego wyniki | `datasets:view` na nim |
 | Zapisać albo wycofać werdykt | `datasets:edit` na nim |

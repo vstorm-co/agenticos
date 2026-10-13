@@ -116,9 +116,8 @@ class Dataset(Base, TimestampMixin):
         Integer, nullable=False, default=0, server_default="0"
     )
     case_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
-    # How cases are scored (`app.schemas.scoring.DatasetScoring`). Not versioned
-    # with the cases - how a team grades is not what it asks - so each score keeps
-    # a copy of the configuration it was computed with.
+    # Not versioned with the cases - how a team grades is not what it asks - so
+    # each score keeps a copy of the configuration it was computed with.
     scoring: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, default=dict, server_default="{}"
     )

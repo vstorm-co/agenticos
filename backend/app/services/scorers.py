@@ -32,8 +32,8 @@ from app.schemas.scoring import (
     TextCheck,
 )
 
-# How much of an answer a text rule reads. A pattern is bounded where it is
-# written; bounding the text too keeps one match's cost bounded whatever the agent said.
+# A pattern is bounded where it is written; bounding the text it reads keeps one
+# match's cost bounded whatever the agent said.
 MAX_MATCH_TEXT = 100_000
 _FENCE = re.compile(r"^```[a-zA-Z]*\s*\n?|\n?```\s*$")
 

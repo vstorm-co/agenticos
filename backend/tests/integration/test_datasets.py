@@ -718,7 +718,8 @@ async def test_a_check_keeps_the_parameters_scoring_reads(db) -> None:
     assert stored.model_dump() == {"type": "json_schema", "schema": schema}
 
 
-async def test_a_stored_check_scoring_no_longer_knows_is_still_read(db) -> None:
+async def _case_with_an_older_check(db) -> tuple[AuthContext, DatasetService, uuid.UUID, uuid.UUID]:
+    """A case whose stored check scoring no longer accepts, as one written earlier holds."""
     ctx = await _owner(db)
     service = DatasetService(db)
     dataset = await service.create(ctx, DatasetCreate(name="older checks"))
@@ -727,10 +728,32 @@ async def test_a_stored_check_scoring_no_longer_knows_is_still_read(db) -> None:
     assert row is not None
     row.checks = [{"type": "rubric", "criteria": ["tone"], "scale": 5}]
     await db.flush()
+    return ctx, service, dataset.id, case.case_id
 
-    stored = (await service.list_cases(ctx, dataset.id)).items[0].checks[0]
+
+async def test_a_stored_check_scoring_no_longer_knows_is_still_read(db) -> None:
+    ctx, service, dataset_id, _ = await _case_with_an_older_check(db)
+
+    stored = (await service.list_cases(ctx, dataset_id)).items[0].checks[0]
 
     assert stored.model_dump() == {"type": "rubric", "criteria": ["tone"], "scale": 5}
+
+
+async def test_a_stored_check_scoring_no_longer_knows_still_exports(db) -> None:
+    ctx, service, dataset_id, _ = await _case_with_an_older_check(db)
+
+    exported = await service.export(ctx, dataset_id, version=None, fmt="jsonl")
+
+    assert '"type": "rubric"' in exported.content
+
+
+async def test_editing_another_field_keeps_a_check_scoring_no_longer_knows(db) -> None:
+    ctx, service, dataset_id, case_id = await _case_with_an_older_check(db)
+
+    edited = await service.update_case(ctx, dataset_id, case_id, DatasetCaseUpdate(note="n"))
+
+    assert edited.note == "n"
+    assert edited.checks[0].type == "rubric"
 
 
 async def _case_from_someone(db) -> tuple[AuthContext, AuthContext, uuid.UUID]:

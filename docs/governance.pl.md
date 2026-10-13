@@ -1447,7 +1447,7 @@ niedostępny.
 
 Jeden przełącznik, w ustawieniach organizacji na jej stronie członków, decyduje,
 czy modele wspierają ewaluacje i tworzenie treści w organizacji: sędziego evali,
-który ocenia [wyniki zbiorów danych](datasets.md#judge), agenta piszącego
+który ocenia [wyniki datasetów](datasets.md#judge), agenta piszącego
 szkic treści, której brakuje przy
 [luce w wiedzy](knowledge-gaps.md#drafting-the-missing-content), oraz generator
 przypadków i asystenta tworzenia, które pojawią się po nich. Domyślnie jest

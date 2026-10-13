@@ -157,7 +157,28 @@ class DatasetCaseUpdate(BaseSchema):
         return None if checks is None else _known_checks(checks)
 
 
-class DatasetCaseRead(DatasetCaseContent):
+class StoredCaseContent(DatasetCaseContent):
+    """A case's content as a stored revision holds it, read without re-judging it.
+
+    What was valid when it was written stays readable - in a listing, an export,
+    and as the base an edit is merged onto - after a rule tightens.
+    """
+
+    @field_validator("tags", mode="before")
+    @classmethod
+    def _tags(cls, tags: list[str]) -> list[str]:
+        # Stored tags were cleaned on the way in; re-cleaning on the way out
+        # would turn a later tightening of the rule into a listing that 500s.
+        return tags
+
+    @field_validator("checks")
+    @classmethod
+    def _checks(cls, checks: list[CaseCheck]) -> list[CaseCheck]:
+        # The same reason: a check stored before a rule tightened is still read.
+        return checks
+
+
+class DatasetCaseRead(StoredCaseContent):
     """One case as a version holds it.
 
     `case_id` is the case across its edits; `id` is this revision of it, which is
@@ -172,19 +193,6 @@ class DatasetCaseRead(DatasetCaseContent):
     source_message_id: UUID | None = None
     created_by_user_id: UUID | None = None
     created_at: datetime
-
-    @field_validator("tags", mode="before")
-    @classmethod
-    def _tags(cls, tags: list[str]) -> list[str]:
-        # Stored tags were cleaned on the way in; re-cleaning on the way out
-        # would turn a later tightening of the rule into a listing that 500s.
-        return tags
-
-    @field_validator("checks")
-    @classmethod
-    def _checks(cls, checks: list[CaseCheck]) -> list[CaseCheck]:
-        # The same reason: a check stored before a rule tightened is still read.
-        return checks
 
 
 class DatasetCaseList(BaseSchema):

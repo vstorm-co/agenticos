@@ -51,6 +51,7 @@ from app.schemas.dataset import (
     DatasetUpdate,
     DatasetVersionList,
     DatasetVersionRead,
+    StoredCaseContent,
 )
 from app.schemas.resource_grant import as_visibility
 from app.schemas.scoring import DatasetScoring
@@ -575,8 +576,9 @@ class DatasetService:
             **DatasetCaseRead.model_validate(current).model_dump(),
             **writable(data, over=DatasetCase),
         }
-        # Both halves were validated on their way in, so their union is a valid case.
-        content = DatasetCaseContent.model_validate(
+        # Both halves were validated on their way in - the stored one by the rules
+        # of its day, which a later tightening must not turn into a refused edit.
+        content = StoredCaseContent.model_validate(
             {key: merged[key] for key in DatasetCaseContent.model_fields}
         )
         fields, redacted = _redacted(content)
