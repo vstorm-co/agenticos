@@ -29,7 +29,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from sqlalchemy import delete, func, select
 
-from app.core.exceptions import AuthorizationError, NotFoundError
+from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun
@@ -588,6 +588,25 @@ async def test_a_topic_reads_with_its_questions_and_the_answers_they_got(db) -> 
     assert by_query["parking permit"].down_rating_comment is None
 
 
+async def test_the_organizations_gaps_leave_out_a_knowledge_base_the_caller_cannot_read(
+    db,
+) -> None:
+    ctx = await _owner(db)
+    kb, _, _ = await _a_topic(db, ctx)
+    private = await _knowledge_base(db, ctx, "private", scope="personal")
+    run, _ = await _turn(db, ctx, await _agent(db, ctx))
+    await _searched(db, ctx, run, private, query="lunch")
+    with _embedding():
+        await _group(db, ctx, private)
+    operator = await _member(db, ctx, OrgRoleName.OPERATOR)
+
+    owners = await KnowledgeGapService(db).list_for_organization(ctx)
+    operators = await KnowledgeGapService(db).list_for_organization(operator)
+
+    assert {t.knowledge_base_name for t in owners.items} == {kb.name, private.name}
+    assert [t.knowledge_base_id for t in operators.items] == [kb.id]
+
+
 async def test_an_agents_gaps_hold_only_its_own_questions(db) -> None:
     ctx = await _owner(db)
     kb, agent, _ = await _a_topic(db, ctx)
@@ -748,3 +767,23 @@ async def test_regrouping_a_knowledge_base_starts_its_pass_after_the_commit(db) 
     spawn.assert_called_once()
     assert spawn.call_args.kwargs["name"] == f"group-knowledge-gaps-{kb.id}"
     spawn.call_args.args[1].close()
+
+
+async def test_answers_that_would_pass_the_case_ceiling_are_refused_before_any_lock(
+    db, monkeypatch
+) -> None:
+    ctx = await _owner(db)
+    agent = await _agent(db, ctx)
+    _, first = await _turn(db, ctx, agent)
+    _, second = await _turn(db, ctx, agent)
+    datasets = DatasetService(db)
+    dataset = await datasets.create(ctx, DatasetCreate(name="Small"))
+    monkeypatch.setattr("app.services.dataset.MAX_CASES", 1)
+
+    with (
+        patch.object(DatasetService, "_locked", new=AsyncMock()) as locked,
+        pytest.raises(BadRequestError),
+    ):
+        await datasets.add_from_messages(ctx, dataset.id, [first.id, second.id])
+
+    locked.assert_not_awaited()

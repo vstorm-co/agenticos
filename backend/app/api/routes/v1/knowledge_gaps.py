@@ -24,6 +24,18 @@ from app.schemas.knowledge_gap import (
 router = APIRouter(dependencies=[Depends(require(Perm.RUNS_VIEW))])
 
 
+@router.get("", response_model=KnowledgeGapTopicList)
+async def list_gaps(
+    service: KnowledgeGapSvc,
+    ctx: Auth,
+    topic_status: TopicStatusLiteral | None = Query(None, alias="status"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+) -> Any:
+    """The gaps of every knowledge base the caller may read, the most asked first."""
+    return await service.list_for_organization(ctx, status=topic_status, skip=skip, limit=limit)
+
+
 @router.get("/collections/{knowledge_base_id}", response_model=KnowledgeGapTopicList)
 async def list_collection_gaps(
     knowledge_base_id: UUID,

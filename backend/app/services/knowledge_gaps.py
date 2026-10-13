@@ -158,10 +158,14 @@ class KnowledgeGapService:
 
     async def _reads(self, ctx: AuthContext, rows: list[TopicRow]) -> list[KnowledgeGapTopicRead]:
         agents = await self._agents(ctx, sorted({a for row in rows for a in row.agent_ids}))
+        bases = await knowledge_base_repo.get_by_ids(
+            self.db, sorted({row.topic.knowledge_base_id for row in rows})
+        )
         return [
             KnowledgeGapTopicRead(
                 id=row.topic.id,
                 knowledge_base_id=row.topic.knowledge_base_id,
+                knowledge_base_name=bases[row.topic.knowledge_base_id].name,
                 status=TopicStatus(row.topic.status).value,
                 label=row.queries[0] if row.queries else "",
                 question_count=row.question_count,
@@ -224,6 +228,34 @@ class KnowledgeGapService:
         kb = await self._knowledge_base(ctx, knowledge_base_id)
         return await self._list(ctx, [kb.id], agent_id=None, status=status, skip=skip, limit=limit)
 
+    async def _readable_with_topics(self, ctx: AuthContext, *, agent_id: UUID | None) -> list[UUID]:
+        candidates = await knowledge_gap_repo.knowledge_bases_with_topics(
+            self.db, organization_id=ctx.organization_id, agent_id=agent_id
+        )
+        found = await knowledge_base_repo.get_by_ids(self.db, candidates)
+        return [
+            kb.id
+            for kb in found.values()
+            if kb.organization_id == ctx.organization_id and await readable_kb(self.db, ctx, kb)
+        ]
+
+    async def list_for_organization(
+        self,
+        ctx: AuthContext,
+        *,
+        status: TopicStatusLiteral | None = None,
+        skip: int = 0,
+        limit: int = 50,
+    ) -> KnowledgeGapTopicList:
+        """Every knowledge base's gaps the caller may read, the most asked first.
+
+        Raises:
+            AuthorizationError: For a caller without `runs:view` across the organization.
+        """
+        _require_runs_view(ctx)
+        readable = await self._readable_with_topics(ctx, agent_id=None)
+        return await self._list(ctx, readable, agent_id=None, status=status, skip=skip, limit=limit)
+
     async def list_for_agent(
         self,
         ctx: AuthContext,
@@ -245,15 +277,7 @@ class KnowledgeGapService:
             self.db, ctx, agent, Perm.AGENTS_VIEW, resource_type=AGENT
         ):
             raise NotFoundError(message="Agent not found", details={"agent_id": agent_id})
-        candidates = await knowledge_gap_repo.knowledge_bases_with_topics_by(
-            self.db, agent.id, organization_id=ctx.organization_id
-        )
-        found = await knowledge_base_repo.get_by_ids(self.db, candidates)
-        readable = [
-            kb.id
-            for kb in found.values()
-            if kb.organization_id == ctx.organization_id and await readable_kb(self.db, ctx, kb)
-        ]
+        readable = await self._readable_with_topics(ctx, agent_id=agent.id)
         return await self._list(
             ctx, readable, agent_id=agent.id, status=status, skip=skip, limit=limit
         )

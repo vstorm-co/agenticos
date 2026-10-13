@@ -38,6 +38,7 @@ class KnowledgeGapTopicRead(BaseSchema):
 
     id: UUID
     knowledge_base_id: UUID
+    knowledge_base_name: str
     status: TopicStatusLiteral
     label: str = Field(description="The first question of the topic, as the agent searched it")
     question_count: int = Field(description="Searches in the topic that found nothing relevant")

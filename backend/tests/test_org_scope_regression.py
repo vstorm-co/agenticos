@@ -57,6 +57,11 @@ TENANT_REQUIRED = [
     (knowledge_gap_repo, "ungrouped_misses"),
     (knowledge_gap_repo, "topics_in_space"),
     (knowledge_gap_repo, "create_topic"),
+    (knowledge_gap_repo, "list_topics"),
+    (knowledge_gap_repo, "count_ungrouped"),
+    (knowledge_gap_repo, "get_topic"),
+    (knowledge_gap_repo, "list_questions"),
+    (knowledge_gap_repo, "knowledge_bases_with_topics"),
 ]
 
 # Deliberately unscoped, each documented at its definition.

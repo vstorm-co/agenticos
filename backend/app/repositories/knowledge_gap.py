@@ -395,17 +395,17 @@ async def list_questions(
     ]
 
 
-async def knowledge_bases_with_topics_by(
-    db: AsyncSession, agent_id: UUID, *, organization_id: UUID
+async def knowledge_bases_with_topics(
+    db: AsyncSession, *, organization_id: UUID, agent_id: UUID | None
 ) -> list[UUID]:
-    """The knowledge bases holding a topic one of this agent's searches is in."""
-    result = await db.execute(
+    """The knowledge bases holding a topic - one this agent's searches are in, when named."""
+    query = (
         select(distinct(KnowledgeGapTopic.knowledge_base_id))
         .join(KnowledgeGapMember, KnowledgeGapMember.topic_id == KnowledgeGapTopic.id)
         .join(KnowledgeSearch, KnowledgeSearch.id == KnowledgeGapMember.search_id)
-        .where(
-            KnowledgeGapTopic.organization_id == organization_id,
-            KnowledgeSearch.agent_id == agent_id,
-        )
+        .where(KnowledgeGapTopic.organization_id == organization_id)
     )
+    if agent_id is not None:
+        query = query.where(KnowledgeSearch.agent_id == agent_id)
+    result = await db.execute(query)
     return list(result.scalars().all())

@@ -328,6 +328,7 @@ CALLS: tuple[Call, ...] = (
     Call("POST", "/datasets", Perm.DATASETS_EDIT, body={"name": "refund questions"}),
     # A knowledge gap is made of people's questions, so every route reads them
     # only with runs:view; which collection, agent and dataset is the service's.
+    Call("GET", "/knowledge-gaps", Perm.RUNS_VIEW),
     Call("GET", "/knowledge-gaps/collections/{knowledge_base_id}", Perm.RUNS_VIEW),
     Call("POST", "/knowledge-gaps/collections/{knowledge_base_id}/regroup", Perm.RUNS_VIEW),
     Call("GET", "/knowledge-gaps/agents/{agent_id}", Perm.RUNS_VIEW),
