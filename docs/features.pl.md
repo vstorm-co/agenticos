@@ -1,5 +1,5 @@
 ---
-source_sha: "9ec557af51bd"
+source_sha: "089e7fa03d78"
 ---
 
 # Funkcje { #features }
@@ -181,10 +181,12 @@ Run, który się nie powiódł, i tak zapisuje, ile wydał, bo budżet liczący 
 sukcesy nie jest budżetem. Alerty odpalają się przy progach, które ustawiasz, per
 agent.
 
-## Approval dla wszystkiego, co ma skutki uboczne { #approval-for-anything-side-effecting }
+## Approval tam, gdzie chcesz człowieka { #approval-where-you-want-a-person }
 
-Narzędzie, które zmienia świat zewnętrzny, parkuje run i czeka na człowieka.
-Ustaw to per capability, nadpisz per narzędzie.
+Wybierz, które narzędzia czekają na człowieka, zanim się wykonają: per capability,
+z nadpisaniem per narzędzie, i per serwer MCP. Nic nie czeka, dopóki o to nie
+poprosisz, więc run w kanale albo w harmonogramie nigdy nie parkuje na bramce,
+której nikt nie wybrał.
 
 Approval jest rozstrzygany raz. Druga decyzja na rozstrzygniętym approvalu jest
 odrzucana — co brzmi oczywiście, dopóki nie zobaczy się wyścigu, który czyni to

@@ -163,7 +163,7 @@ async def test_an_agent_bound_to_the_platform_reaches_it_in_process_as_the_asker
     resolved = await build_toolsets_for_agent(
         db,
         organization_id=organization.id,
-        refs=[PlatformMcpServerRef(account="platform")],
+        refs=[PlatformMcpServerRef(account="platform", approval="writes")],
         platform_credential=key,
     )
     [toolset] = resolved.toolsets
@@ -196,7 +196,7 @@ async def test_nobody_to_act_as_leaves_the_platform_out(db: AsyncSession) -> Non
     resolved = await build_toolsets_for_agent(
         db,
         organization_id=uuid.uuid4(),
-        refs=[PlatformMcpServerRef(account="platform")],
+        refs=[PlatformMcpServerRef(account="platform", approval="writes")],
         platform_credential=None,
     )
 
@@ -232,7 +232,7 @@ async def test_a_draft_the_assistant_proposes_waits_for_a_person(
     resolved = await build_toolsets_for_agent(
         db,
         organization_id=organization.id,
-        refs=[PlatformMcpServerRef(account="platform")],
+        refs=[PlatformMcpServerRef(account="platform", approval="writes")],
         platform_credential=key,
     )
     [toolset] = resolved.toolsets

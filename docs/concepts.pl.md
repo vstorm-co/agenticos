@@ -1,5 +1,5 @@
 ---
-source_sha: "72e58e25745e"
+source_sha: "59fc8f638706"
 ---
 
 # Koncepcje { #concepts }
@@ -451,7 +451,7 @@ Zatwierdzenie rozstrzyga się od najbardziej szczegółowego:
 
 1. własne nadpisanie narzędzia, potem
 2. tryb capability, potem
-3. to, czy capability jest `side_effecting`.
+3. brak zatwierdzania, gdy żadne z nich nic nie mówi.
 
 Builder podaje *wynik* słowami, zamiast opisywać regułę, bo reguła, którą
 czytelnik musi przeliczyć w głowie, to ustawienie, którego nikt nie śmie

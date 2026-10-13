@@ -151,13 +151,15 @@ visible and can still be narrowed.
 ### Which calls wait for a person
 
 Every binding has an `approval` policy for its server's tools. The default,
-`writes`, holds every tool the server does not mark read-only (MCP's
-`readOnlyHint`) until a person approves the call, the same way a side-effecting
-capability tool waits: the card shows the exact arguments, and the approved ones
-are what runs. `all` holds every call; `none` lets every call through, for a
-server you trust with no person in the loop. The read-only hint is the server's
-own claim, so `writes` is only as strict as the server is honest — choose `all`
-for a server you do not control.
+`none`, lets every call through, as a capability's tools run until somebody gates
+them. `writes` holds every tool the server does not mark read-only (MCP's
+`readOnlyHint`) until a person approves the call: the card shows the exact
+arguments, and the approved ones are what runs. `all` holds every call. The
+read-only hint is the server's own claim, so `writes` is only as strict as the
+server is honest — choose `all` for a server you do not control.
+
+The Architect's own template asks `writes` of the platform's server, so it drafts nothing without
+the person it acts for.
 
 In the Builder, a server's settings say this
 per group: its **Reads** and the tools that **Change things** each run freely

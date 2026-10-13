@@ -894,9 +894,10 @@ describe("a server's settings", () => {
 
     await settings("Pages.");
     await userEvent.click(screen.getByRole("combobox", { name: "Approval for Changes things" }));
-    await userEvent.click(await screen.findByRole("option", { name: "Run freely" }));
+    // Nothing asks by default, so the choice worth recording is asking.
+    await userEvent.click(await screen.findByRole("option", { name: "Ask first" }));
 
-    expect(onChange).toHaveBeenCalledWith([{ ...personal("notion"), approval: "none" }]);
+    expect(onChange).toHaveBeenCalledWith([{ ...personal("notion"), approval: "writes" }]);
   });
 
   it("keeps the approval when the binding moves to another kind of account", async () => {

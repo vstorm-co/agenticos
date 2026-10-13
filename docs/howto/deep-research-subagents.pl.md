@@ -1,5 +1,5 @@
 ---
-source_sha: "c7ac418a906b"
+source_sha: "ff23d9d7cf7a"
 title: "Zbadaj pytanie z subagentami i opublikuj raport"
 description: "Podziel pytanie na niezależne pytania cząstkowe, deleguj każde do jednorazowego specjalisty i opublikuj porównanie ze źródłami jako aplikację."
 ---
@@ -38,7 +38,7 @@ Obowiązek udostępnienia kodu w GPLv3 uruchamia dystrybucja, a nie modyfikacja:
 ## Zbuduj agenta { #build-the-agent }
 
 1. Utwórz agenta w **Agents → New agent** i wybierz swój profil modelu.
-2. W **Toolbox** włącz **Delegation**. Włącz `allow_dynamic`, czyli ustawienie, które pozwala modelowi wymyślić jednorazowego specjalistę do pytania cząstkowego, dla którego nikt wcześniej go nie przygotował. Ustaw tryb na **Async**, żeby trzy pytania cząstkowe szły jednocześnie, a nie po kolei, i zostaw limit rozgałęzień na 3.
+2. W **Toolbox** włącz **Delegation**. Włącz `allow_dynamic`, czyli ustawienie, które pozwala modelowi wymyślić jednorazowego specjalistę do pytania cząstkowego, dla którego nikt wcześniej go nie przygotował. Ustaw tryb na **Async**, żeby trzy pytania cząstkowe szły jednocześnie, a nie po kolei, i zostaw limit rozgałęzień na 3. Ustaw **Always ask** dla `delegate`, żeby przeczytać każdego specjalistę, którego model napisze, zanim się uruchomi.
 3. Nadal w Delegation przełącz **Share Web search with delegates** i **Share Web fetch with delegates**. Specjalista wymyślony przez model [celowo](../reference/capabilities.md#delegation) nie dostaje własnych capabilities. Trafia do niego tylko to, co rodzic jawnie udostępni, więc bez tego kroku każdy wymyślony specjalista mógłby delegować, ale nie mógłby szukać.
 4. Włącz **Web search** (metoda DuckDuckGo) i **Read web pages** u samego rodzica. Udostępnić delegatowi można tylko to, co ma przypisane rodzic.
 5. Włącz **Planning** i **Aplikacje**.
@@ -65,7 +65,7 @@ Do not answer from your own training knowledge without a source URL next to it.
 
 Otwórz nowy czat z agentem i wyślij pytanie z sekcji *Przygotuj dane wejściowe*.
 
-Model wywołuje `delegate` trzy razy, raz na licencję. Każde wywołanie to osobna delegacja, a nie jedno wywołanie robiące wszystkie trzy. **Delegate ma efekty uboczne**, więc wszystkie trzy parkują do zatwierdzenia razem, bo jeden krok modelu może zaparkować kilka wywołań naraz. Przeczytaj trzech proponowanych specjalistów, a potem **Approve**. Run wznawia się, uruchamia trzech specjalistów w tle i wywołuje `wait_tasks`, żeby zebrać ich wyniki przed napisaniem raportu.
+Model wywołuje `delegate` trzy razy, raz na licencję. Każde wywołanie to osobna delegacja, a nie jedno wywołanie robiące wszystkie trzy. **`delegate` jest za bramką**, więc wszystkie trzy parkują do zatwierdzenia razem, bo jeden krok modelu może zaparkować kilka wywołań naraz. Przeczytaj trzech proponowanych specjalistów, a potem **Approve**. Run wznawia się, uruchamia trzech specjalistów w tle i wywołuje `wait_tasks`, żeby zebrać ich wyniki przed napisaniem raportu.
 
 ## Sprawdź wynik { #check-the-result }
 

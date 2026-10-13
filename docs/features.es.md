@@ -1,5 +1,5 @@
 ---
-source_sha: "9ec557af51bd"
+source_sha: "089e7fa03d78"
 ---
 
 # Funciones { #features }
@@ -185,10 +185,11 @@ Un run que falla registra igualmente lo que gastó, porque un budget que solo
 cuenta los éxitos no es un budget. Las alertas se disparan en los umbrales que tú
 fijes, por agent.
 
-## Aprobación para cualquier cosa con efectos secundarios { #approval-for-anything-side-effecting }
+## Aprobación donde quieras a una persona { #approval-where-you-want-a-person }
 
-Una tool que cambia el mundo exterior aparca el run y espera a una persona.
-Configúralo por capability, anúlalo por tool.
+Elige qué tools esperan a una persona antes de ejecutarse: por capability, anulado
+por tool, y por servidor MCP. Nada espera hasta que lo pidas, así que un run en un
+canal o en un horario nunca se aparca en una puerta que nadie eligió.
 
 Una aprobación se decide una sola vez. Una segunda decisión sobre una aprobación
 ya decidida se rechaza — lo que suena obvio hasta que has visto la race condition

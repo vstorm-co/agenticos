@@ -100,7 +100,7 @@ Two things are worth knowing here:
 - **A tool's name and description are prompt.** `search_refund_policy` gets
   reached for on questions `search_documents` is passed over for. Both are
   editable per agent.
-- Tools declared side-effecting request approval under the configured policy. Review capability and tool overrides before publishing.
+- Nothing asks for approval until you say so. Set **Always ask** on a capability, or on one tool, that a person should see before it runs.
 
 ## 5. Give it something to read
 
@@ -195,8 +195,7 @@ Nine steps, and the shape of them is the shape of the platform:
 2. Named a **model profile**, so the key and the model can change without the
    agent changing.
 3. Wrote **instructions**.
-4. Switched on **capabilities**, and left the side-effecting ones asking for
-   approval.
+4. Switched on **capabilities**, and chose which of them ask for approval.
 5. Attached **knowledge** to search and **skills** to read.
 6. Set a **budget** and a **step limit**, and said who is told.
 7. **Published**, which froze a version and validated the spec.

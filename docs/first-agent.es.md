@@ -1,5 +1,5 @@
 ---
-source_sha: "153cccfb75a4"
+source_sha: "aec1756f1b79"
 ---
 
 # Tu primer agent { #your-first-agent }
@@ -109,7 +109,7 @@ Aquí hay dos cosas que conviene saber:
 - **El nombre y la descripción de una tool son prompt.** Se echa mano de
   `search_refund_policy` en preguntas en las que `search_documents` se queda sin
   usar. Ambos son editables por agent.
-- Las herramientas declaradas con efectos solicitan aprobación según la política configurada. Revisa las excepciones de capability y herramienta antes de publicar.
+- Nada pide aprobación hasta que tú lo digas. Elige **Always ask** en una capability, o en una sola herramienta, que una persona deba ver antes de que se ejecute.
 
 ## 5. Dale algo que leer { #5-give-it-something-to-read }
 
@@ -207,8 +207,7 @@ Nueve pasos, y su forma es la forma de la plataforma:
 2. Nombraste un **perfil de modelo**, para que la clave y el modelo puedan
    cambiar sin que cambie el agent.
 3. Escribiste **instrucciones**.
-4. Activaste **capabilities**, y dejaste que las que tienen efectos pidan
-   aprobación.
+4. Activaste **capabilities**, y elegiste cuáles piden aprobación.
 5. Adjuntaste **conocimiento** para buscar y **skills** para leer.
 6. Pusiste un **budget** y un **límite de pasos**, y dijiste a quién se avisa.
 7. **Publicaste**, lo que congeló una versión y validó el spec.

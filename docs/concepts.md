@@ -433,7 +433,7 @@ Approval resolves most-specific-first:
 
 1. the tool's own override, then
 2. the capability's mode, then
-3. whether the capability is `side_effecting`.
+3. no approval, when neither says anything.
 
 The Builder states the *outcome* in words rather than describing the rule, because
 a rule the reader has to run in their head is a setting nobody dares touch.

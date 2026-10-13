@@ -1,5 +1,5 @@
 ---
-source_sha: "c6c2f99c9928"
+source_sha: "ddf9b881a04f"
 ---
 
 # Governance { #governance }
@@ -909,14 +909,18 @@ lo muestra como un `+` junto a la cifra.
 
 ## Aprobaciones { #approvals }
 
-Una herramienta que actúa sobre el mundo exterior aparca el run y espera a una
-persona.
+Una herramienta que el autor del agent puso tras una puerta aparca el run y espera
+a una persona. Nada queda tras una puerta hasta que alguien lo pide: una puerta que
+nadie eligió aparca runs en canales y rutinas donde no hay nadie para responderla.
 
 La resolución va de lo más específico a lo menos:
 
 1. la anulación de la propia herramienta, si la tiene
 2. el modo `approval` de la capability (`required` | `never` | `default`)
-3. lo que decida `side_effecting`, para `default`
+3. ninguna aprobación, cuando ambos dicen `default`
+
+`side_effecting` ya no decide nada aquí. El Builder lo muestra junto a la elección,
+así que las herramientas que actúan sobre el mundo son las que un autor ve primero.
 
 El Builder enuncia el resultado con palabras en vez de describir la regla, porque una
 regla que quien lee tiene que ejecutar mentalmente es un ajuste que nadie se atreve a

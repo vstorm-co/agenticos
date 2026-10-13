@@ -172,10 +172,11 @@ Checked **before** each model request, not tallied afterwards.
 A run that fails still records what it spent, because a budget that only counts
 successes is not a budget. Alerts fire at thresholds you set, per agent.
 
-## Approval for anything side-effecting
+## Approval where you want a person
 
-A tool that changes the outside world parks the run and waits for a person. Set
-it per capability, override it per tool.
+Choose which tools wait for a person before they run: per capability, overridden
+per tool, and per MCP server. Nothing waits until you ask, so a run in a channel
+or on a schedule is never parked on a gate nobody chose.
 
 An approval is decided once. A second decision on a decided approval is refused —
 which sounds obvious until you have seen the race that makes it necessary.

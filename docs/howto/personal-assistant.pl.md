@@ -1,5 +1,5 @@
 ---
-source_sha: "fc6566006c49"
+source_sha: "f1635d7c302a"
 title: "Zbuduj osobistego asystenta, który Cię pamięta"
 description: "Daj agentowi pamięć o Twoich preferencjach, sprawdź, czy późniejsza rozmowa je stosuje, a potem upewnij się, że potrafi jedną zapomnieć na prośbę."
 ---
@@ -38,7 +38,7 @@ When asked to forget something, delete the matching note with delete_memory, rem
 Never save something the person has not actually told you.
 ```
 
-`write_memory`, `edit_memory` i `delete_memory` mają efekty uboczne, więc każde zapisanie albo zapomnienie domyślnie parkuje jako **Tool approval required**, tak jak każdy inny zapis. Zatwierdź, żeby kontynuować.
+`write_memory`, `edit_memory` i `delete_memory` działają bez zatwierdzania, jak każde narzędzie, dopóki autor nie obejmie go bramką. Ten przewodnik je obejmuje: ustaw **Always ask** dla wszystkich trzech w Builderze, żeby każde zapisanie albo zapomnienie parkowało jako **Tool approval required**. Zatwierdź, żeby kontynuować.
 
 ## Uruchom { #run-it }
 
@@ -97,7 +97,7 @@ W czacie grupowym zasada się zmienia: notatki należą do pokoju i czytają je 
 
 ## Gdy coś pójdzie nie tak { #when-it-goes-wrong }
 
-- **Zapisanie albo zapomnienie nigdy się nie dzieje.** `write_memory`, `edit_memory` i `delete_memory` mają efekty uboczne i domyślnie są za bramką. Sprawdź **Approvals** w Activity, czy nie czeka zaparkowane wywołanie, zanim uznasz, że model zignorował polecenie.
+- **Zapisanie albo zapomnienie nigdy się nie dzieje.** Gdy `write_memory`, `edit_memory` i `delete_memory` są za bramką, sprawdź **Approvals** w Activity, czy nie czeka zaparkowane wywołanie, zanim uznasz, że model zignorował polecenie.
 - **Późniejsza rozmowa nie zna zapisanej preferencji.** Sprawdź sam `MEMORY.md`. Notatka zapisana, ale niewpisana do indeksu, jest niewidoczna, dopóki model nie wywoła `list_memory`, czego lżejszy model może nie zrobić sam z siebie.
 - **Zaplanowany brief zgaduje, zamiast użyć Twoich notatek.** Tak ma być; zobacz wyżej [czego harmonogram nie może przeczytać](#what-a-schedule-cannot-read). Wpisz fakt do promptu harmonogramu.
 - **Usunięcie notatki nie usuwa jej wszędzie.** `delete_memory` usuwa samą notatkę. Jeśli linia w `MEMORY.md`, która ją wymienia, nie zostanie też przepisana przez `edit_memory`, indeks nadal opisuje coś, czego już nie ma.

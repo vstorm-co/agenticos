@@ -1,5 +1,5 @@
 ---
-source_sha: "54c544558f40"
+source_sha: "c73cac16d216"
 title: "AgenticOS vs Claude"
 seo_title: "AgenticOS vs Claude Team und Enterprise: eigene Agents"
 description: "Claude Team und Enterprise vs. AgenticOS: selbst gehostete Agents auf Claude oder jedem Modell, Budgets je Agent, Freigaben, Audit-Logs, ohne Gebühr pro Nutzer."
@@ -41,7 +41,7 @@ Claude-Tarife nutzen nur Claude-Modelle. AgenticOS erreicht [27 Provider](../mod
 
 ### Freigabe durch jemand anderen als den Anfragenden { #approval-by-someone-other-than-the-requester }
 
-In Cowork gibt die Person, die die Aufgabe ausführt, schreibende Aktionen frei oder schaltet die automatische Freigabe ein. Die Seiten von Anthropic beschreiben keine Freigabe, die an jemand anderen weitergeleitet wird. In AgenticOS [hält ein Capability-Werkzeug mit Nebenwirkungen den Run an](../governance.md#approvals). Die [Benachrichtigung](../governance.md#alerts) geht an die Mitglieder Ihrer Wahl, und nur jemand mit `approvals:decide` kann darüber entscheiden, und zwar einmal.
+In Cowork gibt die Person, die die Aufgabe ausführt, schreibende Aktionen frei oder schaltet die automatische Freigabe ein. Die Seiten von Anthropic beschreiben keine Freigabe, die an jemand anderen weitergeleitet wird. In AgenticOS [hält ein Tool, das der Autor des Agents hinter ein Gate gestellt hat, den Run an](../governance.md#approvals). Die [Benachrichtigung](../governance.md#alerts) geht an die Mitglieder Ihrer Wahl, und nur jemand mit `approvals:decide` kann darüber entscheiden, und zwar einmal.
 
 ### Kosten pro Agent, nicht pro Nutzer { #cost-per-agent-not-per-seat }
 

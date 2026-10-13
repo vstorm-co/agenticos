@@ -1,5 +1,5 @@
 ---
-source_sha: "179806c4d0f1"
+source_sha: "9a1944b963c0"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -166,14 +166,16 @@ woran es gebunden ist, und weiter eingegrenzt werden kann.
 ### Welche Aufrufe auf eine Person warten { #which-calls-wait-for-a-person }
 
 Jedes Binding hat eine `approval`-Richtlinie für die Tools seines Servers. Die
-Vorgabe `writes` hält jedes Tool, das der Server nicht als nur lesend markiert
-(MCPs `readOnlyHint`), an, bis eine Person den Aufruf freigibt — so wie ein
-Capability-Tool mit Nebenwirkungen wartet: Die Karte zeigt die genauen Argumente,
-und ausgeführt werden die freigegebenen. `all` hält jeden Aufruf an; `none` lässt
-jeden durch, für einen Server, dem Sie ohne Person dazwischen vertrauen. Der
-Nur-lesen-Hinweis ist die Behauptung des Servers selbst, also ist `writes` nur so
-streng, wie der Server ehrlich ist — wählen Sie `all` für einen Server, den Sie
-nicht kontrollieren.
+Vorgabe `none` lässt jeden Aufruf durch, so wie die Tools einer Capability laufen,
+bis jemand sie hinter ein Gate stellt. `writes` hält jedes Tool, das der Server
+nicht als nur lesend markiert (MCPs `readOnlyHint`), an, bis eine Person den
+Aufruf freigibt: Die Karte zeigt die genauen Argumente, und ausgeführt werden die
+freigegebenen. `all` hält jeden Aufruf an. Der Nur-lesen-Hinweis ist die
+Behauptung des Servers selbst, also ist `writes` nur so streng, wie der Server
+ehrlich ist — wählen Sie `all` für einen Server, den Sie nicht kontrollieren.
+
+Die eigene Vorlage des Architect verlangt `writes` für den Server der Plattform, damit
+er nichts ohne die Person entwirft, für die er handelt.
 
 Im Builder sagen die Einstellungen eines Servers das je
 Gruppe: **Lesen** und **Ändern** laufen jeweils ohne Rückfrage oder fragen erst.

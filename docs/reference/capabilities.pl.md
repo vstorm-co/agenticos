@@ -1,5 +1,5 @@
 ---
-source_sha: "b76f508f210a"
+source_sha: "73ceda15a49b"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -627,8 +627,7 @@ zaproponować akcji, opisując ją. To nie to samo co bezpieczeństwo: „Usuń 
 akcja, którą strona naprawdę oferuje, dlatego capability jest **`side_effecting`**, a
 `browse_web` można objąć [zatwierdzaniem](../governance.md).
 
-**Domyślnie nie czeka na zatwierdzenie** — to jedyne miejsce, w którym flaga narzędzia
-różni się od flagi capability. Zatwierdzenie przeglądania przychodzi, zanim zostanie
+**Domyślnie nie czeka na zatwierdzenie**, jak każde narzędzie. Zatwierdzenie przeglądania przychodzi, zanim zostanie
 pobrana pierwsza strona, na zadanie opisane słowami, więc prosi kogoś o zgodę na akcje,
 których nikt jeszcze nie widzi. W zamian jest podgląd: konsola rysuje przeglądanie na
 bieżąco, każdy krok mówi, co nacisnął i po co, a `allowed_domains` ogranicza, dokąd w
@@ -820,13 +819,14 @@ to połączenie nie ma poświadczenia — każdy przypadek z nazwy, bo wszystkie
 stany, do których deployment dochodzi *po* opublikowaniu agenta i naprawa należy do
 operatora, a nie do autora.
 
-**Pyta tylko `execute`.** Skutki uboczne deklaruje się per narzędzie, a z siedmiu
-tylko uruchomienie polecenia je ma: workspace to brudnopis usuwany razem z rozmową,
+**Tylko `execute` jest zadeklarowane jako mające skutki uboczne**, a nic nie pyta,
+dopóki autor nie obejmie go bramką. Z siedmiu tylko uruchomienie polecenia działa
+na świat: workspace to brudnopis usuwany razem z rozmową,
 do której należy, więc zapisanie w nim pliku nie jest tą klasą czynu co wysłanie
 maila — a agent, który musi pytać przed każdym `write_file`, nie jest w stanie
 wykonać pracy wieloetapowej w ogóle, i tak właśnie autor kończy z bramką wyłączoną
 w całości, tracąc tę jedną, która miała znaczenie. `execute` uruchamia dowolne
-polecenia na czyimś hoście.
+polecenia na czyimś hoście, więc to ono jest warte bramki.
 
 Powiązanie, które chce surowszego zachowania, ustawia je per narzędzie:
 `tool_approval: {"write_file": "required"}`. Zobacz
@@ -1188,8 +1188,8 @@ nic.
 dołączana, tak samo jak `knowledge` nie jest dołączane bez kolekcji. Dziesięć
 narzędzi, które mogą tylko odmówić, to dziesięć narzędzi w kontekście każdej tury.
 
-**O zatwierdzenie proszą tylko te trzy, które działają:**
-`send_message_to_subagent`, `soft_cancel_task` i `hard_cancel_task`. Sterowanie
+**Trzy są zadeklarowane jako działające**, a autor obejmuje je bramką przez
+`tool_approval`: `send_message_to_subagent`, `soft_cancel_task` i `hard_cancel_task`. Sterowanie
 zmienia to, co delegat robi w trakcie runa, a każde z anulowań niszczy pracę, która
 została opłacona i niedostarczona. `task` celowo nie wywołuje skutków ubocznych, co
 przez chwilę czyta się źle: to, co delegat *robi*, jest bramkowane jego własnym
@@ -1906,8 +1906,8 @@ korzystam" i może zmienić cztery rzeczy:
 Zatwierdzanie jest powodem, dla którego capability w ogóle deklaruje swoje
 narzędzia. „Czy ten agent może zapisywać pliki" i „czy może je czytać" to dwie
 decyzje, mimo że odpowiada na nie jedna capability, więc włączanie pozostaje per
-capability, a zatwierdzanie dzieje się per narzędzie. `default` idzie za własną flagą
-`side_effecting` tej capability.
+capability, a zatwierdzanie dzieje się per narzędzie. `default` nie pyta
+nikogo; `side_effecting` mówi Builderowi tylko, które narzędzia działają na świat.
 
 !!! tip "Opis narzędzia jest promptem o największej dźwigni w tym produkcie"
 

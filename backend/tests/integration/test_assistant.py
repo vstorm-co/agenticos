@@ -100,7 +100,9 @@ async def test_a_viewer_s_first_look_installs_it_and_a_model_publishes_it(
     agent = (await db.execute(select(Agent).where(Agent.id == ready.agent_id))).scalar_one()
     spec = AgentSpec.model_validate(agent.draft_spec)
     assert agent.visibility == "org"
-    assert spec.mcp_servers == [PlatformMcpServerRef(account="platform")]
+    # The one binding that asks before acting: the Architect drafts agents and
+    # invites people, so its template holds those for the person it acts as.
+    assert spec.mcp_servers == [PlatformMcpServerRef(account="platform", approval="writes")]
     assert {"ask_user", "web_research", "web_fetch", "skills"} <= {
         binding.id for binding in spec.capabilities
     }

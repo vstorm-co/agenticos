@@ -516,6 +516,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **No tool waits for a person until its author asks.** A capability's
+  `default` approval now means no approval, whatever `side_effecting` says,
+  and an MCP binding's `approval` defaults to `none` instead of `writes`. A
+  gate nobody chose parked runs in channels and routines where nobody was
+  there to answer it. The Builder still marks the capabilities that act on
+  the world and says what leaving one unanswered means; set **Always ask**
+  per capability, per tool or per server. The Architect's template keeps
+  `writes` on the platform's server.
+
 - **Clearer screens across the console.** The active tab's underline is
   drawn in full on every tab strip. Create knowledge base shows embeddings
   open, the parser as three choices with the rest folded, and the

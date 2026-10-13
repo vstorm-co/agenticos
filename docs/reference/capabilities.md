@@ -588,8 +588,7 @@ action by describing one. That is not the same as safe: "Delete account" is an a
 a page genuinely offers, so the capability is **`side_effecting`** and `browse_web`
 can be put behind [approval](../governance.md).
 
-**It is not held for approval by default**, which is the one place the tool's flag
-disagrees with the capability's. An approval on a browse arrives before the first
+**It is not held for approval by default**, like every tool. An approval on a browse arrives before the first
 page is fetched, on a task in natural language, so it asks somebody to approve
 actions nobody can see yet. What replaces it is watching: the console draws the
 browse while it runs, every step names what it pressed and why, and `allowed_domains`
@@ -773,12 +772,13 @@ has no credential — each by name, because all three are states a deployment
 reaches *after* an agent was published and the fix is an operator's rather than the
 author's.
 
-**Only `execute` asks.** Side-effecting is declared per tool, and of the seven only
-running a command is: a workspace is scratch space deleted with the conversation it
+**Only `execute` is declared side-effecting**, and nothing asks until an author
+gates it. Of the seven, only running a command acts on the world: a workspace is scratch space deleted with the conversation it
 belongs to, so writing a file in it is not the class of act sending an email is —
 and an agent that has to ask before every `write_file` cannot do multi-step work at
 all, which is how an author ends up turning the gate off entirely and losing the one
-that mattered. `execute` runs arbitrary commands on somebody's host.
+that mattered. `execute` runs arbitrary commands on somebody's host, so it is the
+one worth gating.
 
 A binding that wants the stricter behaviour sets it per tool:
 `tool_approval: {"write_file": "required"}`. See [Governance](../governance.md) for
@@ -1120,8 +1120,8 @@ as a decision and does nothing.
 not attached, the same way `knowledge` is not attached with no collections. Ten
 tools that can only refuse are ten tools in every turn's context.
 
-**Only the three that act ask for approval:** `send_message_to_subagent`,
-`soft_cancel_task` and `hard_cancel_task`. Steering changes what a delegate is
+**Three are declared as acting**, and an author gates them with `tool_approval`:
+`send_message_to_subagent`, `soft_cancel_task` and `hard_cancel_task`. Steering changes what a delegate is
 doing mid-run, and either cancel destroys work that was paid for and not
 delivered. `task` is deliberately not side-effecting, which reads wrong for a
 moment: what a delegate *does* is gated by the delegate's own spec, through the
@@ -1808,7 +1808,7 @@ change four things:
 Approval is why a capability declares its tools at all. "May this agent write
 files" and "may it read them" are two decisions even though one capability answers
 both, so enabling stays per capability while approving happens per tool. `default`
-follows the capability's own `side_effecting` flag.
+asks nobody; `side_effecting` only tells the Builder which tools act on the world.
 
 !!! tip "A tool's description is the highest-leverage prompt in the product"
 

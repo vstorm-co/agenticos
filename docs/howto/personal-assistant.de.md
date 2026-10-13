@@ -1,5 +1,5 @@
 ---
-source_sha: "fc6566006c49"
+source_sha: "f1635d7c302a"
 title: "Einen persönlichen Assistenten bauen, der sich an Sie erinnert"
 description: "Geben Sie einem Agent ein Gedächtnis für Ihre Vorlieben, prüfen Sie, dass eine spätere Konversation sie anwendet, und bestätigen Sie dann, dass er eine auf Wunsch vergessen kann."
 ---
@@ -38,7 +38,7 @@ When asked to forget something, delete the matching note with delete_memory, rem
 Never save something the person has not actually told you.
 ```
 
-`write_memory`, `edit_memory` und `delete_memory` haben Seiteneffekte, daher parkt jedes Speichern oder Vergessen standardmäßig als **Tool approval required**, wie jeder andere Schreibvorgang. Genehmigen Sie es, um fortzufahren.
+`write_memory`, `edit_memory` und `delete_memory` laufen ohne Genehmigung, wie jedes Tool, bis sein Autor es hinter ein Gate stellt. Diese Anleitung tut das: Setzen Sie im Builder **Always ask** für alle drei, damit jedes Speichern oder Vergessen als **Tool approval required** parkt. Genehmigen Sie es, um fortzufahren.
 
 ## Ausführen { #run-it }
 
@@ -97,7 +97,7 @@ In einem Gruppenchat ändert sich die Regel: Die Notizen gehören dem Raum, und 
 
 ## Wenn etwas schiefgeht { #when-it-goes-wrong }
 
-- **Ein Speichern oder Vergessen passiert nie.** `write_memory`, `edit_memory` und `delete_memory` haben Seiteneffekte und sind standardmäßig geschützt. Prüfen Sie **Approvals** in Activity auf einen geparkten Aufruf, bevor Sie annehmen, das Modell habe die Anweisung ignoriert.
+- **Ein Speichern oder Vergessen passiert nie.** Wenn `write_memory`, `edit_memory` und `delete_memory` hinter einem Gate stehen, prüfen Sie **Approvals** in Activity auf einen geparkten Aufruf, bevor Sie annehmen, das Modell habe die Anweisung ignoriert.
 - **Eine spätere Konversation kennt eine gespeicherte Vorliebe nicht.** Prüfen Sie `MEMORY.md` selbst. Eine gespeicherte, aber nicht indexierte Notiz ist unsichtbar, bis das Modell `list_memory` aufruft, was ein leichteres Modell ungefragt vielleicht nicht tut.
 - **Ein geplantes Briefing rät, statt Ihre Notizen zu nutzen.** Erwartet; siehe oben [was ein Zeitplan nicht lesen kann](#what-a-schedule-cannot-read). Schreiben Sie die Tatsache in den Prompt des Zeitplans.
 - **Das Löschen einer Notiz entfernt sie nicht überall.** `delete_memory` entfernt die Notiz selbst. Wird die Zeile in `MEMORY.md`, die sie nennt, nicht auch per `edit_memory` umgeschrieben, beschreibt der Index weiter etwas, das es nicht mehr gibt.

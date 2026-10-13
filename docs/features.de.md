@@ -1,5 +1,5 @@
 ---
-source_sha: "9ec557af51bd"
+source_sha: "089e7fa03d78"
 ---
 
 # Funktionen { #features }
@@ -189,10 +189,12 @@ Ein Run, der fehlschlägt, verzeichnet trotzdem, was er gekostet hat, denn ein
 Budget, das nur Erfolge zählt, ist kein Budget. Alerts feuern bei Schwellen, die
 Sie setzen, pro Agent.
 
-## Approval für alles mit Nebenwirkung { #approval-for-anything-side-effecting }
+## Approval, wo Sie eine Person wollen { #approval-where-you-want-a-person }
 
-Ein Tool, das die Außenwelt verändert, parkt den Run und wartet auf einen
-Menschen. Stellen Sie es pro Capability ein, überschreiben Sie es pro Tool.
+Wählen Sie, welche Tools auf eine Person warten, bevor sie laufen: pro Capability,
+pro Tool übersteuert und pro MCP-Server. Nichts wartet, bis Sie darum bitten,
+deshalb parkt ein Run in einem Kanal oder nach Zeitplan nie an einem Gate, das
+niemand gewählt hat.
 
 Eine Approval wird einmal entschieden. Eine zweite Entscheidung über eine bereits
 entschiedene Approval wird abgelehnt — was selbstverständlich klingt, bis man die

@@ -1,5 +1,5 @@
 ---
-source_sha: "153cccfb75a4"
+source_sha: "aec1756f1b79"
 ---
 
 # Ihr erster Agent { #your-first-agent }
@@ -109,7 +109,7 @@ Zwei Dinge lohnen sich hier zu wissen:
 - **Name und Beschreibung eines Tools sind Prompt.** Nach
   `search_refund_policy` wird bei Fragen gegriffen, bei denen
   `search_documents` übergangen wird. Beides ist pro Agent editierbar.
-- Als nebenwirkend deklarierte Werkzeuge verlangen gemäß konfigurierter Richtlinie eine Freigabe. Prüfen Sie Capability- und Werkzeugüberschreibungen vor der Veröffentlichung.
+- Nichts fragt nach einer Freigabe, bis Sie es festlegen. Wählen Sie **Always ask** bei einer Capability oder bei einem einzelnen Tool, das eine Person sehen soll, bevor es läuft.
 
 ## 5. Ihm etwas zu lesen geben { #5-give-it-something-to-read }
 
@@ -210,8 +210,7 @@ Neun Schritte, und ihre Form ist die Form der Plattform:
 2. Ein **Model-Profil** benannt, damit Key und Model sich ändern können, ohne
    dass der Agent sich ändert.
 3. **Instructions** geschrieben.
-4. **Capabilities** eingeschaltet und die mit Nebenwirkung nach Freigabe fragen
-   lassen.
+4. **Capabilities** eingeschaltet und gewählt, welche davon nach Freigabe fragen.
 5. **Knowledge** zum Durchsuchen und **Skills** zum Lesen angehängt.
 6. Ein **Budget** und ein **Schrittlimit** gesetzt und gesagt, wer
    benachrichtigt wird.

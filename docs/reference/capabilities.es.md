@@ -1,5 +1,5 @@
 ---
-source_sha: "b76f508f210a"
+source_sha: "73ceda15a49b"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -634,8 +634,7 @@ seguro: «Eliminar cuenta» es una acción que una página ofrece de verdad, por
 capability es **`side_effecting`** y `browse_web` puede quedar tras una
 [aprobación](../governance.md).
 
-**Por defecto no espera aprobación**, el único punto en que el indicador de la
-herramienta difiere del de la capability. Una aprobación de una navegación llega antes
+**Por defecto no espera aprobación**, como toda herramienta. Una aprobación de una navegación llega antes
 de cargar la primera página, sobre una tarea en lenguaje natural, y pide consentir
 acciones que nadie puede ver todavía. En su lugar está la observación: la consola dibuja
 la navegación mientras ocurre, cada paso dice qué pulsó y para qué, y `allowed_domains`
@@ -829,13 +828,14 @@ no tiene credencial; cada caso por su nombre, porque los tres son estados a los 
 un despliegue llega *después* de que se publicara un agent y el arreglo es de un
 operador y no del autor.
 
-**Solo `execute` pregunta.** El efecto secundario se declara por herramienta, y de
-las siete solo lo es ejecutar un comando: un workspace es espacio de borrador que se
+**Solo `execute` se declara con efectos secundarios**, y nada pregunta hasta que un
+autor lo pone tras una puerta. De las siete, solo ejecutar un comando actúa sobre el
+mundo: un workspace es espacio de borrador que se
 borra con la conversación a la que pertenece, así que escribir un archivo en él no
 es de la misma clase de acto que enviar un correo — y un agent que tiene que
 preguntar antes de cada `write_file` no puede hacer trabajo de varios pasos en
 absoluto, que es como un autor acaba apagando la puerta del todo y perdiendo la que
-importaba. `execute` ejecuta comandos arbitrarios en el host de alguien.
+importaba. `execute` ejecuta comandos arbitrarios en el host de alguien, así que es la que merece una puerta.
 
 Una vinculación que quiera el comportamiento más estricto lo fija por herramienta:
 `tool_approval: {"write_file": "required"}`. Consulta
@@ -1205,7 +1205,8 @@ hace nada.
 igual que `knowledge` no se adjunta sin colecciones. Diez herramientas que solo
 pueden negarse son diez herramientas en el contexto de cada turno.
 
-**Solo las tres que actúan piden aprobación:** `send_message_to_subagent`,
+**Tres se declaran como que actúan**, y un autor las pone tras una puerta con
+`tool_approval`: `send_message_to_subagent`,
 `soft_cancel_task` y `hard_cancel_task`. Dirigir cambia lo que un delegado está
 haciendo en mitad del run, y cualquiera de las dos cancelaciones destruye trabajo
 que se pagó y no se entregó. `task` deliberadamente no tiene efectos secundarios, lo
@@ -1939,8 +1940,9 @@ cambiar cuatro cosas:
 La aprobación es la razón de que una capability declare sus herramientas siquiera.
 «¿Puede este agent escribir archivos?» y «¿puede leerlos?» son dos decisiones aunque
 una sola capability responda a ambas, así que activar sigue siendo por capability
-mientras que aprobar ocurre por herramienta. `default` sigue la propia bandera
-`side_effecting` de la capability.
+mientras que aprobar ocurre por herramienta. `default` no pregunta
+a nadie; `side_effecting` solo le dice al Builder qué herramientas actúan sobre el
+mundo.
 
 !!! tip "La descripción de una herramienta es el prompt con más palanca del producto"
 

@@ -37,7 +37,7 @@ When asked to forget something, delete the matching note with delete_memory, rem
 Never save something the person has not actually told you.
 ```
 
-`write_memory`, `edit_memory` and `delete_memory` are side-effecting, so each save or forget parks for **Tool approval required** by default, the same as any other write. Approve it to continue.
+`write_memory`, `edit_memory` and `delete_memory` run without approval, like every tool until its author gates it. This walkthrough gates them: set **Always ask** on all three in the Builder, so each save or forget parks for **Tool approval required**. Approve it to continue.
 
 ## Run it
 
@@ -94,7 +94,7 @@ In a group chat the rule changes: the notes belong to the room and everyone in i
 
 ## When it goes wrong
 
-- **A save or a forget never happens.** `write_memory`, `edit_memory` and `delete_memory` are side-effecting and gated by default; check **Approvals** in Activity for a parked call before assuming the model ignored the instruction.
+- **A save or a forget never happens.** With `write_memory`, `edit_memory` and `delete_memory` gated, check **Approvals** in Activity for a parked call before assuming the model ignored the instruction.
 - **A later conversation does not know a saved preference.** Check `MEMORY.md` itself — a note the agent saved but never indexed is invisible until the model calls `list_memory`, which a lighter model may not do unprompted.
 - **A scheduled brief guesses instead of using your notes.** Expected — see [what a schedule cannot read](#what-a-schedule-cannot-read) above. Put the fact in the schedule's prompt.
 - **Deleting a note does not remove it everywhere.** `delete_memory` drops the note itself; if `MEMORY.md`'s line naming it is not also rewritten with `edit_memory`, the index still describes something that is gone.

@@ -1,5 +1,5 @@
 ---
-source_sha: "153cccfb75a4"
+source_sha: "aec1756f1b79"
 ---
 
 # Twój pierwszy agent { #your-first-agent }
@@ -107,7 +107,7 @@ Dwie rzeczy warto tu wiedzieć:
 - **Nazwa i opis narzędzia są promptem.** Po `search_refund_policy` model sięga
   przy pytaniach, przy których pomija `search_documents`. Oba da się edytować per
   agent.
-- Narzędzia zadeklarowane jako wywołujące skutki uboczne proszą o zatwierdzenie zgodnie z konfiguracją. Przed publikacją sprawdź nadpisania capability i narzędzi.
+- Nic nie prosi o zatwierdzenie, dopóki tego nie ustawisz. Wybierz **Always ask** przy capability albo przy jednym narzędziu, które człowiek ma zobaczyć, zanim się wykona.
 
 ## 5. Daj mu coś do czytania { #5-give-it-something-to-read }
 
@@ -205,8 +205,7 @@ Dziewięć kroków, a ich kształt jest kształtem platformy:
 2. Nazwałeś **profil modelu**, żeby klucz i model mogły się zmieniać bez zmiany
    agenta.
 3. Napisałeś **instrukcje**.
-4. Włączyłeś **capabilities** i zostawiłeś te ze skutkami ubocznymi proszące
-   o zatwierdzenie.
+4. Włączyłeś **capabilities** i wybrałeś, które z nich proszą o zatwierdzenie.
 5. Podpiąłeś **wiedzę** do przeszukiwania i **skille** do czytania.
 6. Ustawiłeś **budżet** i **limit kroków** i powiedziałeś, kto ma być
    informowany.

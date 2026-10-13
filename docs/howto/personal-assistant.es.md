@@ -1,5 +1,5 @@
 ---
-source_sha: "fc6566006c49"
+source_sha: "f1635d7c302a"
 title: "Construye un asistente personal que te recuerda"
 description: "Dale a un agent memoria de tus preferencias, comprueba que una conversación posterior las aplica y confirma después que puede olvidar una cuando se lo pides."
 ---
@@ -38,7 +38,7 @@ When asked to forget something, delete the matching note with delete_memory, rem
 Never save something the person has not actually told you.
 ```
 
-`write_memory`, `edit_memory` y `delete_memory` tienen efectos secundarios, así que cada guardado u olvido queda aparcado como **Tool approval required** por defecto, igual que cualquier otra escritura. Apruébalo para continuar.
+`write_memory`, `edit_memory` y `delete_memory` se ejecutan sin aprobación, como toda herramienta hasta que su autor la pone tras una puerta. Esta guía las pone: elige **Always ask** en las tres en el Builder, para que cada guardado u olvido quede aparcado como **Tool approval required**. Apruébalo para continuar.
 
 ## Ejecútalo { #run-it }
 
@@ -99,7 +99,7 @@ En un chat de grupo la regla cambia: las notas pertenecen a la sala y todos sus 
 
 ## Cuando algo sale mal { #when-it-goes-wrong }
 
-- **Un guardado o un olvido nunca ocurre.** `write_memory`, `edit_memory` y `delete_memory` tienen efectos secundarios y están protegidos por defecto; busca en **Approvals** de Activity una llamada aparcada antes de suponer que el modelo ignoró la indicación.
+- **Un guardado o un olvido nunca ocurre.** Con `write_memory`, `edit_memory` y `delete_memory` tras una puerta, busca en **Approvals** de Activity una llamada aparcada antes de suponer que el modelo ignoró la indicación.
 - **Una conversación posterior no conoce una preferencia guardada.** Revisa el propio `MEMORY.md`: una nota que el agent guardó pero nunca indexó es invisible hasta que el modelo llama a `list_memory`, algo que un modelo más ligero puede no hacer por su cuenta.
 - **Un resumen programado adivina en lugar de usar tus notas.** Es lo esperado; consulta [lo que una programación no puede leer](#what-a-schedule-cannot-read) arriba. Pon el dato en el prompt de la programación.
 - **Borrar una nota no la quita de todas partes.** `delete_memory` elimina la nota en sí; si la línea de `MEMORY.md` que la nombra no se reescribe también con `edit_memory`, el índice sigue describiendo algo que ya no existe.

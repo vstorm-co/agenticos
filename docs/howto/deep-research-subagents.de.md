@@ -1,5 +1,5 @@
 ---
-source_sha: "c7ac418a906b"
+source_sha: "ff23d9d7cf7a"
 title: "Eine Frage mit Subagents recherchieren und einen Bericht veröffentlichen"
 description: "Zerlegen Sie eine Frage in unabhängige Teilfragen, delegieren Sie jede an einen einmaligen Spezialisten und veröffentlichen Sie einen belegten Vergleich als App."
 ---
@@ -38,7 +38,7 @@ Die Quellcodepflicht der GPLv3 wird durch Weitergabe ausgelöst, nicht durch Än
 ## Den Agent bauen { #build-the-agent }
 
 1. Erstellen Sie unter **Agents → New agent** einen Agent und wählen Sie Ihr Modellprofil.
-2. Aktivieren Sie in der **Toolbox** **Delegation**. Schalten Sie `allow_dynamic` ein, die Einstellung, mit der das Modell einen einmaligen Spezialisten für eine Teilfrage erfinden darf, für die niemand vorab einen geschrieben hat. Setzen Sie den Modus auf **Async**, damit die drei Teilfragen gleichzeitig statt nacheinander laufen, und lassen Sie die Fan-out-Obergrenze bei 3.
+2. Aktivieren Sie in der **Toolbox** **Delegation**. Schalten Sie `allow_dynamic` ein, die Einstellung, mit der das Modell einen einmaligen Spezialisten für eine Teilfrage erfinden darf, für die niemand vorab einen geschrieben hat. Setzen Sie den Modus auf **Async**, damit die drei Teilfragen gleichzeitig statt nacheinander laufen, und lassen Sie die Fan-out-Obergrenze bei 3. Setzen Sie **Always ask** für `delegate`, damit Sie jeden Spezialisten lesen, den das Modell schreibt, bevor er läuft.
 3. Schalten Sie, weiterhin unter Delegation, **Share Web search with delegates** und **Share Web fetch with delegates** ein. Ein vom Modell erfundener Spezialist bekommt [absichtlich](../reference/capabilities.md#delegation) keine eigenen Capabilities. Nur was der Parent ausdrücklich teilt, erreicht ihn, sodass ohne diesen Schritt jeder erfundene Spezialist zwar delegieren, aber nicht suchen könnte.
 4. Aktivieren Sie **Web search** (Methode DuckDuckGo) und **Read web pages** beim Parent selbst. Teilen erreicht einen Delegate nur mit dem, woran der Parent gebunden ist.
 5. Aktivieren Sie **Planning** und **Apps**.
@@ -65,7 +65,7 @@ Do not answer from your own training knowledge without a source URL next to it.
 
 Öffnen Sie einen neuen Chat mit dem Agent und senden Sie die Frage aus *Die Eingabe vorbereiten*.
 
-Das Modell ruft `delegate` dreimal auf, einmal pro Lizenz. Jeder Aufruf ist eine eigene Delegation, nicht ein einzelner Aufruf für alle drei. **Delegate hat Seiteneffekte**, also parken alle drei gemeinsam zur Genehmigung, weil ein Modellschritt mehrere Aufrufe auf einmal parken kann. Lesen Sie die drei vorgeschlagenen Spezialisten und klicken Sie dann auf **Approve**. Der Run setzt fort, startet die drei Spezialisten im Hintergrund und ruft `wait_tasks` auf, um ihre Ergebnisse einzusammeln, bevor er den Bericht schreibt.
+Das Modell ruft `delegate` dreimal auf, einmal pro Lizenz. Jeder Aufruf ist eine eigene Delegation, nicht ein einzelner Aufruf für alle drei. **`delegate` steht hinter einem Gate**, also parken alle drei gemeinsam zur Genehmigung, weil ein Modellschritt mehrere Aufrufe auf einmal parken kann. Lesen Sie die drei vorgeschlagenen Spezialisten und klicken Sie dann auf **Approve**. Der Run setzt fort, startet die drei Spezialisten im Hintergrund und ruft `wait_tasks` auf, um ihre Ergebnisse einzusammeln, bevor er den Bericht schreibt.
 
 ## Das Ergebnis prüfen { #check-the-result }
 

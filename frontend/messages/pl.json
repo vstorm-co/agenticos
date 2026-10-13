@@ -104,7 +104,7 @@
     "approvalAlways": "Zawsze pytaj",
     "approvalFollow": "Zgodnie z capability",
     "approvalHintDefaultReadOnly": "Działa bez zatwierdzenia, ponieważ ta capability tylko czyta.",
-    "approvalHintDefaultSideEffecting": "Wstrzymane do zatwierdzenia, ponieważ ta capability zmienia coś poza agentem.",
+    "approvalHintDefaultSideEffecting": "Działa bez zatwierdzania, choć ta capability zmienia coś poza agentem. Wybierz Zawsze pytaj, jeśli człowiek ma najpierw zobaczyć każde wywołanie.",
     "approvalHintNeverReadOnly": "Bez zatwierdzenia, co ta capability i tak by zrobiła.",
     "approvalHintNeverSideEffecting": "Agent działa bez nadzoru. Tylko dla akcji, które Twoja organizacja uznała za bezpieczne.",
     "approvalHintRequired": "Osoba zatwierdza każde wywołanie, zanim zostanie uruchomione.",
@@ -3768,7 +3768,7 @@
       "uploadAvatar2": "Wgraj awatar",
       "versions": "Wersje",
       "visualMap": "Mapa",
-      "whatAgentCanDo": "Co ten agent potrafi i gdzie trzyma to, co wytwarza. Wszystko, co działa na świat zewnętrzny, wymaga zatwierdzenia przez człowieka przed uruchomieniem.",
+      "whatAgentCanDo": "Co ten agent potrafi i gdzie trzyma to, co wytwarza. Nic nie czeka na człowieka, dopóki nie ustawisz przy tym Zawsze pytaj.",
       "youAreSupportCopilot": "Jesteś Support Copilot. Odpowiadaj na podstawie wiki produktu i cytuj dokument, którego użyłeś. Jeśli wiki tego nie obejmuje, powiedz to zamiast zgadywać.",
       "avatarColour": "Kolor zastępczy",
       "knowledge": "Wiedza",
@@ -6585,7 +6585,7 @@
       },
       "allow_dynamic": {
         "title": "Pozwól agentowi tworzyć specjalistów",
-        "description": "Pozwala temu agentowi tworzyć własnych specjalistów w trakcie runu. Każdy to instrukcje i jeden z waszych modeli, bez narzędzi i wiedzy, wydaje z budżetu tego runu i znika po odpowiedzi. Utworzenie domyślnie wymaga zatwierdzenia."
+        "description": "Pozwala temu agentowi tworzyć własnych specjalistów w trakcie runu. Każdy to instrukcje i jeden z waszych modeli, bez narzędzi i wiedzy, wydaje z budżetu tego runu i znika po odpowiedzi. Objęcie bramką `create_agent` pozwala zobaczyć każdego z nich najpierw."
       },
       "max_depth": {
         "title": "Głębokość delegowania",

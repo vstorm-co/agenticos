@@ -1,5 +1,5 @@
 ---
-source_sha: "8ebc9d30a06c"
+source_sha: "5d922dd0b522"
 ---
 
 # Añade una capability { #add-a-capability }
@@ -172,8 +172,10 @@ def _build(ctx: CapabilityBuildContext) -> Weather | None:
   en el catálogo, y con una entrada en inglés que difiere del esquema.
 - **`scopes`** se rechazan en el momento de construir cuando la organización no
   los ha concedido.
-- **`side_effecting=True`** encamina las herramientas de la capability por la
-  puerta de aprobación.
+- **`side_effecting=True`** marca las herramientas de la capability como que actúan
+  sobre el mundo, y el Builder lo dice junto a la elección de aprobación. No pone
+  nada tras una puerta: ninguna herramienta espera a una persona hasta que un autor
+  lo pide.
 - **Devolver `None`** significa "no aporta nada a *este* agent" y la capability
   no se adjunta en absoluto. `knowledge` lo hace cuando no hay colecciones
   vinculadas: una herramienta de búsqueda que siempre devuelve vacío es peor que

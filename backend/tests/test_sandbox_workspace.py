@@ -413,20 +413,12 @@ class TestReadingTheSpec:
 
 
 class TestApprovalIsPerTool:
-    def test_only_running_commands_is_gated(self):
-        """One flag for the capability would gate `ls`, and authors would turn the
-        lot off rather than write seven overrides.
-
-        Writing is not gated either, which was a correction rather than a default:
-        a workspace is scratch space deleted with its conversation, so a write is
-        not the class of act an email is - and an agent that must ask before every
-        one cannot do multi-step work, which is how an author ends up turning off
-        the gate that mattered. `execute` runs arbitrary commands on somebody's
-        host, and that is the one worth a person looking at.
+    def test_nothing_is_gated_until_somebody_asks(self):
+        """Not even `execute`. A gate nobody chose parked runs in channels and
+        routines where nobody was there to answer it, so the author decides -
+        per tool, or for the whole capability.
         """
-        gated = approval_required_tools(_spec())
-
-        assert gated == {"execute"}
+        assert approval_required_tools(_spec()) == frozenset()
 
     def test_a_binding_still_overrides_the_code(self):
         spec = AgentSpec(
@@ -443,7 +435,12 @@ class TestApprovalIsPerTool:
         spec = AgentSpec(
             name="Renamed",
             capabilities=[
-                {"id": "sandbox", "config": {}, "tool_overrides": {"execute": {"name": "run_it"}}}
+                {
+                    "id": "sandbox",
+                    "config": {},
+                    "tool_overrides": {"execute": {"name": "run_it"}},
+                    "tool_approval": {"execute": "required"},
+                }
             ],
         )
 

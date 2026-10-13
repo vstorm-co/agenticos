@@ -46,7 +46,8 @@ organization that only runs a modified copy internally owes nobody a release.
    that lets the model invent a one-off specialist for a sub-question nobody
    pre-wrote a specialist for. Set the mode to **Async**, so the three
    sub-questions run at once instead of one after another, and leave the
-   fan-out ceiling at 3.
+   fan-out ceiling at 3. Set **Always ask** on `delegate`, so you read each
+   specialist the model writes before it runs.
 3. Still on Delegation, toggle **Share Web search with delegates** and
    **Share Web fetch with delegates**. A specialist the model invents gets no
    capabilities of its own [by design](../reference/capabilities.md#delegation) -
@@ -80,8 +81,8 @@ Do not answer from your own training knowledge without a source URL next to it.
 Open a new chat with the agent and send the question from *Prepare the input*.
 
 The model calls `delegate` three times, once per licence - each one is its own
-delegation, not a single call doing all three. **Delegate is side-effecting**,
-so all three park for approval together, as one model step can park several
+delegation, not a single call doing all three. **You gated `delegate`**, so
+all three park for approval together, as one model step can park several
 calls at once. Read the three proposed specialists, then **Approve**. The run
 resumes, fires the three specialists in the background and calls `wait_tasks`
 to collect them before it writes the report.

@@ -102,8 +102,8 @@ class SubagentsConfig(BaseModel):
         description=(
             "Lets this agent write its own specialists while it runs. Each is "
             "instructions and one of your models, with no tools or knowledge, spends from "
-            "this run's budget and is gone after the reply. Creating one needs approval "
-            "by default."
+            "this run's budget and is gone after the reply. Gate `create_agent` to "
+            "see each one first."
         ),
     )
     # A ceiling in both directions: as somebody's delegate this agent gets the lower of

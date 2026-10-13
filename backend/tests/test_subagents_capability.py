@@ -2583,27 +2583,26 @@ class TestLazyDelegate:
 class TestApproval:
     """Which of these tools a person has to answer for."""
 
-    def test_only_the_tools_that_act_on_running_work_need_a_person(self):
-        """Delegating is not one of them, and that is the decision worth pinning.
-
-        What a delegate *does* is gated by the delegate's own spec, through this
-        same gate. Gating the delegation as well would ask somebody to approve it
-        before the work that might need approving has even been proposed - and an
-        author who does want that has one `tool_approval` override. Cancelling and
-        steering are the opposite case: they destroy or redirect work already paid
-        for.
+    def test_no_tool_needs_a_person_until_the_author_asks(self):
+        """Cancelling and steering included: they are flagged as acting on the
+        world, and the Builder shows that beside the choice, but a gate nobody
+        chose is one nobody is there to answer in a channel or a routine.
         """
         spec = AgentSpec(name="Orchestrator", capabilities=[CapabilityBindingSpec(id="subagents")])
 
-        assert approval_required_tools(spec) == {
-            "send_message_to_subagent",
-            "soft_cancel_task",
-            "hard_cancel_task",
-            # Not reachable yet, and gated for when they are: an agent nobody
-            # published is what `allow_dynamic` exists to hold back.
-            "create_agent",
-            "delegate",
-        }
+        assert approval_required_tools(spec) == frozenset()
+
+    def test_an_author_gates_cancelling_without_gating_delegation(self):
+        spec = AgentSpec(
+            name="Orchestrator",
+            capabilities=[
+                CapabilityBindingSpec(
+                    id="subagents", tool_approval={"hard_cancel_task": "required"}
+                )
+            ],
+        )
+
+        assert approval_required_tools(spec) == {"hard_cancel_task"}
 
 
 class TestOtherTools:

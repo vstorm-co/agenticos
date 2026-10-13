@@ -1,5 +1,5 @@
 ---
-source_sha: "b76f508f210a"
+source_sha: "73ceda15a49b"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -664,8 +664,7 @@ ist nicht dasselbe wie sicher: „Konto löschen“ ist eine Aktion, die eine Se
 anbietet, deshalb ist die Capability **`side_effecting`**, und `browse_web` lässt sich
 hinter eine [Freigabe](../governance.md) stellen.
 
-**Standardmäßig wartet sie nicht auf eine Freigabe** — die eine Stelle, an der das Flag
-des Tools vom Flag der Capability abweicht. Eine Freigabe für ein Browsen kommt, bevor
+**Standardmäßig wartet sie nicht auf eine Freigabe**, wie jedes Tool. Eine Freigabe für ein Browsen kommt, bevor
 die erste Seite geladen ist, auf eine Aufgabe in natürlicher Sprache, und bittet damit
 um Zustimmung zu Aktionen, die noch niemand sehen kann. An ihre Stelle tritt das
 Zusehen: Die Konsole zeichnet das Browsen live, jeder Schritt nennt, was er gedrückt
@@ -868,14 +867,15 @@ oder wenn diese Verbindung keine Zugangsdaten hat — jeweils namentlich, denn a
 drei sind Zustände, die ein Deployment *nach* der Veröffentlichung eines Agents
 erreicht, und die Behebung liegt bei einem Betreiber statt beim Autor.
 
-**Nur `execute` fragt nach.** Seiteneffekte werden pro Tool deklariert, und von den
-sieben hat nur das Ausführen eines Befehls welche: Ein Workspace ist Notizraum, der
+**Nur `execute` ist als nebenwirkend deklariert**, und nichts fragt, bis ein Autor
+es hinter ein Gate stellt. Von den sieben wirkt nur das Ausführen eines Befehls auf
+die Welt ein: Ein Workspace ist Notizraum, der
 mit der Unterhaltung gelöscht wird, zu der er gehört, deshalb ist eine Datei darin
 zu schreiben nicht dieselbe Art von Handlung wie eine E-Mail zu senden — und ein
 Agent, der vor jedem `write_file` fragen muss, kann mehrstufige Arbeit gar nicht
 erledigen, was dazu führt, dass ein Autor das Gate ganz abschaltet und das eine
 verliert, auf das es ankam. `execute` führt beliebige Befehle auf dem Host von
-jemandem aus.
+jemandem aus, deshalb ist es das, das ein Gate lohnt.
 
 Eine Bindung, die das strengere Verhalten will, setzt es pro Tool:
 `tool_approval: {"write_file": "required"}`. Siehe [Governance](../governance.md)
@@ -1264,8 +1264,8 @@ wie eine Entscheidung liest und nichts tut.
 nicht angehängt, genauso wie `knowledge` ohne Collections nicht angehängt wird.
 Zehn Tools, die nur ablehnen können, sind zehn Tools im Kontext jedes Zuges.
 
-**Nur die drei, die handeln, fragen nach Genehmigung:**
-`send_message_to_subagent`, `soft_cancel_task` und `hard_cancel_task`. Das Steuern
+**Drei sind als handelnd deklariert**, und ein Autor stellt sie mit
+`tool_approval` hinter ein Gate: `send_message_to_subagent`, `soft_cancel_task` und `hard_cancel_task`. Das Steuern
 ändert mitten im Run, was eine Delegierte tut, und jeder der beiden Abbrüche
 vernichtet Arbeit, die bezahlt und nicht geliefert wurde. `task` hat bewusst keine
 Seiteneffekte, was sich einen Moment lang falsch liest: Was eine Delegierte *tut*,
@@ -2047,7 +2047,8 @@ Die Genehmigung ist der Grund, warum eine Capability ihre Tools überhaupt
 deklariert. „Darf dieser Agent Dateien schreiben“ und „darf er sie lesen“ sind zwei
 Entscheidungen, obwohl eine Capability beide beantwortet — deshalb bleibt das
 Aktivieren pro Capability, während das Genehmigen pro Tool geschieht. `default`
-folgt dem eigenen `side_effecting`-Flag der Capability.
+fragt niemanden; `side_effecting` sagt dem Builder nur, welche Tools auf die Welt
+einwirken.
 
 !!! tip "Die Beschreibung eines Tools ist der Prompt mit der größten Hebelwirkung im Produkt"
 

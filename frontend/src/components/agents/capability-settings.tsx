@@ -109,7 +109,7 @@ function approvalHint(mode: ApprovalMode, sideEffecting: boolean): string {
 
 /**
  * Approval for one tool, most specific rule first: the tool's own override, then
- * the capability's mode, then what `side_effecting` decides.
+ * the capability's mode, and no approval when neither says anything.
  *
  * This is the frontend's copy of a rule the runtime also applies. It exists so
  * the Builder can *say* what a setting will do rather than describe the rule and
@@ -119,15 +119,17 @@ function approvalHint(mode: ApprovalMode, sideEffecting: boolean): string {
 export function resolveToolApproval(
   binding: CapabilityBindingSpec,
   toolId: string,
-  sideEffecting: boolean,
 ): ResolvedApproval {
-  return overrideFor(binding, toolId) ?? resolveCapabilityApproval(binding.approval, sideEffecting);
+  return overrideFor(binding, toolId) ?? resolveCapabilityApproval(binding.approval);
 }
 
-/** What a capability's own mode comes out to, `default` included. */
-function resolveCapabilityApproval(mode: ApprovalMode, sideEffecting: boolean): ResolvedApproval {
-  if (mode !== "default") return mode;
-  return sideEffecting ? "required" : "never";
+/**
+ * What a capability's own mode comes out to. `default` is no approval: a gate
+ * nobody chose parks runs in channels and routines where nobody is there to
+ * answer it, so a person is asked only once the author says so.
+ */
+function resolveCapabilityApproval(mode: ApprovalMode): ResolvedApproval {
+  return mode === "required" ? "required" : "never";
 }
 
 /**
@@ -143,8 +145,8 @@ function resolveCapabilityApproval(mode: ApprovalMode, sideEffecting: boolean): 
  * on *any* capability, so "this only reads, but in my organization somebody
  * approves it anyway" is a real decision, and there was no way to express it.
  *
- * `side_effecting` still decides what *default* resolves to. It no longer
- * decides whether you may see the question.
+ * `side_effecting` no longer decides anything: it is shown beside the choice,
+ * and the hint under it says what leaving it unanswered means for this one.
  */
 export function CapabilitySettings({
   catalog,
@@ -365,7 +367,6 @@ export function CapabilityDetail({
       binding={binding}
       tools={definition.tools}
       contracts={definition.contracts}
-      sideEffecting={definition.side_effecting}
       onChange={onChange}
       disabled={disabled}
     />
@@ -764,7 +765,6 @@ interface ToolListProps {
   binding: CapabilityBindingSpec;
   tools: CapabilityTool[];
   contracts: CapabilityToolContract[];
-  sideEffecting: boolean;
   onChange: (binding: CapabilityBindingSpec) => void;
   disabled?: boolean;
 }
@@ -778,7 +778,7 @@ interface ToolListProps {
  * because the alternative is walking back through every row to find which of
  * them stopped following it.
  */
-function ToolList({ binding, tools, contracts, sideEffecting, onChange, disabled }: ToolListProps) {
+function ToolList({ binding, tools, contracts, onChange, disabled }: ToolListProps) {
   const t = useTranslations("agents");
   const changed = tools.filter((tool) => isToolOverridden(binding, tool.id));
 
@@ -815,7 +815,6 @@ function ToolList({ binding, tools, contracts, sideEffecting, onChange, disabled
             binding={binding}
             tool={tool}
             contract={contracts.find((entry) => entry.tool_id === tool.id)}
-            sideEffecting={sideEffecting}
             onChange={onChange}
             disabled={disabled}
           />
@@ -830,12 +829,11 @@ interface ToolRowProps {
   tool: CapabilityTool;
   /** What the model is really told. Absent only if the catalog could not read it. */
   contract?: CapabilityToolContract;
-  sideEffecting: boolean;
   onChange: (binding: CapabilityBindingSpec) => void;
   disabled?: boolean;
 }
 
-function ToolRow({ binding, tool, contract, sideEffecting, onChange, disabled }: ToolRowProps) {
+function ToolRow({ binding, tool, contract, onChange, disabled }: ToolRowProps) {
   const t = useTranslations("agents");
   const fieldId = (suffix: string) => `${binding.id}-tool-${tool.id}-${suffix}`;
   const approval = overrideFor(binding, tool.id);
@@ -904,7 +902,7 @@ function ToolRow({ binding, tool, contract, sideEffecting, onChange, disabled }:
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="default">
-                {resolveCapabilityApproval(binding.approval, sideEffecting) === "required"
+                {resolveCapabilityApproval(binding.approval) === "required"
                   ? t("followCapabilityAlwaysAsk")
                   : t("followCapabilityNeverAsk")}
               </SelectItem>

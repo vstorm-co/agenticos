@@ -22,6 +22,7 @@ skills:
 - software/pydantic-ai-import
 mcp_servers:
 - account: platform
+  approval: writes
 budget_usd: 20
 ---
 

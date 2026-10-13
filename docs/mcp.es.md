@@ -1,5 +1,5 @@
 ---
-source_sha: "179806c4d0f1"
+source_sha: "9a1944b963c0"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -163,14 +163,17 @@ a lo que está vinculada sigue visible y todavía se puede estrechar.
 ### Qué llamadas esperan a una persona { #which-calls-wait-for-a-person }
 
 Cada vinculación tiene una política `approval` para las herramientas de su
-servidor. La predeterminada, `writes`, retiene toda herramienta que el servidor no
-marque como de solo lectura (el `readOnlyHint` de MCP) hasta que una persona apruebe
-la llamada, igual que espera una herramienta de capability con efectos: la tarjeta
-muestra los argumentos exactos y se ejecutan los aprobados. `all` retiene todas las
-llamadas; `none` las deja pasar todas, para un servidor en el que confías sin una
-persona de por medio. La marca de solo lectura la declara el propio servidor, así
-que `writes` es tan estricta como honesto sea el servidor: elige `all` para un
-servidor que no controlas.
+servidor. La predeterminada, `none`, deja pasar todas las llamadas, igual que las
+herramientas de una capability se ejecutan hasta que alguien las pone tras una
+puerta. `writes` retiene toda herramienta que el servidor no marque como de solo
+lectura (el `readOnlyHint` de MCP) hasta que una persona apruebe la llamada: la
+tarjeta muestra los argumentos exactos y se ejecutan los aprobados. `all` retiene
+todas las llamadas. La marca de solo lectura la declara el propio servidor, así que
+`writes` es tan estricta como honesto sea el servidor: elige `all` para un servidor
+que no controlas.
+
+La propia plantilla del Architect pide `writes` para el servidor
+de la plataforma, así que no crea nada sin la persona en cuyo nombre actúa.
 
 En el Builder, los ajustes de un servidor lo dicen por
 grupos: sus **lecturas** y las herramientas que **cambian cosas** se ejecutan sin

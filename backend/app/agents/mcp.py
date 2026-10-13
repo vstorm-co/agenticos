@@ -86,7 +86,7 @@ class McpServerSpec:
     headers: dict[str, str] = field(default_factory=dict)
     # None = expose every tool the server offers.
     allowed_tools: list[str] | None = None
-    approval: McpApproval = "writes"
+    approval: McpApproval = "none"
     # This deployment's own server (`/mcp`), reached through the application in
     # this process rather than over the network - never probed, never dialled out.
     in_process: bool = False
@@ -273,7 +273,7 @@ def needs_approval(tool: ToolDefinition, policy: McpApproval) -> bool:
 class ApprovalMarked(WrapperToolset[Any]):
     """An MCP server's tools, each marked with whether it waits for approval."""
 
-    policy: McpApproval = "writes"
+    policy: McpApproval = "none"
 
     async def get_tools(self, ctx: RunContext[Any]) -> dict[str, ToolsetTool[Any]]:
         tools = await super().get_tools(ctx)

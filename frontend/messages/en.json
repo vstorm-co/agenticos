@@ -104,7 +104,7 @@
     "approvalAlways": "Always ask",
     "approvalFollow": "Follow the capability",
     "approvalHintDefaultReadOnly": "Runs without approval, because this capability only reads.",
-    "approvalHintDefaultSideEffecting": "Held for approval, because this capability changes something outside the agent.",
+    "approvalHintDefaultSideEffecting": "Runs without approval, though this capability changes something outside the agent. Choose Always ask if a person should see each call first.",
     "approvalHintNeverReadOnly": "No approval, which is what this capability would do anyway.",
     "approvalHintNeverSideEffecting": "The agent acts unattended. Only for actions your organization has decided are safe.",
     "approvalHintRequired": "A person approves every call before it runs.",
@@ -3998,7 +3998,7 @@
       "uploadAvatar2": "Upload avatar",
       "versions": "Versions",
       "visualMap": "Visual map",
-      "whatAgentCanDo": "What this agent can do, and where it keeps what it produces. Anything that acts on the outside world needs a human approval before it runs.",
+      "whatAgentCanDo": "What this agent can do, and where it keeps what it produces. Nothing waits for a person until you set Always ask on it.",
       "youAreSupportCopilot": "You are Support Copilot. Answer from the product wiki and cite the document you used. If the wiki does not cover it, say so rather than guessing.",
       "avatarColour": "Fallback colour",
       "knowledge": "Knowledge",
@@ -6801,7 +6801,7 @@
       },
       "allow_dynamic": {
         "title": "Let the agent create specialists",
-        "description": "Lets this agent write its own specialists while it runs. Each is instructions and one of your models, with no tools or knowledge, spends from this run's budget and is gone after the reply. Creating one needs approval by default."
+        "description": "Lets this agent write its own specialists while it runs. Each is instructions and one of your models, with no tools or knowledge, spends from this run's budget and is gone after the reply. Gate `create_agent` to see each one first."
       },
       "max_depth": {
         "title": "Delegation depth",

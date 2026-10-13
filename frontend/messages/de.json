@@ -104,7 +104,7 @@
     "approvalAlways": "Immer fragen",
     "approvalFollow": "Der Capability folgen",
     "approvalHintDefaultReadOnly": "Läuft ohne Freigabe, weil diese Capability nur liest.",
-    "approvalHintDefaultSideEffecting": "Wird zur Freigabe angehalten, weil diese Capability etwas außerhalb des Agents ändert.",
+    "approvalHintDefaultSideEffecting": "Läuft ohne Freigabe, obwohl diese Capability etwas außerhalb des Agents ändert. Wählen Sie Immer fragen, wenn eine Person jeden Aufruf zuerst sehen soll.",
     "approvalHintNeverReadOnly": "Keine Freigabe, was diese Capability ohnehin so handhaben würde.",
     "approvalHintNeverSideEffecting": "Der Agent handelt unbeaufsichtigt. Nur für Aktionen, die Ihre Organisation als sicher eingestuft hat.",
     "approvalHintRequired": "Ein Mensch gibt jeden Aufruf frei, bevor er läuft.",
@@ -3880,7 +3880,7 @@
       "uploadAvatar2": "Avatar hochladen",
       "versions": "Versionen",
       "visualMap": "Visuelle Karte",
-      "whatAgentCanDo": "Was dieser Agent tun kann und wo er aufbewahrt, was er hervorbringt. Alles, was auf die Außenwelt wirkt, braucht vor der Ausführung eine Freigabe durch einen Menschen.",
+      "whatAgentCanDo": "Was dieser Agent tun kann und wo er aufbewahrt, was er hervorbringt. Nichts wartet auf eine Person, bis Sie dafür Immer fragen wählen.",
       "youAreSupportCopilot": "Du bist Support-Copilot. Antworte aus dem Produkt-Wiki und nenne das Dokument, das du verwendet hast. Deckt das Wiki es nicht ab, sage das, statt zu raten.",
       "avatarColour": "Ersatzfarbe",
       "knowledge": "Wissen",
@@ -6684,7 +6684,7 @@
       },
       "allow_dynamic": {
         "title": "Agent darf Spezialisten erstellen",
-        "description": "Erlaubt diesem Agent, während des Runs eigene Spezialisten zu schreiben. Jeder besteht aus Anweisungen und einem Ihrer Modelle, ohne Werkzeuge oder Wissen, verbraucht das Budget dieses Runs und ist nach der Antwort weg. Das Erstellen braucht standardmäßig eine Freigabe."
+        "description": "Erlaubt diesem Agent, während des Runs eigene Spezialisten zu schreiben. Jeder besteht aus Anweisungen und einem Ihrer Modelle, ohne Werkzeuge oder Wissen, verbraucht das Budget dieses Runs und ist nach der Antwort weg. Stellen Sie `create_agent` hinter ein Gate, um jeden zuerst zu sehen."
       },
       "max_depth": {
         "title": "Delegationstiefe",

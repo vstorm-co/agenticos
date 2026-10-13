@@ -1,5 +1,5 @@
 ---
-source_sha: "72e58e25745e"
+source_sha: "59fc8f638706"
 ---
 
 # Begriffe { #concepts }
@@ -477,7 +477,7 @@ Ein Approval löst vom Spezifischsten her auf:
 
 1. die eigene Übersteuerung des Tools, dann
 2. der Modus der Capability, dann
-3. ob die Capability `side_effecting` ist.
+3. keine Freigabe, wenn keines von beiden etwas sagt.
 
 Der Builder nennt das *Ergebnis* in Worten, statt die Regel zu beschreiben, denn
 eine Regel, die der Leser im Kopf durchrechnen muss, ist eine Einstellung, die

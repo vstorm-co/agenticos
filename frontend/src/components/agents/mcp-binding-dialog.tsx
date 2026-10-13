@@ -169,7 +169,7 @@ export function McpBindingDialog({
     connections.find((connection) => boundIds.has(connection.id)) ?? connections[0] ?? null;
   const tools = listedBy?.last_tools ?? personalTools;
   const allowed = primary?.allowed_tools ?? null;
-  const approval = primary?.approval ?? "writes";
+  const approval = primary?.approval ?? "none";
   const setTools = (next: string[] | null) =>
     onChange(bindings.map((ref) => ({ ...ref, allowed_tools: next })));
   const setApproval = (next: McpApproval) =>

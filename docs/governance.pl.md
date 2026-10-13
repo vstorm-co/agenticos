@@ -1,5 +1,5 @@
 ---
-source_sha: "c6c2f99c9928"
+source_sha: "ddf9b881a04f"
 ---
 
 # Governance { #governance }
@@ -928,13 +928,18 @@ zamiast być zgadywana. UI pokazuje to jako `+` obok liczby.
 
 ## Zatwierdzenia { #approvals }
 
-Narzędzie, które działa na świat zewnętrzny, parkuje run i czeka na człowieka.
+Narzędzie, które autor agenta objął bramką, parkuje run i czeka na człowieka.
+Nic nie jest za bramką, dopóki ktoś o to nie poprosi: bramka, której nikt nie
+wybrał, parkuje runy w kanałach i rutynach, gdzie nikogo nie ma, żeby odpowiedzieć.
 
 Rozstrzyganie idzie od najbardziej szczegółowego:
 
 1. własne nadpisanie narzędzia, jeśli je ma
 2. tryb `approval` capability (`required` | `never` | `default`)
-3. to, co rozstrzyga `side_effecting`, dla `default`
+3. brak zatwierdzania, gdy oba mówią `default`
+
+`side_effecting` niczego już tu nie rozstrzyga. Builder pokazuje go obok wyboru,
+więc narzędzia działające na świat autor widzi jako pierwsze.
 
 Builder podaje wynik słowami, zamiast opisywać regułę, bo reguła, którą czytelnik
 musi wykonać w głowie, to ustawienie, którego nikt nie odważy się dotknąć.

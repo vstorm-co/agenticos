@@ -1,5 +1,5 @@
 ---
-source_sha: "179806c4d0f1"
+source_sha: "9a1944b963c0"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -162,13 +162,17 @@ to, z czym jest związane, pozostaje widoczne i wciąż można je zawęzić.
 ### Które wywołania czekają na człowieka { #which-calls-wait-for-a-person }
 
 Każde powiązanie ma politykę `approval` dla narzędzi swojego serwera. Domyślna,
-`writes`, wstrzymuje każde narzędzie, którego serwer nie oznaczył jako tylko do
-odczytu (`readOnlyHint` w MCP), aż człowiek zatwierdzi wywołanie — tak samo jak
-narzędzie capability ze skutkami ubocznymi: karta pokazuje dokładne argumenty, a
-wykonywane są te zatwierdzone. `all` wstrzymuje każde wywołanie; `none` przepuszcza
-wszystkie, dla serwera, któremu ufasz bez człowieka w pętli. Wskazówka „tylko do
-odczytu” to deklaracja samego serwera, więc `writes` jest tak ścisłe, jak serwer
-jest uczciwy — dla serwera, którego nie kontrolujesz, wybierz `all`.
+`none`, przepuszcza każde wywołanie, tak jak narzędzia capability działają, dopóki
+ktoś nie obejmie ich bramką. `writes` wstrzymuje każde narzędzie, którego serwer
+nie oznaczył jako tylko do odczytu (`readOnlyHint` w MCP), aż człowiek zatwierdzi
+wywołanie: karta pokazuje dokładne argumenty, a wykonywane są te zatwierdzone.
+`all` wstrzymuje każde wywołanie. Wskazówka „tylko do odczytu” to deklaracja
+samego serwera, więc `writes` jest tak ścisłe, jak serwer jest uczciwy — dla
+serwera, którego nie kontrolujesz, wybierz `all`.
+
+Własny szablon Architekta prosi
+o `writes` dla serwera platformy, więc nie tworzy niczego bez osoby, w której
+imieniu działa.
 
 W Builderze
 ustawienia serwera mówią to osobno dla grup: **Odczyt** i **Zmiany** działają bez

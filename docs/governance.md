@@ -861,13 +861,18 @@ than guessed at. The UI shows that as a `+` next to the figure.
 
 ## Approvals
 
-A tool that acts on the outside world parks the run and waits for a person.
+A tool the agent's author gated parks the run and waits for a person. Nothing
+is gated until somebody asks: a gate nobody chose parks runs in channels and
+routines where nobody is there to answer it.
 
 Resolution is most-specific-first:
 
 1. the tool's own override, if it has one
 2. the capability's `approval` mode (`required` | `never` | `default`)
-3. what `side_effecting` decides, for `default`
+3. no approval, when both say `default`
+
+`side_effecting` no longer decides anything here. The Builder shows it beside the
+choice, so the tools that act on the world are the ones an author sees first.
 
 The Builder states the outcome in words rather than describing the rule, because a
 rule the reader has to run in their head is a setting nobody dares touch.

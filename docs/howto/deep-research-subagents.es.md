@@ -1,5 +1,5 @@
 ---
-source_sha: "c7ac418a906b"
+source_sha: "ff23d9d7cf7a"
 title: "Investiga una pregunta con subagents y publica un informe"
 description: "Divide una pregunta en subpreguntas independientes, delega cada una en un especialista de un solo uso y publica una comparación con fuentes como aplicación."
 ---
@@ -38,7 +38,7 @@ La obligación de publicar el código de la GPLv3 la activa la distribución, no
 ## Construye el agent { #build-the-agent }
 
 1. Crea un agent en **Agents → New agent** y selecciona tu perfil de modelo.
-2. En **Toolbox**, activa **Delegation**. Activa `allow_dynamic`, el ajuste que permite al modelo inventar un especialista de un solo uso para una subpregunta para la que nadie escribió uno de antemano. Pon el modo en **Async**, para que las tres subpreguntas se ejecuten a la vez y no una tras otra, y deja el límite de ramificación en 3.
+2. En **Toolbox**, activa **Delegation**. Activa `allow_dynamic`, el ajuste que permite al modelo inventar un especialista de un solo uso para una subpregunta para la que nadie escribió uno de antemano. Pon el modo en **Async**, para que las tres subpreguntas se ejecuten a la vez y no una tras otra, y deja el límite de ramificación en 3. Elige **Always ask** en `delegate`, para leer cada especialista que escriba el modelo antes de que se ejecute.
 3. Todavía en Delegation, activa **Share Web search with delegates** y **Share Web fetch with delegates**. Un especialista inventado por el modelo no recibe capabilities propias [por diseño](../reference/capabilities.md#delegation): solo le llega lo que el padre comparte explícitamente, así que sin este paso cada especialista inventado podría delegar pero no buscar.
 4. Activa **Web search** (método DuckDuckGo) y **Read web pages** en el propio padre: compartir solo hace llegar a un delegado aquello a lo que el padre está vinculado.
 5. Activa **Planning** y **Apps**.
@@ -65,7 +65,7 @@ Do not answer from your own training knowledge without a source URL next to it.
 
 Abre un chat nuevo con el agent y envía la pregunta de *Prepara la entrada*.
 
-El modelo llama a `delegate` tres veces, una por licencia: cada llamada es su propia delegación, no una sola llamada que hace las tres. **Delegate tiene efectos secundarios**, así que las tres quedan aparcadas para aprobación a la vez, porque un paso del modelo puede aparcar varias llamadas juntas. Lee los tres especialistas propuestos y pulsa **Approve**. El run se reanuda, lanza los tres especialistas en segundo plano y llama a `wait_tasks` para recogerlos antes de escribir el informe.
+El modelo llama a `delegate` tres veces, una por licencia: cada llamada es su propia delegación, no una sola llamada que hace las tres. **`delegate` está tras una puerta**, así que las tres quedan aparcadas para aprobación a la vez, porque un paso del modelo puede aparcar varias llamadas juntas. Lee los tres especialistas propuestos y pulsa **Approve**. El run se reanuda, lanza los tres especialistas en segundo plano y llama a `wait_tasks` para recogerlos antes de escribir el informe.
 
 ## Comprueba el resultado { #check-the-result }
 

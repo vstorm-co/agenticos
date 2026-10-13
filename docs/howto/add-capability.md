@@ -164,8 +164,9 @@ def _build(ctx: CapabilityBuildContext) -> Weather | None:
   catalog entry, and on an English entry that differs from the schema.
 - **`scopes`** are refused at build time when the organization has not granted
   them.
-- **`side_effecting=True`** routes the capability's tools through the approval
-  gate.
+- **`side_effecting=True`** marks the capability's tools as acting on the world,
+  and the Builder says so beside the approval choice. It gates nothing: no tool
+  waits for a person until an author asks.
 - **Returning `None`** means "contributes nothing to *this* agent" and the
   capability is not attached at all. `knowledge` does this when no collections
   are bound: a search tool that always returns empty is worse than none, because

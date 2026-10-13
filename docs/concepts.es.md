@@ -1,5 +1,5 @@
 ---
-source_sha: "72e58e25745e"
+source_sha: "59fc8f638706"
 ---
 
 # Conceptos { #concepts }
@@ -456,7 +456,7 @@ La aprobación se resuelve de lo más específico a lo menos:
 
 1. el override de la propia tool, luego
 2. el modo de la capability, luego
-3. si la capability es `side_effecting`.
+3. ninguna aprobación, cuando ninguno de los dos dice nada.
 
 El Builder enuncia el *resultado* con palabras en lugar de describir la regla,
 porque una regla que quien lee tiene que ejecutar en su cabeza es un ajuste que

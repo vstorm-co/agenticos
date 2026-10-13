@@ -1,5 +1,5 @@
 ---
-source_sha: "c6c2f99c9928"
+source_sha: "ddf9b881a04f"
 ---
 
 # Governance { #governance }
@@ -992,14 +992,19 @@ kennt —, wird mit einer Warnung bei null festgehalten, und die Summe wird als
 
 ## Freigaben { #approvals }
 
-Ein Tool, das auf die Außenwelt einwirkt, parkt den Run und wartet auf eine
-Person.
+Ein Tool, das der Autor des Agents hinter ein Gate gestellt hat, parkt den Run und
+wartet auf eine Person. Nichts steht hinter einem Gate, bis jemand darum bittet:
+Ein Gate, das niemand gewählt hat, parkt Runs in Kanälen und Routinen, in denen
+niemand da ist, um zu antworten.
 
 Die Auflösung geht vom Spezifischsten aus:
 
 1. die eigene Übersteuerung des Tools, falls es eine hat
 2. der `approval`-Modus der Capability (`required` | `never` | `default`)
-3. was `side_effecting` entscheidet, für `default`
+3. keine Freigabe, wenn beide `default` sagen
+
+`side_effecting` entscheidet hier nichts mehr. Der Builder zeigt es neben der
+Wahl, sodass ein Autor die Tools, die auf die Welt einwirken, zuerst sieht.
 
 Der Builder benennt das Ergebnis in Worten, statt die Regel zu beschreiben, denn
 eine Regel, die der Leser im Kopf ausführen muss, ist eine Einstellung, an die

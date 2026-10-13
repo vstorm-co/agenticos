@@ -668,7 +668,12 @@ DelegationMode = Literal["sync", "async", "auto"]
 
 
 McpApproval = Literal["writes", "all", "none"]
-"""How much of an MCP server's tools wait for a person (#2060)."""
+"""How much of an MCP server's tools wait for a person (#2060).
+
+`none` unless the author says otherwise, as for a capability's tools: a gate
+nobody chose parks runs in channels and routines where nobody is there to
+answer it.
+"""
 
 
 class OrgMcpServerRef(BaseModel):
@@ -702,7 +707,7 @@ class OrgMcpServerRef(BaseModel):
         ),
     )
     approval: McpApproval = Field(
-        default="writes",
+        default="none",
         description=(
             "Which of the server's tools wait for a person to approve the call: "
             "`writes` (those the server does not mark read-only), `all`, or `none`"
@@ -770,7 +775,7 @@ class PersonalMcpServerRef(BaseModel):
         ),
     )
     approval: McpApproval = Field(
-        default="writes",
+        default="none",
         description=(
             "Which of the server's tools wait for a person to approve the call: "
             "`writes` (those the server does not mark read-only), `all`, or `none`"
@@ -786,8 +791,9 @@ class PlatformMcpServerRef(BaseModel):
     asking - so the agent can do exactly what they could, and nothing more. Where
     nobody is asking (a visitor, a schedule) the binding is simply absent.
 
-    Its tools carry MCP's read-only hints, so the default `writes` policy holds
-    every call that changes something for a person's approval.
+    Its tools carry MCP's read-only hints, so a `writes` policy holds every
+    call that changes something for a person's approval - which the Architect's
+    own template asks for.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -798,7 +804,7 @@ class PlatformMcpServerRef(BaseModel):
         description="Which of the platform's tools this agent may call. Null is all of them.",
     )
     approval: McpApproval = Field(
-        default="writes",
+        default="none",
         description=(
             "Which of the platform's tools wait for a person to approve the call: "
             "`writes` (every tool that changes something), `all`, or `none`"
