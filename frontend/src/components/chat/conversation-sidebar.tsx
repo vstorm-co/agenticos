@@ -62,6 +62,7 @@ function ConversationItem({
 }: ConversationItemProps) {
   const t = useTranslations("chat");
   const tTime = useTranslations("time");
+  const tAgents = useTranslations("agents");
   const locale = useLocale();
   const [showMenu, setShowMenu] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -75,16 +76,21 @@ function ConversationItem({
   };
 
   const displayTitle = conversation.title || t("newConversation");
+  const agents = conversation.agents ?? [];
+  const agentLabel =
+    agents.length === 0
+      ? null
+      : agents.length === 1
+        ? agents[0]!.name
+        : tAgents("agentCount", { count: agents.length });
 
   return (
     <div
       className={cn(
         // The open row is a fill, as the main sidebar's is - a hairline border
         // and a bar at its edge read as two thin lines around one choice.
-        "group relative flex min-h-9 cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1 text-sm font-medium transition-colors",
-        isActive
-          ? "bg-accent text-foreground"
-          : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
+        "group relative flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1.5 transition-colors",
+        isActive ? "bg-accent" : "hover:bg-accent/60",
       )}
       onClick={onSelect}
     >
@@ -109,26 +115,35 @@ function ConversationItem({
             if (e.key === "Enter") handleRename();
             if (e.key === "Escape") setIsEditing(false);
           }}
-          className="text-foreground flex-1 bg-transparent outline-none"
+          className="text-foreground min-w-0 flex-1 bg-transparent text-[13px] font-semibold outline-none"
           autoFocus
           onClick={(e) => e.stopPropagation()}
         />
       ) : (
-        // One line: the title, and the API mark where a script opened it. When
-        // it was last active is the band it sits under, so the row says it only
-        // on hover - two lines per row put a third of the list's height into
-        // "4h ago", repeated.
-        <div
-          className="flex min-w-0 flex-1 items-center gap-1.5"
-          title={timeAgo(conversation.updated_at || conversation.created_at, tTime, locale)}
-        >
-          <span className="truncate">{displayTitle}</span>
-          {/* Opened by a script through an API key, not typed here (#2122). */}
-          {conversation.origin === "api" && (
-            <span className="border-border text-muted-foreground shrink-0 rounded border px-1 font-mono text-[10px] leading-4">
-              {t("sidebar.apiBadge")}
+        // Two lines, as a session list in a chat app reads: who the thread is
+        // with and when it last moved, small, over the title it is picked by.
+        // One line hid the time behind a hover and left the face to say who.
+        <div className="min-w-0 flex-1">
+          <p className="text-muted-foreground truncate text-[11px] leading-4">
+            {agentLabel && <>{agentLabel} · </>}
+            {timeAgo(conversation.updated_at || conversation.created_at, tTime, locale)}
+          </p>
+          <div className="flex min-w-0 items-center gap-1.5">
+            <span
+              className={cn(
+                "truncate text-[13px] leading-5 font-semibold",
+                isActive ? "text-foreground" : "text-foreground/85",
+              )}
+            >
+              {displayTitle}
             </span>
-          )}
+            {/* Opened by a script through an API key, not typed here (#2122). */}
+            {conversation.origin === "api" && (
+              <span className="border-border text-muted-foreground shrink-0 rounded border px-1 font-mono text-[10px] leading-4">
+                {t("sidebar.apiBadge")}
+              </span>
+            )}
+          </div>
         </div>
       )}
 
