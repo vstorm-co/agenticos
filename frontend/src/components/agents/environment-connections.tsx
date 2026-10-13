@@ -24,6 +24,8 @@ interface Option {
   label: string;
   /** What a test side has to match to stand in for this one. */
   match: string;
+  /** Whether a run could reach it now; a run treats one it cannot as off. */
+  usable: boolean;
 }
 
 type Kind = EnvironmentConnection["kind"];
@@ -33,22 +35,33 @@ function useConnectionOptions() {
   const { connections: servers } = useOrgMcpConnections();
   const { secrets } = useSecrets();
   const options: Record<Kind, Option[]> = {
-    mcp: servers.map((server) => ({ id: server.id, label: server.name, match: "mcp" })),
+    mcp: servers.map((server) => ({
+      id: server.id,
+      label: server.name,
+      match: "mcp",
+      usable: server.is_enabled && server.authorized,
+    })),
     secret: secrets.map((secret) => ({
       id: secret.id,
       label: secret.name,
       match: `${secret.kind}/${secret.purpose ?? "custom"}`,
+      usable: true,
     })),
   };
   const label = (kind: Kind, id: string) =>
     options[kind].find((option) => option.id === id)?.label ?? id.slice(0, 8);
   // A test side has to be the same kind of thing as what it stands in for - the
   // server refuses a Tavily key standing in for a CRM key - so only those are offered.
+  // One a run could not reach would mean "off" while reading as a replacement.
   const standIns = (kind: Kind, productionId: string) => {
     const match = options[kind].find((option) => option.id === productionId)?.match;
-    return options[kind].filter((option) => option.id !== productionId && option.match === match);
+    return options[kind].filter(
+      (option) => option.id !== productionId && option.match === match && option.usable,
+    );
   };
-  return { options, label, standIns };
+  const unusable = (kind: Kind, id: string) =>
+    options[kind].find((option) => option.id === id)?.usable === false;
+  return { options, label, standIns, unusable };
 }
 
 /**
@@ -74,7 +87,7 @@ export function EnvironmentConnections({
 }) {
   const t = useTranslations("agents");
   const tc = useTranslations("common");
-  const { label, standIns } = useConnectionOptions();
+  const { label, standIns, unusable } = useConnectionOptions();
   const current = environment.connections;
 
   return (
@@ -124,6 +137,9 @@ export function EnvironmentConnections({
                 ))}
               </SelectContent>
             </Select>
+            {connection.test_id !== null && unusable(connection.kind, connection.test_id) && (
+              <Badge variant="warning">{t("testSideUnusable")}</Badge>
+            )}
             <Button
               variant="ghost"
               size="sm"

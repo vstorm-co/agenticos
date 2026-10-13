@@ -6,8 +6,10 @@ import { EnvironmentConnections } from "./environment-connections";
 import type { AgentEnvironment, EnvironmentConnection } from "@/types/agents";
 
 const servers = [
-  { id: "crm", name: "crm" },
-  { id: "crm-sandbox", name: "crm-sandbox" },
+  { id: "crm", name: "crm", is_enabled: true, authorized: true },
+  { id: "crm-sandbox", name: "crm-sandbox", is_enabled: true, authorized: true },
+  { id: "crm-retired", name: "crm-retired", is_enabled: false, authorized: true },
+  { id: "crm-unsigned", name: "crm-unsigned", is_enabled: true, authorized: false },
 ];
 const secrets = [
   { id: "mail-live", name: "Mail live", kind: "api_key", purpose: "custom" },
@@ -103,6 +105,42 @@ describe("an environment's test connections", () => {
 
     // A key saved without a purpose is a `custom` one, like the mail keys.
     expect(offered).toEqual(["Off in this environment", "Mail test", "Unlabelled"]);
+  });
+
+  it("never offers a test connection a run could not reach", async () => {
+    render(
+      <EnvironmentConnections
+        environment={staging([{ kind: "mcp", production_id: "crm", test_id: null }])}
+        saving={false}
+        onSave={onSave}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Test replacement for crm" }));
+    const offered = screen.getAllByRole("option").map((option) => option.textContent);
+
+    expect(offered).toEqual(["Off in this environment", "crm-sandbox"]);
+  });
+
+  it("says a binding is off when its test connection is disabled or not signed in", () => {
+    render(
+      <EnvironmentConnections
+        environment={staging([
+          { kind: "mcp", production_id: "crm", test_id: "crm-retired" },
+          { kind: "mcp", production_id: "crm-sandbox", test_id: "crm-unsigned" },
+          { kind: "secret", production_id: "mail-live", test_id: "mail-test" },
+        ])}
+        saving={false}
+        onSave={onSave}
+      />,
+    );
+
+    expect(screen.getByRole("combobox", { name: "Test replacement for crm" })).toHaveTextContent(
+      "crm-retired",
+    );
+    expect(
+      screen.getAllByText("Off here: the test connection is disabled or not signed in"),
+    ).toHaveLength(2);
   });
 
   it("still names what the caller cannot list, shortened, instead of an empty row", () => {

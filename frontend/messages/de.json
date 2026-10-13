@@ -665,6 +665,7 @@
     "testSide": "Testersatz",
     "testSideFor": "Testersatz für {name}",
     "bindingOffHere": "In diesem Environment aus",
+    "testSideUnusable": "Hier aus: Die Testverbindung ist deaktiviert oder nicht angemeldet",
     "testConnectionsSaved": "Testverbindungen gespeichert",
     "failedTestConnections": "Die Testverbindungen konnten nicht gespeichert werden"
   },

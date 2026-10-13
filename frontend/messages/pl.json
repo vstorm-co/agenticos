@@ -3039,6 +3039,7 @@
     "testSide": "Zamiennik testowy",
     "testSideFor": "Zamiennik testowy dla {name}",
     "bindingOffHere": "Wyłączone w tym środowisku",
+    "testSideUnusable": "Wyłączone tutaj: połączenie testowe jest wyłączone albo niezalogowane",
     "testConnectionsSaved": "Połączenia testowe zapisane",
     "failedTestConnections": "Nie udało się zapisać połączeń testowych"
   },

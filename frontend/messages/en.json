@@ -669,6 +669,7 @@
     "testSide": "Test replacement",
     "testSideFor": "Test replacement for {name}",
     "bindingOffHere": "Off in this environment",
+    "testSideUnusable": "Off here: the test connection is disabled or not signed in",
     "testConnectionsSaved": "Test connections saved",
     "failedTestConnections": "The test connections could not be saved"
   },
