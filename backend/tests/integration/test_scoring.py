@@ -326,6 +326,7 @@ class TestScoringARun:
         assert {r.judge_run_id for r in score.results if r.scorer == "judge"} == {judged.id}
         assert judge.calls == 1
 
+    @pytest.mark.security
     async def test_a_spent_judge_budget_is_refused_before_the_model_and_still_recorded(
         self, db, judge
     ) -> None:
@@ -399,6 +400,7 @@ class TestScoringARun:
         assert reference.status == "fail"
         assert score.passed is False
 
+    @pytest.mark.security
     async def test_a_secret_the_judge_quotes_is_not_kept(self, db, judge) -> None:
         tenant = await _tenant(db)
         await _model(db, tenant)
@@ -608,6 +610,7 @@ class TestVerdicts:
         assert for_case.total == 1
 
 
+@pytest.mark.security
 class TestRefusals:
     async def test_another_organization_s_dataset_is_not_found(self, db, judge) -> None:
         mine, theirs = await _tenant(db), await _tenant(db)
