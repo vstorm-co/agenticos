@@ -21,12 +21,13 @@ from uuid import UUID
 
 from pydantic import JsonValue, ValidationError
 from pydantic_ai_harness.guardrails.detectors import redact_secrets
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.field_errors import field_problems, refused_field
-from app.core.permissions import AuthContext, Perm
+from app.core.permissions import AuthContext, Perm, Scope
 from app.db.models.dataset import CaseSource, Dataset, DatasetCase, DatasetChange, DatasetVersion
 from app.db.updates import writable
 from app.repositories import (
@@ -63,6 +64,29 @@ logger = logging.getLogger(__name__)
 # The most cases one dataset holds. The export cap, so every version of every
 # dataset can always be exported whole.
 MAX_CASES = MAX_EXPORT_ROWS
+
+
+def _name_taken(name: str) -> AlreadyExistsError:
+    return AlreadyExistsError(
+        message=f"A dataset named '{name}' already exists. Choose a different name.",
+        details={"name": name},
+    )
+
+
+def _refuse_past_ceiling(held: int, adding: int) -> None:
+    """Refuse a change that would take a dataset past :data:`MAX_CASES`.
+
+    Raises:
+        BadRequestError: Naming how many the dataset holds and how many were added.
+    """
+    if held + adding > MAX_CASES:
+        raise BadRequestError(
+            message=(
+                f"A dataset holds at most {MAX_CASES} cases; this one has {held}. "
+                "Split the cases across two datasets."
+            ),
+            details={"case_count": held, "adding": adding, "max_cases": MAX_CASES},
+        )
 
 
 @dataclass(frozen=True)
@@ -105,7 +129,9 @@ def redacted_case(content: DatasetCaseContent) -> tuple[dict[str, Any], int]:
     """A case's fields ready for its row, with every credential in them redacted.
 
     Everything a model is later handed or a person exports: the turns, the
-    answers, the note and the arguments an expected tool call is matched on.
+    answers, the note, the tags, the arguments an expected tool call is matched
+    on and every parameter of a check. A check's `type` is left alone, because it
+    names the rule rather than holding anything somebody wrote.
     """
     data = content.model_dump(mode="json")
     found = 0
@@ -118,6 +144,12 @@ def redacted_case(content: DatasetCaseContent) -> tuple[dict[str, Any], int]:
     for call in data["expected_tool_calls"]:
         call["args"], count = _redact_json(call["args"])
         found += count
+    for check in data["checks"]:
+        for key in [key for key in check if key != "type"]:
+            check[key], count = _redact_json(check[key])
+            found += count
+    data["tags"], count = _redact_json(data["tags"])
+    found += count
     return data, found
 
 
@@ -239,21 +271,25 @@ class DatasetService:
 
     async def _refuse_taken_name(self, ctx: AuthContext, name: str) -> None:
         if await dataset_repo.get_by_name(self.db, name, organization_id=ctx.organization_id):
-            raise AlreadyExistsError(
-                message=f"A dataset named '{name}' already exists. Choose a different name.",
-                details={"name": name},
-            )
+            raise _name_taken(name)
 
     async def create(self, ctx: AuthContext, data: DatasetCreate) -> DatasetRead:
         """An empty dataset, private to its creator until it is shared."""
         await self._refuse_taken_name(ctx, data.name)
-        dataset = await dataset_repo.create(
-            self.db,
-            organization_id=ctx.organization_id,
-            owner_user_id=ctx.subject_id,
-            name=data.name,
-            description=data.description,
-        )
+        try:
+            # A savepoint, because the check above is a read two requests can both
+            # pass: the loser's insert then meets `uq_dataset_org_name` and answers
+            # 409 like the check would have, rather than 500.
+            async with self.db.begin_nested():
+                dataset = await dataset_repo.create(
+                    self.db,
+                    organization_id=ctx.organization_id,
+                    owner_user_id=ctx.subject_id,
+                    name=data.name,
+                    description=data.description,
+                )
+        except IntegrityError:
+            raise _name_taken(data.name) from None
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -271,7 +307,13 @@ class DatasetService:
         update_data = writable(data, over=Dataset)
         if "name" in update_data and update_data["name"] != dataset.name:
             await self._refuse_taken_name(ctx, update_data["name"])
-        updated = await dataset_repo.update(self.db, dataset=dataset, update_data=update_data)
+        try:
+            async with self.db.begin_nested():
+                updated = await dataset_repo.update(
+                    self.db, dataset=dataset, update_data=update_data
+                )
+        except IntegrityError:
+            raise _name_taken(update_data["name"]) from None
         pending = (await self._pending(ctx, [dataset.id])).get(dataset.id, 0)
         await record_audit(
             self.db,
@@ -386,14 +428,7 @@ class DatasetService:
         added = added or []
         before = previous.case_count if previous is not None else 0
         count = before + len(added) - (1 if removed is not None else 0)
-        if count > MAX_CASES:
-            raise BadRequestError(
-                message=(
-                    f"A dataset holds at most {MAX_CASES} cases; this one has {before}. "
-                    "Split the cases across two datasets."
-                ),
-                details={"case_count": before, "adding": len(added), "max_cases": MAX_CASES},
-            )
+        _refuse_past_ceiling(before, len(added))
         new_revisions = [*added, *([replaced[1]] if replaced is not None else [])]
         if new_revisions:
             await dataset_repo.add_cases(self.db, new_revisions)
@@ -635,20 +670,22 @@ class DatasetService:
     ) -> DatasetVersionRead:
         """Append every case in a CSV or JSONL file, as one new version.
 
-        The file is read before the dataset is locked, so a large upload being
-        parsed holds up nobody else's edit; and refused whole if any row is
-        wrong (see :func:`dataset_files.parse`).
+        The file is parsed, measured against the ceiling and redacted before the
+        dataset is locked, so a large upload holds up nobody else's edit; and it is
+        refused whole if any row is wrong (see :func:`dataset_files.parse`). The
+        ceiling is checked again under the lock, against the count it guards.
         """
-        await self.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
+        current = await self.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
         cases = dataset_files.parse(content, dataset_files.format_of(filename, fmt))
-        dataset = await self._locked(ctx, dataset_id)
-        previous = await self._version(ctx, dataset, None)
+        _refuse_past_ceiling(current.case_count, len(cases))
         revisions: list[DatasetCase] = []
         redacted = 0
         for case in cases:
             fields, found = redacted_case(case)
             redacted += found
-            revisions.append(self._revision(ctx, dataset, fields, source=CaseSource.IMPORT))
+            revisions.append(self._revision(ctx, current, fields, source=CaseSource.IMPORT))
+        dataset = await self._locked(ctx, dataset_id)
+        previous = await self._version(ctx, dataset, None)
         version = await self._mint(
             ctx,
             dataset,
@@ -718,18 +755,26 @@ class DatasetService:
             BadRequestError: For a message that is not an agent's answer, or that
                 has no question before it.
         """
+        await self.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
+        missing = NotFoundError(
+            message="Message not found", details={"message_id": data.message_id}
+        )
         message = await conversation_repo.get_message_by_id(self.db, data.message_id)
         if message is None:
-            raise NotFoundError(
-                message="Message not found", details={"message_id": data.message_id}
+            raise missing
+        reads_every_run = ctx.scope_for(Perm.RUNS_VIEW) >= Scope.ALL
+        try:
+            conversation = await ConversationService(self.db).get_conversation(
+                message.conversation_id,
+                organization_id=ctx.organization_id,
+                user_id=None if reads_every_run else ctx.subject_id,
+                include_favourite=False,
+                ctx=ctx,
             )
-        conversation = await ConversationService(self.db).get_conversation(
-            message.conversation_id,
-            organization_id=ctx.organization_id,
-            user_id=None if ctx.has(Perm.RUNS_VIEW) else ctx.subject_id,
-            include_favourite=False,
-            ctx=ctx,
-        )
+        except NotFoundError:
+            # One answer for a message that is not there and one the caller may
+            # not reach, so the refusal cannot tell them which.
+            raise missing from None
         if message.role != "assistant":
             raise refused_field("message_id", "Only an agent's answer can be added to a dataset")
 

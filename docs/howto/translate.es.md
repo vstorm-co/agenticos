@@ -1,5 +1,5 @@
 ---
-source_sha: "2bdccaa6ec15"
+source_sha: "b3749a3e45e0"
 ---
 
 # Traduce una página { #translate-a-page }
@@ -154,8 +154,8 @@ repositorio, y en cada página inglesa de este sitio. Traducirlas aquí y en nin
 otro sitio le da a un producto dos vocabularios, y un lector polaco que busque la
 palabra traducida no encuentra nada.
 
-**agent · spec · capability · skill · embed · budget · run · prompt · provider ·
-token · vault · workspace · sandbox · MCP**
+**agent · spec · capability · skill · dataset · embed · budget · run · prompt ·
+provider · token · vault · workspace · sandbox · MCP**
 
 Flexiónalos en vez de reemplazarlos, y traduce todo lo que los rodea.
 
@@ -185,6 +185,7 @@ una sola vez, aquí:
 | spec | der Spec | ten spec, speca | el spec |
 | capability | die Capability | ta capability (nieodmienne) | la capability |
 | skill | der Skill | ten skill, skilla | el skill |
+| dataset | das Dataset | ten dataset, datasetu | el dataset |
 | embed | das Embed | ten embed, embeda | el embed |
 | budget | das Budget | ten budżet | el budget |
 | run | der Run | ten run, runa | el run |

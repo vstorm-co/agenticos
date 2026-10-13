@@ -98,7 +98,7 @@
     "collapseSidebar": "Zwiń panel boczny",
     "expandSidebar": "Rozwiń panel boczny",
     "artifacts": "Artefakty",
-    "datasets": "Zbiory danych"
+    "datasets": "Datasety"
   },
   "auth": {
     "login": "Zaloguj się",
@@ -1160,11 +1160,11 @@
         }
       },
       "datasets": {
-        "title": "Zbiory danych",
-        "description": "Ostatnio zmieniane zbiory przypadków testowych.",
+        "title": "Datasety",
+        "description": "Ostatnio zmieniane datasety przypadków testowych.",
         "cases": "{count, plural, one {1 przypadek} few {# przypadki} many {# przypadków} other {# przypadku}} · v{version}",
         "empty": {
-          "title": "Brak zbiorów danych",
+          "title": "Brak datasetów",
           "description": "Tu pojawią się przypadki testowe zbierane do evali."
         }
       }
@@ -1467,8 +1467,8 @@
         "body": "Zobacz, jak zacząć rozmowę, przełączyć, który agent odpowiada, i zmienić model albo wysiłek myślenia dla pojedynczego czatu. Chcesz szybki, prowadzony przegląd?"
       },
       "create-dataset": {
-        "title": "Utworzyć zbiór danych?",
-        "body": "Zbiór danych zawiera pytania, na których testujesz agentów. Chcesz teraz utworzyć pierwszy? Przeprowadzimy Cię przez to."
+        "title": "Utworzyć dataset?",
+        "body": "Dataset zawiera pytania, na których testujesz agentów. Chcesz teraz utworzyć pierwszy? Przeprowadzimy Cię przez to."
       }
     },
     "steps": {
@@ -1906,15 +1906,15 @@
       },
       "datasets-new": {
         "title": "Zbieraj przypadki testowe",
-        "body": "Zbiór danych zawiera pytania, na których testujesz agenta. Utwórz go tutaj, a potem dodawaj przypadki ręcznie, z pliku albo z odpowiedzi ocenionej łapką w dół."
+        "body": "Dataset zawiera pytania, na których testujesz agenta. Utwórz go tutaj, a potem dodawaj przypadki ręcznie, z pliku albo z odpowiedzi ocenionej łapką w dół."
       },
       "datasets-list": {
-        "title": "Twoje zbiory danych",
+        "title": "Twoje datasety",
         "body": "Każda zmiana przypadków tworzy nową wersję, więc run eval zawsze wskazuje pytania, które się nie zmieniają."
       },
       "flow-dataset-create": {
-        "title": "Utwórz zbiór danych",
-        "body": "Wybierz „Nowy zbiór danych” - otworzy się formularz, który wypełnimy razem."
+        "title": "Utwórz dataset",
+        "body": "Wybierz „Nowy dataset” - otworzy się formularz, który wypełnimy razem."
       },
       "flow-dataset-field-name": {
         "title": "Nazwij go",
@@ -2192,18 +2192,18 @@
     "notSharedWithAnyone": "Jeszcze nikomu nie udostępnione.",
     "ownedBy": "Właściciel: {email}",
     "peopleAndGroups": "Osoby i grupy",
-    "peopleReaches": "Udostępnienie podnosi dostęp jednej osoby albo wszystkich w grupie do {resource, select, agent {tego agenta} skill {tego skilla} collection {tej kolekcji} artifact {tego artefaktu} dataset {tego zbioru danych} other {tego sekretu}}, nie zmieniając ich ról nigdzie indziej. „Może przeglądać” widzi konfigurację, „może używać” także uruchamia, „może edytować” także zmienia.",
+    "peopleReaches": "Udostępnienie podnosi dostęp jednej osoby albo wszystkich w grupie do {resource, select, agent {tego agenta} skill {tego skilla} collection {tej kolekcji} artifact {tego artefaktu} dataset {tego datasetu} other {tego sekretu}}, nie zmieniając ich ról nigdzie indziej. „Może przeglądać” widzi konfigurację, „może używać” także uruchamia, „może edytować” także zmienia.",
     "secretRuntimeNote": "Udostępnianie decyduje o tym, kto może związać ten klucz z agentem i kto może go zrotować — nie o tym, kto na nim korzysta. Gdy agent raz go użyje, działa z nim dla każdego, kto może uruchomić tego agenta, także dla osób, które nie widzą tu tego klucza.",
     "share": "Udostępnij",
     "sharingUpdated": "Udostępnianie zaktualizowane",
     "visibility": "Widoczność",
     "visibilityOrg": "Organizacja",
-    "visibilityOrgReaches": "Każdy w organizacji, kto w ogóle może przeglądać {resource, select, agent {agentów} skill {skille} collection {kolekcje} artifact {artefakty} dataset {zbiory danych} other {sekrety}}.",
+    "visibilityOrgReaches": "Każdy w organizacji, kto w ogóle może przeglądać {resource, select, agent {agentów} skill {skille} collection {kolekcje} artifact {artefakty} dataset {datasety} other {sekrety}}.",
     "visibilityPrivate": "Prywatne",
-    "visibilityPrivateReaches": "Tylko Ty i osoby wymienione niżej. Nikt inny nie znajdzie {resource, select, agent {tego agenta} skill {tego skilla} collection {tej kolekcji} artifact {tego artefaktu} dataset {tego zbioru danych} other {tego sekretu}} na swojej liście — a jeśli nie ma jeszcze właściciela, właścicielem zostajesz Ty.",
-    "visibilityReaches": "Kto sięga do {resource, select, agent {tego agenta} skill {tego skilla} collection {tej kolekcji} artifact {tego artefaktu} dataset {tego zbioru danych} other {tego sekretu}} bez wymieniania z nazwiska. Udostępnianie dokłada osoby ponad to; nigdy nie odbiera dostępu.",
+    "visibilityPrivateReaches": "Tylko Ty i osoby wymienione niżej. Nikt inny nie znajdzie {resource, select, agent {tego agenta} skill {tego skilla} collection {tej kolekcji} artifact {tego artefaktu} dataset {tego datasetu} other {tego sekretu}} na swojej liście — a jeśli nie ma jeszcze właściciela, właścicielem zostajesz Ty.",
+    "visibilityReaches": "Kto sięga do {resource, select, agent {tego agenta} skill {tego skilla} collection {tej kolekcji} artifact {tego artefaktu} dataset {tego datasetu} other {tego sekretu}} bez wymieniania z nazwiska. Udostępnianie dokłada osoby ponad to; nigdy nie odbiera dostępu.",
     "visibilityTeam": "Zespół (już nieoferowane)",
-    "visibilityTeamReaches": "Każdy, czyja rola sięga zespołowych {resource, select, agent {agentów} skill {skilli} collection {kolekcji} artifact {artefaktów} dataset {zbiorów danych} other {sekretów}}. Ta organizacja nie ma zespołów — wybierz jedną z dwóch powyżej.",
+    "visibilityTeamReaches": "Każdy, czyja rola sięga zespołowych {resource, select, agent {agentów} skill {skilli} collection {kolekcji} artifact {artefaktów} dataset {datasetów} other {sekretów}}. Ta organizacja nie ma zespołów — wybierz jedną z dwóch powyżej.",
     "visibilityUpdated": "Widoczność zaktualizowana",
     "groupsHeading": "Grupy",
     "membersHeading": "Członkowie",
@@ -3229,21 +3229,21 @@
     "mappingDeleted": "Mapowanie usunięte"
   },
   "datasets": {
-    "title": "Zbiory danych",
-    "pageDescription": "Pytania, na których testujesz agentów. Każda zmiana przypadków w zbiorze tworzy nową wersję, więc dwa runy eval na jednej wersji widziały te same pytania.",
-    "newDataset": "Nowy zbiór danych",
-    "newDatasetBody": "Pusty zbiór, prywatny, dopóki go nie udostępnisz. Dodaj przypadki ręcznie, zaimportuj plik CSV lub JSONL albo dodaj odpowiedź z rozmowy.",
-    "noAccess": "Nie widzisz zbiorów danych tej organizacji",
-    "noAccessBody": "Poproś administratora o dostęp do zbiorów danych.",
-    "datasetCount": "{count, plural, one {1 zbiór} few {# zbiory} many {# zbiorów} other {# zbioru}}",
-    "search": "Szukaj zbiorów",
-    "noMatches": "Żaden zbiór nie pasuje",
+    "title": "Datasety",
+    "pageDescription": "Pytania, na których testujesz agentów. Każda zmiana przypadków w datasecie tworzy nową wersję, więc dwa runy eval na jednej wersji widziały te same pytania.",
+    "newDataset": "Nowy dataset",
+    "newDatasetBody": "Pusty dataset, prywatny, dopóki go nie udostępnisz. Dodaj przypadki ręcznie, zaimportuj plik CSV lub JSONL albo dodaj odpowiedź z rozmowy.",
+    "noAccess": "Nie widzisz datasetów tej organizacji",
+    "noAccessBody": "Poproś administratora o dostęp do datasetów.",
+    "datasetCount": "{count, plural, one {1 dataset} few {# datasety} many {# datasetów} other {# datasetu}}",
+    "search": "Szukaj datasetów",
+    "noMatches": "Żaden dataset nie pasuje",
     "noMatchesBody": "Przeszukiwane są nazwy i opisy.",
-    "empty": "Brak zbiorów danych",
-    "emptyBody": "Zbiór danych zawiera przypadki testowe, na których sprawdzany jest agent.",
-    "deleteBody": "Usunięte zostaną wszystkie wersje i przypadki tego zbioru. Runy eval, które z niego korzystały, stracą pytania, na które odpowiadały.",
+    "empty": "Brak datasetów",
+    "emptyBody": "Dataset zawiera przypadki testowe, na których sprawdzany jest agent.",
+    "deleteBody": "Usunięte zostaną wszystkie wersje i przypadki tego datasetu. Runy eval, które z niego korzystały, stracą pytania, na które odpowiadały.",
     "created": "Utworzono {name}",
-    "deleted": "Zbiór danych usunięty",
+    "deleted": "Dataset usunięty",
     "name": "Nazwa",
     "description": "Opis",
     "cancel": "Anuluj",
@@ -3271,16 +3271,16 @@
     "cases": "Przypadki",
     "case": "Przypadek",
     "noCases": "Ta wersja nie ma przypadków",
-    "noCasesBody": "Dodaj przypadek, zaimportuj plik albo użyj „Dodaj do zbioru” przy odpowiedzi w rozmowie lub w Aktywności.",
-    "caseReadOnly": "Tylko do odczytu: to starsza wersja albo nie możesz zmieniać tego zbioru.",
+    "noCasesBody": "Dodaj przypadek, zaimportuj plik albo użyj „Dodaj do datasetu” przy odpowiedzi w rozmowie lub w Aktywności.",
+    "caseReadOnly": "Tylko do odczytu: to starsza wersja albo nie możesz zmieniać tego datasetu.",
     "caseSavesVersion": "Zapis tworzy nową wersję. Poprzednia wersja zachowuje ten przypadek bez zmian.",
     "notJson": "To nie jest poprawny JSON.",
     "notList": "To musi być lista JSON.",
     "saveCase": "Zapisz przypadek",
-    "addToDataset": "Dodaj do zbioru",
+    "addToDataset": "Dodaj do datasetu",
     "addToDatasetBody": "Razem z odpowiedzią trafiają pytanie, wcześniejsza część rozmowy i komentarz zostawiony z łapką w dół.",
-    "noDatasetToAddTo": "Nie ma zbioru, do którego możesz dodać. Najpierw <link>utwórz zbiór</link>.",
-    "dataset": "Zbiór danych",
+    "noDatasetToAddTo": "Nie ma datasetu, do którego możesz dodać. Najpierw <link>utwórz dataset</link>.",
+    "dataset": "Dataset",
     "keepAnswerAs": "Zachowaj odpowiedź jako",
     "addedTo": "Dodano do {name}",
     "field": {
