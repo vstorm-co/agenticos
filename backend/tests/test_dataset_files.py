@@ -137,11 +137,12 @@ class TestRefusals:
 
     def test_one_refused_row_is_counted_in_the_singular(self) -> None:
         refusal = _refusal("input,order_mode\nq,maybe\n")
-        assert refusal.message.startswith("1 row could not be imported, so none were.")
+        assert refusal.message == "1 row could not be imported, so none were. Fix it and try again."
 
     def test_the_reported_rows_are_capped(self) -> None:
         refusal = _refusal("input,order_mode\n" + "q,maybe\n" * 30)
         assert refusal.details["refused_rows"] == 30
+        assert refusal.message.endswith("Fix them and try again.")
         assert len(refusal.details["fields"]) == 20
 
     def test_an_unknown_column_or_a_missing_input_is_refused(self) -> None:
