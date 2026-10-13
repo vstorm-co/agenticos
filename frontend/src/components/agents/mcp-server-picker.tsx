@@ -68,6 +68,8 @@ interface McpServerPickerProps {
   personalConnections?: McpConnectionRecord[];
   /** Connect the reader's own account on a catalog server, without leaving the page. */
   onConnectOwn?: (entry: McpCatalogEntry) => void;
+  /** The connect form with its settings open, for a server **Connect** signs straight in to. */
+  onConfigure?: (entry: McpCatalogEntry, scope: "organization" | "personal") => void;
   disabled?: boolean;
 }
 
@@ -106,6 +108,7 @@ export function McpServerPicker({
   onConnect,
   personalConnections = [],
   onConnectOwn,
+  onConfigure,
   disabled,
 }: McpServerPickerProps) {
   const t = useTranslations("agents");
@@ -216,6 +219,7 @@ export function McpServerPicker({
               (connection) => connection.catalog_key === row.entry?.key,
             )}
             onConnectOwn={onConnectOwn}
+            onConfigure={onConfigure}
             disabled={disabled}
           />
         ))}
@@ -276,6 +280,7 @@ function ServerCard({
   personalTools,
   hasOwnAccount,
   onConnectOwn,
+  onConfigure,
   disabled,
 }: {
   row: CardRow;
@@ -286,11 +291,18 @@ function ServerCard({
   personalTools: McpToolInfo[] | null;
   hasOwnAccount: boolean;
   onConnectOwn?: (entry: McpCatalogEntry) => void;
+  onConfigure?: (entry: McpCatalogEntry, scope: "organization" | "personal") => void;
   disabled?: boolean;
 }) {
   const t = useTranslations("agents");
   const tMcp = useTranslations("mcp");
   const { name, description, icon, connections, entry } = row;
+  // Only a server that signs in: its **Connect** goes straight to the provider,
+  // and this is the way to the form. One taking a token opens the form anyway.
+  const configure =
+    entry !== null && entry.auth === "oauth" && onConfigure
+      ? (scope: "organization" | "personal") => onConfigure(entry, scope)
+      : undefined;
   const boundIds = new Set(
     bindings.flatMap((ref) => (ref.account === "organization" ? [ref.connection_id] : [])),
   );
@@ -367,17 +379,31 @@ function ServerCard({
             // unsaved draft.
             !orgBindable &&
             entry !== null && (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="shrink-0"
-                disabled={disabled}
-                onClick={() => onConnect(entry)}
-              >
-                <Plug className="mr-1 h-3.5 w-3.5" />
-                {tMcp("connectAction")}
-              </Button>
+              <span className="flex shrink-0 items-center gap-0.5">
+                {configure && (
+                  <Button
+                    type="button"
+                    size="icon-sm"
+                    variant="ghost"
+                    disabled={disabled}
+                    onClick={() => configure("organization")}
+                    title={tMcp("configureNamed", { name })}
+                    aria-label={tMcp("configureNamed", { name })}
+                  >
+                    <Settings2 aria-hidden />
+                  </Button>
+                )}
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={disabled}
+                  onClick={() => onConnect(entry)}
+                >
+                  <Plug className="mr-1 h-3.5 w-3.5" />
+                  {tMcp("connectAction")}
+                </Button>
+              </span>
             )
           )
         }
@@ -409,6 +435,14 @@ function ServerCard({
             ? () => {
                 setSettingsOpen(false);
                 onConnectOwn(entry);
+              }
+            : undefined
+        }
+        onConfigure={
+          configure
+            ? (scope) => {
+                setSettingsOpen(false);
+                configure(scope);
               }
             : undefined
         }

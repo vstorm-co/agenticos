@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Check, ExternalLink, Plug, X } from "lucide-react";
+import { Check, ExternalLink, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { ConnectOwnServerDialog } from "@/components/agents/connect-server-dialog";
+import { ConnectOwnButton } from "@/components/agents/connect-server-dialog";
 import { McpServerIcon } from "@/components/mcp/mcp-server-icon";
 import { Button } from "@/components/ui";
 import { useMcpConnections } from "@/hooks/use-mcp-connections";
@@ -14,7 +14,6 @@ import { useRouter } from "@/lib/locale-navigation";
 import { hereForMcpOAuthReturn } from "@/lib/mcp-oauth";
 import { ownAccountStatus } from "@/lib/mcp-servers";
 import type { PersonalServiceGap } from "@/types";
-import type { McpCatalogEntry } from "@/types/mcp";
 
 /**
  * The agent's personal MCP services this person cannot reach, with the button
@@ -40,7 +39,6 @@ export function ConnectServicesCard({ gaps }: { gaps: PersonalServiceGap[] }) {
   const { servers } = useMcpCatalog();
   const { connections } = useMcpConnections();
   const [dismissed, setDismissed] = useState(false);
-  const [connecting, setConnecting] = useState<McpCatalogEntry | null>(null);
   if (dismissed) return null;
 
   return (
@@ -80,10 +78,14 @@ export function ConnectServicesCard({ gaps }: { gaps: PersonalServiceGap[] }) {
               {connected ? (
                 <Check className="text-brand h-4 w-4 shrink-0" aria-hidden />
               ) : gap.gap === "not_connected" && entry !== null ? (
-                <Button type="button" size="sm" onClick={() => setConnecting(entry)}>
-                  <Plug className="mr-1 h-3.5 w-3.5" />
-                  {t("connect")}
-                </Button>
+                <ConnectOwnButton
+                  entry={entry}
+                  label={t("connect")}
+                  // Back to this conversation once the consent lands, rather
+                  // than to the servers page: nothing here is unsaved, and the
+                  // question is here.
+                  returnTo={hereForMcpOAuthReturn()}
+                />
               ) : (
                 // A service the catalog no longer describes, or one the person
                 // already holds an account on: the servers page is where that is
@@ -103,13 +105,6 @@ export function ConnectServicesCard({ gaps }: { gaps: PersonalServiceGap[] }) {
           );
         })}
       </ul>
-      <ConnectOwnServerDialog
-        entry={connecting}
-        onClose={() => setConnecting(null)}
-        // Back to this conversation once the consent lands, rather than to the
-        // servers page: nothing here is unsaved, and the question is here.
-        returnTo={hereForMcpOAuthReturn()}
-      />
     </div>
   );
 }

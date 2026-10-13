@@ -31,30 +31,48 @@ vi.mock("@/lib/locale-navigation", () => ({
 // The dialog is tested on its own; here it only has to be opened for the right
 // entry, with no `returnTo` and `keepThisTab` - the consent in a new tab, and
 // never this one, which holds the paused run.
-vi.mock("@/components/agents/connect-server-dialog", () => ({
-  ConnectOwnServerDialog: ({
-    entry,
-    onClose,
-    returnTo,
-    keepThisTab,
-  }: {
-    entry: McpCatalogEntry | null;
-    onClose: () => void;
-    returnTo?: string;
-    keepThisTab?: boolean;
-  }) => {
-    if (entry === null) return null;
-    state.opened.push({ returnTo, keepThisTab });
-    return (
-      <div role="dialog">
-        connecting {entry.name}
-        <button type="button" onClick={onClose}>
-          close
+// The button and its dialog are tested on their own; here it only has to be
+// offered for the right entry, with no `returnTo` and `keepThisTab` - the
+// consent in a new tab, and never this one, which holds the paused run.
+vi.mock("@/components/agents/connect-server-dialog", async () => {
+  const { useState } = await import("react");
+  return {
+    ConnectOwnButton: ({
+      entry,
+      label,
+      disabled,
+      returnTo,
+      keepThisTab,
+    }: {
+      entry: McpCatalogEntry;
+      label: string;
+      disabled?: boolean;
+      returnTo?: string;
+      keepThisTab?: boolean;
+    }) => {
+      const [open, setOpen] = useState(false);
+      return open ? (
+        <div role="dialog">
+          connecting {entry.name}
+          <button type="button" onClick={() => setOpen(false)}>
+            close
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => {
+            state.opened.push({ returnTo, keepThisTab });
+            setOpen(true);
+          }}
+        >
+          {label}
         </button>
-      </div>
-    );
-  },
-}));
+      );
+    },
+  };
+});
 
 const NOTION: McpCatalogEntry = {
   key: "notion",

@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Plug, Plus, Wrench, X } from "lucide-react";
+import { Plug, Plus, Settings2, Wrench, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { McpToolChecklist } from "@/components/agents/mcp-tool-checklist";
@@ -54,6 +54,12 @@ interface McpBindingDialogProps {
   hasOwnAccount?: boolean;
   /** Connect the reader's own account; absent outside the catalog. */
   onConnectOwn?: () => void;
+  /**
+   * Open the connect form for either kind of account, settings unfolded -
+   * present for a server that signs in, where **Connect** goes straight to the
+   * provider and this is the way to change what it would send.
+   */
+  onConfigure?: (scope: "organization" | "personal") => void;
   disabled?: boolean;
 }
 
@@ -81,6 +87,7 @@ export function McpBindingDialog({
   personalTools = null,
   hasOwnAccount = false,
   onConnectOwn,
+  onConfigure,
   disabled,
 }: McpBindingDialogProps) {
   const t = useTranslations("agents");
@@ -165,6 +172,13 @@ export function McpBindingDialog({
                   );
                 }}
               >
+                {connections.length === 0 && onConfigure && (
+                  <ConfigureLink
+                    name={name}
+                    disabled={disabled}
+                    onClick={() => onConfigure("organization")}
+                  />
+                )}
                 {primary?.account === "organization" &&
                   connections.length > 1 &&
                   (() => {
@@ -212,16 +226,25 @@ export function McpBindingDialog({
                 }}
               >
                 {primary?.account === "personal" && !hasOwnAccount && onConnectOwn && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={disabled}
-                    onClick={onConnectOwn}
-                  >
-                    <Plug className="mr-1 h-3.5 w-3.5" />
-                    {t("connectYours")}
-                  </Button>
+                  <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={disabled}
+                      onClick={onConnectOwn}
+                    >
+                      <Plug className="mr-1 h-3.5 w-3.5" />
+                      {t("connectYours")}
+                    </Button>
+                    {onConfigure && (
+                      <ConfigureLink
+                        name={name}
+                        disabled={disabled}
+                        onClick={() => onConfigure("personal")}
+                      />
+                    )}
+                  </span>
                 )}
               </KindTile>
             </div>
@@ -457,6 +480,31 @@ function AccountBlock({
 }
 
 /** One answer to "whose account": a tile with what it means, and its next step under it. */
+/** **Configure**, as the quiet link beside a connect action rather than a second button. */
+function ConfigureLink({
+  name,
+  disabled,
+  onClick,
+}: {
+  name: string;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  const tMcp = useTranslations("mcp");
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      title={tMcp("configureNamed", { name })}
+      className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs underline-offset-2 hover:underline disabled:opacity-50"
+    >
+      <Settings2 className="h-3.5 w-3.5" aria-hidden />
+      {tMcp("configure")}
+    </button>
+  );
+}
+
 function KindTile({
   selected,
   title,

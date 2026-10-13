@@ -40,7 +40,7 @@ export function McpOAuthClientFields({
   const redirectUrl = `${siteUrl}/api/me/mcp-connections/oauth/callback`;
 
   return (
-    <div className="space-y-3 rounded-md border border-dashed p-3">
+    <div className="space-y-3">
       <div>
         <p className="text-sm font-medium">{t("oauthOwnClient")}</p>
         <p className="text-muted-foreground mt-1 text-xs">{t("oauthOwnClientHint")}</p>

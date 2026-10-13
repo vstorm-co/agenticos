@@ -43,6 +43,11 @@ export interface DraftState {
    * so the form's first submit was a guaranteed conflict.
    */
   suggestedName?: string;
+  /**
+   * Opened by **Configure** rather than **Connect**, so the fold holding the
+   * address, sign-in and names starts open: that is what was asked to see.
+   */
+  configure?: boolean;
 }
 
 /**

@@ -2819,7 +2819,10 @@
     "didNotAnswerOn": "Hat bei der Katalogprüfung am {date} nicht geantwortet",
     "toolReadsOnly": "liest",
     "toolWrites": "schreibt",
-    "noAnswerOn": "Keine Antwort {date}"
+    "noAnswerOn": "Keine Antwort {date}",
+    "moreOptions": "Weitere Optionen",
+    "configureNamed": "{name} vor dem Verbinden konfigurieren",
+    "configure": "Konfigurieren"
   },
   "members": {
     "emailPlaceholder": "kollege@example.com",

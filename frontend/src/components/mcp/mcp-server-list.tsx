@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Cable, ChevronRight, Plug, Plus } from "lucide-react";
+import { Cable, ChevronRight, Plug, Plus, Settings2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -228,7 +228,12 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
 
   const api = (scope: Scope) => (scope === "organization" ? organization : personal);
 
-  const openDraft = (scope: Scope, row: McpServerRow, existing: McpConnectionRecord | null) => {
+  const openDraft = (
+    scope: Scope,
+    row: McpServerRow,
+    existing: McpConnectionRecord | null,
+    configure = false,
+  ) => {
     // The dialog seeds its own fields from this - name, url and auth type off
     // the row and any connection being edited.
     setDraft({
@@ -236,7 +241,23 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
       row,
       existing,
       suggestedName: existing ? undefined : freeName(row, takenNames(scope)),
+      configure,
     });
+  };
+
+  /**
+   * **Connect**: straight to the provider's sign-in for a catalog server that
+   * signs in - its address, sign-in and prefix are the catalog's, so the form
+   * had nothing left to ask - and the form for everything else. **Configure**
+   * is the way to that form for the first kind.
+   */
+  const connect = (scope: Scope, row: McpServerRow) => {
+    const name = freeName(row, takenNames(scope));
+    if (row.auth === "oauth" && row.entry !== null && name !== undefined) {
+      void handleOAuth(row, name, scope);
+      return;
+    }
+    openDraft(scope, row, null);
   };
 
   /** The names this scope already holds, which a new connection cannot take. */
@@ -639,11 +660,26 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
               // stood taller than its neighbours and the grid went ragged.
               actions={
                 <>
+                  {row.auth === "oauth" && row.entry !== null && (
+                    <Button
+                      size="icon-sm"
+                      variant="ghost"
+                      className="shrink-0"
+                      onClick={() =>
+                        openDraft(defaultScope(row, canManageOrganization), row, null, true)
+                      }
+                      disabled={busyId === row.key}
+                      title={t("configureNamed", { name: row.name })}
+                      aria-label={t("configureNamed", { name: row.name })}
+                    >
+                      <Settings2 aria-hidden />
+                    </Button>
+                  )}
                   <Button
                     size="sm"
                     variant="outline"
                     className="shrink-0"
-                    onClick={() => openDraft(defaultScope(row, canManageOrganization), row, null)}
+                    onClick={() => connect(defaultScope(row, canManageOrganization), row)}
                     disabled={busyId === row.key}
                   >
                     <Plug className="mr-1 h-3.5 w-3.5" />
@@ -691,7 +727,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
         onClose={() => setManaging(null)}
         onConnect={(scope, row) => {
           setManaging(null);
-          openDraft(scope, row, null);
+          connect(scope, row);
         }}
         onEdit={(scope, row, connection) => {
           setManaging(null);

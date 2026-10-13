@@ -2707,7 +2707,10 @@
     "didNotAnswerOn": "Nie odpowiedział przy sprawdzeniu katalogu {date}",
     "toolReadsOnly": "czyta",
     "toolWrites": "zapisuje",
-    "noAnswerOn": "Brak odpowiedzi {date}"
+    "noAnswerOn": "Brak odpowiedzi {date}",
+    "moreOptions": "Więcej opcji",
+    "configureNamed": "Skonfiguruj {name} przed połączeniem",
+    "configure": "Konfiguruj"
   },
   "members": {
     "emailPlaceholder": "kolega@example.com",

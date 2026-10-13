@@ -4,7 +4,12 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ConnectOwnServerDialog, ConnectServerDialog } from "./connect-server-dialog";
+import {
+  ConnectOwnButton,
+  ConnectOwnServerDialog,
+  ConnectServerDialog,
+  useConnectEntry,
+} from "./connect-server-dialog";
 import { PublicConfigProvider } from "@/components/public-config/public-config-provider";
 import { DEFAULT_PUBLIC_CONFIG } from "@/lib/public-config";
 import type { McpCatalogEntry } from "@/types/mcp";
@@ -114,6 +119,7 @@ describe("ConnectServerDialog", () => {
 
   it("refuses a name the server would not accept, without calling the API", async () => {
     open(TOKEN_ENTRY);
+    await userEvent.click(await screen.findByRole("button", { name: "More options" }));
     const name = screen.getByLabelText("Tool prefix");
     await userEvent.clear(name);
     await userEvent.type(name, "Not A Name");
@@ -126,6 +132,7 @@ describe("ConnectServerDialog", () => {
 
   it("refuses a URL that is not http, without calling the API", async () => {
     open(TOKEN_ENTRY);
+    await userEvent.click(screen.getByRole("button", { name: "More options" }));
     const url = screen.getByLabelText(/url/i);
     await userEvent.clear(url);
     await userEvent.type(url, "ftp://example.com");
@@ -164,6 +171,7 @@ describe("ConnectServerDialog", () => {
         </PublicConfigProvider>,
         { wrapper },
       );
+      await userEvent.click(await screen.findByRole("button", { name: "More options" }));
       // The redirect URL the provider has to hold, shown so nobody guesses it -
       // built from the deployment's configured origin, which is what the
       // backend registers, not from whatever address this browser came in on.
@@ -222,6 +230,7 @@ describe("ConnectServerDialog", () => {
       const openSpy = vi.spyOn(window, "open").mockReturnValue(null);
 
       open(OAUTH_ENTRY);
+      await userEvent.click(await screen.findByRole("button", { name: "More options" }));
       await userEvent.type(screen.getByLabelText("Client secret"), "shh");
       await submit();
 
@@ -395,5 +404,105 @@ describe("ConnectOwnServerDialog with somewhere to return to", () => {
     expect(opened).not.toHaveBeenCalled();
     expect(document.cookie).toContain(`mcp_oauth_return=${encodeURIComponent("/chat?id=1")}`);
     expect(toast.info).not.toHaveBeenCalled();
+  });
+});
+
+describe("ConnectOwnButton", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(startMcpOAuth).mockResolvedValue({ authorization_url: "https://consent.example" });
+  });
+
+  it("goes straight to the provider for a server that signs in, with no form", async () => {
+    const tab = { opener: {}, location: { href: "" }, close: vi.fn() };
+    const opened = vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
+    render(<ConnectOwnButton entry={OAUTH_ENTRY} label="Connect" />, { wrapper });
+
+    await userEvent.click(screen.getByRole("button", { name: "Connect" }));
+
+    await waitFor(() =>
+      expect(startMcpOAuth).toHaveBeenCalledWith(
+        { name: "notion", url: "https://mcp.notion.com/mcp", catalog_key: "notion" },
+        "personal",
+      ),
+    );
+    expect(tab.location.href).toBe("https://consent.example");
+    expect(tab.opener).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    opened.mockRestore();
+  });
+
+  it("closes the tab and says so when the consent cannot start", async () => {
+    const tab = { opener: {}, location: { href: "" }, close: vi.fn() };
+    const opened = vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
+    vi.mocked(startMcpOAuth).mockRejectedValue(new Error("down"));
+    render(<ConnectOwnButton entry={OAUTH_ENTRY} label="Connect" />, { wrapper });
+
+    await userEvent.click(screen.getByRole("button", { name: "Connect" }));
+
+    await waitFor(() => expect(tab.close).toHaveBeenCalled());
+    expect(toast.error).toHaveBeenCalled();
+    opened.mockRestore();
+  });
+
+  it("opens the form for a server that takes a token, and offers no Configure", async () => {
+    render(<ConnectOwnButton entry={TOKEN_ENTRY} label="Connect" />, { wrapper });
+
+    expect(screen.queryByRole("button", { name: /^Configure/ })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Connect" }));
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(startMcpOAuth).not.toHaveBeenCalled();
+  });
+
+  it("opens the form with its settings unfolded on Configure, and closes it", async () => {
+    render(<ConnectOwnButton entry={OAUTH_ENTRY} label="Connect" />, { wrapper });
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Configure Notion before connecting" }),
+    );
+
+    expect(await screen.findByLabelText("Server URL")).toHaveValue("https://mcp.notion.com/mcp");
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+});
+
+describe("useConnectEntry for the organization", () => {
+  function Harness({ entry, openForm }: { entry: McpCatalogEntry; openForm: () => void }) {
+    const connect = useConnectEntry("organization", { openForm });
+    return (
+      <button type="button" onClick={() => connect(entry)}>
+        go
+      </button>
+    );
+  }
+
+  it("signs in for everyone in the organization, the form's own default", async () => {
+    vi.clearAllMocks();
+    vi.mocked(startMcpOAuth).mockResolvedValue({ authorization_url: "https://consent.example" });
+    const tab = { opener: {}, location: { href: "" }, close: vi.fn() };
+    const opened = vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
+    render(<Harness entry={OAUTH_ENTRY} openForm={vi.fn()} />, { wrapper });
+
+    await userEvent.click(screen.getByRole("button", { name: "go" }));
+
+    await waitFor(() =>
+      expect(startMcpOAuth).toHaveBeenCalledWith(
+        expect.objectContaining({ visibility: "org", group_ids: [], user_ids: [] }),
+        "organization",
+      ),
+    );
+    expect(toast.info).toHaveBeenCalled();
+    opened.mockRestore();
+  });
+
+  it("opens the form for a catalog server with no address on record", async () => {
+    const openForm = vi.fn();
+    render(<Harness entry={{ ...OAUTH_ENTRY, url: null }} openForm={openForm} />, { wrapper });
+
+    await userEvent.click(screen.getByRole("button", { name: "go" }));
+
+    expect(openForm).toHaveBeenCalled();
   });
 });

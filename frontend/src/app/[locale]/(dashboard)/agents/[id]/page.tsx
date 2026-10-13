@@ -52,6 +52,7 @@ import type { McpCatalogEntry } from "@/types/mcp";
 import {
   ConnectOwnServerDialog,
   ConnectServerDialog,
+  useConnectEntry,
 } from "@/components/agents/connect-server-dialog";
 import { hereForMcpOAuthReturn } from "@/lib/mcp-oauth";
 import { McpToolPickerDialog } from "@/components/mcp/mcp-tool-picker-dialog";
@@ -252,6 +253,13 @@ export default function AgentBuilderPage({ params }: PageProps) {
   } = useOrgMcpConnections();
   const [connectingServer, setConnectingServer] = useState<McpCatalogEntry | null>(null);
   const [connectingOwnServer, setConnectingOwnServer] = useState<McpCatalogEntry | null>(null);
+  // Whether the open connect form came from **Configure**, so it opens unfolded.
+  const [configuringServer, setConfiguringServer] = useState(false);
+  const connectServer = useConnectEntry("organization", { openForm: setConnectingServer });
+  const connectOwnServer = useConnectEntry("personal", {
+    returnTo: hereForMcpOAuthReturn(),
+    openForm: setConnectingOwnServer,
+  });
   const [toolPicker, setToolPicker] = useState<ToolPickerState | null>(null);
   // Which binding the open tool picker narrows, by `bindingKey`. Kept beside the
   // picker state rather than inside it because the dialog is shared with the
@@ -1117,13 +1125,21 @@ export default function AgentBuilderPage({ params }: PageProps) {
             back here when the consent lands, and its tools list from it. */}
         <ConnectOwnServerDialog
           entry={connectingOwnServer}
-          onClose={() => setConnectingOwnServer(null)}
+          configure={configuringServer}
+          onClose={() => {
+            setConnectingOwnServer(null);
+            setConfiguringServer(false);
+          }}
           returnTo={hereForMcpOAuthReturn()}
         />
 
         <ConnectServerDialog
           entry={connectingServer}
-          onClose={() => setConnectingServer(null)}
+          configure={configuringServer}
+          onClose={() => {
+            setConnectingServer(null);
+            setConfiguringServer(false);
+          }}
           // Bound as soon as it exists: somebody who connected a server from
           // inside the Builder was going to tick it next. Its tools come up at
           // once, from the check that connecting just ran - one path from "I want
@@ -1479,7 +1495,12 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   value={spec.mcp_servers}
                   onChange={(mcp_servers) => update({ mcp_servers })}
                   personalConnections={myMcpConnections}
-                  onConnectOwn={setConnectingOwnServer}
+                  onConnectOwn={connectOwnServer}
+                  onConfigure={(entry, scope) => {
+                    setConfiguringServer(true);
+                    if (scope === "organization") setConnectingServer(entry);
+                    else setConnectingOwnServer(entry);
+                  }}
                   onTools={async (ref, connection, name) => {
                     setToolBinding(bindingKey(ref));
                     // A connection nobody has checked has no tool list; check it
@@ -1497,7 +1518,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                       setToolPicker(toolChoice(ref, connection, name));
                     }
                   }}
-                  onConnect={setConnectingServer}
+                  onConnect={connectServer}
                   disabled={!canEdit}
                 />
                 <p className="text-muted-foreground mt-4 text-xs">{t("twoLimitsWorthKnowing")}</p>

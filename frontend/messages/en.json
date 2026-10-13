@@ -2937,7 +2937,10 @@
     "didNotAnswerOn": "Did not answer the catalog check on {date}",
     "toolReadsOnly": "reads",
     "toolWrites": "writes",
-    "noAnswerOn": "No answer {date}"
+    "noAnswerOn": "No answer {date}",
+    "moreOptions": "More options",
+    "configureNamed": "Configure {name} before connecting",
+    "configure": "Configure"
   },
   "members": {
     "emailPlaceholder": "colleague@example.com",

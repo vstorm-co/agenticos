@@ -31,23 +31,28 @@ vi.mock("@/hooks/use-mcp-connections", () => ({
 vi.mock("@/hooks/use-mcp-servers", () => ({
   useMcpCatalog: () => ({ servers: [NOTION], isLoading: false }),
 }));
-vi.mock("@/components/agents/connect-server-dialog", () => ({
-  ConnectOwnServerDialog: ({
-    entry,
-    onClose,
-  }: {
-    entry: McpCatalogEntry | null;
-    onClose: () => void;
-  }) =>
-    entry ? (
-      <div role="dialog">
-        connecting {entry.name}
-        <button type="button" onClick={onClose}>
-          close
+// The button and its dialog are tested on their own; here it only has to be
+// offered for the right entry, so clicking it renders a marker naming that one.
+vi.mock("@/components/agents/connect-server-dialog", async () => {
+  const { useState } = await import("react");
+  return {
+    ConnectOwnButton: ({ entry, label }: { entry: McpCatalogEntry; label: string }) => {
+      const [open, setOpen] = useState(false);
+      return open ? (
+        <div role="dialog">
+          connecting {entry.name}
+          <button type="button" onClick={() => setOpen(false)}>
+            close
+          </button>
+        </div>
+      ) : (
+        <button type="button" onClick={() => setOpen(true)}>
+          {label}
         </button>
-      </div>
-    ) : null,
-}));
+      );
+    },
+  };
+});
 
 const NOTION: McpCatalogEntry = {
   key: "notion",

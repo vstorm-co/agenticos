@@ -604,6 +604,65 @@ describe("whose account a binding speaks through", () => {
     expect(onConnectOwn).toHaveBeenCalledWith(GITHUB);
   });
 
+  describe("Configure, for a server whose Connect signs straight in", () => {
+    const NOTION = entry({ key: "notion", name: "Notion", auth: "oauth", description: "Pages." });
+    const mount = (
+      onConfigure: (e: McpCatalogEntry, scope: string) => void,
+      value: McpServerRef[] = [],
+    ) =>
+      render(
+        <McpServerPicker
+          connections={[]}
+          catalog={[NOTION]}
+          value={value}
+          onChange={vi.fn()}
+          onTools={vi.fn()}
+          onConnect={vi.fn()}
+          onConnectOwn={vi.fn()}
+          onConfigure={onConfigure}
+        />,
+      );
+
+    it("sits beside the card's Connect", async () => {
+      const onConfigure = vi.fn();
+      mount(onConfigure);
+
+      await userEvent.click(
+        screen.getByRole("button", { name: "Configure Notion before connecting" }),
+      );
+
+      expect(onConfigure).toHaveBeenCalledWith(NOTION, "organization");
+    });
+
+    it("sits under the organization's tile while it holds no account", async () => {
+      const onConfigure = vi.fn();
+      mount(onConfigure, [personal("notion")]);
+
+      await settings("Pages.");
+      const tile = within(kind("organization"));
+      await userEvent.click(tile.getByRole("button", { name: "Configure" }));
+
+      expect(onConfigure).toHaveBeenCalledWith(NOTION, "organization");
+    });
+
+    it("sits beside Connect yours", async () => {
+      const onConfigure = vi.fn();
+      mount(onConfigure, [personal("notion")]);
+
+      await settings("Pages.");
+      const tile = within(kind("personal"));
+      await userEvent.click(tile.getByRole("button", { name: "Configure" }));
+
+      expect(onConfigure).toHaveBeenCalledWith(NOTION, "personal");
+    });
+
+    it("is not offered for a server that takes a token", () => {
+      render(picker({}));
+
+      expect(screen.queryByRole("button", { name: /^Configure/ })).toBeNull();
+    });
+  });
+
   it("renders a personal binding on an unconnected server as a bound card", () => {
     render(picker({ value: [personal("github")] }));
 
