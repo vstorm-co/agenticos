@@ -48,6 +48,7 @@ from app.agents.capabilities.channel_tools import (
 from app.core.security import encode_untrusted
 from app.db.session import get_db_context
 from app.services.channels import connection_state
+from app.services.channels.attachments import routed_type
 from app.services.channels.base import (
     ChannelAdapter,
     IncomingAttachment,
@@ -893,10 +894,15 @@ class MattermostAdapter(ChannelAdapter):
         found: list[IncomingAttachment] = []
         for file_id in file_ids:
             entry = described.get(str(file_id), {})
+            name = entry.get("name") or str(file_id)
             found.append(
                 IncomingAttachment(
-                    filename=entry.get("name") or str(file_id),
-                    mime_type=entry.get("mime_type") or "application/octet-stream",
+                    filename=name,
+                    # Typed from the extension when the server sent none, so an
+                    # untyped `.mp3` is heard rather than stored (`routed_type`).
+                    mime_type=routed_type(
+                        entry.get("mime_type"), name, extension=entry.get("extension")
+                    ),
                     size=int(entry.get("size") or 0),
                     handle=f"{base_url}/api/v4/files/{file_id}" if base_url else "",
                 )
@@ -920,6 +926,57 @@ class MattermostAdapter(ChannelAdapter):
             response = await client.get(attachment.handle, headers=self._headers(bot_token))
         response.raise_for_status()
         return response.content
+
+    async def describe_attachments(
+        self, bot_token: str, attachments: list[IncomingAttachment]
+    ) -> list[IncomingAttachment]:
+        """Look up the files an outgoing webhook named by id alone.
+
+        The webhook body carries `file_ids` and nothing about them, so the
+        parser could only call each file by its id and claim no type - and an
+        untyped file is never taken for a voice note. `GET /files/{id}/info`
+        answers the name, extension, size and type the socket would have sent.
+        Only files the parser could not describe are asked about, which on the
+        event stream is none.
+
+        A lookup that fails keeps the file as parsed: it is still delivered as
+        an ordinary attachment, exactly as before this existed, and the log says
+        why it was not recognised.
+        """
+        found: list[IncomingAttachment] = []
+        for attachment in attachments:
+            # `_attachments` names a file with no metadata after its id, which
+            # is the last segment of its handle.
+            if not attachment.handle or not attachment.handle.endswith(f"/{attachment.filename}"):
+                found.append(attachment)
+                continue
+            try:
+                async with self._client() as client:
+                    response = await client.get(
+                        f"{attachment.handle}/info", headers=self._headers(bot_token)
+                    )
+                response.raise_for_status()
+                info = response.json()
+            except (httpx.HTTPError, ValueError):
+                logger.warning(
+                    "Could not look up a Mattermost file's details: file=%s",
+                    attachment.filename,
+                    exc_info=True,
+                )
+                found.append(attachment)
+                continue
+            name = str(info.get("name") or attachment.filename)
+            found.append(
+                IncomingAttachment(
+                    filename=name,
+                    mime_type=routed_type(
+                        info.get("mime_type"), name, extension=info.get("extension")
+                    ),
+                    size=int(info.get("size") or 0),
+                    handle=attachment.handle,
+                )
+            )
+        return found
 
     def _from_webhook(self, payload: dict[str, Any], bot_id: str) -> IncomingMessage | None:
         """Normalise one outgoing-webhook body.

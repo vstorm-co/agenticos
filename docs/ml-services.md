@@ -199,11 +199,13 @@ a recording would reach, which decides the format the composer records in. An
 agent with nothing published answers from the organization's settings.
 
 The recording has to be `audio/webm`, `audio/ogg`, `audio/mp4` or `audio/wav`,
-a codec suffix allowed, with `audio/x-wav` and `audio/wave` read as `audio/wav`.
+a codec suffix allowed, with `audio/x-wav` and `audio/wave` read as `audio/wav`
+and `audio/x-m4a` as `audio/mp4`.
 The first three are what browsers' `MediaRecorder` produces; the composer
 records WAV itself when the provider is Mistral (see the note below). The
 provider receives the recording as `recording.webm`, `recording.ogg`,
-`recording.m4a` or `recording.wav`.
+`recording.m4a` or `recording.wav`, from the same table that names a channel
+voice note `voice.<ext>`.
 
 The route reads at most 25 MB of the body; the organization's own cap,
 `dictation_max_seconds × 32 KB`, is applied to what was read. A body the

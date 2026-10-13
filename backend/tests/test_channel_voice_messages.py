@@ -15,7 +15,8 @@ listen says so once rather than dropping the recording.
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+import json
+from collections.abc import Callable, Iterator
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
@@ -24,7 +25,9 @@ import pytest
 
 from app.core.exceptions import ExternalServiceError
 from app.services.channels.base import IncomingAttachment, IncomingMessage
+from app.services.channels.mattermost import MattermostAdapter
 from app.services.channels.router import TRANSCRIPTION_MAX_BYTES, ChannelMessageRouter
+from app.services.channels.slack import SlackAdapter
 
 pytestmark = pytest.mark.anyio
 
@@ -132,6 +135,52 @@ class TestWhichAttachmentsGoWhere:
 
         assert [a.filename for a in recordings] == ["note.mp3"]
         assert rest == []
+
+    def test_each_recording_is_logged_with_its_type_and_name(
+        self, caplog: pytest.LogCaptureFixture
+    ):
+        """The line a live failure is diagnosed from: what the platform called
+        the recording, and that it went to transcription."""
+        with caplog.at_level("INFO", logger="app.services.channels.router"):
+            ChannelMessageRouter._split_recordings(_incoming(_voice("note.opus"), _document()))
+
+        assert "type=audio/ogg filename=note.opus" in caplog.text
+        assert "report.pdf" not in caplog.text
+
+
+class TestWhatTheProviderIsSent:
+    """OpenAI and Groq read the format from the file name, not the type."""
+
+    @pytest.mark.parametrize(
+        ("name", "claimed", "sent_name", "sent_type"),
+        [
+            ("audio", "audio/ogg", "voice.ogg", "audio/ogg"),
+            ("note.opus", "audio/ogg; codecs=opus", "voice.ogg", "audio/ogg"),
+            ("audio_message.mp4", "audio/mp4", "voice.m4a", "audio/mp4"),
+            ("memo.m4a", "audio/x-m4a", "voice.m4a", "audio/mp4"),
+            ("memo", "audio/mp3", "voice.mp3", "audio/mpeg"),
+            ("take.wav", "audio/x-wav", "voice.wav", "audio/wav"),
+            ("audio_message.webm", "audio/webm", "voice.webm", "audio/webm"),
+        ],
+    )
+    def test_the_name_follows_the_type(
+        self, name: str, claimed: str, sent_name: str, sent_type: str
+    ):
+        attachment = IncomingAttachment(filename=name, mime_type=claimed, size=3, handle="h")
+
+        sent = ChannelMessageRouter._as_sent(attachment, b"abc")
+
+        assert (sent.filename, sent.mime_type, sent.content) == (sent_name, sent_type, b"abc")
+
+    def test_a_type_with_no_known_extension_keeps_its_own_name(self):
+        """Still audio; whether the provider reads FLAC is the provider's to say."""
+        attachment = IncomingAttachment(
+            filename="take.flac", mime_type="audio/flac", size=3, handle="h"
+        )
+
+        sent = ChannelMessageRouter._as_sent(attachment, b"abc")
+
+        assert (sent.filename, sent.mime_type) == ("take.flac", "audio/flac")
 
 
 class TestHowATranscriptReachesTheAgent:
@@ -373,3 +422,105 @@ class TestWhichEngineAVoiceNoteReaches:
         asked = await self._asked(_bot(provider="groq", model="whisper-large-v3-turbo"))
 
         assert (asked["provider"], asked["language"]) == ("groq", "pl")
+
+
+def _from_slack() -> IncomingMessage:
+    """A clip recorded on a phone, which Slack types `video/mp4`."""
+    parsed = SlackAdapter().parse_incoming(
+        {
+            "event": {
+                "type": "message",
+                "subtype": "file_share",
+                "user": "U1",
+                "channel": "D1",
+                "channel_type": "im",
+                "ts": "1.0",
+                "files": [
+                    {
+                        "id": "F0CLIP",
+                        "name": "audio_message.mp4",
+                        "mimetype": "video/mp4",
+                        "filetype": "mp4",
+                        "subtype": "slack_audio",
+                        "media_display_type": "audio",
+                        "duration_ms": 3000,
+                        "size": 2048,
+                        "url_private_download": "https://files.slack.com/files-pri/T1-F0CLIP/a.mp4",
+                    }
+                ],
+            }
+        },
+        "bot-1",
+    )
+    assert parsed is not None
+    return parsed
+
+
+def _from_mattermost() -> IncomingMessage:
+    """An `.mp3` the server stored untyped."""
+    adapter = MattermostAdapter()
+    adapter.remember_server("bot-1", "https://mm.test")
+    post = {
+        "id": "p1",
+        "user_id": "u1",
+        "channel_id": "c1",
+        "message": "",
+        "file_ids": ["f1"],
+        "metadata": {
+            "files": [
+                {
+                    "id": "f1",
+                    "name": "memo.mp3",
+                    "extension": "mp3",
+                    "mime_type": "application/octet-stream",
+                    "size": 2048,
+                }
+            ]
+        },
+    }
+    parsed = adapter.parse_incoming(
+        {"event": "posted", "data": {"channel_type": "D", "post": json.dumps(post)}}, "bot-1"
+    )
+    assert parsed is not None
+    return parsed
+
+
+class TestAVoiceNoteFromSlackOrMattermost:
+    """From the platform's payload to the agent's prompt, on an inheriting bot."""
+
+    @pytest.mark.parametrize(
+        ("platform", "incoming", "sent_as"),
+        [("slack", _from_slack, "voice.m4a"), ("mattermost", _from_mattermost, "voice.mp3")],
+    )
+    async def test_an_inheriting_bot_answers_from_the_transcript(
+        self,
+        world: SimpleNamespace,
+        platform: str,
+        incoming: Callable[[], IncomingMessage],
+        sent_as: str,
+    ):
+        world.org.speech_to_text_provider = "openai"
+        world.org.speech_to_text_model = "gpt-4o-transcribe"
+        message = incoming()
+        bot = _bot(provider=None, model=None)
+        bot.platform = platform
+        adapter = MagicMock()
+        adapter.download_attachment = AsyncMock(return_value=b"audio")
+        transcribe = AsyncMock(return_value="the invoice is late")
+
+        with (
+            patch("app.services.channels.router.get_adapter", return_value=adapter),
+            patch("app.services.channels.router.unseal_bot_token", return_value="tok"),
+            patch("app.services.channels.router.TranscriptionService.transcribe", transcribe),
+        ):
+            router = ChannelMessageRouter()
+            recordings, rest = router._split_recordings(message)
+            transcripts, refusals = await router._transcribe(MagicMock(), bot, recordings)
+
+        assert rest == []
+        assert refusals == []
+        assert transcribe.await_args.args[0].filename == sent_as
+        assert transcribe.await_args.kwargs["provider"] == "openai"
+        assert router._with_transcripts(message.text, transcripts) == (
+            "[Voice message, transcribed]\nthe invoice is late"
+        )

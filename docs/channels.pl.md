@@ -1,5 +1,5 @@
 ---
-source_sha: "f96f62cc6cbf"
+source_sha: "9a77c2202987"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1223,9 +1223,43 @@ może się między nimi rozjechać.
         również czyści parę. Język organizacji albo agenta dociera teraz także do
         bota z własną parą.
 
-    Notatka głosowa z Telegrama to Ogg/Opus, którego Mistral nie wymienia wśród
-    akceptowanych formatów, więc bot Telegrama trafiający do Mistrala — wybranego
-    albo odziedziczonego — może nie zdołać transkrybować; formularz to mówi.
+    To, co liczy się jako wiadomość głosowa, jest odczytywane z typu pliku,
+    a każda platforma typuje pliki po swojemu. Notatka głosowa albo plik audio
+    z Telegrama liczy się zawsze. Na Slacku liczy się klip audio nagrany w polu
+    wiadomości, niezależnie od typu, jaki nada mu Slack — klip z aplikacji na
+    telefon potrafi przyjść jako `video/mp4` — i tak samo każdy przesłany plik
+    audio. Plik, któremu platforma nie nadała typu, liczy się, gdy jego
+    rozszerzenie wskazuje audio: `.m4a`, `.mp3`, `.ogg`, `.oga`, `.opus`, `.webm`
+    albo `.wav`. Plik `.mp4` bez typu, którego Slack nie oznaczył jako klipu,
+    zostaje zwykłym plikiem: znacznie częściej jest to wideo, a jego transkrypcja
+    oznaczałaby płacenie za ścieżkę dźwiękową.
+
+    Na Mattermoście liczy się każdy przesłany plik audio, po typie albo po
+    rozszerzeniu. Webhook wychodzący wysyła tylko identyfikator każdego pliku,
+    więc dla bota w trybie webhooka router najpierw sprawdza plik przez
+    `GET /api/v4/files/{id}/info`; jeśli to się nie uda, plik zostaje zwykłym
+    załącznikiem. Klip ze Slacka, który przychodzi, zanim Slack skończy go
+    przetwarzać, nie ma jeszcze adresu pobierania i zostaje pominięty, bo bot nie
+    subskrybuje następującego potem zdarzenia `file_shared`. Backend loguje oba
+    przypadki, a także każde nagranie skierowane do transkrypcji, z jego typem
+    i nazwą pliku — to linia, którą trzeba przeczytać, gdy któreś nie zostało
+    usłyszane.
+
+    Provider dostaje nagranie jako `voice.<ext>`, nazwane od typu, a nie od tego,
+    jak ktoś nazwał plik: OpenAI i Groq wybierają dekoder po nazwie i odrzucają
+    `.opus` albo nazwę bez rozszerzenia dla audio, które potrafią odczytać.
+    Notatka głosowa z Telegrama to Ogg/Opus, a klip nagrany w aplikacji
+    desktopowej Slacka to WebM; Mistral nie wymienia żadnego z nich wśród
+    akceptowanych formatów, więc bot Telegrama albo Slacka trafiający do
+    Mistrala — wybranego albo odziedziczonego — może nie zdołać transkrybować;
+    formularz to mówi.
+
+    Wiadomości głosowe wysłane w wątku, zanim bot do niego dołączył, nie są
+    transkrybowane. Pierwsza wzmianka odczytuje wcześniejsze pliki wątku,
+    a transkrypcja każdego nagrania wśród nich obciążyłaby rachunek audio całego
+    wątku z powodu jednego pytania. Każde z nich jest za to wymienione
+    w odpowiedzi: „Voice messages sent before I joined this thread are not
+    transcribed - send it again here.”
 
     Dostępni są trzej providerzy: OpenAI, Groq i Mistral, wszyscy obsługujący
     `POST /audio/transcriptions` od OpenAI. Dodanie modelu to wpis w tym pliku.

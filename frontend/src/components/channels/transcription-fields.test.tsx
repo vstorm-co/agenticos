@@ -190,7 +190,7 @@ describe("a bot's three-way transcription choice", () => {
     expect(screen.getByRole("note")).toHaveTextContent(/Ogg\/Opus/);
   });
 
-  it("warns a Telegram bot choosing Mistral, and nobody else", () => {
+  it("warns a Telegram bot choosing Mistral", () => {
     mount(
       { mode: "choose", provider: "mistral", model: "voxtral-mini-latest" },
       { platform: "telegram" },
@@ -198,13 +198,19 @@ describe("a bot's three-way transcription choice", () => {
     expect(screen.getByRole("note")).toBeInTheDocument();
   });
 
-  it("does not warn a Slack bot on Mistral, or a Telegram bot switched off", () => {
+  it("warns a Slack bot on Mistral that its WebM clips may fail", () => {
+    mount({ mode: "choose", provider: "mistral", model: "voxtral-mini-latest" });
+
+    expect(screen.getByRole("note")).toHaveTextContent(/WebM/);
+  });
+
+  it("does not warn a Mattermost bot on Mistral, or a Telegram bot switched off", () => {
     const { unmount } = render(
       <TranscriptionFields
         idPrefix="a"
         value={{ mode: "choose", provider: "mistral", model: "voxtral-mini-latest" }}
         onChange={vi.fn()}
-        platform="slack"
+        platform="mattermost"
         inherited={null}
       />,
     );

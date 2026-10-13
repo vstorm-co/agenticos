@@ -67,6 +67,43 @@ has spent the time twice.
 """
 
 
+RECORDING_EXTENSIONS: dict[str, str] = {
+    "audio/webm": "webm",
+    "audio/ogg": "ogg",
+    "audio/mp4": "m4a",
+    "audio/mpeg": "mp3",
+    "audio/wav": "wav",
+}
+"""The extension a provider is sent for each recording type.
+
+OpenAI and Groq read the format from the file name, not from the part's
+content type, so the name is chosen from the type rather than passed through:
+a Telegram voice note arrives named `audio`, a Slack clip may say `.mp4`, and
+`.opus` or `.aac` is a name the endpoint refuses for audio it would have
+read. MP4 audio goes as `.m4a`, the name OpenAI, Groq and Mistral all list.
+Shared by composer dictation and channel voice notes, so the two cannot
+disagree about what a type is called.
+"""
+
+RECORDING_TYPE_ALIASES: dict[str, str] = {
+    "audio/x-wav": "audio/wav",
+    "audio/wave": "audio/wav",
+    "audio/x-m4a": "audio/mp4",
+    "audio/mp3": "audio/mpeg",
+}
+"""Other names clients and platforms use for the same containers."""
+
+
+def recording_type(mime_type: str) -> str:
+    """A recording's type without parameters, in the spelling `RECORDING_EXTENSIONS` uses.
+
+    `audio/webm;codecs=opus` is `audio/webm`, `Audio/X-WAV` is `audio/wav`. A
+    type nobody aliased is returned lowercased and otherwise as given.
+    """
+    base = mime_type.split(";", 1)[0].strip().lower()
+    return RECORDING_TYPE_ALIASES.get(base, base)
+
+
 @dataclass(frozen=True)
 class Recording:
     """A voice note, in hand."""

@@ -31,7 +31,14 @@ from app.repositories import credential as credential_repo
 from app.services import speech_to_text
 from app.services.model_profile import ModelProfileService
 from app.services.organization_secret import OrganizationSecretService
-from app.services.transcription import MAX_BYTES, Recording, TranscriptionService
+from app.services.transcription import (
+    MAX_BYTES,
+    RECORDING_EXTENSIONS,
+    RECORDING_TYPE_ALIASES,
+    Recording,
+    TranscriptionService,
+    recording_type,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -536,3 +543,26 @@ async def test_each_failure_raises_with_a_reason_and_no_provider_text(
     assert raised.value.details["provider"] == provider
     assert "sk-leak" not in raised.value.message
     assert "sk-leak" not in str(raised.value.details)
+
+
+class TestWhatARecordingIsCalled:
+    """One table for dictation and channel voice notes, so the two agree."""
+
+    @pytest.mark.parametrize(
+        ("claimed", "base"),
+        [
+            ("audio/webm;codecs=opus", "audio/webm"),
+            ("Audio/X-WAV", "audio/wav"),
+            ("audio/wave", "audio/wav"),
+            ("audio/x-m4a", "audio/mp4"),
+            ("audio/mp3", "audio/mpeg"),
+            ("audio/flac", "audio/flac"),
+        ],
+    )
+    def test_a_type_is_read_without_parameters_and_by_its_usual_name(self, claimed: str, base: str):
+        assert recording_type(claimed) == base
+
+    def test_every_alias_names_a_type_with_an_extension(self):
+        """An alias to a type the table has no extension for would rename
+        nothing, and the provider would be sent the platform's name again."""
+        assert set(RECORDING_TYPE_ALIASES.values()) <= set(RECORDING_EXTENSIONS)

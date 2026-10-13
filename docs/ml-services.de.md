@@ -1,5 +1,5 @@
 ---
-source_sha: "0ac237c91eee"
+source_sha: "1bdc3302c200"
 ---
 
 # Die ML-Dienste { #the-ml-services }
@@ -213,10 +213,11 @@ veröffentlichte Version antwortet aus den Einstellungen der Organisation.
 
 Die Aufnahme muss `audio/webm`, `audio/ogg`, `audio/mp4` oder `audio/wav`
 sein, ein Codec-Suffix ist erlaubt, und `audio/x-wav` sowie `audio/wave` werden
-als `audio/wav` gelesen. Die ersten drei erzeugt `MediaRecorder` in Browsern;
+als `audio/wav` gelesen, `audio/x-m4a` als `audio/mp4`. Die ersten drei erzeugt `MediaRecorder` in Browsern;
 WAV nimmt das Eingabefeld selbst auf, wenn der Anbieter Mistral ist (siehe den
 Hinweis unten). Der Anbieter erhält die Aufnahme als `recording.webm`,
-`recording.ogg`, `recording.m4a` oder `recording.wav`.
+`recording.ogg`, `recording.m4a` oder `recording.wav`, nach derselben Tabelle,
+die eine Sprachnotiz aus einem Kanal `voice.<ext>` nennt.
 
 Die Route liest höchstens 25 MB des Bodys; die eigene Grenze
 der Organisation, `dictation_max_seconds × 32 KB`, gilt für das Gelesene. Ein

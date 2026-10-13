@@ -55,7 +55,12 @@ from app.services.conversation import ConversationService
 from app.services.rate_limit import Limit
 from app.services.speech_to_text_settings import SpeechToTextSettingsService
 from app.services.transcription import MAX_BYTES as TRANSCRIPTION_MAX_BYTES
-from app.services.transcription import Recording, TranscriptionService
+from app.services.transcription import (
+    RECORDING_EXTENSIONS,
+    Recording,
+    TranscriptionService,
+    recording_type,
+)
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -386,7 +391,12 @@ class ChannelMessageRouter:
         # pointing at it (#683).
         # A voice note goes one way and every other attachment the other: the
         # recording is transcribed and never handed to the agent, which cannot open
-        # it, and the rest is stored and can be read.
+        # it, and the rest is stored and can be read. The split reads the type, so
+        # an adapter whose payload named a file by id alone describes it first.
+        if incoming.attachments:
+            incoming.attachments = await get_adapter(bot.platform).describe_attachments(
+                unseal_bot_token(bot), incoming.attachments
+            )
         recordings, rest = self._split_recordings(incoming)
         incoming.attachments = rest
         files, file_refusals = await self._receive_files(db, bot, incoming, identity)
@@ -807,10 +817,23 @@ class ChannelMessageRouter:
 
         On the mime type, which every adapter sets: Telegram invents
         `voice.ogg` / `audio/ogg` for a voice note because the platform sends
-        neither a name nor a type, and the other two carry what was uploaded.
+        neither a name nor a type, and Slack and Mattermost carry what was
+        uploaded, typed from the extension or the clip marker where the platform
+        left it untyped (`attachments.routed_type`).
+
+        Each recording is logged with its type and name, because the type is
+        the platform's and this is the line that says why a voice note was or
+        was not heard.
         """
         recordings = [a for a in incoming.attachments if a.mime_type.startswith("audio/")]
         rest = [a for a in incoming.attachments if not a.mime_type.startswith("audio/")]
+        for recording in recordings:
+            logger.info(
+                "Voice message routed to transcription: bot=%s type=%s filename=%s",
+                incoming.bot_id,
+                recording.mime_type,
+                recording.filename,
+            )
         return recordings, rest
 
     async def _transcribe(
@@ -879,11 +902,7 @@ class ChannelMessageRouter:
                 continue
             try:
                 text = await service.transcribe(
-                    Recording(
-                        content=content,
-                        filename=recording.filename,
-                        mime_type=recording.mime_type,
-                    ),
+                    self._as_sent(recording, content),
                     organization_id=bot.organization_id,
                     provider=resolved.provider,
                     model=resolved.model,
@@ -896,6 +915,26 @@ class ChannelMessageRouter:
                 continue
             transcripts.append(text)
         return transcripts, refusals
+
+    @staticmethod
+    def _as_sent(recording: IncomingAttachment, content: bytes) -> Recording:
+        """The recording as the provider is sent it: `voice.<ext>` for its type.
+
+        OpenAI and Groq choose the decoder from the file name, and a platform's
+        name is whatever somebody called the file - `audio` with no extension
+        for a Telegram upload, `.opus` for an Ogg voice note, `.mp4` for a Slack
+        clip. Renamed from the type through the table dictation uses
+        (`transcription.RECORDING_EXTENSIONS`). A type that table does not know
+        keeps its own name and type: it is still audio, and the provider is the
+        one that knows whether it can read it.
+        """
+        mime_type = recording_type(recording.mime_type)
+        extension = RECORDING_EXTENSIONS.get(mime_type)
+        if extension is None:
+            return Recording(
+                content=content, filename=recording.filename, mime_type=recording.mime_type
+            )
+        return Recording(content=content, filename=f"voice.{extension}", mime_type=mime_type)
 
     @staticmethod
     def _with_transcripts(text: str, transcripts: list[str]) -> str:

@@ -59,23 +59,16 @@ The WAV the composer records for Mistral (16 kHz mono 16-bit PCM) is 32,000
 bytes a second plus a 44-byte header, so it fits under the same cap.
 """
 
-DICTATION_TYPES: dict[str, str] = {
-    "audio/webm": "webm",
-    "audio/ogg": "ogg",
-    "audio/mp4": "m4a",
-    "audio/wav": "wav",
-}
-"""What the composer records, and the extension the provider is sent.
+DICTATION_TYPES = frozenset({"audio/webm", "audio/ogg", "audio/mp4", "audio/wav"})
+"""What the composer records, by `transcription.recording_type`.
 
 The first three are what browsers' `MediaRecorder` produces; WAV is what the
 composer builds itself for a provider that documents neither WebM nor Opus
-(Mistral). OpenAI-compatible endpoints read the format from the file name, and
-a `Blob` in a `FormData` arrives named `blob`, so the name is chosen here from
-the type. MP4 audio goes as `.m4a`, the name OpenAI, Groq and Mistral all list.
+(Mistral). A `Blob` in a `FormData` arrives named `blob`, so the name the
+provider is sent comes from the type (`transcription.RECORDING_EXTENSIONS`).
+Narrower than that table on purpose: an MP3 is not something the composer
+records, so one posted here is not a dictation.
 """
-
-DICTATION_TYPE_ALIASES: dict[str, str] = {"audio/x-wav": "audio/wav", "audio/wave": "audio/wav"}
-"""Other names clients use for WAV, read as `audio/wav`."""
 
 
 @dataclass(frozen=True)
@@ -267,10 +260,8 @@ class MLService:
                 raise BadRequestError(
                     message="The recording is empty.", details={"reason": "empty"}
                 )
-            base_type = mime_type.split(";", 1)[0].strip().lower()
-            base_type = DICTATION_TYPE_ALIASES.get(base_type, base_type)
-            extension = DICTATION_TYPES.get(base_type)
-            if extension is None:
+            base_type = transcription.recording_type(mime_type)
+            if base_type not in DICTATION_TYPES:
                 raise refused_field(
                     "file",
                     "Dictation accepts WebM, Ogg, MP4 or WAV audio.",
@@ -287,7 +278,11 @@ class MLService:
                     reason="too_large",
                 )
             text = await TranscriptionService(self.db).transcribe(
-                Recording(content=content, filename=f"recording.{extension}", mime_type=base_type),
+                Recording(
+                    content=content,
+                    filename=f"recording.{transcription.RECORDING_EXTENSIONS[base_type]}",
+                    mime_type=base_type,
+                ),
                 organization_id=ctx.organization_id,
                 provider=resolved.provider,
                 model=resolved.model,

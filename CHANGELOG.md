@@ -48,7 +48,13 @@ Two things are versioned separately from this file and worth knowing about:
   `transcribe_voice_notes` switch (`0107_bot_transcription_switch.py`): a bot
   with no pair now inherits from its agent and organization, and off never
   transcribes. Every bot that had no pair before the migration is switched off,
-  so none starts transcribing on upgrade.
+  so none starts transcribing on upgrade. Slack audio clips are transcribed
+  whatever type Slack gives them, and an untyped Slack or Mattermost upload is
+  transcribed when its extension names audio; a Mattermost webhook-mode bot
+  looks each file up first. The provider is sent `voice.<ext>` named from the
+  type, and a voice note posted in a thread before the bot joined is named in
+  the reply rather than transcribed. See
+  [the voice message notes](docs/channels.md#what-every-channel-shares).
 - **A Voice glow preference**: Vivid, Subtle (the default) or Off, per
   browser, and no glow under reduced motion.
 - **An Appearance card under Settings → Profile** with the theme, the Voice glow

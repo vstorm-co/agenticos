@@ -1,5 +1,5 @@
 ---
-source_sha: "0ac237c91eee"
+source_sha: "1bdc3302c200"
 ---
 
 # Usługi ML { #the-ml-services }
@@ -203,10 +203,11 @@ odpowiada według ustawień organizacji.
 
 Nagranie musi być `audio/webm`, `audio/ogg`, `audio/mp4` albo `audio/wav`, z
 dopuszczalnym sufiksem kodeka, a `audio/x-wav` i `audio/wave` są czytane jako
-`audio/wav`. Pierwsze trzy tworzy `MediaRecorder` przeglądarek; WAV pole
+`audio/wav`, a `audio/x-m4a` jako `audio/mp4`. Pierwsze trzy tworzy `MediaRecorder` przeglądarek; WAV pole
 wiadomości nagrywa samo, gdy dostawcą jest Mistral (zob. uwagę niżej). Dostawca
 otrzymuje nagranie jako `recording.webm`, `recording.ogg`, `recording.m4a` albo
-`recording.wav`.
+`recording.wav`, według tej samej tabeli, która nazywa notatkę głosową z kanału
+`voice.<ext>`.
 
 Trasa czyta najwyżej 25 MB treści żądania; własny limit organizacji,
 `dictation_max_seconds × 32 KB`, jest stosowany do tego, co przeczytano. Treść,

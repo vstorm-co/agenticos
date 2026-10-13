@@ -1187,9 +1187,38 @@ serves all three platforms, so the policy cannot drift between them.
         also clears the pair. The organization's or the agent's language now
         reaches a bot with its own pair too.
 
-    A Telegram voice note is Ogg/Opus, which Mistral does not list as a format it
-    accepts, so a Telegram bot reaching Mistral - chosen or inherited - may fail
-    to transcribe; the form says so.
+    What counts as a voice message is read off the file's type, and each
+    platform types its files differently. A Telegram voice note or audio file
+    always counts. On Slack, an audio clip recorded in the composer counts
+    whatever type Slack gives it - a clip from the phone app can arrive as
+    `video/mp4` - and so does any uploaded audio file. A file the platform left
+    untyped counts when its extension names audio: `.m4a`, `.mp3`, `.ogg`,
+    `.oga`, `.opus`, `.webm` or `.wav`. An untyped `.mp4` that Slack did not
+    mark as a clip stays an ordinary file: it is far more often a video, and
+    transcribing it would bill a soundtrack.
+
+    On Mattermost any audio upload counts, by its type or its extension. An
+    outgoing webhook sends only each file's id, so for a bot in webhook mode the
+    router first looks the file up with `GET /api/v4/files/{id}/info`; a lookup
+    that fails leaves it an ordinary attachment. A Slack clip that arrives before
+    Slack has finished processing it has no download URL yet and is skipped,
+    since the bot does not subscribe to the `file_shared` event that follows.
+    The backend logs both, and logs every recording it routes to transcription
+    with its type and file name - the line to read when one is not heard.
+
+    The provider is sent the recording as `voice.<ext>`, named from its type
+    rather than from what somebody called the file: OpenAI and Groq choose the
+    decoder from the name, and refuse `.opus` or a name with no extension for
+    audio they can read. A Telegram voice note is Ogg/Opus and a clip recorded
+    in Slack's desktop app is WebM, and Mistral lists neither as a format it
+    accepts, so a Telegram or Slack bot reaching Mistral - chosen or inherited -
+    may fail to transcribe; the form says so.
+
+    Voice messages posted in a thread before the bot joined it are not
+    transcribed. The first mention reads the thread's earlier files, and
+    transcribing every recording among them would bill a whole thread's audio
+    for one question. Each one is named in the reply instead: "Voice messages
+    sent before I joined this thread are not transcribed - send it again here."
 
     Three providers ship: OpenAI, Groq and Mistral, all serving OpenAI's
     `POST /audio/transcriptions`. Adding a model is an entry in that file. Every

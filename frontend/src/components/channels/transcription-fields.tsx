@@ -102,10 +102,12 @@ export function TranscriptionFields({
     onChange({ mode, provider: first.provider, model: first.models[0]!.id });
   };
 
-  // Telegram sends a voice note as Ogg/Opus, and Mistral lists neither: an
-  // inherited Mistral is the case nobody chose and nobody would think to check.
+  // Telegram sends a voice note as Ogg/Opus and Slack's desktop app records a
+  // clip as WebM, and Mistral lists neither: an inherited Mistral is the case
+  // nobody chose and nobody would think to check. Mattermost carries whatever
+  // was uploaded, so there is no one format to warn about.
   const goesTo = value.mode === "choose" ? value.provider : (inherited?.provider ?? null);
-  const oggToMistral = platform === "telegram" && value.mode !== "off" && goesTo === "mistral";
+  const unreadByMistral = platform !== "mattermost" && value.mode !== "off" && goesTo === "mistral";
 
   return (
     <div className="space-y-3">
@@ -185,10 +187,10 @@ export function TranscriptionFields({
         </div>
       )}
 
-      {oggToMistral && (
+      {unreadByMistral && (
         <p className="text-warning flex gap-2 text-xs" role="note">
           <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-          {t("transcriptionTelegramMistral")}
+          {t("transcriptionMistralFormat", { platform })}
         </p>
       )}
     </div>
