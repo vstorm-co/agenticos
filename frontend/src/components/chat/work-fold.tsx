@@ -40,8 +40,13 @@ export function useTurnElapsed(startedAt: Date | undefined, running: boolean): n
 export function WorkingLine({ elapsedMs }: { elapsedMs: number | null }) {
   const t = useTranslations("chat.steps");
   return (
-    <p role="status" className="flex items-center gap-2 text-[13px]">
-      <ThinkingOrb state="breathing" size={20} className="-my-2 -ml-1 h-6 w-6 opacity-80" />
+    // The orb sits in the same slot as the finished fold's mark, inside the
+    // column: a negative margin pulled it past the transcript's edge, which
+    // clips it.
+    <p role="status" className="flex items-center gap-2 py-0.5 text-[13px]">
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center">
+        <ThinkingOrb state="breathing" size={20} className="h-6 w-6 opacity-80" />
+      </span>
       <span className="shimmer-text font-medium">
         {elapsedMs === null
           ? t("working")
