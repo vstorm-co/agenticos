@@ -67,6 +67,9 @@ class BrowseMeta(BaseModel):
     user_id: str | None
     """Who the run acts for, as the run names them - a user id, or none for a visitor."""
 
+    remembers: bool = False
+    """Whether the person the run acts for may keep a sign-in from it (#2129)."""
+
     task: str
     started_at: datetime
 
@@ -181,7 +184,10 @@ class LiveControl:
 
 class _Access(BaseModel):
     control: bool
+    own: bool
+    """Whether the viewer is the person the run acts for - the only one who may keep a sign-in."""
     name: str
+    user_id: str
 
 
 async def access_for(meta: BrowseMeta, auth_token: str) -> _Access | None:
@@ -218,7 +224,9 @@ async def access_for(meta: BrowseMeta, auth_token: str) -> _Access | None:
         )
     if not (own or edits or ctx.has(Perm.RUNS_VIEW)):
         return None
-    return _Access(control=own or edits, name=user.full_name or user.email)
+    return _Access(
+        control=own or edits, own=own, name=user.full_name or user.email, user_id=str(user.id)
+    )
 
 
 async def _load(run_id: str, call_id: str) -> tuple[BrowseMeta | None, list[str], str | None]:
@@ -269,7 +277,8 @@ async def stream(websocket: WebSocket, *, auth_token: str, run_id: str, call_id:
     Sends what the browse has done so far and its latest picture, then every frame
     as it happens. Reads the viewer's commands - only from a viewer who may drive
     it - and stamps each with their name, which is how the people watching see who
-    has the browser.
+    has the browser, and their id, which is how the browse knows whose sign-in a
+    give-back may keep.
     """
     if _redis is None:
         await websocket.close(code=1011, reason="Live view is unavailable")
@@ -289,6 +298,7 @@ async def stream(websocket: WebSocket, *, auth_token: str, run_id: str, call_id:
                 "task": meta.task,
                 "started_at": meta.started_at.astimezone(UTC).isoformat(),
                 "can_control": access.control,
+                "can_remember": access.own and meta.remembers,
                 "trace": [json.loads(item) for item in trace],
                 "frame": json.loads(frame) if frame else None,
             }
@@ -305,7 +315,11 @@ async def stream(websocket: WebSocket, *, auth_token: str, run_id: str, call_id:
                     command = BrowserCommand.model_validate_json(raw)
                 except ValidationError:
                     continue
-                await send(run_id, call_id, command.model_copy(update={"by": access.name}))
+                await send(
+                    run_id,
+                    call_id,
+                    command.model_copy(update={"by": access.name, "by_user_id": access.user_id}),
+                )
         except WebSocketDisconnect:
             return
 

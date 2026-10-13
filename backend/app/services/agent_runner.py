@@ -630,6 +630,15 @@ class AdmittedAs(BaseModel):
             "a trigger acting as its creator (#2027). Kept for the same reason."
         ),
     )
+    audience_browses_signed_in: bool = Field(
+        default=False,
+        description=(
+            "Whether the run's web browser may start signed in with the person's "
+            "saved sign-ins (#2129). Kept so a resume released by an approver "
+            "does not re-derive it from them; false for a run parked before it "
+            "existed, which resumes signed out."
+        ),
+    )
     subject_is_publisher_fallback: bool = Field(
         default=False,
         description=(
@@ -2783,6 +2792,7 @@ class AgentRunnerService:
             subject_is_publisher_fallback=ctx.subject_is_publisher_fallback,
             fired_as_creator=ctx.fired_as_creator,
             room_key=memory_room_key,
+            via_api_key=ctx.api_key_id is not None,
         )
         built = build_agent(
             spec,
@@ -2856,6 +2866,7 @@ class AgentRunnerService:
                 audience_room_key=audience.room_key,
                 audience_writes_memory=audience.writes_memory,
                 audience_searches_conversations=audience.searches_conversations,
+                audience_browses_signed_in=audience.browses_signed_in,
                 subject_is_publisher_fallback=subject_is_publisher_fallback,
             ),
         )
@@ -4273,6 +4284,7 @@ class AgentRunnerService:
                 room_key=state.admitted_as.audience_room_key,
                 writes_memory=state.admitted_as.audience_writes_memory,
                 searches_conversations=state.admitted_as.audience_searches_conversations,
+                browses_signed_in=state.admitted_as.audience_browses_signed_in,
             ),
             # The run's own terms, not the approver's context: whether user_id was
             # a publisher stand-in is gone with the request that carried it, so a

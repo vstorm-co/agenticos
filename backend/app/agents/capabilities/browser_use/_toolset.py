@@ -24,9 +24,10 @@ from __future__ import annotations
 import base64
 from collections.abc import Callable
 from contextlib import AbstractAsyncContextManager, AsyncExitStack
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, cast
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from pydantic_ai import Agent, BinaryContent
 from pydantic_ai.messages import UserContent
@@ -34,7 +35,12 @@ from pydantic_ai.models import Model
 from pydantic_ai.tools import RunContext
 from pydantic_ai.toolsets import FunctionToolset
 
-from app.agents.browser_events import BrowserControl, BrowserEvent, BrowserEventSink
+from app.agents.browser_events import (
+    BrowserCommand,
+    BrowserControl,
+    BrowserEvent,
+    BrowserEventSink,
+)
 from app.agents.capabilities._metered import MeteredModel
 from app.agents.capabilities.browser_use._decision import INSTRUCTIONS, Step, observation
 from app.agents.capabilities.browser_use._elements import Snapshot
@@ -44,6 +50,7 @@ from app.agents.capabilities.browser_use._loop import (
     BrowseSession,
     LoopPolicy,
     PageSession,
+    RememberSignIn,
     run_browse,
 )
 from app.agents.capabilities.browser_use._page import (
@@ -54,7 +61,7 @@ from app.agents.capabilities.browser_use._page import (
     open_page,
 )
 from app.agents.deps import AgentDeps
-from app.services import live_browse
+from app.services import browser_sign_in, live_browse
 
 PageFactory = Callable[..., AbstractAsyncContextManager[PageSession]]
 """Opens a browser tab on a starting URL. The default is `_page.open_page`."""
@@ -83,6 +90,32 @@ def _outcome_text(result: BrowseResult, task: str) -> str:
     )
 
 
+@dataclass(frozen=True)
+class _Person:
+    """Whose saved sign-ins a browse uses, and in which organization they are kept."""
+
+    organization_id: UUID
+    user_id: UUID
+
+
+def _signed_in_as(deps: AgentDeps) -> _Person | None:
+    """The person whose saved sign-ins this run's browser may use, if anyone's (#2129).
+
+    The audience decides, because it is the one fact derived from how the run was
+    started rather than from anything in it: only a run that is the person,
+    privately, browses as them. See `RunAudience.browses_signed_in`.
+    """
+    audience = deps.audience
+    if (
+        audience is None
+        or not audience.browses_signed_in
+        or audience.user_id is None
+        or deps.organization_id is None
+    ):
+        return None
+    return _Person(organization_id=deps.organization_id, user_id=audience.user_id)
+
+
 async def _live(
     deps: AgentDeps, call_id: str, task: str
 ) -> tuple[BrowserEventSink | None, BrowserControl | None, str | None]:
@@ -105,6 +138,7 @@ async def _live(
             organization_id=deps.organization_id,
             agent_id=deps.agent_id,
             user_id=deps.user_id,
+            remembers=_signed_in_as(deps) is not None,
             task=task,
             started_at=datetime.now(UTC),
         ),
@@ -119,6 +153,27 @@ async def _live(
         return True
 
     return sink, live_browse.LiveControl(run, call_id), run
+
+
+def _remembering(person: _Person) -> RememberSignIn:
+    """Keep the sign-in a person made while they held the browser, when they ask.
+
+    Only theirs: the command is stamped server-side with who sent it, and a
+    give-back from anyone else - someone who may edit the agent and took the
+    browser over - keeps nothing, because the session they made is not the
+    person's this run acts for.
+    """
+
+    async def remember(page: PageSession, command: BrowserCommand) -> str | None:
+        if command.by_user_id != str(person.user_id):
+            return None
+        sign_in = await page.capture_sign_in()
+        if sign_in is None:
+            return None
+        await browser_sign_in.remember(person.organization_id, person.user_id, sign_in)
+        return sign_in.site
+
+    return remember
 
 
 def _image(data_url: str | None) -> BinaryContent | None:
@@ -226,6 +281,8 @@ def build_toolset(
 
         call_id = ctx.tool_call_id or str(uuid4())
         sink, control, run_id = await _live(ctx.deps, call_id, task)
+        person = _signed_in_as(ctx.deps)
+        remember = None if person is None else _remembering(person)
         # `ctx.model` is typed `AbstractModel`; a run's model is always a concrete
         # `Model`, which `MeteredModel` (a `WrapperModel`) needs.
         browser_model = MeteredModel(cast(Model, ctx.model))
@@ -268,7 +325,15 @@ def build_toolset(
                         "with a start_url to open one."
                     )
                 session = await toolset.open(
-                    open_browser, cdp_url=cdp_url, start_url=start_url, policy=page_policy
+                    open_browser,
+                    cdp_url=cdp_url,
+                    start_url=start_url,
+                    policy=page_policy,
+                    sign_ins=(
+                        []
+                        if person is None
+                        else await browser_sign_in.load_for(person.organization_id, person.user_id)
+                    ),
                 )
             elif start_url:
                 session.restart()
@@ -285,6 +350,7 @@ def build_toolset(
                 sink=sink,
                 control=control,
                 run_id=run_id,
+                remember=remember,
             )
         except (DomainRefused, EndpointError) as exc:
             # The tab is no use after either: the browser left the allowlist or

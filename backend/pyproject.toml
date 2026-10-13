@@ -935,6 +935,11 @@ include = [
     "app/api/routes/v1/_directory_handoff.py",
     "app/services/live_browse.py",
     "app/api/routes/v1/browse_live.py",
+    "app/db/models/browser_sign_in.py",
+    "app/repositories/browser_sign_in.py",
+    "app/schemas/browser_sign_in.py",
+    "app/services/browser_sign_in.py",
+    "app/api/routes/v1/browser_sign_ins.py",
 ]
 # Mirrors `[tool.coverage.run] omit` - one definition of "ours", asserted equal
 # by tests/test_coverage_gate.py.
@@ -1373,6 +1378,11 @@ include = [
     "app/api/routes/v1/_directory_handoff.py",
     "app/services/live_browse.py",
     "app/api/routes/v1/browse_live.py",
+    "app/db/models/browser_sign_in.py",
+    "app/repositories/browser_sign_in.py",
+    "app/schemas/browser_sign_in.py",
+    "app/services/browser_sign_in.py",
+    "app/api/routes/v1/browser_sign_ins.py",
 ]
 branch = true
 omit = [

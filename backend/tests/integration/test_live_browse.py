@@ -92,7 +92,8 @@ class TestWhoMayDrive:
         access = await live_browse.access_for(_meta(organization, agent, member), _token(member))
 
         assert access is not None
-        assert access.control
+        assert access.control and access.own
+        assert access.user_id == str(member.id)
         # Nobody named them: the address they signed in with is who they are.
         assert access.name == member.email
 
@@ -108,7 +109,7 @@ class TestWhoMayDrive:
         access = await live_browse.access_for(_meta(organization, agent, member), _token(owner))
 
         assert access is not None
-        assert access.control
+        assert access.control and not access.own
         assert access.name == "Ada Lovelace"
 
 

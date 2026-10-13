@@ -35,6 +35,7 @@ from app.agents.capabilities.approval import (
     refuse_ungateable_approvals,
 )
 from app.agents.capabilities.artifacts import ARTIFACTS_CAPABILITY_ID
+from app.agents.capabilities.browser_use import BROWSER_CAPABILITY_ID
 from app.agents.capabilities.budget import (
     BudgetGuard,
     BudgetScope,
@@ -81,6 +82,7 @@ logger = logging.getLogger(__name__)
 _AUDIENCE_AWARE = frozenset(
     {
         ARTIFACTS_CAPABILITY_ID,
+        BROWSER_CAPABILITY_ID,
         MEMORY_FILES_CAPABILITY_ID,
         MEMORY_MEM0_CAPABILITY_ID,
         CONVERSATION_SEARCH_CAPABILITY_ID,

@@ -316,8 +316,12 @@ class _Socket:
         self.closed = (code, reason)
 
 
-def _access(*, control: bool) -> AsyncMock:
-    return AsyncMock(return_value=live_browse._Access(control=control, name="Ada Lovelace"))
+def _access(*, control: bool, own: bool = False) -> AsyncMock:
+    return AsyncMock(
+        return_value=live_browse._Access(
+            control=control, own=own, name="Ada Lovelace", user_id="user-ada"
+        )
+    )
 
 
 class TestStreaming:
@@ -380,11 +384,33 @@ class TestStreaming:
 
         queued = [BrowserCommand.model_validate_json(raw) for raw in store.lists[_key("control")]]
         assert queued == [
-            BrowserCommand(type="take_over", by="Ada Lovelace"),
-            BrowserCommand(type="type", text="agent", by="Ada Lovelace"),
+            BrowserCommand(type="take_over", by="Ada Lovelace", by_user_id="user-ada"),
+            BrowserCommand(type="type", text="agent", by="Ada Lovelace", by_user_id="user-ada"),
         ]
         assert socket.sent[0]["can_control"] is True
         assert socket.sent[0]["frame"] is None
+
+    @pytest.mark.parametrize(
+        ("own", "remembers", "can"),
+        [(True, True, True), (True, False, False), (False, True, False)],
+    )
+    async def test_only_the_person_the_run_acts_for_is_offered_to_keep_a_sign_in(
+        self,
+        store: _Store,
+        monkeypatch: pytest.MonkeyPatch,
+        own: bool,
+        remembers: bool,
+        can: bool,
+    ) -> None:
+        """And only on a run that may keep one for them (#2129)."""
+        await live_browse.open_view(RUN, CALL, _meta(remembers=remembers))
+        store.queued_messages = [_step(1).model_dump_json()]
+        monkeypatch.setattr(live_browse, "access_for", _access(control=True, own=own))
+        socket = _Socket()
+
+        await live_browse.stream(socket, auth_token="t", run_id=RUN, call_id=CALL)
+
+        assert socket.sent[0]["can_remember"] is can
 
     @pytest.mark.security
     async def test_a_viewer_who_may_only_watch_cannot_drive(

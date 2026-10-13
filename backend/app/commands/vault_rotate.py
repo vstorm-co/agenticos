@@ -35,6 +35,7 @@ from app.core.exceptions import AppException
 from app.core.vault import VaultScope, current_key_version, needs_rotation, rewrap, unseal
 from app.db.models.agent_embed import AgentEmbed
 from app.db.models.agent_trigger import AgentTrigger
+from app.db.models.browser_sign_in import BrowserSignIn
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.organization_secret import OrganizationSecret
@@ -44,6 +45,10 @@ from app.services.mcp_connection import connection_scope
 
 def _org_scope(row: OrganizationSecret | ChannelBot | AgentEmbed | AgentTrigger) -> VaultScope:
     return VaultScope.organization(row.organization_id)
+
+
+def _person_scope(row: BrowserSignIn) -> VaultScope:
+    return VaultScope.user(row.user_id)
 
 
 @dataclass(frozen=True)
@@ -57,12 +62,14 @@ class SealedTable:
             so they are re-wrapped together or not at all.
         version_attr: The column recording which master key sealed the row.
         scope: The owner the row's envelopes are bound to - an organization
-            for everything except a personal MCP connection, which belongs to
-            its member.
+            for everything except a personal MCP connection and a saved browser
+            sign-in, which belong to their member.
     """
 
     label: str
-    model: type[OrganizationSecret | ChannelBot | McpConnection | AgentEmbed | AgentTrigger]
+    model: type[
+        OrganizationSecret | ChannelBot | McpConnection | AgentEmbed | AgentTrigger | BrowserSignIn
+    ]
     columns: tuple[str, ...]
     version_attr: str
     scope: Callable[..., VaultScope]
@@ -109,6 +116,13 @@ SEALED_TABLES: tuple[SealedTable, ...] = (
         columns=("event_secret_encrypted",),
         version_attr="secret_key_version",
         scope=_org_scope,
+    ),
+    SealedTable(
+        label="browser_sign_ins",
+        model=BrowserSignIn,
+        columns=("sealed_state",),
+        version_attr="secret_key_version",
+        scope=_person_scope,
     ),
 )
 

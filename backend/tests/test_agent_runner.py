@@ -2339,6 +2339,7 @@ class TestParking:
                 "audience_room_key": None,
                 "audience_writes_memory": True,
                 "audience_searches_conversations": True,
+                "audience_browses_signed_in": False,
                 "subject_is_publisher_fallback": False,
             },
         }

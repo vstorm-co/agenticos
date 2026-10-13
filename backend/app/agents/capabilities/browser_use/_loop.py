@@ -41,6 +41,7 @@ from app.agents.browser_events import (
     BrowserEvent,
     BrowserEventSink,
 )
+from app.agents.browser_sign_ins import SignIn
 from app.agents.capabilities.browser_use._decision import (
     AskPerson,
     Blocked,
@@ -149,6 +150,9 @@ class PageSession(Protocol):
     async def wheel(self, dy: float) -> None:
         """Scroll by `dy` pixels where the page is, as a mouse wheel does."""
 
+    async def capture_sign_in(self) -> SignIn | None:
+        """The sign-in to the site this tab is on, or `None` on a page off the web."""
+
 
 @dataclass
 class BrowseSession:
@@ -174,6 +178,13 @@ class BrowseSession:
 
 Decide = Callable[[str, Snapshot, tuple[str, ...], str, str | None], Awaitable[Step]]
 """Ask the browsing model for one step: task, page, history, memory, screenshot."""
+
+RememberSignIn = Callable[["PageSession", BrowserCommand], Awaitable[str | None]]
+"""Keep the sign-in on the page a person hands back, answering with its site (#2129).
+
+`None` when nothing was kept - the give-back came from someone other than the
+person the run acts for, or the tab is not on a site.
+"""
 
 
 @dataclass(frozen=True, slots=True)
@@ -203,6 +214,7 @@ async def run_browse(
     sink: BrowserEventSink | None = None,
     control: BrowserControl | None = None,
     run_id: str | None = None,
+    remember: RememberSignIn | None = None,
 ) -> BrowseResult:
     """Drive `session.page` towards `task`, narrating as it goes, and stop for a reason.
 
@@ -218,6 +230,8 @@ async def run_browse(
             where nobody can - then an `ask_person` step ends the browse blocked.
         run_id: The run, carried on the opening frame so a surface can link to
             the browse's live view.
+        remember: Keeps a sign-in a person asks to keep when they hand the
+            browser back, or `None` where this run may not keep one.
 
     Returns:
         The outcome, the answer, the page and how many steps this call took. Never
@@ -260,7 +274,9 @@ async def run_browse(
             # action in flight to finish, so the tab is never driven by two at once.
             waiting = await control.poll()
             if waiting is not None and waiting.type == "take_over":
-                await _held(session, control, emit, call_id=call_id, by=waiting.by)
+                await _held(
+                    session, control, emit, call_id=call_id, by=waiting.by, remember=remember
+                )
                 held = True
         if taken > 1 or held:
             snapshot = await page.snapshot()
@@ -341,7 +357,7 @@ async def run_browse(
                     snapshot=snapshot,
                 )
             session.history += (f"step {step_no}: {step.next_goal} - asked a person",)
-            await _held(session, control, emit, call_id=call_id, by=arrived.by)
+            await _held(session, control, emit, call_id=call_id, by=arrived.by, remember=remember)
             continue
         if isinstance(action, Blocked):
             return await _finish(
@@ -510,6 +526,7 @@ async def _held(
     *,
     call_id: str,
     by: str | None,
+    remember: RememberSignIn | None,
 ) -> None:
     """Hand the tab to a person until they give it back, or until `HOLD_LIMIT`.
 
@@ -517,14 +534,18 @@ async def _held(
     one - and one a second while they are reading - so the view they act on is
     the page as it is. What they type is never recorded: the history says only
     that somebody took over, which is also what the model is told to look again
-    because of.
+    because of. A give-back that asks to keep the sign-in keeps it before the
+    agent touches the page again, and the release says which site it kept.
     """
     page = session.page
     await emit(BrowserEvent(kind="browser_held", call_id=call_id, step=session.steps, by=by))
+    kept: str | None = None
     with anyio.move_on_after(HOLD_LIMIT):
         while True:
             command = await control.wait(FRAME_EVERY)
             if command is not None and command.type == "give_back":
+                if command.remember and remember is not None:
+                    kept = await remember(page, command)
                 break
             if command is not None:
                 await _person_input(page, command)
@@ -535,7 +556,9 @@ async def _held(
                         kind="browser_frame", call_id=call_id, step=session.steps, image=image
                     )
                 )
-    await emit(BrowserEvent(kind="browser_released", call_id=call_id, step=session.steps))
+    await emit(
+        BrowserEvent(kind="browser_released", call_id=call_id, step=session.steps, detail=kept)
+    )
     session.history += (
         f"step {session.steps}: a person took the browser over and handed it back - "
         f"look at the page again before acting",

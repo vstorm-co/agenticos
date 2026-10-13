@@ -15,7 +15,9 @@ from app.agents.capabilities.browser_use._elements import HARD_CANDIDATE_CAP
 from app.core.config import settings
 from app.core.sanitize import UrlRefusedError
 
-__all__ = ["WebBrowser", "WebBrowserConfig", "validate_cdp_url"]
+__all__ = ["BROWSER_CAPABILITY_ID", "WebBrowser", "WebBrowserConfig", "validate_cdp_url"]
+
+BROWSER_CAPABILITY_ID = "browser_use"
 
 _DEFAULT_CDP_PORT = 9222
 """Chromium's own default debugging port, which is what a suggestion should guess."""
@@ -200,7 +202,7 @@ def validate_cdp_url(config: WebBrowserConfig) -> None:
 
 
 @register(
-    id="browser_use",
+    id=BROWSER_CAPABILITY_ID,
     name="Web browser",
     category="research",
     description="Use a real web browser step by step - read, click, fill forms, search.",

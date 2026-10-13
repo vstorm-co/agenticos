@@ -154,8 +154,10 @@ class BrowserEvent(BaseModel):
     detail: str | None = Field(
         default=None,
         description=(
-            "One sentence about the outcome - what was blocking, or what broke. "
-            "Page-derived text, so a surface renders it as data and never as markup."
+            "One sentence about the outcome - what was blocking, or what broke; "
+            "what the browser needs a person for, on `browser_needs_person`; the "
+            "site whose sign-in was kept, on `browser_released`. Page-derived "
+            "text, so a surface renders it as data and never as markup."
         ),
     )
 
@@ -217,7 +219,23 @@ class BrowserCommand(BaseModel):
     text: str | None = Field(default=None, max_length=2000)
     key: BrowserKey | None = None
     dy: float | None = Field(default=None, ge=-5000, le=5000)
+    remember: bool = Field(
+        default=False,
+        description=(
+            "On `give_back`: keep the sign-in the person made while they held the "
+            "browser, so later browses acting as them start signed in (#2129)."
+        ),
+    )
     by: str | None = Field(default=None, max_length=200)
+    by_user_id: str | None = Field(
+        default=None,
+        max_length=64,
+        description=(
+            "Who sent it, stamped by the live view from the socket's session - "
+            "never taken from the client. A sign-in is kept only for the person "
+            "the run acts for, and this is how the browse tells."
+        ),
+    )
 
 
 class BrowserControl(Protocol):

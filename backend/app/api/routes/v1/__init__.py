@@ -45,6 +45,7 @@ from app.api.routes.v1 import skills as agent_skills
 from app.api.routes.v1 import artifacts
 from app.api.routes.v1 import context as context_files
 from app.api.routes.v1 import memory as memory_files
+from app.api.routes.v1 import browser_sign_ins
 from app.api.routes.v1 import permissions
 from app.api.routes.v1 import telegram_webhook
 from app.api.routes.v1 import slack_webhook
@@ -115,6 +116,9 @@ v1_router.include_router(
 )
 v1_router.include_router(artifacts.embed_router, prefix="/artifact-embed", tags=["artifacts:embed"])
 v1_router.include_router(memory_files.router, prefix="/memory", tags=["memory"])
+v1_router.include_router(
+    browser_sign_ins.router, prefix="/browser-sign-ins", tags=["browser-sign-ins"]
+)
 v1_router.include_router(skill_changes.router, prefix="/skill-changes", tags=["skills:changes"])
 v1_router.include_router(
     sharing.collection_sharing_router, prefix="/kb", tags=["collections:sharing"]

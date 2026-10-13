@@ -76,6 +76,18 @@ class RunAudience:
     widest window there is onto them, and no fire needs it.
     """
 
+    browses_signed_in: bool = False
+    """Whether the web browser may start signed in with the person's saved sign-ins (#2129).
+
+    True only when the run *is* the person at the keyboard, privately: their chat,
+    their direct message, their own schedule acting as them. Not in a room, where
+    the answer is read by everyone in it; not through an API key, which is a
+    script the person handed a credential to rather than the person; and not for
+    an event trigger, whose prompt carries a mail or a webhook body nobody vetted -
+    a page that body named would be opened signed in as them. False by default,
+    so a run parked before this existed resumes signed out.
+    """
+
     @property
     def private(self) -> bool:
         """Whether the person is the only listener.
@@ -92,6 +104,7 @@ def derive_audience(
     subject_is_publisher_fallback: bool,
     fired_as_creator: Literal["schedule", "event"] | None = None,
     room_key: str | None,
+    via_api_key: bool = False,
 ) -> RunAudience:
     """The audience of a run, from the identity the request arrived with.
 
@@ -119,9 +132,16 @@ def derive_audience(
     A direct message passes `room_key=None` and stays private, which is what makes
     a DM and web chat the same audience for the same person.
     """
+    person = None if subject_is_publisher_fallback else user_id
     return RunAudience(
-        user_id=None if subject_is_publisher_fallback else user_id,
+        user_id=person,
         room_key=room_key,
         writes_memory=fired_as_creator != "event",
         searches_conversations=fired_as_creator is None,
+        browses_signed_in=(
+            person is not None
+            and room_key is None
+            and not via_api_key
+            and fired_as_creator != "event"
+        ),
     )

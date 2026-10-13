@@ -82,6 +82,7 @@ Redis = Annotated[RedisClient, Depends(get_redis)]
 
 
 from app.services.personal_data import PersonalDataService
+from app.services.browser_sign_in import BrowserSignInService
 from app.services.user import UserService
 from app.services.session import SessionService
 from app.services.impersonation import ImpersonationService
@@ -760,6 +761,14 @@ def get_memory_service(db: DBSession) -> MemoryService:
 
 
 MemorySvc = Annotated[MemoryService, Depends(get_memory_service)]
+
+
+def get_browser_sign_in_service(db: DBSession) -> BrowserSignInService:
+    """Create BrowserSignInService instance with database session."""
+    return BrowserSignInService(db)
+
+
+BrowserSignInSvc = Annotated[BrowserSignInService, Depends(get_browser_sign_in_service)]
 
 
 def get_skill_proposal_service(db: DBSession) -> SkillProposalService:

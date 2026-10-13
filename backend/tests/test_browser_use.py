@@ -32,7 +32,9 @@ from pydantic_ai.messages import ModelMessage, ModelRequest, ModelResponse, Tool
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.usage import RunUsage
 
+from app.agents.audience import RunAudience
 from app.agents.browser_events import BrowserCommand, BrowserEvent, BrowserKey
+from app.agents.browser_sign_ins import SignIn
 from app.agents.capabilities import CapabilityBinding, CapabilityBuildContext, get
 from app.agents.capabilities.browser_use import (
     WebBrowser,
@@ -96,7 +98,13 @@ from app.agents.capabilities.browser_use._page import (
     StaleElement,
     parse_snapshot,
 )
-from app.agents.capabilities.browser_use._toolset import BrowserToolset, _image, build_toolset
+from app.agents.capabilities.browser_use._toolset import (
+    BrowserToolset,
+    _image,
+    _Person,
+    _remembering,
+    build_toolset,
+)
 from app.agents.capabilities.budget import (
     BudgetExceeded,
     BudgetGuard,
@@ -109,7 +117,7 @@ from app.agents.deps import AgentDeps
 from app.agents.spec import AgentSpec, SpecialistSpec
 from app.core.config import settings
 from app.core.sanitize import UrlRefusedError
-from app.services import live_browse
+from app.services import browser_sign_in, live_browse
 from app.services.agent_registry import DEFAULT_GRANTED_SCOPES
 
 pytestmark = pytest.mark.anyio
@@ -605,6 +613,7 @@ class _FakePage:
         self._refuse = refuse
         self.done: list[str] = []
         self.shots = 0
+        self.sign_in: SignIn | None = SignIn(site="example.test", origin="https://example.test")
 
     async def snapshot(self) -> Snapshot:
         taken = self._snapshots[0]
@@ -653,6 +662,10 @@ class _FakePage:
 
     async def wheel(self, dy: float) -> None:
         self.done.append(f"wheel:{dy:g}")
+
+    async def capture_sign_in(self) -> SignIn | None:
+        self.done.append("capture")
+        return self.sign_in
 
 
 def _step(action: Any, *, memory: str = "", goal: str = "a step") -> Step:
@@ -799,7 +812,12 @@ ASK = _step(AskPerson(action="ask_person", reason="Sign in, then hand it back"))
 
 
 async def _watched(
-    page: _FakePage, decide: Any, control: _Control | None, sink: _Frames, **policy: Any
+    page: _FakePage,
+    decide: Any,
+    control: _Control | None,
+    sink: _Frames,
+    remember: Any = None,
+    **policy: Any,
 ) -> tuple[Any, BrowseSession]:
     session = BrowseSession(page=page)
     result = await run_browse(
@@ -811,6 +829,7 @@ async def _watched(
         sink=sink,
         control=control,
         run_id="run-7",
+        remember=remember,
     )
     return result, session
 
@@ -884,6 +903,49 @@ class TestAPersonTakesTheBrowserOver:
         assert result.outcome == "done"
         assert len(frames.of("browser_released")) == 1
         assert frames.of("browser_frame") == []
+
+
+class TestAPersonKeepsTheirSignIn:
+    """#2129: handing the browser back can keep the sign-in made while holding it."""
+
+    async def test_a_give_back_that_asks_keeps_it_and_the_release_names_the_site(self):
+        frames = _Frames()
+        page = _FakePage()
+        kept: list[BrowserCommand] = []
+
+        async def remember(_page: Any, command: BrowserCommand) -> str | None:
+            kept.append(command)
+            return "example.test"
+
+        give = BrowserCommand(type="give_back", remember=True, by_user_id="u-1")
+        await _watched(page, _decider(DONE), _Control(give, polled=TAKE), frames, remember)
+
+        assert kept == [give]
+        assert frames.of("browser_released")[0].detail == "example.test"
+
+    @pytest.mark.parametrize(
+        ("give", "can_remember"),
+        [
+            (BrowserCommand(type="give_back"), True),
+            (BrowserCommand(type="give_back", remember=True), False),
+        ],
+    )
+    async def test_nothing_is_kept_unless_asked_and_allowed(
+        self, give: BrowserCommand, can_remember: bool
+    ):
+        frames = _Frames()
+        remember = AsyncMock(return_value="example.test")
+
+        await _watched(
+            _FakePage(),
+            _decider(DONE),
+            _Control(give, polled=TAKE),
+            frames,
+            remember if can_remember else None,
+        )
+
+        remember.assert_not_awaited()
+        assert frames.of("browser_released")[0].detail is None
 
 
 class TestTheAgentAsksForAPerson:
@@ -1203,32 +1265,34 @@ class TestTheToolEndToEnd:
         assert "no browser tab open" in answer
 
 
+@pytest.fixture
+def published(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+    kept: dict[str, Any] = {"frames": []}
+
+    async def open_view(run: str, call: str, meta: live_browse.BrowseMeta) -> None:
+        kept["meta"] = (run, call, meta)
+
+    async def publish(run: str, call: str, event: BrowserEvent) -> None:
+        kept["frames"].append(event)
+
+    monkeypatch.setattr(live_browse, "available", lambda: True)
+    monkeypatch.setattr(live_browse, "open_view", open_view)
+    monkeypatch.setattr(live_browse, "publish", publish)
+    return kept
+
+
+async def _call_as(deps: AgentDeps, opener: _Opener | None = None) -> str:
+    toolset = _toolset(opener or _Opener())
+    ctx = RunContext(
+        deps=deps, model=_browsing_model(DONE_ARGS), usage=RunUsage(), tool_call_id="call-42"
+    )
+    tools = await toolset.get_tools(ctx)
+    args = {"task": "find the price", "start_url": "https://example.test/"}
+    return str(await toolset.call_tool("browse_web", args, ctx, tools["browse_web"]))
+
+
 class TestEveryBrowseIsAlsoLive:
     """#2128: a run's browse is published to its live view, beside the chat's own sink."""
-
-    @pytest.fixture
-    def published(self, monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
-        kept: dict[str, Any] = {"frames": []}
-
-        async def open_view(run: str, call: str, meta: live_browse.BrowseMeta) -> None:
-            kept["meta"] = (run, call, meta)
-
-        async def publish(run: str, call: str, event: BrowserEvent) -> None:
-            kept["frames"].append(event)
-
-        monkeypatch.setattr(live_browse, "available", lambda: True)
-        monkeypatch.setattr(live_browse, "open_view", open_view)
-        monkeypatch.setattr(live_browse, "publish", publish)
-        return kept
-
-    async def _call_as(self, deps: AgentDeps) -> str:
-        toolset = _toolset(_Opener())
-        ctx = RunContext(
-            deps=deps, model=_browsing_model(DONE_ARGS), usage=RunUsage(), tool_call_id="call-42"
-        )
-        tools = await toolset.get_tools(ctx)
-        args = {"task": "find the price", "start_url": "https://example.test/"}
-        return str(await toolset.call_tool("browse_web", args, ctx, tools["browse_web"]))
 
     async def test_a_run_s_browse_is_filed_under_it_and_reaches_the_chat_too(
         self, published: dict[str, Any]
@@ -1243,7 +1307,7 @@ class TestEveryBrowseIsAlsoLive:
             browser_events=frames,
         )
 
-        await self._call_as(deps)
+        await _call_as(deps)
 
         filed_run, call, meta = published["meta"]
         assert (filed_run, call) == (str(run), "call-42")
@@ -1260,14 +1324,95 @@ class TestEveryBrowseIsAlsoLive:
         self, published: dict[str, Any]
     ):
         """A channel or a routine: nobody's socket, and the live view is the window."""
-        await self._call_as(AgentDeps(organization_id=uuid4(), run_id=uuid4()))
+        await _call_as(AgentDeps(organization_id=uuid4(), run_id=uuid4()))
         assert published["frames"][-1].kind == "browser_finished"
 
     async def test_a_run_with_no_identity_is_not_published(self, published: dict[str, Any]):
         frames = _Frames()
-        await self._call_as(AgentDeps(organization_id=uuid4(), browser_events=frames))
+        await _call_as(AgentDeps(organization_id=uuid4(), browser_events=frames))
         assert "meta" not in published
         assert frames.of("browser_opened")[0].run_id is None
+
+
+class TestABrowseActingAsThePerson:
+    """#2129: a run that is the person starts signed in, and may keep a new sign-in."""
+
+    PERSON = uuid4()
+    ORG = uuid4()
+    SAVED = SignIn(site="linkedin.com", origin="https://www.linkedin.com")
+
+    @pytest.fixture
+    def kept(self, monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+        record: dict[str, Any] = {}
+
+        async def load_for(organization_id: Any, user_id: Any) -> list[SignIn]:
+            record["loaded_for"] = (organization_id, user_id)
+            return [self.SAVED]
+
+        async def remember(organization_id: Any, user_id: Any, sign_in: SignIn) -> None:
+            record["remembered"] = (organization_id, user_id, sign_in)
+
+        monkeypatch.setattr(browser_sign_in, "load_for", load_for)
+        monkeypatch.setattr(browser_sign_in, "remember", remember)
+        return record
+
+    def _deps(self, audience: RunAudience | None) -> AgentDeps:
+        return AgentDeps(
+            organization_id=self.ORG, user_id=str(self.PERSON), run_id=uuid4(), audience=audience
+        )
+
+    async def test_the_person_s_own_run_opens_signed_in_and_may_keep_one(
+        self, published: dict[str, Any], kept: dict[str, Any]
+    ):
+        opener = _Opener()
+        audience = RunAudience(user_id=self.PERSON, browses_signed_in=True)
+
+        await _call_as(self._deps(audience), opener)
+
+        assert kept["loaded_for"] == (self.ORG, self.PERSON)
+        assert opener.opened[0]["sign_ins"] == [self.SAVED]
+        assert published["meta"][2].remembers is True
+
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        "audience",
+        [None, RunAudience(user_id=PERSON), RunAudience(user_id=None, browses_signed_in=True)],
+    )
+    async def test_any_other_run_opens_signed_out_and_keeps_nothing(
+        self, published: dict[str, Any], kept: dict[str, Any], audience: RunAudience | None
+    ):
+        opener = _Opener()
+
+        await _call_as(self._deps(audience), opener)
+
+        assert "loaded_for" not in kept
+        assert opener.opened[0]["sign_ins"] == []
+        assert published["meta"][2].remembers is False
+
+    async def test_a_sign_in_is_kept_only_for_the_person_the_run_acts_for(
+        self, kept: dict[str, Any]
+    ):
+        """Someone who may edit the agent can take over too - but what they sign in
+        to is their session, not the person's."""
+        remember = _remembering(_Person(organization_id=self.ORG, user_id=self.PERSON))
+        page = _FakePage()
+
+        theirs = BrowserCommand(type="give_back", remember=True, by_user_id=str(uuid4()))
+        assert await remember(page, theirs) is None
+        assert "remembered" not in kept
+
+        own = BrowserCommand(type="give_back", remember=True, by_user_id=str(self.PERSON))
+        assert await remember(page, own) == "example.test"
+        assert kept["remembered"][:2] == (self.ORG, self.PERSON)
+
+    async def test_a_page_off_the_web_keeps_nothing(self, kept: dict[str, Any]):
+        remember = _remembering(_Person(organization_id=self.ORG, user_id=self.PERSON))
+        page = _FakePage()
+        page.sign_in = None
+
+        own = BrowserCommand(type="give_back", remember=True, by_user_id=str(self.PERSON))
+        assert await remember(page, own) is None
+        assert "remembered" not in kept
 
 
 class TestTheTabARunKeeps:

@@ -18,12 +18,22 @@ from __future__ import annotations
 import asyncio
 import ipaddress
 import json
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlsplit
 
+from app.agents.browser_sign_ins import (
+    SignIn,
+    bounded_storage,
+    cookie_params,
+    cookies_for,
+    origin_of,
+    restore_script,
+    site_of,
+    storage_from,
+)
 from app.agents.capabilities.browser_use._elements import (
     MAX_COLLECTED_OPTIONS,
     MAX_PAGE_TEXT,
@@ -413,6 +423,13 @@ def parse_snapshot(raw: object, cap: int) -> Snapshot:
     )
 
 
+_STORAGE_JS = (
+    "(() => { try { return JSON.stringify(Object.entries(localStorage)); }"
+    " catch (e) { return '[]'; } })()"
+)
+"""The origin's `localStorage` as JSON pairs - or none, where the page forbids it."""
+
+
 _KEY_CODES: dict[str, int] = {
     "Enter": 13,
     "Tab": 9,
@@ -470,10 +487,13 @@ class CdpPage:
     clicking "element 7" after that is clicking whatever moved into seventh place.
     """
 
-    def __init__(self, client: Any, session_id: str, policy: PagePolicy) -> None:
+    def __init__(
+        self, client: Any, session_id: str, policy: PagePolicy, *, context_id: str = ""
+    ) -> None:
         self._client = client
         self._session = session_id
         self._policy = policy
+        self._context = context_id
 
     async def _evaluate(  # pragma: no cover - needs a live browser
         self, expression: str, *, await_promise: bool = False
@@ -807,6 +827,29 @@ class CdpPage:
             session_id=self._session,
         )
 
+    async def capture_sign_in(self) -> SignIn | None:  # pragma: no cover - needs a live browser
+        """The cookies and storage that make this tab signed in to the site it is on.
+
+        Cookies from the whole browser context, filtered to the site - a sign-in
+        on `www.` usually rests on cookies set for the parent domain, and
+        `Network.getCookies` for the page's own URL misses those set by the
+        identity provider it bounced through on the way.
+        """
+        here = str((await self._evaluate("location.href")).get("value") or "")
+        site = site_of(here)
+        if site is None:
+            return None
+        raw = await self._evaluate(_STORAGE_JS)
+        answer = await self._client.send.Storage.getCookies(
+            params={"browserContextId": self._context}
+        )
+        return SignIn(
+            site=site,
+            origin=origin_of(here),
+            cookies=cookies_for(list(answer.get("cookies") or []), site),
+            local_storage=bounded_storage(storage_from(raw.get("value"))),
+        )
+
     async def read(self) -> str:  # pragma: no cover - needs a live browser
         """The page's readable text, bounded, and only where the allowlist covers it.
 
@@ -857,13 +900,21 @@ async def _resolve(cdp_url: str) -> str | None:  # pragma: no cover - needs a re
 
 @asynccontextmanager
 async def open_page(  # pragma: no cover - needs a live browser
-    *, cdp_url: str, start_url: str, policy: PagePolicy
+    *,
+    cdp_url: str,
+    start_url: str,
+    policy: PagePolicy,
+    sign_ins: Sequence[SignIn] = (),
 ) -> AsyncGenerator[CdpPage, None]:
     """Attach to a browser, open one tab on `start_url`, and close it again.
 
     The tab is created and closed by this context manager, so a browse leaves the
     browser as it found it - a long-lived browser service accumulating one
     abandoned tab per run is the failure mode a shared endpoint actually has.
+
+    `sign_ins` are put into the browse's own context before the first request,
+    so a site the person kept a sign-in to sees a signed-in browser from the
+    start (#2129); they leave with the context when it is disposed.
 
     Raises:
         RuntimeError: The `browser` extra is not installed.
@@ -955,7 +1006,16 @@ async def open_page(  # pragma: no cover - needs a live browser
             },
             session_id=session,
         )
-        page = CdpPage(client, session, policy)
+        cookies = cookie_params([cookie for sign_in in sign_ins for cookie in sign_in.cookies])
+        if cookies:
+            await client.send.Storage.setCookies(
+                params={"cookies": cookies, "browserContextId": context_id}
+            )
+        if any(sign_in.local_storage for sign_in in sign_ins):
+            await client.send.Page.addScriptToEvaluateOnNewDocument(
+                params={"source": restore_script(list(sign_ins))}, session_id=session
+            )
+        page = CdpPage(client, session, policy, context_id=context_id)
         await client.send.Page.navigate(params={"url": start_url}, session_id=session)
         # `leaving` is what makes this a wait rather than a formality: the tab is
         # on `about:blank`, which is ready the instant it is asked.
