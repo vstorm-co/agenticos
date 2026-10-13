@@ -93,22 +93,35 @@ function ConversationItem({
       className={cn(
         // The open row is a fill, as the main sidebar's is - a hairline border
         // and a bar at its edge read as two thin lines around one choice.
-        "group relative flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1.5 transition-colors",
+        "group relative flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1 transition-colors",
         isActive ? "bg-accent" : "hover:bg-accent/60",
       )}
       onClick={onSelect}
     >
       {/* Which agent the thread is with leads the row - the face people pick a
           thread by - and a thread with no agent keeps the plain mark. */}
-      {conversation.agents && conversation.agents.length > 0 ? (
-        <ConversationAgents agents={conversation.agents} showName={false} className="shrink-0" />
-      ) : (
-        // In a box the size of an agent's face, so every title in the list
-        // starts at the same x whichever kind of row it is.
-        <span className="flex size-6 shrink-0 items-center justify-center">
-          <MessageSquare className={cn("h-4 w-4", isActive && "text-foreground")} />
-        </span>
-      )}
+      <span className="relative shrink-0">
+        {conversation.agents && conversation.agents.length > 0 ? (
+          <ConversationAgents agents={conversation.agents} showName={false} />
+        ) : (
+          // In a box the size of an agent's face, so every title in the list
+          // starts at the same x whichever kind of row it is.
+          <span className="flex size-6 items-center justify-center">
+            <MessageSquare className={cn("h-4 w-4", isActive && "text-foreground")} />
+          </span>
+        )}
+        {/* An answer arrived while the reader was elsewhere: a badge on the face,
+            as a count sits on an app icon - part of the row's own mark rather
+            than a stray dot at its far edge. Not on the open row, which is being
+            read as it arrives. */}
+        {unread && (
+          <span
+            role="status"
+            aria-label={t("sidebar.unread")}
+            className="unread-dot ring-background absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full ring-2"
+          />
+        )}
+      </span>
       {isEditing ? (
         <input
           type="text"
@@ -119,7 +132,7 @@ function ConversationItem({
             if (e.key === "Enter") handleRename();
             if (e.key === "Escape") setIsEditing(false);
           }}
-          className="text-foreground min-w-0 flex-1 bg-transparent text-[13px] font-semibold outline-none"
+          className="text-foreground min-w-0 flex-1 bg-transparent text-[13px] font-medium outline-none"
           autoFocus
           onClick={(e) => e.stopPropagation()}
         />
@@ -137,10 +150,13 @@ function ConversationItem({
             )}
           </p>
           <div className="flex min-w-0 items-center gap-1.5">
+            {/* Medium, and semibold only while it holds something unread - the
+                weight is the second half of the mark, as in a mail client. */}
             <span
               className={cn(
-                "truncate text-[13px] leading-5 font-semibold",
-                isActive || unread ? "text-foreground" : "text-foreground/85",
+                "truncate text-[13px] leading-[18px]",
+                unread ? "text-foreground font-semibold" : "font-medium",
+                !unread && (isActive ? "text-foreground" : "text-foreground/80"),
               )}
             >
               {displayTitle}
@@ -153,16 +169,6 @@ function ConversationItem({
             )}
           </div>
         </div>
-      )}
-
-      {/* An answer arrived while the reader was elsewhere. Not on the open row,
-          which is being read as it arrives. */}
-      {unread && (
-        <span
-          role="status"
-          aria-label={t("sidebar.unread")}
-          className="unread-dot relative h-2 w-2 shrink-0 rounded-full"
-        />
       )}
 
       {/* Only once it is starred. As a *button* it was redundant - the same
@@ -178,13 +184,15 @@ function ConversationItem({
           size="sm"
           aria-label={t("unfavourite")}
           aria-pressed
-          className="text-warning h-7 w-7 shrink-0 p-0"
+          // Neutral, like the rest of the list: the band it sits in already says
+          // it is a favourite, and a brown-gold star was the one tint on the page.
+          className="text-muted-foreground/70 hover:text-foreground h-6 w-6 shrink-0 p-0"
           onClick={(e) => {
             e.stopPropagation();
             onFavourite(false);
           }}
         >
-          <Star className="h-4 w-4 fill-current" />
+          <Star className="h-3.5 w-3.5 fill-current" />
         </Button>
       ) : null}
 

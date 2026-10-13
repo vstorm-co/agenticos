@@ -845,7 +845,7 @@
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: inherit;
+  background: oklch(64% 0.15 245);
   animation: unread-halo 2.4s ease-out infinite;
 }
 @keyframes unread-halo {
