@@ -2753,9 +2753,10 @@ class TestMcpConnectionService:
             ),
         )
 
+        monkeypatch.setattr(mcp_connection_service, "_reach", AsyncMock(return_value=([], None)))
         await service.oauth_callback(state="state-google", code="the-code")
 
-        update_data = repo.update.call_args.kwargs["update_data"]
+        update_data = repo.update.call_args_list[0].kwargs["update_data"]
         assert update_data["granted_scopes"] == ["https://www.googleapis.com/auth/gmail.readonly"]
         assert update_data["oauth_state"] is None
         assert update_data["last_status"] == "ok"
@@ -2793,9 +2794,10 @@ class TestMcpConnectionService:
             ),
         )
 
+        monkeypatch.setattr(mcp_connection_service, "_reach", AsyncMock(return_value=([], None)))
         await service.oauth_callback(state="state-google", code="the-code")
 
-        update_data = repo.update.call_args.kwargs["update_data"]
+        update_data = repo.update.call_args_list[0].kwargs["update_data"]
         stored = McpOAuthPayload.model_validate_json(
             _open_from(pending, update_data["oauth_payload"])
         )
@@ -2835,10 +2837,13 @@ class TestMcpConnectionService:
             ),
         )
 
+        monkeypatch.setattr(mcp_connection_service, "_reach", AsyncMock(return_value=([], None)))
         await service.oauth_callback(state="state-google", code="the-code")
 
         stored = McpOAuthPayload.model_validate_json(
-            _open_from(pending, repo.update.call_args.kwargs["update_data"]["oauth_payload"])
+            _open_from(
+                pending, repo.update.call_args_list[0].kwargs["update_data"]["oauth_payload"]
+            )
         )
         assert stored.refresh_token is None
 
@@ -3006,9 +3011,10 @@ class TestMcpConnectionService:
         token = OAuthToken(access_token="AT", refresh_token="RT", expires_in=3600)
         monkeypatch.setattr(mcp_oauth, "exchange_code", AsyncMock(return_value=token))
 
+        monkeypatch.setattr(mcp_connection_service, "_reach", AsyncMock(return_value=([], None)))
         await service.oauth_callback(state="state-xyz", code="the-code")
 
-        update_data = repo.update.call_args.kwargs["update_data"]
+        update_data = repo.update.call_args_list[0].kwargs["update_data"]
         assert update_data["oauth_state"] is None  # no longer pending
         assert update_data["oauth_pending_payload"] is None
         assert update_data["last_status"] == "ok"
@@ -3038,10 +3044,68 @@ class TestMcpConnectionService:
         )
         monkeypatch.setattr(mcp_oauth, "exchange_code", AsyncMock(return_value=token))
 
+        monkeypatch.setattr(mcp_connection_service, "_reach", AsyncMock(return_value=([], None)))
         await service.oauth_callback(state="state-scoped", code="the-code")
 
-        update_data = repo.update.call_args.kwargs["update_data"]
+        update_data = repo.update.call_args_list[0].kwargs["update_data"]
         assert update_data["granted_scopes"] == ["repo", "admin:repo_hook"]
+
+    @pytest.mark.anyio
+    async def test_oauth_callback_lists_the_servers_tools_at_once(self, service, repo, monkeypatch):
+        """A server connected from the Builder or a chat has its tools to pick
+        from when the person is back, not after somebody clicks Check."""
+        pending = _connection(auth_type="oauth", url="https://srv/mcp", oauth_state="state-tools")
+        pending.oauth_pending_payload = _seal_into(
+            pending, _base_payload(code_verifier="verifier").model_dump_json()
+        )
+        repo.get_by_oauth_state = AsyncMock(return_value=pending)
+
+        async def applied(_db, *, db_connection, update_data):
+            for field, value in update_data.items():
+                setattr(db_connection, field, value)
+            return db_connection
+
+        repo.update = AsyncMock(side_effect=applied)
+        token = OAuthToken(access_token="AT", refresh_token="RT", expires_in=3600)
+        monkeypatch.setattr(mcp_oauth, "exchange_code", AsyncMock(return_value=token))
+        reach = AsyncMock(return_value=([McpToolInfo(name="search", description="")], None))
+        monkeypatch.setattr(mcp_connection_service, "_reach", reach)
+
+        await service.oauth_callback(state="state-tools", code="the-code")
+
+        assert reach.await_args.args[1] == {"Authorization": "Bearer AT"}
+        recorded = repo.update.call_args_list[-1].kwargs["update_data"]
+        assert recorded["last_status"] == "ok"
+        assert [tool["name"] for tool in recorded["last_tools"]] == ["search"]
+
+    @pytest.mark.anyio
+    async def test_oauth_callback_records_a_server_that_will_not_list(
+        self, service, repo, monkeypatch
+    ):
+        pending = _connection(auth_type="oauth", url="https://srv/mcp", oauth_state="state-down")
+        pending.oauth_pending_payload = _seal_into(
+            pending, _base_payload(code_verifier="verifier").model_dump_json()
+        )
+        repo.get_by_oauth_state = AsyncMock(return_value=pending)
+
+        async def applied(_db, *, db_connection, update_data):
+            for field, value in update_data.items():
+                setattr(db_connection, field, value)
+            return db_connection
+
+        repo.update = AsyncMock(side_effect=applied)
+        token = OAuthToken(access_token="AT", refresh_token="RT", expires_in=3600)
+        monkeypatch.setattr(mcp_oauth, "exchange_code", AsyncMock(return_value=token))
+        monkeypatch.setattr(
+            mcp_connection_service, "_reach", AsyncMock(return_value=([], "Timed out"))
+        )
+
+        await service.oauth_callback(state="state-down", code="the-code")
+
+        recorded = repo.update.call_args_list[-1].kwargs["update_data"]
+        assert recorded["last_status"] == "error"
+        assert recorded["last_error"] == "Timed out"
+        assert "last_tools" not in recorded
 
     @pytest.mark.anyio
     async def test_oauth_callback_unknown_state_is_not_found(self, service, repo):
@@ -4743,9 +4807,10 @@ class TestGithubPortalOAuth:
             ),
         )
 
+        monkeypatch.setattr(mcp_connection_service, "_reach", AsyncMock(return_value=([], None)))
         await service.oauth_callback(state="gh-state", code="the-code")
 
-        update_data = repo.update.await_args.kwargs["update_data"]
+        update_data = repo.update.await_args_list[0].kwargs["update_data"]
         # The scopes GitHub actually granted, mirrored to the plain column the
         # webhook path reads.
         assert update_data["granted_scopes"] == ["repo", "admin:repo_hook"]

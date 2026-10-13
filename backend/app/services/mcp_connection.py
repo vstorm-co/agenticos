@@ -1536,7 +1536,7 @@ class McpConnectionService:
             poll_cursor = await _initial_poll_cursor(
                 portal_key=connection.portal_key, access_token=access_token
             )
-        return await mcp_connection_repo.update(
+        connection = await mcp_connection_repo.update(
             self.db,
             db_connection=connection,
             update_data={
@@ -1562,6 +1562,14 @@ class McpConnectionService:
                 "last_checked_at": datetime.now(UTC),
             },
         )
+        if connection.purpose == "portal":
+            return connection
+        # Listed now, with the consent just granted, rather than on somebody's
+        # first click of Check: a server connected from the Builder or a chat
+        # has its tools to choose from by the time the person is back there.
+        # `_probe` records a server that will not answer as the error it is.
+        connection, _, _ = await self._probe(connection)
+        return connection
 
     async def _get_owned(
         self, *, user_id: UUID, connection_id: UUID, for_update: bool = False

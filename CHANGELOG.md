@@ -432,6 +432,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **A server connected through its sign-in lists its tools at once.** The
+  consent's return checks the server and records its tools, so an agent bound
+  to it, in the Builder or a chat, has them to choose from without anyone
+  clicking Check first; a server that does not answer is recorded as the error
+  it is.
 - **A run the API started and the model provider refused names itself.** It
   answered a bare `500`; now `502 MODEL_CALL_FAILED` (or `500 RUN_FAILED` for
   any other failure once started) with `details.run_id` and `details.status`, so
