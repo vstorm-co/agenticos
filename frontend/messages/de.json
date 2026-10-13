@@ -654,9 +654,6 @@
     "addAnotherAccount": "Weiteres Konto hinzufügen",
     "removeAccount": "Dieses {name}-Konto nicht mehr verwenden",
     "accountCount": "{count, plural, =1 {1 Konto} other {# Konten}}",
-    "accountLabels": "Nur ihre Konten mit dem Label",
-    "accountLabelsPlaceholder": "Jedes Konto, das sie haben",
-    "accountLabelsHint": "Labels, wie jede Person ihre {name}-Konten benannt hat, durch Kommas getrennt - Sales inbox, info@. Leer lassen, um jedes zu erreichen.",
     "accountForServer": "Wessen {name}-Konto dieser Agent nutzt",
     "organizationsAccount": "Das Konto der Organisation",
     "eachPersonsOwnAccount": "Das eigene Konto jeder Person",
@@ -755,7 +752,6 @@
     "toolsNone": "Alle abwählen",
     "toolsSearch": "Tools suchen",
     "eachPersonsOwnAccountShort": "Jede Person verbindet ihr eigenes; nicht für API-Schlüssel, Widget oder Routinen.",
-    "onlySomeAccounts": "Nur einige ihrer Konten",
     "orgAccountHint": "Ein Konto antwortet für alle.",
     "orgAccountConnectHint": "Noch keins verbunden - wählen, um eins zu verbinden.",
     "connectYours": "Deins verbinden"

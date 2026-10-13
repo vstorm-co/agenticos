@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { Plug, Plus, Wrench, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -14,9 +14,6 @@ import {
   DialogHeader,
   DialogTitle,
   IconButton,
-  Input,
-  Label,
-  MoreOptions,
   Select,
   SelectContent,
   SelectItem,
@@ -229,26 +226,6 @@ export function McpBindingDialog({
               </KindTile>
             </div>
 
-            {primary?.account === "personal" && (
-              <MoreOptions
-                label={t("onlySomeAccounts")}
-                defaultOpen={(primary.account_labels?.length ?? 0) > 0}
-              >
-                <AccountLabels
-                  name={name}
-                  value={primary.account_labels ?? null}
-                  disabled={disabled}
-                  onChange={(labels) =>
-                    onChange(
-                      bindings.map((ref) =>
-                        ref === primary ? { ...primary, account_labels: labels } : ref,
-                      ),
-                    )
-                  }
-                />
-              </MoreOptions>
-            )}
-
             {/* Further accounts the server is reached through (#2125), each a row. */}
             {bindings.slice(1).map((binding, offset) => {
               const index = offset + 1;
@@ -281,10 +258,6 @@ export function McpBindingDialog({
                     if (next) replace(index, next);
                   }}
                   onConnection={(target) => replace(index, organizationRef(target, binding))}
-                  onLabels={(labels) =>
-                    binding.account === "personal" &&
-                    replace(index, { ...binding, account_labels: labels })
-                  }
                   onRemove={() => remove(index)}
                 />
               );
@@ -390,7 +363,6 @@ function AccountBlock({
   disabled,
   onWhose,
   onConnection,
-  onLabels,
   onRemove,
 }: {
   name: string;
@@ -403,7 +375,6 @@ function AccountBlock({
   disabled?: boolean;
   onWhose: (whose: "organization" | "personal") => void;
   onConnection: (target: OrgMcpConnectionRecord) => void;
-  onLabels: (labels: string[] | null) => void;
   onRemove: () => void;
 }) {
   const t = useTranslations("agents");
@@ -440,18 +411,6 @@ function AccountBlock({
       {personal ? (
         <>
           <p className="text-muted-foreground text-xs">{t("eachPersonsOwnAccountShort")}</p>
-          {/* Folded unless used: most agents reach every account a person holds. */}
-          <MoreOptions
-            label={t("onlySomeAccounts")}
-            defaultOpen={(binding.account_labels?.length ?? 0) > 0}
-          >
-            <AccountLabels
-              name={name}
-              value={binding.account_labels ?? null}
-              disabled={disabled}
-              onChange={onLabels}
-            />
-          </MoreOptions>
         </>
       ) : connection && choices.length > 1 ? (
         // Which connection, where there is a choice. The label if somebody set
@@ -581,45 +540,5 @@ function WhichOrgAccount({
         ))}
       </SelectContent>
     </Select>
-  );
-}
-
-/**
- * Which of each person's accounts the binding reaches, by label - committed on
- * leaving the field, so a half-typed label never narrows the agent.
- */
-function AccountLabels({
-  name,
-  value,
-  disabled,
-  onChange,
-}: {
-  name: string;
-  value: string[] | null;
-  disabled?: boolean;
-  onChange: (labels: string[] | null) => void;
-}) {
-  const t = useTranslations("agents");
-  const [draft, setDraft] = useState((value ?? []).join(", "));
-  const id = `account-labels-${name}`;
-  return (
-    <div className="space-y-1.5">
-      <Label htmlFor={id}>{t("accountLabels")}</Label>
-      <Input
-        id={id}
-        value={draft}
-        disabled={disabled}
-        placeholder={t("accountLabelsPlaceholder")}
-        onChange={(event) => setDraft(event.target.value)}
-        onBlur={() => {
-          const labels = draft
-            .split(",")
-            .map((label) => label.trim())
-            .filter((label) => label.length > 0);
-          onChange(labels.length > 0 ? labels : null);
-        }}
-      />
-      <p className="text-muted-foreground text-xs">{t("accountLabelsHint", { name })}</p>
-    </div>
   );
 }

@@ -87,33 +87,19 @@ class TestSpecContract:
 
     def test_several_accounts_of_one_server_round_trip(self):
         """Two of the organization's Outlook connections and each person's own
-        accounts narrowed by label survive export and import (#2125)."""
+        accounts survive export and import (#2125)."""
         spec = AgentSpec(
             name="Inbox",
             mcp_servers=[
                 {"account": "organization", "connection_id": str(uuid.uuid4())},
                 {"account": "organization", "connection_id": str(uuid.uuid4())},
-                {
-                    "account": "personal",
-                    "catalog_key": "outlook",
-                    "account_labels": ["Sales inbox", "info@"],
-                },
+                {"account": "personal", "catalog_key": "outlook"},
             ],
         )
 
         loaded = AgentSpec.from_yaml(spec.to_yaml())
 
         assert loaded == spec
-        assert loaded.mcp_servers[2].account_labels == ["Sales inbox", "info@"]
-
-    def test_an_empty_account_label_is_refused(self):
-        with pytest.raises(ValueError):
-            AgentSpec(
-                name="x",
-                mcp_servers=[
-                    {"account": "personal", "catalog_key": "outlook", "account_labels": [""]}
-                ],
-            )
 
     def test_a_tool_cannot_be_bound_twice(self):
         """A duplicate would silently shadow itself in the toolset."""

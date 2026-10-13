@@ -460,34 +460,6 @@ describe("several connections behind one catalog entry", () => {
     expect(screen.queryByRole("button", { name: "Add another account" })).toBeNull();
   });
 
-  it("narrows each person's own accounts to the labels typed, on leaving the field", async () => {
-    const onChange = vi.fn();
-    render(picker({ value: [personal("github")], onChange }));
-
-    await settings();
-    // Folded until wanted: most agents reach every account a person holds.
-    await userEvent.click(screen.getByRole("button", { name: "Only some of their accounts" }));
-    const field = screen.getByLabelText("Only their accounts labelled");
-    await userEvent.type(field, "Sales inbox, info@ ,");
-    expect(onChange).not.toHaveBeenCalled();
-    await userEvent.tab();
-
-    expect(onChange).toHaveBeenCalledWith([
-      { ...personal("github"), account_labels: ["Sales inbox", "info@"] },
-    ]);
-  });
-
-  it("clears the narrowing when the labels are emptied", async () => {
-    const onChange = vi.fn();
-    render(picker({ value: [{ ...personal("github"), account_labels: ["info@"] }], onChange }));
-
-    await settings();
-    await userEvent.clear(screen.getByLabelText("Only their accounts labelled"));
-    await userEvent.tab();
-
-    expect(onChange).toHaveBeenCalledWith([{ ...personal("github"), account_labels: null }]);
-  });
-
   it("switches an account between the organization's and each person's own", async () => {
     const onChange = vi.fn();
     const one = [connection({ id: "c1", name: "gh", catalog_key: "github" })];

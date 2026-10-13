@@ -654,9 +654,6 @@
     "addAnotherAccount": "Add another account",
     "removeAccount": "Stop using this {name} account",
     "accountCount": "{count, plural, =1 {1 account} other {# accounts}}",
-    "accountLabels": "Only their accounts labelled",
-    "accountLabelsPlaceholder": "Every account they hold",
-    "accountLabelsHint": "Labels as each person named their {name} accounts, separated by commas - Sales inbox, info@. Leave empty to reach every one.",
     "accountForServer": "Whose {name} account this agent uses",
     "organizationsAccount": "The organization's account",
     "eachPersonsOwnAccount": "Each person's own account",
@@ -755,7 +752,6 @@
     "toolsNone": "Clear all",
     "toolsSearch": "Search tools",
     "eachPersonsOwnAccountShort": "Everyone connects their own; not for API keys, the widget or routines.",
-    "onlySomeAccounts": "Only some of their accounts",
     "orgAccountHint": "One account answers for everybody.",
     "orgAccountConnectHint": "None connected yet - choose it to connect one.",
     "connectYours": "Connect yours"

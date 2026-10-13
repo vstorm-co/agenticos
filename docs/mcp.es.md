@@ -1,5 +1,5 @@
 ---
-source_sha: "94ac28bb0aaa"
+source_sha: "f5e2666bd2b8"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -254,9 +254,8 @@ Un agent puede leer a la vez el buzón de la empresa e `info@`. A una persona co
 varias cuentas propias en un servicio se la alcanza a través de **cada una de
 ellas**: la que marca como su cuenta principal en MCP servers → You (si no, la
 primera que conectó) conserva el prefijo simple, `outlook_send`, y cada cuenta
-más añade su etiqueta, `outlook_info_send`. `account_labels` en la vinculación la
-limita a las cuentas con esas etiquetas (sin distinguir mayúsculas), así que un
-agent para el buzón de ventas no alcanza de paso el correo privado de nadie.
+más añade su etiqueta, `outlook_info_send`. Qué cuentas son las decide la
+persona con lo que conecta; la vinculación no lo limita.
 
 Las cuentas de la organización se vinculan una junto a otra del mismo modo: cada
 una de sus conexiones a un servidor es su propia vinculación, con su propio

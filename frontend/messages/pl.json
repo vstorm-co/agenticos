@@ -654,9 +654,6 @@
     "addAnotherAccount": "Dodaj kolejne konto",
     "removeAccount": "Przestań używać tego konta {name}",
     "accountCount": "{count, plural, one {1 konto} few {# konta} many {# kont} other {# konta}}",
-    "accountLabels": "Tylko ich konta z etykietą",
-    "accountLabelsPlaceholder": "Każde konto, które mają",
-    "accountLabelsHint": "Etykiety, którymi każda osoba nazwała swoje konta {name}, rozdzielone przecinkami - Sales inbox, info@. Zostaw puste, by sięgać do każdego.",
     "accountForServer": "Czyjego konta {name} używa ten agent",
     "organizationsAccount": "Konto organizacji",
     "eachPersonsOwnAccount": "Własne konto każdej osoby",
@@ -755,7 +752,6 @@
     "toolsNone": "Odznacz wszystkie",
     "toolsSearch": "Szukaj narzędzi",
     "eachPersonsOwnAccountShort": "Każdy łączy własne; nie dla kluczy API, widżetu ani rutyn.",
-    "onlySomeAccounts": "Tylko niektóre ich konta",
     "orgAccountHint": "Jedno konto odpowiada za wszystkich.",
     "orgAccountConnectHint": "Jeszcze niepołączone - wybierz, żeby połączyć.",
     "connectYours": "Połącz swoje"

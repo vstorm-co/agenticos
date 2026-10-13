@@ -1,5 +1,5 @@
 ---
-source_sha: "94ac28bb0aaa"
+source_sha: "f5e2666bd2b8"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -248,9 +248,8 @@ Jeden agent może naraz czytać firmową skrzynkę i `info@`. Do osoby, która m
 kilka własnych kont w jednej usłudze, agent sięga przez **każde z nich**: konto
 oznaczone przez nią jako główne w MCP servers → You (a bez tego to podłączone
 jako pierwsze) zachowuje zwykły prefiks, `outlook_send`, a każde kolejne dokłada
-swoją etykietę, `outlook_info_send`. `account_labels` na powiązaniu zawęża je do
-kont z tymi etykietami (bez rozróżniania wielkości liter), więc agent od skrzynki
-sprzedaży nie sięga przy okazji do czyjejś prywatnej poczty.
+swoją etykietę, `outlook_info_send`. Które to konta, decyduje osoba tym, co
+podłączy - powiązanie tego nie zawęża.
 
 Konta organizacji wiążą się obok siebie tak samo: każde jej połączenie z serwerem
 to osobne powiązanie pod własną nazwą i z własnymi narzędziami. W Builderze

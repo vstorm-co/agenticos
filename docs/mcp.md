@@ -235,10 +235,9 @@ One agent can read the company mailbox and `info@` at once. A person holding
 several of their own accounts on a service is reached through **every one of
 them**: the one they mark as their main account in MCP servers → You (else the
 one they connected first) keeps the plain prefix, `outlook_send`, and each
-other account adds its label, `outlook_info_send`. `account_labels` on the
-binding narrows it to the accounts carrying those labels (compared without
-case), so an agent for the sales inbox does not also reach somebody's private
-mail.
+other account adds its label, `outlook_info_send`. Which accounts those are is
+the person's choice, made by what they connect - the binding does not narrow
+it.
 
 The organization's accounts bind side by side the same way: each of its
 connections to a server is its own binding under its own name, with its own

@@ -2251,10 +2251,9 @@ async def _own_specs(
 ) -> list[_OwnAccount] | OwnAccountGap:
     """One person's own accounts on this service as servers, or why there are none.
 
-    Every account they hold, or those `account_labels` names - the one marked
-    default first, else the first connected. That one's tool prefix is the
-    catalog key, so an agent presents `notion_search` to everyone whatever each
-    person called their own Notion; every other account adds its label to the
+    Every account they hold - the one marked default first, else the first
+    connected. That one's tool prefix is the catalog key, so an agent presents
+    `notion_search` to everyone whatever each person called their own Notion; every other account adds its label to the
     key (#2125). The allowlist is the binding's ceiling intersected with the
     person's own - the same fold an organization binding makes, with the
     administrator's side coming from the spec because there is no connection
@@ -2266,9 +2265,6 @@ async def _own_specs(
     owned = await mcp_connection_repo.list_user_scoped_by_catalog_key(
         db, user_id=user_id, catalog_key=ref.catalog_key
     )
-    if ref.account_labels is not None:
-        wanted = {label.casefold() for label in ref.account_labels}
-        owned = [account for account in owned if _account_name(account).casefold() in wanted]
     if not owned:
         return "not_connected"
     primary = next((account for account in owned if account.is_default), owned[0])

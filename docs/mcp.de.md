@@ -1,5 +1,5 @@
 ---
-source_sha: "94ac28bb0aaa"
+source_sha: "f5e2666bd2b8"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -259,10 +259,9 @@ Ein Agent kann das Firmenpostfach und `info@` zugleich lesen. Wer mehrere eigene
 Konten bei einem Dienst hält, wird über **jedes davon** erreicht: Das Konto, das
 die Person unter MCP servers → You als Hauptkonto markiert (sonst das zuerst
 verbundene), behält den schlichten Präfix, `outlook_send`, und jedes weitere
-Konto fügt sein Label hinzu, `outlook_info_send`. `account_labels` auf dem
-Binding grenzt es auf die Konten mit diesen Labels ein (ohne Beachtung der
-Groß- und Kleinschreibung), sodass ein Agent für das Vertriebspostfach nicht
-nebenbei die private Post von jemandem erreicht.
+Konto fügt sein Label hinzu, `outlook_info_send`. Welche Konten das sind,
+entscheidet die Person durch das, was sie verbindet - das Binding grenzt es
+nicht ein.
 
 Die Konten der Organisation binden auf dieselbe Weise nebeneinander: Jede ihrer
 Connections zu einem Server ist ein eigenes Binding unter eigenem Namen, mit

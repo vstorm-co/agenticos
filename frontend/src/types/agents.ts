@@ -260,11 +260,6 @@ export interface PersonalMcpServerRef {
   catalog_key: string;
   /** The administrator's ceiling; the person's own connection may narrow further. */
   allowed_tools: string[] | null;
-  /**
-   * Which of each person's accounts on the service it reaches, by their label.
-   * Absent or null reaches every account they hold on it (#2125).
-   */
-  account_labels?: string[] | null;
   approval?: McpApproval;
 }
 

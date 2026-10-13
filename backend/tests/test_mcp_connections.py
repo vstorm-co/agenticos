@@ -1032,46 +1032,6 @@ class TestEachPersonsOwnAccount:
         ]
 
     @pytest.mark.anyio
-    async def test_a_binding_naming_labels_reaches_only_those_accounts(self, monkeypatch):
-        """Compared without case, against the label - or the name, for an
-        account nobody labelled."""
-        seen = self._capture(monkeypatch)
-        self._owns(
-            monkeypatch,
-            [
-                _connection(name="work", url="https://work/mcp", catalog_key="notion"),
-                _connection(
-                    name="info", label="Info@", url="https://info/mcp", catalog_key="notion"
-                ),
-                _connection(name="side", url="https://side/mcp", catalog_key="notion"),
-            ],
-        )
-
-        resolved = await mcp_connection_service.build_toolsets_for_agent(
-            AsyncMock(),
-            organization_id=uuid4(),
-            refs=[self._personal(account_labels=["info@", "SIDE"])],
-            sender_user_id=uuid4(),
-        )
-
-        assert [spec.url for spec in seen[0]] == ["https://info/mcp", "https://side/mcp"]
-        assert len(resolved.accounts) == 2
-
-    @pytest.mark.anyio
-    async def test_labels_none_of_their_accounts_carry_are_not_connected(self, monkeypatch):
-        self._capture(monkeypatch)
-        self._owns(monkeypatch, [_connection(name="work", catalog_key="notion")])
-
-        resolved = await mcp_connection_service.build_toolsets_for_agent(
-            AsyncMock(),
-            organization_id=uuid4(),
-            refs=[self._personal(account_labels=["Sales inbox"])],
-            sender_user_id=uuid4(),
-        )
-
-        assert resolved.unavailable == [UnavailablePersonalService("notion", "not_connected")]
-
-    @pytest.mark.anyio
     async def test_an_account_that_no_longer_authorizes_leaves_the_others_answering(
         self, monkeypatch
     ):

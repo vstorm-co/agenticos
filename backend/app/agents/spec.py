@@ -34,7 +34,6 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    StringConstraints,
     field_validator,
     model_serializer,
     model_validator,
@@ -651,8 +650,8 @@ class PersonalMcpServerRef(BaseModel):
       binding whose key is also the name of an organization connection bound to
       the same agent, because that would be two servers under one prefix.
 
-    **Every one of the person's accounts on the service answers** (#2125), or
-    those `account_labels` names. The one they marked default - else the one
+    **Every one of the person's accounts on the service answers** (#2125). The
+    one they marked default - else the one
     they connected first - takes the catalog key as its prefix; each other
     account takes the key and its own label (`outlook-info`), and the run is
     told which prefix is which account. One agent reads the company mailbox and
@@ -680,16 +679,6 @@ class PersonalMcpServerRef(BaseModel):
             "Which of the server's tools this agent may call, whoever's account "
             "answers. Null is every tool the person's own connection allows."
         ),
-    )
-    account_labels: list[Annotated[str, StringConstraints(min_length=1, max_length=64)]] | None = (
-        Field(
-            default=None,
-            description=(
-                "Which of each person's accounts on this service the agent reaches, by the "
-                "label they gave it (`Sales inbox`, `info@`), compared without case. Null "
-                "reaches every account they hold on it."
-            ),
-        )
     )
     approval: McpApproval = Field(
         default="writes",
