@@ -1,5 +1,5 @@
 ---
-source_sha: "d7c969352191"
+source_sha: "1085e8113234"
 ---
 
 # Die Konsole { #the-console }
@@ -170,9 +170,11 @@ drücken. Wie transkribiert wird, entscheidet die Organisation auf
   den Browserhersteller (Google, Apple). Firefox hat keine: sein Mikrofon
   sagt das, wenn man es drückt.
 - **Server** — der Browser nimmt auf, und dieses Deployment schickt die Aufnahme
-  an den Speech-to-Text-Anbieter der Organisation. Es funktioniert in jedem
-  Browser, der aufnehmen kann. Den Endpunkt, seine Grenzen und was aufgezeichnet
-  wird, beschreibt [Diktieren im Chat](ml-services.md#dictation-in-chat).
+  an den Speech-to-Text-Provider der Organisation oder an
+  [den eigenen des Agents](#an-agents-own-engine), wo er einen nennt. Es
+  funktioniert in jedem Browser, der aufnehmen kann. Den Endpunkt, seine Grenzen
+  und was aufgezeichnet wird, beschreibt
+  [Diktieren im Chat](ml-services.md#dictation-in-chat).
 
 Bei **Server** ersetzt ein Druck auf das Mikrofon die Steuerelemente durch eine
 Aufnahmeleiste: Abbrechen, den Pegel, einen Timer und Stopp. **Enter** stoppt
@@ -187,10 +189,13 @@ Eingabefeld hängt: die Berechtigungsabfrage, ein blockiertes oder fehlendes
 Mikrofon, die letzten 30 Sekunden, fünf Sekunden ohne Ton, eine Aufnahme unter
 einer Sekunde (nicht gesendet) und jeder Fehlschlag. Eine Aufnahme, deren
 Transkription fehlgeschlagen ist, bleibt erhalten, bis Sie **Retry** oder
-**Discard** drücken. Hat die Organisation Server gewählt, aber noch keinen
-Anbieter und kein Modell, oder ist kein Agent ausgewählt, ist das Mikrofon
-durchgestrichen und sagt, warum; wer `org:settings` hält, bekommt einen Link zur
-Voice-Karte.
+**Discard** drücken.
+
+Hat die Organisation Server gewählt, aber für den
+ausgewählten Agent löst sich nichts auf - kein Provider auf dem Agent oder der
+Organisation, oder keine Zugangsdaten dafür -, oder ist kein Agent ausgewählt,
+ist das Mikrofon durchgestrichen und sagt, warum; wer `org:settings` hält, bekommt einen Link zur
+Voice-Karte, und wer Agents bearbeiten darf, einen Link zur Voice-Karte dieses Agents.
 
 Das Leuchten unter dem Eingabefeld, während Sie sprechen, folgt **Voice glow**
 unter **Settings → Profile → Appearance**, neben Design und **Motion**:
@@ -206,19 +211,45 @@ und der Pegel ist eine fünfstufige Anzeige.
 
 Auf der Seite **Members** der Organisation, für jemanden mit `org:settings`.
 **Speech to text** wählt die Engine — Off, Browser oder Server, jede mit der
-Angabe, wohin das Audio geht — und für Server den Anbieter und das Modell aus dem
-Speech-to-Text-Katalog, eine Sprache (automatische Erkennung oder eine feste
-Sprache, was genauer ist) und die längste Aufnahme, von 10 Sekunden bis
-10 Minuten.
+Angabe, wohin das Audio geht — und für Server die längste Aufnahme, von
+10 Sekunden bis 10 Minuten. **Default provider** darunter ist der Provider und
+das Modell aus dem Speech-to-Text-Katalog und eine Sprache (automatische
+Erkennung oder eine feste Sprache, was genauer ist). Das Feld wird unabhängig
+von der Engine angezeigt, denn es ist auch das, wohin
+[Channel-Bots](channels.md#what-every-channel-shares), die auf Inherit stehen,
+ihre Sprachnachrichten schicken; **None** leert es.
 
-Server sendet mit den eigenen Zugangsdaten der Organisation für diesen Anbieter:
-einem model profile, das im Builder eines Agents angelegt wird. Ein Anbieter ohne
-Profil wird angezeigt, lässt sich aber nicht wählen, und ein schlüsselloses
-Profil, das auf einen selbst gehosteten Server zeigt, zählt auch. Ist Server
+Server sendet mit den eigenen Zugangsdaten der Organisation für diesen Provider:
+einem für die Organisation sichtbaren Schlüssel im Vault oder einem model
+profile, und ein schlüsselloses Profil, das auf einen selbst gehosteten Server
+zeigt, zählt auch. Ein Provider ohne beides wird angezeigt, lässt sich aber nicht
+wählen, und gibt es gar keinen, verlinkt die Karte auf den Vault. Ist Server
 gespeichert, kann aber nicht laufen — das Modell wurde aus dem Katalog genommen
 oder die Zugangsdaten sind weg —, sagt die Karte es, denn dann sieht jedes
-Mitglied ein durchgestrichenes Mikrofon. **Voice conversations** darunter ist
+Mitglied ein durchgestrichenes Mikrofon.
+
+Server ohne Standard-Provider ist eine Einstellung, kein Fehler: Die Karte weist darauf hin, dass nur Agents mit eigenem Provider diktieren. **Voice conversations** darunter ist
 noch nicht gebaut.
+
+### Die eigene Engine eines Agents { #an-agents-own-engine }
+
+Der Tab **Build** eines Agents hat nach seinen Modelleinstellungen eine Karte
+**Voice**, für einen Agent, der anders transkribieren soll als seine
+Organisation. **Inherit** behält Provider und Modell der Organisation und zeigt,
+welche es sind; **Choose** wählt ein Paar aus dem Katalog, wobei sich ein
+Provider ohne Zugangsdaten nicht wählen lässt. Die Sprache wird für sich gewählt:
+die der Organisation erben oder eine festlegen - so kann ein polnischer Agent
+den Provider der Organisation behalten. Die Überschreibung ist Teil des Specs,
+wird mit dem Entwurf gespeichert und ist live, sobald der Agent veröffentlicht
+ist, und sie gilt für [das Diktieren](#dictation) an diesen Agent und für Sprachnachrichten,
+die seine Channel-Bots erben.
+[Die Reihenfolge](ml-services.md#which-engine-a-recording-reaches) erklärt den
+Rest.
+
+Die Karte sagt, wann die Überschreibung weniger ändert, als es aussieht: steht
+die Engine der Organisation auf Off oder Browser, erreicht sie nur
+Sprachnachrichten aus Channels, und ohne Provider der Organisation ist sie das,
+worauf das Diktieren an diesen Agent läuft.
 
 ## Wofür jeder Bereich da ist { #what-each-area-is-for }
 

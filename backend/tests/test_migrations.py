@@ -33,7 +33,7 @@ import sys
 from collections.abc import Iterator
 
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 
 from app.core.config import settings
 
@@ -214,3 +214,73 @@ class TestMigrations:
         assert "(head)" in result.stdout, (
             f"Current revision is not at head:\nstdout: {result.stdout}\nstderr: {result.stderr}"
         )
+
+
+class TestBotTranscriptionSwitch:
+    """`0107_bot_transcription_switch.py`: no bot starts transcribing on upgrade.
+
+    A bot with no pair used to be a bot that did not transcribe, and a new bot
+    with no pair inherits one. The backfill is what keeps the first from turning
+    into the second underneath its operator - the acceptance criterion "a bot
+    that had no pair before the migration still does not transcribe" (#1797).
+    """
+
+    def test_a_pairless_bot_is_switched_off_and_a_paired_one_keeps_its_pair(self):
+        assert _alembic("downgrade", "base").returncode == 0
+        up = _alembic("upgrade", "0106_org_speech_settings")
+        assert up.returncode == 0, up.stderr
+
+        org = "00000000-0000-0000-0000-0000000000a1"
+        bots = {
+            "paired": ("00000000-0000-0000-0000-0000000000b1", "openai", "whisper-1"),
+            "pairless": ("00000000-0000-0000-0000-0000000000b2", None, None),
+            "half": ("00000000-0000-0000-0000-0000000000b3", "openai", None),
+        }
+        engine = create_engine(_url(MIGRATION_DATABASE))
+        try:
+            with engine.begin() as connection:
+                # Rows written the way 0106's schema allowed, so the creator need
+                # not exist: replica mode skips the foreign-key triggers.
+                connection.execute(text("SET LOCAL session_replication_role = replica"))
+                connection.execute(
+                    text(
+                        "INSERT INTO organizations (id, name, slug, is_personal, "
+                        "created_by_user_id) VALUES (:id, 'Acme', 'acme', false, :id)"
+                    ),
+                    {"id": org},
+                )
+                for bot_id, provider, model in bots.values():
+                    connection.execute(
+                        text(
+                            "INSERT INTO channel_bots (id, organization_id, platform, name, "
+                            "token_encrypted, secret_key_version, is_active, webhook_mode, "
+                            "access_policy, speech_to_text_provider, speech_to_text_model) "
+                            "VALUES (:id, :org, 'telegram', 'bot', 'x', 1, true, false, '{}', "
+                            ":provider, :model)"
+                        ),
+                        {"id": bot_id, "org": org, "provider": provider, "model": model},
+                    )
+
+            up = _alembic("upgrade", "0107_bot_transcription_switch")
+            assert up.returncode == 0, up.stderr
+
+            with engine.connect() as connection:
+                rows = {
+                    str(row[0]): (row[1], row[2], row[3])
+                    for row in connection.execute(
+                        text(
+                            "SELECT id, transcribe_voice_notes, speech_to_text_provider, "
+                            "speech_to_text_model FROM channel_bots"
+                        )
+                    )
+                }
+        finally:
+            engine.dispose()
+
+        assert rows[bots["paired"][0]] == (True, "openai", "whisper-1")
+        assert rows[bots["pairless"][0]] == (False, None, None)
+        # Half a pair could not transcribe either, and the CHECK now refuses one.
+        assert rows[bots["half"][0]] == (False, None, None)
+
+        down = _alembic("downgrade", "0106_org_speech_settings")
+        assert down.returncode == 0, down.stderr

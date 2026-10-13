@@ -1,5 +1,44 @@
+import type { QueryClient } from "@tanstack/react-query";
+
 import { apiClient } from "@/lib/api-client";
 import { ApiError } from "@/lib/api-error";
+import { qk } from "@/lib/query-keys";
+import type { DictationEngine } from "@/types";
+
+/** Whether the composer can dictate to one agent, as the server resolves it. */
+export interface DictationStatus {
+  /** The organization's engine for `/chat`. */
+  engine: DictationEngine;
+  /**
+   * The engine is `server`, a provider and model resolve for this agent - its
+   * published override or the organization's - the catalog offers them, and
+   * the organization holds a credential for the provider.
+   */
+  ready: boolean;
+  max_seconds: number;
+  /** Where a recording would go, which decides the format it is recorded in. */
+  provider: string | null;
+}
+
+/** Read whether dictation to this agent would reach an engine. */
+export function dictationStatus(agentId: string): Promise<DictationStatus> {
+  return apiClient.get<DictationStatus>(`/agents/${agentId}/dictation`);
+}
+
+/**
+ * Refetch everything that says whether speech can be transcribed here.
+ *
+ * Every agent's readiness, and which providers the catalog marks usable: the
+ * organization's voice settings, a publish or promotion, a model profile and a
+ * vault key each change one or both, and none of them knows which agents it
+ * touched.
+ */
+export function invalidateSpeechSettings(queryClient: QueryClient): Promise<void> {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: qk.dictation.all() }),
+    queryClient.invalidateQueries({ queryKey: qk.providers.speechToTextModels() }),
+  ]).then(() => undefined);
+}
 
 /**
  * Why a dictation did not become text.

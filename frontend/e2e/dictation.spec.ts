@@ -1,4 +1,4 @@
-import type { APIRequest, APIRequestContext, Page } from "@playwright/test";
+import type { APIRequest, APIRequestContext, Page, Route } from "@playwright/test";
 
 import { expect, test } from "./fixtures";
 
@@ -15,8 +15,9 @@ import { AUTH_STATE, json } from "./helpers";
  *
  * Chromium's fake capture device stands in for a microphone: it plays a beep,
  * so the recording has sound in it and the silence hint stays away. Only the
- * transcription call is stubbed - a test deployment has no provider key, and a
- * green suite must not depend on somebody else's uptime. Everything before it
+ * agent's dictation route is stubbed - its readiness and the transcription - as
+ * a test deployment has no provider key, and a green suite must not depend on
+ * somebody else's uptime. Everything before it
  * is the product: the organization's settings, the composer reading them, the
  * capture, the timer.
  *
@@ -133,10 +134,37 @@ function transcribed(text: string) {
   };
 }
 
+/**
+ * Stub the agent's dictation route: the readiness `GET` says ready, and each
+ * `POST` is answered by `onPost`.
+ *
+ * The readiness is stubbed for the same reason the transcription is: it is
+ * `ready` only where the organization holds a credential for the provider, and
+ * a test deployment has no provider key.
+ */
+async function stubDictation(page: Page, onPost: (route: Route) => Promise<void>): Promise<void> {
+  await page.route("**/api/agents/*/dictation", async (route) => {
+    if (route.request().method() === "GET") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          engine: "server",
+          ready: true,
+          max_seconds: 300,
+          provider: "openai",
+        }),
+      });
+      return;
+    }
+    await onPost(route);
+  });
+}
+
 test.describe("Server dictation", () => {
   test("the transcript lands in the composer at the caret and is not sent", async ({ page }) => {
     const uploads: string[] = [];
-    await page.route("**/api/agents/*/dictation", async (route) => {
+    await stubDictation(page, async (route) => {
       uploads.push(route.request().headers()["content-type"] ?? "");
       await route.fulfill(transcribed("hello from the microphone"));
     });
@@ -159,7 +187,7 @@ test.describe("Server dictation", () => {
 
   test("a dropped connection keeps the recording for a retry", async ({ page }) => {
     let calls = 0;
-    await page.route("**/api/agents/*/dictation", async (route) => {
+    await stubDictation(page, async (route) => {
       calls += 1;
       if (calls === 1) await route.abort("internetdisconnected");
       else await route.fulfill(transcribed("second time lucky"));

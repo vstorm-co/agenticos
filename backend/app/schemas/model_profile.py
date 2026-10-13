@@ -182,6 +182,13 @@ class SpeechToTextProviderRead(BaseSchema):
     provider: str = Field(description="The catalog id, e.g. `openai`")
     name: str = Field(description="What to show")
     models: list[SpeechToTextModelRead]
+    credentialed: bool = Field(
+        default=False,
+        description=(
+            "Whether this organization holds a credential to transcribe on it: a "
+            "model profile for the provider, or an organization-visible vault key"
+        ),
+    )
 
 
 class SpeechToTextProviderList(BaseSchema):

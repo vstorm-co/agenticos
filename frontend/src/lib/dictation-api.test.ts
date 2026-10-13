@@ -2,10 +2,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "@/lib/api-error";
 
-import { dictate, dictationReason, retryAfterSeconds } from "./dictation-api";
+import { QueryClient } from "@tanstack/react-query";
 
-const { upload } = vi.hoisted(() => ({ upload: vi.fn() }));
-vi.mock("@/lib/api-client", () => ({ apiClient: { upload } }));
+import {
+  dictate,
+  dictationReason,
+  dictationStatus,
+  invalidateSpeechSettings,
+  retryAfterSeconds,
+} from "./dictation-api";
+
+const { upload, get } = vi.hoisted(() => ({ upload: vi.fn(), get: vi.fn() }));
+vi.mock("@/lib/api-client", () => ({ apiClient: { upload, get } }));
 
 /** A refusal the way the backend writes one: the envelope, with `details`. */
 function refusal(status: number, details: Record<string, unknown> | null = null): ApiError {
@@ -78,5 +86,33 @@ describe("retryAfterSeconds", () => {
     ["something that is not a refusal", new Error("boom")],
   ])("is null for %s", (_label, error) => {
     expect(retryAfterSeconds(error)).toBeNull();
+  });
+});
+
+describe("dictationStatus", () => {
+  it("asks the agent's dictation route", async () => {
+    const answer = { engine: "server", ready: true, max_seconds: 60, provider: "groq" };
+    get.mockResolvedValueOnce(answer);
+
+    await expect(dictationStatus("a1")).resolves.toEqual(answer);
+    expect(get).toHaveBeenCalledWith("/agents/a1/dictation");
+  });
+});
+
+describe("invalidateSpeechSettings", () => {
+  it("marks every agent's readiness and the provider catalog stale, and nothing else", async () => {
+    const client = new QueryClient();
+    client.setQueryData(["dictation", "a1"], { ready: true });
+    client.setQueryData(["dictation", "a2"], { ready: false });
+    client.setQueryData(["providers", "speech-to-text-models"], { items: [] });
+    client.setQueryData(["providers", "catalog"], { items: [] });
+
+    await invalidateSpeechSettings(client);
+
+    const stale = (key: string[]) => client.getQueryState(key)?.isInvalidated;
+    expect(stale(["dictation", "a1"])).toBe(true);
+    expect(stale(["dictation", "a2"])).toBe(true);
+    expect(stale(["providers", "speech-to-text-models"])).toBe(true);
+    expect(stale(["providers", "catalog"])).toBe(false);
   });
 });

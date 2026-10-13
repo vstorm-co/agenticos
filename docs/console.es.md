@@ -1,5 +1,5 @@
 ---
-source_sha: "d7c969352191"
+source_sha: "1085e8113234"
 ---
 
 # La consola { #the-console }
@@ -156,9 +156,10 @@ transcribe lo elige la organización, en [la tarjeta Voice](#the-voice-card):
   al fabricante del navegador (Google, Apple). Firefox no lo tiene: su
   micrófono lo indica al pulsarlo.
 - **Server** — el navegador graba, y este despliegue envía la grabación al
-  proveedor de speech-to-text de la organización. Funciona en cualquier navegador
-  que pueda grabar. El endpoint, sus límites y lo que queda registrado están en
-  [Dictado en el chat](ml-services.md#dictation-in-chat).
+  proveedor de speech-to-text de la organización, o al
+  [del propio agent](#an-agents-own-engine) cuando este nombra uno. Funciona en
+  cualquier navegador que pueda grabar. El endpoint, sus límites y lo que queda
+  registrado están en [Dictado en el chat](ml-services.md#dictation-in-chat).
 
 Con **Server**, pulsar el micrófono sustituye los controles por una barra de
 grabación: Cancelar, el nivel, un temporizador y Detener. **Enter** detiene y
@@ -171,10 +172,14 @@ Todo lo que el dictado tiene que decir aparece en una franja unida bajo el
 compositor: la petición de permiso, un micrófono bloqueado o ausente, los últimos
 30 segundos, cinco segundos sin sonido, una grabación de menos de un segundo (no
 se envía) y cada fallo. Una grabación que no se pudo transcribir se conserva
-hasta que pulsas **Retry** o **Discard**. Si la organización eligió Server pero
-todavía no un proveedor y un modelo, o no hay ningún agent elegido, el micrófono
-aparece tachado y dice por qué; quien tiene `org:settings` recibe un enlace a la
-tarjeta Voice.
+hasta que pulsas **Retry** o **Discard**.
+
+Si la organización eligió Server pero
+nada se resuelve para el agent que elegiste —ningún proveedor en el agent ni en
+la organización, o ninguna credencial para él—, o no hay ningún agent elegido, el
+micrófono aparece tachado y dice por qué; quien tiene `org:settings` recibe un
+enlace a la tarjeta Voice, y quien puede editar agents, un enlace a la tarjeta Voice
+de ese agent.
 
 El brillo debajo del compositor mientras hablas sigue a **Voice glow** en
 **Settings → Profile → Appearance**, junto al tema y a **Motion**: **Vivid**,
@@ -189,17 +194,43 @@ y el nivel es un indicador de cinco pasos.
 
 En la página **Members** de la organización, para quien tiene `org:settings`.
 **Speech to text** elige el motor —Off, Browser o Server, cada uno diciendo a
-dónde va el audio— y, para Server, el proveedor y el modelo del catálogo de
-speech-to-text, un idioma (detección automática, o un idioma fijo, que es más
-preciso) y la grabación más larga, de 10 segundos a 10 minutos.
+dónde va el audio— y, para Server, la grabación más larga, de 10 segundos a 10
+minutos. **Default provider**, debajo, es el proveedor y el modelo del catálogo
+de speech-to-text y un idioma (detección automática, o un idioma fijo, que es más
+preciso). Se muestra sea cual sea el motor, porque es también a donde envían sus
+mensajes de voz los [bots de canal](channels.md#what-every-channel-shares)
+configurados para heredar; **None** lo vacía.
 
 Server envía con las credenciales propias de la organización para ese proveedor:
-un model profile, que se añade en el Builder de un agent. Un proveedor sin
-profile se muestra pero no se puede elegir, y un profile sin clave que apunta a
-un servidor propio también cuenta. Cuando Server está guardado pero no puede
+una clave del vault visible para la organización, o un model profile, y un
+profile sin clave que apunta a un servidor propio también cuenta. Un proveedor
+sin ninguna de las dos se muestra pero no se puede elegir, y sin ninguna en
+absoluto la tarjeta enlaza al vault. Cuando Server está guardado pero no puede
 funcionar —el modelo se retiró del catálogo o las credenciales ya no están—, la
 tarjeta lo dice, porque entonces todos los miembros ven un micrófono tachado.
+
+Server sin proveedor predeterminado es una configuración, no un fallo: la tarjeta indica que solo dictan los agents con su propio proveedor.
 **Voice conversations**, debajo, todavía no está construido.
+
+### El motor propio de un agent { #an-agents-own-engine }
+
+La pestaña **Build** de un agent tiene una tarjeta **Voice** después de sus
+ajustes de modelo, para un agent que deba transcribir de forma distinta a su
+organización. **Inherit** conserva el proveedor y el modelo de la organización y
+muestra cuáles son; **Choose** elige un par del catálogo, donde un proveedor sin
+credenciales no se puede elegir. El idioma se elige aparte: heredar el de la
+organización, o fijar uno —así un agent en polaco puede conservar el proveedor de
+la organización—.
+
+Lo que elige forma parte del spec: se guarda con el borrador, entra en vigor cuando se
+publica el agent, y se aplica al [dictado](#dictation) dirigido a este
+agent y a los mensajes de voz que heredan sus bots de canal.
+[El orden](ml-services.md#which-engine-a-recording-reaches) cuenta el resto.
+
+La tarjeta avisa cuando la anulación cambia menos de lo que parece: con el motor
+de la organización en Off o Browser solo alcanza a los mensajes de voz de los
+canales, y sin proveedor en la organización es aquello con lo que funciona el
+dictado a este agent.
 
 ## Para qué sirve cada área { #what-each-area-is-for }
 

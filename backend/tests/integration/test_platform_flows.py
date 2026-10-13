@@ -37,6 +37,7 @@ from app.agents.spec import (
     OrgMcpServerRef,
     PersonalMcpServerRef,
     SpecialistSpec,
+    SpeechToTextSpec,
 )
 from app.api import deps
 from app.core.config import settings
@@ -3489,6 +3490,103 @@ class TestDictationReachesOnlyAgentsTheCallerMayRun:
 
         assert response.status_code == 404
         engine.assert_not_awaited()
+
+
+class TestDictationReadinessFollowsTheAgent:
+    """`GET /agents/{id}/dictation` against real rows (#1797).
+
+    Nothing stubbed but the auth context: the grant decides who may ask, the
+    agent's *published* override decides the provider, and an
+    organization-visible vault key is what makes it ready. This is the agent
+    override making server dictation work in an organization with no provider
+    of its own.
+    """
+
+    @pytest.fixture
+    async def as_caller(self, db) -> AsyncIterator[Callable[[AuthContext], AsyncClient]]:
+        app.dependency_overrides[deps.get_db_session] = lambda: db
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+
+            def bind(ctx: AuthContext) -> AsyncClient:
+                app.dependency_overrides[deps.get_auth_context] = lambda: ctx
+                return client
+
+            yield bind
+        app.dependency_overrides.clear()
+
+    async def _set_up(self, db, name: str) -> tuple[Tenant, Agent]:
+        tenant = await _tenant(db, name=name)
+        tenant.organization.chat_dictation = "server"
+        await _default_model(db, tenant)
+        agent = await _published_agent(
+            db,
+            tenant,
+            spec=AgentSpec(
+                name="Polish desk",
+                speech_to_text=SpeechToTextSpec(
+                    provider="groq", model="whisper-large-v3", language="pl"
+                ),
+            ),
+        )
+        return tenant, agent
+
+    async def test_a_viewer_with_a_use_grant_is_ready_on_the_agents_provider(
+        self, db, as_caller
+    ) -> None:
+        tenant, agent = await self._set_up(db, "Spoken")
+        await OrganizationSecretService(db).create(
+            tenant.ctx,
+            name="Team Groq",
+            value=ApiKeySecret(api_key="gsk-team-1234"),
+            purpose="groq",
+        )
+        viewer = await _join(db, tenant, OrgRoleName.VIEWER)
+        await SharingService(db).share(
+            tenant.ctx,
+            agent,
+            resource_type=AGENT,
+            subject_user_id=viewer.user_id,
+            level=GrantLevel.USE,
+        )
+
+        response = await as_caller(viewer).get(f"{settings.API_V1_STR}/agents/{agent.id}/dictation")
+
+        assert response.status_code == 200
+        assert response.json() == {
+            "engine": "server",
+            "ready": True,
+            "max_seconds": 300,
+            "provider": "groq",
+        }
+
+    async def test_a_private_key_does_not_make_the_agent_ready(self, db, as_caller) -> None:
+        """A member's own Groq key never pays for somebody else's dictation."""
+        tenant, agent = await self._set_up(db, "Private")
+        await OrganizationSecretService(db).create(
+            tenant.ctx,
+            name="Mine",
+            value=ApiKeySecret(api_key="gsk-mine-1234"),
+            purpose="groq",
+            visibility=Visibility.PRIVATE,
+        )
+
+        response = await as_caller(tenant.ctx).get(
+            f"{settings.API_V1_STR}/agents/{agent.id}/dictation"
+        )
+
+        assert response.json()["ready"] is False
+        assert response.json()["provider"] == "groq"
+
+    @pytest.mark.security
+    async def test_another_organizations_agent_is_not_found(self, db, as_caller) -> None:
+        ours = await _tenant(db, name="Ours")
+        _, agent = await self._set_up(db, "Theirs")
+
+        response = await as_caller(ours.ctx).get(
+            f"{settings.API_V1_STR}/agents/{agent.id}/dictation"
+        )
+
+        assert response.status_code == 404
 
 
 class TestMentioningAnAgentFromAChannel:

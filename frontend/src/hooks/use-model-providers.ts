@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/api-error";
 import { apiClient } from "@/lib/api-client";
+import { invalidateSpeechSettings } from "@/lib/dictation-api";
 import { qk } from "@/lib/query-keys";
 import type { ModelApi, ModelProfile, ModelProfileList, ProviderCatalog } from "@/types/providers";
 export interface NewModelProfile {
@@ -76,8 +77,13 @@ export function useModelProviders() {
 
   const invalidate = useCallback(
     // Not `providers.all()`: that prefix covers the catalog, which no mutation
-    // can change and which every dialog on the page needs to stay open.
-    () => queryClient.invalidateQueries({ queryKey: qk.providers.modelProfiles() }),
+    // can change and which every dialog on the page needs to stay open. Speech
+    // to text yes: a profile is one of the credentials a recording is sent with.
+    () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: qk.providers.modelProfiles() }),
+        invalidateSpeechSettings(queryClient),
+      ]),
     [queryClient],
   );
 
@@ -211,6 +217,12 @@ export interface SpeechToTextProvider {
   provider: string;
   name: string;
   models: SpeechToTextModel[];
+  /**
+   * Whether this organization holds something to send with - a model profile
+   * for the provider, or an organization-visible vault key. The server's
+   * answer, because the person choosing may not be able to see the vault.
+   */
+  credentialed: boolean;
 }
 
 interface SpeechToTextProviderList {
@@ -228,16 +240,14 @@ interface SpeechToTextProviderList {
  * API shape has no client, never reaches here - a picker entry that fails when
  * somebody sends a voice note is worse than one that is absent.
  *
- * A catalog, not a listing. It says what the deployment can offer, not what this
- * organization has a key for; the key is resolved from its model profiles when a
- * recording actually arrives.
+ * The models are the deployment's; `credentialed` on each entry is this
+ * organization's, so the answer is refetched when a model profile or a vault key
+ * changes (`invalidateSpeechSettings`) rather than held until a redeploy.
  */
 export function useSpeechToTextProviders() {
   const { data, isLoading, isError } = useQuery({
     queryKey: qk.providers.speechToTextModels(),
     queryFn: () => apiClient.get<SpeechToTextProviderList>("/providers/speech-to-text-models"),
-    // Fixed until the platform is redeployed, like the provider catalog.
-    staleTime: Infinity,
     retry: false,
   });
 

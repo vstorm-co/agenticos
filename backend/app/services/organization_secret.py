@@ -2,16 +2,19 @@
 
 Everything above this deals in secret ids; everything below deals in ciphertext.
 There is deliberately no method that returns a plaintext to a caller who could
-keep one. Three methods unseal, and each hands what it opened straight to the thing
+keep one. Four methods unseal, and each hands what it opened straight to the thing
 that had to have it: :meth:`OrganizationSecretService.resolve_for_bindings`, called
 by the runner; :meth:`OrganizationSecretService.listing_key`, which returns a
-bearer token for one outbound catalog request; and
-:meth:`OrganizationSecretService.oauth_app`, which hands an OAuth client's secret to
-the provider's own token endpoint inside the connect flow and to nowhere else.
+bearer token for one outbound catalog request;
+:meth:`OrganizationSecretService.transcription_key`, which returns one for a
+transcription request; and :meth:`OrganizationSecretService.oauth_app`, which hands
+an OAuth client's secret to the provider's own token endpoint inside the connect
+flow and to nowhere else.
 """
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import cast
 from uuid import UUID
 
@@ -385,6 +388,59 @@ class OrganizationSecretService:
             if isinstance(value, ApiKeySecret):
                 return value.api_key.get_secret_value()
         return None
+
+    async def transcription_key(self, organization_id: UUID, provider: str) -> str | None:
+        """A bearer token for transcribing on one provider, from the vault alone.
+
+        The last place `TranscriptionService` looks, after the organization's
+        model profiles: an organization that stores an OpenAI key in the vault
+        and has no OpenAI chat model can still transcribe on it. The plaintext
+        goes to the provider with the recording and nowhere else.
+
+        **Organization-visible keys only**, unlike :meth:`listing_key`. What
+        leaves here is a paid call on everybody's behalf - a voice note in a
+        channel, a dictation in somebody else's chat - and a member's private
+        key must not pay for those. Several keys for one provider is not an
+        error: the first by name is taken, as `listing_key` does.
+
+        Takes an organization id rather than an `AuthContext`, because a channel
+        bot transcribes before there is a sender to build one for.
+
+        Returns:
+            The key, or `None` when the organization keeps no such key.
+        """
+        secrets = await organization_secret_repo.list_org_visible_by_purpose(
+            self.db,
+            organization_id=organization_id,
+            purposes=[provider],
+            kind=SecretKind.API_KEY.value,
+        )
+        for secret in secrets:
+            value = unseal_secret(
+                secret.sealed_secret,
+                kind=SecretKind.API_KEY,
+                scope=VaultScope.organization(organization_id),
+                key_version=secret.key_version,
+            )
+            if isinstance(value, ApiKeySecret):
+                return value.api_key.get_secret_value()
+        return None
+
+    async def transcription_key_providers(
+        self, organization_id: UUID, providers: Sequence[str]
+    ) -> frozenset[str]:
+        """Which of these providers :meth:`transcription_key` would find a key for.
+
+        Existence only - nothing is unsealed - so a form can say which providers
+        are usable without a plaintext leaving the vault to answer it.
+        """
+        secrets = await organization_secret_repo.list_org_visible_by_purpose(
+            self.db,
+            organization_id=organization_id,
+            purposes=providers,
+            kind=SecretKind.API_KEY.value,
+        )
+        return frozenset(secret.purpose for secret in secrets)
 
     async def oauth_app(self, ctx: AuthContext, *, kind: SecretKind) -> OAuthAppSecret:
         """Unseal the organization's OAuth client credentials for a token exchange.

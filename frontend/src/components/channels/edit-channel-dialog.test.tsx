@@ -16,6 +16,7 @@ function bot(overrides: Partial<ChannelBot> = {}): ChannelBot {
     has_slack_signing_secret: false,
     has_slack_app_token: false,
     connection: null,
+    transcribe_voice_notes: true,
     speech_to_text_provider: null,
     speech_to_text_model: null,
     agents: [],
@@ -32,7 +33,7 @@ function draft(overrides: Partial<ChannelBotDraft> = {}): ChannelBotDraft {
     webhookSecret: "",
     signingSecret: "",
     appToken: "",
-    transcription: { provider: null, model: null },
+    transcription: { mode: "inherit", provider: null, model: null },
     ...overrides,
   };
 }
@@ -129,5 +130,87 @@ describe("the patch an edited bot sends", () => {
     );
 
     expect(patch).toEqual({ token: "111:AAA-replacement" });
+  });
+});
+
+describe("the transcription half of an edited bot's patch", () => {
+  it("sends nothing while the choice is what the bot already does", () => {
+    const paired = bot({
+      speech_to_text_provider: "groq",
+      speech_to_text_model: "whisper-large-v3",
+    });
+
+    expect(botPatch(bot(), draft())).toEqual({});
+    expect(
+      botPatch(
+        paired,
+        draft({ transcription: { mode: "choose", provider: "groq", model: "whisper-large-v3" } }),
+      ),
+    ).toEqual({});
+    expect(
+      botPatch(
+        bot({ transcribe_voice_notes: false }),
+        draft({ transcription: { mode: "off", provider: null, model: null } }),
+      ),
+    ).toEqual({});
+  });
+
+  it("turns a bot off with the switch alone, which clears its pair on the server", () => {
+    const paired = bot({
+      speech_to_text_provider: "groq",
+      speech_to_text_model: "whisper-large-v3",
+    });
+
+    expect(
+      botPatch(paired, draft({ transcription: { mode: "off", provider: null, model: null } })),
+    ).toEqual({ transcribe_voice_notes: false });
+  });
+
+  it("returns a bot with its own pair to inherit by clearing the pair", () => {
+    // A null pair means inherit now; it used to mean off.
+    const paired = bot({
+      speech_to_text_provider: "groq",
+      speech_to_text_model: "whisper-large-v3",
+    });
+
+    expect(botPatch(paired, draft())).toEqual({
+      speech_to_text_provider: null,
+      speech_to_text_model: null,
+    });
+  });
+
+  it("turns an off bot back on to inherit", () => {
+    expect(botPatch(bot({ transcribe_voice_notes: false }), draft())).toEqual({
+      transcribe_voice_notes: true,
+    });
+  });
+
+  it("turns an off bot on with a pair of its own in one patch", () => {
+    expect(
+      botPatch(
+        bot({ transcribe_voice_notes: false }),
+        draft({ transcription: { mode: "choose", provider: "openai", model: "whisper-1" } }),
+      ),
+    ).toEqual({
+      transcribe_voice_notes: true,
+      speech_to_text_provider: "openai",
+      speech_to_text_model: "whisper-1",
+    });
+  });
+
+  it("sends both halves when only the model moved", () => {
+    const paired = bot({
+      speech_to_text_provider: "groq",
+      speech_to_text_model: "whisper-large-v3",
+    });
+
+    expect(
+      botPatch(
+        paired,
+        draft({
+          transcription: { mode: "choose", provider: "groq", model: "whisper-large-v3-turbo" },
+        }),
+      ),
+    ).toEqual({ speech_to_text_provider: "groq", speech_to_text_model: "whisper-large-v3-turbo" });
   });
 });

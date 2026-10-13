@@ -101,12 +101,20 @@ class ChannelBotCreate(BaseSchema):
         max_length=500,
         description="This Slack app's xapp- token, for Socket Mode. Slack bots only.",
     )
+    transcribe_voice_notes: bool = Field(
+        default=True,
+        description=(
+            "Whether voice notes are transcribed at all. On by default, with the "
+            "pair below or - with none - the agent's or organization's engine; "
+            "off never transcribes and clears the pair."
+        ),
+    )
     speech_to_text_provider: str | None = Field(
         default=None,
         max_length=32,
         description=(
             "Which provider transcribes voice notes, from the speech-to-text "
-            "catalog. Null for a bot that does not transcribe."
+            "catalog. Null inherits the agent's or the organization's."
         ),
     )
     speech_to_text_model: str | None = Field(
@@ -175,7 +183,9 @@ class ChannelBotUpdate(BaseSchema):
     """Schema for updating a channel bot (all fields optional).
 
     The Slack credentials distinguish omission from an explicit null: omitted
-    leaves the stored value, null clears it.
+    leaves the stored value, null clears it. So does the transcription pair -
+    null clears it, which since #1797 means "inherit", not "off". Off is
+    `transcribe_voice_notes: false`, which refuses an explicit null.
     """
 
     name: str | None = Field(default=None, max_length=255)
@@ -188,6 +198,7 @@ class ChannelBotUpdate(BaseSchema):
     is_active: bool | None = None
     slack_signing_secret: str | None = Field(default=None, min_length=8, max_length=255)
     slack_app_token: str | None = Field(default=None, min_length=8, max_length=500)
+    transcribe_voice_notes: bool | None = None
     speech_to_text_provider: str | None = Field(default=None, max_length=32)
     speech_to_text_model: str | None = Field(default=None, max_length=255)
 
@@ -215,6 +226,23 @@ class BotAgent(BaseSchema):
     name: str
     slug: str
     has_avatar: bool
+
+
+class InheritedSpeechToTextRead(BaseSchema):
+    """What a bot's voice notes go to when it inherits rather than names a pair.
+
+    For the hint beside "Inherit" in the bot's form: which provider and model,
+    and whether the bot's agent or its organization chose them. Never a
+    credential - the key is the organization's and is not named.
+    """
+
+    provider: str
+    model: str
+    language: str | None = None
+    pair_source: Literal["agent", "organization"]
+    language_source: Literal["agent", "organization"] | None = None
+    agent_name: str | None = None
+    """The agent this bot serves, through whose spec the pair may have come."""
 
 
 class ChannelConnectionRead(BaseSchema):
@@ -250,13 +278,25 @@ class ChannelBotRead(BaseSchema):
     has_webhook_secret: bool = False
     has_slack_signing_secret: bool = False
     has_slack_app_token: bool = False
+    transcribe_voice_notes: bool = True
+    """Whether voice notes are transcribed here at all; off wins over every pair."""
     speech_to_text_provider: str | None = None
     speech_to_text_model: str | None = None
-    """Which model transcribes voice notes here, or null for none.
+    """Which model transcribes voice notes here, or null to inherit one.
 
     Read back plainly: a provider id and a model id are choices somebody made,
-    not credentials. The key they run on is the organization's own model profile
-    and is never named here.
+    not credentials. The key they run on is the organization's own and is never
+    named here.
+    """
+
+    inherited_speech_to_text: InheritedSpeechToTextRead | None = None
+    """What "inherit" resolves to for this bot, on the single-bot read only.
+
+    Answered whatever the bot is set to now, because the form asks it before
+    somebody switches to inherit. Null on the listing - resolving it reads each
+    bot's agent version, which a page of bots should not pay for - and null
+    where nothing resolves: no agent or organization provider, or no agent
+    bound to the bot at all.
     """
 
     connection: ChannelConnectionRead | None = None

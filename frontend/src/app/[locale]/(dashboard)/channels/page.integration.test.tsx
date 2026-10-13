@@ -42,6 +42,7 @@ function bot(overrides: Partial<ChannelBot> = {}): ChannelBot {
     has_slack_signing_secret: false,
     has_slack_app_token: false,
     connection: null,
+    transcribe_voice_notes: true,
     speech_to_text_provider: null,
     speech_to_text_model: null,
     agents: [{ id: "a1", name: "Support", slug: "support", has_avatar: false }],
@@ -67,7 +68,20 @@ function serve(bots: ChannelBot[]) {
           ],
           total: 1,
         }
-      : { items: bots, total: bots.length },
+      : path.startsWith("/channels/bots/")
+        ? // The edit form reads its one bot for what "inherit" resolves to.
+          {
+            ...bots.find((candidate) => path.endsWith(`/${candidate.id}`)),
+            inherited_speech_to_text: {
+              provider: "openai",
+              model: "whisper-1",
+              language: null,
+              pair_source: "agent",
+              language_source: null,
+              agent_name: "Support",
+            },
+          }
+        : { items: bots, total: bots.length },
   );
 }
 
@@ -238,6 +252,35 @@ describe("the channels page", () => {
         api_base_url: "https://mattermost.acme.com",
       }),
     );
+  });
+
+  it("registers a bot that does not listen, or one with a pair of its own", async () => {
+    // Inherit is the server's default and sends nothing; the other two say so.
+    serve([]);
+    vi.mocked(apiClient.post).mockResolvedValue(bot());
+    await mount();
+
+    for (const [choice, sent] of [
+      ["Off", { transcribe_voice_notes: false }],
+      ["Choose", { speech_to_text_provider: "openai", speech_to_text_model: "whisper-1" }],
+    ] as const) {
+      await userEvent.click(await screen.findByRole("button", { name: "Register a channel" }));
+      await userEvent.type(screen.getByLabelText(/Name/), "Acme Support");
+      await userEvent.type(screen.getByLabelText(/Bot token/), "a-long-enough-token");
+      await userEvent.type(screen.getByLabelText(/Server URL/), "https://mattermost.acme.com");
+      await userEvent.click(screen.getByRole("radio", { name: choice }));
+      await userEvent.click(screen.getByRole("button", { name: "Register" }));
+
+      await waitFor(() =>
+        expect(apiClient.post).toHaveBeenLastCalledWith("/channels/bots", {
+          platform: "mattermost",
+          name: "Acme Support",
+          token: "a-long-enough-token",
+          api_base_url: "https://mattermost.acme.com",
+          ...sent,
+        }),
+      );
+    }
   });
 
   it("will not register a Mattermost bot without its server", async () => {
@@ -431,8 +474,7 @@ describe("the channels page", () => {
     await mount();
 
     await userEvent.click(await screen.findByRole("button", { name: "Edit Jarvis" }));
-    await userEvent.click(await screen.findByLabelText(/Voice transcription/));
-    await userEvent.click(await screen.findByRole("option", { name: "OpenAI" }));
+    await userEvent.click(await screen.findByRole("radio", { name: "Choose" }));
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() =>
@@ -443,7 +485,18 @@ describe("the channels page", () => {
     );
   });
 
-  it("clears both halves when transcription is turned off", async () => {
+  it("says what inheriting resolves to, from the bot's own read", async () => {
+    serve([bot({ platform: "telegram", name: "Jarvis", api_base_url: null })]);
+    await mount();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Edit Jarvis" }));
+
+    expect(await screen.findByText("OpenAI · whisper-1, from agent Support")).toBeVisible();
+    expect(apiClient.get).toHaveBeenCalledWith("/channels/bots/b1");
+  });
+
+  it("returns a bot with its own pair to inherit by clearing the pair", async () => {
+    // A null pair inherits now; it used to be how a bot was switched off.
     const listening = bot({
       platform: "telegram",
       name: "Jarvis",
@@ -456,14 +509,36 @@ describe("the channels page", () => {
     await mount();
 
     await userEvent.click(await screen.findByRole("button", { name: "Edit Jarvis" }));
-    await userEvent.click(await screen.findByLabelText(/Voice transcription/));
-    await userEvent.click(await screen.findByRole("option", { name: "Do not transcribe" }));
+    await userEvent.click(await screen.findByRole("radio", { name: "Inherit" }));
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() =>
       expect(apiClient.patch).toHaveBeenCalledWith(`/channels/bots/${listening.id}`, {
         speech_to_text_provider: null,
         speech_to_text_model: null,
+      }),
+    );
+  });
+
+  it("turns transcription off with the switch, which clears the pair", async () => {
+    const listening = bot({
+      platform: "telegram",
+      name: "Jarvis",
+      api_base_url: null,
+      speech_to_text_provider: "openai",
+      speech_to_text_model: "whisper-1",
+    });
+    serve([listening]);
+    vi.mocked(apiClient.patch).mockResolvedValue(listening);
+    await mount();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Edit Jarvis" }));
+    await userEvent.click(await screen.findByRole("radio", { name: "Off" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() =>
+      expect(apiClient.patch).toHaveBeenCalledWith(`/channels/bots/${listening.id}`, {
+        transcribe_voice_notes: false,
       }),
     );
   });

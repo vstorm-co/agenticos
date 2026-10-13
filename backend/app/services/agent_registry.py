@@ -53,6 +53,7 @@ from app.agents.spec import (
     McpServerRef,
     PersonalMcpServerRef,
     SpecialistSpec,
+    SpeechToTextSpec,
     SubagentRef,
 )
 from app.core.audit import record_audit
@@ -96,7 +97,7 @@ from app.schemas.agent import (
     TemplateInstallResult,
     normalize_labels_query,
 )
-from app.services import agent_templates, mcp_catalog, skill_library
+from app.services import agent_templates, mcp_catalog, skill_library, speech_to_text
 from app.services.access import (
     AGENT,
     COLLECTION,
@@ -337,6 +338,42 @@ def _tool_override_problems(binding: CapabilityBindingSpec, definition: Capabili
             "framework provides itself - two tools of that name abort the turn"
         )
 
+    return problems
+
+
+def _speech_to_text_problems(override: SpeechToTextSpec | None) -> list[str]:
+    """Everything wrong with an agent's speech-to-text override.
+
+    Here rather than on `SpeechToTextSpec` itself, because the Builder saves a
+    draft on every change and a half-chosen pair - a provider picked, its model
+    not yet - is a draft somebody is in the middle of, not a mistake. Published,
+    it is one: a provider with no model reads as configured and transcribes
+    nothing, and a model outside the catalog is refused by the provider while
+    the person who sent the recording waits. Both are caught while somebody is
+    looking at the form, the same as every other reference a spec makes.
+    """
+    if override is None:
+        return []
+    problems: list[str] = []
+    provider, model = override.provider, override.model
+    if (provider is None) != (model is None):
+        problems.append(
+            "Speech to text needs a provider and a model together - choose both, or "
+            "inherit the organization's"
+        )
+    elif (
+        provider is not None
+        and model is not None
+        and not speech_to_text.is_offered(provider, model)
+    ):
+        problems.append(
+            f"Speech to text: '{model}' is not a transcription model this deployment "
+            f"offers for {provider}"
+        )
+    if override.language is not None and override.language not in speech_to_text.LANGUAGES:
+        problems.append(
+            f"Speech to text: '{override.language}' is not a language transcription accepts"
+        )
     return problems
 
 
@@ -1328,6 +1365,7 @@ class AgentRegistryService:
 
         problems.add(await self._mcp_problems(ctx, spec.mcp_servers))
         problems.add(await self._observability_problems(ctx, spec))
+        problems.add(_speech_to_text_problems(spec.speech_to_text))
 
         problems.add(await _sandbox_problems(self.db, ctx, spec))
         problems.merge(await self._delegation_problems(ctx, spec, agent_id=agent_id))

@@ -49,7 +49,7 @@ import { DictationBar } from "./dictation-bar";
 import { DictationUnavailable } from "./dictation-unavailable";
 
 /**
- * The organization's dictation, as the composer needs it.
+ * Dictation for the selected agent, as the composer needs it.
  *
  * The recording itself lives in the page (`useDictation` beside the microphone),
  * because the glow around the box reads its phase; this component only shows
@@ -57,7 +57,10 @@ import { DictationUnavailable } from "./dictation-unavailable";
  */
 export interface ComposerDictation {
   engine: DictationEngine;
-  /** Whether the `server` engine is configured for the organization. */
+  /**
+   * Whether the `server` engine reaches a provider for the selected agent - its
+   * own speech-to-text override or the organization's, with a credential.
+   */
   ready: boolean;
   /** Whether there is an agent to send the recording through. */
   hasAgent: boolean;
@@ -65,6 +68,8 @@ export interface ComposerDictation {
   actions: DictationActions;
   /** Where an `org:settings` holder sets dictation up; null for everyone else. */
   voiceSettingsHref: string | null;
+  /** The selected agent's Voice card, for whoever may edit agents; null otherwise. */
+  agentVoiceHref: string | null;
   /** Opens or closes the explanation of a crossed-out microphone under the box. */
   onExplain: () => void;
 }
@@ -626,8 +631,9 @@ export function ChatInput({
               </Button>
             ) : (
               <DictationUnavailable
-                why={server.ready ? "no_agent" : "not_ready"}
+                why={server.hasAgent ? "not_ready" : "no_agent"}
                 voiceSettingsHref={server.voiceSettingsHref}
+                agentVoiceHref={server.agentVoiceHref}
                 onExplain={server.onExplain}
               />
             ))}

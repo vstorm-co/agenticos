@@ -71,6 +71,17 @@ export const qk = {
   },
   channelBots: {
     list: () => ["channel-bots"] as const,
+    // Under the list's prefix, so every bot mutation refreshes the one a dialog
+    // has open too - its "inherit" hint reads the bot's agent.
+    detail: (botId: string) => ["channel-bots", botId] as const,
+  },
+  dictation: {
+    // Whether the composer can dictate to one agent, and on which provider. Its
+    // own prefix because five unrelated writes change the answer - the
+    // organization's voice settings, a publish, a promotion, a model profile and
+    // the vault - and each invalidates every agent's at once.
+    all: () => ["dictation"] as const,
+    agent: (agentId: string) => ["dictation", agentId] as const,
   },
   catalog: {
     icons: () => ["catalog", "icons"] as const,

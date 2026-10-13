@@ -78,6 +78,21 @@ export interface ObservabilitySpec {
   content?: TraceContent | null;
 }
 
+/**
+ * Which engine and language this agent's speech is transcribed with, where it
+ * differs from the organization's. A null field inherits. The provider and
+ * model are a pair - both or neither, refused at publish otherwise - and the
+ * language stands alone. Written with all three keys, in this order, and an
+ * all-null block is written as `null`: the server stores it that way, and the
+ * Builder compares the draft as JSON.
+ */
+export interface SpeechToTextSpec {
+  provider: string | null;
+  model: string | null;
+  /** ISO-639-1; null inherits the organization's, then the engine detects it. */
+  language: string | null;
+}
+
 /** The agent's half of the two budget levels; the organization's cap is the other. */
 export interface BudgetSpec {
   monthly_usd?: number | null;
@@ -302,6 +317,8 @@ export interface AgentSpec {
    */
   notifications?: NotificationSpec;
   observability?: ObservabilitySpec | null;
+  /** Optional here and in `create`; the server answers with `null` for none. */
+  speech_to_text?: SpeechToTextSpec | null;
 }
 
 /** The model an agent's published version runs on. Enough to prefill a picker. */

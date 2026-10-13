@@ -1,5 +1,5 @@
 ---
-source_sha: "ef2795b762aa"
+source_sha: "0ac237c91eee"
 ---
 
 # Los servicios de ML { #the-ml-services }
@@ -143,13 +143,24 @@ endpoint de aquí no cambia. Una organización sin credenciales utilizables reci
 un rechazo que lo dice — nada se da por existente si un operador no lo ha
 configurado.
 
-Qué profile, cuando la organización tiene varios para un proveedor: **primero
-uno con clave**, el primero por orden de etiqueta, y uno sin clave solo cuando el
-proveedor no tiene ninguno con clave, y solo si nombra un endpoint propio. Una
-petición sin clave no lleva cabecera `Authorization`, y nunca la
-`OPENAI_API_KEY` del despliegue. Que la clave vaya primero es lo que mantiene a
-un bot de canal transcribiendo en OpenAI después de que alguien añada un profile
-`openai` sin clave para un proxy de chat que no sirve `/audio/transcriptions`.
+Qué credencial, cuando la organización tiene varias para un proveedor:
+**primero un profile con clave**, el primero por orden de etiqueta; después uno
+sin clave, solo si nombra un endpoint propio; y, a falta de ambos, **una clave de
+API guardada en el vault** con ese proveedor como propósito, la primera por
+nombre, enviada a la dirección del catálogo. Una petición sin clave no lleva
+cabecera `Authorization`, y nunca la `OPENAI_API_KEY` del despliegue. Que la
+clave vaya primero es lo que mantiene a un bot de canal transcribiendo en OpenAI
+después de que alguien añada un profile `openai` sin clave para un proxy de chat
+que no sirve `/audio/transcriptions`.
+
+La clave del vault es siempre una **visible para toda la organización**. La
+clave privada de un miembro nunca se gasta en una grabación, porque lo que
+pagaría es de todos: una nota de voz en un canal, un dictado en el chat de otra
+persona. Una organización que guarda una clave de OpenAI en el vault y no
+ejecuta ningún modelo de chat de OpenAI transcribe con ella sin un model profile
+que no necesita. El mismo orden sirve a este endpoint, al dictado y a las notas
+de voz de los canales. La lista del vault con los agents que usan una clave no
+incluye este uso, porque ningún agent vincula la clave.
 
 Un rechazo dice por qué en `details.reason`, aquí y en el
 [dictado](#dictation-in-chat) por igual. El texto de error del propio proveedor
@@ -172,9 +183,10 @@ su mensaje la URL de la petición, clave incluida.
 transcribe en el servidor. Recibe una grabación como `file` y responde
 `{"text": "..."}`, que el cuadro de mensaje inserta para editarlo; nada se envía
 hasta que la persona pulsa Enviar. Quien llama no nombra proveedor, modelo ni
-idioma —son de la organización— y la persona puede dictar a cualquier agent que
-pueda ejecutar, incluido un Viewer con un grant `use` sobre él. Un agent
-que no puede ejecutar responde 404, como en todas partes.
+idioma —se [resuelven](#which-engine-a-recording-reaches) a partir del agent y
+de la organización— y la persona puede dictar a cualquier agent que pueda
+ejecutar, incluido un Viewer con un grant `use` sobre él. Un agent que no puede
+ejecutar responde 404, como en todas partes.
 
 Lo que lee de la organización, configurado en la
 [tarjeta Voice](console.md#the-voice-card) por alguien con `org:settings`:
@@ -182,7 +194,18 @@ Lo que lee de la organización, configurado en la
 rechaza como `not_configured`), `speech_to_text_provider` y
 `speech_to_text_model` (un par del catálogo de speech-to-text),
 `speech_to_text_language` (un código ISO-639-1, o null para que el motor lo
-detecte) y `dictation_max_seconds` (de 10 a 600, 300 por defecto).
+detecte) y `dictation_max_seconds` (de 10 a 600, 300 por defecto). El motor y
+el dictado más largo son siempre de la organización; el agent solo puede cambiar
+el proveedor, el modelo y el idioma.
+
+`GET /api/v1/agents/{agent_id}/dictation`, con el mismo acceso, dice si el
+micrófono funcionará antes de que nadie grabe: `engine`, `max_seconds`,
+`provider` y `ready`. `ready` exige el motor `server`, un par que se resuelva
+para este agent, que el catálogo lo siga ofreciendo y una credencial para su
+proveedor en la organización — se comprueba que existe, nunca se abre.
+`provider` es aquel al que llegaría una grabación, que decide el formato en que
+graba el cuadro de mensaje. Un agent sin nada publicado responde con los ajustes
+de la organización.
 
 La grabación tiene que ser `audio/webm`, `audio/ogg`, `audio/mp4` o
 `audio/wav`, con sufijo de códec permitido, y `audio/x-wav` y `audio/wave` se
@@ -208,8 +231,8 @@ queda registrada.
 !!! note "Con Mistral el navegador graba WAV, y se transcriben menos idiomas"
 
     Mistral documenta entrada WAV y MP3 para Voxtral, no WebM ni Opus, que es lo
-    que graban Chrome y Firefox. Por eso, cuando el proveedor de transcripción
-    de voz de la organización es Mistral, el cuadro de mensaje graba en su lugar
+    que graban Chrome y Firefox. Por eso, cuando el proveedor al que se resuelve
+    una grabación es Mistral, el cuadro de mensaje graba en su lugar
     WAV de 16 kHz, mono y 16 bits en todos los navegadores. La subida pesa más o
     menos el doble —32.000 bytes por segundo—, pero el límite de duración es el
     mismo, porque una grabación WAV de `dictation_max_seconds` cabe bajo el
@@ -219,6 +242,33 @@ queda registrada.
     indica 13 idiomas para Voxtral, así que un idioma fijado que no acepte
     vuelve como `provider_error`. En Mistral, deja el idioma en detección
     automática y prueba una grabación antes de confiar en ello.
+
+#### A qué motor llega una grabación { #which-engine-a-recording-reaches }
+
+Tres sitios pueden nombrar un motor de speech-to-text: la
+[tarjeta Voice](console.md#the-voice-card) de la organización, la anulación
+[`speech_to_text`](reference/spec.md#speech-to-text) de un agent, configurada en
+su propia [tarjeta Voice](console.md#an-agents-own-engine) y en vigor una vez
+publicada, y un [bot de canal](channels.md#what-every-channel-shares). Se
+resuelven en dos mitades:
+
+| Qué | Viene del primero que lo fija |
+|---|---|
+| Proveedor y modelo, como par | El bot, después el agent, después la organización |
+| Idioma | El agent, después la organización, después lo detecta el motor |
+
+Así, un agent en polaco dentro de una organización configurada para inglés fija
+`language: pl` y conserva el proveedor de la organización. Un bot no tiene idioma
+propio; el del agent o el de la organización se aplica también a su propio par.
+Que no se resuelva nada significa que no se transcribe nada: el dictado responde
+`not_configured`, y un bot dice que no puede escuchar.
+
+El dictado lee la versión publicada por defecto del agent, la que ejecuta
+`/chat`. Un bot lee el agent al que sirve su vinculación —nunca un agent que
+alguien menciona con `@slug`, porque una grabación se transcribe antes de que se
+enruten las menciones— en la versión que fija el entorno de esa vinculación, la
+que usará el run. Un agent en borrador o archivado no tiene ninguna versión que
+alguien ejecute, y responde solo la organización.
 
 ### Detección de datos personales { #personal-data-detection }
 

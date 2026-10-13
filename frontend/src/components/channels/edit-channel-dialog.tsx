@@ -16,9 +16,11 @@ import {
   Input,
 } from "@/components/ui";
 import {
+  choiceOf,
   TranscriptionFields,
   type TranscriptionChoice,
 } from "@/components/channels/transcription-fields";
+import { useChannelBot } from "@/hooks/use-channel-bots";
 import { submitFailure } from "@/lib/api-error";
 import { DIALOG_FORM } from "@/lib/dialog-sizes";
 import type { ChannelBot, ChannelBotUpdate, ChannelPlatform } from "@/types/channels";
@@ -78,15 +80,33 @@ export function botPatch(bot: ChannelBot, draft: ChannelBotDraft): ChannelBotUpd
     if (appToken) patch.slack_app_token = appToken;
   }
 
-  // Both halves whenever either moved, because the server pairs them against the
-  // stored row: sending a provider alone would be refused as a setting that
-  // cannot run, and clearing means clearing both.
-  const { provider, model } = draft.transcription;
+  Object.assign(patch, transcriptionPatch(bot, draft.transcription));
+  return patch;
+}
+
+/**
+ * The transcription half of the patch: the switch, and the pair, each only
+ * where it moved.
+ *
+ * Off is the switch alone - the server clears the pair with it. Inherit is the
+ * switch back on where it was off, and a null pair where the bot had its own;
+ * a null pair no longer means off (#1797). Choose is the switch on and both
+ * halves whenever either moved, because the server pairs them against the
+ * stored row: sending a provider alone would be refused as a setting that
+ * cannot run.
+ */
+function transcriptionPatch(bot: ChannelBot, choice: TranscriptionChoice): ChannelBotUpdate {
+  if (choice.mode === "off") {
+    return bot.transcribe_voice_notes ? { transcribe_voice_notes: false } : {};
+  }
+  const patch: ChannelBotUpdate = bot.transcribe_voice_notes
+    ? {}
+    : { transcribe_voice_notes: true };
+  const { provider, model } = choice;
   if (provider !== bot.speech_to_text_provider || model !== bot.speech_to_text_model) {
     patch.speech_to_text_provider = provider;
     patch.speech_to_text_model = model;
   }
-
   return patch;
 }
 
@@ -119,11 +139,11 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
     webhookSecret: "",
     signingSecret: "",
     appToken: "",
-    transcription: {
-      provider: bot.speech_to_text_provider,
-      model: bot.speech_to_text_model,
-    },
+    transcription: choiceOf(bot),
   });
+  // The single-bot read carries what "inherit" resolves to; the row the list
+  // handed over does not, because resolving it reads the bot's agent.
+  const inherited = useChannelBot(bot.id)?.inherited_speech_to_text;
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   function set<K extends keyof ChannelBotDraft>(field: K, value: string) {
@@ -146,7 +166,10 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
     } catch (error) {
       const failure = submitFailure(
         error,
-        { fields: ["name", "token", "api_base_url", "webhook_secret"], identifiedBy: "name" },
+        {
+          fields: ["name", "token", "api_base_url", "webhook_secret", "transcribe_voice_notes"],
+          identifiedBy: "name",
+        },
         tErrors,
       );
       setErrors(failure.fields);
@@ -268,6 +291,8 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
 
         <TranscriptionFields
           idPrefix="edit-channel"
+          platform={bot.platform}
+          inherited={inherited}
           value={draft.transcription}
           onChange={(transcription) => setDraft((current) => ({ ...current, transcription }))}
         />

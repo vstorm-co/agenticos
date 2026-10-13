@@ -19,8 +19,8 @@ The difference from `image_models` is where the credential comes from. Drawing i
 a capability on an agent, so it seals its own key into the spec. Transcribing is
 something a *channel bot* does to a voice note before there is an agent involved,
 so it runs on the credential the organization already configured for that provider
-in its model profiles - which is the store the vault and the profile list already
-join. Nothing new to configure, and no second place a key can be wrong.
+- a model profile, or an organization-visible key in the vault
+(`TranscriptionService._credential` has the order). Nothing new to configure.
 """
 
 from dataclasses import dataclass

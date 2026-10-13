@@ -34,14 +34,17 @@ from app.core.config import settings
 from app.core.exceptions import AppException, BadRequestError, ConfigurationError, NotFoundError
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext
+from app.db.models.agent import Agent
 from app.db.models.local_service import LocalServiceKind
 from app.db.models.ml_service_call import MLCallStatus, MLServiceCall
+from app.db.models.organization import DictationEngine
 from app.repositories import ml_service_call_repo
 from app.repositories import organization as organization_repo
 from app.services import speech_to_text, transcription
 from app.services.local_service import LocalServiceService
 from app.services.ml import parsing, pii
 from app.services.ml.catalog import SERVICE_CATALOG, MLServiceEntry
+from app.services.speech_to_text_settings import SpeechToTextSettingsService
 from app.services.transcription import Recording, TranscriptionService
 
 logger = logging.getLogger(__name__)
@@ -73,6 +76,16 @@ the type. MP4 audio goes as `.m4a`, the name OpenAI, Groq and Mistral all list.
 
 DICTATION_TYPE_ALIASES: dict[str, str] = {"audio/x-wav": "audio/wav", "audio/wave": "audio/wav"}
 """Other names clients use for WAV, read as `audio/wav`."""
+
+
+@dataclass(frozen=True)
+class DictationStatus:
+    """What the composer needs before offering the microphone for one agent."""
+
+    engine: DictationEngine
+    ready: bool
+    max_seconds: int
+    provider: str | None
 
 
 @dataclass(frozen=True)
@@ -216,30 +229,38 @@ class MLService:
         )
         return Transcript(text=text, provider=chosen[0], model=chosen[1])
 
-    async def dictate(self, ctx: AuthContext, *, content: bytes, mime_type: str) -> str:
-        """Transcribe a composer recording on the organization's dictation settings (#1797).
+    async def dictate(
+        self, ctx: AuthContext, *, agent: Agent, content: bytes, mime_type: str
+    ) -> str:
+        """Transcribe a composer recording for one agent (#1797).
 
-        The caller has already proven run access on the agent the person is
-        talking to. Nothing is kept but the usage record: the audio is discarded
-        when this returns, and the text goes back in the response only.
+        The caller has already proven run access on `agent`. The engine choice
+        and the longest dictation are the organization's; the provider, model
+        and language resolve through `speech_to_text_settings` - the agent's
+        published override first, then the organization. Nothing is kept but the
+        usage record: the audio is discarded when this returns, and the text
+        goes back in the response only.
 
         The byte cap is the organization's longest dictation at
         `DICTATION_BYTES_PER_SECOND`, never above what transcription accepts.
 
         Raises:
             ConfigurationError: `reason="not_configured"` - the engine is not
-                `server`, no pair is set, or the provider has no credential here.
+                `server`, no pair resolves, or the provider has no credential here.
             BadRequestError: `reason` `empty`, `unsupported_type` or `too_large`.
             ExternalServiceError: `reason` `provider_error` or `timeout`.
         """
         started = time.monotonic()
         try:
             org = await organization_repo.get_by_id(self.db, ctx.organization_id)
-            provider = org.speech_to_text_provider if org else None
-            model = org.speech_to_text_model if org else None
-            if org is None or org.chat_dictation != "server" or provider is None or model is None:
+            resolved = (
+                await SpeechToTextSettingsService(self.db).for_agent(agent)
+                if org is not None and org.chat_dictation == "server"
+                else None
+            )
+            if org is None or resolved is None:
                 raise ConfigurationError(
-                    message="Server dictation is not set up for this organization.",
+                    message="Server dictation is not set up for this agent.",
                     details={"reason": "not_configured"},
                 )
             if not content:
@@ -268,9 +289,9 @@ class MLService:
             text = await TranscriptionService(self.db).transcribe(
                 Recording(content=content, filename=f"recording.{extension}", mime_type=base_type),
                 organization_id=ctx.organization_id,
-                provider=provider,
-                model=model,
-                language=org.speech_to_text_language,
+                provider=resolved.provider,
+                model=resolved.model,
+                language=resolved.language,
             )
         except AppException as exc:
             await self._record_failure(
@@ -286,6 +307,47 @@ class MLService:
             started=started,
         )
         return text
+
+    async def dictation_status(self, ctx: AuthContext, *, agent: Agent) -> DictationStatus:
+        """Whether the composer can dictate to this agent, and on which provider.
+
+        Read before the microphone is offered, so a recording is not made only
+        to be refused. `ready` needs all of it: the organization's engine is
+        `server`, a pair resolves for this agent, the catalog still offers it,
+        and the organization holds a credential for its provider - checked for
+        existence, never opened. The provider is returned whatever the engine,
+        because the composer records in the format that provider accepts.
+
+        An agent with nothing published answers from the organization alone,
+        as dictation itself would - never a refusal.
+        """
+        org = await organization_repo.get_by_id(self.db, ctx.organization_id)
+        if org is None:
+            raise NotFoundError(
+                message="Organization not found",
+                details={"organization_id": ctx.organization_id},
+            )
+        resolved = await SpeechToTextSettingsService(self.db).for_agent(agent)
+        ready = (
+            org.chat_dictation == "server"
+            and resolved is not None
+            and speech_to_text.is_offered(resolved.provider, resolved.model)
+            and resolved.provider
+            in await TranscriptionService(self.db).credentialed_providers(ctx.organization_id)
+        )
+        return DictationStatus(
+            engine=org.chat_dictation,
+            ready=ready,
+            max_seconds=org.dictation_max_seconds,
+            provider=resolved.provider if resolved is not None else None,
+        )
+
+    async def speech_to_text_credentials(self, ctx: AuthContext) -> frozenset[str]:
+        """Which transcription providers this organization holds a credential for.
+
+        Existence only, never opened - see `TranscriptionService.credentialed_providers`.
+        """
+        return await TranscriptionService(self.db).credentialed_providers(ctx.organization_id)
 
     async def detect_personal_data(
         self, ctx: AuthContext, *, text: str, categories: Sequence[str] | None

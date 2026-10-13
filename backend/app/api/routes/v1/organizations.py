@@ -60,9 +60,9 @@ async def update_organization(
     The voice settings - `chat_dictation`, `speech_to_text_provider`,
     `speech_to_text_model`, `speech_to_text_language` and
     `dictation_max_seconds` - are checked together, and only when one of them is
-    in the request: `server` needs a provider and model the speech-to-text
-    catalog offers, the pair is both or neither, and the language must be one
-    transcription accepts. A refusal names the field it is about.
+    in the request: the pair is both or neither and one the speech-to-text
+    catalog offers, and the language must be one transcription accepts.
+    `server` needs no pair here, because an agent may carry its own. A refusal names the field it is about.
     """
     org = await service.update(org_id, data, requester_id=user.id)
     return await service.read_for_user(org.id, user.id)

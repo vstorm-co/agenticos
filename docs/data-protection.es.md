@@ -1,5 +1,5 @@
 ---
-source_sha: "015be7266b49"
+source_sha: "dea3bb35047f"
 ---
 
 # Protección de datos { #data-protection }
@@ -130,7 +130,7 @@ lista completa de destinos, con la configuración que decide cada uno.
 | Un servidor MCP | Argumentos y resultados de herramientas | `mcp_connections.url`, por organización o por persona | La del operador del servidor |
 | mem0 | Los recuerdos escritos para una persona o un chat | La `base_url` de la capability `memory_mem0`, que tiene que estar en `MEM0_ALLOWED_HOSTS` | La del host de mem0 que permitas |
 | Logfire | Spans de cada petición y cada run | `LOGFIRE_TOKEN` a nivel de deployment; un token `observability` en un spec, o `logfire_token_secret_id` en un entorno, redirige esos runs a otro proyecto. `LOGFIRE_BASE_URL` elige el deployment de EE. UU. o el de la UE. Sin definir en ninguna parte, no se envía nada | La de Pydantic, EE. UU. o UE |
-| Voz a texto, generación de imágenes | Una nota de voz de un canal, o una grabación dictada en `/chat`; el prompt | El par de speech-to-text de un bot, o el motor de dictado de la organización en `server`, con un perfil para `groq`, `mistral` u `openai` - uno sin clave en un host que tú gestionas también cuenta; un perfil para `google` u `openai`. El audio de un dictado no se guarda aquí | La del provider, o tu propio host |
+| Voz a texto, generación de imágenes | Una nota de voz de un canal, o una grabación dictada en `/chat`; el prompt | El provider al que se resuelve una grabación - el par propio del bot, la anulación del agent o el predeterminado de la organización, que un bot hereda salvo que esté desactivado - con un perfil para `groq`, `mistral` u `openai` (uno sin clave en un host que tú gestionas también cuenta) o una clave del vault visible para la organización para ese provider; para el dictado, además, el motor de la organización en `server`. Un perfil para `google` u `openai` para las imágenes. El audio de un dictado no se guarda aquí | La del provider, o tu propio host |
 | Slack, Telegram, Mattermost | Las respuestas del agent | Una fila `channel_bots` con su token en el vault | El proveedor de mensajería ya tiene el chat |
 | Inicio de sesión con Google | Nada hacia fuera; Google devuelve el correo, el nombre, la foto y el id de la cuenta | `GOOGLE_CLIENT_ID` | La de Google |
 | Tu relay SMTP | El correo de arriba | `SMTP_HOST`, `SMTP_TLS` | La tuya |

@@ -36,6 +36,8 @@ export interface DictationHintInput {
   unavailable: DictationUnavailable | null;
   /** Where an `org:settings` holder sets dictation up; null for everyone else. */
   voiceSettingsHref: string | null;
+  /** The selected agent's Voice card, for whoever may edit agents; null otherwise. */
+  agentVoiceHref: string | null;
   /** Closes the explanation of a crossed-out microphone. */
   closeExplanation: () => void;
 }
@@ -74,16 +76,26 @@ function StripButton({
   );
 }
 
-/** The explanation for an engine that is on but not set up: whom to ask, or where to go. */
-function notSetUp(t: Translate, href: string | null): ReactNode {
+const SETUP_LINK = "text-foreground font-medium underline underline-offset-[3px]";
+
+/**
+ * The explanation for an engine that is on but not set up: whom to ask, or
+ * where to go - the organization's default, this agent's own, or both.
+ */
+function notSetUp(t: Translate, orgHref: string | null, agentHref: string | null): ReactNode {
   return (
     <>
       {strong(t("hint.notSetUpTitle"))} {t("hint.notSetUpBody")}{" "}
-      {href === null ? (
-        t("askAdmin")
-      ) : (
-        <Link href={href} className="text-foreground font-medium underline underline-offset-[3px]">
+      {orgHref === null && agentHref === null && t("askAdmin")}
+      {orgHref !== null && (
+        <Link href={orgHref} className={SETUP_LINK}>
           {t("openVoiceSettings")}
+        </Link>
+      )}
+      {orgHref !== null && agentHref !== null && " · "}
+      {agentHref !== null && (
+        <Link href={agentHref} className={SETUP_LINK}>
+          {t("setForAgent")}
         </Link>
       )}
     </>
@@ -98,7 +110,15 @@ function notSetUp(t: Translate, href: string | null): ReactNode {
  * ended the last attempt. Pure, so every branch is a table row in the test.
  */
 export function dictationHint(input: DictationHintInput, t: Translate): StripHint | null {
-  const { state, actions, maxSeconds, unavailable, voiceSettingsHref, closeExplanation } = input;
+  const {
+    state,
+    actions,
+    maxSeconds,
+    unavailable,
+    voiceSettingsHref,
+    agentVoiceHref,
+    closeExplanation,
+  } = input;
   const dismiss = <StripButton onClick={actions.dismiss}>{t("dismiss")}</StripButton>;
   const close = <StripButton onClick={closeExplanation}>{t("dismiss")}</StripButton>;
   const keep = (reason: string, sentence: ReactNode): StripHint => ({
@@ -141,7 +161,7 @@ export function dictationHint(input: DictationHintInput, t: Translate): StripHin
       key: "notReady",
       tone: "hint",
       icon: MicOff,
-      message: notSetUp(t, voiceSettingsHref),
+      message: notSetUp(t, voiceSettingsHref, agentVoiceHref),
       actions: close,
     };
   }
@@ -231,7 +251,7 @@ export function dictationHint(input: DictationHintInput, t: Translate): StripHin
         key: "notConfigured",
         tone: "hint",
         icon: MicOff,
-        message: notSetUp(t, voiceSettingsHref),
+        message: notSetUp(t, voiceSettingsHref, agentVoiceHref),
         actions: dismiss,
       };
     case "empty":

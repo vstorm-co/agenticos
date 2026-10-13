@@ -1,5 +1,5 @@
 ---
-source_sha: "74ed632657e1"
+source_sha: "be354afc92ae"
 ---
 
 # El spec del agent { #the-agent-spec }
@@ -43,3 +43,14 @@ configuración de la [capability `subagents`](capabilities.md#delegation).
 ## Observabilidad { #observability }
 
 ::: app.agents.spec.ObservabilitySpec
+
+## Voz a texto { #speech-to-text }
+
+El proveedor, el modelo y el idioma con los que se transcriben el dictado de un
+agent y las notas de voz de canal que hereda, cuando difieren de los de la
+organización. [Servicios de ML](../ml-services.md#which-engine-a-recording-reaches)
+tiene el orden en que se resuelven. Un spec que lleva este bloque no se puede
+importar en un despliegue anterior al bloque: su spec rechaza los campos que no
+conoce.
+
+::: app.agents.spec.SpeechToTextSpec

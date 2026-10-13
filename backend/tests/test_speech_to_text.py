@@ -9,10 +9,13 @@ not the person waiting for an answer.
 from __future__ import annotations
 
 from dataclasses import replace
+from unittest.mock import AsyncMock, MagicMock
+from uuid import uuid4
 
 import pytest
 
 from app.agents.model_resolver import PROVIDERS
+from app.core.permissions import AuthContext, OrgRoleName
 from app.core.secret_kinds import SecretKind
 from app.services import speech_to_text
 
@@ -160,7 +163,30 @@ class TestTheCatalogRoute:
         """The Voice card's language select reads this rather than a copy of it."""
         from app.api.routes.v1.model_providers import list_speech_to_text_models
 
-        result = await list_speech_to_text_models()
+        result = await list_speech_to_text_models(_ml(frozenset()), _CTX)
 
         assert result.languages == list(speech_to_text.LANGUAGES)
         assert "pl" in result.languages
+
+    @pytest.mark.anyio
+    async def test_each_provider_says_whether_this_organization_can_use_it(self):
+        """Answered by the server, so a Builder without `secrets:view` sees the
+        same greyed-out providers an administrator does (#1797)."""
+        from app.api.routes.v1.model_providers import list_speech_to_text_models
+
+        ml = _ml(frozenset({"groq"}))
+        result = await list_speech_to_text_models(ml, _CTX)
+
+        assert {item.provider: item.credentialed for item in result.items} == {
+            entry.provider: entry.provider == "groq" for entry in speech_to_text.providers()
+        }
+        assert ml.speech_to_text_credentials.await_args.args == (_CTX,)
+
+
+_CTX = AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.BUILDER)
+
+
+def _ml(credentialed: frozenset[str]) -> MagicMock:
+    ml = MagicMock()
+    ml.speech_to_text_credentials = AsyncMock(return_value=credentialed)
+    return ml

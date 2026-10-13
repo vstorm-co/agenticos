@@ -1,5 +1,5 @@
 ---
-source_sha: "9f2ebd04f8d2"
+source_sha: "f96f62cc6cbf"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1250,7 +1250,7 @@ auseinanderlaufen kann.
     und lässt den Chat sagen, mit welchem Agent er spricht, was kein Routing kann.
     `@slug` wird weiterhin geparst — als Alias für den Agent hinter diesem Bot,
     abgelehnt, wenn es irgendeinen anderen nennt.
-- **Eine Sprachnachricht wird transkribiert, wo ein Bot ein Modell bekommen hat.**
+- **Eine Sprachnachricht wird transkribiert, außer der Bot ist ausgeschaltet.**
   Sie ist der eine Anhang, den man einem Agent nicht als Datei übergeben kann: er
   liest ein PDF und sieht sich einen Screenshot an, und ein `audio/ogg`-Blob ist
   eine Byte-Zahl.
@@ -1266,21 +1266,52 @@ auseinanderlaufen kann.
     Bildunterschrift bleibt eine Nachricht, denn das ist es, was jemand geschickt
     hat.
 
-    Welches Modell, ist ein **Paar auf dem Bot** — ein Provider und eines seiner
-    Modelle, aus `app/core/catalog/speech_to_text_models.json` —, gewählt unter
-    **Channels**, und standardmäßig null: Transkription gibt bei jeder Aufnahme
-    das Provider-Guthaben der Organisation aus, also wird sie bewusst aktiviert.
-    Der Schlüssel ist der, der für diesen Provider ohnehin in den Modellprofilen
-    der Organisation konfiguriert ist; es gibt nichts Neues zu speichern. Ein
-    Profil mit Schlüssel geht einem schlüssellosen vor, und ein schlüsselloses
-    Profil, das auf einen selbst gehosteten Server zeigt, wird nur benutzt, wenn
-    der Provider kein Profil mit Schlüssel hat
+    Das Formular jedes Bots unter **Channels** bietet drei Antworten. **Inherit**,
+    die Voreinstellung, nimmt Provider und Modell des Agents, den der Bot bedient,
+    dann die der Organisation, und die Sprache des Agents, dann die der
+    Organisation ([die Reihenfolge](ml-services.md#which-engine-a-recording-reaches)).
+    **Choose** nennt das eigene Paar des Bots - einen Provider und eines seiner
+    Modelle, aus `app/core/catalog/speech_to_text_models.json`. **Off**
+    transkribiert nie, was immer der Agent oder die Organisation sagen. Neben der
+    Auswahl nennt Inherit, worauf es sich auflöst, und welche der beiden Stellen
+    es gewählt hat.
+
+    Erben kostet nichts, bis jemand einen Provider einrichtet: ist weder auf dem
+    Agent noch auf der Organisation einer gesetzt, wird nichts transkribiert, und
+    das Provider-Guthaben der Organisation auszugeben bleibt die Entscheidung der
+    Organisation. Ein Bot, der über die CLI oder von einem Client ohne Schalter
+    registriert wird, erbt. Der Schlüssel ist der eigene der
+    Organisation für diesen Provider - ein Modellprofil oder ein für die
+    Organisation sichtbarer Schlüssel im Vault -, und es gibt nichts Neues zu
+    speichern. Ein Profil mit Schlüssel geht einem schlüssellosen vor, und ein
+    schlüsselloses Profil, das auf einen selbst gehosteten Server zeigt, wird nur
+    benutzt, wenn der Provider kein Profil mit Schlüssel hat
     ([die Reihenfolge](ml-services.md#speech-to-text)) - ein schlüsselloser
     Chat-Proxy bringt einen Bot also nicht von dem Provider ab, auf dem er
-    transkribiert. Ein Bot
-    ohne gewähltes Modell sagt, dass er nicht zuhören kann, statt die Aufnahme
-    fallen zu lassen, denn eine Sprachnotiz, die keine Reaktion erzeugt, ist von
-    einem kaputten Bot nicht zu unterscheiden.
+    transkribiert.
+
+    Ein Bot, der nicht zuhören kann, sagt das, statt die Aufnahme fallen zu
+    lassen, denn eine Sprachnotiz, die keine Reaktion erzeugt, ist von einem
+    kaputten Bot nicht zu unterscheiden - und er sagt, aus welchem Grund, weil
+    jeweils jemand anderes ihn behebt: der Bot ist ausgeschaltet, oder niemand hat
+    einen Provider eingerichtet. Ein Bot ohne gebundenen Agent transkribiert gar
+    nichts, da die Nachricht ohnehin abgelehnt wird.
+
+    !!! note "Upgrade: ein Bot, der nicht transkribiert hat, tut es weiterhin nicht"
+
+        Bevor es diesen Schalter gab, war ein Bot ohne Paar ein Bot, der nicht
+        transkribierte, und die API leerte das Paar, um die Transkription
+        abzuschalten. Die Migration `0107_bot_transcription_switch.py` schaltet
+        jeden solchen Bot auf **off**, sodass keiner von ihnen beim Upgrade
+        anfängt, Audio an einen Provider zu schicken; ein Bot mit Paar behält es.
+        Von da an bekommt ein Client, der das Paar leert, **inherit**, und
+        **off** ist `transcribe_voice_notes: false`, was das Paar ebenfalls
+        leert. Die Sprache der Organisation oder des Agents erreicht jetzt auch
+        einen Bot mit eigenem Paar.
+
+    Eine Telegram-Sprachnotiz ist Ogg/Opus, das Mistral nicht als akzeptiertes
+    Format aufführt, also kann ein Telegram-Bot, der Mistral erreicht - gewählt
+    oder geerbt -, beim Transkribieren scheitern; das Formular sagt es.
 
     Drei Provider sind dabei: OpenAI, Groq und Mistral, die alle OpenAIs
     `POST /audio/transcriptions` bedienen. Ein Modell hinzuzufügen ist ein Eintrag

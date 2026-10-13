@@ -84,6 +84,14 @@ vi.mock("@/components/ui/voice-glow", () => ({
 /** The active organization, with server dictation set up unless told otherwise. */
 const organization = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }));
 
+/** What `GET /agents/{id}/dictation` answers for every agent. */
+const readiness = vi.hoisted(() => ({
+  current: { engine: "server", ready: true, max_seconds: 300, provider: "openai" } as Record<
+    string,
+    unknown
+  >,
+}));
+
 const { socket } = vi.hoisted(() => ({
   socket: { onMessage: null as ((event: MessageEvent) => void) | null },
 }));
@@ -166,9 +174,12 @@ beforeEach(() => {
           })
         : url === "/orgs" && organization.current !== null
           ? Promise.resolve({ items: [organization.current], total: 1 })
-          : Promise.resolve({ items: [], total: 0 }),
+          : /^\/agents\/[^/]+\/dictation$/.test(url)
+            ? Promise.resolve(readiness.current)
+            : Promise.resolve({ items: [], total: 0 }),
   );
   organization.current = null;
+  readiness.current = { engine: "server", ready: true, max_seconds: 300, provider: "openai" };
   dictation.phase = "idle";
   dictation.reason = null;
   dictation.provider = undefined;
@@ -287,16 +298,23 @@ describe("the chat container - server dictation", () => {
     expect(strip).toHaveTextContent("Pick an agent first.");
 
     act(() => useAgentSelectionStore.setState({ selectedAgentId: "a-1" }));
+    // Usable once that agent's readiness answers, which shuts the explanation.
+    await waitFor(() => expect(strip).toBeEmptyDOMElement());
     act(() => useAgentSelectionStore.setState({ selectedAgentId: null }));
 
-    await waitFor(() => expect(strip).toBeEmptyDOMElement());
+    expect(strip).toBeEmptyDOMElement();
   });
 
-  it("tells the recorder the organization's speech-to-text provider, which picks the format", async () => {
-    organization.current = { ...organization.current, speech_to_text_provider: "mistral" };
+  it("tells the recorder the agent's provider, which picks the format", async () => {
+    // An agent overriding to Mistral in an organization on OpenAI records WAV,
+    // which Mistral takes, rather than the WebM it refuses.
+    organization.current = { ...organization.current, speech_to_text_provider: "openai" };
+    readiness.current = { ...readiness.current, provider: "mistral" };
+    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
     mount();
 
     await waitFor(() => expect(dictation.provider).toBe("mistral"));
+    expect(get).toHaveBeenCalledWith("/agents/a-1/dictation");
   });
 
   it("tells the recorder there is no provider before the organization is read", () => {
@@ -304,6 +322,36 @@ describe("the chat container - server dictation", () => {
     mount();
 
     expect(dictation.provider).toBeNull();
+  });
+
+  it("offers the microphone once the agent's readiness says yes", async () => {
+    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
+    mount();
+
+    const mic = await screen.findByRole("button", { name: "Voice input" });
+    await waitFor(() => expect(mic).not.toHaveAttribute("aria-disabled"));
+  });
+
+  it("crosses the microphone out for an agent that resolves to nothing usable", async () => {
+    readiness.current = { ...readiness.current, ready: false };
+    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
+    mount();
+
+    expect(
+      await screen.findByRole("button", {
+        name: "Voice input",
+        description: /^Dictation isn't set up yet\./,
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("asks no agent about readiness while the organization dictates in the browser", async () => {
+    organization.current = { ...organization.current, chat_dictation: "browser" };
+    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
+    mount();
+
+    expect(await screen.findByRole("button", { name: "Voice input" })).toBeInTheDocument();
+    expect(get).not.toHaveBeenCalledWith("/agents/a-1/dictation");
   });
 
   it("leaves the glow to the open microphone for the browser engine", async () => {

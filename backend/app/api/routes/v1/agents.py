@@ -67,7 +67,7 @@ from app.schemas.agent import (
     TemplateInstallRequest,
     TemplateInstallResult,
 )
-from app.schemas.ml import DictationRead
+from app.schemas.ml import DictationRead, DictationStatusRead
 from app.services import mcp_catalog, mcp_listing, transcription
 from app.services.attachments import load_attached_files
 from app.services.capability_contracts import tool_contracts
@@ -540,6 +540,28 @@ async def delete_agent(agent_id: UUID, service: AgentRegistrySvc, ctx: Auth) -> 
     await service.delete(ctx, agent_id)
 
 
+@router.get("/{agent_id}/dictation", response_model=DictationStatusRead)
+async def dictation_status(agent_id: UUID, registry: AgentRegistrySvc, ml: MLSvc, ctx: Auth) -> Any:
+    """Whether the composer can dictate to this agent, and on which provider (#1797).
+
+    The same access as dictating: anyone who may run the agent, a grant included,
+    and a 404 for an agent the caller may not run. Read before the microphone is
+    offered, so nobody records only to be refused, and for the provider the
+    recording format follows - Mistral takes WAV where the others take WebM.
+
+    An agent with nothing published answers from the organization's settings,
+    never with a refusal.
+    """
+    agent = await registry.get(ctx, agent_id, perm=Perm.AGENTS_RUN)
+    status = await ml.dictation_status(ctx, agent=agent)
+    return DictationStatusRead(
+        engine=status.engine,
+        ready=status.ready,
+        max_seconds=status.max_seconds,
+        provider=status.provider,
+    )
+
+
 @router.post(
     "/{agent_id}/dictation",
     response_model=DictationRead,
@@ -563,17 +585,20 @@ async def dictate_into_composer(
 
     Anyone who may run this agent may dictate to it, a Viewer with a `use` grant
     included - so this is a per-resource check, not a role gate - and an agent the
-    caller may not run answers 404, as everywhere else. The engine, model and
-    language are the organization's dictation settings; the caller names none.
+    caller may not run answers 404, as everywhere else. The engine is the
+    organization's; the provider, model and language are the agent's published
+    speech-to-text override where it has one and the organization's otherwise.
+    The caller names none.
 
     The audio is not stored; the text comes back for the person to edit before
     sending. Refusals carry `details.reason`: 400 `empty`, `unsupported_type` or
     `too_large`; 503 `not_configured`, `provider_error` or `timeout`; 429 past
     `RATE_LIMIT_DICTATION_PER_MINUTE`.
     """
-    await registry.get(ctx, agent_id, perm=Perm.AGENTS_RUN)
+    agent = await registry.get(ctx, agent_id, perm=Perm.AGENTS_RUN)
     text = await ml.dictate(
         ctx,
+        agent=agent,
         # One byte past the ceiling, so an oversized body is never copied whole
         # and the service can still name the limit it is over.
         content=await file.read(transcription.MAX_BYTES + 1),

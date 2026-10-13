@@ -2,7 +2,7 @@
 
 import { Fragment, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Ban, Globe, Loader2, Plus, Server, TriangleAlert } from "lucide-react";
+import { ArrowRight, Ban, Globe, Info, Loader2, Plus, Server, TriangleAlert } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -44,6 +44,8 @@ const FIELDS = [
 
 /** Radix `SelectItem` refuses `""`, so auto-detect needs a value of its own. */
 const AUTO_DETECT = "auto";
+/** The same for "no default provider", which clears the pair. */
+const NO_PROVIDER = "none";
 const MIN_SECONDS = 10;
 const MAX_SECONDS = 600;
 
@@ -194,18 +196,20 @@ function useVoiceDraft(org: Organization) {
 function VoiceForm({ org }: { org: Organization }) {
   const t = useTranslations("teams");
   const { providers, languages } = useSpeechToTextProviders();
-  const { profiles, profilesStatus } = useModelProviders();
+  // Read for the path line's host alone: which providers can send is the
+  // catalog's `credentialed`, answered by the server from the profiles and the
+  // vault together - a vault key is invisible in the profile list.
+  const { profiles } = useModelProviders();
   const form = useVoiceDraft(org);
   const { draft, failure } = form;
 
-  // While the profiles are unread, nothing is marked as lacking credentials:
-  // a provider greyed out for a frame and then enabled reads as a glitch.
+  // While the catalog is unread nothing is marked as lacking credentials - it is
+  // empty until read, and for good when the read fails, and neither is a
+  // missing credential; a provider greyed out for a frame reads as a glitch.
   const credentialed = (provider: string) =>
-    profilesStatus !== "loaded" || profileFor(profiles, provider) !== undefined;
-  // The same for the catalog: it is empty until read, and for good when the read
-  // fails, and neither is a missing credential.
-  const anyCredentials =
-    providers.length === 0 || providers.some((entry) => credentialed(entry.provider));
+    providers.length === 0 ||
+    (providers.find((entry) => entry.provider === provider)?.credentialed ?? false);
+  const anyCredentials = providers.length === 0 || providers.some((entry) => entry.credentialed);
 
   const chooseEngine = (engine: DictationEngine) => {
     // Server with nothing picked yet takes the first provider that can answer,
@@ -251,6 +255,16 @@ function VoiceForm({ org }: { org: Organization }) {
             onChange={form.edit}
           />
         )}
+        <DefaultFields
+          draft={draft}
+          providers={providers}
+          languages={languages}
+          profiles={profiles}
+          credentialed={credentialed}
+          failure={failure}
+          lengthInvalid={form.lengthInvalid}
+          onChange={form.edit}
+        />
         <div className="mt-5 flex justify-end gap-2">
           <Button
             variant="ghost"
@@ -347,7 +361,7 @@ function useProviderList(providers: SpeechToTextProvider[]): string {
   );
 }
 
-/** Why Server cannot be chosen: no provider here has a profile to send with. */
+/** Why Server cannot be chosen: no provider here has a key or a profile to send with. */
 function NoCredentials({ providers }: { providers: SpeechToTextProvider[] }) {
   const t = useTranslations("teams");
   const names = useProviderList(providers);
@@ -359,9 +373,9 @@ function NoCredentials({ providers }: { providers: SpeechToTextProvider[] }) {
         {t("voice.noCredentialsBody", { providers: names })}
       </p>
       <Button asChild variant="outline" size="sm" className="col-start-2 mt-2 justify-self-start">
-        <Link href={ROUTES.AGENTS}>
+        <Link href={ROUTES.VAULT}>
           <Plus className="h-4 w-4" aria-hidden />
-          {t("voice.addProfile")}
+          {t("voice.addKey")}
         </Link>
       </Button>
     </div>
@@ -390,19 +404,27 @@ function NotReady({ org, credentialed, providers }: NotReadyProps) {
   // A withdrawn model is fixed in this form; the other two need a profile.
   let needsProfile = true;
   if (!org.chat_dictation_ready) {
+    // No default pair is a setup, not a fault: agents that choose their own
+    // provider still dictate. Said as a note, with nothing to go and fix.
+    if (model === null) {
+      return (
+        <Alert className="mb-4">
+          <Info className="h-4 w-4" aria-hidden />
+          <AlertTitle>{t("voice.agentsOnlyTitle")}</AlertTitle>
+          <AlertDescription>{t("voice.agentsOnlyBody")}</AlertDescription>
+        </Alert>
+      );
+    }
     // The server's readiness is a stored pair whose model the catalog still
     // offers, so a stored model it calls unready is one withdrawn since.
-    if (model === null) {
-      reason = t("voice.notReadyNoModel");
-    } else {
-      reason = t("voice.notReadyWithdrawn", { model });
-      needsProfile = false;
-    }
+    reason = t("voice.notReadyWithdrawn", { model });
+    needsProfile = false;
   } else if (credentialed(provider)) {
     return null;
   } else {
-    // By id while the catalog is unread.
-    const name = providers.find((entry) => entry.provider === provider)?.name ?? provider;
+    // Only reached with the catalog read - unread, nothing lacks credentials -
+    // and a ready pair is one the catalog offers, so the provider is in it.
+    const name = providers.find((entry) => entry.provider === provider)!.name;
     reason = t("voice.notReadyNoCredentials", { provider: name });
   }
   return (
@@ -414,8 +436,8 @@ function NotReady({ org, credentialed, providers }: NotReadyProps) {
         {needsProfile && (
           <>
             {" "}
-            <Link href={ROUTES.AGENTS} className="text-foreground font-medium underline">
-              {t("voice.addProfile")}
+            <Link href={ROUTES.VAULT} className="text-foreground font-medium underline">
+              {t("voice.addKey")}
             </Link>
           </>
         )}
@@ -424,7 +446,7 @@ function NotReady({ org, credentialed, providers }: NotReadyProps) {
   );
 }
 
-interface ServerFieldsProps {
+interface FieldsProps {
   draft: Draft;
   providers: SpeechToTextProvider[];
   languages: string[];
@@ -435,9 +457,9 @@ interface ServerFieldsProps {
   onChange: (next: Partial<Draft>) => void;
 }
 
-/** Provider, model, language and longest recording - only for the Server engine. */
-function ServerFields(props: ServerFieldsProps) {
-  const { draft, providers, profiles, credentialed, failure, onChange } = props;
+/** Where a Server recording goes, and the longest one - only for the Server engine. */
+function ServerFields(props: FieldsProps) {
+  const { draft, providers, profiles } = props;
   const t = useTranslations("teams");
   const chosen = providers.find((entry) => entry.provider === draft.provider);
   const host = chosen ? hostOf(profileFor(profiles, chosen.provider)?.base_url) : null;
@@ -453,6 +475,28 @@ function ServerFields(props: ServerFieldsProps) {
         />
       )}
       <div className="grid gap-4 sm:grid-cols-2">
+        <LengthField {...props} />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The organization's default provider, model and language, whatever the engine.
+ *
+ * Shown for Off and Browser too, because the same pair is what a channel bot's
+ * voice notes inherit: hidden there, an administrator could not see - or stop -
+ * the provider a bot set to inherit is sending audio to (#1797).
+ */
+function DefaultFields(props: FieldsProps) {
+  const { draft, providers, credentialed, failure, onChange } = props;
+  const t = useTranslations("teams");
+  const chosen = providers.find((entry) => entry.provider === draft.provider);
+  return (
+    <div className="mt-6">
+      <h3 className="text-sm font-semibold">{t("voice.defaultTitle")}</h3>
+      <p className="text-muted-foreground mt-0.5 mb-4 text-sm">{t("voice.defaultDescription")}</p>
+      <div className="grid gap-4 sm:grid-cols-2">
         <FormField
           label={t("voice.provider")}
           htmlFor="org-voice-provider"
@@ -460,8 +504,12 @@ function ServerFields(props: ServerFieldsProps) {
           error={failure.fields.speech_to_text_provider}
         >
           <Select
-            value={draft.provider ?? undefined}
+            value={draft.provider ?? NO_PROVIDER}
             onValueChange={(next) => {
+              if (next === NO_PROVIDER) {
+                onChange({ provider: null, model: null });
+                return;
+              }
               // `next` is one of the options below, and each catalog entry has a model.
               const entry = providers.find((candidate) => candidate.provider === next)!;
               onChange({ provider: next, model: entry.models[0]!.id });
@@ -471,6 +519,9 @@ function ServerFields(props: ServerFieldsProps) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value={NO_PROVIDER} textValue={t("voice.providerNone")}>
+                {t("voice.providerNone")}
+              </SelectItem>
               {providers.map((entry) => {
                 const usable = credentialed(entry.provider);
                 const label = usable
@@ -490,27 +541,28 @@ function ServerFields(props: ServerFieldsProps) {
             </SelectContent>
           </Select>
         </FormField>
-        <FormField
-          label={t("voice.model")}
-          htmlFor="org-voice-model"
-          description={chosen ? t("voice.modelHint", { provider: chosen.name }) : undefined}
-          error={failure.fields.speech_to_text_model}
-        >
-          <Select value={draft.model ?? undefined} onValueChange={(model) => onChange({ model })}>
-            <SelectTrigger id="org-voice-model">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {(chosen?.models ?? []).map((model) => (
-                <SelectItem key={model.id} value={model.id} textValue={model.name}>
-                  {model.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </FormField>
+        {chosen && (
+          <FormField
+            label={t("voice.model")}
+            htmlFor="org-voice-model"
+            description={t("voice.modelHint", { provider: chosen.name })}
+            error={failure.fields.speech_to_text_model}
+          >
+            <Select value={draft.model ?? undefined} onValueChange={(model) => onChange({ model })}>
+              <SelectTrigger id="org-voice-model">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {chosen.models.map((model) => (
+                  <SelectItem key={model.id} value={model.id} textValue={model.name}>
+                    {model.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FormField>
+        )}
         <LanguageField {...props} />
-        <LengthField {...props} />
       </div>
     </div>
   );
@@ -548,7 +600,7 @@ function AudioPath({ hops, note }: { hops: string[]; note: string }) {
   );
 }
 
-function LanguageField({ draft, languages, failure, onChange }: ServerFieldsProps) {
+function LanguageField({ draft, languages, failure, onChange }: FieldsProps) {
   const t = useTranslations("teams");
   const locale = useLocale();
   const options = useMemo(() => {
@@ -599,7 +651,7 @@ function LanguageField({ draft, languages, failure, onChange }: ServerFieldsProp
  * Laid out by hand rather than through `FormField`, which labels its one child:
  * here the label belongs to the number, and the unit beside it names itself.
  */
-function LengthField({ draft, failure, lengthInvalid, onChange }: ServerFieldsProps) {
+function LengthField({ draft, failure, lengthInvalid, onChange }: FieldsProps) {
   const t = useTranslations("teams");
   const error = lengthInvalid
     ? t("voice.maxLengthInvalid")

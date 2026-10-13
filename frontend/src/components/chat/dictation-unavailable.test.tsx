@@ -21,10 +21,16 @@ beforeAll(() => {
 function show(
   why: "not_ready" | "no_agent" = "not_ready",
   voiceSettingsHref: string | null = null,
+  agentVoiceHref: string | null = null,
 ) {
   const onExplain = vi.fn();
   render(
-    <DictationUnavailable why={why} voiceSettingsHref={voiceSettingsHref} onExplain={onExplain} />,
+    <DictationUnavailable
+      why={why}
+      voiceSettingsHref={voiceSettingsHref}
+      agentVoiceHref={agentVoiceHref}
+      onExplain={onExplain}
+    />,
   );
   return { onExplain, button: screen.getByRole("button", { name: "Voice input" }) };
 }
@@ -37,7 +43,7 @@ describe("DictationUnavailable", () => {
     expect(button).not.toBeDisabled();
     expect(button.querySelector("svg")!.getAttribute("class")).toContain("lucide-mic-off");
     expect(button).toHaveAccessibleDescription(
-      "Dictation isn't set up yet. This organization transcribes on its own server, and no speech-to-text model is chosen.",
+      "Dictation isn't set up yet. This organization transcribes on its own server, and no speech-to-text model is chosen for it or for this agent.",
     );
   });
 
@@ -84,6 +90,28 @@ describe("DictationUnavailable", () => {
       "href",
       "/orgs/o1/members#org-voice",
     );
+    expect(screen.queryByText("Ask an admin to set it up.")).not.toBeInTheDocument();
+  });
+
+  it("links an agent editor to this agent's Voice card, beside the organization's", () => {
+    const { button } = show("not_ready", "/orgs/o1/members#org-voice", "/agents/a1#agent-voice");
+
+    fireEvent.focus(button);
+
+    expect(screen.getByRole("link", { name: "Set one for this agent" })).toHaveAttribute(
+      "href",
+      "/agents/a1#agent-voice",
+    );
+    expect(screen.getByRole("link", { name: "Open Voice settings" })).toBeInTheDocument();
+  });
+
+  it("links an agent editor without org settings to the agent alone", () => {
+    const { button } = show("not_ready", null, "/agents/a1#agent-voice");
+
+    fireEvent.focus(button);
+
+    expect(screen.getByRole("link", { name: "Set one for this agent" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Open Voice settings" })).not.toBeInTheDocument();
     expect(screen.queryByText("Ask an admin to set it up.")).not.toBeInTheDocument();
   });
 

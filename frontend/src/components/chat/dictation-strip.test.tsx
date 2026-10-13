@@ -74,11 +74,13 @@ function show({
   state = {},
   unavailable = null,
   href = null,
+  agentHref = null,
   maxSeconds = 300,
 }: {
   state?: Partial<DictationState>;
   unavailable?: DictationUnavailable | null;
   href?: string | null;
+  agentHref?: string | null;
   maxSeconds?: number;
 } = {}) {
   const actions = fakeActions();
@@ -90,6 +92,7 @@ function show({
       maxSeconds={maxSeconds}
       unavailable={unavailable}
       voiceSettingsHref={href}
+      agentVoiceHref={agentHref}
       closeExplanation={closeExplanation}
     />,
   );
@@ -117,6 +120,7 @@ describe("DictationStrip", () => {
       maxSeconds: 300,
       unavailable: null,
       voiceSettingsHref: null,
+      agentVoiceHref: null,
       closeExplanation: vi.fn(),
     };
     const { rerender } = render(
@@ -302,7 +306,7 @@ describe("dictationHint", () => {
     [
       "the crossed-out mic, not set up, to a member",
       { unavailable: "not_ready" },
-      /Dictation isn't set up yet\. This organization transcribes on its own server, and no speech-to-text model is chosen\. Ask an admin to set it up\./,
+      /Dictation isn't set up yet\. This organization transcribes on its own server, and no speech-to-text model is chosen for it or for this agent\. Ask an admin to set it up\./,
       ["Dismiss"],
     ],
   ])("says %s", (_label, input, text, buttons) => {
@@ -320,6 +324,29 @@ describe("dictationHint", () => {
       "href",
       "/orgs/o1/members#org-voice",
     );
+    expect(screen.queryByText(/Ask an admin/)).not.toBeInTheDocument();
+  });
+
+  it("offers both the organization's settings and this agent's, side by side", () => {
+    show({
+      unavailable: "not_ready",
+      href: "/orgs/o1/members#org-voice",
+      agentHref: "/agents/a1#agent-voice",
+    });
+
+    expect(screen.getByRole("link", { name: "Set one for this agent" })).toHaveAttribute(
+      "href",
+      "/agents/a1#agent-voice",
+    );
+    expect(screen.getByRole("link", { name: "Open Voice settings" })).toBeInTheDocument();
+    expect(panel().textContent).toContain("Open Voice settings · Set one for this agent");
+  });
+
+  it("links an agent editor without org settings to the agent alone", () => {
+    show({ unavailable: "not_ready", agentHref: "/agents/a1#agent-voice" });
+
+    expect(screen.getByRole("link", { name: "Set one for this agent" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Open Voice settings" })).not.toBeInTheDocument();
     expect(screen.queryByText(/Ask an admin/)).not.toBeInTheDocument();
   });
 

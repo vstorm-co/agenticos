@@ -13,6 +13,8 @@ interface DictationUnavailableProps {
   why: Why;
   /** Where an `org:settings` holder sets dictation up; null for everyone else. */
   voiceSettingsHref: string | null;
+  /** The selected agent's Voice card, for whoever may edit agents; null otherwise. */
+  agentVoiceHref: string | null;
   /** Opens or closes the same explanation in the strip under the composer. */
   onExplain: () => void;
 }
@@ -30,6 +32,7 @@ interface DictationUnavailableProps {
 export function DictationUnavailable({
   why,
   voiceSettingsHref,
+  agentVoiceHref,
   onExplain,
 }: DictationUnavailableProps) {
   const t = useTranslations("chat.dictation");
@@ -88,15 +91,27 @@ export function DictationUnavailable({
         <p className="font-semibold">{title}</p>
         <p className="text-muted-foreground mt-0.5">{body}</p>
         {why === "not_ready" &&
-          (voiceSettingsHref === null ? (
+          (voiceSettingsHref === null && agentVoiceHref === null ? (
             <p className="text-muted-foreground mt-2">{t("askAdmin")}</p>
           ) : (
-            <Link
-              href={voiceSettingsHref}
-              className="mt-2 inline-block font-medium underline underline-offset-[3px]"
-            >
-              {t("openVoiceSettings")}
-            </Link>
+            <div className="mt-2 flex flex-col items-start gap-1">
+              {voiceSettingsHref !== null && (
+                <Link
+                  href={voiceSettingsHref}
+                  className="font-medium underline underline-offset-[3px]"
+                >
+                  {t("openVoiceSettings")}
+                </Link>
+              )}
+              {agentVoiceHref !== null && (
+                <Link
+                  href={agentVoiceHref}
+                  className="font-medium underline underline-offset-[3px]"
+                >
+                  {t("setForAgent")}
+                </Link>
+              )}
+            </div>
           ))}
       </PopoverContent>
     </Popover>

@@ -76,8 +76,8 @@ class OrganizationUpdate(BaseSchema):
         default=None,
         description=(
             "How /chat dictation transcribes: off, the browser's own speech service, "
-            "or this organization's provider on the server. Omit to leave it alone. "
-            "`server` needs a provider and model set, here or already."
+            "or a speech-to-text provider on the server. Omit to leave it alone. "
+            "`server` with no pair here dictates only for agents that set their own."
         ),
     )
     speech_to_text_provider: str | None = Field(

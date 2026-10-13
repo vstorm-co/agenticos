@@ -582,17 +582,22 @@ class TestOrganizationService:
         return AsyncMock(return_value=(org, MagicMock(role=OrgRole.OWNER.value)))
 
     @pytest.mark.anyio
-    async def test_server_dictation_without_a_pair_is_refused_on_the_engine(self, service):
-        """`server` with nothing to transcribe on would be a mic that fails on
-        every recording; the form marks the engine, which is what was asked."""
+    async def test_server_dictation_without_an_organization_pair_is_allowed(self, service):
+        """An agent may carry its own pair (`SpeechToTextSpec`), so `server` with
+        none here is a setup where only those agents dictate - not a refusal."""
+        org = self._speech_org()
         with (
-            patch.object(service, "get_for_user", new=self._as_owner(self._speech_org())),
-            pytest.raises(BadRequestError) as raised,
+            patch.object(service, "get_for_user", new=self._as_owner(org)),
+            patch(
+                "app.services.organization.organization_repo.set_speech_settings",
+                new=AsyncMock(return_value=org),
+            ) as written,
         ):
             await service.update(
                 uuid.uuid4(), OrganizationUpdate(chat_dictation="server"), requester_id=uuid.uuid4()
             )
-        assert raised.value.details["fields"][0]["field"] == "chat_dictation"
+        assert written.await_args.kwargs["chat_dictation"] == "server"
+        assert written.await_args.kwargs["provider"] is None
 
     @pytest.mark.anyio
     async def test_a_pair_the_catalog_does_not_offer_is_refused_on_the_model(self, service):
@@ -624,20 +629,23 @@ class TestOrganizationService:
         assert raised.value.details["fields"][0]["field"] == "speech_to_text_provider"
 
     @pytest.mark.anyio
-    async def test_clearing_the_pair_under_server_is_refused_on_a_field_sent(self, service):
-        """Stored `server`, request clears only the pair: the engine was not
-        sent, so the refusal marks the pair field the request did send."""
+    async def test_clearing_the_pair_under_server_is_allowed(self, service):
+        """Stored `server`, request clears only the pair: agents with their own
+        pair keep dictating, the rest show a mic that is not set up."""
         org = self._speech_org(chat_dictation="server", provider="openai", model="whisper-1")
         with (
             patch.object(service, "get_for_user", new=self._as_owner(org)),
-            pytest.raises(BadRequestError) as raised,
+            patch(
+                "app.services.organization.organization_repo.set_speech_settings",
+                new=AsyncMock(return_value=org),
+            ) as written,
         ):
             await service.update(
                 uuid.uuid4(),
                 OrganizationUpdate(speech_to_text_provider=None, speech_to_text_model=None),
                 requester_id=uuid.uuid4(),
             )
-        assert raised.value.details["fields"][0]["field"] == "speech_to_text_model"
+        assert written.await_args.kwargs["model"] is None
 
     @pytest.mark.anyio
     async def test_asking_for_server_on_a_stale_pair_is_refused_on_the_engine(self, service):

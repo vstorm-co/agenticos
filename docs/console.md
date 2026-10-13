@@ -149,9 +149,10 @@ transcribes is the organization's choice, made on [the Voice card](#the-voice-ca
   browser vendor (Google, Apple). Firefox has none: its microphone says so
   when pressed.
 - **Server** — the browser records, and this deployment sends the recording to
-  the organization's speech-to-text provider. It works in every browser that can
-  record. See [Dictation in chat](ml-services.md#dictation-in-chat) for the
-  endpoint, its limits and what is recorded.
+  the organization's speech-to-text provider, or to
+  [the agent's own](#an-agents-own-engine) where it names one. It works in every
+  browser that can record. See [Dictation in chat](ml-services.md#dictation-in-chat)
+  for the endpoint, its limits and what is recorded.
 
 With **Server**, pressing the microphone replaces the controls with a recording
 bar: Cancel, the level, a timer and Stop. **Enter** stops and transcribes,
@@ -164,9 +165,13 @@ Everything dictation has to say appears in a strip attached under the composer:
 the permission prompt, a blocked or missing microphone, the last 30 seconds, five
 seconds without sound, a recording under a second (not sent), and every failure.
 A recording that failed to transcribe is kept until you press **Retry** or
-**Discard**. Where the organization has chosen Server but no provider or model
-yet, or no agent is picked, the microphone is crossed out and says why; somebody
-holding `org:settings` is offered a link to the Voice card.
+**Discard**.
+
+Where the organization has chosen Server but nothing resolves for
+the agent you picked - no provider on the agent or the organization, or no
+credential for it - or no agent is picked, the microphone is crossed out and
+says why; somebody holding `org:settings` is offered a link to the Voice card,
+and somebody who can edit agents a link to this agent's own Voice card.
 
 The glow beneath the composer while you speak follows **Voice glow** under
 **Settings → Profile → Appearance**, beside the theme and **Motion**: **Vivid**,
@@ -181,17 +186,39 @@ is a five-step indicator.
 
 On the organization's **Members** page, for somebody holding `org:settings`.
 **Speech to text** chooses the engine — Off, Browser or Server, each saying where
-the audio goes — and, for Server, the provider and model from the speech-to-text
-catalog, a language (auto-detect, or one fixed language, which is more accurate)
-and the longest recording, from 10 seconds to 10 minutes.
+the audio goes — and, for Server, the longest recording, from 10 seconds to 10
+minutes. **Default provider**, below it, is the provider and model from the
+speech-to-text catalog and a language (auto-detect, or one fixed language, which
+is more accurate). It is shown whatever the engine, because it is also what
+[channel bots](channels.md#what-every-channel-shares) set to inherit send their
+voice messages to; **None** clears it.
 
-Server sends with the organization's own credentials for that provider: a model
-profile, added in an agent's Builder. A provider with no profile is shown but
-cannot be picked, and a keyless profile pointed at a self-hosted server counts.
-Where Server is stored but cannot run — the model was withdrawn from the
-catalog, or the credentials are gone — the card says so, because every member
-then sees a crossed-out microphone. **Voice conversations**, below it, is not
-built yet.
+Server sends with the organization's own credentials for that provider: an
+organization-visible key in the vault, or a model profile, and a keyless profile
+pointed at a self-hosted server counts. A provider with neither is shown but
+cannot be picked, and with none at all the card links to the vault. Where Server
+is stored but cannot run — the model was withdrawn from the catalog, or the
+credentials are gone — the card says so, because every member then sees a
+crossed-out microphone.
+
+Server with no default provider is a setup rather than a fault: the card notes that only agents with their own provider dictate. **Voice conversations**, below it, is not built yet.
+
+### An agent's own engine
+
+An agent's **Build** tab has a **Voice** card after its model settings, for an
+agent that should transcribe differently from its organization. **Inherit**
+keeps the organization's provider and model and shows which they are; **Choose**
+picks a pair from the catalog, where a provider without credentials cannot be
+picked. The language is chosen on its own: inherit the organization's, or fix
+one - so a Polish agent can keep the organization's provider. It is part of the
+spec, saved with the draft and live once the agent is published, and it applies
+to [dictation](#dictation) into this agent and to voice messages its channel
+bots inherit. [The order](ml-services.md#which-engine-a-recording-reaches) has
+the rest.
+
+The card says when the override changes less than it looks like: with the
+organization's engine on Off or Browser it reaches only channel voice messages,
+and with no organization provider it is what dictation to this agent runs on.
 
 ## What each area is for
 

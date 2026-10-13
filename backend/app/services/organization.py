@@ -352,8 +352,9 @@ class OrganizationService:
     ) -> Organization:
         """Merge the named speech fields over the stored ones, check the result, write it.
 
-        Checked after the merge, because the rules span fields: `server` needs a
-        pair, and a pair must be one the catalog offers. Only what the request
+        Checked after the merge, because the rules span fields: a pair must be one
+        the catalog offers. `server` does not need a pair here, because an agent
+        may carry its own (`SpeechToTextSpec`); readiness is per agent. Only what the request
         changes is checked: the pair when it names the provider or the model, the
         engine when it names `server`, the language when it names one. A rename,
         or a switch to `off` or `browser`, never trips over a pair that went stale
@@ -401,11 +402,8 @@ class OrganizationService:
                 raise refused_field(
                     field, "That provider does not offer this model for transcription."
                 )
-            if engine == "server" and provider is None:
-                raise refused_field(
-                    "chat_dictation" if asks_server else field,
-                    "Server dictation needs a speech-to-text provider and model first.",
-                )
+            # `server` with no pair here is allowed: an agent may carry its own,
+            # and an agent without one shows a mic that explains it is not set up.
         if (
             "speech_to_text_language" in named
             and language is not None

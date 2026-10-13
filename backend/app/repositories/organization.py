@@ -271,8 +271,8 @@ async def set_speech_settings(
 ) -> Organization:
     """Write all five speech settings at once (#1797).
 
-    One setter for the five because they are validated together - `server` needs
-    a pair, the pair is both-or-neither - and because :func:`update` skips a
+    One setter for the five because they are validated together - the pair is
+    both-or-neither and must be one the catalog offers - and because :func:`update` skips a
     `None` argument, so it cannot clear a provider or a language.
     """
     org.chat_dictation = chat_dictation

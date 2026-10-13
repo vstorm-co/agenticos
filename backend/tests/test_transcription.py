@@ -30,11 +30,20 @@ from app.core.secret_kinds import ApiKeySecret, NoSecret
 from app.repositories import credential as credential_repo
 from app.services import speech_to_text
 from app.services.model_profile import ModelProfileService
+from app.services.organization_secret import OrganizationSecretService
 from app.services.transcription import MAX_BYTES, Recording, TranscriptionService
 
 pytestmark = pytest.mark.anyio
 
 ORG = uuid4()
+
+
+@pytest.fixture(autouse=True)
+def no_vault_key(monkeypatch) -> AsyncMock:
+    """No organization-visible vault key, unless a test stores one."""
+    found = AsyncMock(return_value=None)
+    monkeypatch.setattr(OrganizationSecretService, "transcription_key", found)
+    return found
 
 
 def _recording(content: bytes = b"ogg-bytes") -> Recording:
@@ -351,6 +360,96 @@ class TestWhichCredentialTranscribes:
         assert sent.args[0] == "http://whisper.local:8000/v1/audio/transcriptions"
         assert "Authorization" not in sent.kwargs["headers"]
         assert "sk-from-the-environment" not in str(sent)
+
+
+class TestTheVaultKeyFallback:
+    """An organization-visible vault key, when no model profile answers (#1797)."""
+
+    async def test_a_vault_key_transcribes_where_no_profile_exists(
+        self, monkeypatch, no_vault_key: AsyncMock
+    ):
+        """An organization keeping an OpenAI key and running no OpenAI chat model
+        should not have to invent one to transcribe. Sent to the catalog's
+        address, since a vault key carries none of its own."""
+        provider, model = _offered()
+        monkeypatch.setattr(credential_repo, "list_profiles", AsyncMock(return_value=[]))
+        no_vault_key.return_value = "sk-vault-4242"
+        client = _responds({"text": "hi"})
+
+        with patch("app.services.transcription.httpx.AsyncClient", return_value=client):
+            await TranscriptionService(MagicMock()).transcribe(
+                _recording(), organization_id=ORG, provider=provider, model=model
+            )
+
+        sent = client.post.await_args
+        assert sent.kwargs["headers"] == {"Authorization": "Bearer sk-vault-4242"}
+        entry = speech_to_text.by_provider(provider)
+        assert entry is not None
+        assert sent.args[0] == f"{entry.base_url.rstrip('/')}/audio/transcriptions"
+        assert no_vault_key.await_args.args == (ORG, provider)
+
+    @pytest.mark.parametrize(
+        "secret",
+        [ApiKeySecret(api_key=SecretStr("sk-profile-1234")), NoSecret()],
+        ids=["keyed", "keyless"],
+    )
+    async def test_a_profile_wins_over_a_vault_key(
+        self, monkeypatch, no_vault_key: AsyncMock, secret: object
+    ):
+        """The vault is the last place looked, so a bot already transcribing on a
+        profile keeps that profile once a key for the provider lands in the vault."""
+        provider, model = _offered()
+        _profiles(monkeypatch, (provider, secret))
+        no_vault_key.return_value = "sk-vault-4242"
+        client = _responds({"text": "hi"})
+
+        with patch("app.services.transcription.httpx.AsyncClient", return_value=client):
+            await TranscriptionService(MagicMock()).transcribe(
+                _recording(), organization_id=ORG, provider=provider, model=model
+            )
+
+        assert "sk-vault-4242" not in str(client.post.await_args)
+        no_vault_key.assert_not_awaited()
+
+
+class TestWhichProvidersAreCredentialed:
+    """Existence only: a picker greys out a provider without a key being opened."""
+
+    async def test_each_source_counts_and_nothing_is_unsealed(self, monkeypatch):
+        rows = [
+            SimpleNamespace(provider="openai", secret_id=uuid4(), base_url=None),
+            SimpleNamespace(provider="groq", secret_id=None, base_url=None),
+            SimpleNamespace(provider="anthropic", secret_id=uuid4(), base_url=None),
+        ]
+        monkeypatch.setattr(credential_repo, "list_profiles", AsyncMock(return_value=rows))
+        resolve = AsyncMock()
+        monkeypatch.setattr(ModelProfileService, "resolve_credential", resolve)
+        in_vault = AsyncMock(return_value=frozenset({"mistral"}))
+        monkeypatch.setattr(OrganizationSecretService, "transcription_key_providers", in_vault)
+
+        found = await TranscriptionService(MagicMock()).credentialed_providers(ORG)
+
+        # Groq's profile has neither a key nor an address; Anthropic does not
+        # transcribe here at all.
+        assert found == frozenset({"openai", "mistral"})
+        resolve.assert_not_awaited()
+        # The vault is only asked about providers no profile answered for.
+        assert in_vault.await_args.args == (ORG, ["groq", "mistral"])
+
+    async def test_a_self_hosted_profile_with_an_address_counts(self, monkeypatch):
+        rows = [
+            SimpleNamespace(provider="openai", secret_id=None, base_url="http://whisper.local/v1")
+        ]
+        monkeypatch.setattr(credential_repo, "list_profiles", AsyncMock(return_value=rows))
+        monkeypatch.setattr(
+            OrganizationSecretService,
+            "transcription_key_providers",
+            AsyncMock(return_value=frozenset()),
+        )
+
+        found = await TranscriptionService(MagicMock()).credentialed_providers(ORG)
+
+        assert found == frozenset({"openai"})
 
 
 class TestTheLanguage:

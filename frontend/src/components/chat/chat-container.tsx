@@ -57,7 +57,7 @@ import { useFollowContent } from "@/hooks/use-follow-content";
 import { useChanged } from "@/hooks/use-changed";
 import { Beam } from "@/components/ui/beam";
 import { useMicrophone, VoiceGlow } from "@/components/ui/voice-glow";
-import { useDictation, useOrganizationList, usePermissions } from "@/hooks";
+import { useDictation, useDictationStatus, useOrganizationList, usePermissions } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
@@ -526,29 +526,41 @@ function ChatUI({
   // `VoiceGlow`); with the server engine it is the one being recorded.
   const mic = useMicrophone(engine === "server" ? DICTATION_CONSTRAINTS : undefined);
   const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
+  // Readiness and the provider are the agent's: its published speech-to-text
+  // override can name another engine than the organization's, and the provider
+  // decides the format recorded - Mistral takes WAV, the others WebM.
+  const status = useDictationStatus(engine === "server" ? selectedAgentId : null);
   const { state: dictationState, actions: dictationActions } = useDictation({
     mic,
     agentId: selectedAgentId,
     maxSeconds,
-    provider: activeOrg?.speech_to_text_provider ?? null,
+    provider: status?.provider ?? null,
   });
   const { can } = usePermissions();
   const voiceSettingsHref =
     activeOrgId !== null && can(Perm.orgSettings)
       ? `${ROUTES.ORG_MEMBERS(activeOrgId)}#org-voice`
       : null;
-  const dictationReady = activeOrg?.chat_dictation_ready === true;
+  // The agent's own override is the other way to set it up, for whoever may
+  // edit agents - the Voice card sits on the agent's Build tab.
+  const agentVoiceHref =
+    selectedAgentId !== null && can(Perm.agentsEdit)
+      ? `${ROUTES.AGENT_DETAIL(selectedAgentId)}#agent-voice`
+      : null;
   const hasAgent = selectedAgentId !== null;
+  const dictationReady = hasAgent && status?.ready === true;
   // The explanation a click on the crossed-out microphone opens under the box.
   const [explaining, setExplaining] = useState(false);
   // Shut again whenever the microphone's availability changes, so an explanation
   // opened once does not come back by itself the next time it is crossed out.
-  if (useChanged(dictationReady && hasAgent)) setExplaining(false);
+  if (useChanged(dictationReady)) setExplaining(false);
+  // Without an agent there is nothing to ask readiness of, so choosing one is
+  // the first thing to say.
   const unavailable =
-    engine === "server" && explaining && !(dictationReady && hasAgent)
-      ? dictationReady
-        ? ("no_agent" as const)
-        : ("not_ready" as const)
+    engine === "server" && explaining && !dictationReady
+      ? hasAgent
+        ? ("not_ready" as const)
+        : ("no_agent" as const)
       : null;
   const dictationStrip =
     engine === "server"
@@ -559,6 +571,7 @@ function ChatUI({
             maxSeconds,
             unavailable,
             voiceSettingsHref,
+            agentVoiceHref,
             closeExplanation: () => setExplaining(false),
           },
           tDictation,
@@ -805,6 +818,7 @@ function ChatUI({
                           state: dictationState,
                           actions: dictationActions,
                           voiceSettingsHref,
+                          agentVoiceHref,
                           onExplain: () => setExplaining((open) => !open),
                         }}
                         // Who answers first and largest: it is the most

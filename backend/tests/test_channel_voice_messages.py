@@ -15,6 +15,7 @@ listen says so once rather than dropping the recording.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
@@ -51,14 +52,63 @@ def _incoming(*attachments: IncomingAttachment, text: str = "") -> IncomingMessa
     )
 
 
-def _bot(*, provider: str | None = "openai", model: str | None = "whisper-1") -> SimpleNamespace:
+def _bot(
+    *,
+    provider: str | None = "openai",
+    model: str | None = "whisper-1",
+    transcribe: bool = True,
+) -> SimpleNamespace:
     return SimpleNamespace(
         id=uuid4(),
         organization_id=uuid4(),
         platform="telegram",
+        transcribe_voice_notes=transcribe,
         speech_to_text_provider=provider,
         speech_to_text_model=model,
     )
+
+
+_SETTINGS = "app.services.speech_to_text_settings"
+
+
+@pytest.fixture(autouse=True)
+def world() -> Iterator[SimpleNamespace]:
+    """What the resolver reads: one agent bound to the bot, and an organization.
+
+    Neither names an engine by default, so a test that wants one says which
+    level it lives on - the bot, the agent's published spec, or the organization.
+    """
+    agent = SimpleNamespace(
+        id=uuid4(),
+        organization_id=uuid4(),
+        name="Support",
+        status="published",
+        current_version_id=uuid4(),
+    )
+    state = SimpleNamespace(
+        exposed=[(SimpleNamespace(environment_id=None), agent)],
+        org=SimpleNamespace(
+            speech_to_text_provider=None,
+            speech_to_text_model=None,
+            speech_to_text_language=None,
+        ),
+        spec={"name": "Support"},
+    )
+    with (
+        patch(
+            f"{_SETTINGS}.agent_exposure_repo.list_active_for_bot",
+            new=AsyncMock(side_effect=lambda *_a, **_k: state.exposed),
+        ),
+        patch(
+            f"{_SETTINGS}.organization_repo.get_by_id",
+            new=AsyncMock(side_effect=lambda *_a, **_k: state.org),
+        ),
+        patch(
+            f"{_SETTINGS}.agent_repo.get_version",
+            new=AsyncMock(side_effect=lambda *_a, **_k: SimpleNamespace(spec=state.spec)),
+        ),
+    ):
+        yield state
 
 
 class TestWhichAttachmentsGoWhere:
@@ -111,7 +161,7 @@ class TestHowATranscriptReachesTheAgent:
 
 
 class TestWhenItCannotListen:
-    async def test_a_bot_with_no_model_says_so_rather_than_dropping_it(self):
+    async def test_a_bot_with_nothing_to_inherit_says_so_rather_than_dropping_it(self):
         """Silence is indistinguishable from a broken bot, and the sender has no
         other way to learn that this deployment does not listen."""
         transcripts, refusals = await ChannelMessageRouter()._transcribe(
@@ -120,7 +170,38 @@ class TestWhenItCannotListen:
 
         assert transcripts == []
         assert len(refusals) == 1
-        assert "cannot listen" in refusals[0]
+        assert "nobody has set up a transcription provider" in refusals[0]
+
+    async def test_a_bot_switched_off_says_so_even_where_a_provider_is_set_up(
+        self, world: SimpleNamespace
+    ):
+        """A different reason from the one above, fixed by a different person."""
+        world.org.speech_to_text_provider = "openai"
+        world.org.speech_to_text_model = "whisper-1"
+        transcribe = AsyncMock()
+
+        with patch("app.services.channels.router.TranscriptionService.transcribe", transcribe):
+            transcripts, refusals = await ChannelMessageRouter()._transcribe(
+                MagicMock(), _bot(provider=None, model=None, transcribe=False), [_voice()]
+            )
+
+        assert transcripts == []
+        assert "turned off" in refusals[0]
+        transcribe.assert_not_awaited()
+
+    async def test_a_bot_with_no_agent_bound_transcribes_nothing_and_says_nothing(
+        self, world: SimpleNamespace
+    ):
+        """The message is refused anyway; a paid transcription first would be waste."""
+        world.exposed = []
+        adapter = MagicMock()
+        adapter.download_attachment = AsyncMock(return_value=b"ogg")
+
+        with patch("app.services.channels.router.get_adapter", return_value=adapter):
+            result = await ChannelMessageRouter()._transcribe(MagicMock(), _bot(), [_voice()])
+
+        assert result == ([], [])
+        adapter.download_attachment.assert_not_awaited()
 
     async def test_a_message_with_no_recording_asks_nothing(self):
         transcripts, refusals = await ChannelMessageRouter()._transcribe(MagicMock(), _bot(), [])
@@ -233,3 +314,62 @@ class TestWhenItCannotListen:
         assert transcribe.await_args.kwargs["provider"] == "groq"
         assert transcribe.await_args.kwargs["model"] == "whisper-large-v3-turbo"
         assert transcribe.await_args.kwargs["organization_id"] == bot.organization_id
+
+
+class TestWhichEngineAVoiceNoteReaches:
+    """A bot with no pair of its own inherits, through the agent it serves."""
+
+    async def _asked(self, bot: SimpleNamespace) -> dict[str, object]:
+        adapter = MagicMock()
+        adapter.download_attachment = AsyncMock(return_value=b"ogg")
+        transcribe = AsyncMock(return_value="words")
+        with (
+            patch("app.services.channels.router.get_adapter", return_value=adapter),
+            patch("app.services.channels.router.unseal_bot_token", return_value="tok"),
+            patch("app.services.channels.router.TranscriptionService.transcribe", transcribe),
+        ):
+            await ChannelMessageRouter()._transcribe(MagicMock(), bot, [_voice()])
+        return transcribe.await_args.kwargs
+
+    async def test_a_bot_with_no_pair_inherits_its_agents_override(self, world: SimpleNamespace):
+        """The agent the bot's exposure serves - the only one `_transcribe` is
+        ever told about. A handle somebody `@mentions` is routed after this and
+        never changes which engine heard the recording."""
+        world.org.speech_to_text_provider = "openai"
+        world.org.speech_to_text_model = "whisper-1"
+        world.spec = {
+            "name": "Support",
+            "speech_to_text": {"provider": "groq", "model": "whisper-large-v3", "language": "pl"},
+        }
+
+        asked = await self._asked(_bot(provider=None, model=None))
+
+        assert (asked["provider"], asked["model"], asked["language"]) == (
+            "groq",
+            "whisper-large-v3",
+            "pl",
+        )
+
+    async def test_a_bot_with_no_pair_and_no_agent_override_inherits_the_organizations(
+        self, world: SimpleNamespace
+    ):
+        world.org.speech_to_text_provider = "openai"
+        world.org.speech_to_text_model = "gpt-4o-transcribe"
+        world.org.speech_to_text_language = "de"
+
+        asked = await self._asked(_bot(provider=None, model=None))
+
+        assert (asked["provider"], asked["model"], asked["language"]) == (
+            "openai",
+            "gpt-4o-transcribe",
+            "de",
+        )
+
+    async def test_the_agents_language_reaches_a_bot_with_its_own_pair(
+        self, world: SimpleNamespace
+    ):
+        world.spec = {"name": "Support", "speech_to_text": {"language": "pl"}}
+
+        asked = await self._asked(_bot(provider="groq", model="whisper-large-v3-turbo"))
+
+        assert (asked["provider"], asked["language"]) == ("groq", "pl")

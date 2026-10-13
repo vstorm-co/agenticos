@@ -969,6 +969,26 @@ class TestOrganizationSpeechConstraints:
         assert (org.chat_dictation, org.speech_to_text_model) == ("server", "gpt-4o-transcribe")
 
 
+class TestChannelBotSpeechConstraints:
+    """A bot's transcription switch and pair (#1797)."""
+
+    async def test_a_new_bot_inherits_by_default(self, db):
+        """On, with no pair: the agent's or the organization's engine answers."""
+        bot = await _bot(db, await _org(db))
+        await db.refresh(bot)
+
+        assert bot.transcribe_voice_notes is True
+        assert bot.speech_to_text_provider is None
+
+    async def test_a_provider_without_a_model_is_refused(self, db):
+        """Half a pair now reads as an engine where it used to read as off."""
+        bot = await _bot(db, await _org(db))
+        bot.speech_to_text_provider = "openai"
+
+        with pytest.raises(IntegrityError):
+            await db.flush()
+
+
 class TestIngestionSpend:
     """The half of the monthly bill that no run carries."""
 

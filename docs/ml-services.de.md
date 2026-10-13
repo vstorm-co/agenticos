@@ -1,5 +1,5 @@
 ---
-source_sha: "ef2795b762aa"
+source_sha: "0ac237c91eee"
 ---
 
 # Die ML-Dienste { #the-ml-services }
@@ -145,14 +145,25 @@ dieselbe API spricht, und der Endpunkt hier bleibt unverändert. Eine Organisati
 ohne brauchbare Zugangsdaten wird abgelehnt, und die Ablehnung sagt es — nichts
 wird als vorhanden angenommen, was ein Betreiber nicht konfiguriert hat.
 
-Welches Profil, wenn die Organisation mehrere für einen Anbieter hat: **zuerst
-ein Profil mit Schlüssel**, das erste in der Reihenfolge der Bezeichnungen, und
-eines ohne Schlüssel nur dann, wenn der Anbieter gar kein Profil mit Schlüssel
-hat — und nur, wenn es einen eigenen Endpunkt nennt. Eine Anfrage ohne Schlüssel
-trägt keinen `Authorization`-Header und nie den `OPENAI_API_KEY` des
-Deployments. Schlüssel zuerst ist das, was einen Kanal-Bot bei OpenAI
-transkribieren lässt, nachdem jemand ein schlüsselloses `openai`-Profil für einen
-Chat-Proxy ohne `/audio/transcriptions` angelegt hat.
+Welche Zugangsdaten, wenn die Organisation mehrere für einen Anbieter hat:
+**zuerst ein Profil mit Schlüssel**, das erste in der Reihenfolge der
+Bezeichnungen; dann eines ohne Schlüssel, nur wenn es einen eigenen Endpunkt
+nennt; und wenn beides fehlt, **ein im Vault gespeicherter API-Schlüssel** mit
+diesem Anbieter als Zweck, der erste nach Namen, an die Adresse aus dem Katalog
+geschickt. Eine Anfrage ohne Schlüssel trägt keinen `Authorization`-Header und
+nie den `OPENAI_API_KEY` des Deployments. Schlüssel zuerst ist das, was einen
+Kanal-Bot bei OpenAI transkribieren lässt, nachdem jemand ein schlüsselloses
+`openai`-Profil für einen Chat-Proxy ohne `/audio/transcriptions` angelegt hat.
+
+Der Vault-Schlüssel ist immer nur einer, der **für die ganze Organisation
+sichtbar** ist. Der private Schlüssel eines Mitglieds wird nie für eine Aufnahme
+ausgegeben, denn was er bezahlen würde, gehört allen: eine Sprachnachricht in
+einem Kanal, ein Diktat im Chat eines anderen. Eine Organisation, die einen
+OpenAI-Schlüssel im Vault hält und kein OpenAI-Chatmodell betreibt, transkribiert
+also darauf, ohne ein model profile, das sie nicht braucht. Dieselbe Reihenfolge
+gilt für diesen Endpunkt, das Diktieren und Sprachnachrichten aus Kanälen. Die
+Liste des Vaults mit den Agents, die einen Schlüssel benutzen, enthält diese
+Verwendung nicht, weil kein Agent den Schlüssel bindet.
 
 Eine Ablehnung sagt in `details.reason`, warum, hier wie beim
 [Diktieren](#dictation-in-chat). Der eigene Fehlertext des Anbieters wird
@@ -175,8 +186,9 @@ Anfrage-URL samt Schlüssel in seine Meldung.
 Server transkribiert. Es nimmt eine Aufnahme als `file` und antwortet mit
 `{"text": "..."}`, das das Eingabefeld zum Bearbeiten einsetzt; gesendet wird
 nichts, bis die Person auf Senden drückt. Der Aufrufer nennt weder Anbieter
-noch Modell noch Sprache — die gehören der Organisation — und die Person darf
-jedem Agent diktieren, den sie ausführen darf, ein Viewer mit einem
+noch Modell noch Sprache — die [lösen sich](#which-engine-a-recording-reaches)
+aus dem Agent und der Organisation auf — und die Person darf jedem Agent
+diktieren, den sie ausführen darf, ein Viewer mit einem
 `use`-Grant darauf eingeschlossen. Ein Agent, den sie nicht ausführen darf,
 antwortet mit 404, wie überall sonst.
 
@@ -186,7 +198,18 @@ Was es aus der Organisation liest, eingestellt auf der
 `not_configured` abgelehnt), `speech_to_text_provider` und
 `speech_to_text_model` (ein Paar aus dem Speech-to-Text-Katalog),
 `speech_to_text_language` (ein ISO-639-1-Code, oder null, damit die Engine ihn
-erkennt) und `dictation_max_seconds` (10 bis 600, standardmäßig 300).
+erkennt) und `dictation_max_seconds` (10 bis 600, standardmäßig 300). Die
+Engine und das längste Diktat gehören immer der Organisation; der Agent kann nur
+ändern, welcher Anbieter, welches Modell und welche Sprache.
+
+`GET /api/v1/agents/{agent_id}/dictation` sagt mit demselben Zugriff, ob das
+Mikrofon funktionieren wird, bevor jemand aufnimmt: `engine`, `max_seconds`,
+`provider` und `ready`. `ready` verlangt die Engine `server`, ein Paar, das sich
+für diesen Agent auflöst, einen Katalog, der es noch anbietet, und Zugangsdaten
+für seinen Anbieter in der Organisation - auf ihr Vorhandensein geprüft, nie
+geöffnet. `provider` ist der Anbieter, den eine Aufnahme erreichen würde, und
+entscheidet, in welchem Format das Eingabefeld aufnimmt. Ein Agent ohne
+veröffentlichte Version antwortet aus den Einstellungen der Organisation.
 
 Die Aufnahme muss `audio/webm`, `audio/ogg`, `audio/mp4` oder `audio/wav`
 sein, ein Codec-Suffix ist erlaubt, und `audio/x-wav` sowie `audio/wave` werden
@@ -213,9 +236,8 @@ aufgezeichnet.
 !!! note "Bei Mistral nimmt der Browser WAV auf, und es werden weniger Sprachen transkribiert"
 
     Mistral dokumentiert für Voxtral WAV- und MP3-Eingaben, nicht WebM oder
-    Opus, was Chrome und Firefox aufnehmen. Ist Mistral der
-    Spracherkennungsanbieter der Organisation, nimmt das Eingabefeld deshalb in
-    jedem Browser stattdessen WAV mit 16 kHz, Mono und 16 Bit auf. Der Upload
+    Opus, was Chrome und Firefox aufnehmen. Ist Mistral der Anbieter, auf den
+    sich eine Aufnahme auflöst, nimmt das Eingabefeld deshalb in jedem Browser stattdessen WAV mit 16 kHz, Mono und 16 Bit auf. Der Upload
     ist etwa doppelt so groß — 32.000 Bytes pro Sekunde —, die Längengrenze
     bleibt aber dieselbe, weil eine WAV-Aufnahme von `dictation_max_seconds`
     unter die Grenze passt.
@@ -225,6 +247,35 @@ aufgezeichnet.
     er nicht nimmt, als `provider_error` zurückkommt. Bei Mistral die Sprache
     auf automatischer Erkennung lassen und eine Aufnahme ausprobieren, bevor man
     sich darauf verlässt.
+
+#### Welche Engine eine Aufnahme erreicht { #which-engine-a-recording-reaches }
+
+Drei Stellen können eine Speech-to-Text-Engine nennen: die
+[Voice-Karte](console.md#the-voice-card) der Organisation, die
+[`speech_to_text`](reference/spec.md#speech-to-text)-Überschreibung eines Agents,
+eingestellt auf seiner eigenen [Voice-Karte](console.md#an-agents-own-engine)
+und live, sobald er veröffentlicht ist, und ein
+[Kanal-Bot](channels.md#what-every-channel-shares). Sie lösen sich in zwei
+Hälften auf:
+
+| Was | Kommt von der ersten Stelle, die es setzt |
+|---|---|
+| Anbieter und Modell, als Paar | Der Bot, dann der Agent, dann die Organisation |
+| Sprache | Der Agent, dann die Organisation, dann erkennt die Engine sie |
+
+Ein polnischer Agent in einer auf Englisch eingerichteten Organisation legt also
+`language: pl` fest und behält den Anbieter der Organisation. Ein Bot hat keine
+eigene Sprache; die des Agents oder der Organisation gilt auch für sein eigenes
+Paar. Löst sich nichts auf, wird nichts transkribiert: das Diktieren antwortet
+`not_configured`, und ein Bot sagt, dass er nicht zuhören kann.
+
+Das Diktieren liest die veröffentlichte Standardversion des Agents, die, die
+`/chat` ausführt. Ein Bot liest den Agent, den seine Bindung bedient - nie einen
+Agent, den jemand mit `@slug` erwähnt, denn eine Aufnahme wird transkribiert,
+bevor Erwähnungen geroutet werden -, in der Version, die die Umgebung dieser
+Bindung festlegt, der, die der Run benutzen wird. Ein Agent im Entwurf oder
+archiviert hat keine Version, die jemand ausführt, und die Organisation
+antwortet allein.
 
 ### Erkennung personenbezogener Daten { #personal-data-detection }
 

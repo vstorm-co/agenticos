@@ -32,7 +32,23 @@ Two things are versioned separately from this file and worth knowing about:
 - **A Voice card on the organization's Members page.** For `org:settings`
   holders: the dictation engine (Off, Browser or Server), the provider and model
   from the speech-to-text catalog, a language and the longest recording, stored
-  in five new organization columns (`0106_org_speech_settings.py`).
+  in five new organization columns (`0106_org_speech_settings.py`). The provider,
+  model and language are shown whatever the engine, as the default channel bots
+  inherit too.
+- **An agent can transcribe on its own engine (#1797).** An optional
+  `speech_to_text` block on the agent spec (provider and model as a pair, the
+  language on its own), set on a Voice card on the Build tab and live once
+  published. Speech resolves in one place: the pair from the bot, the agent,
+  then the organization; the language from the agent, then the organization.
+  `GET /api/v1/agents/{agent_id}/dictation` tells the composer whether
+  dictation to that agent is ready and on which provider, which decides the
+  recording format. See
+  [Which engine a recording reaches](docs/ml-services.md#which-engine-a-recording-reaches).
+- **Channel bots inherit, choose or switch off transcription.** A new
+  `transcribe_voice_notes` switch (`0107_bot_transcription_switch.py`): a bot
+  with no pair now inherits from its agent and organization, and off never
+  transcribes. Every bot that had no pair before the migration is switched off,
+  so none starts transcribing on upgrade.
 - **A Voice glow preference**: Vivid, Subtle (the default) or Off, per
   browser, and no glow under reduced motion.
 - **An Appearance card under Settings → Profile** with the theme, the Voice glow
@@ -47,6 +63,15 @@ Two things are versioned separately from this file and worth knowing about:
   keyless profile with its own endpoint is used only when there is no keyed
   one, and is sent no `Authorization` header. A pinned language is passed to the
   provider. Channel bots still answer "could not be transcribed" on any failure.
+- **An organization-visible vault key is a transcription credential.** With no
+  model profile for the provider, transcription uses the first organization-wide
+  API key stored for it; a member's private key is never used. The
+  speech-to-text catalog says per provider whether the organization has one
+  (`credentialed`), so the Voice cards no longer need to read the vault.
+- **A null pair on a channel bot means inherit, not off.** `PATCH
+  /channels/bots/{id}` turns transcription off with `transcribe_voice_notes:
+  false`, which clears the pair, and refuses an explicit `null` for it. A spec
+  carrying `speech_to_text` cannot be imported into a deployment older than it.
 
 ## [0.0.535] - 2026-10-09
 

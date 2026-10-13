@@ -1,9 +1,9 @@
-"""`POST /agents/{agent_id}/dictation`, over the wire.
+"""`GET` and `POST /agents/{agent_id}/dictation`, over the wire.
 
-What the route adds to `MLService.dictate`: run access on the agent through its
-grants, the per-person rate limit, and a bounded read of the upload. The grants
-themselves are exercised against a real database in
-`tests/integration/test_platform_flows.py`.
+What the routes add to `MLService.dictate` and `MLService.dictation_status`: run
+access on the agent through its grants, the per-person rate limit, and a
+bounded read of the upload. The grants themselves are exercised against a real
+database in `tests/integration/test_platform_flows.py`.
 """
 
 from __future__ import annotations
@@ -21,13 +21,14 @@ from app.core.exceptions import ExternalServiceError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.main import app
 from app.services import transcription
-from app.services.ml.facade import MLService
+from app.services.ml.facade import DictationStatus, MLService
 
 pytestmark = pytest.mark.anyio
 
 _V1 = settings.API_V1_STR
 _REGISTRY = "app.services.agent_registry.AgentRegistryService.get"
 _DICTATE = "app.services.ml.facade.MLService.dictate"
+_STATUS = "app.services.ml.facade.MLService.dictation_status"
 
 
 async def _no_limit() -> None:
@@ -69,6 +70,8 @@ async def test_a_caller_who_may_run_the_agent_gets_the_text(client: AsyncClient)
     assert response.json() == {"text": "hello"}
     assert get.await_args.args[1] == agent_id
     assert get.await_args.kwargs["perm"] == Perm.AGENTS_RUN
+    # The agent whose run access was proven is the one whose override applies.
+    assert dictate.await_args.kwargs["agent"] is get.return_value
     assert dictate.await_args.kwargs["content"] == b"audio"
     assert dictate.await_args.kwargs["mime_type"] == "audio/webm;codecs=opus"
 
@@ -129,3 +132,44 @@ async def test_the_upload_is_read_no_further_than_transcription_accepts(
         )
 
     assert dictate.await_args.kwargs["content"] == b"01234"
+
+
+async def test_readiness_is_answered_for_an_agent_the_caller_may_run(client: AsyncClient) -> None:
+    """The same access as dictating, so a Viewer holding a run grant is told."""
+    agent_id = uuid.uuid4()
+    status = DictationStatus(engine="server", ready=True, max_seconds=120, provider="mistral")
+    with (
+        patch(_REGISTRY, new=AsyncMock(return_value=MagicMock())) as get,
+        patch(_STATUS, new=AsyncMock(return_value=status)) as read,
+    ):
+        response = await client.get(f"{_V1}/agents/{agent_id}/dictation")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "engine": "server",
+        "ready": True,
+        "max_seconds": 120,
+        "provider": "mistral",
+    }
+    assert get.await_args.args[1] == agent_id
+    assert get.await_args.kwargs["perm"] == Perm.AGENTS_RUN
+    assert read.await_args.kwargs["agent"] is get.return_value
+
+
+@pytest.mark.security
+async def test_readiness_for_an_agent_the_caller_cannot_run_is_not_found(
+    client: AsyncClient,
+) -> None:
+    """Another organization's agent, or one without a grant, reads as absent -
+    and says nothing about which provider it would use."""
+    with (
+        patch(
+            _REGISTRY,
+            new=AsyncMock(side_effect=NotFoundError(message="Agent not found", details={})),
+        ),
+        patch(_STATUS, new=AsyncMock()) as read,
+    ):
+        response = await client.get(f"{_V1}/agents/{uuid.uuid4()}/dictation")
+
+    assert response.status_code == 404
+    read.assert_not_awaited()

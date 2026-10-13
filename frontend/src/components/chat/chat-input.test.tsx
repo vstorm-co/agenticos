@@ -313,6 +313,7 @@ function serverDictation(
       dismiss: vi.fn(),
     },
     voiceSettingsHref: null,
+    agentVoiceHref: null,
     onExplain: vi.fn(),
     ...overrides,
   };

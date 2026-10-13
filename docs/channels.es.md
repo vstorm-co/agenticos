@@ -1,5 +1,5 @@
 ---
-source_sha: "9f2ebd04f8d2"
+source_sha: "f96f62cc6cbf"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1181,7 +1181,7 @@ así que la política no puede desviarse entre ellas.
     hablando, cosa que ningún enrutado puede. `@slug` se sigue interpretando — como
     un alias del agent que hay detrás de este bot, rechazado cuando nombra a
     cualquier otro.
-- **Un mensaje de voz se transcribe, allí donde a un bot se le ha dado un modelo.**
+- **Un mensaje de voz se transcribe, salvo que el bot lo tenga desactivado.**
   Es el único adjunto que no se le puede entregar a un agent como fichero: lee un
   PDF y mira una captura, y un blob `audio/ogg` es un recuento de bytes.
 
@@ -1195,18 +1195,46 @@ así que la política no puede desviarse entre ellas.
     instrucciones que alguien escribió. Una nota de voz con pie sigue siendo un
     mensaje, porque eso es lo que alguien envió.
 
-    Qué modelo es un **par en el bot** — un provider y uno de sus modelos, de
-    `app/core/catalog/speech_to_text_models.json` — elegido bajo **Channels**, y
-    nulo por defecto: la transcripción gasta el crédito de provider de la
-    organización en cada grabación, así que hay que activarla explícitamente. La
-    clave es la que ya está configurada para ese provider en los perfiles de modelo
-    de la organización; no hay nada nuevo que guardar. Un perfil con clave gana
-    a uno sin clave, y un perfil sin clave que apunta a un servidor propio solo se
-    usa cuando el provider no tiene ninguno con clave
-    ([el orden](ml-services.md#speech-to-text)), así que añadir un proxy de chat
-    sin clave no saca a un bot del provider con el que transcribe. Un bot sin
-    modelo elegido dice que no puede escuchar en vez de descartar la grabación,
-    porque una nota de voz que no produce ninguna reacción es indistinguible de un bot roto.
+    El formulario de cada bot bajo **Channels** ofrece tres respuestas. **Inherit**,
+    la opción por defecto, usa el provider y el modelo del agent al que sirve el
+    bot, después los de la organización, y el idioma del agent, después el de la
+    organización ([el orden](ml-services.md#which-engine-a-recording-reaches)).
+    **Choose** nombra el par propio del bot — un provider y uno de sus modelos, de
+    `app/core/catalog/speech_to_text_models.json`. **Off** no transcribe nunca,
+    digan lo que digan el agent o la organización. Junto a la elección, Inherit
+    nombra a qué se resuelve y cuál de los dos lo eligió.
+
+    Heredar no cuesta nada hasta que alguien configura un provider: sin ninguno en
+    el agent ni en la organización no se transcribe nada, así que gastar el crédito
+    de provider de la organización sigue siendo decisión de la organización. Un bot
+    registrado desde la CLI, o por un cliente que no envía el interruptor, hereda.
+    La clave es la propia de la organización para ese provider — un perfil de
+    modelo, o una clave del vault visible para la organización — y no hay nada
+    nuevo que guardar. Un perfil con clave gana a uno sin clave, y un perfil sin
+    clave que apunta a un servidor propio solo se usa cuando el provider no tiene
+    ninguno con clave ([el orden](ml-services.md#speech-to-text)), así que añadir
+    un proxy de chat sin clave no saca a un bot del provider con el que transcribe.
+
+    Un bot que no puede escuchar lo dice en vez de descartar la grabación, porque
+    una nota de voz que no produce ninguna reacción es indistinguible de un bot roto
+    — y dice por qué motivo, porque cada uno lo arregla otra persona: el bot está
+    desactivado, o nadie ha configurado un provider. Un bot sin agent vinculado
+    no transcribe nada en absoluto, porque el mensaje se rechaza de todos modos.
+
+    !!! note "Al actualizar: un bot que no transcribía sigue sin transcribir"
+
+        Antes de que existiera este interruptor, un bot sin par era un bot que no
+        transcribía, y la API vaciaba el par para desactivar la transcripción. La
+        migración `0107_bot_transcription_switch.py` pone todos esos bots en
+        **off**, así que ninguno empieza a enviar audio a un provider al
+        actualizar; un bot con par lo conserva. A partir de ahí, un cliente que
+        vacía el par obtiene **inherit**, y **off** es
+        `transcribe_voice_notes: false`, que también vacía el par. El idioma de la
+        organización o del agent llega ahora también a un bot con su propio par.
+
+    Una nota de voz de Telegram es Ogg/Opus, que Mistral no incluye entre los
+    formatos que acepta, así que un bot de Telegram que llega a Mistral — elegido o
+    heredado — puede no lograr transcribir; el formulario lo dice.
 
     Vienen tres providers: OpenAI, Groq y Mistral, todos sirviendo el
     `POST /audio/transcriptions` de OpenAI. Añadir un modelo es una entrada en ese

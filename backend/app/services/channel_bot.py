@@ -21,13 +21,14 @@ from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.field_errors import refused_field
 from app.core.vault import SealedSecret, VaultScope, seal, unseal
 from app.db.models.channel_bot import ChannelBot
-from app.db.updates import writable
+from app.db.updates import cleared, writable
 from app.repositories import agent_exposure_repo, channel_bot_repo, channel_session_repo
 from app.schemas.channel_bot import (
     BotAgent,
     ChannelBotCreate,
     ChannelBotRead,
     ChannelBotUpdate,
+    InheritedSpeechToTextRead,
 )
 from app.services.channels import (
     SECRET_MINTED_BY_US,
@@ -37,6 +38,7 @@ from app.services.channels import (
 )
 from app.services.channels.supervisor import close_inbound_stream, open_inbound_stream
 from app.services.speech_to_text import is_offered as stt_is_offered
+from app.services.speech_to_text_settings import SpeechToTextSettingsService
 
 logger = logging.getLogger(__name__)
 
@@ -202,8 +204,13 @@ class ChannelBotService:
             slack_app_token_encrypted=self._seal_at(
                 data.slack_app_token, key_version=sealed.key_version
             ),
-            speech_to_text_provider=data.speech_to_text_provider,
-            speech_to_text_model=data.speech_to_text_model,
+            transcribe_voice_notes=data.transcribe_voice_notes,
+            # Off clears the pair, as it does on an update: a pair that can never
+            # run reads as configured and does nothing.
+            speech_to_text_provider=(
+                data.speech_to_text_provider if data.transcribe_voice_notes else None
+            ),
+            speech_to_text_model=data.speech_to_text_model if data.transcribe_voice_notes else None,
         )
         self._reopen_stream(bot)
         return bot
@@ -256,9 +263,16 @@ class ChannelBotService:
         either alone is a setting that reads as configured and does nothing. That
         is the state somebody debugs by sending voice notes into silence.
 
-        Clearing is a pair too: turning transcription off means both fields null,
-        not a provider left pointing at nothing.
+        Clearing is a pair too: both fields null, not a provider left pointing at
+        nothing. Null is "inherit" since #1797; "off" is `transcribe_voice_notes`,
+        and switching it off clears the pair here so an off bot never carries an
+        engine it will not use. A pair named for a bot that stays off is refused
+        for the same reason rather than stored.
         """
+        if update_data.get("transcribe_voice_notes") is False:
+            update_data["speech_to_text_provider"] = None
+            update_data["speech_to_text_model"] = None
+            return
         provider_given = "speech_to_text_provider" in update_data
         model_given = "speech_to_text_model" in update_data
         if not provider_given and not model_given:
@@ -281,6 +295,13 @@ class ChannelBotService:
             raise refused_field(
                 "speech_to_text_model",
                 f"'{model}' is not a transcription model this deployment offers for {provider}",
+            )
+        if provider is not None and not update_data.get(
+            "transcribe_voice_notes", bot.transcribe_voice_notes
+        ):
+            raise refused_field(
+                "transcribe_voice_notes",
+                "Transcription is off for this bot - turn it on to choose a model",
             )
 
     @staticmethod
@@ -336,6 +357,32 @@ class ChannelBotService:
                 details={"bot_id": str(bot_id)},
             )
         return bot
+
+    async def read(self, bot_id: UUID) -> ChannelBotRead:
+        """One bot as its form reads it, with what "inherit" would transcribe on.
+
+        The inherited engine is resolved here and not on the listing: it reads
+        the version of the agent the bot serves, and a page of bots is a page of
+        those reads (#1797).
+        """
+        bot = await self.get(bot_id)
+        settings = await SpeechToTextSettingsService(self.db).for_bot(bot, inherited=True)
+        resolved = settings.resolved
+        inherited = (
+            None
+            if resolved is None or resolved.pair_source == "bot"
+            else InheritedSpeechToTextRead(
+                provider=resolved.provider,
+                model=resolved.model,
+                language=resolved.language,
+                pair_source=resolved.pair_source,
+                language_source=resolved.language_source,
+                agent_name=settings.agent_name,
+            )
+        )
+        return ChannelBotRead.model_validate(bot).model_copy(
+            update={"inherited_speech_to_text": inherited}
+        )
 
     async def find_active(self, bot_id: UUID) -> ChannelBot | None:
         """Return an active bot by ID, or None (inbound webhook / poller path)."""
@@ -401,6 +448,15 @@ class ChannelBotService:
         # read and this write would tag the new envelopes with a version they
         # were not sealed under.
         bot = await self.get(bot_id, for_update=True)
+        # Before `writable`, which would drop it as a NOT NULL column's sentinel:
+        # a null here is somebody asking for a third state that no longer
+        # exists - it used to be the pair that went null for "off" - and they are
+        # owed the sentence rather than a silent no-op.
+        if cleared(data, "transcribe_voice_notes"):
+            raise refused_field(
+                "transcribe_voice_notes",
+                "Say true or false - a null pair is what inherits now",
+            )
         update_data = writable(data, over=ChannelBot)
         if "api_base_url" in update_data:
             self._check_server_url(bot.platform, update_data["api_base_url"])

@@ -16,7 +16,7 @@ import pytest
 
 from app.core.exceptions import BadRequestError
 from app.core.permissions import AuthContext, OrgRoleName
-from app.core.secret_kinds import GithubOAuthAppSecret, SecretKind, unseal_secret
+from app.core.secret_kinds import ApiKeySecret, GithubOAuthAppSecret, SecretKind, unseal_secret
 from app.core.vault import VaultScope
 from app.db.models.organization import Organization
 from app.db.models.resource_grant import Visibility
@@ -162,3 +162,47 @@ class TestGetByKindReadsTheOrgsSecretOfThatKind:
             )
             == []
         )
+
+
+class TestATranscriptionKeyIsTheOrganizationsOwn:
+    async def test_only_an_org_visible_key_for_that_provider_in_this_org_is_spent(self, db) -> None:
+        """The vault fallback for a voice note (#1797), against real rows.
+
+        A member's private OpenAI key, named to sort first, is never spent for
+        everybody's transcription; another organization's key is not found; and a
+        key stored for another provider is not this one's.
+        """
+        mine, mine_owner = await _org(db, name="Speakers")
+        theirs, theirs_owner = await _org(db, name="Listeners")
+        ctx = _ctx(mine, mine_owner)
+        service = OrganizationSecretService(db)
+
+        await service.create(
+            ctx,
+            name="AAA my own key",
+            value=ApiKeySecret(api_key="sk-private-1111"),
+            purpose="openai",
+            visibility=Visibility.PRIVATE,
+        )
+        await service.create(
+            ctx,
+            name="Team OpenAI",
+            value=ApiKeySecret(api_key="sk-team-2222"),
+            purpose="openai",
+        )
+        await service.create(
+            ctx, name="Team Groq", value=ApiKeySecret(api_key="gsk-team-3333"), purpose="groq"
+        )
+        await OrganizationSecretService(db).create(
+            _ctx(theirs, theirs_owner),
+            name="Their Mistral",
+            value=ApiKeySecret(api_key="mistral-4444"),
+            purpose="mistral",
+        )
+
+        assert await service.transcription_key(mine.id, "openai") == "sk-team-2222"
+        assert await service.transcription_key(mine.id, "mistral") is None
+        assert await service.transcription_key(theirs.id, "openai") is None
+        assert await service.transcription_key_providers(
+            mine.id, ["openai", "groq", "mistral"]
+        ) == frozenset({"openai", "groq"})

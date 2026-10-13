@@ -1137,7 +1137,7 @@ serves all three platforms, so the policy cannot drift between them.
     operator two minutes and makes the chat say which agent it is talking to,
     which no amount of routing can. `@slug` still parses — as an alias for the
     agent behind this bot, refused when it names any other.
-- **A voice message is transcribed, where a bot has been given a model.** It is
+- **A voice message is transcribed, unless the bot is switched off.** It is
   the one attachment an agent cannot be handed as a file: it reads a PDF and
   looks at a screenshot, and an `audio/ogg` blob is a byte count.
 
@@ -1150,18 +1150,46 @@ serves all three platforms, so the policy cannot drift between them.
     typed. A voice note with a caption stays one message, because that is what
     somebody sent.
 
-    Which model is a **pair on the bot** — a provider and one of its models, from
-    `app/core/catalog/speech_to_text_models.json` — chosen under **Channels**, and
-    null by default: transcription spends the organization's provider credit on
-    every recording, so it is opted into. The key is the one already configured
-    for that provider in the organization's model profiles; there is nothing new
-    to store. A keyed profile wins over a keyless one, and a keyless profile
-    pointed at a self-hosted server is used only when the provider has no keyed
-    one ([the order](ml-services.md#speech-to-text)), so adding a keyless chat
-    proxy does not move a bot off the provider it transcribes on.
-    A bot with no model chosen says it cannot listen rather than
-    dropping the recording, because a voice note that produces no reaction is
-    indistinguishable from a broken bot.
+    Each bot's form under **Channels** offers three answers. **Inherit**, the
+    default, uses the provider and model of the agent the bot serves, then the
+    organization's, and the language of the agent, then the organization's
+    ([the order](ml-services.md#which-engine-a-recording-reaches)). **Choose**
+    names the bot's own pair - a provider and one of its models, from
+    `app/core/catalog/speech_to_text_models.json`. **Off** never transcribes,
+    whatever the agent or the organization say. Inherit beside the choice names
+    what it resolves to, and which of the two chose it.
+
+    Inheriting costs nothing until somebody sets a provider up: with none on the
+    agent or the organization, nothing is transcribed, so spending the
+    organization's provider credit stays the organization's decision. A bot
+    registered from the CLI, or by a client that sends no switch, inherits. The
+    key is the organization's own for that provider - a model profile, or an
+    organization-visible key in the vault - and there is nothing new to store. A
+    keyed profile wins over a keyless one, and a keyless profile pointed at a
+    self-hosted server is used only when the provider has no keyed one
+    ([the order](ml-services.md#speech-to-text)), so adding a keyless chat proxy
+    does not move a bot off the provider it transcribes on.
+
+    A bot that cannot listen says so rather than dropping the recording, because
+    a voice note that produces no reaction is indistinguishable from a broken
+    bot - and it says which reason, because different people fix them: the bot
+    is switched off, or nobody has set up a provider. A bot with no agent bound
+    transcribes nothing at all, since the message is refused anyway.
+
+    !!! note "Upgrading: a bot that did not transcribe still does not"
+
+        Before this switch existed, a bot with no pair was a bot that did not
+        transcribe, and the API cleared the pair to turn transcription off.
+        Migration `0107_bot_transcription_switch.py` switches every such bot
+        **off**, so none of them starts sending audio to a provider on upgrade;
+        a bot with a pair keeps it. From then on a client that clears the pair
+        gets **inherit**, and **off** is `transcribe_voice_notes: false`, which
+        also clears the pair. The organization's or the agent's language now
+        reaches a bot with its own pair too.
+
+    A Telegram voice note is Ogg/Opus, which Mistral does not list as a format it
+    accepts, so a Telegram bot reaching Mistral - chosen or inherited - may fail
+    to transcribe; the form says so.
 
     Three providers ship: OpenAI, Groq and Mistral, all serving OpenAI's
     `POST /audio/transcriptions`. Adding a model is an entry in that file. Every

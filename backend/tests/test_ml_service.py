@@ -557,6 +557,30 @@ async def test_an_engine_failure_is_recorded_and_re_raised(recorded: Any) -> Non
 # -- dictation into the composer (#1797) ---------------------------------------
 
 
+_AGENT = SimpleNamespace(
+    id=uuid.uuid4(), organization_id=_ORG, name="Support", status="draft", current_version_id=None
+)
+"""An agent with nothing published, so the organization's settings answer alone."""
+
+_SETTINGS = "app.services.speech_to_text_settings"
+
+
+def _published(override: dict[str, str] | None) -> tuple[SimpleNamespace, AsyncMock]:
+    """An agent whose published spec carries `override`, and the version read."""
+    version_id = uuid.uuid4()
+    agent = SimpleNamespace(
+        id=uuid.uuid4(),
+        organization_id=_ORG,
+        name="Support",
+        status="published",
+        current_version_id=version_id,
+    )
+    spec = (
+        {"name": "Support"} if override is None else {"name": "Support", "speech_to_text": override}
+    )
+    return agent, AsyncMock(return_value=SimpleNamespace(id=version_id, spec=spec))
+
+
 def _speech_org(**overrides: object) -> SimpleNamespace:
     fields: dict[str, object] = {
         "chat_dictation": "server",
@@ -585,7 +609,9 @@ async def test_a_dictation_is_transcribed_with_the_org_settings_and_recorded(
             new=AsyncMock(return_value="dzień dobry"),
         ) as transcribe,
     ):
-        text = await service.dictate(_ctx(), content=b"audio", mime_type="audio/webm;codecs=opus")
+        text = await service.dictate(
+            _ctx(), agent=_AGENT, content=b"audio", mime_type="audio/webm;codecs=opus"
+        )
 
     assert text == "dzień dobry"
     assert get.await_args.args[1] == _ORG
@@ -598,6 +624,162 @@ async def test_a_dictation_is_transcribed_with_the_org_settings_and_recorded(
     assert recorded.await_args.kwargs["service"] == "speech_to_text"
     assert recorded.await_args.kwargs["unit"] == "characters"
     assert recorded.await_args.kwargs["units"] == len("dzień dobry")
+
+
+async def test_a_dictation_uses_the_agents_published_override(recorded: Any) -> None:
+    """A Polish agent in an organization set up for another engine: the agent's
+    pair and language, from the version `/chat` runs."""
+    del recorded
+    agent, get_version = _published(
+        {"provider": "groq", "model": "whisper-large-v3", "language": "de"}
+    )
+    with (
+        patch(
+            "app.services.ml.facade.organization_repo.get_by_id",
+            new=AsyncMock(return_value=_speech_org()),
+        ),
+        patch(f"{_SETTINGS}.agent_repo.get_version", new=get_version),
+        patch(
+            "app.services.ml.facade.TranscriptionService.transcribe",
+            new=AsyncMock(return_value="ok"),
+        ) as transcribe,
+    ):
+        await MLService(_db()).dictate(_ctx(), agent=agent, content=b"a", mime_type="audio/webm")
+
+    sent = transcribe.await_args.kwargs
+    assert (sent["provider"], sent["model"], sent["language"]) == ("groq", "whisper-large-v3", "de")
+    assert get_version.await_args.args[1] == agent.current_version_id
+    assert get_version.await_args.kwargs["organization_id"] == _ORG
+
+
+async def test_an_agent_override_makes_dictation_work_where_the_org_has_no_pair(
+    recorded: Any,
+) -> None:
+    del recorded
+    agent, get_version = _published({"provider": "openai", "model": "whisper-1"})
+    with (
+        patch(
+            "app.services.ml.facade.organization_repo.get_by_id",
+            new=AsyncMock(
+                return_value=_speech_org(speech_to_text_provider=None, speech_to_text_model=None)
+            ),
+        ),
+        patch(f"{_SETTINGS}.agent_repo.get_version", new=get_version),
+        patch(
+            "app.services.ml.facade.TranscriptionService.transcribe",
+            new=AsyncMock(return_value="ok"),
+        ) as transcribe,
+    ):
+        await MLService(_db()).dictate(_ctx(), agent=agent, content=b"a", mime_type="audio/webm")
+
+    assert transcribe.await_args.kwargs["model"] == "whisper-1"
+    # The organization's language still applies where the agent pins none.
+    assert transcribe.await_args.kwargs["language"] == "pl"
+
+
+@pytest.mark.parametrize(
+    ("org", "agent_override", "credentialed", "ready", "provider"),
+    [
+        (_speech_org(), None, {"openai"}, True, "openai"),
+        (_speech_org(), None, set(), False, "openai"),
+        (_speech_org(chat_dictation="browser"), None, {"openai"}, False, "openai"),
+        (_speech_org(speech_to_text_model="withdrawn"), None, {"openai"}, False, "openai"),
+        (
+            _speech_org(speech_to_text_provider=None, speech_to_text_model=None),
+            None,
+            {"openai"},
+            False,
+            None,
+        ),
+        (
+            _speech_org(speech_to_text_provider=None, speech_to_text_model=None),
+            {"provider": "mistral", "model": "voxtral-mini-latest"},
+            {"mistral"},
+            True,
+            "mistral",
+        ),
+        (
+            _speech_org(),
+            {"provider": "mistral", "model": "voxtral-mini-latest"},
+            {"openai"},
+            False,
+            "mistral",
+        ),
+    ],
+    ids=[
+        "org-pair",
+        "no-credential",
+        "browser-engine",
+        "withdrawn-model",
+        "no-pair",
+        "agent-pair-without-org-pair",
+        "agent-pair-without-its-credential",
+    ],
+)
+async def test_dictation_readiness_follows_the_resolved_pair(
+    org: SimpleNamespace,
+    agent_override: dict[str, str] | None,
+    credentialed: set[str],
+    ready: bool,
+    provider: str | None,
+) -> None:
+    """Ready needs the server engine, a pair that resolves for this agent, the
+    catalog still offering it and a credential for its provider. The provider is
+    returned regardless, because the composer records in its format."""
+    agent, get_version = _published(agent_override)
+    with (
+        patch(
+            "app.services.ml.facade.organization_repo.get_by_id", new=AsyncMock(return_value=org)
+        ),
+        patch(f"{_SETTINGS}.agent_repo.get_version", new=get_version),
+        patch(
+            "app.services.ml.facade.TranscriptionService.credentialed_providers",
+            new=AsyncMock(return_value=frozenset(credentialed)),
+        ),
+    ):
+        status = await MLService(_db()).dictation_status(_ctx(), agent=agent)
+
+    assert (status.ready, status.provider) == (ready, provider)
+    assert status.engine == org.chat_dictation
+    assert status.max_seconds == org.dictation_max_seconds
+
+
+async def test_dictation_readiness_for_an_unpublished_agent_answers_from_the_org() -> None:
+    """Never a refusal: the composer asks before the agent has anything published."""
+    with (
+        patch(
+            "app.services.ml.facade.organization_repo.get_by_id",
+            new=AsyncMock(return_value=_speech_org()),
+        ),
+        patch(
+            "app.services.ml.facade.TranscriptionService.credentialed_providers",
+            new=AsyncMock(return_value=frozenset({"openai"})),
+        ),
+    ):
+        status = await MLService(_db()).dictation_status(_ctx(), agent=_AGENT)
+
+    assert (status.ready, status.provider) == (True, "openai")
+
+
+async def test_dictation_readiness_with_no_organization_is_not_found() -> None:
+    with (
+        patch(
+            "app.services.ml.facade.organization_repo.get_by_id", new=AsyncMock(return_value=None)
+        ),
+        pytest.raises(NotFoundError),
+    ):
+        await MLService(_db()).dictation_status(_ctx(), agent=_AGENT)
+
+
+async def test_the_credentialed_providers_are_the_callers_organizations() -> None:
+    with patch(
+        "app.services.ml.facade.TranscriptionService.credentialed_providers",
+        new=AsyncMock(return_value=frozenset({"groq"})),
+    ) as credentialed:
+        found = await MLService(_db()).speech_to_text_credentials(_ctx())
+
+    assert found == frozenset({"groq"})
+    assert credentialed.await_args.args[0] == _ORG
 
 
 @pytest.mark.parametrize(
@@ -632,7 +814,7 @@ async def test_a_dictation_is_refused_with_a_reason_and_the_refusal_recorded(
         ) as transcribe,
         pytest.raises(AppException) as raised,
     ):
-        await MLService(db).dictate(_ctx(), content=content, mime_type=mime)
+        await MLService(db).dictate(_ctx(), agent=_AGENT, content=content, mime_type=mime)
 
     assert raised.value.details is not None
     assert raised.value.details["reason"] == reason
@@ -654,7 +836,7 @@ async def test_a_recording_exactly_at_the_limit_is_transcribed(recorded: Any) ->
         ),
     ):
         text = await MLService(_db()).dictate(
-            _ctx(), content=b"x" * (10 * 32_768), mime_type="audio/mp4"
+            _ctx(), agent=_AGENT, content=b"x" * (10 * 32_768), mime_type="audio/mp4"
         )
 
     assert text == "ok"
@@ -688,7 +870,7 @@ async def test_a_dictation_is_named_for_the_format_the_provider_reads(
             new=AsyncMock(return_value="ok"),
         ) as transcribe,
     ):
-        await MLService(_db()).dictate(_ctx(), content=b"a", mime_type=mime)
+        await MLService(_db()).dictate(_ctx(), agent=_AGENT, content=b"a", mime_type=mime)
 
     sent = transcribe.await_args.args[0]
     assert (sent.filename, sent.mime_type) == (filename, sent_type)
@@ -711,7 +893,7 @@ async def test_a_wav_recording_of_the_longest_dictation_fits_under_the_cap(
         ) as transcribe,
     ):
         text = await MLService(_db()).dictate(
-            _ctx(), content=b"x" * (300 * 32_000 + 44), mime_type="audio/wav"
+            _ctx(), agent=_AGENT, content=b"x" * (300 * 32_000 + 44), mime_type="audio/wav"
         )
 
     assert text == "ok"
@@ -733,7 +915,9 @@ async def test_an_engine_refusal_during_dictation_is_recorded_and_re_raised(
         ),
         pytest.raises(ExternalServiceError) as caught,
     ):
-        await MLService(_db()).dictate(_ctx(), content=b"a", mime_type="audio/ogg;codecs=opus")
+        await MLService(_db()).dictate(
+            _ctx(), agent=_AGENT, content=b"a", mime_type="audio/ogg;codecs=opus"
+        )
 
     assert caught.value is failure
     assert recorded.await_args.kwargs["failure_stage"] == "engine"

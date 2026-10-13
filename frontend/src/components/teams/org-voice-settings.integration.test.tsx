@@ -106,9 +106,27 @@ interface Served {
   settings?: boolean;
   profiles?: ModelProfile[] | "fail";
   catalog?: "fail";
+  /** Providers with an organization-visible key in the vault. */
+  vault?: string[];
 }
 
-function serve({ settings = true, profiles = KEYED, catalog }: Served = {}) {
+/**
+ * The catalog as the server answers it for these credentials: a provider is
+ * `credentialed` with a keyed profile, a keyless one naming an endpoint, or a
+ * vault key - the rule `TranscriptionService.credentialed_providers` applies.
+ */
+function catalogFor(profiles: ModelProfile[] | "fail", vault: string[]) {
+  const usable = new Set(vault);
+  for (const entry of profiles === "fail" ? [] : profiles) {
+    if (entry.secret_id !== null || entry.base_url) usable.add(entry.provider);
+  }
+  return {
+    ...CATALOG,
+    items: CATALOG.items.map((entry) => ({ ...entry, credentialed: usable.has(entry.provider) })),
+  };
+}
+
+function serve({ settings = true, profiles = KEYED, catalog, vault = [] }: Served = {}) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
     if (path === "/me/permissions") {
       return {
@@ -120,7 +138,7 @@ function serve({ settings = true, profiles = KEYED, catalog }: Served = {}) {
     }
     if (path === "/providers/speech-to-text-models") {
       if (catalog === "fail") throw new Error("403");
-      return CATALOG;
+      return catalogFor(profiles, vault);
     }
     if (path === "/providers/catalog") return { items: [], total: 0 };
     if (path === "/providers/model-profiles") {
@@ -174,8 +192,10 @@ describe("OrgVoiceSettings", () => {
       /Audio goes through this deployment to the provider you pick\. Every browser\./,
     );
     expect(screen.getByRole("radio", { name: /^Browser/ })).toBeChecked();
-    // Browser needs no provider, so none of the server fields are drawn.
-    expect(screen.queryByRole("combobox", { name: "Provider" })).not.toBeInTheDocument();
+    // Browser needs no length, so the server's own fields are not drawn - but
+    // the default provider is, because channel bots inherit it.
+    expect(screen.queryByLabelText("Max recording length")).not.toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Provider" })).toHaveTextContent("None");
     // Its path says the organization's provider is not involved.
     expect(screen.getByText("Browser vendor's speech service")).toBeInTheDocument();
     expect(
@@ -193,9 +213,9 @@ describe("OrgVoiceSettings", () => {
     await waitFor(() => expect(screen.getByRole("radio", { name: /^Server/ })).toBeDisabled());
     expect(screen.getByText("Server needs provider credentials")).toBeInTheDocument();
     expect(screen.getByText(/Add one for OpenAI, Groq, or Mistral/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Add a model profile" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Add a key in the vault" })).toHaveAttribute(
       "href",
-      "/agents",
+      "/vault",
     );
   });
 
@@ -417,7 +437,7 @@ describe("OrgVoiceSettings", () => {
     // nothing is; and it is fixed here, not with a new profile.
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("The chosen model, whisper-0, is no longer offered.");
-    expect(alert).not.toHaveTextContent("No speech-to-text provider and model are chosen.");
+    expect(alert).not.toHaveTextContent("Only agents with their own provider can dictate");
     expect(within(alert).queryByRole("link")).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("radio", { name: /^Browser/ }));
@@ -483,7 +503,8 @@ describe("OrgVoiceSettings", () => {
     await userEvent.click(cancel);
 
     expect(screen.getByRole("radio", { name: /^Browser/ })).toBeChecked();
-    expect(screen.queryByRole("combobox", { name: "Provider" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Max recording length")).not.toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Provider" })).toHaveTextContent("None");
     expect(save).toBeDisabled();
   });
 
@@ -498,9 +519,9 @@ describe("OrgVoiceSettings", () => {
     const alert = await screen.findByRole("alert");
     expect(within(alert).getByText("Dictation is unavailable in chat")).toBeInTheDocument();
     expect(alert).toHaveTextContent("This organization has no Mistral credentials.");
-    expect(within(alert).getByRole("link", { name: "Add a model profile" })).toHaveAttribute(
+    expect(within(alert).getByRole("link", { name: "Add a key in the vault" })).toHaveAttribute(
       "href",
-      "/agents",
+      "/vault",
     );
     // The stored provider stays selectable, so the form can still be saved.
     await userEvent.click(screen.getByRole("combobox", { name: "Provider" }));
@@ -509,11 +530,14 @@ describe("OrgVoiceSettings", () => {
     ).not.toHaveAttribute("aria-disabled", "true");
   });
 
-  it("warns when server dictation has no model chosen", async () => {
+  it("notes that only agents with their own provider dictate when server has no default", async () => {
     await mount({ chat_dictation: "server", chat_dictation_ready: false });
 
+    // A setup, not a fault: a note naming who can still dictate, and nothing to fix in the vault.
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("No speech-to-text provider and model are chosen.");
+    expect(alert).toHaveTextContent("Only agents with their own provider can dictate");
+    expect(alert).not.toHaveTextContent("Dictation is unavailable in chat");
+    expect(within(alert).queryByRole("link")).not.toBeInTheDocument();
   });
 
   it("does not warn while server dictation is configured and credentialed", async () => {
@@ -529,14 +553,71 @@ describe("OrgVoiceSettings", () => {
     expect(screen.queryByText(/OpenAI ·/)).not.toBeInTheDocument();
   });
 
-  it("marks nothing as lacking credentials when the profiles cannot be read", async () => {
-    await mount({}, { profiles: "fail" });
+  it("counts an organization-visible vault key as credentials, with no profile", async () => {
+    // The server answers this from the vault too; the profile list alone would
+    // call the organization keyless (#1797).
+    await mount({}, { profiles: [], vault: ["mistral"] });
+
+    await waitFor(() => expect(screen.getByRole("radio", { name: /^Server/ })).toBeEnabled());
+    expect(screen.queryByText("Server needs provider credentials")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("radio", { name: /^Server/ }));
+    // The first provider that can send is preselected.
+    expect(screen.getByRole("combobox", { name: "Provider" })).toHaveTextContent("Mistral");
+    await userEvent.click(screen.getByRole("combobox", { name: "Provider" }));
+    expect(await screen.findByRole("option", { name: "OpenAI (no credentials)" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+  });
+
+  it("does not depend on reading the model profiles to know who has credentials", async () => {
+    await mount({}, { profiles: "fail", vault: ["openai"] });
 
     await userEvent.click(screen.getByRole("radio", { name: /^Server/ }));
-    await userEvent.click(screen.getByRole("combobox", { name: "Provider" }));
 
-    expect(await screen.findByRole("option", { name: "Mistral" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Provider" })).toHaveTextContent("OpenAI");
     expect(screen.queryByText("Server needs provider credentials")).not.toBeInTheDocument();
+  });
+
+  it("shows and saves the default provider while the engine is the browser", async () => {
+    // A bot inheriting sends its voice notes to this pair whatever chat uses.
+    vi.mocked(apiClient.patch).mockResolvedValue(org());
+    await mount();
+
+    await choose("Provider", "Groq");
+    expect(screen.getByRole("combobox", { name: "Model" })).toHaveTextContent(
+      "Whisper large v3 turbo",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() =>
+      expect(apiClient.patch).toHaveBeenCalledWith(`/orgs/${ORG_ID}`, {
+        chat_dictation: "browser",
+        speech_to_text_language: null,
+        dictation_max_seconds: 300,
+        speech_to_text_provider: "groq",
+        speech_to_text_model: "whisper-large-v3-turbo",
+      }),
+    );
+  });
+
+  it("clears the default provider with None", async () => {
+    vi.mocked(apiClient.patch).mockResolvedValue(org());
+    await mount({ speech_to_text_provider: "openai", speech_to_text_model: "whisper-1" });
+
+    await choose("Provider", "None");
+    expect(screen.queryByRole("combobox", { name: "Model" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() =>
+      expect(apiClient.patch).toHaveBeenCalledWith(`/orgs/${ORG_ID}`, {
+        chat_dictation: "browser",
+        speech_to_text_language: null,
+        dictation_max_seconds: 300,
+        speech_to_text_provider: null,
+        speech_to_text_model: null,
+      }),
+    );
   });
 
   it("marks nothing as lacking credentials when the catalog cannot be read", async () => {
@@ -557,7 +638,7 @@ describe("OrgVoiceSettings", () => {
     expect(screen.queryByText(/^Sent with/)).not.toBeInTheDocument();
   });
 
-  it("names a provider without credentials by its id when the catalog cannot be read", async () => {
+  it("claims no missing credentials for a stored provider when the catalog cannot be read", async () => {
     await mount(
       {
         chat_dictation: "server",
@@ -567,9 +648,11 @@ describe("OrgVoiceSettings", () => {
       },
       { catalog: "fail" },
     );
+    await waitFor(() =>
+      expect(apiClient.get).toHaveBeenCalledWith("/providers/speech-to-text-models"),
+    );
 
-    const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("This organization has no mistral credentials.");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("ignores an endpoint it cannot parse when naming the host", async () => {

@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
+import { invalidateSpeechSettings } from "@/lib/dictation-api";
 import { qk } from "@/lib/query-keys";
 import { useOrgStore } from "@/stores";
 import type {
@@ -204,9 +205,11 @@ export function useOrganizations() {
     async (id: string, settings: VoiceSettingsUpdate): Promise<Organization> => {
       const updated = await apiClient.patch<Organization>(`/orgs/${id}`, settings);
       writeCache((prev) => prev.map((o) => (o.id === id ? updated : o)));
+      // Every agent's dictation readiness inherits from these settings.
+      await invalidateSpeechSettings(queryClient);
       return updated;
     },
-    [writeCache],
+    [writeCache, queryClient],
   );
 
   const deleteOrg = useCallback(

@@ -1,5 +1,5 @@
 ---
-source_sha: "9f2ebd04f8d2"
+source_sha: "f96f62cc6cbf"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1172,7 +1172,7 @@ może się między nimi rozjechać.
     czego żadna ilość routowania nie potrafi. `@slug` nadal się parsuje — jako
     alias agenta stojącego za tym botem, odrzucany, gdy woła jakiegokolwiek
     innego.
-- **Wiadomość głosowa jest transkrybowana tam, gdzie botowi dano model.** To
+- **Wiadomość głosowa jest transkrybowana, chyba że bot ma to wyłączone.** To
   jedyny załącznik, którego agentowi nie da się wręczyć jako pliku: czyta PDF
   i patrzy na zrzut ekranu, a blob `audio/ogg` to dla niego liczba bajtów.
 
@@ -1185,19 +1185,47 @@ może się między nimi rozjechać.
     trzyma nagranie w roli cytatu, a nie instrukcji, którą ktoś wpisał. Notatka
     głosowa z podpisem zostaje jedną wiadomością, bo tym właśnie ktoś ją wysłał.
 
-    Który model, to **para na bocie** — provider i jeden z jego modeli,
-    z `app/core/catalog/speech_to_text_models.json` — wybierana pod **Channels**
-    i domyślnie pusta: transkrypcja wydaje kredyt providera organizacji przy
-    każdym nagraniu, więc trzeba się na nią zdecydować. Kluczem jest ten już
-    skonfigurowany dla tego providera w profilach modeli organizacji; nie ma nic
-    nowego do zapisania. Profil z kluczem wygrywa z profilem bez klucza, a
-    profil bez klucza wskazujący na własny serwer jest używany tylko wtedy, gdy
-    provider nie ma profilu z kluczem ([kolejność](ml-services.md#speech-to-text)),
-    więc dodanie proxy czatu bez klucza nie przenosi bota z providera, na którym
+    Formularz każdego bota pod **Channels** daje trzy odpowiedzi. **Inherit**,
+    domyślna, bierze providera i model agenta, którego bot obsługuje, potem
+    organizacji, oraz język agenta, potem organizacji
+    ([kolejność](ml-services.md#which-engine-a-recording-reaches)). **Choose**
+    wskazuje własną parę bota — providera i jeden z jego modeli,
+    z `app/core/catalog/speech_to_text_models.json`. **Off** nigdy nie
+    transkrybuje, cokolwiek mówią agent czy organizacja. Obok wyboru Inherit
+    pokazuje, do czego się rozwiązuje i które z tych dwojga je wybrało.
+
+    Dziedziczenie nic nie kosztuje, dopóki ktoś nie skonfiguruje providera: gdy
+    nie ma go ani na agencie, ani w organizacji, nic nie jest transkrybowane, więc
+    wydawanie kredytu providera organizacji pozostaje decyzją organizacji. Bot
+    zarejestrowany z CLI albo przez klienta, który nie wysyła przełącznika,
+    dziedziczy. Kluczem jest własny klucz organizacji dla tego providera — profil
+    modelu albo widoczny dla całej organizacji klucz w vaulcie — i nie ma nic
+    nowego do zapisania. Profil z kluczem wygrywa z profilem bez klucza, a profil
+    bez klucza wskazujący na własny serwer jest używany tylko wtedy, gdy provider
+    nie ma profilu z kluczem ([kolejność](ml-services.md#speech-to-text)), więc
+    dodanie proxy czatu bez klucza nie przenosi bota z providera, na którym
     transkrybuje.
-    Bot bez wybranego modelu mówi, że nie potrafi słuchać,
-    zamiast porzucać nagranie, bo notatka głosowa, która nie wywołuje żadnej
-    reakcji, jest nie do odróżnienia od zepsutego bota.
+
+    Bot, który nie może słuchać, mówi to zamiast porzucać nagranie, bo notatka
+    głosowa, która nie wywołuje żadnej reakcji, jest nie do odróżnienia od
+    zepsutego bota — i mówi, z jakiego powodu, bo naprawiają to różne osoby: bot
+    jest wyłączony albo nikt nie skonfigurował providera. Bot bez powiązanego
+    agenta nie transkrybuje niczego, bo wiadomość i tak zostaje odrzucona.
+
+    !!! note "Aktualizacja: bot, który nie transkrybował, nadal nie transkrybuje"
+
+        Zanim pojawił się ten przełącznik, bot bez pary był botem, który nie
+        transkrybował, a API czyściło parę, żeby wyłączyć transkrypcję. Migracja
+        `0107_bot_transcription_switch.py` przełącza każdego takiego bota na
+        **off**, więc żaden z nich nie zaczyna po aktualizacji wysyłać audio do
+        providera; bot z parą ją zachowuje. Od tej pory klient, który czyści parę,
+        dostaje **inherit**, a **off** to `transcribe_voice_notes: false`, co
+        również czyści parę. Język organizacji albo agenta dociera teraz także do
+        bota z własną parą.
+
+    Notatka głosowa z Telegrama to Ogg/Opus, którego Mistral nie wymienia wśród
+    akceptowanych formatów, więc bot Telegrama trafiający do Mistrala — wybranego
+    albo odziedziczonego — może nie zdołać transkrybować; formularz to mówi.
 
     Dostępni są trzej providerzy: OpenAI, Groq i Mistral, wszyscy obsługujący
     `POST /audio/transcriptions` od OpenAI. Dodanie modelu to wpis w tym pliku.

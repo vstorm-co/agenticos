@@ -118,8 +118,9 @@ class Organization(Base, TimestampMixin):
     chat_dictation: Mapped[DictationEngine] = mapped_column(
         String(16), nullable=False, default="browser", server_default="browser"
     )
-    # A pair from the speech-to-text catalog, both or neither. The credential is
-    # the organization's model profile for the provider, resolved per recording.
+    # A pair from the speech-to-text catalog, both or neither, and the default an
+    # agent or a channel bot inherits. The credential is the organization's own
+    # for the provider - a model profile or a vault key - resolved per recording.
     speech_to_text_provider: Mapped[str | None] = mapped_column(String(32), nullable=True)
     speech_to_text_model: Mapped[str | None] = mapped_column(String(255), nullable=True)
     # ISO-639-1, or NULL to let the engine detect it.

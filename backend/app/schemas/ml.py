@@ -18,6 +18,7 @@ from uuid import UUID
 
 from pydantic import Field
 
+from app.db.models.organization import DictationEngine
 from app.schemas.base import BaseSchema, TimestampSchema
 
 if TYPE_CHECKING:
@@ -124,6 +125,28 @@ class DictationRead(BaseSchema):
     """
 
     text: str
+
+
+class DictationStatusRead(BaseSchema):
+    """Whether the composer may offer server dictation for one agent, and how."""
+
+    engine: DictationEngine = Field(description="The organization's dictation engine for `/chat`")
+    ready: bool = Field(
+        description=(
+            "The engine is `server`, a provider and model resolve for this agent, "
+            "the catalog offers them and the organization holds a credential for "
+            "the provider. Configured, not proven: a revoked key fails on the "
+            "first recording."
+        )
+    )
+    max_seconds: int = Field(description="The organization's longest dictation, in seconds")
+    provider: str | None = Field(
+        description=(
+            "The provider a recording would go to - the agent's override or the "
+            "organization's - so the composer records a format it accepts. Null "
+            "when none resolves."
+        )
+    )
 
 
 class PiiCategoryCountRead(BaseSchema):

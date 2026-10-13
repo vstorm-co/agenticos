@@ -16,12 +16,15 @@ import {
   Input,
 } from "@/components/ui";
 import {
+  INHERIT,
   TranscriptionFields,
   type TranscriptionChoice,
 } from "@/components/channels/transcription-fields";
+import { useOrganizationList } from "@/hooks";
+import { useOrgStore } from "@/stores";
 import { submitFailure } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
-import type { ChannelBotCreate, ChannelPlatform } from "@/types/channels";
+import type { ChannelBotCreate, ChannelPlatform, InheritedSpeechToText } from "@/types/channels";
 import { useTranslations } from "next-intl";
 import { DIALOG_FORM } from "@/lib/dialog-sizes";
 
@@ -83,10 +86,25 @@ export function AddChannelDialog({
   const [webhookSecret, setWebhookSecret] = useState("");
   const [signingSecret, setSigningSecret] = useState("");
   const [appToken, setAppToken] = useState("");
-  const [transcription, setTranscription] = useState<TranscriptionChoice>({
-    provider: null,
-    model: null,
-  });
+  const [transcription, setTranscription] = useState<TranscriptionChoice>(INHERIT);
+  // A bot not yet registered serves no agent, so what it would inherit today is
+  // the organization's pair; binding an agent with its own may change that.
+  const activeOrgId = useOrgStore((state) => state.activeOrgId);
+  const { data: orgs } = useOrganizationList();
+  const org = orgs?.find((candidate) => candidate.id === activeOrgId);
+  const inherited: InheritedSpeechToText | null | undefined =
+    org === undefined
+      ? undefined
+      : org.speech_to_text_provider && org.speech_to_text_model
+        ? {
+            provider: org.speech_to_text_provider,
+            model: org.speech_to_text_model,
+            language: org.speech_to_text_language,
+            pair_source: "organization",
+            language_source: org.speech_to_text_language ? "organization" : null,
+            agent_name: null,
+          }
+        : null;
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   // Mattermost is self-hosted: without its server's address a bot cannot reply,
@@ -103,7 +121,7 @@ export function AddChannelDialog({
     setWebhookSecret("");
     setSigningSecret("");
     setAppToken("");
-    setTranscription({ provider: null, model: null });
+    setTranscription(INHERIT);
     setErrors({});
   }
 
@@ -135,9 +153,11 @@ export function AddChannelDialog({
           ? { slack_signing_secret: signingSecret.trim() }
           : {}),
         ...(platform === "slack" && appToken.trim() ? { slack_app_token: appToken.trim() } : {}),
-        // Both halves or neither - the schema refuses one alone as a setting
-        // that cannot run - and absent entirely for a bot that does not listen.
-        ...(transcription.provider && transcription.model
+        // Inherit is the server's default, so it sends nothing; off is the
+        // switch; choose is both halves - the schema refuses one alone as a
+        // setting that cannot run.
+        ...(transcription.mode === "off" ? { transcribe_voice_notes: false } : {}),
+        ...(transcription.mode === "choose" && transcription.provider && transcription.model
           ? {
               speech_to_text_provider: transcription.provider,
               speech_to_text_model: transcription.model,
@@ -306,6 +326,8 @@ export function AddChannelDialog({
 
           <TranscriptionFields
             idPrefix="channel"
+            platform={platform}
+            inherited={inherited}
             value={transcription}
             onChange={setTranscription}
           />

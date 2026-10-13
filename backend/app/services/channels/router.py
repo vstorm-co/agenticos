@@ -53,6 +53,7 @@ from app.services.channels.mentions import (
 )
 from app.services.conversation import ConversationService
 from app.services.rate_limit import Limit
+from app.services.speech_to_text_settings import SpeechToTextSettingsService
 from app.services.transcription import MAX_BYTES as TRANSCRIPTION_MAX_BYTES
 from app.services.transcription import Recording, TranscriptionService
 
@@ -821,17 +822,34 @@ class ChannelMessageRouter:
         returns, because they are answered the same way: the reply carries what did
         not make it, and the turn goes ahead with what did.
 
-        A bot with no transcription configured says so once rather than silently
-        dropping the recording - a voice note that produces no reaction is
-        indistinguishable from a bot that is broken, and the sender has no way to
-        learn that this deployment simply does not listen.
+        The engine resolves through `speech_to_text_settings`: the bot's own
+        pair, then its exposed agent's published override, then the
+        organization's; the language from the agent, then the organization. The
+        agent is the one this bot serves - never one an `@mention` names, since
+        a handle said aloud cannot be routed and this runs before routing.
+
+        A bot that cannot listen says so once rather than silently dropping the
+        recording - a voice note that produces no reaction is indistinguishable
+        from a bot that is broken - and says which of two reasons it is,
+        because they are fixed by different people: the bot's operator turned
+        transcription off, or nobody has set up a provider at all. A bot with no
+        agent bound says nothing here: the message is refused anyway, and
+        transcribing it first would be a paid call for nothing.
         """
         if not recordings:
             return [], []
-        if not bot.speech_to_text_provider or not bot.speech_to_text_model:
+        if not bot.transcribe_voice_notes:
             return [], [
-                "This bot cannot listen to voice messages - nobody has chosen a "
-                "transcription model for it."
+                "This bot does not listen to voice messages - transcription is turned off for it."
+            ]
+        settings = await SpeechToTextSettingsService(db).for_bot(bot)
+        if not settings.exposed:
+            return [], []
+        resolved = settings.resolved
+        if resolved is None:
+            return [], [
+                "This bot cannot listen to voice messages - nobody has set up a "
+                "transcription provider for it."
             ]
 
         adapter = get_adapter(bot.platform)
@@ -867,8 +885,9 @@ class ChannelMessageRouter:
                         mime_type=recording.mime_type,
                     ),
                     organization_id=bot.organization_id,
-                    provider=bot.speech_to_text_provider,
-                    model=bot.speech_to_text_model,
+                    provider=resolved.provider,
+                    model=resolved.model,
+                    language=resolved.language,
                 )
             except AppException:
                 # Logged by the service with what actually happened; the sender is

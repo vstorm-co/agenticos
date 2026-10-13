@@ -9,9 +9,12 @@ it cannot listen, or transcribe it. This is the third.
 to a voice note before an agent is involved, so there is no spec to seal a key
 into. It runs instead on the model profile the organization already configured for
 that provider, resolved through `ModelProfileService.resolve_credential` - the one
-place that knows how the vault and the legacy credential store join. Choosing
-"OpenAI" for transcription on a bot therefore needs nothing new configured, and
-there is no second place a key can be wrong.
+place that knows how the vault and the legacy credential store join. Failing a
+profile, an organization-visible vault key stored for that provider will do
+(#1797): an organization that keeps an OpenAI key and runs no OpenAI chat model
+should not have to invent one to transcribe. Choosing "OpenAI" for transcription
+therefore needs nothing new configured, and the deployment's own environment key
+is never used.
 
 **One API shape.** Every catalogued provider serves OpenAI's
 `POST /audio/transcriptions`: multipart in, `{"text": ...}` out. That is what
@@ -37,11 +40,14 @@ from uuid import UUID
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.model_resolver import get_provider
 from app.core.exceptions import BadRequestError, ConfigurationError, ExternalServiceError
 from app.core.secret_kinds import ApiKeySecret, NoSecret
+from app.db.models.credential import ModelProfile
 from app.repositories import credential as credential_repo
 from app.services import speech_to_text
 from app.services.model_profile import ModelProfileService
+from app.services.organization_secret import OrganizationSecretService
 
 logger = logging.getLogger(__name__)
 
@@ -141,8 +147,11 @@ class TranscriptionService:
     ) -> tuple[str | None, str | None] | None:
         """`(api_key, base_url)` for one provider, or `None` when there is none.
 
-        A keyed profile first, in label order, and a keyless one only when the
-        provider has no keyed profile at all. Keyed first is what keeps a bot that
+        A keyed profile first, in label order, then a keyless one, and an
+        organization-visible vault key for the provider last - sent to the
+        catalog's address, since a vault key carries none of its own. A
+        member's private key is never one of them: the call is paid on
+        everybody's behalf (`OrganizationSecretService.transcription_key`). Keyed first is what keeps a bot that
         transcribes on OpenAI today on OpenAI once a keyless `openai` profile - a
         vLLM or LiteLLM proxy for chat, with no `/audio/transcriptions` - is added
         and happens to sort earlier. A keyless profile counts only with an address
@@ -177,7 +186,41 @@ class TranscriptionService:
                 return resolved.secret.api_key.get_secret_value(), resolved.base_url
             if keyless is None and isinstance(resolved.secret, NoSecret) and resolved.base_url:
                 keyless = (None, resolved.base_url)
-        return keyless
+        if keyless is not None:
+            return keyless
+        key = await OrganizationSecretService(self.db).transcription_key(organization_id, provider)
+        return None if key is None else (key, None)
+
+    async def credentialed_providers(self, organization_id: UUID) -> frozenset[str]:
+        """Which catalogued providers this organization could transcribe on.
+
+        The same three sources `_credential` tries, read for existence and never
+        unsealed: a profile with a key, a keyless profile with an address, or an
+        organization-visible vault key. So a picker can grey out a provider
+        without a plaintext leaving the vault, and without the reader holding
+        `secrets:view` - a Builder choosing an agent's engine may not.
+
+        "Has one", not "it works": a key revoked at the provider is still found
+        here, and is reported when a recording arrives as `provider_error`.
+        """
+        offered = {entry.provider for entry in speech_to_text.providers()}
+        found = {
+            profile.provider
+            for profile in await credential_repo.list_profiles(
+                self.db, organization_id=organization_id
+            )
+            if profile.provider in offered
+            and (profile.secret_id is not None or self._keyless_with_address(profile))
+        }
+        found |= await OrganizationSecretService(self.db).transcription_key_providers(
+            organization_id, sorted(offered - found)
+        )
+        return frozenset(found)
+
+    @staticmethod
+    def _keyless_with_address(profile: ModelProfile) -> bool:
+        """A self-hosted profile `resolve_credential` would answer with no key."""
+        return get_provider(profile.provider).keyless and bool(profile.base_url)
 
     @staticmethod
     async def _post(

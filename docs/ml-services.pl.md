@@ -1,5 +1,5 @@
 ---
-source_sha: "ef2795b762aa"
+source_sha: "0ac237c91eee"
 ---
 
 # Usługi ML { #the-ml-services }
@@ -138,13 +138,23 @@ dostawcy: skieruj profil na własny serwer mówiący tym samym API, a endpoint t
 się nie zmieni. Organizacja bez użytecznych poświadczeń dostaje odmowę, która to
 mówi — nic nie jest zakładane jako istniejące, czego operator nie skonfigurował.
 
-Który profil, gdy organizacja ma kilka dla jednego dostawcy: **najpierw profil z
-kluczem**, pierwszy w kolejności etykiet, a profil bez klucza tylko wtedy, gdy
-dostawca nie ma żadnego profilu z kluczem — i tylko jeśli nazywa własny
-endpoint. Żądanie bez klucza nie niesie nagłówka `Authorization` i nigdy nie
+Które poświadczenie, gdy organizacja ma kilka dla jednego dostawcy: **najpierw
+profil z kluczem**, pierwszy w kolejności etykiet; potem profil bez klucza, tylko
+jeśli nazywa własny endpoint; a gdy brak obu, **klucz API zapisany w vaulcie**
+z tym dostawcą jako przeznaczeniem, pierwszy według nazwy, wysyłany pod adres z
+katalogu. Żądanie bez klucza nie niesie nagłówka `Authorization` i nigdy nie
 używa `OPENAI_API_KEY` wdrożenia. Pierwszeństwo klucza sprawia, że bot kanału
 dalej transkrybuje w OpenAI, gdy ktoś doda profil `openai` bez klucza dla proxy
 czatu, które nie obsługuje `/audio/transcriptions`.
+
+Klucz z vaultu to zawsze wyłącznie klucz **widoczny dla całej organizacji**.
+Prywatny klucz członka nigdy nie jest wydawany na nagranie, bo to, za co by
+płacił, należy do wszystkich: notatka głosowa na kanale, dyktowanie w czyimś
+czacie. Organizacja, która trzyma klucz OpenAI w vaulcie i nie używa żadnego
+modelu czatu OpenAI, transkrybuje więc na nim bez profilu modelu, którego nie
+potrzebuje. Ta sama kolejność obsługuje ten endpoint, dyktowanie i notatki
+głosowe z kanałów. Lista agentów używających klucza w vaulcie nie obejmuje tego
+użycia, bo żaden agent nie wiąże tego klucza.
 
 Odmowa mówi dlaczego w `details.reason`, tutaj i przy
 [dyktowaniu](#dictation-in-chat) tak samo. Własny tekst błędu dostawcy trafia do
@@ -166,8 +176,9 @@ URL żądania razem z kluczem.
 [polu wiadomości `/chat`](console.md#dictation), gdy organizacja transkrybuje na
 serwerze. Przyjmuje jedno nagranie jako `file` i odpowiada `{"text": "..."}`,
 które pole wiadomości wstawia do edycji; nic nie zostaje wysłane, dopóki osoba
-nie naciśnie Wyślij. Wywołujący nie nazywa dostawcy, modelu ani języka — należą
-one do organizacji — a osoba może dyktować do każdego agenta, którego może
+nie naciśnie Wyślij. Wywołujący nie nazywa dostawcy, modelu ani języka —
+[rozwiązują się](#which-engine-a-recording-reaches) z agenta i organizacji — a
+osoba może dyktować do każdego agenta, którego może
 uruchomić, łącznie z osobą z rolą Viewer, która ma na nim grant `use`. Agent, którego
 nie może uruchomić, odpowiada 404, jak wszędzie indziej.
 
@@ -177,7 +188,18 @@ Co odczytuje z organizacji, ustawione na
 odrzucone jako `not_configured`), `speech_to_text_provider` i
 `speech_to_text_model` (para z katalogu speech-to-text),
 `speech_to_text_language` (kod ISO-639-1 albo null, by silnik sam go rozpoznał)
-oraz `dictation_max_seconds` (od 10 do 600, domyślnie 300).
+oraz `dictation_max_seconds` (od 10 do 600, domyślnie 300). Silnik i najdłuższe
+dyktowanie zawsze należą do organizacji; agent może zmienić tylko dostawcę, model
+i język.
+
+`GET /api/v1/agents/{agent_id}/dictation`, z tym samym dostępem, mówi, czy
+mikrofon zadziała, zanim ktokolwiek zacznie nagrywać: `engine`, `max_seconds`,
+`provider` i `ready`. `ready` wymaga silnika `server`, pary, która rozwiązuje się
+dla tego agenta, katalogu, który nadal ją oferuje, oraz poświadczenia dla jej
+dostawcy w organizacji — sprawdzanego pod kątem istnienia, nigdy nie
+otwieranego. `provider` to ten, do którego trafiłoby nagranie, co decyduje o
+formacie, w jakim nagrywa pole wiadomości. Agent bez niczego opublikowanego
+odpowiada według ustawień organizacji.
 
 Nagranie musi być `audio/webm`, `audio/ogg`, `audio/mp4` albo `audio/wav`, z
 dopuszczalnym sufiksem kodeka, a `audio/x-wav` i `audio/wave` są czytane jako
@@ -203,8 +225,8 @@ wywołanie zostaje zapisane.
 !!! note "W Mistralu przeglądarka nagrywa WAV, a transkrybowanych języków jest mniej"
 
     Mistral dokumentuje dla Voxtrala wejście WAV i MP3, a nie WebM ani Opus,
-    które nagrywają Chrome i Firefox. Dlatego gdy dostawcą zamiany mowy na tekst
-    w organizacji jest Mistral, pole wiadomości w każdej przeglądarce nagrywa
+    które nagrywają Chrome i Firefox. Dlatego gdy dostawcą, do którego
+    rozwiązuje się nagranie, jest Mistral, pole wiadomości w każdej przeglądarce nagrywa
     zamiast tego WAV 16 kHz, mono, 16 bitów. Przesyłany plik jest mniej więcej
     dwa razy większy — 32 000 bajtów na sekundę — ale limit długości jest ten
     sam, bo nagranie WAV trwające `dictation_max_seconds` mieści się w limicie.
@@ -213,6 +235,33 @@ wywołanie zostaje zapisane.
     podaje 13 języków dla Voxtrala, więc ustalony język, którego nie przyjmuje,
     wraca jako `provider_error`. W Mistralu zostaw język na automatycznym
     wykrywaniu i wypróbuj nagranie, zanim zaczniesz na nim polegać.
+
+#### Do którego silnika trafia nagranie { #which-engine-a-recording-reaches }
+
+Silnik zamiany mowy na tekst mogą wskazać trzy miejsca:
+[karta Voice](console.md#the-voice-card) organizacji, nadpisanie
+[`speech_to_text`](reference/spec.md#speech-to-text) agenta, ustawiane na jego
+własnej [karcie Voice](console.md#an-agents-own-engine) i działające po
+opublikowaniu, oraz [bot kanału](channels.md#what-every-channel-shares).
+Rozwiązują się w dwóch połowach:
+
+| Co | Pochodzi z pierwszego, które to ustawia |
+|---|---|
+| Dostawca i model, jako para | Bot, potem agent, potem organizacja |
+| Język | Agent, potem organizacja, potem silnik sam go rozpoznaje |
+
+Polski agent w organizacji skonfigurowanej dla angielskiego ustawia więc
+`language: pl` i zachowuje dostawcę organizacji. Bot nie ma własnego języka;
+język agenta albo organizacji dotyczy także jego własnej pary. Gdy nic się nie
+rozwiązuje, nic nie jest transkrybowane: dyktowanie odpowiada `not_configured`,
+a bot mówi, że nie potrafi słuchać.
+
+Dyktowanie czyta domyślną opublikowaną wersję agenta, tę, którą uruchamia
+`/chat`. Bot czyta agenta, którego obsługuje jego powiązanie — nigdy agenta,
+o którym ktoś wspomni przez `@slug`, bo nagranie jest transkrybowane, zanim
+wzmianki zostaną przekierowane — w wersji, którą przypina środowisko tego
+powiązania, tej, której użyje run. Agent w wersji roboczej albo zarchiwizowany
+nie ma wersji, którą ktokolwiek uruchamia, i odpowiada sama organizacja.
 
 ### Wykrywanie danych osobowych { #personal-data-detection }
 

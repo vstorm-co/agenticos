@@ -137,13 +137,23 @@ endpoint here is unchanged. An organization with no usable credential is
 refused, saying so — nothing is assumed to exist that an operator has not
 configured.
 
-Which profile, when the organization has several for one provider: **a keyed
-profile first**, the first in label order, and a keyless one only when the
-provider has no keyed profile at all — and only if it names an endpoint of its
-own. A keyless request carries no `Authorization` header, and never the
-deployment's `OPENAI_API_KEY`. Keyed first is what keeps a channel bot
+Which credential, when the organization has several for one provider: **a
+keyed profile first**, the first in label order; then a keyless one, only if it
+names an endpoint of its own; and, failing both, **an API key stored in the
+vault** with that provider as its purpose, the first by name, sent to the
+catalog's address. A keyless request carries no `Authorization` header, and
+never the deployment's `OPENAI_API_KEY`. Keyed first is what keeps a channel bot
 transcribing on OpenAI after somebody adds a keyless `openai` profile for a chat
 proxy that serves no `/audio/transcriptions`.
+
+The vault key is only ever one **visible to the whole organization**. A
+member's private key is never spent on a recording, because what it would pay
+for is everybody's: a voice note in a channel, a dictation in somebody else's
+chat. So an organization that keeps an OpenAI key in the vault and runs no
+OpenAI chat model transcribes on it without a model profile it does not need.
+The same order serves this endpoint, dictation and channel voice notes. The
+vault's list of the agents using a key does not include this use, because no
+agent binds the key.
 
 A refusal says why in `details.reason`, here and on
 [dictation](#dictation-in-chat) alike. The provider's own error text is logged
@@ -166,9 +176,10 @@ all, in its message.
 the server. It takes one recording as `file` and answers `{"text": "..."}`,
 which the composer puts into the box for the person to edit; nothing is sent
 until they press Send. The caller names no provider, model or language — those
-are the organization's — and the person may dictate to any agent they may run,
-a Viewer with a `use` grant on it included. An agent they may not run answers
-404, as everywhere else.
+[resolve](#which-engine-a-recording-reaches) from the agent and the
+organization — and the person may dictate to any agent they may run, a Viewer
+with a `use` grant on it included. An agent they may not run answers 404, as
+everywhere else.
 
 What it reads from the organization, set on the
 [Voice card](console.md#the-voice-card) by somebody holding `org:settings`:
@@ -176,7 +187,16 @@ What it reads from the organization, set on the
 as `not_configured`), `speech_to_text_provider` and `speech_to_text_model` (a
 pair from the speech-to-text catalog), `speech_to_text_language` (an ISO-639-1
 code, or null to let the engine detect it) and `dictation_max_seconds` (10 to
-600, 300 by default).
+600, 300 by default). The engine and the longest dictation are always the
+organization's; the agent can only change which provider, model and language.
+
+`GET /api/v1/agents/{agent_id}/dictation`, with the same access, says whether
+the microphone will work before anybody records: `engine`, `max_seconds`,
+`provider` and `ready`. `ready` needs the `server` engine, a pair that resolves
+for this agent, the catalog still offering it, and a credential for its provider
+in the organization - checked for existence, never opened. `provider` is the one
+a recording would reach, which decides the format the composer records in. An
+agent with nothing published answers from the organization's settings.
 
 The recording has to be `audio/webm`, `audio/ogg`, `audio/mp4` or `audio/wav`,
 a codec suffix allowed, with `audio/x-wav` and `audio/wave` read as `audio/wav`.
@@ -202,9 +222,9 @@ call is recorded.
 !!! note "On Mistral the browser records WAV, and fewer languages are transcribed"
 
     Mistral documents WAV and MP3 input for Voxtral, not WebM or Opus, which is
-    what Chrome and Firefox record. So when the organization's speech-to-text
-    provider is Mistral, the composer records 16 kHz mono 16-bit WAV in every
-    browser instead. The upload is about twice as large — 32,000 bytes a
+    what Chrome and Firefox record. So when the provider a recording resolves to
+    is Mistral, the composer records 16 kHz mono 16-bit WAV in every browser
+    instead. The upload is about twice as large — 32,000 bytes a
     second — but the length limit is the same, because a WAV recording of
     `dictation_max_seconds` fits under the cap.
 
@@ -212,6 +232,32 @@ call is recorded.
     13 languages for Voxtral, so a pinned language it does not take comes back
     as `provider_error`. On Mistral, leave the language on auto-detect and try a
     recording before relying on it.
+
+#### Which engine a recording reaches
+
+Three places can name a speech-to-text engine: the organization's
+[Voice card](console.md#the-voice-card), an agent's
+[`speech_to_text`](reference/spec.md#speech-to-text) override, set on its own
+[Voice card](console.md#an-agents-own-engine) and live once published, and a
+[channel bot](channels.md#what-every-channel-shares). They resolve in two halves:
+
+| What | Comes from the first that sets it |
+|---|---|
+| Provider and model, as a pair | The bot, then the agent, then the organization |
+| Language | The agent, then the organization, then the engine detects it |
+
+So a Polish agent in an organization set up for English pins `language: pl` and
+keeps the organization's provider. A bot has no language of its own; the
+agent's or the organization's applies to its own pair too. Nothing resolving
+means nothing is transcribed: dictation answers `not_configured`, and a bot says
+it cannot listen.
+
+Dictation reads the agent's published default version, the one `/chat` runs. A
+bot reads the agent its binding serves - never an agent somebody mentions with
+`@slug`, because a recording is transcribed before mentions are routed - at the
+version that binding's
+environment pins, the one the run will use. A draft or archived agent has no
+version anybody runs, and the organization answers alone.
 
 ### Personal data detection
 
