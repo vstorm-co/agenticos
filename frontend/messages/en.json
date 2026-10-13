@@ -3322,6 +3322,10 @@
       "artifacts-list": {
         "title": "Published pages",
         "body": "Reports and dashboards your agents published. Open one to see it, pick an earlier version, share it with colleagues or give it a public link."
+      },
+      "org-voice": {
+        "title": "Voice",
+        "body": "Choose how dictation in chat turns speech into text: the browser's own service, or your provider through this deployment."
       }
     }
   },
@@ -4969,7 +4973,62 @@
     "waiverAllowed": "Conversations may now waive approvals",
     "waiverFailed": "Could not change whether chats may waive approvals",
     "waiverForbidden": "Conversations may no longer waive approvals",
-    "you": "(you)"
+    "you": "(you)",
+    "voice": {
+      "title": "Voice",
+      "description": "How people in this organization talk to agents.",
+      "sttTitle": "Speech to text",
+      "sttDescription": "Dictation in the chat composer. Text lands in the box for editing; nothing is sent until the person presses Send.",
+      "engineLabel": "Dictation engine",
+      "engines": {
+        "off": {
+          "label": "Off",
+          "hint": "No microphone in chat."
+        },
+        "browser": {
+          "label": "Browser",
+          "hint": "Audio goes to the browser vendor (Google, Apple). Not in Firefox."
+        },
+        "server": {
+          "label": "Server",
+          "hint": "Audio goes through this deployment to the provider you pick. Every browser."
+        }
+      },
+      "noCredentialsTitle": "Server needs provider credentials",
+      "noCredentialsBody": "Server transcription uses this organization's model profiles, which are added in an agent's Builder. Add one for {providers}; a keyless profile pointing at a self-hosted server counts too.",
+      "addProfile": "Add a model profile",
+      "notReadyTitle": "Dictation is unavailable in chat",
+      "notReadyNoModel": "No speech-to-text provider and model are chosen. Members see a crossed-out microphone until you pick them or switch the engine.",
+      "notReadyNoCredentials": "This organization has no {provider} credentials. Members see a crossed-out microphone until you add them, pick another provider, or switch the engine.",
+      "notReadyWithdrawn": "The chosen model, {model}, is no longer offered. Members see a crossed-out microphone until you pick another model or switch the engine.",
+      "provider": "Provider",
+      "providerHint": "Uses this organization's credentials for the provider; a self-hosted endpoint works if it accepts the catalog model name.",
+      "providerNoCredentials": "{name} (no credentials)",
+      "model": "Model",
+      "modelHint": "{provider} models in the speech-to-text catalog.",
+      "language": "Language",
+      "languageAuto": "Auto-detect",
+      "languageHint": "Auto-detect suits mixed teams. A fixed language is more accurate.",
+      "languageOption": "{name} ({code})",
+      "maxLength": "Max recording length",
+      "maxLengthHint": "10 s to 10 min. The composer's timer counts to this and stops there.",
+      "maxLengthInvalid": "Enter a length between 10 seconds and 10 minutes.",
+      "unit": "Unit",
+      "seconds": "seconds",
+      "minutes": "minutes",
+      "pathBrowser": "Browser",
+      "pathDeployment": "This deployment",
+      "pathHost": "{provider} · {host}",
+      "pathNote": "Sent with this organization's {provider} credentials. The audio is discarded after transcription; only the text is kept.",
+      "pathVendor": "Browser vendor's speech service",
+      "browserNote": "The organization's provider is not used. Firefox shows no microphone.",
+      "cancel": "Cancel",
+      "save": "Save changes",
+      "saved": "Voice settings saved",
+      "conversationsTitle": "Voice conversations",
+      "conversationsDescription": "Talk to an agent and hear it answer.",
+      "comingSoon": "Coming soon"
+    }
   },
   "theme": {
     "darkMode": "Dark mode",
@@ -5567,5 +5626,12 @@
     "add": "Add",
     "mappingAdded": "Mapping added",
     "mappingDeleted": "Mapping deleted"
+  },
+  "voiceGlow": {
+    "title": "Voice glow",
+    "vivid": "Vivid",
+    "subtle": "Subtle",
+    "off": "Off",
+    "reducedMotion": "Off while reduced motion is on"
   }
 }

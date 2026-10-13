@@ -7,7 +7,12 @@ import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import { useOrgStore } from "@/stores";
-import type { Organization, OrganizationList, CreateOrganizationInput } from "@/types";
+import type {
+  Organization,
+  OrganizationList,
+  CreateOrganizationInput,
+  VoiceSettingsUpdate,
+} from "@/types";
 
 /**
  * Every organization the caller belongs to.
@@ -193,6 +198,17 @@ export function useOrganizations() {
     [writeCache],
   );
 
+  // Five fields in one request, because the server validates them together: a
+  // provider without its model, or `server` without either, is refused whole.
+  const setVoiceSettings = useCallback(
+    async (id: string, settings: VoiceSettingsUpdate): Promise<Organization> => {
+      const updated = await apiClient.patch<Organization>(`/orgs/${id}`, settings);
+      writeCache((prev) => prev.map((o) => (o.id === id ? updated : o)));
+      return updated;
+    },
+    [writeCache],
+  );
+
   const deleteOrg = useCallback(
     async (id: string) => {
       try {
@@ -227,6 +243,7 @@ export function useOrganizations() {
     patchOrg,
     setMonthlyBudget,
     setChatApprovalWaiver,
+    setVoiceSettings,
     deleteOrg,
     switchOrg,
   };

@@ -14,6 +14,15 @@ export type OrgRole = "owner" | "admin" | "builder" | "operator" | "member" | "v
  */
 export type MembershipSource = "manual" | "directory";
 
+/**
+ * How dictation in `/chat` turns speech into text.
+ *
+ * `off` hides the microphone, `browser` uses the browser vendor's own speech
+ * service (absent in Firefox), and `server` records the audio and sends it
+ * through this deployment to the organization's speech-to-text provider.
+ */
+export type DictationEngine = "off" | "browser" | "server";
+
 export interface Organization {
   id: string;
   name: string;
@@ -42,9 +51,39 @@ export interface Organization {
    * take it is `approvals:decide`, which is a different question.
    */
   chat_may_waive_approvals: boolean;
+  /** Which engine the chat composer's microphone uses. */
+  chat_dictation: DictationEngine;
+  /** A provider from the speech-to-text catalog, for the `server` engine. */
+  speech_to_text_provider: string | null;
+  /** A model that provider offers in the catalog. Set and cleared with the provider. */
+  speech_to_text_model: string | null;
+  /** An ISO-639-1 code recordings are pinned to, or `null` to auto-detect. */
+  speech_to_text_language: string | null;
+  /** The longest dictation in seconds (10-600); the composer's timer stops there. */
+  dictation_max_seconds: number;
+  /**
+   * Whether server dictation is configured: engine `server` with a catalog pair.
+   *
+   * Read from the settings alone, never from the vault, so a deleted credential
+   * still reads `true` here and is refused per recording as `not_configured`.
+   */
+  chat_dictation_ready: boolean;
   created_at: string;
   updated_at: string | null;
 }
+
+/**
+ * The speech settings the Voice card saves in one PATCH.
+ *
+ * The provider and model are optional and travel together: naming them asks the
+ * server to check the pair against the catalog, so the card sends them only when
+ * they changed - a model withdrawn since must not stop an engine switch.
+ */
+export type VoiceSettingsUpdate = Pick<
+  Organization,
+  "chat_dictation" | "speech_to_text_language" | "dictation_max_seconds"
+> &
+  Partial<Pick<Organization, "speech_to_text_provider" | "speech_to_text_model">>;
 
 export interface OrganizationMember {
   id: string;

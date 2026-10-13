@@ -1,9 +1,12 @@
 "use client";
 
 import { useSyncExternalStore, type ReactNode } from "react";
-import { isAudioSupported, useMicrophone, VoiceBeam } from "voice-glow";
+import { useReducedMotion } from "motion/react";
+import { isAudioSupported, useMicrophone, VoiceBeam, type VoiceBeamProps } from "voice-glow";
 
+import { useMounted } from "@/hooks/use-mounted";
 import { useResolvedTheme } from "@/hooks/use-resolved-theme";
+import { useVoiceGlowStore } from "@/stores/voice-glow-store";
 
 export { useMicrophone };
 
@@ -24,22 +27,49 @@ export interface VoiceGlowProps {
 }
 
 /**
+ * The beam's settings for each style a person can pick.
+ *
+ * Vivid is the colourful glow the composer first shipped with. Subtle is one
+ * neutral edge with no resting breath, no band and no warp, and a slower
+ * waiting sweep - the default, because the colourful one read as a light show on
+ * a console that is otherwise neutral.
+ */
+const STYLE_PROPS: Record<"vivid" | "subtle", Partial<VoiceBeamProps>> = {
+  vivid: { colorVariant: "colorful", idle: 0.45, glowSize: 1.5 },
+  subtle: {
+    colorVariant: "mono",
+    idle: 0,
+    strength: 0.25,
+    bandStrength: 0,
+    distortion: 0,
+    flow: 0,
+    glowSize: 1,
+    processingDuration: 2.4,
+  },
+};
+
+/**
  * A glow along the bottom edge that rises with the voice it is hearing.
  *
  * It is fed the stream rather than a level, so the analysis is the library's
  * and no audio ever leaves the page - nothing is connected to the output, and
  * the stream is the one the microphone button already opened.
  *
- * Deliberately a sibling of the speech recognition rather than its driver. The
- * Web Speech API captures audio itself and hands back text without exposing a
- * stream, so the two open the microphone separately: this one only watches the
- * level, and stopping it stops no dictation.
+ * How it looks is the person's preference (`useVoiceGlowStore`): vivid, subtle
+ * or off. Under `prefers-reduced-motion` there is no glow at all, whatever the
+ * preference says - a glow that cannot move says nothing, so the recording
+ * bar's level indicator and its text carry the state instead.
  *
  * Where there is no Web Audio at all the children are returned untouched. The
  * check is read through `useSyncExternalStore` with a server snapshot of
  * `false`, which is what lets the server and the first client render agree: the
  * swap therefore happens once, on hydration, before anybody has typed into what
- * it wraps.
+ * it wraps. The preference and the media query are gated on `useMounted` for
+ * the same reason - neither is known on the server.
+ *
+ * Switching the style or the motion setting never swaps the wrapper: the beam
+ * stays mounted and is silenced (paused, no stream, no strength), so the
+ * composer inside it keeps its draft, its focus and its caret.
  */
 /** Whether a browser can analyse audio never changes within a page's life. */
 const subscribeToNothing = () => () => {};
@@ -54,23 +84,26 @@ export function VoiceGlow({
 }: VoiceGlowProps) {
   const theme = useResolvedTheme();
   const audio = useSyncExternalStore(subscribeToNothing, isAudioSupported, () => false);
+  const style = useVoiceGlowStore((state) => state.style);
+  const reduced = useReducedMotion();
+  const mounted = useMounted();
 
   if (!audio) return <>{children}</>;
 
+  const shown = mounted && style !== "off" && !reduced;
+  const look = STYLE_PROPS[style === "vivid" ? "vivid" : "subtle"];
+
   return (
     <VoiceBeam
-      stream={stream}
-      active={active}
-      processing={processing}
-      paused={!active}
+      {...look}
+      stream={shown ? stream : null}
+      active={shown && active}
+      processing={shown && processing}
+      paused={!shown || !active}
+      // Silenced rather than unmounted, so what it wraps is never remounted.
+      strength={shown ? look.strength : 0}
       theme={theme}
-      colorVariant="colorful"
       scale={1.6}
-      // The resting level, raised well off the library's default: at 0 the glow
-      // is a hairline nobody notices, and the point of this one is that the
-      // composer looks alive before anybody speaks into it.
-      idle={0.45}
-      glowSize={1.5}
       // Same as `Beam`: the library clips its own wrapper, and the composer
       // opens the slash palette above itself. Inline, to outrank the rule the
       // library injects.

@@ -436,6 +436,15 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // walk: the members page (profile, then the member list) and then a step
   // across into the roles matrix. Ungated — any member reaches both.
   { id: "org-profile", page: ORG_MEMBERS, target: "org-profile" },
+  // The Voice card sits above the member list on the same page, so it comes
+  // before the list rather than doubling back from the roles matrix. Gated like
+  // the card, which is hidden from anybody who may not change settings.
+  {
+    id: "org-voice",
+    page: ORG_MEMBERS,
+    target: "org-voice",
+    permission: Perm.orgSettings,
+  },
   { id: "org-members", page: ORG_MEMBERS, target: "org-members" },
   { id: "org-roles", page: ORG_ROLES, target: "org-roles" },
   {

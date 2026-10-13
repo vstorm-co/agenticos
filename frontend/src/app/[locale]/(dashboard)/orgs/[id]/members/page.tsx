@@ -23,6 +23,7 @@ import {
   InviteMemberDialog,
   OrgApprovalWaiver,
   OrgSpendingLimit,
+  OrgVoiceSettings,
 } from "@/components/teams";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ForgetMemberMemory } from "@/components/memory/forget-member-memory";
@@ -462,6 +463,10 @@ export default function OrgMembersPage({ params }: PageProps) {
           ceiling above it, and hidden from anybody who may not decide an
           approval in the first place. */}
       {org && <OrgApprovalWaiver org={org} />}
+
+      {/* How people here talk to agents: dictation now, voice conversations next.
+          Hidden from anybody who may not change organization settings. */}
+      {org && <OrgVoiceSettings org={org} />}
 
       {/* The table draws its own skeleton from the same column definitions, so
           the header and every column width are already right while it loads -

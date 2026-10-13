@@ -1889,6 +1889,10 @@
       "artifacts-list": {
         "title": "Opublikowane strony",
         "body": "Raporty i dashboardy opublikowane przez Twoje agenty. Otwórz jeden, żeby go zobaczyć, wybierz wcześniejszą wersję, udostępnij go współpracownikom albo nadaj mu link publiczny."
+      },
+      "org-voice": {
+        "title": "Głos",
+        "body": "Wybierz, jak dyktowanie w czacie zamienia mowę na tekst: usługą samej przeglądarki albo przez Twojego providera, za pośrednictwem tego wdrożenia."
       }
     }
   },
@@ -3193,5 +3197,69 @@
     "add": "Dodaj",
     "mappingAdded": "Mapowanie dodane",
     "mappingDeleted": "Mapowanie usunięte"
+  },
+  "teams": {
+    "voice": {
+      "title": "Głos",
+      "description": "Jak osoby w tej organizacji rozmawiają z agentami.",
+      "sttTitle": "Mowa na tekst",
+      "sttDescription": "Dyktowanie w polu wiadomości czatu. Tekst trafia do pola, gdzie można go poprawić; nic nie zostaje wysłane, dopóki osoba nie naciśnie Wyślij.",
+      "engineLabel": "Silnik dyktowania",
+      "engines": {
+        "off": {
+          "label": "Wyłączone",
+          "hint": "Brak mikrofonu w czacie."
+        },
+        "browser": {
+          "label": "Przeglądarka",
+          "hint": "Dźwięk trafia do producenta przeglądarki (Google, Apple). Nie działa w Firefoksie."
+        },
+        "server": {
+          "label": "Serwer",
+          "hint": "Dźwięk przechodzi przez to wdrożenie do wybranego providera. Działa w każdej przeglądarce."
+        }
+      },
+      "noCredentialsTitle": "Serwer wymaga poświadczeń providera",
+      "noCredentialsBody": "Transkrypcja na serwerze korzysta z profili modeli tej organizacji, które dodaje się w Builderze agenta. Dodaj profil dla: {providers}; profil bez klucza wskazujący na własny serwer też się liczy.",
+      "addProfile": "Dodaj profil modelu",
+      "notReadyTitle": "Dyktowanie jest niedostępne w czacie",
+      "notReadyNoModel": "Nie wybrano providera ani modelu mowy na tekst. Członkowie widzą przekreślony mikrofon, dopóki ich nie wybierzesz albo nie zmienisz silnika.",
+      "notReadyNoCredentials": "Ta organizacja nie ma poświadczeń dla providera {provider}. Członkowie widzą przekreślony mikrofon, dopóki ich nie dodasz, nie wybierzesz innego providera albo nie zmienisz silnika.",
+      "notReadyWithdrawn": "Wybrany model, {model}, nie jest już oferowany. Członkowie widzą przekreślony mikrofon, dopóki nie wybierzesz innego modelu albo nie zmienisz silnika.",
+      "provider": "Provider",
+      "providerHint": "Używa poświadczeń tej organizacji dla wybranego providera; własny endpoint zadziała, jeśli przyjmuje nazwę modelu z katalogu.",
+      "providerNoCredentials": "{name} (brak poświadczeń)",
+      "model": "Model",
+      "modelHint": "Modele providera {provider} z katalogu mowy na tekst.",
+      "language": "Język",
+      "languageAuto": "Wykrywaj automatycznie",
+      "languageHint": "Automatyczne wykrywanie sprawdza się w zespołach mówiących różnymi językami. Stały język daje dokładniejszy wynik.",
+      "languageOption": "{name} ({code})",
+      "maxLength": "Maksymalna długość nagrania",
+      "maxLengthHint": "Od 10 s do 10 min. Licznik w polu wiadomości odlicza do tej wartości i na niej się zatrzymuje.",
+      "maxLengthInvalid": "Podaj długość od 10 sekund do 10 minut.",
+      "unit": "Jednostka",
+      "seconds": "sekundy",
+      "minutes": "minuty",
+      "pathBrowser": "Przeglądarka",
+      "pathDeployment": "To wdrożenie",
+      "pathHost": "{provider} · {host}",
+      "pathNote": "Wysyłane z poświadczeniami tej organizacji dla providera {provider}. Dźwięk jest usuwany po transkrypcji; zostaje tylko tekst.",
+      "pathVendor": "Usługa rozpoznawania mowy producenta przeglądarki",
+      "browserNote": "Provider organizacji nie jest używany. Firefox nie pokazuje mikrofonu.",
+      "cancel": "Anuluj",
+      "save": "Zapisz zmiany",
+      "saved": "Zapisano ustawienia głosu",
+      "conversationsTitle": "Rozmowy głosowe",
+      "conversationsDescription": "Mów do agenta i słuchaj, jak odpowiada.",
+      "comingSoon": "Wkrótce"
+    }
+  },
+  "voiceGlow": {
+    "title": "Poświata głosu",
+    "vivid": "Wyrazista",
+    "subtle": "Subtelna",
+    "off": "Wyłączona",
+    "reducedMotion": "Wyłączona, gdy włączone jest ograniczenie ruchu"
   }
 }

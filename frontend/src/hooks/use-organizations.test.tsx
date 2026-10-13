@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
@@ -28,6 +28,12 @@ function org(overrides: Partial<Organization> = {}): Organization {
     slug: "acme",
     is_personal: false,
     avatar_url: null,
+    chat_dictation: "browser",
+    speech_to_text_provider: null,
+    speech_to_text_model: null,
+    speech_to_text_language: null,
+    dictation_max_seconds: 300,
+    chat_dictation_ready: false,
     created_at: "2026-07-01T00:00:00Z",
     ...overrides,
   } as Organization;
@@ -238,6 +244,25 @@ describe("useOrganizations", () => {
     await result.current.setChatApprovalWaiver("org-1", true);
 
     await waitFor(() => expect(result.current.orgs[0]?.chat_may_waive_approvals).toBe(true));
+  });
+
+  it("sends all five voice settings in one PATCH and caches the answer", async () => {
+    // One request, because the server validates them together: a provider
+    // without its model, or `server` without either, is refused whole.
+    const settings = {
+      chat_dictation: "server" as const,
+      speech_to_text_provider: "openai",
+      speech_to_text_model: "gpt-4o-transcribe",
+      speech_to_text_language: null,
+      dictation_max_seconds: 120,
+    };
+    const result = await hook();
+    vi.mocked(apiClient.patch).mockResolvedValue(org({ ...settings, chat_dictation_ready: true }));
+
+    await act(() => result.current.setVoiceSettings("org-1", settings));
+
+    expect(apiClient.patch).toHaveBeenCalledWith("/orgs/org-1", settings);
+    await waitFor(() => expect(result.current.orgs[0]?.chat_dictation_ready).toBe(true));
   });
 
   it("drops a deleted organization and clears the selection if it was the one", async () => {

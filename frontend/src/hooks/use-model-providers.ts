@@ -216,6 +216,8 @@ export interface SpeechToTextProvider {
 interface SpeechToTextProviderList {
   items: SpeechToTextProvider[];
   total: number;
+  /** ISO-639-1 codes a recording may be pinned to. */
+  languages: string[];
 }
 
 /**
@@ -239,7 +241,7 @@ export function useSpeechToTextProviders() {
     retry: false,
   });
 
-  return { providers: data?.items ?? [], isLoading, isError };
+  return { providers: data?.items ?? [], languages: data?.languages ?? [], isLoading, isError };
 }
 
 export function useImageProviders() {

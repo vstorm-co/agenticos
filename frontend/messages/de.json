@@ -3185,6 +3185,10 @@
       "artifacts-list": {
         "title": "Veröffentlichte Seiten",
         "body": "Berichte und Dashboards, die Ihre Agents veröffentlicht haben. Öffnen Sie eines, wählen Sie eine frühere Version, teilen Sie es mit Kolleginnen und Kollegen oder geben Sie ihm einen öffentlichen Link."
+      },
+      "org-voice": {
+        "title": "Stimme",
+        "body": "Wählen Sie, wie Diktieren im Chat Sprache in Text umwandelt: mit dem eigenen Dienst des Browsers oder über dieses Deployment mit Ihrem Provider."
       }
     }
   },
@@ -4828,7 +4832,62 @@
     "waiverAllowed": "Unterhaltungen dürfen Freigaben jetzt übergehen",
     "waiverFailed": "Es ließ sich nicht ändern, ob Chats Freigaben übergehen dürfen",
     "waiverForbidden": "Unterhaltungen dürfen Freigaben nicht mehr übergehen",
-    "you": "(Sie)"
+    "you": "(Sie)",
+    "voice": {
+      "title": "Stimme",
+      "description": "Wie Personen in dieser Organisation mit Agents sprechen.",
+      "sttTitle": "Sprache zu Text",
+      "sttDescription": "Diktieren im Eingabefeld des Chats. Der Text landet zum Bearbeiten im Feld; gesendet wird erst, wenn die Person auf Senden drückt.",
+      "engineLabel": "Diktier-Engine",
+      "engines": {
+        "off": {
+          "label": "Aus",
+          "hint": "Kein Mikrofon im Chat."
+        },
+        "browser": {
+          "label": "Browser",
+          "hint": "Das Audio geht an den Browser-Hersteller (Google, Apple). Nicht in Firefox."
+        },
+        "server": {
+          "label": "Server",
+          "hint": "Das Audio geht über dieses Deployment an den Provider, den Sie wählen. In jedem Browser."
+        }
+      },
+      "noCredentialsTitle": "Der Server braucht Zugangsdaten eines Providers",
+      "noCredentialsBody": "Die Transkription auf dem Server nutzt die Modellprofile dieser Organisation, die im Builder eines Agents angelegt werden. Legen Sie eines für {providers} an; ein Profil ohne Schlüssel, das auf einen selbst gehosteten Server zeigt, zählt ebenfalls.",
+      "addProfile": "Modellprofil hinzufügen",
+      "notReadyTitle": "Diktieren ist im Chat nicht verfügbar",
+      "notReadyNoModel": "Es sind weder ein Speech-to-Text-Provider noch ein Modell gewählt. Mitglieder sehen ein durchgestrichenes Mikrofon, bis Sie beides wählen oder die Engine wechseln.",
+      "notReadyNoCredentials": "Diese Organisation hat keine Zugangsdaten für {provider}. Mitglieder sehen ein durchgestrichenes Mikrofon, bis Sie sie hinzufügen, einen anderen Provider wählen oder die Engine wechseln.",
+      "notReadyWithdrawn": "Das gewählte Modell {model} wird nicht mehr angeboten. Mitglieder sehen ein durchgestrichenes Mikrofon, bis Sie ein anderes Modell wählen oder die Engine wechseln.",
+      "provider": "Provider",
+      "providerHint": "Nutzt die Zugangsdaten dieser Organisation für den Provider; ein selbst gehosteter Endpoint funktioniert, wenn er den Modellnamen aus dem Katalog akzeptiert.",
+      "providerNoCredentials": "{name} (keine Zugangsdaten)",
+      "model": "Modell",
+      "modelHint": "Modelle von {provider} aus dem Speech-to-Text-Katalog.",
+      "language": "Sprache",
+      "languageAuto": "Automatisch erkennen",
+      "languageHint": "Die automatische Erkennung passt zu gemischten Teams. Eine feste Sprache ist genauer.",
+      "languageOption": "{name} ({code})",
+      "maxLength": "Maximale Aufnahmedauer",
+      "maxLengthHint": "10 s bis 10 min. Der Timer im Eingabefeld zählt bis dahin und stoppt dort.",
+      "maxLengthInvalid": "Geben Sie eine Dauer zwischen 10 Sekunden und 10 Minuten ein.",
+      "unit": "Einheit",
+      "seconds": "Sekunden",
+      "minutes": "Minuten",
+      "pathBrowser": "Browser",
+      "pathDeployment": "Dieses Deployment",
+      "pathHost": "{provider} · {host}",
+      "pathNote": "Gesendet mit den {provider}-Zugangsdaten dieser Organisation. Das Audio wird nach der Transkription verworfen; nur der Text bleibt.",
+      "pathVendor": "Spracherkennung des Browser-Herstellers",
+      "browserNote": "Der Provider der Organisation wird nicht verwendet. Firefox zeigt kein Mikrofon.",
+      "cancel": "Abbrechen",
+      "save": "Änderungen speichern",
+      "saved": "Spracheinstellungen gespeichert",
+      "conversationsTitle": "Sprachgespräche",
+      "conversationsDescription": "Mit einem Agent sprechen und die Antwort hören.",
+      "comingSoon": "Demnächst"
+    }
   },
   "theme": {
     "darkMode": "Dunkler Modus",
@@ -5425,5 +5484,12 @@
     "add": "Hinzufügen",
     "mappingAdded": "Zuordnung hinzugefügt",
     "mappingDeleted": "Zuordnung gelöscht"
+  },
+  "voiceGlow": {
+    "title": "Sprach-Leuchten",
+    "vivid": "Kräftig",
+    "subtle": "Dezent",
+    "off": "Aus",
+    "reducedMotion": "Aus, solange reduzierte Bewegung aktiv ist"
   }
 }

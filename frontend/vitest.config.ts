@@ -79,6 +79,9 @@ export default defineConfig({
         "src/components/files/**/*.tsx",
         "src/components/ui/doc-peek.tsx",
         "src/components/ui/text-peek.tsx",
+        // The composer's glow and the menu that picks its style (#1797).
+        "src/components/ui/voice-glow.tsx",
+        "src/components/layout/account-preferences.tsx",
         "src/components/chat/usage-strip.tsx",
         "src/components/chat/attachment-card.tsx",
         "src/components/chat/browser-card.tsx",
@@ -119,6 +122,9 @@ export default defineConfig({
         "src/components/skills/**/*.tsx",
         "src/components/context/**/*.tsx",
         "src/components/memory/**/*.tsx",
+        // The organization's Voice card (#1797). The rest of `teams/` predates
+        // the gate; this file is new, so it starts inside.
+        "src/components/teams/org-voice-settings.tsx",
       ],
       exclude: [
         "node_modules",
