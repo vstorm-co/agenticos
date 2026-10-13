@@ -1896,11 +1896,23 @@
       },
       "datasets": {
         "title": "Datasets",
-        "description": "The test case sets changed most recently.",
+        "description": "The datasets changed most recently, and what their cases test against.",
         "cases": "{count, plural, =1 {1 case} other {# cases}} · v{version}",
         "empty": {
           "title": "No datasets yet",
           "description": "Test cases you collect for evals appear here."
+        },
+        "stat": {
+          "reference": "{count, plural, =1 {1 reference} other {# references}}",
+          "counter": "{count, plural, =1 {1 counter-example} other {# counter-examples}}",
+          "toolCalls": "{count, plural, =1 {1 with tool calls} other {# with tool calls}}",
+          "checks": "{count, plural, =1 {1 with checks} other {# with checks}}"
+        },
+        "source": {
+          "conversation": "{count} from chat",
+          "import": "{count} imported",
+          "manual": "{count} by hand",
+          "synthetic": "{count} generated"
         }
       }
     },

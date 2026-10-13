@@ -1882,11 +1882,23 @@
       },
       "datasets": {
         "title": "Datasets",
-        "description": "Die zuletzt geänderten Sammlungen von Testfällen.",
+        "description": "Die zuletzt geänderten Datasets und woran ihre Fälle die Antwort messen.",
         "cases": "{count, plural, =1 {1 Fall} other {# Fälle}} · v{version}",
         "empty": {
           "title": "Noch keine Datasets",
           "description": "Testfälle, die Sie für Evals sammeln, erscheinen hier."
+        },
+        "stat": {
+          "reference": "{count, plural, =1 {1 Referenz} other {# Referenzen}}",
+          "counter": "{count, plural, =1 {1 Gegenbeispiel} other {# Gegenbeispiele}}",
+          "toolCalls": "{count, plural, =1 {1 mit Tool-Aufrufen} other {# mit Tool-Aufrufen}}",
+          "checks": "{count, plural, =1 {1 mit Prüfungen} other {# mit Prüfungen}}"
+        },
+        "source": {
+          "conversation": "{count} aus dem Chat",
+          "import": "{count} importiert",
+          "manual": "{count} von Hand",
+          "synthetic": "{count} generiert"
         }
       }
     },

@@ -1161,11 +1161,23 @@
       },
       "datasets": {
         "title": "Datasety",
-        "description": "Ostatnio zmieniane datasety przypadków testowych.",
+        "description": "Ostatnio zmieniane datasety i to, z czym ich przypadki porównują odpowiedź.",
         "cases": "{count, plural, one {1 przypadek} few {# przypadki} many {# przypadków} other {# przypadku}} · v{version}",
         "empty": {
           "title": "Brak datasetów",
           "description": "Tu pojawią się przypadki testowe zbierane do evali."
+        },
+        "stat": {
+          "reference": "{count} z odpowiedzią wzorcową",
+          "counter": "{count} z kontrprzykładem",
+          "toolCalls": "{count} z wywołaniami narzędzi",
+          "checks": "{count} ze sprawdzeniami"
+        },
+        "source": {
+          "conversation": "{count} z czatu",
+          "import": "{count} z importu",
+          "manual": "{count} ręcznie",
+          "synthetic": "{count} wygenerowane"
         }
       }
     },
