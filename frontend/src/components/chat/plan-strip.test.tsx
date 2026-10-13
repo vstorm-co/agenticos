@@ -35,7 +35,7 @@ describe("the plan above the composer", () => {
   it("leads with the step in flight, not with the word Plan", () => {
     strip(STEPS);
 
-    expect(screen.getByRole("button", { expanded: true })).toHaveTextContent("Write the test");
+    expect(screen.getByRole("button", { expanded: false })).toHaveTextContent("Write the test");
   });
 
   it("says how far along the run is, out loud as well as in the bar", () => {
@@ -45,10 +45,11 @@ describe("the plan above the composer", () => {
     expect(screen.getByLabelText("1 of 3 steps completed")).toBeInTheDocument();
   });
 
-  it("opens while there is work left, so the steps are there to read", () => {
+  it("starts folded, the step in flight on its bar", () => {
     strip(STEPS);
 
-    expect(screen.getByText("Push it")).toBeInTheDocument();
+    expect(screen.getByRole("button")).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("Push it")).toBeNull();
   });
 
   it("closes itself once every step is settled - a finished plan is a receipt", () => {
@@ -59,31 +60,33 @@ describe("the plan above the composer", () => {
     expect(screen.getByText("Every step is done")).toBeInTheDocument();
   });
 
-  it("lets that default be overruled either way", async () => {
+  it("opens on a click, and folds again", async () => {
     strip(STEPS);
-    await userEvent.click(screen.getByRole("button", { expanded: true }));
-
-    expect(screen.queryByText("Push it")).toBeNull();
-
     await userEvent.click(screen.getByRole("button", { expanded: false }));
+
     expect(screen.getByText("Push it")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { expanded: true }));
+    expect(screen.queryByText("Push it")).toBeNull();
   });
 
-  it("names each step's status for a reader who cannot see the glyph", () => {
+  it("names each step's status for a reader who cannot see the glyph", async () => {
     strip(STEPS);
+    await userEvent.click(screen.getByRole("button"));
 
     expect(screen.getByLabelText("In progress")).toBeInTheDocument();
     expect(screen.getByLabelText("Done")).toBeInTheDocument();
     expect(screen.getByLabelText("Not started")).toBeInTheDocument();
   });
 
-  it("draws a cancelled and a blocked step as themselves", () => {
+  it("draws a cancelled and a blocked step as themselves", async () => {
     // Both are reachable from the tools and neither is done: a blocked step waits
     // on a dependency, a cancelled one was dropped.
     strip([
       { id: "a", content: "Wait for the migration", status: "blocked" },
       { id: "b", content: "Drop the flag", status: "cancelled" },
     ]);
+    await userEvent.click(screen.getByRole("button"));
 
     expect(screen.getByLabelText("Blocked")).toBeInTheDocument();
     expect(screen.getByLabelText("Cancelled")).toBeInTheDocument();
