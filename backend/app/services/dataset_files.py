@@ -53,9 +53,8 @@ _TEXT_COLUMNS = frozenset({"input", "reference_answer", "counter_example", "note
 # The largest file an import reads. Ten thousand cases of ordinary length fit with
 # room to spare; a file past it is a dataset to split, not a request to raise.
 MAX_IMPORT_BYTES = 10 * 1024 * 1024
-# How many refused rows one refusal names. The rest are counted, not listed: a
-# file with a wrong column type is wrong on every row, and a thousand identical
-# messages hide the one that says what to fix.
+# Refused rows named in one refusal; the rest are counted. A wrong column type fails
+# every row, and a thousand identical messages hide the one that says what to fix.
 _MAX_REPORTED_ROWS = 20
 
 # A cell's ceiling for the `csv` reader, whose default of 128 KiB is smaller than

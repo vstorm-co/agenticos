@@ -110,9 +110,8 @@ class Dataset(Base, TimestampMixin):
     )
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     description: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    # The newest version's number and size, kept here so a listing needs no
-    # aggregate. Written in the same transaction that mints the version, under
-    # the row lock that serializes minting; 0 means no case was ever added.
+    # Kept in step with the newest version under the minting row lock, so a listing
+    # needs no aggregate; 0 means no case was ever added.
     latest_version: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default="0"
     )
@@ -152,8 +151,6 @@ class DatasetVersion(Base):
     number: Mapped[int] = mapped_column(Integer, nullable=False)
     case_count: Mapped[int] = mapped_column(Integer, nullable=False)
     change: Mapped[str] = mapped_column(String(16), nullable=False)
-    # How many cases the change touched: one for an edit, the row count for an
-    # import.
     changed_cases: Mapped[int] = mapped_column(Integer, nullable=False)
     created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
@@ -202,8 +199,6 @@ class DatasetCase(Base):
     # of two eval runs matches results on.
     case_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False, index=True)
     input: Mapped[str] = mapped_column(Text, nullable=False)
-    # The turns before `input`, oldest first, when the case is a conversation
-    # prefix whose last turn the agent answers.
     history: Mapped[list[dict[str, Any]]] = mapped_column(
         JSONB, nullable=False, default=list, server_default="[]"
     )
@@ -215,10 +210,8 @@ class DatasetCase(Base):
     order_mode: Mapped[str] = mapped_column(
         String(16), nullable=False, default=ToolOrderMode.ANY.value, server_default="any"
     )
-    # Each entry is an object naming its rule in `type`, with that rule's own
-    # parameters beside it. Which types exist, and what each requires, is decided
-    # by scoring rather than here - and whatever validation scoring adds has to
-    # accept the rows already stored, or tightening it makes old datasets unreadable.
+    # Open objects named by `type`: scoring decides the vocabulary, and any validation
+    # it adds must still accept the rows already stored here.
     checks: Mapped[list[dict[str, Any]]] = mapped_column(
         JSONB, nullable=False, default=list, server_default="[]"
     )
@@ -227,9 +220,8 @@ class DatasetCase(Base):
     )
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     source: Mapped[str] = mapped_column(String(16), nullable=False)
-    # What a case taken from a conversation was taken from. `SET NULL` because
-    # the case outlives the transcript: retention may sweep the run, and the
-    # question and answer were copied into this row when it was written.
+    # `SET NULL`: the question and answer were copied into this row, so a case
+    # outlives the run, conversation and message it was taken from.
     source_run_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("agent_runs.id", ondelete="SET NULL"),

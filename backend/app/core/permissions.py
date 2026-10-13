@@ -58,11 +58,8 @@ class Perm(StrEnum):
     # wrote it. `edit` covers managing it: sharing, the public link, deletion.
     ARTIFACTS_VIEW = "artifacts:view"
     ARTIFACTS_EDIT = "artifacts:edit"
-    # The questions an agent is tested on. A resource like skills and context
-    # files, with a third permission for running an eval over one: a dataset's
-    # cases are often copied out of real conversations, so who may read them,
-    # who may change them and who may spend the model budget answering them are
-    # three separate answers.
+    # Cases are often copied from real conversations, so reading them, changing them
+    # and spending model budget running evals over them are three separate answers.
     DATASETS_VIEW = "datasets:view"
     DATASETS_EDIT = "datasets:edit"
     DATASETS_RUN = "datasets:run"
