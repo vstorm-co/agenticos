@@ -9,6 +9,7 @@ from __future__ import annotations
 import csv
 import json
 import uuid
+from datetime import UTC, datetime
 
 import pytest
 
@@ -18,6 +19,7 @@ from app.services import dataset_files
 from app.services.dataset_files import COLUMNS, MAX_IMPORT_BYTES, format_of, parse, render
 
 HEADER = ",".join(COLUMNS)
+CHECK = '"[{""type"": ""contains"", ""value"": ""x""}]"'
 
 
 def _case(**fields: object) -> DatasetCase:
@@ -32,7 +34,13 @@ def _case(**fields: object) -> DatasetCase:
         "note": None,
         **fields,
     }
-    return DatasetCase(id=uuid.uuid4(), case_id=uuid.uuid4(), source="manual", **values)
+    return DatasetCase(
+        id=uuid.uuid4(),
+        case_id=uuid.uuid4(),
+        source="manual",
+        created_at=datetime.now(UTC),
+        **values,
+    )
 
 
 def _refusal(content: str | bytes, fmt: dataset_files.DatasetFileFormat = "csv") -> BadRequestError:
@@ -72,6 +80,9 @@ class TestRoundTrip:
         assert parsed[1].counter_example == "+1"
         assert render([_case(**case.model_dump(mode="json")) for case in parsed], "csv") == document
 
+    def test_a_stored_case_that_expects_nothing_still_exports(self) -> None:
+        assert render([_case(input="q")], "csv").splitlines()[1].startswith("q,")
+
     def test_jsonl_keeps_the_structured_fields_as_json(self) -> None:
         case = _case(
             input="q",
@@ -89,7 +100,7 @@ class TestRoundTrip:
         assert parse(render([case], "jsonl").encode(), "jsonl")[0].tags == ["a"]
 
     def test_a_byte_order_mark_and_missing_optional_columns_are_fine(self) -> None:
-        parsed = parse(b'\xef\xbb\xbfinput,tags\nhello," a , b "\n', "csv")
+        parsed = parse(b'\xef\xbb\xbfinput,tags,reference_answer\nhello," a , b ",hi\n', "csv")
         assert parsed[0].input == "hello"
         assert parsed[0].tags == ["a", "b"]
         assert parsed[0].order_mode == "any"
@@ -98,24 +109,31 @@ class TestRoundTrip:
         ("cell", "expected"), [("exact", "exact"), (" in_order ", "in_order"), ("", "any")]
     )
     def test_an_empty_order_mode_cell_means_any_order(self, cell, expected) -> None:
-        parsed = parse(f"input,order_mode\nq,{cell}\n".encode(), "csv")
+        parsed = parse(f"input,order_mode,checks\nq,{cell},{CHECK}\n".encode(), "csv")
         assert parsed[0].order_mode == expected
 
 
 class TestRefusals:
     def test_one_bad_row_refuses_the_whole_file_and_names_the_row(self) -> None:
         refusal = _refusal(
-            "input,order_mode,history\n"
-            "fine,any,\n"
-            ",any,\n"
-            "q,maybe,\n"
-            'q,any,"[not json"\n'
-            "q,any,,extra\n"
+            "input,order_mode,history,reference_answer\n"
+            "fine,any,,a\n"
+            ",any,,a\n"
+            "q,maybe,,a\n"
+            'q,any,"[not json",a\n'
+            "q,any,,a,extra\n"
+            "q,any,,\n"
         )
 
-        assert refusal.details["refused_rows"] == 4
+        assert refusal.details["refused_rows"] == 5
         fields = {problem["field"] for problem in refusal.details["fields"]}
-        assert fields == {"rows.2.input", "rows.3.order_mode", "rows.4", "rows.5"}
+        assert fields == {
+            "rows.2.input",
+            "rows.3.order_mode",
+            "rows.4",
+            "rows.5",
+            "rows.6.reference_answer",
+        }
 
     def test_one_refused_row_is_counted_in_the_singular(self) -> None:
         refusal = _refusal("input,order_mode\nq,maybe\n")
@@ -148,7 +166,10 @@ class TestRefusals:
         assert "not valid CSV" in refusal.message
 
     def test_jsonl_lines_that_are_not_case_objects_are_refused(self) -> None:
-        refusal = _refusal('{"input": "ok"}\nnot json\n[1]\n{"input": "q", "id": 1}\n', "jsonl")
+        refusal = _refusal(
+            '{"input": "ok", "reference_answer": "a"}\nnot json\n[1]\n{"input": "q", "id": 1}\n',
+            "jsonl",
+        )
         assert [problem["field"] for problem in refusal.details["fields"]] == [
             "rows.2",
             "rows.3",

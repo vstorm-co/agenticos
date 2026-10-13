@@ -1,5 +1,5 @@
 ---
-source_sha: "f53465df8b7d"
+source_sha: "e98474d14e6a"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -31,6 +31,12 @@ verdad la decepcionó.
 | Nota | Por qué existe el caso: qué salió mal o qué protege |
 | Origen | `manual`, `import`, `conversation` o `synthetic`: lo fija la plataforma, no se escribe |
 
+Un caso tiene que decir contra qué se compara su respuesta: una respuesta de
+referencia, un contraejemplo, una llamada a herramienta esperada o una
+comprobación, al menos una de las cuatro. Un caso con solo una entrada no podría
+fallar nunca, así que se rechaza: el formulario no lo guarda, la API responde 422
+señalando `reference_answer` y una importación nombra la fila.
+
 Un caso tomado de una conversación también guarda un enlace al run, a la
 conversación y al mensaje de los que procede. La pregunta y la respuesta se
 copian en el caso, así que el caso sigue completo después de que la retención
@@ -58,8 +64,8 @@ ninguna de las dos cosas cambia un caso.
 
 ### En la consola { #in-the-console }
 
-Abre **Datasets**, crea un dataset y elige **Añadir caso**. La entrada es el
-único campo obligatorio. La conversación, las llamadas a herramientas esperadas
+Abre **Datasets**, crea un dataset y elige **Añadir caso**. Escribe la entrada
+y al menos una de las cuatro expectativas de arriba. La conversación, las llamadas a herramientas esperadas
 y las comprobaciones se escriben como listas JSON: el mismo texto con el que las
 guarda una exportación CSV.
 

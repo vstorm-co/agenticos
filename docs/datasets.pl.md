@@ -1,5 +1,5 @@
 ---
-source_sha: "f53465df8b7d"
+source_sha: "e98474d14e6a"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -32,6 +32,12 @@ zawiodła.
 | Notatka | Po co jest ten przypadek - co poszło źle albo czego pilnuje |
 | Źródło | `manual`, `import`, `conversation` albo `synthetic` - ustawia je platforma, nie wpisuje się go |
 
+Przypadek musi mówić, z czym porównuje się odpowiedź: odpowiedź wzorcowa,
+kontrprzykład, oczekiwane wywołanie narzędzia albo sprawdzenie - co najmniej
+jedno z czterech. Przypadek z samym wejściem nigdy nie mógłby nie przejść, więc
+jest odrzucany: formularz go nie zapisze, API odpowiada 422 ze wskazaniem
+`reference_answer`, a import podaje numer wiersza.
+
 Przypadek wzięty z rozmowy zachowuje też odnośnik do runa, rozmowy i
 wiadomości, z których pochodzi. Pytanie i odpowiedź są kopiowane do przypadku,
 więc przypadek pozostaje kompletny także po tym, jak sam run usunie retencja.
@@ -57,8 +63,8 @@ zmienia przypadku.
 
 ### W konsoli { #in-the-console }
 
-Otwórz **Datasety**, utwórz dataset i wybierz **Dodaj przypadek**. Jedyne
-wymagane pole to wejście. Rozmowę, oczekiwane wywołania narzędzi i sprawdzenia
+Otwórz **Datasety**, utwórz dataset i wybierz **Dodaj przypadek**. Wpisz wejście
+i co najmniej jedno z czterech oczekiwań opisanych wyżej. Rozmowę, oczekiwane wywołania narzędzi i sprawdzenia
 wpisuje się jako listy JSON - ten sam tekst, w jakim trzyma je eksport CSV.
 
 ### Z pliku { #import-and-export }

@@ -3277,6 +3277,8 @@
     "notJson": "To nie jest poprawny JSON.",
     "notList": "To musi być lista JSON.",
     "saveCase": "Zapisz przypadek",
+    "needsInput": "Wpisz wejście, na które odpowiada agent.",
+    "needsExpectation": "Dodaj odpowiedź wzorcową, kontrprzykład, oczekiwane wywołanie narzędzia albo sprawdzenie: przypadek potrzebuje czegoś, z czym porówna odpowiedź.",
     "addToDataset": "Dodaj do datasetu",
     "addToDatasetBody": "Razem z odpowiedzią trafiają pytanie, wcześniejsza część rozmowy i komentarz zostawiony z łapką w dół.",
     "noDatasetToAddTo": "Nie ma datasetu, do którego możesz dodać. Najpierw <link>utwórz dataset</link>.",

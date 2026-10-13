@@ -5509,6 +5509,8 @@
     "notJson": "Das ist kein gültiges JSON.",
     "notList": "Das muss eine JSON-Liste sein.",
     "saveCase": "Fall speichern",
+    "needsInput": "Schreiben Sie die Eingabe, auf die der Agent antwortet.",
+    "needsExpectation": "Fügen Sie eine Referenzantwort, ein Gegenbeispiel, einen erwarteten Tool-Aufruf oder eine Prüfung hinzu: Ein Fall braucht etwas, woran die Antwort gemessen wird.",
     "addToDataset": "Zum Dataset hinzufügen",
     "addToDatasetBody": "Mit der Antwort kommen die Frage, das Gespräch davor und der Kommentar zum Daumen nach unten.",
     "noDatasetToAddTo": "Es gibt kein Dataset, zu dem Sie hinzufügen dürfen. <link>Legen Sie zuerst eines an</link>.",

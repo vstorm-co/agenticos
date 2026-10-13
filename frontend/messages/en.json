@@ -5651,6 +5651,8 @@
     "notJson": "This is not valid JSON.",
     "notList": "This must be a JSON list.",
     "saveCase": "Save case",
+    "needsInput": "Write the input the agent answers.",
+    "needsExpectation": "Add a reference answer, a counter-example, an expected tool call or a check: a case needs something to test the answer against.",
     "addToDataset": "Add to dataset",
     "addToDatasetBody": "The question, the conversation before it and the comment left with a thumbs-down come with the answer.",
     "noDatasetToAddTo": "There is no dataset you can add to. <link>Create one</link> first.",

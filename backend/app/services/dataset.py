@@ -25,6 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
+from app.core.exceptions import ValidationError as InvalidCaseError
 from app.core.field_errors import field_problems, refused_field
 from app.core.permissions import AuthContext, Perm, Scope
 from app.db.models.dataset import CaseSource, Dataset, DatasetCase, DatasetChange, DatasetVersion
@@ -549,10 +550,17 @@ class DatasetService:
             **DatasetCaseRead.model_validate(current).model_dump(),
             **writable(data, over=DatasetCase),
         }
-        # Both halves were validated on their way in, so their union is a valid case.
-        content = DatasetCaseContent.model_validate(
-            {key: merged[key] for key in DatasetCaseContent.model_fields}
-        )
+        # Each half is valid alone, but an edit clearing the only expectation the
+        # stored case had leaves a union that is not.
+        try:
+            content = DatasetCaseContent.model_validate(
+                {key: merged[key] for key in DatasetCaseContent.model_fields}
+            )
+        except ValidationError as exc:
+            raise InvalidCaseError(
+                message="This edit leaves a case that is not valid",
+                details={"fields": field_problems(exc.errors(), root="")},
+            ) from None
         fields, redacted = _redacted(content)
         provenance = {
             "source_run_id": current.source_run_id,
