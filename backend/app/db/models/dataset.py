@@ -9,9 +9,10 @@ calls the agent is expected to make and the checks to apply.
 eval run points at a version, so two runs over the same version saw the same
 questions and their results compare. That is three tables rather than one:
 
-- `dataset_cases` holds case *revisions*. A row is never updated; editing a case
-  writes a new row with the same `case_id`, so the version that held the old one
-  still reads it.
+- `dataset_cases` holds case *revisions*. A row's content is never updated;
+  editing a case writes a new row with the same `case_id`, so the version that
+  held the old one still reads it. The links to where a case came from are the
+  one thing cleared later - when that conversation or its author is deleted.
 - `dataset_versions` is one row per change, numbered from 1 within a dataset.
 - `dataset_version_cases` says which revisions a version holds and in what order.
   A new version copies the previous membership and changes only what the edit
@@ -178,7 +179,7 @@ class DatasetVersion(Base):
 
 
 class DatasetCase(Base):
-    """One revision of one case. Never updated after insert."""
+    """One revision of one case. Its content is never updated after insert."""
 
     __tablename__ = "dataset_cases"
 

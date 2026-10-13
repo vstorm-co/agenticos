@@ -75,3 +75,6 @@ class PersonalDataPurge(BaseModel):
     workspaces: int = Field(
         description="User-scoped agent workspaces, which no cascade reaches either."
     )
+    dataset_cases: int = Field(
+        description="Dataset cases taken from their conversations, kept but unlinked from them."
+    )

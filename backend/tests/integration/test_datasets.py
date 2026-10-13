@@ -42,8 +42,10 @@ from app.schemas.dataset import (
     DatasetUpdate,
 )
 from app.services import dataset as dataset_service
+from app.services.conversation import ConversationService
 from app.services.dataset import DatasetService
 from app.services.dataset_files import COLUMNS
+from app.services.user import UserService
 
 pytestmark = pytest.mark.anyio
 
@@ -117,6 +119,7 @@ async def _rated_down_turn(
         id=uuid.uuid4(),
         organization_id=ctx.organization_id,
         agent_id=agent.id,
+        user_id=ctx.user_id,
         conversation_id=conversation.id,
         status="completed",
         started_at=_START,
@@ -677,3 +680,94 @@ async def test_a_check_keeps_parameters_scoring_has_not_defined_yet(db) -> None:
     )
     stored = (await service.list_cases(ctx, dataset.id)).items[0].checks[0]
     assert stored.model_dump() == {"type": "rubric", "criteria": ["tone", "policy"], "scale": 5}
+
+
+async def _case_from_someone(db) -> tuple[AuthContext, AuthContext, uuid.UUID]:
+    """An owner's dataset holding a case taken from a member's rated-down answer."""
+    owner = await _owner(db)
+    member = await _member(db, Organization(id=owner.organization_id), OrgRoleName.MEMBER)
+    service = DatasetService(db)
+    dataset = await service.create(owner, DatasetCreate(name="from members"))
+    _, answer = await _rated_down_turn(db, member)
+    case = await service.add_from_message(
+        owner, dataset.id, DatasetCaseFromMessage(message_id=answer.id)
+    )
+    assert case.source_run_id is not None
+    return owner, member, case.id
+
+
+async def _unlinked(db, revision_id: uuid.UUID) -> DatasetCase:
+    db.expire_all()
+    stored = await db.get(DatasetCase, revision_id)
+    assert stored is not None
+    assert stored.input == "How long do I have to return it?"
+    assert stored.counter_example == "You have 90 days."
+    assert (stored.source_run_id, stored.source_conversation_id, stored.source_message_id) == (
+        None,
+        None,
+        None,
+    )
+    return stored
+
+
+@pytest.mark.security
+async def test_deleting_the_conversation_keeps_the_case_but_not_where_it_came_from(db) -> None:
+    """The run outlives its conversation, so its link is cleared by hand, not by a cascade."""
+    _, member, revision_id = await _case_from_someone(db)
+    stored = await db.get(DatasetCase, revision_id)
+    assert stored is not None and stored.source_conversation_id is not None
+
+    await ConversationService(db).delete_conversation(
+        stored.source_conversation_id,
+        organization_id=member.organization_id,
+        user_id=member.user_id,
+    )
+
+    await _unlinked(db, revision_id)
+
+
+@pytest.mark.security
+async def test_erasing_the_person_keeps_the_case_with_no_link_back_to_them(db) -> None:
+    owner, member, revision_id = await _case_from_someone(db)
+    assert member.user_id is not None
+    member_id = member.user_id
+
+    await UserService(db).delete(member_id)
+
+    stored = await _unlinked(db, revision_id)
+    assert stored.created_by_user_id == owner.user_id
+    assert stored.note == "Wrong refund window"
+
+
+@pytest.mark.security
+async def test_erasing_the_author_of_a_case_clears_who_wrote_it(db) -> None:
+    owner = await _owner(db)
+    builder = await _member(db, Organization(id=owner.organization_id), OrgRoleName.BUILDER)
+    service = DatasetService(db)
+    dataset = await service.create(owner, DatasetCreate(name="shared"))
+    db.add(
+        ResourceGrant(
+            organization_id=owner.organization_id,
+            subject_user_id=builder.user_id,
+            resource_type="dataset",
+            resource_id=dataset.id,
+            level=GrantLevel.EDIT.value,
+        )
+    )
+    await db.flush()
+    case = await service.add_case(builder, dataset.id, DatasetCaseCreate(input="q"))
+    assert builder.user_id is not None
+
+    await UserService(db).delete(builder.user_id)
+
+    db.expire_all()
+    stored = await db.get(DatasetCase, case.id)
+    version = await dataset_repo.get_version(
+        db, dataset.id, 1, organization_id=owner.organization_id
+    )
+    assert stored is not None and version is not None
+    assert (stored.input, stored.created_by_user_id, version.created_by_user_id) == (
+        "q",
+        None,
+        None,
+    )
