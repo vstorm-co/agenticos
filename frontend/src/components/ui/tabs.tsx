@@ -27,7 +27,10 @@ const TabsList = React.forwardRef<
         // A strip wider than a phone scrolls itself rather than widening the
         // page: it pushed the main column sideways, and focusing a tab scrolled
         // the whole page out from under the reader.
-        "border-border text-muted-foreground flex max-w-full scrollbar-none gap-6 overflow-x-auto overflow-y-hidden border-b bg-transparent [&>*]:shrink-0",
+        // The strip's line is an inset shadow, not a border: a scroll container
+        // clips to inside its border, so a border here cut the active tab's
+        // 2px underline to a hairline nobody could tell from the line itself.
+        "text-muted-foreground flex max-w-full scrollbar-none gap-6 overflow-x-auto overflow-y-hidden bg-transparent shadow-[inset_0_-1px_0_var(--color-border)] [&>*]:shrink-0",
         SCROLL_FADE,
         className,
       )}
@@ -46,7 +49,7 @@ const TabsTrigger = React.forwardRef<
     className={cn(
       // The active tab is the one carrying the ink: a bottom border in the
       // foreground colour, the label darkening with it - no pill, no fill.
-      "focus-visible:ring-ring -mb-px inline-flex items-center gap-2 border-b-2 border-transparent px-1 pb-3 text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset disabled:pointer-events-none disabled:opacity-50",
+      "focus-visible:ring-ring inline-flex items-center gap-2 border-b-2 border-transparent px-1 pb-3 text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset disabled:pointer-events-none disabled:opacity-50",
       "hover:text-foreground data-[state=active]:border-foreground data-[state=active]:text-foreground",
       className,
     )}
