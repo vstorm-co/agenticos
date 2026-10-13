@@ -158,7 +158,11 @@ export function MessageItem({
       className={cn(
         "z-10 flex flex-shrink-0 items-center justify-center overflow-hidden rounded-full",
         compact ? "h-6 w-6" : "h-7 w-7",
-        isUser ? "bg-foreground text-background" : "bg-muted text-foreground",
+        // A fill only behind the fallback icon. A face or a picture brings its
+        // own disc, and a dark one behind it showed as a thin ring wherever the
+        // two edges did not quite meet.
+        isUser && !authUser && "bg-foreground text-background",
+        !isUser && !agent && "bg-muted text-foreground",
       )}
     >
       {isUser && authUser?.avatar_url ? (

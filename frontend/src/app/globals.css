@@ -209,7 +209,7 @@
   --color-secondary: oklch(95.5% 0.002 265);
   --color-secondary-foreground: oklch(22% 0.004 265);
   --color-muted: oklch(95.5% 0.002 265);
-  --color-muted-foreground: oklch(47.8% 0.006 265);
+  --color-muted-foreground: oklch(44% 0.006 265);
   /* Deeper than `muted`, where the two used to be the same value. `accent` is
      what paints a selected nav row and a hover, and the sidebar it paints them
      on is now a tinted surface of its own - at the muted step the selected row
@@ -239,7 +239,7 @@
      see is not calm, it is unfinished. `input` stays darker than `border`,
      because the edge of a field somebody has to find and click is doing a
      different job from the edge of a panel. */
-  --color-border: oklch(86.5% 0.003 265);
+  --color-border: oklch(84.5% 0.003 265);
   --color-input: oklch(77% 0.005 265);
   /* The bright step, not the text step: a focused field ringed in the deep
      rust of `brand` read as a field in error. */
@@ -318,7 +318,7 @@
     --color-secondary: oklch(30% 0.0025 265);
     --color-secondary-foreground: oklch(95% 0 0);
     --color-muted: oklch(30% 0.0025 265);
-    --color-muted-foreground: oklch(71.2% 0.006 265);
+    --color-muted-foreground: oklch(73.5% 0.006 265);
     --color-accent: oklch(32.5% 0.0025 265);
     --color-accent-foreground: oklch(95% 0 0);
     --color-border: oklch(38.5% 0.003 265);
@@ -363,7 +363,7 @@
   --color-secondary: oklch(30% 0.0025 265);
   --color-secondary-foreground: oklch(95% 0 0);
   --color-muted: oklch(30% 0.0025 265);
-  --color-muted-foreground: oklch(71.2% 0.006 265);
+  --color-muted-foreground: oklch(73.5% 0.006 265);
   --color-accent: oklch(32.5% 0.0025 265);
   --color-accent-foreground: oklch(95% 0 0);
   --color-border: oklch(38.5% 0.003 265);
@@ -391,8 +391,8 @@
   --color-card: oklch(100% 0 0);
   --color-card-foreground: oklch(15% 0 0);
   --color-muted: oklch(94% 0.004 250);
-  --color-muted-foreground: oklch(45% 0 0);
-  --color-border: oklch(86.5% 0.004 250);
+  --color-muted-foreground: oklch(44% 0 0);
+  --color-border: oklch(84.5% 0.004 250);
   /* A pinned-light subtree inside a dark root needs the light accent mapping
      too, or its buttons and links keep the root theme's accent. */
   --color-primary: oklch(21% 0.01 250);
@@ -425,7 +425,7 @@
   --color-card: oklch(26.2% 0.0025 265);
   --color-card-foreground: oklch(94.5% 0.003 265);
   --color-muted: oklch(30% 0.0025 265);
-  --color-muted-foreground: oklch(71.2% 0.006 265);
+  --color-muted-foreground: oklch(73.5% 0.006 265);
   --color-border: oklch(38.5% 0.003 265);
   --color-primary: oklch(96% 0.003 250);
   --color-primary-foreground: oklch(16% 0.01 250);
@@ -465,11 +465,22 @@
       scroll-behavior: auto;
     }
   }
+  :root.dark body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not(.light) body {
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+  }
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-body);
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+    /* Grayscale smoothing only on dark: on macOS it turns off stem darkening,
+       which keeps light text on a dark ground from blooming - and leaves dark
+       text on a light ground thin and grey, worst on a 1x monitor. */
     font-optical-sizing: auto;
     text-rendering: optimizeLegibility;
     /* Disable iOS tap highlight - focus rings + active states do the job. */

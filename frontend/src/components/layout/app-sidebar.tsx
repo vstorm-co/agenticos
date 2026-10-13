@@ -62,13 +62,13 @@ function NavLink({
       title={collapsed ? label : undefined}
       aria-label={collapsed ? label : undefined}
       className={cn(
-        "flex items-center rounded-lg text-sm transition-colors",
+        "flex items-center rounded-lg text-sm font-medium transition-colors",
         collapsed ? "h-9 w-9 justify-center" : "gap-2.5 px-2.5 py-1.5",
         // Selected is a neutral raised pill with a dark label. Section hues live
         // on the page's own tile, not here: a column of coloured pills competed
         // with the content it points at.
         active
-          ? "bg-accent text-foreground font-medium"
+          ? "bg-accent text-foreground"
           : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
       )}
     >

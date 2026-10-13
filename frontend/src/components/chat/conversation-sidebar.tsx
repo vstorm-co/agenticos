@@ -79,19 +79,15 @@ function ConversationItem({
   return (
     <div
       className={cn(
-        "group relative flex min-h-9 cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1 text-sm transition-colors",
+        // The open row is a fill, as the main sidebar's is - a hairline border
+        // and a bar at its edge read as two thin lines around one choice.
+        "group relative flex min-h-9 cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1 text-sm font-medium transition-colors",
         isActive
-          ? "bg-accent text-foreground border-border border"
-          : "text-muted-foreground hover:bg-secondary/50 hover:text-secondary-foreground border border-transparent",
+          ? "bg-accent text-foreground"
+          : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
       )}
       onClick={onSelect}
     >
-      {isActive && (
-        <span
-          aria-hidden
-          className="bg-foreground absolute top-1/2 left-0 h-5 w-0.5 -translate-y-1/2 rounded-r-full"
-        />
-      )}
       {/* Which agent the thread is with leads the row - the face people pick a
           thread by - and a thread with no agent keeps the plain mark. */}
       {conversation.agents && conversation.agents.length > 0 ? (
