@@ -17,6 +17,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.agents import mcp_oauth
 from app.agents.mcp import (
+    MCP_ORIGIN,
     McpProbeError,
     McpServerSpec,
     McpToolInfo,
@@ -275,7 +276,7 @@ class TestMakeToolset:
         from pydantic_ai.toolsets import PrefixedToolset
 
         spec = McpServerSpec(name="github-work", url="https://example.com/mcp")
-        toolset = _make_toolset(spec)
+        toolset = _make_toolset(spec).wrapped
         assert isinstance(toolset, PrefixedToolset)
         assert toolset.prefix == "github_work"
         assert isinstance(toolset.wrapped, MCPToolset)
@@ -287,7 +288,18 @@ class TestMakeToolset:
         refusal as the call's result instead."""
         spec = McpServerSpec(name="notion", url="https://example.com/mcp")
 
-        assert _make_toolset(spec).wrapped.tool_error_behavior == "failed"
+        assert _make_toolset(spec).wrapped.wrapped.tool_error_behavior == "failed"
+
+    @pytest.mark.parametrize("test", [False, True])
+    def test_every_tool_says_which_side_of_an_override_it_came_from(self, test):
+        """The isolation guard lets a test connection's tools write and nothing
+        else's; the stamp is ours, set after the server answered."""
+        from pydantic_ai.toolsets import SetMetadataToolset
+
+        toolset = _make_toolset(McpServerSpec(name="crm", url="https://e.com/mcp", test=test))
+
+        assert isinstance(toolset, SetMetadataToolset)
+        assert toolset.metadata == {MCP_ORIGIN: {"test": test}}
 
     def test_with_allowlist_filters_before_prefixing(self):
         from pydantic_ai.toolsets import FilteredToolset, PrefixedToolset
@@ -297,7 +309,7 @@ class TestMakeToolset:
             url="https://example.com/mcp",
             allowed_tools=["search_issues"],
         )
-        toolset = _make_toolset(spec)
+        toolset = _make_toolset(spec).wrapped
         assert isinstance(toolset, PrefixedToolset)
         filtered = toolset.wrapped
         assert isinstance(filtered, FilteredToolset)
@@ -552,6 +564,92 @@ class TestToolsetsForAgent:
         assert [spec.name for spec in seen[0]] == ["github", "github"]
         assert resolved.toolsets == ["github"]
         assert resolved.unavailable == []
+
+    @pytest.mark.anyio
+    async def test_an_environments_test_connection_answers_under_the_production_name(
+        self, monkeypatch
+    ):
+        """Same tool names in staging as in production, and the production URL
+        and credentials never reached."""
+        seen = self._capture(monkeypatch)
+        production = _connection(
+            name="crm", url="https://crm.example/mcp", allowed_tools=["find", "create"]
+        )
+        sandbox = _connection(
+            name="crm-sandbox",
+            url="https://sandbox.example/mcp",
+            allowed_tools=["find", "create", "purge"],
+        )
+        monkeypatch.setattr(
+            mcp_connection_service.mcp_connection_repo,
+            "get_org_scoped_by_ids",
+            AsyncMock(return_value={production.id: production, sandbox.id: sandbox}),
+        )
+
+        await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[OrgMcpServerRef(connection_id=production.id, allowed_tools=["find", "purge"])],
+            test_connections={production.id: sandbox.id},
+        )
+
+        (spec,) = seen[0]
+        assert (spec.name, spec.url, spec.test) == ("crm", "https://sandbox.example/mcp", True)
+        # Every allowlist narrows: production's ceiling, the binding's, the sandbox's.
+        assert spec.allowed_tools == ["find"]
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("state", ["deleted", "disabled", "no_credentials"])
+    async def test_a_test_side_that_cannot_answer_switches_the_binding_off(
+        self, monkeypatch, state
+    ):
+        """Never a fall back to production: that is the system staging exists to
+        keep away from."""
+        seen = self._capture(monkeypatch)
+        production = _connection(name="crm", url="https://crm.example/mcp")
+        sandbox = _connection(name="crm-sandbox", is_enabled=state != "disabled")
+        monkeypatch.setattr(
+            mcp_connection_service.mcp_connection_repo,
+            "get_org_scoped_by_ids",
+            AsyncMock(return_value={production.id: production, sandbox.id: sandbox}),
+        )
+        monkeypatch.setattr(
+            mcp_connection_service,
+            "_resolve_auth_headers",
+            AsyncMock(return_value=None if state == "no_credentials" else {}),
+        )
+
+        resolved = await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[OrgMcpServerRef(connection_id=production.id)],
+            test_connections={production.id: None if state == "deleted" else sandbox.id},
+        )
+
+        assert seen == [[]]
+        assert resolved.toolsets == []
+
+    @pytest.mark.anyio
+    async def test_a_test_connection_for_a_deleted_production_one_keeps_its_own_name(
+        self, monkeypatch
+    ):
+        seen = self._capture(monkeypatch)
+        sandbox = _connection(name="crm-sandbox", allowed_tools=["find"])
+        monkeypatch.setattr(
+            mcp_connection_service.mcp_connection_repo,
+            "get_org_scoped_by_ids",
+            AsyncMock(return_value={sandbox.id: sandbox}),
+        )
+        production_id = uuid4()
+
+        await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[OrgMcpServerRef(connection_id=production_id)],
+            test_connections={production_id: sandbox.id},
+        )
+
+        assert [(spec.name, spec.allowed_tools) for spec in seen[0]] == [("crm-sandbox", ["find"])]
 
     @pytest.mark.anyio
     async def test_every_id_is_resolved_inside_the_agents_own_organization(self, monkeypatch):

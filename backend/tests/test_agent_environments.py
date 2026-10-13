@@ -727,6 +727,29 @@ class TestConnectionOverrides:
         # Ids, never a value: the audit trail is not a second copy of the vault.
         assert str(test.id) not in str(audit.call_args.kwargs["details"])
 
+    async def test_the_default_environment_keeps_the_specs_connections(self):
+        """The default is what every surface naming no environment runs - production."""
+        agent = _agent()
+        default = _environment(agent_id=agent.id, name="production", is_default=True)
+        service = _service(agent)
+
+        with patch(_REPO) as environments:
+            environments.get = AsyncMock(return_value=default)
+
+            with pytest.raises(BadRequestError, match="named environment"):
+                await service.update(
+                    _ctx(),
+                    agent.id,
+                    default.id,
+                    EnvironmentUpdate(
+                        connections=[
+                            EnvironmentConnectionWrite(
+                                kind="mcp", production_id=uuid.uuid4(), test_id=uuid.uuid4()
+                            )
+                        ]
+                    ),
+                )
+
     async def test_an_empty_list_clears_the_overrides(self):
         agent = _agent()
         environment = _environment(agent_id=agent.id)

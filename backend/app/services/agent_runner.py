@@ -159,6 +159,7 @@ from app.core.exceptions import (
 from app.core.permissions import AuthContext, Perm
 from app.core.secret_kinds import StorableSecret
 from app.db.models.agent import Agent, AgentStatus
+from app.db.models.agent_environment import ConnectionKind
 from app.db.models.agent_exposure import AgentExposure
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunOrder, RunStatus, RunSurface
 from app.db.models.chat_file import ChatFile
@@ -269,6 +270,56 @@ def _secret_ids(spec: AgentSpec) -> list[UUID]:
     if spec.observability and spec.observability.token_secret_id:
         ids.append(spec.observability.token_secret_id)
     return ids
+
+
+@dataclass(frozen=True)
+class _TestConnections:
+    """What the run's environment answers with test systems instead.
+
+    Both maps are keyed by the id a spec names. A value of `None` is a binding
+    whose test side was deleted: it is off in this environment, never answered
+    by the production side.
+    """
+
+    mcp: Mapping[UUID, UUID | None] = field(default_factory=dict)
+    secrets: Mapping[UUID, UUID | None] = field(default_factory=dict)
+
+    @property
+    def test_secret_ids(self) -> frozenset[UUID]:
+        """The vault secrets that stand in for production ones in this run."""
+        return frozenset(test for test in self.secrets.values() if test is not None)
+
+
+def _with_test_secrets(spec: AgentSpec, overrides: Mapping[UUID, UUID | None]) -> AgentSpec:
+    """The spec with each overridden capability secret pointing at its test one.
+
+    Swapped on the spec rather than at unsealing, so the one resolver that
+    yields plaintext stays the only one and the capability never learns it was
+    handed a test key.
+
+    Raises:
+        BadRequestError: If an override's test secret was deleted. The
+            capability cannot run without a key, and the production one is the
+            key this environment exists to keep it away from.
+    """
+    if not any(binding.secret_id in overrides for binding in spec.capabilities):
+        return spec
+    capabilities: list[CapabilityBindingSpec] = []
+    for binding in spec.capabilities:
+        if binding.secret_id is None or binding.secret_id not in overrides:
+            capabilities.append(binding)
+            continue
+        test_id = overrides[binding.secret_id]
+        if test_id is None:
+            raise BadRequestError(
+                message=(
+                    f"The test key this environment uses for capability '{binding.id}' was "
+                    "deleted. Choose another one in the environment, or remove the override."
+                ),
+                details={"capability_id": binding.id},
+            )
+        capabilities.append(binding.model_copy(update={"secret_id": test_id}))
+    return spec.model_copy(update={"capabilities": capabilities})
 
 
 def _delegate_workspace(spec: AgentSpec, shared: list[CapabilityBindingSpec]) -> DelegateWorkspace:
@@ -1651,6 +1702,9 @@ class _Delegation:
     """One stash for the whole tree, because a delegation three levels down parks
     the run somebody started and is continued from that run's stored state."""
 
+    test_connections: _TestConnections
+    """The run's environment overrides, which every level of the tree honours."""
+
     profiles: dict[str, ModelRequestSpec] = field(default_factory=dict)
     """The organization's model catalog, resolved at most once and only if asked for.
 
@@ -2238,6 +2292,17 @@ class AgentRunnerService:
         if channel_directory is not None:
             resources[CHANNEL_DIRECTORY_RESOURCE] = channel_directory
 
+        # What the run's environment answers with test systems instead - a
+        # staging bot, an eval - read off the run on a resume, so a continuation
+        # runs against the same systems the run began on.
+        test_connections = await self._test_connections(
+            ctx,
+            environment_id=(
+                existing_run.environment_id if existing_run is not None else environment_id
+            ),
+        )
+        spec = _with_test_secrets(spec, test_connections.secrets)
+
         # Unsealed here and handed straight to the factory, which hands them to
         # the capability instances that declared them. They are kept out of
         # `resources` deliberately: a resource may end up in a log line and a
@@ -2309,6 +2374,7 @@ class AgentRunnerService:
             organization_id=ctx.organization_id,
             refs=spec.mcp_servers,
             sender_user_id=personal_mcp_user_id,
+            test_connections=test_connections.mcp,
         )
         spec_toolsets = resolved.toolsets
         on_use, briefed = _connect_on_use(
@@ -2472,6 +2538,7 @@ class AgentRunnerService:
             runtimes=runtimes,
             delegations=delegations,
             stash=stash,
+            test_connections=test_connections,
         )
         if runtime is not None:
             resources[SUBAGENT_RUNTIME_RESOURCE] = runtime
@@ -2578,6 +2645,7 @@ class AgentRunnerService:
         runtimes: list[SubagentRuntime],
         delegations: list[RecordedDelegation],
         stash: DelegationStash,
+        test_connections: _TestConnections,
     ) -> SubagentRuntime | None:
         """The delegation tree this run may reach, or `None` if it delegates to none.
 
@@ -2604,6 +2672,9 @@ class AgentRunnerService:
                 continuation finds one. Given to every level of the tree, because
                 the run being continued is the one somebody started however deep
                 the delegation that parked it was.
+            test_connections: The run's environment overrides, applied at every
+                level: a delegate binding the production CRM reaches the sandbox
+                in staging, exactly as the agent that delegated to it does.
 
         Raises:
             BadRequestError: If a pin names a version that is gone, if a delegate
@@ -2636,6 +2707,7 @@ class AgentRunnerService:
             attribution=attribution,
             runtimes=runtimes,
             stash=stash,
+            test_connections=test_connections,
         )
         # `max_depth` counts levels of delegation *including this agent's own*, so
         # the budget left below this level is one less. The subtraction is the whole
@@ -3020,11 +3092,13 @@ class AgentRunnerService:
         model = await self.models.resolve(ctx, profile_id=runnable.model_profile_id)
         # Recorded now so the child's run row can name the model that answered.
         delegation.attribution[ref.agent_version_id] = model
+        runnable = _with_test_secrets(runnable, delegation.test_connections.secrets)
         resolved = await build_toolsets_for_agent(
             self.db,
             organization_id=ctx.organization_id,
             refs=runnable.mcp_servers,
             sender_user_id=delegation.personal_mcp_user_id,
+            test_connections=delegation.test_connections.mcp,
         )
         toolsets = resolved.toolsets
         # Briefed like the parent: a delegate may bind a service the parent does
@@ -4021,6 +4095,27 @@ class AgentRunnerService:
             # two sources of truth.
             approved_args[tool_call_id] = approval.tool_args
         return decided, _resume_plan(state, approved_args)
+
+    async def _test_connections(
+        self, ctx: AuthContext, *, environment_id: UUID | None
+    ) -> _TestConnections:
+        """The overrides of the environment this run names.
+
+        None for a run naming no environment: that is the default environment,
+        which the environment service refuses overrides on - production keeps
+        the connections its spec binds.
+        """
+        if environment_id is None:
+            return _TestConnections()
+        rows = await agent_environment_repo.list_connections(
+            self.db, environment_ids=[environment_id], organization_id=ctx.organization_id
+        )
+        return _TestConnections(
+            mcp={row.production_id: row.test_id for row in rows if row.kind == ConnectionKind.MCP},
+            secrets={
+                row.production_id: row.test_id for row in rows if row.kind == ConnectionKind.SECRET
+            },
+        )
 
     async def _with_environment_observability(
         self, ctx: AuthContext, spec: AgentSpec, *, environment_id: UUID | None

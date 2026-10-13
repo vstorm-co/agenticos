@@ -61,6 +61,7 @@ from app.agents.spec import (
 from app.agents.subagent_runtime import DelegationSpend, DelegationStash, ParkedDelegation
 from app.core.exceptions import BadRequestError, NotFoundError, RunExecutionError
 from app.core.permissions import AuthContext, OrgRoleName
+from app.db.models.agent_environment import AgentEnvironmentConnection
 from app.db.models.agent_run import ApprovalStatus, RunStatus, RunSurface
 from app.services.agent_runner import (
     AgentRunnerService,
@@ -412,6 +413,8 @@ class TestPrepare:
             # An API run has no person at the keyboard - the context is the key
             # holder's - so no personal binding may reach for anybody's account.
             "sender_user_id": None,
+            # A run naming no environment is production, which swaps nothing.
+            "test_connections": {},
         }
         # Alongside what the surface brought, not instead of it: the WebSocket
         # chat still attaches its own, and dropping either half would leave an
@@ -3522,6 +3525,10 @@ class TestARunThatArrivedThroughABinding:
                 "app.services.agent_runner.agent_environment_repo.get",
                 new=AsyncMock(return_value=None),
             ),
+            patch(
+                "app.services.agent_runner.agent_environment_repo.list_connections",
+                new=AsyncMock(return_value=[]),
+            ),
             patch.object(
                 service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
             ),
@@ -3540,6 +3547,101 @@ class TestARunThatArrivedThroughABinding:
         # The run records the version the environment resolved, not the
         # default of the moment - or history would lie about what answered.
         assert opened["agent_version_id"] == pinned_version_id
+
+    @staticmethod
+    async def _prepare_in_staging(
+        spec: AgentSpec, rows: list[AgentEnvironmentConnection]
+    ) -> tuple[AsyncMock, AsyncMock, MagicMock]:
+        environment_id = uuid.uuid4()
+        exposure = _exposure(environment_id=environment_id)
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        listed = AsyncMock(return_value=rows)
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, spec, uuid.uuid4())),
+            ),
+            patch(
+                "app.services.agent_runner.agent_environment_repo.get",
+                new=AsyncMock(return_value=None),
+            ),
+            patch("app.services.agent_runner.agent_environment_repo.list_connections", new=listed),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch.object(
+                service.secrets, "resolve_for_bindings", new=AsyncMock(return_value={})
+            ) as unsealed,
+            patch(
+                "app.services.agent_runner.build_toolsets_for_agent",
+                new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
+            ) as toolsets,
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch("app.services.agent_runner.build_agent") as build,
+        ):
+            await service.prepare(_ctx(), agent.id, exposure=exposure)
+        assert listed.await_args.kwargs["environment_ids"] == [environment_id]
+        return toolsets, unsealed, build
+
+    @pytest.mark.anyio
+    async def test_a_staging_bot_reaches_the_environments_test_connections(self):
+        """The same mechanism an eval uses, outside one: a bot bound to staging
+        answers with the sandbox CRM and the test key, never production's."""
+        crm, sandbox = uuid.uuid4(), uuid.uuid4()
+        live_key, test_key = uuid.uuid4(), uuid.uuid4()
+        spec = AgentSpec(
+            name="Support",
+            mcp_servers=[OrgMcpServerRef(connection_id=crm)],
+            capabilities=[
+                CapabilityBindingSpec(id="clock"),
+                CapabilityBindingSpec(
+                    id="web_research", config={"provider": "tavily"}, secret_id=live_key
+                ),
+            ],
+        )
+
+        toolsets, unsealed, build = await self._prepare_in_staging(
+            spec,
+            [
+                AgentEnvironmentConnection(
+                    kind="mcp", production_id=crm, test_connection_id=sandbox
+                ),
+                AgentEnvironmentConnection(
+                    kind="secret", production_id=live_key, test_secret_id=test_key
+                ),
+            ],
+        )
+
+        assert toolsets.await_args.kwargs["test_connections"] == {crm: sandbox}
+        assert unsealed.await_args.args[1] == [test_key]
+        assert [(b.id, b.secret_id) for b in build.call_args.args[0].capabilities] == [
+            ("clock", None),
+            ("web_research", test_key),
+        ]
+
+    @pytest.mark.anyio
+    async def test_a_deleted_test_key_refuses_the_run_rather_than_use_production(self):
+        live_key = uuid.uuid4()
+        spec = AgentSpec(
+            name="Support",
+            capabilities=[
+                CapabilityBindingSpec(
+                    id="web_research", config={"provider": "tavily"}, secret_id=live_key
+                )
+            ],
+        )
+
+        with pytest.raises(BadRequestError, match="test key"):
+            await self._prepare_in_staging(
+                spec,
+                [AgentEnvironmentConnection(kind="secret", production_id=live_key)],
+            )
 
     @pytest.mark.anyio
     async def test_the_run_records_the_binding_that_admitted_it(self):

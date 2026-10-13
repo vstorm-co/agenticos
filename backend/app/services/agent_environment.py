@@ -213,6 +213,14 @@ class AgentEnvironmentService:
         changes = writable(data, over=AgentEnvironment, exclude={"connections"})
         if not changes and data.connections is None:
             raise BadRequestError(message="Nothing to change", details={})
+        if data.connections and environment.is_default:
+            raise BadRequestError(
+                message=(
+                    "The default environment runs the connections the spec binds - "
+                    "add test connections to a named environment such as staging."
+                ),
+                details={"environment_id": str(environment.id)},
+            )
         connections = (
             None
             if data.connections is None
