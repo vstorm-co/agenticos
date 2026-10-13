@@ -413,11 +413,6 @@ describe("the environments panel", () => {
       expect(screen.getAllByRole("button", { name: /^Test connections for/ })).toEqual([
         screen.getByRole("button", { name: "Test connections for staging" }),
       ]);
-      // The walkthrough points at the first named environment.
-      expect(screen.getByRole("button", { name: "Test connections for staging" })).toHaveAttribute(
-        "data-tour",
-        "environment-connections",
-      );
     });
 
     it("open on their environment's row and save through the mutation", async () => {
@@ -441,6 +436,23 @@ describe("the environments panel", () => {
       });
       await user.click(toggle);
       expect(screen.queryByText(/evals included/)).not.toBeInTheDocument();
+    });
+
+    it("point the walkthrough at the first named environment, wherever the default sits", () => {
+      state.environments = [
+        environment("staging", 2),
+        environment("production", 3, true),
+        environment("dev", 1),
+      ];
+      render(<EnvironmentsPanel agentId="a1" canManage />);
+
+      expect(screen.getByRole("button", { name: "Test connections for staging" })).toHaveAttribute(
+        "data-tour",
+        "environment-connections",
+      );
+      expect(screen.getByRole("button", { name: "Test connections for dev" })).not.toHaveAttribute(
+        "data-tour",
+      );
     });
 
     it("are not offered to someone who cannot manage environments", () => {
