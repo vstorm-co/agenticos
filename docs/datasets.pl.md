@@ -1,5 +1,5 @@
 ---
-source_sha: "d41ce3b7889b"
+source_sha: "f53465df8b7d"
 title: "Zbiory danych"
 description: "Zbiory danych trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -152,7 +152,9 @@ granty, opisuje strona [Uprawnienia](permissions.md).
 ## Dane osobowe { #personal-data }
 
 Przypadek wzięty z rozmowy jest kopią tego, co napisała osoba, i tego, co
-odpowiedział agent. Nie znika, gdy rozmowa zostanie usunięta ani gdy osoba,
-która ją napisała, zostanie wymazana - przypadek skopiowano celowo, żeby
-przetrwał transkrypt. Taki przypadek usuwasz ręcznie, gdy musi zniknąć. Zobacz
-[Ochrona danych](data-protection.md).
+odpowiedział agent. Gdy rozmowa zostanie usunięta albo osoba, która ją
+napisała, zostanie wymazana, przypadek zostaje, a każde powiązanie z nią jest
+czyszczone: run, rozmowa i wiadomość, z których pochodzi, oraz to, kto go dodał,
+jeśli była to wymazywana osoba. Zostaje tekst - który może nadal zawierać dane
+osobowe wpisane przez kogoś i znika dopiero po usunięciu przypadku. Zobacz
+[Ochrona danych](data-protection.md#what-deletion-reaches).

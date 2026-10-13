@@ -1,5 +1,5 @@
 ---
-source_sha: "d41ce3b7889b"
+source_sha: "f53465df8b7d"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -160,8 +160,10 @@ zusammenwirken, steht unter [Berechtigungen](permissions.md).
 ## Personenbezogene Daten { #personal-data }
 
 Ein Fall aus einem Gespräch ist eine Kopie dessen, was eine Person geschrieben
-und der Agent geantwortet hat. Er wird nicht entfernt, wenn das Gespräch
-gelöscht oder die Person, die es geschrieben hat, gelöscht wird - der Fall wurde
-absichtlich kopiert, um das Transkript zu überdauern. Entfernen Sie einen
-solchen Fall von Hand, wenn er weg muss. Siehe
-[Datenschutz](data-protection.md).
+und der Agent geantwortet hat. Wird das Gespräch gelöscht oder die Person, die
+es geschrieben hat, gelöscht, bleibt der Fall, und jede Verbindung zurück zu ihr
+wird entfernt: der Run, das Gespräch und die Nachricht, aus denen er stammt, und
+wer ihn hinzugefügt hat, falls das die gelöschte Person war. Es bleibt der Text -
+der weiterhin personenbezogene Daten enthalten kann, die jemand eingegeben hat,
+und erst mit dem Löschen des Falls verschwindet. Siehe
+[Datenschutz](data-protection.md#what-deletion-reaches).

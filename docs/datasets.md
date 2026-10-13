@@ -149,7 +149,9 @@ grants combine.
 ## Personal data { #personal-data }
 
 A case taken from a conversation is a copy of what a person wrote and what the
-agent answered. It is not removed when the conversation is deleted, or when the
-person who wrote it is erased - the case was copied on purpose, to outlive the
-transcript. Remove such a case by hand when it must go. See
-[Data protection](data-protection.md).
+agent answered. When the conversation is deleted, or the person who wrote it is
+erased, the case stays and every link from it back to them is cleared: the run,
+the conversation and the message it came from, and who added it if that was the
+person erased. What stays is the text - which may still hold personal data
+somebody typed into it, and is removed by deleting the case. See
+[Data protection](data-protection.md#what-deletion-reaches).

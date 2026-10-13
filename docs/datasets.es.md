@@ -1,5 +1,5 @@
 ---
-source_sha: "d41ce3b7889b"
+source_sha: "f53465df8b7d"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -157,7 +157,9 @@ los grants.
 ## Datos personales { #personal-data }
 
 Un caso tomado de una conversación es una copia de lo que escribió una persona y
-de lo que respondió el agent. No se elimina cuando se borra la conversación ni
-cuando se borra a la persona que la escribió: el caso se copió a propósito,
-para sobrevivir a la transcripción. Elimina ese caso a mano cuando deba
-desaparecer. Consulta [Protección de datos](data-protection.md).
+de lo que respondió el agent. Cuando se borra la conversación, o se borra a la
+persona que la escribió, el caso se queda y se elimina todo vínculo con ella: el
+run, la conversación y el mensaje de los que procede, y quién lo añadió si era
+la persona borrada. Lo que queda es el texto, que puede seguir conteniendo datos
+personales que alguien escribió y que solo desaparece al eliminar el caso.
+Consulta [Protección de datos](data-protection.md#what-deletion-reaches).

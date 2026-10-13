@@ -1,5 +1,5 @@
 ---
-source_sha: "f766b5911531"
+source_sha: "6b2472950fa3"
 ---
 
 # Ochrona danych { #data-protection }
@@ -195,9 +195,9 @@ harmonogramu to [#1420](https://github.com/vstorm-co/agenticos/issues/1420).
 
 | Akcja | Usuwa | Zostawia |
 |---|---|---|
-| `DELETE /conversations/{id}` (właściciel) | Konwersację, jej wiadomości, wywołania narzędzi, oceny, udostępnienia i wiersze `chat_files`, kaskadą; bajty załączników pod `MEDIA_DIR`, zebrane przed usunięciem i odpięte po commicie; obiekty mediów odciążone z tego wątku, po prefiksie; workspace kontenerowy przez `purge_for_conversation` | Wiersze runów i manifesty, które nazywały tę konwersację, zachowują swoją kopię promptu; przypadki w zbiorach danych skopiowane z tej konwersacji |
+| `DELETE /conversations/{id}` (właściciel) | Konwersację, jej wiadomości, wywołania narzędzi, oceny, udostępnienia i wiersze `chat_files`, kaskadą; bajty załączników pod `MEDIA_DIR`, zebrane przed usunięciem i odpięte po commicie; obiekty mediów odciążone z tego wątku, po prefiksie; workspace kontenerowy przez `purge_for_conversation` | Wiersze runów i manifesty, które nazywały tę konwersację, zachowują swoją kopię promptu. Przypadki w zbiorach danych skopiowane z tej konwersacji zachowują tekst, a każde powiązanie z konwersacją, jej runem i wiadomościami jest czyszczone - tekst może nadal zawierać dane osobowe, które ktoś wpisał |
 | `DELETE /memory/person/{user_id}` (osoba albo `members:manage`) | Każdy wiersz `agent_memory_files` kluczowany na osobę we wszystkich agentach organizacji, i to samo w każdym związanym magazynie mem0 | Notatki kluczowane na czat grupowy, w którym osoba się odzywała |
-| `DELETE /users/{id}` | Konto, jego sesje, jego osobistą organizację i osobiste kolekcje wraz z ich tabelami wektorowymi i plikami, jawnym teardownem; konwersacje i pliki czatu kaskadą; ich bajty, odpięte po commicie; oraz to, do czego nie sięga żadna kaskada — notatki, które agenci zapisali o tej osobie (`owner_key` to string, nie klucz obcy), jej tożsamości platformowe i workspace'y przypisane do użytkownika | Wpisy audytowe nazywające id aktora, a przy niektórych akcjach e-mail — zatrzymywane celowo, bo wpis z usuniętym aktorem jest gorszy niż wpis nazywający usunięte konto. Wiadomości w konwersacjach należących do kogoś innego. Przypadki w zbiorach danych skopiowane z jego konwersacji |
+| `DELETE /users/{id}` | Konto, jego sesje, jego osobistą organizację i osobiste kolekcje wraz z ich tabelami wektorowymi i plikami, jawnym teardownem; konwersacje i pliki czatu kaskadą; ich bajty, odpięte po commicie; oraz to, do czego nie sięga żadna kaskada — notatki, które agenci zapisali o tej osobie (`owner_key` to string, nie klucz obcy), jej tożsamości platformowe i workspace'y przypisane do użytkownika | Wpisy audytowe nazywające id aktora, a przy niektórych akcjach e-mail — zatrzymywane celowo, bo wpis z usuniętym aktorem jest gorszy niż wpis nazywający usunięte konto. Wiadomości w konwersacjach należących do kogoś innego. Przypadki w zbiorach danych skopiowane z jego konwersacji lub runów zachowują tekst, a każde powiązanie z nim jest czyszczone - tekst może nadal zawierać dane osobowe, które wpisał |
 | Usunięcie dokumentu albo kolekcji | Wiersze, tabelę wektorową i zapisany plik, przez trwały flow po commicie | Nic, gdy flow już przebiegł; liczniki `sync_logs` zostają |
 | Usunięcie organizacji | Wszystko do niej ograniczone, tym samym odroczonym rozmontowaniem | Kolekcje osobiste, które jedynie niosły to id |
 

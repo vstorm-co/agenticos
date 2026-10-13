@@ -1,5 +1,5 @@
 ---
-source_sha: "f766b5911531"
+source_sha: "6b2472950fa3"
 ---
 
 # Protección de datos { #data-protection }
@@ -199,9 +199,9 @@ programada es [#1420](https://github.com/vstorm-co/agenticos/issues/1420).
 
 | Acción | Elimina | Deja |
 |---|---|---|
-| `DELETE /conversations/{id}` (el propietario) | La conversación, sus mensajes, llamadas a herramientas, valoraciones, comparticiones y filas `chat_files`, por cascada; los bytes de los adjuntos bajo `MEDIA_DIR`, recogidos antes del borrado y desvinculados tras su commit; los objetos de medios descargados de ese hilo, por prefijo; un workspace de contenedor mediante `purge_for_conversation` | Las filas de runs y los manifiestos que nombraron la conversación conservan su copia del prompt; los casos de datasets copiados de ella |
+| `DELETE /conversations/{id}` (el propietario) | La conversación, sus mensajes, llamadas a herramientas, valoraciones, comparticiones y filas `chat_files`, por cascada; los bytes de los adjuntos bajo `MEDIA_DIR`, recogidos antes del borrado y desvinculados tras su commit; los objetos de medios descargados de ese hilo, por prefijo; un workspace de contenedor mediante `purge_for_conversation` | Las filas de runs y los manifiestos que nombraron la conversación conservan su copia del prompt. Los casos de datasets copiados de ella conservan su texto, y se borra todo vínculo con la conversación, su run y sus mensajes; el texto puede seguir conteniendo datos personales que alguien escribió |
 | `DELETE /memory/person/{user_id}` (la persona, o `members:manage`) | Cada fila de `agent_memory_files` con clave en la persona a lo largo de todos los agents de la organización, y lo mismo en cada almacén mem0 vinculado | Las notas con clave en un chat de grupo en el que la persona habló |
-| `DELETE /users/{id}` | La cuenta, sus sesiones, su organización personal y sus colecciones personales con sus tablas vectoriales y ficheros, por teardown explícito; conversaciones y ficheros de chat por cascada; sus bytes, desvinculados tras el commit; y lo que ninguna cascada alcanza: las notas que los agents escribieron sobre ella (`owner_key` es una cadena, no una clave foránea), sus identidades de plataforma y sus workspaces de usuario | Entradas de auditoría que nombran el id del actor y, en algunas acciones, el correo: se conservan a propósito, porque una entrada sin su actor es peor que una que nombra una cuenta borrada. Mensajes en conversaciones de otra persona. Los casos de datasets copiados de sus conversaciones |
+| `DELETE /users/{id}` | La cuenta, sus sesiones, su organización personal y sus colecciones personales con sus tablas vectoriales y ficheros, por teardown explícito; conversaciones y ficheros de chat por cascada; sus bytes, desvinculados tras el commit; y lo que ninguna cascada alcanza: las notas que los agents escribieron sobre ella (`owner_key` es una cadena, no una clave foránea), sus identidades de plataforma y sus workspaces de usuario | Entradas de auditoría que nombran el id del actor y, en algunas acciones, el correo: se conservan a propósito, porque una entrada sin su actor es peor que una que nombra una cuenta borrada. Mensajes en conversaciones de otra persona. Los casos de datasets copiados de sus conversaciones o runs conservan su texto, y se borra todo vínculo con esa persona; el texto puede seguir conteniendo datos personales que escribió |
 | Borrar un documento o una colección | Las filas, la tabla vectorial y el archivo almacenado, mediante un flow duradero tras el commit | Nada, una vez que el flow ha corrido; los recuentos de `sync_logs` permanecen |
 | Borrar una organización | Todo lo acotado a ella, con el mismo desmontaje diferido | Las colecciones personales que solo llevaban el id |
 
