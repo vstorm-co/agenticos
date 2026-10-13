@@ -769,8 +769,11 @@ class DatasetService:
         """Add several agents' answers as cases, in one new version.
 
         Each answer is built and checked as :meth:`add_from_message` builds and
-        checks one. An answer the caller may not read, or one with no question
-        before it, is skipped rather than refusing the rest.
+        checks one. An answer the caller may not read - absent, in another
+        organization or in a conversation they cannot open, all counted alike -
+        or one with no question before it, is skipped rather than refusing the
+        rest. Measured against the ceiling and redacted before the dataset is
+        locked, as :meth:`import_cases` is.
 
         Returns:
             The version the cases were added in - `None` when none could be -
@@ -778,8 +781,10 @@ class DatasetService:
 
         Raises:
             NotFoundError: For a dataset the caller may not edit.
+            BadRequestError: When the cases would take the dataset past
+                :data:`MAX_CASES`.
         """
-        await self.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
+        current = await self.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
         built: list[tuple[DatasetCaseContent, dict[str, UUID | None]]] = []
         for message_id in message_ids:
             try:
@@ -789,16 +794,17 @@ class DatasetService:
         skipped = len(message_ids) - len(built)
         if not built:
             return None, skipped
-        dataset = await self._locked(ctx, dataset_id)
-        previous = await self._version(ctx, dataset, None)
+        _refuse_past_ceiling(current.case_count, len(built))
         revisions: list[DatasetCase] = []
         redacted = 0
         for content, provenance in built:
             fields, found = _redacted(content)
             redacted += found
             revisions.append(
-                self._revision(ctx, dataset, fields, source=CaseSource.CONVERSATION, **provenance)
+                self._revision(ctx, current, fields, source=CaseSource.CONVERSATION, **provenance)
             )
+        dataset = await self._locked(ctx, dataset_id)
+        previous = await self._version(ctx, dataset, None)
         version = await self._mint(
             ctx,
             dataset,
