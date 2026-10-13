@@ -711,6 +711,8 @@ class DatasetService:
             raise missing from None
         if message.role != "assistant":
             raise refused_field("message_id", "Only an agent's answer can be added to a dataset")
+        if not message.content.strip():
+            raise refused_field("message_id", "This answer has no text to keep as a case")
 
         earlier = [
             turn
@@ -732,7 +734,7 @@ class DatasetService:
         comments = await message_rating_repo.get_down_rating_comments_for_messages(
             self.db, message_ids=[message.id]
         )
-        answer = message.content or None
+        answer = message.content
         try:
             content = DatasetCaseContent(
                 input=earlier[asked].content,

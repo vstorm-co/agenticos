@@ -470,6 +470,13 @@ async def test_only_an_answer_with_a_question_before_it_can_become_a_case(db) ->
         await service.add_from_message(
             ctx, dataset.id, DatasetCaseFromMessage(message_id=lonely.id)
         )
+    blank = Message(
+        id=uuid.uuid4(), conversation_id=answer.conversation_id, role="assistant", content="  "
+    )
+    db.add(blank)
+    await db.flush()
+    with pytest.raises(BadRequestError, match="no text"):
+        await service.add_from_message(ctx, dataset.id, DatasetCaseFromMessage(message_id=blank.id))
 
 
 async def test_a_conversation_too_long_to_keep_is_refused(db) -> None:
