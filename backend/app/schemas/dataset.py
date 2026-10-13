@@ -10,6 +10,7 @@ from pydantic import ConfigDict, Field, JsonValue, field_validator
 
 from app.schemas.base import BaseSchema
 from app.schemas.resource_grant import VisibilityLiteral
+from app.schemas.scoring import CHECK, DatasetScoring
 
 CaseSourceLiteral = Literal["manual", "import", "conversation", "synthetic"]
 DatasetChangeLiteral = Literal["add", "edit", "remove", "import"]
@@ -48,8 +49,8 @@ class CaseCheck(BaseSchema):
 
     Only the shape is fixed here: an object with a `type`, and that rule's own
     parameters beside it. Which types exist and what each requires belongs to
-    scoring, which reads these - and whatever it later refuses, it must still
-    accept the checks datasets already hold.
+    scoring (`app.schemas.scoring.Check`), checked when a case is written - and a
+    stored check it no longer accepts is still read, and scored as an error.
     """
 
     model_config = ConfigDict(
@@ -58,6 +59,13 @@ class CaseCheck(BaseSchema):
     __pydantic_extra__: dict[str, JsonValue] = Field(init=False)
 
     type: str = Field(min_length=1, max_length=64)
+
+
+def _known_checks(checks: list[CaseCheck]) -> list[CaseCheck]:
+    """Refuse a check scoring does not know, or one whose parameters it would refuse."""
+    for check in checks:
+        CHECK.validate_python(check.model_dump(by_alias=True))
+    return checks
 
 
 def _clean_tags(tags: list[str]) -> list[str]:
@@ -115,6 +123,11 @@ class DatasetCaseContent(BaseSchema):
     def _tags(cls, tags: list[str]) -> list[str]:
         return _clean_tags(tags)
 
+    @field_validator("checks")
+    @classmethod
+    def _checks(cls, checks: list[CaseCheck]) -> list[CaseCheck]:
+        return _known_checks(checks)
+
 
 class DatasetCaseCreate(DatasetCaseContent):
     """A case written by hand."""
@@ -137,6 +150,11 @@ class DatasetCaseUpdate(BaseSchema):
     @classmethod
     def _tags(cls, tags: list[str] | None) -> list[str] | None:
         return None if tags is None else _clean_tags(tags)
+
+    @field_validator("checks")
+    @classmethod
+    def _checks(cls, checks: list[CaseCheck] | None) -> list[CaseCheck] | None:
+        return None if checks is None else _known_checks(checks)
 
 
 class DatasetCaseRead(DatasetCaseContent):
@@ -161,6 +179,12 @@ class DatasetCaseRead(DatasetCaseContent):
         # Stored tags were cleaned on the way in; re-cleaning on the way out
         # would turn a later tightening of the rule into a listing that 500s.
         return tags
+
+    @field_validator("checks")
+    @classmethod
+    def _checks(cls, checks: list[CaseCheck]) -> list[CaseCheck]:
+        # The same reason: a check stored before a rule tightened is still read.
+        return checks
 
 
 class DatasetCaseList(BaseSchema):
@@ -191,6 +215,9 @@ class DatasetRead(BaseSchema):
     case_count: int
     can_edit: bool = Field(
         default=False, description="Whether the caller may change this dataset's cases"
+    )
+    scoring: DatasetScoring = Field(
+        default_factory=DatasetScoring, description="How this dataset's cases are scored"
     )
     created_at: datetime
     updated_at: datetime | None = None

@@ -51,6 +51,7 @@ from app.schemas.dataset import (
     DatasetVersionRead,
 )
 from app.schemas.resource_grant import as_visibility
+from app.schemas.scoring import DatasetScoring
 from app.services import dataset_files
 from app.services.access import DATASET, accessible_ids, resolve_access, visible_resource_ids
 from app.services.conversation import ConversationService
@@ -126,6 +127,7 @@ def _dataset_read(dataset: Dataset, *, can_edit: bool) -> DatasetRead:
         latest_version=dataset.latest_version,
         case_count=dataset.case_count,
         can_edit=can_edit,
+        scoring=DatasetScoring.model_validate(dataset.scoring),
         created_at=dataset.created_at,
         updated_at=dataset.updated_at,
     )
@@ -503,6 +505,29 @@ class DatasetService:
                 details={"dataset_id": dataset.id, "case_id": case_id},
             )
         return previous, found[0], found[1]
+
+    async def case_at(
+        self, ctx: AuthContext, dataset: Dataset, case_id: UUID, *, version: int | None = None
+    ) -> DatasetCase:
+        """The revision of a case a version holds - the newest version unless one is named.
+
+        Raises:
+            NotFoundError: When that version does not exist or does not hold the case.
+        """
+        held = await self._version(ctx, dataset, version)
+        found = (
+            None
+            if held is None
+            else await dataset_repo.find_case(
+                self.db, held.id, case_id, organization_id=ctx.organization_id
+            )
+        )
+        if found is None:
+            raise NotFoundError(
+                message="This version of the dataset holds no such case",
+                details={"dataset_id": dataset.id, "case_id": case_id, "version": version},
+            )
+        return found[0]
 
     async def update_case(
         self, ctx: AuthContext, dataset_id: UUID, case_id: UUID, data: DatasetCaseUpdate
