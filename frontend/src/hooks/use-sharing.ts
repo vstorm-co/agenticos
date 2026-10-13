@@ -32,6 +32,7 @@ const SHARING_ROOT = {
   collection: "/kb",
   secret: "/secrets",
   artifact: "/artifacts",
+  dataset: "/datasets",
 } as const satisfies Record<SharingResourceType, string>;
 
 /**
@@ -48,6 +49,7 @@ const RESOURCE_KEYS = {
   collection: qk.kb.all,
   secret: qk.secrets.all,
   artifact: qk.artifacts.all,
+  dataset: qk.datasets.all,
 } as const satisfies Record<SharingResourceType, () => readonly string[]>;
 
 /**

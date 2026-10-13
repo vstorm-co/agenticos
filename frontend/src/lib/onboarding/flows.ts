@@ -34,6 +34,7 @@ export type FlowId =
   | "create-org"
   | "create-group"
   | "create-routine"
+  | "create-dataset"
   | "explore-chat";
 
 /**
@@ -48,7 +49,8 @@ export type FlowId =
  * stays org-only. `model` is a model profile (`useModelProviders`), the resource a
  * new agent needs before it can run.
  */
-export type FlowResource = "agent" | "model" | "skill" | "kb" | "mcp" | "org" | "group" | "routine";
+export type FlowResource =
+  "agent" | "model" | "skill" | "kb" | "mcp" | "org" | "group" | "routine" | "dataset";
 
 /**
  * How a step knows it is finished. Five shapes.
@@ -725,6 +727,35 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
   // that picked one for the reader would teach the wrong half. So it points at the
   // pair, says what each is for, and ends when a routine appears in the list,
   // whichever door it came through.
+  "create-dataset": {
+    id: "create-dataset",
+    permission: Perm.datasetsEdit,
+    steps: [
+      {
+        id: "flow-dataset-create",
+        page: ROUTES.DATASETS,
+        target: "datasets-new",
+        permission: Perm.datasetsEdit,
+        signal: { kind: "opened" },
+      },
+      {
+        id: "flow-dataset-field-name",
+        page: ROUTES.DATASETS,
+        target: "datasets-dialog-name",
+        permission: Perm.datasetsEdit,
+        inOverlay: true,
+        blockSubmit: "datasets-create-submit",
+      },
+      {
+        id: "flow-dataset-field-create",
+        page: ROUTES.DATASETS,
+        target: "datasets-create-submit",
+        permission: Perm.datasetsEdit,
+        inOverlay: true,
+        signal: { kind: "created", resource: "dataset" },
+      },
+    ],
+  },
   "create-routine": {
     id: "create-routine",
     // The floor a trigger is actually created at is per resource, and the
@@ -851,6 +882,8 @@ export function flowForPage(pageId: string): FlowId | null {
       return "create-mcp";
     case ROUTES.ROUTINES:
       return "create-routine";
+    case ROUTES.DATASETS:
+      return "create-dataset";
     case ROUTES.ORGS:
     case ORG_MEMBERS:
     case ORG_ROLES:

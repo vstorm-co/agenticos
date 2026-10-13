@@ -1,0 +1,163 @@
+"use client";
+
+import { useState } from "react";
+import { useTranslations } from "next-intl";
+import { toast } from "sonner";
+
+import {
+  Button,
+  Checkbox,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  FormField,
+  Input,
+  Label,
+  Textarea,
+} from "@/components/ui";
+import { submitFailure } from "@/lib/api-error";
+import { DIALOG_COLUMN, DIALOG_WIDE } from "@/lib/dialog-sizes";
+import { cn } from "@/lib/utils";
+import type { DatasetCaseContent } from "@/types/datasets";
+import { CASE_FIELDS, contentOf, type CaseDraft, type CaseField } from "./case-form";
+
+interface CaseEditorDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** The fields to start from: blank for a new case, the case's own for an edit. */
+  initial: CaseDraft;
+  /** Absent for a case that is only read - an older version, or no edit access. */
+  onSave?: (content: DatasetCaseContent) => Promise<unknown>;
+  title: string;
+}
+
+/** A JSON field's shape, shown in the empty box. Code, not copy: it is what is typed. */
+const JSON_EXAMPLE: Partial<Record<CaseField, string>> = {
+  history: '[{"role": "user", "content": "..."}]',
+  expected_tool_calls: '[{"tool": "search", "args": {"q": "refund"}}]',
+  checks: '[{"type": "contains", "value": "30 days"}]',
+};
+
+const TEXT_FIELDS: { field: CaseField; rows: number }[] = [
+  { field: "input", rows: 3 },
+  { field: "reference_answer", rows: 3 },
+  { field: "counter_example", rows: 3 },
+  { field: "note", rows: 2 },
+  { field: "history", rows: 4 },
+  { field: "expected_tool_calls", rows: 4 },
+  { field: "checks", rows: 4 },
+];
+
+/**
+ * One case, written or read.
+ *
+ * Saving an edit is a new version of the dataset, and the dialog says so: the
+ * case a past eval run answered is still there in the version it ran against.
+ */
+export function CaseEditorDialog({
+  open,
+  onOpenChange,
+  initial,
+  onSave,
+  title,
+}: CaseEditorDialogProps) {
+  const t = useTranslations("datasets");
+  const tErrors = useTranslations("errors");
+  const [draft, setDraft] = useState(initial);
+  const [errors, setErrors] = useState<Partial<Record<CaseField, string>>>({});
+  const [saving, setSaving] = useState(false);
+  const readOnly = onSave === undefined;
+
+  function edit<K extends keyof CaseDraft>(field: K, value: CaseDraft[K]) {
+    setDraft((current) => ({ ...current, [field]: value }));
+    setErrors(({ [field as CaseField]: _cleared, ...rest }) => rest);
+  }
+
+  async function save(onSave: (content: DatasetCaseContent) => Promise<unknown>) {
+    const read = contentOf(draft);
+    if (read.content === null) {
+      setErrors(Object.fromEntries(read.problems.map((p) => [p.field, t(p.key)])));
+      return;
+    }
+    setSaving(true);
+    try {
+      await onSave(read.content);
+      onOpenChange(false);
+    } catch (error) {
+      const failure = submitFailure(error, { fields: [...CASE_FIELDS] }, tErrors);
+      setErrors(failure.fields);
+      if (failure.toast) toast.error(failure.toast);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className={cn(DIALOG_COLUMN, DIALOG_WIDE)}>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{t(readOnly ? "caseReadOnly" : "caseSavesVersion")}</DialogDescription>
+        </DialogHeader>
+        <div className="-mx-1.5 min-h-0 flex-1 space-y-4 overflow-y-auto px-1.5 py-1">
+          {TEXT_FIELDS.map(({ field, rows }) => (
+            <FormField
+              key={field}
+              htmlFor={`case-${field}`}
+              label={t(`field.${field}`)}
+              description={t(`hint.${field}`)}
+              error={errors[field]}
+              required={field === "input"}
+            >
+              <Textarea
+                rows={rows}
+                readOnly={readOnly}
+                className={cn(JSON_EXAMPLE[field] !== undefined && "font-mono text-xs")}
+                placeholder={JSON_EXAMPLE[field]}
+                value={draft[field] as string}
+                onChange={(event) => edit(field, event.target.value)}
+              />
+            </FormField>
+          ))}
+          <FormField
+            htmlFor="case-tags"
+            label={t("field.tags")}
+            description={t("hint.tags")}
+            error={errors.tags}
+          >
+            <Input
+              readOnly={readOnly}
+              value={draft.tags}
+              onChange={(event) => edit("tags", event.target.value)}
+            />
+          </FormField>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="case-ordered"
+              disabled={readOnly}
+              checked={draft.tool_calls_ordered}
+              onCheckedChange={(checked) => edit("tool_calls_ordered", checked === true)}
+            />
+            <Label htmlFor="case-ordered">{t("field.tool_calls_ordered")}</Label>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            {t(readOnly ? "close" : "cancel")}
+          </Button>
+          {!readOnly && (
+            <Button
+              onClick={() => void save(onSave)}
+              disabled={saving || draft.input.trim() === ""}
+            >
+              {t("saveCase")}
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

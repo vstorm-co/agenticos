@@ -24,6 +24,7 @@ import * as catalog from "./catalog/[[...path]]/route";
 import * as channels from "./channels/[[...path]]/route";
 import * as context from "./context/[[...path]]/route";
 import * as conversations from "./conversations/[[...path]]/route";
+import * as datasets from "./datasets/[[...path]]/route";
 import * as kb from "./kb/[[...path]]/route";
 import * as localServices from "./local-services/[[...path]]/route";
 import * as mcpConnections from "./mcp-connections/[[...path]]/route";
@@ -99,6 +100,7 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["channels", channels],
   ["context", context],
   ["conversations", conversations],
+  ["datasets", datasets],
   ["kb", kb],
   ["local-services", localServices],
   ["mcp-connections", mcpConnections],

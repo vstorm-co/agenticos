@@ -8,6 +8,7 @@ import { ChevronRight, MessagesSquare, Paperclip, ThumbsDown } from "lucide-reac
 import { CopyButton } from "@/components/chat/copy-button";
 import { MarkdownContent } from "@/components/chat/markdown-content";
 import { MessageCost } from "@/components/chat/message-cost";
+import { AddToDatasetButton } from "@/components/datasets/add-to-dataset-button";
 import { FileCard, FileViewer } from "@/components/files";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { useRunTranscript } from "@/hooks";
@@ -269,6 +270,11 @@ function TimelineTurn({
           <span className="text-destructive inline-flex items-center gap-1">
             <ThumbsDown className="h-3 w-3" aria-hidden />
             {t("ratedDownCount", { count: dislikes })}
+          </span>
+        )}
+        {item.role === "assistant" && (
+          <span className="ml-auto">
+            <AddToDatasetButton messageId={item.id} ratedDown={dislikes > 0} />
           </span>
         )}
       </div>

@@ -91,6 +91,9 @@ vi.mock("@/hooks/use-groups", () => ({
 vi.mock("@/hooks/use-org-triggers", () => ({
   useOrgTriggers: () => ({ total: rig.routines, isLoading: false }),
 }));
+vi.mock("@/hooks/use-datasets", () => ({
+  useDatasets: () => ({ total: 0, isLoading: false }),
+}));
 vi.mock("@/hooks/use-can-create-trigger", () => ({
   useCanCreateTriggerQuery: () => ({
     canCreate: rig.anyRunnable,

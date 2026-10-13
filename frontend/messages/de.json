@@ -1879,6 +1879,15 @@
           "title": "Noch nichts veröffentlicht",
           "description": "Hier erscheinen Berichte und Dashboards, die ein Agent veröffentlicht."
         }
+      },
+      "datasets": {
+        "title": "Datasets",
+        "description": "Die zuletzt geänderten Sammlungen von Testfällen.",
+        "cases": "{count, plural, =1 {1 Fall} other {# Fälle}} · v{version}",
+        "empty": {
+          "title": "Noch keine Datasets",
+          "description": "Testfälle, die Sie für Evals sammeln, erscheinen hier."
+        }
       }
     },
     "edit": {
@@ -2661,7 +2670,8 @@
     "routines": "Routinen",
     "collapseSidebar": "Seitenleiste einklappen",
     "expandSidebar": "Seitenleiste ausklappen",
-    "artifacts": "Artefakte"
+    "artifacts": "Artefakte",
+    "datasets": "Datasets"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -2715,6 +2725,10 @@
       "explore-chat": {
         "title": "Eine kurze Tour durch den Chat?",
         "body": "Sehen Sie, wie Sie eine Unterhaltung beginnen, den antwortenden Agent wechseln und Modell oder Denkaufwand für einen einzelnen Chat ändern. Möchten Sie eine kurze geführte Runde?"
+      },
+      "create-dataset": {
+        "title": "Ein Dataset anlegen?",
+        "body": "Ein Dataset enthält die Fragen, an denen Ihre Agents getestet werden. Möchten Sie jetzt Ihr erstes anlegen? Wir führen Sie durch."
       }
     },
     "steps": {
@@ -3185,6 +3199,26 @@
       "artifacts-list": {
         "title": "Veröffentlichte Seiten",
         "body": "Berichte und Dashboards, die Ihre Agents veröffentlicht haben. Öffnen Sie eines, wählen Sie eine frühere Version, teilen Sie es mit Kolleginnen und Kollegen oder geben Sie ihm einen öffentlichen Link."
+      },
+      "datasets-new": {
+        "title": "Testfälle sammeln",
+        "body": "Ein Dataset enthält die Fragen, an denen ein Agent getestet wird. Legen Sie hier eines an und fügen Sie Fälle von Hand, aus einer Datei oder aus einer negativ bewerteten Antwort hinzu."
+      },
+      "datasets-list": {
+        "title": "Ihre Datasets",
+        "body": "Jede Änderung an den Fällen erzeugt eine neue Version, sodass ein Eval-Run immer auf Fragen zeigt, die sich nicht ändern."
+      },
+      "flow-dataset-create": {
+        "title": "Dataset anlegen",
+        "body": "Wählen Sie „Neues Dataset“ - das Formular öffnet sich und wir füllen es gemeinsam aus."
+      },
+      "flow-dataset-field-name": {
+        "title": "Benennen",
+        "body": "Sagen Sie, was es testet, etwa Fragen zu Erstattungen. Dann Weiter wählen."
+      },
+      "flow-dataset-field-create": {
+        "title": "Anlegen",
+        "body": "Wählen Sie Erstellen. Wir machen weiter, sobald es gespeichert ist."
       }
     }
   },
@@ -4649,18 +4683,18 @@
     "notSharedWithAnyone": "Noch mit niemandem geteilt.",
     "ownedBy": "Gehört {email}",
     "peopleAndGroups": "Personen und Gruppen",
-    "peopleReaches": "Eine Freigabe hebt den Zugriff einer Person oder aller Mitglieder einer Gruppe auf {resource, select, agent {diesen Agent} skill {diesen Skill} collection {diese Collection} artifact {dieses Artefakt} other {dieses Secret}} an, ohne ihre Rolle anderswo zu ändern. „Darf ansehen“ sieht die Konfiguration, „darf verwenden“ führt sie zusätzlich aus, „darf bearbeiten“ ändert sie zusätzlich.",
+    "peopleReaches": "Eine Freigabe hebt den Zugriff einer Person oder aller Mitglieder einer Gruppe auf {resource, select, agent {diesen Agent} skill {diesen Skill} collection {diese Collection} artifact {dieses Artefakt} dataset {dieses Dataset} other {dieses Secret}} an, ohne ihre Rolle anderswo zu ändern. „Darf ansehen“ sieht die Konfiguration, „darf verwenden“ führt sie zusätzlich aus, „darf bearbeiten“ ändert sie zusätzlich.",
     "secretRuntimeNote": "Die Freigabe steuert, wer diesen Schlüssel an einen Agent binden und wer ihn rotieren darf – nicht, wer von ihm profitiert. Sobald ein Agent diesen Schlüssel verwendet, läuft er damit für alle, die diesen Agent ausführen dürfen, auch für Personen, die den Schlüssel hier nicht sehen können.",
     "share": "Freigeben",
     "sharingUpdated": "Freigabe aktualisiert",
     "visibility": "Sichtbarkeit",
     "visibilityOrg": "Organisation",
-    "visibilityOrgReaches": "Alle in der Organisation, die {resource, select, agent {Agents} skill {Skills} collection {Collections} artifact {Artefakte} other {Secrets}} überhaupt ansehen dürfen.",
+    "visibilityOrgReaches": "Alle in der Organisation, die {resource, select, agent {Agents} skill {Skills} collection {Collections} artifact {Artefakte} dataset {Datasets} other {Secrets}} überhaupt ansehen dürfen.",
     "visibilityPrivate": "Privat",
-    "visibilityPrivateReaches": "Nur Sie und die unten aufgeführten Personen. Sonst findet niemand {resource, select, agent {diesen Agent} skill {diesen Skill} collection {diese Collection} artifact {dieses Artefakt} other {dieses Secret}} in seiner Liste – und wenn es noch keinen Besitzer hat, wird es Ihres.",
-    "visibilityReaches": "Wer {resource, select, agent {diesen Agent} skill {diesen Skill} collection {diese Collection} artifact {dieses Artefakt} other {dieses Secret}} erreicht, ohne namentlich genannt zu sein. Freigaben kommen darauf obendrauf; sie nehmen nie Zugriff weg.",
+    "visibilityPrivateReaches": "Nur Sie und die unten aufgeführten Personen. Sonst findet niemand {resource, select, agent {diesen Agent} skill {diesen Skill} collection {diese Collection} artifact {dieses Artefakt} dataset {dieses Dataset} other {dieses Secret}} in seiner Liste – und wenn es noch keinen Besitzer hat, wird es Ihres.",
+    "visibilityReaches": "Wer {resource, select, agent {diesen Agent} skill {diesen Skill} collection {diese Collection} artifact {dieses Artefakt} dataset {dieses Dataset} other {dieses Secret}} erreicht, ohne namentlich genannt zu sein. Freigaben kommen darauf obendrauf; sie nehmen nie Zugriff weg.",
     "visibilityTeam": "Team (wird nicht mehr angeboten)",
-    "visibilityTeamReaches": "Jeder, dessen Rolle {resource, select, agent {Team-Agents} skill {Team-Skills} collection {Team-Collections} artifact {Team-Artefakte} other {Team-Secrets}} erreicht. Diese Organisation hat keine Teams – wählen Sie eine der beiden Optionen darüber.",
+    "visibilityTeamReaches": "Jeder, dessen Rolle {resource, select, agent {Team-Agents} skill {Team-Skills} collection {Team-Collections} artifact {Team-Artefakte} dataset {Team-Datasets} other {Team-Secrets}} erreicht. Diese Organisation hat keine Teams – wählen Sie eine der beiden Optionen darüber.",
     "visibilityUpdated": "Sichtbarkeit aktualisiert",
     "groupsHeading": "Gruppen",
     "membersHeading": "Mitglieder",
@@ -5425,5 +5459,88 @@
     "add": "Hinzufügen",
     "mappingAdded": "Zuordnung hinzugefügt",
     "mappingDeleted": "Zuordnung gelöscht"
+  },
+  "datasets": {
+    "title": "Datasets",
+    "pageDescription": "Die Fragen, an denen Ihre Agents getestet werden. Jede Änderung an den Fällen eines Datasets erzeugt eine neue Version, sodass zwei Eval-Runs auf einer Version dieselben Fragen gesehen haben.",
+    "newDataset": "Neues Dataset",
+    "newDatasetBody": "Ein leeres Dataset, privat, bis Sie es freigeben. Fügen Sie Fälle von Hand hinzu, importieren Sie eine CSV- oder JSONL-Datei oder übernehmen Sie eine Antwort aus einem Gespräch.",
+    "noAccess": "Sie können die Datasets dieser Organisation nicht sehen",
+    "noAccessBody": "Bitten Sie einen Administrator um Zugriff auf Datasets.",
+    "datasetCount": "{count, plural, =1 {1 Dataset} other {# Datasets}}",
+    "search": "Datasets durchsuchen",
+    "noMatches": "Kein Dataset passt",
+    "noMatchesBody": "Durchsucht werden Namen und Beschreibungen.",
+    "empty": "Noch keine Datasets",
+    "emptyBody": "Ein Dataset enthält die Testfälle, an denen ein Agent geprüft wird.",
+    "deleteBody": "Alle Versionen und Fälle dieses Datasets werden gelöscht. Eval-Runs, die es verwendet haben, verlieren die Fragen, die sie beantwortet haben.",
+    "created": "{name} erstellt",
+    "deleted": "Dataset gelöscht",
+    "name": "Name",
+    "description": "Beschreibung",
+    "cancel": "Abbrechen",
+    "close": "Schließen",
+    "create": "Erstellen",
+    "add": "Hinzufügen",
+    "versionNumber": "v{number}",
+    "caseCount": "{count, plural, =1 {1 Fall} other {# Fälle}}",
+    "version": "Version",
+    "newestVersion": "Neueste Version",
+    "versionChange": "v{number} · {count, plural, =1 {1 Fall} other {# Fälle}} {change, select, add {hinzugefügt} edit {bearbeitet} remove {entfernt} import {importiert} other {geändert}}",
+    "importFile": "CSV- oder JSONL-Datei zum Importieren wählen",
+    "import": "Importieren",
+    "exportCsv": "CSV exportieren",
+    "exportJsonl": "JSONL exportieren",
+    "imported": "{count, plural, =1 {1 Fall} other {# Fälle}} als Version {version} importiert",
+    "caseAdded": "Fall als neue Version hinzugefügt",
+    "caseSaved": "Fall als neue Version gespeichert",
+    "caseRemoved": "Fall in einer neuen Version entfernt",
+    "turnsBefore": "{count, plural, =1 {1 früherer Zug} other {# frühere Züge}}",
+    "hasReference": "Referenzantwort",
+    "hasCounterExample": "Gegenbeispiel",
+    "expectedCalls": "{count, plural, =1 {1 erwarteter Aufruf} other {# erwartete Aufrufe}}",
+    "addCase": "Fall hinzufügen",
+    "cases": "Fälle",
+    "case": "Fall",
+    "noCases": "Keine Fälle in dieser Version",
+    "noCasesBody": "Fügen Sie einen Fall hinzu, importieren Sie eine Datei oder nutzen Sie „Zum Dataset hinzufügen“ an einer Antwort im Gespräch oder in Aktivität.",
+    "caseReadOnly": "Schreibgeschützt: eine ältere Version, oder Sie dürfen dieses Dataset nicht ändern.",
+    "caseSavesVersion": "Speichern erzeugt eine neue Version. Die Version davor behält diesen Fall, wie er war.",
+    "notJson": "Das ist kein gültiges JSON.",
+    "notList": "Das muss eine JSON-Liste sein.",
+    "saveCase": "Fall speichern",
+    "addToDataset": "Zum Dataset hinzufügen",
+    "addToDatasetBody": "Mit der Antwort kommen die Frage, das Gespräch davor und der Kommentar zum Daumen nach unten.",
+    "noDatasetToAddTo": "Es gibt kein Dataset, zu dem Sie hinzufügen dürfen. <link>Legen Sie zuerst eines an</link>.",
+    "dataset": "Dataset",
+    "keepAnswerAs": "Antwort behalten als",
+    "addedTo": "Zu {name} hinzugefügt",
+    "field": {
+      "input": "Eingabe",
+      "reference_answer": "Referenzantwort",
+      "counter_example": "Gegenbeispiel",
+      "note": "Notiz",
+      "history": "Gespräch vor der Eingabe",
+      "expected_tool_calls": "Erwartete Tool-Aufrufe",
+      "checks": "Prüfungen",
+      "tags": "Tags",
+      "tool_calls_ordered": "Die erwarteten Aufrufe müssen in dieser Reihenfolge erfolgen"
+    },
+    "hint": {
+      "input": "Die Nachricht, die der Agent beantwortet.",
+      "reference_answer": "Was eine gute Antwort sagt. Ein Judge vergleicht die Antwort des Agents damit.",
+      "counter_example": "Eine Antwort, die bekanntermaßen falsch ist, damit ein Judge einen Vergleich hat.",
+      "note": "Warum es den Fall gibt - was schiefging oder was er absichert.",
+      "history": "Frühere Züge, älteste zuerst, als JSON-Liste von Objekten mit Rolle (user oder assistant) und Inhalt. Für eine einzelne Nachricht leer lassen.",
+      "expected_tool_calls": "Tools, die der Agent aufrufen soll, als JSON-Liste von Objekten mit dem Tool-Namen und den Argumenten, die passen müssen. Nicht genannte Argumente werden ignoriert.",
+      "checks": "Prüfungen der Antwort, als JSON-Liste - zum Beispiel, dass sie eine Phrase enthält oder einem Muster entspricht.",
+      "tags": "Durch Kommas getrennt, zum Gruppieren von Ergebnissen."
+    },
+    "source": {
+      "manual": "Geschrieben",
+      "import": "Importiert",
+      "conversation": "Aus einem Gespräch",
+      "synthetic": "Generiert"
+    }
   }
 }

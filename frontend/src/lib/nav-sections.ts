@@ -9,6 +9,7 @@ import {
   Bot,
   Building2,
   Database,
+  FlaskConical,
   KeyRound,
   LayoutDashboard,
   MessageSquare,
@@ -75,6 +76,12 @@ export const NAV_GROUPS: NavGroup[] = [
       },
       { labelKey: "skills", href: ROUTES.SKILLS, icon: BookOpen, permission: Perm.skillsView },
       { labelKey: "context", href: ROUTES.CONTEXT, icon: FileText, permission: Perm.contextView },
+      {
+        labelKey: "datasets",
+        href: ROUTES.DATASETS,
+        icon: FlaskConical,
+        permission: Perm.datasetsView,
+      },
       {
         labelKey: "artifacts",
         href: ROUTES.ARTIFACTS,

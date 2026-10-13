@@ -57,7 +57,8 @@ export type WidgetId =
   | "activity-rhythm"
   | "routines"
   | "notifications"
-  | "artifacts";
+  | "artifacts"
+  | "datasets";
 
 /** The closed set of card widths the grid supports (12 columns). */
 export type Span = "s3" | "s4" | "s5" | "s6" | "s7" | "s8" | "s12";
@@ -525,6 +526,16 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultRows: "r4",
     category: "workspace",
     seeAll: ROUTES.ARTIFACTS,
+  },
+  // The datasets an eval would run over, gated on the permission `GET /datasets`
+  // itself asks.
+  datasets: {
+    id: "datasets",
+    gate: holds(Perm.datasetsView),
+    defaultSpan: "s6",
+    defaultRows: "r4",
+    category: "workspace",
+    seeAll: ROUTES.DATASETS,
   },
   "shared-with-you": {
     id: "shared-with-you",

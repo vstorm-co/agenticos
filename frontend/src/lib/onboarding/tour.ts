@@ -300,6 +300,22 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.contextView,
   },
 
+  // Datasets - the questions an agent is tested on. The same two stops as
+  // context: the create button (edit-gated) and the list (view-gated).
+  {
+    id: "datasets-new",
+    page: ROUTES.DATASETS,
+    target: "datasets-new",
+    permission: Perm.datasetsEdit,
+    inTour: true,
+  },
+  {
+    id: "datasets-list",
+    page: ROUTES.DATASETS,
+    target: "datasets-list",
+    permission: Perm.datasetsView,
+  },
+
   // Published artifacts - pages agents wrote. Nothing to create here (a run
   // publishes one), so a single describing stop on the list, view-gated.
   {
