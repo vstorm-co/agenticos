@@ -880,6 +880,7 @@ class AgentRegistryService:
                 visibility=agent.visibility,
                 owner_user_id=agent.owner_user_id,
                 current_version_id=agent.current_version_id,
+                system_key=agent.system_key,
                 has_avatar=agent.has_avatar,
                 avatar_color=agent.avatar_color,
                 categories=agent.categories,

@@ -2749,6 +2749,8 @@
     "newEnvironment": "Nowe środowisko",
     "noCapabilityOrToolMatches": "Żadna capability ani narzędzie nie pasuje do „{query}”.",
     "noDelegatesYet": "Brak delegatów. Tylko opublikowany agent może nim być - jest wtedy wersja do przypięcia.",
+    "systemAgent": "Systemowy",
+    "systemAgentHint": "Dodany przez platformę i przez nią uruchamiany, np. do oceniania odpowiedzi w ewaluacjach. Możesz go edytować jak każdego agenta.",
     "noDescription": "Brak opisu.",
     "noInstructionsWritten": "Nie napisano instrukcji",
     "noKey": "brak klucza",

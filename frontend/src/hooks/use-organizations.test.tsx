@@ -240,6 +240,16 @@ describe("useOrganizations", () => {
     await waitFor(() => expect(result.current.orgs[0]?.chat_may_waive_approvals).toBe(true));
   });
 
+  it("switches AI assistance with only that field, and keeps the answer", async () => {
+    const result = await hook();
+    vi.mocked(apiClient.patch).mockResolvedValue(org({ ai_assistance_enabled: false }));
+
+    await result.current.setAiAssistance("org-1", false);
+
+    expect(apiClient.patch).toHaveBeenCalledWith("/orgs/org-1", { ai_assistance_enabled: false });
+    await waitFor(() => expect(result.current.orgs[0]?.ai_assistance_enabled).toBe(false));
+  });
+
   it("drops a deleted organization and clears the selection if it was the one", async () => {
     useOrgStore.setState({ activeOrgId: "org-1" });
     const result = await hook();

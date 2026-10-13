@@ -34,6 +34,7 @@ from app.services import skill_library
 from app.services.deployment_settings import DeploymentSettingsService
 from app.services.file_storage import avatar_filename, get_file_storage
 from app.services.skills import SkillService
+from app.services.system_agents import SystemAgentService
 
 if TYPE_CHECKING:
     from app.services.rag.vectorstore import BaseVectorStore
@@ -59,6 +60,7 @@ def _org_read(org: Organization, member_count: int, role: str) -> OrganizationRe
         role=role,
         monthly_budget_usd=org.monthly_budget_usd,
         chat_may_waive_approvals=org.chat_may_waive_approvals,
+        ai_assistance_enabled=org.ai_assistance_enabled,
         created_at=org.created_at,
         updated_at=org.updated_at,
     )
@@ -162,6 +164,7 @@ class OrganizationService:
             role=OrgRole.OWNER.value,
         )
         await self._seed_bundled_skills(org.id, owner_id)
+        await SystemAgentService(self.db).seed(organization_id=org.id, owner_id=owner_id)
         return org
 
     async def _seed_bundled_skills(self, organization_id: UUID, owner_id: UUID) -> None:
@@ -252,6 +255,7 @@ class OrganizationService:
             role=OrgRole.OWNER.value,
         )
         await self._seed_bundled_skills(org.id, user_id)
+        await SystemAgentService(self.db).seed(organization_id=org.id, owner_id=user_id)
         return org
 
     async def update(
@@ -263,9 +267,9 @@ class OrganizationService:
         """Update org metadata and settings.
 
         Three permissions decide this PATCH, each covering the fields it names:
-        `org:settings` for the metadata (name, avatar), `budgets:manage` for
-        the monthly spending cap, `approvals:decide` for whether chat sessions
-        may waive approvals. The built-in Owner and Admin hold all three, so
+        `org:settings` for the metadata (name, avatar) and the AI assistance
+        switch, `budgets:manage` for the monthly spending cap, `approvals:decide`
+        for whether chat sessions may waive approvals. The built-in Owner and Admin hold all three, so
         nothing changes for them - but the catalog advertises each as its own
         entitlement, and a permission the matrix shows and no endpoint consults
         is a row that means nothing.
@@ -309,6 +313,11 @@ class OrganizationService:
         if wants_waiver and data.chat_may_waive_approvals is not None:
             org = await organization_repo.set_chat_approval_waiver(
                 self.db, org, allowed=data.chat_may_waive_approvals
+            )
+
+        if data.ai_assistance_enabled is not None:
+            org = await organization_repo.set_ai_assistance(
+                self.db, org, enabled=data.ai_assistance_enabled
             )
 
         return await organization_repo.update(

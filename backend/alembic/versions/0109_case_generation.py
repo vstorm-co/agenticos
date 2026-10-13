@@ -17,7 +17,7 @@ as `add` before restoring the narrower CHECK - what those versions did is still
 true, only the label is lost.
 
 Revision ID: 0109_case_generation
-Revises: 0106_datasets
+Revises: 0108_eval_scoring
 Create Date: 2026-10-13
 """
 
@@ -29,7 +29,7 @@ from sqlalchemy.dialects import postgresql
 from alembic import op
 
 revision: str = "0109_case_generation"
-down_revision: str | None = "0106_datasets"
+down_revision: str | None = "0108_eval_scoring"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

@@ -3657,6 +3657,7 @@ class AgentRunnerService:
         tool_calls: list[RecordedToolCall] | None = None,
         stream: RunStream | None = None,
         on_compaction: CompactionSink | None = None,
+        model_profile_id: UUID | None = None,
     ) -> tuple[str, AgentRun]:
         """Run an agent to completion and return its answer.
 
@@ -3665,6 +3666,8 @@ class AgentRunnerService:
 
         `environment_id` runs the version that environment pins - the API's way
         of exercising a dev environment before promoting it.
+
+        `model_profile_id` runs it on another model, as :meth:`prepare` describes.
 
         `attachments` are files that arrived with the message. They are routed
         here rather than by the caller because where an attachment *goes* depends
@@ -3702,6 +3705,7 @@ class AgentRunnerService:
             exposure=exposure,
             environment_id=environment_id,
             on_compaction=on_compaction,
+            model_profile_id=model_profile_id,
         )
         # `str | list[Any]`, not `str`: an attached image is folded in as
         # `BinaryContent` beside the text, and narrowing that back to a string
