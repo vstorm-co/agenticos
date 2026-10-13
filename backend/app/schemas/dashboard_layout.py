@@ -141,6 +141,7 @@ WIDGET_IDS: frozenset[str] = frozenset(
         "artifacts",
         "datasets",
         "knowledge-gaps",
+        "review-queue",
     }
 )
 

@@ -547,6 +547,26 @@ delegate to what.
 
 ---
 
+## System agents { #system-agents }
+
+Some agents are started by the platform rather than by a person: the **Eval
+judge** grades answers for [dataset scoring](datasets.md#judge). These are
+**system agents**. Every organization gets them when it is created, and an
+organization created earlier gets one the first time something needs it.
+
+A system agent is an ordinary agent. It is listed in Agents with a **System**
+badge, its instructions and model can be edited, it can be shared, and its runs
+are budget-checked and recorded like any other. It starts with a small monthly
+budget of its own, so a new organization cannot spend its whole budget on
+evaluation by accident.
+
+When the organization already has a model profile, the agent is published on
+the oldest one. Without one, it is created as a draft, and a person picks its
+model and publishes it. The features that use it say so until then.
+
+The organization's [AI assistance switch](governance.md#ai-assistance) decides
+whether system agents run at all.
+
 ## Model profiles
 
 A **model profile** is a named model backed by a stored key: `openai default`,

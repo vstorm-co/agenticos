@@ -194,6 +194,7 @@ dependencies = [
     # lite build: the same `phonenumbers` module and numbering-plan metadata,
     # without the 20 MB of carrier, geocoding and time zone data nothing here reads.
     "phonenumberslite>=9.0.40",
+    "jsonschema>=4.26.0",
 ]
 
 # No `[project.optional-dependencies]` entry for the `browser_use` capability's
@@ -839,6 +840,14 @@ include = [
     "app/schemas/knowledge_gap.py",
     "app/repositories/knowledge_gap.py",
     "app/services/knowledge_gaps.py",
+    "app/services/ai_assistance.py",
+    "app/services/system_agents.py",
+    "app/services/system_agent_runner.py",
+    "app/db/models/case_score.py",
+    "app/schemas/scoring.py",
+    "app/repositories/case_score.py",
+    "app/services/scorers.py",
+    "app/services/scoring.py",
     "app/db/models/artifact.py",
     "app/schemas/artifact.py",
     "app/repositories/artifact.py",
@@ -1243,6 +1252,14 @@ include = [
     "app/schemas/knowledge_gap.py",
     "app/repositories/knowledge_gap.py",
     "app/services/knowledge_gaps.py",
+    "app/services/ai_assistance.py",
+    "app/services/system_agents.py",
+    "app/services/system_agent_runner.py",
+    "app/db/models/case_score.py",
+    "app/schemas/scoring.py",
+    "app/repositories/case_score.py",
+    "app/services/scorers.py",
+    "app/services/scoring.py",
     "app/db/models/artifact.py",
     "app/schemas/artifact.py",
     "app/repositories/artifact.py",

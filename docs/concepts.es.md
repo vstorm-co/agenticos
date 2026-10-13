@@ -1,5 +1,5 @@
 ---
-source_sha: "bbb1801a8c80"
+source_sha: "1bd22ff5edac"
 ---
 
 # Conceptos { #concepts }
@@ -571,6 +571,26 @@ techos y las tools, y
 puede delegar en qué.
 
 ---
+
+## Agents del sistema { #system-agents }
+
+Algunos agents los inicia la plataforma y no una persona: el **Eval judge**
+califica respuestas para la [puntuación de datasets](datasets.md#judge). Son
+**agents del sistema**. Cada organización los recibe al crearse, y una
+organización creada antes recibe uno la primera vez que algo lo necesita.
+
+Un agent del sistema es un agent normal. Aparece en Agents con una insignia
+**System**, sus instrucciones y su modelo se pueden editar, se puede compartir,
+y sus runs se comprueban contra el budget y se registran como cualquier otro.
+Empieza con un budget mensual pequeño propio, para que una organización nueva
+no pueda gastar por accidente todo su budget en evaluación.
+
+Cuando la organización ya tiene un perfil de modelo, el agent se publica sobre
+el más antiguo. Sin ninguno, se crea como borrador, y una persona elige su
+modelo y lo publica. Hasta entonces, las funciones que lo usan lo indican.
+
+El [interruptor de asistencia de IA](governance.md#ai-assistance) de la
+organización decide si los agents del sistema se ejecutan en absoluto.
 
 ## Perfiles de modelo { #model-profiles }
 

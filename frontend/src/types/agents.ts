@@ -321,6 +321,12 @@ export interface Agent {
   visibility: Visibility;
   owner_user_id: string | null;
   current_version_id: string | null;
+  /**
+   * Set on an agent the platform seeded and starts itself - `eval_judge` for the
+   * eval judge. Edited and shared like any agent; the console marks it as a
+   * system agent.
+   */
+  system_key?: string | null;
   /** Whether `/api/agents/{id}/avatar` will answer with an image. */
   has_avatar?: boolean;
   /** Chosen default-avatar colour slot (1..10); null/absent is auto from the id. */

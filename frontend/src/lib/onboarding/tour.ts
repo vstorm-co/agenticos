@@ -61,6 +61,9 @@ export const SETTINGS_DETAIL = "settings-detail";
  */
 export const WORKSPACE_DETAIL = "workspace-detail";
 
+/** A dataset, `/datasets/<id>`, collapsed the same way: its cases, its scoring, its scores. */
+export const DATASET_DETAIL = "dataset-detail";
+
 /**
  * One stop on the guided tour.
  *
@@ -374,6 +377,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.runsView,
     optional: true,
   },
+  // Only on a focused run with an answer, for somebody who may run evals.
+  {
+    id: "runs-score-against-case",
+    page: ROUTES.RUNS,
+    target: "runs-score-against-case",
+    permission: Perm.datasetsRun,
+    optional: true,
+  },
 
   {
     id: "knowledge-new",
@@ -458,6 +469,24 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "kb-gaps",
     activate: "kb-tab-gaps",
     permission: Perm.runsView,
+  },
+
+  // A dataset, entered from the list. Its scoring and its scores are tabs, so each
+  // stop selects its own; the scores stop anchors on the review filter rather than
+  // the list, which can hold any number of results.
+  {
+    id: "dataset-scoring",
+    page: DATASET_DETAIL,
+    target: "datasets-scoring",
+    activate: "datasets-scoring-tab",
+    permission: Perm.datasetsView,
+  },
+  {
+    id: "dataset-scores",
+    page: DATASET_DETAIL,
+    target: "datasets-review-filter",
+    activate: "datasets-scores-tab",
+    permission: Perm.datasetsView,
   },
 
   { id: "orgs-new", page: ROUTES.ORGS, target: "orgs-new" },
@@ -615,6 +644,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
 const SECTION_FLOWS: readonly (readonly string[])[] = [
   [ROUTES.AGENTS, AGENT_BUILDER],
   [ROUTES.RAG, KB_DETAIL],
+  [ROUTES.DATASETS, DATASET_DETAIL],
   [ROUTES.ORGS, ORG_MEMBERS, ORG_ROLES],
 ];
 
@@ -622,6 +652,7 @@ const SECTION_FLOWS: readonly (readonly string[])[] = [
 export function pageKey(path: string): string {
   if (path.startsWith(`${ROUTES.AGENTS}/`)) return AGENT_BUILDER;
   if (path.startsWith(`${ROUTES.RAG}/`)) return KB_DETAIL;
+  if (path.startsWith(`${ROUTES.DATASETS}/`)) return DATASET_DETAIL;
   if (path.startsWith(`${ROUTES.ORGS}/`)) {
     if (path.endsWith("/roles")) return ORG_ROLES;
     if (path.endsWith("/retention")) return ORG_RETENTION;

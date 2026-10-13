@@ -353,6 +353,8 @@
     "newEnvironment": "New environment",
     "noCapabilityOrToolMatches": "No capability or tool matches “{query}”.",
     "noDelegatesYet": "No delegates yet. Only a published agent can be one - there is a version to pin.",
+    "systemAgent": "System",
+    "systemAgentHint": "Seeded by the platform and started by it, for example to judge eval answers. You can edit it like any agent.",
     "noDescription": "No description.",
     "noInstructionsWritten": "No instructions written",
     "noKey": "no key",
@@ -1751,6 +1753,7 @@
         "names": {
           "api": "HTTP API",
           "embed": "Widget",
+          "eval": "Evals",
           "mattermost": "Mattermost",
           "playground": "Playground",
           "schedule": "Schedule",
@@ -1892,6 +1895,19 @@
         "empty": {
           "title": "Nothing published yet",
           "description": "Reports and dashboards an agent publishes appear here."
+        }
+      },
+      "reviewQueue": {
+        "title": "Awaiting review",
+        "description": "Eval results waiting for a person's verdict.",
+        "waiting": "{count, plural, =1 {1 result waits} other {# results wait}} for a verdict",
+        "allPassed": "All required scorers passed",
+        "passed": "Passed",
+        "didNotPass": "Did not pass",
+        "unscored": "Unscored",
+        "empty": {
+          "title": "Nothing to review",
+          "description": "Results a dataset sends for review appear here."
         }
       },
       "datasets": {
@@ -3350,6 +3366,18 @@
         "title": "Collect test cases",
         "body": "A dataset holds the questions an agent is tested on. Create one here, then add cases by hand, from a file, or from a rated-down answer."
       },
+      "runs-score-against-case": {
+        "title": "Score this run",
+        "body": "Check this run's answer against a case of a dataset: its checks, the tool calls it expected and, if configured, the eval judge. The score is kept on the dataset."
+      },
+      "dataset-scoring": {
+        "title": "How cases are scored",
+        "body": "Pick the scorers: rule-based checks, the expected tool calls, and the eval judge with a rubric or the reference answer. Mark which ones a case must pass."
+      },
+      "dataset-scores": {
+        "title": "Scores and review",
+        "body": "Every score kept for this dataset, with each scorer's reason. Show only those awaiting review, and overrule the judge when it is wrong - its opinion stays on record."
+      },
       "datasets-list": {
         "title": "Your datasets",
         "body": "Every change to a dataset's cases makes a new version, so an eval run always points at questions that do not move."
@@ -4213,6 +4241,7 @@
       "surface": "Surface",
       "surfaceApi": "API",
       "surfaceEmbed": "Embed",
+      "surfaceEval": "Eval",
       "surfaceFilter": "Filter by surface",
       "surfaceMattermost": "Mattermost",
       "surfaceSchedule": "Schedule",
@@ -4960,6 +4989,12 @@
   },
   "teams": {
     "acmeCom": "acme.com",
+    "aiAssistance": "AI assistance",
+    "aiAssistanceDescription": "Whether models may judge eval answers, draft test cases and propose changes to agents.",
+    "aiAssistanceHint": "When this is off, nothing here calls a model to judge, generate or propose: the eval judge, the case generator and the authoring assistant are refused. Deterministic checks and people's verdicts keep working.",
+    "aiAssistanceOn": "AI assistance is on",
+    "aiAssistanceOff": "AI assistance is off",
+    "aiAssistanceFailed": "Could not change AI assistance",
     "approvalWaiver": "Waiving approvals in chat",
     "approvalWaiverDescription": "Whether a conversation may run without stopping for approvals.",
     "approvalWaiverHint": "When this is on, somebody who may decide approvals can let one conversation run every gated tool call without being asked. Each waived call is still recorded against their account.",
@@ -5620,6 +5655,85 @@
     "mappingDeleted": "Mapping deleted"
   },
   "datasets": {
+    "scoring": {
+      "title": "Scoring",
+      "description": "How this dataset's cases are scored. Rule-based checks cost nothing; the eval judge spends from its own budget and is off while AI assistance is switched off.",
+      "save": "Save scoring",
+      "saved": "Scoring saved",
+      "required": "Required",
+      "optional": "optional",
+      "scorer": {
+        "check": "Checks",
+        "trajectory": "Tool calls",
+        "judge": "Judge",
+        "reference": "Reference answer"
+      },
+      "checksHint": "Each case's own checks, plus the defaults below for every case: contains, not_contains, equals, regex, json_schema, max_cost_usd, max_latency_ms and judge criteria.",
+      "defaults": "Checks every case gets",
+      "defaultsNotJson": "Write the checks as a JSON list",
+      "trajectoryHint": "The tools the agent called against the case's expected calls, in the case's order mode.",
+      "judgeHint": "The eval judge grades every answer on the rubric below. Each grade is a run in Activity.",
+      "judgeModel": "Judge's model",
+      "judgeOwnModel": "The judge agent's own model",
+      "scaleMax": "Top of the scale",
+      "passAt": "Passes at",
+      "criterionName": "Criterion name",
+      "criterionNamePlaceholder": "correctness",
+      "criterionDescription": "What the criterion asks",
+      "criterionDescriptionPlaceholder": "The refund window and the conditions are stated correctly",
+      "addCriterion": "Add criterion",
+      "removeCriterion": "Remove criterion",
+      "referenceHint": "The judge compares the answer with the case's reference answer, where the case has one.",
+      "reviewSelect": "Send to the review queue",
+      "review": {
+        "none": "Nothing, until somebody sends one",
+        "failed": "Results that did not pass",
+        "all": "Every result"
+      },
+      "scores": "Scores",
+      "scoreCount": "{count, plural, =1 {1 score} other {# scores}}",
+      "onlyAwaitingReview": "Only awaiting review",
+      "noScores": "No scores yet",
+      "nothingAwaitingReview": "Nothing is waiting for review",
+      "noScoresBody": "Score a run against a case from Activity, and the result is kept here.",
+      "passed": "Passed",
+      "failed": "Failed",
+      "unscored": "Unscored",
+      "status": {
+        "pass": "Pass",
+        "fail": "Fail",
+        "skipped": "Skipped",
+        "error": "Error"
+      },
+      "decidedByPerson": "Decided by a person",
+      "awaitingReview": "Awaiting review",
+      "scoredRun": "Scored run",
+      "judgeRun": "Judge's run",
+      "verdictNote": "Note",
+      "verdictNotePlaceholder": "Why, for whoever reads this next (optional)",
+      "markPassed": "Mark passed",
+      "markFailed": "Mark failed",
+      "withdrawVerdict": "Withdraw verdict",
+      "verdictSaved": "Verdict saved",
+      "verdictWithdrawn": "Verdict withdrawn",
+      "sendToReview": "Send to review",
+      "sentToReview": "Sent to the review queue",
+      "reason": {
+        "aiAssistanceOff": "AI assistance is switched off for this organization, so the judge did not run.",
+        "judgeUnpublished": "The eval judge has no published version. Pick its model and publish it.",
+        "judgeArchived": "The eval judge is archived. Restore it to grade again.",
+        "judgeNoAccess": "You may not run the eval judge. Ask for access to it.",
+        "judgeNotSeeded": "The eval judge could not be set up in this organization.",
+        "judgeBudget": "The eval judge's budget is spent, so it did not run."
+      },
+      "scoreRun": "Score against a case",
+      "scoreRunBody": "Run every scorer the dataset configures on this run's answer. The result is kept on the dataset.",
+      "noDatasetToScore": "There is no dataset to score against yet. <link>Create one</link> and add a case.",
+      "noCaseToScore": "This dataset has no case yet",
+      "score": "Score",
+      "scoring": "Scoring…",
+      "close": "Close"
+    },
     "title": "Datasets",
     "pageDescription": "The questions your agents are tested on. Every change to a dataset's cases makes a new version, so two eval runs on one version saw the same questions.",
     "newDataset": "New dataset",

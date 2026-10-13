@@ -646,6 +646,15 @@ def get_knowledge_gap_service(db: DBSession) -> KnowledgeGapService:
 
 
 KnowledgeGapSvc = Annotated[KnowledgeGapService, Depends(get_knowledge_gap_service)]
+from app.services.scoring import ScoringService
+
+
+def get_scoring_service(db: DBSession) -> ScoringService:
+    """Create ScoringService instance with database session."""
+    return ScoringService(db)
+
+
+ScoringSvc = Annotated[ScoringService, Depends(get_scoring_service)]
 
 from app.services.artifact import ArtifactService
 

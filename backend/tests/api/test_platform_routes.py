@@ -341,6 +341,7 @@ CALLS: tuple[Call, ...] = (
         Perm.RUNS_VIEW,
         body={"dataset_id": "00000000-0000-0000-0000-000000000001"},
     ),
+    Call("GET", "/datasets/review-queue", Perm.DATASETS_VIEW),
     # Which providers exist and what shape of credential each takes is read by
     # the Builder's model picker, so it is gated on seeing agents rather than on
     # managing connections. Knowing Bedrock wants a key pair is not a secret.
@@ -901,6 +902,9 @@ RESOURCE_AWARE_SERVICES = (
     # A knowledge gap belongs to a collection: reading one resolves the caller's
     # access to that knowledge base, and adding it to a dataset to that dataset.
     deps.get_knowledge_gap_service,
+    # Scoring acts on one dataset: configuring it, scoring against it and
+    # recording a verdict resolve the dataset's grants in the service.
+    deps.get_scoring_service,
     # A memory file rides on its parent agent: every `/memory` route resolves access
     # to the agent, per agent rather than per role.
     deps.get_memory_service,

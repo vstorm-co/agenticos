@@ -1,5 +1,5 @@
 ---
-source_sha: "fb4f5a9287ce"
+source_sha: "8a6523a64b8b"
 ---
 
 # Protección de datos { #data-protection }
@@ -83,6 +83,7 @@ cuelga, y leerla pasa por la comprobación del padre.
 | `context_files` | Conocimiento permanente que un builder escribió para los agents | Lo que el autor pusiera ahí — y llega al prompt literalmente. Consulta [Archivos de contexto](context.md) | Instrucciones y hechos que un agent debe saber siempre |
 | `datasets`, `dataset_cases` | Casos de prueba para evals | Preguntas y respuestas copiadas de conversaciones cuando alguien eligió "Añadir al dataset", y lo que contenía un archivo importado. Las credenciales se ocultan antes de guardar un caso. Consulta [Datasets](datasets.md#personal-data) | Comprobar si un agent mejoró |
 | `knowledge_searches`, `knowledge_gap_topics`, `knowledge_gap_members` | Cada búsqueda de conocimiento que un agent hizo en un run, y los fallos agrupados en temas | La consulta que el agent formuló a partir de la pregunta de alguien, las colecciones en las que buscó y lo cerca que estaba el fragmento más cercano. Un tema no copia texto: guarda una media vectorial de sus preguntas y lee todo lo demás de las búsquedas. Consulta [Lagunas de conocimiento](knowledge-gaps.md#personal-data) | Mostrar qué preguntas no pudo responder la base de conocimiento |
+| `case_scores` | Lo que la puntuación determinó sobre la respuesta de un run a un caso | Los motivos del juez de evals, que pueden citar la respuesta que calificó; el veredicto y la nota de una persona, y quién lo dio. Las credenciales se ocultan antes de guardar una puntuación. Consulta [Datasets](datasets.md#review) | Decidir si la respuesta de un agent aprobó |
 | `artifacts`, `artifact_versions` y sus archivos | Páginas que los agents publicaron — informes, dashboards | Lo que muestre la página, que el run construyó con lo que podía leer; el propietario, el run que escribió cada versión y, cuando hay uno activo, la clave del enlace público, sus ajustes (una contraseña como hash bcrypt) y cuántas veces se abrió — un número y una hora, nada sobre el visitante. Consulta [Artefactos](artifacts.md) | Compartir un resultado bajo un enlace estable |
 | `agent_memory_files` | Notas que un agent escribió sobre una persona o un chat de grupo | Lo que el agent decidiera que valía la pena recordar, con clave `person:<user_id>` o una sala de chat | Continuidad entre conversaciones |
 | `rag_documents`, `knowledge_bases` y una tabla vectorial por colección | Documentos subidos y sincronizados, sus chunks y sus embeddings | El texto del documento y sus vectores, la ruta original del archivo en el origen | Recuperación |

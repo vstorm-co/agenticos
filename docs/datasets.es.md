@@ -1,5 +1,5 @@
 ---
-source_sha: "f53465df8b7d"
+source_sha: "38969973baf1"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -26,7 +26,7 @@ verdad la decepcionó.
 | Respuesta de referencia | Lo que dice una buena respuesta |
 | Contraejemplo | Una respuesta que se sabe incorrecta |
 | Llamadas a herramientas esperadas | Las herramientas que el agent debería llamar, cada una con los argumentos que deben coincidir. Los argumentos que el caso no indica se ignoran. Un caso también indica cómo se comparan las llamadas: `any` en cualquier orden, `in_order` en el orden dado con otras llamadas permitidas entre ellas, o `exact`: exactamente estas, en este orden, y ninguna otra |
-| Comprobaciones | Reglas sobre la respuesta, cada una un objeto cuyo `type` nombra la regla, con sus parámetros al lado. Un caso las guarda; la puntuación las lee y decide qué tipos existen |
+| Comprobaciones | Reglas sobre la respuesta, cada una un objeto cuyo `type` nombra la regla, con sus parámetros al lado. [La puntuación](#checks) enumera los tipos, y un caso con un tipo que no conoce se rechaza |
 | Etiquetas | Rótulos para agrupar resultados, como `billing` o `refusal` |
 | Nota | Por qué existe el caso: qué salió mal o qué protege |
 | Origen | `manual`, `import`, `conversation` o `synthetic`: lo fija la plataforma, no se escribe |
@@ -129,6 +129,114 @@ modelo o que lleva una exportación, incluidos los argumentos de una llamada a
 herramienta esperada, y a cada forma de añadir un caso. La entrada de auditoría
 del cambio registra cuántos valores se ocultaron, nunca los valores.
 
+## Puntuación { #scoring }
+
+Un dataset indica cómo se puntúan sus casos en su pestaña **Scoring**. Cuatro
+evaluadores pueden aplicarse a un caso, y cada uno se activa o desactiva y se
+marca como obligatorio o no:
+
+| Evaluador | Qué compara | Coste |
+|---|---|---|
+| Comprobaciones | La respuesta con las reglas del caso, y con reglas por defecto que el dataset da a cada caso | Nada |
+| Llamadas a herramientas | Las herramientas que llamó el agent con las llamadas esperadas del caso | Nada |
+| Juez | La respuesta con una rúbrica de criterios con nombre, calificada por el juez de evals | Un run del juez |
+| Respuesta de referencia | La respuesta con la respuesta de referencia del caso, calificada por el juez de evals | El mismo run del juez |
+
+Cada evaluador devuelve aprobado o suspendido, una puntuación de 0 a 1 y un
+motivo. Un caso **aprueba** cuando aprueba cada evaluador obligatorio. Cuando un
+evaluador obligatorio no pudo ejecutarse (el juez estaba desactivado, su budget
+se había agotado), el caso queda **sin puntuar**, no aprobado: un resultado que
+nadie comprobó no cuenta como aprobado.
+
+La configuración no se versiona con los casos, porque cómo califica un equipo no
+es lo que pregunta. Cada puntuación guarda una copia de la configuración con la
+que se calculó, así que una puntuación anterior sigue diciendo cómo se obtuvo
+después de que cambie la configuración.
+
+### Comprobaciones { #checks }
+
+| `type` | Parámetros | Aprueba cuando |
+|---|---|---|
+| `contains`, `not_contains` | `value`, opcionales `path`, `case_sensitive` | La respuesta contiene el valor, o no lo contiene |
+| `equals` | `value`, opcionales `path`, `case_sensitive` | La respuesta, sin espacios al principio ni al final, es el valor |
+| `regex` | `value` (como máximo 500 caracteres), opcionales `path`, `case_sensitive` | El patrón coincide en algún punto de la respuesta |
+| `json_schema` | `schema`, opcional `path` | La respuesta es JSON que cumple el JSON Schema |
+| `max_cost_usd` | `value` | El run no costó más que esto |
+| `max_latency_ms` | `value` | El run no tardó más que esto |
+| `judge` | `criterion` | El juez de evals califica el criterio en la nota de aprobado o por encima |
+
+`path` lee dentro de una respuesta que es JSON: `items.0.name` es el nombre del
+primer elemento. Sin él, una regla lee la respuesta entera. Las reglas de texto
+no distinguen mayúsculas de minúsculas salvo que `case_sensitive` sea true. Un
+patrón se comprueba al escribir el caso, y una regla lee como máximo los
+primeros 100.000 caracteres de una respuesta, así que un patrón no puede volver
+lenta la puntuación.
+
+Una comprobación `judge` es un criterio solo para un caso, calificado en el
+mismo run del juez que la rúbrica del dataset. Úsala para lo que una regla no
+puede expresar, como "se niega y no revela la dirección del cliente".
+
+### Llamadas a herramientas { #trajectory }
+
+Las llamadas del agent se comparan con las llamadas esperadas del caso por
+nombre de herramienta y por cada argumento que el caso indica. El modo de orden
+del caso decide qué aprueba: con `any`, se produjo cada llamada esperada; con
+`in_order`, se produjeron en el orden indicado; con `exact`, son las únicas
+llamadas y en ese orden. El motivo nombra lo que faltó, lo que no se esperaba o
+que el orden era distinto. Una escritura que un run aislado bloqueó sigue
+contando como una llamada que hizo el agent.
+
+Una llamada se compara por el nombre de herramienta que registró el run, que es
+el nombre después de cualquier sustitución en el spec. Un caso escrito antes de
+que se renombrara una herramienta espera el nombre antiguo.
+
+### El juez { #judge }
+
+El juez es el **Eval judge**, un agent que la plataforma añade a cada
+organización (consulta [Agents del sistema](concepts.md#system-agents)). Se
+ejecuta como la persona que pidió la puntuación: se comprueba su acceso a él, se
+comprueba contra su propio budget y el de la organización antes de llamar al
+modelo, y su run aparece en Activity bajo la superficie `eval`. Sus
+instrucciones se pueden editar como las de cualquier agent, y un dataset puede
+indicar otro modelo para él.
+
+Cada criterio se califica de 1 al máximo de la escala y aprueba en la nota de
+aprobado o por encima. Cuando el juez no puede calificar, sus criterios se
+registran como omitidos o como errores, con un motivo que nombra la causa: la
+asistencia de IA está desactivada, el juez no tiene una versión publicada, está
+archivado, la persona no puede ejecutarlo o su budget se ha agotado. Los
+evaluadores basados en reglas siguen puntuando.
+
+### Revisión y veredictos { #review }
+
+Un dataset puede enviar resultados a una **cola de revisión**: ninguno hasta que
+alguien envíe uno, cada resultado que no aprobó, o cada resultado. La pestaña
+Scores muestra los resultados de un dataset, y la tarjeta del dashboard
+**Awaiting review** muestra la cola de todos los datasets que puedes ver.
+
+El veredicto de una persona se guarda junto a los resultados de los evaluadores
+y decide el resultado final. Nunca cambia lo que dijo el juez: las
+calificaciones y los motivos del juez se quedan en la puntuación después de que
+se anule. Un veredicto se puede retirar, y la puntuación vuelve entonces a
+esperar revisión.
+
+### Puntuar un run { #scoring-a-run }
+
+En **Activity**, abre un run y elige **Score against a case**. Elige el dataset
+y el caso, y la respuesta y las llamadas a herramientas del run se puntúan con
+cada evaluador que configura el dataset. Un run sin transcripción no tiene
+respuesta que puntuar.
+
+| Para | Necesitas |
+|---|---|
+| Cambiar cómo se puntúa un dataset | `datasets:edit` sobre él |
+| Puntuar un run contra él | `datasets:run` sobre él, y `runs:view` |
+| Leer sus puntuaciones | `datasets:view` sobre él |
+| Registrar o retirar un veredicto | `datasets:edit` sobre él |
+
+Un motivo que escribió el juez pasa por la misma ocultación de credenciales que
+un caso antes de guardarse.
+
 ## Acceso { #access }
 
 Un dataset es un recurso compartido con un propietario, una visibilidad y
@@ -163,3 +271,8 @@ run, la conversación y el mensaje de los que procede, y quién lo añadió si e
 la persona borrada. Lo que queda es el texto, que puede seguir conteniendo datos
 personales que alguien escribió y que solo desaparece al eliminar el caso.
 Consulta [Protección de datos](data-protection.md#what-deletion-reaches).
+
+Una puntuación se conserva de la misma forma. Cuando se elimina el run que
+puntuó, la puntuación se queda sin el vínculo con él, y cuando se borra a la
+persona que la pidió o la decidió, su nombre se quita de ella. El motivo de un
+juez puede citar la respuesta que calificó.

@@ -1,5 +1,5 @@
 ---
-source_sha: "fb4f5a9287ce"
+source_sha: "8a6523a64b8b"
 ---
 
 # Ochrona danych { #data-protection }
@@ -80,6 +80,7 @@ przez sprawdzenie rodzica.
 | `context_files` | Stała wiedza, którą builder napisał dla agentów | Cokolwiek autor tam umieścił — i trafia to do promptu dosłownie. Zobacz [Pliki kontekstu](context.md) | Instrukcje i fakty, które agent zawsze ma znać |
 | `datasets`, `dataset_cases` | Przypadki testowe do evali | Pytania i odpowiedzi skopiowane z rozmów, gdy ktoś wybrał „Dodaj do datasetu”, oraz to, co zawierał zaimportowany plik. Poświadczenia są redagowane przed zapisaniem przypadku. Zobacz [Datasety](datasets.md#personal-data) | Sprawdzanie, czy agent się poprawił |
 | `knowledge_searches`, `knowledge_gap_topics`, `knowledge_gap_members` | Każde wyszukiwanie w wiedzy wykonane przez agenta w runie oraz chybione wyszukiwania pogrupowane w tematy | Zapytanie, które agent sformułował z czyjegoś pytania, przeszukane kolekcje i to, jak blisko był najbliższy fragment. Temat nie kopiuje tekstu: trzyma średnią wektorów swoich pytań, a resztę czyta z wyszukiwań. Zobacz [Luki w wiedzy](knowledge-gaps.md#personal-data) | Pokazywanie, na które pytania baza wiedzy nie miała odpowiedzi |
+| `case_scores` | Co ocenianie ustaliło o odpowiedzi jednego runa na jeden przypadek | Uzasadnienia sędziego evali, które mogą cytować ocenianą odpowiedź; werdykt i notatka osoby oraz to, kto je wydał. Poświadczenia są redagowane przed zapisaniem wyniku. Zobacz [Zbiory danych](datasets.md#review) | Rozstrzyganie, czy odpowiedź agenta zaliczyła |
 | `artifacts`, `artifact_versions` i ich pliki | Strony opublikowane przez agentów — raporty, dashboardy | Cokolwiek strona pokazuje, a run zbudował ją z tego, co mógł przeczytać; właściciel, run, który zapisał każdą wersję, i — gdy jest włączony — klucz publicznego linku, jego ustawienia (hasło jako hash bcrypt) i to, ile razy go otwarto — liczba i czas, nic o odwiedzającym. Zobacz [Artefakty](artifacts.md) | Udostępnienie wyniku pod stałym linkiem |
 | `agent_memory_files` | Notatki, które agent napisał o osobie albo o czacie grupowym | Cokolwiek agent uznał za warte zapamiętania, kluczowane przez `person:<user_id>` albo pokój czatu | Ciągłość między rozmowami |
 | `rag_documents`, `knowledge_bases` i jedna tabela wektorowa na kolekcję | Wgrane i zsynchronizowane dokumenty, ich chunki i embeddingi | Tekst dokumentu i jego wektory, oryginalna ścieżka pliku w źródle | Wyszukiwanie |

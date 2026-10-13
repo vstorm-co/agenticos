@@ -10,7 +10,7 @@ no text of its own. Nothing existing is touched, so the downgrade drops the new
 tables and loses only what was written into them.
 
 Revision ID: 0110_knowledge_gaps
-Revises: 0106_datasets
+Revises: 0108_eval_scoring
 Create Date: 2026-10-13
 """
 
@@ -22,7 +22,7 @@ from sqlalchemy.dialects import postgresql
 from alembic import op
 
 revision: str = "0110_knowledge_gaps"
-down_revision: str | None = "0106_datasets"
+down_revision: str | None = "0108_eval_scoring"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

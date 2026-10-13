@@ -49,6 +49,7 @@ from app.repositories import directory_mapping as directory_mapping_repo
 from app.repositories import skill as skill_repo
 from app.repositories import artifact as artifact_repo
 from app.repositories import context as context_repo
+from app.repositories import case_score as case_score_repo
 from app.repositories import dataset as dataset_repo
 from app.repositories import knowledge_gap as knowledge_gap_repo
 from app.repositories import memory as memory_repo
@@ -120,6 +121,7 @@ __all__ = [
     "skill_repo",
     "artifact_repo",
     "context_repo",
+    "case_score_repo",
     "dataset_repo",
     "knowledge_gap_repo",
     "memory_repo",

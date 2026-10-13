@@ -353,6 +353,8 @@
     "newEnvironment": "Neues Environment",
     "noCapabilityOrToolMatches": "Keine Capability und kein Tool passt zu „{query}“.",
     "noDelegatesYet": "Noch keine Delegaten. Nur ein veröffentlichter Agent kann einer sein – dann gibt es eine Version zum Festsetzen.",
+    "systemAgent": "System",
+    "systemAgentHint": "Von der Plattform angelegt und von ihr gestartet, etwa um Eval-Antworten zu bewerten. Sie können ihn wie jeden Agenten bearbeiten.",
     "noDescription": "Keine Beschreibung.",
     "noInstructionsWritten": "Keine Instruktionen geschrieben",
     "noKey": "kein Schlüssel",
@@ -1737,6 +1739,7 @@
         "names": {
           "api": "HTTP-API",
           "embed": "Widget",
+          "eval": "Evals",
           "mattermost": "Mattermost",
           "playground": "Playground",
           "schedule": "Zeitplan",
@@ -1878,6 +1881,19 @@
         "empty": {
           "title": "Noch nichts veröffentlicht",
           "description": "Hier erscheinen Berichte und Dashboards, die ein Agent veröffentlicht."
+        }
+      },
+      "reviewQueue": {
+        "title": "Wartet auf Prüfung",
+        "description": "Eval-Ergebnisse, die auf das Urteil eines Menschen warten.",
+        "waiting": "{count, plural, =1 {1 Ergebnis wartet} other {# Ergebnisse warten}} auf ein Urteil",
+        "allPassed": "Alle erforderlichen Bewertungen bestanden",
+        "passed": "Bestanden",
+        "didNotPass": "Nicht bestanden",
+        "unscored": "Nicht bewertet",
+        "empty": {
+          "title": "Nichts zu prüfen",
+          "description": "Ergebnisse, die ein Dataset zur Prüfung sendet, erscheinen hier."
         }
       },
       "datasets": {
@@ -3213,6 +3229,18 @@
         "title": "Testfälle sammeln",
         "body": "Ein Dataset enthält die Fragen, an denen ein Agent getestet wird. Legen Sie hier eines an und fügen Sie Fälle von Hand, aus einer Datei oder aus einer negativ bewerteten Antwort hinzu."
       },
+      "runs-score-against-case": {
+        "title": "Diesen Run bewerten",
+        "body": "Prüfen Sie die Antwort dieses Runs gegen einen Fall eines Datasets: seine Prüfungen, die erwarteten Tool-Aufrufe und, falls eingerichtet, den Eval-Bewerter. Das Ergebnis wird im Dataset gespeichert."
+      },
+      "dataset-scoring": {
+        "title": "Wie Fälle bewertet werden",
+        "body": "Wählen Sie die Bewertungen: regelbasierte Prüfungen, die erwarteten Tool-Aufrufe und den Eval-Bewerter mit einer Rubrik oder der Referenzantwort. Legen Sie fest, welche ein Fall bestehen muss."
+      },
+      "dataset-scores": {
+        "title": "Ergebnisse und Prüfung",
+        "body": "Jedes für dieses Dataset gespeicherte Ergebnis, mit der Begründung jeder Bewertung. Zeigen Sie nur wartende Prüfungen und überstimmen Sie den Bewerter, wenn er falsch liegt - seine Einschätzung bleibt erhalten."
+      },
       "datasets-list": {
         "title": "Ihre Datasets",
         "body": "Jede Änderung an den Fällen erzeugt eine neue Version, sodass ein Eval-Run immer auf Fragen zeigt, die sich nicht ändern."
@@ -4072,6 +4100,7 @@
       "surface": "Oberfläche",
       "surfaceApi": "API",
       "surfaceEmbed": "Embed",
+      "surfaceEval": "Eval",
       "surfaceFilter": "Nach Oberfläche filtern",
       "surfaceMattermost": "Mattermost",
       "surfaceSchedule": "Zeitplan",
@@ -4818,6 +4847,12 @@
   },
   "teams": {
     "acmeCom": "acme.com",
+    "aiAssistance": "KI-Unterstützung",
+    "aiAssistanceDescription": "Ob Modelle Eval-Antworten bewerten, Testfälle entwerfen und Änderungen an Agenten vorschlagen dürfen.",
+    "aiAssistanceHint": "Ist sie aus, ruft hier nichts ein Modell zum Bewerten, Erzeugen oder Vorschlagen auf: der Eval-Bewerter, der Fallgenerator und der Authoring-Assistent werden abgelehnt. Deterministische Prüfungen und Urteile von Menschen funktionieren weiter.",
+    "aiAssistanceOn": "KI-Unterstützung ist an",
+    "aiAssistanceOff": "KI-Unterstützung ist aus",
+    "aiAssistanceFailed": "KI-Unterstützung konnte nicht geändert werden",
     "approvalWaiver": "Freigaben im Chat übergehen",
     "approvalWaiverDescription": "Ob eine Unterhaltung laufen darf, ohne für Freigaben anzuhalten.",
     "approvalWaiverHint": "Ist dies aktiv, kann jemand, der über Freigaben entscheiden darf, eine Unterhaltung jeden gebremsten Tool-Aufruf ungefragt ausführen lassen. Jeder übergangene Aufruf wird weiterhin auf sein Konto protokolliert.",
@@ -5478,6 +5513,85 @@
     "mappingDeleted": "Zuordnung gelöscht"
   },
   "datasets": {
+    "scoring": {
+      "title": "Bewertung",
+      "description": "Wie die Fälle dieses Datasets bewertet werden. Regelbasierte Prüfungen kosten nichts; der Eval-Bewerter gibt aus seinem eigenen Budget aus und ist aus, solange die KI-Unterstützung ausgeschaltet ist.",
+      "save": "Bewertung speichern",
+      "saved": "Bewertung gespeichert",
+      "required": "Erforderlich",
+      "optional": "optional",
+      "scorer": {
+        "check": "Prüfungen",
+        "trajectory": "Tool-Aufrufe",
+        "judge": "Bewerter",
+        "reference": "Referenzantwort"
+      },
+      "checksHint": "Die Prüfungen jedes Falls und die folgenden Standards für alle Fälle: contains, not_contains, equals, regex, json_schema, max_cost_usd, max_latency_ms und Kriterien für den Bewerter.",
+      "defaults": "Prüfungen für jeden Fall",
+      "defaultsNotJson": "Schreiben Sie die Prüfungen als JSON-Liste",
+      "trajectoryHint": "Die Tools, die der Agent aufgerufen hat, gegen die erwarteten Aufrufe des Falls, im Reihenfolgemodus des Falls.",
+      "judgeHint": "Der Eval-Bewerter benotet jede Antwort nach der folgenden Rubrik. Jede Benotung ist ein Run in Activity.",
+      "judgeModel": "Modell des Bewerters",
+      "judgeOwnModel": "Das eigene Modell des Bewerter-Agenten",
+      "scaleMax": "Oberes Ende der Skala",
+      "passAt": "Bestanden ab",
+      "criterionName": "Name des Kriteriums",
+      "criterionNamePlaceholder": "korrektheit",
+      "criterionDescription": "Was das Kriterium verlangt",
+      "criterionDescriptionPlaceholder": "Rückgabefrist und Bedingungen sind korrekt angegeben",
+      "addCriterion": "Kriterium hinzufügen",
+      "removeCriterion": "Kriterium entfernen",
+      "referenceHint": "Der Bewerter vergleicht die Antwort mit der Referenzantwort des Falls, sofern es eine gibt.",
+      "reviewSelect": "In die Prüfwarteschlange senden",
+      "review": {
+        "none": "Nichts, bis jemand etwas sendet",
+        "failed": "Ergebnisse, die nicht bestanden haben",
+        "all": "Jedes Ergebnis"
+      },
+      "scores": "Ergebnisse",
+      "scoreCount": "{count, plural, =1 {1 Ergebnis} other {# Ergebnisse}}",
+      "onlyAwaitingReview": "Nur wartende Prüfungen",
+      "noScores": "Noch keine Ergebnisse",
+      "nothingAwaitingReview": "Nichts wartet auf eine Prüfung",
+      "noScoresBody": "Bewerten Sie einen Run in Activity gegen einen Fall, dann wird das Ergebnis hier gespeichert.",
+      "passed": "Bestanden",
+      "failed": "Nicht bestanden",
+      "unscored": "Nicht bewertet",
+      "status": {
+        "pass": "Bestanden",
+        "fail": "Nicht bestanden",
+        "skipped": "Übersprungen",
+        "error": "Fehler"
+      },
+      "decidedByPerson": "Von einem Menschen entschieden",
+      "awaitingReview": "Wartet auf Prüfung",
+      "scoredRun": "Bewerteter Run",
+      "judgeRun": "Run des Bewerters",
+      "verdictNote": "Notiz",
+      "verdictNotePlaceholder": "Warum, für die nächste Person, die das liest (optional)",
+      "markPassed": "Als bestanden markieren",
+      "markFailed": "Als nicht bestanden markieren",
+      "withdrawVerdict": "Urteil zurückziehen",
+      "verdictSaved": "Urteil gespeichert",
+      "verdictWithdrawn": "Urteil zurückgezogen",
+      "sendToReview": "Zur Prüfung senden",
+      "sentToReview": "In die Prüfwarteschlange gesendet",
+      "reason": {
+        "aiAssistanceOff": "Die KI-Unterstützung ist in dieser Organisation ausgeschaltet, daher lief der Bewerter nicht.",
+        "judgeUnpublished": "Der Eval-Bewerter hat keine veröffentlichte Version. Wählen Sie sein Modell und veröffentlichen Sie ihn.",
+        "judgeArchived": "Der Eval-Bewerter ist archiviert. Stellen Sie ihn wieder her, damit er wieder bewertet.",
+        "judgeNoAccess": "Sie dürfen den Eval-Bewerter nicht ausführen. Fragen Sie nach Zugriff.",
+        "judgeNotSeeded": "Der Eval-Bewerter konnte in dieser Organisation nicht eingerichtet werden.",
+        "judgeBudget": "Das Budget des Eval-Bewerters ist aufgebraucht, daher lief er nicht."
+      },
+      "scoreRun": "Gegen einen Fall bewerten",
+      "scoreRunBody": "Alle im Dataset konfigurierten Bewertungen auf die Antwort dieses Runs anwenden. Das Ergebnis wird im Dataset gespeichert.",
+      "noDatasetToScore": "Es gibt noch kein Dataset zum Bewerten. <link>Legen Sie eines an</link> und fügen Sie einen Fall hinzu.",
+      "noCaseToScore": "Dieses Dataset hat noch keinen Fall",
+      "score": "Bewerten",
+      "scoring": "Wird bewertet…",
+      "close": "Schließen"
+    },
     "title": "Datasets",
     "pageDescription": "Die Fragen, an denen Ihre Agents getestet werden. Jede Änderung an den Fällen eines Datasets erzeugt eine neue Version, sodass zwei Eval-Runs auf einer Version dieselben Fragen gesehen haben.",
     "newDataset": "Neues Dataset",

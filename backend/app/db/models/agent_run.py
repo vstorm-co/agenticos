@@ -111,6 +111,9 @@ class RunSurface(enum.StrEnum):
     # schedule. The one member here assigned by a machine rather than a surface a
     # person reached the agent through (agenticos#44).
     SCHEDULE = "schedule"
+    # Evaluation work: a judge scoring an answer, and the cases an eval run puts
+    # to an agent. Kept apart so a filter can leave it out of production traffic.
+    EVAL = "eval"
 
 
 class RunOrder(enum.StrEnum):

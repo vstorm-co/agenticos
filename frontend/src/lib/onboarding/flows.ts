@@ -1,6 +1,7 @@
 import { ROUTES } from "@/lib/constants";
 import {
   AGENT_BUILDER,
+  DATASET_DETAIL,
   KB_DETAIL,
   ORG_GROUPS,
   ORG_MEMBERS,
@@ -883,6 +884,7 @@ export function flowForPage(pageId: string): FlowId | null {
     case ROUTES.ROUTINES:
       return "create-routine";
     case ROUTES.DATASETS:
+    case DATASET_DETAIL:
       return "create-dataset";
     case ROUTES.ORGS:
     case ORG_MEMBERS:

@@ -1,5 +1,5 @@
 ---
-source_sha: "fb4f5a9287ce"
+source_sha: "8a6523a64b8b"
 ---
 
 # Datenschutz { #data-protection }
@@ -85,6 +85,7 @@ des Elternteils.
 | `context_files` | Dauerhaftes Wissen, das ein Builder für Agents geschrieben hat | Was der Autor dort hineingeschrieben hat — und es erreicht den Prompt wörtlich. Siehe [Kontextdateien](context.md) | Anweisungen und Fakten, die ein Agent immer kennen soll |
 | `datasets`, `dataset_cases` | Testfälle für Evals | Fragen und Antworten, die aus Conversations kopiert wurden, als jemand „Zum Dataset hinzufügen“ wählte, und was eine importierte Datei enthielt. Zugangsdaten werden geschwärzt, bevor ein Fall gespeichert wird. Siehe [Datasets](datasets.md#personal-data) | Prüfen, ob ein Agent besser geworden ist |
 | `knowledge_searches`, `knowledge_gap_topics`, `knowledge_gap_members` | Jede Wissenssuche, die ein Agent in einem Run gemacht hat, und die zu Themen gruppierten Fehltreffer | Die Anfrage, die der Agent aus der Frage einer Person formuliert hat, die durchsuchten Collections und wie nah die nächste Passage war. Ein Thema kopiert keinen Text: Es hält einen Vektordurchschnitt seiner Fragen und liest alles andere aus den Suchen. Siehe [Wissenslücken](knowledge-gaps.md#personal-data) | Zeigen, welche Fragen die Wissensbasis nicht beantworten konnte |
+| `case_scores` | Was das Scoring über die Antwort eines Runs auf einen Fall ergeben hat | Die Begründungen des Eval-Judge, die die bewertete Antwort zitieren können; das Urteil und die Notiz einer Person und wer es abgegeben hat. Zugangsdaten werden geschwärzt, bevor ein Score gespeichert wird. Siehe [Datasets](datasets.md#review) | Entscheiden, ob die Antwort eines Agents bestanden hat |
 | `artifacts`, `artifact_versions` und ihre Dateien | Seiten, die Agents veröffentlicht haben — Berichte, Dashboards | Was auch immer die Seite zeigt, die der Run aus dem gebaut hat, was er lesen konnte; der Besitzer, der Run, der jede Version geschrieben hat, und, wenn einer aktiv ist, der Schlüssel des öffentlichen Links, seine Einstellungen (ein Passwort als bcrypt-Hash) und wie oft er geöffnet wurde — eine Zahl und ein Zeitpunkt, nichts über die Besucher. Siehe [Artefakte](artifacts.md) | Ein Ergebnis unter einem stabilen Link teilen |
 | `agent_memory_files` | Notizen, die ein Agent über eine Person oder einen Gruppenchat geschrieben hat | Was der Agent für merkenswert hielt, geschlüsselt auf `person:<user_id>` oder einen Chatraum | Kontinuität zwischen Conversations |
 | `rag_documents`, `knowledge_bases` und eine Vektortabelle je Collection | Hochgeladene und synchronisierte Dokumente, ihre Chunks und Embeddings | Der Dokumenttext und seine Vektoren, der ursprüngliche Pfad der Datei in der Quelle | Retrieval |
