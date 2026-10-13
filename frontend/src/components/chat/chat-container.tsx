@@ -661,7 +661,19 @@ function ChatUI({
         <div
           ref={scrollContainerRef}
           className="flex-1 scrollbar-thin overflow-y-auto"
-          style={{ paddingBottom: dockHeight }}
+          style={{
+            paddingBottom: dockHeight,
+            // In the page the transcript fades out as it reaches the glass
+            // composer, so nothing sharp is ever behind it: a backdrop blur is
+            // drawn by the GPU and is not always drawn - a screen capture, a
+            // throttled tab - and without it the words under the box read
+            // through it, crisp, beside the placeholder.
+            ...(compact
+              ? {}
+              : {
+                  maskImage: `linear-gradient(to bottom, #000 calc(100% - ${dockHeight + 8}px), transparent calc(100% - ${Math.max(dockHeight - 32, 0)}px))`,
+                }),
+          }}
         >
           <div
             ref={transcriptRef}
