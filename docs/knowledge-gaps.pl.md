@@ -1,5 +1,5 @@
 ---
-source_sha: "2d253005d633"
+source_sha: "775a7c21abe1"
 title: "Luki w wiedzy"
 description: "Luki w wiedzy pokazują pytania, dla których agent nie znalazł w bazie wiedzy nic trafnego, pogrupowane w tematy, żeby było widać, jakiego dokumentu brakuje."
 ---
@@ -13,9 +13,10 @@ wiedzy** pokazują takie pytania: te, dla których agent przeszukał swoją
 w tematy, z liczbą zadań każdego pytania i agentami, którzy je zadali.
 
 Luka mówi, czego brakuje. Sama nigdy niczego nie dodaje do kolekcji. Człowiek
-pisze albo znajduje brakujący dokument i go dodaje. Wcześniej może zamienić
-pytania z tematu na przypadki [datasetu](datasets.md), żeby eval pokazał, czy
-nowy dokument zmienił odpowiedzi.
+pisze albo znajduje brakujący dokument - może go naszkicować model - i go
+dodaje. Wcześniej może zamienić pytania z tematu na przypadki
+[datasetu](datasets.md), żeby eval pokazał, czy nowy dokument zmienił
+odpowiedzi.
 
 ## Jak pytanie staje się luką { #how-a-question-becomes-a-gap }
 
@@ -89,6 +90,28 @@ każdego, kto ocenił odpowiedź łapką w dół.
 Po dodaniu dokumentu uruchom eval na datasecie. Przypadki, które nie
 przechodziły z powodu brakującej wiedzy, powinny teraz przejść.
 
+## Szkic brakującej treści { #drafting-the-missing-content }
+
+**Napisz szkic brakującej treści** w otwartym temacie prosi model o napisanie
+fragmentu albo wpisu FAQ, którego brakuje w bazie wiedzy. To jeden run
+**Knowledge gap drafter**, [agenta systemowego](concepts.md#system-agents),
+którego ma każda organizacja. Agent widzi 20 najnowszych pytań tematu: o co
+zapytała każda osoba, czego agent szukał i co znalazł, jaką odpowiedź dostała
+osoba i komentarz zostawiony przy ocenie łapką w dół.
+
+Szkic zostaje przy temacie, oznaczony jako szkic, z dokumentami, z których
+według niego korzysta, i odnośnikiem do jego runa. Możesz go skopiować albo
+pobrać jako Markdown. Nigdy nie jest dodawany do kolekcji. Agent nie zna faktów
+twojej firmy: tam, gdzie odpowiedź wymaga liczby, daty albo reguły, wpisuje w
+nawiasach kwadratowych miejsce do uzupełnienia. Ponowny szkic zastępuje
+poprzedni.
+
+Szkic to run modelu jak każdy inny. Jest odrzucany, gdy organizacja wyłączyła
+[asystenta AI](governance.md#ai-assistance), przed wywołaniem modelu sprawdzany
+jest budżet agenta i organizacji, a jego koszt widać w Activity. Grupowanie
+pytań w tematy nie prosi modelu o pisanie, więc działa niezależnie od
+przełącznika.
+
 ## Dostęp { #access }
 
 Temat składa się z pytań ludzi, więc czytanie luk wymaga `runs:view`, czyli
@@ -101,6 +124,7 @@ bez niego nie widzi karty ani widżetu, a API mu odmawia.
 | Czytać luki agenta | `runs:view` i `agents:view` na agencie; tematy kolekcji, których nie możesz czytać, są pomijane |
 | Odrzucić, otworzyć ponownie albo pogrupować | `runs:view` i `collections:edit` na kolekcji |
 | Dodać temat do datasetu | `runs:view` i `datasets:edit` na datasecie |
+| Napisać szkic brakującej treści | `runs:view`, `collections:view` na kolekcji i `agents:run` na Knowledge gap drafter |
 
 Kolekcja, agent, temat albo dataset, do którego nie masz dostępu, odpowiada „nie
 znaleziono”; tak samo ten z innej organizacji. Zobacz
@@ -113,9 +137,13 @@ ktoś zapytał. Jest usuwane razem z runem, w którym powstało, i z rozmową, z
 której pochodzi. Usunięcie osoby usuwa wyszukiwania wykonane podczas
 odpowiadania jej, także w runach bez rozmowy. Jej eksport je zawiera.
 
-Temat nie kopiuje tekstu. Jego nazwa, przykłady i liczba są czytane z
+Temat nie kopiuje pytań. Jego nazwa, przykłady i liczba są czytane z
 wyszukiwań, które jeszcze zawiera, więc gdy te wyszukiwania zostaną usunięte,
-tematowi nic nie zostaje i następne przejście grupowania go usuwa. Zobacz
+tematowi nic nie zostaje i następne przejście grupowania usuwa go razem ze
+szkicem. Szkic to jedyny tekst, który temat przechowuje: pisze go model na
+podstawie pytań, więc może powtarzać coś, co ktoś napisał. Poświadczenia, które
+powtarza, są redagowane przed zapisaniem. Pisanie szkicu wysyła pytania,
+odpowiedzi i komentarze do dostawcy modelu agenta. Zobacz
 [Ochrona danych](data-protection.md#where-personal-data-lives).
 
 ## Czego luki jeszcze nie wykrywają { #limits }

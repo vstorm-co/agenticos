@@ -1,5 +1,5 @@
 ---
-source_sha: "1bd22ff5edac"
+source_sha: "1bad6c649346"
 ---
 
 # Conceptos { #concepts }
@@ -575,7 +575,9 @@ puede delegar en qué.
 ## Agents del sistema { #system-agents }
 
 Algunos agents los inicia la plataforma y no una persona: el **Eval judge**
-califica respuestas para la [puntuación de datasets](datasets.md#judge). Son
+califica respuestas para la [puntuación de datasets](datasets.md#judge), y el
+**Knowledge gap drafter** redacta el fragmento que le falta a una
+[laguna de conocimiento](knowledge-gaps.md#drafting-the-missing-content). Son
 **agents del sistema**. Cada organización los recibe al crearse, y una
 organización creada antes recibe uno la primera vez que algo lo necesita.
 

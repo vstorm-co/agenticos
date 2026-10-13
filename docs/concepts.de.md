@@ -1,5 +1,5 @@
 ---
-source_sha: "1bd22ff5edac"
+source_sha: "1bad6c649346"
 ---
 
 # Begriffe { #concepts }
@@ -602,7 +602,10 @@ wer an was delegieren darf.
 
 Manche Agents werden von der Plattform gestartet und nicht von einem Menschen:
 Der **Eval judge** bewertet Antworten für das
-[Scoring von Datasets](datasets.md#judge). Das sind **System-Agents**. Jede
+[Scoring von Datasets](datasets.md#judge), und der **Knowledge gap drafter**
+entwirft die Passage, die einer
+[Wissenslücke](knowledge-gaps.md#drafting-the-missing-content) fehlt. Das sind
+**System-Agents**. Jede
 Organisation erhält sie bei ihrer Erstellung, und eine früher erstellte
 Organisation erhält einen, sobald etwas ihn zum ersten Mal braucht.
 

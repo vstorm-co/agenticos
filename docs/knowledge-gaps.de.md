@@ -1,5 +1,5 @@
 ---
-source_sha: "2d253005d633"
+source_sha: "775a7c21abe1"
 title: "Wissenslücken"
 description: "Wissenslücken zeigen die Fragen, zu denen ein Agent in seiner Wissensbasis nichts Passendes gefunden hat, nach Thema gruppiert, damit klar ist, welches Dokument fehlt."
 ---
@@ -14,7 +14,8 @@ hat, nach Thema gruppiert, mit der Häufigkeit jeder Frage und den Agents, die
 sie gestellt haben.
 
 Eine Lücke sagt, was fehlt. Sie fügt einer Collection nie selbst etwas hinzu.
-Ein Mensch schreibt oder findet das fehlende Dokument und fügt es hinzu. Vorher
+Ein Mensch schreibt oder findet das fehlende Dokument - ein Modell kann es
+entwerfen - und fügt es hinzu. Vorher
 lassen sich die Fragen des Themas in Fälle eines [Datasets](datasets.md)
 umwandeln, damit ein Eval zeigt, ob das neue Dokument die Antworten verändert
 hat.
@@ -94,6 +95,31 @@ Nachdem du das Dokument hinzugefügt hast, führe ein Eval über das Dataset aus
 Die Fälle, die wegen des fehlenden Wissens fehlgeschlagen sind, sollten jetzt
 bestehen.
 
+## Den fehlenden Inhalt entwerfen { #drafting-the-missing-content }
+
+**Fehlenden Inhalt entwerfen** in einem geöffneten Thema bittet ein Modell, die
+Passage oder den FAQ-Eintrag zu schreiben, der der Wissensbasis fehlt. Das ist
+ein Run des **Knowledge gap drafter**, eines
+[System-Agents](concepts.md#system-agents), den jede Organisation hat. Er sieht
+die 20 neuesten Fragen des Themas: was jede Person gefragt hat, wonach der Agent
+gesucht und was er gefunden hat, welche Antwort die Person bekam und jeden
+Kommentar zu einer negativen Bewertung.
+
+Der Entwurf bleibt beim Thema, als Entwurf gekennzeichnet, mit den Dokumenten,
+die er nach eigener Angabe verwendet hat, und einem Link zu seinem Run. Du
+kannst ihn kopieren oder als Markdown herunterladen. Er wird nie der Collection
+hinzugefügt. Der Entwerfer kennt die Fakten deines Unternehmens nicht: Wo eine
+Antwort eine Zahl, ein Datum oder eine Regel braucht, schreibt er einen
+Platzhalter in eckigen Klammern, den du ausfüllst. Ein neuer Entwurf ersetzt den
+alten.
+
+Ein Entwurf ist ein Modell-Run wie jeder andere. Er wird verweigert, solange die
+Organisation die [KI-Unterstützung](governance.md#ai-assistance) ausgeschaltet
+hat, vor dem Modellaufruf werden das Budget des Entwerfers und das der
+Organisation geprüft, und seine Kosten erscheinen in Activity. Das Gruppieren
+von Fragen zu Themen lässt kein Modell etwas schreiben und läuft deshalb
+unabhängig vom Schalter.
+
 ## Zugriff { #access }
 
 Ein Thema besteht aus den Fragen von Menschen, daher braucht das Lesen von
@@ -107,6 +133,7 @@ und die API verweigert ihm den Zugriff.
 | Die Lücken eines Agents zu lesen | `runs:view` und `agents:view` auf dem Agent; Themen von Collections, die du nicht lesen darfst, werden ausgelassen |
 | Zu verwerfen, wieder zu öffnen oder neu zu gruppieren | `runs:view` und `collections:edit` auf der Collection |
 | Ein Thema zu einem Dataset hinzuzufügen | `runs:view` und `datasets:edit` auf dem Dataset |
+| Den fehlenden Inhalt zu entwerfen | `runs:view`, `collections:view` auf der Collection und `agents:run` auf dem Knowledge gap drafter |
 
 Eine Collection, ein Agent, ein Thema oder ein Dataset, auf das du keinen
 Zugriff hast, antwortet mit „nicht gefunden“, ebenso eines aus einer anderen
@@ -120,10 +147,14 @@ entstanden ist, und mit der Unterhaltung, aus der sie stammt. Das Löschen einer
 Person löscht die Suchen, die beim Beantworten ihrer Fragen gemacht wurden,
 auch in Runs ohne Unterhaltung. Ihr Export enthält sie.
 
-Ein Thema kopiert keinen Text. Name, Beispiele und Anzahl werden aus den
+Ein Thema kopiert keine Fragen. Name, Beispiele und Anzahl werden aus den
 Suchen gelesen, die es noch enthält. Werden diese Suchen gelöscht, bleibt dem
-Thema nichts, und der nächste Gruppierungslauf entfernt es. Siehe
-[Datenschutz](data-protection.md#where-personal-data-lives).
+Thema nichts, und der nächste Gruppierungslauf entfernt es samt Entwurf. Der
+Entwurf ist der einzige Text, den ein Thema selbst hält: Ein Modell schreibt
+ihn aus den Fragen, er kann also wiederholen, was jemand geschrieben hat.
+Zugangsdaten, die er wiederholt, werden vor dem Speichern geschwärzt. Das
+Entwerfen schickt die Fragen, Antworten und Kommentare an den Modellanbieter des
+Entwerfers. Siehe [Datenschutz](data-protection.md#where-personal-data-lives).
 
 ## Was Lücken noch nicht erkennen { #limits }
 

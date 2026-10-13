@@ -1,5 +1,5 @@
 ---
-source_sha: "2d253005d633"
+source_sha: "775a7c21abe1"
 title: "Lagunas de conocimiento"
 description: "Las lagunas de conocimiento muestran las preguntas para las que un agent no encontró nada relevante en su base de conocimiento, agrupadas por tema, para saber qué documento falta."
 ---
@@ -14,7 +14,8 @@ encontró nada relevante, agrupadas por tema, con cuántas veces se hizo cada un
 y qué agents la hicieron.
 
 Una laguna dice qué falta. Nunca añade nada a una colección por sí misma. Una
-persona escribe o encuentra el documento que falta y lo añade, y antes puede
+persona escribe o encuentra el documento que falta - un modelo puede redactar
+un borrador - y lo añade, y antes puede
 convertir las preguntas del tema en casos de un [dataset](datasets.md), para
 que un eval muestre si el nuevo documento cambió las respuestas.
 
@@ -94,6 +95,30 @@ respuesta.
 Después de añadir el documento, ejecuta un eval sobre el dataset. Los casos que
 fallaban porque faltaba el conocimiento deberían pasar ahora.
 
+## Redactar el contenido que falta { #drafting-the-missing-content }
+
+**Redactar el contenido que falta**, en un tema abierto, pide a un modelo que
+escriba el fragmento o la entrada de FAQ que le falta a la base de conocimiento.
+Es un run del **Knowledge gap drafter**, un
+[agent del sistema](concepts.md#system-agents) que tiene cada organización. Ve
+las 20 preguntas más recientes del tema: qué preguntó cada persona, qué buscó y
+encontró el agent, qué respuesta recibió la persona y cualquier comentario
+dejado con una valoración negativa.
+
+El borrador se guarda en el tema, marcado como borrador, con los documentos que
+dice haber usado y un enlace a su run. Puedes copiarlo o descargarlo como
+Markdown. Nunca se añade a la colección. El redactor no conoce los datos de tu
+empresa: donde una respuesta necesita una cifra, una fecha o una regla, escribe
+entre corchetes un marcador para que lo completes. Redactar de nuevo sustituye
+el borrador.
+
+Un borrador es un run de modelo como cualquier otro. Se deniega mientras la
+organización tiene la [asistencia de IA](governance.md#ai-assistance)
+desactivada, se comprueban el presupuesto del redactor y el de la organización
+antes de llamar al modelo, y su coste aparece en Activity. Agrupar preguntas en
+temas no pide a ningún modelo que escriba nada, así que funciona sea cual sea
+el interruptor.
+
 ## Acceso { #access }
 
 Un tema está hecho de preguntas de personas, así que leer las lagunas requiere
@@ -106,6 +131,7 @@ miembro sin él no ve la pestaña ni el widget, y la API se lo deniega.
 | Leer las lagunas de un agent | `runs:view` y `agents:view` en el agent; se omiten los temas de colecciones que no puedes leer |
 | Descartar, reabrir o reagrupar | `runs:view` y `collections:edit` en la colección |
 | Añadir un tema a un dataset | `runs:view` y `datasets:edit` en el dataset |
+| Redactar el contenido que falta | `runs:view`, `collections:view` en la colección y `agents:run` en el Knowledge gap drafter |
 
 Una colección, un agent, un tema o un dataset al que no tienes acceso responde
 «no encontrado», igual que uno de otra organización. Consulta
@@ -119,9 +145,14 @@ conversación de la que procede. Borrar a una persona borra las búsquedas hecha
 al responderle, también las de runs sin conversación. Su exportación las
 incluye.
 
-Un tema no copia texto. Su nombre, sus ejemplos y su recuento se leen de las
-búsquedas que aún contiene, así que cuando esas búsquedas se borran al tema no
-le queda nada y la siguiente pasada de agrupación lo elimina. Consulta
+Un tema no copia preguntas. Su nombre, sus ejemplos y su recuento se leen de
+las búsquedas que aún contiene, así que cuando esas búsquedas se borran al tema
+no le queda nada y la siguiente pasada de agrupación lo elimina junto con su
+borrador. El borrador es el único texto que guarda un tema: lo escribe un
+modelo a partir de las preguntas, así que puede repetir algo que alguien
+escribió. Las credenciales que repita se ocultan antes de guardarlo. Redactar
+envía las preguntas, respuestas y comentarios al proveedor del modelo del
+redactor. Consulta
 [Protección de datos](data-protection.md#where-personal-data-lives).
 
 ## Lo que las lagunas aún no detectan { #limits }

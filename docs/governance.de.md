@@ -1,5 +1,5 @@
 ---
-source_sha: "de345fa10b17"
+source_sha: "7b99c090a2b6"
 ---
 
 # Governance { #governance }
@@ -1538,7 +1538,9 @@ bereits geendet hat, darf nicht noch einmal scheitern, weil SMTP ausgefallen war
 Ein Schalter in den Einstellungen der Organisation auf ihrer Mitgliederseite
 entscheidet, ob Modelle die Evals und das Authoring der Organisation
 unterstützen: den Eval-Judge, der [Dataset-Scores](datasets.md#judge) bewertet,
-und den Fall-Generator und den Authoring-Assistenten, die nach ihm kommen. Er
+den Entwerfer, der den Inhalt schreibt, der einer
+[Wissenslücke](knowledge-gaps.md#drafting-the-missing-content) fehlt, und den
+Fall-Generator und den Authoring-Assistenten, die nach ihnen kommen. Er
 ist standardmäßig an und wird von dem geändert, der `org:settings` hat.
 
 Ist er aus, lehnt der Service, der einen solchen Run starten würde, ihn ab,

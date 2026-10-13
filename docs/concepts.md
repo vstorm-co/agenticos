@@ -550,7 +550,9 @@ delegate to what.
 ## System agents { #system-agents }
 
 Some agents are started by the platform rather than by a person: the **Eval
-judge** grades answers for [dataset scoring](datasets.md#judge). These are
+judge** grades answers for [dataset scoring](datasets.md#judge), and the
+**Knowledge gap drafter** drafts the passage a
+[knowledge gap](knowledge-gaps.md#drafting-the-missing-content) is missing. These are
 **system agents**. Every organization gets them when it is created, and an
 organization created earlier gets one the first time something needs it.
 

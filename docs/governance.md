@@ -1344,8 +1344,9 @@ ended must not fail again because SMTP was down.
 
 One switch, in the organization's settings on its members page, decides whether
 models assist the organization's evals and authoring: the eval judge that
-grades [dataset scores](datasets.md#judge), and the case generator and
-authoring assistant that come after it. It is on by default and changed by
+grades [dataset scores](datasets.md#judge), the drafter that writes the
+content a [knowledge gap](knowledge-gaps.md#drafting-the-missing-content) is
+missing, and the case generator and authoring assistant that come after them. It is on by default and changed by
 whoever holds `org:settings`.
 
 When it is off, the service that would start such a run refuses it, whichever

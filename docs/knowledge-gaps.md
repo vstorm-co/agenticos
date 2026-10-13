@@ -12,9 +12,10 @@ that. **Knowledge gaps** show those questions: the ones an agent searched its
 grouped by topic, with how often each was asked and by which agents.
 
 A gap tells you what is missing. It never adds anything to a collection by
-itself. A person writes or finds the missing document and adds it, and can
-first turn the topic's questions into [dataset](datasets.md) cases, so an
-eval can show whether the new document changed the answers.
+itself. A person writes or finds the missing document - a model can draft it -
+and adds it, and can first turn the topic's questions into
+[dataset](datasets.md) cases, so an eval can show whether the new document
+changed the answers.
 
 ## How a question becomes a gap { #how-a-question-becomes-a-gap }
 
@@ -86,6 +87,28 @@ down.
 After you add the document, run an eval over the dataset. The cases that
 failed because the knowledge was missing should now pass.
 
+## Drafting the missing content { #drafting-the-missing-content }
+
+**Draft the missing content**, in an open topic, asks a model to write the
+passage or FAQ entry the knowledge base is missing. It is one run of the
+**Knowledge gap drafter**, a [system agent](concepts.md#system-agents) every
+organization has. The drafter is shown the topic's 20 newest questions: what
+each person asked, what the agent searched for and found, the answer the
+person got, and any comment left with a thumbs-down.
+
+The draft is kept on the topic, labelled as a draft, with the documents it
+says it used and a link to its run. You can copy it or download it as
+Markdown. It is never added to the collection. The drafter does not know your
+company's facts: where an answer needs a number, a date or a rule, it writes a
+placeholder in square brackets for you to fill in. Drafting again replaces the
+draft.
+
+A draft is a model run like any other. It is refused while the organization
+has [AI assistance](governance.md#ai-assistance) switched off, it is checked
+against the drafter's budget and the organization's before the model is
+called, and its cost is listed in Activity. Grouping questions into topics
+asks no model to write anything, so it runs whatever the switch says.
+
 ## Access { #access }
 
 A topic is made of people's questions, so reading gaps needs `runs:view`, the
@@ -98,6 +121,7 @@ without it does not see the tab or the widget, and the API refuses them.
 | Read an agent's gaps | `runs:view` and `agents:view` on the agent; topics of collections you cannot read are left out |
 | Dismiss, reopen or regroup | `runs:view` and `collections:edit` on the collection |
 | Add a topic to a dataset | `runs:view` and `datasets:edit` on the dataset |
+| Draft the missing content | `runs:view`, `collections:view` on the collection, and `agents:run` on the Knowledge gap drafter |
 
 A collection, agent, topic or dataset you may not reach answers "not found",
 and so does one in another organization. See [Permissions](permissions.md).
@@ -110,9 +134,13 @@ it came from. Deleting a person deletes the searches made while answering
 them, including those in runs with no conversation. Their export includes
 them.
 
-A topic copies no text. Its name, its examples and its count are read from the
-searches it still holds, so when those searches are deleted the topic has
-nothing left, and the next grouping pass removes it. See
+A topic copies no question. Its name, its examples and its count are read from
+the searches it still holds, so when those searches are deleted the topic has
+nothing left, and the next grouping pass removes it, with its draft. A draft is
+the one text a topic keeps: it is written by a model from the questions, so it
+may repeat something a person wrote. Credentials it repeats are redacted before
+it is stored. Drafting sends the questions, answers and comments to the
+drafter's model provider. See
 [Data protection](data-protection.md#where-personal-data-lives).
 
 ## What gaps do not detect yet { #limits }
