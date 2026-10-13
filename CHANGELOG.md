@@ -488,6 +488,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **Brand marks in their own colours.** Every service, connector and model
+  provider mark - in the vault, channels, MCP servers, the Builder and the
+  sign-in buttons - is drawn in its brand's colour where that colour reads on
+  both themes; a black or white brand (GitHub, OpenAI, Notion) keeps the text
+  colour. The generator records each colour beside the mark, from Simple
+  Icons' data or a short table for the sets that publish none.
 - **The dashboard in colour, and the Me view opening on you.** Charts take
   an indigo ink and each figure its own colour - runs, finished, spend and
   people are told apart before they are read. The Me view opens on a greeting

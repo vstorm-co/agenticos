@@ -136,5 +136,6 @@ or tables according to what helps the reader.
 
 `app/core/catalog/icons/<name>.svg` is served by `GET /catalog/icons` and drawn for a
 catalog entry or provider whose id matches and which no compiled-in icon set carries.
-The file's own colours are **ignored** — it renders as a `currentColor` silhouette, so
-the console's monochrome register holds by construction. See `icons/README.md`.
+The file's own colours are **ignored** — it renders as a `currentColor` silhouette,
+unlike the compiled-in marks, which carry their brand's colour where it reads on both
+themes. See `icons/README.md`.
