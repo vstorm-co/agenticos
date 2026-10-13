@@ -33,7 +33,7 @@ from pydantic import ValidationError
 from app.core.exceptions import BadRequestError
 from app.core.field_errors import field_problems, refused_field
 from app.db.models.dataset import DatasetCase
-from app.schemas.dataset import DatasetCaseContent, DatasetFileFormat, StoredCaseContent
+from app.schemas.dataset import DatasetCaseContent, DatasetCaseRead, DatasetFileFormat
 from app.services.exporting import CSV_INJECTION_PREFIXES, csv_document, jsonl_document
 
 COLUMNS = (
@@ -104,7 +104,9 @@ def _record(case: DatasetCase) -> dict[str, Any]:
     schema fixes the order of the fields it declares; the keys it leaves open - a
     check's parameters and a tool call's arguments - are sorted.
     """
-    record = StoredCaseContent.model_validate(case, from_attributes=True).model_dump(mode="json")
+    # Read as stored, not as a new case would be written: an export of a case an
+    # earlier rule accepted must not fail on a rule added since.
+    record = DatasetCaseRead.model_validate(case).model_dump(mode="json", include=set(COLUMNS))
     record["checks"] = [_sorted(check, first="type") for check in record["checks"]]
     record["expected_tool_calls"] = [
         {"tool": call["tool"], "args": _sorted(call["args"])}
@@ -240,7 +242,10 @@ def parse(content: bytes, fmt: DatasetFileFormat) -> list[DatasetCaseContent]:
             problems.extend(field_problems(exc.errors(), root=f"rows.{number}"))
     if refused:
         raise BadRequestError(
-            message=f"{refused} rows could not be imported, so none were. Fix them and try again.",
+            message=(
+                f"{refused} {'row' if refused == 1 else 'rows'} could not be imported, "
+                "so none were. Fix them and try again."
+            ),
             details={"refused_rows": refused, "fields": problems[:_MAX_REPORTED_ROWS]},
         )
     if not cases:

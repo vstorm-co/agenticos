@@ -1,5 +1,5 @@
 ---
-source_sha: "38969973baf1"
+source_sha: "c41b7914ae35"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -32,6 +32,12 @@ gestellt hat, und eine Antwort, die ihn wirklich enttäuscht hat.
 | Notiz | Warum es den Fall gibt - was schiefging oder was er absichert |
 | Quelle | `manual`, `import`, `conversation` oder `synthetic` - von der Plattform gesetzt, nicht eingegeben |
 
+Ein Fall muss sagen, woran seine Antwort gemessen wird: eine Referenzantwort,
+ein Gegenbeispiel, ein erwarteter Tool-Aufruf oder eine Prüfung - mindestens
+eines davon. Ein Fall nur mit einer Eingabe könnte nie scheitern, deshalb wird er
+abgelehnt: Das Formular speichert ihn nicht, die API antwortet mit 422 und nennt
+`reference_answer`, und ein Import nennt die Zeile.
+
 Ein Fall aus einem Gespräch behält außerdem einen Verweis auf den Run, das
 Gespräch und die Nachricht, aus denen er stammt. Frage und Antwort werden in den
 Fall kopiert, sodass der Fall vollständig bleibt, nachdem die Aufbewahrung den
@@ -61,7 +67,7 @@ Version, weil keines von beiden einen Fall ändert.
 ### In der Konsole { #in-the-console }
 
 Öffnen Sie **Datasets**, legen Sie ein Dataset an und wählen Sie **Fall
-hinzufügen**. Das einzige Pflichtfeld ist die Eingabe. Gespräch, erwartete
+hinzufügen**. Schreiben Sie die Eingabe und mindestens eine der vier Erwartungen oben. Gespräch, erwartete
 Tool-Aufrufe und Prüfungen werden als JSON-Listen geschrieben - derselbe Text,
 in dem ein CSV-Export sie enthält.
 

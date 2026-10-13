@@ -25,6 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
+from app.core.exceptions import ValidationError as InvalidCaseError
 from app.core.field_errors import field_problems, refused_field
 from app.core.permissions import AuthContext, Perm, Scope
 from app.db.models.dataset import CaseSource, Dataset, DatasetCase, DatasetChange, DatasetVersion
@@ -50,7 +51,7 @@ from app.schemas.dataset import (
     DatasetUpdate,
     DatasetVersionList,
     DatasetVersionRead,
-    StoredCaseContent,
+    EditedCaseContent,
 )
 from app.schemas.resource_grant import as_visibility
 from app.schemas.scoring import DatasetScoring
@@ -575,11 +576,17 @@ class DatasetService:
             **DatasetCaseRead.model_validate(current).model_dump(),
             **writable(data, over=DatasetCase),
         }
-        # Both halves were validated on their way in - the stored one by the rules
-        # of its day, which a later tightening must not turn into a refused edit.
-        content = StoredCaseContent.model_validate(
-            {key: merged[key] for key in DatasetCaseContent.model_fields}
-        )
+        # Each half is valid alone, but an edit clearing the only expectation the
+        # stored case had leaves a union that is not.
+        try:
+            content = EditedCaseContent.model_validate(
+                {key: merged[key] for key in DatasetCaseContent.model_fields}
+            )
+        except ValidationError as exc:
+            raise InvalidCaseError(
+                message="This edit leaves a case that is not valid",
+                details={"fields": field_problems(exc.errors(), root="")},
+            ) from None
         fields, redacted = _redacted(content)
         provenance = {
             "source_run_id": current.source_run_id,
@@ -730,6 +737,8 @@ class DatasetService:
             raise missing from None
         if message.role != "assistant":
             raise refused_field("message_id", "Only an agent's answer can be added to a dataset")
+        if not message.content.strip():
+            raise refused_field("message_id", "This answer has no text to keep as a case")
 
         earlier = [
             turn
@@ -751,7 +760,7 @@ class DatasetService:
         comments = await message_rating_repo.get_down_rating_comments_for_messages(
             self.db, message_ids=[message.id]
         )
-        answer = message.content or None
+        answer = message.content
         try:
             content = DatasetCaseContent(
                 input=earlier[asked].content,

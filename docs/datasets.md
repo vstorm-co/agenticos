@@ -29,6 +29,12 @@ a person actually asked and an answer that actually disappointed them.
 | Note | Why the case exists - what went wrong, or what it guards |
 | Source | `manual`, `import`, `conversation` or `synthetic` - set by the platform, not typed |
 
+A case has to say what its answer is tested against: a reference answer, a
+counter-example, an expected tool call or a check - at least one of the four. A
+case with only an input could never fail, so it is refused: the form will not
+save it, the API answers 422 naming `reference_answer`, and an import names the
+row.
+
 A case taken from a conversation also keeps a link to the run, the conversation
 and the message it came from. The question and the answer are copied into the
 case, so the case stays complete after the run itself is removed by retention.
@@ -54,8 +60,8 @@ because neither changes a case.
 
 ### In the console
 
-Open **Datasets**, create a dataset, and choose **Add case**. The input is the
-only required field. The conversation, the expected tool calls and the checks
+Open **Datasets**, create a dataset, and choose **Add case**. Write the input
+and at least one of the four expectations above. The conversation, the expected tool calls and the checks
 are written as JSON lists - the same text a CSV export holds them as.
 
 ### From a file { #import-and-export }

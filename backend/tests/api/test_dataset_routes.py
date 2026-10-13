@@ -25,6 +25,7 @@ from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
 from app.schemas.dataset import (
+    NO_EXPECTATION,
     DatasetCaseList,
     DatasetCaseRead,
     DatasetList,
@@ -110,7 +111,9 @@ async def test_each_route_answers_with_its_status(client: OpenClient) -> None:
         assert (await http.patch(_url(dataset), json={"description": "x"})).status_code == 200
         assert (await http.get(_url(f"{dataset}/versions"))).json()["items"][0]["number"] == 2
         assert (await http.get(_url(f"{dataset}/cases?version=1"))).json()["version"] == 1
-        assert (await http.post(_url(f"{dataset}/cases"), json={"input": "q"})).status_code == 201
+        assert (
+            await http.post(_url(f"{dataset}/cases"), json={"input": "q", "reference_answer": "a"})
+        ).status_code == 201
         from_message = await http.post(
             _url(f"{dataset}/cases/from-message"), json={"message_id": str(uuid.uuid4())}
         )
@@ -118,6 +121,18 @@ async def test_each_route_answers_with_its_status(client: OpenClient) -> None:
         assert (await http.patch(_url(case), json={"note": "n"})).status_code == 200
         assert (await http.delete(_url(case))).status_code == 204
         assert (await http.delete(_url(dataset))).status_code == 204
+
+
+async def test_a_case_that_expects_nothing_is_refused_naming_the_field(
+    client: OpenClient, service: MagicMock
+) -> None:
+    async with client() as http:
+        refused = await http.post(_url(f"/{_DATASET.id}/cases"), json={"input": "q"})
+    assert refused.status_code == 422
+    assert refused.json()["error"]["details"]["fields"] == [
+        {"field": "reference_answer", "message": NO_EXPECTATION}
+    ]
+    service.add_case.assert_not_awaited()
 
 
 async def test_an_upload_reaches_the_service_with_its_name_and_declared_format(

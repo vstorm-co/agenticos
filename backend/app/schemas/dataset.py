@@ -6,7 +6,8 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import ConfigDict, Field, JsonValue, field_validator
+from pydantic import ConfigDict, Field, JsonValue, ValidationError, field_validator, model_validator
+from pydantic_core import InitErrorDetails, PydanticCustomError
 
 from app.schemas.base import BaseSchema
 from app.schemas.resource_grant import VisibilityLiteral
@@ -23,6 +24,11 @@ ToolOrderModeLiteral = Literal["any", "in_order", "exact"]
 MAX_CASE_TEXT = 32_000
 MAX_HISTORY_TURNS = 200
 MAX_TAGS = 20
+
+NO_EXPECTATION = (
+    "Say what the answer is tested against: a reference answer, a counter-example, "
+    "an expected tool call or a check"
+)
 
 
 class CaseMessage(BaseSchema):
@@ -128,6 +134,26 @@ class DatasetCaseContent(BaseSchema):
     def _checks(cls, checks: list[CaseCheck]) -> list[CaseCheck]:
         return _known_checks(checks)
 
+    @model_validator(mode="after")
+    def _expects_something(self) -> DatasetCaseContent:
+        """Refuse a case with only an input: nothing could score the answer to it.
+
+        Reported against `reference_answer`, the first of the four, so a form
+        has an input to mark and an import names a field on the row.
+        """
+        if self.reference_answer or self.counter_example or self.expected_tool_calls or self.checks:
+            return self
+        raise ValidationError.from_exception_data(
+            type(self).__name__,
+            [
+                InitErrorDetails(
+                    type=PydanticCustomError("no_expectation", NO_EXPECTATION),
+                    loc=("reference_answer",),
+                    input=self.reference_answer,
+                )
+            ],
+        )
+
 
 class DatasetCaseCreate(DatasetCaseContent):
     """A case written by hand."""
@@ -157,11 +183,12 @@ class DatasetCaseUpdate(BaseSchema):
         return None if checks is None else _known_checks(checks)
 
 
-class StoredCaseContent(DatasetCaseContent):
-    """A case's content as a stored revision holds it, read without re-judging it.
+class EditedCaseContent(DatasetCaseContent):
+    """An edit merged onto a stored case.
 
-    What was valid when it was written stays readable - in a listing, an export,
-    and as the base an edit is merged onto - after a rule tightens.
+    The stored tags and checks are kept as they were written, so a rule that
+    tightened since does not refuse an edit to another field; the case as a whole
+    must still expect something.
     """
 
     @field_validator("tags", mode="before")
@@ -176,6 +203,15 @@ class StoredCaseContent(DatasetCaseContent):
     def _checks(cls, checks: list[CaseCheck]) -> list[CaseCheck]:
         # The same reason: a check stored before a rule tightened is still read.
         return checks
+
+
+class StoredCaseContent(EditedCaseContent):
+    """A case's content as a stored revision holds it, read without re-judging it."""
+
+    @model_validator(mode="after")
+    def _expects_something(self) -> StoredCaseContent:
+        # Cases stored before a case had to expect something still list and export.
+        return self
 
 
 class DatasetCaseRead(StoredCaseContent):
