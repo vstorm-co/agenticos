@@ -17,7 +17,7 @@ the arguments the agent meant to send from here.
 Both tables are new, so nothing is backfilled.
 
 Revision ID: 0107_environment_connections
-Revises: 0105_workspace_directories
+Revises: 0106_datasets
 Create Date: 2026-10-13
 """
 
@@ -29,7 +29,7 @@ from sqlalchemy.dialects import postgresql
 from alembic import op
 
 revision: str = "0107_environment_connections"
-down_revision: str | None = "0105_workspace_directories"
+down_revision: str | None = "0106_datasets"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
