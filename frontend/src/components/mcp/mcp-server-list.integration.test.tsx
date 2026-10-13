@@ -483,10 +483,11 @@ describe("McpServerList", () => {
     // test above would pass against a page with no logos at all.
     await mount();
 
-    const mark = screen.getByRole("group", { name: "GitHub" }).querySelector("[aria-hidden]");
-
-    expect(mark?.tagName).toBe("svg");
-    expect(mark?.textContent).not.toBe("G");
+    // GitHub's address has a baked logo, so it is drawn in its own colours.
+    const logo = screen.getByRole("group", { name: "GitHub" }).querySelector("[aria-hidden]");
+    expect(logo?.tagName).toBe("IMG");
+    expect(logo?.getAttribute("src")).toMatch(/^data:image\//);
+    expect(logo?.textContent).not.toBe("G");
   });
 
   it("narrows the grid to what was searched for", async () => {
@@ -565,7 +566,10 @@ describe("McpServerList", () => {
     // looked at. The favicon-service fallback this replaces did both.
     await mount({ org: [connection()] });
 
-    expect(document.querySelectorAll("img")).toHaveLength(0);
+    // The colour logos are baked into the bundle as data URIs.
+    const sources = [...document.querySelectorAll("img")].map((img) => img.getAttribute("src"));
+    expect(sources.length).toBeGreaterThan(0);
+    for (const src of sources) expect(src).toMatch(/^data:image\//);
   });
 });
 

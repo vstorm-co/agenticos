@@ -57,7 +57,7 @@ export function YourConnections() {
               className="flex items-center gap-3 rounded-xl px-3 py-2"
               aria-label={name}
             >
-              <McpServerIcon icon={entry?.icon ?? null} name={name} />
+              <McpServerIcon icon={entry?.icon ?? null} name={name} url={entry?.url} />
               <span className="min-w-0 flex-1">
                 <span className="block text-xs font-medium">{name}</span>
                 <span className="text-muted-foreground block text-xs leading-relaxed">

@@ -68,7 +68,7 @@ export function ConnectServicesCard({ gaps }: { gaps: PersonalServiceGap[] }) {
               className="flex items-center gap-3 rounded-xl px-2 py-1.5"
               aria-label={gap.name}
             >
-              <McpServerIcon icon={entry?.icon ?? null} name={gap.name} />
+              <McpServerIcon icon={entry?.icon ?? null} name={gap.name} url={entry?.url} />
               <span className="min-w-0 flex-1">
                 <span className="block text-xs font-medium">{gap.name}</span>
                 <span className="text-muted-foreground block text-xs leading-relaxed">

@@ -526,7 +526,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             return {
               key: bindingKey(ref),
               label: t("eachPersonsOwnNamed", { name }),
-              mcp: { icon: entry?.icon ?? null, name },
+              mcp: { icon: entry?.icon ?? null, name, url: entry?.url ?? null },
             };
           }
           const connection = mcpConnections.find((row) => row.id === ref.connection_id);
@@ -538,7 +538,11 @@ export default function AgentBuilderPage({ params }: PageProps) {
           return {
             key: bindingKey(ref),
             label: connection?.name ?? t("namedMissing", { name: ref.connection_id }),
-            mcp: { icon: known?.icon ?? null, name: connection?.name ?? ref.connection_id },
+            mcp: {
+              icon: known?.icon ?? null,
+              name: connection?.name ?? ref.connection_id,
+              url: connection?.url ?? null,
+            },
           };
         }),
         empty: t("noMcpServersAttached"),

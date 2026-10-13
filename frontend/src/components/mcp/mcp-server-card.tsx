@@ -81,7 +81,7 @@ export function McpServerCard({
     >
       <CardContent className="flex h-full flex-col gap-3 p-4">
         <div className="flex items-start gap-2.5">
-          <McpServerIcon icon={icon} name={name} className="mt-0.5 h-6 w-6" />
+          <McpServerIcon icon={icon} name={name} url={url} className="mt-0.5 h-6 w-6" />
           <div className="min-w-0 flex-1 space-y-1">
             <div className="flex items-start justify-between gap-2">
               <span className="truncate text-sm font-medium">{name}</span>

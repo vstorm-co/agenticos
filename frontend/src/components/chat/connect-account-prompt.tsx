@@ -61,7 +61,7 @@ export function ConnectAccountPrompt({
   return (
     <div role="status" className="border-border bg-card rounded-2xl border p-3 shadow-sm">
       <div className="flex items-center gap-3">
-        <McpServerIcon icon={entry?.icon ?? null} name={request.name} />
+        <McpServerIcon icon={entry?.icon ?? null} name={request.name} url={entry?.url} />
         <span className="min-w-0 flex-1">
           <span className="block text-xs font-medium">{t("title", { name: request.name })}</span>
           <span className="text-muted-foreground block text-xs leading-relaxed">

@@ -34,3 +34,21 @@ function faviconServiceUrl(domain: string): string {
 export function logoDataUri(domain: string): string {
   return MCP_LOGOS[domain] ?? faviconServiceUrl(domain);
 }
+
+/**
+ * The baked, full-colour logo of the server at this address, or null.
+ *
+ * Unlike {@link logoDataUri} this never falls back to a fetch: a console page
+ * drawing a whole catalog would otherwise ask a third party about every server
+ * in it. A server missing from {@link MCP_LOGOS} draws its monochrome mark.
+ */
+export function bakedLogo(url: string | null | undefined): string | null {
+  if (!url) return null;
+  let host: string;
+  try {
+    host = new URL(url).hostname;
+  } catch {
+    return null;
+  }
+  return MCP_LOGOS[host] ?? null;
+}

@@ -40,7 +40,7 @@ export interface MapItem {
    * ships, then a monogram - and a caller picking one of them would be a fourth
    * answer to what a server looks like.
    */
-  mcp?: { icon: string | null; name: string };
+  mcp?: { icon: string | null; name: string; url?: string | null };
   /** Present but not answering - a paused channel binding. */
   muted?: boolean;
 }
@@ -197,7 +197,14 @@ export function CapabilityNode({
 /** The mark for one tile: a server's own, a kind's, or none. */
 function MapItemIcon({ item }: { item: MapItem }) {
   if (item.mcp) {
-    return <McpServerIcon icon={item.mcp.icon} name={item.mcp.name} className="h-3.5 w-3.5" />;
+    return (
+      <McpServerIcon
+        icon={item.mcp.icon}
+        name={item.mcp.name}
+        url={item.mcp.url}
+        className="h-3.5 w-3.5"
+      />
+    );
   }
   if (item.icon === undefined) return null;
   const Icon = item.icon;

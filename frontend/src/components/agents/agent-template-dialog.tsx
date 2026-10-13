@@ -224,6 +224,7 @@ function TemplateRow({
                   <McpServerIcon
                     icon={server?.icon ?? null}
                     name={server?.name ?? key}
+                    url={server?.url}
                     className="size-3.5"
                   />
                   {server?.name ?? key}
