@@ -138,7 +138,7 @@ describe("UsageMeter, closed", () => {
     // The readings are a click away; the warning is not allowed to be.
     render(<UsageMeter usage={usage({ agent_budget_percent: 86 })} total={total()} />);
 
-    expect(trigger().className).toContain("text-amber-600");
+    expect(trigger().className).toContain("text-warning");
     expect(trigger()).toHaveAccessibleName("Usage of this conversation - near a limit");
   });
 
@@ -148,6 +148,31 @@ describe("UsageMeter, closed", () => {
     expect(trigger().className).toContain("text-destructive");
   });
 
+  it("keeps the context's own colour, and marks another reading near its limit with a dot", () => {
+    // A budget at 86% painted "0.91%" amber, which read as the context filling up.
+    render(
+      <UsageMeter
+        usage={usage({ context: { used_tokens: 1_000 }, agent_budget_percent: 86 })}
+        contextWindow={200_000}
+      />,
+    );
+
+    expect(trigger().className).toContain("text-muted-foreground");
+    expect(screen.getByTestId("other-limit").className).toContain("bg-warning");
+    expect(trigger()).toHaveAccessibleName("Usage of this conversation - near a limit");
+  });
+
+  it("reddens the dot when another reading is at its edge", () => {
+    render(
+      <UsageMeter
+        usage={usage({ context: { used_tokens: 1_000 }, sandbox: stored(93) })}
+        contextWindow={200_000}
+      />,
+    );
+
+    expect(screen.getByTestId("other-limit").className).toContain("bg-destructive");
+  });
+
   it("warns on the context window earlier than on a budget", () => {
     // A budget refuses with a message somebody can act on; the provider refuses
     // an overfull window mid-answer.
@@ -155,7 +180,7 @@ describe("UsageMeter, closed", () => {
       <UsageMeter usage={usage({ context: { used_tokens: 152_000 } })} contextWindow={200_000} />,
     );
 
-    expect(trigger().className).toContain("text-amber-600");
+    expect(trigger().className).toContain("text-warning");
   });
 });
 
@@ -201,7 +226,7 @@ describe("UsageMeter, open", () => {
     });
 
     expect(valueOf("Context")).toHaveTextContent("75%");
-    expect(valueOf("Context")?.className).toContain("text-amber-600");
+    expect(valueOf("Context")?.className).toContain("text-warning");
     expect(
       screen.getByText("150,000 of 200,000 tokens in the model's context window"),
     ).toBeVisible();
@@ -247,7 +272,7 @@ describe("UsageMeter, open", () => {
     });
 
     expect(valueOf("This agent's budget")).toHaveTextContent("40% of the month");
-    expect(valueOf("This agent's budget")?.className).not.toContain("text-amber-600");
+    expect(valueOf("This agent's budget")?.className).not.toContain("text-warning");
     expect(valueOf("Organization budget")).toHaveTextContent("92% of the month");
     expect(valueOf("Organization budget")?.className).toContain("text-destructive");
   });
@@ -298,7 +323,7 @@ describe("UsageMeter, open", () => {
           "not a quota shared with anything else",
       ),
     ).toBeVisible();
-    expect(screen.getByRole("progressbar").firstElementChild?.className).toContain("bg-amber-500");
+    expect(screen.getByRole("progressbar").firstElementChild?.className).toContain("bg-warning");
   });
 
   it("reports a workspace nobody could measure as in use rather than as empty", async () => {

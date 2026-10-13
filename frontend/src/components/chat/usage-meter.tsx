@@ -82,12 +82,13 @@ export function UsageMeter({
   const orgShare = usage?.budget_percent ?? null;
   if (context === null && total === null && fill === null) return null;
 
-  const level = worst([
-    levelOf(context?.percent ?? null, CONTEXT_ALERT),
+  const contextLevel = levelOf(context?.percent ?? null, CONTEXT_ALERT);
+  const otherLevel = worst([
     levelOf(agentShare, ALERT),
     levelOf(orgShare, ALERT),
     levelOf(fill?.percent ?? null, ALERT),
   ]);
+  const level = worst([contextLevel, otherLevel]);
 
   return (
     <Popover>
@@ -97,10 +98,23 @@ export function UsageMeter({
           aria-label={level === "calm" ? t("label") : t("labelNearLimit")}
           title={level === "calm" ? t("label") : t("labelNearLimit")}
           className={cn(
-            "hover:bg-foreground/[0.06] inline-flex h-9 min-w-9 shrink-0 items-center justify-center gap-1.5 rounded-lg px-2 transition-colors",
-            TONE[level],
+            "hover:bg-foreground/[0.06] relative inline-flex h-9 min-w-9 shrink-0 items-center justify-center gap-1.5 rounded-lg px-2 transition-colors",
+            // The ring and its share are the context's own colour: a budget near
+            // its limit painted "0.9%" amber, which reads as the context being
+            // nearly full. Another reading near its limit is the dot instead.
+            TONE[context === null ? level : contextLevel],
           )}
         >
+          {context !== null && otherLevel !== "calm" && (
+            <span
+              data-testid="other-limit"
+              aria-hidden
+              className={cn(
+                "absolute top-1.5 right-1 h-1.5 w-1.5 rounded-full",
+                otherLevel === "critical" ? "bg-destructive" : "bg-warning",
+              )}
+            />
+          )}
           {context === null ? (
             <Gauge className="h-4 w-4" aria-hidden />
           ) : (
@@ -155,7 +169,7 @@ export function UsageMeter({
 /** A reading's colour, from the same three levels the icon uses. */
 const TONE: Record<Level, string> = {
   calm: "text-muted-foreground hover:text-foreground",
-  warning: "text-amber-600",
+  warning: "text-warning",
   critical: "text-destructive",
 };
 
@@ -250,7 +264,7 @@ function Reading({
         <dd
           className={cn(
             "text-foreground font-medium tabular-nums",
-            level === "warning" && "text-amber-600",
+            level === "warning" && "text-warning",
             level === "critical" && "text-destructive",
           )}
         >
@@ -348,7 +362,7 @@ function WorkspaceReading({ fill }: { fill: Fill }) {
               level === "critical"
                 ? "bg-destructive"
                 : level === "warning"
-                  ? "bg-amber-500"
+                  ? "bg-warning"
                   : "bg-foreground/40",
             )}
             style={{ width: `${Math.min(100, shown)}%` }}
