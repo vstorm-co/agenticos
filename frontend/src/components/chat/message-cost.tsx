@@ -46,3 +46,32 @@ export function MessageCost({ usage }: MessageCostProps) {
     </span>
   );
 }
+
+/** The smallest sum a rounded cost can name; anything under it is "< $0.01". */
+const CENT = 0.01;
+
+/**
+ * What one answer cost, rounded to the cent, under that answer in the chat.
+ *
+ * A reader of a conversation wants to know whether an answer was expensive, which
+ * "$0.01" says and "$0.0125" with its token counts said less readably; the exact
+ * figure is the title, one hover away. A turn under a cent says so rather than
+ * claiming it was free.
+ */
+export function RoundedCost({ usage }: MessageCostProps) {
+  const t = useTranslations("chat");
+  const exact = Number(usage.cost_usd);
+  const rounded = exact > 0 && exact < CENT ? `< $${CENT.toFixed(2)}` : `$${exact.toFixed(2)}`;
+  return (
+    <span
+      className="text-muted-foreground text-xs tabular-nums"
+      title={
+        usage.cost_is_partial
+          ? t("exactCostPartial", { cost: `$${exact.toFixed(4)}` })
+          : `$${exact.toFixed(4)}`
+      }
+    >
+      {usage.cost_is_partial ? `≥ ${rounded}` : rounded}
+    </span>
+  );
+}

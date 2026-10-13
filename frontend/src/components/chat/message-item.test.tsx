@@ -808,8 +808,9 @@ describe("what a turn cost, under the turn", () => {
   it("prices an assistant answer where the answer is", () => {
     item({ usage });
 
-    expect(screen.getByText(/\u21931,200/)).toBeVisible();
-    expect(screen.getByText(/\$0\.0125/)).toBeVisible();
+    // Rounded to the cent, the exact figure on hover, and no token counts.
+    expect(screen.getByText("$0.01")).toHaveAttribute("title", "$0.0125");
+    expect(screen.queryByText(/\u2193/)).toBeNull();
   });
 
   it("says nothing on a reloaded turn, which carries no measurement", () => {
@@ -1025,13 +1026,13 @@ describe("the footer of a turn drawn in several messages", () => {
     // The run reports what it has spent when it parks, so this used to put the
     // time, the tokens and the cost halfway up the answer.
     const { unmount } = item({ content: "Waiting.", usage: USAGE }, { endsTurn: false });
-    expect(screen.queryByText(/6,603/)).toBeNull();
+    expect(screen.queryByTitle("$0.0133")).toBeNull();
     unmount();
 
     // The same message where the turn does end, so the absence above is the
     // grouping and not a query that matches nothing.
     item({ content: "Waiting.", usage: USAGE });
-    expect(screen.getByText(/6,603/)).toBeInTheDocument();
+    expect(screen.getByTitle("$0.0133")).toBeInTheDocument();
   });
 
   it("draws the turn's figure under the message that ends it", () => {
@@ -1039,13 +1040,13 @@ describe("the footer of a turn drawn in several messages", () => {
     // one turn, where the answer actually ends.
     item({ content: "Six sheets." }, { turnUsage: USAGE });
 
-    expect(screen.getByText(/6,603/)).toBeInTheDocument();
+    expect(screen.getByTitle("$0.0133")).toBeInTheDocument();
   });
 
   it("falls back to its own figure when it is the whole turn", () => {
     item({ content: "Six sheets.", usage: USAGE });
 
-    expect(screen.getByText(/6,603/)).toBeInTheDocument();
+    expect(screen.getByTitle("$0.0133")).toBeInTheDocument();
   });
 });
 

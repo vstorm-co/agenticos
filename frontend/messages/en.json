@@ -1407,7 +1407,8 @@
     "days": {
       "today": "Today",
       "yesterday": "Yesterday"
-    }
+    },
+    "exactCostPartial": "{cost} - a floor: some model in this turn had no price"
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",

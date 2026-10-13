@@ -11,7 +11,7 @@ import { AgentSteps } from "./agent-step";
 import { TextBubble, ThinkingBlock, TurnParts } from "./turn-parts";
 import type { PinnedPrompts } from "./chat-container";
 import { CopyButton } from "./copy-button";
-import { MessageCost } from "./message-cost";
+import { RoundedCost } from "./message-cost";
 import { RatingButtons } from "./rating-buttons";
 import { useChatStore, useFilePreviewStore } from "@/stores";
 import { useMcpToolServers } from "@/hooks";
@@ -347,7 +347,7 @@ export function MessageItem({
             )}
             {!isUser && footerUsage && (
               <span className="hover-reveal">
-                <MessageCost usage={footerUsage} />
+                <RoundedCost usage={footerUsage} />
               </span>
             )}
             {message.content && (

@@ -1407,7 +1407,8 @@
     "days": {
       "today": "Dzisiaj",
       "yesterday": "Wczoraj"
-    }
+    },
+    "exactCostPartial": "{cost} - dolna granica: któryś model w tej turze nie miał ceny"
   },
   "common": {
     "archiveNamedConfirm": "Zarchiwizować {name}?",
