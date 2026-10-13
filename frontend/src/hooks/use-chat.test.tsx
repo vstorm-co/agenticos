@@ -393,15 +393,14 @@ describe("useChat - the streamed answer", () => {
       tool_call_id: "tc-1",
     });
     expect(streaming()?.toolCalls).toEqual([
-      { id: "tc-1", name: "write_file", args: {}, status: "pending", argsChars: 0 },
+      { id: "tc-1", name: "write_file", args: {}, status: "pending" },
     ]);
 
+    // The arguments streaming in change nothing on screen: the step is already there.
+    const before = streaming()?.toolCalls;
     receive("tool_call_delta", { index: 1, args_delta: '{"path": ' });
     receive("tool_call_delta", { index: 1, args_delta: { content: "ab" } });
-    receive("tool_call_delta", { index: 1, args_delta: null });
-    expect(streaming()?.toolCalls?.[0]?.argsChars).toBe(
-      9 + JSON.stringify({ content: "ab" }).length,
-    );
+    expect(streaming()?.toolCalls).toBe(before);
 
     receive("tool_call", { tool_call_id: "tc-1", tool_name: "write_file", args: { path: "a.md" } });
     expect(streaming()?.toolCalls).toEqual([
@@ -410,7 +409,6 @@ describe("useChat - the streamed answer", () => {
         name: "write_file",
         args: { path: "a.md" },
         status: "running",
-        argsChars: undefined,
       },
     ]);
     expect(streaming()?.parts?.filter((part) => part.type === "tool")).toHaveLength(1);
@@ -454,7 +452,7 @@ describe("useChat - the streamed answer", () => {
     receive("model_request_start", {});
     receive("tool_call_delta", { index: 1, args_delta: '{"q":' });
 
-    expect(streaming()?.toolCalls?.[0]?.argsChars).toBeUndefined();
+    expect(streaming()?.toolCalls?.[0]?.status).toBe("running");
   });
 
   it("ignores the narration frames the server sends around every turn", () => {
@@ -537,9 +535,9 @@ describe("useChat - failures and interruptions", () => {
     end();
 
     const calls = useChatStore.getState().messages.find((m) => m.id === id)?.toolCalls;
-    expect(calls?.map((call) => [call.id, call.status, call.argsChars])).toEqual([
-      ["tc-0", "running", undefined],
-      ["tc-1", "unfinished", undefined],
+    expect(calls?.map((call) => [call.id, call.status])).toEqual([
+      ["tc-0", "running"],
+      ["tc-1", "unfinished"],
     ]);
   });
 

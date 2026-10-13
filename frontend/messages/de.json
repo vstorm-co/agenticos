@@ -1217,7 +1217,6 @@
       "answerDelegate": "Delegat antworten",
       "answeringDelegate": "Antwortet einem Delegaten",
       "arguments": "Argumente",
-      "argumentsStreamed": "{size} bisher",
       "askingDelegateStop": "Bittet einen Delegaten anzuhalten",
       "availableContext": "Verfügbarer Kontext",
       "availableSteps": "Verfügbare Schritte",

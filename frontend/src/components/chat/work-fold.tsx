@@ -17,16 +17,22 @@ import { cn } from "@/lib/utils";
  */
 export function useTurnElapsed(startedAt: Date | undefined, running: boolean): number | null {
   const [elapsed, setElapsed] = useState<number | null>(null);
+  // The start as a number: a streamed turn's message is rebuilt on every delta,
+  // and keyed on the `Date` itself the interval was torn down and set up again
+  // with each one.
+  const start = startedAt?.getTime();
   useEffect(() => {
-    if (!running || startedAt === undefined) return;
-    const tick = () => setElapsed(Date.now() - startedAt.getTime());
-    const id = window.setInterval(tick, 1000);
+    if (!running || start === undefined) return;
+    const tick = () => setElapsed(Date.now() - start);
+    // A quarter-second beat, so a second boundary shows within one: on a 1s
+    // beat out of phase with the clock, a display lags by almost a second.
+    const id = window.setInterval(tick, 250);
     return () => {
       window.clearInterval(id);
       // The last reading stands as the turn's duration once it stops.
       tick();
     };
-  }, [running, startedAt]);
+  }, [running, start]);
   return elapsed;
 }
 

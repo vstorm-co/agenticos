@@ -110,12 +110,6 @@ export interface ToolCall {
     | "awaiting_answer"
     | "unfinished";
   /**
-   * How much of the arguments has streamed, in characters, while the model is
-   * still writing them - the `pending` state. A large argument (a whole report
-   * handed to `write_file`) takes minutes, and this is what shows it is moving.
-   */
-  argsChars?: number;
-  /**
    * `awaiting_approval` is its own state, not a kind of running. A parked call
    * produces no result *ever* until somebody decides, so a spinner is a lie that
    * never resolves — which is what the card did before.

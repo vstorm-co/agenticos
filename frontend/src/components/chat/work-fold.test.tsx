@@ -25,6 +25,18 @@ describe("useTurnElapsed", () => {
     expect(result.current).toBe(12_000);
   });
 
+  it("keeps counting when the turn is rebuilt with an equal start, as every delta does", () => {
+    // A streamed turn's message is rebuilt on every delta with an equal start.
+    const { result, rerender } = renderHook(({ at }: { at: Date }) => useTurnElapsed(at, true), {
+      initialProps: { at: new Date(START) },
+    });
+    for (let i = 0; i < 8; i += 1) {
+      act(() => vi.advanceTimersByTime(250));
+      rerender({ at: new Date(START) });
+    }
+    expect(result.current).toBe(12_000);
+  });
+
   it("knows nothing of a turn it never watched", () => {
     const { result } = renderHook(() => useTurnElapsed(START, false));
     expect(result.current).toBeNull();

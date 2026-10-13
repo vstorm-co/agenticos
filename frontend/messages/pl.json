@@ -1217,7 +1217,6 @@
       "answerDelegate": "Odpowiedź delegatowi",
       "answeringDelegate": "Odpowiada delegatowi",
       "arguments": "Argumenty",
-      "argumentsStreamed": "na razie {size}",
       "askingDelegateStop": "Prosi delegata o zatrzymanie",
       "availableContext": "Dostępny kontekst",
       "availableSteps": "Dostępne kroki",

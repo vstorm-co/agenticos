@@ -79,17 +79,11 @@ describe("a tool call in the transcript", () => {
     expect(screen.getByText("Running")).toBeInTheDocument();
   });
 
-  it("says how much of the arguments has arrived while the model is still writing them", () => {
-    // A report handed to `write_file` streams for minutes; the size is what moves.
-    card({ name: "write_file", status: "pending", result: undefined, argsChars: 43_008 });
+  it("shows a call whose arguments are still streaming as running, with no byte count", () => {
+    // "185 B so far" beside the step said nothing a reader could use.
+    card({ name: "write_file", status: "pending", result: undefined });
 
-    expect(screen.getByText("42.0 KB so far")).toBeInTheDocument();
     expect(screen.getByText("Running")).toBeInTheDocument();
-  });
-
-  it("says nothing about size once the call is running", () => {
-    card({ name: "write_file", status: "running", result: undefined, argsChars: 43_008 });
-
     expect(screen.queryByText(/so far/)).toBeNull();
   });
 
