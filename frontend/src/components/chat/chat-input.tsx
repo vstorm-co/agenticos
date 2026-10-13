@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import type { ReactNode } from "react";
 import { getErrorMessage } from "@/lib/api-error";
 import { Button, Spinner } from "@/components/ui";
-import { Send, Mic, MicOff, Paperclip } from "lucide-react";
+import { Send, Mic, MicOff } from "lucide-react";
 import { toast } from "sonner";
 
 import { uploadFile, type FileUploadResponse } from "@/lib/file-api";
@@ -479,23 +479,6 @@ export function ChatInput({
       {/* `min-w-0` and a shrinkable right group: at 390px the controls used to
           run 27px past the composer's own edge, measured on an iPhone 15. */}
       <div className="flex items-center gap-1.5 pt-0.5 pb-1">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={disabled || isUploading}
-          // Behind the phone's `+` instead - see `ComposerSheet`.
-          className="hidden h-9 w-9 shrink-0 md:inline-flex"
-          title={t("attachFile")}
-          aria-label={t("attachFile")}
-        >
-          {isUploading ? (
-            <Spinner className="text-muted-foreground h-4 w-4" />
-          ) : (
-            <Paperclip className="text-muted-foreground h-4 w-4" />
-          )}
-        </Button>
         <input
           ref={fileInputRef}
           type="file"
@@ -507,8 +490,17 @@ export function ChatInput({
         <ComposerSheet
           onAttach={() => fileInputRef.current?.click()}
           onVoice={toggleMic}
+          onCommand={
+            slashContext
+              ? () => {
+                  setMessage("/");
+                  textareaRef.current?.focus();
+                }
+              : undefined
+          }
           disabled={disabled || isUploading}
         />
+        {isUploading && <Spinner className="text-muted-foreground h-4 w-4 shrink-0" />}
         {controlsSlot ? (
           <div className="flex min-w-0 items-center gap-1">{controlsSlot}</div>
         ) : null}
@@ -521,8 +513,8 @@ export function ChatInput({
             size="icon"
             onClick={toggleMic}
             disabled={disabled}
-            // On a phone it starts from the `+` sheet, and shows here only to stop.
-            className={cn("h-9 w-9 shrink-0", !isListening && "hidden md:inline-flex")}
+            // It starts from the `+`, and shows here only to stop.
+            className={cn("h-9 w-9 shrink-0", !isListening && "hidden")}
             title={isListening ? t("stopRecording") : t("voiceInput")}
             aria-label={isListening ? t("stopRecording") : t("voiceInput")}
           >

@@ -1059,7 +1059,11 @@
       "uploadFailed": "Upload fehlgeschlagen",
       "voiceInput": "Spracheingabe",
       "voiceUnsupported": "Spracheingabe wird nur in Chrome unterstützt. Nutzen Sie Chrome für Sprache-zu-Text.",
-      "addToMessage": "Zur Nachricht hinzufügen"
+      "addToMessage": "Zur Nachricht hinzufügen",
+      "attachFileHint": "Bilder, PDFs, Tabellen und Dokumente",
+      "voiceInputHint": "Sprechen statt tippen",
+      "commands": "Befehle",
+      "commandsHint": "Aus einer Liste wählen - wie das Tippen von /"
     },
     "knowledgeBase": "Wissensdatenbank",
     "link": "Link",

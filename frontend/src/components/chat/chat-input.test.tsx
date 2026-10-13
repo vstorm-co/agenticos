@@ -312,4 +312,16 @@ describe("ChatInput attachments", () => {
     expect(touch).toHaveValue("one\ntwo");
     window.matchMedia = desk;
   });
+
+  it("starts a command from the `+`, the same as typing a slash", async () => {
+    const context = { clearChat: vi.fn(), regenerateLast: vi.fn(), openSettings: vi.fn() };
+    render(<ChatInput onSend={vi.fn()} slashContext={context} />);
+
+    await userEvent.click(screen.getAllByRole("button", { name: "Add to message" })[0]!);
+    await userEvent.click(await screen.findByRole("menuitem", { name: /Commands/ }));
+
+    const box = screen.getByRole("textbox");
+    expect(box).toHaveValue("/");
+    expect(box).toHaveFocus();
+  });
 });

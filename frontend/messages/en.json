@@ -1059,7 +1059,11 @@
       "uploadFailed": "Upload failed",
       "voiceInput": "Voice input",
       "voiceUnsupported": "Voice input is only supported in Chrome. Use Chrome for speech-to-text.",
-      "addToMessage": "Add to message"
+      "addToMessage": "Add to message",
+      "attachFileHint": "Images, PDFs, spreadsheets and documents",
+      "voiceInputHint": "Speak instead of typing",
+      "commands": "Commands",
+      "commandsHint": "Pick one from a list - the same as typing /"
     },
     "knowledgeBase": "Knowledge base",
     "link": "Link",

@@ -1059,7 +1059,11 @@
       "uploadFailed": "Wgrywanie nie powiodło się",
       "voiceInput": "Wprowadzanie głosem",
       "voiceUnsupported": "Wprowadzanie głosem działa tylko w Chrome. Użyj Chrome do zamiany mowy na tekst.",
-      "addToMessage": "Dodaj do wiadomości"
+      "addToMessage": "Dodaj do wiadomości",
+      "attachFileHint": "Obrazy, PDF-y, arkusze i dokumenty",
+      "voiceInputHint": "Mów zamiast pisać",
+      "commands": "Komendy",
+      "commandsHint": "Wybierz z listy - to samo co wpisanie /"
     },
     "knowledgeBase": "Baza wiedzy",
     "link": "Link",
