@@ -1,5 +1,5 @@
 ---
-source_sha: "130cbafc773f"
+source_sha: "db94b4a1df4b"
 ---
 
 # Configuración { #configuration }
@@ -1111,6 +1111,7 @@ esta.
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | La configuración de una página alojada, **por página** — y su logo, en un contador propio. Ver más abajo |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Archivos que un visitante puede guardar en una página alojada. Se cuenta **por dirección y por clave de visitante**, y las dos tienen que permitirlo — la clave la acuña el navegador, así que contar solo esa no acota nada |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | Los [servicios de ML](ml-services.md), por llamante. Estos endpoints hacen su trabajo de forma síncrona, así que un llamante sin límite ocupa el pool de parseo en vez de un presupuesto |
+| `RATE_LIMIT_DICTATION_PER_MINUTE` | `10` | [Dictado en el chat](ml-services.md#dictation-in-chat), por persona, en un contador propio para que dictar y una integración que llama a los servicios de ML no se gasten la cuota el uno al otro. Cada dictado es una llamada al provider de pago de la organización |
 | `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Si `X-Forwarded-For` nombra a quien llama |
 
 **Lo que recibe un llamante rechazado** es el sobre de error propio de esta API con

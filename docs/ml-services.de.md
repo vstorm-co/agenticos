@@ -1,5 +1,5 @@
 ---
-source_sha: "f761c7242a73"
+source_sha: "ef2795b762aa"
 ---
 
 # Die ML-Dienste { #the-ml-services }
@@ -144,6 +144,87 @@ Anbieter senden darf: das Profil auf einen selbst gehosteten Server richten, der
 dieselbe API spricht, und der Endpunkt hier bleibt unverändert. Eine Organisation
 ohne brauchbare Zugangsdaten wird abgelehnt, und die Ablehnung sagt es — nichts
 wird als vorhanden angenommen, was ein Betreiber nicht konfiguriert hat.
+
+Welches Profil, wenn die Organisation mehrere für einen Anbieter hat: **zuerst
+ein Profil mit Schlüssel**, das erste in der Reihenfolge der Bezeichnungen, und
+eines ohne Schlüssel nur dann, wenn der Anbieter gar kein Profil mit Schlüssel
+hat — und nur, wenn es einen eigenen Endpunkt nennt. Eine Anfrage ohne Schlüssel
+trägt keinen `Authorization`-Header und nie den `OPENAI_API_KEY` des
+Deployments. Schlüssel zuerst ist das, was einen Kanal-Bot bei OpenAI
+transkribieren lässt, nachdem jemand ein schlüsselloses `openai`-Profil für einen
+Chat-Proxy ohne `/audio/transcriptions` angelegt hat.
+
+Eine Ablehnung sagt in `details.reason`, warum, hier wie beim
+[Diktieren](#dictation-in-chat). Der eigene Fehlertext des Anbieters wird
+protokolliert und nie zurückgegeben, denn ein Anbieter-Client schreibt die
+Anfrage-URL samt Schlüssel in seine Meldung.
+
+| `reason` | Status | Was passiert ist |
+|---|---|---|
+| `not_configured` | 503 | Keine brauchbaren Zugangsdaten für den Anbieter; beim Diktieren auch: Server-Diktat nicht eingerichtet |
+| `empty` | 400 | Die Engine hat keine Sprache gehört, oder die Aufnahme hat keine Bytes |
+| `unsupported_type` | 400 | Nur beim Diktieren: die Aufnahme ist kein WebM-, Ogg-, MP4- oder WAV-Audio |
+| `too_large` | 400 | Über 25 MB oder über der Diktatgrenze der Organisation |
+| `provider_error` | 503 | Der Anbieter hat die Anfrage abgelehnt oder ist daran gescheitert |
+| `timeout` | 503 | Der Anbieter hat nicht innerhalb von 60 Sekunden geantwortet |
+
+#### Diktieren im Chat { #dictation-in-chat }
+
+`POST /api/v1/agents/{agent_id}/dictation` ist das Mikrofon im
+[Eingabefeld von `/chat`](console.md#dictation), wenn die Organisation auf dem
+Server transkribiert. Es nimmt eine Aufnahme als `file` und antwortet mit
+`{"text": "..."}`, das das Eingabefeld zum Bearbeiten einsetzt; gesendet wird
+nichts, bis die Person auf Senden drückt. Der Aufrufer nennt weder Anbieter
+noch Modell noch Sprache — die gehören der Organisation — und die Person darf
+jedem Agent diktieren, den sie ausführen darf, ein Viewer mit einem
+`use`-Grant darauf eingeschlossen. Ein Agent, den sie nicht ausführen darf,
+antwortet mit 404, wie überall sonst.
+
+Was es aus der Organisation liest, eingestellt auf der
+[Voice-Karte](console.md#the-voice-card) von jemandem mit `org:settings`:
+`chat_dictation` (`off`, `browser` oder `server`; alles außer `server` wird als
+`not_configured` abgelehnt), `speech_to_text_provider` und
+`speech_to_text_model` (ein Paar aus dem Speech-to-Text-Katalog),
+`speech_to_text_language` (ein ISO-639-1-Code, oder null, damit die Engine ihn
+erkennt) und `dictation_max_seconds` (10 bis 600, standardmäßig 300).
+
+Die Aufnahme muss `audio/webm`, `audio/ogg`, `audio/mp4` oder `audio/wav`
+sein, ein Codec-Suffix ist erlaubt, und `audio/x-wav` sowie `audio/wave` werden
+als `audio/wav` gelesen. Die ersten drei erzeugt `MediaRecorder` in Browsern;
+WAV nimmt das Eingabefeld selbst auf, wenn der Anbieter Mistral ist (siehe den
+Hinweis unten). Der Anbieter erhält die Aufnahme als `recording.webm`,
+`recording.ogg`, `recording.m4a` oder `recording.wav`.
+
+Die Route liest höchstens 25 MB des Bodys; die eigene Grenze
+der Organisation, `dictation_max_seconds × 32 KB`, gilt für das Gelesene. Ein
+Body, den die Anfragegrenze des Deployments ablehnt, bevor die Route läuft,
+bekommt 413 ohne `reason`, was das Eingabefeld als `too_large` liest.
+
+Jede Person darf `RATE_LIMIT_DICTATION_PER_MINUTE`-mal pro Minute diktieren,
+standardmäßig 10, auf einem eigenen Zähler, sodass Diktieren nicht das
+ML-Kontingent einer Integration verbraucht. Jedes Diktat hinterlässt einen
+[Aufrufdatensatz](#what-is-recorded), unter `speech_to_text` und in Zeichen
+gezählt. **Das Audio wird nie gespeichert**: Es wird verworfen, wenn der Aufruf
+zurückkehrt, und der Text existiert nur in der Antwort. Abbrechen im Browser
+bricht eine bereits gesendete Aufnahme nicht ab — der Anbieter transkribiert sie
+trotzdem, stellt sie dem Konto der Organisation in Rechnung, und der Aufruf wird
+aufgezeichnet.
+
+!!! note "Bei Mistral nimmt der Browser WAV auf, und es werden weniger Sprachen transkribiert"
+
+    Mistral dokumentiert für Voxtral WAV- und MP3-Eingaben, nicht WebM oder
+    Opus, was Chrome und Firefox aufnehmen. Ist Mistral der
+    Spracherkennungsanbieter der Organisation, nimmt das Eingabefeld deshalb in
+    jedem Browser stattdessen WAV mit 16 kHz, Mono und 16 Bit auf. Der Upload
+    ist etwa doppelt so groß — 32.000 Bytes pro Sekunde —, die Längengrenze
+    bleibt aber dieselbe, weil eine WAV-Aufnahme von `dictation_max_seconds`
+    unter die Grenze passt.
+
+    Die Sprachliste ist die von Whisper, die OpenAI und Groq akzeptieren.
+    Mistral nennt 13 Sprachen für Voxtral, sodass eine festgelegte Sprache, die
+    er nicht nimmt, als `provider_error` zurückkommt. Bei Mistral die Sprache
+    auf automatischer Erkennung lassen und eine Aufnahme ausprobieren, bevor man
+    sich darauf verlässt.
 
 ### Erkennung personenbezogener Daten { #personal-data-detection }
 

@@ -52,14 +52,27 @@ DICTATION_BYTES_PER_SECOND = 32_768
 Double what the composer records at (128 kbps Opus is 16 KB/s), so a browser
 that encodes a little fatter than asked is not refused, while a caller posting
 straight to the endpoint cannot buy an hour of transcription with one request.
+The WAV the composer records for Mistral (16 kHz mono 16-bit PCM) is 32,000
+bytes a second plus a 44-byte header, so it fits under the same cap.
 """
 
-DICTATION_TYPES: dict[str, str] = {"audio/webm": "webm", "audio/ogg": "ogg", "audio/mp4": "mp4"}
-"""What browsers' `MediaRecorder` produces, and the extension the provider is sent.
+DICTATION_TYPES: dict[str, str] = {
+    "audio/webm": "webm",
+    "audio/ogg": "ogg",
+    "audio/mp4": "m4a",
+    "audio/wav": "wav",
+}
+"""What the composer records, and the extension the provider is sent.
 
-OpenAI-compatible endpoints read the format from the file name, and a `Blob` in
-a `FormData` arrives named `blob`, so the name is chosen here from the type.
+The first three are what browsers' `MediaRecorder` produces; WAV is what the
+composer builds itself for a provider that documents neither WebM nor Opus
+(Mistral). OpenAI-compatible endpoints read the format from the file name, and
+a `Blob` in a `FormData` arrives named `blob`, so the name is chosen here from
+the type. MP4 audio goes as `.m4a`, the name OpenAI, Groq and Mistral all list.
 """
+
+DICTATION_TYPE_ALIASES: dict[str, str] = {"audio/x-wav": "audio/wav", "audio/wave": "audio/wav"}
+"""Other names clients use for WAV, read as `audio/wav`."""
 
 
 @dataclass(frozen=True)
@@ -234,10 +247,13 @@ class MLService:
                     message="The recording is empty.", details={"reason": "empty"}
                 )
             base_type = mime_type.split(";", 1)[0].strip().lower()
+            base_type = DICTATION_TYPE_ALIASES.get(base_type, base_type)
             extension = DICTATION_TYPES.get(base_type)
             if extension is None:
                 raise refused_field(
-                    "file", "Dictation accepts WebM, Ogg or MP4 audio.", reason="unsupported_type"
+                    "file",
+                    "Dictation accepts WebM, Ogg, MP4 or WAV audio.",
+                    reason="unsupported_type",
                 )
             cap = min(
                 org.dictation_max_seconds * DICTATION_BYTES_PER_SECOND, transcription.MAX_BYTES

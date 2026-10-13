@@ -137,6 +137,59 @@ acted on a 0.31 pick is one worth looking into. It stays up when the browse ends
 because *blocked by the page* is an answer about the page. Close it and it stays
 closed for that browse.
 
+### Dictation
+
+The microphone in the composer turns speech into text in the box, and never
+sends it: what you said lands where the caret was when you pressed the
+microphone, ready to edit, and goes nowhere until you press Send. How it
+transcribes is the organization's choice, made on [the Voice card](#the-voice-card):
+
+- **Off** — no microphone.
+- **Browser** — the browser's own speech recognition, so the audio goes to the
+  browser vendor (Google, Apple). Firefox has none: its microphone says so
+  when pressed.
+- **Server** — the browser records, and this deployment sends the recording to
+  the organization's speech-to-text provider. It works in every browser that can
+  record. See [Dictation in chat](ml-services.md#dictation-in-chat) for the
+  endpoint, its limits and what is recorded.
+
+With **Server**, pressing the microphone replaces the controls with a recording
+bar: Cancel, the level, a timer and Stop. **Enter** stops and transcribes,
+**Escape** cancels, and nothing typed or pressed while a recording is running or
+being transcribed is sent. The recording stops by itself at the organization's
+longest dictation and is transcribed, and a microphone unplugged mid-way ends it
+the same way rather than discarding it.
+
+Everything dictation has to say appears in a strip attached under the composer:
+the permission prompt, a blocked or missing microphone, the last 30 seconds, five
+seconds without sound, a recording under a second (not sent), and every failure.
+A recording that failed to transcribe is kept until you press **Retry** or
+**Discard**. Where the organization has chosen Server but no provider or model
+yet, or no agent is picked, the microphone is crossed out and says why; somebody
+holding `org:settings` is offered a link to the Voice card.
+
+The glow beneath the composer while you speak follows **Voice glow** in the
+account menu, beside the theme and the language: **Vivid**, **Subtle** (the
+default) or **Off**. It is remembered per browser. With reduced motion on in the
+operating system there is no glow at all, the strip appears without sliding, and
+the level is a five-step indicator.
+
+### The Voice card
+
+On the organization's **Members** page, for somebody holding `org:settings`.
+**Speech to text** chooses the engine — Off, Browser or Server, each saying where
+the audio goes — and, for Server, the provider and model from the speech-to-text
+catalog, a language (auto-detect, or one fixed language, which is more accurate)
+and the longest recording, from 10 seconds to 10 minutes.
+
+Server sends with the organization's own credentials for that provider: a model
+profile, added in an agent's Builder. A provider with no profile is shown but
+cannot be picked, and a keyless profile pointed at a self-hosted server counts.
+Where Server is stored but cannot run — the model was withdrawn from the
+catalog, or the credentials are gone — the card says so, because every member
+then sees a crossed-out microphone. **Voice conversations**, below it, is not
+built yet.
+
 ## What each area is for
 
 | Area | It holds | Read |

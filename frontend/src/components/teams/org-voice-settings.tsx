@@ -222,7 +222,7 @@ function VoiceForm({ org }: { org: Organization }) {
   };
 
   return (
-    <div data-tour="org-voice">
+    <div id="org-voice" data-tour="org-voice">
       <SettingsSection title={t("voice.title")} description={t("voice.description")}>
         <h3 className="text-sm font-semibold">{t("voice.sttTitle")}</h3>
         <p className="text-muted-foreground mt-0.5 mb-4 text-sm">{t("voice.sttDescription")}</p>
@@ -565,7 +565,10 @@ function LanguageField({ draft, languages, failure, onChange }: ServerFieldsProp
     <FormField
       label={t("voice.language")}
       htmlFor="org-voice-language"
-      description={t("voice.languageHint")}
+      // Mistral publishes neither Whisper's language list nor its accepted formats.
+      description={
+        draft.provider === "mistral" ? t("voice.languageHintMistral") : t("voice.languageHint")
+      }
       error={failure.fields.speech_to_text_language}
     >
       <Select

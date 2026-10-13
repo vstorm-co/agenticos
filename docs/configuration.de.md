@@ -1,5 +1,5 @@
 ---
-source_sha: "130cbafc773f"
+source_sha: "db94b4a1df4b"
 ---
 
 # Konfiguration { #configuration }
@@ -1167,6 +1167,7 @@ sollte, ist eine eigene Entscheidung und nicht diese.
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | Die Config einer Hosted Page, **je Seite** — und ihr Logo, auf einem eigenen Zähler. Siehe unten |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Dateien, die eine besuchende Person auf einer Hosted Page ablegen darf. Gezählt **je Adresse und je Visitor Key**, und beide müssen es zulassen — der Key wird vom Browser erzeugt, nur ihn zu zählen begrenzt also nichts |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | Die [ML-Dienste](ml-services.md), pro Aufrufer. Diese Endpunkte erledigen ihre Arbeit synchron, ein unbegrenzter Aufrufer belegt also den Parsing-Pool statt eines Budgets |
+| `RATE_LIMIT_DICTATION_PER_MINUTE` | `10` | [Diktieren im Chat](ml-services.md#dictation-in-chat), pro Person, auf einem eigenen Zähler, damit Diktieren und eine Integration, die die ML-Dienste aufruft, einander nicht das Kontingent verbrauchen. Jedes Diktat ist ein Aufruf beim kostenpflichtigen Provider der Organisation |
 | `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Ob `X-Forwarded-For` die aufrufende Seite benennt |
 
 **Was eine abgelehnte aufrufende Seite bekommt**, ist der eigene Fehlerumschlag

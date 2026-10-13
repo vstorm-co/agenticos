@@ -1,5 +1,5 @@
 ---
-source_sha: "3f7ecae57bcf"
+source_sha: "015be7266b49"
 ---
 
 # Datenschutz { #data-protection }
@@ -133,7 +133,7 @@ benennt. Dies ist die vollständige Liste der Ziele, mit der Konfiguration, die
 | Ein MCP-Server | Tool-Argumente und -Ergebnisse | `mcp_connections.url`, je Organisation oder je Person | Die des Serverbetreibers |
 | mem0 | Die für eine Person oder einen Chat geschriebenen Memories | Die `base_url` der Capability `memory_mem0`, die in `MEM0_ALLOWED_HOSTS` stehen muss | Die des mem0-Hosts, den Sie zulassen |
 | Logfire | Spans für jede Anfrage und jeden Run | `LOGFIRE_TOKEN` deploymentweit; ein `observability`-Token auf einem Spec oder `logfire_token_secret_id` auf einem Environment lenkt diese Runs in ein anderes Projekt. `LOGFIRE_BASE_URL` wählt das US- oder EU-Deployment. Überall ungesetzt wird nichts gesendet | Die von Pydantic, US oder EU |
-| Speech-to-Text, Bildgenerierung | Die Sprachnachricht; der Prompt | Ein Profil für `groq`, `mistral` oder `openai`; ein Profil für `google` oder `openai` | Die des Providers |
+| Speech-to-Text, Bildgenerierung | Eine Sprachnachricht aus einem Kanal oder eine in `/chat` diktierte Aufnahme; der Prompt | Das Speech-to-Text-Paar eines Bots oder die Diktier-Engine der Organisation auf `server`, mit einem Profil für `groq`, `mistral` oder `openai` - ein schlüsselloses auf einem Host, den Sie betreiben, zählt auch; ein Profil für `google` oder `openai`. Das Audio eines Diktats wird hier nicht gespeichert | Die des Providers, oder Ihr eigener Host |
 | Slack, Telegram, Mattermost | Die Antworten des Agents | Eine `channel_bots`-Zeile mit ihrem Token im Vault | Der Messaging-Anbieter hält den Chat ohnehin schon |
 | Google-Anmeldung | Nichts ausgehend; Google liefert E-Mail, Name, Bild und Konto-Id zurück | `GOOGLE_CLIENT_ID` | Die von Google |
 | Ihr SMTP-Relay | Die oben genannte Post | `SMTP_HOST`, `SMTP_TLS` | Ihre |

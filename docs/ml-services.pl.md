@@ -1,5 +1,5 @@
 ---
-source_sha: "f761c7242a73"
+source_sha: "ef2795b762aa"
 ---
 
 # Usługi ML { #the-ml-services }
@@ -137,6 +137,82 @@ dostawcy. To jest odpowiedź dla wdrożenia, które nie może wysyłać dźwięk
 dostawcy: skieruj profil na własny serwer mówiący tym samym API, a endpoint tutaj
 się nie zmieni. Organizacja bez użytecznych poświadczeń dostaje odmowę, która to
 mówi — nic nie jest zakładane jako istniejące, czego operator nie skonfigurował.
+
+Który profil, gdy organizacja ma kilka dla jednego dostawcy: **najpierw profil z
+kluczem**, pierwszy w kolejności etykiet, a profil bez klucza tylko wtedy, gdy
+dostawca nie ma żadnego profilu z kluczem — i tylko jeśli nazywa własny
+endpoint. Żądanie bez klucza nie niesie nagłówka `Authorization` i nigdy nie
+używa `OPENAI_API_KEY` wdrożenia. Pierwszeństwo klucza sprawia, że bot kanału
+dalej transkrybuje w OpenAI, gdy ktoś doda profil `openai` bez klucza dla proxy
+czatu, które nie obsługuje `/audio/transcriptions`.
+
+Odmowa mówi dlaczego w `details.reason`, tutaj i przy
+[dyktowaniu](#dictation-in-chat) tak samo. Własny tekst błędu dostawcy trafia do
+logu i nigdy nie jest zwracany, bo klient dostawcy wkłada do swojego komunikatu
+URL żądania razem z kluczem.
+
+| `reason` | Status | Co się stało |
+|---|---|---|
+| `not_configured` | 503 | Brak użytecznych poświadczeń dla dostawcy; przy dyktowaniu także brak skonfigurowanego dyktowania na serwerze |
+| `empty` | 400 | Silnik nie usłyszał mowy albo nagranie nie ma bajtów |
+| `unsupported_type` | 400 | Tylko dyktowanie: nagranie nie jest dźwiękiem WebM, Ogg, MP4 ani WAV |
+| `too_large` | 400 | Ponad 25 MB albo ponad limit dyktowania organizacji |
+| `provider_error` | 503 | Dostawca odrzucił żądanie albo nie zdołał go obsłużyć |
+| `timeout` | 503 | Dostawca nie odpowiedział w ciągu 60 sekund |
+
+#### Dyktowanie w czacie { #dictation-in-chat }
+
+`POST /api/v1/agents/{agent_id}/dictation` to mikrofon w
+[polu wiadomości `/chat`](console.md#dictation), gdy organizacja transkrybuje na
+serwerze. Przyjmuje jedno nagranie jako `file` i odpowiada `{"text": "..."}`,
+które pole wiadomości wstawia do edycji; nic nie zostaje wysłane, dopóki osoba
+nie naciśnie Wyślij. Wywołujący nie nazywa dostawcy, modelu ani języka — należą
+one do organizacji — a osoba może dyktować do każdego agenta, którego może
+uruchomić, łącznie z osobą z rolą Viewer, która ma na nim grant `use`. Agent, którego
+nie może uruchomić, odpowiada 404, jak wszędzie indziej.
+
+Co odczytuje z organizacji, ustawione na
+[karcie Voice](console.md#the-voice-card) przez kogoś z `org:settings`:
+`chat_dictation` (`off`, `browser` albo `server`; wszystko poza `server` zostaje
+odrzucone jako `not_configured`), `speech_to_text_provider` i
+`speech_to_text_model` (para z katalogu speech-to-text),
+`speech_to_text_language` (kod ISO-639-1 albo null, by silnik sam go rozpoznał)
+oraz `dictation_max_seconds` (od 10 do 600, domyślnie 300).
+
+Nagranie musi być `audio/webm`, `audio/ogg`, `audio/mp4` albo `audio/wav`, z
+dopuszczalnym sufiksem kodeka, a `audio/x-wav` i `audio/wave` są czytane jako
+`audio/wav`. Pierwsze trzy tworzy `MediaRecorder` przeglądarek; WAV pole
+wiadomości nagrywa samo, gdy dostawcą jest Mistral (zob. uwagę niżej). Dostawca
+otrzymuje nagranie jako `recording.webm`, `recording.ogg`, `recording.m4a` albo
+`recording.wav`.
+
+Trasa czyta najwyżej 25 MB treści żądania; własny limit organizacji,
+`dictation_max_seconds × 32 KB`, jest stosowany do tego, co przeczytano. Treść,
+którą limit żądań wdrożenia odrzuca, zanim trasa ruszy, dostaje 413 bez
+`reason`, co pole wiadomości odczytuje jako `too_large`.
+
+Każda osoba może dyktować `RATE_LIMIT_DICTATION_PER_MINUTE` razy na minutę,
+domyślnie 10, na osobnym liczniku, więc dyktowanie nie zużywa limitu usług ML
+integracji. Każde dyktowanie zostawia jeden [zapis wywołania](#what-is-recorded),
+pod `speech_to_text`, liczony w znakach. **Dźwięk nigdy nie jest
+przechowywany**: zostaje odrzucony, gdy wywołanie się kończy, a tekst istnieje
+tylko w odpowiedzi. Anulowanie w przeglądarce nie anuluje nagrania już
+wysłanego — dostawca i tak je transkrybuje, obciąża za nie konto organizacji, a
+wywołanie zostaje zapisane.
+
+!!! note "W Mistralu przeglądarka nagrywa WAV, a transkrybowanych języków jest mniej"
+
+    Mistral dokumentuje dla Voxtrala wejście WAV i MP3, a nie WebM ani Opus,
+    które nagrywają Chrome i Firefox. Dlatego gdy dostawcą zamiany mowy na tekst
+    w organizacji jest Mistral, pole wiadomości w każdej przeglądarce nagrywa
+    zamiast tego WAV 16 kHz, mono, 16 bitów. Przesyłany plik jest mniej więcej
+    dwa razy większy — 32 000 bajtów na sekundę — ale limit długości jest ten
+    sam, bo nagranie WAV trwające `dictation_max_seconds` mieści się w limicie.
+
+    Lista języków pochodzi z Whispera, którą akceptują OpenAI i Groq. Mistral
+    podaje 13 języków dla Voxtrala, więc ustalony język, którego nie przyjmuje,
+    wraca jako `provider_error`. W Mistralu zostaw język na automatycznym
+    wykrywaniu i wypróbuj nagranie, zanim zaczniesz na nim polegać.
 
 ### Wykrywanie danych osobowych { #personal-data-detection }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "3f7ecae57bcf"
+source_sha: "015be7266b49"
 ---
 
 # Ochrona danych { #data-protection }
@@ -127,7 +127,7 @@ lista celów, wraz z konfiguracją, która o każdym decyduje.
 | Serwer MCP | Argumenty i wyniki narzędzi | `mcp_connections.url`, per organizacja albo per osoba | Operatora serwera |
 | mem0 | Wspomnienia zapisane dla osoby albo czatu | `base_url` capability `memory_mem0`, który musi być w `MEM0_ALLOWED_HOSTS` | Hosta mem0, na który pozwalasz |
 | Logfire | Spany każdego żądania i runu | `LOGFIRE_TOKEN` na poziomie wdrożenia; token `observability` w specu albo `logfire_token_secret_id` na środowisku przekierowuje te runy do innego projektu. `LOGFIRE_BASE_URL` wybiera wdrożenie w USA albo w UE. Nieustawione wszędzie — nic nie jest wysyłane | Pydantic, USA albo UE |
-| Mowa na tekst, generowanie obrazów | Notatka głosowa; prompt | Profil dla `groq`, `mistral` albo `openai`; profil dla `google` albo `openai` | Providera |
+| Mowa na tekst, generowanie obrazów | Notatka głosowa z kanału albo nagranie podyktowane w `/chat`; prompt | Para speech-to-text bota albo silnik dyktowania organizacji ustawiony na `server`, z profilem dla `groq`, `mistral` albo `openai` - profil bez klucza na hoście, który prowadzisz, też się liczy; profil dla `google` albo `openai`. Dźwięk dyktowania nie jest tu przechowywany | Providera albo twój własny host |
 | Slack, Telegram, Mattermost | Odpowiedzi agenta | Wiersz `channel_bots` z tokenem w vaulcie | Dostawca komunikatora i tak ma już ten czat |
 | Logowanie Google | Nic wychodzącego; Google zwraca e-mail, imię, zdjęcie i id konta | `GOOGLE_CLIENT_ID` | Google |
 | Twój relay SMTP | Poczta wymieniona wyżej | `SMTP_HOST`, `SMTP_TLS` | Twoja |

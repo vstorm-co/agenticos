@@ -1,5 +1,5 @@
 ---
-source_sha: "c0858ab0af15"
+source_sha: "9f2ebd04f8d2"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1271,7 +1271,13 @@ auseinanderlaufen kann.
     **Channels**, und standardmäßig null: Transkription gibt bei jeder Aufnahme
     das Provider-Guthaben der Organisation aus, also wird sie bewusst aktiviert.
     Der Schlüssel ist der, der für diesen Provider ohnehin in den Modellprofilen
-    der Organisation konfiguriert ist; es gibt nichts Neues zu speichern. Ein Bot
+    der Organisation konfiguriert ist; es gibt nichts Neues zu speichern. Ein
+    Profil mit Schlüssel geht einem schlüssellosen vor, und ein schlüsselloses
+    Profil, das auf einen selbst gehosteten Server zeigt, wird nur benutzt, wenn
+    der Provider kein Profil mit Schlüssel hat
+    ([die Reihenfolge](ml-services.md#speech-to-text)) - ein schlüsselloser
+    Chat-Proxy bringt einen Bot also nicht von dem Provider ab, auf dem er
+    transkribiert. Ein Bot
     ohne gewähltes Modell sagt, dass er nicht zuhören kann, statt die Aufnahme
     fallen zu lassen, denn eine Sprachnotiz, die keine Reaktion erzeugt, ist von
     einem kaputten Bot nicht zu unterscheiden.

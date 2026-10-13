@@ -1,7 +1,7 @@
 import { act, render, screen } from "@testing-library/react";
 import { useEffect, type ReactNode } from "react";
 import { renderToString } from "react-dom/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { GeneratedImage } from "./generated-image";
 import { VoiceGlow } from "./voice-glow";
@@ -9,35 +9,26 @@ import { useVoiceGlowStore } from "@/stores/voice-glow-store";
 
 const env = vi.hoisted(() => ({ audio: false, reduced: false, mounted: true }));
 
+/** A Web Audio graph that records what was connected and answers a fixed level. */
+const audioGraph = vi.hoisted(() => {
+  const graph = {
+    level: 0.1,
+    sources: [] as {
+      connect: ReturnType<typeof import("vitest").vi.fn>;
+      disconnect: ReturnType<typeof import("vitest").vi.fn>;
+    }[],
+    analysers: [] as { disconnect: ReturnType<typeof import("vitest").vi.fn> }[],
+    context: null as unknown,
+  };
+  return graph;
+});
+
 vi.mock("voice-glow", async (importOriginal) => {
   const actual = await importOriginal<typeof import("voice-glow")>();
   return {
     ...actual,
     isAudioSupported: () => env.audio,
-    // Draws what the glow was asked for, around what it wraps.
-    VoiceBeam: (props: {
-      children: ReactNode;
-      colorVariant?: string;
-      idle?: number;
-      strength?: number;
-      paused?: boolean;
-      active?: boolean;
-      processing?: boolean;
-      stream?: MediaStream | null;
-    }) => (
-      <div
-        data-testid="beam"
-        data-variant={props.colorVariant}
-        data-idle={String(props.idle)}
-        data-strength={String(props.strength)}
-        data-paused={String(props.paused)}
-        data-active={String(props.active)}
-        data-processing={String(props.processing)}
-        data-stream={props.stream ? "live" : "none"}
-      >
-        {props.children}
-      </div>
-    ),
+    getAudioContext: () => audioGraph.context,
   };
 });
 vi.mock("motion/react", async (importOriginal) => ({
@@ -48,27 +39,44 @@ vi.mock("@/hooks/use-mounted", () => ({ useMounted: () => env.mounted }));
 
 const STREAM = {} as MediaStream;
 
-function glow(children: ReactNode = <textarea aria-label="Message" />) {
+function fakeContext() {
+  return {
+    createMediaStreamSource: vi.fn(() => {
+      const source = { connect: vi.fn(), disconnect: vi.fn() };
+      audioGraph.sources.push(source);
+      return source;
+    }),
+    createAnalyser: vi.fn(() => {
+      const analyser = {
+        fftSize: 0,
+        disconnect: vi.fn(),
+        getFloatTimeDomainData: (samples: Float32Array) => samples.fill(audioGraph.level),
+      };
+      audioGraph.analysers.push(analyser);
+      return analyser;
+    }),
+  };
+}
+
+function glow(
+  children: ReactNode = <textarea aria-label="Message" />,
+  props = { active: true, processing: false },
+) {
   return (
-    <VoiceGlow stream={STREAM} active processing>
+    <VoiceGlow stream={STREAM} active={props.active} processing={props.processing}>
       {children}
     </VoiceGlow>
   );
-}
-
-/** A glow that is mounted but shows and analyses nothing. */
-function expectSilenced(beam: HTMLElement) {
-  expect(beam).toHaveAttribute("data-strength", "0");
-  expect(beam).toHaveAttribute("data-paused", "true");
-  expect(beam).toHaveAttribute("data-active", "false");
-  expect(beam).toHaveAttribute("data-processing", "false");
-  expect(beam).toHaveAttribute("data-stream", "none");
 }
 
 beforeEach(() => {
   env.audio = false;
   env.reduced = false;
   env.mounted = true;
+  audioGraph.level = 0.1;
+  audioGraph.sources = [];
+  audioGraph.analysers = [];
+  audioGraph.context = fakeContext();
   useVoiceGlowStore.setState({ style: "subtle" });
 });
 
@@ -84,7 +92,7 @@ describe("the effect wrappers", () => {
     render(glow());
 
     expect(screen.getByLabelText("Message")).toBeInTheDocument();
-    expect(screen.queryByTestId("beam")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("voice-glow")).not.toBeInTheDocument();
   });
 
   it("GeneratedImage draws the plain picture where the shader cannot run", () => {
@@ -97,66 +105,109 @@ describe("the effect wrappers", () => {
 });
 
 /**
- * The person's Voice glow preference, and the motion setting that overrides it.
+ * The person's Voice glow preference, the motion setting that overrides it, and
+ * the level it reads from the microphone.
  */
-describe("VoiceGlow styles", () => {
+describe("VoiceGlow", () => {
   beforeEach(() => {
     env.audio = true;
+    vi.useFakeTimers({ toFake: ["requestAnimationFrame", "cancelAnimationFrame"] });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("renders only what it wraps on the server, where Web Audio is unknown", () => {
-    // The server snapshot says no audio, so the first client render - which
-    // reads the same snapshot while hydrating - draws the same tree.
     const html = renderToString(glow());
 
     expect(html).toContain("<textarea");
-    expect(html).not.toContain("data-testid");
+    expect(html).not.toContain("voice-glow");
   });
 
-  it("is a quiet neutral edge by default", () => {
+  it("is the quiet ink bloom by default, behind and below the box", () => {
     render(glow());
 
-    const beam = screen.getByTestId("beam");
-    expect(beam).toHaveAttribute("data-variant", "mono");
-    expect(beam).toHaveAttribute("data-idle", "0");
-    expect(beam).toHaveAttribute("data-strength", "0.25");
-    expect(beam).toHaveAttribute("data-stream", "live");
-    expect(beam).toHaveAttribute("data-active", "true");
+    const bloom = screen.getByTestId("voice-glow");
+    expect(bloom).toHaveAttribute("data-style", "subtle");
+    expect(bloom).toHaveAttribute("aria-hidden", "true");
+    expect(bloom).toHaveClass("-z-10");
   });
 
-  it("is the colourful glow when the person asked for vivid", () => {
+  it("is the colourful bloom when the person asked for vivid", () => {
     useVoiceGlowStore.setState({ style: "vivid" });
     render(glow());
 
-    const beam = screen.getByTestId("beam");
-    expect(beam).toHaveAttribute("data-variant", "colorful");
-    expect(beam).toHaveAttribute("data-idle", "0.45");
-    // The library's own default strength, not the subtle one.
-    expect(beam).toHaveAttribute("data-strength", "undefined");
+    expect(screen.getByTestId("voice-glow")).toHaveAttribute("data-style", "vivid");
   });
 
-  it("shows nothing when the person turned it off", () => {
-    useVoiceGlowStore.setState({ style: "off" });
+  it("writes the microphone's level to the bloom and lets the audio go when it stops", () => {
+    audioGraph.level = 0.1;
+    const view = render(glow());
+
+    act(() => vi.advanceTimersToNextFrame());
+    const bloom = screen.getByTestId("voice-glow");
+    // RMS 0.1 x gain 7 = 0.7, reached at the attack rate from rest.
+    expect(Number(bloom.style.getPropertyValue("--voice-level"))).toBeCloseTo(0.7 * 0.35, 3);
+    act(() => vi.advanceTimersToNextFrame());
+    expect(Number(bloom.style.getPropertyValue("--voice-level"))).toBeGreaterThan(0.245);
+
+    view.rerender(glow(undefined, { active: false, processing: false }));
+
+    expect(audioGraph.sources[0]?.disconnect).toHaveBeenCalled();
+    expect(audioGraph.analysers[0]?.disconnect).toHaveBeenCalled();
+    expect(screen.queryByTestId("voice-glow")).not.toBeInTheDocument();
+  });
+
+  it("falls slowly after a loud moment rather than snapping shut", () => {
+    audioGraph.level = 1;
+    render(glow());
+    act(() => vi.advanceTimersToNextFrame());
+    const bloom = screen.getByTestId("voice-glow");
+    const peak = Number(bloom.style.getPropertyValue("--voice-level"));
+
+    audioGraph.level = 0;
+    act(() => vi.advanceTimersToNextFrame());
+
+    expect(Number(bloom.style.getPropertyValue("--voice-level"))).toBeCloseTo(peak * 0.92, 3);
+  });
+
+  it("sweeps instead of listening while the recording is transcribing", () => {
+    render(glow(undefined, { active: false, processing: true }));
+
+    expect(screen.getByTestId("voice-glow")).toHaveAttribute("data-processing", "true");
+    expect(audioGraph.sources).toHaveLength(0);
+  });
+
+  it("listens to nothing when the page has no audio context to give it", () => {
+    audioGraph.context = null;
     render(glow());
 
-    expectSilenced(screen.getByTestId("beam"));
+    expect(screen.getByTestId("voice-glow")).toBeInTheDocument();
+    expect(audioGraph.sources).toHaveLength(0);
+  });
+
+  it.each([
+    ["the person turned it off", () => useVoiceGlowStore.setState({ style: "off" })],
+    [
+      "reduced motion is on, whatever the preference",
+      () => {
+        env.reduced = true;
+        useVoiceGlowStore.setState({ style: "vivid" });
+      },
+    ],
+    [
+      "the page has not mounted yet",
+      () => {
+        env.mounted = false;
+      },
+    ],
+  ])("draws nothing when %s", (_label, arrange) => {
+    arrange();
+    render(glow());
+
+    expect(screen.queryByTestId("voice-glow")).not.toBeInTheDocument();
+    expect(audioGraph.sources).toHaveLength(0);
     expect(screen.getByLabelText("Message")).toBeInTheDocument();
-  });
-
-  it("shows nothing under reduced motion, whatever the preference", () => {
-    // A glow that cannot move says nothing.
-    env.reduced = true;
-    useVoiceGlowStore.setState({ style: "vivid" });
-    render(glow());
-
-    expectSilenced(screen.getByTestId("beam"));
-  });
-
-  it("shows nothing before mount, so the server and first client render agree", () => {
-    env.mounted = false;
-    render(glow());
-
-    expectSilenced(screen.getByTestId("beam"));
   });
 
   it("never remounts what it wraps when the style changes", () => {

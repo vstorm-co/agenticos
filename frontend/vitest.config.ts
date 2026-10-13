@@ -97,6 +97,11 @@ export default defineConfig({
         "src/components/chat/conversation-filters.tsx",
         "src/components/chat/copy-button.tsx",
         "src/components/chat/delegation-panel.tsx",
+        // The composer's dictation: the recording bar, the strip under the box
+        // and the crossed-out mic (#1797).
+        "src/components/chat/dictation-bar.tsx",
+        "src/components/chat/dictation-strip.tsx",
+        "src/components/chat/dictation-unavailable.tsx",
         "src/components/chat/file-preview-panel.tsx",
         "src/components/chat/markdown-content.impl.tsx",
         "src/components/chat/markdown-content.tsx",

@@ -1,5 +1,5 @@
 ---
-source_sha: "e7e0d166cfc5"
+source_sha: "2a2ac51febed"
 ---
 
 # Konsola { #the-console }
@@ -144,6 +144,60 @@ wybrał. Ta liczba jest powodem, dla którego panel istnieje zamiast spinnera �
 przeglądanie, które zadziałało na wyborze 0.31, warto sprawdzić. Panel zostaje po
 zakończeniu, bo *zablokowane przez stronę* to odpowiedź o stronie. Zamknij go, a
 zostanie zamknięty dla tego przeglądania.
+
+### Dyktowanie { #dictation }
+
+Mikrofon w kompozytorze zamienia mowę na tekst w polu i nigdy go nie wysyła: to,
+co powiesz, trafia tam, gdzie był kursor w chwili naciśnięcia mikrofonu, gotowe
+do edycji, i nie idzie nigdzie, dopóki nie naciśniesz Wyślij. Sposób
+transkrypcji wybiera organizacja, na [karcie Voice](#the-voice-card):
+
+- **Off** — brak mikrofonu.
+- **Browser** — własne rozpoznawanie mowy przeglądarki, więc dźwięk trafia do jej
+  producenta (Google, Apple). Firefox go nie ma: jego mikrofon mówi o tym po
+  naciśnięciu.
+- **Server** — przeglądarka nagrywa, a to wdrożenie wysyła nagranie do dostawcy
+  speech-to-text organizacji. Działa w każdej przeglądarce, która potrafi
+  nagrywać. Endpoint, jego limity i to, co jest zapisywane, opisuje
+  [Dyktowanie w czacie](ml-services.md#dictation-in-chat).
+
+Przy **Server** naciśnięcie mikrofonu zastępuje kontrolki paskiem nagrywania:
+Anuluj, poziom dźwięku, licznik czasu i Stop. **Enter** zatrzymuje i
+transkrybuje, **Escape** anuluje, a nic, co zostanie wpisane albo naciśnięte w
+trakcie nagrywania lub transkrypcji, nie jest wysyłane. Nagranie zatrzymuje się
+samo na najdłuższym dyktowaniu organizacji i zostaje przetranskrybowane, a
+mikrofon odłączony w trakcie kończy je tak samo, zamiast je odrzucić.
+
+Wszystko, co dyktowanie ma do powiedzenia, pojawia się w pasku przyczepionym pod
+kompozytorem: prośba o uprawnienie, zablokowany albo brakujący mikrofon, ostatnie
+30 sekund, pięć sekund bez dźwięku, nagranie krótsze niż sekunda (niewysłane) i
+każda porażka. Nagranie, którego nie udało się przetranskrybować, jest
+zachowywane, dopóki nie naciśniesz **Retry** albo **Discard**. Gdy organizacja
+wybrała Server, ale jeszcze nie dostawcę ani model, albo nie wybrano agenta,
+mikrofon jest przekreślony i mówi dlaczego; osoba z `org:settings` dostaje link
+do karty Voice.
+
+Poświata pod kompozytorem, gdy mówisz, idzie za ustawieniem **Voice glow** w
+menu konta, obok motywu i języka: **Vivid**, **Subtle** (domyślnie) albo **Off**.
+Jest zapamiętywana dla każdej przeglądarki. Przy włączonym w systemie
+ograniczeniu ruchu nie ma żadnej poświaty, pasek pojawia się bez wysuwania, a
+poziom dźwięku to pięciostopniowy wskaźnik.
+
+### Karta Voice { #the-voice-card }
+
+Na stronie **Members** organizacji, dla kogoś z `org:settings`. **Speech to
+text** wybiera silnik — Off, Browser albo Server, każdy z informacją, dokąd idzie
+dźwięk — a dla Server dostawcę i model z katalogu speech-to-text, język
+(automatyczne wykrywanie albo jeden ustalony język, co jest dokładniejsze) i
+najdłuższe nagranie, od 10 sekund do 10 minut.
+
+Server wysyła z własnymi poświadczeniami organizacji dla tego dostawcy: model
+profile, dodawanym w Builderze agenta. Dostawca bez profilu jest pokazany, ale
+nie da się go wybrać, a profil bez klucza wskazujący na własny serwer też się
+liczy. Gdy zapisano Server, ale nie może działać — model wycofano z katalogu
+albo zniknęły poświadczenia — karta to mówi, bo każdy członek widzi wtedy
+przekreślony mikrofon. **Voice conversations**, pod nią, nie jest jeszcze
+zbudowane.
 
 ## Do czego służy każdy obszar { #what-each-area-is-for }
 

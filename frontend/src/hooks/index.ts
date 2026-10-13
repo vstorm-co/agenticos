@@ -116,3 +116,9 @@ export { useAgentEnvironments } from "./use-agent-environments";
 export { useExposures } from "./use-exposures";
 export { usePollWhileIngesting, type IngestingDocument } from "./use-poll-while-ingesting";
 export { useResizablePanel, type ResizablePanel } from "./use-resizable-panel";
+export {
+  useDictation,
+  type DictationActions,
+  type DictationPhase,
+  type DictationState,
+} from "./use-dictation";

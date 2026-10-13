@@ -1,5 +1,5 @@
 ---
-source_sha: "e7e0d166cfc5"
+source_sha: "2a2ac51febed"
 ---
 
 # La consola { #the-console }
@@ -143,6 +143,60 @@ con la que el motor lo eligió. Ese número es la razón de que exista el panel 
 de un indicador de carga: un recorrido que actuó sobre una elección de 0,31 merece
 una mirada. Se queda cuando el recorrido termina, porque *bloqueado por la página* es
 una respuesta sobre la página. Ciérralo y seguirá cerrado para ese recorrido.
+
+### Dictado { #dictation }
+
+El micrófono del compositor convierte la voz en texto en el cuadro y nunca lo
+envía: lo que dices aparece donde estaba el cursor cuando pulsaste el micrófono,
+listo para editar, y no va a ninguna parte hasta que pulsas Enviar. Cómo se
+transcribe lo elige la organización, en [la tarjeta Voice](#the-voice-card):
+
+- **Off** — sin micrófono.
+- **Browser** — el reconocimiento de voz del propio navegador, así que el audio va
+  al fabricante del navegador (Google, Apple). Firefox no lo tiene: su
+  micrófono lo indica al pulsarlo.
+- **Server** — el navegador graba, y este despliegue envía la grabación al
+  proveedor de speech-to-text de la organización. Funciona en cualquier navegador
+  que pueda grabar. El endpoint, sus límites y lo que queda registrado están en
+  [Dictado en el chat](ml-services.md#dictation-in-chat).
+
+Con **Server**, pulsar el micrófono sustituye los controles por una barra de
+grabación: Cancelar, el nivel, un temporizador y Detener. **Enter** detiene y
+transcribe, **Escape** cancela, y nada de lo que se escriba o pulse mientras una
+grabación está en curso o transcribiéndose se envía. La grabación se detiene sola
+al llegar al dictado más largo de la organización y se transcribe, y un micrófono
+desconectado a mitad la termina igual en vez de descartarla.
+
+Todo lo que el dictado tiene que decir aparece en una franja unida bajo el
+compositor: la petición de permiso, un micrófono bloqueado o ausente, los últimos
+30 segundos, cinco segundos sin sonido, una grabación de menos de un segundo (no
+se envía) y cada fallo. Una grabación que no se pudo transcribir se conserva
+hasta que pulsas **Retry** o **Discard**. Si la organización eligió Server pero
+todavía no un proveedor y un modelo, o no hay ningún agent elegido, el micrófono
+aparece tachado y dice por qué; quien tiene `org:settings` recibe un enlace a la
+tarjeta Voice.
+
+El brillo debajo del compositor mientras hablas sigue a **Voice glow** en el
+menú de la cuenta, junto al tema y el idioma: **Vivid**, **Subtle** (por defecto)
+u **Off**. Se recuerda por navegador. Con el movimiento reducido activado en el
+sistema operativo no hay brillo alguno, la franja aparece sin deslizarse y el
+nivel es un indicador de cinco pasos.
+
+### La tarjeta Voice { #the-voice-card }
+
+En la página **Members** de la organización, para quien tiene `org:settings`.
+**Speech to text** elige el motor —Off, Browser o Server, cada uno diciendo a
+dónde va el audio— y, para Server, el proveedor y el modelo del catálogo de
+speech-to-text, un idioma (detección automática, o un idioma fijo, que es más
+preciso) y la grabación más larga, de 10 segundos a 10 minutos.
+
+Server envía con las credenciales propias de la organización para ese proveedor:
+un model profile, que se añade en el Builder de un agent. Un proveedor sin
+profile se muestra pero no se puede elegir, y un profile sin clave que apunta a
+un servidor propio también cuenta. Cuando Server está guardado pero no puede
+funcionar —el modelo se retiró del catálogo o las credenciales ya no están—, la
+tarjeta lo dice, porque entonces todos los miembros ven un micrófono tachado.
+**Voice conversations**, debajo, todavía no está construido.
 
 ## Para qué sirve cada área { #what-each-area-is-for }
 

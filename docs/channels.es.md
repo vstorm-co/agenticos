@@ -1,5 +1,5 @@
 ---
-source_sha: "c0858ab0af15"
+source_sha: "9f2ebd04f8d2"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1200,9 +1200,13 @@ así que la política no puede desviarse entre ellas.
     nulo por defecto: la transcripción gasta el crédito de provider de la
     organización en cada grabación, así que hay que activarla explícitamente. La
     clave es la que ya está configurada para ese provider en los perfiles de modelo
-    de la organización; no hay nada nuevo que guardar. Un bot sin modelo elegido
-    dice que no puede escuchar en vez de descartar la grabación, porque una nota de
-    voz que no produce ninguna reacción es indistinguible de un bot roto.
+    de la organización; no hay nada nuevo que guardar. Un perfil con clave gana
+    a uno sin clave, y un perfil sin clave que apunta a un servidor propio solo se
+    usa cuando el provider no tiene ninguno con clave
+    ([el orden](ml-services.md#speech-to-text)), así que añadir un proxy de chat
+    sin clave no saca a un bot del provider con el que transcribe. Un bot sin
+    modelo elegido dice que no puede escuchar en vez de descartar la grabación,
+    porque una nota de voz que no produce ninguna reacción es indistinguible de un bot roto.
 
     Vienen tres providers: OpenAI, Groq y Mistral, todos sirviendo el
     `POST /audio/transcriptions` de OpenAI. Añadir un modelo es una entrada en ese

@@ -1,77 +1,54 @@
 "use client";
 
-import { useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useRef, useSyncExternalStore, type ReactNode } from "react";
 import { useReducedMotion } from "motion/react";
-import { isAudioSupported, useMicrophone, VoiceBeam, type VoiceBeamProps } from "voice-glow";
+import { getAudioContext, isAudioSupported, useMicrophone } from "voice-glow";
 
 import { useMounted } from "@/hooks/use-mounted";
-import { useResolvedTheme } from "@/hooks/use-resolved-theme";
+import { cn } from "@/lib/utils";
 import { useVoiceGlowStore } from "@/stores/voice-glow-store";
 
 export { useMicrophone };
 
 export interface VoiceGlowProps {
   children: ReactNode;
-  /** The live microphone stream. Null leaves the glow at its resting breath. */
+  /** The live microphone stream. Null leaves the glow at rest. */
   stream?: MediaStream | null;
   /** Whether to glow at all. */
   active?: boolean;
   /**
-   * The waiting pulse: the same edge, travelling rather than reacting. For the
-   * stretch after a person stops talking and before the answer arrives.
+   * The waiting sweep: the glow travelling rather than reacting, for the stretch
+   * after a person stops talking and before the text arrives.
    */
   processing?: boolean;
-  /** Matches the glow's corners to the element's own. */
-  borderRadius?: number;
   className?: string;
 }
 
-/**
- * The beam's settings for each style a person can pick.
- *
- * Vivid is the colourful glow the composer first shipped with. Subtle is one
- * neutral edge with no resting breath, no band and no warp, and a slower
- * waiting sweep - the default, because the colourful one read as a light show on
- * a console that is otherwise neutral.
- */
-const STYLE_PROPS: Record<"vivid" | "subtle", Partial<VoiceBeamProps>> = {
-  vivid: { colorVariant: "colorful", idle: 0.45, glowSize: 1.5 },
-  subtle: {
-    colorVariant: "mono",
-    idle: 0,
-    strength: 0.25,
-    bandStrength: 0,
-    distortion: 0,
-    flow: 0,
-    glowSize: 1,
-    processingDuration: 2.4,
-  },
-};
+/** RMS of a speaking voice sits near 0.05-0.15; this puts that near the top. */
+const LEVEL_GAIN = 7;
+/** How fast the glow follows a rise and lets go of a fall, per frame. */
+const ATTACK = 0.35;
+const RELEASE = 0.08;
 
 /**
- * A glow along the bottom edge that rises with the voice it is hearing.
+ * A soft bloom beneath the composer that rises with the voice it is hearing.
  *
- * It is fed the stream rather than a level, so the analysis is the library's
- * and no audio ever leaves the page - nothing is connected to the output, and
- * the stream is the one the microphone button already opened.
+ * It sits *behind and below* the box rather than inside it: the box holds the
+ * text being dictated, and colour washing over that text read as a stain, not
+ * as listening. Its look is the person's Voice glow preference - `subtle` is
+ * the console's own ink (dark on the light theme, light on the dark one, from
+ * `--foreground`), `vivid` a violet-to-cyan gradient - and `off`, an unmounted
+ * page, or reduced motion draw nothing at all, because a glow that cannot move
+ * says nothing.
  *
- * How it looks is the person's preference (`useVoiceGlowStore`): vivid, subtle
- * or off. Under `prefers-reduced-motion` there is no glow at all, whatever the
- * preference says - a glow that cannot move says nothing, so the recording
- * bar's level indicator and its text carry the state instead.
+ * The level is read from the stream it is given, through the page's shared
+ * AudioContext, and written to a CSS variable once a frame - never to state, so
+ * the composer it wraps is not re-rendered sixty times a second. Nothing is
+ * connected to the output: the audio is analysed and never played back.
  *
- * Where there is no Web Audio at all the children are returned untouched. The
- * check is read through `useSyncExternalStore` with a server snapshot of
- * `false`, which is what lets the server and the first client render agree: the
- * swap therefore happens once, on hydration, before anybody has typed into what
- * it wraps. The preference and the media query are gated on `useMounted` for
- * the same reason - neither is known on the server.
- *
- * Switching the style or the motion setting never swaps the wrapper: the beam
- * stays mounted and is silenced (paused, no stream, no strength), so the
- * composer inside it keeps its draft, its focus and its caret.
+ * The wrapper element is the same in every state, so switching the preference
+ * never remounts the composer inside it (its draft, focus and caret survive).
  */
-/** Whether a browser can analyse audio never changes within a page's life. */
 const subscribeToNothing = () => () => {};
 
 export function VoiceGlow({
@@ -79,39 +56,57 @@ export function VoiceGlow({
   stream,
   active = true,
   processing = false,
-  borderRadius,
   className,
 }: VoiceGlowProps) {
-  const theme = useResolvedTheme();
   const audio = useSyncExternalStore(subscribeToNothing, isAudioSupported, () => false);
   const style = useVoiceGlowStore((state) => state.style);
   const reduced = useReducedMotion();
   const mounted = useMounted();
+  const glowRef = useRef<HTMLDivElement>(null);
 
-  if (!audio) return <>{children}</>;
+  const shown = audio && mounted && style !== "off" && !reduced;
+  const listening = shown && active && !processing && stream != null;
 
-  const shown = mounted && style !== "off" && !reduced;
-  const look = STYLE_PROPS[style === "vivid" ? "vivid" : "subtle"];
+  useEffect(() => {
+    const glow = glowRef.current;
+    const context = listening ? getAudioContext() : null;
+    if (!glow || !stream || !context) return;
+    const source = context.createMediaStreamSource(stream);
+    const analyser = context.createAnalyser();
+    analyser.fftSize = 1024;
+    source.connect(analyser);
+    const samples = new Float32Array(analyser.fftSize);
+    let level = 0;
+    let frame = requestAnimationFrame(function tick() {
+      analyser.getFloatTimeDomainData(samples);
+      let sum = 0;
+      for (const sample of samples) sum += sample * sample;
+      const raw = Math.min(1, Math.sqrt(sum / samples.length) * LEVEL_GAIN);
+      level += (raw - level) * (raw > level ? ATTACK : RELEASE);
+      glow.style.setProperty("--voice-level", level.toFixed(3));
+      frame = requestAnimationFrame(tick);
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      source.disconnect();
+      analyser.disconnect();
+      glow.style.removeProperty("--voice-level");
+    };
+  }, [listening, stream]);
 
   return (
-    <VoiceBeam
-      {...look}
-      stream={shown ? stream : null}
-      active={shown && active}
-      processing={shown && processing}
-      paused={!shown || !active}
-      // Silenced rather than unmounted, so what it wraps is never remounted.
-      strength={shown ? look.strength : 0}
-      theme={theme}
-      scale={1.6}
-      // Same as `Beam`: the library clips its own wrapper, and the composer
-      // opens the slash palette above itself. Inline, to outrank the rule the
-      // library injects.
-      style={{ overflow: "visible" }}
-      borderRadius={borderRadius}
-      className={className}
-    >
+    <div className={cn("relative isolate", className)}>
+      {shown && (active || processing) ? (
+        <div
+          ref={glowRef}
+          aria-hidden
+          data-testid="voice-glow"
+          data-style={style}
+          data-processing={processing ? "true" : "false"}
+          className="voice-glow pointer-events-none absolute -z-10"
+        />
+      ) : null}
       {children}
-    </VoiceBeam>
+    </div>
   );
 }

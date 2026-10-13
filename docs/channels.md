@@ -1155,7 +1155,11 @@ serves all three platforms, so the policy cannot drift between them.
     null by default: transcription spends the organization's provider credit on
     every recording, so it is opted into. The key is the one already configured
     for that provider in the organization's model profiles; there is nothing new
-    to store. A bot with no model chosen says it cannot listen rather than
+    to store. A keyed profile wins over a keyless one, and a keyless profile
+    pointed at a self-hosted server is used only when the provider has no keyed
+    one ([the order](ml-services.md#speech-to-text)), so adding a keyless chat
+    proxy does not move a bot off the provider it transcribes on.
+    A bot with no model chosen says it cannot listen rather than
     dropping the recording, because a voice note that produces no reaction is
     indistinguishable from a broken bot.
 

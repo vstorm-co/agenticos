@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChatContainer } from "./chat-container";
@@ -26,6 +26,63 @@ vi.mock("@/lib/api-client", () => ({
   ApiError: class extends Error {},
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+
+/**
+ * The recording, as a phase this test sets; and the glow, as attributes. What is
+ * under test is what the container hands the glow and the strip for a phase, not
+ * the recorder (`use-dictation.test.ts`) or the beam (`voice-glow`).
+ */
+const dictation = vi.hoisted(() => ({
+  phase: "idle" as string,
+  reason: null as string | null,
+  /** The provider the container last handed the recorder. */
+  provider: undefined as string | null | undefined,
+}));
+vi.mock("@/hooks/use-dictation", () => ({
+  useDictation: ({ provider }: { provider: string | null }) => {
+    dictation.provider = provider;
+    return {
+      state: {
+        phase: dictation.phase,
+        elapsed: 42,
+        remaining: null,
+        silent: false,
+        level: 0,
+        reason: dictation.reason,
+        canRetry: dictation.reason !== null,
+        retryAfter: null,
+        transcript: null,
+      },
+      actions: { start: vi.fn(), stop: vi.fn(), cancel: vi.fn(), retry: vi.fn(), dismiss: vi.fn() },
+    };
+  },
+}));
+vi.mock("@/components/ui/voice-glow", () => ({
+  useMicrophone: () => ({
+    stream: null,
+    state: "idle",
+    error: null,
+    supported: true,
+    start: vi.fn(),
+    stop: vi.fn(),
+  }),
+  VoiceGlow: ({
+    children,
+    active,
+    processing,
+  }: {
+    children: React.ReactNode;
+    active?: boolean;
+    processing?: boolean;
+  }) => (
+    <div data-testid="voice-glow" data-active={String(active)} data-processing={String(processing)}>
+      {children}
+    </div>
+  ),
+}));
+
+/** The active organization, with server dictation set up unless told otherwise. */
+const organization = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }));
 
 const { socket } = vi.hoisted(() => ({
   socket: { onMessage: null as ((event: MessageEvent) => void) | null },
@@ -107,8 +164,14 @@ beforeEach(() => {
             is_app_admin: false,
             permissions: [],
           })
-        : Promise.resolve({ items: [], total: 0 }),
+        : url === "/orgs" && organization.current !== null
+          ? Promise.resolve({ items: [organization.current], total: 1 })
+          : Promise.resolve({ items: [], total: 0 }),
   );
+  organization.current = null;
+  dictation.phase = "idle";
+  dictation.reason = null;
+  dictation.provider = undefined;
   useAuthStore.setState({
     accessToken: "t-1",
     user: SIGNED_IN as never,
@@ -164,5 +227,93 @@ describe("the chat container - delegation panels across a conversation switch", 
 
     expect(await screen.findByText("quarterly-report-researcher")).toBeInTheDocument();
     expect(screen.getByText("read the three filings and list what changed")).toBeInTheDocument();
+  });
+});
+
+describe("the chat container - server dictation", () => {
+  beforeEach(() => {
+    organization.current = {
+      id: "org-1",
+      name: "Acme",
+      chat_dictation: "server",
+      chat_dictation_ready: true,
+      dictation_max_seconds: 300,
+    };
+  });
+
+  it("keeps the glow lit and sweeping while the recording is transcribed", async () => {
+    dictation.phase = "transcribing";
+    mount();
+
+    // The bar is the composer's own row once the organization's engine is read.
+    expect(await screen.findByText("0:42 of audio")).toBeInTheDocument();
+    const glow = screen.getByTestId("voice-glow");
+    expect(glow).toHaveAttribute("data-active", "true");
+    expect(glow).toHaveAttribute("data-processing", "true");
+  });
+
+  it("puts a failure in the strip under the box, which loses its bottom corners", async () => {
+    dictation.phase = "failed";
+    dictation.reason = "provider_error";
+    mount();
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Transcription didn't finish.");
+    expect(document.querySelector('[data-tour="chat-composer"]')).toHaveClass("rounded-b-none");
+    expect(screen.getByTestId("voice-glow")).toHaveAttribute("data-active", "false");
+  });
+
+  it("closes the crossed-out microphone's explanation on Dismiss", async () => {
+    mount();
+    // Crossed out once the organization is read; before that it is the browser's.
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Voice input", description: /^Pick an agent/ }),
+    );
+    const strip = screen.getByTestId("dictation-strip");
+    expect(strip).toHaveTextContent("Pick an agent first.");
+
+    fireEvent.click(within(strip).getByRole("button", { name: "Dismiss" }));
+
+    await waitFor(() => expect(strip).toBeEmptyDOMElement());
+  });
+
+  it("does not bring the explanation back by itself once the microphone was usable", async () => {
+    mount();
+    // Crossed out once the organization is read; before that it is the browser's.
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Voice input", description: /^Pick an agent/ }),
+    );
+    const strip = screen.getByTestId("dictation-strip");
+    expect(strip).toHaveTextContent("Pick an agent first.");
+
+    act(() => useAgentSelectionStore.setState({ selectedAgentId: "a-1" }));
+    act(() => useAgentSelectionStore.setState({ selectedAgentId: null }));
+
+    await waitFor(() => expect(strip).toBeEmptyDOMElement());
+  });
+
+  it("tells the recorder the organization's speech-to-text provider, which picks the format", async () => {
+    organization.current = { ...organization.current, speech_to_text_provider: "mistral" };
+    mount();
+
+    await waitFor(() => expect(dictation.provider).toBe("mistral"));
+  });
+
+  it("tells the recorder there is no provider before the organization is read", () => {
+    organization.current = null;
+    mount();
+
+    expect(dictation.provider).toBeNull();
+  });
+
+  it("leaves the glow to the open microphone for the browser engine", async () => {
+    organization.current = { ...organization.current, chat_dictation: "browser" };
+    dictation.phase = "transcribing";
+    mount();
+
+    expect(await screen.findByRole("button", { name: "Voice input" })).toBeInTheDocument();
+    expect(screen.getByTestId("voice-glow")).toHaveAttribute("data-active", "false");
+    expect(screen.getByTestId("voice-glow")).toHaveAttribute("data-processing", "false");
+    expect(screen.queryByText("0:42 of audio")).not.toBeInTheDocument();
   });
 });

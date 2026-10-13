@@ -553,7 +553,10 @@ async def dictate_into_composer(
     ml: MLSvc,
     ctx: Auth,
     file: UploadFile = File(
-        ..., description="The recording, as the browser's MediaRecorder made it"
+        ...,
+        description=(
+            "The recording: WebM, Ogg or MP4 audio as the browser's MediaRecorder made it, or WAV"
+        ),
     ),
 ) -> Any:
     """Turn a composer recording into text on the organization's own engine (#1797).

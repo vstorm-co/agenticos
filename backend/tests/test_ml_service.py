@@ -612,10 +612,10 @@ async def test_a_dictation_is_transcribed_with_the_org_settings_and_recorded(
             "not_configured",
         ),
         (_speech_org(), b"", "audio/webm", "empty"),
-        (_speech_org(), b"a", "audio/wav", "unsupported_type"),
+        (_speech_org(), b"a", "audio/mpeg", "unsupported_type"),
         (_speech_org(dictation_max_seconds=10), b"x" * (10 * 32_768 + 1), "audio/ogg", "too_large"),
     ],
-    ids=["no-org", "browser-engine", "no-pair", "empty", "wav", "over-the-limit"],
+    ids=["no-org", "browser-engine", "no-pair", "empty", "mp3", "over-the-limit"],
 )
 async def test_a_dictation_is_refused_with_a_reason_and_the_refusal_recorded(
     recorded: Any, org: SimpleNamespace | None, content: bytes, mime: str, reason: str
@@ -658,6 +658,64 @@ async def test_a_recording_exactly_at_the_limit_is_transcribed(recorded: Any) ->
         )
 
     assert text == "ok"
+
+
+@pytest.mark.parametrize(
+    ("mime", "filename", "sent_type"),
+    [
+        ("audio/webm;codecs=opus", "recording.webm", "audio/webm"),
+        ("audio/ogg;codecs=opus", "recording.ogg", "audio/ogg"),
+        ("audio/mp4", "recording.m4a", "audio/mp4"),
+        ("audio/wav", "recording.wav", "audio/wav"),
+        ("audio/x-wav", "recording.wav", "audio/wav"),
+        ("Audio/Wave", "recording.wav", "audio/wav"),
+    ],
+)
+async def test_a_dictation_is_named_for_the_format_the_provider_reads(
+    recorded: Any, mime: str, filename: str, sent_type: str
+) -> None:
+    """The provider reads the format from the file name. MP4 audio goes as
+    `.m4a`, the name every OpenAI-compatible provider lists, and every name for
+    WAV arrives as one type."""
+    del recorded
+    with (
+        patch(
+            "app.services.ml.facade.organization_repo.get_by_id",
+            new=AsyncMock(return_value=_speech_org()),
+        ),
+        patch(
+            "app.services.ml.facade.TranscriptionService.transcribe",
+            new=AsyncMock(return_value="ok"),
+        ) as transcribe,
+    ):
+        await MLService(_db()).dictate(_ctx(), content=b"a", mime_type=mime)
+
+    sent = transcribe.await_args.args[0]
+    assert (sent.filename, sent.mime_type) == (filename, sent_type)
+
+
+async def test_a_wav_recording_of_the_longest_dictation_fits_under_the_cap(
+    recorded: Any,
+) -> None:
+    """The composer records 16 kHz mono 16-bit WAV for Mistral: 32,000 bytes a
+    second and a 44-byte header, which a full-length recording must not exceed."""
+    del recorded
+    with (
+        patch(
+            "app.services.ml.facade.organization_repo.get_by_id",
+            new=AsyncMock(return_value=_speech_org(dictation_max_seconds=300)),
+        ),
+        patch(
+            "app.services.ml.facade.TranscriptionService.transcribe",
+            new=AsyncMock(return_value="ok"),
+        ) as transcribe,
+    ):
+        text = await MLService(_db()).dictate(
+            _ctx(), content=b"x" * (300 * 32_000 + 44), mime_type="audio/wav"
+        )
+
+    assert text == "ok"
+    transcribe.assert_awaited_once()
 
 
 async def test_an_engine_refusal_during_dictation_is_recorded_and_re_raised(

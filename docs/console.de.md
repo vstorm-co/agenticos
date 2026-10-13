@@ -1,5 +1,5 @@
 ---
-source_sha: "e7e0d166cfc5"
+source_sha: "2a2ac51febed"
 ---
 
 # Die Konsole { #the-console }
@@ -156,6 +156,65 @@ warum es das Panel statt eines Spinners gibt — ein Durchlauf, der auf einer Au
 von 0,31 gehandelt hat, ist einen Blick wert. Es bleibt stehen, wenn der Durchlauf
 endet, denn *von der Seite blockiert* ist eine Antwort über die Seite. Schließen Sie
 es, bleibt es für diesen Durchlauf geschlossen.
+
+### Diktieren { #dictation }
+
+Das Mikrofon im Eingabefeld macht aus Sprache Text im Feld und sendet ihn nie:
+Was Sie sagen, landet dort, wo die Einfügemarke stand, als Sie das Mikrofon
+gedrückt haben, bereit zum Bearbeiten, und geht nirgendwohin, bis Sie auf Senden
+drücken. Wie transkribiert wird, entscheidet die Organisation auf
+[der Voice-Karte](#the-voice-card):
+
+- **Off** — kein Mikrofon.
+- **Browser** — die eigene Spracherkennung des Browsers, das Audio geht also an
+  den Browserhersteller (Google, Apple). Firefox hat keine: sein Mikrofon
+  sagt das, wenn man es drückt.
+- **Server** — der Browser nimmt auf, und dieses Deployment schickt die Aufnahme
+  an den Speech-to-Text-Anbieter der Organisation. Es funktioniert in jedem
+  Browser, der aufnehmen kann. Den Endpunkt, seine Grenzen und was aufgezeichnet
+  wird, beschreibt [Diktieren im Chat](ml-services.md#dictation-in-chat).
+
+Bei **Server** ersetzt ein Druck auf das Mikrofon die Steuerelemente durch eine
+Aufnahmeleiste: Abbrechen, den Pegel, einen Timer und Stopp. **Enter** stoppt
+und transkribiert, **Escape** bricht ab, und nichts, was während einer laufenden
+Aufnahme oder ihrer Transkription getippt oder gedrückt wird, wird gesendet. Die
+Aufnahme stoppt von selbst beim längsten Diktat der Organisation und wird
+transkribiert, und ein Mikrofon, das mittendrin abgezogen wird, beendet sie
+genauso, statt sie zu verwerfen.
+
+Alles, was das Diktieren zu sagen hat, erscheint in einem Streifen, der unter dem
+Eingabefeld hängt: die Berechtigungsabfrage, ein blockiertes oder fehlendes
+Mikrofon, die letzten 30 Sekunden, fünf Sekunden ohne Ton, eine Aufnahme unter
+einer Sekunde (nicht gesendet) und jeder Fehlschlag. Eine Aufnahme, deren
+Transkription fehlgeschlagen ist, bleibt erhalten, bis Sie **Retry** oder
+**Discard** drücken. Hat die Organisation Server gewählt, aber noch keinen
+Anbieter und kein Modell, oder ist kein Agent ausgewählt, ist das Mikrofon
+durchgestrichen und sagt, warum; wer `org:settings` hält, bekommt einen Link zur
+Voice-Karte.
+
+Das Leuchten unter dem Eingabefeld, während Sie sprechen, folgt **Voice glow** im
+Kontomenü, neben Design und Sprache: **Vivid**, **Subtle** (der Standard) oder
+**Off**. Es wird pro Browser gespeichert. Ist im Betriebssystem reduzierte
+Bewegung eingeschaltet, gibt es gar kein Leuchten, der Streifen erscheint ohne
+Gleiten, und der Pegel ist eine fünfstufige Anzeige.
+
+### Die Voice-Karte { #the-voice-card }
+
+Auf der Seite **Members** der Organisation, für jemanden mit `org:settings`.
+**Speech to text** wählt die Engine — Off, Browser oder Server, jede mit der
+Angabe, wohin das Audio geht — und für Server den Anbieter und das Modell aus dem
+Speech-to-Text-Katalog, eine Sprache (automatische Erkennung oder eine feste
+Sprache, was genauer ist) und die längste Aufnahme, von 10 Sekunden bis
+10 Minuten.
+
+Server sendet mit den eigenen Zugangsdaten der Organisation für diesen Anbieter:
+einem model profile, das im Builder eines Agents angelegt wird. Ein Anbieter ohne
+Profil wird angezeigt, lässt sich aber nicht wählen, und ein schlüsselloses
+Profil, das auf einen selbst gehosteten Server zeigt, zählt auch. Ist Server
+gespeichert, kann aber nicht laufen — das Modell wurde aus dem Katalog genommen
+oder die Zugangsdaten sind weg —, sagt die Karte es, denn dann sieht jedes
+Mitglied ein durchgestrichenes Mikrofon. **Voice conversations** darunter ist
+noch nicht gebaut.
 
 ## Wofür jeder Bereich da ist { #what-each-area-is-for }
 

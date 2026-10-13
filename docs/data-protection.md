@@ -123,7 +123,7 @@ complete list of destinations, with the configuration that decides each.
 | An MCP server | Tool arguments and results | `mcp_connections.url`, per organization or per person | The server's operator |
 | mem0 | The memories written for a person or a chat | The `memory_mem0` capability's `base_url`, which must be in `MEM0_ALLOWED_HOSTS` | The mem0 host you allow |
 | Logfire | Spans for every request and run | `LOGFIRE_TOKEN` deployment-wide; an `observability` token on a spec, or `logfire_token_secret_id` on an environment, redirects those runs to another project. `LOGFIRE_BASE_URL` picks the US or EU deployment. Unset everywhere, nothing is sent | Pydantic's, US or EU |
-| Speech to text, image generation | The voice note; the prompt | A profile for `groq`, `mistral` or `openai`; a profile for `google` or `openai` | The provider's |
+| Speech to text, image generation | A channel voice note, or a recording dictated in `/chat`; the prompt | A bot's speech-to-text pair, or the organization's dictation engine set to `server`, with a profile for `groq`, `mistral` or `openai` - a keyless one at a host you run counts; a profile for `google` or `openai`. A dictation's audio is not stored here | The provider's, or your own host |
 | Slack, Telegram, Mattermost | The agent's replies | A `channel_bots` row with its token in the vault | The messaging vendor already holds the chat |
 | Google sign-in | Nothing outbound; Google returns the email, name, picture and account id | `GOOGLE_CLIENT_ID` | Google's |
 | Your SMTP relay | The mail above | `SMTP_HOST`, `SMTP_TLS` | Yours |

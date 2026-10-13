@@ -1262,7 +1262,52 @@
     "browserOpenPanel": "In der Seitenleiste öffnen",
     "browserOpenFull": "Im Vollbild öffnen",
     "conversationActions": "Aktionen der Konversation",
-    "imageNotLoaded": "Bild (nicht geladen)"
+    "imageNotLoaded": "Bild (nicht geladen)",
+    "dictation": {
+      "cancel": "Diktat abbrechen",
+      "cancelTranscription": "Transkription abbrechen",
+      "cancelTitle": "Abbrechen (Esc)",
+      "stop": "Stoppen und transkribieren",
+      "stopTitle": "Stoppen und transkribieren (Enter)",
+      "timerLabel": "Aufnahmedauer",
+      "transcribing": "Wird transkribiert",
+      "ofAudio": "{duration} Audio",
+      "dismiss": "Schließen",
+      "discard": "Verwerfen",
+      "retry": "Erneut versuchen",
+      "retryCountdown": "Erneut versuchen in {seconds} s",
+      "tryAgain": "Erneut versuchen",
+      "recordAgain": "Neu aufnehmen",
+      "askAdmin": "Bitten Sie einen Admin, es einzurichten.",
+      "openVoiceSettings": "Einstellungen unter Stimme öffnen",
+      "announceRecording": "Aufnahme läuft",
+      "announceTranscribing": "Wird transkribiert",
+      "announceLeft": "{count, plural, =1 {Noch 1 Sekunde} other {Noch # Sekunden}}",
+      "announceInserted": "{count, plural, =1 {1 Wort eingefügt} other {# Wörter eingefügt}}",
+      "hint": {
+        "requesting": "<strong>Erlauben Sie den Mikrofonzugriff</strong> im Dialog Ihres Browsers, um die Aufnahme zu starten.",
+        "micDenied": "<strong>Mikrofon für diese Website blockiert.</strong> Klicken Sie auf das Symbol links neben der Adressleiste, stellen Sie Mikrofon auf Zulassen und versuchen Sie es erneut.",
+        "micInsecure": "<strong>Diese Seite kann das Mikrofon nicht verwenden.</strong> Browser geben das Mikrofon nur über HTTPS oder auf localhost frei. Bitten Sie Ihre Administration, die Konsole über HTTPS bereitzustellen.",
+        "micNotFound": "<strong>Kein Mikrofon gefunden.</strong> Der Browser erkennt kein Eingabegerät und kann deshalb nicht danach fragen. Schließen Sie ein Mikrofon an oder prüfen Sie, ob Ihr System dem Browser den Zugriff erlaubt (unter Windows: Einstellungen → Datenschutz und Sicherheit → Mikrofon), und versuchen Sie es erneut.",
+        "micBusy": "<strong>Das Mikrofon ist nicht gestartet.</strong> Möglicherweise verwendet eine andere App es, oder Ihr System blockiert den Browser. Schließen Sie die andere App oder prüfen Sie die Mikrofoneinstellungen Ihres Systems, und versuchen Sie es erneut.",
+        "nearLimit": "<strong>Noch {remaining}.</strong> Bei {limit} stoppt die Aufnahme und wird transkribiert.",
+        "silent": "<strong>Wir hören Sie nicht — ist Ihr Mikrofon stummgeschaltet?</strong> Die Aufnahme läuft weiter.",
+        "tooShort": "<strong>Das war kürzer als eine Sekunde,</strong> daher wurde nichts gesendet. Klicken Sie auf das Mikrofon, sprechen Sie und klicken Sie dann auf Stopp.",
+        "empty": "<strong>In dieser Aufnahme ist keine Sprache.</strong> Prüfen Sie, ob das Mikrofon stummgeschaltet ist, und nehmen Sie erneut auf.",
+        "tooLarge": "<strong>Die Aufnahme ist zu groß zum Transkribieren.</strong> Halten Sie Diktate kürzer und hängen Sie lange Aufnahmen als Datei an.",
+        "unsupported": "<strong>Das Audioformat dieses Browsers wird nicht akzeptiert.</strong> Der Server nimmt WebM-, Ogg-, MP4- oder WAV-Audio an. Aktualisieren Sie den Browser oder nutzen Sie Chrome oder Firefox.",
+        "failedTitle": "Die Transkription wurde nicht abgeschlossen.",
+        "providerErrorBody": "Der Speech-to-Text-Provider hat mit einem Fehler geantwortet.",
+        "timeoutBody": "Der Speech-to-Text-Provider hat nicht rechtzeitig geantwortet.",
+        "offlineBody": "Der Server war nicht erreichbar.",
+        "rateLimitedBody": "Zu viele Diktate in einer Minute.",
+        "keptBody": "Ihre Aufnahme ({duration}) bleibt erhalten, bis Sie sie erneut senden oder verwerfen.",
+        "notSetUpTitle": "Diktieren ist noch nicht eingerichtet.",
+        "notSetUpBody": "Diese Organisation transkribiert auf ihrem eigenen Server, und es ist kein Speech-to-Text-Modell ausgewählt.",
+        "noAgentTitle": "Wählen Sie zuerst einen Agent.",
+        "noAgentBody": "Ein Diktat wird für den Agent transkribiert, mit dem diese Unterhaltung geführt wird."
+      }
+    }
   },
   "common": {
     "archiveNamedConfirm": "{name} archivieren?",
@@ -4868,6 +4913,7 @@
       "language": "Sprache",
       "languageAuto": "Automatisch erkennen",
       "languageHint": "Die automatische Erkennung passt zu gemischten Teams. Eine feste Sprache ist genauer.",
+      "languageHintMistral": "Mistral transkribiert weniger Sprachen, als diese Liste anbietet, und gibt nicht an, welche Aufnahmeformate es annimmt. Lassen Sie „Automatisch erkennen“ eingestellt und testen Sie eine Aufnahme, bevor Sie sich darauf verlassen.",
       "languageOption": "{name} ({code})",
       "maxLength": "Maximale Aufnahmedauer",
       "maxLengthHint": "10 s bis 10 min. Der Timer im Eingabefeld zählt bis dahin und stoppt dort.",
@@ -5486,10 +5532,10 @@
     "mappingDeleted": "Zuordnung gelöscht"
   },
   "voiceGlow": {
-    "title": "Sprach-Leuchten",
+    "title": "Diktieranimation",
     "vivid": "Kräftig",
     "subtle": "Dezent",
     "off": "Aus",
-    "reducedMotion": "Aus, solange reduzierte Bewegung aktiv ist"
+    "reducedMotion": "Aus, solange das System Animationen reduziert"
   }
 }

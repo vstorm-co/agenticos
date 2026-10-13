@@ -1,5 +1,5 @@
 ---
-source_sha: "c0858ab0af15"
+source_sha: "9f2ebd04f8d2"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1190,7 +1190,12 @@ może się między nimi rozjechać.
     i domyślnie pusta: transkrypcja wydaje kredyt providera organizacji przy
     każdym nagraniu, więc trzeba się na nią zdecydować. Kluczem jest ten już
     skonfigurowany dla tego providera w profilach modeli organizacji; nie ma nic
-    nowego do zapisania. Bot bez wybranego modelu mówi, że nie potrafi słuchać,
+    nowego do zapisania. Profil z kluczem wygrywa z profilem bez klucza, a
+    profil bez klucza wskazujący na własny serwer jest używany tylko wtedy, gdy
+    provider nie ma profilu z kluczem ([kolejność](ml-services.md#speech-to-text)),
+    więc dodanie proxy czatu bez klucza nie przenosi bota z providera, na którym
+    transkrybuje.
+    Bot bez wybranego modelu mówi, że nie potrafi słuchać,
     zamiast porzucać nagranie, bo notatka głosowa, która nie wywołuje żadnej
     reakcji, jest nie do odróżnienia od zepsutego bota.
 

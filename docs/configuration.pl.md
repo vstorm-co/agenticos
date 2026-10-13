@@ -1,5 +1,5 @@
 ---
-source_sha: "130cbafc773f"
+source_sha: "db94b4a1df4b"
 ---
 
 # Konfiguracja { #configuration }
@@ -1094,6 +1094,7 @@ osobna decyzja, nie ta.
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | Config hostowanej strony, **na stronę** — oraz jej logo, na osobnym liczniku. Zobacz niżej |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Pliki, które odwiedzający może zapisać na hostowanej stronie. Liczone **na adres i na klucz odwiedzającego**, a pozwolić muszą oba — klucz bije przeglądarka, więc liczenie tylko jego niczego nie ogranicza |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | [Usługi ML](ml-services.md), na wywołującego. Te endpointy wykonują pracę synchronicznie, więc nieograniczony wywołujący zajmuje pulę parsowania, a nie budżet |
+| `RATE_LIMIT_DICTATION_PER_MINUTE` | `10` | [Dyktowanie w czacie](ml-services.md#dictation-in-chat), na osobę, na osobnym liczniku, żeby dyktowanie i integracja wywołująca usługi ML nie zużywały sobie nawzajem limitu. Każde dyktowanie to wywołanie płatnego providera organizacji |
 | `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Czy `X-Forwarded-For` nazywa wołającego |
 
 **Co dostaje odrzucony wołający** to własna koperta błędu tego API z

@@ -277,6 +277,28 @@ describe("OrgVoiceSettings", () => {
     expect(options).toEqual(["Auto-detect", "English (en)", "German (de)", "Polish (pl)"]);
   });
 
+  it("warns that Mistral may not take every language or the recording format", async () => {
+    await mount(
+      {
+        chat_dictation: "server",
+        speech_to_text_provider: "openai",
+        speech_to_text_model: "whisper-1",
+        chat_dictation_ready: true,
+      },
+      { profiles: [...KEYED, profile({ id: "p-mistral", label: "mistral", provider: "mistral" })] },
+    );
+    expect(
+      screen.getByText("Auto-detect suits mixed teams. A fixed language is more accurate."),
+    ).toBeInTheDocument();
+
+    await choose("Provider", "Mistral");
+
+    expect(
+      screen.getByText(/^Mistral transcribes fewer languages than this list offers/),
+    ).toHaveTextContent("does not say which recording formats it accepts");
+    expect(screen.queryByText(/^Auto-detect suits mixed teams/)).not.toBeInTheDocument();
+  });
+
   it("resets the model to the new provider's first one", async () => {
     await mount({
       chat_dictation: "server",

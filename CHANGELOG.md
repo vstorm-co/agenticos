@@ -17,6 +17,33 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **Dictation in `/chat` on the organization's own speech-to-text provider
+  (#1797).** With the organization's engine set to Server, the composer records
+  in any browser, `POST /api/v1/agents/{agent_id}/dictation` transcribes the
+  recording, and the text lands at the caret for editing, never sent by itself.
+  Anyone who may run the agent may dictate to it. Refusals carry
+  `details.reason`, each dictation is one `ml_service_calls` row, and the audio
+  is not stored. A per-person `RATE_LIMIT_DICTATION_PER_MINUTE` (10) meters it on
+  its own counter. With Mistral the composer records 16 kHz WAV rather than
+  WebM or Opus, which Mistral does not document as input.
+  See [Dictation in chat](docs/ml-services.md#dictation-in-chat).
+- **A Voice card on the organization's Members page.** For `org:settings`
+  holders: the dictation engine (Off, Browser or Server), the provider and model
+  from the speech-to-text catalog, a language and the longest recording, stored
+  in five new organization columns (`0106_org_speech_settings.py`).
+- **A Voice glow preference** beside the theme and the language: Vivid, Subtle
+  (the default) or Off, per browser, and no glow under reduced motion.
+
+### Changed
+
+- **Transcription prefers a keyed profile, and falls back to a keyless one.**
+  With several profiles for one provider, the first keyed one transcribes; a
+  keyless profile with its own endpoint is used only when there is no keyed
+  one, and is sent no `Authorization` header. A pinned language is passed to the
+  provider. Channel bots still answer "could not be transcribed" on any failure.
+
 ## [0.0.535] - 2026-10-09
 
 ### Fixed

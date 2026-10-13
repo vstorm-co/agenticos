@@ -49,12 +49,31 @@ import {
   useChatStore,
   useConversationStore,
   useFilePreviewStore,
+  useOrgStore,
 } from "@/stores";
 import { useConversations } from "@/hooks";
 import { useSlashCommands } from "@/hooks";
 import { useFollowContent } from "@/hooks/use-follow-content";
+import { useChanged } from "@/hooks/use-changed";
 import { Beam } from "@/components/ui/beam";
 import { useMicrophone, VoiceGlow } from "@/components/ui/voice-glow";
+import { useDictation, useOrganizationList, usePermissions } from "@/hooks";
+import { ROUTES } from "@/lib/constants";
+import { cn } from "@/lib/utils";
+import { Perm } from "@/types/permissions";
+import { dictationHint, DictationStrip } from "./dictation-strip";
+
+/**
+ * The browser's voice processing, on for a recording that is transcribed: echo
+ * cancellation, noise suppression and gain control are what a speech model
+ * wants. The glow-only capture keeps them off so it sees the voice's real
+ * dynamics.
+ */
+const DICTATION_CONSTRAINTS = {
+  constraints: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+};
+/** The organization's longest dictation when its settings have not loaded. */
+const DEFAULT_DICTATION_SECONDS = 300;
 
 const SCROLL_NEAR_BOTTOM_THRESHOLD_PX = 150;
 
@@ -495,9 +514,58 @@ function ChatUI({
   onStop,
 }: ChatUIProps) {
   const t = useTranslations("chat");
+  const tDictation = useTranslations("chat.dictation");
+  // The organization decides how the microphone turns speech into text.
+  const activeOrgId = useOrgStore((state) => state.activeOrgId);
+  const { data: orgs } = useOrganizationList();
+  const activeOrg = orgs?.find((org) => org.id === activeOrgId) ?? null;
+  const engine = activeOrg?.chat_dictation ?? "browser";
+  const maxSeconds = activeOrg?.dictation_max_seconds ?? DEFAULT_DICTATION_SECONDS;
   // Opened by the composer's microphone button; the glow around the box reads
-  // its level. See `VoiceGlow` for why it is a second capture.
-  const mic = useMicrophone();
+  // its level. With the browser engine it is a second capture (see
+  // `VoiceGlow`); with the server engine it is the one being recorded.
+  const mic = useMicrophone(engine === "server" ? DICTATION_CONSTRAINTS : undefined);
+  const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
+  const { state: dictationState, actions: dictationActions } = useDictation({
+    mic,
+    agentId: selectedAgentId,
+    maxSeconds,
+    provider: activeOrg?.speech_to_text_provider ?? null,
+  });
+  const { can } = usePermissions();
+  const voiceSettingsHref =
+    activeOrgId !== null && can(Perm.orgSettings)
+      ? `${ROUTES.ORG_MEMBERS(activeOrgId)}#org-voice`
+      : null;
+  const dictationReady = activeOrg?.chat_dictation_ready === true;
+  const hasAgent = selectedAgentId !== null;
+  // The explanation a click on the crossed-out microphone opens under the box.
+  const [explaining, setExplaining] = useState(false);
+  // Shut again whenever the microphone's availability changes, so an explanation
+  // opened once does not come back by itself the next time it is crossed out.
+  if (useChanged(dictationReady && hasAgent)) setExplaining(false);
+  const unavailable =
+    engine === "server" && explaining && !(dictationReady && hasAgent)
+      ? dictationReady
+        ? ("no_agent" as const)
+        : ("not_ready" as const)
+      : null;
+  const dictationStrip =
+    engine === "server"
+      ? dictationHint(
+          {
+            state: dictationState,
+            actions: dictationActions,
+            maxSeconds,
+            unavailable,
+            voiceSettingsHref,
+            closeExplanation: () => setExplaining(false),
+          },
+          tDictation,
+        )
+      : null;
+  const recordingPhase =
+    dictationState.phase === "recording" || dictationState.phase === "transcribing";
   const [composerFocused, setComposerFocused] = useState(false);
 
   // The rail's ticks, built from the transcript already on screen rather than
@@ -679,7 +747,14 @@ function ChatUI({
               {/* Lit only while the microphone is actually open. At rest it is a
                 glow with nothing to report, and during a turn the transcript
                 already says what is happening. */}
-              <VoiceGlow stream={mic.stream} active={mic.state === "live"} borderRadius={16}>
+              {/* For server dictation it stays lit through transcribing, sweeping
+                  instead of listening: the microphone is closed by then, and
+                  the box is still busy. */}
+              <VoiceGlow
+                stream={mic.stream}
+                active={engine === "server" ? recordingPhase : mic.state === "live"}
+                processing={engine === "server" && dictationState.phase === "transcribing"}
+              >
                 {/* All the way around the composer, and only while somebody is in
                   it. A border that glows permanently is decoration; one that
                   lights when the caret arrives is the box saying it is where
@@ -693,7 +768,10 @@ function ChatUI({
                 >
                   <div
                     data-tour="chat-composer"
-                    className="panel focus-within:border-foreground/30 rounded-2xl transition-colors"
+                    className={cn(
+                      "panel focus-within:border-foreground/30 rounded-2xl transition-colors",
+                      dictationStrip !== null && "rounded-b-none",
+                    )}
                   >
                     <div className="px-3 pt-3 pb-1 sm:px-4 sm:pt-4">
                       {isArchived && (
@@ -720,6 +798,15 @@ function ChatUI({
                         commands={slashCommands}
                         attachmentSlot={attachmentSlot}
                         mic={mic}
+                        dictation={{
+                          engine,
+                          ready: dictationReady,
+                          hasAgent,
+                          state: dictationState,
+                          actions: dictationActions,
+                          voiceSettingsHref,
+                          onExplain: () => setExplaining((open) => !open),
+                        }}
                         // Who answers first and largest: it is the most
                         // consequential choice in the composer.
                         controlsSlot={<AgentPicker />}
@@ -744,6 +831,10 @@ function ChatUI({
                     </div>
                   </div>
                 </Beam>
+                {/* Attached under the box and sliding out from behind it: every
+                    hint, prompt and error dictation has, so the bar above
+                    holds controls only. */}
+                <DictationStrip hint={dictationStrip} />
               </VoiceGlow>
               <ComposerStatus isConnected={isConnected} />
             </div>
