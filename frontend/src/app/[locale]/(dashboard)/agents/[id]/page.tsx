@@ -258,8 +258,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
   } = useOrgMcpConnections();
   const [connectingServer, setConnectingServer] = useState<McpCatalogEntry | null>(null);
   const [connectingOwnServer, setConnectingOwnServer] = useState<McpCatalogEntry | null>(null);
-  // Whether the open connect form came from **Configure**, so it opens unfolded.
-  const [configuringServer, setConfiguringServer] = useState(false);
   const connectServer = useConnectEntry("organization", {
     openForm: setConnectingServer,
     taken: mcpConnections.map((connection) => connection.name),
@@ -1142,21 +1140,13 @@ export default function AgentBuilderPage({ params }: PageProps) {
             back here when the consent lands, and its tools list from it. */}
         <ConnectOwnServerDialog
           entry={connectingOwnServer}
-          configure={configuringServer}
-          onClose={() => {
-            setConnectingOwnServer(null);
-            setConfiguringServer(false);
-          }}
+          onClose={() => setConnectingOwnServer(null)}
           returnTo={hereForMcpOAuthReturn()}
         />
 
         <ConnectServerDialog
           entry={connectingServer}
-          configure={configuringServer}
-          onClose={() => {
-            setConnectingServer(null);
-            setConfiguringServer(false);
-          }}
+          onClose={() => setConnectingServer(null)}
           // Bound as soon as it exists: somebody who connected a server from
           // inside the Builder was going to tick it next. Its tools come up at
           // once, from the check that connecting just ran - one path from "I want
@@ -1520,7 +1510,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
                     );
                   }}
                   onConfigure={(entry, scope) => {
-                    setConfiguringServer(true);
                     if (scope === "organization") setConnectingServer(entry);
                     else setConnectingOwnServer(entry);
                   }}

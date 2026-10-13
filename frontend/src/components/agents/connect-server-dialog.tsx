@@ -60,8 +60,6 @@ interface ConnectDialogProps<T extends McpConnectionRecord = McpConnectionRecord
    * chat run paused until the connection is made.
    */
   keepThisTab?: boolean;
-  /** Opened by **Configure**: the form's fold of settings starts open. */
-  configure?: boolean;
 }
 
 /**
@@ -84,7 +82,6 @@ export function ConnectServerDialog({
   entry,
   onClose,
   onConnected,
-  configure,
 }: ConnectDialogProps<OrgMcpConnectionRecord>) {
   // Split so the form below never has a nullable entry. Reading one inside the
   // submit handler meant a `catalog_key` fallback for a state the handler
@@ -92,14 +89,7 @@ export function ConnectServerDialog({
   // rather than one to cover. The hook lives below the split too: a closed
   // dialog on a page with no query client must not reach for one.
   if (entry === null) return null;
-  return (
-    <OrgConnectForm
-      entry={entry}
-      onClose={onClose}
-      onConnected={onConnected}
-      configure={configure}
-    />
-  );
+  return <OrgConnectForm entry={entry} onClose={onClose} onConnected={onConnected} />;
 }
 
 function OrgConnectForm(
@@ -123,7 +113,6 @@ export function ConnectOwnServerDialog({
   onConnected,
   returnTo,
   keepThisTab,
-  configure,
 }: ConnectDialogProps) {
   if (entry === null) return null;
   return (
@@ -133,7 +122,6 @@ export function ConnectOwnServerDialog({
       onConnected={onConnected}
       returnTo={returnTo}
       keepThisTab={keepThisTab}
-      configure={configure}
     />
   );
 }
@@ -151,14 +139,12 @@ function ConnectForm<T extends McpConnectionRecord>({
   onConnected,
   returnTo,
   keepThisTab,
-  configure,
 }: {
   entry: McpCatalogEntry;
   scope: Scope;
   create: CreateConnection<T>;
   onClose: () => void;
   onConnected?: (connection: T) => void;
-  configure?: boolean;
 } & ConsentOptions) {
   const t = useTranslations("mcp");
   const tErrors = useTranslations("errors");
@@ -168,7 +154,7 @@ function ConnectForm<T extends McpConnectionRecord>({
   // The dialog speaks `DraftState`, and `rowForEntry` is what turns a catalog
   // entry into one - shared with the servers page, so a row here and a row
   // there cannot drift into two shapes.
-  const draft: DraftState = { scope, row: rowForEntry(entry), existing: null, configure };
+  const draft: DraftState = { scope, row: rowForEntry(entry), existing: null };
 
   const handleSubmit = async (values: ConnectionFormValues) => {
     const name = values.name.trim().toLowerCase();
@@ -345,11 +331,11 @@ export function ConnectOwnButton({
   disabled?: boolean;
 } & ConsentOptions) {
   const t = useTranslations("mcp");
-  const [form, setForm] = useState<"connect" | "configure" | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
   const connect = useConnectEntry("personal", {
     returnTo,
     keepThisTab,
-    openForm: () => setForm("connect"),
+    openForm: () => setFormOpen(true),
   });
   return (
     <>
@@ -360,7 +346,7 @@ export function ConnectOwnButton({
             size="icon-sm"
             variant="ghost"
             disabled={disabled}
-            onClick={() => setForm("configure")}
+            onClick={() => setFormOpen(true)}
             title={t("configureNamed", { name: entry.name })}
             aria-label={t("configureNamed", { name: entry.name })}
           >
@@ -373,9 +359,8 @@ export function ConnectOwnButton({
         </Button>
       </span>
       <ConnectOwnServerDialog
-        entry={form === null ? null : entry}
-        configure={form === "configure"}
-        onClose={() => setForm(null)}
+        entry={formOpen ? entry : null}
+        onClose={() => setFormOpen(false)}
         returnTo={returnTo}
         keepThisTab={keepThisTab}
       />

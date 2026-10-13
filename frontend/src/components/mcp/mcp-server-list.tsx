@@ -223,12 +223,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
 
   const api = (scope: Scope) => (scope === "organization" ? organization : personal);
 
-  const openDraft = (
-    scope: Scope,
-    row: McpServerRow,
-    existing: McpConnectionRecord | null,
-    configure = false,
-  ) => {
+  const openDraft = (scope: Scope, row: McpServerRow, existing: McpConnectionRecord | null) => {
     // The dialog seeds its own fields from this - name, url and auth type off
     // the row and any connection being edited.
     setDraft({
@@ -236,7 +231,6 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
       row,
       existing,
       suggestedName: existing ? undefined : freeName(row, takenNames(scope)),
-      configure,
     });
   };
 
@@ -648,9 +642,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                   <Button
                     size="icon-sm"
                     variant="ghost"
-                    onClick={() =>
-                      openDraft(defaultScope(row, canManageOrganization), row, null, true)
-                    }
+                    onClick={() => openDraft(defaultScope(row, canManageOrganization), row, null)}
                     disabled={busyId === row.key}
                     title={t("configureNamed", { name: row.name })}
                     aria-label={t("configureNamed", { name: row.name })}

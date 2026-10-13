@@ -457,13 +457,15 @@ describe("ConnectOwnButton", () => {
     expect(startMcpOAuth).not.toHaveBeenCalled();
   });
 
-  it("opens the form with its settings unfolded on Configure, and closes it", async () => {
+  it("opens the form on Configure with its settings folded, and closes it", async () => {
     render(<ConnectOwnButton entry={OAUTH_ENTRY} label="Connect" />, { wrapper });
 
     await userEvent.click(
       screen.getByRole("button", { name: "Configure Notion before connecting" }),
     );
+    expect(screen.queryByLabelText("Server URL")).toBeNull();
 
+    await userEvent.click(screen.getByRole("button", { name: "More options" }));
     expect(await screen.findByLabelText("Server URL")).toHaveValue("https://mcp.notion.com/mcp");
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());

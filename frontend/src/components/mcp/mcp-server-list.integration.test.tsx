@@ -380,6 +380,7 @@ describe("McpServerList", () => {
       linear.getByRole("button", { name: "Configure Linear before connecting" }),
     );
     await userEvent.click(screen.getByRole("radio", { name: /^One shared account/ }));
+    await userEvent.click(screen.getByRole("button", { name: "More options" }));
 
     expect(screen.getByRole("radio", { name: "OAuth" })).toBeChecked();
     expect(screen.getByText(/use an account the organization controls/)).toBeInTheDocument();
@@ -403,13 +404,17 @@ describe("McpServerList", () => {
     );
   });
 
-  it("opens the form with its settings unfolded from Configure", async () => {
+  it("opens the form from Configure with its catalog settings folded away", async () => {
+    // Who connects and who may use it are the decisions; the address and the
+    // names under the fold are the catalog's, and only asked for on request.
     await mount();
 
     await userEvent.click(
       within(githubRow()).getByRole("button", { name: "Configure GitHub before connecting" }),
     );
+    expect(screen.queryByLabelText("Server URL")).toBeNull();
 
+    await userEvent.click(screen.getByRole("button", { name: "More options" }));
     expect(await screen.findByLabelText("Server URL")).toHaveValue(
       "https://api.githubcopilot.com/mcp/",
     );

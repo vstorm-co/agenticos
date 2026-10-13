@@ -405,7 +405,11 @@ function ConnectionForm({
           <MoreOptions
             key={needsClient ? "needs-client" : "optional"}
             label={t("moreOptions")}
-            defaultOpen={needsClient || draft.configure === true}
+            // Closed even when opened through Configure: who connects and who
+            // may use it are the decisions, and the address and names under
+            // here are the catalog's. Open only when it holds something
+            // required - a provider that hands out no client of its own.
+            defaultOpen={needsClient}
           >
             {known && (
               <>
