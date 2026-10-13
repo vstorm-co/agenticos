@@ -265,12 +265,13 @@ export function TextBubble({
     // A panel rather than the inverted slab this was. `bg-foreground` made the
     // question the brightest object on the page, louder than the answer under
     // it - which is backwards: the question is what somebody already knows they
-    // asked. The border is what keeps the shape in the light theme, where the
-    // fill is three percent off the page.
+    // asked. A fill of the ink at low strength rather than a hairline around a
+    // fill three percent off the page: the shape holds in both themes without a
+    // line drawn round it.
     return (
       <div
         className={cn(
-          "bg-secondary text-secondary-foreground border-border/60 relative rounded-2xl rounded-tr-sm border",
+          "bg-foreground/[0.07] text-foreground relative rounded-2xl",
           compact ? "px-3 py-1.5" : "px-3 py-2 sm:px-4 sm:py-2.5",
         )}
       >
