@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Plug, Plus, Wrench, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -53,6 +53,10 @@ interface McpBindingDialogProps {
    * organization holds no connection to have listed them.
    */
   personalTools?: McpToolInfo[] | null;
+  /** Whether the reader has connected their own account on this server. */
+  hasOwnAccount?: boolean;
+  /** Connect the reader's own account; absent outside the catalog. */
+  onConnectOwn?: () => void;
   disabled?: boolean;
 }
 
@@ -78,6 +82,8 @@ export function McpBindingDialog({
   onTools,
   onConnect,
   personalTools = null,
+  hasOwnAccount = false,
+  onConnectOwn,
   disabled,
 }: McpBindingDialogProps) {
   const t = useTranslations("agents");
@@ -116,6 +122,7 @@ export function McpBindingDialog({
   const allowed = bindings[0]?.allowed_tools ?? null;
   const setTools = (next: string[] | null) =>
     onChange(bindings.map((ref) => ({ ...ref, allowed_tools: next })));
+  const primary = bindings[0];
   const add = () => {
     const next = free[0] ? organizationRef(free[0]) : canAddPersonal ? personalRef() : null;
     if (next) onChange([...bindings, next]);
@@ -132,27 +139,120 @@ export function McpBindingDialog({
         <div className="space-y-5">
           <section className="space-y-2">
             <h3 className="text-sm font-medium">{t("serverAccount")}</h3>
-            {bindings.length === 0 ? (
-              // Unused yet: choosing whose account binds the server, so a person
-              // who opened the card to look can switch it on from here.
-              <WhoseAccount
-                name={name}
-                value={undefined}
-                organization={connections[0] !== undefined}
-                personal={catalogKey !== null}
-                disabled={disabled}
-                onChange={(next) => {
-                  const ref =
-                    next === "personal"
-                      ? personalRef()
-                      : connections[0]
-                        ? organizationRef(connections[0])
-                        : null;
-                  if (ref) onChange([ref]);
+            {/* Whose account, as two choices that each carry their own next step:
+                choosing the organization's with none connected connects one, and
+                choosing each person's own offers to connect yours. The connect
+                buttons used to sit under a select, a second decision after the
+                first. */}
+            <div
+              role="radiogroup"
+              aria-label={t("accountForServer", { name })}
+              className="grid gap-2 sm:grid-cols-2"
+            >
+              <KindTile
+                selected={primary?.account === "organization"}
+                title={t("organizationsAccount")}
+                hint={connections.length === 0 ? t("orgAccountConnectHint") : t("orgAccountHint")}
+                disabled={disabled || (connections.length === 0 && !onConnect)}
+                onSelect={() => {
+                  if (primary?.account === "organization") return;
+                  if (connections[0] === undefined) {
+                    // Nothing to bind yet: connect one, and the Builder binds it.
+                    onChange(bindings.filter((ref) => ref !== primary));
+                    onConnect?.();
+                    return;
+                  }
+                  const next = organizationRef(free[0] ?? connections[0], primary);
+                  onChange(
+                    primary ? bindings.map((ref) => (ref === primary ? next : ref)) : [next],
+                  );
                 }}
-              />
-            ) : (
-              bindings.map((binding, index) => (
+              >
+                {primary?.account === "organization" &&
+                  connections.length > 1 &&
+                  (() => {
+                    const choices = connections.filter(
+                      (option) => option.id === primary.connection_id || !boundIds.has(option.id),
+                    );
+                    const current = connections.find(
+                      (option) => option.id === primary.connection_id,
+                    );
+                    // A select where there is something to switch to; the account's
+                    // name where every other one is bound in its own row.
+                    return choices.length > 1 ? (
+                      <WhichOrgAccount
+                        name={name}
+                        value={primary.connection_id}
+                        choices={choices}
+                        disabled={disabled}
+                        onChange={(target) =>
+                          onChange(
+                            bindings.map((ref) =>
+                              ref === primary ? organizationRef(target, primary) : ref,
+                            ),
+                          )
+                        }
+                      />
+                    ) : (
+                      current && (
+                        <span className="block text-sm">{current.label ?? current.name}</span>
+                      )
+                    );
+                  })()}
+              </KindTile>
+              <KindTile
+                selected={primary?.account === "personal"}
+                title={t("eachPersonsOwnAccount")}
+                hint={t("eachPersonsOwnAccountShort")}
+                disabled={disabled || catalogKey === null}
+                onSelect={() => {
+                  if (primary?.account === "personal") return;
+                  const next = personalRef(primary);
+                  if (next === null) return;
+                  onChange(
+                    primary ? bindings.map((ref) => (ref === primary ? next : ref)) : [next],
+                  );
+                }}
+              >
+                {primary?.account === "personal" && !hasOwnAccount && onConnectOwn && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={disabled}
+                    onClick={onConnectOwn}
+                  >
+                    <Plug className="mr-1 h-3.5 w-3.5" />
+                    {t("connectYours")}
+                  </Button>
+                )}
+              </KindTile>
+            </div>
+
+            {primary?.account === "personal" && (
+              <MoreOptions
+                label={t("onlySomeAccounts")}
+                defaultOpen={(primary.account_labels?.length ?? 0) > 0}
+              >
+                <AccountLabels
+                  name={name}
+                  value={primary.account_labels ?? null}
+                  disabled={disabled}
+                  onChange={(labels) =>
+                    onChange(
+                      bindings.map((ref) =>
+                        ref === primary ? { ...primary, account_labels: labels } : ref,
+                      ),
+                    )
+                  }
+                />
+              </MoreOptions>
+            )}
+
+            {/* Further accounts the server is reached through (#2125), each a row. */}
+            {bindings.slice(1).map((binding, offset) => {
+              const index = offset + 1;
+              return (
                 <AccountBlock
                   key={binding.account === "personal" ? "personal" : binding.connection_id}
                   name={name}
@@ -169,7 +269,7 @@ export function McpBindingDialog({
                   canBePersonal={
                     catalogKey !== null && (!personalBound || binding.account === "personal")
                   }
-                  removable={bindings.length > 1}
+                  removable
                   disabled={disabled}
                   onWhose={(whose) => {
                     const next =
@@ -187,50 +287,20 @@ export function McpBindingDialog({
                   }
                   onRemove={() => remove(index)}
                 />
-              ))
+              );
+            })}
+
+            {primary !== undefined && (free.length > 0 || canAddPersonal) && (
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={add}
+                className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-xs font-medium disabled:opacity-50"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                {t("addAnotherAccount")}
+              </button>
             )}
-
-            <div className="flex flex-wrap gap-2">
-              {bindings.length > 0 &&
-                (free.length > 0 || canAddPersonal ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={disabled}
-                    onClick={add}
-                  >
-                    <Plus className="mr-1 h-3.5 w-3.5" />
-                    {t("addAnotherAccount")}
-                  </Button>
-                ) : (
-                  onConnect && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={disabled}
-                      onClick={onConnect}
-                    >
-                      <Plug className="mr-1 h-3.5 w-3.5" />
-                      {t("connectAnotherAccount")}
-                    </Button>
-                  )
-                ))}
-
-              {connections.length === 0 && onConnect && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={disabled}
-                  onClick={onConnect}
-                >
-                  <Plug className="mr-1 h-3.5 w-3.5" />
-                  {t("connectOrganizationAccount")}
-                </Button>
-              )}
-            </div>
           </section>
 
           {bindings.length > 0 && (
@@ -424,6 +494,93 @@ function AccountBlock({
         )
       )}
     </div>
+  );
+}
+
+/** One answer to "whose account": a tile with what it means, and its next step under it. */
+function KindTile({
+  selected,
+  title,
+  hint,
+  disabled,
+  onSelect,
+  children,
+}: {
+  selected: boolean;
+  title: string;
+  hint: string;
+  disabled?: boolean;
+  onSelect: () => void;
+  children?: ReactNode;
+}) {
+  return (
+    <div
+      role="radio"
+      aria-checked={selected}
+      aria-disabled={disabled}
+      tabIndex={disabled ? -1 : 0}
+      // A click on a control inside the tile - the account select, Connect
+      // yours - is that control's, not a choice of the tile.
+      onClick={(event) => {
+        if (disabled || (event.target as HTMLElement).closest("button, a, input")) return;
+        onSelect();
+      }}
+      onKeyDown={(event) => {
+        if (!disabled && (event.key === "Enter" || event.key === " ")) {
+          event.preventDefault();
+          onSelect();
+        }
+      }}
+      className={cn(
+        "focus-visible:ring-ring space-y-2 rounded-xl border p-3 text-left transition-colors outline-none focus-visible:ring-2",
+        selected
+          ? "border-foreground bg-accent"
+          : "border-foreground/12 hover:bg-foreground/[0.03] cursor-pointer",
+        disabled && "pointer-events-none opacity-50",
+      )}
+    >
+      <span className="block text-sm font-medium">{title}</span>
+      <span className="text-muted-foreground block text-xs leading-snug">{hint}</span>
+      {children}
+    </div>
+  );
+}
+
+/** Which of the organization's accounts, where it holds several on the server. */
+function WhichOrgAccount({
+  name,
+  value,
+  choices,
+  disabled,
+  onChange,
+}: {
+  name: string;
+  value: string;
+  choices: OrgMcpConnectionRecord[];
+  disabled?: boolean;
+  onChange: (target: OrgMcpConnectionRecord) => void;
+}) {
+  const t = useTranslations("agents");
+  return (
+    <Select
+      value={value}
+      disabled={disabled}
+      onValueChange={(next) => {
+        const target = choices.find((option) => option.id === next);
+        if (target) onChange(target);
+      }}
+    >
+      <SelectTrigger size="sm" aria-label={t("whichAccount", { name })}>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {choices.map((option) => (
+          <SelectItem key={option.id} value={option.id}>
+            {option.label ?? option.name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 

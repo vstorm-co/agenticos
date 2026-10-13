@@ -652,7 +652,6 @@
     "zoomOut": "Verkleinern",
     "whichAccount": "Welches {name}-Konto dieser Agent nutzt",
     "addAnotherAccount": "Weiteres Konto hinzufügen",
-    "connectAnotherAccount": "Weiteres Konto verbinden",
     "removeAccount": "Dieses {name}-Konto nicht mehr verwenden",
     "accountCount": "{count, plural, =1 {1 Konto} other {# Konten}}",
     "accountLabels": "Nur ihre Konten mit dem Label",
@@ -730,7 +729,6 @@
     "testPanelAskBothPlaceholder": "Beide dasselbe fragen...",
     "addNamedToAgent": "{name} einem Agent hinzufügen",
     "useServerInAgent": "{name} in diesem Agent nutzen",
-    "connectOrganizationAccount": "Konto der Organisation verbinden",
     "serverSettings": "Einstellungen",
     "serverSettingsTitle": "{name} in diesem Agent",
     "serverSettingsDescription": "Wessen Konto es nutzt und welche Tools es aufrufen darf.",
@@ -757,7 +755,10 @@
     "toolsNone": "Alle abwählen",
     "toolsSearch": "Tools suchen",
     "eachPersonsOwnAccountShort": "Jede Person verbindet ihr eigenes; nicht für API-Schlüssel, Widget oder Routinen.",
-    "onlySomeAccounts": "Nur einige ihrer Konten"
+    "onlySomeAccounts": "Nur einige ihrer Konten",
+    "orgAccountHint": "Ein Konto antwortet für alle.",
+    "orgAccountConnectHint": "Noch keins verbunden - wählen, um eins zu verbinden.",
+    "connectYours": "Deins verbinden"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",

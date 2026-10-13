@@ -49,7 +49,11 @@ import { EmbedsPanel } from "@/components/agents/embeds-panel";
 import { ExposuresPanel } from "@/components/agents/exposures-panel";
 import { TriggersPanel } from "@/components/triggers/triggers-panel";
 import type { McpCatalogEntry } from "@/types/mcp";
-import { ConnectServerDialog } from "@/components/agents/connect-server-dialog";
+import {
+  ConnectOwnServerDialog,
+  ConnectServerDialog,
+} from "@/components/agents/connect-server-dialog";
+import { hereForMcpOAuthReturn } from "@/lib/mcp-oauth";
 import { McpToolPickerDialog } from "@/components/mcp/mcp-tool-picker-dialog";
 import type { ToolPickerState } from "@/components/mcp/mcp-server-list-types";
 import { bindingKey, McpServerPicker } from "@/components/agents/mcp-server-picker";
@@ -247,6 +251,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
     error: connectionsError,
   } = useOrgMcpConnections();
   const [connectingServer, setConnectingServer] = useState<McpCatalogEntry | null>(null);
+  const [connectingOwnServer, setConnectingOwnServer] = useState<McpCatalogEntry | null>(null);
   const [toolPicker, setToolPicker] = useState<ToolPickerState | null>(null);
   // Which binding the open tool picker narrows, by `bindingKey`. Kept beside the
   // picker state rather than inside it because the dialog is shared with the
@@ -1108,6 +1113,14 @@ export default function AgentBuilderPage({ params }: PageProps) {
           }}
         />
 
+        {/* The builder's own account, for a server bound through each person's:
+            back here when the consent lands, and its tools list from it. */}
+        <ConnectOwnServerDialog
+          entry={connectingOwnServer}
+          onClose={() => setConnectingOwnServer(null)}
+          returnTo={hereForMcpOAuthReturn()}
+        />
+
         <ConnectServerDialog
           entry={connectingServer}
           onClose={() => setConnectingServer(null)}
@@ -1466,6 +1479,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   value={spec.mcp_servers}
                   onChange={(mcp_servers) => update({ mcp_servers })}
                   personalConnections={myMcpConnections}
+                  onConnectOwn={setConnectingOwnServer}
                   onTools={async (ref, connection, name) => {
                     setToolBinding(bindingKey(ref));
                     // A connection nobody has checked has no tool list; check it

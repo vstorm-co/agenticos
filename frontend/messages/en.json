@@ -652,7 +652,6 @@
     "zoomOut": "Zoom out",
     "whichAccount": "Which {name} account this agent uses",
     "addAnotherAccount": "Add another account",
-    "connectAnotherAccount": "Connect another account",
     "removeAccount": "Stop using this {name} account",
     "accountCount": "{count, plural, =1 {1 account} other {# accounts}}",
     "accountLabels": "Only their accounts labelled",
@@ -730,7 +729,6 @@
     "testPanelAskBothPlaceholder": "Ask both the same thing...",
     "addNamedToAgent": "Add {name} to an agent",
     "useServerInAgent": "Use {name} in this agent",
-    "connectOrganizationAccount": "Connect the organization's account",
     "serverSettings": "Settings",
     "serverSettingsTitle": "{name} in this agent",
     "serverSettingsDescription": "Whose account it uses and which tools it may call.",
@@ -756,8 +754,11 @@
     "toolsAll": "Select all",
     "toolsNone": "Clear all",
     "toolsSearch": "Search tools",
-    "eachPersonsOwnAccountShort": "Each person connects their own; not for API keys, the widget or routines.",
-    "onlySomeAccounts": "Only some of their accounts"
+    "eachPersonsOwnAccountShort": "Everyone connects their own; not for API keys, the widget or routines.",
+    "onlySomeAccounts": "Only some of their accounts",
+    "orgAccountHint": "One account answers for everybody.",
+    "orgAccountConnectHint": "None connected yet - choose it to connect one.",
+    "connectYours": "Connect yours"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",

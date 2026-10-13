@@ -66,6 +66,8 @@ interface McpServerPickerProps {
    * holds no connection to - listed from their own account's last check.
    */
   personalConnections?: McpConnectionRecord[];
+  /** Connect the reader's own account on a catalog server, without leaving the page. */
+  onConnectOwn?: (entry: McpCatalogEntry) => void;
   disabled?: boolean;
 }
 
@@ -103,6 +105,7 @@ export function McpServerPicker({
   onTools,
   onConnect,
   personalConnections = [],
+  onConnectOwn,
   disabled,
 }: McpServerPickerProps) {
   const t = useTranslations("agents");
@@ -209,6 +212,10 @@ export function McpServerPicker({
                   connection.catalog_key === row.entry?.key && connection.last_tools !== null,
               )?.last_tools ?? null
             }
+            hasOwnAccount={personalConnections.some(
+              (connection) => connection.catalog_key === row.entry?.key,
+            )}
+            onConnectOwn={onConnectOwn}
             disabled={disabled}
           />
         ))}
@@ -267,6 +274,8 @@ function ServerCard({
   onTools,
   onConnect,
   personalTools,
+  hasOwnAccount,
+  onConnectOwn,
   disabled,
 }: {
   row: CardRow;
@@ -275,6 +284,8 @@ function ServerCard({
   onTools: (ref: McpServerRef, probed: OrgMcpConnectionRecord, name: string) => void;
   onConnect: (entry: McpCatalogEntry) => void;
   personalTools: McpToolInfo[] | null;
+  hasOwnAccount: boolean;
+  onConnectOwn?: (entry: McpCatalogEntry) => void;
   disabled?: boolean;
 }) {
   const t = useTranslations("agents");
@@ -392,6 +403,15 @@ function ServerCard({
             : undefined
         }
         personalTools={personalTools}
+        hasOwnAccount={hasOwnAccount}
+        onConnectOwn={
+          entry && onConnectOwn
+            ? () => {
+                setSettingsOpen(false);
+                onConnectOwn(entry);
+              }
+            : undefined
+        }
         disabled={disabled}
       />
     </>

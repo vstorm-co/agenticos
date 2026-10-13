@@ -652,7 +652,6 @@
     "zoomOut": "Pomniejsz",
     "whichAccount": "Którego konta {name} używa ten agent",
     "addAnotherAccount": "Dodaj kolejne konto",
-    "connectAnotherAccount": "Podłącz kolejne konto",
     "removeAccount": "Przestań używać tego konta {name}",
     "accountCount": "{count, plural, one {1 konto} few {# konta} many {# kont} other {# konta}}",
     "accountLabels": "Tylko ich konta z etykietą",
@@ -730,7 +729,6 @@
     "testPanelAskBothPlaceholder": "Zapytaj oba o to samo...",
     "addNamedToAgent": "Dodaj {name} do agenta",
     "useServerInAgent": "Używaj {name} w tym agencie",
-    "connectOrganizationAccount": "Połącz konto organizacji",
     "serverSettings": "Ustawienia",
     "serverSettingsTitle": "{name} w tym agencie",
     "serverSettingsDescription": "Czyje konto używa i które narzędzia może wywołać.",
@@ -756,8 +754,11 @@
     "toolsAll": "Zaznacz wszystkie",
     "toolsNone": "Odznacz wszystkie",
     "toolsSearch": "Szukaj narzędzi",
-    "eachPersonsOwnAccountShort": "Każdy łączy własne konto; nie dla kluczy API, widżetu ani rutyn.",
-    "onlySomeAccounts": "Tylko niektóre ich konta"
+    "eachPersonsOwnAccountShort": "Każdy łączy własne; nie dla kluczy API, widżetu ani rutyn.",
+    "onlySomeAccounts": "Tylko niektóre ich konta",
+    "orgAccountHint": "Jedno konto odpowiada za wszystkich.",
+    "orgAccountConnectHint": "Jeszcze niepołączone - wybierz, żeby połączyć.",
+    "connectYours": "Połącz swoje"
   },
   "auth": {
     "agreeToTerms": "Tworząc konto, akceptujesz nasz <terms>Regulamin</terms> i <privacy>Politykę prywatności</privacy>.",

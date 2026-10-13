@@ -83,6 +83,12 @@ function picker(props: {
   );
 }
 
+/** One of the two answers to "whose account", as a tile in the settings. */
+const kind = (which: "organization" | "personal") =>
+  screen.getByRole("radio", {
+    name: which === "organization" ? /^The organization's account/ : /^Each person's own account/,
+  });
+
 /** Open a server's settings the way a person does: by clicking its card. */
 async function settings(description = GITHUB.description) {
   await userEvent.click(screen.getByText(description));
@@ -365,14 +371,10 @@ describe("several connections behind one catalog entry", () => {
     render(picker({ connections: THREE, onChange }));
 
     await settings();
-    await userEvent.click(screen.getByRole("combobox", { name: /whose github account/i }));
-    await userEvent.click(await screen.findByRole("option", { name: "Each person's own account" }));
+    await userEvent.click(kind("personal"));
     expect(onChange).toHaveBeenLastCalledWith([personal("github")]);
 
-    await userEvent.click(screen.getByRole("combobox", { name: /whose github account/i }));
-    await userEvent.click(
-      await screen.findByRole("option", { name: "The organization's account" }),
-    );
+    await userEvent.click(kind("organization"));
     expect(onChange).toHaveBeenLastCalledWith([bound("c1")]);
   });
 
@@ -434,8 +436,7 @@ describe("several connections behind one catalog entry", () => {
     render(picker({ connections: THREE, value: [bound("c1"), bound("c3")], onChange }));
 
     await settings();
-    const [, second] = screen.getAllByRole("button", { name: "Stop using this GitHub account" });
-    await userEvent.click(second!);
+    await userEvent.click(screen.getByRole("button", { name: "Stop using this GitHub account" }));
 
     expect(onChange).toHaveBeenCalledWith([bound("c1")]);
   });
@@ -451,16 +452,12 @@ describe("several connections behind one catalog entry", () => {
     expect(onChange).toHaveBeenCalledWith([bound("c1"), personal("github")]);
   });
 
-  it("offers to connect another account when every one is already bound", async () => {
-    const onConnect = vi.fn();
+  it("offers no further account when every one is already bound", async () => {
     const one = [connection({ id: "c1", name: "gh", catalog_key: "github" })];
-    render(picker({ connections: one, value: [bound("c1"), personal("github")], onConnect }));
+    render(picker({ connections: one, value: [bound("c1"), personal("github")] }));
 
     await settings();
     expect(screen.queryByRole("button", { name: "Add another account" })).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: "Connect another account" }));
-
-    expect(onConnect).toHaveBeenCalledWith(GITHUB);
   });
 
   it("narrows each person's own accounts to the labels typed, on leaving the field", async () => {
@@ -497,10 +494,7 @@ describe("several connections behind one catalog entry", () => {
     render(picker({ connections: one, value: [personal("github", ["read"])], onChange }));
 
     await settings();
-    await userEvent.click(screen.getByRole("combobox", { name: /whose github account/i }));
-    await userEvent.click(
-      await screen.findByRole("option", { name: "The organization's account" }),
-    );
+    await userEvent.click(kind("organization"));
 
     expect(onChange).toHaveBeenCalledWith([bound("c1", ["read"])]);
   });
@@ -565,8 +559,7 @@ describe("whose account a binding speaks through", () => {
     render(picker({ connections: [GH], value: [bound("c1", ["search"])], onChange }));
 
     await settings();
-    await userEvent.click(screen.getByRole("combobox", { name: /whose github account/i }));
-    await userEvent.click(await screen.findByRole("option", { name: "Each person's own account" }));
+    await userEvent.click(kind("personal"));
 
     expect(onChange).toHaveBeenCalledWith([personal("github", ["search"])]);
   });
@@ -576,10 +569,7 @@ describe("whose account a binding speaks through", () => {
     render(picker({ connections: [GH], value: [personal("github", ["search"])], onChange }));
 
     await settings();
-    await userEvent.click(screen.getByRole("combobox", { name: /whose github account/i }));
-    await userEvent.click(
-      await screen.findByRole("option", { name: "The organization's account" }),
-    );
+    await userEvent.click(kind("organization"));
 
     expect(onChange).toHaveBeenCalledWith([bound("c1", ["search"])]);
   });
@@ -593,9 +583,7 @@ describe("whose account a binding speaks through", () => {
     );
     await settings();
 
-    expect(screen.getByRole("combobox", { name: /whose github account/i })).toHaveTextContent(
-      "Each person's own account",
-    );
+    expect(kind("personal")).toHaveAttribute("aria-checked", "true");
     expect(screen.getByText(/not for API keys/)).toBeInTheDocument();
   });
 
@@ -610,16 +598,38 @@ describe("whose account a binding speaks through", () => {
     expect(onChange).toHaveBeenCalledWith([personal("github")]);
   });
 
-  it("still offers to connect the organization's account beside it", async () => {
+  it("connects the organization's account in one step from its own choice", async () => {
+    // Choosing it with none connected is connecting one, not a second button
+    // under the choice.
     const onConnect = vi.fn();
-    render(picker({ onConnect, value: [personal("github")] }));
+    const onChange = vi.fn();
+    render(picker({ onConnect, onChange, value: [personal("github")] }));
 
     await settings();
-    await userEvent.click(
-      screen.getByRole("button", { name: "Connect the organization's account" }),
+    await userEvent.click(kind("organization"));
+
+    expect(onChange).toHaveBeenCalledWith([]);
+    expect(onConnect).toHaveBeenCalledWith(GITHUB);
+  });
+
+  it("offers to connect your own account under each person's own, where you have none", async () => {
+    const onConnectOwn = vi.fn();
+    render(
+      <McpServerPicker
+        connections={[]}
+        catalog={CATALOG}
+        value={[personal("github")]}
+        onChange={vi.fn()}
+        onTools={vi.fn()}
+        onConnect={vi.fn()}
+        onConnectOwn={onConnectOwn}
+      />,
     );
 
-    expect(onConnect).toHaveBeenCalledWith(GITHUB);
+    await settings();
+    await userEvent.click(screen.getByRole("button", { name: "Connect yours" }));
+
+    expect(onConnectOwn).toHaveBeenCalledWith(GITHUB);
   });
 
   it("renders a personal binding on an unconnected server as a bound card", () => {
@@ -647,8 +657,7 @@ describe("whose account a binding speaks through", () => {
     render(picker({ connections: [GH, other], value: [bound("c9"), bound("c1")], onChange }));
 
     await settings();
-    await userEvent.click(screen.getByRole("combobox", { name: /whose github account/i }));
-    await userEvent.click(await screen.findByRole("option", { name: "Each person's own account" }));
+    await userEvent.click(kind("personal"));
 
     expect(onChange).toHaveBeenCalledWith([bound("c9"), personal("github")]);
   });
@@ -664,10 +673,9 @@ describe("whose account a binding speaks through", () => {
     );
 
     await userEvent.click(screen.getByRole("button", { name: "Settings" }));
-    await userEvent.click(screen.getByRole("combobox", { name: /whose crm account/i }));
 
-    expect(await screen.findByRole("option", { name: "The organization's account" })).toBeVisible();
-    expect(screen.queryByRole("option", { name: "Each person's own account" })).toBeNull();
+    expect(kind("organization")).toHaveAttribute("aria-checked", "true");
+    expect(kind("personal")).toHaveAttribute("aria-disabled", "true");
   });
 
   it("cannot be switched by a viewer who cannot edit", () => {
