@@ -17,6 +17,7 @@ import csv
 import io
 import uuid
 from datetime import UTC, datetime, timedelta
+from unittest.mock import AsyncMock
 
 import pytest
 from sqlalchemy import func, select
@@ -296,15 +297,26 @@ async def test_a_credential_in_a_case_is_redacted_before_it_is_stored(db) -> Non
             history=[{"role": "user", "content": f"use {key}"}],
             note=f"seen {key}",
             expected_tool_calls=[{"tool": "login", "args": {"token": key, "n": 1, "all": [key]}}],
+            checks=[{"type": "contains", "value": f"Bearer {key}", "nested": {"k": [key]}}],
+            tags=[key],
         ),
     )
 
     stored = await db.get(DatasetCase, case.id)
     assert stored is not None
-    text = f"{stored.input} {stored.history} {stored.note} {stored.expected_tool_calls}"
+    text = (
+        f"{stored.input} {stored.history} {stored.note} {stored.expected_tool_calls}"
+        f" {stored.checks} {stored.tags}"
+    )
     assert key not in text
     assert "[redacted:" in stored.input
     assert stored.expected_tool_calls[0]["args"]["n"] == 1
+    assert stored.checks[0]["type"] == "contains"
+    for fmt in ("csv", "jsonl"):
+        exported = await service.export(ctx, dataset.id, version=None, fmt=fmt)
+        assert key not in exported.content
+    listed = await service.list_cases(ctx, dataset.id)
+    assert key not in listed.model_dump_json()
     details = await db.scalar(
         select(AppAdminAuditLog.details).where(
             AppAdminAuditLog.action == "dataset.version_created",
@@ -312,7 +324,7 @@ async def test_a_credential_in_a_case_is_redacted_before_it_is_stored(db) -> Non
         )
     )
     assert details is not None
-    assert details["redacted_secrets"] == 5
+    assert details["redacted_secrets"] == 8
 
 
 async def test_a_rated_down_answer_becomes_a_case_linked_to_its_run(db) -> None:
@@ -377,7 +389,10 @@ async def test_an_answer_from_another_organization_is_refused_as_missing(db) -> 
         await service.add_from_message(
             ctx, dataset.id, DatasetCaseFromMessage(message_id=uuid.uuid4())
         )
-    assert refused.value.message == "Conversation not found"
+    assert (refused.value.message, refused.value.details) == (
+        "Message not found",
+        {"message_id": foreign_answer.id},
+    )
     assert missing.value.message == "Message not found"
     assert (await service.read(ctx, dataset.id)).case_count == 0
 
@@ -623,7 +638,30 @@ async def test_a_change_that_would_pass_the_case_ceiling_is_refused_whole(
         await service.import_cases(
             ctx, dataset.id, content=b"input\ntwo\nthree\n", filename="x.csv", fmt=None
         )
-    assert (await service.read(ctx, dataset.id)).latest_version == 1
+    await service.add_case(ctx, dataset.id, DatasetCaseCreate(input="two"))
+    with pytest.raises(BadRequestError):
+        await service.add_case(ctx, dataset.id, DatasetCaseCreate(input="three"))
+    assert (await service.read(ctx, dataset.id)).latest_version == 2
+
+
+async def test_a_name_taken_by_a_concurrent_request_answers_409_not_500(
+    db, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The name check is a read two requests can both pass; the constraint decides."""
+    ctx = await _owner(db)
+    service = DatasetService(db)
+    await service.create(ctx, DatasetCreate(name="refunds"))
+    other = await service.create(ctx, DatasetCreate(name="returns"))
+    monkeypatch.setattr(dataset_repo, "get_by_name", AsyncMock(return_value=None))
+
+    with pytest.raises(AlreadyExistsError):
+        await service.create(ctx, DatasetCreate(name="refunds"))
+    with pytest.raises(AlreadyExistsError):
+        await service.update(ctx, other.id, DatasetUpdate(name="refunds"))
+    assert {item.name for item in (await service.list_readable(ctx)).items} == {
+        "refunds",
+        "returns",
+    }
 
 
 async def test_an_order_mode_outside_the_three_is_refused_by_the_table(db) -> None:

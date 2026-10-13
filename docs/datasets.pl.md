@@ -1,12 +1,12 @@
 ---
 source_sha: "38969973baf1"
-title: "Zbiory danych"
-description: "Zbiory danych trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
+title: "Datasety"
+description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
 
-# Zbiory danych { #datasets }
+# Datasety { #datasets }
 
-**Zbiór danych** (dataset) trzyma pytania, na których testujesz agenta. Bez
+**Dataset** trzyma pytania, na których testujesz agenta. Bez
 niego każde sprawdzenie, czy zmiana poprawiła agenta, polega na tym, że ktoś
 ręcznie wpisuje kilka promptów i próbuje pamiętać, jak wyglądała poprzednia
 odpowiedź.
@@ -41,23 +41,23 @@ Załączniki nie są częścią przypadku w tej wersji. Przypadek to tekst.
 ## Każda zmiana to nowa wersja { #versions }
 
 Dodanie, edycja albo usunięcie przypadku oraz import pliku tworzą nową
-**wersję** zbioru, numerowaną od 1. Wersja nigdy się nie zmienia po
+**wersję** datasetu, numerowaną od 1. Wersja nigdy się nie zmienia po
 utworzeniu. Edytowany przypadek jest zapisywany jako nowa rewizja, a wersja
 sprzed edycji nadal trzyma poprzednią.
 
 Ma to znaczenie przy porównywaniu wyników. Dwa runy eval na tej samej wersji
 widziały te same pytania, więc różnica w wynikach pochodzi od agenta, a nie od
-testu. Strona zbioru domyślnie pokazuje najnowszą wersję; starszą wybierasz z
+testu. Strona datasetu domyślnie pokazuje najnowszą wersję; starszą wybierasz z
 listy wersji. Starsza wersja jest tylko do odczytu.
 
-Zmiana nazwy zbioru albo jego opisu nie tworzy wersji, bo żadna z nich nie
+Zmiana nazwy datasetu albo jego opisu nie tworzy wersji, bo żadna z nich nie
 zmienia przypadku.
 
 ## Dodawanie przypadków { #adding-cases }
 
 ### W konsoli { #in-the-console }
 
-Otwórz **Zbiory danych**, utwórz zbiór i wybierz **Dodaj przypadek**. Jedyne
+Otwórz **Datasety**, utwórz dataset i wybierz **Dodaj przypadek**. Jedyne
 wymagane pole to wejście. Rozmowę, oczekiwane wywołania narzędzi i sprawdzenia
 wpisuje się jako listy JSON - ten sam tekst, w jakim trzyma je eksport CSV.
 
@@ -67,7 +67,7 @@ wpisuje się jako listy JSON - ten sam tekst, w jakim trzyma je eksport CSV.
 jako jedną nową wersję. Import jest typu „wszystko albo nic”: jeśli jeden
 wiersz jest błędny, nie zostaje dodany żaden, a odmowa wymienia każdy błędny
 wiersz, żebyś mógł poprawić plik i spróbować ponownie. Plik ma najwyżej 10 MB,
-a zbiór mieści najwyżej 10 000 przypadków.
+a dataset mieści najwyżej 10 000 przypadków.
 
 Oba formaty używają tych samych dziewięciu nazw pól:
 
@@ -100,7 +100,7 @@ usuwa ten jeden `'`. Eksport jest zapisywany w [dzienniku audytu](governance.md#
 ### Z rozmowy albo runa { #add-to-dataset }
 
 Każda odpowiedź agenta w czacie i każda tura agenta w **Aktywności** ma
-przycisk **Dodaj do zbioru**. Wybierz zbiór, a przypadek powstanie z tej tury:
+przycisk **Dodaj do datasetu**. Wybierz dataset, a przypadek powstanie z tej tury:
 
 - pytanie staje się wejściem, a tury przed nim - rozmową przed wejściem;
 - odpowiedź staje się kontrprzykładem. Jeśli nikt nie ocenił jej łapką w dół,
@@ -108,7 +108,7 @@ przycisk **Dodaj do zbioru**. Wybierz zbiór, a przypadek powstanie z tej tury:
   dwóch;
 - najnowszy komentarz zostawiony z łapką w dół staje się notatką.
 
-Przycisk widzą członkowie, którzy mogą edytować jakiś zbiór. Wiadomość musi
+Przycisk widzą członkowie, którzy mogą edytować jakiś dataset. Wiadomość musi
 należeć do twojej organizacji i musisz móc ją przeczytać: albo masz
 `runs:view`, które czyta każdy run w organizacji tak jak Aktywność, albo możesz
 otworzyć rozmowę. Wiadomość z innej organizacji jest odrzucana tak, jakby nie
@@ -126,13 +126,13 @@ zredagowano, nigdy same wartości.
 
 ## Ocenianie { #scoring }
 
-Zbiór danych określa, jak oceniane są jego przypadki, na karcie **Scoring**. Do
+Dataset określa, jak oceniane są jego przypadki, na karcie **Scoring**. Do
 jednego przypadku mogą mieć zastosowanie cztery oceniacze, a każdy z nich
 włącza się albo wyłącza i oznacza jako wymagany albo nie:
 
 | Oceniacz | Co porównuje | Koszt |
 |---|---|---|
-| Sprawdzenia | Odpowiedź z regułami przypadku oraz z domyślnymi regułami, które zbiór nadaje każdemu przypadkowi | Nic |
+| Sprawdzenia | Odpowiedź z regułami przypadku oraz z domyślnymi regułami, które dataset nadaje każdemu przypadkowi | Nic |
 | Wywołania narzędzi | Narzędzia wywołane przez agenta z oczekiwanymi wywołaniami przypadku | Nic |
 | Sędzia | Odpowiedź z rubryką nazwanych kryteriów, ocenianą przez sędziego evali | Jeden run sędziego |
 | Odpowiedź wzorcowa | Odpowiedź z odpowiedzią wzorcową przypadku, ocenianą przez sędziego evali | Ten sam run sędziego |
@@ -167,7 +167,7 @@ jest sprawdzany przy zapisie przypadku, a reguła czyta najwyżej pierwsze 100 0
 znaków odpowiedzi, więc jeden wzorzec nie może spowolnić oceniania.
 
 Sprawdzenie `judge` to kryterium tylko dla jednego przypadku, oceniane w tym
-samym runie sędziego co rubryka zbioru. Używaj go do tego, czego reguła nie
+samym runie sędziego co rubryka datasetu. Używaj go do tego, czego reguła nie
 wyrazi, np. „odmawia i nie ujawnia adresu klienta”.
 
 ### Wywołania narzędzi { #trajectory }
@@ -191,7 +191,7 @@ organizacji (zobacz [Agenci systemowi](concepts.md#system-agents)). Działa jako
 osoba, która poprosiła o ocenę: sprawdzany jest jej dostęp do niego, przed
 wywołaniem modelu sprawdzany jest jego własny budżet i budżet organizacji, a
 jego run pojawia się w Activity pod powierzchnią `eval`. Jego instrukcje można
-edytować jak instrukcje każdego agenta, a zbiór może wskazać dla niego inny
+edytować jak instrukcje każdego agenta, a dataset może wskazać dla niego inny
 model.
 
 Każde kryterium jest oceniane od 1 do górnej granicy skali i zalicza na progu
@@ -203,10 +203,10 @@ regułach nadal oceniają.
 
 ### Przegląd i werdykty { #review }
 
-Zbiór danych może wysyłać wyniki do **kolejki przeglądu**: żadnych, dopóki ktoś
+Dataset może wysyłać wyniki do **kolejki przeglądu**: żadnych, dopóki ktoś
 jakiegoś nie wyśle, każdy wynik, który nie zaliczył, albo każdy wynik. Karta
-Scores pokazuje wyniki zbioru, a karta pulpitu **Awaiting review** pokazuje
-kolejkę ze wszystkich zbiorów, które widzisz.
+Scores pokazuje wyniki datasetu, a karta pulpitu **Awaiting review** pokazuje
+kolejkę ze wszystkich datasetów, które widzisz.
 
 Werdykt osoby jest zapisywany obok wyników oceniaczy i rozstrzyga o rezultacie.
 Nigdy nie zmienia tego, co powiedział sędzia: oceny i uzasadnienia sędziego
@@ -215,14 +215,14 @@ wynik znowu czeka na przegląd.
 
 ### Ocenianie runa { #scoring-a-run }
 
-W **Activity** otwórz run i wybierz **Score against a case**. Wybierz zbiór i
+W **Activity** otwórz run i wybierz **Score against a case**. Wybierz dataset i
 przypadek, a odpowiedź i wywołania narzędzi runa zostaną ocenione każdym
-oceniaczem, który zbiór konfiguruje. Run bez transkryptu nie ma odpowiedzi do
+oceniaczem, który dataset konfiguruje. Run bez transkryptu nie ma odpowiedzi do
 oceny.
 
 | Aby | Potrzebujesz |
 |---|---|
-| Zmienić sposób oceniania zbioru | `datasets:edit` na nim |
+| Zmienić sposób oceniania datasetu | `datasets:edit` na nim |
 | Ocenić run względem niego | `datasets:run` na nim oraz `runs:view` |
 | Czytać jego wyniki | `datasets:view` na nim |
 | Zapisać albo wycofać werdykt | `datasets:edit` na nim |
@@ -232,16 +232,16 @@ redakcję poświadczeń co przypadek.
 
 ## Dostęp { #access }
 
-Zbiór danych jest współdzielonym zasobem z właścicielem, widocznością i
+Dataset jest współdzielonym zasobem z właścicielem, widocznością i
 grantami, tak jak [skill](skills.md) albo [plik kontekstowy](context.md). Nowy
-zbiór jest prywatny dla twórcy, dopóki ktoś nie udostępni go ze strony zbioru.
-Katalog ma trzy uprawnienia dla zbiorów:
+dataset jest prywatny dla twórcy, dopóki ktoś nie udostępni go ze strony datasetu.
+Katalog ma trzy uprawnienia dla datasetów:
 
 | Uprawnienie | Pozwala członkowi | Poziom grantu, który je daje |
 |---|---|---|
-| `datasets:view` | Czytać przypadki i wersje zbioru oraz je eksportować | `read` |
-| `datasets:edit` | Tworzyć zbiory, zmieniać przypadki, importować, usuwać, udostępniać | `edit` |
-| `datasets:run` | Uruchamiać evale na zbiorze | `use` |
+| `datasets:view` | Czytać przypadki i wersje datasetu oraz je eksportować | `read` |
+| `datasets:edit` | Tworzyć datasety, zmieniać przypadki, importować, usuwać, udostępniać | `edit` |
+| `datasets:run` | Uruchamiać evale na datasecie | `use` |
 
 | | Owner | Admin | Builder | Operator | Member | Viewer |
 |---|---|---|---|---|---|---|
@@ -249,10 +249,10 @@ Katalog ma trzy uprawnienia dla zbiorów:
 | `datasets:edit` | all | all | shared | - | own | - |
 | `datasets:run` | all | all | all | all | shared | - |
 
-Członek bez dostępu do zbioru dostaje „nie znaleziono” na każdej trasie,
+Członek bez dostępu do datasetu dostaje „nie znaleziono” na każdej trasie,
 niezależnie od tego, na co pozwala mu rola gdzie indziej - samo istnienie
-prywatnego zbioru jest czymś, czego nie może się dowiedzieć. Grant poszerza
-dostęp do jednego zbioru i nigdy nie zmienia roli. Jak łączą się zakresy i
+prywatnego datasetu jest czymś, czego nie może się dowiedzieć. Grant poszerza
+dostęp do jednego datasetu i nigdy nie zmienia roli. Jak łączą się zakresy i
 granty, opisuje strona [Uprawnienia](permissions.md).
 
 ## Dane osobowe { #personal-data }
