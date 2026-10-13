@@ -291,43 +291,41 @@ export function FocusedRun({
           <Fact label={t("took")}>{formatRunDuration(run.started_at, run.ended_at)}</Fact>
         </dl>
 
-        {(run.parent_run_id !== null ||
-          (run.conversation_id !== null && run.user_id !== null && run.user_id === meId) ||
-          run.logfire_url != null) && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            {run.parent_run_id !== null && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 text-xs"
-                onClick={() => onFocusRun(run.parent_run_id)}
-              >
-                <CornerLeftUp className="h-3.5 w-3.5" aria-hidden />
-                {t("openTheRunItCame")}
-              </Button>
-            )}
-            {run.conversation_id !== null && run.user_id !== null && run.user_id === meId && (
-              <Button variant="outline" size="sm" className="h-7 text-xs" asChild>
-                <Link href={`${ROUTES.CHAT}?id=${run.conversation_id}`}>
-                  <MessageSquare className="h-3.5 w-3.5" aria-hidden />
-                  {t("openTheChatBehind")}
-                </Link>
-              </Button>
-            )}
-            {/* The trace, where one can be read. The URL is this read's own field,
+        {/* Hidden when it holds none of the three, rather than repeating all
+            three conditions around it. */}
+        <div className="flex flex-wrap items-center gap-1.5 empty:hidden">
+          {run.parent_run_id !== null && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => onFocusRun(run.parent_run_id)}
+            >
+              <CornerLeftUp className="h-3.5 w-3.5" aria-hidden />
+              {t("openTheRunItCame")}
+            </Button>
+          )}
+          {run.conversation_id !== null && run.user_id !== null && run.user_id === meId && (
+            <Button variant="outline" size="sm" className="h-7 text-xs" asChild>
+              <Link href={`${ROUTES.CHAT}?id=${run.conversation_id}`}>
+                <MessageSquare className="h-3.5 w-3.5" aria-hidden />
+                {t("openTheChatBehind")}
+              </Link>
+            </Button>
+          )}
+          {/* The trace, where one can be read. The URL is this read's own field,
               resolved server-side because an agent may redirect its traces to a
               client's Logfire project - a link only when there is genuinely
               somewhere to land, never a guess from the id. */}
-            {run.logfire_url != null && (
-              <Button variant="outline" size="sm" className="h-7 text-xs" asChild>
-                <a href={run.logfire_url} target="_blank" rel="noreferrer">
-                  <ExternalLink className="h-3.5 w-3.5" aria-hidden />
-                  {t("openTheTraceInLogfire")}
-                </a>
-              </Button>
-            )}
-          </div>
-        )}
+          {run.logfire_url != null && (
+            <Button variant="outline" size="sm" className="h-7 text-xs" asChild>
+              <a href={run.logfire_url} target="_blank" rel="noreferrer">
+                <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+                {t("openTheTraceInLogfire")}
+              </a>
+            </Button>
+          )}
+        </div>
 
         {/* Two questions, and they are genuinely different ones. The timeline is
             what happened - the thread, the turns, the tool calls, the files. The

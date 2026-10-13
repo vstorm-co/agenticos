@@ -214,11 +214,12 @@ describe("the decided record in the same table", () => {
     render(<ApprovalsTab period={PERIOD} onFocusRun={vi.fn()} />, { wrapper });
 
     expect(await screen.findByText("Rejected")).toBeVisible();
-    const row = screen.getByText("Rejected").closest("tr") as HTMLElement;
-    expect(row).toHaveTextContent("send_email");
-    expect(row).toHaveTextContent("ada@acme.test");
-    expect(row).toHaveTextContent("grace@acme.test");
-    expect(within(row).queryByRole("button")).toBeNull();
+    const row = screen.getByText("Rejected").closest("li") as HTMLElement;
+    expect(row).toHaveTextContent("Send email");
+    expect(row).toHaveTextContent("For ada@acme.test");
+    expect(row).toHaveTextContent("by grace@acme.test");
+    expect(within(row).queryByRole("button", { name: "Approve" })).toBeNull();
+    expect(within(row).queryByRole("button", { name: "Reject" })).toBeNull();
   });
 
   it("says when a decision was a standing consent rather than a click", async () => {
@@ -237,7 +238,7 @@ describe("the decided record in the same table", () => {
 
     render(<ApprovalsTab period={PERIOD} onFocusRun={vi.fn()} />, { wrapper });
 
-    const row = (await screen.findByText("grace@acme.test")).closest("tr") as HTMLElement;
+    const row = (await screen.findByText("by grace@acme.test")).closest("li") as HTMLElement;
     expect(row).toHaveTextContent("waived in advance for the conversation");
   });
 
@@ -246,7 +247,7 @@ describe("the decided record in the same table", () => {
 
     render(<ApprovalsTab period={PERIOD} onFocusRun={vi.fn()} />, { wrapper });
 
-    const row = (await screen.findByText("grace@acme.test")).closest("tr") as HTMLElement;
+    const row = (await screen.findByText("by grace@acme.test")).closest("li") as HTMLElement;
     expect(row).not.toHaveTextContent("waived in advance");
   });
 
@@ -278,9 +279,19 @@ describe("the decided record in the same table", () => {
     const onFocusRun = vi.fn();
 
     render(<ApprovalsTab period={PERIOD} onFocusRun={onFocusRun} />, { wrapper });
-    await userEvent.click(await screen.findByText("Rejected"));
+    await userEvent.click(await screen.findByRole("button", { name: /Send email/ }));
 
     expect(onFocusRun).toHaveBeenCalledWith("run-2");
+  });
+
+  it("opens the run behind a waiting request from the request itself", async () => {
+    backend({ queue: [PARKED] });
+    const onFocusRun = vi.fn();
+
+    render(<ApprovalsTab period={PERIOD} onFocusRun={onFocusRun} />, { wrapper });
+    await userEvent.click(await screen.findByRole("button", { name: /Open the run/ }));
+
+    expect(onFocusRun).toHaveBeenCalledWith("run-1");
   });
 
   it("shows a status this build does not know as the value it is, not as Expired", async () => {

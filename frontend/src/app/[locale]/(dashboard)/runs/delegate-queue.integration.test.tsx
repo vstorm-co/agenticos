@@ -103,7 +103,7 @@ function serve(approvals: ToolApproval[], permissions: Permission[]) {
 
 /** The table row for one queued call, found by the row's own actor. */
 function row(name: string): HTMLElement {
-  const tableRow = screen.getByText(name).closest<HTMLElement>("tr");
+  const tableRow = screen.getByText(name).closest<HTMLElement>("li");
   if (tableRow === null) throw new Error(`no queue row for ${name}`);
   return tableRow;
 }
