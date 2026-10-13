@@ -10,7 +10,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 from app.core.permissions import AuthContext, OrgRoleName
-from app.db.models.agent import Agent
+from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun
 from app.db.models.case_generation import CaseGeneration, CaseOrigin, CaseProposal
 from app.db.models.conversation import Conversation, Message
@@ -45,13 +45,16 @@ async def org(db, owner: User) -> Organization:
     return org
 
 
-async def agent(db, org: Organization) -> Agent:
+async def agent(
+    db, org: Organization, *, draft_spec: dict | None = None, visibility: str = "private"
+) -> Agent:
     agent = Agent(
         id=uuid.uuid4(),
         organization_id=org.id,
         slug=f"clerk-{uuid.uuid4().hex[:8]}",
         name="Clerk",
-        draft_spec={},
+        draft_spec=draft_spec or {},
+        visibility=visibility,
     )
     db.add(agent)
     await db.flush()
@@ -113,7 +116,9 @@ async def asked(
     return run, conversation, asked
 
 
-async def collection(db, org: Organization | None) -> KnowledgeBase:
+async def collection(
+    db, org: Organization | None, *, visibility: str = "org", owner: User | None = None
+) -> KnowledgeBase:
     kb = KnowledgeBase(
         id=uuid.uuid4(),
         name=f"Docs {uuid.uuid4().hex[:6]}",
@@ -122,14 +127,17 @@ async def collection(db, org: Organization | None) -> KnowledgeBase:
         collection_name=f"c_{uuid.uuid4().hex[:12]}",
         embedding_model="text-embedding-3-small",
         embedding_dim=1536,
-        visibility="org",
+        visibility=visibility,
+        owner_user_id=owner.id if owner else None,
     )
     db.add(kb)
     await db.flush()
     return kb
 
 
-async def document(db, kb: KnowledgeBase, status: DocumentStatus, name: str) -> RAGDocument:
+async def document(
+    db, kb: KnowledgeBase, status: DocumentStatus, name: str, *, vector_id: str | None = None
+) -> RAGDocument:
     document = RAGDocument(
         id=uuid.uuid4(),
         collection_name=kb.collection_name,
@@ -141,6 +149,7 @@ async def document(db, kb: KnowledgeBase, status: DocumentStatus, name: str) -> 
         chunk_count=3,
         ingestion_config={},
         knowledge_base_id=kb.id,
+        vector_document_id=vector_id,
     )
     db.add(document)
     await db.flush()
@@ -203,3 +212,19 @@ async def member(
     )
     await db.flush()
     return AuthContext(user_id=person.id, organization_id=org.id, role=role.value)
+
+
+async def publish(db, agent_row: Agent, spec: dict) -> AgentVersion:
+    """Publish `spec` as the agent's current version."""
+    version = AgentVersion(
+        id=uuid.uuid4(),
+        agent_id=agent_row.id,
+        organization_id=agent_row.organization_id,
+        version=1,
+        spec=spec,
+    )
+    db.add(version)
+    await db.flush()
+    agent_row.current_version_id = version.id
+    await db.flush()
+    return version

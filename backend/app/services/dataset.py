@@ -76,7 +76,7 @@ class GeneratedCase:
     source_message_id: UUID | None = None
 
 
-def _redact(text: str | None) -> tuple[str | None, int]:
+def redact_credentials(text: str | None) -> tuple[str | None, int]:
     """The text with any credential replaced by a placeholder, and how many were."""
     if not text:
         return text, 0
@@ -88,7 +88,7 @@ def _redact(text: str | None) -> tuple[str | None, int]:
 
 def _redact_json(value: JsonValue) -> tuple[JsonValue, int]:
     if isinstance(value, str):
-        cleaned, found = _redact(value)
+        cleaned, found = redact_credentials(value)
         return cleaned, found
     if isinstance(value, list):
         items = [_redact_json(item) for item in value]
@@ -101,7 +101,7 @@ def _redact_json(value: JsonValue) -> tuple[JsonValue, int]:
     return value, 0
 
 
-def _redacted(content: DatasetCaseContent) -> tuple[dict[str, Any], int]:
+def redacted_case(content: DatasetCaseContent) -> tuple[dict[str, Any], int]:
     """A case's fields ready for its row, with every credential in them redacted.
 
     Everything a model is later handed or a person exports: the turns, the
@@ -110,10 +110,10 @@ def _redacted(content: DatasetCaseContent) -> tuple[dict[str, Any], int]:
     data = content.model_dump(mode="json")
     found = 0
     for field in ("input", "reference_answer", "counter_example", "note"):
-        data[field], count = _redact(data[field])
+        data[field], count = redact_credentials(data[field])
         found += count
     for turn in data["history"]:
-        turn["content"], count = _redact(turn["content"])
+        turn["content"], count = redact_credentials(turn["content"])
         found += count
     for call in data["expected_tool_calls"]:
         call["args"], count = _redact_json(call["args"])
@@ -494,7 +494,7 @@ class DatasetService:
     ) -> DatasetCaseRead:
         dataset = await self._locked(ctx, dataset_id)
         previous = await self._version(ctx, dataset, None)
-        fields, redacted = _redacted(content)
+        fields, redacted = redacted_case(content)
         case = self._revision(ctx, dataset, fields, source=source, **provenance)
         await self._mint(
             ctx,
@@ -535,7 +535,7 @@ class DatasetService:
         revisions: list[DatasetCase] = []
         redacted = 0
         for case in cases:
-            fields, found = _redacted(case.content)
+            fields, found = redacted_case(case.content)
             redacted += found
             revisions.append(
                 self._revision(
@@ -591,7 +591,7 @@ class DatasetService:
         content = DatasetCaseContent.model_validate(
             {key: merged[key] for key in DatasetCaseContent.model_fields}
         )
-        fields, redacted = _redacted(content)
+        fields, redacted = redacted_case(content)
         provenance = {
             "source_run_id": current.source_run_id,
             "source_conversation_id": current.source_conversation_id,
@@ -646,7 +646,7 @@ class DatasetService:
         revisions: list[DatasetCase] = []
         redacted = 0
         for case in cases:
-            fields, found = _redacted(case)
+            fields, found = redacted_case(case)
             redacted += found
             revisions.append(self._revision(ctx, dataset, fields, source=CaseSource.IMPORT))
         version = await self._mint(
