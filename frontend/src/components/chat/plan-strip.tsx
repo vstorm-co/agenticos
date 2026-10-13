@@ -4,6 +4,8 @@ import { ChevronDown, ListChecks } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 
+import { useInChatScope } from "@/stores/chat-scope-context";
+
 import type { PlanProgress } from "@/lib/plan-state";
 import { cn } from "@/lib/utils";
 
@@ -27,10 +29,13 @@ import { PlanChecklist, PlanMeter } from "./plan-checklist";
 export function PlanStrip({ plan }: { plan: PlanProgress | null }) {
   const t = useTranslations("chat.plan");
   const [choice, setChoice] = useState<boolean | null>(null);
+  // Folded by default in the narrow chat beside a page, where an open plan and
+  // a question above the composer left no room for the conversation.
+  const compact = useInChatScope();
 
   if (plan === null) return null;
 
-  const open = choice ?? !plan.finished;
+  const open = choice ?? (!plan.finished && !compact);
   const headline = plan.active?.content ?? (plan.finished ? t("allDone") : t("heading"));
 
   return (

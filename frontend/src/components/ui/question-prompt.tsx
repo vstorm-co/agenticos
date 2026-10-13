@@ -85,7 +85,7 @@ export function QuestionPrompt({ questions, disabled = false, onComplete }: Ques
   return (
     <div className="bg-muted/40 border-foreground/10 overflow-hidden rounded-2xl border">
       {total > 1 && (
-        <div className="flex items-center justify-between gap-3 px-4 pt-2.5 pb-2">
+        <div className="flex items-center justify-between gap-3 px-3.5 pt-2.5 pb-1.5">
           <div className="flex items-center gap-2">
             {step > 0 && (
               <button
@@ -152,17 +152,17 @@ export function QuestionPrompt({ questions, disabled = false, onComplete }: Ques
             disabled={disabled}
             onAnswer={(given) => answer(step, given)}
             aside={total > 1 ? undefined : close}
+            trailing={
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={() => answer(step, SKIPPED)}
+                className="text-muted-foreground hover:text-foreground text-xs transition-colors"
+              >
+                {t("skip")}
+              </button>
+            }
           />
-          <div className="border-foreground/8 flex justify-end border-t px-4 py-2">
-            <button
-              type="button"
-              disabled={disabled}
-              onClick={() => answer(step, SKIPPED)}
-              className="text-muted-foreground hover:text-foreground text-xs transition-colors"
-            >
-              {t("skip")}
-            </button>
-          </div>
         </>
       )}
     </div>

@@ -39,6 +39,8 @@ interface QuestionSlideProps {
   onAnswer: (answer: QuestionPromptAnswer) => void;
   /** Drawn level with the question, at its right - the close button of a lone question. */
   aside?: ReactNode;
+  /** Drawn at the right of the slide's last row - the prompt's Skip. */
+  trailing?: ReactNode;
 }
 
 /**
@@ -46,7 +48,14 @@ interface QuestionSlideProps {
  * multi-choice question collects ticks until Continue. Digits pick an option,
  * the arrows move between them and Enter chooses the focused one.
  */
-export function QuestionSlide({ item, previous, disabled, onAnswer, aside }: QuestionSlideProps) {
+export function QuestionSlide({
+  item,
+  previous,
+  disabled,
+  onAnswer,
+  aside,
+  trailing,
+}: QuestionSlideProps) {
   const t = useTranslations("ui");
   const options = item.options ?? [];
   const allowCustom = item.allowCustom ?? true;
@@ -111,21 +120,23 @@ export function QuestionSlide({ item, previous, disabled, onAnswer, aside }: Que
       aria-label={t("questionFromAssistant")}
       className="outline-none"
     >
-      <div className={cn("flex items-start gap-3 px-4 pb-3", aside && "pt-3")}>
-        <div className="min-w-0 flex-1 space-y-1.5">
+      <div className={cn("flex items-start gap-3 px-3.5 pb-2", aside && "pt-3")}>
+        <div className="min-w-0 flex-1 space-y-1">
           {item.header && (
-            <span className="bg-foreground/[0.06] text-muted-foreground inline-block rounded-md px-2 py-0.5 text-xs font-medium tracking-wide uppercase">
+            <span className="text-muted-foreground block text-[11px] font-medium tracking-wide uppercase">
               {item.header}
             </span>
           )}
-          <p className="text-foreground text-[15px] leading-snug font-medium">{item.question}</p>
+          <p className="text-foreground text-sm leading-snug font-medium">{item.question}</p>
           {multi && <p className="text-muted-foreground text-xs">{t("pickAnyNumber")}</p>}
         </div>
         {aside}
       </div>
 
       {options.length > 0 && (
-        <ul className="divide-foreground/8 border-foreground/8 divide-y border-t">
+        // Short rows in a list that scrolls on its own: six options with a
+        // sentence each used to take half the window and push the composer down.
+        <ul className="max-h-[min(40vh,16rem)] space-y-px overflow-y-auto px-1.5 pb-1">
           {options.map((option, index) => {
             const focused = index === focusIdx && !customOpen;
             const ticked = picked.includes(option.label);
@@ -138,13 +149,13 @@ export function QuestionSlide({ item, previous, disabled, onAnswer, aside }: Que
                   onMouseEnter={() => setFocusIdx(index)}
                   onClick={() => choose(option.label)}
                   className={cn(
-                    "flex w-full items-start gap-3 px-4 py-3 text-left transition-colors",
+                    "flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors",
                     focused ? "bg-foreground/[0.06]" : "hover:bg-foreground/[0.03]",
                   )}
                 >
                   <span
                     className={cn(
-                      "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg font-mono text-xs tabular-nums",
+                      "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md font-mono text-[11px] tabular-nums",
                       ticked
                         ? "bg-foreground text-background"
                         : focused
@@ -152,12 +163,14 @@ export function QuestionSlide({ item, previous, disabled, onAnswer, aside }: Que
                           : "bg-foreground/5 text-muted-foreground",
                     )}
                   >
-                    {ticked ? <Check className="h-3.5 w-3.5" /> : index + 1}
+                    {ticked ? <Check className="h-3 w-3" /> : index + 1}
                   </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="text-foreground block text-sm">{option.label}</span>
+                  {/* The name, then what it means on the same line, cut at the
+                      edge - the whole sentence is the row's title. */}
+                  <span className="min-w-0 flex-1 truncate" title={option.description ?? undefined}>
+                    <span className="text-foreground text-sm">{option.label}</span>
                     {option.description && (
-                      <span className="text-muted-foreground mt-0.5 block text-xs leading-snug">
+                      <span className="text-muted-foreground ml-2 text-xs">
                         {option.description}
                       </span>
                     )}
@@ -169,61 +182,66 @@ export function QuestionSlide({ item, previous, disabled, onAnswer, aside }: Que
         </ul>
       )}
 
-      {allowCustom && (
-        <div className={cn("border-foreground/8", options.length > 0 && "border-t")}>
-          {customOpen ? (
-            <div className="flex items-center gap-2 px-4 py-2.5">
-              <Pencil className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
-              <input
-                ref={inputRef}
-                type="text"
-                value={customText}
-                disabled={disabled}
-                placeholder={t("typeYourAnswer")}
-                onChange={(event) => setCustomText(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    submitCustom();
-                  }
-                }}
-                className="text-foreground placeholder:text-muted-foreground min-w-0 flex-1 bg-transparent text-base outline-none sm:text-sm"
-              />
-              <button
-                type="button"
-                disabled={disabled || !customText.trim()}
-                onClick={submitCustom}
-                className="text-foreground text-sm font-medium disabled:opacity-40"
-              >
-                {t("useThisAnswer")}
-              </button>
-            </div>
-          ) : (
+      {/* One row closes the slide: an answer of one's own, then whatever the
+          prompt adds (Skip), then Continue where several may be picked. */}
+      <div className="border-foreground/8 flex min-h-10 items-center gap-2 border-t px-3.5 py-1.5">
+        {allowCustom && customOpen ? (
+          <>
+            <Pencil className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
+            <input
+              ref={inputRef}
+              type="text"
+              value={customText}
+              disabled={disabled}
+              placeholder={t("typeYourAnswer")}
+              onChange={(event) => setCustomText(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  submitCustom();
+                }
+              }}
+              className="text-foreground placeholder:text-muted-foreground min-w-0 flex-1 bg-transparent text-base outline-none sm:text-sm"
+            />
             <button
               type="button"
-              disabled={disabled}
-              onClick={() => setCustomOpen(true)}
-              className="text-muted-foreground hover:text-foreground flex w-full items-center gap-2 px-4 py-2.5 text-sm transition-colors"
+              disabled={disabled || !customText.trim()}
+              onClick={submitCustom}
+              className="text-foreground text-sm font-medium disabled:opacity-40"
             >
-              <Pencil className="h-3.5 w-3.5" />
-              {t("somethingElse")}
+              {t("useThisAnswer")}
             </button>
-          )}
-        </div>
-      )}
-
-      {multi && !customOpen && (
-        <div className="border-foreground/8 flex justify-end border-t px-4 py-2.5">
-          <button
-            type="button"
-            disabled={disabled || picked.length === 0}
-            onClick={() => onAnswer({ answer: "", selected: picked, skipped: false })}
-            className="bg-foreground text-background rounded-lg px-3 py-1.5 text-sm font-medium disabled:opacity-40"
-          >
-            {t("continue")}
-          </button>
-        </div>
-      )}
+            {trailing}
+          </>
+        ) : (
+          <>
+            {allowCustom ? (
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={() => setCustomOpen(true)}
+                className="text-muted-foreground hover:text-foreground flex items-center gap-2 text-sm transition-colors"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                {t("somethingElse")}
+              </button>
+            ) : null}
+            <span className="ml-auto flex items-center gap-3">
+              {trailing}
+              {multi && (
+                <button
+                  type="button"
+                  disabled={disabled || picked.length === 0}
+                  onClick={() => onAnswer({ answer: "", selected: picked, skipped: false })}
+                  className="bg-foreground text-background rounded-lg px-3 py-1 text-sm font-medium disabled:opacity-40"
+                >
+                  {t("continue")}
+                </button>
+              )}
+            </span>
+          </>
+        )}
+      </div>
     </div>
   );
 }
