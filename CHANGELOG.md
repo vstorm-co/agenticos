@@ -19,6 +19,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Spend over time, and each row's share.** The Activity page's Spend tab
+  draws a bar per day of the window, gives every breakdown a share column
+  and shows an agent's month against its cap. `GET /spend` gains `by_day`,
+  each run's own spend per UTC day.
+- **Ideas to start a routine from.** Routines offers the schedule templates
+  as ready-made ideas with the cadence each would run on; picking one opens
+  New schedule already filled in. A weekday cron reads as "Weekdays at
+  08:00 UTC".
 - **Watch a browse from a link, and take it over (#2128).** Every browse a run
   makes has a live view at `/browse/{run_id}/{call_id}` - the page as it is
   now and the steps so far - linked from the chat card and posted in the step
@@ -508,6 +516,18 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **Clearer screens across the console.** The active tab's underline is
+  drawn in full on every tab strip. Create knowledge base shows embeddings
+  open, the parser as three choices with the rest folded, and the
+  description under More options. Documents shows one card per file, named
+  as the person called it, with the agent's face, four across. An MCP
+  server's accounts dialog leads with the service's mark and gives each
+  account one action, the rest in its menu; Configure opens with More
+  options folded. With a run open, the run list and its detail are pinned
+  as one pair, and the detail's header, figures and tool steps read in
+  words. Approvals are requests - "Architect wants to Save to memory" -
+  with their arguments as fields. Adding to a group picks by kind, with
+  faces. The chat's "Working for" mark no longer clips at the edge.
 - **One web browser, on the agent's own model (#2127).** The step-by-step
   browser and the browser-use one are now a single "Web browser"
   (`browser_use`, tool `browse_web`) running this repository's loop: each step

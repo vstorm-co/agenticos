@@ -605,6 +605,11 @@ runs only, busiest first — so a delegate's cost lands once, inside the run tha
 started it. And it covers the window the rest of the tab shows, rather than a rolling
 default of its own.
 
+**When it was spent** is a bar per UTC day over the same window, from `by_day` -
+each run's own spend, so the days sum to the bill the breakdowns split. A day with no
+runs is drawn at zero rather than skipped. Every breakdown carries each row's share of
+its own total, and an agent with a monthly cap shows the month so far against it.
+
 Naming the organization's people is the same call the dashboard card makes, so it
 takes the same gate: `runs:view`, held by builder and operator as well as the two
 stewards, and it says so in its own copy.

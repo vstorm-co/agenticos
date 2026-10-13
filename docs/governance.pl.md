@@ -1,5 +1,5 @@
 ---
-source_sha: "71a57f10d782"
+source_sha: "c6c2f99c9928"
 ---
 
 # Governance { #governance }
@@ -648,6 +648,12 @@ Czyta te same wiersze `group_by=user` co tabela adopcji na dashboardzie —
 wyłącznie runy najwyższego poziomu, od najbardziej zajętych — więc koszt delegata
 ląduje raz, wewnątrz runa, który go uruchomił. I obejmuje to okno, które pokazuje
 reszta zakładki, a nie własną kroczącą wartość domyślną.
+
+**Kiedy wydano** to słupek na każdy dzień UTC w tym samym oknie, z `by_day` —
+własny koszt każdego runa, więc dni sumują się do tego samego rachunku, który dzielą
+zestawienia. Dzień bez runów jest rysowany jako zero, a nie pomijany. Każde zestawienie
+pokazuje udział wiersza w swojej sumie, a agent z miesięcznym limitem pokazuje miesiąc
+na tle tego limitu.
 
 Nazywanie ludzi z organizacji to ta sama decyzja, którą podejmuje karta na
 dashboardzie, więc obejmuje ją ta sama bramka: `runs:view`, które mają builder i

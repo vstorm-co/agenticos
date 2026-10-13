@@ -1,5 +1,5 @@
 ---
-source_sha: "71a57f10d782"
+source_sha: "c6c2f99c9928"
 ---
 
 # Governance { #governance }
@@ -638,6 +638,12 @@ Lee las mismas filas de `group_by=user` que la tabla de adopción del dashboard 
 solo runs de nivel superior, los más activos primero — así que el coste de un
 delegado aterriza una vez, dentro del run que lo inició. Y cubre la ventana que
 muestra el resto de la pestaña, en vez de un valor móvil propio.
+
+**Cuándo se gastó** es una barra por día UTC en la misma ventana, desde `by_day` — el
+coste propio de cada run, así que los días suman la misma factura que reparten los
+desgloses. Un día sin runs se dibuja en cero en vez de omitirse. Cada desglose muestra
+la parte de cada fila en su propio total, y un agente con tope mensual muestra el mes
+hasta ahora frente a ese tope.
 
 Nombrar a las personas de la organización es la misma decisión que toma la tarjeta
 del dashboard, así que toma la misma puerta: `runs:view`, que tienen builder y

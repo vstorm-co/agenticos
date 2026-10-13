@@ -1,5 +1,5 @@
 ---
-source_sha: "71a57f10d782"
+source_sha: "c6c2f99c9928"
 ---
 
 # Governance { #governance }
@@ -693,6 +693,12 @@ Dashboards — nur Runs der obersten Ebene, die geschäftigsten zuerst —, soda
 Kosten eines Delegates einmal landen, innerhalb des Runs, der ihn gestartet hat.
 Und sie deckt das Fenster ab, das der Rest des Tabs zeigt, statt einer eigenen
 rollenden Voreinstellung.
+
+**Wann es ausgegeben wurde** ist ein Balken pro UTC-Tag über dasselbe Fenster, aus
+`by_day` — die eigenen Kosten jedes Runs, sodass die Tage dieselbe Rechnung ergeben,
+die die Aufschlüsselungen teilen. Ein Tag ohne Runs wird als null gezeichnet statt
+ausgelassen. Jede Aufschlüsselung zeigt den Anteil jeder Zeile an ihrer Summe, und ein
+Agent mit Monatslimit zeigt den bisherigen Monat gegen dieses Limit.
 
 Die Personen der Organisation zu benennen ist dieselbe Entscheidung, die auch die
 Dashboard-Karte trifft, also nimmt sie dasselbe Gate: `runs:view`, gehalten von
