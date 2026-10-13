@@ -754,16 +754,16 @@ the runs, not the dictations. What bounds a stranger's spend is two rate limits
 and the organization's longest dictation. Each address may send
 `RATE_LIMIT_EMBED_DICTATION_PER_MINUTE` recordings a minute (6 by default), and
 so may each visitor of a `jwt` widget, by the token's subject. Each page or
-widget accepts `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` a minute (30 by
+widget accepts `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` a minute (10 by
 default) from everybody together, however many addresses a script rotates
 through.
 
 !!! danger "The worst case for a leaked or public link"
 
-    The link's limit times the longest dictation: 30 recordings a minute of up
-    to 300 seconds each is 150 minutes of audio every minute. At about
-    $0.006 a minute, which is `whisper-1`'s list price, that is near $0.90 a
-    minute, $54 an hour, or $1,300 a day, billed to the organization's provider
+    The link's limit times the longest dictation: 10 recordings a minute of up
+    to 300 seconds each is 50 minutes of audio every minute. At about
+    $0.006 a minute, which is `whisper-1`'s list price, that is near $0.30 a
+    minute, $18 an hour, or $430 a day, billed to the organization's provider
     account. Lower `dictation_max_seconds` or the link limit, pause the embed, or
     keep it on `browser` where that is too much.
 

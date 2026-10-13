@@ -1,5 +1,5 @@
 ---
-source_sha: "7af862cc8573"
+source_sha: "614feccb4582"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -833,15 +833,15 @@ begrenzt, sind zwei Rate-Limits und das längste Diktat der Organisation. Jede
 Adresse darf `RATE_LIMIT_EMBED_DICTATION_PER_MINUTE` Aufnahmen pro Minute senden
 (standardmäßig 6), und ebenso jeder Besucher eines `jwt`-Widgets, nach dem
 Subject seines Tokens. Jede Seite und jedes Widget nimmt
-`RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` pro Minute an (standardmäßig 30),
+`RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` pro Minute an (standardmäßig 10),
 von allen zusammen, durch wie viele Adressen ein Skript auch rotiert.
 
 !!! danger "Der schlimmste Fall für einen geleakten oder öffentlichen Link"
 
-    Das Limit des Links mal das längste Diktat: 30 Aufnahmen pro Minute zu je
-    bis zu 300 Sekunden sind 150 Minuten Audio pro Minute. Bei etwa
-    0,006 $ pro Minute, dem Listenpreis von `whisper-1`, sind das fast 0,90 $ pro
-    Minute, 54 $ pro Stunde oder 1.300 $ pro Tag, abgerechnet über das
+    Das Limit des Links mal das längste Diktat: 10 Aufnahmen pro Minute zu je
+    bis zu 300 Sekunden sind 50 Minuten Audio pro Minute. Bei etwa
+    0,006 $ pro Minute, dem Listenpreis von `whisper-1`, sind das fast 0,30 $ pro
+    Minute, 18 $ pro Stunde oder 430 $ pro Tag, abgerechnet über das
     Provider-Konto der Organisation. Senken Sie `dictation_max_seconds` oder das
     Limit des Links, pausieren Sie das Embed, oder bleiben Sie bei `browser`, wo
     das zu viel ist.

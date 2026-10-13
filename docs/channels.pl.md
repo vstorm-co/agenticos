@@ -1,5 +1,5 @@
 ---
-source_sha: "7af862cc8573"
+source_sha: "614feccb4582"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -782,14 +782,14 @@ i najdłuższe dyktowanie organizacji. Każdy adres może wysłać
 `RATE_LIMIT_EMBED_DICTATION_PER_MINUTE` nagrań na minutę (domyślnie 6), i tyle
 samo każdy odwiedzający widgetu `jwt`, według subjectu tokena. Każda strona albo
 widget przyjmuje `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` na minutę
-(domyślnie 30) od wszystkich razem, przez ile adresów by skrypt nie rotował.
+(domyślnie 10) od wszystkich razem, przez ile adresów by skrypt nie rotował.
 
 !!! danger "Najgorszy przypadek dla wyciekniętego albo publicznego linku"
 
-    Limit linku razy najdłuższe dyktowanie: 30 nagrań na minutę, każde do
-    300 sekund, to 150 minut audio co minutę. Przy około $0.006 za minutę, czyli
-    cenie katalogowej `whisper-1`, to blisko $0.90 na minutę, $54 na godzinę
-    albo $1,300 na dzień, na rachunek konta organizacji u providera. Obniż
+    Limit linku razy najdłuższe dyktowanie: 10 nagrań na minutę, każde do
+    300 sekund, to 50 minut audio co minutę. Przy około $0.006 za minutę, czyli
+    cenie katalogowej `whisper-1`, to blisko $0.30 na minutę, $18 na godzinę
+    albo $430 na dzień, na rachunek konta organizacji u providera. Obniż
     `dictation_max_seconds` albo limit linku, zapauzuj embed albo zostaw go na
     `browser`, gdy to za dużo.
 

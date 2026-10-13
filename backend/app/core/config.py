@@ -584,7 +584,7 @@ class Settings(BaseSettings):
     # Dictations one hosted page or widget accepts from everybody together, per
     # minute. The ceiling on what a leaked or public link costs: this many
     # recordings a minute, each at most the organization's longest dictation.
-    RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE: int = 30
+    RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE: int = 10
     # Whether `X-Forwarded-For` names the caller. Off by default because the
     # header is set by whoever is calling, so trusting it unconditionally is a
     # per-IP limit anybody bypasses by varying one string. On costs the mirror

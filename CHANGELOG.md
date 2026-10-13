@@ -79,7 +79,7 @@ Two things are versioned separately from this file and worth knowing about:
   while no provider and credential resolve, and a page or widget whose provider
   goes away offers no microphone. Rows record surface `hosted` or `widget` and
   no person. `RATE_LIMIT_EMBED_DICTATION_PER_MINUTE` (6, per address and per
-  `jwt` visitor) and `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` (30, per
+  `jwt` visitor) and `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` (10, per
   link) bound the spend. The recording format comes from the speech-to-text
   catalog, as `format` on `GET /api/v1/agents/{agent_id}/dictation` with
   `server_available` beside it. See

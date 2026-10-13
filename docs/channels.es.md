@@ -1,5 +1,5 @@
 ---
-source_sha: "7af862cc8573"
+source_sha: "614feccb4582"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -787,15 +787,15 @@ dos rate limits y el dictado más largo de la organización. Cada dirección pue
 enviar `RATE_LIMIT_EMBED_DICTATION_PER_MINUTE` grabaciones por minuto (6 por
 defecto), y lo mismo cada visitante de un widget `jwt`, según el sujeto del
 token. Cada página o widget acepta `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE`
-por minuto (30 por defecto) de todos a la vez, por muchas direcciones que vaya
+por minuto (10 por defecto) de todos a la vez, por muchas direcciones que vaya
 rotando un script.
 
 !!! danger "El peor caso para un enlace filtrado o público"
 
-    El límite del enlace por el dictado más largo: 30 grabaciones por minuto de
-    hasta 300 segundos cada una son 150 minutos de audio cada minuto. A unos
+    El límite del enlace por el dictado más largo: 10 grabaciones por minuto de
+    hasta 300 segundos cada una son 50 minutos de audio cada minuto. A unos
     $0.006 por minuto, que es el precio de lista de `whisper-1`, eso son cerca
-    de $0.90 por minuto, $54 por hora o $1300 al día, cobrados a la cuenta del
+    de $0.30 por minuto, $18 por hora o $430 al día, cobrados a la cuenta del
     provider de la organización. Baja `dictation_max_seconds` o el límite del
     enlace, pon el embed en pausa, o déjalo en `browser` donde eso sea demasiado.
 
