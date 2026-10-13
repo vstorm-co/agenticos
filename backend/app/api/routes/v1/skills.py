@@ -15,7 +15,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 
-from app.api.deps import Auth, FolderSvc, SkillSvc, require
+from app.api.deps import Auth, SkillSvc, require
 from app.api.public_api import PUBLIC
 from app.core.permissions import Perm
 from app.repositories.skill import SkillSort
@@ -39,7 +39,6 @@ router = APIRouter(dependencies=[PUBLIC])
 @router.get("", response_model=SkillList, dependencies=[Depends(require(Perm.SKILLS_VIEW))])
 async def list_skills(
     service: SkillSvc,
-    folders: FolderSvc,
     ctx: Auth,
     q: str | None = Query(None, max_length=100, description="Match on name or description"),
     category: list[str] | None = Query(None, description="Exact categories to filter to"),
@@ -49,13 +48,6 @@ async def list_skills(
     ),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
-    folder: str | None = Query(
-        None,
-        description=(
-            "`top` for the top level, a folder's id for its contents, or omitted for "
-            "every skill whatever its folder (#2124)"
-        ),
-    ),
 ) -> Any:
     """Names and descriptions - the Builder's picker, not the bodies.
 
@@ -70,7 +62,6 @@ async def list_skills(
         sort=sort,
         skip=skip,
         limit=limit,
-        folder=await folders.scope(ctx, kind="skill", folder=folder),
     )
 
 

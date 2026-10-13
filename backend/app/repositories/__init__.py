@@ -6,7 +6,6 @@ from app.repositories import user as user_repo
 from app.repositories import session as session_repo
 
 from app.repositories import conversation as conversation_repo
-from app.repositories import folder as folder_repo
 
 from app.repositories import rag_document as rag_document_repo
 from app.repositories import sync_log as sync_log_repo
@@ -131,5 +130,4 @@ __all__ = [
     "context_repo",
     "memory_repo",
     "notification_repo",
-    "folder_repo",
 ]

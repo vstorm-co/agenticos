@@ -34,9 +34,6 @@ class ArtifactRead(BaseSchema):
     )
     title: str
     visibility: str
-    folder_id: UUID | None = Field(
-        default=None, description="The folder it is filed in (#2124); none at the top level."
-    )
     owner_user_id: UUID | None = None
     agent_id: UUID | None = Field(
         default=None, description="The agent whose runs publish it; null once that agent is gone"

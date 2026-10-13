@@ -23,7 +23,6 @@ from app.db.models.resource_grant import Visibility
 from app.db.updates import writable
 from app.repositories import context_repo, resource_grant_repo
 from app.repositories.context import ContextSort
-from app.repositories.folder import FolderScope
 from app.schemas.context import (
     ContextFileList,
     ContextFileSummary,
@@ -48,7 +47,6 @@ def _summary(file: ContextFile) -> ContextFileSummary:
         enabled=file.enabled,
         size_bytes=len(file.content.encode("utf-8")),
         excerpt=excerpt(file.content),
-        folder_id=file.folder_id,
     )
 
 
@@ -83,7 +81,6 @@ class ContextService:
         sort: ContextSort = "name",
         skip: int = 0,
         limit: int = 50,
-        folder: FolderScope | None = None,
     ) -> tuple[list[ContextFile], int]:
         """A page of the context files this caller may see, and the total.
 
@@ -117,7 +114,6 @@ class ContextService:
             sort=sort,
             skip=skip,
             limit=limit,
-            folder=folder,
         )
 
     async def list_readable(
@@ -129,7 +125,6 @@ class ContextService:
         sort: ContextSort = "name",
         skip: int = 0,
         limit: int = 50,
-        folder: FolderScope | None = None,
     ) -> ContextFileList:
         """The listing: a page of files and the unpaged total the pager needs."""
         items, total = await self.list_context(
@@ -139,7 +134,6 @@ class ContextService:
             sort=sort,
             skip=skip,
             limit=limit,
-            folder=folder,
         )
         used = await agents_using(
             self.db, ctx, field="context_ids", resource_ids=[file.id for file in items]

@@ -15,7 +15,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models.context import ContextFile
 from app.db.models.resource_grant import Visibility
 from app.repositories._search import contains_ci
-from app.repositories.folder import FolderScope, in_folder
 
 ContextSort = Literal["name", "updated"]
 
@@ -64,7 +63,6 @@ async def list_visible(
     sort: ContextSort = "name",
     skip: int = 0,
     limit: int = 50,
-    folder: FolderScope | None = None,
 ) -> tuple[list[ContextFile], int]:
     """The context files one member may see, filtered and paged, with the total.
 
@@ -107,8 +105,6 @@ async def list_visible(
                 contains_ci(ContextFile.description, search),
             )
         )
-    if folder is not None:
-        where.append(in_folder(ContextFile.folder_id, folder))
 
     order_by = (
         (

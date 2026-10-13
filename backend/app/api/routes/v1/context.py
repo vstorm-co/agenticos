@@ -14,7 +14,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
 
-from app.api.deps import Auth, ContextSvc, FolderSvc, require
+from app.api.deps import Auth, ContextSvc, require
 from app.api.public_api import PUBLIC
 from app.core.permissions import Perm
 from app.repositories.context import ContextSort
@@ -31,7 +31,6 @@ router = APIRouter(dependencies=[PUBLIC])
 @router.get("", response_model=ContextFileList, dependencies=[Depends(require(Perm.CONTEXT_VIEW))])
 async def list_context_files(
     service: ContextSvc,
-    folders: FolderSvc,
     ctx: Auth,
     q: str | None = Query(None, max_length=100, description="Match on name or description"),
     sort: ContextSort = Query("name", description="`name` A-Z, or `updated` newest change first"),
@@ -40,13 +39,6 @@ async def list_context_files(
     ),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
-    folder: str | None = Query(
-        None,
-        description=(
-            "`top` for the top level, a folder's id for its contents, or omitted for "
-            "every file whatever its folder (#2124)"
-        ),
-    ),
 ) -> Any:
     """Names, modes and sizes - the picker, not the bodies."""
     return await service.list_readable(
@@ -56,7 +48,6 @@ async def list_context_files(
         sort=sort,
         skip=skip,
         limit=limit,
-        folder=await folders.scope(ctx, kind="context", folder=folder),
     )
 
 

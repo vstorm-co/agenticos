@@ -135,9 +135,6 @@ class KnowledgeBaseRead(BaseSchema, TimestampSchema):
     collection_name: str
     is_default: bool = False
     visibility: VisibilityLiteral = "private"
-    folder_id: UUID | None = Field(
-        default=None, description="The folder it is filed in (#2124); none at the top level."
-    )
     ingestion_config: IngestionConfig
     # Read-only after creation: the vector column was created at this model's
     # width, so the choice is frozen with the collection.

@@ -22,9 +22,6 @@ class ContextFileRead(BaseSchema):
     mode: ContextModeLiteral
     enabled: bool
     visibility: str
-    folder_id: UUID | None = Field(
-        default=None, description="The folder it is filed in (#2124); none at the top level."
-    )
     owner_user_id: UUID | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
@@ -60,9 +57,6 @@ class ContextFileSummary(BaseSchema):
     shared_groups: list[str] = Field(
         default_factory=list,
         description="The groups this is shared with, by name - the departments it belongs to.",
-    )
-    folder_id: UUID | None = Field(
-        default=None, description="The folder it is filed in (#2124); none at the top level."
     )
 
 

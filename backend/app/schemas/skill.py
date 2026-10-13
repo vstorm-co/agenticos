@@ -104,9 +104,6 @@ class SkillRead(BaseSchema):
     enabled: bool
     version: int
     visibility: str
-    folder_id: UUID | None = Field(
-        default=None, description="The folder it is filed in (#2124); none at the top level."
-    )
     owner_user_id: UUID | None = None
     resources: list[SkillResourceSummary] = Field(
         default_factory=list,
@@ -145,9 +142,6 @@ class SkillSummary(BaseSchema):
     shared_groups: list[str] = Field(
         default_factory=list,
         description="The groups this is shared with, by name - the departments it belongs to.",
-    )
-    folder_id: UUID | None = Field(
-        default=None, description="The folder it is filed in (#2124); none at the top level."
     )
 
 

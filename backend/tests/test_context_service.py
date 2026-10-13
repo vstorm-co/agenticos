@@ -56,7 +56,6 @@ def _file(name="glossary", *, mode="inject", enabled=True, ctx=None, owner_user_
     file.format = "md"
     file.mode = mode
     file.enabled = enabled
-    file.folder_id = None
     return file
 
 

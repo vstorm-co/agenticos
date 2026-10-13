@@ -203,28 +203,12 @@ class TestListSharedIds:
             session,
             organization_id=uuid.uuid4(),
             subject_user_id=subject_user_id,
-            resource_type="agent",
-        )
-
-        filters = _filters(session)
-        assert filters["resource_type_1"] == "agent"
-        assert filters["subject_user_id_1"] == subject_user_id
-
-    async def test_a_folder_grant_adds_what_it_holds_once(self):
-        """A kind that can be filed asks a second time - for the rows in folders
-        the member was granted (#2124) - and a row reached both ways is listed once."""
-        direct, filed, again = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
-        session = _RecordingSession(_rows([direct, again]), _rows([filed, again]))
-
-        ids = await resource_grant_repo.list_shared_ids(
-            session,
-            organization_id=uuid.uuid4(),
-            subject_user_id=uuid.uuid4(),
             resource_type="skill",
         )
 
-        assert ids == [direct, again, filed]
-        assert "skills.folder_id IN (SELECT resource_grants.resource_id" in _sql(session)
+        filters = _filters(session)
+        assert filters["resource_type_1"] == "skill"
+        assert filters["subject_user_id_1"] == subject_user_id
 
     async def test_a_row_shared_with_a_person_and_their_group_is_listed_once(self):
         session = _RecordingSession(_rows([]))
