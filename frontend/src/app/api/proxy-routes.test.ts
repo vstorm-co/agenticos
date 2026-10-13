@@ -26,6 +26,7 @@ import * as context from "./context/[[...path]]/route";
 import * as conversations from "./conversations/[[...path]]/route";
 import * as datasets from "./datasets/[[...path]]/route";
 import * as kb from "./kb/[[...path]]/route";
+import * as knowledgeGaps from "./knowledge-gaps/[[...path]]/route";
 import * as localServices from "./local-services/[[...path]]/route";
 import * as mcpConnections from "./mcp-connections/[[...path]]/route";
 import * as memory from "./memory/[[...path]]/route";
@@ -102,6 +103,7 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["conversations", conversations],
   ["datasets", datasets],
   ["kb", kb],
+  ["knowledge-gaps", knowledgeGaps],
   ["local-services", localServices],
   ["mcp-connections", mcpConnections],
   ["memory", memory],

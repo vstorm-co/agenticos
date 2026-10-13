@@ -1902,6 +1902,15 @@
           "title": "No datasets yet",
           "description": "Test cases you collect for evals appear here."
         }
+      },
+      "knowledge-gaps": {
+        "title": "Knowledge gaps",
+        "description": "The questions agents most often found nothing for in their knowledge bases.",
+        "asked": "{count, plural, =1 {asked once} other {asked # times}}",
+        "empty": {
+          "title": "No knowledge gaps",
+          "description": "Questions agents could not answer from a knowledge base appear here."
+        }
       }
     },
     "edit": {
@@ -3356,6 +3365,14 @@
       "flow-dataset-field-create": {
         "title": "Create it",
         "body": "Choose Create. We'll move on the moment it's saved."
+      },
+      "kb-gaps": {
+        "title": "What it could not answer",
+        "body": "Questions agents searched this collection for and found nothing relevant to, grouped by topic. Add the missing document, or dismiss a topic that needs none."
+      },
+      "agent-gaps": {
+        "title": "What it went looking for",
+        "body": "The questions this agent searched a knowledge base for and found nothing. Each one links to the run it came from."
       }
     }
   },
@@ -5692,5 +5709,48 @@
       "exact": "Exactly these, in this order",
       "exactHint": "The agent must make exactly the expected calls, in the listed order, and no others."
     }
+  },
+  "knowledgeGaps": {
+    "tab": "Knowledge gaps",
+    "title": "Knowledge gaps",
+    "descriptionCollection": "Questions agents searched this knowledge base for and found nothing relevant to, grouped by topic.",
+    "descriptionAgent": "Questions this agent searched its knowledge bases for and found nothing relevant to, grouped by topic.",
+    "nothingAutomatic": "Nothing is added to a knowledge base automatically. When a topic needs a document, a person adds it.",
+    "statusFilter": "Show topics",
+    "statusOpen": "Open",
+    "statusDismissed": "Dismissed",
+    "regroup": "Group now",
+    "regroupStarted": "Grouping started. New topics appear in a minute or two.",
+    "ungrouped": "{count, plural, =1 {1 question is} other {# questions are}} waiting to be grouped. Grouping runs every 15 minutes.",
+    "questionCount": "{count, plural, =1 {Asked once} other {Asked # times}}",
+    "lastAsked": "Last asked {ago}",
+    "emptyOpen": "No open knowledge gaps",
+    "emptyOpenBody": "When an agent searches and finds nothing relevant, the question appears here, grouped with others like it.",
+    "emptyDismissed": "No dismissed topics",
+    "emptyDismissedBody": "Topics marked as needing no document appear here.",
+    "loadFailed": "Knowledge gaps could not be loaded",
+    "loadTopicFailed": "This topic could not be loaded",
+    "loadFailedBody": "This is not an empty list: the request failed. Try again.",
+    "retry": "Try again",
+    "topic": "Topic",
+    "topicSummary": "{count, plural, =1 {Asked once} other {Asked # times}} in {knowledgeBase}",
+    "questions": "Questions",
+    "noConversation": "No conversation is kept for this run, so only the search is known.",
+    "searchedFor": "Searched for: {query}",
+    "noResults": "No results",
+    "closestMatch": "{count, plural, =1 {1 result} other {# results}}, closest match {similarity}",
+    "openRun": "Open the run",
+    "ratedDown": "Rated down: {comment}",
+    "dismiss": "Dismiss",
+    "reopen": "Reopen",
+    "dismissedToast": "Topic dismissed",
+    "reopenedToast": "Topic reopened",
+    "addToDataset": "Add to dataset",
+    "addToDatasetBody": "Each question becomes a case, with the answer the agent gave. Questions with no answer you can read are skipped.",
+    "noDatasetToAddTo": "There is no dataset you can add to. <link>Create one</link> first.",
+    "dataset": "Dataset",
+    "cancel": "Cancel",
+    "add": "Add",
+    "casesAdded": "{added, plural, =0 {No case added} =1 {1 case added} other {# cases added}} to {name}{skipped, plural, =0 {} =1 {, 1 question skipped} other {, # questions skipped}}"
   }
 }

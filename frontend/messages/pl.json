@@ -1167,6 +1167,15 @@
           "title": "Brak datasetów",
           "description": "Tu pojawią się przypadki testowe zbierane do evali."
         }
+      },
+      "knowledge-gaps": {
+        "title": "Luki w wiedzy",
+        "description": "Pytania, dla których agenci najczęściej nie znaleźli nic w bazach wiedzy.",
+        "asked": "{count, plural, one {zadane raz} few {zadane # razy} many {zadane # razy} other {zadane # razy}}",
+        "empty": {
+          "title": "Brak luk w wiedzy",
+          "description": "Tu pojawiają się pytania, na które agenci nie znaleźli odpowiedzi w bazie wiedzy."
+        }
       }
     },
     "activeSessions": "Aktywne sesje",
@@ -1923,6 +1932,14 @@
       "flow-dataset-field-create": {
         "title": "Utwórz go",
         "body": "Wybierz Utwórz. Pójdziemy dalej, gdy tylko zostanie zapisany."
+      },
+      "kb-gaps": {
+        "title": "Na co nie znalazła odpowiedzi",
+        "body": "Pytania, dla których agenci przeszukali tę kolekcję i nie znaleźli nic trafnego, pogrupowane w tematy. Dodaj brakujący dokument albo odrzuć temat, który go nie wymaga."
+      },
+      "agent-gaps": {
+        "title": "Czego szukał",
+        "body": "Pytania, dla których ten agent przeszukał bazę wiedzy i nic nie znalazł. Każde prowadzi do runu, z którego pochodzi."
       }
     }
   },
@@ -3318,5 +3335,48 @@
       "exact": "Dokładnie te, w tej kolejności",
       "exactHint": "Agent musi wykonać dokładnie oczekiwane wywołania, w podanej kolejności, i żadnych innych."
     }
+  },
+  "knowledgeGaps": {
+    "tab": "Luki w wiedzy",
+    "title": "Luki w wiedzy",
+    "descriptionCollection": "Pytania, dla których agenci przeszukali tę bazę wiedzy i nie znaleźli nic trafnego, pogrupowane w tematy.",
+    "descriptionAgent": "Pytania, dla których ten agent przeszukał swoje bazy wiedzy i nie znalazł nic trafnego, pogrupowane w tematy.",
+    "nothingAutomatic": "Nic nie trafia do bazy wiedzy automatycznie. Gdy temat wymaga dokumentu, dodaje go człowiek.",
+    "statusFilter": "Pokaż tematy",
+    "statusOpen": "Otwarte",
+    "statusDismissed": "Odrzucone",
+    "regroup": "Grupuj teraz",
+    "regroupStarted": "Grupowanie rozpoczęte. Nowe tematy pojawią się za minutę lub dwie.",
+    "ungrouped": "{count, plural, one {1 pytanie czeka} few {# pytania czekają} many {# pytań czeka} other {# pytania czeka}} na pogrupowanie. Grupowanie działa co 15 minut.",
+    "questionCount": "{count, plural, one {Zadane raz} few {Zadane # razy} many {Zadane # razy} other {Zadane # razy}}",
+    "lastAsked": "Ostatnio {ago}",
+    "emptyOpen": "Brak otwartych luk w wiedzy",
+    "emptyOpenBody": "Gdy agent szuka i nie znajduje nic trafnego, pytanie pojawia się tutaj, razem z podobnymi.",
+    "emptyDismissed": "Brak odrzuconych tematów",
+    "emptyDismissedBody": "Tu pojawiają się tematy oznaczone jako niewymagające dokumentu.",
+    "loadFailed": "Nie udało się wczytać luk w wiedzy",
+    "loadTopicFailed": "Nie udało się wczytać tego tematu",
+    "loadFailedBody": "To nie jest pusta lista: żądanie się nie powiodło. Spróbuj ponownie.",
+    "retry": "Spróbuj ponownie",
+    "topic": "Temat",
+    "topicSummary": "{count, plural, one {Zadane raz} few {Zadane # razy} many {Zadane # razy} other {Zadane # razy}} w {knowledgeBase}",
+    "questions": "Pytania",
+    "noConversation": "Dla tego runu nie zachowano rozmowy, więc znane jest tylko wyszukiwanie.",
+    "searchedFor": "Szukano: {query}",
+    "noResults": "Brak wyników",
+    "closestMatch": "{count, plural, one {1 wynik} few {# wyniki} many {# wyników} other {# wyniku}}, najbliższe dopasowanie {similarity}",
+    "openRun": "Otwórz run",
+    "ratedDown": "Ocena negatywna: {comment}",
+    "dismiss": "Odrzuć",
+    "reopen": "Otwórz ponownie",
+    "dismissedToast": "Temat odrzucony",
+    "reopenedToast": "Temat ponownie otwarty",
+    "addToDataset": "Dodaj do datasetu",
+    "addToDatasetBody": "Każde pytanie staje się przypadkiem, razem z odpowiedzią, której udzielił agent. Pytania bez odpowiedzi, którą możesz odczytać, są pomijane.",
+    "noDatasetToAddTo": "Nie ma datasetu, do którego możesz dodać. Najpierw <link>utwórz dataset</link>.",
+    "dataset": "Dataset",
+    "cancel": "Anuluj",
+    "add": "Dodaj",
+    "casesAdded": "{added, plural, =0 {Nie dodano żadnego przypadku} one {Dodano 1 przypadek} few {Dodano # przypadki} many {Dodano # przypadków} other {Dodano # przypadku}} do {name}{skipped, plural, =0 {} one {, pominięto 1 pytanie} few {, pominięto # pytania} many {, pominięto # pytań} other {, pominięto # pytania}}"
   }
 }

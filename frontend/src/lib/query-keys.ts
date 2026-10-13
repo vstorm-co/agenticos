@@ -288,6 +288,13 @@ export const qk = {
     cases: (id: string, query: { version: number | null; skip: number; limit: number }) =>
       ["datasets", id, "cases", query] as const,
   },
+  knowledgeGaps: {
+    all: () => ["knowledge-gaps"] as const,
+    /** `scope` is `organization`, `collection:<id>` or `agent:<id>`. */
+    list: (scope: string, query: { status: string; skip: number; limit: number }) =>
+      ["knowledge-gaps", "list", scope, query] as const,
+    detail: (id: string) => ["knowledge-gaps", id] as const,
+  },
   context: {
     all: () => ["context"] as const,
     list: (query: { search: string; sort: string; skip: number; limit: number }) =>

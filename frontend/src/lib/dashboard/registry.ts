@@ -58,7 +58,8 @@ export type WidgetId =
   | "routines"
   | "notifications"
   | "artifacts"
-  | "datasets";
+  | "datasets"
+  | "knowledge-gaps";
 
 /** The closed set of card widths the grid supports (12 columns). */
 export type Span = "s3" | "s4" | "s5" | "s6" | "s7" | "s8" | "s12";
@@ -456,6 +457,16 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     gate: holds(Perm.collectionsView),
     defaultSpan: "s4",
     defaultRows: "r2",
+    category: "attention",
+    seeAll: ROUTES.RAG,
+  },
+  // `runs:view`, not `collections:view`: a topic is made of people's questions,
+  // which `GET /knowledge-gaps` shows only to a member who reads every run.
+  "knowledge-gaps": {
+    id: "knowledge-gaps",
+    gate: holds(Perm.runsView),
+    defaultSpan: "s6",
+    defaultRows: "r3",
     category: "attention",
     seeAll: ROUTES.RAG,
   },

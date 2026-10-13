@@ -43,12 +43,13 @@ const BUILDER_STEPS = [
   "agent-limits",
   "agent-availability",
   "agent-history",
+  "agent-gaps",
   "agent-publish",
 ];
 
 // Every collection-detail stop, in the order the "?" walks them. The launch
 // pass takes one of these (kb-documents).
-const KB_STEPS = ["kb-header", "kb-documents", "kb-ingestion", "kb-sync"];
+const KB_STEPS = ["kb-header", "kb-documents", "kb-ingestion", "kb-sync", "kb-gaps"];
 
 // The organization detail walk: the members page (profile, then the list), then
 // across into the roles matrix. None are inTour — orgs is a "?"-only section.
@@ -239,7 +240,7 @@ describe("stepsForPage", () => {
       stepsForPage("/agents/some-id", (permission) => permission === Perm.agentsView).map(
         (step) => step.id,
       ),
-    ).toEqual(BUILDER_STEPS.filter((id) => id !== "agent-publish"));
+    ).toEqual(BUILDER_STEPS.filter((id) => id !== "agent-publish" && id !== "agent-gaps"));
   });
 
   it("walks the list and then the whole collection when asked from the Knowledge list", () => {

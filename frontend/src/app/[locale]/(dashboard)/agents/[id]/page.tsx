@@ -54,6 +54,7 @@ import { ModelSettingsForm } from "@/components/agents/model-settings-form";
 import { ThinkingSetting } from "@/components/agents/thinking-setting";
 import { EnvironmentsPanel } from "@/components/agents/environments-panel";
 import { VersionHistory } from "@/components/agents/version-history";
+import { KnowledgeGapsPanel } from "@/components/knowledge-gaps/knowledge-gaps-panel";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { SharingPanel } from "@/components/sharing/sharing-panel";
 import {
@@ -167,6 +168,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const tc = useTranslations("common");
   const tAgents = useTranslations("agents");
   const tErrors = useTranslations("errors");
+  const tGaps = useTranslations("knowledgeGaps");
   const { id } = use(params);
   const router = useRouter();
   const { agent, isLoading, saveDraft, validate, publish, rollback, setAvatar, setColor } =
@@ -1082,6 +1084,11 @@ export default function AgentBuilderPage({ params }: PageProps) {
           <TabsTrigger value="history" data-tour="agent-tab-history">
             {t("history")}
           </TabsTrigger>
+          {can(Perm.runsView) && (
+            <TabsTrigger value="gaps" data-tour="agent-tab-gaps">
+              {tGaps("tab")}
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="build" className="mt-6 space-y-6">
@@ -1433,6 +1440,14 @@ export default function AgentBuilderPage({ params }: PageProps) {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {can(Perm.runsView) && (
+          <TabsContent value="gaps" className="mt-6">
+            <div data-tour="agent-gaps">
+              <KnowledgeGapsPanel scope={{ kind: "agent", id }} />
+            </div>
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

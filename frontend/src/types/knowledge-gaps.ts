@@ -1,0 +1,67 @@
+/**
+ * Knowledge gaps - the questions agents searched a knowledge base for and found
+ * nothing relevant to, grouped into topics.
+ *
+ * Mirrors `app/schemas/knowledge_gap.py`. A topic belongs to one knowledge base;
+ * nothing is ingested on its account - a person adds the missing document.
+ */
+
+export type KnowledgeGapStatus = "open" | "dismissed";
+
+export interface KnowledgeGapAgent {
+  id: string;
+  name: string;
+}
+
+export interface KnowledgeGapTopic {
+  id: string;
+  knowledge_base_id: string;
+  knowledge_base_name: string;
+  status: KnowledgeGapStatus;
+  /** The topic's first question, as the agent searched it. */
+  label: string;
+  question_count: number;
+  last_asked_at: string;
+  /** Up to three of the questions, as searched. */
+  examples: string[];
+  agents: KnowledgeGapAgent[];
+  dismissed_at: string | null;
+}
+
+export interface KnowledgeGapTopicList {
+  items: KnowledgeGapTopic[];
+  total: number;
+  /** Misses waiting for the next grouping pass, so in no topic yet. */
+  ungrouped: number;
+}
+
+/** One time a topic's question was asked, and what the search found. */
+export interface KnowledgeGapQuestion {
+  search_id: string;
+  /** What the agent searched for. */
+  query: string;
+  /** What the person asked; null where no conversation is kept, as for an API run. */
+  question: string | null;
+  top_similarity: number | null;
+  result_count: number;
+  agent: KnowledgeGapAgent | null;
+  run_id: string;
+  conversation_id: string | null;
+  answer_message_id: string | null;
+  down_rating_comment: string | null;
+  asked_at: string;
+}
+
+export interface KnowledgeGapTopicDetail extends KnowledgeGapTopic {
+  /** The newest hundred. */
+  questions: KnowledgeGapQuestion[];
+}
+
+export interface KnowledgeGapCasesAdded {
+  dataset_id: string;
+  /** The version the cases were added in; null when none were. */
+  version: number | null;
+  added: number;
+  /** Questions with no stored answer the caller may read. */
+  skipped: number;
+}

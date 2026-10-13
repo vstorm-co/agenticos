@@ -68,6 +68,8 @@ export default defineConfig({
         "src/components/dashboard/widgets/artifacts.tsx",
         "src/components/dashboard/widgets/datasets.tsx",
         "src/components/datasets/**/*.{ts,tsx}",
+        "src/components/dashboard/widgets/knowledge-gaps.tsx",
+        "src/components/knowledge-gaps/**/*.tsx",
         "src/components/artifacts/**/*.tsx",
         "src/components/orgs/**/*.tsx",
         "src/components/public-config/**/*.tsx",

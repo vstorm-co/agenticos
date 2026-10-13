@@ -1888,6 +1888,15 @@
           "title": "Noch keine Datasets",
           "description": "Testfälle, die Sie für Evals sammeln, erscheinen hier."
         }
+      },
+      "knowledge-gaps": {
+        "title": "Wissenslücken",
+        "description": "Die Fragen, zu denen Agents in ihren Wissensbasen am häufigsten nichts gefunden haben.",
+        "asked": "{count, plural, =1 {einmal gefragt} other {# Mal gefragt}}",
+        "empty": {
+          "title": "Keine Wissenslücken",
+          "description": "Fragen, die Agents aus keiner Wissensbasis beantworten konnten, erscheinen hier."
+        }
       }
     },
     "edit": {
@@ -3219,6 +3228,14 @@
       "flow-dataset-field-create": {
         "title": "Anlegen",
         "body": "Wählen Sie Erstellen. Wir machen weiter, sobald es gespeichert ist."
+      },
+      "kb-gaps": {
+        "title": "Was sie nicht beantworten konnte",
+        "body": "Fragen, zu denen Agents diese Collection durchsucht und nichts Passendes gefunden haben, nach Themen gruppiert. Fügen Sie das fehlende Dokument hinzu oder verwerfen Sie ein Thema, das keines braucht."
+      },
+      "agent-gaps": {
+        "title": "Wonach er gesucht hat",
+        "body": "Die Fragen, zu denen dieser Agent eine Wissensbasis durchsucht und nichts gefunden hat. Jede führt zum Run, aus dem sie stammt."
       }
     }
   },
@@ -5550,5 +5567,48 @@
       "exact": "Genau diese, in dieser Reihenfolge",
       "exactHint": "Der Agent muss genau die erwarteten Aufrufe machen, in der angegebenen Reihenfolge, und keine anderen."
     }
+  },
+  "knowledgeGaps": {
+    "tab": "Wissenslücken",
+    "title": "Wissenslücken",
+    "descriptionCollection": "Fragen, zu denen Agents diese Wissensbasis durchsucht und nichts Passendes gefunden haben, nach Themen gruppiert.",
+    "descriptionAgent": "Fragen, zu denen dieser Agent seine Wissensbasen durchsucht und nichts Passendes gefunden hat, nach Themen gruppiert.",
+    "nothingAutomatic": "Nichts wird automatisch zu einer Wissensbasis hinzugefügt. Braucht ein Thema ein Dokument, fügt ein Mensch es hinzu.",
+    "statusFilter": "Themen anzeigen",
+    "statusOpen": "Offen",
+    "statusDismissed": "Verworfen",
+    "regroup": "Jetzt gruppieren",
+    "regroupStarted": "Gruppierung gestartet. Neue Themen erscheinen in ein bis zwei Minuten.",
+    "ungrouped": "{count, plural, =1 {1 Frage wartet} other {# Fragen warten}} auf die Gruppierung. Sie läuft alle 15 Minuten.",
+    "questionCount": "{count, plural, =1 {Einmal gefragt} other {# Mal gefragt}}",
+    "lastAsked": "Zuletzt {ago}",
+    "emptyOpen": "Keine offenen Wissenslücken",
+    "emptyOpenBody": "Wenn ein Agent sucht und nichts Passendes findet, erscheint die Frage hier, zusammen mit ähnlichen.",
+    "emptyDismissed": "Keine verworfenen Themen",
+    "emptyDismissedBody": "Themen, die als ohne Dokumentbedarf markiert wurden, erscheinen hier.",
+    "loadFailed": "Wissenslücken konnten nicht geladen werden",
+    "loadTopicFailed": "Dieses Thema konnte nicht geladen werden",
+    "loadFailedBody": "Das ist keine leere Liste: Die Anfrage ist fehlgeschlagen. Versuchen Sie es erneut.",
+    "retry": "Erneut versuchen",
+    "topic": "Thema",
+    "topicSummary": "{count, plural, =1 {Einmal gefragt} other {# Mal gefragt}} in {knowledgeBase}",
+    "questions": "Fragen",
+    "noConversation": "Zu diesem Run ist kein Gespräch gespeichert, daher ist nur die Suche bekannt.",
+    "searchedFor": "Gesucht nach: {query}",
+    "noResults": "Keine Ergebnisse",
+    "closestMatch": "{count, plural, =1 {1 Ergebnis} other {# Ergebnisse}}, nächster Treffer {similarity}",
+    "openRun": "Run öffnen",
+    "ratedDown": "Negativ bewertet: {comment}",
+    "dismiss": "Verwerfen",
+    "reopen": "Wieder öffnen",
+    "dismissedToast": "Thema verworfen",
+    "reopenedToast": "Thema wieder geöffnet",
+    "addToDataset": "Zum Dataset hinzufügen",
+    "addToDatasetBody": "Jede Frage wird zu einem Fall, mit der Antwort, die der Agent gegeben hat. Fragen ohne eine Antwort, die Sie lesen dürfen, werden übersprungen.",
+    "noDatasetToAddTo": "Es gibt kein Dataset, zu dem Sie hinzufügen dürfen. <link>Legen Sie zuerst eines an</link>.",
+    "dataset": "Dataset",
+    "cancel": "Abbrechen",
+    "add": "Hinzufügen",
+    "casesAdded": "{added, plural, =0 {Kein Fall hinzugefügt} =1 {1 Fall hinzugefügt} other {# Fälle hinzugefügt}} zu {name}{skipped, plural, =0 {} =1 {, 1 Frage übersprungen} other {, # Fragen übersprungen}}"
   }
 }

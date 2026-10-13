@@ -258,6 +258,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     inTour: true,
   },
   {
+    id: "agent-gaps",
+    page: AGENT_BUILDER,
+    target: "agent-gaps",
+    activate: "agent-tab-gaps",
+    permission: Perm.runsView,
+  },
+  {
     id: "agent-publish",
     page: AGENT_BUILDER,
     target: "agent-publish",
@@ -444,6 +451,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "kb-sync",
     activate: "kb-tab-sync",
     permission: Perm.collectionsView,
+  },
+  {
+    id: "kb-gaps",
+    page: KB_DETAIL,
+    target: "kb-gaps",
+    activate: "kb-tab-gaps",
+    permission: Perm.runsView,
   },
 
   { id: "orgs-new", page: ROUTES.ORGS, target: "orgs-new" },
