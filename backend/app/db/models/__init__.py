@@ -56,6 +56,7 @@ from app.db.models.notification_delivery import DeliveryStatus, NotificationDeli
 from app.db.models.notification_preference import NotificationChannelPreference
 from app.db.models.announcement import Announcement
 from app.db.models.artifact import Artifact, ArtifactMediaType, ArtifactVersion
+from app.db.models.case_score import CaseScore
 from app.db.models.dataset import Dataset, DatasetCase, DatasetVersion, DatasetVersionCase
 from app.db.models.case_generation import CaseGeneration, CaseProposal
 
@@ -65,6 +66,7 @@ __all__ = [
     "ArtifactVersion",
     "CaseGeneration",
     "CaseProposal",
+    "CaseScore",
     "Dataset",
     "DatasetCase",
     "DatasetVersion",

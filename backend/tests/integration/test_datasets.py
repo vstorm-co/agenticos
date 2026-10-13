@@ -704,20 +704,33 @@ async def test_a_version_read_with_another_tenant_finds_no_cases(db) -> None:
     assert await dataset_repo.last_position(db, version.id, organization_id=other) == -1
 
 
-async def test_a_check_keeps_parameters_scoring_has_not_defined_yet(db) -> None:
+async def test_a_check_keeps_the_parameters_scoring_reads(db) -> None:
     ctx = await _owner(db)
     service = DatasetService(db)
     dataset = await service.create(ctx, DatasetCreate(name="checks"))
+    schema = {"type": "object", "required": ["days"]}
     await service.add_case(
         ctx,
         dataset.id,
-        DatasetCaseCreate(
-            input="q",
-            checks=[{"type": "rubric", "criteria": ["tone", "policy"], "scale": 5}],
-        ),
+        DatasetCaseCreate(input="q", checks=[{"type": "json_schema", "schema": schema}]),
     )
     stored = (await service.list_cases(ctx, dataset.id)).items[0].checks[0]
-    assert stored.model_dump() == {"type": "rubric", "criteria": ["tone", "policy"], "scale": 5}
+    assert stored.model_dump() == {"type": "json_schema", "schema": schema}
+
+
+async def test_a_stored_check_scoring_no_longer_knows_is_still_read(db) -> None:
+    ctx = await _owner(db)
+    service = DatasetService(db)
+    dataset = await service.create(ctx, DatasetCreate(name="older checks"))
+    case = await service.add_case(ctx, dataset.id, DatasetCaseCreate(input="q"))
+    row = await db.get(DatasetCase, case.id)
+    assert row is not None
+    row.checks = [{"type": "rubric", "criteria": ["tone"], "scale": 5}]
+    await db.flush()
+
+    stored = (await service.list_cases(ctx, dataset.id)).items[0].checks[0]
+
+    assert stored.model_dump() == {"type": "rubric", "criteria": ["tone"], "scale": 5}
 
 
 async def _case_from_someone(db) -> tuple[AuthContext, AuthContext, uuid.UUID]:

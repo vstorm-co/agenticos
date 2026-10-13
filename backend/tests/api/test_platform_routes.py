@@ -326,6 +326,7 @@ CALLS: tuple[Call, ...] = (
     ),
     Call("GET", "/datasets", Perm.DATASETS_VIEW),
     Call("POST", "/datasets", Perm.DATASETS_EDIT, body={"name": "refund questions"}),
+    Call("GET", "/datasets/review-queue", Perm.DATASETS_VIEW),
     # Which providers exist and what shape of credential each takes is read by
     # the Builder's model picker, so it is gated on seeing agents rather than on
     # managing connections. Knowing Bedrock wants a key pair is not a secret.
@@ -882,6 +883,9 @@ RESOURCE_AWARE_SERVICES = (
     # A dataset is a shared resource like a context file: who may read its cases,
     # change them, import or export them is its grants' answer, in the service.
     deps.get_dataset_service,
+    # Scoring acts on one dataset: configuring it, scoring against it and
+    # recording a verdict resolve the dataset's grants in the service.
+    deps.get_scoring_service,
     # Generated cases ride on their dataset: drafting and deciding them is
     # `datasets:edit` on that dataset, resolved against its grants in the service.
     deps.get_case_generation_service,

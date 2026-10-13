@@ -194,6 +194,7 @@ dependencies = [
     # lite build: the same `phonenumbers` module and numbering-plan metadata,
     # without the 20 MB of carrier, geocoding and time zone data nothing here reads.
     "phonenumberslite>=9.0.40",
+    "jsonschema>=4.26.0",
 ]
 
 # No `[project.optional-dependencies]` entry for the `browser_use` capability's
@@ -838,6 +839,11 @@ include = [
     "app/services/ai_assistance.py",
     "app/services/system_agents.py",
     "app/services/system_agent_runner.py",
+    "app/db/models/case_score.py",
+    "app/schemas/scoring.py",
+    "app/repositories/case_score.py",
+    "app/services/scorers.py",
+    "app/services/scoring.py",
     "app/db/models/case_generation.py",
     "app/schemas/case_generation.py",
     "app/repositories/case_generation.py",
@@ -1252,6 +1258,11 @@ include = [
     "app/services/ai_assistance.py",
     "app/services/system_agents.py",
     "app/services/system_agent_runner.py",
+    "app/db/models/case_score.py",
+    "app/schemas/scoring.py",
+    "app/repositories/case_score.py",
+    "app/services/scorers.py",
+    "app/services/scoring.py",
     "app/db/models/case_generation.py",
     "app/schemas/case_generation.py",
     "app/repositories/case_generation.py",
