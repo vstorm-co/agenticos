@@ -25,6 +25,7 @@ from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import anyio
+import httpx
 import pytest
 from pydantic_ai import BinaryContent
 from pydantic_ai._run_context import RunContext
@@ -99,6 +100,7 @@ from app.agents.capabilities.browser_use._page import (
     parse_snapshot,
 )
 from app.agents.capabilities.browser_use._toolset import (
+    UNREACHABLE,
     BrowserToolset,
     _image,
     _Person,
@@ -1479,6 +1481,32 @@ class TestFailuresStillStopTheSpinner:
     async def test_an_endpoint_that_is_not_a_browser_is_reported_not_raised(self):
         toolset = _toolset(_Opener(fails=EndpointError("not a browser")))
         assert await _call(toolset) == "not a browser"
+
+    @pytest.mark.parametrize(
+        "down",
+        [
+            httpx.ConnectError("Name or service not known"),
+            ConnectionRefusedError(111, "Connection refused"),
+            httpx.HTTPStatusError(
+                "500",
+                request=httpx.Request("GET", "http://browser:9222/json/version"),
+                response=httpx.Response(500),
+            ),
+        ],
+    )
+    async def test_a_browser_that_does_not_answer_is_told_to_the_model(
+        self, down: Exception, caplog: pytest.LogCaptureFixture
+    ):
+        """The run used to die as "(ConnectError)"; now the agent says the browser is down."""
+        frames = _Frames()
+        toolset = _toolset(_Opener(fails=down))
+
+        answer = await _call(toolset, sink=frames)
+
+        assert answer == UNREACHABLE
+        assert frames.of("browser_finished")[0].outcome == "failed"
+        assert toolset.session is None
+        assert "did not answer" in caplog.text
 
     async def test_a_missing_extra_answers_with_the_install_line(self):
         toolset = _toolset(_Opener(fails=RuntimeError(MISSING_EXTRA)))

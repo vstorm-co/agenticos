@@ -1,5 +1,5 @@
 ---
-source_sha: "73ceda15a49b"
+source_sha: "748c698ed4d2"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -645,7 +645,9 @@ turno. Una navegación que llega a `max_steps` lo dice junto con lo que aprendi�
 agente continúa llamando de nuevo a `browse_web` sin `start_url` — en la misma página,
 con la sesión iniciada y la misma memoria. Una llamada con `start_url` empieza una tarea
 nueva en la misma pestaña. Cuatro resultados, todos normales: terminada, bloqueada por la
-página, en pausa en el límite de pasos y el navegador no responde.
+página, en pausa en el límite de pasos y el navegador no responde. El último es una
+respuesta, no un run fallido: el agente sabe que el navegador no responde y lo dice,
+junto con quién puede arreglarlo.
 
 **Una persona puede tomar el control del navegador.** Cada navegación de un run tiene
 una vista en directo en la consola, en `/browse/{run_id}/{call_id}`: la página tal como

@@ -457,6 +457,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **A browser that does not answer is the agent's to say, not a failed run.**
+  When the browser service is down or its address is wrong, the agent is
+  told so and tells the person an administrator needs to start it, instead
+  of the turn ending as "Error: ... (ConnectError)".
+
 - **Skill and context cards said "Private" for everything.** Their listings
   never sent `visibility`, so every card read it as private, including what
   the whole organization could open.

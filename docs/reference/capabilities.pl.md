@@ -1,5 +1,5 @@
 ---
-source_sha: "73ceda15a49b"
+source_sha: "748c698ed4d2"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -639,6 +639,8 @@ dowiedziało, a agent kontynuuje, wywołując `browse_web` ponownie bez `start_u
 tej samej stronie, zalogowany, z tą samą pamięcią. Wywołanie ze `start_url` zaczyna
 nowe zadanie w tej samej karcie. Cztery wyniki, wszystkie zwyczajne: skończone,
 zablokowane przez stronę, wstrzymane na limicie kroków i brak połączenia z przeglądarką.
+Ostatni to odpowiedź, a nie nieudany run: agent dowiaduje się, że przeglądarka nie
+odpowiada, i mówi o tym, razem z tym, kto może to naprawić.
 
 **Człowiek może przejąć przeglądarkę.** Każde przeglądanie runu ma podgląd na żywo w
 konsoli pod `/browse/{run_id}/{call_id}`: stronę taką, jaka jest teraz, i dotychczasowe

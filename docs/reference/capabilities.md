@@ -600,7 +600,8 @@ A browse that reaches `max_steps` says so with what it had learned, and the agen
 continues by calling `browse_web` again without a `start_url` — on the same page,
 signed in, with the same memory. A call with a `start_url` starts a new task in the
 same tab. Four outcomes, all ordinary: finished, blocked by the page, paused at the
-step limit, and the browser could not be reached.
+step limit, and the browser could not be reached. The last is an answer, not a failed
+run: the agent is told the browser is not answering and says so, with who can fix it.
 
 **A person can take the browser over.** Every browse a run makes has a live view in
 the console at `/browse/{run_id}/{call_id}`: the page as it is now and the steps so

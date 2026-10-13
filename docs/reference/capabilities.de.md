@@ -1,5 +1,5 @@
 ---
-source_sha: "73ceda15a49b"
+source_sha: "748c698ed4d2"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -677,6 +677,8 @@ hat, und der Agent macht weiter, indem er `browse_web` erneut ohne `start_url` a
 auf derselben Seite, angemeldet, mit demselben Gedächtnis. Ein Aufruf mit `start_url`
 beginnt eine neue Aufgabe im selben Tab. Vier Ergebnisse, alle gewöhnlich: erledigt, von
 der Seite blockiert, am Schrittlimit pausiert, und der Browser war nicht erreichbar.
+Das letzte ist eine Antwort, kein gescheiterter Run: Der Agent erfährt, dass der Browser
+nicht antwortet, und sagt es, zusammen damit, wer es beheben kann.
 
 **Ein Mensch kann den Browser übernehmen.** Jedes Browsen eines Runs hat in der Konsole
 eine Live-Ansicht unter `/browse/{run_id}/{call_id}`: die Seite, wie sie gerade ist,

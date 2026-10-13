@@ -22,13 +22,16 @@ and closes the tab when the run ends, whatever ended it.
 from __future__ import annotations
 
 import base64
+import logging
 from collections.abc import Callable
 from contextlib import AbstractAsyncContextManager, AsyncExitStack
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, cast
+from urllib.parse import urlsplit
 from uuid import UUID, uuid4
 
+import httpx
 from pydantic_ai import Agent, BinaryContent
 from pydantic_ai.messages import UserContent
 from pydantic_ai.models import Model
@@ -229,6 +232,21 @@ class BrowserToolset(FunctionToolset[Any]):
             await stack.aclose()
 
 
+logger = logging.getLogger(__name__)
+
+UNREACHABLE = (
+    "The browser is not answering right now, so no page was opened. Tell the person "
+    "the agent's browser is unavailable and that an administrator needs to start it "
+    "or check its address; do not try to browse again in this turn."
+)
+"""What the model is told when the browser service does not answer at all.
+
+A sentence to relay rather than a raise: a browser that is down is a fact about
+the deployment the person can act on, and a run that died with
+`(ConnectError)` told them nothing they could do.
+"""
+
+
 def build_toolset(
     *,
     cdp_url: str,
@@ -324,17 +342,31 @@ def build_toolset(
                         "There is no browser tab open in this turn yet. Call again "
                         "with a start_url to open one."
                     )
-                session = await toolset.open(
-                    open_browser,
-                    cdp_url=cdp_url,
-                    start_url=start_url,
-                    policy=page_policy,
-                    sign_ins=(
-                        []
-                        if person is None
-                        else await browser_sign_in.load_for(person.organization_id, person.user_id)
-                    ),
+                sign_ins = (
+                    []
+                    if person is None
+                    else await browser_sign_in.load_for(person.organization_id, person.user_id)
                 )
+                try:
+                    session = await toolset.open(
+                        open_browser,
+                        cdp_url=cdp_url,
+                        start_url=start_url,
+                        policy=page_policy,
+                        sign_ins=sign_ins,
+                    )
+                except (httpx.HTTPError, OSError) as exc:
+                    # Only while opening: the browser was never reached - a name
+                    # that does not resolve, a refused connection, an endpoint
+                    # answering 5xx. Mid-browse the same errors stay failures.
+                    # The operator still hears of it; the host only, because an
+                    # endpoint URL can carry a token.
+                    logger.warning(
+                        "Browser endpoint %s did not answer (%s)",
+                        urlsplit(cdp_url).hostname,
+                        type(exc).__name__,
+                    )
+                    return await fail(UNREACHABLE)
             elif start_url:
                 session.restart()
                 try:
