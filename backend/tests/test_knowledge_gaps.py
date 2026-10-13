@@ -17,7 +17,14 @@ import pytest
 
 from app.db.models.knowledge_gap import KnowledgeGapMember, KnowledgeGapTopic, KnowledgeSearch
 from app.repositories import knowledge_gap_repo
-from app.services.knowledge_gaps import TOPIC_SIMILARITY, KnowledgeGapService, _assign, _Cluster
+from app.repositories.knowledge_gap import DraftingRow
+from app.services.knowledge_gaps import (
+    TOPIC_SIMILARITY,
+    KnowledgeGapService,
+    _assign,
+    _Cluster,
+    _drafting_prompt,
+)
 from app.worker.tasks.knowledge_gap_tasks import group_knowledge_gaps_flow
 
 pytestmark = pytest.mark.anyio
@@ -311,3 +318,24 @@ class TestTheRepository:
         assert "0.2" in repr(search)
         assert "open" in repr(topic)
         assert str(search.id) in repr(member)
+
+
+class TestTheDraftingPrompt:
+    def test_each_question_is_numbered_and_a_long_answer_is_cut(self):
+        rows = [
+            DraftingRow(
+                search=MagicMock(query="parking"),
+                question="Where do visitors park?",
+                answer="x" * 5_000,
+                found=None,
+                down_rating_comment=None,
+            )
+        ]
+
+        prompt = _drafting_prompt("Handbook", rows)
+
+        assert '"Handbook"' in prompt
+        assert "## Question 1" in prompt
+        assert "Found: -" in prompt
+        assert "x" * 1_500 + "..." in prompt
+        assert "x" * 1_501 not in prompt

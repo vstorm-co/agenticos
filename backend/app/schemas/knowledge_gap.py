@@ -29,6 +29,50 @@ class KnowledgeGapAgent(BaseSchema):
     name: str
 
 
+class KnowledgeGapDraft(BaseSchema):
+    """The passage a drafting model proposes for a topic, as it answers.
+
+    Questions are named by the number they were given in the prompt, which a
+    model copies reliably, where an id it would have to repeat it may garble.
+    """
+
+    title: str = Field(min_length=1, max_length=200)
+    content: str = Field(min_length=1, max_length=20_000, description="Markdown")
+    answers: list[int] = Field(
+        default_factory=list, description="The numbers of the questions the draft answers"
+    )
+    sources: list[str] = Field(
+        default_factory=list,
+        max_length=20,
+        description="The documents of what the agent found that the draft builds on",
+    )
+
+
+class KnowledgeGapReport(BaseSchema):
+    """A proposed passage for a topic: what `report_knowledge_gap` records.
+
+    The contract a drafting run and the authoring assistant both report through.
+    It proposes content and nothing more: a person reads it and adds a document.
+    """
+
+    topic_id: UUID
+    title: str = Field(min_length=1, max_length=200)
+    content: str = Field(min_length=1, max_length=20_000)
+    answers: list[UUID] = Field(
+        default_factory=list, description="The topic's searches the passage answers"
+    )
+    sources: list[str] = Field(default_factory=list, max_length=20)
+
+
+class KnowledgeGapDraftRead(BaseSchema):
+    title: str
+    content: str
+    answers: list[UUID]
+    sources: list[str]
+    drafted_at: datetime
+    run_id: UUID | None = Field(description="The run that wrote it, in Activity")
+
+
 class KnowledgeGapTopicRead(BaseSchema):
     """A group of questions one knowledge base could not answer.
 
@@ -46,6 +90,7 @@ class KnowledgeGapTopicRead(BaseSchema):
     examples: list[str] = Field(description="Up to three of the questions, as searched")
     agents: list[KnowledgeGapAgent] = Field(description="The agents that searched for it")
     dismissed_at: datetime | None = None
+    has_draft: bool = False
 
 
 class KnowledgeGapTopicList(BaseSchema):
@@ -78,6 +123,9 @@ class KnowledgeGapQuestion(BaseSchema):
 
 class KnowledgeGapTopicDetail(KnowledgeGapTopicRead):
     questions: list[KnowledgeGapQuestion]
+    draft: KnowledgeGapDraftRead | None = Field(
+        default=None, description="Proposed content, never added to the collection by itself"
+    )
 
 
 class KnowledgeGapToDataset(BaseSchema):

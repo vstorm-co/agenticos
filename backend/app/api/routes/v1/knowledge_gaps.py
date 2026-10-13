@@ -103,3 +103,14 @@ async def add_gap_to_dataset(
 ) -> Any:
     """Turn the topic's questions into cases of a dataset, in one new version."""
     return await service.add_to_dataset(ctx, topic_id, data.dataset_id)
+
+
+@router.post("/{topic_id}/draft", response_model=KnowledgeGapTopicDetail)
+async def draft_gap(topic_id: UUID, service: KnowledgeGapSvc, ctx: Auth) -> Any:
+    """Ask the organization's drafting agent for the passage this topic is missing.
+
+    A run of a system agent, metered and in Activity, refused while the
+    organization has AI assistance off. The draft is kept on the topic for a
+    person to check; nothing is added to the collection.
+    """
+    return await service.draft(ctx, topic_id)

@@ -30,7 +30,7 @@ from sqlalchemy.dialects.postgresql import ARRAY, aggregate_order_by
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models.conversation import Message
+from app.db.models.conversation import Message, ToolCall
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.knowledge_gap import KnowledgeGapMember, KnowledgeGapTopic, KnowledgeSearch
 from app.db.models.message_rating import MessageRating
@@ -409,3 +409,81 @@ async def knowledge_bases_with_topics(
         query = query.where(KnowledgeSearch.agent_id == agent_id)
     result = await db.execute(query)
     return list(result.scalars().all())
+
+
+class DraftingRow(NamedTuple):
+    """One question as a drafting model is shown it."""
+
+    search: KnowledgeSearch
+    question: str | None
+    answer: str | None
+    found: str | None
+    down_rating_comment: str | None
+
+
+async def drafting_material(
+    db: AsyncSession,
+    topic_id: UUID,
+    *,
+    organization_id: UUID,
+    threshold: float,
+    limit: int,
+) -> list[DraftingRow]:
+    """A topic's newest questions with the answer each got and what its search returned.
+
+    What the search returned is read back from the transcript's tool call, so a
+    run with no conversation contributes its query alone.
+    """
+    rows = await list_questions(
+        db,
+        topic_id,
+        organization_id=organization_id,
+        threshold=threshold,
+        agent_id=None,
+        limit=limit,
+    )
+    answer_ids = [row.answer_message_id for row in rows if row.answer_message_id]
+    answers: dict[UUID, str] = {}
+    if answer_ids:
+        result = await db.execute(
+            select(Message.id, Message.content).where(Message.id.in_(answer_ids))
+        )
+        answers = {row[0]: row[1] for row in result.all()}
+    found: dict[UUID, str] = {}
+    run_ids = [row.search.run_id for row in rows]
+    if run_ids:
+        result = await db.execute(
+            select(Message.run_id, ToolCall.args["query"].astext, ToolCall.result)
+            .join(Message, Message.id == ToolCall.message_id)
+            .where(Message.run_id.in_(run_ids), ToolCall.result.is_not(None))
+        )
+        by_query = {(row[0], row[1]): row[2] for row in result.all()}
+        found = {
+            row.search.id: by_query[(row.search.run_id, row.search.query)]
+            for row in rows
+            if (row.search.run_id, row.search.query) in by_query
+        }
+    return [
+        DraftingRow(
+            search=row.search,
+            question=row.question,
+            answer=answers.get(row.answer_message_id) if row.answer_message_id else None,
+            found=found.get(row.search.id),
+            down_rating_comment=row.down_rating_comment,
+        )
+        for row in rows
+    ]
+
+
+async def member_search_ids(
+    db: AsyncSession, topic_id: UUID, *, organization_id: UUID
+) -> set[UUID]:
+    result = await db.execute(
+        select(KnowledgeGapMember.search_id)
+        .join(KnowledgeSearch, KnowledgeSearch.id == KnowledgeGapMember.search_id)
+        .where(
+            KnowledgeGapMember.topic_id == topic_id,
+            KnowledgeSearch.organization_id == organization_id,
+        )
+    )
+    return set(result.scalars().all())

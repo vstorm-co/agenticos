@@ -6,8 +6,9 @@ nothing relevant can be told apart afterwards. Rows cascade with their run and
 their conversation, so retention and deletion reach them with no code of their
 own. `knowledge_gap_topics` groups the misses of one knowledge base by meaning
 and `knowledge_gap_members` says which searches each topic holds; a topic copies
-no text of its own. Nothing existing is touched, so the downgrade drops the new
-tables and loses only what was written into them.
+no question, and keeps only the draft a model wrote for it on request. Nothing
+existing is touched, so the downgrade drops the new tables and loses only what
+was written into them.
 
 Revision ID: 0110_knowledge_gaps
 Revises: 0108_eval_scoring
@@ -106,6 +107,23 @@ def upgrade() -> None:
         sa.Column("status", sa.String(length=16), server_default="open", nullable=False),
         sa.Column("dismissed_by_user_id", sa.UUID(), nullable=True),
         sa.Column("dismissed_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("draft_title", sa.Text(), nullable=True),
+        sa.Column("draft_content", sa.Text(), nullable=True),
+        sa.Column(
+            "draft_answers",
+            postgresql.JSONB(astext_type=sa.Text()),
+            server_default="[]",
+            nullable=False,
+        ),
+        sa.Column(
+            "draft_sources",
+            postgresql.JSONB(astext_type=sa.Text()),
+            server_default="[]",
+            nullable=False,
+        ),
+        sa.Column("draft_run_id", sa.UUID(), nullable=True),
+        sa.Column("drafted_by_user_id", sa.UUID(), nullable=True),
+        sa.Column("drafted_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -127,6 +145,18 @@ def upgrade() -> None:
             ["knowledge_bases.id"],
             name=op.f("knowledge_gap_topics_knowledge_base_id_fkey"),
             ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["draft_run_id"],
+            ["agent_runs.id"],
+            name=op.f("knowledge_gap_topics_draft_run_id_fkey"),
+            ondelete="SET NULL",
+        ),
+        sa.ForeignKeyConstraint(
+            ["drafted_by_user_id"],
+            ["users.id"],
+            name=op.f("knowledge_gap_topics_drafted_by_user_id_fkey"),
+            ondelete="SET NULL",
         ),
         sa.ForeignKeyConstraint(
             ["dismissed_by_user_id"],

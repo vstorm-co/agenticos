@@ -17,9 +17,11 @@ in each, because their embedding models need not agree. Topics are assigned
 incrementally and keep their ids, so a person's decision about one - dismissing
 it - is still about the same questions after more arrive.
 
-A topic copies no text. Its name, its count and its examples are read from the
-searches it still holds, so when those go with their conversation the topic has
-nothing left to say about anybody, and the next grouping pass removes it.
+A topic copies no question. Its name, its count and its examples are read from
+the searches it still holds, so when those go with their conversation the topic
+has nothing left to say about anybody, and the next grouping pass removes it -
+with the draft a person may have asked a model to write for it, the one text a
+topic keeps of its own.
 """
 
 import uuid
@@ -144,6 +146,28 @@ class KnowledgeGapTopic(Base):
         nullable=True,
     )
     dismissed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # The passage the knowledge base is missing, as a model drafted it for a person
+    # to check. Never added to a collection by the platform.
+    draft_title: Mapped[str | None] = mapped_column(Text, nullable=True)
+    draft_content: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # The searches the draft says it answers; each was a member when it was recorded.
+    draft_answers: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
+    draft_sources: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
+    draft_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("agent_runs.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    drafted_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    drafted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

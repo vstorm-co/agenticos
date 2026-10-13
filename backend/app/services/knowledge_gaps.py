@@ -22,8 +22,10 @@ from uuid import UUID
 
 import numpy as np
 import numpy.typing as npt
+from pydantic_ai_harness.guardrails.detectors import redact_secrets
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.system_agents import KNOWLEDGE_GAP_DRAFTER
 from app.core.background import spawn_after_commit
 from app.core.config import settings
 from app.core.exceptions import AuthorizationError, NotFoundError
@@ -31,11 +33,14 @@ from app.core.permissions import AuthContext, Perm, Scope
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.knowledge_gap import KnowledgeGapTopic, KnowledgeSearch, TopicStatus
 from app.repositories import agent_repo, knowledge_base_repo, knowledge_gap_repo
-from app.repositories.knowledge_gap import TopicRow
+from app.repositories.knowledge_gap import DraftingRow, TopicRow
 from app.schemas.knowledge_gap import (
     KnowledgeGapAgent,
     KnowledgeGapCasesAdded,
+    KnowledgeGapDraft,
+    KnowledgeGapDraftRead,
     KnowledgeGapQuestion,
+    KnowledgeGapReport,
     KnowledgeGapTopicDetail,
     KnowledgeGapTopicList,
     KnowledgeGapTopicRead,
@@ -46,6 +51,7 @@ from app.services.collection_access import readable_kb, writable_kb
 from app.services.dataset import DatasetService
 from app.services.embedding_resolution import ResolvedEmbeddings, embeddings_for_collection
 from app.services.rag.vectorstore import embedder_for
+from app.services.system_agent_runner import SystemAgentRunner
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +66,9 @@ TOPIC_QUESTIONS = 100
 
 TOPIC_TO_DATASET = 200
 """The most recent answers one "Add to dataset" turns into cases."""
+
+DRAFT_QUESTIONS = 20
+"""The most recent questions a drafting model is shown."""
 
 EXAMPLES = 3
 
@@ -127,6 +136,52 @@ def _distinct(queries: list[str], *, keep: int) -> list[str]:
     return list(dict.fromkeys(queries))[:keep]
 
 
+def _redacted(text: str) -> str:
+    verdict = redact_secrets(text)
+    if verdict.action == "replace" and isinstance(verdict.replacement, str):
+        return verdict.replacement
+    return text
+
+
+def _clip(text: str | None, limit: int) -> str:
+    if not text:
+        return "-"
+    return text if len(text) <= limit else f"{text[:limit]}..."
+
+
+def _drafting_prompt(knowledge_base: str, material: list[DraftingRow]) -> str:
+    """The questions a draft is for, numbered, each with what is known about it."""
+    parts = [
+        f'The knowledge base "{knowledge_base}" could not answer these questions. '
+        "Draft the passage that would answer them. In `answers`, list the numbers of "
+        "the questions your draft answers; in `sources`, the documents you used from "
+        "what the agent found.",
+    ]
+    for number, row in enumerate(material, start=1):
+        parts.append(
+            f"## Question {number}\n"
+            f"Asked: {_clip(row.question, 1_000)}\n"
+            f"Searched for: {_clip(row.search.query, 500)}\n"
+            f"Found: {_clip(row.found, 2_000)}\n"
+            f"Answered: {_clip(row.answer, 1_500)}\n"
+            f"Reader's comment: {_clip(row.down_rating_comment, 500)}"
+        )
+    return "\n\n".join(parts)
+
+
+def _draft_read(topic: KnowledgeGapTopic) -> KnowledgeGapDraftRead | None:
+    if topic.draft_content is None or topic.drafted_at is None:
+        return None
+    return KnowledgeGapDraftRead(
+        title=topic.draft_title or "",
+        content=topic.draft_content,
+        answers=[UUID(answer) for answer in topic.draft_answers],
+        sources=topic.draft_sources,
+        drafted_at=topic.drafted_at,
+        run_id=topic.draft_run_id,
+    )
+
+
 class KnowledgeGapService:
     """Finds, groups and reports what agents could not find in their knowledge bases."""
 
@@ -173,6 +228,7 @@ class KnowledgeGapService:
                 examples=_distinct(row.queries, keep=EXAMPLES),
                 agents=[agents[a] for a in row.agent_ids if a in agents],
                 dismissed_at=row.topic.dismissed_at,
+                has_draft=row.topic.draft_content is not None,
             )
             for row in rows
         ]
@@ -348,6 +404,96 @@ class KnowledgeGapService:
                 )
                 for q in questions
             ],
+            draft=_draft_read(topic),
+        )
+
+    async def draft(self, ctx: AuthContext, topic_id: UUID) -> KnowledgeGapTopicDetail:
+        """Ask the drafting agent for the passage a topic's questions need, and keep it.
+
+        One run of the organization's seeded knowledge-gap drafter, as the caller:
+        refused while the organization has AI assistance switched off, metered
+        against the drafter's and the organization's budgets, and listed in
+        Activity. It is shown the topic's newest questions, the answers they got,
+        what each search returned and what readers said. What it writes is kept
+        on the topic as a draft for a person; nothing is added to the collection.
+
+        Raises:
+            AuthorizationError: For a caller without `runs:view` across the organization.
+            AiAssistanceDisabledError: The organization switched AI assistance off.
+            NotFoundError: For a topic the caller may not read, or one with no
+                questions left.
+            SystemAgentUnavailableError: The drafter cannot run for this caller.
+            SystemAgentRunError: The run ended without an answer, as a budget
+                refusal does; it is recorded.
+            SystemAgentOutputError: The drafter answered in a shape that could not
+                be read.
+        """
+        _require_runs_view(ctx)
+        topic = await self._topic(ctx, topic_id)
+        material = await knowledge_gap_repo.drafting_material(
+            self.db,
+            topic.id,
+            organization_id=ctx.organization_id,
+            threshold=settings.KNOWLEDGE_GAP_MIN_SIMILARITY,
+            limit=DRAFT_QUESTIONS,
+        )
+        if not material:
+            raise NotFoundError(message="Topic not found", details={"topic_id": topic_id})
+        kb = await self._knowledge_base(ctx, topic.knowledge_base_id)
+        result = await SystemAgentRunner(self.db).run(
+            ctx,
+            key=KNOWLEDGE_GAP_DRAFTER.key,
+            prompt=_drafting_prompt(kb.name, material),
+            output_type=KnowledgeGapDraft,
+        )
+        numbered = [row.search.id for row in material]
+        await self.record_draft(
+            ctx,
+            KnowledgeGapReport(
+                topic_id=topic.id,
+                title=result.output.title,
+                content=result.output.content,
+                answers=[
+                    numbered[number - 1]
+                    for number in result.output.answers
+                    if 1 <= number <= len(numbered)
+                ],
+                sources=result.output.sources,
+            ),
+            run_id=result.run.id,
+        )
+        return await self.read(ctx, topic.id)
+
+    async def record_draft(
+        self, ctx: AuthContext, report: KnowledgeGapReport, *, run_id: UUID | None = None
+    ) -> None:
+        """Keep proposed content on a topic, replacing any earlier draft.
+
+        The one way a passage reaches a topic, whoever drafted it. An answer that
+        names a search outside the topic is dropped rather than kept as evidence
+        for the wrong questions, and any credential the text repeats is redacted.
+
+        Raises:
+            AuthorizationError: For a caller without `runs:view` across the organization.
+            NotFoundError: For a topic the caller may not read.
+        """
+        _require_runs_view(ctx)
+        topic = await self._topic(ctx, report.topic_id)
+        members = await knowledge_gap_repo.member_search_ids(
+            self.db, topic.id, organization_id=ctx.organization_id
+        )
+        await knowledge_gap_repo.update_topic(
+            self.db,
+            topic=topic,
+            update_data={
+                "draft_title": _redacted(report.title),
+                "draft_content": _redacted(report.content),
+                "draft_answers": [str(a) for a in dict.fromkeys(report.answers) if a in members],
+                "draft_sources": [_redacted(source) for source in report.sources],
+                "draft_run_id": run_id,
+                "drafted_by_user_id": ctx.user_id,
+                "drafted_at": datetime.now(UTC),
+            },
         )
 
     async def set_status(

@@ -13,6 +13,9 @@ The claims a mocked session cannot make:
   missing to another organization, to a caller who cannot read its knowledge
   base, and outright to a caller without `runs:view`;
 - a topic's questions become dataset cases in one action;
+- a draft of the missing passage is one run of the drafting agent, refused
+  while the organization has AI assistance off, and is kept on the topic for a
+  person - with credentials redacted and answers outside the topic dropped;
 - only misses are grouped, each once per knowledge base, into topics that keep
   their ids; a knowledge base is never paired with another organization's
   search, and a topic whose searches are gone is removed;
@@ -29,11 +32,17 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from sqlalchemy import delete, func, select
 
-from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
+from app.core.exceptions import (
+    AiAssistanceDisabledError,
+    AuthorizationError,
+    BadRequestError,
+    NotFoundError,
+    SystemAgentRunError,
+)
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun
-from app.db.models.conversation import Conversation, Message
+from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.dataset import DatasetCase, DatasetVersion
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.knowledge_gap import (
@@ -47,10 +56,11 @@ from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.repositories import knowledge_gap_repo
 from app.schemas.dataset import DatasetCreate
-from app.schemas.knowledge_gap import KnowledgeSearchRecord
+from app.schemas.knowledge_gap import KnowledgeGapDraft, KnowledgeGapReport, KnowledgeSearchRecord
 from app.services.dataset import DatasetService
 from app.services.knowledge_gaps import KnowledgeGapService
 from app.services.personal_data import PersonalDataService
+from app.services.system_agent_runner import SystemAgentResult
 from app.services.user import UserService
 
 pytestmark = pytest.mark.anyio
@@ -787,3 +797,141 @@ async def test_answers_that_would_pass_the_case_ceiling_are_refused_before_any_l
         await datasets.add_from_messages(ctx, dataset.id, [first.id, second.id])
 
     locked.assert_not_awaited()
+
+
+async def _found(db, answer: Message, query: str, result: str) -> None:
+    db.add(
+        ToolCall(
+            id=uuid.uuid4(),
+            message_id=answer.id,
+            tool_call_id=f"call-{uuid.uuid4().hex[:6]}",
+            tool_name="search_documents",
+            args={"query": query},
+            result=result,
+            status="completed",
+            started_at=_START,
+        )
+    )
+    await db.flush()
+
+
+@contextmanager
+def _drafter(output: KnowledgeGapDraft, run: AgentRun) -> Iterator[AsyncMock]:
+    run_it = AsyncMock(return_value=SystemAgentResult(output=output, run=run))
+    with patch("app.services.knowledge_gaps.SystemAgentRunner.run", new=run_it):
+        yield run_it
+
+
+async def test_a_draft_is_written_from_the_topics_questions_and_kept_for_a_person(db) -> None:
+    ctx = await _owner(db)
+    kb, agent, topic_id = await _a_topic(db, ctx)
+    first_answer = (
+        (await db.execute(select(Message).where(Message.content == "I could not find that.")))
+        .scalars()
+        .first()
+    )
+    assert first_answer is not None
+    await _found(db, first_answer, "visitor parking", "Garage opening hours: 7-19")
+    detail = await KnowledgeGapService(db).read(ctx, topic_id)
+    numbered = {q.query: q.search_id for q in detail.questions}
+    drafting_run, _ = await _turn(db, ctx, agent)
+
+    with _drafter(
+        KnowledgeGapDraft(
+            title="Visitor parking",
+            content="Visitors park on level [level]. Key: ghp_" + "a" * 36,
+            answers=[1, 2, 7],
+            sources=["garage.pdf"],
+        ),
+        drafting_run,
+    ) as run_it:
+        drafted = await KnowledgeGapService(db).draft(ctx, topic_id)
+
+    prompt = run_it.await_args.kwargs["prompt"]
+    assert kb.name in prompt
+    assert "Where can visitors park?" in prompt
+    assert "No parking info" in prompt
+    assert run_it.await_args.kwargs["key"] == "knowledge_gap_drafter"
+    assert drafted.draft is not None
+    assert drafted.draft.title == "Visitor parking"
+    assert "ghp_" not in drafted.draft.content
+    assert set(drafted.draft.answers) <= set(numbered.values())
+    assert len(drafted.draft.answers) == 2
+    assert drafted.draft.run_id == drafting_run.id
+    listed = await KnowledgeGapService(db).list_for_knowledge_base(ctx, kb.id)
+    assert [t.has_draft for t in listed.items] == [True]
+
+
+async def test_with_ai_assistance_off_no_draft_is_asked_for_or_kept(db) -> None:
+    ctx = await _owner(db)
+    _, _, topic_id = await _a_topic(db, ctx)
+    organization = await db.get(Organization, ctx.organization_id)
+    organization.ai_assistance_enabled = False
+    await db.flush()
+
+    with pytest.raises(AiAssistanceDisabledError):
+        await KnowledgeGapService(db).draft(ctx, topic_id)
+
+    topic = await db.get(KnowledgeGapTopic, topic_id)
+    assert topic is not None and topic.draft_content is None
+    drafter_runs = await db.execute(
+        select(func.count()).select_from(AgentRun).where(AgentRun.surface == "eval")
+    )
+    assert drafter_runs.scalar_one() == 0
+
+
+async def test_a_drafting_run_that_ends_without_an_answer_keeps_no_draft(db) -> None:
+    ctx = await _owner(db)
+    _, _, topic_id = await _a_topic(db, ctx)
+    refused = AsyncMock(
+        side_effect=SystemAgentRunError(
+            message="budget", run_id=uuid.uuid4(), status="budget_exceeded"
+        )
+    )
+
+    with (
+        patch("app.services.knowledge_gaps.SystemAgentRunner.run", new=refused),
+        pytest.raises(SystemAgentRunError),
+    ):
+        await KnowledgeGapService(db).draft(ctx, topic_id)
+
+    topic = await db.get(KnowledgeGapTopic, topic_id)
+    assert topic is not None and topic.draft_content is None
+
+
+async def test_another_organizations_topic_cannot_be_drafted_or_reported_on(db) -> None:
+    ours = await _owner(db)
+    theirs = await _owner(db)
+    _, _, topic_id = await _a_topic(db, theirs)
+    service = KnowledgeGapService(db)
+
+    with pytest.raises(NotFoundError):
+        await service.draft(ours, topic_id)
+    with pytest.raises(NotFoundError):
+        await service.record_draft(
+            ours, KnowledgeGapReport(topic_id=topic_id, title="x", content="y")
+        )
+
+
+async def test_a_report_keeps_only_answers_from_its_own_topic(db) -> None:
+    ctx = await _owner(db)
+    _, _, topic_id = await _a_topic(db, ctx)
+    kb = await _knowledge_base(db, ctx, "other")
+    run, _ = await _turn(db, ctx, await _agent(db, ctx))
+    await _searched(db, ctx, run, kb, query="lunch")
+    elsewhere = (
+        await db.execute(select(KnowledgeSearch.id).where(KnowledgeSearch.query == "lunch"))
+    ).scalar_one()
+    mine = next(iter((await KnowledgeGapService(db).read(ctx, topic_id)).questions)).search_id
+
+    await KnowledgeGapService(db).record_draft(
+        ctx,
+        KnowledgeGapReport(
+            topic_id=topic_id, title="Parking", content="Text", answers=[mine, elsewhere]
+        ),
+    )
+
+    detail = await KnowledgeGapService(db).read(ctx, topic_id)
+    assert detail.draft is not None
+    assert detail.draft.answers == [mine]
+    assert detail.draft.run_id is None
