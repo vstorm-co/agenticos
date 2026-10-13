@@ -5570,13 +5570,13 @@
       "red_team": "Red Team"
     },
     "sourceHint": {
-      "agent": "Typische Anfragen und Grenzfälle, aus seinen Anweisungen, Skills und Werkzeugen",
+      "agent": "Typische Anfragen und Grenzfälle, aus seinen Anweisungen, Skills und Tools",
       "knowledge": "Fragen, die seine Wissensbasis beantwortet, jede mit dem Dokument, aus dem sie stammt",
       "conversation": "Schwierigere Varianten dessen, was Menschen ihn gefragt haben, negativ bewertete Antworten zuerst",
       "red_team": "Anfragen, die er ablehnen muss, jede mit der erwarteten Ablehnung"
     },
     "plan": {
-      "agent": "{count, plural, =1 {1 Fall} other {# Fälle}} vom Agent und {material, plural, =1 {1 Werkzeug} other {# Werkzeugen}}",
+      "agent": "{count, plural, =1 {1 Fall} other {# Fälle}} vom Agent und {material, plural, =1 {1 Tool} other {# Tools}}",
       "knowledge": "{count, plural, =1 {1 Fall} other {# Fälle}} aus {material, plural, =1 {1 Abschnitt} other {# Abschnitten}} seiner Wissensbasis",
       "conversation": "{count, plural, =1 {1 Fall} other {# Fälle}} aus {material, plural, =1 {1 gestellten Frage} other {# gestellten Fragen}}",
       "red_team": "{count, plural, =1 {1 Red-Team-Fall} other {# Red-Team-Fälle}}"
