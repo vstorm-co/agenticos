@@ -69,7 +69,8 @@ export {
   useSandboxPolicy,
   useSandboxSessions,
 } from "./use-sandbox-connections";
-export { useSecrets, useSecretPurposes, kindInfo } from "./use-secrets";
+export { useSecrets, useSecretPurposes, useChatGPTSignIn, kindInfo } from "./use-secrets";
+export type { NewChatGPTSignIn } from "./use-secrets";
 export {
   useApprovalHistory,
   useApprovals,

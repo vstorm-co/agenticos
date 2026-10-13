@@ -177,6 +177,7 @@ const PROVIDERS: Readonly<Record<string, Source>> = {
   nebius: lobehub("nebius"),
   ollama: lobehub("ollama"),
   openai: lobehub("openai"),
+  openai_codex: lobehub("codex"),
   openrouter: lobehub("openrouter"),
   sambanova: lobehub("sambanova"),
   together: lobehub("together"),

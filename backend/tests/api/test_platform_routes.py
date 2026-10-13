@@ -137,6 +137,7 @@ _SERVICE_DEPS = (
     deps.get_sharing_service,
     deps.get_mcp_connection_service,
     deps.get_secret_service,
+    deps.get_openai_codex_service,
     deps.get_knowledge_base_service,
     deps.get_collection_access_service,
     deps.get_sync_source_service,
@@ -449,6 +450,18 @@ CALLS: tuple[Call, ...] = (
         body={
             "name": "Weather API",
             "value": {"kind": "api_key", "api_key": "not-a-real-key"},
+        },
+    ),
+    # A ChatGPT sign-in is a secret written by finishing an OAuth flow rather
+    # than by posting a value, so it is the same write under the same gate.
+    Call("POST", "/secrets/openai-codex/sign-in", Perm.SECRETS_EDIT),
+    Call(
+        "POST",
+        "/secrets/openai-codex",
+        Perm.SECRETS_EDIT,
+        body={
+            "name": "ChatGPT",
+            "callback_url": "http://localhost:1455/auth/callback?code=c&state=s",
         },
     ),
     # Where sandboxes run, split across two gates. The reads carry
@@ -864,6 +877,9 @@ RESOURCE_AWARE_SERVICES = (
     # A secret is a shared resource: who may edit or delete one is its grants'
     # answer, resolved inside the service exactly as it is for an agent.
     deps.get_secret_service,
+    # A ChatGPT sign-in is a secret written another way: putting a new one in
+    # place of an old one is the secret service's rotation, grants and all.
+    deps.get_openai_codex_service,
     # Same shape again: a widget is one agent's public face, so who may publish
     # or take one down is `agents:publish` on that agent, resolved against its
     # grants rather than tested as a role.

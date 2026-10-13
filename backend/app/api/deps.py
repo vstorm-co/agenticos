@@ -1246,6 +1246,15 @@ def get_secret_service(db: DBSession) -> OrganizationSecretService:
 
 
 SecretSvc = Annotated[OrganizationSecretService, Depends(get_secret_service)]
+from app.services.openai_codex import OpenAICodexService
+
+
+def get_openai_codex_service(db: DBSession, redis: Redis) -> OpenAICodexService:
+    """Create OpenAICodexService with the session and the Redis client its sign-in waits in."""
+    return OpenAICodexService(db, redis)
+
+
+OpenAICodexSvc = Annotated[OpenAICodexService, Depends(get_openai_codex_service)]
 from app.services.audit import AuditService
 
 

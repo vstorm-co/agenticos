@@ -78,3 +78,25 @@ describe("the service filter", () => {
     expect(screen.queryByRole("option", { name: "Custom service" })).toBeNull();
   });
 });
+
+describe("the rotate action", () => {
+  it("is a reconnect for a ChatGPT sign-in, which is replaced by signing in again", async () => {
+    const onRotate = vi.fn();
+    const chatgpt = secret({ name: "My ChatGPT", kind: "openai_codex", purpose: "openai_codex" });
+    render(
+      <SecretsTable
+        secrets={[chatgpt, secret({ name: "a-key" })]}
+        purposes={PURPOSES}
+        canManage
+        onShare={noop}
+        onRotate={onRotate}
+        onDelete={noop}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Rotate a-key" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Reconnect My ChatGPT" }));
+
+    expect(onRotate).toHaveBeenCalledWith(chatgpt);
+  });
+});
