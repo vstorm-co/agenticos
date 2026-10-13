@@ -17,10 +17,11 @@ from app.core.audit import record_audit
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext
+from app.db.models.folder import Folder
 from app.db.models.group import Group
 from app.db.models.resource_grant import GrantLevel, ResourceGrant, Visibility
 from app.repositories import group_repo, member_repo, resource_grant_repo
-from app.services.access import OwnedResource, ResourceType, resolve_access
+from app.services.access import Filed, OwnedResource, ResourceType, resolve_access
 from app.services.notifications import NotificationService
 
 
@@ -42,6 +43,21 @@ _CONSOLE_PATHS = {
     "mcp_connection": "/mcp-servers",
 }
 """Where the console opens a shared resource of each kind."""
+
+# A folder opens on the page of what it holds, at that folder (#2124).
+_FOLDER_PAGES = {
+    "artifact": "/apps",
+    "skill": "/skills",
+    "context": "/context",
+    "collection": "/rag",
+}
+
+
+def _console_path(resource: OwnedResource, resource_type: ResourceType) -> str:
+    """Where a notification about this resource links to."""
+    if isinstance(resource, Folder):
+        return f"{_FOLDER_PAGES[resource.kind]}?folder={resource.id}"
+    return _CONSOLE_PATHS[resource_type.key].format(id=resource.id)
 
 
 def _shown_name(resource: OwnedResource) -> str:
@@ -226,7 +242,7 @@ class SharingService:
             resource_kind=resource_type.key,
             resource_id=resource.id,
             name=_shown_name(resource),
-            path=_CONSOLE_PATHS[resource_type.key].format(id=resource.id),
+            path=_console_path(resource, resource_type),
             group_name=group.name,
             actor_user_id=ctx.user_id,
         )
@@ -370,6 +386,16 @@ class SharingService:
         answer.
         """
         await self._require_edit(ctx, resource, resource_type)
+        # Filed in a folder, it reaches the folder's audience (#2124): widening it
+        # here would reach past a restricted folder, so the folder decides.
+        if isinstance(resource, Filed) and resource.folder_id is not None:
+            raise BadRequestError(
+                message=(
+                    "This is in a folder, so it reaches whoever the folder does. Change the "
+                    "folder's audience, or move it out of the folder first."
+                ),
+                details={"folder_id": resource.folder_id},
+            )
         # `ctx.user_id` is not None past `_require_edit`: `resolve_access`
         # refuses a subject-less context outright, so there is always somebody
         # to become the owner here.

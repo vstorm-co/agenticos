@@ -112,8 +112,9 @@ def _grant_repo(rows: Rows, monkeypatch: pytest.MonkeyPatch) -> None:
         subject_user_id: uuid.UUID,
         resource_type: str,
         resource_id: uuid.UUID,
+        folder_id: uuid.UUID | None = None,
     ) -> GrantLevel | None:
-        del organization_id, resource_type
+        del organization_id, resource_type, folder_id
         return rows.grants.get((subject_user_id, resource_id))
 
     async def list_shared_ids(

@@ -94,6 +94,13 @@ class Artifact(Base, TimestampMixin):
         nullable=True,
         index=True,
     )
+    # The folder it is filed in (#2124), whose audience it carries; none at the root.
+    folder_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("folders.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     visibility: Mapped[str] = mapped_column(
         String(16), nullable=False, default=Visibility.PRIVATE.value
     )

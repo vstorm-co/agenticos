@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -47,6 +47,13 @@ class OwnedResource(Protocol):
     def organization_id(self) -> UUID | None: ...
 
 
+@runtime_checkable
+class Filed(Protocol):
+    """A resource that can be filed in a folder, whose grants then reach it (#2124)."""
+
+    folder_id: UUID | None
+
+
 @dataclass(frozen=True)
 class ResourceType:
     """A resource kind and the permissions that govern it.
@@ -73,6 +80,18 @@ ARTIFACT = ResourceType(key="artifact", view=Perm.ARTIFACTS_VIEW, edit=Perm.ARTI
 # An organization's MCP server. One permission both sees and manages it, as it
 # always has; what changed is that a server can be narrowed to groups (#2072).
 MCP_CONNECTION = ResourceType(key="mcp_connection", view=Perm.MCP_MANAGE, edit=Perm.MCP_MANAGE)
+
+# A folder of one kind of resource (#2124): seen and changed under that kind's
+# own permissions, its grants stored under one key whatever it holds.
+FOLDER_TYPES: dict[str, ResourceType] = {
+    resource.key: ResourceType(key="folder", view=resource.view, edit=resource.edit)
+    for resource in (ARTIFACT, SKILL, CONTEXT, COLLECTION)
+}
+
+# The resource type a folder of each kind holds.
+FOLDERED: dict[str, ResourceType] = {
+    resource.key: resource for resource in (ARTIFACT, SKILL, CONTEXT, COLLECTION)
+}
 
 
 # The grant level a member needs before a scope-based check is even consulted.
@@ -156,6 +175,8 @@ async def resolve_access(
         subject_user_id=subject,
         resource_type=resource_type.key,
         resource_id=resource.id,
+        # A grant on the folder it is filed in reaches it as one on the row does.
+        folder_id=resource.folder_id if isinstance(resource, Filed) else None,
     )
     if granted is None:
         return False

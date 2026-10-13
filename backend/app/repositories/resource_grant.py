@@ -5,8 +5,24 @@ from uuid import UUID
 from sqlalchemy import ColumnElement, Delete, delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.models.artifact import Artifact
+from app.db.models.context import ContextFile
 from app.db.models.group import Group, GroupMember
+from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.resource_grant import GRANT_ORDER, GrantLevel, ResourceGrant
+from app.db.models.skill import Skill
+
+FOLDER = "folder"
+"""The `resource_type` a folder's own grants are stored under (#2124)."""
+
+# The tables a folder can hold, by the grant key of their resource type: a grant
+# on a folder reaches the rows of that table filed in it.
+_FOLDERED: dict[str, type[Artifact] | type[ContextFile] | type[KnowledgeBase] | type[Skill]] = {
+    "artifact": Artifact,
+    "context": ContextFile,
+    "collection": KnowledgeBase,
+    "skill": Skill,
+}
 
 
 async def _delete_rows(db: AsyncSession, statement: Delete) -> int:
@@ -51,19 +67,26 @@ async def get_level(
     subject_user_id: UUID,
     resource_type: str,
     resource_id: UUID,
+    folder_id: UUID | None = None,
 ) -> GrantLevel | None:
     """The best level this member holds on one resource, directly or through a group.
 
-    A person can reach a row by several grants at once - their own, and one per
-    group it was shared with - and the answer is the highest of them, for the
-    same reason effective access is `max(role scope, grant)`: sharing more never
-    means reaching less.
+    A person can reach a row by several grants at once - their own, one per
+    group it was shared with, and those on the folder it is filed in (#2124) -
+    and the answer is the highest of them, for the same reason effective access
+    is `max(role scope, grant)`: sharing more never means reaching less.
     """
+    target = (ResourceGrant.resource_type == resource_type) & (
+        ResourceGrant.resource_id == resource_id
+    )
+    if folder_id is not None:
+        target = target | (
+            (ResourceGrant.resource_type == FOLDER) & (ResourceGrant.resource_id == folder_id)
+        )
     result = await db.execute(
         select(ResourceGrant.level).where(
             ResourceGrant.organization_id == organization_id,
-            ResourceGrant.resource_type == resource_type,
-            ResourceGrant.resource_id == resource_id,
+            target,
             _reaches_member(organization_id, subject_user_id),
         )
     )
@@ -82,8 +105,9 @@ async def list_shared_ids(
     """Ids of one resource type shared with this member at `minimum_level` or above.
 
     Used to widen a listing query: a member sees their own rows plus these.
-    Grants made to a group the member is in count exactly as their own do, and a
-    row reached twice is listed once.
+    Grants made to a group the member is in count exactly as their own do, a
+    grant on a folder counts for every row filed in it (#2124), and a row
+    reached twice is listed once.
     """
     allowed = [
         level.value for level, rank in GRANT_ORDER.items() if rank >= GRANT_ORDER[minimum_level]
@@ -98,7 +122,23 @@ async def list_shared_ids(
         )
         .distinct()
     )
-    return list(result.scalars().all())
+    ids = list(result.scalars().all())
+    table = _FOLDERED.get(resource_type)
+    if table is None:
+        return ids
+    granted_folders = select(ResourceGrant.resource_id).where(
+        ResourceGrant.organization_id == organization_id,
+        ResourceGrant.resource_type == FOLDER,
+        ResourceGrant.level.in_(allowed),
+        _reaches_member(organization_id, subject_user_id),
+    )
+    filed = await db.execute(
+        select(table.id).where(
+            table.organization_id == organization_id, table.folder_id.in_(granted_folders)
+        )
+    )
+    seen = set(ids)
+    return ids + [row for row in filed.scalars().all() if row not in seen]
 
 
 async def list_for_resource(

@@ -47,6 +47,7 @@ def _summary(file: ContextFile) -> ContextFileSummary:
         enabled=file.enabled,
         size_bytes=len(file.content.encode("utf-8")),
         excerpt=excerpt(file.content),
+        folder_id=file.folder_id,
     )
 
 

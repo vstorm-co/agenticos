@@ -22,7 +22,7 @@ from app.api.routes.v1 import files
 from app.api.routes.v1 import generated_media
 from app.api.routes.v1 import channels
 from app.api.routes.v1 import audit
-from app.api.routes.v1 import sharing
+from app.api.routes.v1 import folders, sharing
 from app.api.routes.v1 import agent_embeds
 from app.api.routes.v1 import agent_environments, agent_exposures, agent_triggers
 from app.api.routes.v1 import trigger_webhooks
@@ -111,6 +111,12 @@ v1_router.include_router(skill_changes.router, prefix="/skill-changes", tags=["s
 v1_router.include_router(
     sharing.collection_sharing_router, prefix="/kb", tags=["collections:sharing"]
 )
+v1_router.include_router(folders.app_folders_router, prefix="/folders/apps", tags=["folders"])
+v1_router.include_router(folders.skill_folders_router, prefix="/folders/skills", tags=["folders"])
+v1_router.include_router(
+    folders.context_folders_router, prefix="/folders/context", tags=["folders"]
+)
+v1_router.include_router(folders.collection_folders_router, prefix="/folders/kb", tags=["folders"])
 v1_router.include_router(sharing.agent_sharing_router, prefix="/agents", tags=["agents:sharing"])
 v1_router.include_router(sharing.skill_sharing_router, prefix="/skills", tags=["skills:sharing"])
 v1_router.include_router(

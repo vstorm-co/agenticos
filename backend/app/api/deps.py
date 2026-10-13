@@ -769,6 +769,7 @@ def get_skill_proposal_service(db: DBSession) -> SkillProposalService:
 SkillProposalSvc = Annotated[SkillProposalService, Depends(get_skill_proposal_service)]
 
 from app.core.permissions import AuthContext, Perm
+from app.services.folder import FolderService
 from app.services.sharing import SharingService
 
 
@@ -778,6 +779,14 @@ def get_sharing_service(db: DBSession) -> SharingService:
 
 
 SharingSvc = Annotated[SharingService, Depends(get_sharing_service)]
+
+
+def get_folder_service(db: DBSession) -> FolderService:
+    """Create FolderService instance with database session."""
+    return FolderService(db)
+
+
+FolderSvc = Annotated[FolderService, Depends(get_folder_service)]
 
 
 def _attributed(
