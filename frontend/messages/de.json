@@ -1403,7 +1403,11 @@
     },
     "restricted": "Eingeschränkt",
     "restrictedHint": "Nur die Personen oben können sie öffnen.",
-    "anyoneWithLink": "Alle mit dem Link können sie ansehen"
+    "anyoneWithLink": "Alle mit dem Link können sie ansehen",
+    "days": {
+      "today": "Heute",
+      "yesterday": "Gestern"
+    }
   },
   "common": {
     "archiveNamedConfirm": "{name} archivieren?",

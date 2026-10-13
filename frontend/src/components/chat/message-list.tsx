@@ -1,8 +1,10 @@
 "use client";
 
-import { useMemo } from "react";
+import { Fragment, useMemo } from "react";
+import { useLocale, useTranslations } from "next-intl";
 
 import { useAgents } from "@/hooks";
+import { dayLabel, startsADay } from "@/lib/day-separator";
 import type { ChatMessage, TurnUsage } from "@/types";
 import type { PinnedPrompts } from "./chat-container";
 import { MessageItem } from "./message-item";
@@ -131,27 +133,47 @@ export function MessageList({ messages, onRegenerate, pins }: MessageListProps) 
     return -1;
   })();
   const openStepsAt = lastToolTurnIndex(messages);
+  const timestamps = messages.map((message) => message.timestamp);
+  const now = new Date();
 
   return (
     <div className="space-y-0">
       {messages.map((message, index) => (
-        <MessageItem
-          key={message.renderKey ?? message.id}
-          message={message}
-          agent={message.agentId ? byId.get(message.agentId) : undefined}
-          groupPosition={getGroupPosition(message)}
-          continuesTurn={continuesTurn(messages, index)}
-          endsTurn={endsTurn(messages, index)}
-          turnUsage={turnUsage(messages, index)}
-          openLastStep={index === openStepsAt}
-          pins={pins}
-          onRegenerate={
-            onRegenerate && index === lastAssistantIndex && !message.isStreaming
-              ? () => onRegenerate(message.id)
-              : undefined
-          }
-        />
+        <Fragment key={message.renderKey ?? message.id}>
+          {/* Never inside a turn: a run that crossed midnight is still one answer. */}
+          {!continuesTurn(messages, index) && startsADay(timestamps, index, now) && (
+            <DaySeparator at={message.timestamp} now={now} />
+          )}
+          <MessageItem
+            message={message}
+            agent={message.agentId ? byId.get(message.agentId) : undefined}
+            groupPosition={getGroupPosition(message)}
+            continuesTurn={continuesTurn(messages, index)}
+            endsTurn={endsTurn(messages, index)}
+            turnUsage={turnUsage(messages, index)}
+            openLastStep={index === openStepsAt}
+            pins={pins}
+            onRegenerate={
+              onRegenerate && index === lastAssistantIndex && !message.isStreaming
+                ? () => onRegenerate(message.id)
+                : undefined
+            }
+          />
+        </Fragment>
       ))}
+    </div>
+  );
+}
+
+/** Where the transcript crosses into another day: a small pill, centred. */
+function DaySeparator({ at, now }: { at: Date; now: Date }) {
+  const t = useTranslations("chat.days");
+  const locale = useLocale();
+  return (
+    <div role="separator" className="flex justify-center py-4">
+      <span className="bg-foreground/[0.06] text-muted-foreground rounded-full px-3 py-1 text-xs font-medium">
+        {dayLabel(at, now, locale, t)}
+      </span>
     </div>
   );
 }
