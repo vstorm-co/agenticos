@@ -27,8 +27,13 @@ can switch it off entirely.**
 - **Evals come first.** Datasets (#2110), scoring (#2111), eval runs (#2113),
   generated cases (#2114) and suites with triggers (#2115) are the core of the
   milestone, so [Decision 6](#decision-6--synthetic-evaluation-is-out-replay-on-real-prompts-is-in)
-  is reversed. A proposal is checked by running the agent's suites on the
-  draft before anyone accepts it.
+  is reversed. A proposal is checked before anyone accepts it by running the
+  agent's suites on the **proposed projection**: a frozen snapshot of the
+  draft with every pending hunk applied — the demo's "Proposed" view
+  (contract item 2). The draft itself does not change; running the suites
+  on the draft alone would measure the baseline, because pending hunks are
+  not in it. A skill proposal is checked the same way, with the candidate
+  body and resources served in place of the current ones.
 - **Replay becomes an eval run.** [Decision 9](#decision-9--replay-test-a-draft-against-the-prompts-users-already-sent)'s
   pairs come from a dataset made from real conversations; tool calls are
   answered from the recordings by #2112; a draft runs through the
@@ -40,15 +45,15 @@ can switch it off entirely.**
   descriptions, the model and its settings, capabilities, knowledge bindings
   and MCP allowed tools (#2118); missing knowledge-base content (#2119).
 - **The organization switch** ([Decision 10](#decision-10--an-organization-switch-off-means-off))
-  covers the judge and the case generator as well as the assistant.
-  Deterministic evals stay available while it is off.
+  covers the judge, the case generator and the knowledge-gap drafts as
+  well as the assistant. Deterministic evals stay available while it is off.
 
 ### Which issue owns each decision
 
 | Decision | Owned by |
 |---|---|
 | 1 — ratings and the run record lead | #2117; the same read path feeds #2110, #2114 and #2119 |
-| 2 — propose, never write | #2117 (spec, skills), #2118 (context proposals), #2114 (generated cases arrive as a proposal) |
+| 2 — propose, never write | #2117 (spec, skills; "Check with evals" runs the suites on the frozen proposed projection, never on the draft alone), #2118 (the targets in [Proposal targets added by #52](#proposal-targets-added-by-52)), #2114 (generated cases arrive as a proposal) |
 | 3 — the improver is an agent | #2117; the seeded-agent mechanism is built first, for the judge, in #2111 |
 | 4 — tenant scope and gates | every child |
 | 5 — mode 1 produces a draft | #2117 |
@@ -56,7 +61,31 @@ can switch it off entirely.**
 | 7 — one review grammar | #2117, #2118, #2114 |
 | 8 — the assistant also verifies | #2117 |
 | 9 — replay | #2112 (recordings), #2113 (draft runs, comparison) |
-| 10 — the organization switch | #2111, extended by #2114 and #2117 |
+| 10 — the organization switch | #2111, extended by #2114, #2117 and #2119 |
+
+### Proposal targets added by #52
+
+Decisions 2–4 define instructions, tool descriptions and skills in detail.
+The targets #2118 and #2119 add are held to the minimum contract below; their
+detailed design belongs to the #2118 and #2119 pull requests, which must not
+weaken it.
+
+| Target | Proposal shape | How it is accepted | Gate |
+|---|---|---|---|
+| Context file | A whole-content replacement with rationale, evidence and the base version, modelled on the skill proposal (Decision 2) | Apply, live for every bound agent; refused when the file changed after the base version | `context:edit` on the file via `resolve_access` |
+| Agent description, delegate descriptions | Hunks in the agent's `spec_proposals` batch | Into the draft | `agents:edit` on the agent |
+| Model profile and model settings | Hunks in the batch, with an eval comparison of quality and cost | Into the draft | `agents:edit`, and use of the proposed profile |
+| Capabilities: add, remove, config, approval mode | Hunks in the batch | Into the draft | `agents:edit`; never widens access |
+| Knowledge bindings, MCP allowed tools | Hunks in the batch | Into the draft | `agents:edit`; never widens access |
+| Missing knowledge | A report with drafted content | No apply action — a person adds documents | `collections:view` on the searched collections to read the report |
+
+**A proposal never widens access.** A capability, collection, MCP connection,
+model profile or delegate the caller cannot grant is refused when the
+proposal is staged and again when it is accepted; `validate_spec` checks the
+result at publish like any manual edit. #2118 defines the staging tools for
+these targets — `propose_context`, `propose_description`, `propose_model`,
+`propose_capability`, `propose_knowledge_binding` and `propose_mcp_tools` —
+beside Decision 3's, and #2119 defines `report_knowledge_gap`.
 
 ### Considered after review, and rejected
 
@@ -223,8 +252,9 @@ Mechanism, per surface:
   Apply bumps `skills.version` and every bound agent reads the new body on
   its next run. The draft-first guarantee above is a *spec* guarantee; for
   skills the proposal itself is the review stage, the Apply control says it
-  goes live everywhere, and replay-before-apply (Decision 9) is the test
-  stage a draft would otherwise provide. A skill draft path was considered
+  goes live everywhere, and the eval suites of the agents that bind the
+  skill run on the candidate body before Apply — the test stage a draft
+  would otherwise provide. A skill draft path was considered
   and rejected: "no deploy, no pull request" is the product's own model for
   skills, and a second lifecycle would contradict it.
   Two recording consequences the reuse does not get for free:
@@ -270,10 +300,14 @@ Mechanism, per surface:
   - **A hunk decision and its draft mutation are one conditional
     transaction.** Two reviewers concurrently accepting and dismissing the
     same pending hunk must resolve to exactly one outcome — a
-    compare-and-set on the hunk's status commits together with any draft
-    write, so a dismissed hunk can never linger applied in the draft. The
-    draft-revision check does not cover this on its own: Dismiss writes no
-    draft.
+    compare-and-set commits together with any draft write, so a dismissed
+    hunk can never linger applied in the draft. The draft-revision check
+    does not cover this on its own: Dismiss writes no draft. The
+    compare-and-set conditions on **both the hunk's status and its batch
+    still being open**: supersession closes the batch without touching any
+    hunk's status, so a check on the hunk alone would let an Accept or Undo
+    already in flight change the draft after a newer run had closed the
+    batch it belongs to.
   Two target kinds:
   - `instructions`: **a base snapshot plus a list of anchored hunks**, each
     `{old_text, new_text, rationale, evidence}`, decided independently.
@@ -358,6 +392,8 @@ itself improvable, by itself.
 | `read_runs` | run metadata: status, error, tokens, cost, latency |
 | `read_manifest` | what the model was handed on a given run |
 | `read_transcript` | one run's messages + tool calls |
+| `read_skill` | a skill run's target: its current body and resources, with the version a `propose_skill` replacement is based on — a whole-body proposal needs the current content, and a skill nobody has loaded has no manifest or transcript to recover it from |
+| `read_catalog` | mode 1 only: what the caller can see — skills, collections and context files (id, name, description) and the capability registry |
 | `propose_instructions` | stages instruction hunks with rationale + evidence |
 | `propose_tool_description` | stages a tool-override entry |
 | `propose_skill` | stages a skill-body proposal with rationale + evidence |
@@ -368,7 +404,9 @@ Two invariants carried over from the existing registry:
 - **The capability never queries the database.** The runner resolves the
   target's data org-scoped and injects it via `CapabilityBuildContext.resources`
   — the same shape as `knowledge`, `context` and `skills`. The `organization_id`
-  filter lives in the resolver, one place.
+  filter lives in the resolver, one place. For a skill run, the runner checks
+  `skills:edit` on the target skill through `resolve_access` at run start and
+  only then injects the snapshot `read_skill` returns.
 - **`selectable=False`, runner-assembled** — the `channel_tools` precedent.
   The target agent varies per run, so the binding is assembled when a run is
   started through the authoring surface (the Builder's "Improve" action → a
@@ -383,10 +421,19 @@ dedup-across-turns behaviour, and the capability stays DB-free.
 
 The capability builds in **two modes**, because mode 1 has no target by
 definition: with an injected target it exposes the full toolset above; on a
-mode-1 authoring session it builds narrowed to `propose_agent` (no target
-reads to expose); with neither injected it builds `None`. One capability,
+mode-1 authoring session it builds narrowed to `read_catalog` and
+`propose_agent`; with neither injected it builds `None`. One capability,
 one registration — the runner decides the mode from what it injects, the
 `channel_tools` way.
+
+Mode 1 has no target to read, but the draft it proposes names org resources
+by id: "use our refund-policy skill" has to resolve to a real skill. So the
+runner injects, read-only, the catalogs the caller can see — skills,
+collections and context files, each as id, name and description, resolved
+through `visible_resource_ids` — and the capability registry. Every read of
+a specific agent's data stays off. `propose_agent` refuses at staging any
+reference that is not in the injected catalog, so a hallucinated id never
+reaches the draft to fail later at publish.
 
 **No new `RunSurface` member.** The enum's own rule is that every member needs
 a writer and answers "how is the product used"; an improver run started from
@@ -416,8 +463,8 @@ No new permission. The composition of existing gates already names each action:
 | Start an improve/verify run on agent X | `runs:view` (the evidence), `agents:edit` on X via `resolve_access` (the proposals aim at its draft), **and `agents:run` on the seeded improver** via `resolve_access` — grants are independent, so edit access to X does not imply use of the improver, and starting it spends the org's money |
 | Start an improve run on skill S | `runs:view`, **`skills:edit` on S via `resolve_access`** — skills have their own ownership, visibility and grants, so access to some agent that binds S proves nothing about S — and `agents:run` on the improver, same as above |
 | Verify for a skill | The same gates, and **only against a pending skill proposal** (candidate vs current body): skills have no draft and keep no previous content, so a live manual edit has no base to verify against — Verify(skill) is review of a proposal, never an after-the-fact audit of an edit already live |
-| Start a replay | The gates above for its target, **plus `agents:run` on every agent the replay executes**: the target agent for a spec replay, and each selected source agent for a skill replay — replay runs the candidate under those agents and charges their budgets. A source agent the caller may not run is excluded from the pool and the exclusion reported |
-| Record or change a replay pair's verdict | The session's creator, or `agents:edit` / `skills:edit` on the session's target — `runs:view` reads sessions, it never rewrites another reviewer's evaluation |
+| Start a replay | The gates above for its target, **plus `agents:run` on every agent the replay executes**: the target agent for a spec replay, and each selected source agent for a skill replay — replay runs the candidate under those agents and charges their budgets. A case whose source agent the caller may not run is excluded from the run and the exclusion reported |
+| Record or change a replay pair's verdict | The run's creator, or `agents:edit` / `skills:edit` on the session's target — `runs:view` reads sessions, it never rewrites another reviewer's evaluation |
 | Accept/dismiss an instructions or tool-description proposal | `agents:edit` on the target |
 | Apply/discard a skill proposal | `skills:edit` on the skill (existing) |
 | Publish the resulting draft | `agents:publish` (existing) |
@@ -537,9 +584,9 @@ platform's model. The critique informs; `validate_spec` and a person decide.*
 
 After editing (either direction), a person can run the candidate spec against
 **real past prompts of this agent** and compare answers side by side: the
-opening user messages of recent conversations (rated-down ones first), the
-old answer from history, the new answer from the candidate, a human verdict
-per pair with an optional judge suggestion. This is evaluation grounded in
+cases of a dataset made from real conversations, the old answer from
+history, the new answer from the candidate, a human verdict per pair with an
+optional judge suggestion. This is evaluation grounded in
 data the org already owns — no synthetic dataset, no ground-truth question.
 
 The three hard edges, decided here:
@@ -605,10 +652,10 @@ The three hard edges, decided here:
   change it is supposed to measure.
 - **Replay runs are runs.** Metered against the agent's and the org's caps
   (a replay of twenty prompts is a visible, bounded spend, shown before the
-  button fires), recorded through `finish`, and stamped with a new
-  `RunSurface.REPLAY` — the member has a writer now, so it earns its place
-  under the enum's own rule, and for the same reason `EMBED` exists: a
-  replay stamped `WEB` lies to anyone asking how the product is used.
+  button fires), recorded through `finish`, and stamped `eval` like every
+  other eval run — a replay stamped `WEB` would lie to anyone asking how the
+  product is used, and a separate replay member would split one kind of
+  run across two surfaces in eval analytics.
 
 **Skills replay the same way, with a cheaper mechanism.** A skill is read,
 not executed, so "test the new skill body" means replaying runs that *loaded*
@@ -633,6 +680,24 @@ pair replays with the **recorded conversation prefix** up to the source
 turn — an immutable copy fed as history; the original conversation is never
 touched — so the candidate answers the same situation, not the same
 sentence out of context.
+
+Comparison results live on the eval run (#2113) — keyed to its **target
+(kind + id: agent or skill)**, not to one agent, because a skill run's
+pairs deliberately span the agents that loaded it; each pair persists its
+source agent, source run and the dataset case it came from, and the run
+holds the frozen candidate snapshot, the verdicts and the spend. Readable
+under `runs:view`; verdict writes take the run's creator or the target's
+edit permission (Decision 4). Human verdicts **start unset** — the judge's
+suggestion is displayed beside them, never written into them, and the
+aggregate counts only what a person actually decided. The demo shows the
+comparison view.
+
+### Deferred: the relevance picker
+
+**Deferred, not built in this milestone.** Replay pairs come from a dataset a
+person curated (#2110, #2114); #2112 and #2113 select nothing. The design
+below is kept as the record for a later picker that proposes cases into a
+dataset, and is no obligation on any child of #52.
 
 **The replay set is picked for relevance to the edit, capped small — and the
 pool is capped before anything embeds.** Five pairs by default, because the
@@ -675,28 +740,27 @@ Deliberately **not** the RAG pipeline itself: conversations are never
 ingested into a knowledge collection — that would leak chat into retrieval;
 only the embedding client is shared.
 
-Comparison results live on the replay session — keyed to its **target
-(kind + id: agent or skill)**, not to one agent, because a skill session's
-pairs deliberately span the agents that loaded it; each pair persists its
-source agent, source run and the picked-because label, and the session
-holds the frozen candidate snapshot, the verdicts and the spend. Readable
-under `runs:view`; verdict writes take the session creator or the target's
-edit permission (Decision 4). Human verdicts **start unset** — the judge's
-suggestion is displayed beside them, never written into them, and the
-aggregate counts only what a person actually decided. The demo shows the
-comparison view.
-
 ## Decision 10 — an organization switch, off means off
 
 Whether AI assists authoring at all is the organization's decision, not the
 platform's default-on. A single org-level setting (in organization settings,
-gated on `org:settings` like the rest of them) turns the assistant off: the
-backend refuses **all four** entry points when it is off — Improve, Verify,
-Replay, *and* mode 1's describe→draft run, which is AI-assisted authoring as
-much as the other three — the frontend hiding the strip is a courtesy, the
-service refusal is the boundary, in exactly the "not rendered is not enough"
-sense the permission rules already state. The seeded improver agent stays
-(it is data), it just cannot be started through the authoring surface.
+gated on `org:settings` like the rest of them) turns AI assistance off, and
+the backend then refuses **every model-backed entry point** in the service
+that starts it:
+
+- the assistant: Improve, Verify, Replay, and mode 1's describe→draft run,
+  which is AI-assisted authoring as much as the other three (#2117);
+- the LLM judge, whether a person starts the eval run or a suite trigger
+  does (#2111, #2115);
+- the case generator (#2114);
+- the knowledge-gap report's drafted content (#2119).
+
+The frontend hiding the controls is a courtesy; the service refusal is the
+boundary, in exactly the "not rendered is not enough" sense the permission
+rules already state. A refused judge leaves an eval run with deterministic
+checks only — evals with no model-backed scorer, and a person's verdicts,
+stay available while the switch is off. The seeded improver, judge and
+generator agents stay (they are data); they just cannot be started.
 
 One switch in v1. Granularity (proposals yes / replay no, or per-surface)
 is question 7 — cheap to add later, expensive to guess now.
@@ -722,7 +786,9 @@ is question 7 — cheap to add later, expensive to guess now.
    (list/accept/dismiss/undo; accept writes the draft via the registry
    service), routes. Tests: mixed per-hunk decisions on one batch; two
    tool-override entries survive in one batch; concurrent Accept and
-   Dismiss of one hunk resolve to exactly one outcome; undo while open,
+   Dismiss of one hunk resolve to exactly one outcome; an Accept or Undo
+   racing the supersession of its batch either commits before the batch
+   closes or is refused, never changes the draft after it; undo while open,
    terminal at close, and undo goes stale when the accepted text was
    manually edited; a duplicate-text anchor and an empty-`old_text`
    insertion resolve by position or go stale, never apply at the wrong
@@ -734,10 +800,15 @@ is question 7 — cheap to add later, expensive to guess now.
    cross-tenant 404; accept lands in draft and never publishes.
 3. **Capability `authoring`** — registry entry (`selectable=False`), read tools
    over injected resources, `propose_*` staging; runner assembly for the
-   authoring surface + recording in `finish`. Tests: capability builds
+   authoring surface + recording in `finish`; `read_skill` over the
+   injected skill snapshot; the mode-1 catalogs. Tests: capability builds
    `None` with neither a target nor a mode-1 session injected; a mode-1
-   build narrows to `propose_agent`; staged proposals recorded once across
-   turns; publish refuses a spec carrying the capability.
+   build narrows to `read_catalog` and `propose_agent`, and its catalog
+   holds only what the caller can see; a mode-1 reference outside the
+   catalog is refused at staging; a skill run injects the current body and
+   resources only after `skills:edit` on that skill passes, and is refused
+   without it; staged proposals recorded once across turns; publish
+   refuses a spec carrying the capability.
 4. **Seeded improver agent** — created at org creation, topped up like the
    skill library; the Builder "Improve" endpoint starting its run with the
    target injected (gates per Decision 4). Tests: budget metered, run lands in
@@ -757,11 +828,11 @@ is question 7 — cheap to add later, expensive to guess now.
    and recorded-resources constancy per pair, the skill candidate served
    whole (body + resources across `list_skills`/`load_skill`/
    `read_skill_resource`), the conversation-prefix replay for later-turn
-   skill pairs, relevance selection (pre-embedding pool caps, per-surface
-   ranking text, on-demand embeddings with the lexical and rated-down
-   fallbacks, the picked-because label, every exclusion reported),
-   `RunSurface.REPLAY`, the session + pair-verdict rows keyed to the target
-   kind, spend preview. Tests: a side-effecting tool is never executed on
+   skill pairs, pairs taken from the cases of a curated dataset (no
+   relevance selection — see
+   [Deferred: the relevance picker](#deferred-the-relevance-picker)), runs
+   stamped `eval`, the run + pair-verdict rows keyed to the target kind,
+   spend preview. Tests: a side-effecting tool is never executed on
    replay; a recorded result is served only on a stable-id +
    normalized-args + occurrence-order match, an args mismatch and an
    extra occurrence mark the pair divergent, and a candidate-renamed tool
@@ -771,17 +842,17 @@ is question 7 — cheap to add later, expensive to guess now.
    replays with its recorded prefix and mutates nothing; a renamed
    `load_skill` binding is still found; an unvalidated draft reference is
    refused before assembly; a replay run carries no version attribution;
-   a mid-session autosave does not change later pairs; an
-   attachment-bearing prompt, an unanswered prompt and an over-cap
-   candidate never enter the pool and each exclusion is reported;
-   selection falls back in the declared order and labels each pair; no
-   embedding call before the session-creating consent; replay spend meters
-   against both caps; a pair's verdict write is refused for `runs:view`
+   a mid-session autosave does not change later pairs; a replay run is
+   stamped `eval`; no model call before the run-creating consent; replay
+   spend meters against both caps; a pair's verdict write is refused for `runs:view`
    alone; cross-tenant prompt sourcing refused.
-8. **The organization switch** — org settings fields (the toggle and the
-   authoring-embedding choice) + service refusal on all four entry points
-   (Improve, Verify, Replay, describe→draft) + frontend gating. Test: off
-   means every one of the four endpoints refuses, not just the UI hiding.
+8. **The organization switch** — the org settings field + service refusal
+   on every model-backed entry point (Improve, Verify, Replay,
+   describe→draft, the judge, the case generator, the knowledge-gap draft)
+   + frontend gating. Tests: off means each of those services refuses, not
+   just the UI hiding, one test per entry point — including a judge started
+   by a suite trigger; an eval run with only deterministic checks still
+   runs while the switch is off.
 9. **Frontend** — assistant strip + diff review (reuse `diff.ts` and the
    `SpecDiff` idiom), Toolbox proposed-description rows, accept/edit/dismiss
    wiring, verify report, replay comparison view, i18n keys, tour stops.
@@ -871,7 +942,7 @@ the implementation does not quietly lose it.
 1. **Entry conditions.** Verify and replay exist only while the draft
    differs from the published version; the strip renders only under
    `agents:edit`, evidence reads require `runs:view`, and the org switch
-   (Decision 10) removes all four entry points server-side.
+   (Decision 10) removes every AI-assisted entry point server-side.
 2. **View semantics.** "Current v*N*" is the published version, always.
    "Review" diffs the current draft plus pending hunks; an accepted hunk
    joins the base and stops being highlighted. "Proposed" is a preview of
@@ -894,17 +965,17 @@ the implementation does not quietly lose it.
    edit of that text makes Undo stale (Decision 2). The demo keeps the
    user's edited text after undo; the real rule is that Edit-then-accept is
    one decision and undo reverses the whole of it.
-7. **Replay selection queries the accepted diff** (draft vs published,
-   manual edits included), never pending hunks — an unaccepted suggestion
-   must not steer which prompts are picked. Each pair carries its
-   picked-because label, including the fallback tier it came from.
+7. **Replay runs the accepted draft** (draft vs published, manual edits
+   included), never pending hunks — those are checked on the proposed
+   projection. Each pair names the dataset case it came from; the demo's
+   "picked:" labels belong to the deferred relevance picker.
 8. **A divergent pair is a stopped run**, shown as the attempted call, its
    arguments, and the not-executed notice — never a fabricated result, and
    never a silent stub. It remains judgeable.
 9. **Spend preview before anything spends.** The demo opens the dialog with
-   results; the real flow inserts "top 5 of 22 · estimated $X — run?"
-   between the button and *any* cost — the selection embedding included,
-   which is why confirming is what creates the replay session (Decision 9).
+   results; the real flow inserts "5 cases · estimated $X — run?" between
+   the button and *any* cost, which is why confirming is what creates the
+   eval run (Decision 9).
 10. **Run references link.** Every `run #xxxx` chip in evidence, every
     replay pair and both improver-run badges resolve to the run detail in
     Activity, org-scoped; a foreign or deleted id renders as absent.
@@ -962,8 +1033,9 @@ it is finished, so these answers are final for the implementation.
    changed. No sweeper in v1.
 6. **A draft runs through the explicit-spec path** in `prepare`, with
    Decision 9's three obligations — #2113.
-7. **One organization switch**, covering the assistant, case generation and
-   the judge; deterministic evals stay available while it is off — #52.
+7. **One organization switch**, covering the assistant, case generation,
+   the judge and the knowledge-gap drafts; deterministic evals stay
+   available while it is off — #52.
 8. **The judge is a scorer configured per dataset** (and per suite); a
    person's verdict is stored beside the judge's and never overwritten by
    it — #2111.
