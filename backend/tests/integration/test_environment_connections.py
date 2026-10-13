@@ -11,6 +11,7 @@ order survives a run being finished twice.
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import delete, select
@@ -19,12 +20,17 @@ from sqlalchemy.exc import IntegrityError
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment, AgentEnvironmentConnection
 from app.db.models.agent_run import AgentRun
+from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.intercepted_tool_call import InterceptedToolCall
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.organization import Organization
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.user import User
-from app.repositories import agent_environment_repo, intercepted_tool_call_repo
+from app.repositories import (
+    agent_environment_repo,
+    conversation_repo,
+    intercepted_tool_call_repo,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -204,6 +210,7 @@ class TestOverrides:
         )
         assert (row.production_id, row.test_id) == (production_id, None)
 
+    @pytest.mark.security
     async def test_a_secret_override_cannot_carry_a_connection(self, db) -> None:
         org = await _org(db)
         environment = await _environment(db, org)
@@ -255,7 +262,11 @@ async def _run(db, org: Organization) -> AgentRun:
 
 def _call(tool_name: str, outcome: str = "blocked") -> InterceptedToolCall:
     return InterceptedToolCall(
-        tool_name=tool_name, tool_id=f"mcp:{tool_name}", args={"to": "a@b.c"}, outcome=outcome
+        tool_name=tool_name,
+        tool_id=f"tool:{tool_name}",
+        args={"to": "a@b.c"},
+        outcome=outcome,
+        reason="writes" if outcome == "blocked" else None,
     )
 
 
@@ -308,8 +319,30 @@ class TestInterceptedCalls:
                 run_id=run.id,
                 sequence=0,
                 tool_name="send",
-                tool_id="mcp:send",
+                tool_id="tool:send",
                 outcome="executed",
+            )
+        )
+
+        with pytest.raises(IntegrityError):
+            await db.flush()
+
+    @pytest.mark.parametrize(
+        ("outcome", "reason"),
+        [("blocked", None), ("blocked", "bored"), ("replayed", "writes")],
+    )
+    async def test_a_block_says_why_and_nothing_else_does(self, db, outcome, reason) -> None:
+        org = await _org(db)
+        run = await _run(db, org)
+        db.add(
+            InterceptedToolCall(
+                organization_id=org.id,
+                run_id=run.id,
+                sequence=0,
+                tool_name="send",
+                tool_id="tool:send",
+                outcome=outcome,
+                reason=reason,
             )
         )
 
@@ -329,3 +362,56 @@ class TestInterceptedCalls:
             select(InterceptedToolCall).where(InterceptedToolCall.run_id == run.id)
         )
         assert remaining.scalars().all() == []
+
+
+class TestARunsRecordedCalls:
+    async def _turn(self, db, org: Organization, run: AgentRun, conversation_id) -> Message:
+        message = Message(
+            id=uuid.uuid4(),
+            conversation_id=conversation_id,
+            role="assistant",
+            content="",
+            run_id=run.id,
+        )
+        db.add(message)
+        await db.flush()
+        return message
+
+    async def test_the_calls_come_back_in_start_order_with_their_turn(self, db) -> None:
+        org = await _org(db)
+        run = await _run(db, org)
+        conversation = Conversation(
+            id=uuid.uuid4(), organization_id=org.id, user_id=org.created_by_user_id
+        )
+        db.add(conversation)
+        await db.flush()
+        turn = await self._turn(db, org, run, conversation.id)
+        now = datetime.now(UTC)
+        for call_id, at in (("late", now + timedelta(seconds=1)), ("early", now)):
+            db.add(
+                ToolCall(
+                    message_id=turn.id,
+                    tool_call_id=call_id,
+                    tool_name="crm_find",
+                    args={"id": call_id},
+                    result="x",
+                    started_at=at,
+                )
+            )
+        await db.flush()
+
+        rows = await conversation_repo.list_tool_calls_for_run(
+            db, run_id=run.id, organization_id=org.id
+        )
+        other = await _org(db)
+
+        assert [(call.tool_call_id, message.id) for call, message in rows] == [
+            ("early", turn.id),
+            ("late", turn.id),
+        ]
+        assert (
+            await conversation_repo.list_tool_calls_for_run(
+                db, run_id=run.id, organization_id=other.id
+            )
+            == []
+        )

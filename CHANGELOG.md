@@ -31,9 +31,11 @@ Two things are versioned separately from this file and worth knowing about:
   read - MCP tools marked `readOnlyHint`, capability tools declared `read_only`
   in the registry - and calls that reach a test connection. A tool that writes
   without one is not executed; the call and its arguments are kept in the new
-  `intercepted_tool_calls` table. An isolated run can also be answered from the
-  recording of an earlier run, matched by tool, arguments and order. Eval runs
-  will start them; nothing in the product does yet.
+  `intercepted_tool_calls` table, as is a call the agent gates behind an
+  approval, which an isolated run cannot ask for. An isolated run can also be
+  answered from the calls an earlier run's transcript kept, matched by tool,
+  arguments and order; a run whose transcript lost a call is not replayed at
+  all. Eval runs will start them; nothing in the product does yet.
 
 ## [0.0.535] - 2026-10-09
 

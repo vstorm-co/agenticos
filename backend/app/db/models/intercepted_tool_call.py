@@ -31,8 +31,8 @@ class InterceptionOutcome(enum.StrEnum):
     """Why a call was answered by the guard rather than by the tool.
 
     Attributes:
-        BLOCKED: The tool writes and has no test connection in the run's
-            environment. Its intended arguments are the record.
+        BLOCKED: Not executed, for the `InterceptionReason` beside it. Its
+            intended arguments are the record.
         REPLAYED: Answered from the original run's recording - the same tool,
             the same arguments, the same occurrence.
         DIVERGENT: The run was answering from a recording and this call had no
@@ -42,6 +42,20 @@ class InterceptionOutcome(enum.StrEnum):
     BLOCKED = "blocked"
     REPLAYED = "replayed"
     DIVERGENT = "divergent"
+
+
+class InterceptionReason(enum.StrEnum):
+    """Why a blocked call was blocked.
+
+    Attributes:
+        WRITES: The tool changes something outside the run and the environment
+            gives it no test connection.
+        NEEDS_APPROVAL: The tool would have run, but the agent gates it behind an
+            approval and an isolated run has nobody to ask.
+    """
+
+    WRITES = "writes"
+    NEEDS_APPROVAL = "needs_approval"
 
 
 class InterceptedToolCall(Base, TimestampMixin):
@@ -79,11 +93,18 @@ class InterceptedToolCall(Base, TimestampMixin):
         JSONB, nullable=False, server_default=text("'{}'::jsonb")
     )
     outcome: Mapped[str] = mapped_column(String(16), nullable=False)
+    # Set on a blocked call only: a replayed or divergent one needs no reason.
+    reason: Mapped[str | None] = mapped_column(String(16), nullable=True)
 
     __table_args__ = (
         CheckConstraint(
             "outcome IN ('blocked', 'replayed', 'divergent')",
             name="ck_intercepted_tool_call_outcome",
+        ),
+        CheckConstraint(
+            "(outcome = 'blocked' AND reason IS NOT NULL AND reason IN ('writes', 'needs_approval')) "
+            "OR (outcome <> 'blocked' AND reason IS NULL)",
+            name="ck_intercepted_tool_call_reason",
         ),
         Index("ix_intercepted_tool_calls_run_sequence", "run_id", "sequence"),
     )

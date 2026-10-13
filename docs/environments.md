@@ -130,10 +130,12 @@ that declares nothing writes.** The model is told the call was not sent, and
 the intended call is kept with the run for scoring.
 
 An isolated run can also be answered from the recording of the run a case was
-taken from. A call is matched by its tool, its arguments and its order among
-identical calls, and gets the original result; a call the recording does not
-hold is not executed and is recorded as divergent. An isolated run has nobody
-to ask for an approval, so a gated call is refused rather than parked.
+taken from - the calls its transcript kept. A call is matched by its tool, its
+arguments and its order among identical calls, and gets the original result; a
+call the recording does not hold is not executed and is recorded as divergent. A
+run whose transcript lost a call is not replayed at all. An isolated run has
+nobody to ask for an approval, so a call the agent gates is not executed either,
+and is recorded as one that needed an approval.
 
 ## Tracing per environment
 

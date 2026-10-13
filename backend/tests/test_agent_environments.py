@@ -625,6 +625,7 @@ class TestConnectionOverrides:
                     ),
                 )
 
+    @pytest.mark.security
     @pytest.mark.parametrize("missing", ["production", "test", "unreadable"])
     async def test_a_secret_the_caller_cannot_lend_reads_as_not_in_the_vault(self, missing):
         """Miss and refusal read alike, so the vault cannot be enumerated."""

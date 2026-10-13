@@ -9,7 +9,6 @@ entered - a mock of the handler cannot say that.
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import AsyncMock
 
@@ -17,23 +16,21 @@ import pytest
 from pydantic_ai import Agent
 from pydantic_ai.messages import (
     ModelMessage,
-    ModelMessagesTypeAdapter,
-    ModelRequest,
     ModelResponse,
-    RetryPromptPart,
     TextPart,
     ToolCallPart,
     ToolReturnPart,
-    UserPromptPart,
 )
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.tools import ToolDefinition
 from pydantic_ai.toolsets import AbstractToolset, FunctionToolset
 
 from app.agents.capabilities import load_builtins
+from app.agents.capabilities.approval import ApprovalGate
 from app.agents.deps import AgentDeps
 from app.agents.factory import build_agent
 from app.agents.isolation import (
+    CallRow,
     IsolationGuard,
     RecordedCall,
     RunIsolation,
@@ -48,9 +45,9 @@ from app.agents.mcp import MCP_ORIGIN
 from app.agents.model_resolver import ModelRequestSpec, ResolvedCredential
 from app.agents.spec import AgentSpec
 from app.core.secret_kinds import ApiKeySecret
-from app.db.models.intercepted_tool_call import InterceptionOutcome
+from app.db.models.intercepted_tool_call import InterceptionOutcome, InterceptionReason
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
 @pytest.fixture(autouse=True)
@@ -177,6 +174,29 @@ class TestWhatAnIsolatedRunExecutes:
         assert answer == "Ada, customer since 2019"
         assert [call.outcome for call in isolation.intercepted] == [InterceptionOutcome.REPLAYED]
 
+    async def test_a_recording_matches_what_the_model_sent_not_the_filled_in_defaults(self):
+        world_calls: list[int] = []
+        toolset: FunctionToolset[Any] = FunctionToolset()
+
+        def crm_find(name: str, limit: int = 10) -> str:
+            world_calls.append(limit)
+            return "live"
+
+        toolset.add_function(crm_find)
+        isolation = RunIsolation(
+            recording=ToolRecording(
+                [RecordedCall("tool:crm_find", normalized_args({"name": "Ada"}), "recorded")]
+            )
+        )
+
+        answer = await _run(
+            isolation,
+            [toolset.with_metadata(**{MCP_ORIGIN: {"test": False}})],
+            _calls_then_answers(("crm_find", {"name": "Ada"})),
+        )
+
+        assert (answer, world_calls) == ("recorded", [])
+
     @pytest.mark.parametrize("live_reads", [False, True])
     async def test_a_call_the_recording_does_not_hold_is_divergent(self, live_reads):
         """Another call's result would fabricate the difference being measured.
@@ -279,57 +299,21 @@ class TestClassification:
         assert not capability_tools(spec, test_secret_ids=frozenset({live_key}))["remember"].test
 
 
-def _dumped(messages: list[ModelMessage]) -> list[dict[str, Any]]:
-    return ModelMessagesTypeAdapter.dump_python(messages, mode="json")
-
-
 class TestRecordings:
-    def test_a_recording_is_this_runs_returned_calls_in_order(self):
-        started = datetime(2026, 10, 1, 12, tzinfo=UTC)
-        earlier_turn = ModelResponse(
-            parts=[ToolCallPart(tool_name="crm_find", args={"name": "Old"}, tool_call_id="o")],
-            timestamp=started - timedelta(hours=1),
-        )
-        this_run = ModelResponse(
-            parts=[
-                ToolCallPart(tool_name="look_up_note", args={"b": 2, "a": 1}, tool_call_id="1"),
-                ToolCallPart(tool_name="crm_find", args='{"name": "Ada"}', tool_call_id="2"),
-                ToolCallPart(tool_name="crm_create", args={"name": "Ada"}, tool_call_id="3"),
-            ],
-            timestamp=started + timedelta(seconds=5),
-        )
-        returns = ModelRequest(
-            parts=[
-                ToolReturnPart(tool_name="crm_find", content="old", tool_call_id="o"),
-                ToolReturnPart(tool_name="look_up_note", content={"note": "x"}, tool_call_id="1"),
-                ToolReturnPart(tool_name="crm_find", content="Ada", tool_call_id="2"),
-                RetryPromptPart(tool_name="crm_create", content="bad", tool_call_id="3"),
-            ]
-        )
-        messages = _dumped(
-            [ModelRequest(parts=[UserPromptPart("go")]), earlier_turn, this_run, returns]
-        )
-
+    def test_rows_become_recorded_calls_under_the_original_versions_ids(self):
+        """`look_up_note` was the original version's rename of `read_memory`."""
         calls = recorded_calls(
-            messages,
-            since=started,
+            [
+                CallRow("look_up_note", {"b": 2, "a": 1}, '{"note": "x"}'),
+                CallRow("crm_find", {"name": "Ada"}, "Ada"),
+            ],
             tools={"look_up_note": ToolClass("capability:memory_files.read_memory", True)},
         )
 
         assert calls == [
-            RecordedCall("capability:memory_files.read_memory", '{"a":1,"b":2}', {"note": "x"}),
+            RecordedCall("capability:memory_files.read_memory", '{"a":1,"b":2}', '{"note": "x"}'),
             RecordedCall("tool:crm_find", '{"name":"Ada"}', "Ada"),
         ]
-
-    def test_without_a_start_every_returned_call_counts(self):
-        messages = _dumped(
-            [
-                ModelResponse(parts=[ToolCallPart(tool_name="t", args={}, tool_call_id="1")]),
-                ModelRequest(parts=[ToolReturnPart(tool_name="t", content=1, tool_call_id="1")]),
-            ]
-        )
-
-        assert recorded_calls(messages, since=None, tools={}) == [RecordedCall("tool:t", "{}", 1)]
 
     def test_identical_calls_are_answered_in_order_and_then_not_at_all(self):
         recording = ToolRecording(
@@ -347,6 +331,73 @@ class TestRecordings:
 
         assert recording.answer("tool:get", {"b": 2, "a": 999}) is None
         assert recording.answer("tool:get", {"b": 2, "a": 1}) is not None
+
+
+class TestACallTheAgentGates:
+    """An isolated run cannot ask anyone, and the refusal would leave no trace."""
+
+    async def test_a_gated_read_is_held_and_recorded_as_needing_approval(self):
+        world = _World()
+        isolation = RunIsolation()
+        agent = Agent(
+            _calls_then_answers(("crm_find", {"name": "Ada"})),
+            deps_type=AgentDeps,
+            capabilities=[
+                IsolationGuard(isolation=isolation, approval=ApprovalGate(gate_every_tool=True))
+            ],
+            toolsets=[world.toolset("crm_find", test=False, read_only=True)],
+        )
+
+        result = await agent.run("go", deps=AgentDeps())
+
+        assert world.effects == []
+        assert [(c.outcome, c.reason) for c in isolation.intercepted] == [
+            (InterceptionOutcome.BLOCKED, InterceptionReason.NEEDS_APPROVAL)
+        ]
+        assert "approve" in result.output
+
+    async def test_a_write_is_recorded_as_a_write_whether_or_not_it_is_gated(self):
+        isolation = RunIsolation()
+        guard = IsolationGuard(isolation=isolation, approval=ApprovalGate(gate_every_tool=True))
+
+        await guard.wrap_tool_execute(
+            AsyncMock(),
+            call=ToolCallPart(tool_name="send", args={}, tool_call_id="c"),
+            tool_def=ToolDefinition(name="send"),
+            args={},
+            handler=AsyncMock(),
+        )
+
+        assert isolation.intercepted[0].reason is InterceptionReason.WRITES
+
+    async def test_an_ungated_read_runs(self):
+        handler = AsyncMock(return_value="found")
+        guard = IsolationGuard(isolation=RunIsolation(), approval=ApprovalGate())
+
+        result = await guard.wrap_tool_execute(
+            AsyncMock(),
+            call=ToolCallPart(tool_name="load_capability", args={}, tool_call_id="c"),
+            tool_def=ToolDefinition(name="load_capability"),
+            args={},
+            handler=handler,
+        )
+
+        assert result == "found"
+
+    async def test_a_replayed_call_answers_even_where_the_agent_gates_it(self):
+        """Nothing is executed, so there is nothing to approve."""
+        isolation = RunIsolation(recording=ToolRecording([RecordedCall("tool:send", "{}", "sent")]))
+        guard = IsolationGuard(isolation=isolation, approval=ApprovalGate(gate_every_tool=True))
+
+        result = await guard.wrap_tool_execute(
+            AsyncMock(),
+            call=ToolCallPart(tool_name="send", args={}, tool_call_id="c"),
+            tool_def=ToolDefinition(name="send"),
+            args={},
+            handler=AsyncMock(),
+        )
+
+        assert result == "sent"
 
 
 def _model_spec() -> ModelRequestSpec:
@@ -403,3 +454,24 @@ class TestTheFactory:
             await built.agent.run("go", deps=built.deps)
 
         assert world.effects == [("crm_create", "Ada")]
+
+    async def test_the_guard_asks_the_agents_own_gate(self):
+        """The spec's gate, not a copy: a read the agent gates is held as one."""
+        world = _World()
+        isolation = RunIsolation()
+        built = build_agent(
+            AgentSpec(name="Support", instructions="Help."),
+            _model_spec(),
+            organization_id=uuid.uuid4(),
+            extra_toolsets=[world.toolset("crm_find", test=False, read_only=True)],
+            gate_every_tool=True,
+            isolation=isolation,
+        )
+
+        with built.agent.override(model=_calls_then_answers(("crm_find", {"name": "Ada"}))):
+            await built.agent.run("go", deps=built.deps)
+
+        assert world.effects == []
+        assert [call.reason for call in isolation.intercepted] == [
+            InterceptionReason.NEEDS_APPROVAL
+        ]

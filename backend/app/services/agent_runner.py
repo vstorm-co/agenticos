@@ -120,6 +120,7 @@ from app.agents.deps import AgentDeps, CompactionSink
 from app.agents.factory import BuiltAgent, build_agent
 from app.agents.failures import run_failure_summary
 from app.agents.isolation import (
+    CallRow,
     RunIsolation,
     ToolClass,
     ToolRecording,
@@ -170,7 +171,7 @@ from app.db.models.agent_environment import ConnectionKind
 from app.db.models.agent_exposure import AgentExposure
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunOrder, RunStatus, RunSurface
 from app.db.models.chat_file import ChatFile
-from app.db.models.conversation import Message
+from app.db.models.conversation import Message, ToolCall
 from app.db.models.intercepted_tool_call import InterceptedToolCall
 from app.db.models.run_manifest import RunManifest
 from app.db.session import get_worker_db_context
@@ -329,6 +330,32 @@ def _with_test_secrets(spec: AgentSpec, overrides: Mapping[UUID, UUID | None]) -
             )
         capabilities.append(binding.model_copy(update={"secret_id": test_id}))
     return spec.model_copy(update={"capabilities": capabilities})
+
+
+def _call_order(
+    rows: Sequence[tuple[ToolCall, Message]],
+) -> Callable[[tuple[ToolCall, Message]], tuple[datetime, int, int, str]]:
+    """How a run's calls sort into the order they were made.
+
+    By start time first. A turn writes every call it made with one `started_at`,
+    so a tie is broken by the turn - in the order the rows came - and inside it
+    by the call's position in the turn's `parts`, which record the order it
+    happened in. A turn without `parts` falls back to the provider's call id,
+    which is stable if not meaningful.
+    """
+    turns = {message.id: index for index, (_, message) in enumerate(rows)}
+
+    def key(row: tuple[ToolCall, Message]) -> tuple[datetime, int, int, str]:
+        call, message = row
+        positions = [
+            part.get("tool_call_id") for part in message.parts or [] if part.get("type") == "tool"
+        ]
+        position = (
+            positions.index(call.tool_call_id) if call.tool_call_id in positions else len(positions)
+        )
+        return call.started_at, turns[message.id], position, call.tool_call_id
+
+    return key
 
 
 def _delegate_workspace(spec: AgentSpec, shared: list[CapabilityBindingSpec]) -> DelegateWorkspace:
@@ -3417,6 +3444,7 @@ class AgentRunnerService:
                     tool_id=call.tool_id,
                     args=call.args,
                     outcome=call.outcome.value,
+                    reason=None if call.reason is None else call.reason.value,
                 )
                 for call in held
             ],
@@ -3425,20 +3453,34 @@ class AgentRunnerService:
     async def tool_recording(self, ctx: AuthContext, run_id: UUID) -> ToolRecording:
         """The calls a past run made, ready to answer an isolated run's calls.
 
-        Read from the run's manifest, which holds what its model was handed in
-        order, and resolved to stable ids through the version that answered - so
-        a candidate that renamed a tool still matches its own recorded calls.
+        Read from the run's `tool_calls` rows - the arguments and the result of
+        every call its transcript kept - in the order they were made, and
+        resolved to stable ids through the version that answered, so a candidate
+        that renamed a tool still matches its own recorded calls. A call that
+        never returned is left out: there is nothing to answer it with.
+
+        The manifest is the check that the rows are whole. Its request waterfall
+        names every call the model asked for, and survives every trim; a call it
+        names that has no row means the transcript lost part of the run.
 
         Raises:
             NotFoundError: If the run is not this caller's to read.
-            BadRequestError: If the run kept no complete record of its messages -
-                it never reached a model, or its manifest was trimmed to fit. A
-                partial recording would answer some calls and call the rest
+            BadRequestError: If the run cannot be replayed whole - it kept no
+                manifest, or its transcript is missing a call the manifest names.
+                A partial recording would answer some calls and call the rest
                 divergent, which reads as the agent's doing.
         """
         run = await self.get_run(ctx, run_id)
         manifest = await run_manifest_repo.get_by_run(self.db, run.id, ctx.organization_id)
-        if manifest is None or manifest.truncated or not manifest.payload.get("messages"):
+        rows = await conversation_repo.list_tool_calls_for_run(
+            self.db, run_id=run.id, organization_id=ctx.organization_id
+        )
+        requested = Counter(
+            name
+            for request in (manifest.payload if manifest else {}).get("requests", [])
+            for name in request.get("tool_calls", [])
+        )
+        if manifest is None or requested - Counter(call.tool_name for call, _ in rows):
             raise BadRequestError(
                 message="That run kept no complete record of its tool calls to answer from",
                 details={"run_id": run.id},
@@ -3451,7 +3493,14 @@ class AgentRunnerService:
             if version is not None:
                 tools = capability_tools(AgentSpec.model_validate(version.spec))
         return ToolRecording(
-            recorded_calls(manifest.payload["messages"], since=run.started_at, tools=tools)
+            recorded_calls(
+                [
+                    CallRow(tool_name=call.tool_name, args=call.args, result=call.result)
+                    for call, _ in sorted(rows, key=_call_order(rows))
+                    if call.result is not None
+                ],
+                tools=tools,
+            )
         )
 
     async def _write_approvals(self, prepared: PreparedRun) -> None:

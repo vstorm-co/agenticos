@@ -43,7 +43,11 @@ from app.db.models.agent_exposure import AgentExposure, ExposureSurface
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, RunSurface, ToolApproval
 from app.db.models.agent_trigger import AgentTrigger, ScheduleKind
 from app.db.models.run_manifest import RunManifest
-from app.db.models.intercepted_tool_call import InterceptedToolCall, InterceptionOutcome
+from app.db.models.intercepted_tool_call import (
+    InterceptedToolCall,
+    InterceptionOutcome,
+    InterceptionReason,
+)
 from app.db.models.ingestion_spend import IngestionSpend
 from app.db.models.ml_service_call import MLCallStatus, MLServiceCall
 from app.db.models.purged_run_spend import PurgedRunSpend
@@ -117,6 +121,7 @@ __all__ = [
     "RunManifest",
     "InterceptedToolCall",
     "InterceptionOutcome",
+    "InterceptionReason",
     "IngestionSpend",
     "MLServiceCall",
     "MLCallStatus",

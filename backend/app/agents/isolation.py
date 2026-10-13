@@ -17,16 +17,18 @@ What it decides, per call:
   nothing writes.
 
 A run can also be answered from a **recording** of the run a case was taken
-from. A call is then matched by its stable tool id, its normalized arguments and
-its occurrence among calls with that same id and arguments, and answered with
-what the original call returned. A call with no match is not executed and is
+from - its `tool_calls` rows, in the order they were made. A call is then
+matched by its stable tool id, its normalized arguments and its occurrence among
+calls with that same id and arguments, and answered with what the original call
+returned. A call with no match is not executed and is
 recorded as divergent: serving it some other call's result would fabricate the
 very difference a comparison exists to measure. A read-only tool may run live
 instead where the run allows it; a writing one never does.
 
-An isolated run has no approval channel, so a gated call is refused rather than
-parked: a parked run is resumed by rebuilding it, and nothing here is part of
-what a resume rebuilds.
+An isolated run has no approval channel, so a gated call is never parked: a
+parked run is resumed by rebuilding it, and nothing here is part of what a
+resume rebuilds. A call the agent gates is held and recorded as one that needed
+an approval, even when the tool only reads - so it is in the trajectory too.
 """
 
 from __future__ import annotations
@@ -36,27 +38,22 @@ import logging
 from collections import deque
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import datetime
 from typing import Any
 from uuid import UUID
 
 from pydantic_ai import RunContext
 from pydantic_ai.capabilities import AbstractCapability, WrapToolExecuteHandler
-from pydantic_ai.messages import (
-    ModelMessagesTypeAdapter,
-    ModelRequest,
-    ModelResponse,
-    ToolCallPart,
-    ToolReturnPart,
-)
+from pydantic_ai.messages import ToolCallPart
 from pydantic_ai.tools import ToolDefinition
 
+from app.agents.approval import refusal
 from app.agents.capabilities import LOAD_CAPABILITY
 from app.agents.capabilities import get as get_capability
+from app.agents.capabilities.approval import ApprovalGate
 from app.agents.deps import AgentDeps
 from app.agents.mcp import MCP_ORIGIN
 from app.agents.spec import AgentSpec
-from app.db.models.intercepted_tool_call import InterceptionOutcome
+from app.db.models.intercepted_tool_call import InterceptionOutcome, InterceptionReason
 
 logger = logging.getLogger(__name__)
 
@@ -167,46 +164,34 @@ class ToolRecording:
         return queue.popleft() if queue else None
 
 
-def recorded_calls(
-    messages: list[dict[str, Any]],
-    *,
-    since: datetime | None,
-    tools: Mapping[str, ToolClass],
-) -> list[RecordedCall]:
-    """The calls a run made, from the messages its manifest recorded.
+@dataclass(frozen=True)
+class CallRow:
+    """One call a run's transcript kept: what was called, with what, and the answer."""
 
-    The manifest holds the whole history the last request carried, earlier turns
-    included, so only responses from `since` onwards are this run's. A call that
-    never returned - parked, or failed and retried - has nothing to answer with
-    and is left out. Names resolve to stable ids through `tools`, which is the
-    *original* version's table: a candidate that renamed a tool still matches.
+    tool_name: str
+    args: Mapping[str, Any]
+    result: str
+
+
+def recorded_calls(
+    rows: Sequence[CallRow], *, tools: Mapping[str, ToolClass]
+) -> list[RecordedCall]:
+    """A run's calls, in the order given, under their stable ids.
+
+    Names resolve through `tools`, which is the *original* version's table: a
+    candidate that renamed a tool still matches the calls it made under the old
+    name.
     """
-    parsed = ModelMessagesTypeAdapter.validate_python(messages)
-    returned = {
-        part.tool_call_id: part.content
-        for message in parsed
-        if isinstance(message, ModelRequest)
-        for part in message.parts
-        if isinstance(part, ToolReturnPart)
-    }
-    calls: list[RecordedCall] = []
-    for message in parsed:
-        if not isinstance(message, ModelResponse) or (
-            since is not None and message.timestamp < since
-        ):
-            continue
-        for part in message.parts:
-            if not isinstance(part, ToolCallPart) or part.tool_call_id not in returned:
-                continue
-            known = tools.get(part.tool_name)
-            calls.append(
-                RecordedCall(
-                    tool_id=known.tool_id if known is not None else f"tool:{part.tool_name}",
-                    args=normalized_args(part.args_as_dict()),
-                    result=returned[part.tool_call_id],
-                )
-            )
-    return calls
+    return [
+        RecordedCall(
+            tool_id=known.tool_id
+            if (known := tools.get(row.tool_name))
+            else f"tool:{row.tool_name}",
+            args=normalized_args(row.args),
+            result=row.result,
+        )
+        for row in rows
+    ]
 
 
 @dataclass(frozen=True)
@@ -218,6 +203,7 @@ class InterceptedCall:
     tool_id: str
     args: dict[str, Any]
     outcome: InterceptionOutcome
+    reason: InterceptionReason | None = None
 
 
 @dataclass
@@ -259,12 +245,15 @@ class IsolationGuard(AbstractCapability[AgentDeps]):
     """Executes only what an isolated run may, and records the rest.
 
     Attached before the approval gate, so a blocked call is recorded as intended
-    rather than refused for want of somebody to approve it.
+    rather than refused for want of somebody to approve it. `approval` is that
+    gate, asked which calls it would hold: a call it gates never reaches it here,
+    because the refusal it would give leaves no record.
     """
 
     isolation: RunIsolation
     tools: Mapping[str, ToolClass] = field(default_factory=dict)
     agent_id: UUID | None = None
+    approval: ApprovalGate | None = None
 
     async def wrap_tool_execute(
         self,
@@ -279,21 +268,39 @@ class IsolationGuard(AbstractCapability[AgentDeps]):
         tool = classify(tool_def, self.tools)
         recording = self.isolation.recording
         if recording is not None:
-            recorded = recording.answer(tool.tool_id, args)
+            # What the model sent, not the validated arguments: the recording
+            # holds the original model's own, and validation fills in defaults
+            # it never wrote, which would make every such call divergent.
+            recorded = recording.answer(tool.tool_id, call.args_as_dict())
             if recorded is not None:
                 self._intercept(tool_def.name, tool, args, InterceptionOutcome.REPLAYED)
                 return recorded.result
-            if tool.read_only and self.isolation.live_reads:
-                return await handler(args)
-            self._intercept(tool_def.name, tool, args, InterceptionOutcome.DIVERGENT)
-            return _divergent_notice(tool_def.name)
-        if tool.read_only or tool.test:
-            return await handler(args)
-        self._intercept(tool_def.name, tool, args, InterceptionOutcome.BLOCKED)
-        return _blocked_notice(tool_def.name)
+            if not (tool.read_only and self.isolation.live_reads):
+                self._intercept(tool_def.name, tool, args, InterceptionOutcome.DIVERGENT)
+                return _divergent_notice(tool_def.name)
+        elif not (tool.read_only or tool.test):
+            self._intercept(
+                tool_def.name, tool, args, InterceptionOutcome.BLOCKED, InterceptionReason.WRITES
+            )
+            return _blocked_notice(tool_def.name)
+        if self.approval is not None and self.approval.gates(tool_def):
+            self._intercept(
+                tool_def.name,
+                tool,
+                args,
+                InterceptionOutcome.BLOCKED,
+                InterceptionReason.NEEDS_APPROVAL,
+            )
+            return refusal(tool_def.name, "an evaluation run cannot ask anyone to approve it")
+        return await handler(args)
 
     def _intercept(
-        self, name: str, tool: ToolClass, args: dict[str, Any], outcome: InterceptionOutcome
+        self,
+        name: str,
+        tool: ToolClass,
+        args: dict[str, Any],
+        outcome: InterceptionOutcome,
+        reason: InterceptionReason | None = None,
     ) -> None:
         logger.info("isolated_tool_call", extra={"tool_id": tool.tool_id, "outcome": outcome.value})
         self.isolation.intercepted.append(
@@ -303,5 +310,6 @@ class IsolationGuard(AbstractCapability[AgentDeps]):
                 tool_id=tool.tool_id,
                 args=dict(args),
                 outcome=outcome,
+                reason=reason,
             )
         )

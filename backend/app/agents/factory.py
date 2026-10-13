@@ -343,6 +343,15 @@ def build_agent(
     # accident. The gate is attached even when nothing is gated, so that adding
     # a side-effecting capability to a spec is the only thing that has to be
     # right for approval to apply.
+    gate = ApprovalGate(
+        required_tool_names=approval_required,
+        gate_every_tool=gate_every_tool,
+        asking_tool_names=(
+            frozenset({CONNECT_ACCOUNT})
+            if any(isinstance(extra, ConnectOnUse) for extra in extra_capabilities)
+            else frozenset()
+        ),
+    )
     capabilities: list[Any] = [
         # Long conversations drift away from their instructions; re-stating the
         # system prompt is cheap insurance for an agent whose behaviour *is* its
@@ -357,18 +366,11 @@ def build_agent(
                     isolation=isolation,
                     tools=capability_tools(spec, test_secret_ids=test_secret_ids),
                     agent_id=agent_id,
+                    approval=gate,
                 ),
             )
         ),
-        ApprovalGate(
-            required_tool_names=approval_required,
-            gate_every_tool=gate_every_tool,
-            asking_tool_names=(
-                frozenset({CONNECT_ACCOUNT})
-                if any(isinstance(extra, ConnectOnUse) for extra in extra_capabilities)
-                else frozenset()
-            ),
-        ),
+        gate,
         *configured,
         *extra_capabilities,
         # Every agent, not only one that compacts. The warning is most useful to

@@ -1,5 +1,5 @@
 ---
-source_sha: "57629deb6049"
+source_sha: "8bd34216f6f5"
 ---
 
 # Środowiska { #environments }
@@ -142,11 +142,13 @@ wywołanie nie zostało wysłane, a zamierzone wywołanie zostaje zachowane z ru
 do oceny.
 
 Run w izolacji może też dostawać odpowiedzi z nagrania runu, z którego wzięto
-przypadek. Wywołanie jest dopasowywane po narzędziu, argumentach i kolejności
-wśród identycznych wywołań i dostaje oryginalny wynik; wywołanie, którego
-nagranie nie zawiera, nie jest wykonywane i zostaje zapisane jako rozbieżne. Run
-w izolacji nie ma kogo zapytać o zatwierdzenie, więc wywołanie objęte bramką
-jest odrzucane, a nie wstrzymywane.
+przypadek — z wywołań, które zachował jego transkrypt. Wywołanie jest
+dopasowywane po narzędziu, argumentach i kolejności wśród identycznych wywołań i
+dostaje oryginalny wynik; wywołanie, którego nagranie nie zawiera, nie jest
+wykonywane i zostaje zapisane jako rozbieżne. Run, którego transkrypt zgubił
+wywołanie, nie jest odtwarzany wcale. Run w izolacji nie ma kogo zapytać o
+zatwierdzenie, więc wywołanie objęte bramką też nie jest wykonywane i zostaje
+zapisane jako wymagające zatwierdzenia.
 
 ## Ślady per środowisko { #tracing-per-environment }
 

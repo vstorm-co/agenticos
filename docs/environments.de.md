@@ -1,5 +1,5 @@
 ---
-source_sha: "57629deb6049"
+source_sha: "8bd34216f6f5"
 ---
 
 # Umgebungen { #environments }
@@ -148,12 +148,14 @@ nicht gesendet wurde, und der beabsichtigte Aufruf wird für die Bewertung mit
 dem Run aufbewahrt.
 
 Ein isolierter Run kann auch aus der Aufzeichnung des Runs beantwortet werden,
-aus dem ein Fall stammt. Ein Aufruf wird über sein Tool, seine Argumente und
-seine Reihenfolge unter identischen Aufrufen zugeordnet und bekommt das
-ursprüngliche Ergebnis; ein Aufruf, den die Aufzeichnung nicht enthält, wird
-nicht ausgeführt und als abweichend aufgezeichnet. Ein isolierter Run hat
-niemanden, den er um eine Freigabe bitten kann, also wird ein gesperrter Aufruf
-abgelehnt statt geparkt.
+aus dem ein Fall stammt — aus den Aufrufen, die sein Transkript behalten hat. Ein
+Aufruf wird über sein Tool, seine Argumente und seine Reihenfolge unter
+identischen Aufrufen zugeordnet und bekommt das ursprüngliche Ergebnis; ein
+Aufruf, den die Aufzeichnung nicht enthält, wird nicht ausgeführt und als
+abweichend aufgezeichnet. Ein Run, dessen Transkript einen Aufruf verloren hat,
+wird gar nicht wiedergegeben. Ein isolierter Run hat niemanden, den er um eine
+Freigabe bitten kann, also wird ein gesperrter Aufruf ebenfalls nicht ausgeführt
+und als freigabepflichtig aufgezeichnet.
 
 ## Tracing pro Umgebung { #tracing-per-environment }
 

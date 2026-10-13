@@ -1,5 +1,5 @@
 ---
-source_sha: "57629deb6049"
+source_sha: "8bd34216f6f5"
 ---
 
 # Entornos { #environments }
@@ -140,11 +140,13 @@ herramienta de una capability lo declara en el registro, y el
 llamada no se envió, y la llamada prevista se guarda con el run para puntuarla.
 
 Un run aislado también puede responderse desde la grabación del run del que se
-tomó un caso. Una llamada se empareja por su herramienta, sus argumentos y su
-orden entre llamadas idénticas, y recibe el resultado original; una llamada que
-la grabación no contiene no se ejecuta y se registra como divergente. Un run
-aislado no tiene a quién pedir una aprobación, así que una llamada con
-aprobación se rechaza en lugar de quedar en espera.
+tomó un caso — las llamadas que guardó su transcripción. Una llamada se empareja
+por su herramienta, sus argumentos y su orden entre llamadas idénticas, y recibe
+el resultado original; una llamada que la grabación no contiene no se ejecuta y
+se registra como divergente. Un run cuya transcripción perdió una llamada no se
+reproduce en absoluto. Un run aislado no tiene a quién pedir una aprobación, así
+que una llamada con aprobación tampoco se ejecuta, y se registra como una que
+necesitaba aprobación.
 
 ## Trazas por entorno { #tracing-per-environment }
 

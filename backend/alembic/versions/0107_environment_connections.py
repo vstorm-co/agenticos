@@ -10,7 +10,8 @@ that environment, never that it falls back to production.
 
 `intercepted_tool_calls` holds the calls an isolated run (an eval) answered
 without executing: a writing tool with no test connection, or a call answered
-from - or missing from - the original run's recording. Trajectory scoring reads
+from - or missing from - the original run's recording, and a call an approval
+gate would have held, which an isolated run cannot ask about. Trajectory scoring reads
 the arguments the agent meant to send from here.
 
 Both tables are new, so nothing is backfilled.
@@ -98,6 +99,7 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column("outcome", sa.String(length=16), nullable=False),
+        sa.Column("reason", sa.String(length=16), nullable=True),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -108,6 +110,11 @@ def upgrade() -> None:
         sa.CheckConstraint(
             "outcome IN ('blocked', 'replayed', 'divergent')",
             name="ck_intercepted_tool_call_outcome",
+        ),
+        sa.CheckConstraint(
+            "(outcome = 'blocked' AND reason IS NOT NULL AND reason IN ('writes', 'needs_approval')) "
+            "OR (outcome <> 'blocked' AND reason IS NULL)",
+            name="ck_intercepted_tool_call_reason",
         ),
         sa.ForeignKeyConstraint(["agent_id"], ["agents.id"], ondelete="SET NULL"),
         sa.ForeignKeyConstraint(["organization_id"], ["organizations.id"], ondelete="CASCADE"),

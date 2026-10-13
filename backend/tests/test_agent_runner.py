@@ -10,7 +10,7 @@ import asyncio
 import logging
 import uuid
 from collections.abc import Awaitable, Callable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
@@ -22,7 +22,6 @@ from pydantic_ai import Agent
 from pydantic_ai.exceptions import ModelHTTPError, UserError
 from pydantic_ai.messages import (
     ModelMessage,
-    ModelMessagesTypeAdapter,
     ModelRequest,
     ModelResponse,
     TextPart,
@@ -53,7 +52,7 @@ from app.agents.capabilities.planning import PLANNING_STORE_RESOURCE
 from app.agents.capabilities.sandbox import WORKSPACE_RESOURCE
 from app.agents.capabilities.sandbox._capability import build_workspace
 from app.agents.connect_on_use import ConnectionRequest, ConnectOnUse
-from app.agents.isolation import InterceptedCall, RunIsolation
+from app.agents.isolation import InterceptedCall, RecordedCall, RunIsolation, ToolRecording
 from app.agents.spec import (
     AgentSpec,
     CapabilityBindingSpec,
@@ -66,7 +65,7 @@ from app.core.exceptions import BadRequestError, NotFoundError, RunExecutionErro
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_environment import AgentEnvironmentConnection
 from app.db.models.agent_run import ApprovalStatus, RunStatus, RunSurface
-from app.db.models.intercepted_tool_call import InterceptionOutcome
+from app.db.models.intercepted_tool_call import InterceptionOutcome, InterceptionReason
 from app.services.agent_runner import (
     AgentRunnerService,
     ApprovalChannel,
@@ -4621,6 +4620,7 @@ class TestAnIsolatedRun:
                     tool_id="tool:crm_create",
                     args={"name": "Ada"},
                     outcome=InterceptionOutcome.BLOCKED,
+                    reason=InterceptionReason.WRITES,
                 )
             ]
         )
@@ -4635,95 +4635,188 @@ class TestAnIsolatedRun:
 
         written.assert_awaited_once()
         (row,) = written.await_args.kwargs["calls"]
-        assert (row.tool_name, row.args, row.outcome) == ("crm_create", {"name": "Ada"}, "blocked")
+        assert (row.tool_name, row.args, row.outcome, row.reason) == (
+            "crm_create",
+            {"name": "Ada"},
+            "blocked",
+            "writes",
+        )
         assert written.await_args.kwargs["run_id"] == prepared.run.id
 
 
-class TestARecordingOfAPastRun:
-    @staticmethod
-    def _run(**fields: Any) -> MagicMock:
-        return MagicMock(
-            id=uuid.uuid4(),
-            agent_version_id=fields.get("agent_version_id", uuid.uuid4()),
-            started_at=datetime(2026, 10, 1, tzinfo=UTC),
-        )
-
-    @pytest.mark.anyio
-    @pytest.mark.parametrize(
-        "manifest",
-        [
-            None,
-            MagicMock(truncated=True, payload={"messages": [{}]}),
-            MagicMock(truncated=False, payload={}),
-        ],
+def _row(
+    name: str,
+    args: dict[str, Any],
+    result: str | None,
+    *,
+    call_id: str,
+    at: datetime,
+    turn: MagicMock,
+) -> tuple[MagicMock, MagicMock]:
+    return (
+        MagicMock(tool_name=name, args=args, result=result, tool_call_id=call_id, started_at=at),
+        turn,
     )
-    async def test_an_incomplete_record_is_refused(self, manifest):
-        """Half a recording would call the other half divergent, as if the agent had."""
-        service = AgentRunnerService(_db())
 
-        with (
-            patch(
-                "app.services.agent_runner.agent_run_repo.get_run",
-                new=AsyncMock(return_value=self._run()),
-            ),
-            patch(
-                "app.services.agent_runner.run_manifest_repo.get_by_run",
-                new=AsyncMock(return_value=manifest),
-            ),
-            pytest.raises(BadRequestError, match="no complete record"),
-        ):
-            await service.tool_recording(_ctx(), uuid.uuid4())
 
-    @pytest.mark.anyio
-    @pytest.mark.parametrize("version", ["kept", "gone", "none"])
-    async def test_calls_resolve_through_the_version_that_answered(self, version):
-        """The original version's names: `look_up_note` was its rename of
-        `read_memory`, so a candidate calling it plain still matches."""
-        service = AgentRunnerService(_db())
-        run = self._run(agent_version_id=None if version == "none" else uuid.uuid4())
-        spec = AgentSpec(
-            name="Notes",
-            capabilities=[
-                {"id": "memory_files", "tool_overrides": {"read_memory": {"name": "look_up_note"}}}
-            ],
-        )
-        messages = ModelMessagesTypeAdapter.dump_python(
-            [
-                ModelResponse(
-                    parts=[
-                        ToolCallPart(tool_name="look_up_note", args={"name": "a"}, tool_call_id="1")
-                    ],
-                    timestamp=datetime(2026, 10, 1, 0, 1, tzinfo=UTC),
-                ),
-                ModelRequest(
-                    parts=[ToolReturnPart(tool_name="look_up_note", content="A", tool_call_id="1")]
-                ),
-            ],
-            mode="json",
+class TestARecordingOfAPastRun:
+    """Answered from the run's `tool_calls` rows; the manifest only checks they are whole."""
+
+    START = datetime(2026, 10, 1, tzinfo=UTC)
+
+    @staticmethod
+    def _manifest(*calls: str, truncated: bool = False) -> SimpleNamespace:
+        # A trimmed manifest has lost its messages but never its request waterfall.
+        return SimpleNamespace(
+            truncated=truncated,
+            payload={"messages": [], "requests": [{"tool_calls": list(calls)}, {"tool_calls": []}]},
         )
 
+    async def _recording(
+        self,
+        rows: list[tuple[MagicMock, MagicMock]],
+        manifest: SimpleNamespace | None,
+        *,
+        spec: AgentSpec | None = None,
+    ) -> ToolRecording:
+        service = AgentRunnerService(_db())
+        run = MagicMock(id=uuid.uuid4(), agent_version_id=None if spec is None else uuid.uuid4())
         with (
             patch(
                 "app.services.agent_runner.agent_run_repo.get_run", new=AsyncMock(return_value=run)
             ),
             patch(
                 "app.services.agent_runner.run_manifest_repo.get_by_run",
-                new=AsyncMock(
-                    return_value=MagicMock(truncated=False, payload={"messages": messages})
-                ),
+                new=AsyncMock(return_value=manifest),
+            ),
+            patch(
+                "app.services.agent_runner.conversation_repo.list_tool_calls_for_run",
+                new=AsyncMock(return_value=rows),
             ),
             patch(
                 "app.services.agent_runner.agent_repo.get_version",
                 new=AsyncMock(
-                    return_value=SimpleNamespace(spec=spec.model_dump())
-                    if version == "kept"
-                    else None
+                    return_value=None if spec is None else SimpleNamespace(spec=spec.model_dump())
                 ),
+            ),
+        ):
+            return await service.tool_recording(_ctx(), uuid.uuid4())
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_a_run_with_no_manifest_cannot_be_replayed(self):
+        """Without it nothing says whether the rows are the whole run."""
+        turn = MagicMock(id=uuid.uuid4(), parts=None)
+        rows = [_row("crm_find", {}, "x", call_id="a", at=self.START, turn=turn)]
+
+        with pytest.raises(BadRequestError, match="no complete record"):
+            await self._recording(rows, None)
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_a_call_the_manifest_names_with_no_row_refuses_the_whole_recording(self):
+        """Never a partial replay: the missing call would read as the agent's divergence."""
+        turn = MagicMock(id=uuid.uuid4(), parts=None)
+        rows = [_row("crm_find", {}, "x", call_id="a", at=self.START, turn=turn)]
+
+        with pytest.raises(BadRequestError, match="no complete record"):
+            await self._recording(rows, self._manifest("crm_find", "crm_create"))
+
+    @pytest.mark.anyio
+    async def test_a_trimmed_manifest_still_vouches_for_complete_rows(self):
+        """`fit()` drops messages first and keeps the waterfall, and the rows are the source."""
+        turn = MagicMock(id=uuid.uuid4(), parts=None)
+        rows = [_row("crm_find", {"name": "Ada"}, "Ada", call_id="a", at=self.START, turn=turn)]
+
+        recording = await self._recording(rows, self._manifest("crm_find", truncated=True))
+
+        assert recording.answer("tool:crm_find", {"name": "Ada"}) == RecordedCall(
+            "tool:crm_find", '{"name":"Ada"}', "Ada"
+        )
+
+    @pytest.mark.anyio
+    async def test_calls_written_at_one_instant_keep_the_order_the_turn_recorded(self):
+        """A turn writes all its calls with one `started_at`; its `parts` say the order."""
+        turn = MagicMock(
+            id=uuid.uuid4(),
+            parts=[
+                {"type": "text"},
+                {"type": "tool", "tool_call_id": "zz"},
+                {"type": "tool", "tool_call_id": "aa"},
+            ],
+        )
+        rows = [
+            _row("now", {}, "second", call_id="aa", at=self.START, turn=turn),
+            _row("now", {}, "first", call_id="zz", at=self.START, turn=turn),
+        ]
+
+        recording = await self._recording(rows, self._manifest("now", "now"))
+
+        assert [recording.answer("tool:now", {}) for _ in range(2)] == [
+            RecordedCall("tool:now", "{}", "first"),
+            RecordedCall("tool:now", "{}", "second"),
+        ]
+
+    @pytest.mark.anyio
+    async def test_without_parts_a_tie_falls_back_to_the_call_id_and_time_still_leads(self):
+        older_turn = MagicMock(id=uuid.uuid4(), parts=None)
+        turn = MagicMock(id=uuid.uuid4(), parts=[{"type": "tool", "tool_call_id": "other"}])
+        rows = [
+            _row("now", {}, "0", call_id="m", at=self.START, turn=older_turn),
+            _row("now", {}, "2", call_id="b", at=self.START + timedelta(seconds=1), turn=turn),
+            _row("now", {}, "1", call_id="a", at=self.START + timedelta(seconds=1), turn=turn),
+        ]
+
+        recording = await self._recording(rows, self._manifest("now", "now", "now"))
+
+        assert [recording.answer("tool:now", {}) for _ in range(3)] == [
+            RecordedCall("tool:now", "{}", result) for result in ("0", "1", "2")
+        ]
+
+    @pytest.mark.anyio
+    async def test_a_renamed_tool_resolves_through_the_version_that_answered(self):
+        turn = MagicMock(id=uuid.uuid4(), parts=None)
+        spec = AgentSpec(
+            name="Notes",
+            capabilities=[
+                {"id": "memory_files", "tool_overrides": {"read_memory": {"name": "look_up_note"}}}
+            ],
+        )
+        rows = [
+            _row("look_up_note", {"name": "a"}, "A", call_id="a", at=self.START, turn=turn),
+            _row("look_up_note", {"name": "b"}, None, call_id="b", at=self.START, turn=turn),
+        ]
+
+        recording = await self._recording(
+            rows, self._manifest("look_up_note", "look_up_note"), spec=spec
+        )
+
+        assert recording.answer("capability:memory_files.read_memory", {"name": "a"}) is not None
+        # A call that never returned has nothing to answer with.
+        assert recording.answer("capability:memory_files.read_memory", {"name": "b"}) is None
+
+    @pytest.mark.anyio
+    async def test_a_version_that_is_gone_leaves_plain_names(self):
+        turn = MagicMock(id=uuid.uuid4(), parts=None)
+        rows = [_row("look_up_note", {}, "A", call_id="a", at=self.START, turn=turn)]
+        service = AgentRunnerService(_db())
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.get_run",
+                new=AsyncMock(return_value=MagicMock(agent_version_id=uuid.uuid4())),
+            ),
+            patch(
+                "app.services.agent_runner.run_manifest_repo.get_by_run",
+                new=AsyncMock(return_value=self._manifest("look_up_note")),
+            ),
+            patch(
+                "app.services.agent_runner.conversation_repo.list_tool_calls_for_run",
+                new=AsyncMock(return_value=rows),
+            ),
+            patch(
+                "app.services.agent_runner.agent_repo.get_version", new=AsyncMock(return_value=None)
             ),
         ):
             recording = await service.tool_recording(_ctx(), uuid.uuid4())
 
-        expected = (
-            "capability:memory_files.read_memory" if version == "kept" else "tool:look_up_note"
-        )
-        assert recording.answer(expected, {"name": "a"}) is not None
+        assert recording.answer("tool:look_up_note", {}) is not None

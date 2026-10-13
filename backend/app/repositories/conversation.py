@@ -1028,6 +1028,25 @@ async def get_open_tool_call_in_run(
     return result.scalar_one_or_none()
 
 
+async def list_tool_calls_for_run(
+    db: AsyncSession, *, run_id: UUID, organization_id: UUID
+) -> list[tuple[ToolCall, Message]]:
+    """Every call one run's transcript holds, with the turn that made it.
+
+    Ordered by when each call started and then by turn. Calls a turn wrote at
+    once share a `started_at`, so the caller breaks those ties by the turn's own
+    `parts`; the turn comes back with each row for that reason.
+    """
+    result = await db.execute(
+        select(ToolCall, Message)
+        .join(Message, Message.id == ToolCall.message_id)
+        .join(Conversation, Conversation.id == Message.conversation_id)
+        .where(Message.run_id == run_id, Conversation.organization_id == organization_id)
+        .order_by(ToolCall.started_at, Message.created_at, Message.id)
+    )
+    return [(row[0], row[1]) for row in result.all()]
+
+
 async def create_tool_call(
     db: AsyncSession,
     *,
