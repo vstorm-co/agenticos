@@ -5,7 +5,7 @@ import type { KeyboardEvent, RefObject } from "react";
 import { Code2, Eye } from "lucide-react";
 
 import { MarkdownContent } from "@/components/chat/markdown-content";
-import { Textarea } from "@/components/ui/textarea";
+import { CodeArea } from "@/components/ui/code-area";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 
@@ -103,21 +103,29 @@ export function MarkdownEditor({
         </div>
       )}
       {mode === "source" ? (
-        <Textarea
-          ref={textareaRef}
-          id={id}
-          maxLength={maxLength}
-          aria-label={label}
-          aria-invalid={invalid}
-          aria-describedby={describedBy}
-          value={value}
-          onChange={(event) => onChange(event.target.value, event.target.selectionStart)}
-          onKeyDown={onKeyDown}
-          rows={rows}
-          disabled={disabled}
-          placeholder={placeholder}
-          className="resize-y font-mono text-sm"
-        />
+        // The source shows its own structure - headings bold, markers dimmed,
+        // `{{variables}}` as tokens - and stays plain Markdown underneath. Sized
+        // by rows like the textarea it replaced, and still draggable taller.
+        <div
+          className="border-input bg-background resize-y overflow-hidden rounded-xl border"
+          style={{ height: `calc(${rows} * 1.5rem + 1.5rem + 2px)` }}
+        >
+          <CodeArea
+            name="field.md"
+            textareaRef={textareaRef}
+            id={id}
+            maxLength={maxLength}
+            aria-label={label}
+            invalid={invalid}
+            describedBy={describedBy}
+            value={value}
+            onChange={onChange}
+            onKeyDown={onKeyDown}
+            disabled={disabled}
+            placeholder={placeholder}
+            className="rounded-xl"
+          />
+        </div>
       ) : (
         // As tall as the source it stands in for, and scrolled inside: a
         // preview that grew to the whole document pushed the rest of the page
@@ -126,7 +134,7 @@ export function MarkdownEditor({
           role="region"
           aria-label={t("labelPreview", { label })}
           className="border-input resize-y overflow-auto rounded-xl border p-3"
-          style={{ height: `calc(${rows} * 1.25rem + 1rem + 2px)` }}
+          style={{ height: `calc(${rows} * 1.5rem + 1.5rem + 2px)` }}
         >
           {value.trim() === "" ? (
             <p className="text-muted-foreground text-sm">{t("nothingWrittenYet")}</p>

@@ -532,6 +532,12 @@ Two things are versioned separately from this file and worth knowing about:
   reads like the site in a browser rather than a shrunk laptop screen
   (`resize` on the live view's socket, applied between steps).
 
+- **Markdown fields show their structure while you write.** An agent's
+  instructions, a skill's files and every other Markdown field are set in
+  the text face with headings and bold drawn bold, the markers dimmed,
+  `code` and `{{variables}}` as tokens, and links, quotes, lists, tables
+  and fenced blocks each marked - still the same plain Markdown saved.
+
 - **The chat list opens on Today and Yesterday,** with older bands folded,
   and the third audience is called "Some people" instead of "Chosen groups
   or people".
