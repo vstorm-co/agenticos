@@ -386,6 +386,11 @@ class AgentEnvironmentService:
         and refusals read alike, as they do at publish, so the vault cannot be
         enumerated one guessed id at a time.
 
+        A null test side is an override too: the binding is off here, which an
+        operator can ask for directly and is what a deleted test side becomes.
+        The production side of a switched-off MCP binding is still checked, so
+        an override cannot name what the organization does not hold.
+
         Raises:
             BadRequestError: On a duplicate override, an override onto itself, or
                 a side the organization does not have or the caller cannot lend.
@@ -409,13 +414,13 @@ class AgentEnvironmentService:
             self.db,
             connection_ids=[
                 *(entry.production_id for entry in mcp),
-                *(entry.test_id for entry in mcp),
+                *(entry.test_id for entry in mcp if entry.test_id is not None),
             ],
             organization_id=ctx.organization_id,
         )
         for entry in mcp:
             for connection_id in (entry.production_id, entry.test_id):
-                if connection_id not in found:
+                if connection_id is not None and connection_id not in found:
                     raise BadRequestError(
                         message=(
                             f"MCP server {connection_id} is not shared with this organization. "
@@ -425,8 +430,8 @@ class AgentEnvironmentService:
                     )
 
         for entry in entries:
-            if entry.kind == ConnectionKind.SECRET:
-                await self._check_secret_pair(ctx, entry)
+            if entry.kind == ConnectionKind.SECRET and entry.test_id is not None:
+                await self._check_secret_pair(ctx, entry, entry.test_id)
 
         return [
             AgentEnvironmentConnection(
@@ -438,13 +443,15 @@ class AgentEnvironmentService:
             for entry in entries
         ]
 
-    async def _check_secret_pair(self, ctx: AuthContext, entry: EnvironmentConnectionWrite) -> None:
+    async def _check_secret_pair(
+        self, ctx: AuthContext, entry: EnvironmentConnectionWrite, test_id: UUID
+    ) -> None:
         """Refuse a test secret that could not stand in for the production one."""
         production = await organization_secret_repo.get(
             self.db, entry.production_id, organization_id=ctx.organization_id
         )
         test = await organization_secret_repo.get(
-            self.db, entry.test_id, organization_id=ctx.organization_id
+            self.db, test_id, organization_id=ctx.organization_id
         )
         if (
             production is None

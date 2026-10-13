@@ -750,6 +750,44 @@ class TestConnectionOverrides:
                     ),
                 )
 
+    async def test_a_binding_can_be_switched_off_without_a_test_side(self):
+        """Re-saving the list must keep an override whose test side was deleted:
+        dropping it would quietly put staging back on production."""
+        agent = _agent()
+        environment = _environment(agent_id=agent.id)
+        production = _named(id=uuid.uuid4())
+        live_key = uuid.uuid4()
+        service = _service(agent)
+
+        with (
+            patch(_REPO) as environments,
+            patch(_MCP, new=AsyncMock(return_value={production.id: production})) as lookup,
+            patch(_SECRETS, new=AsyncMock()) as secrets,
+            patch(_AUDIT, new=AsyncMock()),
+        ):
+            environments.get = AsyncMock(return_value=environment)
+            environments.replace_connections = AsyncMock()
+            await service.update(
+                _ctx(),
+                agent.id,
+                environment.id,
+                EnvironmentUpdate(
+                    connections=[
+                        EnvironmentConnectionWrite(
+                            kind="mcp", production_id=production.id, test_id=None
+                        ),
+                        EnvironmentConnectionWrite(
+                            kind="secret", production_id=live_key, test_id=None
+                        ),
+                    ]
+                ),
+            )
+
+        assert lookup.await_args.kwargs["connection_ids"] == [production.id]
+        secrets.assert_not_awaited()
+        rows = environments.replace_connections.call_args.kwargs["connections"]
+        assert [(row.kind, row.test_id) for row in rows] == [("mcp", None), ("secret", None)]
+
     async def test_an_empty_list_clears_the_overrides(self):
         agent = _agent()
         environment = _environment(agent_id=agent.id)

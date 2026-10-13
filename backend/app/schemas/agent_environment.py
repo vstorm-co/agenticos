@@ -18,13 +18,19 @@ class EnvironmentConnectionWrite(BaseSchema):
     """One binding this environment answers with a test system.
 
     `production_id` is the id the agent's spec names - an organization MCP
-    connection or a vault secret - and `test_id` is what runs in its place here.
-    Only ids travel: a secret's value stays in the vault either way.
+    connection or a vault secret - and `test_id` is what runs in its place here,
+    or null for nothing at all. Only ids travel: a secret's value stays in the
+    vault either way.
     """
 
     kind: Literal["mcp", "secret"]
     production_id: UUID = Field(description="The connection or secret the spec binds")
-    test_id: UUID = Field(description="The connection or secret this environment uses instead")
+    test_id: UUID | None = Field(
+        description=(
+            "The connection or secret this environment uses instead. Null switches the "
+            "binding off in this environment - it never falls back to the production one."
+        )
+    )
 
 
 class EnvironmentConnectionRead(BaseSchema):
