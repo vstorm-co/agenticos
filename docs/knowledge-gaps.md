@@ -1,0 +1,125 @@
+---
+title: "Knowledge gaps"
+description: "Knowledge gaps show the questions an agent searched its knowledge base for and found nothing relevant, grouped by topic, so you know which document to add."
+---
+
+# Knowledge gaps
+
+Many bad answers are not a problem with the agent's instructions. The
+knowledge base does not contain the answer, and no change to the prompt fixes
+that. **Knowledge gaps** show those questions: the ones an agent searched its
+[knowledge base](file-processing.md) for and found nothing relevant to,
+grouped by topic, with how often each was asked and by which agents.
+
+A gap tells you what is missing. It never adds anything to a collection by
+itself. A person writes or finds the missing document and adds it, and can
+first turn the topic's questions into [dataset](datasets.md) cases, so an
+eval can show whether the new document changed the answers.
+
+## How a question becomes a gap { #how-a-question-becomes-a-gap }
+
+Every time an agent searches its knowledge base during a run, the platform
+records the search: the query the agent sent, the collections it searched,
+how many passages came back, and how similar the closest passage was to the
+query. A search is a **miss** when it returned nothing, or when its closest
+passage is less similar to the query than `KNOWLEDGE_GAP_MIN_SIMILARITY`.
+
+| Setting | Default | What it decides |
+|---|---|---|
+| `KNOWLEDGE_GAP_MIN_SIMILARITY` | `0.30` | The cosine similarity below which the closest passage counts as "nothing relevant". What a good match scores depends on the embedding model, so check a few of your own searches before you change it |
+
+The similarity is the cosine similarity of the passage's vector to the query's
+vector. It is not the ranking score: with hybrid search or query expansion the
+ranking score is a fused rank and says nothing about how close a passage was.
+
+Every search is kept, not only the misses. When you change the threshold, it
+applies to the searches already made: the gaps you read are always the
+searches that fall below the current setting.
+
+Only searches an agent makes while it runs are recorded. A search through the
+HTTP API's `/rag/search`, or a preview in the collection page, is not.
+
+## Topics { #topics }
+
+Misses are grouped into **topics** by the meaning of the query. Every 15
+minutes a background pass takes each knowledge base's new misses, embeds them
+with that collection's own embedding model, and puts each in the closest topic
+of that knowledge base, or starts a new one. A pass embeds at most 500 misses
+per knowledge base; the rest wait for the next one. A knowledge base with no
+new misses costs no embedding call.
+
+- A search over two collections becomes a question in a topic of each.
+- A collection moved to another embedding model starts new topics, because
+  vectors from two models cannot be compared.
+- A topic keeps its identity as questions are added to it, so a decision you
+  made about it still applies.
+
+**Group now** on the collection's Knowledge gaps tab runs the pass for that
+knowledge base at once, instead of waiting for the schedule. Until a question
+has been placed in a topic, the tab counts it as not grouped yet.
+
+## Reading gaps { #reading-gaps }
+
+Gaps are shown in three places:
+
+- the **Knowledge gaps** tab of a collection: every topic of that knowledge
+  base;
+- the **Knowledge gaps** tab of an agent: only the questions that agent asked,
+  in the knowledge bases you can read;
+- the **Knowledge gaps** dashboard widget: the most asked topics across the
+  organization.
+
+A topic shows how many times it was asked, when it was last asked, which
+agents asked it, and up to three of its questions. Open it to see the most
+recent questions: what the person asked, what the agent searched for, how
+close the closest passage was, and the comment of anyone who rated the answer
+down.
+
+## Acting on a gap { #acting-on-a-gap }
+
+| Action | What it does |
+|---|---|
+| Add the missing document | Upload it to the collection, or to a source the collection syncs from. Nothing is added for you |
+| **Add to dataset** | Turns the topic's most recent questions (up to 200) into cases of a dataset you choose, as one new version. Each case is the person's question, with the agent's answer as the counter-example. A question asked over the HTTP API keeps no answer and is skipped |
+| **Dismiss** | Marks a topic as needing no content. A dismissed topic keeps the questions that belong to it, so it does not come back as a new topic. **Reopen** reverses it |
+
+After you add the document, run an eval over the dataset. The cases that
+failed because the knowledge was missing should now pass.
+
+## Access { #access }
+
+A topic is made of people's questions, so reading gaps needs `runs:view`, the
+permission that reads every run in the organization in Activity. A member
+without it does not see the tab or the widget, and the API refuses them.
+
+| To | You need |
+|---|---|
+| Read a collection's gaps | `runs:view` and `collections:view` on that collection |
+| Read an agent's gaps | `runs:view` and `agents:view` on the agent; topics of collections you cannot read are left out |
+| Dismiss, reopen or regroup | `runs:view` and `collections:edit` on the collection |
+| Add a topic to a dataset | `runs:view` and `datasets:edit` on the dataset |
+
+A collection, agent, topic or dataset you may not reach answers "not found",
+and so does one in another organization. See [Permissions](permissions.md).
+
+## Personal data { #personal-data }
+
+A recorded search is user content: the agent phrased it from what somebody
+asked. It is deleted with the run it was made in, and with the conversation
+it came from. Deleting a person deletes the searches made while answering
+them, including those in runs with no conversation. Their export includes
+them.
+
+A topic copies no text. Its name, its examples and its count are read from the
+searches it still holds, so when those searches are deleted the topic has
+nothing left, and the next grouping pass removes it. See
+[Data protection](data-protection.md#where-personal-data-lives).
+
+## What gaps do not detect yet { #limits }
+
+Gaps come from retrieval only. An answer in which the agent said it did not
+know, or an answer rated down with a comment about missing information, is
+not detected on its own. Detecting those needs a model and is tracked in
+[#2135](https://github.com/vstorm-co/agenticos/issues/2135). When a rated-down
+answer belongs to a run whose search was a miss, its comment is shown with the
+question.

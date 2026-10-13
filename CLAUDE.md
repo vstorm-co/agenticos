@@ -215,6 +215,7 @@ retranslated is how a stale translation stops being visible.
 | Skills — format, library, skills vs knowledge | `docs/skills.md` |
 | Context files — standing knowledge bound to agents | `docs/context.md` |
 | Datasets — versioned eval cases, import/export, Add to dataset | `docs/datasets.md` |
+| Knowledge gaps — questions the knowledge base could not answer, grouped into topics | `docs/knowledge-gaps.md` |
 | Named environments, promotion, per-environment tracing | `docs/environments.md` |
 | Surfaces: widget, WebSocket, Slack, Telegram | `docs/channels.md` |
 | Published pages: artifacts, versions, public links, isolation | `docs/artifacts.md` |
