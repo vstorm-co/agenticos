@@ -853,6 +853,11 @@ class TestWhatASurfaceIsShown:
             ("DONE", None, "a step"),
         ]
 
+    async def test_a_finished_browse_tells_the_panel_what_it_found(self):
+        frames = _Frames()
+        await _browse(_FakePage(), _decider(DONE), sink=frames)
+        assert frames.of("browser_finished")[0].detail == "Pro is 9 USD"
+
     async def test_every_outcome_sends_a_finish_frame(self):
         frames = _Frames()
         await _browse(_FakePage(), _decider(DONE), sink=frames)

@@ -505,7 +505,10 @@ Two things are versioned separately from this file and worth knowing about:
   open a URL, go back, finish or report being blocked - and the chat panel
   shows what each step did and why. The tab stays open for the turn, so a
   browse that reaches its step limit continues where it stopped on the next
-  call; the default limit is 50 steps per call. There is no TypeSafe decision
+  call; the default limit is 50 steps per call. In the chat a browse is drawn
+  as a browser window - address bar, live page, the current action and its
+  reason - with the whole trace in the side panel and the answer it found
+  when it finishes. There is no TypeSafe decision
   model and no second key any more, and `DECISION_MODEL_ALLOWED_HOSTS` is
   gone. A `browser` service sits in the compose files behind the `browser`
   profile, and a browser named in `cdp_url` is reached by its address, so

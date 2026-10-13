@@ -1445,7 +1445,10 @@
     "queuedCount": "{count, plural, =1 {1 Nachricht in der Warteschlange} other {# Nachrichten in der Warteschlange}}",
     "sentIntoTask": "in die Aufgabe gesendet",
     "moveUp": "Nach oben",
-    "moveDown": "Nach unten"
+    "moveDown": "Nach unten",
+    "browserAction": "{operation, select, CLICK {Geklickt} TYPE_TEXT {Eingegeben in} SELECT {Gewählt in} SCROLL {Seite gescrollt} NAVIGATE {Geöffnet} BACK {Zurück} WAIT {Auf die Seite gewartet} DONE {Fertig} BLOCKED {Angehalten} other {Auf der Seite gearbeitet}}",
+    "browserLive": "Live",
+    "browserStarting": "Seite wird geöffnet…"
   },
   "common": {
     "archiveNamedConfirm": "{name} archivieren?",

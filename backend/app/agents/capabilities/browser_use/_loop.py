@@ -57,6 +57,10 @@ and the cost of a third is one step. Beyond that it is a loop, not a retry.
 """
 
 
+_DETAIL_LIMIT = 600
+"""How much of a finished browse's answer the finish frame carries to the panel."""
+
+
 @dataclass(frozen=True, slots=True)
 class BrowseResult:
     """How a browse ended, and what it has to say about it."""
@@ -255,7 +259,9 @@ async def run_browse(
                 outcome="done",
                 taken=taken,
                 text=action.answer,
-                detail="The task was finished.",
+                # The answer itself, so the panel says what was found rather than
+                # that something was. Model-written; a surface renders it as data.
+                detail=action.answer[:_DETAIL_LIMIT],
                 snapshot=snapshot,
             )
         if isinstance(action, Blocked):

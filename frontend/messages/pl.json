@@ -1445,7 +1445,10 @@
     "queuedCount": "{count, plural, one {1 wiadomość w kolejce} few {# wiadomości w kolejce} many {# wiadomości w kolejce} other {# wiadomości w kolejce}}",
     "sentIntoTask": "wysłane do zadania",
     "moveUp": "Przesuń wyżej",
-    "moveDown": "Przesuń niżej"
+    "moveDown": "Przesuń niżej",
+    "browserAction": "{operation, select, CLICK {Kliknięto} TYPE_TEXT {Wpisano w} SELECT {Wybrano w} SCROLL {Przewinięto stronę} NAVIGATE {Otwarto} BACK {Cofnięto} WAIT {Czekano na stronę} DONE {Gotowe} BLOCKED {Zatrzymano} other {Praca na stronie}}",
+    "browserLive": "Na żywo",
+    "browserStarting": "Otwieranie strony…"
   },
   "common": {
     "archiveNamedConfirm": "Zarchiwizować {name}?",

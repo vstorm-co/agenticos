@@ -1,17 +1,38 @@
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
-import { Globe, X } from "lucide-react";
+import { X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { browseById, isRunning, type Browse } from "@/lib/browse";
+import { browseById, type Browse } from "@/lib/browse";
 import { cn } from "@/lib/utils";
 import {
   MAX_PANEL_WIDTH,
   MIN_PANEL_WIDTH,
   useBrowserPanelStore,
 } from "@/stores/browser-panel-store";
-import { Outcome, StepRow, Viewport } from "./browser-view";
+import {
+  AddressBar,
+  LiveBadge,
+  Outcome,
+  StepTimeline,
+  useProgress,
+  Viewport,
+} from "./browser-view";
+
+/** A browse with nothing in it, so the progress hook runs before the early return. */
+const EMPTY: Browse = {
+  callId: "",
+  goal: "",
+  maxSteps: null,
+  url: null,
+  title: null,
+  steps: [],
+  image: null,
+  imageStep: -1,
+  outcome: null,
+  detail: null,
+};
 
 /** How much one arrow key moves the edge, for resizing without a pointer. */
 const KEY_STEP = 40;
@@ -72,10 +93,10 @@ function ResizeHandle({ width, onResize }: { width: number; onResize: (next: num
  * small to read. Closing it returns to the card, which is why there is no
  * dismissed-browse bookkeeping here - nothing was taken away.
  *
- * **The steps are a list, not a transcript.** Each row is what was chosen and how
- * sure the engine was, which is the pair that says whether a browse is worth
- * looking into. The page's own words appear only as an element's label and as
- * the outcome's detail, both rendered as text.
+ * Laid out the way a computer-use agent shows its screen: the window with its
+ * address bar on top, the live page, and the trace of what it did underneath -
+ * each action with the reason the model gave for it. The page's own words appear
+ * only as an element's label and as the outcome's detail, both rendered as text.
  */
 export function BrowserPanel({ browses }: { browses: Browse[] }) {
   const t = useTranslations("chat");
@@ -90,6 +111,7 @@ export function BrowserPanel({ browses }: { browses: Browse[] }) {
   const browse = browseById(browses, openCallId);
   const scroller = useRef<HTMLDivElement>(null);
   const full = mode === "full";
+  const progress = useProgress(browse ?? EMPTY);
 
   useEffect(() => {
     if (browse === null) return;
@@ -116,19 +138,15 @@ export function BrowserPanel({ browses }: { browses: Browse[] }) {
     >
       {!full && <ResizeHandle width={width} onResize={setWidth} />}
 
-      <div className="border-foreground/8 flex items-center justify-between gap-2 border-b px-4 py-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <Globe className="text-muted-foreground h-4 w-4 shrink-0" aria-hidden />
-          <div className="min-w-0">
-            <h2 className="text-foreground truncate text-sm font-semibold">
+      <div className="border-foreground/8 flex items-center gap-2 border-b px-4 py-3">
+        <div className="min-w-0 flex-1 space-y-1.5">
+          <div className="flex min-w-0 items-center gap-2">
+            <h2 className="text-foreground min-w-0 flex-1 truncate text-sm font-semibold">
               {browse.title || t("browserHeading")}
             </h2>
-            {browse.url && (
-              <p className="text-muted-foreground truncate font-mono text-xs" title={browse.url}>
-                {browse.url}
-              </p>
-            )}
+            <LiveBadge browse={browse} />
           </div>
+          <AddressBar url={browse.url} />
         </div>
         <button
           type="button"
@@ -147,33 +165,26 @@ export function BrowserPanel({ browses }: { browses: Browse[] }) {
           full ? "mx-auto w-full max-w-5xl space-y-5" : "space-y-4",
         )}
       >
+        <Viewport browse={browse} />
+
         {browse.goal && (
-          <p className="text-foreground/60 text-xs leading-relaxed">
-            <span className="text-muted-foreground font-mono text-xs tracking-wider uppercase">
-              {t("browserGoal")}
-            </span>
-            <br />
-            {browse.goal}
-          </p>
+          <section className="space-y-1">
+            <h3 className="text-muted-foreground text-xs font-medium">{t("browserGoal")}</h3>
+            <p className="text-foreground/80 text-sm leading-relaxed">{browse.goal}</p>
+          </section>
         )}
 
-        <Viewport browse={browse} />
         <Outcome browse={browse} />
 
         {browse.steps.length > 0 && (
-          <section className="space-y-1">
-            <h3 className="text-muted-foreground px-2 font-mono text-xs tracking-wider uppercase">
+          <section className="space-y-2.5">
+            <h3 className="text-muted-foreground flex items-center justify-between text-xs font-medium">
               {t("browserSteps")}
+              {browse.outcome === null && (
+                <span className="font-mono tabular-nums">{progress}</span>
+              )}
             </h3>
-            <ul className="space-y-0.5">
-              {browse.steps.map((step, index) => (
-                <StepRow
-                  key={step.step}
-                  step={step}
-                  last={index === browse.steps.length - 1 && isRunning(browse)}
-                />
-              ))}
-            </ul>
+            <StepTimeline browse={browse} />
           </section>
         )}
       </div>

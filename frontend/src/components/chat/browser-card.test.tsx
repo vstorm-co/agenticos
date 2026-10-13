@@ -22,9 +22,9 @@ function browse(overrides: Partial<Browse> = {}): Browse {
   };
 }
 
-/** The page's own control, of which there is one per card. */
+/** The page itself, the second "side panel" control of each card after its toolbar's. */
 function pageButton(nth = 0): HTMLElement {
-  return screen.getAllByRole("button", { name: "Open in the side panel" })[nth]!;
+  return screen.getAllByRole("button", { name: "Open in the side panel" })[nth * 2 + 1]!;
 }
 
 beforeEach(() => {
@@ -41,14 +41,71 @@ describe("BrowserCards - a browse in the transcript, with the page as the card",
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("shows the page it is on and how far along it is", () => {
+  it("shows the site it is on, that it is live, and how far along it is", () => {
     render(
       <BrowserCards browses={[browse({ imageStep: 3, image: "data:image/jpeg;base64,A" })]} />,
     );
 
-    expect(screen.getByText("Pricing")).toBeInTheDocument();
-    expect(screen.getByText("https://example.test/pricing")).toBeInTheDocument();
+    expect(screen.getByText("example.test")).toBeInTheDocument();
+    expect(screen.getByTitle("https://example.test/pricing")).toHaveTextContent(
+      "example.test/pricing",
+    );
+    expect(screen.getByText("Live")).toBeInTheDocument();
     expect(screen.getByText("Step 3 of 25")).toBeInTheDocument();
+  });
+
+  it("says what it is doing now, and why", () => {
+    render(
+      <BrowserCards
+        browses={[
+          browse({
+            steps: [
+              { step: 1, operation: "SCROLL", target: null, reason: "Find the plans", url: null },
+              {
+                step: 2,
+                operation: "CLICK",
+                target: "Pricing",
+                reason: "Open the pricing page",
+                url: null,
+              },
+            ],
+          }),
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("Clicked")).toBeInTheDocument();
+    expect(screen.getByText("Pricing")).toBeInTheDocument();
+    expect(screen.getByText("Open the pricing page")).toBeInTheDocument();
+    expect(screen.queryByText("Find the plans")).not.toBeInTheDocument();
+  });
+
+  it("shows a site's root as the host alone, and the last step of a finished browse", () => {
+    render(
+      <BrowserCards
+        browses={[
+          browse({
+            url: "https://example.test/",
+            outcome: "done",
+            steps: [{ step: 4, operation: "DONE", target: null, reason: "Report", url: null }],
+          }),
+        ]}
+      />,
+    );
+    expect(screen.getByTitle("https://example.test/")).toHaveTextContent(/^example\.test$/);
+    // The badge, and the last step's own verb.
+    expect(screen.getAllByText("Finished")).toHaveLength(2);
+    expect(screen.queryByText(/Step \d/)).not.toBeInTheDocument();
+  });
+
+  it("says it is opening the page before the first step", () => {
+    render(<BrowserCards browses={[browse()]} />);
+    expect(screen.getByText("Opening the page…")).toBeInTheDocument();
+  });
+
+  it("names a page whose address is not a URL as it was given", () => {
+    render(<BrowserCards browses={[browse({ url: "not a url" })]} />);
+    expect(screen.getByTitle("not a url")).toHaveTextContent("not a url");
   });
 
   it("draws the page itself, not a placeholder for one", () => {
@@ -87,8 +144,8 @@ describe("BrowserCards - a browse in the transcript, with the page as the card",
       "true",
     );
     // The panel control is the same browse in another view, so not pressed.
-    const controls = screen.getAllByRole("button", { name: "Open in the side panel" });
-    expect(controls[controls.length - 1]).toHaveAttribute("aria-pressed", "false");
+    const [toolbar] = screen.getAllByRole("button", { name: "Open in the side panel" });
+    expect(toolbar).toHaveAttribute("aria-pressed", "false");
   });
 
   it("draws one card per browse when a turn browses twice", () => {
@@ -97,14 +154,14 @@ describe("BrowserCards - a browse in the transcript, with the page as the card",
     render(
       <BrowserCards
         browses={[
-          browse({ callId: "c1", title: "Poland - Wikipedia" }),
-          browse({ callId: "c2", title: "Germany - Wikipedia" }),
+          browse({ callId: "c1", url: "https://pl.wikipedia.org/wiki/Polska" }),
+          browse({ callId: "c2", url: "https://de.wikipedia.org/wiki/Deutschland" }),
         ]}
       />,
     );
 
-    expect(screen.getByText("Poland - Wikipedia")).toBeInTheDocument();
-    expect(screen.getByText("Germany - Wikipedia")).toBeInTheDocument();
+    expect(screen.getByText("pl.wikipedia.org")).toBeInTheDocument();
+    expect(screen.getByText("de.wikipedia.org")).toBeInTheDocument();
   });
 
   it("opens the browse whose card was clicked, not the newest one", async () => {
@@ -148,7 +205,23 @@ describe("BrowserCards - a browse in the transcript, with the page as the card",
   });
 
   it("renders a page's own words as text, never as markup", () => {
-    render(<BrowserCards browses={[browse({ title: "<img src=x onerror=alert(1)>" })]} />);
+    render(
+      <BrowserCards
+        browses={[
+          browse({
+            steps: [
+              {
+                step: 1,
+                operation: "CLICK",
+                target: "<img src=x onerror=alert(1)>",
+                reason: null,
+                url: null,
+              },
+            ],
+          }),
+        ]}
+      />,
+    );
 
     expect(screen.getByText("<img src=x onerror=alert(1)>")).toBeInTheDocument();
     expect(screen.queryByRole("img")).not.toBeInTheDocument();

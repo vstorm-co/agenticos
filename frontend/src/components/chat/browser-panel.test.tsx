@@ -51,7 +51,7 @@ describe("BrowserPanel - what the browser is doing, while it is doing it", () =>
     render(<BrowserPanel browses={[browse()]} />);
 
     expect(screen.getByText("Pricing")).toBeInTheDocument();
-    expect(screen.getByText("https://example.test/pricing")).toBeInTheDocument();
+    expect(screen.getByTitle("https://example.test/pricing")).toBeInTheDocument();
     expect(screen.getByText(/monthly price of the Pro plan/)).toBeInTheDocument();
   });
 
@@ -62,7 +62,15 @@ describe("BrowserPanel - what the browser is doing, while it is doing it", () =>
 
   it("draws the viewport and says which step it is", () => {
     render(
-      <BrowserPanel browses={[browse({ image: "data:image/jpeg;base64,AAA", imageStep: 3 })]} />,
+      <BrowserPanel
+        browses={[
+          browse({
+            image: "data:image/jpeg;base64,AAA",
+            imageStep: 3,
+            steps: [{ step: 3, operation: "WAIT", target: null, reason: null, url: null }],
+          }),
+        ]}
+      />,
     );
 
     expect(screen.getByRole("img")).toHaveAttribute("src", "data:image/jpeg;base64,AAA");
@@ -100,7 +108,7 @@ describe("BrowserPanel - what the browser is doing, while it is doing it", () =>
       />,
     );
 
-    expect(screen.getByText("CLICK")).toBeInTheDocument();
+    expect(screen.getByText("Clicked")).toBeInTheDocument();
     expect(screen.getByText("Accept all")).toBeInTheDocument();
     expect(screen.getByText("Close the cookie banner")).toBeInTheDocument();
   });
@@ -116,7 +124,21 @@ describe("BrowserPanel - what the browser is doing, while it is doing it", () =>
       />,
     );
 
-    expect(screen.getByText("SCROLL")).toBeInTheDocument();
+    expect(screen.getByText("Scrolled the page")).toBeInTheDocument();
+  });
+
+  it("draws an action it does not know as work on the page", () => {
+    render(
+      <BrowserPanel
+        browses={[
+          browse({
+            steps: [{ step: 1, operation: "HOVER", target: null, reason: null, url: null }],
+          }),
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("Worked on the page")).toBeInTheDocument();
   });
 
   it("draws a browse that has no page to name yet", () => {
