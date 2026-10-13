@@ -2344,9 +2344,8 @@ class AgentRunnerService:
         if channel_directory is not None:
             resources[CHANNEL_DIRECTORY_RESOURCE] = channel_directory
 
-        # What the run's environment answers with test systems instead - a
-        # staging bot, an eval - read off the run on a resume, so a continuation
-        # runs against the same systems the run began on.
+        # Read off the run on a resume, so a continuation reaches the systems
+        # the run began on.
         test_connections = await self._test_connections(
             ctx,
             environment_id=(

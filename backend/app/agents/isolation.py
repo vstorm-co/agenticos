@@ -57,10 +57,8 @@ from app.db.models.intercepted_tool_call import InterceptionOutcome, Interceptio
 
 logger = logging.getLogger(__name__)
 
-#: Tools the framework adds that only read: opening a skill, and searching the
-#: deferred tools. Consulted after the spec's own tools, so a binding that
-#: renamed a writing tool onto one of these names is still classified by what
-#: it declared.
+#: Framework tools that only read. Consulted after the spec's own, so a tool
+#: renamed onto one of these names keeps its own declaration.
 _FRAMEWORK_READS = frozenset({LOAD_CAPABILITY, "search_tools"})
 
 
@@ -268,9 +266,8 @@ class IsolationGuard(AbstractCapability[AgentDeps]):
         tool = classify(tool_def, self.tools)
         recording = self.isolation.recording
         if recording is not None:
-            # What the model sent, not the validated arguments: the recording
-            # holds the original model's own, and validation fills in defaults
-            # it never wrote, which would make every such call divergent.
+            # The recording holds what the model sent; validated arguments carry
+            # defaults it never wrote, and would never match.
             recorded = recording.answer(tool.tool_id, call.args_as_dict())
             if recorded is not None:
                 self._intercept(tool_def.name, tool, args, InterceptionOutcome.REPLAYED)

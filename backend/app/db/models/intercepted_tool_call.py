@@ -75,9 +75,8 @@ class InterceptedToolCall(Base, TimestampMixin):
         ForeignKey("agent_runs.id", ondelete="CASCADE"),
         nullable=False,
     )
-    # Which agent of the run's tree made the call: a delegate's write is
-    # intercepted as well as the parent's. Null for an inline specialist, which
-    # has no row of its own, and after the agent is deleted.
+    # The agent of the run's tree that made the call. Null for an inline
+    # specialist, which has no row of its own.
     agent_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("agents.id", ondelete="SET NULL"),
@@ -85,9 +84,8 @@ class InterceptedToolCall(Base, TimestampMixin):
     )
     sequence: Mapped[int] = mapped_column(Integer, nullable=False)
     tool_name: Mapped[str] = mapped_column(String(128), nullable=False)
-    # The tool's stable identity - `capability:<capability>.<tool>`, which
-    # survives a binding renaming the tool, or `tool:<name>` for an MCP or
-    # framework tool.
+    # `capability:<capability>.<tool>`, which survives a rename, or
+    # `tool:<name>` for an MCP or framework tool.
     tool_id: Mapped[str] = mapped_column(String(256), nullable=False)
     args: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, server_default=text("'{}'::jsonb")

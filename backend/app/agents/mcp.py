@@ -32,10 +32,8 @@ logger = logging.getLogger(__name__)
 # deployment, and no installation ever tuned it.
 CONNECT_TIMEOUT_SECS = 3.0
 
-#: The metadata key every MCP tool built here carries, saying which connection
-#: side it came from. Stamped by this deployment after the server answered - a
-#: server writes only `meta` and `annotations` - so a server cannot claim to be
-#: a test connection. The isolation guard reads it.
+#: Tool metadata saying which side of an environment override a tool came from.
+#: Stamped here after the server answered, so a server cannot claim it.
 MCP_ORIGIN = "agenticos_mcp"
 
 
@@ -81,8 +79,7 @@ class McpServerSpec:
     headers: dict[str, str] = field(default_factory=dict)
     # None = expose every tool the server offers.
     allowed_tools: list[str] | None = None
-    # Whether this is an environment's test connection standing in for the one
-    # the spec binds. Its tools may write in an isolated run.
+    # An environment's test connection, standing in for the one the spec binds.
     test: bool = False
 
 

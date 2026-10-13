@@ -110,8 +110,6 @@ export function EnvironmentsPanel({ agentId, canManage }: { agentId: string; can
   const { versions } = useAllAgentVersions(agentId);
   const [name, setName] = useState("");
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
-  // Which environment's test connections are open. One at a time: each is a
-  // short form, and two open at once is two lists of the same options.
   const [testing, setTesting] = useState<string | null>(null);
 
   if (isLoading || environments.length === 0) {
@@ -240,9 +238,7 @@ export function EnvironmentsPanel({ agentId, canManage }: { agentId: string; can
                   <Pencil className="h-4 w-4" />
                 </Button>
               )}
-              {/* Test connections belong to a named environment only: the
-                default is production, which runs what the spec binds. The
-                first named one carries the tour's anchor. */}
+              {/* The default is production, which runs what the spec binds. */}
               {canManage && !environment.is_default && (
                 <Button
                   variant="ghost"
