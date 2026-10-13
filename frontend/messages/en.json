@@ -5658,8 +5658,7 @@
     "count": "{count, plural, =1 {1 agent} other {# agents}}",
     "budget": "{amount} USD / month",
     "bringsSkills": "{count, plural, =1 {Installs 1 skill with it} other {Installs # skills with it}}",
-    "needsAttaching": "You still attach: {what}",
-    "suggestsMcp": "Works well with: {servers}",
+    "suggestsMcp": "Works well with",
     "installed": "{name} created as a draft - pick a model, then publish",
     "industry": {
       "healthcare": "Healthcare",

@@ -5432,8 +5432,7 @@
     "count": "{count, plural, one {1 agent} few {# agenty} many {# agentów} other {# agentów}}",
     "budget": "{amount} USD / miesiąc",
     "bringsSkills": "{count, plural, one {Instaluje z nim 1 skill} few {Instaluje z nim # skille} many {Instaluje z nim # skilli} other {Instaluje z nim # skilli}}",
-    "needsAttaching": "Musisz jeszcze podłączyć: {what}",
-    "suggestsMcp": "Dobrze działa z: {servers}",
+    "suggestsMcp": "Dobrze działa z",
     "installed": "{name} utworzony jako draft - wybierz model, potem opublikuj",
     "industry": {
       "healthcare": "Ochrona zdrowia",

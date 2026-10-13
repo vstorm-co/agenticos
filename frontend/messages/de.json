@@ -5541,8 +5541,7 @@
     "count": "{count, plural, =1 {1 Agent} other {# Agents}}",
     "budget": "{amount} USD / Monat",
     "bringsSkills": "{count, plural, =1 {Installiert 1 Skill mit} other {Installiert # Skills mit}}",
-    "needsAttaching": "Sie hängen noch an: {what}",
-    "suggestsMcp": "Passt gut zu: {servers}",
+    "suggestsMcp": "Passt gut zu",
     "installed": "{name} als Entwurf erstellt - Modell wählen, dann veröffentlichen",
     "industry": {
       "healthcare": "Gesundheitswesen",
