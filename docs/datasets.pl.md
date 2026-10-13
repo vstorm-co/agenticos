@@ -1,5 +1,6 @@
 ---
-source_sha: "db773b0044f9"
+source_sha: "e940a28dff6f"
+title: "Zbiory danych"
 description: "Zbiory danych trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
 

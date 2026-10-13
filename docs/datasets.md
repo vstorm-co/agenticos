@@ -1,5 +1,6 @@
 ---
-description: Datasets hold the questions an agent is tested on, as versioned cases written by hand, imported from CSV or JSONL, or taken from a rated answer.
+title: "Datasets"
+description: "Datasets hold the questions an agent is tested on, as versioned cases written by hand, imported from CSV or JSONL, or taken from a rated answer."
 ---
 
 # Datasets
