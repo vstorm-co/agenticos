@@ -104,14 +104,16 @@ export function SearchInput({
 }) {
   return (
     <div className={cn("relative w-full sm:w-64", className)}>
-      <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
+      <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2" />
+      {/* The height of the filters beside it; still 16px on a phone, where iOS
+          zooms into anything smaller. */}
       <Input
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
         aria-label={label ?? placeholder}
         autoFocus={autoFocus}
-        className="pl-9"
+        className="border-foreground/12 h-8 rounded-lg border pl-8 md:text-[13px]"
       />
     </div>
   );

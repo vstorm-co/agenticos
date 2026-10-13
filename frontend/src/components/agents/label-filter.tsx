@@ -60,16 +60,17 @@ export function LabelFilter({
             a pill among inputs. */}
         <Button
           variant="outline"
+          size="sm"
           aria-label={ariaLabel}
-          className="border-input h-9 rounded-lg border-[1.5px] px-3 font-normal"
+          className="rounded-lg px-2.5 font-normal"
         >
-          <ListFilter className="h-4 w-4" />
+          <ListFilter />
           {selected.length === 0
             ? allLabel
             : selected.length === 1
               ? selected[0]
               : countLabel(selected.length)}
-          <ChevronDown className="h-4 w-4 opacity-60" />
+          <ChevronDown className="opacity-60" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="max-h-72 overflow-y-auto">

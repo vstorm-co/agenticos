@@ -20,8 +20,11 @@ const buttonVariants = cva(
           "bg-primary text-primary-foreground shadow-card hover:bg-primary-hover active:bg-primary-active",
         destructive:
           "bg-destructive text-destructive-foreground shadow-card hover:bg-destructive/90",
+        // Quiet: a faint edge on whatever it sits on, and a fill only under the
+        // pointer. A card-coloured block with its own shadow made every secondary
+        // action as heavy as the one primary beside it.
         outline:
-          "border border-input bg-card shadow-card hover:bg-accent hover:text-accent-foreground",
+          "border border-foreground/12 bg-transparent hover:bg-foreground/[0.05] hover:border-foreground/20",
         secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-brand underline-offset-4 hover:text-brand-hover hover:underline",
@@ -35,6 +38,12 @@ const buttonVariants = cva(
         "icon-lg": "h-10 w-10",
       },
     },
+    // The small secondary buttons - Export CSV, a filter, a period - are lower
+    // and set at 12px, so a row of them reads as controls beside the content
+    // rather than a second toolbar above it.
+    compoundVariants: [
+      { variant: "outline", size: "sm", class: "h-8 gap-1.5 px-3 text-xs [&_svg]:size-3.5" },
+    ],
     defaultVariants: {
       variant: "default",
       size: "default",

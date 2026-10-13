@@ -149,7 +149,7 @@ export default function AgentsPage() {
           last filter past the screen's edge. */}
       <div className="flex flex-wrap items-center gap-2">
         <Select value={filter} onValueChange={(value) => setFilter(value as Filter)}>
-          <SelectTrigger className="w-32 sm:w-40" aria-label={t("filterByStatus")}>
+          <SelectTrigger size="sm" className="w-32 sm:w-36" aria-label={t("filterByStatus")}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
