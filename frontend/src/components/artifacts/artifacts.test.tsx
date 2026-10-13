@@ -248,6 +248,15 @@ describe("the list card", () => {
     );
     expect(screen.getByText("staging")).toHaveAttribute("title", "Published from this environment");
   });
+
+  it("names the departments a page is shared with, as every other card does", () => {
+    render(
+      <ArtifactCard
+        artifact={artifact({ current_version: null, shared_groups: ["Finance", "Sales", "Ops"] })}
+      />,
+    );
+    expect(screen.getByText("Finance, Sales +1")).toBeInTheDocument();
+  });
 });
 
 describe("the public link card", () => {

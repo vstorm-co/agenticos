@@ -42,6 +42,9 @@ class ContextFileSummary(BaseSchema):
     format: str
     mode: ContextModeLiteral
     enabled: bool
+    visibility: str = Field(
+        description="`org` reaches everyone; `private` its owner and whoever it is shared with"
+    )
     size_bytes: int = Field(description="The body's size, so the listing can hint at its weight")
     excerpt: str = Field(
         default="",

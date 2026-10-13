@@ -48,6 +48,16 @@ def _nobody_follows(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(artifact_repo, "follower_ids", AsyncMock(return_value=[]))
 
 
+@pytest.fixture(autouse=True)
+def _shared_with_no_group(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The listing names each page's groups; these tests have no database to ask."""
+
+    async def nowhere(*_args: object, resource_ids: list[uuid.UUID], **_kwargs: object):
+        return {resource_id: [] for resource_id in resource_ids}
+
+    monkeypatch.setattr(f"{PATH}.groups_sharing", nowhere)
+
+
 def _artifact(*, public_key: str | None = None) -> Artifact:
     return Artifact(
         id=uuid.uuid4(),

@@ -34,6 +34,7 @@ async def list_context_files(
     ctx: Auth,
     q: str | None = Query(None, max_length=100, description="Match on name or description"),
     sort: ContextSort = Query("name", description="`name` A-Z, or `updated` newest change first"),
+    group_id: UUID | None = Query(None, description="Only what is shared with this group"),
     shared_with_me: bool = Query(
         False, description="Only what was shared with the caller - never their own rows"
     ),
@@ -45,6 +46,7 @@ async def list_context_files(
         ctx,
         shared_with_me=shared_with_me,
         search=q,
+        group_id=group_id,
         sort=sort,
         skip=skip,
         limit=limit,

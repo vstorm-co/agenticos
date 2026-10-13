@@ -253,6 +253,7 @@ describe("stepsForPage", () => {
     expect(stepsForPage(ROUTES.RAG, () => true).map((step) => step.id)).toEqual([
       "knowledge-new",
       "knowledge-tabs",
+      "knowledge-groups",
       "knowledge-integrations",
       "knowledge-add-integration",
       "knowledge-local-services",

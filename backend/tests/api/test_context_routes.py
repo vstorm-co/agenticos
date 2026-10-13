@@ -106,6 +106,8 @@ class TestListing:
         assert by_name["runbook"]["mode"] == "link"
         assert by_name["glossary"]["size_bytes"] > 0
         assert "content" not in by_name["glossary"]
+        # The card's audience line reads it; without it every file said "Private".
+        assert by_name["glossary"]["visibility"] == "private"
 
     async def test_a_sort_the_repository_does_not_know_is_refused(self, client: OpenClient):
         async with client() as http:

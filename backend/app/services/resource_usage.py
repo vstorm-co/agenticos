@@ -89,3 +89,21 @@ async def groups_sharing(
     for resource_id, group_id in pairs:
         shared[resource_id].append(names[group_id])
     return {resource_id: sorted(groups) for resource_id, groups in shared.items()}
+
+
+async def shared_with_group(
+    db: AsyncSession, ctx: AuthContext, *, resource_type: ResourceType, group_id: UUID | None
+) -> list[UUID] | None:
+    """The resources of one type shared with a group, or None for no narrowing.
+
+    How a listing is grouped by department (#2124): a group is already who a
+    resource reaches, so grouping by one is a filter on its grants rather than
+    a second hierarchy beside them. The listing still applies its own
+    visibility rules on top, so a group's resource the caller cannot open is
+    never listed. A group from another organization names no grants here.
+    """
+    if group_id is None:
+        return None
+    return await resource_grant_repo.ids_shared_with_group(
+        db, organization_id=ctx.organization_id, resource_type=resource_type.key, group_id=group_id
+    )

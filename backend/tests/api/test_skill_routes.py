@@ -50,13 +50,16 @@ _ORGANIZATION_ID = uuid.uuid4()
 OpenClient = Callable[[], AbstractAsyncContextManager[AsyncClient]]
 
 
-def _row(name: str, *, category: str | None = None, files: int = 0) -> MagicMock:
+def _row(
+    name: str, *, category: str | None = None, files: int = 0, visibility: str = "org"
+) -> MagicMock:
     row = MagicMock()
     row.id = uuid.uuid4()
     row.name = name
     row.description = f"What {name} is for."
     row.category = category
     row.enabled = True
+    row.visibility = visibility
     # Text, not a mock attribute: the listing reads the opening of the body.
     row.content = f"# {name}\n\nWhen to use it."
     row.resources = [MagicMock() for _ in range(files)]
@@ -73,7 +76,7 @@ def repo() -> MagicMock:
                 # A real library name next to one no deployment ships: the
                 # `built_in` flag is a name match, and both halves of it matter.
                 _row("refund-policy", category="support", files=2),
-                _row("quarterly-report", files=0),
+                _row("quarterly-report", files=0, visibility="private"),
             ],
             2,
         )
@@ -133,6 +136,15 @@ class TestListing:
         by_name = {item["name"]: item for item in body["items"]}
         assert by_name["refund-policy"]["file_count"] == 2
         assert by_name["quarterly-report"]["file_count"] == 0
+
+    async def test_each_skill_says_who_it_reaches(self, client: OpenClient):
+        """The card's audience line reads this; without it every skill on the
+        page said "Private", including the ones everyone could open."""
+        body = await _listed(client)
+
+        by_name = {item["name"]: item for item in body["items"]}
+        assert by_name["refund-policy"]["visibility"] == "org"
+        assert by_name["quarterly-report"]["visibility"] == "private"
 
     async def test_a_skill_sharing_a_library_name_is_marked_built_in(self, client: OpenClient):
         """Installing copies, so the name is the only trace of where a skill

@@ -27,6 +27,8 @@ export interface ArtifactQuery {
   agentId?: string | null;
   skip?: number;
   limit?: number;
+  /** Only what is shared with this group (#2124); null for every group. */
+  groupId?: string | null;
 }
 
 /**
@@ -41,15 +43,17 @@ export function useArtifacts({
   agentId = null,
   skip = 0,
   limit = PAGE_SIZE,
+  groupId = null,
 }: ArtifactQuery = {}) {
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: qk.artifacts.list({ search, agentId, skip, limit }),
+    queryKey: qk.artifacts.list({ search, agentId, skip, limit, groupId: groupId ?? "" }),
     queryFn: () => {
       const params = new URLSearchParams();
       if (search) params.set("q", search);
       if (agentId) params.set("agent_id", agentId);
       params.set("skip", String(skip));
       params.set("limit", String(limit));
+      if (groupId) params.set("group_id", groupId);
       return apiClient.get<ArtifactList>(`/apps?${params}`);
     },
     placeholderData: (previous) => previous,

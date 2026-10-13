@@ -145,6 +145,7 @@ async def list_visible(
     shared_with_me: bool = False,
     search: str | None = None,
     agent_id: UUID | None = None,
+    only_ids: Sequence[UUID] | None = None,
     skip: int = 0,
     limit: int = 50,
 ) -> tuple[list[Artifact], int]:
@@ -155,6 +156,7 @@ async def list_visible(
         shared_ids: Artifact ids explicitly shared with this member.
         shared_with_me: Narrow to rows shared with the caller and not their own.
         agent_id: Narrow to one agent's pages, on top of the visibility rules.
+        only_ids: Narrow to these rows - the pages shared with one group.
     """
     where = _visible(
         organization_id=organization_id,
@@ -167,6 +169,8 @@ async def list_visible(
         where.append(or_(contains_ci(Artifact.title, search), contains_ci(Artifact.name, search)))
     if agent_id is not None:
         where.append(Artifact.agent_id == agent_id)
+    if only_ids is not None:
+        where.append(Artifact.id.in_(only_ids))
     items = await db.execute(
         select(Artifact)
         .where(*where)

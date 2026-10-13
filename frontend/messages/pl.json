@@ -3403,6 +3403,22 @@
       "agent-share": {
         "title": "Udostępnij go",
         "body": "Dodaj osobę lub grupę i wybierz, co mogą robić, albo otwórz go całej organizacji. Właściciel zawsze ma dostęp."
+      },
+      "skills-groups": {
+        "title": "Po dziale",
+        "body": "Zawęź listę do tego, co dostała jedna grupa. Grupa decyduje, do kogo coś trafia, więc według niej też grupuje się listę."
+      },
+      "context-groups": {
+        "title": "Po dziale",
+        "body": "Zawęź listę do tego, co dostała jedna grupa. Grupa decyduje, do kogo coś trafia, więc według niej też grupuje się listę."
+      },
+      "artifacts-groups": {
+        "title": "Po dziale",
+        "body": "Zawęź listę do tego, co dostała jedna grupa. Grupa decyduje, do kogo coś trafia, więc według niej też grupuje się listę."
+      },
+      "knowledge-groups": {
+        "title": "Po dziale",
+        "body": "Zawęź listę do tego, co dostała jedna grupa. Grupa decyduje, do kogo coś trafia, więc według niej też grupuje się listę."
       }
     },
     "chooseLanguage": "Język"
@@ -5764,6 +5780,12 @@
       "ratedOn": "{agent} · {date}",
       "unknownAgent": "Agent",
       "openRun": "Run"
+    },
+    "filter": {
+      "label": "Filtruj po grupie",
+      "every": "Wszystkie grupy",
+      "nothingShared": "Nic tutaj nie jest jeszcze udostępnione grupie {name}",
+      "nothingSharedHint": "Udostępnij coś grupie z panelu Udostępnianie albo dodaj kilka rzeczy naraz ze strony grupy."
     }
   },
   "directory": {

@@ -33,7 +33,8 @@ import {
   SearchInput,
   useDebounced,
 } from "@/components/ui";
-import { usePermissions, useSkill, useSkills } from "@/hooks";
+import { GroupFilter, NothingSharedWithGroup } from "@/components/groups/group-filter";
+import { usePermissions, useSkill, useSkills, useUrlState } from "@/hooks";
 import type { SkillEdit, SkillSort } from "@/hooks/use-skills";
 import { getErrorMessage } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
@@ -88,6 +89,8 @@ export default function SkillsPage() {
   // Debounced because the search is a request, not a filter: an organization's
   // skills are paged by the database, so the client never holds them all.
   const search = useDebounced(query);
+  // In the address, so a group's skills are a link somebody can send.
+  const [groupId, setGroupId] = useUrlState("group");
   const { skills, total, categories, suggestedCategories, isLoading, error, refetch, remove } =
     useSkills({
       search,
@@ -95,6 +98,7 @@ export default function SkillsPage() {
       sort,
       skip: page * PAGE_SIZE,
       limit: PAGE_SIZE,
+      groupId,
     });
   const { can, isLoading: isLoadingPermissions } = usePermissions();
 
@@ -109,7 +113,7 @@ export default function SkillsPage() {
   const canEdit = can(Perm.skillsEdit);
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const isSearching = search.trim() !== "";
-  const isFiltering = isSearching || selectedCategories.length > 0;
+  const isFiltering = isSearching || selectedCategories.length > 0 || groupId !== null;
 
   function toggleCategory(entry: string) {
     setSelectedCategories((picked) =>
@@ -268,6 +272,13 @@ export default function SkillsPage() {
                     </DropdownMenuContent>
                   </DropdownMenu>
                 )}
+                <GroupFilter
+                  value={groupId}
+                  onChange={(next) => {
+                    setGroupId(next);
+                    setPage(0);
+                  }}
+                />
               </div>
               <div className="flex items-center gap-1.5">
                 <span className="text-muted-foreground text-xs">{t("sort")}</span>
@@ -300,6 +311,11 @@ export default function SkillsPage() {
               description={getErrorMessage(error, tErrors)}
               cta={{ label: tc("retry"), onClick: () => void refetch() }}
             />
+          ) : skills.length === 0 &&
+            groupId !== null &&
+            !isSearching &&
+            selectedCategories.length === 0 ? (
+            <NothingSharedWithGroup groupId={groupId} />
           ) : skills.length === 0 ? (
             <ListCardEmpty
               icon={BookOpen}

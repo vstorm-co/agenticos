@@ -23,7 +23,9 @@ import {
   TabsTrigger,
 } from "@/components/ui";
 import { AddToAgent } from "@/components/agents/add-to-agent";
-import { useKnowledgeBases, usePermissions, useUrlState } from "@/hooks";
+import { GroupFilter, NothingSharedWithGroup } from "@/components/groups/group-filter";
+import { useGroups, useKnowledgeBases, usePermissions, useUrlState } from "@/hooks";
+import { useOrgStore } from "@/stores";
 import { ROUTES } from "@/lib/constants";
 import type { KBScope, KnowledgeBase } from "@/types";
 import { Perm } from "@/types/permissions";
@@ -73,6 +75,18 @@ export default function RAGPage() {
     if (a.is_default !== b.is_default) return a.is_default ? -1 : 1;
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
   });
+
+  // The whole list arrives at once, so a group is a filter here rather than a
+  // query - group names are unique in an organization, and the cards carry
+  // them. The search tab still searches every base.
+  const [groupId, setGroupId] = useUrlState("group");
+  const orgId = useOrgStore((state) => state.activeOrgId) ?? "";
+  const { groups } = useGroups(orgId);
+  const groupName = groups.find((entry) => entry.id === groupId)?.name;
+  const shown =
+    groupId === null
+      ? sorted
+      : sorted.filter((kb) => groupName !== undefined && kb.shared_groups?.includes(groupName));
 
   const loading = isLoading && kbs.length === 0;
 
@@ -135,6 +149,11 @@ export default function RAGPage() {
             empty={!loading && !listError && kbs.length === 0}
             contentClassName="p-4"
           >
+            {!loading && !listError && kbs.length > 0 && (
+              <div className="mb-4">
+                <GroupFilter value={groupId} onChange={setGroupId} />
+              </div>
+            )}
             {loading ? (
               // The same tiles the populated grid draws, as skeletons - a skeleton
               // that draws a different shape is a layout jump on every load.
@@ -156,6 +175,8 @@ export default function RAGPage() {
                 description={t("listFailedDescription")}
                 cta={{ label: t("retry"), onClick: () => fetchKBs() }}
               />
+            ) : groupId !== null && shown.length === 0 ? (
+              <NothingSharedWithGroup groupId={groupId} />
             ) : kbs.length === 0 ? (
               <ListCardEmpty
                 icon={Database}
@@ -177,7 +198,7 @@ export default function RAGPage() {
               />
             ) : (
               <div className="rise-in grid auto-rows-fr grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {sorted.map((kb) => (
+                {shown.map((kb) => (
                   <KBCard key={kb.id} kb={kb} />
                 ))}
               </div>

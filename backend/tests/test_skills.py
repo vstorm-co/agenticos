@@ -83,6 +83,7 @@ def _row(name: str) -> Skill:
         content="---\nname: x\n---\n\n# Refunds\n\nCheck the order first.",
         category=None,
         enabled=True,
+        visibility="org",
         resources=[],
     )
 

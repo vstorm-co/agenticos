@@ -38,7 +38,7 @@ from app.services.ingestion_config import (
     deployment_defaults,
 )
 from app.services.rag import embedding_providers
-from app.services.resource_usage import agents_using, groups_sharing
+from app.services.resource_usage import agents_using, groups_sharing, shared_with_group
 from app.services.sharing import SharingService
 
 logger = logging.getLogger(__name__)
@@ -146,15 +146,21 @@ class KnowledgeBaseService:
         self.db = db
 
     async def list_readable(
-        self, ctx: AuthContext, *, shared_with_me: bool = False
+        self, ctx: AuthContext, *, shared_with_me: bool = False, group_id: UUID | None = None
     ) -> KnowledgeBaseList:
         """The listing: the bases this caller may read, each with its contents.
 
         The two halves below answer separate questions - which rows are in reach,
         and what each one holds - and joining them is this method's whole job, so
         the route never has to know that a listing takes two queries.
+        `group_id` narrows to the bases shared with one group.
         """
         items = await self.list_accessible(ctx, shared_with_me=shared_with_me)
+        in_group = await shared_with_group(
+            self.db, ctx, resource_type=COLLECTION, group_id=group_id
+        )
+        if in_group is not None:
+            items = [kb for kb in items if kb.id in set(in_group)]
         counts = await self.counts_for(items)
         used = await agents_using(
             self.db, ctx, field="collection_ids", resource_ids=[kb.id for kb in items]

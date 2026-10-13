@@ -121,6 +121,9 @@ class SkillSummary(BaseSchema):
     description: str
     category: str | None = None
     enabled: bool
+    visibility: str = Field(
+        description="`org` reaches everyone; `private` its owner and whoever it is shared with"
+    )
     file_count: int = Field(description="How many files the skill carries beyond its body")
     built_in: bool = Field(
         description="Whether this skill shipped with the deployment, by library name"

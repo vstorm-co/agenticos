@@ -34,6 +34,8 @@ export interface ContextQuery {
   sort?: ContextSort;
   skip?: number;
   limit?: number;
+  /** Only what is shared with this group (#2124); null for every group. */
+  groupId?: string | null;
 }
 
 /**
@@ -49,6 +51,7 @@ export function useContextFiles({
   sort = "name",
   skip = 0,
   limit = PAGE_SIZE,
+  groupId = null,
 }: ContextQuery = {}) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("context");
@@ -56,13 +59,14 @@ export function useContextFiles({
   const queryClient = useQueryClient();
 
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: qk.context.list({ search, sort, skip, limit }),
+    queryKey: qk.context.list({ search, sort, skip, limit, groupId: groupId ?? "" }),
     queryFn: () => {
       const params = new URLSearchParams();
       if (search) params.set("q", search);
       params.set("sort", sort);
       params.set("skip", String(skip));
       params.set("limit", String(limit));
+      if (groupId) params.set("group_id", groupId);
       return apiClient.get<ContextFileList>(`/context?${params}`);
     },
     placeholderData: (previous) => previous,

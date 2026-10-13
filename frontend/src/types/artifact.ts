@@ -36,6 +36,8 @@ export interface Artifact {
   environment_name: string | null;
   /** The "anyone with the link" address, when one is on. */
   public_url: string | null;
+  /** The groups it is shared with, by name (#2124). Only the listing carries it. */
+  shared_groups?: string[];
   published_at: string;
   current_version: ArtifactVersion | null;
   created_at: string;

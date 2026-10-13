@@ -41,7 +41,7 @@ from app.schemas.skill import (
 )
 from app.services import skill_library
 from app.services.access import SKILL, resolve_access, visible_resource_ids
-from app.services.resource_usage import agents_using, groups_sharing
+from app.services.resource_usage import agents_using, groups_sharing, shared_with_group
 from app.services.sharing import SharingService
 
 logger = logging.getLogger(__name__)
@@ -75,6 +75,7 @@ def _summary(skill: Skill, bundled_names: frozenset[str]) -> SkillSummary:
         description=skill.description,
         category=skill.category,
         enabled=skill.enabled,
+        visibility=skill.visibility,
         file_count=len(skill.resources),
         built_in=skill.name in bundled_names,
         excerpt=excerpt(skill.content),
@@ -197,6 +198,7 @@ class SkillService:
         shared_with_me: bool = False,
         search: str | None = None,
         categories: Sequence[str] | None = None,
+        group_id: UUID | None = None,
         sort: SkillSort = "name",
         skip: int = 0,
         limit: int = 50,
@@ -208,7 +210,8 @@ class SkillService:
         org-visible ones and those explicitly shared with them - the same set
         :func:`resolve_access` would admit one row at a time. `shared_with_me`
         narrows to what was deliberately shared with the caller - org-visible
-        or explicitly granted, and not their own.
+        or explicitly granted, and not their own. `group_id` narrows to the
+        skills shared with one group.
         """
         # `None` is `visible_resource_ids` saying the role already reaches every
         # skill, which is exactly what `see_all` tells the query - so both come
@@ -236,6 +239,7 @@ class SkillService:
             see_all=shared is None,
             shared_ids=grant_ids,
             shared_with_me=shared_with_me,
+            only_ids=await shared_with_group(self.db, ctx, resource_type=SKILL, group_id=group_id),
             search=search,
             categories=categories,
             sort=sort,
@@ -250,6 +254,7 @@ class SkillService:
         shared_with_me: bool = False,
         search: str | None = None,
         categories: Sequence[str] | None = None,
+        group_id: UUID | None = None,
         sort: SkillSort = "name",
         skip: int = 0,
         limit: int = 50,
@@ -280,6 +285,7 @@ class SkillService:
             shared_with_me=shared_with_me,
             search=search,
             categories=categories,
+            group_id=group_id,
             sort=sort,
             skip=skip,
             limit=limit,

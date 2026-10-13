@@ -3633,6 +3633,22 @@
       "agent-share": {
         "title": "Share it",
         "body": "Add a person or a group and choose what they can do, or open it to the whole organization. The owner always keeps access."
+      },
+      "skills-groups": {
+        "title": "By department",
+        "body": "Narrow the list to what one group was given. A group is who something reaches, so it is also how the list is grouped."
+      },
+      "context-groups": {
+        "title": "By department",
+        "body": "Narrow the list to what one group was given. A group is who something reaches, so it is also how the list is grouped."
+      },
+      "artifacts-groups": {
+        "title": "By department",
+        "body": "Narrow the list to what one group was given. A group is who something reaches, so it is also how the list is grouped."
+      },
+      "knowledge-groups": {
+        "title": "By department",
+        "body": "Narrow the list to what one group was given. A group is who something reaches, so it is also how the list is grouped."
       }
     },
     "chooseLanguage": "Language"
@@ -5990,6 +6006,12 @@
       "ratedOn": "{agent} · {date}",
       "unknownAgent": "An agent",
       "openRun": "Run"
+    },
+    "filter": {
+      "label": "Filter by group",
+      "every": "Every group",
+      "nothingShared": "Nothing here is shared with {name} yet",
+      "nothingSharedHint": "Share something with the group from its Sharing panel, or add several at once from the group's page."
     }
   },
   "directory": {

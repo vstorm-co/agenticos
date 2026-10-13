@@ -53,6 +53,12 @@ describe("useContextFiles", () => {
     expect(apiClient.get).toHaveBeenCalledWith("/context?q=gloss&sort=updated&skip=50&limit=50");
   });
 
+  it("asks for what one group was given when grouped by one", async () => {
+    const { result } = renderHook(() => useContextFiles({ groupId: "g1" }), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(apiClient.get).toHaveBeenCalledWith("/context?sort=name&skip=0&limit=50&group_id=g1");
+  });
+
   it("reports the count before paging", async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 120 });
     const { result } = renderHook(() => useContextFiles(), { wrapper });

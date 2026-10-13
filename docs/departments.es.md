@@ -1,5 +1,5 @@
 ---
-source_sha: "089586546dbd"
+source_sha: "8335052d5705"
 ---
 
 # Departamentos y grupos { #departments-and-groups }
@@ -90,7 +90,22 @@ Share, así que necesita el mismo derecho a editar.
 Los miembros reciben un aviso cuando algo se comparte con su grupo - en la bandeja
 y, si lo quieren, por correo; *Shared with your group* en los ajustes de
 notificaciones lo desactiva. Las tarjetas de toda la consola dicen para quién es
-cada cosa: *Everyone*, sus departamentos por nombre o *Private*.
+cada cosa: *Everyone*, sus departamentos por nombre - ambos cuando es para todos y
+pertenece a un departamento - o *Private*.
+
+## Agrupar una lista por departamento { #grouping-a-list-by-department }
+
+Las páginas Apps, Skills, Context y Knowledge bases tienen cada una un filtro de
+**grupo**. Elegir Finance reduce la lista a lo que está compartido con Finance, y
+la elección queda en la dirección, así que la vista es un enlace que se puede
+enviar. Un grupo es la única forma de agrupar - no hay carpetas - porque un grupo
+ya decide a quién llega un recurso, y una segunda jerarquía sería una segunda
+respuesta a la misma pregunta.
+
+El filtro nunca amplía una lista: lo que quien lee
+no puede abrir no aparece. Los selectores del Builder muestran junto a cada
+recurso sus departamentos, y los cuatro endpoints de lista aceptan `group_id`
+para la misma restricción por la API.
 
 ## El presupuesto de un departamento { #a-departments-budget }
 

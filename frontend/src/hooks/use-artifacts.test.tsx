@@ -94,6 +94,14 @@ describe("useArtifacts", () => {
       expect(apiClient.get).toHaveBeenCalledWith("/apps?agent_id=ag+1&skip=0&limit=50"),
     );
   });
+
+  it("asks for what one group was given when grouped by one", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    renderHook(() => useArtifacts({ groupId: "g1" }), { wrapper });
+    await waitFor(() =>
+      expect(apiClient.get).toHaveBeenCalledWith("/apps?skip=0&limit=50&group_id=g1"),
+    );
+  });
 });
 
 describe("useArtifactAgents", () => {

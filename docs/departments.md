@@ -81,8 +81,23 @@ needs the same right to edit.
 Members are told when something is shared with their group - in the inbox and,
 if they want it, by email; *Shared with your group* in notification settings
 turns it off. Cards across the console say who each thing is for: *Everyone*,
-its departments by name, or *Private*. A reader sees only the items they could open anyway, so a
+its departments by name, both when it is for everyone and belongs to a
+department, or *Private*. A reader sees only the items they could open anyway, so a
 member of Sales reading Finance's page does not learn what Finance keeps.
+
+## Grouping a list by department
+
+The Apps, Skills, Context and Knowledge bases pages each have a **group**
+filter. Choosing Finance narrows the list to what is shared with Finance, and the
+choice stays in the address, so the view is a link somebody can send. A group is
+the only grouping there is - there are no folders - because a group already
+decides who a resource reaches, and a second hierarchy would be a second answer
+to the same question.
+
+The filter never widens a list: what the reader cannot
+open is not shown. The Builder's pickers name each resource's departments beside
+it, and the four list endpoints take `group_id` for the same narrowing over the
+API.
 
 ## A department's budget
 

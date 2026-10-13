@@ -58,6 +58,7 @@ async def list_knowledge_bases(
     shared_with_me: bool = Query(
         False, description="Only what was shared with the caller - never their own rows"
     ),
+    group_id: UUID | None = Query(None, description="Only what is shared with this group"),
 ) -> Any:
     """List the Knowledge Bases this caller may read in the active organization.
 
@@ -66,7 +67,7 @@ async def list_knowledge_bases(
     between collections, and a name alone does not distinguish the one with four
     hundred documents in it from the one somebody made and never filled.
     """
-    return await service.list_readable(ctx, shared_with_me=shared_with_me)
+    return await service.list_readable(ctx, shared_with_me=shared_with_me, group_id=group_id)
 
 
 @router.post(

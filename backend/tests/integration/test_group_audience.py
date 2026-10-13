@@ -310,3 +310,96 @@ async def test_a_source_the_reader_cannot_see_is_left_out_of_the_agent_s_reach(
     reach = await KnowledgeReachService(db).for_agent(reader, agent.id)
 
     assert reach.sources == []
+
+
+async def test_each_listing_groups_by_department_within_what_the_reader_may_see(
+    db: AsyncSession,
+) -> None:
+    """A group is who a resource reaches, so grouping a page by one is a filter
+    on its grants (#2124) - and the reader's own visibility still applies on top."""
+    from app.db.models.artifact import Artifact
+    from app.db.models.knowledge_base import KnowledgeBase
+    from app.db.models.resource_grant import GrantLevel, ResourceGrant
+    from app.services.artifact import ArtifactService
+    from app.services.context import ContextService
+    from app.services.knowledge_base import KnowledgeBaseService
+
+    organization, owner = await _setup(db)
+    accountant = await _member(db, organization, "member")
+    seller = await _member(db, organization, "member")
+    finance = await _department(db, organization, accountant)
+    sales = await _department(db, organization, seller)
+
+    await _create(db, owner, SkillCreate(name="close", description="x", group_ids=[finance.id]))
+    await _create(db, owner, SkillCreate(name="pitch", description="x", group_ids=[sales.id]))
+    await _create(db, owner, SkillCreate(name="house-style", description="x"))
+    for name, group in (("ledger", finance), ("playbook", sales)):
+        await ContextService(db).create(
+            owner,
+            name=name,
+            description=None,
+            content="x",
+            visibility=Visibility.PRIVATE,
+            group_ids=[group.id],
+        )
+    for name, group in (("Close checklist", finance), ("Pipeline", sales)):
+        page = Artifact(
+            organization_id=organization.id,
+            owner_user_id=owner.user_id,
+            visibility=Visibility.PRIVATE.value,
+            name=name.lower().replace(" ", "-"),
+            title=name,
+        )
+        db.add(page)
+        await db.flush()
+        db.add(
+            ResourceGrant(
+                organization_id=organization.id,
+                subject_group_id=group.id,
+                resource_type="artifact",
+                resource_id=page.id,
+                level=GrantLevel.USE.value,
+            )
+        )
+    for name, group in (("invoices", finance), ("calls", sales)):
+        base = KnowledgeBase(
+            organization_id=organization.id,
+            owner_user_id=owner.user_id,
+            name=name,
+            scope="org",
+            collection_name=f"kb_{uuid.uuid4().hex[:12]}",
+            embedding_model="text-embedding-3-small",
+            embedding_dim=1536,
+            embedding_provider="openrouter",
+            visibility=Visibility.PRIVATE.value,
+        )
+        db.add(base)
+        await db.flush()
+        db.add(
+            ResourceGrant(
+                organization_id=organization.id,
+                subject_group_id=group.id,
+                resource_type="collection",
+                resource_id=base.id,
+                level=GrantLevel.USE.value,
+            )
+        )
+    await db.flush()
+
+    skills = await SkillService(db).list_readable(owner, group_id=finance.id)
+    context = await ContextService(db).list_readable(owner, group_id=finance.id)
+    pages = await ArtifactService(db).list_readable(owner, group_id=finance.id)
+    bases = await KnowledgeBaseService(db).list_readable(owner, group_id=finance.id)
+
+    assert [item.name for item in skills.items] == ["close"]
+    assert skills.total == 1
+    assert [item.name for item in context.items] == ["ledger"]
+    assert [(item.title, item.shared_groups) for item in pages.items] == [
+        ("Close checklist", [finance.name])
+    ]
+    assert [item.name for item in bases.items] == ["invoices"]
+
+    # Grouping never widens: Finance's skill grouped by Finance is still
+    # nothing to a seller, who is not in it.
+    outside = await SkillService(db).list_readable(seller, group_id=finance.id)
+    assert outside.items == []

@@ -63,12 +63,19 @@ async def list_artifacts(
         False, description="Only what was shared with the caller - never their own rows"
     ),
     agent_id: UUID | None = Query(None, description="Only the pages this agent published"),
+    group_id: UUID | None = Query(None, description="Only what is shared with this group"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
     """The artifacts the caller may open, most recently published first."""
     return await service.list_readable(
-        ctx, shared_with_me=shared_with_me, search=q, agent_id=agent_id, skip=skip, limit=limit
+        ctx,
+        shared_with_me=shared_with_me,
+        search=q,
+        agent_id=agent_id,
+        group_id=group_id,
+        skip=skip,
+        limit=limit,
     )
 
 

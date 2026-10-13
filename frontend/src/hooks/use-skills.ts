@@ -36,6 +36,8 @@ export interface SkillQuery {
   sort?: SkillSort;
   skip?: number;
   limit?: number;
+  /** Only what is shared with this group (#2124); null for every group. */
+  groupId?: string | null;
 }
 
 /**
@@ -55,6 +57,7 @@ export function useSkills({
   sort = "name",
   skip = 0,
   limit = PAGE_SIZE,
+  groupId = null,
 }: SkillQuery = {}) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("skills");
@@ -62,7 +65,14 @@ export function useSkills({
   const queryClient = useQueryClient();
 
   const { data, isLoading, isFetching, error, refetch } = useQuery({
-    queryKey: qk.skills.list({ search, category: (categories ?? []).join(","), sort, skip, limit }),
+    queryKey: qk.skills.list({
+      search,
+      category: (categories ?? []).join(","),
+      sort,
+      skip,
+      limit,
+      groupId: groupId ?? "",
+    }),
     // The query string is built by hand because `category` repeats - the
     // server reads `?category=devops&category=data` as "either shelf" - and
     // `apiClient`'s params take one value per name.
@@ -73,6 +83,7 @@ export function useSkills({
       params.set("sort", sort);
       params.set("skip", String(skip));
       params.set("limit", String(limit));
+      if (groupId) params.set("group_id", groupId);
       return apiClient.get<SkillList>(`/skills?${params}`);
     },
     placeholderData: (previous) => previous,

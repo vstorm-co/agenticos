@@ -32,7 +32,8 @@ import {
   SearchInput,
   useDebounced,
 } from "@/components/ui";
-import { usePermissions } from "@/hooks";
+import { GroupFilter, NothingSharedWithGroup } from "@/components/groups/group-filter";
+import { usePermissions, useUrlState } from "@/hooks";
 import { useFileDrop } from "@/hooks/use-file-drop";
 import { useContextFile, useContextFiles } from "@/hooks/use-context";
 import type { ContextEdit, ContextSort } from "@/hooks/use-context";
@@ -92,11 +93,14 @@ export default function ContextPage() {
   const [sort, setSort] = useState<ContextSort>("name");
   const [page, setPage] = useState(0);
   const search = useDebounced(query);
+  // In the address, so a group's files are a link somebody can send.
+  const [groupId, setGroupId] = useUrlState("group");
   const { files, total, isLoading, error, refetch, remove } = useContextFiles({
     search,
     sort,
     skip: page * PAGE_SIZE,
     limit: PAGE_SIZE,
+    groupId,
   });
   const { can, isLoading: isLoadingPermissions } = usePermissions();
 
@@ -112,7 +116,8 @@ export default function ContextPage() {
 
   const canEdit = can(Perm.contextEdit);
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const isFiltering = search.trim() !== "";
+  const isSearching = search.trim() !== "";
+  const isFiltering = isSearching || groupId !== null;
 
   async function handleSave(edit: ContextEdit) {
     await save.mutateAsync(edit);
@@ -235,27 +240,36 @@ export default function ContextPage() {
         controls={controls}
       >
         <div className="space-y-4">
-          {total > 0 && (
-            <div className="flex items-center justify-end gap-1.5">
-              <span className="text-muted-foreground text-xs">{t("sort")}</span>
-              <Chip
-                active={sort === "name"}
-                onClick={() => {
-                  setSort("name");
+          {(total > 0 || isFiltering) && (
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <GroupFilter
+                value={groupId}
+                onChange={(next) => {
+                  setGroupId(next);
                   setPage(0);
                 }}
-              >
-                {t("name")}
-              </Chip>
-              <Chip
-                active={sort === "updated"}
-                onClick={() => {
-                  setSort("updated");
-                  setPage(0);
-                }}
-              >
-                {t("recentlyUpdated")}
-              </Chip>
+              />
+              <div className="ml-auto flex items-center gap-1.5">
+                <span className="text-muted-foreground text-xs">{t("sort")}</span>
+                <Chip
+                  active={sort === "name"}
+                  onClick={() => {
+                    setSort("name");
+                    setPage(0);
+                  }}
+                >
+                  {t("name")}
+                </Chip>
+                <Chip
+                  active={sort === "updated"}
+                  onClick={() => {
+                    setSort("updated");
+                    setPage(0);
+                  }}
+                >
+                  {t("recentlyUpdated")}
+                </Chip>
+              </div>
             </div>
           )}
 
@@ -264,6 +278,8 @@ export default function ContextPage() {
               description={getErrorMessage(error, tErrors)}
               cta={{ label: tc("retry"), onClick: () => void refetch() }}
             />
+          ) : files.length === 0 && groupId !== null && !isSearching ? (
+            <NothingSharedWithGroup groupId={groupId} />
           ) : files.length === 0 ? (
             <ListCardEmpty
               icon={FileText}

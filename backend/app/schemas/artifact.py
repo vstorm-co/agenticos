@@ -53,6 +53,10 @@ class ArtifactRead(BaseSchema):
     current_version: ArtifactVersionRead | None = None
     created_at: datetime
     updated_at: datetime | None = None
+    shared_groups: list[str] = Field(
+        default_factory=list,
+        description="The groups this is shared with, by name - only the listing carries it.",
+    )
 
 
 class ArtifactPublicLinkRead(BaseSchema):

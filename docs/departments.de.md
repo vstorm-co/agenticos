@@ -1,5 +1,5 @@
 ---
-source_sha: "089586546dbd"
+source_sha: "8335052d5705"
 ---
 
 # Abteilungen und Gruppen { #departments-and-groups }
@@ -92,7 +92,22 @@ bearbeiten.
 Mitglieder werden benachrichtigt, wenn etwas mit ihrer Gruppe geteilt wird - im
 Posteingang und, wenn gewünscht, per E-Mail; *Shared with your group* in den
 Benachrichtigungseinstellungen schaltet das ab. Karten in der ganzen Konsole
-sagen, für wen etwas ist: *Alle*, seine Abteilungen mit Namen oder *Privat*.
+sagen, für wen etwas ist: *Alle*, seine Abteilungen mit Namen - beides, wenn es
+für alle ist und zu einer Abteilung gehört - oder *Privat*.
+
+## Eine Liste nach Abteilung gruppieren { #grouping-a-list-by-department }
+
+Die Seiten Apps, Skills, Context und Knowledge bases haben je einen Filter
+**Gruppe**. Wer Finance wählt, sieht nur, was mit Finance geteilt ist, und die
+Auswahl bleibt in der Adresse, sodass die Ansicht ein Link ist, den man
+weitergeben kann. Eine Gruppe ist die einzige Gruppierung - Ordner gibt es nicht -,
+weil eine Gruppe schon entscheidet, wen eine Ressource erreicht, und eine zweite
+Hierarchie wäre eine zweite Antwort auf dieselbe Frage.
+
+Der Filter erweitert eine
+Liste nie: Was der Lesende nicht öffnen darf, wird nicht gezeigt. Die Picker im
+Builder nennen bei jeder Ressource ihre Abteilungen, und die vier
+Listen-Endpunkte nehmen `group_id` für dieselbe Einschränkung über die API.
 
 ## Das Budget einer Abteilung { #a-departments-budget }
 

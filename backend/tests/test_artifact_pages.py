@@ -37,6 +37,16 @@ PATH = "app.services.artifact"
 
 
 @pytest.fixture(autouse=True)
+def _shared_with_no_group(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The listing names each page's groups; the session here is a mock."""
+
+    async def nowhere(*_args: object, resource_ids: list[uuid.UUID], **_kwargs: object):
+        return {resource_id: [] for resource_id in resource_ids}
+
+    monkeypatch.setattr(f"{PATH}.groups_sharing", nowhere)
+
+
+@pytest.fixture(autouse=True)
 def _nobody_follows(monkeypatch: pytest.MonkeyPatch) -> None:
     """The repository is mocked call by call here, and following is its own
     concern - `TestFollowing` in `test_artifact_followers.py` covers it."""

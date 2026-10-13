@@ -259,6 +259,24 @@ async def delete_for_resource(
     )
 
 
+async def ids_shared_with_group(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    resource_type: str,
+    group_id: UUID,
+) -> list[UUID]:
+    """The ids of one type's resources shared with one group - a list grouped by department."""
+    result = await db.execute(
+        select(ResourceGrant.resource_id).where(
+            ResourceGrant.organization_id == organization_id,
+            ResourceGrant.resource_type == resource_type,
+            ResourceGrant.subject_group_id == group_id,
+        )
+    )
+    return list(result.scalars().all())
+
+
 async def group_grants_for_resources(
     db: AsyncSession,
     *,

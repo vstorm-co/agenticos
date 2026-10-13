@@ -1,5 +1,5 @@
 ---
-source_sha: "089586546dbd"
+source_sha: "8335052d5705"
 ---
 
 # Działy i grupy { #departments-and-groups }
@@ -86,7 +86,21 @@ który zapisuje panel Share, więc wymaga tego samego prawa do edycji.
 Członkowie dostają powiadomienie, gdy coś udostępniono ich grupie - w skrzynce i,
 jeśli chcą, e-mailem; *Shared with your group* w ustawieniach powiadomień to
 wyłącza. Karty w całej konsoli mówią, dla kogo jest każda rzecz: *Wszyscy*, jej
-działy z nazwy albo *Prywatne*.
+działy z nazwy - jedno i drugie, gdy jest dla wszystkich i należy do działu -
+albo *Prywatne*.
+
+## Grupowanie listy po dziale { #grouping-a-list-by-department }
+
+Strony Apps, Skills, Context i Knowledge bases mają filtr **grupy**. Wybranie
+Finance zawęża listę do tego, co udostępniono grupie Finance, a wybór zostaje w
+adresie, więc widok jest linkiem, który można komuś wysłać. Grupa to jedyny
+sposób grupowania - folderów nie ma - bo grupa już decyduje, do kogo trafia
+zasób, a druga hierarchia byłaby drugą odpowiedzią na to samo pytanie.
+
+Filtr
+nigdy nie poszerza listy: czego czytający nie może otworzyć, tego nie widzi.
+Pickery w Builderze pokazują przy każdym zasobie jego działy, a cztery endpointy
+list przyjmują `group_id`, żeby zawęzić tak samo przez API.
 
 ## Budżet działu { #a-departments-budget }
 

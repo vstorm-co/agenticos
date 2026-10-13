@@ -3515,6 +3515,22 @@
       "agent-share": {
         "title": "Teilen",
         "body": "Fügen Sie eine Person oder Gruppe hinzu und wählen Sie, was sie darf, oder öffnen Sie ihn für die ganze Organisation. Der Besitzer behält immer Zugriff."
+      },
+      "skills-groups": {
+        "title": "Nach Abteilung",
+        "body": "Schränken Sie die Liste auf das ein, was eine Gruppe bekommen hat. Eine Gruppe entscheidet, wen etwas erreicht, und gruppiert damit auch die Liste."
+      },
+      "context-groups": {
+        "title": "Nach Abteilung",
+        "body": "Schränken Sie die Liste auf das ein, was eine Gruppe bekommen hat. Eine Gruppe entscheidet, wen etwas erreicht, und gruppiert damit auch die Liste."
+      },
+      "artifacts-groups": {
+        "title": "Nach Abteilung",
+        "body": "Schränken Sie die Liste auf das ein, was eine Gruppe bekommen hat. Eine Gruppe entscheidet, wen etwas erreicht, und gruppiert damit auch die Liste."
+      },
+      "knowledge-groups": {
+        "title": "Nach Abteilung",
+        "body": "Schränken Sie die Liste auf das ein, was eine Gruppe bekommen hat. Eine Gruppe entscheidet, wen etwas erreicht, und gruppiert damit auch die Liste."
       }
     },
     "chooseLanguage": "Sprache"
@@ -5873,6 +5889,12 @@
       "ratedOn": "{agent} · {date}",
       "unknownAgent": "Ein Agent",
       "openRun": "Run"
+    },
+    "filter": {
+      "label": "Nach Gruppe filtern",
+      "every": "Alle Gruppen",
+      "nothingShared": "Hier ist noch nichts mit {name} geteilt",
+      "nothingSharedHint": "Teilen Sie etwas über das Freigabe-Panel mit der Gruppe oder fügen Sie auf der Seite der Gruppe mehreres auf einmal hinzu."
     }
   },
   "directory": {

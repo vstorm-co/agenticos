@@ -313,6 +313,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
     inTour: true,
   },
   { id: "skills-list", page: ROUTES.SKILLS, target: "skills-list", permission: Perm.skillsView },
+  // Grouping by department (#2124): only where the organization has groups.
+  {
+    id: "skills-groups",
+    page: ROUTES.SKILLS,
+    target: "group-filter",
+    permission: Perm.skillsView,
+    optional: true,
+  },
 
   // Standing context — the files an organization injects into every agent's
   // prompt. Beside skills in the Build group, the same shape: a create button the
@@ -329,6 +337,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
     page: ROUTES.CONTEXT,
     target: "context-list",
     permission: Perm.contextView,
+  },
+  // Grouping by department (#2124): only where the organization has groups.
+  {
+    id: "context-groups",
+    page: ROUTES.CONTEXT,
+    target: "group-filter",
+    permission: Perm.contextView,
+    optional: true,
   },
 
   // Groups as departments (#2072): the button that creates one for a caller who
@@ -351,6 +367,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
     page: ROUTES.ARTIFACTS,
     target: "artifacts-list",
     permission: Perm.artifactsView,
+  },
+  // Grouping by department (#2124): only where the organization has groups.
+  {
+    id: "artifacts-groups",
+    page: ROUTES.ARTIFACTS,
+    target: "group-filter",
+    permission: Perm.artifactsView,
+    optional: true,
   },
 
   {
@@ -408,6 +432,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
     page: ROUTES.RAG,
     target: "knowledge-tabs",
     permission: Perm.collectionsView,
+  },
+  // Grouping by department (#2124): only where the organization has groups.
+  {
+    id: "knowledge-groups",
+    page: ROUTES.RAG,
+    target: "group-filter",
+    permission: Perm.collectionsView,
+    optional: true,
   },
   // The reusable connections — an S3 bucket, a drive, a repo configured once and
   // cloned into any collection. Both stops are gated on connections:manage, the

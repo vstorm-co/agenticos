@@ -280,6 +280,7 @@ export const qk = {
       sort: string;
       skip: number;
       limit: number;
+      groupId: string;
     }) => ["skills", "list", query] as const,
     detail: (id: string) => ["skills", id] as const,
     gallery: () => ["skills", "gallery"] as const,
@@ -301,8 +302,13 @@ export const qk = {
   },
   artifacts: {
     all: () => ["artifacts"] as const,
-    list: (query: { search: string; agentId: string | null; skip: number; limit: number }) =>
-      ["artifacts", "list", query] as const,
+    list: (query: {
+      search: string;
+      agentId: string | null;
+      skip: number;
+      limit: number;
+      groupId: string;
+    }) => ["artifacts", "list", query] as const,
     agents: () => ["artifacts", "agents"] as const,
     detail: (id: string) => ["artifacts", id] as const,
     versions: (id: string) => ["artifacts", id, "versions"] as const,
@@ -312,7 +318,7 @@ export const qk = {
   },
   context: {
     all: () => ["context"] as const,
-    list: (query: { search: string; sort: string; skip: number; limit: number }) =>
+    list: (query: { search: string; sort: string; skip: number; limit: number; groupId: string }) =>
       ["context", "list", query] as const,
     detail: (id: string) => ["context", id] as const,
   },

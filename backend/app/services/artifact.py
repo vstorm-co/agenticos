@@ -82,6 +82,7 @@ from app.schemas.artifact import (
 from app.services.access import ARTIFACT, resolve_access, visible_resource_ids
 from app.services.file_storage import get_file_storage
 from app.services.notifications import NotificationService
+from app.services.resource_usage import groups_sharing, shared_with_group
 
 logger = logging.getLogger(__name__)
 
@@ -1071,10 +1072,15 @@ class ArtifactService:
         shared_with_me: bool = False,
         search: str | None = None,
         agent_id: UUID | None = None,
+        group_id: UUID | None = None,
         skip: int = 0,
         limit: int = 50,
     ) -> ArtifactList:
-        """A page of the artifacts this caller may open, newest publication first."""
+        """A page of the artifacts this caller may open, newest publication first.
+
+        `group_id` narrows to the pages shared with one group, and each page
+        names the groups it is shared with, as every other resource's card does.
+        """
         see_all, grant_ids = await self._visibility(ctx)
         if shared_with_me and see_all:
             grant_ids = await resource_grant_repo.list_shared_ids(
@@ -1092,15 +1098,27 @@ class ArtifactService:
             shared_with_me=shared_with_me,
             search=search,
             agent_id=agent_id,
+            only_ids=await shared_with_group(
+                self.db, ctx, resource_type=ARTIFACT, group_id=group_id
+            ),
             skip=skip,
             limit=limit,
         )
         current = await artifact_repo.latest_versions(self.db, [item.id for item in items])
+        groups = await groups_sharing(
+            self.db, ctx, resource_type=ARTIFACT, resource_ids=[item.id for item in items]
+        )
         names = await artifact_repo.environment_names(
             self.db, sorted({item.environment_id for item in items if item.environment_id})
         )
         return ArtifactList(
-            items=[self._read(item, current.get(item.id), names) for item in items], total=total
+            items=[
+                self._read(item, current.get(item.id), names).model_copy(
+                    update={"shared_groups": groups[item.id]}
+                )
+                for item in items
+            ],
+            total=total,
         )
 
     async def publishing_agents(self, ctx: AuthContext) -> ArtifactAgentList:

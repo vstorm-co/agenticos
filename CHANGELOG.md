@@ -19,6 +19,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Lists grouped by department.** Apps, Skills, Context and Knowledge bases
+  each take a group filter that narrows the list to what one group was given,
+  kept in the address; the Builder's pickers and the app cards name each
+  resource's departments, and a card for something everyone may read now names
+  its departments too. `GET /skills`, `/context`, `/apps` and `/kb` take
+  `group_id`. Groups are the grouping - no separate folders (#2124).
 - **Four dashboards, chosen at the top.** **Me** shows a person's own agents,
   conversations and what waits on them; **Organization** is the arrangeable
   page; **Group** narrows the figures, runs, spend, models, rhythm and people
@@ -432,6 +438,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Skill and context cards said "Private" for everything.** Their listings
+  never sent `visibility`, so every card read it as private, including what
+  the whole organization could open.
 - **A server connected through its sign-in lists its tools at once.** The
   consent's return checks the server and records its tools, so an agent bound
   to it, in the Builder or a chat, has them to choose from without anyone

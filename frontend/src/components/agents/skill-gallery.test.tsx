@@ -39,6 +39,18 @@ describe("SkillGallery", () => {
     expect(screen.queryByRole("checkbox", { name: "skill-0" })).toBeNull();
   });
 
+  it("names the departments a skill is shared with, which tells two alike apart", () => {
+    render(
+      <SkillGallery
+        skills={[skill({ shared_groups: ["Finance"] }), skill({ id: "s2", name: "house-style" })]}
+        total={2}
+        selectedIds={[]}
+        onToggle={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("Finance")).toBeInTheDocument();
+  });
+
   it("names a selected skill the organization no longer has", () => {
     // The warning exists because publishing is refused on a dangling id, and
     // the Builder is where that is fixable.

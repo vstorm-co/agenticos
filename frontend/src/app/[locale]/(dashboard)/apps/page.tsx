@@ -17,7 +17,8 @@ import {
   SearchInput,
   useDebounced,
 } from "@/components/ui";
-import { usePermissions } from "@/hooks";
+import { GroupFilter, NothingSharedWithGroup } from "@/components/groups/group-filter";
+import { usePermissions, useUrlState } from "@/hooks";
 import { useArtifactAgents, useArtifacts } from "@/hooks/use-artifacts";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
@@ -38,15 +39,18 @@ export default function ArtifactsPage() {
   const [agentId, setAgentId] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const search = useDebounced(query);
+  // In the address, so a group's apps are a link somebody can send.
+  const [groupId, setGroupId] = useUrlState("group");
   const { artifacts, total, isLoading, error, refetch } = useArtifacts({
     search,
     agentId,
     skip: page * PAGE_SIZE,
     limit: PAGE_SIZE,
+    groupId,
   });
   const { can, isLoading: isLoadingPermissions } = usePermissions();
   const agents = useArtifactAgents(!isLoadingPermissions && can(Perm.artifactsView));
-  const isFiltering = search.trim() !== "" || agentId !== null;
+  const isFiltering = search.trim() !== "" || agentId !== null || groupId !== null;
   const header = <PageHeader title={t("title")} description={t("description")} />;
 
   if (!isLoadingPermissions && !can(Perm.artifactsView)) {
@@ -70,6 +74,13 @@ export default function ArtifactsPage() {
         controls={
           isFiltering || total > 0 ? (
             <div className="flex flex-wrap items-center gap-2">
+              <GroupFilter
+                value={groupId}
+                onChange={(next) => {
+                  setGroupId(next);
+                  setPage(0);
+                }}
+              />
               <AgentFilter
                 agents={agents}
                 value={agentId}
@@ -98,6 +109,11 @@ export default function ArtifactsPage() {
             description={getErrorMessage(error, tErrors)}
             cta={{ label: tc("retry"), onClick: () => void refetch() }}
           />
+        ) : artifacts.length === 0 &&
+          groupId !== null &&
+          search.trim() === "" &&
+          agentId === null ? (
+          <NothingSharedWithGroup groupId={groupId} />
         ) : artifacts.length === 0 ? (
           <ListCardEmpty
             icon={PanelsTopLeft}
