@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useChatSidebarStore } from "./chat-sidebar-store";
+import { useChatBandsStore, useChatSidebarStore } from "./chat-sidebar-store";
 import { useConversationStore } from "./conversation-store";
 import { useFilePreviewStore } from "./file-preview-store";
 import { useOrgStore } from "./org-store";
@@ -298,5 +298,17 @@ describe("the theme", () => {
 
     vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({ matches: false }));
     expect(getResolvedTheme("system")).toBe("light");
+  });
+});
+
+describe("useChatBandsStore", () => {
+  it("folds a band and opens it again, one band at a time", () => {
+    useChatBandsStore.setState({ collapsed: [] });
+    useChatBandsStore.getState().toggle("favourites");
+    useChatBandsStore.getState().toggle("today");
+    expect(useChatBandsStore.getState().collapsed).toEqual(["favourites", "today"]);
+
+    useChatBandsStore.getState().toggle("favourites");
+    expect(useChatBandsStore.getState().collapsed).toEqual(["today"]);
   });
 });

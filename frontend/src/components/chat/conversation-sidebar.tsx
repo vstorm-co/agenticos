@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useConversations } from "@/hooks";
@@ -11,12 +11,13 @@ import { IconButton } from "@/components/ui";
 import { ConversationAgents } from "@/components/agents/conversation-agents";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { cn, setUrlParam, timeAgo } from "@/lib/utils";
-import { useChatSidebarStore } from "@/stores";
+import { useChatBandsStore, useChatSidebarStore } from "@/stores";
 import {
   Archive,
   ArchiveRestore,
   Star,
   ChevronLeft,
+  ChevronDown,
   ChevronRight,
   Inbox,
   Loader2,
@@ -401,6 +402,8 @@ function ConversationList({
   };
 
   const isArchivedView = view === "archived";
+  const collapsedBands = useChatBandsStore((state) => state.collapsed);
+  const toggleBand = useChatBandsStore((state) => state.toggle);
 
   /**
    * The list, split into the starred run at the top and everything else.
@@ -457,6 +460,31 @@ function ConversationList({
     ];
   }, [conversations, currentConversationId, isArchivedView, datedOrder, t, ts]);
 
+  // Scrolling to the foot is what asks for the next page, and a list with folded
+  // bands, or a short first page, has no foot to scroll to - Yesterday then never
+  // arrived, and vanished whenever a new chat refreshed the list to its first page.
+  // Asked here instead, until the column is full or the list has ended.
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    if (scroller === null || isLoading) return;
+    if (scroller.scrollHeight - scroller.clientHeight < 100) onLoadMore?.();
+  }, [conversations.length, collapsedBands, isLoading, onLoadMore]);
+
+  // The band the open conversation lands in opens, once per conversation - a new
+  // chat in a folded Today is otherwise a thread you are in that the list hides.
+  // Once: folding that band again afterwards is the reader's choice and stays.
+  const unfoldedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (currentConversationId === null || unfoldedFor.current === currentConversationId) return;
+    const band = bands.find((entry) =>
+      entry.rows.some((conversation) => conversation.id === currentConversationId),
+    );
+    if (band === undefined) return;
+    unfoldedFor.current = currentConversationId;
+    if (collapsedBands.includes(band.key)) toggleBand(band.key);
+  }, [bands, currentConversationId, collapsedBands, toggleBand]);
+
   return (
     <>
       {/* Where the archive is said, since the switch to it now sits behind
@@ -479,6 +507,7 @@ function ConversationList({
       )}
 
       <div
+        ref={scrollerRef}
         className="flex-1 scrollbar-thin overflow-y-auto px-3 pb-3"
         onScroll={(e) => {
           const el = e.currentTarget;
@@ -544,26 +573,44 @@ function ConversationList({
             {bands.map(({ key, heading, icon, rows }) => (
               <div key={key} className="space-y-0.5">
                 {heading !== null && (
-                  <p className="text-muted-foreground flex items-center gap-1 px-2 pt-3 pb-1 text-xs font-medium">
-                    {icon === "star" && <Star className="h-3 w-3 fill-current" aria-hidden />}
-                    {icon === "unread" && <Inbox className="h-3 w-3" aria-hidden />}
-                    {heading}
-                  </p>
+                  // A heading that folds its band away and opens it again; folded,
+                  // it says how many it holds, so nothing hidden goes unmentioned.
+                  <button
+                    type="button"
+                    aria-expanded={!collapsedBands.includes(key)}
+                    onClick={() => toggleBand(key)}
+                    className="group/band text-muted-foreground hover:text-foreground flex w-full items-center gap-1.5 rounded-md px-2 pt-3 pb-1 text-left text-xs font-medium transition-colors"
+                  >
+                    {icon === "star" && <Star className="h-3.5 w-3.5" aria-hidden />}
+                    {icon === "unread" && <Inbox className="h-3.5 w-3.5" aria-hidden />}
+                    <span>{heading}</span>
+                    {collapsedBands.includes(key) && (
+                      <span className="text-muted-foreground/70 tabular-nums">{rows.length}</span>
+                    )}
+                    <ChevronDown
+                      className={cn(
+                        "ml-auto h-3.5 w-3.5 opacity-0 transition-[transform,opacity] group-hover/band:opacity-100 group-focus-visible/band:opacity-100",
+                        collapsedBands.includes(key) && "-rotate-90 opacity-100",
+                      )}
+                      aria-hidden
+                    />
+                  </button>
                 )}
-                {rows.map((conversation) => (
-                  <ConversationItem
-                    key={conversation.id}
-                    conversation={conversation}
-                    isActive={conversation.id === currentConversationId}
-                    onSelect={() => handleSelect(conversation.id)}
-                    onDelete={() => onDelete(conversation.id)}
-                    onArchive={() => onArchive(conversation.id)}
-                    onUnarchive={() => onUnarchive(conversation.id)}
-                    onFavourite={(favourite) => onFavourite(conversation.id, favourite)}
-                    onRename={(title) => onRename(conversation.id, title)}
-                    onShare={() => setShareConversationId(conversation.id)}
-                  />
-                ))}
+                {!(heading !== null && collapsedBands.includes(key)) &&
+                  rows.map((conversation) => (
+                    <ConversationItem
+                      key={conversation.id}
+                      conversation={conversation}
+                      isActive={conversation.id === currentConversationId}
+                      onSelect={() => handleSelect(conversation.id)}
+                      onDelete={() => onDelete(conversation.id)}
+                      onArchive={() => onArchive(conversation.id)}
+                      onUnarchive={() => onUnarchive(conversation.id)}
+                      onFavourite={(favourite) => onFavourite(conversation.id, favourite)}
+                      onRename={(title) => onRename(conversation.id, title)}
+                      onShare={() => setShareConversationId(conversation.id)}
+                    />
+                  ))}
               </div>
             ))}
           </div>

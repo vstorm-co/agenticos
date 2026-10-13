@@ -18,7 +18,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ConversationSidebar } from "./conversation-sidebar";
 import { apiClient } from "@/lib/api-client";
-import { useConversationStore } from "@/stores";
+import { useChatBandsStore, useConversationStore } from "@/stores";
 
 vi.mock("@/lib/api-client", () => ({
   apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
@@ -99,6 +99,7 @@ beforeEach(() => {
   urlParams = new URLSearchParams();
   window.history.replaceState({}, "", "/chat");
   useConversationStore.getState().reset();
+  useChatBandsStore.setState({ collapsed: [] });
   mockAgents = [{ id: "a-1", name: "Analyst", status: "published", can_run: true }];
   serve([conversation("c-1", "Quarterly numbers")]);
 });
@@ -410,6 +411,45 @@ describe("the favourites band", () => {
     await waitFor(() =>
       expect(apiClient.delete).toHaveBeenCalledWith("/conversations/c-1/favourite"),
     );
+  });
+
+  it("folds a band to its heading, saying how many it holds", async () => {
+    serve([conversation("c-1", "Rota cover", true), conversation("c-2", "Shift swap", true)]);
+    mount();
+    await within(list()).findByText("Rota cover");
+
+    await userEvent.click(within(list()).getByRole("button", { name: /Favourites/ }));
+    expect(within(list()).queryByText("Rota cover")).toBeNull();
+    expect(within(list()).getByRole("button", { name: /Favourites/ })).toHaveTextContent("2");
+
+    await userEvent.click(within(list()).getByRole("button", { name: /Favourites/ }));
+    expect(within(list()).getByText("Rota cover")).toBeInTheDocument();
+  });
+
+  it("asks for the next page while the list does not fill the column", async () => {
+    // Folded bands leave nothing to scroll, and scrolling was the only thing
+    // that asked for more - so Yesterday never arrived.
+    serve(Array.from({ length: 30 }, (_, i) => conversation(`c-${i}`, `Thread ${i}`)));
+    mount();
+    await within(list()).findByText("Thread 0");
+
+    await waitFor(() => expect(listRequests().some((path) => path.includes("skip=30"))).toBe(true));
+  });
+
+  it("opens the band the open conversation lands in, once", async () => {
+    useChatBandsStore.setState({ collapsed: ["today"] });
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    serve([
+      { ...conversation("c-1", "Just started"), updated_at: new Date().toISOString() },
+    ] as unknown as ReturnType<typeof conversation>[]);
+    mount();
+
+    expect(await within(list()).findByText("Just started")).toBeInTheDocument();
+    expect(useChatBandsStore.getState().collapsed).toEqual([]);
+
+    // Folding it again afterwards is the reader's choice, and it stays.
+    await userEvent.click(within(list()).getByRole("button", { name: /Today/ }));
+    expect(within(list()).queryByText("Just started")).toBeNull();
   });
 
   it("leads with the threads holding an answer not yet seen", async () => {
