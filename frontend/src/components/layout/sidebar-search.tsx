@@ -40,13 +40,16 @@ export function SidebarSearch({ variant = "row" }: SidebarSearchProps) {
         onClick={open}
         aria-label={t("search")}
         title={t("search")}
-        className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg px-2 transition-colors outline-none focus-visible:ring-1"
+        className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors outline-none focus-visible:ring-1"
       >
         <Search className="h-[1.1rem] w-[1.1rem] shrink-0" aria-hidden />
+        {/* In the corner, as a count sits on an icon: the button keeps the bell's
+            size, and the shortcut is a superscript to it rather than a second
+            control beside it. */}
         {mounted && (
           <kbd
             aria-hidden
-            className="border-border bg-background text-muted-foreground rounded-md border px-1.5 font-sans text-[11px] leading-5"
+            className="bg-background text-muted-foreground ring-border absolute -top-0.5 -right-1 rounded px-0.5 font-sans text-[9px] leading-3 ring-1"
           >
             {mac ? "⌘K" : t("searchShortcut")}
           </kbd>
