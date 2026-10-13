@@ -49,9 +49,24 @@ export function ChatWelcome({
 }: ChatWelcomeProps) {
   const t = useTranslations("chat.empty");
   return (
-    <div className={cn("mx-auto w-full", compact ? "px-3 py-2" : "max-w-2xl px-4 py-6 md:py-16")}>
+    // A short window - a laptop zoomed in, a browser half the screen - keeps the
+    // greeting and the suggestions and drops the mark, the shortcuts and the
+    // air: all of it stacked put the cards under the composer.
+    <div
+      className={cn(
+        "@container mx-auto w-full",
+        compact ? "px-3 py-2" : "max-w-2xl px-4 py-6 md:[@media(min-height:761px)]:py-16",
+      )}
+    >
       <div className="text-center">
-        <div className={cn("mx-auto flex justify-center", compact ? "mb-3" : "mb-5")}>{mark}</div>
+        <div
+          className={cn(
+            "mx-auto flex justify-center",
+            compact ? "mb-3" : "mb-5 [@media(max-height:760px)]:hidden",
+          )}
+        >
+          {mark}
+        </div>
         <h2
           className={cn(
             "text-foreground font-semibold tracking-tight",
@@ -81,7 +96,9 @@ export function ChatWelcome({
                 compact ? "px-3 py-2.5" : "p-3 md:p-4",
               )}
             >
-              <span className="bg-muted text-muted-foreground group-hover:text-foreground flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors">
+              {/* Off in a narrow column, where it took a third of a card's
+                  width and wrapped the title onto two lines. */}
+              <span className="bg-muted text-muted-foreground group-hover:text-foreground flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors @max-xl:hidden">
                 <suggestion.icon className="h-4 w-4" />
               </span>
               <span className="min-w-0 flex-1">
@@ -123,7 +140,7 @@ export function ChatWelcome({
       {footer && (
         // Keyboard hints, so not on a phone - where they also ran into the
         // caption under the composer.
-        <div className="text-muted-foreground mt-8 hidden flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs md:flex">
+        <div className="text-muted-foreground mt-8 hidden flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs md:[@media(min-height:761px)]:flex">
           {footer}
         </div>
       )}
