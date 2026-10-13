@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -3383,6 +3383,112 @@ class TestGrantWidenedAccess:
                 subject_user_id=outsider.id,
                 level=GrantLevel.READ,
             )
+
+
+class TestDictationReachesOnlyAgentsTheCallerMayRun:
+    """`POST /agents/{id}/dictation` asks the registry for run access (#1797).
+
+    Against real grant rows, because the route test stubs the registry: what is
+    proven here is that a Viewer's `use` grant is what opens the door, and that
+    nothing short of it - no grant, another organization's agent - reaches the
+    paid engine. The engine itself is stubbed; it is not what is under test.
+    """
+
+    @pytest.fixture
+    async def dictate(self, db) -> AsyncIterator[tuple[Callable[[AuthContext], AsyncClient], Any]]:
+        async def unmetered() -> None:
+            return None
+
+        app.dependency_overrides[deps.get_db_session] = lambda: db
+        app.dependency_overrides[deps.limit_dictation] = unmetered
+        engine = AsyncMock(return_value="ok")
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+
+            def as_caller(ctx: AuthContext) -> AsyncClient:
+                app.dependency_overrides[deps.get_auth_context] = lambda: ctx
+                return client
+
+            with patch("app.services.ml.facade.MLService.dictate", new=engine):
+                yield as_caller, engine
+        app.dependency_overrides.clear()
+
+    @staticmethod
+    def _post(client: AsyncClient, agent_id: uuid.UUID) -> Any:
+        return client.post(
+            f"{settings.API_V1_STR}/agents/{agent_id}/dictation",
+            files={"file": ("blob", b"audio", "audio/webm")},
+        )
+
+    async def test_a_viewer_without_a_grant_is_refused_and_nothing_is_transcribed(
+        self, db, dictate
+    ) -> None:
+        as_caller, engine = dictate
+        tenant = await _tenant(db, name="Quiet")
+        viewer = await _join(db, tenant, OrgRoleName.VIEWER)
+        agent = await _agent_row(
+            db, organization_id=tenant.organization.id, owner_user_id=tenant.user.id, slug="support"
+        )
+
+        response = await self._post(as_caller(viewer), agent.id)
+
+        assert response.status_code == 404
+        engine.assert_not_awaited()
+
+    async def test_a_viewer_with_a_use_grant_may_dictate(self, db, dictate) -> None:
+        as_caller, engine = dictate
+        tenant = await _tenant(db, name="Spoken")
+        viewer = await _join(db, tenant, OrgRoleName.VIEWER)
+        agent = await _agent_row(
+            db, organization_id=tenant.organization.id, owner_user_id=tenant.user.id, slug="support"
+        )
+        await SharingService(db).share(
+            tenant.ctx,
+            agent,
+            resource_type=AGENT,
+            subject_user_id=viewer.user_id,
+            level=GrantLevel.USE,
+        )
+
+        response = await self._post(as_caller(viewer), agent.id)
+
+        assert response.status_code == 200
+        assert response.json() == {"text": "ok"}
+
+    async def test_a_read_grant_is_not_enough(self, db, dictate) -> None:
+        """Seeing an agent's configuration is not talking to it."""
+        as_caller, engine = dictate
+        tenant = await _tenant(db, name="Looker")
+        viewer = await _join(db, tenant, OrgRoleName.VIEWER)
+        agent = await _agent_row(
+            db, organization_id=tenant.organization.id, owner_user_id=tenant.user.id, slug="support"
+        )
+        await SharingService(db).share(
+            tenant.ctx,
+            agent,
+            resource_type=AGENT,
+            subject_user_id=viewer.user_id,
+            level=GrantLevel.READ,
+        )
+
+        response = await self._post(as_caller(viewer), agent.id)
+
+        assert response.status_code == 404
+        engine.assert_not_awaited()
+
+    @pytest.mark.security
+    async def test_another_organizations_agent_is_not_found(self, db, dictate) -> None:
+        """Even to that organization's peer - an owner here is a stranger there."""
+        as_caller, engine = dictate
+        ours = await _tenant(db, name="Ours")
+        theirs = await _tenant(db, name="Theirs")
+        agent = await _agent_row(
+            db, organization_id=theirs.organization.id, owner_user_id=theirs.user.id, slug="support"
+        )
+
+        response = await self._post(as_caller(ours.ctx), agent.id)
+
+        assert response.status_code == 404
+        engine.assert_not_awaited()
 
 
 class TestMentioningAnAgentFromAChannel:

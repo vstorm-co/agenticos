@@ -522,9 +522,13 @@ async def test_a_deployment_that_offers_no_transcription_says_so() -> None:
     assert caught.value.details["fields"][0]["field"] == "provider"
 
 
-async def test_an_engine_that_answers_with_nothing_is_a_503_naming_the_credential() -> None:
-    """The client's own words never reach the caller - a provider error carries a URL."""
+async def test_an_engine_failure_is_recorded_and_re_raised(recorded: Any) -> None:
+    """The service's own refusal reaches the caller unchanged, and the usage log
+    puts it against the engine, not the caller's input."""
     service = MLService(_db())
+    failure = ExternalServiceError(
+        message="m", details={"reason": "provider_error", "stage": "engine"}
+    )
     with (
         patch(
             "app.services.ml.facade.speech_to_text.default_choice",
@@ -532,9 +536,8 @@ async def test_an_engine_that_answers_with_nothing_is_a_503_naming_the_credentia
         ),
         patch(
             "app.services.ml.facade.TranscriptionService.transcribe",
-            new=AsyncMock(return_value=None),
+            new=AsyncMock(side_effect=failure),
         ),
-        patch(f"{_REPO}.record", new=AsyncMock()),
         pytest.raises(ExternalServiceError) as caught,
     ):
         await service.transcribe(
@@ -546,8 +549,136 @@ async def test_an_engine_that_answers_with_nothing_is_a_503_naming_the_credentia
             model=None,
         )
 
-    assert "credential" in caught.value.message
-    assert caught.value.details["stage"] == "engine"
+    assert caught.value is failure
+    assert recorded.await_args.kwargs["status"] == "failed"
+    assert recorded.await_args.kwargs["failure_stage"] == "engine"
+
+
+# -- dictation into the composer (#1797) ---------------------------------------
+
+
+def _speech_org(**overrides: object) -> SimpleNamespace:
+    fields: dict[str, object] = {
+        "chat_dictation": "server",
+        "speech_to_text_provider": "openai",
+        "speech_to_text_model": "gpt-4o-transcribe",
+        "speech_to_text_language": "pl",
+        "dictation_max_seconds": 300,
+    }
+    fields.update(overrides)
+    return SimpleNamespace(**fields)
+
+
+async def test_a_dictation_is_transcribed_with_the_org_settings_and_recorded(
+    recorded: Any,
+) -> None:
+    """The organization's pair and language, not the caller's: the person
+    dictating did not choose the engine, and cannot name another one."""
+    service = MLService(_db())
+    with (
+        patch(
+            "app.services.ml.facade.organization_repo.get_by_id",
+            new=AsyncMock(return_value=_speech_org()),
+        ) as get,
+        patch(
+            "app.services.ml.facade.TranscriptionService.transcribe",
+            new=AsyncMock(return_value="dzień dobry"),
+        ) as transcribe,
+    ):
+        text = await service.dictate(_ctx(), content=b"audio", mime_type="audio/webm;codecs=opus")
+
+    assert text == "dzień dobry"
+    assert get.await_args.args[1] == _ORG
+    sent = transcribe.await_args
+    assert sent.args[0].filename == "recording.webm"
+    assert sent.args[0].mime_type == "audio/webm"
+    assert sent.kwargs["organization_id"] == _ORG
+    assert (sent.kwargs["provider"], sent.kwargs["model"]) == ("openai", "gpt-4o-transcribe")
+    assert sent.kwargs["language"] == "pl"
+    assert recorded.await_args.kwargs["service"] == "speech_to_text"
+    assert recorded.await_args.kwargs["unit"] == "characters"
+    assert recorded.await_args.kwargs["units"] == len("dzień dobry")
+
+
+@pytest.mark.parametrize(
+    ("org", "content", "mime", "reason"),
+    [
+        (None, b"a", "audio/webm", "not_configured"),
+        (_speech_org(chat_dictation="browser"), b"a", "audio/webm", "not_configured"),
+        (
+            _speech_org(speech_to_text_provider=None, speech_to_text_model=None),
+            b"a",
+            "audio/webm",
+            "not_configured",
+        ),
+        (_speech_org(), b"", "audio/webm", "empty"),
+        (_speech_org(), b"a", "audio/wav", "unsupported_type"),
+        (_speech_org(dictation_max_seconds=10), b"x" * (10 * 32_768 + 1), "audio/ogg", "too_large"),
+    ],
+    ids=["no-org", "browser-engine", "no-pair", "empty", "wav", "over-the-limit"],
+)
+async def test_a_dictation_is_refused_with_a_reason_and_the_refusal_recorded(
+    recorded: Any, org: SimpleNamespace | None, content: bytes, mime: str, reason: str
+) -> None:
+    """Refused before the engine is paid for, and the refusal still lands in the
+    usage log on a commit of its own."""
+    db = _db()
+    with (
+        patch(
+            "app.services.ml.facade.organization_repo.get_by_id", new=AsyncMock(return_value=org)
+        ),
+        patch(
+            "app.services.ml.facade.TranscriptionService.transcribe", new=AsyncMock()
+        ) as transcribe,
+        pytest.raises(AppException) as raised,
+    ):
+        await MLService(db).dictate(_ctx(), content=content, mime_type=mime)
+
+    assert raised.value.details is not None
+    assert raised.value.details["reason"] == reason
+    transcribe.assert_not_awaited()
+    assert recorded.await_args.kwargs["status"] == "failed"
+    db.commit.assert_awaited()
+
+
+async def test_a_recording_exactly_at_the_limit_is_transcribed(recorded: Any) -> None:
+    del recorded
+    with (
+        patch(
+            "app.services.ml.facade.organization_repo.get_by_id",
+            new=AsyncMock(return_value=_speech_org(dictation_max_seconds=10)),
+        ),
+        patch(
+            "app.services.ml.facade.TranscriptionService.transcribe",
+            new=AsyncMock(return_value="ok"),
+        ),
+    ):
+        text = await MLService(_db()).dictate(
+            _ctx(), content=b"x" * (10 * 32_768), mime_type="audio/mp4"
+        )
+
+    assert text == "ok"
+
+
+async def test_an_engine_refusal_during_dictation_is_recorded_and_re_raised(
+    recorded: Any,
+) -> None:
+    failure = ExternalServiceError(message="m", details={"reason": "timeout", "stage": "engine"})
+    with (
+        patch(
+            "app.services.ml.facade.organization_repo.get_by_id",
+            new=AsyncMock(return_value=_speech_org()),
+        ),
+        patch(
+            "app.services.ml.facade.TranscriptionService.transcribe",
+            new=AsyncMock(side_effect=failure),
+        ),
+        pytest.raises(ExternalServiceError) as caught,
+    ):
+        await MLService(_db()).dictate(_ctx(), content=b"a", mime_type="audio/ogg;codecs=opus")
+
+    assert caught.value is failure
+    assert recorded.await_args.kwargs["failure_stage"] == "engine"
 
 
 # -- reading the log back ------------------------------------------------------

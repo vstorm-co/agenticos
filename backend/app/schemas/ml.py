@@ -116,6 +116,16 @@ class TranscriptionRead(BaseSchema):
     model: str
 
 
+class DictationRead(BaseSchema):
+    """What was said, for the composer to insert.
+
+    Nothing about the engine: the person did not choose it, and the
+    organization's settings already say.
+    """
+
+    text: str
+
+
 class PiiCategoryCountRead(BaseSchema):
     """How many matches one category accounted for."""
 

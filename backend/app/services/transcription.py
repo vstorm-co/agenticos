@@ -19,10 +19,13 @@ makes three providers one client. The shape is declared per entry in the catalog
 rather than assumed here, so a provider whose only route to audio is a chat call
 arrives as another branch instead of a name check in the middle of this.
 
-**A failure here is never a failure of the turn.** The caller gets `None` and
-answers without the transcript, saying so - a bot that goes silent because a
-transcription provider was rate-limited is worse than one that says it could not
-listen to this particular message.
+**A failure raises, and says why.** Every refusal is a domain exception carrying
+`details.reason` - `not_configured`, `too_large`, `empty`, `provider_error`,
+`timeout` - and never the provider's own text. The channel router turns any of
+them into its per-recording "could not be transcribed" line, so a bot still
+answers without the transcript rather than going silent; the ML facade records
+them in the usage log and hands them to the caller, so the composer can say what
+went wrong.
 """
 
 from __future__ import annotations
@@ -34,7 +37,8 @@ from uuid import UUID
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.secret_kinds import ApiKeySecret
+from app.core.exceptions import BadRequestError, ConfigurationError, ExternalServiceError
+from app.core.secret_kinds import ApiKeySecret, NoSecret
 from app.repositories import credential as credential_repo
 from app.services import speech_to_text
 from app.services.model_profile import ModelProfileService
@@ -79,48 +83,75 @@ class TranscriptionService:
         organization_id: UUID,
         provider: str,
         model: str,
-    ) -> str | None:
-        """The words in this recording, or `None` where it could not be read.
+        language: str | None = None,
+    ) -> str:
+        """The words in this recording.
 
-        `None` rather than an exception for every reason: no such provider, no
-        credential configured for it, a recording too large, a refusal from the
-        endpoint, a timeout. Each is logged with what actually happened, and the
-        caller answers without the transcript - the sender is told the bot could
-        not listen to this message, which beats a bot that goes quiet.
+        `language` is an ISO-639-1 code to pin the recording to; `None` leaves the
+        engine to detect it.
+
+        Raises:
+            ConfigurationError: `reason="not_configured"` - the pair is not offered, or
+                this organization has no usable profile for the provider.
+            BadRequestError: `reason="too_large"` over `MAX_BYTES`, or `reason="empty"`
+                when the engine heard nothing.
+            ExternalServiceError: `reason="timeout"` or `reason="provider_error"`. The
+                provider's own text stays in the log: a provider client puts the
+                request URL, key and all, in its message.
         """
+        context = {"provider": provider, "model": model}
         entry = speech_to_text.by_provider(provider)
         if entry is None or not speech_to_text.is_offered(provider, model):
             logger.warning(
                 "Transcription asked for a model that is not offered: %s/%s", provider, model
             )
-            return None
+            raise ConfigurationError(
+                message=f"{provider} does not offer {model} for transcription here.",
+                details={"reason": "not_configured", **context},
+            )
 
         if len(recording.content) > MAX_BYTES:
             logger.info(
                 "Recording of %d bytes is over the transcription limit", len(recording.content)
             )
-            return None
+            raise BadRequestError(
+                message="The recording is larger than transcription accepts.",
+                details={"reason": "too_large", "limit_bytes": MAX_BYTES, **context},
+            )
 
-        key, base_url = await self._credential(organization_id, provider)
-        if key is None:
+        endpoint = await self._credential(organization_id, provider)
+        if endpoint is None:
             logger.warning("No %s credential in this organization to transcribe with", provider)
-            return None
-
+            raise ConfigurationError(
+                message=f"This organization has no {provider} credentials to transcribe with.",
+                details={"reason": "not_configured", **context},
+            )
+        api_key, base_url = endpoint
         return await self._post(
-            recording, base_url=base_url or entry.base_url, api_key=key, model=model
+            recording,
+            base_url=base_url or entry.base_url,
+            api_key=api_key,
+            model=model,
+            language=language,
+            context=context,
         )
 
     async def _credential(
         self, organization_id: UUID, provider: str
-    ) -> tuple[str | None, str | None]:
-        """This organization's key for one provider, and its endpoint if it set one.
+    ) -> tuple[str | None, str | None] | None:
+        """`(api_key, base_url)` for one provider, or `None` when there is none.
 
-        Any profile on that provider will do, and the first with a resolvable
-        credential wins: a profile is "the organization's OpenAI", and holding two
-        of them is about chat models rather than about which key transcribes. A
-        profile whose secret was deleted is skipped rather than fatal, because the
-        next one may be fine and refusing on the first would make transcription
-        depend on row order.
+        A keyed profile first, in label order, and a keyless one only when the
+        provider has no keyed profile at all. Keyed first is what keeps a bot that
+        transcribes on OpenAI today on OpenAI once a keyless `openai` profile - a
+        vLLM or LiteLLM proxy for chat, with no `/audio/transcriptions` - is added
+        and happens to sort earlier. A keyless profile counts only with an address
+        of its own, and returns `api_key=None`: the request then carries no
+        `Authorization` header at all, and never the deployment's environment key.
+
+        A profile whose secret was deleted is skipped rather than fatal, because
+        the next one may be fine and refusing on the first would make
+        transcription depend on row order.
         """
         profiles = [
             profile
@@ -130,6 +161,7 @@ class TranscriptionService:
             if profile.provider == provider
         ]
         service = ModelProfileService(self.db)
+        keyless: tuple[str | None, str | None] | None = None
         for profile in profiles:
             try:
                 resolved = await service.resolve_credential(organization_id, profile)
@@ -143,32 +175,56 @@ class TranscriptionService:
                 continue
             if isinstance(resolved.secret, ApiKeySecret):
                 return resolved.secret.api_key.get_secret_value(), resolved.base_url
-        return None, None
+            if keyless is None and isinstance(resolved.secret, NoSecret) and resolved.base_url:
+                keyless = (None, resolved.base_url)
+        return keyless
 
     @staticmethod
-    async def _post(recording: Recording, *, base_url: str, api_key: str, model: str) -> str | None:
+    async def _post(
+        recording: Recording,
+        *,
+        base_url: str,
+        api_key: str | None,
+        model: str,
+        language: str | None,
+        context: dict[str, str],
+    ) -> str:
         """`POST /audio/transcriptions`, as OpenAI defined it.
 
-        The provider's own error text is logged and never returned: this string
-        reaches a chat as part of an answer, and a provider client puts the failing
-        request URL - key in the query string - in its message.
+        The provider's own error text is logged and never raised: it reaches a
+        chat or a composer as part of an answer, and a provider client puts the
+        failing request URL - key in the query string - in its message.
         """
+        headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+        data = {"model": model} if language is None else {"model": model, "language": language}
         try:
             async with httpx.AsyncClient(timeout=TIMEOUT_SECONDS) as client:
                 response = await client.post(
                     f"{base_url.rstrip('/')}/audio/transcriptions",
-                    headers={"Authorization": f"Bearer {api_key}"},
-                    data={"model": model},
+                    headers=headers,
+                    data=data,
                     files={"file": (recording.filename, recording.content, recording.mime_type)},
                 )
                 response.raise_for_status()
                 payload = response.json()
-        except Exception:
+        except httpx.TimeoutException as exc:
+            logger.warning("Transcription timed out for model %s", model, exc_info=True)
+            raise ExternalServiceError(
+                message="The transcription provider did not answer in time.",
+                details={"reason": "timeout", "stage": "engine", **context},
+            ) from exc
+        except Exception as exc:
             logger.warning("Transcription request failed for model %s", model, exc_info=True)
-            return None
+            raise ExternalServiceError(
+                message="The transcription provider refused or failed the request.",
+                details={"reason": "provider_error", "stage": "engine", **context},
+            ) from exc
 
         text = str(payload.get("text") or "").strip() if isinstance(payload, dict) else ""
         if not text:
             logger.info("Transcription for model %s came back empty", model)
-            return None
+            raise BadRequestError(
+                message="No speech was heard in the recording.",
+                details={"reason": "empty", "stage": "engine", **context},
+            )
         return text

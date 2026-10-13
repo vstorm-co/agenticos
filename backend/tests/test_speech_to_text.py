@@ -116,3 +116,51 @@ def test_the_providers_this_shipped_with_stay_offered(provider: str):
     what the feature was built and documented against, so losing one to a typo or
     a provider rename should fail here rather than in somebody's chat."""
     assert speech_to_text.by_provider(provider) is not None
+
+
+class TestDictationSettings:
+    def test_the_language_list_is_two_letter_codes_and_includes_the_console_locales(self):
+        """Every code is what a provider's `language` field takes, and the
+        console's own languages are among them."""
+        assert all(
+            len(code) == 2 and code.isalpha() and code.islower()
+            for code in speech_to_text.LANGUAGES
+        )
+        assert {"en", "pl", "de", "es"} <= set(speech_to_text.LANGUAGES)
+
+    @pytest.mark.parametrize(
+        ("engine", "pair", "ready"),
+        [
+            ("server", "offered", True),
+            ("server", None, False),
+            ("server", "withdrawn", False),
+            ("browser", "offered", False),
+            ("off", "offered", False),
+        ],
+    )
+    def test_dictation_is_ready_only_on_the_server_with_an_offered_pair(
+        self, engine: str, pair: str | None, ready: bool
+    ):
+        """A model withdrawn from the catalog since it was chosen reads as not
+        ready, so the composer disables the mic instead of failing on a recording."""
+        entry = speech_to_text.providers()[0]
+        provider, model = {
+            "offered": (entry.provider, entry.models[0].id),
+            "withdrawn": (entry.provider, "a-model-nobody-offers"),
+            None: (None, None),
+        }[pair]
+        assert (
+            speech_to_text.dictation_ready(engine=engine, provider=provider, model=model) is ready
+        )
+
+
+class TestTheCatalogRoute:
+    @pytest.mark.anyio
+    async def test_the_catalog_route_lists_the_languages_a_recording_may_be_pinned_to(self):
+        """The Voice card's language select reads this rather than a copy of it."""
+        from app.api.routes.v1.model_providers import list_speech_to_text_models
+
+        result = await list_speech_to_text_models()
+
+        assert result.languages == list(speech_to_text.LANGUAGES)
+        assert "pl" in result.languages

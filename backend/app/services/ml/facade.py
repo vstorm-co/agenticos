@@ -31,12 +31,13 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.exceptions import AppException, ExternalServiceError, NotFoundError
+from app.core.exceptions import AppException, BadRequestError, ConfigurationError, NotFoundError
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext
 from app.db.models.local_service import LocalServiceKind
 from app.db.models.ml_service_call import MLCallStatus, MLServiceCall
 from app.repositories import ml_service_call_repo
+from app.repositories import organization as organization_repo
 from app.services import speech_to_text, transcription
 from app.services.local_service import LocalServiceService
 from app.services.ml import parsing, pii
@@ -44,6 +45,21 @@ from app.services.ml.catalog import SERVICE_CATALOG, MLServiceEntry
 from app.services.transcription import Recording, TranscriptionService
 
 logger = logging.getLogger(__name__)
+
+DICTATION_BYTES_PER_SECOND = 32_768
+"""Bytes per second of recording the dictation cap allows.
+
+Double what the composer records at (128 kbps Opus is 16 KB/s), so a browser
+that encodes a little fatter than asked is not refused, while a caller posting
+straight to the endpoint cannot buy an hour of transcription with one request.
+"""
+
+DICTATION_TYPES: dict[str, str] = {"audio/webm": "webm", "audio/ogg": "ogg", "audio/mp4": "mp4"}
+"""What browsers' `MediaRecorder` produces, and the extension the provider is sent.
+
+OpenAI-compatible endpoints read the format from the file name, and a `Blob` in
+a `FormData` arrives named `blob`, so the name is chosen here from the type.
+"""
 
 
 @dataclass(frozen=True)
@@ -154,11 +170,13 @@ class MLService:
 
         Raises:
             BadRequestError: If the deployment offers no transcription at all,
-                or the provider and model named are not a pair it offers.
-            ExternalServiceError: If the engine answered with nothing. The
-                organization having no usable credential for the provider is
-                the common cause, and the message says so - the client's own
-                text stays in the log, where it cannot carry a key.
+                the provider and model named are not a pair it offers, the
+                recording is over the size limit (`reason="too_large"`), or the
+                engine heard nothing in it (`reason="empty"`).
+            ConfigurationError: `reason="not_configured"` - the organization has
+                no usable credential for the provider.
+            ExternalServiceError: `reason="provider_error"` or `reason="timeout"`.
+                The client's own text stays in the log, where it cannot carry a key.
         """
         started = time.monotonic()
         try:
@@ -170,15 +188,6 @@ class MLService:
                 provider=chosen[0],
                 model=chosen[1],
             )
-            if text is None:
-                raise ExternalServiceError(
-                    message=(
-                        "The transcription engine returned nothing. Check that this "
-                        "organization has a usable credential for the provider and that "
-                        "the recording is within the size limit."
-                    ),
-                    details={"provider": chosen[0], "model": chosen[1], "stage": "engine"},
-                )
         except AppException as exc:
             await self._record_failure(
                 ctx, "speech_to_text", exc=exc, input_bytes=len(content), started=started
@@ -193,6 +202,74 @@ class MLService:
             started=started,
         )
         return Transcript(text=text, provider=chosen[0], model=chosen[1])
+
+    async def dictate(self, ctx: AuthContext, *, content: bytes, mime_type: str) -> str:
+        """Transcribe a composer recording on the organization's dictation settings (#1797).
+
+        The caller has already proven run access on the agent the person is
+        talking to. Nothing is kept but the usage record: the audio is discarded
+        when this returns, and the text goes back in the response only.
+
+        The byte cap is the organization's longest dictation at
+        `DICTATION_BYTES_PER_SECOND`, never above what transcription accepts.
+
+        Raises:
+            ConfigurationError: `reason="not_configured"` - the engine is not
+                `server`, no pair is set, or the provider has no credential here.
+            BadRequestError: `reason` `empty`, `unsupported_type` or `too_large`.
+            ExternalServiceError: `reason` `provider_error` or `timeout`.
+        """
+        started = time.monotonic()
+        try:
+            org = await organization_repo.get_by_id(self.db, ctx.organization_id)
+            provider = org.speech_to_text_provider if org else None
+            model = org.speech_to_text_model if org else None
+            if org is None or org.chat_dictation != "server" or provider is None or model is None:
+                raise ConfigurationError(
+                    message="Server dictation is not set up for this organization.",
+                    details={"reason": "not_configured"},
+                )
+            if not content:
+                raise BadRequestError(
+                    message="The recording is empty.", details={"reason": "empty"}
+                )
+            base_type = mime_type.split(";", 1)[0].strip().lower()
+            extension = DICTATION_TYPES.get(base_type)
+            if extension is None:
+                raise refused_field(
+                    "file", "Dictation accepts WebM, Ogg or MP4 audio.", reason="unsupported_type"
+                )
+            cap = min(
+                org.dictation_max_seconds * DICTATION_BYTES_PER_SECOND, transcription.MAX_BYTES
+            )
+            if len(content) > cap:
+                raise refused_field(
+                    "file",
+                    "The recording is longer than this organization's "
+                    f"{org.dictation_max_seconds}-second limit.",
+                    reason="too_large",
+                )
+            text = await TranscriptionService(self.db).transcribe(
+                Recording(content=content, filename=f"recording.{extension}", mime_type=base_type),
+                organization_id=ctx.organization_id,
+                provider=provider,
+                model=model,
+                language=org.speech_to_text_language,
+            )
+        except AppException as exc:
+            await self._record_failure(
+                ctx, "speech_to_text", exc=exc, input_bytes=len(content), started=started
+            )
+            raise
+        await self._record(
+            ctx,
+            "speech_to_text",
+            input_bytes=len(content),
+            units=len(text),
+            unit="characters",
+            started=started,
+        )
+        return text
 
     async def detect_personal_data(
         self, ctx: AuthContext, *, text: str, categories: Sequence[str] | None

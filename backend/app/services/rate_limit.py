@@ -174,6 +174,11 @@ def ml_limit() -> Limit:
     return Limit(attempts=settings.RATE_LIMIT_ML_PER_MINUTE)
 
 
+def dictation_limit() -> Limit:
+    """What one person may dictate into the composer, per minute."""
+    return Limit(attempts=settings.RATE_LIMIT_DICTATION_PER_MINUTE)
+
+
 def export_limit() -> Limit:
     """What one caller may ask for a personal-data export, per hour.
 

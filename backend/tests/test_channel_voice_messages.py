@@ -21,6 +21,7 @@ from uuid import uuid4
 
 import pytest
 
+from app.core.exceptions import ExternalServiceError
 from app.services.channels.base import IncomingAttachment, IncomingMessage
 from app.services.channels.router import TRANSCRIPTION_MAX_BYTES, ChannelMessageRouter
 
@@ -202,7 +203,11 @@ class TestWhenItCannotListen:
             patch("app.services.channels.router.unseal_bot_token", return_value="tok"),
             patch(
                 "app.services.channels.router.TranscriptionService.transcribe",
-                AsyncMock(return_value=None),
+                AsyncMock(
+                    side_effect=ExternalServiceError(
+                        message="x", details={"reason": "provider_error"}
+                    )
+                ),
             ),
         ):
             transcripts, refusals = await ChannelMessageRouter()._transcribe(

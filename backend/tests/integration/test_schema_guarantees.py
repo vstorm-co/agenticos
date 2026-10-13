@@ -921,6 +921,54 @@ class TestOrganizationBudgetConstraint:
         assert org.monthly_budget_usd == Decimal("12.345678")
 
 
+class TestOrganizationSpeechConstraints:
+    """The `/chat` dictation settings (#1797), and the rows the columns refuse."""
+
+    async def test_an_existing_organization_dictates_in_the_browser(self, db):
+        """What its microphone already did, so an upgrade moves nobody's audio."""
+        org = await _org(db)
+        await db.refresh(org)
+
+        assert org.chat_dictation == "browser"
+        assert org.dictation_max_seconds == 300
+        assert org.speech_to_text_provider is None
+
+    async def test_an_engine_nothing_serves_is_refused(self, db):
+        org = await _org(db)
+        org.chat_dictation = "loud"
+
+        with pytest.raises(IntegrityError):
+            await db.flush()
+
+    async def test_a_provider_without_a_model_is_refused(self, db):
+        """Half a pair is a server engine with nothing to call."""
+        org = await _org(db)
+        org.speech_to_text_provider = "openai"
+
+        with pytest.raises(IntegrityError):
+            await db.flush()
+
+    @pytest.mark.parametrize("seconds", [9, 601])
+    async def test_a_length_outside_the_bounds_is_refused(self, db, seconds: int):
+        org = await _org(db)
+        org.dictation_max_seconds = seconds
+
+        with pytest.raises(IntegrityError):
+            await db.flush()
+
+    async def test_a_full_server_setup_is_stored(self, db):
+        org = await _org(db)
+        org.chat_dictation = "server"
+        org.speech_to_text_provider = "openai"
+        org.speech_to_text_model = "gpt-4o-transcribe"
+        org.speech_to_text_language = "pl"
+        org.dictation_max_seconds = 600
+        await db.flush()
+        await db.refresh(org)
+
+        assert (org.chat_dictation, org.speech_to_text_model) == ("server", "gpt-4o-transcribe")
+
+
 class TestIngestionSpend:
     """The half of the monthly bill that no run carries."""
 

@@ -30,7 +30,9 @@ from app.api.deps import (
     AgentRunnerSvc,
     Auth,
     DBSession,
+    MLSvc,
     limit_agent_run,
+    limit_dictation,
     require,
 )
 from app.api.routes.v1._stored_bytes import stored_image_response
@@ -65,7 +67,8 @@ from app.schemas.agent import (
     TemplateInstallRequest,
     TemplateInstallResult,
 )
-from app.services import mcp_catalog, mcp_listing
+from app.schemas.ml import DictationRead
+from app.services import mcp_catalog, mcp_listing, transcription
 from app.services.attachments import load_attached_files
 from app.services.capability_contracts import tool_contracts
 
@@ -535,6 +538,45 @@ async def unarchive_agent(agent_id: UUID, service: AgentRegistrySvc, ctx: Auth) 
 async def delete_agent(agent_id: UUID, service: AgentRegistrySvc, ctx: Auth) -> None:
     """Permanently remove an agent, its versions and its shares."""
     await service.delete(ctx, agent_id)
+
+
+@router.post(
+    "/{agent_id}/dictation",
+    response_model=DictationRead,
+    # A rate limit, not a permission gate: access is per agent and decided by the
+    # registry below, which reads the caller's grants on it.
+    dependencies=[Depends(limit_dictation)],
+)
+async def dictate_into_composer(
+    agent_id: UUID,
+    registry: AgentRegistrySvc,
+    ml: MLSvc,
+    ctx: Auth,
+    file: UploadFile = File(
+        ..., description="The recording, as the browser's MediaRecorder made it"
+    ),
+) -> Any:
+    """Turn a composer recording into text on the organization's own engine (#1797).
+
+    Anyone who may run this agent may dictate to it, a Viewer with a `use` grant
+    included - so this is a per-resource check, not a role gate - and an agent the
+    caller may not run answers 404, as everywhere else. The engine, model and
+    language are the organization's dictation settings; the caller names none.
+
+    The audio is not stored; the text comes back for the person to edit before
+    sending. Refusals carry `details.reason`: 400 `empty`, `unsupported_type` or
+    `too_large`; 503 `not_configured`, `provider_error` or `timeout`; 429 past
+    `RATE_LIMIT_DICTATION_PER_MINUTE`.
+    """
+    await registry.get(ctx, agent_id, perm=Perm.AGENTS_RUN)
+    text = await ml.dictate(
+        ctx,
+        # One byte past the ceiling, so an oversized body is never copied whole
+        # and the service can still name the limit it is over.
+        content=await file.read(transcription.MAX_BYTES + 1),
+        mime_type=file.content_type or "application/octet-stream",
+    )
+    return DictationRead(text=text)
 
 
 @router.post(

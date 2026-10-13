@@ -859,17 +859,20 @@ class ChannelMessageRouter:
                 logger.warning("Could not fetch a voice message: bot=%s", bot.id, exc_info=True)
                 refusals.append(f"{recording.filename}: could not be downloaded.")
                 continue
-            text = await service.transcribe(
-                Recording(
-                    content=content,
-                    filename=recording.filename,
-                    mime_type=recording.mime_type,
-                ),
-                organization_id=bot.organization_id,
-                provider=bot.speech_to_text_provider,
-                model=bot.speech_to_text_model,
-            )
-            if text is None:
+            try:
+                text = await service.transcribe(
+                    Recording(
+                        content=content,
+                        filename=recording.filename,
+                        mime_type=recording.mime_type,
+                    ),
+                    organization_id=bot.organization_id,
+                    provider=bot.speech_to_text_provider,
+                    model=bot.speech_to_text_model,
+                )
+            except AppException:
+                # Logged by the service with what actually happened; the sender is
+                # owed the same one line whatever the reason.
                 refusals.append(f"{recording.filename}: could not be transcribed.")
                 continue
             transcripts.append(text)

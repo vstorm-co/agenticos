@@ -142,3 +142,87 @@ def default_choice() -> tuple[str, str] | None:
     if not offered:
         return None
     return offered[0].provider, offered[0].models[0].id
+
+
+LANGUAGES: tuple[str, ...] = (
+    "af",
+    "ar",
+    "hy",
+    "az",
+    "be",
+    "bs",
+    "bg",
+    "ca",
+    "zh",
+    "hr",
+    "cs",
+    "da",
+    "nl",
+    "en",
+    "et",
+    "fi",
+    "fr",
+    "gl",
+    "de",
+    "el",
+    "he",
+    "hi",
+    "hu",
+    "is",
+    "id",
+    "it",
+    "ja",
+    "kn",
+    "kk",
+    "ko",
+    "lv",
+    "lt",
+    "mk",
+    "ms",
+    "mr",
+    "mi",
+    "ne",
+    "no",
+    "fa",
+    "pl",
+    "pt",
+    "ro",
+    "ru",
+    "sr",
+    "sk",
+    "sl",
+    "es",
+    "sw",
+    "sv",
+    "tl",
+    "ta",
+    "th",
+    "tr",
+    "uk",
+    "ur",
+    "vi",
+    "cy",
+)
+"""The languages a recording may be pinned to, as ISO-639-1 codes.
+
+Whisper's supported list, in the order of the languages' English names, which
+every catalogued provider accepts as the `language` form field. A code outside it
+is refused at the organization's PATCH rather than sent to a provider that
+answers with its own error text.
+"""
+
+
+def dictation_ready(*, engine: str, provider: str | None, model: str | None) -> bool:
+    """Whether `/chat` dictation would reach a server engine, from settings alone.
+
+    "Configured", not "working": it reads the organization's columns and this
+    catalog and never the vault, because it is computed for every organization in
+    a member's list. A credential deleted since is caught when a recording arrives,
+    as `not_configured`.
+    """
+    return (
+        engine == "server"
+        and provider is not None
+        and model is not None
+        and is_offered(provider, model)
+    )

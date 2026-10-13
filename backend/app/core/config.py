@@ -573,6 +573,9 @@ class Settings(BaseSettings):
     # so the ceiling is about what one integration can do to a worker, not about
     # what a stranger can reach: this surface is authenticated.
     RATE_LIMIT_ML_PER_MINUTE: int = 30
+    # Composer dictations per person per minute (#1797). Its own bucket so a person
+    # dictating does not spend an integration's ML quota, or the other way round.
+    RATE_LIMIT_DICTATION_PER_MINUTE: int = 10
     # Whether `X-Forwarded-For` names the caller. Off by default because the
     # header is set by whoever is calling, so trusting it unconditionally is a
     # per-IP limit anybody bypasses by varying one string. On costs the mirror

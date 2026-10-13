@@ -760,6 +760,21 @@ async def limit_ml_call(ctx: Auth) -> None:
     _refuse_if_over(decision, "Too many ML service calls in the last minute. Wait and try again.")
 
 
+async def limit_dictation(ctx: Auth) -> None:
+    """Refuse a person dictating more than their share - each one is a paid call.
+
+    Its own bucket rather than `limit_ml_call`'s, so a person dictating into the
+    composer and an integration calling the ML surface do not spend each other's
+    allowance.
+    """
+    decision = await rate_limit.consume(
+        surface="dictation",
+        caller=f"user:{ctx.subject_id}",
+        limit=rate_limit.dictation_limit(),
+    )
+    _refuse_if_over(decision, "Too many dictations in the last minute. Wait and try again.")
+
+
 def _refuse_if_over(decision: rate_limit.Decision, message: str) -> None:
     """Turn a rate limiter's refusal into this API's own 429.
 

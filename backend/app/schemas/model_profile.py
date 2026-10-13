@@ -187,6 +187,10 @@ class SpeechToTextProviderRead(BaseSchema):
 class SpeechToTextProviderList(BaseSchema):
     items: list[SpeechToTextProviderRead]
     total: int
+    languages: list[str] = Field(
+        default_factory=list,
+        description="ISO-639-1 codes a recording may be pinned to.",
+    )
 
 
 class ProviderModelList(BaseSchema):

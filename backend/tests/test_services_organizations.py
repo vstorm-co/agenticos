@@ -40,6 +40,8 @@ def _org_row(*, name: str) -> Organization:
         # never flushed - so an unset boolean reaches the response schema as None
         # and fails it, which is the honest failure rather than one to coerce away.
         chat_may_waive_approvals=False,
+        chat_dictation="browser",
+        dictation_max_seconds=300,
         created_at=datetime(2026, 7, 31, tzinfo=UTC),
         updated_at=None,
     )
@@ -564,6 +566,250 @@ class TestOrganizationService:
             pytest.raises(NotFoundError),
         ):
             await service.get_for_user(uuid.uuid4(), uuid.uuid4())
+
+    @staticmethod
+    def _speech_org(**fields: object) -> MagicMock:
+        org = MagicMock()
+        org.chat_dictation = fields.get("chat_dictation", "browser")
+        org.speech_to_text_provider = fields.get("provider")
+        org.speech_to_text_model = fields.get("model")
+        org.speech_to_text_language = fields.get("language")
+        org.dictation_max_seconds = fields.get("max_seconds", 300)
+        return org
+
+    @staticmethod
+    def _as_owner(org: MagicMock) -> AsyncMock:
+        return AsyncMock(return_value=(org, MagicMock(role=OrgRole.OWNER.value)))
+
+    @pytest.mark.anyio
+    async def test_server_dictation_without_a_pair_is_refused_on_the_engine(self, service):
+        """`server` with nothing to transcribe on would be a mic that fails on
+        every recording; the form marks the engine, which is what was asked."""
+        with (
+            patch.object(service, "get_for_user", new=self._as_owner(self._speech_org())),
+            pytest.raises(BadRequestError) as raised,
+        ):
+            await service.update(
+                uuid.uuid4(), OrganizationUpdate(chat_dictation="server"), requester_id=uuid.uuid4()
+            )
+        assert raised.value.details["fields"][0]["field"] == "chat_dictation"
+
+    @pytest.mark.anyio
+    async def test_a_pair_the_catalog_does_not_offer_is_refused_on_the_model(self, service):
+        with (
+            patch.object(service, "get_for_user", new=self._as_owner(self._speech_org())),
+            pytest.raises(BadRequestError) as raised,
+        ):
+            await service.update(
+                uuid.uuid4(),
+                OrganizationUpdate(speech_to_text_provider="openai", speech_to_text_model="nope"),
+                requester_id=uuid.uuid4(),
+            )
+        assert raised.value.details["fields"][0]["field"] == "speech_to_text_model"
+
+    @pytest.mark.anyio
+    async def test_a_provider_without_a_model_is_refused(self, service):
+        """Both or neither, as the column constraint says - refused here as a
+        field rather than as a 500 from the database, and on the provider, the
+        field the request sent."""
+        with (
+            patch.object(service, "get_for_user", new=self._as_owner(self._speech_org())),
+            pytest.raises(BadRequestError) as raised,
+        ):
+            await service.update(
+                uuid.uuid4(),
+                OrganizationUpdate(speech_to_text_provider="openai"),
+                requester_id=uuid.uuid4(),
+            )
+        assert raised.value.details["fields"][0]["field"] == "speech_to_text_provider"
+
+    @pytest.mark.anyio
+    async def test_clearing_the_pair_under_server_is_refused_on_a_field_sent(self, service):
+        """Stored `server`, request clears only the pair: the engine was not
+        sent, so the refusal marks the pair field the request did send."""
+        org = self._speech_org(chat_dictation="server", provider="openai", model="whisper-1")
+        with (
+            patch.object(service, "get_for_user", new=self._as_owner(org)),
+            pytest.raises(BadRequestError) as raised,
+        ):
+            await service.update(
+                uuid.uuid4(),
+                OrganizationUpdate(speech_to_text_provider=None, speech_to_text_model=None),
+                requester_id=uuid.uuid4(),
+            )
+        assert raised.value.details["fields"][0]["field"] == "speech_to_text_model"
+
+    @pytest.mark.anyio
+    async def test_asking_for_server_on_a_stale_pair_is_refused_on_the_engine(self, service):
+        """Switching to `server` checks the stored pair it would run on; the
+        refusal marks the engine, the only field sent."""
+        org = self._speech_org(provider="openai", model="withdrawn-model")
+        with (
+            patch.object(service, "get_for_user", new=self._as_owner(org)),
+            pytest.raises(BadRequestError) as raised,
+        ):
+            await service.update(
+                uuid.uuid4(), OrganizationUpdate(chat_dictation="server"), requester_id=uuid.uuid4()
+            )
+        assert raised.value.details["fields"][0]["field"] == "chat_dictation"
+
+    @pytest.mark.anyio
+    async def test_an_unknown_language_is_refused(self, service):
+        with (
+            patch.object(service, "get_for_user", new=self._as_owner(self._speech_org())),
+            pytest.raises(BadRequestError) as raised,
+        ):
+            await service.update(
+                uuid.uuid4(),
+                OrganizationUpdate(speech_to_text_language="xx"),
+                requester_id=uuid.uuid4(),
+            )
+        assert raised.value.details["fields"][0]["field"] == "speech_to_text_language"
+
+    @pytest.mark.anyio
+    async def test_a_valid_server_setup_writes_all_five_settings(self, service):
+        """The fields the request left out keep their stored values - here the
+        language - and the ones it named replace them."""
+        org = self._speech_org(language="de")
+        with (
+            patch.object(service, "get_for_user", new=self._as_owner(org)),
+            patch(
+                "app.services.organization.organization_repo.set_speech_settings",
+                new=AsyncMock(return_value=org),
+            ) as write,
+            patch(
+                "app.services.organization.organization_repo.update",
+                new=AsyncMock(return_value=org),
+            ),
+        ):
+            await service.update(
+                uuid.uuid4(),
+                OrganizationUpdate(
+                    chat_dictation="server",
+                    speech_to_text_provider="openai",
+                    speech_to_text_model="gpt-4o-transcribe",
+                    dictation_max_seconds=120,
+                ),
+                requester_id=uuid.uuid4(),
+            )
+        assert write.await_args.kwargs == {
+            "chat_dictation": "server",
+            "provider": "openai",
+            "model": "gpt-4o-transcribe",
+            "language": "de",
+            "max_seconds": 120,
+        }
+
+    @pytest.mark.anyio
+    async def test_clearing_the_pair_and_the_language_with_null_clears_them(self, service):
+        """`null` on a named field clears it; on the engine and the length, which
+        cannot be empty, it leaves the stored value alone."""
+        org = self._speech_org(provider="openai", model="whisper-1", language="pl", max_seconds=60)
+        with (
+            patch.object(service, "get_for_user", new=self._as_owner(org)),
+            patch(
+                "app.services.organization.organization_repo.set_speech_settings",
+                new=AsyncMock(return_value=org),
+            ) as write,
+            patch(
+                "app.services.organization.organization_repo.update",
+                new=AsyncMock(return_value=org),
+            ),
+        ):
+            await service.update(
+                uuid.uuid4(),
+                OrganizationUpdate.model_validate(
+                    {
+                        "chat_dictation": None,
+                        "speech_to_text_provider": None,
+                        "speech_to_text_model": None,
+                        "speech_to_text_language": None,
+                        "dictation_max_seconds": None,
+                    }
+                ),
+                requester_id=uuid.uuid4(),
+            )
+        assert write.await_args.kwargs == {
+            "chat_dictation": "browser",
+            "provider": None,
+            "model": None,
+            "language": None,
+            "max_seconds": 60,
+        }
+
+    @pytest.mark.anyio
+    async def test_a_rename_does_not_revalidate_a_dictation_setup_that_went_stale(self, service):
+        """Engine `server` whose model was withdrawn must not block renaming the
+        organization: the speech fields are checked only when one is named."""
+        org = self._speech_org(chat_dictation="server", provider="openai", model="withdrawn-model")
+        with (
+            patch.object(service, "get_for_user", new=self._as_owner(org)),
+            patch(
+                "app.services.organization.organization_repo.set_speech_settings",
+                new=AsyncMock(),
+            ) as write,
+            patch(
+                "app.services.organization.organization_repo.update",
+                new=AsyncMock(return_value=org),
+            ) as rename,
+        ):
+            await service.update(
+                uuid.uuid4(), OrganizationUpdate(name="Renamed"), requester_id=uuid.uuid4()
+            )
+        write.assert_not_awaited()
+        assert rename.await_args.kwargs["name"] == "Renamed"
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("engine", ["off", "browser"])
+    async def test_switching_off_server_dictation_on_a_stale_pair_is_allowed(self, service, engine):
+        """An admin turning off broken server dictation must not have to pick a
+        new model first: the stored pair is not checked unless the request
+        names it or asks for `server`."""
+        org = self._speech_org(chat_dictation="server", provider="openai", model="withdrawn-model")
+        with (
+            patch.object(service, "get_for_user", new=self._as_owner(org)),
+            patch(
+                "app.services.organization.organization_repo.set_speech_settings",
+                new=AsyncMock(return_value=org),
+            ) as write,
+            patch(
+                "app.services.organization.organization_repo.update",
+                new=AsyncMock(return_value=org),
+            ),
+        ):
+            await service.update(
+                uuid.uuid4(), OrganizationUpdate(chat_dictation=engine), requester_id=uuid.uuid4()
+            )
+        assert write.await_args.kwargs["chat_dictation"] == engine
+        assert write.await_args.kwargs["model"] == "withdrawn-model"
+
+    @pytest.mark.anyio
+    async def test_speech_settings_need_org_settings(self, service):
+        member = AsyncMock(return_value=(self._speech_org(), MagicMock(role=OrgRole.MEMBER.value)))
+        with (
+            patch.object(service, "get_for_user", new=member),
+            patch(
+                "app.services.organization.organization_repo.set_speech_settings",
+                new=AsyncMock(),
+            ) as write,
+            pytest.raises(AuthorizationError),
+        ):
+            await service.update(
+                uuid.uuid4(), OrganizationUpdate(chat_dictation="off"), requester_id=uuid.uuid4()
+            )
+        write.assert_not_awaited()
+
+    def test_the_read_says_whether_dictation_is_ready(self):
+        from app.services.organization import _org_read
+
+        org = _org_row(name="Acme")
+        org.chat_dictation = "server"
+        org.speech_to_text_provider = "openai"
+        org.speech_to_text_model = "gpt-4o-transcribe"
+        read = _org_read(org, member_count=1, role=OrgRole.OWNER.value)
+        assert read.chat_dictation == "server"
+        assert read.speech_to_text_model == "gpt-4o-transcribe"
+        assert read.chat_dictation_ready is True
 
 
 class TestOrganizationResponses:

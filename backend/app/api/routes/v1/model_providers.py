@@ -34,6 +34,7 @@ from app.schemas.model_profile import (
 from app.services.image_models import image_providers
 from app.services.model_catalog import models_for
 from app.services.model_profile import provider_catalog
+from app.services.speech_to_text import LANGUAGES as SPEECH_TO_TEXT_LANGUAGES
 from app.services.speech_to_text import providers as speech_to_text_providers
 
 router = APIRouter()
@@ -168,6 +169,9 @@ async def list_speech_to_text_models() -> Any:
     recording actually arrives, and a bot configured for a provider with no key
     reports that in the log rather than here.
 
+    `languages` is the ISO-639-1 codes a recording may be pinned to, which an
+    organization's dictation settings choose from.
+
     Declared before `/{provider}/models`, which would otherwise match
     "speech-to-text-models" as a provider.
     """
@@ -187,6 +191,7 @@ async def list_speech_to_text_models() -> Any:
             for entry in offered
         ],
         total=len(offered),
+        languages=list(SPEECH_TO_TEXT_LANGUAGES),
     )
 
 

@@ -22,6 +22,7 @@ from httpx import ASGITransport, AsyncClient
 
 from app.api import deps
 from app.api.routes.v1.embed import embed_socket
+from app.core.config import settings
 from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
 from app.services import rate_limit
@@ -112,6 +113,27 @@ class TestThePublicRunApi:
 
         assert response.status_code != 429
         client_mock.count_in_window.assert_not_awaited()
+
+
+class TestComposerDictation:
+    """Every dictation is a paid call to a provider, so a person has a bucket of
+    their own - separate from the ML surface's, so neither spends the other's."""
+
+    async def test_a_person_over_their_dictation_allowance_is_refused_with_429(self, signed_in):
+        client_mock = _redis(used=settings.RATE_LIMIT_DICTATION_PER_MINUTE + 1)
+        rate_limit.configure(client_mock)
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post(
+                f"/api/v1/agents/{uuid4()}/dictation",
+                files={"file": ("blob", b"audio", "audio/webm")},
+            )
+
+        assert response.status_code == 429
+        assert response.json()["error"]["details"]["retry_after_seconds"] == 60
+        assert client_mock.count_in_window.await_args.args[0] == (
+            f"ratelimit:dictation:user:{_CALLER}"
+        )
 
 
 class TestTheWidgetsAdmission:

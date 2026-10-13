@@ -13,6 +13,7 @@ from app.core.exceptions import (
     ConcurrentChangeError,
     NotFoundError,
 )
+from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, OrgRoleName, Perm, role_has
 from app.db.locks import LockScope, hold_name, hold_subject, try_hold_name
 from app.db.models.knowledge_base import KnowledgeBase
@@ -30,7 +31,7 @@ from app.schemas.organization import (
     OrganizationRead,
     OrganizationUpdate,
 )
-from app.services import skill_library
+from app.services import skill_library, speech_to_text
 from app.services.deployment_settings import DeploymentSettingsService
 from app.services.file_storage import avatar_filename, get_file_storage
 from app.services.skills import SkillService
@@ -39,6 +40,17 @@ if TYPE_CHECKING:
     from app.services.rag.vectorstore import BaseVectorStore
 
 logger = logging.getLogger(__name__)
+
+_SPEECH_FIELDS = frozenset(
+    {
+        "chat_dictation",
+        "speech_to_text_provider",
+        "speech_to_text_model",
+        "speech_to_text_language",
+        "dictation_max_seconds",
+    }
+)
+"""The `/chat` dictation settings (#1797), validated together when any is named."""
 
 
 def _org_read(org: Organization, member_count: int, role: str) -> OrganizationRead:
@@ -59,6 +71,16 @@ def _org_read(org: Organization, member_count: int, role: str) -> OrganizationRe
         role=role,
         monthly_budget_usd=org.monthly_budget_usd,
         chat_may_waive_approvals=org.chat_may_waive_approvals,
+        chat_dictation=org.chat_dictation,
+        speech_to_text_provider=org.speech_to_text_provider,
+        speech_to_text_model=org.speech_to_text_model,
+        speech_to_text_language=org.speech_to_text_language,
+        dictation_max_seconds=org.dictation_max_seconds,
+        chat_dictation_ready=speech_to_text.dictation_ready(
+            engine=org.chat_dictation,
+            provider=org.speech_to_text_provider,
+            model=org.speech_to_text_model,
+        ),
         created_at=org.created_at,
         updated_at=org.updated_at,
     )
@@ -275,6 +297,10 @@ class OrganizationService:
         decision about the approval queue, and somebody who may not decide one
         approval should not be able to switch the queue off for every
         conversation (#925).
+
+        The `/chat` dictation fields fall under `org:settings` with the metadata,
+        and are validated only when one of them is named - so a rename never
+        trips over a dictation setup that went stale (#1797).
         """
         org, membership = await self.get_for_user(org_id, requester_id)
         wants_budget = "monthly_budget_usd" in data.model_fields_set
@@ -311,11 +337,91 @@ class OrganizationService:
                 self.db, org, allowed=data.chat_may_waive_approvals
             )
 
+        if data.model_fields_set & _SPEECH_FIELDS:
+            org = await self._apply_speech_settings(org, data)
+
         return await organization_repo.update(
             self.db,
             org,
             name=data.name,
             avatar_url=data.avatar_url,
+        )
+
+    async def _apply_speech_settings(
+        self, org: Organization, data: OrganizationUpdate
+    ) -> Organization:
+        """Merge the named speech fields over the stored ones, check the result, write it.
+
+        Checked after the merge, because the rules span fields: `server` needs a
+        pair, and a pair must be one the catalog offers. Only what the request
+        changes is checked: the pair when it names the provider or the model, the
+        engine when it names `server`, the language when it names one. A rename,
+        or a switch to `off` or `browser`, never trips over a pair that went stale
+        after its model was withdrawn from the catalog. A refusal names a field
+        the request sent.
+
+        `null` clears the provider, the model and the language; on the engine and
+        the length, which cannot be empty, it leaves the stored value alone.
+        """
+        named = data.model_fields_set
+        engine = data.chat_dictation or org.chat_dictation
+        provider = (
+            data.speech_to_text_provider
+            if "speech_to_text_provider" in named
+            else org.speech_to_text_provider
+        )
+        model = (
+            data.speech_to_text_model
+            if "speech_to_text_model" in named
+            else org.speech_to_text_model
+        )
+        language = (
+            data.speech_to_text_language
+            if "speech_to_text_language" in named
+            else org.speech_to_text_language
+        )
+        max_seconds = data.dictation_max_seconds or org.dictation_max_seconds
+        pair_field = (
+            "speech_to_text_model"
+            if "speech_to_text_model" in named
+            else "speech_to_text_provider"
+            if "speech_to_text_provider" in named
+            else None
+        )
+        asks_server = data.chat_dictation == "server"
+        if pair_field is not None or asks_server:
+            # The engine is named when the pair is not, so the field is one sent.
+            field = pair_field or "chat_dictation"
+            if provider is None or model is None:
+                if provider is not None or model is not None:
+                    raise refused_field(
+                        field, "Choose a provider and a model together, or clear both."
+                    )
+            elif not speech_to_text.is_offered(provider, model):
+                raise refused_field(
+                    field, "That provider does not offer this model for transcription."
+                )
+            if engine == "server" and provider is None:
+                raise refused_field(
+                    "chat_dictation" if asks_server else field,
+                    "Server dictation needs a speech-to-text provider and model first.",
+                )
+        if (
+            "speech_to_text_language" in named
+            and language is not None
+            and language not in speech_to_text.LANGUAGES
+        ):
+            raise refused_field(
+                "speech_to_text_language", "Transcription does not accept that language code."
+            )
+        return await organization_repo.set_speech_settings(
+            self.db,
+            org,
+            chat_dictation=engine,
+            provider=provider,
+            model=model,
+            language=language,
+            max_seconds=max_seconds,
         )
 
     async def delete(self, org_id: UUID, requester_id: UUID) -> None:
