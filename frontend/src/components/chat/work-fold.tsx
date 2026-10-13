@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, OctagonPause } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { ThinkingOrb } from "@/components/ui/thinking-orb";
@@ -57,19 +57,25 @@ export function WorkingLine({ elapsedMs }: { elapsedMs: number | null }) {
 export function WorkFold({
   steps,
   durationMs,
+  stopped = false,
   children,
 }: {
   /** Tool calls folded away; none means the turn only thought. */
   steps: number;
   durationMs: number | null;
+  /** The run was stopped, which the line says instead of "Worked". */
+  stopped?: boolean;
   children: ReactNode;
 }) {
   const t = useTranslations("chat.steps");
   const tChat = useTranslations("chat");
   const [open, setOpen] = useState(false);
   const duration = durationMs === null ? null : formatElapsed(durationMs, t);
-  const label =
-    steps === 0
+  const label = stopped
+    ? duration === null
+      ? t("stopped", { count: steps })
+      : t("stoppedAfter", { duration, count: steps })
+    : steps === 0
       ? duration === null
         ? tChat("thoughtAboutIt")
         : t("thoughtFor", { duration })
@@ -88,7 +94,13 @@ export function WorkFold({
         <span className="relative flex h-6 w-6 shrink-0 items-center justify-center">
           {/* The mark of work done; the way in once the pointer is on it, and the way
               back - staying put - once it is open. */}
-          {!open && (
+          {!open && stopped && (
+            <OctagonPause
+              className="h-3.5 w-3.5 transition-opacity group-hover:opacity-0"
+              aria-hidden
+            />
+          )}
+          {!open && !stopped && (
             <ThinkingOrb
               state="breathing"
               size={20}

@@ -8,7 +8,7 @@ import type { ChatMessage, ChatMessageFile, TurnUsage } from "@/types";
 import type { Agent } from "@/types/agents";
 import { ToolCallCard } from "./tool-call-card";
 import { AgentSteps } from "./agent-step";
-import { TextBubble, ThinkingBlock, TurnParts } from "./turn-parts";
+import { foldWork, runsOf, TextBubble, ThinkingBlock, TurnParts } from "./turn-parts";
 import type { PinnedPrompts } from "./chat-container";
 import { CopyButton } from "./copy-button";
 import { RoundedCost } from "./message-cost";
@@ -145,6 +145,10 @@ export function MessageItem({
   // The turn's cost, which a grouped turn recorded on the segment that parked
   // rather than on the one the footer is drawn under.
   const footerUsage = turnUsage ?? message.usage;
+  // A stopped turn with work folds it into "Stopped after 12s", which says it; the
+  // footer's own marker is for a turn cut off with nothing to fold.
+  const stopFolded =
+    message.wasStopped === true && foldWork(runsOf(message.parts ?? []), true) !== null;
   // A turn produced something worth a footer if it wrote content *or* left a
   // timeline part - the latter is the ask-only turn that was stopped after
   // answering a question and before any text (#502), which otherwise loses its
@@ -327,6 +331,17 @@ export function MessageItem({
           // a column of receipts under every turn is noise while reading, and the
           // numbers are one pointer move away when somebody wants them.
           <div className={cn("flex items-center gap-0.5", isUser && "flex-row-reverse")}>
+            {!isUser && message.wasStopped === true && !stopFolded && (
+              /* A stopped run leaves whatever had been written when the socket
+                 closed, and that reads exactly like a finished answer - so a
+                 reader takes a truncated one as everything the agent had to say.
+                 First in the row, where it is read before the time and the cost;
+                 a turn whose work folded says it in that line instead. */
+              <span className="text-muted-foreground flex items-center gap-1 text-xs">
+                <OctagonPause className="h-3 w-3" aria-hidden />
+                {t("turnWasStopped")}
+              </span>
+            )}
             {/* When and what it cost, as one quiet group before the actions. */}
             {message.timestamp && (
               <span
@@ -345,17 +360,6 @@ export function MessageItem({
                     <RoundedCost usage={footerUsage} />
                   </>
                 )}
-              </span>
-            )}
-            {!isUser && message.wasStopped === true && (
-              /* A stopped run leaves whatever had been written when the socket
-                 closed, and that reads exactly like a finished answer - so a
-                 reader takes a truncated one as everything the agent had to say.
-                 Beside the cost, because the two together are the whole account
-                 of a turn that produced nothing usable and still spent money. */
-              <span className="text-muted-foreground flex items-center gap-1 text-xs">
-                <OctagonPause className="h-3 w-3" aria-hidden />
-                {t("turnWasStopped")}
               </span>
             )}
             {message.content && (
@@ -469,6 +473,7 @@ function MessageBody({
           onCiteClick={onCiteClick}
           startedAt={message.timestamp}
           durationMs={endsTurn ? message.runDurationMs : undefined}
+          stopped={message.wasStopped === true}
         />
       ) : (
         /* Legacy fallback: user / pre-parts messages. */

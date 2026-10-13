@@ -46,6 +46,7 @@ export function TurnParts({
   onCiteClick,
   startedAt,
   durationMs,
+  stopped = false,
 }: {
   parts: MessagePart[];
   isStreaming: boolean;
@@ -59,6 +60,8 @@ export function TurnParts({
   startedAt?: Date;
   /** How long the run took, for a reloaded turn; absent where it is not known. */
   durationMs?: number;
+  /** The run was stopped part-way, so its work ends without an answer or a "Done". */
+  stopped?: boolean;
 }) {
   const runs = runsOf(parts);
   const elapsed = useTurnElapsed(startedAt, isStreaming);
@@ -70,7 +73,7 @@ export function TurnParts({
                 is decided here, where the statuses and the names are. */}
         <AgentSteps
           showAll={mustShowEveryStep(run.parts)}
-          done={run.parts.length > 1 && !isStreaming}
+          done={run.parts.length > 1 && !isStreaming && !stopped}
         >
           {run.parts.map((part, step) => (
             <ToolCallCard
@@ -122,11 +125,11 @@ export function TurnParts({
       </>
     );
   }
-  const split = foldWork(runs);
+  const split = foldWork(runs, stopped);
   if (split === null) return <>{runs.map(render)}</>;
   return (
     <>
-      <WorkFold steps={split.steps} durationMs={durationMs ?? elapsed}>
+      <WorkFold steps={split.steps} durationMs={durationMs ?? elapsed} stopped={stopped}>
         {split.folded.map(render)}
       </WorkFold>
       {split.shown.map(render)}
@@ -404,12 +407,16 @@ function isWork(run: PartRun): boolean {
  * short narration between them ("Let me check the list."). Kept, in order: a run a
  * person has to see (`mustShowEveryStep`), a question the agent asked, what the
  * person added mid-turn, and a passage long enough to be an answer of its own.
- * Null when there is no answer to fold the work above, or no work in front of it.
+ * Null when there is no answer to fold the work above, or no work in front of it -
+ * except for a stopped turn, whose work folds whole: it ends where it was cut off,
+ * and the line saying so is the account of it.
  */
 export function foldWork(
   runs: PartRun[],
+  stopped = false,
 ): { folded: PartRun[]; shown: PartRun[]; steps: number } | null {
-  const answer = runs.findLastIndex((run) => run.kind === "other" && run.part.type === "text");
+  const lastText = runs.findLastIndex((run) => run.kind === "other" && run.part.type === "text");
+  const answer = lastText <= 0 && stopped ? runs.length : lastText;
   if (answer <= 0) return null;
   const folded: PartRun[] = [];
   const kept: PartRun[] = [];

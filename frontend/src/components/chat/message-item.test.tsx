@@ -1115,4 +1115,20 @@ describe("the work before an answer", () => {
     item({ parts: [text("ans", "Thir")], isStreaming: true });
     expect(screen.queryByText(/Working/)).not.toBeInTheDocument();
   });
+
+  it("folds a stopped turn's work into one line that says it stopped, with no Done", () => {
+    const parts = [call("a"), call("b")];
+    item({ parts, runDurationMs: 12_400, wasStopped: true });
+
+    expect(screen.getByRole("button", { name: "Stopped after 12s · 2 steps" })).toBeInTheDocument();
+    expect(screen.queryByText("Done")).toBeNull();
+    // The line says it, so the footer does not say it again.
+    expect(screen.queryByText("stopped")).toBeNull();
+  });
+
+  it("keeps the footer's mark for a turn cut off with nothing to fold", () => {
+    item({ parts: [text("ans", "Half an ans")], wasStopped: true });
+
+    expect(screen.getByText("stopped")).toBeInTheDocument();
+  });
 });

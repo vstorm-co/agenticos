@@ -1187,7 +1187,9 @@
       "worked": "Gearbeitet · {count, plural, =1 {1 Schritt} other {# Schritte}}",
       "workedFor": "{duration} gearbeitet · {count, plural, =1 {1 Schritt} other {# Schritte}}",
       "elapsedSeconds": "{seconds} s",
-      "elapsedMinutes": "{minutes} min{seconds, plural, =0 {} other { # s}}"
+      "elapsedMinutes": "{minutes} min{seconds, plural, =0 {} other { # s}}",
+      "stopped": "Gestoppt{count, plural, =0 {} =1 { · 1 Schritt} other { · # Schritte}}",
+      "stoppedAfter": "Nach {duration} gestoppt{count, plural, =0 {} =1 { · 1 Schritt} other { · # Schritte}}"
     },
     "streamError": "❌ Fehler: {message}",
     "turnInterrupted": "Die Verbindung ist mitten in der Antwort abgerissen. Der Agent beendet den Zug und speichert ihn in dieser Unterhaltung.",

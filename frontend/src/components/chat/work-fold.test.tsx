@@ -91,4 +91,20 @@ describe("WorkFold", () => {
     );
     expect(screen.getByRole("button", { name: "Thought about it" })).toBeInTheDocument();
   });
+
+  it("says a stopped run stopped, with or without its length", () => {
+    const { rerender } = render(
+      <WorkFold steps={2} durationMs={12_000} stopped>
+        {null}
+      </WorkFold>,
+    );
+    expect(screen.getByRole("button", { name: "Stopped after 12s · 2 steps" })).toBeInTheDocument();
+
+    rerender(
+      <WorkFold steps={0} durationMs={null} stopped>
+        {null}
+      </WorkFold>,
+    );
+    expect(screen.getByRole("button", { name: "Stopped" })).toBeInTheDocument();
+  });
 });

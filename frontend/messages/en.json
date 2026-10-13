@@ -1187,7 +1187,9 @@
       "worked": "Worked · {count, plural, =1 {1 step} other {# steps}}",
       "workedFor": "Worked for {duration} · {count, plural, =1 {1 step} other {# steps}}",
       "elapsedSeconds": "{seconds}s",
-      "elapsedMinutes": "{minutes}m{seconds, plural, =0 {} other { #s}}"
+      "elapsedMinutes": "{minutes}m{seconds, plural, =0 {} other { #s}}",
+      "stopped": "Stopped{count, plural, =0 {} =1 { · 1 step} other { · # steps}}",
+      "stoppedAfter": "Stopped after {duration}{count, plural, =0 {} =1 { · 1 step} other { · # steps}}"
     },
     "streamError": "❌ Error: {message}",
     "turnInterrupted": "The connection dropped mid-answer. The agent finishes the turn and saves it to this conversation.",
