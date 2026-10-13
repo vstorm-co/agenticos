@@ -1906,7 +1906,7 @@
       },
       "datasets-new": {
         "title": "Zbieraj przypadki testowe",
-        "body": "Dataset zawiera pytania, na których testujesz agenta. Utwórz go tutaj, a potem dodawaj przypadki ręcznie, z pliku albo z odpowiedzi ocenionej łapką w dół."
+        "body": "Dataset zawiera pytania, na których testujesz agenta. Utwórz go tutaj, a potem dodawaj przypadki ręcznie, z pliku, z okna łapki w dół w czacie albo z tury w Aktywności."
       },
       "datasets-list": {
         "title": "Twoje datasety",
@@ -3285,6 +3285,8 @@
     "dataset": "Dataset",
     "keepAnswerAs": "Zachowaj odpowiedź jako",
     "addedTo": "Dodano do {name}",
+    "alsoAddToDataset": "Dodaj tę odpowiedź do datasetu",
+    "addAfterRatingFailed": "Ocena została zapisana, ale odpowiedź nie trafiła do datasetu: {reason}",
     "field": {
       "input": "Wejście",
       "reference_answer": "Odpowiedź wzorcowa",

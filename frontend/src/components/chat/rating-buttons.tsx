@@ -1,5 +1,5 @@
 "use client";
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import { Loader2, ThumbsUp, ThumbsDown } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
@@ -16,6 +16,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { DIALOG_CONFIRM } from "@/lib/dialog-sizes";
+import {
+  AlsoAddToDataset,
+  type AlsoAddToDatasetHandle,
+} from "@/components/datasets/also-add-to-dataset";
 
 interface RatingButtonsProps {
   messageId: string;
@@ -47,6 +51,7 @@ export function RatingButtons({
   // Which button's request is in flight, not what the rating is: keying the
   // spinner on currentRating (null on an unrated message) spins both thumbs.
   const [inFlight, setInFlight] = useState<RatingValue | null>(null);
+  const datasetChoice = useRef<AlsoAddToDatasetHandle>(null);
 
   const calculateNewCounts = useMemo(
     () =>
@@ -76,6 +81,8 @@ export function RatingButtons({
         const newCounts = calculateNewCounts(currentRating, rating);
         onRatingChange?.({ rating, rating_count: newCounts });
         toast.success(t("thankYouFeedback"));
+        // After the rating, so its comment is there to become the case's note.
+        await datasetChoice.current?.addIfChosen();
         setShowCommentDialog(false);
         setComment("");
       } catch (error) {
@@ -189,6 +196,7 @@ export function RatingButtons({
             maxLength={2000}
             autoFocus
           />
+          <AlsoAddToDataset messageId={messageId} ref={datasetChoice} />
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground text-xs">{comment.length} / 2000</span>
             <div className="flex gap-2">

@@ -6,30 +6,23 @@ import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui";
 import { usePermissions } from "@/hooks/use-permissions";
-import { cn } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
 import { AddToDatasetDialog } from "./add-to-dataset-dialog";
 
 interface AddToDatasetButtonProps {
   messageId: string;
   ratedDown: boolean;
-  /** `icon` beside the copy and rating controls in chat; `label` in Activity. */
-  variant?: "icon" | "label";
-  className?: string;
 }
 
 /**
- * "Add to dataset" on an agent's answer - in a conversation, or on a turn in Activity.
+ * "Add to dataset" on an agent's turn in Activity, where answers are curated - a
+ * good one as a reference as much as a bad one as a counter-example. In chat the
+ * same choice is offered only in the rate-down dialog.
  *
  * Not rendered for somebody whose role edits no dataset: the dialog would offer
  * them nothing to add to.
  */
-export function AddToDatasetButton({
-  messageId,
-  ratedDown,
-  variant = "label",
-  className,
-}: AddToDatasetButtonProps) {
+export function AddToDatasetButton({ messageId, ratedDown }: AddToDatasetButtonProps) {
   const t = useTranslations("datasets");
   const { can } = usePermissions();
   const [open, setOpen] = useState(false);
@@ -38,14 +31,12 @@ export function AddToDatasetButton({
     <>
       <Button
         variant="ghost"
-        size={variant === "icon" ? "icon" : "sm"}
-        aria-label={t("addToDataset")}
-        title={t("addToDataset")}
+        size="sm"
         onClick={() => setOpen(true)}
-        className={cn(variant === "icon" ? "h-6 w-6" : "h-7 gap-1.5 px-2 text-xs", className)}
+        className="h-7 gap-1.5 px-2 text-xs"
       >
         <FlaskConical className="h-3.5 w-3.5" aria-hidden />
-        {variant === "label" && t("addToDataset")}
+        {t("addToDataset")}
       </Button>
       {open && (
         <AddToDatasetDialog

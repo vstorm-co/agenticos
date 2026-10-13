@@ -3339,7 +3339,7 @@
       },
       "datasets-new": {
         "title": "Collect test cases",
-        "body": "A dataset holds the questions an agent is tested on. Create one here, then add cases by hand, from a file, or from a rated-down answer."
+        "body": "A dataset holds the questions an agent is tested on. Create one here, then add cases by hand, from a file, from the thumbs-down dialog in chat, or from a turn in Activity."
       },
       "datasets-list": {
         "title": "Your datasets",
@@ -5659,6 +5659,8 @@
     "dataset": "Dataset",
     "keepAnswerAs": "Keep the answer as",
     "addedTo": "Added to {name}",
+    "alsoAddToDataset": "Add this answer to a dataset",
+    "addAfterRatingFailed": "The rating was saved, but the answer was not added to a dataset: {reason}",
     "field": {
       "input": "Input",
       "reference_answer": "Reference answer",

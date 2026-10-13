@@ -101,9 +101,19 @@ recorded in the [audit log](governance.md#audit).
 
 ### From a conversation or a run { #add-to-dataset }
 
-Every agent answer in the chat, and every agent turn in **Activity**, has an
-**Add to dataset** control. Choose a dataset and the case is created from the
-turn:
+There are two ways in, and both make the same case:
+
+- **In the chat**, rate an answer down. The dialog that asks what went wrong
+  also offers **Add this answer to a dataset**: tick it, choose the dataset and
+  what to keep the answer as, and submit. The rating is saved first and the
+  case is added after it, so your comment becomes the case's note. They are two
+  separate writes - if the add is refused, the rating stays, and the message
+  says which half failed.
+- **In Activity**, every agent turn has an **Add to dataset** control. This is
+  where answers are curated, so a good answer can be kept as a reference just
+  as easily as a bad one as a counter-example.
+
+Either way, the case is created from the turn:
 
 - the question becomes the input, and the turns before it become the
   conversation before the input;
@@ -111,7 +121,7 @@ turn:
   offered as the reference answer instead, and you can choose either;
 - the newest comment left with a thumbs-down becomes the note.
 
-The control is shown to members who may edit a dataset. The message must belong
+Both are shown only to members who may edit a dataset. The message must belong
 to your organization, and you must be able to read it: either you hold
 `runs:view`, which reads every run in the organization as Activity does, or you
 can open the conversation. A message from another organization is refused as

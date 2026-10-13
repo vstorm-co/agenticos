@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { RatingButtons } from "./rating-buttons";
 import { RatingValue, type UserRating } from "@/types";
 import { ApiError } from "@/lib/api-error";
+import { Perm } from "@/types/permissions";
 
 vi.mock("next-intl", async () => ({
   useTranslations: (await import("@/test-utils/intl")).keyTranslations(),
@@ -17,6 +18,22 @@ const rateMessage =
 const removeRating = vi.fn<() => Promise<unknown>>();
 vi.mock("@/hooks/use-message-rating", () => ({
   useMessageRating: () => ({ rateMessage, removeRating }),
+}));
+
+const datasets = vi.hoisted(() => ({
+  granted: [] as string[],
+  add: vi.fn(),
+  list: [
+    { id: "d1", name: "refunds", can_edit: true },
+    { id: "d2", name: "returns", can_edit: true },
+  ],
+}));
+vi.mock("@/hooks/use-permissions", () => ({
+  usePermissions: () => ({ can: (perm: string) => datasets.granted.includes(perm) }),
+}));
+vi.mock("@/hooks/use-datasets", () => ({
+  useDatasets: () => ({ datasets: datasets.list, isLoading: false }),
+  useAddToDataset: () => ({ mutateAsync: datasets.add, isPending: false }),
 }));
 
 function mount({
@@ -49,6 +66,8 @@ const down = () => screen.getByTitle("notHelpful");
 
 beforeEach(() => {
   vi.clearAllMocks();
+  datasets.granted = [];
+  datasets.add.mockResolvedValue({});
   rateMessage.mockResolvedValue({});
   removeRating.mockResolvedValue({});
 });
@@ -374,5 +393,97 @@ describe("a refusal the proxy minted", () => {
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("backendUnavailable"));
     expect(toast.error).not.toHaveBeenCalledWith("Backend unavailable");
+  });
+});
+
+/**
+ * Adding the answer to a dataset from the rate-down dialog: a second, separate
+ * write after the rating, offered only to somebody who edits a dataset.
+ */
+describe("adding a rated-down answer to a dataset", () => {
+  const alsoAdd = () => screen.getByRole("checkbox", { name: "alsoAddToDataset" });
+
+  beforeEach(() => {
+    datasets.granted = [Perm.datasetsEdit];
+  });
+
+  it("is not offered to somebody who edits no dataset", async () => {
+    datasets.granted = [Perm.datasetsView];
+    mount();
+    await userEvent.click(down());
+    expect(screen.queryByRole("checkbox", { name: "alsoAddToDataset" })).toBeNull();
+  });
+
+  it("adds nothing unless asked to", async () => {
+    mount();
+    await userEvent.click(down());
+    await userEvent.click(screen.getByRole("button", { name: "submit" }));
+    await waitFor(() => expect(rateMessage).toHaveBeenCalled());
+    expect(datasets.add).not.toHaveBeenCalled();
+  });
+
+  it("rates first, then adds the answer as a counter-example to the dataset chosen", async () => {
+    const order: string[] = [];
+    rateMessage.mockImplementation(async () => order.push("rate"));
+    datasets.add.mockImplementation(async () => order.push("add"));
+    mount();
+    await userEvent.click(down());
+    await userEvent.click(alsoAdd());
+    await userEvent.click(screen.getByRole("combobox", { name: "dataset" }));
+    await userEvent.click(screen.getByRole("option", { name: "returns" }));
+    await userEvent.type(screen.getByPlaceholderText("describeIssue"), "Wrong window");
+    await userEvent.click(screen.getByRole("button", { name: "submit" }));
+
+    await waitFor(() =>
+      expect(datasets.add).toHaveBeenCalledWith({
+        datasetId: "d2",
+        messageId: "m-1",
+        answerAs: "counter_example",
+      }),
+    );
+    expect(order).toEqual(["rate", "add"]);
+    expect(toast.success).toHaveBeenCalledWith("addedTo");
+    await waitFor(() => expect(screen.queryByText("whatWentWrong")).toBeNull());
+  });
+
+  it("keeps the rating when the add is refused, and says which half failed", async () => {
+    datasets.add.mockRejectedValue(new Error("Dataset not found"));
+    const onRatingChange = mount();
+    await userEvent.click(down());
+    await userEvent.click(alsoAdd());
+    await userEvent.click(screen.getByRole("button", { name: "skipComment" }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("addAfterRatingFailed"));
+    expect(onRatingChange).toHaveBeenCalledWith(
+      expect.objectContaining({ rating: RatingValue.DISLIKE }),
+    );
+    expect(toast.success).toHaveBeenCalledWith("thankYouFeedback");
+  });
+
+  it("points at creating a dataset when there is none to add to, and adds nothing", async () => {
+    const all = datasets.list;
+    datasets.list = [{ id: "d3", name: "theirs", can_edit: false }];
+    try {
+      mount();
+      await userEvent.click(down());
+      await userEvent.click(alsoAdd());
+      expect(screen.getByText("noDatasetToAddTo")).toBeInTheDocument();
+      await userEvent.click(screen.getByRole("button", { name: "submit" }));
+      await waitFor(() => expect(rateMessage).toHaveBeenCalled());
+      expect(datasets.add).not.toHaveBeenCalled();
+    } finally {
+      datasets.list = all;
+    }
+  });
+
+  it("adds nothing when the rating itself is refused", async () => {
+    rateMessage.mockRejectedValue(new Error("down"));
+    mount();
+    await userEvent.click(down());
+    await userEvent.click(alsoAdd());
+    await userEvent.click(screen.getByRole("button", { name: "submit" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(datasets.add).not.toHaveBeenCalled();
+    expect(screen.getByText("whatWentWrong")).toBeInTheDocument();
   });
 });
