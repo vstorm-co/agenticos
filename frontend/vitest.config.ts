@@ -110,6 +110,7 @@ export default defineConfig({
         "src/components/ui/text-peek.tsx",
         // The cue a sideways-scrolling strip gives that there is more of it.
         "src/components/ui/scroll-fade.ts",
+        "src/components/ui/more-options.tsx",
         "src/components/chat/usage-strip.tsx",
         "src/components/chat/attachment-card.tsx",
         "src/components/chat/browser-card.tsx",

@@ -7,7 +7,6 @@ import {
   type Audience,
 } from "@/components/sharing/audience-picker";
 import { useState } from "react";
-import { ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 
 import { ChipsInput } from "@/components/agents/chips-input";
@@ -22,6 +21,7 @@ import {
   FormField,
   Input,
   Label,
+  MoreOptions,
   Textarea,
 } from "@/components/ui";
 import { useAgents } from "@/hooks";
@@ -77,7 +77,6 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
   const tErrors = useTranslations("errors");
   const t = useTranslations("agents");
   const tAgents = useTranslations("pages.agents");
-  const [moreOpen, setMoreOpen] = useState(false);
   const { create } = useAgents();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -188,64 +187,48 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
           {/* Optional, and folded: a draft needs a name and an audience, and the
               catalog details can wait for the detail page - which changes them
               later without a publish. */}
-          <div>
-            <button
-              type="button"
-              aria-expanded={moreOpen}
-              onClick={() => setMoreOpen((open) => !open)}
-              className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 text-sm font-medium transition-colors"
+          <MoreOptions label={t("moreOptions")}>
+            <FormField
+              label={t("description")}
+              htmlFor="agent-description"
+              error={errors.description}
             >
-              <ChevronRight
-                className={cn("h-4 w-4 transition-transform", moreOpen && "rotate-90")}
-                aria-hidden
+              <Textarea
+                value={description}
+                onChange={(event) => edit("description", event.target.value)}
+                placeholder={t("answersCustomerQuestionsFrom")}
+                maxLength={MAX_DESCRIPTION}
+                rows={2}
               />
-              {t("moreOptions")}
-            </button>
-            {moreOpen && (
-              <div className="mt-3 space-y-4">
-                <FormField
-                  label={t("description")}
-                  htmlFor="agent-description"
-                  error={errors.description}
-                >
-                  <Textarea
-                    value={description}
-                    onChange={(event) => edit("description", event.target.value)}
-                    placeholder={t("answersCustomerQuestionsFrom")}
-                    maxLength={MAX_DESCRIPTION}
-                    rows={2}
-                  />
-                </FormField>
-                {/* Side by side: two halves of one question. */}
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-1.5">
-                    <Label>{tAgents("categories")}</Label>
-                    <ChipsInput
-                      values={categories}
-                      onChange={setCategories}
-                      inputLabel={tAgents("addCategory")}
-                      removeLabel={(value) => tAgents("removeCategory", { value })}
-                      placeholder={tAgents("addCategoryPlaceholder")}
-                      maxItems={MAX_AGENT_CATEGORIES}
-                      maxLength={MAX_LABEL}
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>{tAgents("tags")}</Label>
-                    <ChipsInput
-                      values={tags}
-                      onChange={setTags}
-                      inputLabel={tAgents("addTag")}
-                      removeLabel={(value) => tAgents("removeTag", { value })}
-                      placeholder={tAgents("addTagPlaceholder")}
-                      maxItems={MAX_AGENT_TAGS}
-                      maxLength={MAX_LABEL}
-                    />
-                  </div>
-                </div>
+            </FormField>
+            {/* Side by side: two halves of one question. */}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label>{tAgents("categories")}</Label>
+                <ChipsInput
+                  values={categories}
+                  onChange={setCategories}
+                  inputLabel={tAgents("addCategory")}
+                  removeLabel={(value) => tAgents("removeCategory", { value })}
+                  placeholder={tAgents("addCategoryPlaceholder")}
+                  maxItems={MAX_AGENT_CATEGORIES}
+                  maxLength={MAX_LABEL}
+                />
               </div>
-            )}
-          </div>
+              <div className="space-y-1.5">
+                <Label>{tAgents("tags")}</Label>
+                <ChipsInput
+                  values={tags}
+                  onChange={setTags}
+                  inputLabel={tAgents("addTag")}
+                  removeLabel={(value) => tAgents("removeTag", { value })}
+                  placeholder={tAgents("addTagPlaceholder")}
+                  maxItems={MAX_AGENT_TAGS}
+                  maxLength={MAX_LABEL}
+                />
+              </div>
+            </div>
+          </MoreOptions>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>

@@ -20,6 +20,7 @@ import {
   DialogTitle,
   FormField,
   Input,
+  MoreOptions,
 } from "@/components/ui";
 import {
   TranscriptionFields,
@@ -29,7 +30,7 @@ import { submitFailure } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
 import type { AnswerStyle, ChannelBotCreate, ChannelPlatform } from "@/types/channels";
 import { useTranslations } from "next-intl";
-import { DIALOG_FORM } from "@/lib/dialog-sizes";
+import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 
 const PLATFORMS: readonly ChannelPlatform[] = ["mattermost", "slack", "telegram"];
 
@@ -187,13 +188,15 @@ export function AddChannelDialog({
         onOpenChange(next);
       }}
     >
-      <DialogContent className={DIALOG_FORM}>
+      {/* One column that scrolls as a whole: the platform, what it needs to
+          connect, and the rest folded under More options. */}
+      <DialogContent className={cn(DIALOG_FORM, DIALOG_COLUMN)}>
         <DialogHeader>
           <DialogTitle>{t("addChannel")}</DialogTitle>
           <DialogDescription>{t("addChannelDescription")}</DialogDescription>
         </DialogHeader>
 
-        <div className="max-h-[65vh] scrollbar-thin space-y-5 overflow-y-auto px-1">
+        <div className={cn(DIALOG_BODY, "space-y-5")}>
           {/* A caption over a group of buttons, not a `Label`: a label names one
               control and this one names three. */}
           <div className="space-y-2">
@@ -208,10 +211,10 @@ export function AddChannelDialog({
                   onClick={() => choosePlatform(option)}
                   aria-pressed={platform === option}
                   className={cn(
-                    "flex items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left text-sm transition-colors",
+                    "flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left text-sm transition-colors",
                     platform === option
-                      ? "border-brand bg-brand/5 text-foreground"
-                      : "border-input hover:bg-accent/50 text-muted-foreground",
+                      ? "border-foreground bg-accent text-foreground"
+                      : "border-input text-muted-foreground hover:text-foreground hover:bg-accent/60",
                   )}
                 >
                   <ChannelPlatformIcon platform={option} />
@@ -221,7 +224,7 @@ export function AddChannelDialog({
             </div>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-5">
             <FormField
               label={t("name")}
               htmlFor="channel-name"
@@ -256,7 +259,7 @@ export function AddChannelDialog({
           </div>
 
           {platform === "mattermost" && (
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-5">
               <FormField
                 label={t("mattermostServerUrl")}
                 htmlFor="channel-server-url"
@@ -326,18 +329,19 @@ export function AddChannelDialog({
             </>
           )}
 
-          <AnswerStyleFields
-            idPrefix="channel"
-            platform={platform}
-            value={answerStyle}
-            onChange={setAnswerStyle}
-          />
-
-          <TranscriptionFields
-            idPrefix="channel"
-            value={transcription}
-            onChange={setTranscription}
-          />
+          <MoreOptions label={t("moreOptions")}>
+            <AnswerStyleFields
+              idPrefix="channel"
+              platform={platform}
+              value={answerStyle}
+              onChange={setAnswerStyle}
+            />
+            <TranscriptionFields
+              idPrefix="channel"
+              value={transcription}
+              onChange={setTranscription}
+            />
+          </MoreOptions>
         </div>
 
         <DialogFooter>

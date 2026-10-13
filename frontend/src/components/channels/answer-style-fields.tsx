@@ -4,7 +4,6 @@ import { useTranslations } from "next-intl";
 
 import {
   FormField,
-  Input,
   Label,
   Select,
   SelectContent,
@@ -26,6 +25,26 @@ export const DEFAULT_ANSWER_STYLE: AnswerStyle = {
 export const REACTION_PATTERN = /^[a-z0-9_+-]{1,64}$/;
 
 /**
+ * The reactions offered, by the name the platforms take and the emoji it
+ * draws. The set Telegram allows a bot, which Slack and Mattermost both know
+ * too - so one list is right on every platform, and nobody has to remember
+ * that it is `eyes` and not `:eyes:`.
+ */
+export const REACTIONS: readonly (readonly [name: string, emoji: string])[] = [
+  ["eyes", "👀"],
+  ["+1", "👍"],
+  ["ok_hand", "👌"],
+  ["fire", "🔥"],
+  ["thinking_face", "🤔"],
+  ["writing_hand", "✍️"],
+  ["zap", "⚡"],
+  ["hourglass", "⌛"],
+];
+
+/** The select's value for "no reaction" - a name no platform spells. */
+const NONE = "none";
+
+/**
  * How a bot answers, beyond what it says (#2084).
  *
  * A reaction on the question the moment it arrives, thumbs under the answer to
@@ -44,29 +63,46 @@ export function AnswerStyleFields({
   onChange: (value: AnswerStyle) => void;
 }) {
   const t = useTranslations("pages.channels");
-  const reaction = value.ack_reaction ?? "";
-  const badReaction = reaction !== "" && !REACTION_PATTERN.test(reaction);
+  const reaction = value.ack_reaction;
+  // A reaction stored before this list existed is still offered, so opening
+  // the form never silently changes it.
+  const options =
+    reaction !== null && !REACTIONS.some(([name]) => name === reaction)
+      ? [...REACTIONS, [reaction, ""] as const]
+      : REACTIONS;
 
   return (
-    <fieldset className="space-y-4 rounded-lg border p-4">
-      <legend className="px-1 text-sm font-medium">{t("answerStyle")}</legend>
+    <div className="space-y-4">
+      <p className="text-sm font-medium">{t("answerStyle")}</p>
       <FormField
         label={t("ackReaction")}
         htmlFor={`${idPrefix}-ack-reaction`}
-        description={platform === "telegram" ? t("ackReactionHintTelegram") : t("ackReactionHint")}
-        error={badReaction ? t("ackReactionInvalid") : undefined}
+        description={t("ackReactionHint")}
       >
-        <Input
-          id={`${idPrefix}-ack-reaction`}
-          value={reaction}
-          // i18n-exempt: an emoji's name, the same in every language
-          placeholder="eyes"
-          onChange={(event) =>
-            onChange({ ...value, ack_reaction: event.target.value.trim().toLowerCase() || null })
+        <Select
+          value={reaction ?? NONE}
+          onValueChange={(next) =>
+            onChange({ ...value, ack_reaction: next === NONE ? null : next })
           }
-          maxLength={64}
-          className="max-w-56 font-mono"
-        />
+        >
+          <SelectTrigger id={`${idPrefix}-ack-reaction`} className="max-w-56">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={NONE}>{t("noReaction")}</SelectItem>
+            {options.map(([name, emoji]) => (
+              <SelectItem key={name} value={name} textValue={name}>
+                {/* i18n-exempt: an emoji and its platform name, the same in every language */}
+                <span className="flex items-center gap-2">
+                  <span aria-hidden className="w-5 text-center text-base leading-none">
+                    {emoji}
+                  </span>
+                  <span className="font-mono text-xs">{name}</span>
+                </span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </FormField>
 
       <div className="flex items-start gap-3">
@@ -115,6 +151,6 @@ export function AnswerStyleFields({
           </FormField>
         </>
       )}
-    </fieldset>
+    </div>
   );
 }

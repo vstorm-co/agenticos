@@ -3885,9 +3885,7 @@
       "slackManifestCopied": "Manifest kopiert. Fügen Sie es in Slack unter Create New App, From a manifest ein.",
       "answerStyle": "Wie er antwortet",
       "ackReaction": "Auf eine Frage reagieren mit",
-      "ackReactionHint": "Der Name eines Emojis ohne Doppelpunkte, etwa eyes, sobald eine Frage eintrifft. Leer für keine Reaktion.",
-      "ackReactionHintTelegram": "Der Name eines Emojis ohne Doppelpunkte, etwa eyes. Telegram erlaubt nur einige: eyes, +1, ok_hand, fire, thinking_face, writing_hand, zap, hourglass.",
-      "ackReactionInvalid": "Den Namen des Emojis kleingeschrieben und ohne Doppelpunkte angeben - eyes, nicht :eyes:.",
+      "ackReactionHint": "Wird einer Frage angehängt, sobald sie ankommt, damit man sieht, dass sie aufgenommen wurde.",
       "rateAnswers": "Daumen unter Antworten",
       "rateAnswersHint": "Antworten lassen sich mit Daumen hoch oder runter bewerten; ein Daumen runter fragt, was falsch war. Bewertungen erscheinen in Activity und auf dem Dashboard.",
       "streamAnswers": "Antworten mit ihren Schritten streamen",
@@ -3904,7 +3902,9 @@
       "mattermostCommandWhy": "Für /agent in Mattermost einen Slash Command anlegen (Integrations - Slash Commands) mit dem Auslösewort agent und dieser Request URL, dann das Token, das Mattermost zeigt, hier einfügen.",
       "mattermostCommandUrlCopy": "URL kopieren",
       "mattermostCommandUrlCopied": "Request URL kopiert",
-      "mattermostCommandToken": "Token des Slash Commands"
+      "mattermostCommandToken": "Token des Slash Commands",
+      "noReaction": "Keine Reaktion",
+      "moreOptions": "Weitere Optionen"
     },
     "invitations": {
       "acceptInvitation": "Einladung annehmen",

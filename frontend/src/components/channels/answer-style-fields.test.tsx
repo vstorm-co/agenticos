@@ -18,11 +18,13 @@ vi.mock("@/components/channels/transcription-fields", () => ({
 function Harness({
   platform,
   onChange,
+  initial = {},
 }: {
   platform: ChannelPlatform;
   onChange: (value: AnswerStyle) => void;
+  initial?: Partial<AnswerStyle>;
 }) {
-  const [value, setValue] = useState<AnswerStyle>(DEFAULT_ANSWER_STYLE);
+  const [value, setValue] = useState<AnswerStyle>({ ...DEFAULT_ANSWER_STYLE, ...initial });
   return (
     <AnswerStyleFields
       idPrefix="t"
@@ -37,11 +39,12 @@ function Harness({
 }
 
 describe("how a bot answers (#2084)", () => {
-  it("takes a reaction by name and turns the thumbs and the stream off", async () => {
+  it("takes a reaction from the list and turns the thumbs and the stream off", async () => {
     const onChange = vi.fn();
     render(<Harness platform="slack" onChange={onChange} />);
 
-    await userEvent.type(screen.getByLabelText("React to a question with"), "Eyes");
+    await userEvent.click(screen.getByRole("combobox", { name: "React to a question with" }));
+    await userEvent.click(await screen.findByRole("option", { name: /eyes/ }));
     await userEvent.click(screen.getByRole("switch", { name: "Thumbs under answers" }));
     await userEvent.click(screen.getByRole("switch", { name: "Stream answers with their steps" }));
 
@@ -62,25 +65,6 @@ describe("how a bot answers (#2084)", () => {
     await userEvent.click(screen.getByRole("option", { name: "A plan" }));
 
     expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ step_display: "plan" }));
-  });
-
-  it("says when a reaction is not an emoji's name, and clearing it means none", async () => {
-    const onChange = vi.fn();
-    render(<Harness platform="mattermost" onChange={onChange} />);
-    const field = screen.getByLabelText("React to a question with");
-
-    await userEvent.type(field, ":eyes:");
-    expect(screen.getByText(/lower case, without colons/)).toBeInTheDocument();
-    await userEvent.clear(field);
-
-    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ ack_reaction: null }));
-    // Streaming is Slack's alone.
-    expect(screen.queryByRole("switch", { name: /Stream answers/ })).not.toBeInTheDocument();
-  });
-
-  it("lists the reactions Telegram allows", () => {
-    render(<Harness platform="telegram" onChange={vi.fn()} />);
-    expect(screen.getByText(/Telegram allows only some/)).toBeInTheDocument();
   });
 });
 
@@ -166,5 +150,17 @@ describe("editing a bot", () => {
     expect(screen.getByLabelText(/Signing secret/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(onSubmit).toHaveBeenCalledWith("b1", { webhook_mode: true });
+  });
+
+  it("offers no reaction, and keeps one stored before the list existed", async () => {
+    const onChange = vi.fn();
+    render(<Harness platform="slack" onChange={onChange} initial={{ ack_reaction: "rocket" }} />);
+
+    const select = screen.getByRole("combobox", { name: "React to a question with" });
+    expect(select).toHaveTextContent("rocket");
+    await userEvent.click(select);
+    await userEvent.click(await screen.findByRole("option", { name: "No reaction" }));
+
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ ack_reaction: null }));
   });
 });

@@ -3773,9 +3773,7 @@
       "slackManifestCopied": "Manifest skopiowany. Wklej go w Slacku w Create New App, From a manifest.",
       "answerStyle": "Jak odpowiada",
       "ackReaction": "Reaguj na pytanie emoji",
-      "ackReactionHint": "Nazwa emoji bez dwukropków, np. eyes, dodawana do pytania w chwili, gdy przychodzi. Puste - bez reakcji.",
-      "ackReactionHintTelegram": "Nazwa emoji bez dwukropków, np. eyes. Telegram pozwala tylko na niektóre: eyes, +1, ok_hand, fire, thinking_face, writing_hand, zap, hourglass.",
-      "ackReactionInvalid": "Użyj nazwy emoji małymi literami, bez dwukropków - eyes, a nie :eyes:.",
+      "ackReactionHint": "Dodawana do pytania w chwili, gdy dotrze, żeby było widać, że ktoś je podjął.",
       "rateAnswers": "Łapki pod odpowiedziami",
       "rateAnswersHint": "Ludzie oceniają odpowiedź łapką w górę lub w dół; łapka w dół pyta, co było nie tak. Oceny widać w Aktywności i na dashboardzie.",
       "streamAnswers": "Strumieniuj odpowiedzi z krokami",
@@ -3792,7 +3790,9 @@
       "mattermostCommandWhy": "Aby pytać przez /agent, utwórz komendę slash w Mattermost (Integracje - Slash Commands) ze słowem agent i tym URL-em żądania, a potem wklej poniżej token, który pokaże Mattermost.",
       "mattermostCommandUrlCopy": "Kopiuj URL",
       "mattermostCommandUrlCopied": "URL żądania skopiowany",
-      "mattermostCommandToken": "Token komendy slash"
+      "mattermostCommandToken": "Token komendy slash",
+      "noReaction": "Bez reakcji",
+      "moreOptions": "Więcej opcji"
     },
     "invitations": {
       "acceptInvitation": "Przyjmij zaproszenie",

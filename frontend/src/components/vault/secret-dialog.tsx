@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronRight, KeyRound } from "lucide-react";
+import { KeyRound } from "lucide-react";
 import { toast } from "sonner";
 
 import { ProviderIcon } from "@/components/vault/provider-icon";
@@ -31,6 +31,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  MoreOptions,
   Textarea,
 } from "@/components/ui";
 import { kindInfo } from "@/hooks";
@@ -124,7 +125,6 @@ export function AddSecretDialog({
   // theirs. Once typed, it stays typed - including when typed back to blank.
   const [name, setName] = useState<string | null>(null);
   const [description, setDescription] = useState("");
-  const [moreOpen, setMoreOpen] = useState(false);
   const [kind, setKind] = useState<StorableSecretKind>("api_key");
   const [value, setValue] = useState<Record<string, unknown>>({});
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
@@ -391,36 +391,21 @@ export function AddSecretDialog({
             </p>
           </div>
 
-          <div>
-            <button
-              type="button"
-              aria-expanded={moreOpen}
-              onClick={() => setMoreOpen((open) => !open)}
-              className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 text-sm font-medium transition-colors"
+          <MoreOptions label={t("moreOptions")}>
+            <FormField
+              label={t("noteOptional")}
+              htmlFor="secret-description"
+              error={errors.description}
+              description={t("shownNextPickerWhich")}
             >
-              <ChevronRight
-                className={cn("h-4 w-4 transition-transform", moreOpen && "rotate-90")}
-                aria-hidden
+              <Textarea
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                rows={2}
+                maxLength={MAX_DESCRIPTION}
               />
-              {t("moreOptions")}
-            </button>
-            {moreOpen && (
-              <FormField
-                label={t("noteOptional")}
-                htmlFor="secret-description"
-                error={errors.description}
-                description={t("shownNextPickerWhich")}
-                className="mt-3"
-              >
-                <Textarea
-                  value={description}
-                  onChange={(event) => setDescription(event.target.value)}
-                  rows={2}
-                  maxLength={MAX_DESCRIPTION}
-                />
-              </FormField>
-            )}
-          </div>
+            </FormField>
+          </MoreOptions>
         </div>
 
         <DialogFooter>

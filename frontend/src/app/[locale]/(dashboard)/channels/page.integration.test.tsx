@@ -515,7 +515,10 @@ describe("the channels page", () => {
     await userEvent.type(screen.getByLabelText(/Name/), "Acme Slack");
     await userEvent.type(screen.getByLabelText(/Bot token/), "xoxb-a-long-token");
     await userEvent.type(screen.getByLabelText(/App-level token/), "xapp-1-token");
-    await userEvent.type(screen.getByLabelText(/React to a question with/), "eyes");
+    // The reaction waits under More options, picked from a list.
+    await userEvent.click(screen.getByRole("button", { name: "More options" }));
+    await userEvent.click(screen.getByRole("combobox", { name: /React to a question with/ }));
+    await userEvent.click(await screen.findByRole("option", { name: /eyes/ }));
     await userEvent.click(screen.getByRole("button", { name: "Register" }));
 
     await waitFor(() =>

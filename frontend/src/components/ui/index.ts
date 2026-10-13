@@ -101,3 +101,4 @@ export { PaginationBar } from "./pagination-bar";
 
 export { DateRangePicker, type DateRange, type DateRangePickerProps } from "./date-range-picker";
 export { WizardSteps, WizardNav, type WizardStep } from "./wizard-steps";
+export { MoreOptions } from "./more-options";
