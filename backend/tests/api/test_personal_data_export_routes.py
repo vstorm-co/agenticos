@@ -68,6 +68,7 @@ def _export() -> PersonalDataExport:
         ratings=[],
         sessions=[],
         runs=[],
+        knowledge_searches=[],
         memory=[],
         channel_identities=[],
         slash_commands=[],

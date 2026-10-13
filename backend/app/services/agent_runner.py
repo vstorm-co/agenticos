@@ -98,6 +98,7 @@ from app.agents.capabilities.channel_tools import (
 )
 from app.agents.capabilities.context import CONTEXT_FILES_RESOURCE
 from app.agents.capabilities.guardrails import GuardrailBlocked
+from app.agents.capabilities.knowledge import KNOWLEDGE_SEARCH_LOG_RESOURCE, KnowledgeSearchLog
 from app.agents.capabilities.media import offloaded_history
 from app.agents.capabilities.planning import (
     PLANNING_STORE_RESOURCE,
@@ -173,6 +174,7 @@ from app.repositories import (
     chat_file_repo,
     conversation_repo,
     knowledge_base_repo,
+    knowledge_gap_repo,
     message_rating_repo,
     organization_repo,
     run_manifest_repo,
@@ -1097,6 +1099,9 @@ class PreparedRun:
     user the same.
     """
 
+    knowledge_searches: KnowledgeSearchLog | None = None
+    """The knowledge searches the run and its delegates made, waiting for `finish`."""
+
     delegations: list[RecordedDelegation] = field(default_factory=list)
     """What this run delegated, waiting to be written by `finish`.
 
@@ -1910,14 +1915,14 @@ class AgentRunnerService:
         self.proposals = SkillProposalService(db)
         self.transcript = TranscriptService(db)
 
-    async def _collection_names(self, spec: AgentSpec, ctx: AuthContext) -> list[str]:
-        """Vector-store collection names for the agent's bound collections.
+    async def _collections(self, spec: AgentSpec, ctx: AuthContext) -> dict[str, UUID]:
+        """The agent's bound collections, vector-store name to knowledge base id, in spec order.
 
         Resolved server-side and passed through deps: the model asks *what* to
         search, never *where*.
         """
         found = await knowledge_base_repo.get_by_ids(self.db, spec.collection_ids)
-        names: list[str] = []
+        names: dict[str, UUID] = {}
         for collection_id in spec.collection_ids:
             collection = found.get(collection_id)
             if collection is None or collection.organization_id != ctx.organization_id:
@@ -1929,7 +1934,7 @@ class AgentRunnerService:
                     ctx.organization_id,
                 )
                 continue
-            names.append(collection.collection_name)
+            names[collection.collection_name] = collection_id
         return names
 
     async def _recorded_conversation_state(self, conversation_id: UUID | None) -> _RecordedState:
@@ -2203,8 +2208,11 @@ class AgentRunnerService:
 
         # Everything a capability needs but must not fetch itself. Resolved once,
         # server-side, so the model cannot influence what an agent reaches.
+        collections = await self._collections(spec, ctx)
+        search_log = KnowledgeSearchLog(agent_id=agent.id, collections=collections)
         resources: dict[str, Any] = {
-            "kb_collection_names": await self._collection_names(spec, ctx),
+            "kb_collection_names": list(collections),
+            KNOWLEDGE_SEARCH_LOG_RESOURCE: search_log,
             "skills": await self.skills.resolve_for_agent(ctx, spec.skill_ids),
             CONTEXT_FILES_RESOURCE: await self.context.resolve_for_agent(ctx, spec.context_ids),
         }
@@ -2548,6 +2556,7 @@ class AgentRunnerService:
                 if isinstance(gap, UnavailablePersonalService)
             ],
             delegations=delegations,
+            knowledge_searches=search_log,
             stash=stash,
             ctx=ctx,
             plan_store=plan_store,
@@ -2843,7 +2852,7 @@ class AgentRunnerService:
             )
         )
         own_resources = await self._delegate_resources(
-            ctx, spec, shared=shared, parent_resources=resources
+            ctx, spec, agent_id=None, shared=shared, parent_resources=resources
         )
         return ResolvedSubagent(
             name=specialist.name,
@@ -2963,7 +2972,7 @@ class AgentRunnerService:
 
         pinned = _with_shared(AgentSpec.model_validate(version.spec), shared)
         delegate_resources = await self._delegate_resources(
-            ctx, pinned, shared=shared, parent_resources=resources
+            ctx, pinned, agent_id=ref.agent_id, shared=shared, parent_resources=resources
         )
         runnable = pinned
         nested_config = _delegation_config(pinned)
@@ -3069,6 +3078,7 @@ class AgentRunnerService:
         ctx: AuthContext,
         spec: AgentSpec,
         *,
+        agent_id: UUID | None,
         shared: list[CapabilityBindingSpec],
         parent_resources: dict[str, Any],
     ) -> dict[str, Any]:
@@ -3097,11 +3107,17 @@ class AgentRunnerService:
         workspace is opened per delegate: only the run has one. Sharing is how a
         delegate reaches a durable workspace at all.
         """
+        collections = await self._collections(spec, ctx)
         resources: dict[str, Any] = {
-            "kb_collection_names": await self._collection_names(spec, ctx),
+            "kb_collection_names": list(collections),
             "skills": await self.skills.resolve_for_agent(ctx, spec.skill_ids),
             CONTEXT_FILES_RESOURCE: await self.context.resolve_for_agent(ctx, spec.context_ids),
         }
+        parent_log = parent_resources.get(KNOWLEDGE_SEARCH_LOG_RESOURCE)
+        if isinstance(parent_log, KnowledgeSearchLog):
+            # An inline specialist has no agent of its own (`agent_id` is None);
+            # its searches are the delegating agent's.
+            resources[KNOWLEDGE_SEARCH_LOG_RESOURCE] = parent_log.for_agent(agent_id, collections)
         if any(binding.id == SANDBOX_CAPABILITY_ID for binding in shared):
             resources[WORKSPACE_RESOURCE] = parent_resources.get(WORKSPACE_RESOURCE)
             # And the spill log with it: a delegate spilling to the shared
@@ -3284,6 +3300,33 @@ class AgentRunnerService:
                     "delegation_row_not_written",
                     extra={"run_id": str(parent.id), "delegation_id": str(delegation.id)},
                 )
+
+    async def _write_knowledge_searches(self, prepared: PreparedRun) -> None:
+        """Write the knowledge searches the run made, once.
+
+        Never raises, for the reason :meth:`_write_delegations` gives: it shares a
+        `finally` with the run's cost row, and a search record lost is a gap
+        nobody sees, where a failed terminal write loses what the run cost. A
+        savepoint keeps a failed insert from aborting the transaction that
+        commits that row.
+        """
+        log = prepared.knowledge_searches
+        if log is None or not log.records:
+            return
+        records = list(log.records)
+        log.records.clear()
+        run = prepared.run
+        try:
+            async with self.db.begin_nested():
+                await knowledge_gap_repo.record_searches(
+                    self.db,
+                    records,
+                    organization_id=run.organization_id,
+                    run_id=run.id,
+                    conversation_id=run.conversation_id,
+                )
+        except Exception:
+            logger.exception("knowledge_searches_not_written", extra={"run_id": str(run.id)})
 
     async def _write_approvals(self, prepared: PreparedRun) -> None:
         """Write the approval rows the run parked, once, off the shared session.
@@ -3472,6 +3515,7 @@ class AgentRunnerService:
         # the parent's row is written on every path: a delegation that spent money
         # and recorded nothing is the hole a cancellation would otherwise open.
         await self._write_delegations(prepared)
+        await self._write_knowledge_searches(prepared)
         await self._record_manifest(prepared)
         # Guarded, because `finish` is called from a `finally` block: an
         # exception raised while telling somebody about a failed run would

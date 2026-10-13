@@ -50,6 +50,7 @@ from app.repositories import skill as skill_repo
 from app.repositories import artifact as artifact_repo
 from app.repositories import context as context_repo
 from app.repositories import dataset as dataset_repo
+from app.repositories import knowledge_gap as knowledge_gap_repo
 from app.repositories import memory as memory_repo
 
 from app.repositories import invitation as invitation_repo
@@ -120,6 +121,7 @@ __all__ = [
     "artifact_repo",
     "context_repo",
     "dataset_repo",
+    "knowledge_gap_repo",
     "memory_repo",
     "notification_repo",
 ]

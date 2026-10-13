@@ -57,6 +57,7 @@ from app.db.models.notification_preference import NotificationChannelPreference
 from app.db.models.announcement import Announcement
 from app.db.models.artifact import Artifact, ArtifactMediaType, ArtifactVersion
 from app.db.models.dataset import Dataset, DatasetCase, DatasetVersion, DatasetVersionCase
+from app.db.models.knowledge_gap import KnowledgeSearch
 
 __all__ = [
     "Artifact",
@@ -66,6 +67,7 @@ __all__ = [
     "DatasetCase",
     "DatasetVersion",
     "DatasetVersionCase",
+    "KnowledgeSearch",
     "User",
     "Session",
     "Conversation",

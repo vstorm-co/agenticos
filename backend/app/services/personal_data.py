@@ -45,6 +45,7 @@ _TOOL_CALL_FIELDS = ("id", "message_id", "tool_name", "args", "result", "status"
 _RATING_FIELDS = ("id", "message_id", "rating", "comment", "created_at")
 _SESSION_FIELDS = ("id", "device_name", "device_type", "ip_address", "created_at", "last_used_at")
 _RUN_FIELDS = ("id", "agent_id", "status", "surface", "cost_usd", "created_at")
+_KNOWLEDGE_SEARCH_FIELDS = ("id", "run_id", "agent_id", "query", "result_count", "created_at")
 _MEMORY_FIELDS = ("id", "agent_id", "name", "content", "updated_at")
 _IDENTITY_FIELDS = ("id", "platform", "platform_user_id", "platform_username")
 _COMMAND_FIELDS = ("id", "name", "prompt", "created_at")
@@ -142,6 +143,10 @@ class PersonalDataService:
             runs=personal_data_repo.as_rows(
                 await personal_data_repo.runs_started_by(self.db, user_id), _RUN_FIELDS
             ),
+            knowledge_searches=personal_data_repo.as_rows(
+                await personal_data_repo.knowledge_searches_of(self.db, user_id),
+                _KNOWLEDGE_SEARCH_FIELDS,
+            ),
             memory=personal_data_repo.as_rows(
                 await personal_data_repo.memory_about(self.db, person_owner_key(user_id)),
                 _MEMORY_FIELDS,
@@ -215,7 +220,7 @@ class PersonalDataService:
     async def purge(self, user_id: UUID) -> PersonalDataPurge:
         """Remove what no cascade reaches, before the user row goes.
 
-        Three tables hold data *about* a person with no foreign key that would
+        These tables hold data *about* a person with no foreign key that would
         take it with them:
 
         - `agent_memory_files`, keyed by the string `person:<user_id>` - notes
@@ -228,6 +233,9 @@ class PersonalDataService:
           for the same reason `owner_key` is - a workspace can belong to a
           conversation, an agent or a person - so no cascade follows it, and a
           state-backed one holds the person's files themselves.
+        - `knowledge_searches` from a run with no conversation, whose
+          `agent_runs.user_id` is `SET NULL`, so the query an agent phrased from
+          their question would outlive them.
 
         Called from `UserService.delete`, inside the same transaction, so a
         deletion that fails afterwards takes this with it.
@@ -249,7 +257,8 @@ class PersonalDataService:
             self.db, person_owner_key(user_id)
         )
         dataset_cases = await personal_data_repo.unlink_dataset_cases_of(self.db, user_id)
-        if notes or identities or workspaces or dataset_cases:
+        searches = await personal_data_repo.purge_knowledge_searches_of(self.db, user_id)
+        if notes or identities or workspaces or dataset_cases or searches:
             logger.info(
                 "personal_data_purged",
                 extra={
@@ -258,6 +267,7 @@ class PersonalDataService:
                     "identities": identities,
                     "workspaces": workspaces,
                     "dataset_cases": dataset_cases,
+                    "knowledge_searches": searches,
                 },
             )
         return PersonalDataPurge(
@@ -265,4 +275,5 @@ class PersonalDataService:
             channel_identities=identities,
             workspaces=workspaces,
             dataset_cases=dataset_cases,
+            knowledge_searches=searches,
         )
