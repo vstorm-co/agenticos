@@ -12,6 +12,7 @@ import { TextBubble, ThinkingBlock, TurnParts } from "./turn-parts";
 import type { PinnedPrompts } from "./chat-container";
 import { CopyButton } from "./copy-button";
 import { RoundedCost } from "./message-cost";
+import { TURN_ACTION } from "./turn-action";
 import { RatingButtons } from "./rating-buttons";
 import { useChatStore, useFilePreviewStore } from "@/stores";
 import { useMcpToolServers } from "@/hooks";
@@ -325,13 +326,25 @@ export function MessageItem({
           // The time and the cost surface on hover with the actions beside them:
           // a column of receipts under every turn is noise while reading, and the
           // numbers are one pointer move away when somebody wants them.
-          <div className={cn("flex items-center gap-2", isUser && "flex-row-reverse")}>
+          <div className={cn("flex items-center gap-0.5", isUser && "flex-row-reverse")}>
+            {/* When and what it cost, as one quiet group before the actions. */}
             {message.timestamp && (
-              <span className="hover-reveal text-muted-foreground text-xs">
+              <span
+                className={cn(
+                  "hover-reveal text-muted-foreground flex items-center gap-1.5 text-xs tabular-nums",
+                  isUser ? "pl-1.5" : "pr-1.5",
+                )}
+              >
                 {new Date(message.timestamp).toLocaleTimeString([], {
                   hour: "2-digit",
                   minute: "2-digit",
                 })}
+                {!isUser && footerUsage && (
+                  <>
+                    <span aria-hidden>·</span>
+                    <RoundedCost usage={footerUsage} />
+                  </>
+                )}
               </span>
             )}
             {!isUser && message.wasStopped === true && (
@@ -345,18 +358,10 @@ export function MessageItem({
                 {t("turnWasStopped")}
               </span>
             )}
-            {!isUser && footerUsage && (
-              <span className="hover-reveal">
-                <RoundedCost usage={footerUsage} />
-              </span>
-            )}
             {message.content && (
               <CopyButton
                 text={message.content}
-                className={cn(
-                  "h-6 w-6 rounded-md sm:opacity-0 sm:group-hover:opacity-100",
-                  isUser ? "bg-secondary hover:bg-secondary/80" : "bg-muted hover:bg-muted/80",
-                )}
+                className={cn(TURN_ACTION, "p-0 sm:opacity-0 sm:group-hover:opacity-100")}
               />
             )}
             {isUser && pins && message.content && (
@@ -368,9 +373,9 @@ export function MessageItem({
                 onClick={onRegenerate}
                 title={t("regenerate")}
                 aria-label={t("regenerate")}
-                className="bg-muted hover:bg-muted/80 text-foreground/70 hover:text-foreground inline-flex h-6 w-6 items-center justify-center rounded-md transition-colors sm:opacity-0 sm:group-hover:opacity-100"
+                className={cn(TURN_ACTION, "sm:opacity-0 sm:group-hover:opacity-100")}
               >
-                <RefreshCw className="h-3 w-3" />
+                <RefreshCw />
               </button>
             )}
             {/* A rating is stored against the saved message; a turn that failed
@@ -563,11 +568,11 @@ function PinButton({ pins, prompt }: { pins: PinnedPrompts; prompt: string }) {
       aria-label={label}
       aria-pressed={pinned}
       className={cn(
-        "bg-secondary hover:bg-secondary/80 inline-flex h-6 w-6 items-center justify-center rounded-md transition-colors",
-        pinned ? "text-foreground" : "text-foreground/70 sm:opacity-0 sm:group-hover:opacity-100",
+        TURN_ACTION,
+        pinned ? "text-foreground" : "sm:opacity-0 sm:group-hover:opacity-100",
       )}
     >
-      {pinned ? <PinOff className="h-3 w-3" /> : <Pin className="h-3 w-3" />}
+      {pinned ? <PinOff /> : <Pin />}
     </button>
   );
 }
