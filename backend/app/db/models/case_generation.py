@@ -154,6 +154,8 @@ class CaseProposal(Base):
         nullable=False,
         index=True,
     )
+    # Where the generator put it among the cases it drafted in one go.
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
     origin: Mapped[str] = mapped_column(String(16), nullable=False)
     input: Mapped[str] = mapped_column(Text, nullable=False)
     history: Mapped[list[dict[str, Any]]] = mapped_column(

@@ -112,6 +112,7 @@ def upgrade() -> None:
         sa.Column("organization_id", sa.UUID(), nullable=False),
         sa.Column("generation_id", sa.UUID(), nullable=False),
         sa.Column("dataset_id", sa.UUID(), nullable=False),
+        sa.Column("position", sa.Integer(), nullable=False),
         sa.Column("origin", sa.String(length=16), nullable=False),
         sa.Column("input", sa.Text(), nullable=False),
         sa.Column(

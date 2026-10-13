@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent_run import AgentRun
 from app.db.models.agent_workspace import AgentWorkspace
+from app.db.models.case_generation import CaseProposal
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Conversation, Message, ToolCall
@@ -282,6 +283,54 @@ async def unlink_dataset_cases_of(db: AsyncSession, user_id: UUID) -> int:
             )
         )
         .values(**_NO_SOURCE)
+    )
+    await db.flush()
+    return result.rowcount or 0  # ty: ignore[unresolved-attribute]
+
+
+async def delete_case_proposals_from_conversation(
+    db: AsyncSession, conversation_id: UUID, *, organization_id: UUID
+) -> int:
+    """Delete every proposed case drafted from this conversation.
+
+    A proposal nobody has accepted is a draft nobody chose to keep, so it goes
+    with the conversation rather than being cut loose from it the way an
+    accepted case is. Run *before* the conversation goes, while
+    `source_conversation_id` still names it.
+
+    Returns:
+        How many proposals were deleted.
+    """
+    result = await db.execute(
+        sa_delete(CaseProposal).where(
+            CaseProposal.source_conversation_id == conversation_id,
+            CaseProposal.organization_id == organization_id,
+        )
+    )
+    await db.flush()
+    return result.rowcount or 0  # ty: ignore[unresolved-attribute]
+
+
+async def delete_case_proposals_of(db: AsyncSession, user_id: UUID) -> int:
+    """Delete every proposed case drafted from this person's conversations or runs.
+
+    Unscoped by organization on purpose, like :func:`unlink_dataset_cases_of`:
+    an erasure is about one person, in every organization they were in.
+
+    Returns:
+        How many proposals were deleted.
+    """
+    result = await db.execute(
+        sa_delete(CaseProposal).where(
+            or_(
+                CaseProposal.source_conversation_id.in_(
+                    select(Conversation.id).where(Conversation.user_id == user_id)
+                ),
+                CaseProposal.source_run_id.in_(
+                    select(AgentRun.id).where(AgentRun.user_id == user_id)
+                ),
+            )
+        )
     )
     await db.flush()
     return result.rowcount or 0  # ty: ignore[unresolved-attribute]

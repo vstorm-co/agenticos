@@ -19,7 +19,16 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.core.exceptions import NotFoundError
-from app.repositories import channel_bot_repo, conversation_repo, dataset_repo, personal_data_repo
+from app.repositories import (
+    agent_run_repo,
+    case_generation_repo,
+    channel_bot_repo,
+    conversation_repo,
+    dataset_repo,
+    knowledge_base_repo,
+    personal_data_repo,
+    rag_document_repo,
+)
 from app.services.conversation import ConversationService
 
 # (module, function name) pairs whose tenant argument must be required.
@@ -47,6 +56,17 @@ TENANT_REQUIRED = [
     (dataset_repo, "copy_membership"),
     (conversation_repo, "get_messages_before"),
     (personal_data_repo, "unlink_dataset_cases_from_conversation"),
+    (case_generation_repo, "create_generation"),
+    (case_generation_repo, "get_generation"),
+    (case_generation_repo, "list_generations"),
+    (case_generation_repo, "list_proposals"),
+    (case_generation_repo, "count_pending"),
+    (case_generation_repo, "take_proposals"),
+    (case_generation_repo, "count_decisions"),
+    (agent_run_repo, "questions_asked"),
+    (knowledge_base_repo, "get_in_organization"),
+    (rag_document_repo, "indexed_in"),
+    (personal_data_repo, "delete_case_proposals_from_conversation"),
 ]
 
 # Deliberately unscoped, each documented at its definition.
@@ -55,6 +75,7 @@ CROSS_TENANT_BY_DESIGN = [
     (channel_bot_repo, "get_active_polling_bots"),
     (conversation_repo, "get_conversation_by_id"),
     (personal_data_repo, "unlink_dataset_cases_of"),
+    (personal_data_repo, "delete_case_proposals_of"),
 ]
 
 
