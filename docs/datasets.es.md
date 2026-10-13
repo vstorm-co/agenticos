@@ -1,5 +1,5 @@
 ---
-source_sha: "e940a28dff6f"
+source_sha: "d41ce3b7889b"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -25,8 +25,8 @@ verdad la decepcionó.
 | Conversación antes de la entrada | Turnos anteriores opcionales, del más antiguo al más reciente. Con ellos, el caso es el comienzo de una conversación y el agent responde a su último turno |
 | Respuesta de referencia | Lo que dice una buena respuesta |
 | Contraejemplo | Una respuesta que se sabe incorrecta |
-| Llamadas a herramientas esperadas | Las herramientas que el agent debería llamar, cada una con los argumentos que deben coincidir. Los argumentos que el caso no indica se ignoran. Un caso también indica si las llamadas deben hacerse en el orden dado |
-| Comprobaciones | Reglas sobre la respuesta: contiene un valor, no lo contiene o es igual a él, coincide con una expresión regular, es JSON que cumple un esquema o se mantiene bajo un límite de coste o de latencia |
+| Llamadas a herramientas esperadas | Las herramientas que el agent debería llamar, cada una con los argumentos que deben coincidir. Los argumentos que el caso no indica se ignoran. Un caso también indica cómo se comparan las llamadas: `any` en cualquier orden, `in_order` en el orden dado con otras llamadas permitidas entre ellas, o `exact`: exactamente estas, en este orden, y ninguna otra |
+| Comprobaciones | Reglas sobre la respuesta, cada una un objeto cuyo `type` nombra la regla, con sus parámetros al lado. Un caso las guarda; la puntuación las lee y decide qué tipos existen |
 | Etiquetas | Rótulos para agrupar resultados, como `billing` o `refusal` |
 | Nota | Por qué existe el caso: qué salió mal o qué protege |
 | Origen | `manual`, `import`, `conversation` o `synthetic`: lo fija la plataforma, no se escribe |
@@ -79,13 +79,13 @@ Los dos formatos usan los mismos nueve nombres de campo:
 | `history` | Una lista JSON en la celda, o vacía | Una lista de objetos `{"role", "content"}` |
 | `reference_answer`, `counter_example`, `note` | Texto, o vacía | String o `null` |
 | `expected_tool_calls` | Una lista JSON en la celda, o vacía | Una lista de objetos `{"tool", "args"}` |
-| `tool_calls_ordered` | `true` o `false` | Booleano |
+| `order_mode` | `any`, `in_order` o `exact`; vacío significa `any` | String |
 | `checks` | Una lista JSON en la celda, o vacía | Una lista de objetos de comprobación |
 | `tags` | Separadas por comas | Una lista de strings |
 
 Un archivo CSV necesita una fila de encabezado. Las columnas distintas de estas
 nueve se rechazan, para que una errata en el nombre de una columna no pierda sus
-datos en silencio. Las columnas que omitas toman su valor vacío.
+datos en silencio. Las columnas que omitas toman su valor vacío. Dentro de una comprobación y en los argumentos de una llamada a herramienta, las claves se exportan en orden alfabético, después del `type` de la comprobación.
 
 ```csv
 input,reference_answer,tags

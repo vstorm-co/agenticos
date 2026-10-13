@@ -23,8 +23,8 @@ a person actually asked and an answer that actually disappointed them.
 | Conversation before the input | Optional earlier turns, oldest first. With them, the case is a conversation prefix and the agent answers its last turn |
 | Reference answer | What a good answer says |
 | Counter-example | An answer known to be wrong |
-| Expected tool calls | The tools the agent should call, each with the arguments that must match. Arguments a case does not list are ignored. A case also says whether the calls must happen in the listed order |
-| Checks | Rules about the answer: it contains, does not contain or equals a value, matches a regular expression, is JSON matching a schema, or stays under a cost or latency ceiling |
+| Expected tool calls | The tools the agent should call, each with the arguments that must match. Arguments a case does not list are ignored. A case also says how the calls are matched: `any` order, `in_order` with other calls allowed between them, or `exact` - these calls, in this order, and no others |
+| Checks | Rules about the answer, each an object whose `type` names the rule, with that rule's parameters beside it. A case keeps them; scoring reads them and decides which types exist |
 | Tags | Labels for grouping results, such as `billing` or `refusal` |
 | Note | Why the case exists - what went wrong, or what it guards |
 | Source | `manual`, `import`, `conversation` or `synthetic` - set by the platform, not typed |
@@ -73,13 +73,13 @@ Both formats use the same nine field names:
 | `history` | A JSON list in the cell, or empty | A list of `{"role", "content"}` objects |
 | `reference_answer`, `counter_example`, `note` | Text, or empty | String or `null` |
 | `expected_tool_calls` | A JSON list in the cell, or empty | A list of `{"tool", "args"}` objects |
-| `tool_calls_ordered` | `true` or `false` | Boolean |
+| `order_mode` | `any`, `in_order` or `exact`; empty means `any` | String |
 | `checks` | A JSON list in the cell, or empty | A list of check objects |
 | `tags` | Comma-separated | A list of strings |
 
 A CSV file must have a header row. Columns other than these nine are refused,
 so a typo in a column name does not silently drop its data. Columns you leave
-out take their empty value.
+out take their empty value. Inside a check and inside a tool call's arguments, keys are exported in alphabetical order, after a check's `type`.
 
 ```csv
 input,reference_answer,tags

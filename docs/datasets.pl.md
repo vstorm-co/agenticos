@@ -1,5 +1,5 @@
 ---
-source_sha: "e940a28dff6f"
+source_sha: "d41ce3b7889b"
 title: "Zbiory danych"
 description: "Zbiory danych trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -26,8 +26,8 @@ zawiodła.
 | Rozmowa przed wejściem | Opcjonalne wcześniejsze tury, od najstarszej. Z nimi przypadek jest początkiem rozmowy, a agent odpowiada na jej ostatnią turę |
 | Odpowiedź wzorcowa | Co mówi dobra odpowiedź |
 | Kontrprzykład | Odpowiedź, o której wiadomo, że jest błędna |
-| Oczekiwane wywołania narzędzi | Narzędzia, które agent powinien wywołać, każde z argumentami, które muszą się zgadzać. Argumenty, których przypadek nie wymienia, są pomijane. Przypadek mówi też, czy wywołania muszą nastąpić w podanej kolejności |
-| Sprawdzenia | Reguły dotyczące odpowiedzi: zawiera wartość, nie zawiera jej albo jest jej równa, pasuje do wyrażenia regularnego, jest JSON-em zgodnym ze schematem albo mieści się w limicie kosztu lub czasu |
+| Oczekiwane wywołania narzędzi | Narzędzia, które agent powinien wywołać, każde z argumentami, które muszą się zgadzać. Argumenty, których przypadek nie wymienia, są pomijane. Przypadek mówi też, jak dopasować wywołania: `any` - w dowolnej kolejności, `in_order` - w podanej kolejności, z innymi wywołaniami pomiędzy, albo `exact` - dokładnie te, w tej kolejności i żadnych innych |
+| Sprawdzenia | Reguły dotyczące odpowiedzi, każda jako obiekt, którego `type` nazywa regułę, a obok są jej parametry. Przypadek je przechowuje; ocenianie je czyta i decyduje, jakie typy istnieją |
 | Tagi | Etykiety do grupowania wyników, np. `billing` albo `refusal` |
 | Notatka | Po co jest ten przypadek - co poszło źle albo czego pilnuje |
 | Źródło | `manual`, `import`, `conversation` albo `synthetic` - ustawia je platforma, nie wpisuje się go |
@@ -77,13 +77,13 @@ Oba formaty używają tych samych dziewięciu nazw pól:
 | `history` | Lista JSON w komórce albo pusto | Lista obiektów `{"role", "content"}` |
 | `reference_answer`, `counter_example`, `note` | Tekst albo pusto | String albo `null` |
 | `expected_tool_calls` | Lista JSON w komórce albo pusto | Lista obiektów `{"tool", "args"}` |
-| `tool_calls_ordered` | `true` albo `false` | Boolean |
+| `order_mode` | `any`, `in_order` albo `exact`; puste oznacza `any` | String |
 | `checks` | Lista JSON w komórce albo pusto | Lista obiektów sprawdzeń |
 | `tags` | Oddzielone przecinkami | Lista stringów |
 
 Plik CSV musi mieć wiersz nagłówka. Kolumny inne niż te dziewięć są odrzucane,
 więc literówka w nazwie kolumny nie gubi po cichu jej danych. Pominięte kolumny
-przyjmują pustą wartość.
+przyjmują pustą wartość. W sprawdzeniu i w argumentach wywołania narzędzia klucze są eksportowane alfabetycznie, po `type` sprawdzenia.
 
 ```csv
 input,reference_answer,tags

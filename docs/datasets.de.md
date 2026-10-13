@@ -1,5 +1,5 @@
 ---
-source_sha: "e940a28dff6f"
+source_sha: "d41ce3b7889b"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -26,8 +26,8 @@ gestellt hat, und eine Antwort, die ihn wirklich enttäuscht hat.
 | Gespräch vor der Eingabe | Optionale frühere Züge, älteste zuerst. Mit ihnen ist der Fall ein Gesprächsanfang, und der Agent beantwortet dessen letzten Zug |
 | Referenzantwort | Was eine gute Antwort sagt |
 | Gegenbeispiel | Eine Antwort, die bekanntermaßen falsch ist |
-| Erwartete Tool-Aufrufe | Die Tools, die der Agent aufrufen soll, jeweils mit den Argumenten, die passen müssen. Argumente, die ein Fall nicht nennt, werden ignoriert. Ein Fall legt auch fest, ob die Aufrufe in der angegebenen Reihenfolge erfolgen müssen |
-| Prüfungen | Regeln für die Antwort: Sie enthält einen Wert, enthält ihn nicht oder ist ihm gleich, passt auf einen regulären Ausdruck, ist JSON nach einem Schema oder bleibt unter einer Kosten- oder Latenzgrenze |
+| Erwartete Tool-Aufrufe | Die Tools, die der Agent aufrufen soll, jeweils mit den Argumenten, die passen müssen. Argumente, die ein Fall nicht nennt, werden ignoriert. Ein Fall legt auch fest, wie die Aufrufe abgeglichen werden: `any` in beliebiger Reihenfolge, `in_order` in der angegebenen Reihenfolge mit anderen Aufrufen dazwischen, oder `exact` - genau diese, in dieser Reihenfolge, und keine anderen |
+| Prüfungen | Regeln für die Antwort, jede ein Objekt, dessen `type` die Regel benennt, mit deren Parametern daneben. Ein Fall bewahrt sie auf; das Scoring liest sie und entscheidet, welche Typen es gibt |
 | Tags | Labels zum Gruppieren von Ergebnissen, etwa `billing` oder `refusal` |
 | Notiz | Warum es den Fall gibt - was schiefging oder was er absichert |
 | Quelle | `manual`, `import`, `conversation` oder `synthetic` - von der Plattform gesetzt, nicht eingegeben |
@@ -81,13 +81,13 @@ Beide Formate verwenden dieselben neun Feldnamen:
 | `history` | Eine JSON-Liste in der Zelle oder leer | Eine Liste von `{"role", "content"}`-Objekten |
 | `reference_answer`, `counter_example`, `note` | Text oder leer | String oder `null` |
 | `expected_tool_calls` | Eine JSON-Liste in der Zelle oder leer | Eine Liste von `{"tool", "args"}`-Objekten |
-| `tool_calls_ordered` | `true` oder `false` | Boolean |
+| `order_mode` | `any`, `in_order` oder `exact`; leer bedeutet `any` | String |
 | `checks` | Eine JSON-Liste in der Zelle oder leer | Eine Liste von Prüfungsobjekten |
 | `tags` | Durch Kommas getrennt | Eine Liste von Strings |
 
 Eine CSV-Datei braucht eine Kopfzeile. Andere Spalten als diese neun werden
 abgelehnt, damit ein Tippfehler in einem Spaltennamen deren Daten nicht still
-verliert. Weggelassene Spalten erhalten ihren leeren Wert.
+verliert. Weggelassene Spalten erhalten ihren leeren Wert. Innerhalb einer Prüfung und in den Argumenten eines Tool-Aufrufs werden die Schlüssel alphabetisch exportiert, nach dem `type` einer Prüfung.
 
 ```csv
 input,reference_answer,tags
