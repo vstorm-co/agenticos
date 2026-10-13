@@ -42,9 +42,9 @@ const CLOSED: Record<number, LiveBrowseStatus> = {
  * latest picture - so a person opening a link mid-browse sees where it is rather
  * than an empty frame until the next step; every frame after that is folded in
  * with the reducer the chat uses, so the two surfaces cannot disagree about a
- * browse.
+ * browse. `enabled` false holds the socket closed.
  */
-export function useLiveBrowse(runId: string, callId: string) {
+export function useLiveBrowse(runId: string, callId: string, enabled = true) {
   const { wsUrl } = usePublicConfig();
   const accessToken = useAuthStore((state) => state.accessToken);
   const principal = useAuthStore((state) => state.user?.id);
@@ -91,10 +91,12 @@ export function useLiveBrowse(runId: string, callId: string) {
   });
 
   useEffect(() => {
-    if (!accessToken) return;
+    // Off for a browse with nothing live to reach - a finished one, or one the
+    // chat has not been told the run of yet - so opening its panel costs no socket.
+    if (!accessToken || !enabled) return;
     connect();
     return () => disconnect();
-  }, [accessToken, connect, disconnect]);
+  }, [accessToken, enabled, connect, disconnect]);
 
   const send = useCallback((command: BrowserCommand) => sendMessage(command), [sendMessage]);
 

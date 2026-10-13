@@ -1,5 +1,5 @@
 ---
-source_sha: "cfe73e5f0c5a"
+source_sha: "0bb7b4961bf4"
 ---
 
 # Die Konsole { #the-console }
@@ -269,24 +269,24 @@ Nachricht, wenn sie aufgeht, Enter
 beginnt eine neue Zeile, und Anhängen oder Diktieren liegen hinter einem **+**.
 Felder sind nie so klein, dass iOS hineinzoomt.
 
-**Einem Durchlauf zusehen.** Ein Agent mit dem
-[Webbrowser](reference/capabilities.md#browser-automation) zeigt im Transkript eine
-Karte, sobald er eine Seite durchzuarbeiten beginnt, und öffnet auf Klick ein Panel
-daneben: das Sichtfenster im Verlauf, die Seite, auf der er ist, und jeden Schritt mit
-dem, was er getan hat und wozu. Dieser Satz ist der Grund, warum es das Panel statt
-eines Spinners gibt — ein Durchlauf, der in die falsche Richtung läuft, ist sichtbar,
-während er läuft. Es bleibt stehen, wenn der Durchlauf
-endet, denn *von der Seite blockiert* ist eine Antwort über die Seite. Schließen Sie
-es, bleibt es für diesen Durchlauf geschlossen.
+**Einem Durchlauf zusehen.** Beginnt ein Agent mit dem
+[Webbrowser](reference/capabilities.md#browser-automation) auf einer Seite, öffnet sich
+sein Browser neben der Unterhaltung, wie bei einem Desktop-Agent: ein Tab mit dem Namen
+der Seite, die Adresse und die Seite, wie der Agent sie sieht, darunter eine Zeile dazu,
+was er gerade tut. Das Transkript wird schmaler, um Platz zu machen, und behält eine
+Zeile pro Durchlauf - wo er ist und ob er Sie braucht -, die den Browser nach dem
+Schließen wieder öffnet. Die vollständige Liste der Schritte, jeder mit seinem Zweck,
+liegt hinter der Schritte-Schaltfläche. Auf dem Telefon ist die Zeile der Einstieg, und
+der Browser nimmt den Bildschirm ein.
 
-**Einen Durchlauf übernehmen.** Die Karte eines laufenden Durchlaufs hat **Übernehmen**,
-das seine Live-Ansicht in einem neuen Tab öffnet — dieselbe Seite, die ein Kanal
-verlinkt. **Übernehmen** pausiert dort den Agent nach seinem laufenden Schritt und gibt
-Ihnen die Seite: klicken, tippen, scrollen, einfügen. **Zurückgeben**, und der Agent
-macht dort weiter, wo Sie aufgehört haben. Kommt der Agent allein nicht über eine Seite
-hinweg — eine Anmeldung, ein Captcha —, sagt die Karte *Der Agent braucht Sie* und
-wofür. Wer Runs sehen, aber den Agent nicht bearbeiten darf, kann zusehen, nicht
-steuern. Siehe [Webbrowser](reference/capabilities.md#browser-automation).
+**Einen Durchlauf übernehmen.** Während ein Durchlauf läuft, pausiert **Übernehmen** in
+der Symbolleiste des Browsers den Agent nach seinem laufenden Schritt und gibt Ihnen die
+Seite, im selben Fenster: klicken, tippen, scrollen, einfügen. **Zurückgeben**, und der
+Agent macht dort weiter, wo Sie aufgehört haben. Kommt der Agent allein nicht über eine
+Seite hinweg - eine Anmeldung, ein Captcha -, sagen die Zeile und der Browser *Der Agent
+braucht Sie* und wofür. Wer Runs sehen, aber den Agent nicht bearbeiten darf, kann
+zusehen, nicht steuern. Dasselbe Fenster öffnet sich über den Link eines Kanals auf
+einer eigenen Seite. Siehe [Webbrowser](reference/capabilities.md#browser-automation).
 
 ## Wofür jeder Bereich da ist { #what-each-area-is-for }
 

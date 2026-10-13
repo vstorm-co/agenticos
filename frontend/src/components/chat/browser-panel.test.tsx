@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { BrowserPanel } from "./browser-panel";
 import type { Browse } from "@/lib/browse";
+import { useAuthStore } from "@/stores";
 import {
   DEFAULT_PANEL_WIDTH,
   MAX_PANEL_WIDTH,
@@ -11,10 +12,29 @@ import {
   useBrowserPanelStore,
 } from "@/stores/browser-panel-store";
 
+const live = vi.hoisted(() => ({
+  value: {
+    browse: null as Browse | null,
+    task: "",
+    canControl: false,
+    status: "connecting" as string,
+    send: vi.fn(),
+  },
+  calls: [] as [string, string, boolean | undefined][],
+}));
+
+vi.mock("@/hooks/use-live-browse", () => ({
+  useLiveBrowse: (runId: string, callId: string, enabled?: boolean) => {
+    live.calls.push([runId, callId, enabled]);
+    return live.value;
+  },
+}));
+
 function browse(overrides: Partial<Browse> = {}): Browse {
   return {
     callId: "c1",
-    goal: "find the monthly price of the Pro plan",
+    runId: "run-1",
+    goal: "find the price",
     maxSteps: 25,
     url: "https://example.test/pricing",
     title: "Pricing",
@@ -27,247 +47,155 @@ function browse(overrides: Partial<Browse> = {}): Browse {
   };
 }
 
+/** Whether the screen is wide enough for the panel to dock. */
+function wide(matches: boolean) {
+  window.matchMedia = vi.fn().mockReturnValue({ matches }) as never;
+}
+
 beforeEach(() => {
-  useBrowserPanelStore.setState({
-    openCallId: "c1",
-    mode: "panel",
-    width: DEFAULT_PANEL_WIDTH,
-  });
+  live.value = { browse: null, task: "", canControl: false, status: "connecting", send: vi.fn() };
+  live.calls = [];
+  wide(true);
+  useAuthStore.setState({ user: { id: "u1", full_name: "Ada", email: "ada@acme.test" } as never });
+  useBrowserPanelStore.setState({ openCallId: null, mode: "panel", width: DEFAULT_PANEL_WIDTH });
 });
 
-describe("BrowserPanel - what the browser is doing, while it is doing it", () => {
+describe("BrowserPanel - the agent's browser beside the conversation", () => {
   it("draws nothing when nothing has browsed", () => {
     const { container } = render(<BrowserPanel browses={[]} />);
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("draws nothing while closed, however many browses there are", () => {
-    useBrowserPanelStore.setState({ openCallId: null });
-    const { container } = render(<BrowserPanel browses={[browse()]} />);
-    expect(container).toBeEmptyDOMElement();
-  });
-
-  it("shows the page it is on and the goal it was given", () => {
+  it("opens by itself when a browse starts, on a screen wide enough to dock it", () => {
     render(<BrowserPanel browses={[browse()]} />);
 
-    expect(screen.getByText("Pricing")).toBeInTheDocument();
-    expect(screen.getByTitle("https://example.test/pricing")).toBeInTheDocument();
-    expect(screen.getByText(/monthly price of the Pro plan/)).toBeInTheDocument();
+    expect(useBrowserPanelStore.getState().openCallId).toBe("c1");
+    expect(screen.getByRole("heading", { name: "Pricing" })).toBeInTheDocument();
   });
 
-  it("says it is waiting before the first picture arrives", () => {
-    render(<BrowserPanel browses={[browse()]} />);
-    expect(screen.getByText(/Waiting for the first view/)).toBeInTheDocument();
+  it("opens once per browse - closing it is a decision the next frame does not undo", () => {
+    const { rerender } = render(<BrowserPanel browses={[browse()]} />);
+    useBrowserPanelStore.getState().close();
+
+    rerender(<BrowserPanel browses={[browse({ title: "Pricing - step 2" })]} />);
+
+    expect(useBrowserPanelStore.getState().openCallId).toBeNull();
   });
 
-  it("draws the viewport and says which step it is", () => {
-    render(
-      <BrowserPanel
-        browses={[
-          browse({
-            image: "data:image/jpeg;base64,AAA",
-            imageStep: 3,
-            steps: [{ step: 3, operation: "WAIT", target: null, reason: null, url: null }],
-          }),
-        ]}
-      />,
-    );
+  it("leaves a finished browse, a phone and a small scope to the line in the transcript", () => {
+    const { unmount } = render(<BrowserPanel browses={[browse({ outcome: "done" })]} />);
+    expect(useBrowserPanelStore.getState().openCallId).toBeNull();
+    unmount();
 
-    expect(screen.getByRole("img")).toHaveAttribute("src", "data:image/jpeg;base64,AAA");
-    expect(screen.getByText("Step 3 of 25")).toBeInTheDocument();
+    wide(false);
+    render(<BrowserPanel browses={[browse({ callId: "c2" })]} />);
+    expect(useBrowserPanelStore.getState().openCallId).toBeNull();
+
+    wide(true);
+    render(<BrowserPanel browses={[browse({ callId: "c3" })]} docked={false} />);
+    expect(useBrowserPanelStore.getState().openCallId).toBeNull();
   });
 
-  it("stops the spinner once the browse has ended", () => {
-    render(
-      <BrowserPanel
-        browses={[browse({ image: "data:image/jpeg;base64,AAA", imageStep: 3, outcome: "done" })]}
-      />,
-    );
-
-    expect(screen.queryByText("Step 3 of 25")).not.toBeInTheDocument();
-  });
-
-  it("lists what each step did and what it was for", () => {
-    // The reason is what makes a step worth reading: a person watching can tell
-    // a browse heading the wrong way from one taking the long way round.
-    render(
-      <BrowserPanel
-        browses={[
-          browse({
-            steps: [
-              {
-                step: 1,
-                operation: "CLICK",
-                target: "Accept all",
-                reason: "Close the cookie banner",
-                url: null,
-              },
-            ],
-          }),
-        ]}
-      />,
-    );
-
-    expect(screen.getByText("Clicked")).toBeInTheDocument();
-    expect(screen.getByText("Accept all")).toBeInTheDocument();
-    expect(screen.getByText("Close the cookie banner")).toBeInTheDocument();
-  });
-
-  it("lists a step that gave no reason", () => {
-    render(
-      <BrowserPanel
-        browses={[
-          browse({
-            steps: [{ step: 1, operation: "SCROLL", target: null, reason: null, url: null }],
-          }),
-        ]}
-      />,
-    );
-
-    expect(screen.getByText("Scrolled the page")).toBeInTheDocument();
-  });
-
-  it("draws an action it does not know as work on the page", () => {
-    render(
-      <BrowserPanel
-        browses={[
-          browse({
-            steps: [{ step: 1, operation: "HOVER", target: null, reason: null, url: null }],
-          }),
-        ]}
-      />,
-    );
-
-    expect(screen.getByText("Worked on the page")).toBeInTheDocument();
-  });
-
-  it("draws a browse that has no page to name yet", () => {
-    render(<BrowserPanel browses={[browse({ url: null, title: "", goal: "" })]} />);
-    expect(screen.getByRole("complementary")).toBeInTheDocument();
-  });
-
-  it("says a blocked browse is about the page rather than a crash", () => {
-    render(
-      <BrowserPanel
-        browses={[browse({ outcome: "blocked", detail: "The page asks for a sign-in." })]}
-      />,
-    );
-
-    expect(screen.getByTestId("browse-outcome")).toHaveTextContent("Blocked by the page");
-    expect(screen.getByText("The page asks for a sign-in.")).toBeInTheDocument();
-  });
-
-  it("renders the page's own words as text, never as markup", () => {
-    render(
-      <BrowserPanel
-        browses={[browse({ outcome: "blocked", detail: "<img src=x onerror=alert(1)>" })]}
-      />,
-    );
-
-    expect(screen.getByText("<img src=x onerror=alert(1)>")).toBeInTheDocument();
-    // The alt text of the viewport is the only image this panel ever draws.
-    expect(screen.queryByRole("img")).not.toBeInTheDocument();
-  });
-
-  it("shows the browse it was opened on, not whichever is running", () => {
-    // A panel that followed the newest browse would swap page under a reader
-    // the moment the other one advanced.
+  it("does not take the panel from a browse somebody already has open", () => {
     useBrowserPanelStore.setState({ openCallId: "c1" });
-    render(
-      <BrowserPanel
-        browses={[
-          browse({ callId: "c1", title: "Poland", outcome: "done" }),
-          browse({ callId: "c2", title: "Germany" }),
-        ]}
-      />,
+    render(<BrowserPanel browses={[browse({ outcome: "done" }), browse({ callId: "c2" })]} />);
+    expect(useBrowserPanelStore.getState().openCallId).toBe("c1");
+  });
+
+  it("closes on Escape, except while a person holds the page", () => {
+    live.value = { ...live.value, browse: browse({ heldBy: "Ada" }), status: "live" };
+    useBrowserPanelStore.setState({ openCallId: "c1" });
+    const { rerender } = render(<BrowserPanel browses={[browse()]} />);
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(useBrowserPanelStore.getState().openCallId).toBe("c1");
+
+    live.value = { ...live.value, browse: null };
+    rerender(<BrowserPanel browses={[browse()]} />);
+    fireEvent.keyDown(window, { key: "Enter" });
+    expect(useBrowserPanelStore.getState().openCallId).toBe("c1");
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(useBrowserPanelStore.getState().openCallId).toBeNull();
+  });
+
+  it("opens the live view only for a running browse with a run, and drives through it", async () => {
+    live.value = {
+      ...live.value,
+      browse: browse({ title: "Live copy" }),
+      canControl: true,
+      status: "live",
+    };
+    useBrowserPanelStore.setState({ openCallId: "c1" });
+    render(<BrowserPanel browses={[browse()]} />);
+
+    expect(live.calls.at(-1)).toEqual(["run-1", "c1", true]);
+    expect(screen.getByRole("heading", { name: "Live copy" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /Take over/ }));
+    expect(live.value.send).toHaveBeenCalledWith({ type: "take_over" });
+  });
+
+  it("keeps to the stream once the browse is over, or while the live view is another browse's", () => {
+    live.value = {
+      ...live.value,
+      browse: browse({ callId: "other", title: "Other" }),
+      status: "live",
+    };
+    useBrowserPanelStore.setState({ openCallId: "c1" });
+    const { rerender } = render(<BrowserPanel browses={[browse()]} />);
+    expect(screen.getByRole("heading", { name: "Pricing" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Take over/ })).toBeNull();
+
+    live.value = { ...live.value, browse: browse({ title: "Live copy" }) };
+    rerender(<BrowserPanel browses={[browse({ outcome: "done", runId: null })]} />);
+    expect(live.calls.at(-1)).toEqual(["", "c1", false]);
+    expect(screen.getByRole("heading", { name: "Pricing" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Open in a new tab" })).toBeNull();
+  });
+
+  it("links the browse's own page, and maximises and restores", async () => {
+    useBrowserPanelStore.setState({ openCallId: "c1" });
+    render(<BrowserPanel browses={[browse()]} />);
+    expect(screen.getByRole("link", { name: "Open in a new tab" })).toHaveAttribute(
+      "href",
+      "/browse/run-1/c1",
     );
 
-    expect(screen.getByText("Poland")).toBeInTheDocument();
-    expect(screen.queryByText("Germany")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Maximize" }));
+    expect(useBrowserPanelStore.getState().mode).toBe("full");
+    expect(screen.queryByRole("slider")).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "Back to the side panel" }));
+    expect(useBrowserPanelStore.getState().mode).toBe("panel");
   });
 
-  it("closes itself when the turn that owned its browse is gone", () => {
-    // The browses were dropped and the panel was still open on one of them.
-    useBrowserPanelStore.setState({ openCallId: "c9" });
-    const { container } = render(<BrowserPanel browses={[browse({ callId: "c1" })]} />);
+  it("takes the screen without a maximise button in a small scope", () => {
+    useBrowserPanelStore.setState({ openCallId: "c1" });
+    render(<BrowserPanel browses={[browse()]} docked={false} />);
 
-    expect(container).toBeEmptyDOMElement();
+    expect(screen.queryByRole("slider")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Maximize" })).toBeNull();
   });
 
-  it("takes the whole window in full screen, and carries no resize handle there", () => {
-    useBrowserPanelStore.setState({ openCallId: "c1", mode: "full" });
+  it("is resized by dragging its edge or with the arrow keys, within bounds", () => {
+    useBrowserPanelStore.setState({ openCallId: "c1" });
     render(<BrowserPanel browses={[browse()]} />);
+    const handle = screen.getByRole("slider", { name: "Resize the browser view" });
 
-    expect(screen.getByRole("complementary")).not.toHaveAttribute("style", /width/);
-    expect(screen.queryByRole("slider")).not.toBeInTheDocument();
-  });
+    fireEvent.keyDown(handle, { key: "ArrowLeft" });
+    expect(useBrowserPanelStore.getState().width).toBe(DEFAULT_PANEL_WIDTH + 40);
+    fireEvent.keyDown(handle, { key: "ArrowRight" });
+    fireEvent.keyDown(handle, { key: "ArrowRight" });
+    expect(useBrowserPanelStore.getState().width).toBe(DEFAULT_PANEL_WIDTH - 40);
+    fireEvent.keyDown(handle, { key: "Enter" });
+    expect(useBrowserPanelStore.getState().width).toBe(DEFAULT_PANEL_WIDTH - 40);
 
-  it("closing returns to the card rather than taking the browse away", async () => {
-    const user = userEvent.setup();
-    render(<BrowserPanel browses={[browse()]} />);
-
-    await user.click(screen.getByLabelText("Close the browser panel"));
-
-    expect(useBrowserPanelStore.getState().openCallId).toBeNull();
-  });
-
-  it("is as wide as somebody dragged it", () => {
-    useBrowserPanelStore.setState({ width: 640 });
-    render(<BrowserPanel browses={[browse()]} />);
-
-    expect(screen.getByRole("complementary")).toHaveStyle({ width: "640px" });
-  });
-
-  it("resizes from the pointer's distance to the right edge", () => {
-    render(<BrowserPanel browses={[browse()]} />);
-    const handle = screen.getByRole("slider");
-    // jsdom reports 1024, so a pointer at 500 leaves 524 to the edge.
     handle.setPointerCapture = vi.fn();
-
     fireEvent.pointerDown(handle, { pointerId: 1 });
-    fireEvent.pointerMove(handle, { pointerId: 1, buttons: 1, clientX: 500 });
-
-    expect(useBrowserPanelStore.getState().width).toBe(window.innerWidth - 500);
-  });
-
-  it("ignores a move with no button held, which is a hover", () => {
-    useBrowserPanelStore.setState({ width: 500 });
-    render(<BrowserPanel browses={[browse()]} />);
-
-    fireEvent.pointerMove(screen.getByRole("slider"), { buttons: 0, clientX: 100 });
-
-    expect(useBrowserPanelStore.getState().width).toBe(500);
-  });
-
-  it("resizes with the arrow keys, for anyone not dragging", async () => {
-    const user = userEvent.setup();
-    useBrowserPanelStore.setState({ width: 500 });
-    render(<BrowserPanel browses={[browse()]} />);
-
-    screen.getByRole("slider").focus();
-    await user.keyboard("{ArrowLeft}");
-    expect(useBrowserPanelStore.getState().width).toBeGreaterThan(500);
-
-    await user.keyboard("{ArrowRight}{ArrowRight}");
-    expect(useBrowserPanelStore.getState().width).toBeLessThan(500);
-  });
-
-  it("clamps the width to what a panel can usefully be", () => {
-    const { setWidth } = useBrowserPanelStore.getState();
-
-    setWidth(10);
-    expect(useBrowserPanelStore.getState().width).toBe(MIN_PANEL_WIDTH);
-
-    setWidth(99_999);
+    fireEvent.pointerMove(handle, { buttons: 0, clientX: 0 });
+    expect(useBrowserPanelStore.getState().width).toBe(DEFAULT_PANEL_WIDTH - 40);
+    fireEvent.pointerMove(handle, { buttons: 1, clientX: window.innerWidth - 10_000 });
     expect(useBrowserPanelStore.getState().width).toBe(MAX_PANEL_WIDTH);
-  });
-
-  it("closes on Escape", async () => {
-    const user = userEvent.setup();
-    render(<BrowserPanel browses={[browse()]} />);
-
-    await user.keyboard("{Escape}");
-
-    expect(useBrowserPanelStore.getState().openCallId).toBeNull();
+    fireEvent.pointerMove(handle, { buttons: 1, clientX: window.innerWidth });
+    expect(useBrowserPanelStore.getState().width).toBe(MIN_PANEL_WIDTH);
   });
 });

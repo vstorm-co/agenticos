@@ -907,10 +907,10 @@ function ChatUI({
       </div>
       <FilePreviewDialog />
       <SourcesPanel />
-      {/* The card's expansion: a resizable window over the conversation, for
-          when the thumbnail is too small to read. Draws nothing until somebody
-          opens it, so a conversation with no browsing costs nothing. */}
-      <BrowserPanel browses={browses} />
+      {/* The agent's browser, docked beside the conversation on a wide screen
+          and opened by itself when a browse starts. Draws nothing until then,
+          so a conversation with no browsing costs nothing. */}
+      <BrowserPanel browses={browses} docked={!compact} />
       {/* Beside the transcript rather than under it: what the agent is holding is
           something you glance at while reading, and a list that pushed the input
           down would move the box you are typing in. Closed by default - it is a

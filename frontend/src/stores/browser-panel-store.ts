@@ -5,8 +5,8 @@ import { create, createStore, type StateCreator } from "zustand";
 import { scopedStore } from "./chat-scope-context";
 
 export const MIN_PANEL_WIDTH = 360;
-export const MAX_PANEL_WIDTH = 880;
-export const DEFAULT_PANEL_WIDTH = 520;
+export const MAX_PANEL_WIDTH = 1100;
+export const DEFAULT_PANEL_WIDTH = 640;
 
 /** Where an expanded browse is drawn. */
 export type BrowserViewMode = "panel" | "full";

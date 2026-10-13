@@ -238,22 +238,22 @@ the keyboard and the conversation stays on its last message while it opens,
 Enter starts a new line, and attaching a file or dictating sits behind one
 **+**. Fields are never small enough for iOS to zoom into them.
 
-**Watching a browse.** An agent with the
-[web browser](reference/capabilities.md#browser-automation) shows a card in the
-transcript when it starts working through a page, and opens a panel beside it on a
-click: the viewport as it goes, the page it is on, and each step with what it did and
-what it was for. That sentence is the reason the panel exists rather than a spinner -
-a browse heading the wrong way is visible while it happens. It stays up when the browse ends,
-because *blocked by the page* is an answer about the page. Close it and it stays
-closed for that browse.
+**Watching a browse.** When an agent with the
+[web browser](reference/capabilities.md#browser-automation) starts on a page, its
+browser opens beside the conversation the way a desktop agent's does: a tab named after
+the page, the address, and the page as the agent sees it, with what it is doing now in
+one line underneath. The transcript narrows to make room, and keeps one line per
+browse - where it is and whether it needs you - that reopens the browser after you close
+it. The full list of steps, each with what it was for, is behind the steps button. On a
+phone the line is the way in, and the browser takes the screen.
 
-**Taking a browse over.** A running browse's card has **Take over**, which opens its
-live view in a new tab - the same page a channel links to. **Take over** there pauses
-the agent after its current step and hands you the page: click, type, scroll, paste.
-**Hand it back** and the agent carries on from where you left it. When the agent
-cannot get past a page alone - a sign-in, a captcha - the card says *The agent needs
-you* and what for. Someone who may view runs but not edit the agent can watch, not
-drive. See [Web browser](reference/capabilities.md#browser-automation).
+**Taking a browse over.** While a browse runs, **Take over** in the browser's toolbar
+pauses the agent after its current step and hands you the page, in the same window:
+click, type, scroll, paste. **Hand it back** and the agent carries on from where you
+left it. When the agent cannot get past a page alone - a sign-in, a captcha - the line
+and the browser say *The agent needs you* and what for. Someone who may view runs but
+not edit the agent can watch, not drive. The same window opens on a page of its own
+from a channel's link. See [Web browser](reference/capabilities.md#browser-automation).
 
 ## What each area is for
 

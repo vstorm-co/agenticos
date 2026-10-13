@@ -121,6 +121,7 @@ export default defineConfig({
         "src/components/chat/browser-card.tsx",
         "src/components/chat/browser-panel.tsx",
         "src/components/chat/browser-view.tsx",
+        "src/components/chat/browser-window.tsx",
         "src/components/chat/live-viewport.tsx",
         "src/components/chat/tool-results/**/*.tsx",
         "src/components/chat/chart-message.tsx",

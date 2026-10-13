@@ -1,5 +1,5 @@
 ---
-source_sha: "cfe73e5f0c5a"
+source_sha: "0bb7b4961bf4"
 ---
 
 # Konsola { #the-console }
@@ -249,22 +249,22 @@ Enter zaczyna nową linię, a załącznik i
 dyktowanie są pod jednym **+**. Pola nigdy nie są na tyle małe, żeby iOS je
 przybliżał.
 
-**Obserwowanie przeglądania.** Agent z
-[przeglądarką](reference/capabilities.md#browser-automation) pokazuje w transkrypcie
-kartę, gdy zaczyna przechodzić przez stronę, a po kliknięciu otwiera panel obok: widok
-strony na bieżąco, adres, na którym jest, i każdy krok z tym, co zrobił i po co. To
-zdanie jest powodem, dla którego panel istnieje zamiast spinnera — przeglądanie, które
-idzie w złą stronę, widać, zanim skończy. Panel zostaje po
-zakończeniu, bo *zablokowane przez stronę* to odpowiedź o stronie. Zamknij go, a
-zostanie zamknięty dla tego przeglądania.
+**Obserwowanie przeglądania.** Gdy agent z
+[przeglądarką](reference/capabilities.md#browser-automation) zaczyna na stronie, jego
+przeglądarka otwiera się obok rozmowy, tak jak u agenta na desktopie: karta nazwana od
+strony, adres i strona taka, jak widzi ją agent, a pod nią jedna linijka o tym, co robi
+teraz. Transkrypt zwęża się, żeby zrobić miejsce, i zostawia jedną linijkę na każde
+przeglądanie - gdzie jest i czy cię potrzebuje - która po zamknięciu otwiera przeglądarkę
+z powrotem. Pełna lista kroków, każdy z tym, po co był, jest pod przyciskiem kroków. Na
+telefonie wejściem jest ta linijka, a przeglądarka zajmuje ekran.
 
-**Przejmowanie przeglądania.** Karta trwającego przeglądania ma **Przejmij**, które
-otwiera jego podgląd na żywo w nowej karcie — tę samą stronę, do której linkuje kanał.
-**Przejmij** zatrzymuje tam agenta po bieżącym kroku i oddaje ci stronę: klikaj, pisz,
+**Przejmowanie przeglądania.** Gdy przeglądanie trwa, **Przejmij** w pasku przeglądarki
+zatrzymuje agenta po bieżącym kroku i oddaje ci stronę, w tym samym oknie: klikaj, pisz,
 przewijaj, wklejaj. **Oddaj** i agent kontynuuje od miejsca, w którym skończyłeś. Gdy
-agent nie przejdzie strony sam — logowanie, captcha — karta mówi *Agent cię potrzebuje*
-i po co. Ktoś, kto może oglądać runy, ale nie edytować agenta, może patrzeć, ale nie
-sterować. Zobacz [Przeglądarka](reference/capabilities.md#browser-automation).
+agent nie przejdzie strony sam - logowanie, captcha - linijka i przeglądarka mówią *Agent
+cię potrzebuje* i po co. Ktoś, kto może oglądać runy, ale nie edytować agenta, może
+patrzeć, ale nie sterować. To samo okno otwiera się na osobnej stronie z linku z kanału.
+Zobacz [Przeglądarka](reference/capabilities.md#browser-automation).
 
 ## Do czego służy każdy obszar { #what-each-area-is-for }
 

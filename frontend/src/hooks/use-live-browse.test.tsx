@@ -71,6 +71,11 @@ describe("useLiveBrowse", () => {
     expect(socket.options?.protocols()).toBeUndefined();
   });
 
+  it("stays closed while it has nothing live to reach", () => {
+    renderHook(() => useLiveBrowse("run-1", "c1", false));
+    expect(socket.connect).not.toHaveBeenCalled();
+  });
+
   it("starts from the snapshot - where a browse opened mid-way already is", () => {
     const { result } = renderHook(() => useLiveBrowse("run-1", "c1"));
     expect(result.current).toMatchObject({ browse: null, status: "connecting" });

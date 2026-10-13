@@ -89,4 +89,15 @@ describe("LiveViewport - the agent's page, and the page itself while it is yours
     ]);
     expect(surface).toHaveAccessibleName(/you have control/);
   });
+
+  it("draws no frame of its own inside a window, and marks the held page from inside", () => {
+    const { rerender } = render(
+      <LiveViewport browse={browse()} holding={false} onCommand={vi.fn()} flush />,
+    );
+    expect(screen.getByRole("application")).not.toHaveClass("rounded-xl");
+    expect(screen.getByRole("application")).not.toHaveClass("ring-1");
+
+    rerender(<LiveViewport browse={browse()} holding onCommand={vi.fn()} flush />);
+    expect(screen.getByRole("application")).toHaveClass("ring-inset");
+  });
 });

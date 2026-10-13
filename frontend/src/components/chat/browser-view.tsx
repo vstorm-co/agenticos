@@ -8,7 +8,6 @@ import {
   Hand,
   Keyboard,
   ListChecks,
-  Lock,
   MousePointerClick,
   OctagonAlert,
   Undo2,
@@ -62,7 +61,7 @@ export function OperationIcon({ operation, className }: { operation: string; cla
  * layout rather than by the sentence - a label read off a page is data, and a
  * translator cannot place it inside a sentence they never see.
  */
-export function ActionLine({ step, live = false }: { step: BrowseStep; live?: boolean }) {
+function ActionLine({ step, live = false }: { step: BrowseStep; live?: boolean }) {
   const t = useTranslations("chat");
   return (
     <div className="flex min-w-0 items-start gap-2.5">
@@ -100,145 +99,6 @@ export function ActionLine({ step, live = false }: { step: BrowseStep; live?: bo
 }
 
 /**
- * Where the browser is, drawn as a browser draws it: a padlock, the host, the path.
- *
- * The host carries the weight because it is what a person checks - which site is
- * the agent on - and the path is there to be read when it matters.
- */
-export function AddressBar({ url, className }: { url: string | null; className?: string }) {
-  const t = useTranslations("chat");
-  let host = "";
-  let rest = "";
-  let secure = false;
-  if (url) {
-    try {
-      const parsed = new URL(url);
-      host = parsed.host;
-      rest = `${parsed.pathname === "/" ? "" : parsed.pathname}${parsed.search}`;
-      secure = parsed.protocol === "https:";
-    } catch {
-      host = url;
-    }
-  }
-  const Icon = secure ? Lock : Globe;
-  return (
-    <div
-      className={cn(
-        "bg-foreground/[0.05] text-muted-foreground flex h-7 min-w-0 items-center gap-1.5 rounded-full px-3 text-xs",
-        className,
-      )}
-      title={url ?? undefined}
-    >
-      <Icon className="size-3 shrink-0" aria-hidden />
-      {host ? (
-        <span className="min-w-0 truncate">
-          <span className="text-foreground/80 font-medium">{host}</span>
-          {rest}
-        </span>
-      ) : (
-        <span className="truncate">{t("browserStarting")}</span>
-      )}
-    </div>
-  );
-}
-
-/** Live while the browser works, then how it ended - the one status a glance needs. */
-export function LiveBadge({ browse }: { browse: Browse }) {
-  const t = useTranslations("chat");
-  if (browse.outcome) {
-    return (
-      <span
-        className={cn("shrink-0 text-xs font-medium", OUTCOME_TONE[browse.outcome])}
-        data-testid="card-outcome"
-      >
-        {t(`browserOutcome.${browse.outcome}`)}
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-rose-500/10 px-2 py-0.5 text-xs font-medium text-rose-600 dark:text-rose-400">
-      <span className="relative flex size-1.5" aria-hidden>
-        <span className="absolute inline-flex size-full animate-ping rounded-full bg-rose-500 opacity-60" />
-        <span className="relative inline-flex size-1.5 rounded-full bg-rose-500" />
-      </span>
-      {t("browserLive")}
-    </span>
-  );
-}
-
-/**
- * How far along a browse is, in the words a caption uses.
- *
- * Reads the *picture's* step rather than the last one decided, because it
- * captions the picture - and the two can differ by one while a frame is still
- * arriving.
- */
-export function useProgress(browse: Browse): string {
-  const t = useTranslations("chat");
-  const step = Math.max(browse.imageStep, 0);
-  return browse.maxSteps
-    ? t("browserStepOf", { step, total: browse.maxSteps })
-    : t("browserStep", { step });
-}
-
-/**
- * The page as it looked a moment ago, framed.
- *
- * `inset` is what the card and the panel disagree about: in the panel the frame
- * is the content and gets its own border; in the card it sits inside a frame
- * already drawn, where a second one reads as a box in a box.
- */
-export function Viewport({ browse, inset = false }: { browse: Browse; inset?: boolean }) {
-  const t = useTranslations("chat");
-  const running = isRunning(browse);
-
-  if (!browse.image) {
-    return (
-      <div
-        className={cn(
-          "text-muted-foreground flex aspect-[4/3] w-full items-center justify-center text-xs",
-          inset ? "bg-foreground/[0.03]" : "bg-foreground/[0.03] rounded-xl",
-        )}
-      >
-        {running ? t("browserWaitingForFrame") : t("browserNoPreview")}
-      </div>
-    );
-  }
-  return (
-    <div
-      className={cn("relative overflow-hidden", !inset && "ring-foreground/10 rounded-xl ring-1")}
-    >
-      {/* eslint-disable-next-line @next/next/no-img-element -- a data: URL from
-          this run's own socket, not a file the image pipeline can resolve. */}
-      <img
-        src={browse.image}
-        alt={t("browserViewportAlt", { step: browse.imageStep })}
-        className="block w-full"
-      />
-    </div>
-  );
-}
-
-/** The outcome and what it says about the page, where both surfaces show it. */
-export function Outcome({ browse }: { browse: Browse }) {
-  const t = useTranslations("chat");
-  if (!browse.outcome) return null;
-  return (
-    <div className="bg-foreground/[0.03] rounded-xl p-3">
-      <p
-        className={cn("text-sm font-medium", OUTCOME_TONE[browse.outcome])}
-        data-testid="browse-outcome"
-      >
-        {t(`browserOutcome.${browse.outcome}`)}
-      </p>
-      {browse.detail && (
-        <p className="text-muted-foreground mt-1 text-xs leading-relaxed">{browse.detail}</p>
-      )}
-    </div>
-  );
-}
-
-/**
  * Every step, as a trace: a line of marks down the side, each with what it did and why.
  *
  * The newest step is lit while the browse runs, so the eye lands on what the
@@ -255,52 +115,5 @@ export function StepTimeline({ browse }: { browse: Browse }) {
         </li>
       ))}
     </ol>
-  );
-}
-
-/**
- * The way into a browse's live view, and what it is waiting for (#2128).
- *
- * A link rather than a control here: the live view is its own page, with the
- * socket that drives the browser, and it opens beside the chat so the
- * conversation stays where it was. Shown while the browse runs and only for a
- * browse that has a live view at all.
- */
-export function TakeOver({ browse }: { browse: Browse }) {
-  const t = useTranslations("chat");
-  if (!browse.runId || !isRunning(browse)) return null;
-  const href = `/browse/${browse.runId}/${browse.callId}`;
-  return (
-    <div
-      className={cn(
-        "flex items-center gap-3 rounded-xl px-3 py-2",
-        browse.needs ? "bg-amber-500/10" : "bg-foreground/[0.03]",
-      )}
-    >
-      <span className="min-w-0 flex-1 text-sm">
-        {browse.needs ? (
-          <>
-            <span className="block font-medium text-amber-700 dark:text-amber-300">
-              {t("browserNeedsYou")}
-            </span>
-            {/* Model-written - rendered as text. */}
-            <span className="text-foreground/80 block truncate">{browse.needs}</span>
-          </>
-        ) : browse.heldBy ? (
-          <span className="text-muted-foreground">
-            {t("browserHeldBy", { name: browse.heldBy })}
-          </span>
-        ) : null}
-      </span>
-      <a
-        href={href}
-        target="_blank"
-        rel="noreferrer"
-        className="bg-foreground text-background hover:bg-foreground/90 inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium"
-      >
-        <Hand className="size-3.5" aria-hidden />
-        {t("browserTakeOver")}
-      </a>
-    </div>
   );
 }

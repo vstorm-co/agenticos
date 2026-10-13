@@ -516,6 +516,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **The agent's browser opens beside the chat, like a desktop agent's.**
+  When a browse starts, its window docks to the right of the conversation
+  on a wide screen: a tab named after the page, the address, the page, and
+  what the agent is doing now in one line under it. Take over and Hand it
+  back sit in its toolbar and work in place; the step list is behind a
+  button. The transcript keeps one line per browse instead of a card with
+  a thumbnail, and the page a channel links to is the same window.
+
 - **No tool waits for a person until its author asks.** A capability's
   `default` approval now means no approval, whatever `side_effecting` says,
   and an MCP binding's `approval` defaults to `none` instead of `writes`. A

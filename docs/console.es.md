@@ -1,5 +1,5 @@
 ---
-source_sha: "cfe73e5f0c5a"
+source_sha: "0bb7b4961bf4"
 ---
 
 # La consola { #the-console }
@@ -254,22 +254,23 @@ se abre, Enter empieza una
 línea nueva, y adjuntar un archivo o dictar están detrás de un único **+**. Los
 campos nunca son tan pequeños como para que iOS haga zoom en ellos.
 
-**Ver un recorrido.** Un agent con el
-[navegador web](reference/capabilities.md#browser-automation) muestra una tarjeta en
-la transcripción cuando empieza a recorrer una página, y al hacer clic abre un panel al
-lado: la vista de la página según avanza, la página en la que está y cada paso con lo
-que hizo y para qué. Esa frase es la razón de que exista el panel en lugar de un
-indicador de carga: un recorrido que va en mala dirección se ve mientras ocurre. Se
-queda cuando el recorrido termina, porque *bloqueado por la página* es
-una respuesta sobre la página. Ciérralo y seguirá cerrado para ese recorrido.
+**Ver un recorrido.** Cuando un agent con el
+[navegador web](reference/capabilities.md#browser-automation) empieza en una página, su
+navegador se abre junto a la conversación, como el de un agente de escritorio: una
+pestaña con el nombre de la página, la dirección y la página tal como la ve el agent, con
+lo que hace ahora en una línea debajo. La transcripción se estrecha para dejar sitio y
+conserva una línea por recorrido - dónde está y si te necesita - que vuelve a abrir el
+navegador cuando lo cierras. La lista completa de pasos, cada uno con su propósito, está
+detrás del botón de pasos. En un teléfono la línea es la entrada, y el navegador ocupa la
+pantalla.
 
-**Tomar el control de un recorrido.** La tarjeta de un recorrido en curso tiene **Take
-over**, que abre su vista en directo en una pestaña nueva — la misma página que
-enlaza un canal. Allí, **Take over** detiene al agente tras su paso actual y te
-da la página: clic, escribir, desplazarse, pegar. **Hand it back** y el agente sigue desde
-donde lo dejaste. Cuando el agente no puede pasar solo de una página — un inicio de
-sesión, un captcha —, la tarjeta dice *The agent needs you* y para qué. Quien puede
-ver runs pero no editar el agente puede mirar, no manejar. Consulta el
+**Tomar el control de un recorrido.** Mientras un recorrido está en curso, **Take over**
+en la barra del navegador detiene al agent tras su paso actual y te da la página, en la
+misma ventana: clic, escribir, desplazarse, pegar. **Hand it back** y el agent sigue
+desde donde lo dejaste. Cuando el agent no puede pasar solo de una página - un inicio de
+sesión, un captcha -, la línea y el navegador dicen *The agent needs you* y para qué.
+Quien puede ver runs pero no editar el agent puede mirar, no manejar. La misma ventana
+se abre en una página propia desde el enlace de un canal. Consulta el
 [navegador web](reference/capabilities.md#browser-automation).
 
 ## Para qué sirve cada área { #what-each-area-is-for }

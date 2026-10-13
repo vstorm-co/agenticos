@@ -37,10 +37,13 @@ export function LiveViewport({
   browse,
   holding,
   onCommand,
+  flush = false,
 }: {
   browse: Browse;
   holding: boolean;
   onCommand: (command: BrowserCommand) => void;
+  /** Drawn inside a window that already frames it, so no frame of its own. */
+  flush?: boolean;
 }) {
   const t = useTranslations("browse");
   // On the picture rather than the surface, because the point is measured
@@ -96,10 +99,14 @@ export function LiveViewport({
       }}
       onWheel={onWheel}
       className={cn(
-        "relative overflow-hidden rounded-xl outline-none",
+        "relative overflow-hidden outline-none",
+        !flush && "rounded-xl",
         holding
-          ? "cursor-pointer ring-2 ring-sky-500 focus-visible:ring-sky-400"
-          : "ring-foreground/10 ring-1",
+          ? cn(
+              "cursor-pointer ring-2 ring-sky-500 focus-visible:ring-sky-400",
+              flush && "ring-inset",
+            )
+          : !flush && "ring-foreground/10 ring-1",
       )}
     >
       {/* eslint-disable-next-line @next/next/no-img-element -- a data: URL from
