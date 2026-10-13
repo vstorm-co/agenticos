@@ -5723,6 +5723,16 @@
     "dataset": "Dataset",
     "cancel": "Abbrechen",
     "add": "Hinzufügen",
-    "casesAdded": "{added, plural, =0 {Kein Fall hinzugefügt} =1 {1 Fall hinzugefügt} other {# Fälle hinzugefügt}} zu {name}{skipped, plural, =0 {} =1 {, 1 Frage übersprungen} other {, # Fragen übersprungen}}"
+    "casesAdded": "{added, plural, =0 {Kein Fall hinzugefügt} =1 {1 Fall hinzugefügt} other {# Fälle hinzugefügt}} zu {name}{skipped, plural, =0 {} =1 {, 1 Frage übersprungen} other {, # Fragen übersprungen}}",
+    "draftContent": "Fehlenden Inhalt entwerfen",
+    "draftAgain": "Neu entwerfen",
+    "drafting": "Wird entworfen…",
+    "draftReady": "Entwurf fertig - prüfen Sie ihn, bevor Sie ihn hinzufügen",
+    "draftTitle": "Entwurf: {title}",
+    "draftNotice": "Von einem Modell aus den Fragen oben geschrieben. Prüfen Sie jede Angabe und füllen Sie die Platzhalter aus, bevor Sie ihn der Collection hinzufügen - nichts wird für Sie hinzugefügt.",
+    "draftSources": "Verwendet: {sources}",
+    "openDraftRun": "Run öffnen",
+    "downloadDraft": ".md herunterladen",
+    "hasDraft": "Entwurf"
   }
 }

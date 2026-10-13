@@ -3483,6 +3483,16 @@
     "dataset": "Dataset",
     "cancel": "Anuluj",
     "add": "Dodaj",
-    "casesAdded": "{added, plural, =0 {Nie dodano żadnego przypadku} one {Dodano 1 przypadek} few {Dodano # przypadki} many {Dodano # przypadków} other {Dodano # przypadku}} do {name}{skipped, plural, =0 {} one {, pominięto 1 pytanie} few {, pominięto # pytania} many {, pominięto # pytań} other {, pominięto # pytania}}"
+    "casesAdded": "{added, plural, =0 {Nie dodano żadnego przypadku} one {Dodano 1 przypadek} few {Dodano # przypadki} many {Dodano # przypadków} other {Dodano # przypadku}} do {name}{skipped, plural, =0 {} one {, pominięto 1 pytanie} few {, pominięto # pytania} many {, pominięto # pytań} other {, pominięto # pytania}}",
+    "draftContent": "Napisz szkic brakującej treści",
+    "draftAgain": "Napisz szkic ponownie",
+    "drafting": "Piszę szkic…",
+    "draftReady": "Szkic gotowy - sprawdź go, zanim go dodasz",
+    "draftTitle": "Szkic: {title}",
+    "draftNotice": "Napisany przez model na podstawie pytań powyżej. Sprawdź każdy fakt i uzupełnij miejsca do wypełnienia, zanim dodasz go do kolekcji - nic nie zostanie dodane za ciebie.",
+    "draftSources": "Korzysta z: {sources}",
+    "openDraftRun": "Otwórz run",
+    "downloadDraft": "Pobierz .md",
+    "hasDraft": "Szkic"
   }
 }

@@ -32,6 +32,7 @@ const TOPIC: KnowledgeGapTopic = {
   examples: [],
   agents: [],
   dismissed_at: null,
+  has_draft: false,
 };
 
 describe("KnowledgeGapActions", () => {

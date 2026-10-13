@@ -26,6 +26,7 @@ export interface KnowledgeGapTopic {
   examples: string[];
   agents: KnowledgeGapAgent[];
   dismissed_at: string | null;
+  has_draft: boolean;
 }
 
 export interface KnowledgeGapTopicList {
@@ -52,9 +53,23 @@ export interface KnowledgeGapQuestion {
   asked_at: string;
 }
 
+/** The passage a drafting agent proposed for a topic. Never added to a collection by itself. */
+export interface KnowledgeGapDraft {
+  title: string;
+  /** Markdown. */
+  content: string;
+  /** The searches it says it answers. */
+  answers: string[];
+  sources: string[];
+  drafted_at: string;
+  /** The run that wrote it, in Activity. */
+  run_id: string | null;
+}
+
 export interface KnowledgeGapTopicDetail extends KnowledgeGapTopic {
   /** The newest hundred. */
   questions: KnowledgeGapQuestion[];
+  draft: KnowledgeGapDraft | null;
 }
 
 export interface KnowledgeGapCasesAdded {

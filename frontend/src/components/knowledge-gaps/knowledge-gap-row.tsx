@@ -1,6 +1,6 @@
 "use client";
 
-import { Bot, Database } from "lucide-react";
+import { Bot, Database, Sparkles } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { Badge } from "@/components/ui";
@@ -34,6 +34,12 @@ export function KnowledgeGapRow({ topic, showKnowledgeBase, onOpen }: KnowledgeG
             <Badge variant="outline">
               <Database className="h-3 w-3" aria-hidden />
               {topic.knowledge_base_name}
+            </Badge>
+          )}
+          {topic.has_draft && (
+            <Badge variant="outline">
+              <Sparkles className="h-3 w-3" aria-hidden />
+              {t("hasDraft")}
             </Badge>
           )}
           {topic.agents.map((agent) => (

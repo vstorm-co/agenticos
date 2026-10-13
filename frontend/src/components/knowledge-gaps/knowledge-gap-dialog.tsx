@@ -14,6 +14,7 @@ import { useKnowledgeGap } from "@/hooks/use-knowledge-gaps";
 import { DIALOG_COLUMN, DIALOG_WIDE } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import { KnowledgeGapActions } from "./knowledge-gap-actions";
+import { KnowledgeGapDraftPanel } from "./knowledge-gap-draft";
 import { KnowledgeGapQuestionItem } from "./knowledge-gap-question";
 
 interface KnowledgeGapDialogProps {
@@ -52,6 +53,7 @@ export function KnowledgeGapDialog({ topicId, onClose }: KnowledgeGapDialogProps
           ) : (
             <>
               <KnowledgeGapActions topic={topic} />
+              <KnowledgeGapDraftPanel topic={topic} />
               <h3 className="text-foreground text-sm font-semibold">{t("questions")}</h3>
               <ul className="space-y-3">
                 {topic.questions.map((question) => (

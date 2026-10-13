@@ -8,6 +8,11 @@ const state = vi.hoisted(() => ({ detail: {} as Record<string, unknown> }));
 vi.mock("@/hooks/use-knowledge-gaps", () => ({
   useKnowledgeGap: () => state.detail,
 }));
+vi.mock("./knowledge-gap-draft", () => ({
+  KnowledgeGapDraftPanel: ({ topic }: { topic: { id: string } }) => (
+    <p>{`draft for ${topic.id}`}</p>
+  ),
+}));
 vi.mock("./knowledge-gap-actions", () => ({
   KnowledgeGapActions: ({ topic }: { topic: { id: string } }) => <p>{`actions for ${topic.id}`}</p>,
 }));
@@ -23,6 +28,7 @@ const TOPIC = {
   examples: [],
   agents: [],
   dismissed_at: null,
+  has_draft: false,
   questions: [
     {
       search_id: "s1",
@@ -61,6 +67,7 @@ describe("KnowledgeGapDialog", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Asked 2 times in Handbook")).toBeInTheDocument();
     expect(screen.getByText("actions for t1")).toBeInTheDocument();
+    expect(screen.getByText("draft for t1")).toBeInTheDocument();
     expect(screen.getByText("How long can I take parental leave?")).toBeInTheDocument();
   });
 

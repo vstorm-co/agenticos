@@ -5865,6 +5865,16 @@
     "dataset": "Dataset",
     "cancel": "Cancel",
     "add": "Add",
-    "casesAdded": "{added, plural, =0 {No case added} =1 {1 case added} other {# cases added}} to {name}{skipped, plural, =0 {} =1 {, 1 question skipped} other {, # questions skipped}}"
+    "casesAdded": "{added, plural, =0 {No case added} =1 {1 case added} other {# cases added}} to {name}{skipped, plural, =0 {} =1 {, 1 question skipped} other {, # questions skipped}}",
+    "draftContent": "Draft the missing content",
+    "draftAgain": "Draft again",
+    "drafting": "Drafting…",
+    "draftReady": "Draft ready - check it before you add it",
+    "draftTitle": "Draft: {title}",
+    "draftNotice": "Written by a model from the questions above. Check every fact and fill in the placeholders before you add it to the collection - nothing is added for you.",
+    "draftSources": "Uses: {sources}",
+    "openDraftRun": "Open the run",
+    "downloadDraft": "Download .md",
+    "hasDraft": "Draft"
   }
 }

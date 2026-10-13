@@ -121,3 +121,25 @@ export function useRegroupKnowledgeGaps(knowledgeBaseId: string) {
     onError: (failure) => toast.error(getErrorMessage(failure, tErrors)),
   });
 }
+
+/**
+ * Ask the organization's drafting agent for the passage a topic is missing.
+ *
+ * A model run, so it can be refused - AI assistance switched off, the drafter's
+ * budget spent - and the refusal is the server's, shown as it says it.
+ */
+export function useDraftKnowledgeGap() {
+  const t = useTranslations("knowledgeGaps");
+  const tErrors = useTranslations("errors");
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (topicId: string) =>
+      apiClient.post<KnowledgeGapTopicDetail>(`/knowledge-gaps/${topicId}/draft`),
+    onSuccess: async (topic) => {
+      queryClient.setQueryData(qk.knowledgeGaps.detail(topic.id), topic);
+      await queryClient.invalidateQueries({ queryKey: qk.knowledgeGaps.all() });
+      toast.success(t("draftReady"));
+    },
+    onError: (failure) => toast.error(getErrorMessage(failure, tErrors)),
+  });
+}

@@ -38,6 +38,7 @@ const TOPIC = {
   examples: [],
   agents: [{ id: "a1", name: "HR helper" }],
   dismissed_at: null,
+  has_draft: false,
 };
 
 function answer(overrides: Record<string, unknown> = {}) {
@@ -80,6 +81,12 @@ describe("KnowledgeGapsPanel", () => {
     answer({ topics: [TOPIC], total: 1 });
     render(<KnowledgeGapsPanel scope={{ kind: "agent", id: "a1" }} />);
     expect(screen.getByText("Handbook")).toBeInTheDocument();
+  });
+
+  it("marks a topic that already has a draft", () => {
+    answer({ topics: [{ ...TOPIC, has_draft: true }], total: 1 });
+    render(<KnowledgeGapsPanel scope={{ kind: "collection", id: "kb1" }} />);
+    expect(screen.getByText("Draft")).toBeInTheDocument();
   });
 
   it("says how many questions wait for the next grouping pass", () => {

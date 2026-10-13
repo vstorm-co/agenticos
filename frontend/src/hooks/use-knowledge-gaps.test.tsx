@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   useAddKnowledgeGapToDataset,
+  useDraftKnowledgeGap,
   useKnowledgeGap,
   useKnowledgeGaps,
   useRegroupKnowledgeGaps,
@@ -139,5 +140,24 @@ describe("the topic mutations", () => {
     vi.mocked(apiClient.post).mockRejectedValueOnce(new Error("nope"));
     await expect(result.current.mutateAsync()).rejects.toThrow();
     await waitFor(() => expect(toastError).toHaveBeenCalled());
+  });
+});
+
+describe("useDraftKnowledgeGap", () => {
+  it("asks for a draft and says when it is ready", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ id: "t1", draft: { title: "x" } });
+    const { result } = renderHook(() => useDraftKnowledgeGap(), { wrapper });
+    result.current.mutate("t1");
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(apiClient.post).toHaveBeenCalledWith("/knowledge-gaps/t1/draft");
+    expect(toastSuccess).toHaveBeenCalledWith("Draft ready - check it before you add it");
+  });
+
+  it("shows the server's refusal, such as AI assistance being off", async () => {
+    vi.mocked(apiClient.post).mockRejectedValue(new Error("AI assistance is off"));
+    const { result } = renderHook(() => useDraftKnowledgeGap(), { wrapper });
+    result.current.mutate("t1");
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(toastError).toHaveBeenCalled();
   });
 });

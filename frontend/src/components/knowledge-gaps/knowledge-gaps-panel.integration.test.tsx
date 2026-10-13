@@ -30,6 +30,7 @@ const TOPIC = {
   examples: [],
   agents: [{ id: "a1", name: "HR helper" }],
   dismissed_at: null,
+  has_draft: false,
 };
 
 beforeEach(() => {
