@@ -53,9 +53,8 @@ from app.services.dataset import DatasetService, GeneratedCase
 from app.services.rag.vectorstore import BaseVectorStore
 from app.services.system_agents import SystemAgentService
 
-# A generation runs in the process that answered the request, so a restart loses
-# it mid-run. Longer than any generator run takes, it is reported as interrupted
-# rather than left spinning.
+# A restart loses a generation mid-run: it runs in the process that answered the
+# request. Past any real run's length, a running one is reported as interrupted.
 INTERRUPTED_AFTER = timedelta(minutes=30)
 INTERRUPTED = "The generation was interrupted before it finished. Start it again."
 

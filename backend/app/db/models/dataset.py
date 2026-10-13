@@ -243,7 +243,6 @@ class DatasetCase(Base):
         nullable=True,
         index=True,
     )
-    # The document a generated case's passage was taken from.
     source_document_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("rag_documents.id", ondelete="SET NULL"),

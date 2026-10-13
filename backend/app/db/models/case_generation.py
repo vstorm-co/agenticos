@@ -87,7 +87,6 @@ class CaseGeneration(Base):
     # Written by this platform, never a provider's or a library's message: it is
     # shown to everyone who may edit the dataset.
     error: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    # The generator's run - its cost, its tokens and its place in Activity.
     run_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("agent_runs.id", ondelete="SET NULL"),
