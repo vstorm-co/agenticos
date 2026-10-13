@@ -15,6 +15,7 @@ from app.core.exceptions import NotFoundError
 from app.db.models.agent import Agent
 from app.db.models.artifact import Artifact
 from app.db.models.context import ContextFile
+from app.db.models.dataset import Dataset
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.skill import Skill
@@ -64,3 +65,10 @@ async def load_artifact(db: AsyncSession, artifact_id: UUID, organization_id: UU
     if artifact is None or artifact.organization_id != organization_id:
         raise NotFoundError(message="Artifact not found", details={"artifact_id": str(artifact_id)})
     return artifact
+
+
+async def load_dataset(db: AsyncSession, dataset_id: UUID, organization_id: UUID) -> Dataset:
+    dataset = await db.get(Dataset, dataset_id)
+    if dataset is None or dataset.organization_id != organization_id:
+        raise NotFoundError(message="Dataset not found", details={"dataset_id": str(dataset_id)})
+    return dataset

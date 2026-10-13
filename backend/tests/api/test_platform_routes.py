@@ -324,6 +324,8 @@ CALLS: tuple[Call, ...] = (
         Perm.CONTEXT_EDIT,
         body={"name": "glossary", "description": "What the words mean"},
     ),
+    Call("GET", "/datasets", Perm.DATASETS_VIEW),
+    Call("POST", "/datasets", Perm.DATASETS_EDIT, body={"name": "refund questions"}),
     # Which providers exist and what shape of credential each takes is read by
     # the Builder's model picker, so it is gated on seeing agents rather than on
     # managing connections. Knowing Bedrock wants a key pair is not a secret.
@@ -733,6 +735,9 @@ _PLATFORM_PREFIXES = (
     # Context files, shaped exactly like skills: the collection routes gate on
     # context:view/edit, the per-file routes resolve grants in the service.
     "/context",
+    # Datasets, the same shape: collection routes gate on datasets:view/edit,
+    # the per-dataset routes - cases, versions, import, export - in the service.
+    "/datasets",
     # Memory routes carry no `require()`: every one acts on one agent's memory and the
     # service resolves access against that agent, so the sweep must reach them here.
     "/memory",
@@ -874,6 +879,9 @@ RESOURCE_AWARE_SERVICES = (
     # or delete one is its grants' answer, resolved inside the service. Every
     # per-file route (`GET/PATCH/DELETE /context/{id}`) depends on it.
     deps.get_context_service,
+    # A dataset is a shared resource like a context file: who may read its cases,
+    # change them, import or export them is its grants' answer, in the service.
+    deps.get_dataset_service,
     # A memory file rides on its parent agent: every `/memory` route resolves access
     # to the agent, per agent rather than per role.
     deps.get_memory_service,
