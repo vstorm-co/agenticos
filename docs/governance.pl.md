@@ -1447,7 +1447,7 @@ niedostępny.
 
 Jeden przełącznik, w ustawieniach organizacji na jej stronie członków, decyduje,
 czy modele wspierają ewaluacje i tworzenie treści w organizacji: sędziego evali,
-który ocenia [wyniki zbiorów danych](datasets.md#judge), oraz generator
+który ocenia [wyniki datasetów](datasets.md#judge), oraz generator
 przypadków i asystenta tworzenia, które pojawią się po nim. Domyślnie jest
 włączony, a zmienia go ten, kto ma `org:settings`.
 

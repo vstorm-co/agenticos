@@ -569,7 +569,7 @@ dowiedzieć się, kto komu może delegować.
 ## Agenci systemowi { #system-agents }
 
 Niektórych agentów uruchamia platforma, a nie człowiek: **Eval judge** ocenia
-odpowiedzi na potrzeby [oceniania zbiorów danych](datasets.md#judge). To są
+odpowiedzi na potrzeby [oceniania datasetów](datasets.md#judge). To są
 **agenci systemowi**. Każda organizacja dostaje ich przy utworzeniu, a
 organizacja utworzona wcześniej dostaje danego agenta wtedy, gdy coś po raz
 pierwszy go potrzebuje.
