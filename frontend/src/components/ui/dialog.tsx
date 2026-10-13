@@ -21,7 +21,7 @@ const DialogOverlay = React.forwardRef<
       // A veil rather than a blackout: the page stays legible enough to say where
       // the dialog came from, and the blur takes its detail out of competition
       // with the form on top.
-      "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/45 backdrop-blur-[3px] duration-200",
+      "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/50 backdrop-blur-[6px] duration-200",
       className,
     )}
     {...props}
@@ -66,7 +66,7 @@ const DialogContent = React.forwardRef<
           // whatever happens to be behind it - the wrong place for panel.
           // Rises a few pixels as it scales in, and settles with a spring - the
           // motion of something placed in front of the page, not faded onto it.
-          "bg-card data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=open]:slide-in-from-bottom-2 fixed top-[50%] left-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border p-6 shadow-[0_24px_64px_-24px_oklch(0%_0_0/0.35),0_2px_6px_oklch(0%_0_0/0.06)] duration-300 data-[state=closed]:duration-150 data-[state=open]:ease-[var(--ease-spring)] sm:rounded-2xl",
+          "bg-card data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=open]:slide-in-from-bottom-2 border-foreground/10 fixed top-[50%] left-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border p-6 shadow-[0_32px_80px_-24px_oklch(0%_0_0/0.45),0_2px_8px_oklch(0%_0_0/0.08)] duration-300 data-[state=closed]:duration-150 data-[state=open]:ease-[var(--ease-spring)] sm:rounded-2xl",
           className,
         )}
         {...props}
@@ -125,7 +125,7 @@ const DialogDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Description
     ref={ref}
-    className={cn("text-muted-foreground text-sm leading-relaxed", className)}
+    className={cn("text-muted-foreground text-[13px] leading-relaxed", className)}
     {...props}
   />
 ));
