@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Plug, Plus, Wrench, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { McpServerHealth } from "@/components/agents/mcp-server-health";
+import { McpToolChecklist } from "@/components/agents/mcp-tool-checklist";
 import {
   Button,
   Dialog,
@@ -16,6 +16,7 @@ import {
   IconButton,
   Input,
   Label,
+  MoreOptions,
   Select,
   SelectContent,
   SelectItem,
@@ -23,6 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui";
 import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
+import type { McpToolInfo } from "@/lib/mcp-connections-api";
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
 import { cn } from "@/lib/utils";
 import type { McpServerRef } from "@/types/agents";
@@ -45,12 +47,18 @@ interface McpBindingDialogProps {
   onTools: (ref: McpServerRef, probed: OrgMcpConnectionRecord, name: string) => void;
   /** Connect another of the organization's accounts; absent outside the catalog. */
   onConnect?: () => void;
-  onCheck?: (connectionId: string) => Promise<unknown>;
+  /**
+   * The server's tools as the reader's own connection last listed them - the
+   * catalogue for a server bound only through each person's account, where the
+   * organization holds no connection to have listed them.
+   */
+  personalTools?: McpToolInfo[] | null;
   disabled?: boolean;
 }
 
 /**
- * How this agent uses one MCP server: through which accounts, and which tools.
+ * How this agent uses one MCP server: through which accounts, and which tools -
+ * the two questions as two sections, the tools ticked in place.
  *
  * A server can be reached through several accounts at once - the company
  * mailbox and `info@`, both the organization's, or each person's own beside
@@ -69,7 +77,7 @@ export function McpBindingDialog({
   onChange,
   onTools,
   onConnect,
-  onCheck,
+  personalTools = null,
   disabled,
 }: McpBindingDialogProps) {
   const t = useTranslations("agents");
@@ -99,6 +107,15 @@ export function McpBindingDialog({
           catalog_key: catalogKey,
           allowed_tools: from?.allowed_tools ?? null,
         };
+  // Where the tools are listed from: the organization's account the agent uses,
+  // any of its accounts on the server, or the reader's own. The same tools
+  // whichever credential reaches them, so one list chooses for every account.
+  const listedBy =
+    connections.find((connection) => boundIds.has(connection.id)) ?? connections[0] ?? null;
+  const tools = listedBy?.last_tools ?? personalTools;
+  const allowed = bindings[0]?.allowed_tools ?? null;
+  const setTools = (next: string[] | null) =>
+    onChange(bindings.map((ref) => ({ ...ref, allowed_tools: next })));
   const add = () => {
     const next = free[0] ? organizationRef(free[0]) : canAddPersonal ? personalRef() : null;
     if (next) onChange([...bindings, next]);
@@ -112,74 +129,96 @@ export function McpBindingDialog({
           <DialogDescription>{t("serverSettingsDescription")}</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3">
-          {bindings.length === 0 ? (
-            // Unused yet: choosing whose account binds the server, so a person
-            // who opened the card to look can switch it on from here.
-            <WhoseAccount
-              name={name}
-              value={undefined}
-              organization={connections[0] !== undefined}
-              personal={catalogKey !== null}
-              disabled={disabled}
-              onChange={(next) => {
-                const ref =
-                  next === "personal"
-                    ? personalRef()
-                    : connections[0]
-                      ? organizationRef(connections[0])
-                      : null;
-                if (ref) onChange([ref]);
-              }}
-            />
-          ) : (
-            bindings.map((binding, index) => (
-              <AccountBlock
-                key={binding.account === "personal" ? "personal" : binding.connection_id}
+        <div className="space-y-5">
+          <section className="space-y-2">
+            <h3 className="text-sm font-medium">{t("serverAccount")}</h3>
+            {bindings.length === 0 ? (
+              // Unused yet: choosing whose account binds the server, so a person
+              // who opened the card to look can switch it on from here.
+              <WhoseAccount
                 name={name}
-                binding={binding}
-                connections={connections}
-                choices={
-                  binding.account === "organization"
-                    ? connections.filter(
-                        (option) => option.id === binding.connection_id || !boundIds.has(option.id),
-                      )
-                    : free
-                }
-                canBePersonal={
-                  catalogKey !== null && (!personalBound || binding.account === "personal")
-                }
-                removable={bindings.length > 1}
+                value={undefined}
+                organization={connections[0] !== undefined}
+                personal={catalogKey !== null}
                 disabled={disabled}
-                onWhose={(whose) => {
-                  const next =
-                    whose === "personal"
-                      ? personalRef(binding)
-                      : free[0]
-                        ? organizationRef(free[0], binding)
+                onChange={(next) => {
+                  const ref =
+                    next === "personal"
+                      ? personalRef()
+                      : connections[0]
+                        ? organizationRef(connections[0])
                         : null;
-                  if (next) replace(index, next);
+                  if (ref) onChange([ref]);
                 }}
-                onConnection={(target) => replace(index, organizationRef(target, binding))}
-                onLabels={(labels) =>
-                  binding.account === "personal" &&
-                  replace(index, { ...binding, account_labels: labels })
-                }
-                onRemove={() => remove(index)}
-                onTools={(probed) => onTools(binding, probed, name)}
-                onCheck={onCheck}
               />
-            ))
-          )}
-
-          {bindings.length > 0 &&
-            (free.length > 0 || canAddPersonal ? (
-              <Button type="button" variant="outline" size="sm" disabled={disabled} onClick={add}>
-                <Plus className="mr-1 h-3.5 w-3.5" />
-                {t("addAnotherAccount")}
-              </Button>
             ) : (
-              onConnect && (
+              bindings.map((binding, index) => (
+                <AccountBlock
+                  key={binding.account === "personal" ? "personal" : binding.connection_id}
+                  name={name}
+                  binding={binding}
+                  connections={connections}
+                  choices={
+                    binding.account === "organization"
+                      ? connections.filter(
+                          (option) =>
+                            option.id === binding.connection_id || !boundIds.has(option.id),
+                        )
+                      : free
+                  }
+                  canBePersonal={
+                    catalogKey !== null && (!personalBound || binding.account === "personal")
+                  }
+                  removable={bindings.length > 1}
+                  disabled={disabled}
+                  onWhose={(whose) => {
+                    const next =
+                      whose === "personal"
+                        ? personalRef(binding)
+                        : free[0]
+                          ? organizationRef(free[0], binding)
+                          : null;
+                    if (next) replace(index, next);
+                  }}
+                  onConnection={(target) => replace(index, organizationRef(target, binding))}
+                  onLabels={(labels) =>
+                    binding.account === "personal" &&
+                    replace(index, { ...binding, account_labels: labels })
+                  }
+                  onRemove={() => remove(index)}
+                />
+              ))
+            )}
+
+            <div className="flex flex-wrap gap-2">
+              {bindings.length > 0 &&
+                (free.length > 0 || canAddPersonal ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={disabled}
+                    onClick={add}
+                  >
+                    <Plus className="mr-1 h-3.5 w-3.5" />
+                    {t("addAnotherAccount")}
+                  </Button>
+                ) : (
+                  onConnect && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={disabled}
+                      onClick={onConnect}
+                    >
+                      <Plug className="mr-1 h-3.5 w-3.5" />
+                      {t("connectAnotherAccount")}
+                    </Button>
+                  )
+                ))}
+
+              {connections.length === 0 && onConnect && (
                 <Button
                   type="button"
                   variant="outline"
@@ -188,22 +227,41 @@ export function McpBindingDialog({
                   onClick={onConnect}
                 >
                   <Plug className="mr-1 h-3.5 w-3.5" />
-                  {t("connectAnotherAccount")}
+                  {t("connectOrganizationAccount")}
                 </Button>
-              )
-            ))}
+              )}
+            </div>
+          </section>
 
-          {connections.length === 0 && onConnect && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={disabled}
-              onClick={onConnect}
-            >
-              <Plug className="mr-1 h-3.5 w-3.5" />
-              {t("connectOrganizationAccount")}
-            </Button>
+          {bindings.length > 0 && (
+            <section className="space-y-2">
+              <h3 className="text-sm font-medium">{t("serverTools")}</h3>
+              {tools ? (
+                <McpToolChecklist
+                  tools={tools}
+                  allowed={allowed}
+                  onChange={setTools}
+                  disabled={disabled}
+                />
+              ) : listedBy ? (
+                // The organization's account has never been asked what it offers;
+                // asking dials out, which the caller does and then opens the list.
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={disabled}
+                  onClick={() => bindings[0] && onTools(bindings[0], listedBy, name)}
+                >
+                  <Wrench className="mr-1 h-3.5 w-3.5" />
+                  {t("loadTools")}
+                </Button>
+              ) : (
+                <p className="text-muted-foreground text-xs">
+                  {t("toolsAfterConnecting", { name })}
+                </p>
+              )}
+            </section>
           )}
         </div>
 
@@ -264,8 +322,6 @@ function AccountBlock({
   onConnection,
   onLabels,
   onRemove,
-  onTools,
-  onCheck,
 }: {
   name: string;
   binding: AccountRef;
@@ -279,20 +335,14 @@ function AccountBlock({
   onConnection: (target: OrgMcpConnectionRecord) => void;
   onLabels: (labels: string[] | null) => void;
   onRemove: () => void;
-  onTools: (probed: OrgMcpConnectionRecord) => void;
-  onCheck?: (connectionId: string) => Promise<unknown>;
 }) {
   const t = useTranslations("agents");
   const personal = binding.account === "personal";
   const connection = personal
     ? null
     : (connections.find((option) => option.id === binding.connection_id) ?? null);
-  // The tools come from an organization connection's probe, so each person's
-  // own account is narrowed only where the organization holds one to probe.
-  const probed = connection ?? connections[0] ?? null;
-
   return (
-    <div className="border-border space-y-3 rounded-xl border p-3">
+    <div className="space-y-2">
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
           <WhoseAccount
@@ -319,13 +369,19 @@ function AccountBlock({
 
       {personal ? (
         <>
-          <p className="text-muted-foreground text-xs">{t("eachPersonsOwnAccountHint")}</p>
-          <AccountLabels
-            name={name}
-            value={binding.account_labels ?? null}
-            disabled={disabled}
-            onChange={onLabels}
-          />
+          <p className="text-muted-foreground text-xs">{t("eachPersonsOwnAccountShort")}</p>
+          {/* Folded unless used: most agents reach every account a person holds. */}
+          <MoreOptions
+            label={t("onlySomeAccounts")}
+            defaultOpen={(binding.account_labels?.length ?? 0) > 0}
+          >
+            <AccountLabels
+              name={name}
+              value={binding.account_labels ?? null}
+              disabled={disabled}
+              onChange={onLabels}
+            />
+          </MoreOptions>
         </>
       ) : connection && choices.length > 1 ? (
         // Which connection, where there is a choice. The label if somebody set
@@ -366,23 +422,6 @@ function AccountBlock({
             )}
           </p>
         )
-      )}
-
-      {connection && <McpServerHealth connection={connection} onCheck={onCheck} />}
-
-      {probed && (
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={disabled}
-          onClick={() => onTools(probed)}
-        >
-          <Wrench className="mr-1 h-3.5 w-3.5" />
-          {binding.allowed_tools == null
-            ? t("everyToolThisServerOffers")
-            : t("toolCount", { count: binding.allowed_tools.length })}
-        </Button>
       )}
     </div>
   );

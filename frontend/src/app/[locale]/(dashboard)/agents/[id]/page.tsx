@@ -113,6 +113,7 @@ import {
   useExposures,
   useKnowledgeBases,
   useMcpCatalog,
+  useMcpConnections,
   useModelProviders,
   useOrgMcpConnections,
   usePermissions,
@@ -183,6 +184,9 @@ function toolChoice(
 export default function AgentBuilderPage({ params }: PageProps) {
   const t = useTranslations("pages.agents");
   const tMenu = useTranslations("agents");
+  // The reader's own MCP accounts: the tools of a server bound only through each
+  // person's account are listed from theirs.
+  const { connections: myMcpConnections } = useMcpConnections();
   const tc = useTranslations("common");
   const tSharing = useTranslations("sharing");
   const tAgents = useTranslations("agents");
@@ -1461,7 +1465,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   catalog={mcpCatalog}
                   value={spec.mcp_servers}
                   onChange={(mcp_servers) => update({ mcp_servers })}
-                  onCheck={can(Perm.mcpManage) ? probeMcpConnection : undefined}
+                  personalConnections={myMcpConnections}
                   onTools={async (ref, connection, name) => {
                     setToolBinding(bindingKey(ref));
                     // A connection nobody has checked has no tool list; check it

@@ -5,23 +5,10 @@ import { Plug, Settings2 } from "lucide-react";
 
 import { McpBindingDialog } from "@/components/agents/mcp-binding-dialog";
 import { McpServerCard } from "@/components/mcp/mcp-server-card";
-import {
-  Badge,
-  Button,
-  Checkbox,
-  Pager,
-  SearchInput,
-  Switch,
-  useListControls,
-} from "@/components/ui";
+import { Button, Checkbox, Pager, SearchInput, Switch, useListControls } from "@/components/ui";
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
-import {
-  categoryLabel,
-  connectionState,
-  entryForConnection,
-  MCP_AUTH_LABEL,
-  MCP_STATE_LABEL,
-} from "@/lib/mcp-servers";
+import { categoryLabel, entryForConnection } from "@/lib/mcp-servers";
+import type { McpConnectionRecord, McpToolInfo } from "@/lib/mcp-connections-api";
 import type { AccountRef } from "@/components/agents/mcp-binding-dialog";
 import type { McpServerRef } from "@/types/agents";
 import type { McpCatalogEntry } from "@/types/mcp";
@@ -74,8 +61,11 @@ interface McpServerPickerProps {
    * it would make a presentational component fetch.
    */
   onConnect: (entry: McpCatalogEntry) => void;
-  /** Probe a bound server again, for somebody who may manage MCP servers. */
-  onCheck?: (connectionId: string) => Promise<unknown>;
+  /**
+   * The reader's own MCP connections, for the tools of a server the organization
+   * holds no connection to - listed from their own account's last check.
+   */
+  personalConnections?: McpConnectionRecord[];
   disabled?: boolean;
 }
 
@@ -112,11 +102,10 @@ export function McpServerPicker({
   onChange,
   onTools,
   onConnect,
-  onCheck,
+  personalConnections = [],
   disabled,
 }: McpServerPickerProps) {
   const t = useTranslations("agents");
-  const tMcp = useTranslations("mcp");
   const [connectedOnly, setConnectedOnly] = useState(false);
   const known = new Set(connections.map((connection) => connection.id));
   const catalogKeys = new Set(catalog.map((entry) => entry.key));
@@ -167,7 +156,6 @@ export function McpServerPicker({
         name: entry.name,
         description: entry.description,
         icon: entry.icon,
-        auth: tMcp(MCP_AUTH_LABEL[entry.auth]),
         entry,
         connections: owned,
       };
@@ -177,7 +165,6 @@ export function McpServerPicker({
       name: connection.name,
       description: connection.url,
       icon: null,
-      auth: null,
       entry: null,
       connections: [connection],
     })),
@@ -216,7 +203,12 @@ export function McpServerPicker({
             onRebind={(next) => rebind(row, next)}
             onTools={onTools}
             onConnect={onConnect}
-            onCheck={onCheck}
+            personalTools={
+              personalConnections.find(
+                (connection) =>
+                  connection.catalog_key === row.entry?.key && connection.last_tools !== null,
+              )?.last_tools ?? null
+            }
             disabled={disabled}
           />
         ))}
@@ -242,7 +234,6 @@ interface CardRow {
   name: string;
   description: string;
   icon: string | null;
-  auth: string | null;
   /**
    * Every account the organization holds on this server.
    *
@@ -275,7 +266,7 @@ function ServerCard({
   onRebind,
   onTools,
   onConnect,
-  onCheck,
+  personalTools,
   disabled,
 }: {
   row: CardRow;
@@ -283,20 +274,18 @@ function ServerCard({
   onRebind: (next: AccountRef[]) => void;
   onTools: (ref: McpServerRef, probed: OrgMcpConnectionRecord, name: string) => void;
   onConnect: (entry: McpCatalogEntry) => void;
-  onCheck?: (connectionId: string) => Promise<unknown>;
+  personalTools: McpToolInfo[] | null;
   disabled?: boolean;
 }) {
   const t = useTranslations("agents");
-  // The state words belong to the MCP page, which is where they are also read.
   const tMcp = useTranslations("mcp");
-  const { name, description, icon, auth, connections, entry } = row;
+  const { name, description, icon, connections, entry } = row;
   const boundIds = new Set(
     bindings.flatMap((ref) => (ref.account === "organization" ? [ref.connection_id] : [])),
   );
   // The account the card reports on: the first one bound, else the first held.
   const connection =
     connections.find((account) => boundIds.has(account.id)) ?? connections[0] ?? null;
-  const state = connectionState(connection);
   const isOn = bindings.length > 0;
   const onlyPersonal = isOn && boundIds.size === 0;
   const orgBindable = connection !== null;
@@ -327,22 +316,7 @@ function ServerCard({
       <McpServerCard
         name={name}
         icon={icon}
-        badge={
-          <>
-            {auth && (
-              <Badge variant="outline" className="shrink-0">
-                {auth}
-              </Badge>
-            )}
-            {/* Only for an account that exists and is not working: a server
-                with none says so through the Connect at its foot. */}
-            {!onlyPersonal && orgBindable && state !== "connected" && (
-              <Badge variant={state === "error" ? "destructive" : "secondary"} className="shrink-0">
-                {tMcp(MCP_STATE_LABEL[state])}
-              </Badge>
-            )}
-          </>
-        }
+        badge={null}
         headerAction={
           <Switch
             checked={isOn}
@@ -355,7 +329,9 @@ function ServerCard({
         description={description}
         url={entry?.url ?? connection?.url ?? null}
         docsUrl={entry?.docs_url ?? null}
-        entry={entry}
+        // No catalog check here: whether the server answered a probe last week
+        // is the servers page's business, not a question while building an agent.
+        entry={null}
         selected={isOn}
         onOpen={disabled ? undefined : () => setSettingsOpen(true)}
         actions={
@@ -415,7 +391,7 @@ function ServerCard({
               }
             : undefined
         }
-        onCheck={onCheck}
+        personalTools={personalTools}
         disabled={disabled}
       />
     </>

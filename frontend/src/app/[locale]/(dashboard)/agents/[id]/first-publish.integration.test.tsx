@@ -114,6 +114,7 @@ vi.mock("@/hooks", () => ({
     createProfile: { mutateAsync: vi.fn(), isPending: false },
     catalog: [],
   }),
+  useMcpConnections: () => ({ connections: [] }),
   useOrgMcpConnections: () => ({ connections: [] }),
   usePermissions: () => ({
     can: (permission: Permission) => state.permissions.includes(permission),

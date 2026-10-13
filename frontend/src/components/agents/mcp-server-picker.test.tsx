@@ -96,7 +96,8 @@ describe("McpServerPicker", () => {
     render(picker({ connections: [connection()] }));
 
     expect(screen.getByRole("switch", { name: "Use GitHub in this agent" })).toBeInTheDocument();
-    expect(screen.getByText("API token")).toBeInTheDocument();
+    // How it signs in is the servers page's business, not a question here.
+    expect(screen.queryByText("API token")).toBeNull();
   });
 
   it("falls back to the connection's own name for a server not in the catalog", () => {
@@ -132,26 +133,23 @@ describe("McpServerPicker", () => {
     );
   });
 
-  it("warns that a server cannot be reached before it is attached", () => {
-    // Attaching a connection that has never been authorized is allowed - it may
-    // be authorized later - but it should not look ready.
+  it("draws no account status or catalog check on the card", () => {
+    // Whether an account answered a probe is the servers page's to say; on the
+    // card it was noise between somebody and the switch they came for.
     render(
       picker({
-        connections: [
-          connection({ auth_type: "oauth", oauth_authorized: false, authorized: false }),
+        connections: [connection({ last_status: "error", catalog_key: "github" })],
+        catalog: [
+          {
+            ...GITHUB,
+            check: { outcome: "unreachable", checked_at: "2026-10-12T00:00:00Z" },
+          } as McpCatalogEntry,
         ],
       }),
     );
 
-    expect(screen.getByText("Needs authorization")).toBeInTheDocument();
-  });
-
-  it("marks a server that answered with an error, louder than one merely idle", () => {
-    // Unreachable is the state that explains a run that half-worked; it must not
-    // read like "not connected yet".
-    render(picker({ connections: [connection({ last_status: "error" })] }));
-
-    expect(screen.getByText("Unreachable")).toBeInTheDocument();
+    expect(screen.queryByText("Unreachable")).toBeNull();
+    expect(screen.queryByText(/Checked/)).toBeNull();
   });
 
   it("binds the connection whose switch was turned on", async () => {
@@ -470,6 +468,8 @@ describe("several connections behind one catalog entry", () => {
     render(picker({ value: [personal("github")], onChange }));
 
     await settings();
+    // Folded until wanted: most agents reach every account a person holds.
+    await userEvent.click(screen.getByRole("button", { name: "Only some of their accounts" }));
     const field = screen.getByLabelText("Only their accounts labelled");
     await userEvent.type(field, "Sales inbox, info@ ,");
     expect(onChange).not.toHaveBeenCalled();
@@ -596,7 +596,7 @@ describe("whose account a binding speaks through", () => {
     expect(screen.getByRole("combobox", { name: /whose github account/i })).toHaveTextContent(
       "Each person's own account",
     );
-    expect(screen.getByText(/Not available to API keys/)).toBeInTheDocument();
+    expect(screen.getByText(/not for API keys/)).toBeInTheDocument();
   });
 
   it("offers each person's own account for a server nobody has connected", async () => {
@@ -692,46 +692,81 @@ describe("which of a server's tools this agent may call", () => {
     expect(screen.queryByRole("button", { name: /tool/i })).not.toBeInTheDocument();
   });
 
-  it("says every tool while the binding narrows nothing", async () => {
-    render(picker({ connections: [GH], value: [bound("c1")] }));
+  const TOOLS = [
+    { name: "search", description: "Search code" },
+    { name: "fetch", description: "Read a file" },
+    { name: "create_issue", description: "Open an issue" },
+  ];
+
+  it("ticks every tool while the binding narrows nothing", async () => {
+    render(picker({ connections: [{ ...GH, last_tools: TOOLS }], value: [bound("c1")] }));
     await settings();
 
-    expect(screen.getByRole("button", { name: "Every tool it offers" })).toBeVisible();
+    expect(screen.getByText("3 of 3 tools")).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "fetch" })).toBeChecked();
   });
 
-  it("counts what the binding narrowed to", async () => {
-    render(picker({ connections: [GH], value: [bound("c1", ["search", "fetch"])] }));
+  it("narrows to the rest when a tool is unticked, and back to every tool", async () => {
+    const onChange = vi.fn();
+    render(picker({ connections: [{ ...GH, last_tools: TOOLS }], value: [bound("c1")], onChange }));
     await settings();
 
-    expect(screen.getByRole("button", { name: "2 tools" })).toBeVisible();
+    await userEvent.click(screen.getByRole("checkbox", { name: "fetch" }));
+    expect(onChange).toHaveBeenLastCalledWith([bound("c1", ["search", "create_issue"])]);
   });
 
-  it("hands the caller the binding, the connection whose probe lists the tools, and the server's name", async () => {
+  it("selects every tool again, which means every tool rather than a list", async () => {
+    const onChange = vi.fn();
+    render(
+      picker({
+        connections: [{ ...GH, last_tools: TOOLS }],
+        value: [bound("c1", ["search"])],
+        onChange,
+      }),
+    );
+    await settings();
+
+    expect(screen.getByText("1 of 3 tools")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Select all" }));
+    expect(onChange).toHaveBeenLastCalledWith([bound("c1")]);
+  });
+
+  it("asks the caller to load the tools of an account never checked", async () => {
     const onTools = vi.fn();
     render(picker({ connections: [GH], value: [bound("c1", ["search"])], onTools }));
 
     await settings();
-    await userEvent.click(screen.getByRole("button", { name: "1 tool" }));
+    await userEvent.click(screen.getByRole("button", { name: "Load its tools" }));
 
     expect(onTools).toHaveBeenCalledWith(bound("c1", ["search"]), GH, "GitHub");
   });
 
-  it("narrows a binding to each person's own account from an organization connection's probe", async () => {
-    // The server's tools are the same whoever's credential reaches them, and
-    // the organization's probe is the only catalogue of them this page holds.
-    const onTools = vi.fn();
-    render(picker({ connections: [GH], value: [personal("github")], onTools }));
-
+  it("lists a personal binding's tools from the reader's own account", async () => {
+    render(
+      <McpServerPicker
+        connections={[]}
+        catalog={CATALOG}
+        value={[personal("github")]}
+        onChange={vi.fn()}
+        onTools={vi.fn()}
+        onConnect={vi.fn()}
+        personalConnections={[
+          { ...connection({ catalog_key: "github" }), last_tools: TOOLS } as never,
+        ]}
+      />,
+    );
     await settings();
-    await userEvent.click(screen.getByRole("button", { name: "Every tool it offers" }));
 
-    expect(onTools).toHaveBeenCalledWith(personal("github"), GH, "GitHub");
+    expect(screen.getByText("3 of 3 tools")).toBeInTheDocument();
   });
 
-  it("cannot narrow a personal binding where the organization holds no connection to probe", () => {
+  it("says where the tools come from when nothing has listed them", async () => {
     render(picker({ value: [personal("github")] }));
+    await settings();
 
-    expect(screen.queryByRole("button", { name: /tool/i })).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Its tools are listed once a GitHub account is connected."),
+    ).toBeInTheDocument();
   });
 
   it("carries the choice across a change of account", async () => {
@@ -754,7 +789,7 @@ describe("which of a server's tools this agent may call", () => {
 
     await userEvent.click(screen.getByText(GITHUB.description));
 
-    expect(screen.queryByRole("button", { name: "Every tool it offers" })).toBeNull();
+    expect(screen.queryByRole("checkbox", { name: "search" })).toBeNull();
   });
 });
 
