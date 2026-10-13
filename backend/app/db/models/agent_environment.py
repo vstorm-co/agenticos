@@ -23,9 +23,10 @@ default environment is what a surface that names no environment gets. It moves
 when that environment moves, which is now a promotion rather than a publish.
 """
 
+import enum
 import uuid
 
-from sqlalchemy import Boolean, ForeignKey, Index, String, UniqueConstraint
+from sqlalchemy import Boolean, CheckConstraint, ForeignKey, Index, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -124,4 +125,91 @@ class AgentEnvironment(Base, TimestampMixin):
         return (
             f"<AgentEnvironment(id={self.id}, agent_id={self.agent_id}, "
             f"name={self.name}, version_id={self.version_id}, is_default={self.is_default})>"
+        )
+
+
+class ConnectionKind(enum.StrEnum):
+    """What an environment can swap for a test one.
+
+    Attributes:
+        MCP: An organization MCP connection a spec binds by `connection_id`.
+        SECRET: A vault secret a capability binding names by `secret_id`.
+    """
+
+    MCP = "mcp"
+    SECRET = "secret"
+
+
+class AgentEnvironmentConnection(Base, TimestampMixin):
+    """One binding an environment answers with a test system instead.
+
+    Keyed on the id the *spec* names (`production_id`), never on the binding's
+    position: the spec is the agent, and staging runs the same version as
+    production against a sandbox CRM because this row says "where the spec says
+    CRM, use the sandbox". The spec does not change, so promoting a version
+    between environments carries no test credential with it.
+
+    `production_id` has no foreign key: what it names lives in a spec, which is
+    JSON, and an override for a connection a later version no longer binds is
+    inert rather than wrong.
+
+    The test side is `SET NULL` on delete, and null means *off*, not "fall back".
+    A deleted sandbox must not quietly turn a staging bot back onto the
+    production CRM; the binding goes dark in this environment until somebody
+    picks another test connection or removes the override.
+    """
+
+    __tablename__ = "agent_environment_connections"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    environment_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("agent_environments.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    production_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
+    test_connection_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("mcp_connections.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    test_secret_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("organization_secrets.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "environment_id", "kind", "production_id", name="uq_environment_connection_target"
+        ),
+        CheckConstraint("kind IN ('mcp', 'secret')", name="ck_environment_connection_kind"),
+        # The test side matches the kind, so an MCP override can never be read as
+        # a secret one. Both nulls are allowed: that is a test side deleted.
+        CheckConstraint(
+            "(kind = 'mcp' AND test_secret_id IS NULL) "
+            "OR (kind = 'secret' AND test_connection_id IS NULL)",
+            name="ck_environment_connection_test_side",
+        ),
+    )
+
+    @property
+    def test_id(self) -> uuid.UUID | None:
+        """The test side, whichever kind this is."""
+        return self.test_connection_id if self.kind == ConnectionKind.MCP else self.test_secret_id
+
+    def __repr__(self) -> str:
+        return (
+            f"<AgentEnvironmentConnection(id={self.id}, environment_id={self.environment_id}, "
+            f"kind={self.kind}, production_id={self.production_id})>"
         )
