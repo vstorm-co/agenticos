@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { Suspense, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { useOrgStore } from "@/stores";
 import DatasetPage from "./page";
 
 /**
@@ -14,7 +15,7 @@ import DatasetPage from "./page";
  * a member who may edit the dataset - and a reader's page never asks for them.
  */
 
-const { get } = vi.hoisted(() => ({ get: vi.fn() }));
+const { get, orgs } = vi.hoisted(() => ({ get: vi.fn(), orgs: { current: [] as unknown[] } }));
 vi.mock("@/lib/api-client", () => ({
   apiClient: { get, post: vi.fn(), patch: vi.fn(), put: vi.fn(), delete: vi.fn() },
 }));
@@ -73,6 +74,8 @@ function answer(dataset: typeof DATASET) {
     if (path === "/datasets/d1/proposals") return Promise.resolve({ items: [DRAFT], total: 1 });
     if (path === "/datasets/d1/generations") return Promise.resolve({ items: [] });
     if (path === "/agents") return Promise.resolve({ items: [], total: 0 });
+    if (path === "/orgs")
+      return Promise.resolve({ items: orgs.current, total: orgs.current.length });
     return Promise.resolve({ items: [], total: 0, version: 0 });
   });
 }
@@ -84,7 +87,10 @@ async function mount() {
 }
 
 describe("generated cases on the dataset page", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    orgs.current = [];
+  });
 
   it("offers a reader neither drafts nor generation, and never asks for them", async () => {
     answer(DATASET);
@@ -102,5 +108,18 @@ describe("generated cases on the dataset page", () => {
     expect(await screen.findByRole("dialog")).toHaveTextContent("estimated cost");
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("offers no generation in an organization that switched AI assistance off", async () => {
+    useOrgStore.setState({ activeOrgId: "o1" });
+    orgs.current = [{ id: "o1", name: "Acme", ai_assistance_enabled: false }];
+    answer({ ...DATASET, can_edit: true });
+    await mount();
+    expect(await screen.findByRole("button", { name: "Add case" })).toBeInTheDocument();
+    await waitFor(() => expect(get).toHaveBeenCalledWith("/orgs"));
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: "Generate cases" })).toBeNull(),
+    );
+    useOrgStore.setState({ activeOrgId: null });
   });
 });

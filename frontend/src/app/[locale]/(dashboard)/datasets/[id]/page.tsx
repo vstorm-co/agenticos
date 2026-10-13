@@ -16,6 +16,7 @@ import { SharingPanel } from "@/components/sharing/sharing-panel";
 import { ErrorState, LoadingState } from "@/components/states";
 import { Badge, Button, ListCard, ListCardEmpty, PAGE_SIZE, Pager } from "@/components/ui";
 import { useDataset, useDatasetCases, useDatasetVersions } from "@/hooks/use-datasets";
+import { useOrganizations } from "@/hooks/use-organizations";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import type { DatasetCase, DatasetCaseContent } from "@/types/datasets";
@@ -45,6 +46,9 @@ export default function DatasetPage({ params }: PageProps) {
   const { dataset, error: datasetError } = useDataset(id);
   const { versions } = useDatasetVersions(id);
   const cases = useDatasetCases(id, { version, skip: page * PAGE_SIZE, limit: PAGE_SIZE });
+  // Hidden only once the organization is known to have switched it off; the
+  // backend refuses a generation either way.
+  const aiAssistance = useOrganizations().activeOrg?.ai_assistance_enabled !== false;
 
   if (datasetError) {
     return <ErrorState description={getErrorMessage(datasetError, tErrors)} />;
@@ -75,14 +79,16 @@ export default function DatasetPage({ params }: PageProps) {
         actions={
           editable ? (
             <div className="flex flex-wrap items-center gap-2">
-              <Button
-                variant="outline"
-                data-tour="datasets-generate"
-                onClick={() => setGenerating(true)}
-              >
-                <Sparkles className="h-4 w-4" />
-                {t("generateCases")}
-              </Button>
+              {aiAssistance && (
+                <Button
+                  variant="outline"
+                  data-tour="datasets-generate"
+                  onClick={() => setGenerating(true)}
+                >
+                  <Sparkles className="h-4 w-4" />
+                  {t("generateCases")}
+                </Button>
+              )}
               <Button
                 data-tour="datasets-add-case"
                 onClick={() => setEditing({ draft: EMPTY_DRAFT, item: null })}

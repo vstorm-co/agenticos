@@ -331,6 +331,8 @@ export const TOUR_STEPS: readonly TourStep[] = [
     page: DATASET_DETAIL,
     target: "datasets-generate",
     permission: Perm.datasetsEdit,
+    // Absent while the organization has AI assistance switched off.
+    optional: true,
   },
   {
     id: "datasets-proposals",
