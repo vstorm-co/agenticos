@@ -229,7 +229,14 @@ export const DEFAULT_SUBAGENTS_CONFIG: SubagentsConfig = {
  * every question the panel asks.
  */
 export function readSubagentsConfig(binding: CapabilityBindingSpec | undefined): SubagentsConfig {
-  return { ...DEFAULT_SUBAGENTS_CONFIG, ...(binding?.config as Partial<SubagentsConfig>) };
+  const config = { ...DEFAULT_SUBAGENTS_CONFIG, ...(binding?.config as Partial<SubagentsConfig>) };
+  // A binding's config is stored as written, so a specialist from a template
+  // or an imported YAML holds only the fields its author set - and the panel
+  // reads every one of them. Filled here, once, rather than guarded at each read.
+  return {
+    ...config,
+    inline: config.inline.map((specialist) => ({ ...newSpecialist(), ...specialist })),
+  };
 }
 
 /** A specialist with nothing filled in, which is what "add one" produces. */

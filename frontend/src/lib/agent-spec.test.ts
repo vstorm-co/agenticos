@@ -173,6 +173,25 @@ describe("readSubagentsConfig", () => {
   it("reads an unbound capability as the defaults rather than throwing", () => {
     expect(readSubagentsConfig(undefined).inline).toEqual([]);
   });
+
+  it("completes a specialist stored with only the fields its template set", () => {
+    // The Claude Code template's specialists carry a name, a description,
+    // instructions and a step limit; opening Delegation on such an agent read
+    // `capabilities` of one and took the whole page down.
+    const stored = binding(SUBAGENTS_ID, {
+      config: { inline: [{ name: "explore", description: "d", instructions: "i", max_steps: 40 }] },
+    });
+
+    const [specialist] = readSubagentsConfig(stored).inline;
+
+    expect(specialist).toEqual({
+      ...newSpecialist(),
+      name: "explore",
+      description: "d",
+      instructions: "i",
+      max_steps: 40,
+    });
+  });
 });
 
 describe("specialistNameError", () => {
