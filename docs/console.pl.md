@@ -154,7 +154,7 @@ zostanie zamknięty dla tego przeglądania.
 | **Knowledge** | Kolekcje, dokumenty, źródła synchronizacji, ustawienia ingestii | [Przetwarzanie plików](file-processing.md) |
 | **Skills** | Spisane procedury, które agent wczytuje na żądanie | [Skille](skills.md) |
 | **Context** | Stała wiedza przypięta do wielu agentów | [Pliki kontekstowe](context.md) |
-| **Datasets** | Wersjonowane przypadki testowe, importowane, eksportowane albo dodawane z ocenionej odpowiedzi | [Zbiory danych](datasets.md) |
+| **Datasets** | Wersjonowane przypadki testowe, importowane, eksportowane albo dodawane z ocenionej odpowiedzi | [Datasety](datasets.md) |
 | **Routines** | Harmonogramy i wyzwalacze zdarzeń | [Wyzwalacze](triggers.md) |
 | **Runs** | Co się uruchomiło, ile kosztowało, czego dotknęło, czy zakończyło się błędem | [Nadzór](governance.md#audit) |
 | **Sandboxes / Workspaces** | Izolowane sesje plików i powłoki, w których pracował agent | [Sandbox](sandbox.md) |
