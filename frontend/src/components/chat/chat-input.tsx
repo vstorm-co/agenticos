@@ -41,11 +41,12 @@ import { useChanged } from "@/hooks/use-changed";
 import { useFileDrop } from "@/hooks/use-file-drop";
 import { useTranslations } from "next-intl";
 import type { UseMicrophoneResult } from "voice-glow";
-import type { DictationActions, DictationState } from "@/hooks/use-dictation";
+import { wordCount, type DictationActions, type DictationState } from "@/hooks/use-dictation";
 import { cn } from "@/lib/utils";
 import type { DictationEngine } from "@/types/organization";
 
 import { DictationBar } from "./dictation-bar";
+import { movesOn } from "./dictation-strip";
 import { DictationUnavailable } from "./dictation-unavailable";
 
 /**
@@ -72,11 +73,6 @@ export interface ComposerDictation {
   agentVoiceHref: string | null;
   /** Opens or closes the explanation of a crossed-out microphone under the box. */
   onExplain: () => void;
-}
-
-/** Words in a transcript, for the announcement that says it landed. */
-function wordCount(text: string): number {
-  return text.split(/\s+/).filter(Boolean).length;
 }
 
 /**
@@ -324,6 +320,8 @@ export function ChatInput({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // The note under the box saying the text landed goes with the next key.
+    if (server?.state.inserted && movesOn(e.key)) server.actions.dismissInserted();
     if (dictating) {
       // Enter finishes the recording rather than sending; Escape is the form's.
       if (e.key === "Enter") {

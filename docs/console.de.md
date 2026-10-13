@@ -1,5 +1,5 @@
 ---
-source_sha: "5624cf36a7ed"
+source_sha: "48e679cb5241"
 ---
 
 # Die Konsole { #the-console }
@@ -182,12 +182,16 @@ und transkribiert, **Escape** bricht ab, und nichts, was während einer laufende
 Aufnahme oder ihrer Transkription getippt oder gedrückt wird, wird gesendet. Die
 Aufnahme stoppt von selbst beim längsten Diktat der Organisation und wird
 transkribiert, und ein Mikrofon, das mittendrin abgezogen wird, beendet sie
-genauso, statt sie zu verwerfen.
+genauso, statt sie zu verwerfen. Dauert das Hochladen länger als eine Sekunde,
+zeigt die Leiste, wie viel davon schon hochgeladen ist; danach zeigt sie **Wird
+transkribiert**, bis der Text ankommt.
 
 Alles, was das Diktieren zu sagen hat, erscheint in einem Streifen, der unter dem
 Eingabefeld hängt: die Berechtigungsabfrage, ein blockiertes oder fehlendes
 Mikrofon, die letzten 30 Sekunden, fünf Sekunden ohne Ton, eine Aufnahme unter
-einer Sekunde (nicht gesendet) und jeder Fehlschlag. Eine Aufnahme, deren
+einer Sekunde (nicht gesendet), eine Aufnahme, die am Limit gestoppt hat, wie
+viele Wörter eingefügt wurden, und jeder Fehlschlag. Die Wortzahl verschwindet
+nach ein paar Sekunden oder bei Ihrer nächsten Taste. Eine Aufnahme, deren
 Transkription fehlgeschlagen ist, bleibt erhalten, bis Sie **Retry** oder
 **Discard** drücken.
 

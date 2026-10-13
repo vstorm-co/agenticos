@@ -23,9 +23,11 @@ const dictation = vi.hoisted(() => ({
     cancel: vi.fn(),
     retry: vi.fn(),
     dismiss: vi.fn(),
+    dismissInserted: vi.fn(),
   },
 }));
-vi.mock("@/hooks/use-dictation", () => ({
+vi.mock("@/hooks/use-dictation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/use-dictation")>()),
   useDictation: (options: { send: DictationSend | null; maxSeconds: number; format: string }) => {
     dictation.options = options;
     return {
@@ -39,6 +41,9 @@ vi.mock("@/hooks/use-dictation", () => ({
         canRetry: false,
         retryAfter: null,
         transcript: null,
+        upload: null,
+        stoppedAtLimit: false,
+        inserted: false,
         ...dictation.state,
       },
       actions: dictation.actions,
@@ -438,25 +443,47 @@ describe("server dictation on the page", () => {
   });
 
   it("posts a recording to its own route with the visitor's key, never in the URL", async () => {
-    const fetched = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({ text: "where is my order" }),
-    });
-    vi.stubGlobal("fetch", fetched);
+    // By XMLHttpRequest, the one way to hear how much of it has gone up.
+    const sent: { url: string; headers: Record<string, string> }[] = [];
+    class Xhr {
+      upload = { onprogress: null, onload: null as (() => void) | null };
+      onload: (() => void) | null = null;
+      status = 200;
+      statusText = "OK";
+      responseText = JSON.stringify({ text: "where is my order" });
+      private request = { url: "", headers: {} as Record<string, string> };
+      open(_method: string, url: string) {
+        this.request.url = url;
+      }
+      setRequestHeader(name: string, value: string) {
+        this.request.headers[name] = value;
+      }
+      getAllResponseHeaders() {
+        return "";
+      }
+      send() {
+        sent.push(this.request);
+        this.upload.onload?.();
+        this.onload?.();
+      }
+    }
+    vi.stubGlobal("XMLHttpRequest", Xhr);
+    const progress = vi.fn();
     render(<HostedChat config={server()} />);
 
     const text = await dictation.options!.send!(
       new Blob(["a"], { type: "audio/wav" }),
       2,
       new AbortController().signal,
+      progress,
     );
 
     expect(text).toBe("where is my order");
-    const [url, init] = fetched.mock.calls[0]!;
+    expect(progress).toHaveBeenCalledWith(1);
+    const [{ url, headers }] = sent as [(typeof sent)[number]];
     expect(url).toMatch(/\/api\/v1\/embed\/pk_abc\/dictation$/);
     const visitor = window.localStorage.getItem("agenticos:visitor:pk_abc");
-    expect((init.headers as Record<string, string>)["X-Visitor-Key"]).toBe(visitor);
+    expect(headers["x-visitor-key"]).toBe(visitor);
   });
 
   it("swaps the box for the recording bar while a recording is open, and Esc cancels", async () => {
@@ -481,6 +508,44 @@ describe("server dictation on the page", () => {
 
     expect(await screen.findByDisplayValue("Hello where is my order")).toBeInTheDocument();
     expect(FakeSocket.last!.sent).toEqual([]);
+  });
+
+  it("says the words landed, aloud as well, and lets the next key put it away", async () => {
+    // The page has no status region of its own: the strip is the announcement.
+    dictation.state = { inserted: true, transcript: { id: 1, text: "where is my order" } };
+    render(<HostedChat config={server()} />);
+
+    expect(screen.getByTestId("dictation-strip-text")).toHaveTextContent("Inserted 4 words");
+    expect(screen.getByTestId("dictation-strip")).toHaveAttribute("aria-live", "polite");
+    const box = screen.getByRole("textbox");
+    await userEvent.type(box, "{Shift}");
+    expect(dictation.actions.dismissInserted).not.toHaveBeenCalled();
+    await userEvent.type(box, "?");
+    expect(dictation.actions.dismissInserted).toHaveBeenCalled();
+  });
+
+  it("leaves the draft's keys alone when nothing was just inserted", async () => {
+    render(<HostedChat config={server()} />);
+
+    await userEvent.type(screen.getByRole("textbox"), "hi");
+
+    expect(dictation.actions.dismissInserted).not.toHaveBeenCalled();
+  });
+
+  it("counts the upload in the bar while it is going up", () => {
+    dictation.state = { phase: "transcribing", upload: 42 };
+    render(<HostedChat config={server()} />);
+
+    expect(screen.getByText("Uploading 42%")).toBeInTheDocument();
+  });
+
+  it("says the recording stopped at the page's limit while it is transcribed", () => {
+    dictation.state = { phase: "transcribing", stoppedAtLimit: true };
+    render(<HostedChat config={server()} />);
+
+    expect(screen.getByTestId("dictation-strip-text")).toHaveTextContent(
+      "Stopped at the 1:30 limit. Transcribing everything up to here.",
+    );
   });
 
   it("tells a visitor what to do when it is not set up, naming no admin", () => {

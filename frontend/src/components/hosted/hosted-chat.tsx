@@ -6,7 +6,7 @@ import { MessageSquarePlus, Mic, MicOff, Paperclip, Send, User, X } from "lucide
 import { useTranslations } from "next-intl";
 
 import { DictationBar } from "@/components/chat/dictation-bar";
-import { dictationHint, DictationStrip } from "@/components/chat/dictation-strip";
+import { dictationHint, DictationStrip, movesOn } from "@/components/chat/dictation-strip";
 import { MarkdownContent } from "@/components/chat/markdown-content";
 import { useFollowContent } from "@/hooks/use-follow-content";
 import { TurnParts } from "@/components/chat/turn-parts";
@@ -347,7 +347,7 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
   const sendRecording = useMemo<DictationSend | null>(
     () =>
       server
-        ? (recording, seconds, signal) =>
+        ? (recording, seconds, signal, onProgress) =>
             dictateOnPage(
               {
                 apiUrl,
@@ -357,6 +357,7 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
               recording,
               seconds,
               signal,
+              onProgress,
             )
         : null,
     [server, apiUrl, config.public_key],
@@ -674,7 +675,7 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
         className="mb-4"
         stream={mic.stream}
         active={dictation.phase === "recording" || dictation.phase === "transcribing"}
-        processing={dictation.phase === "transcribing"}
+        processing={dictation.phase === "transcribing" && dictation.upload === null}
       >
         <form
           className={cn(
@@ -696,6 +697,9 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
                 ref={draftRef}
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (dictation.inserted && movesOn(event.key)) dictationActions.dismissInserted();
+                }}
                 placeholder={t("placeholder")}
                 aria-label={t("placeholder")}
                 disabled={closed !== null}

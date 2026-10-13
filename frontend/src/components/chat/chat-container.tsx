@@ -535,7 +535,8 @@ function ChatUI({
     () =>
       selectedAgentId === null
         ? null
-        : (recording, seconds, signal) => dictate(selectedAgentId, recording, seconds, signal),
+        : (recording, seconds, signal, onProgress) =>
+            dictate(selectedAgentId, recording, seconds, signal, onProgress),
     [selectedAgentId],
   );
   const { state: dictationState, actions: dictationActions } = useDictation({
@@ -581,6 +582,8 @@ function ChatUI({
             voiceSettingsHref,
             agentVoiceHref,
             closeExplanation: () => setExplaining(false),
+            // `ChatInput` says "Inserted N words" in its status region.
+            insertAnnounced: true,
           },
           tDictation,
         )
@@ -770,11 +773,16 @@ function ChatUI({
                 already says what is happening. */}
               {/* For server dictation it stays lit through transcribing, sweeping
                   instead of listening: the microphone is closed by then, and
-                  the box is still busy. */}
+                  the box is still busy. Not while the bar counts the upload:
+                  the sweep is for a wait nobody can measure. */}
               <VoiceGlow
                 stream={mic.stream}
                 active={engine === "server" ? recordingPhase : mic.state === "live"}
-                processing={engine === "server" && dictationState.phase === "transcribing"}
+                processing={
+                  engine === "server" &&
+                  dictationState.phase === "transcribing" &&
+                  dictationState.upload === null
+                }
               >
                 {/* All the way around the composer, and only while somebody is in
                   it. A border that glows permanently is decoration; one that

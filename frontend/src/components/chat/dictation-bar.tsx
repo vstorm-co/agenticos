@@ -90,7 +90,9 @@ function LevelSteps({ level }: { level: number }) {
  * Stop - and nothing else. Every hint and error goes in the strip under the box.
  *
  * While transcribing it says so, with how much audio is on its way, and keeps
- * Cancel: the request can still be abandoned.
+ * Cancel: the request can still be abandoned. While a recording takes longer
+ * than a second to upload it says how much of it has gone up instead; the
+ * pulse, which says "no telling how long", is for the wait after that.
  */
 export function DictationBar({
   state,
@@ -134,7 +136,13 @@ export function DictationBar({
           <X className="text-muted-foreground h-4 w-4" />
         </Button>
         <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[13px]">
-          <span className="font-medium motion-safe:animate-pulse">{t("transcribing")}</span>
+          {state.upload === null ? (
+            <span className="font-medium motion-safe:animate-pulse">{t("transcribing")}</span>
+          ) : (
+            <span data-testid="dictation-upload" className="font-medium tabular-nums">
+              {t("uploading", { percent: state.upload })}
+            </span>
+          )}
           <span className="text-muted-foreground font-mono text-xs">
             {t("ofAudio", { duration: clock(state.elapsed) })}
           </span>

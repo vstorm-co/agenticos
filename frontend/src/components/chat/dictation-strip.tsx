@@ -3,11 +3,20 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
-import { CircleAlert, Info, Lock, Mic, MicOff, TriangleAlert, type LucideIcon } from "lucide-react";
+import {
+  Check,
+  CircleAlert,
+  Info,
+  Lock,
+  Mic,
+  MicOff,
+  TriangleAlert,
+  type LucideIcon,
+} from "lucide-react";
 import type { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui";
-import type { DictationActions, DictationState } from "@/hooks/use-dictation";
+import { wordCount, type DictationActions, type DictationState } from "@/hooks/use-dictation";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { cn } from "@/lib/utils";
 
@@ -22,6 +31,8 @@ export interface StripHint {
   /** The whole message, emphasis and links included. It wraps; it is never cut. */
   message: ReactNode;
   actions?: ReactNode;
+  /** Already said aloud elsewhere, so the strip shows it without reading it out again. */
+  quiet?: boolean;
 }
 
 /** Why the crossed-out microphone is crossed out, when somebody asked. */
@@ -47,9 +58,26 @@ export interface DictationHintInput {
    * this organization or its console.
    */
   visitor?: boolean;
+  /**
+   * The composer announces an insertion itself, in words this strip would
+   * repeat; the note then stays out of the live region. A hosted page has no
+   * announcement of its own, and the strip is it.
+   */
+  insertAnnounced?: boolean;
 }
 
 type Translate = ReturnType<typeof useTranslations>;
+
+/** Keys that change nothing by themselves, so pressing one is not moving on. */
+const MODIFIER_KEYS: ReadonlySet<string> = new Set(["Shift", "Control", "Alt", "Meta"]);
+
+/**
+ * Whether a key pressed in the box ends "Inserted N words": the next real key
+ * is the person working with the text, and the note has done its job.
+ */
+export function movesOn(key: string): boolean {
+  return !MODIFIER_KEYS.has(key);
+}
 
 /** The curve the strip slides on: quick out from behind the box, soft landing. */
 const EASE_OUT = [0.22, 1, 0.36, 1] as const;
@@ -125,8 +153,10 @@ function notSetUp(
  * What the strip under the composer says, or `null` when it is shut.
  *
  * In priority order: the explanation somebody asked for, the browser's
- * permission prompt, the near-limit countdown, the silence hint, then whatever
- * ended the last attempt. Pure, so every branch is a table row in the test.
+ * permission prompt, the near-limit countdown, the silence hint, the auto-stop
+ * at the limit while that recording is transcribed, the words a transcript
+ * inserted, then whatever ended the last attempt. Pure, so every branch is a
+ * table row in the test.
  */
 export function dictationHint(input: DictationHintInput, t: Translate): StripHint | null {
   const {
@@ -138,6 +168,7 @@ export function dictationHint(input: DictationHintInput, t: Translate): StripHin
     agentVoiceHref,
     closeExplanation,
     visitor = false,
+    insertAnnounced = false,
   } = input;
   const dismiss = <StripButton onClick={actions.dismiss}>{t("dismiss")}</StripButton>;
   const close = <StripButton onClick={closeExplanation}>{t("dismiss")}</StripButton>;
@@ -211,6 +242,24 @@ export function dictationHint(input: DictationHintInput, t: Translate): StripHin
       tone: "hint",
       icon: MicOff,
       message: t.rich("hint.silent", { strong }),
+    };
+  }
+  if (state.phase === "transcribing" && state.stoppedAtLimit) {
+    return {
+      key: "stoppedAtLimit",
+      tone: "hint",
+      icon: Info,
+      message: t.rich("hint.stoppedAtLimit", { strong, limit: clock(maxSeconds) }),
+    };
+  }
+  if (state.inserted) {
+    return {
+      // Per transcript, so a second insertion cross-fades rather than sitting still.
+      key: `inserted-${state.transcript!.id}`,
+      tone: "hint",
+      icon: Check,
+      message: strong(t("announceInserted", { count: wordCount(state.transcript!.text) })),
+      quiet: insertAnnounced,
     };
   }
   if (state.phase === "too_short") {
@@ -333,7 +382,8 @@ export function dictationHint(input: DictationHintInput, t: Translate): StripHin
  * shut: a region inserted already holding its text is not read out by most
  * screen readers, so the silence hint would go unheard. An error is its own
  * `alert`, inserted with each new message, and the region is switched off
- * around it so it is not read twice.
+ * around it so it is not read twice; so is a quiet hint, which the page has
+ * already announced.
  */
 export function DictationStrip({ hint }: { hint: StripHint | null }) {
   const reduced = useReducedMotion();
@@ -342,7 +392,7 @@ export function DictationStrip({ hint }: { hint: StripHint | null }) {
   const error = hint?.tone === "error";
 
   return (
-    <div data-testid="dictation-strip" aria-live={error ? "off" : "polite"}>
+    <div data-testid="dictation-strip" aria-live={error || hint?.quiet ? "off" : "polite"}>
       <AnimatePresence initial={false}>
         {hint && (
           <motion.div

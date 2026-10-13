@@ -5,7 +5,7 @@ import type { UseMicrophoneResult } from "voice-glow";
 import { ApiError } from "@/lib/api-error";
 import type { DictationSend } from "@/lib/dictation-api";
 
-import { useDictation, type UseDictationOptions } from "./use-dictation";
+import { useDictation, wordCount, type UseDictationOptions } from "./use-dictation";
 
 /** A Web Audio node: what it was connected to, and whether it was taken down. */
 interface FakeNode {
@@ -71,7 +71,13 @@ vi.mock("voice-glow", () => ({
 const api = vi.hoisted(() => ({
   dictate:
     vi.fn<
-      (agentId: string, recording: Blob, seconds: number, signal: AbortSignal) => Promise<string>
+      (
+        agentId: string,
+        recording: Blob,
+        seconds: number,
+        signal: AbortSignal,
+        onProgress: (fraction: number) => void,
+      ) => Promise<string>
     >(),
 }));
 
@@ -84,8 +90,8 @@ const senders = new Map<string, DictationSend>();
 function senderFor(agentId: string | null): DictationSend | null {
   if (agentId === null) return null;
   if (!senders.has(agentId)) {
-    senders.set(agentId, (recording, seconds, signal) =>
-      api.dictate(agentId, recording, seconds, signal),
+    senders.set(agentId, (recording, seconds, signal, onProgress) =>
+      api.dictate(agentId, recording, seconds, signal, onProgress),
     );
   }
   return senders.get(agentId)!;
@@ -680,7 +686,8 @@ describe("useDictation", () => {
     expect(audio.nodes).toHaveLength(2);
 
     end(view);
-    await wait(0);
+    // Past "Inserted N words", whose timer outlives a stop that transcribed.
+    await wait(4000);
 
     for (const node of audio.nodes) expect(node.disconnect).toHaveBeenCalledOnce();
     expect(cancelFrame).toHaveBeenCalled();
@@ -764,6 +771,194 @@ describe("useDictation", () => {
     view.unmount();
 
     expect(signal.aborted).toBe(true);
+  });
+});
+
+describe("useDictation - upload progress", () => {
+  /** Stop a recording whose upload waits, and hand back what reports its progress. */
+  async function uploading(view: ReturnType<typeof setup>) {
+    const answered = deferred<string>();
+    let report!: (fraction: number) => void;
+    api.dictate.mockImplementation((_agent, _blob, _seconds, _signal, onProgress) => {
+      report = (fraction) => act(() => onProgress(fraction));
+      return answered.promise;
+    });
+    await record(view);
+    await wait(2000);
+    act(() => view.result.current.actions.stop());
+    return { answered, report: (fraction: number) => report(fraction) };
+  }
+
+  it("shows no percentage for an upload that ends within a second", async () => {
+    const view = setup();
+    const { answered, report } = await uploading(view);
+
+    report(0.5);
+    await wait(500);
+    report(1);
+
+    expect(view.result.current.state.upload).toBeNull();
+    await act(async () => answered.resolve("hello"));
+    expect(view.result.current.state.upload).toBeNull();
+  });
+
+  it("shows whole percent once the upload has run a second, and nothing once it is up", async () => {
+    const view = setup();
+    const { answered, report } = await uploading(view);
+
+    report(0.1);
+    expect(view.result.current.state.upload).toBeNull();
+    await wait(1000);
+    report(0.426);
+    expect(view.result.current.state.upload).toBe(42);
+    report(1);
+    // The rest is the provider's, and nobody can say how long that takes.
+    expect(view.result.current.state.upload).toBeNull();
+    expect(view.result.current.state.phase).toBe("transcribing");
+    await act(async () => answered.resolve("hello"));
+  });
+
+  it("clears the percentage when the request fails", async () => {
+    const view = setup();
+    const { answered, report } = await uploading(view);
+    await wait(1000);
+    report(0.3);
+
+    await act(async () => answered.reject(refusal(503, { reason: "provider_error" })));
+
+    expect(view.result.current.state.phase).toBe("failed");
+    expect(view.result.current.state.upload).toBeNull();
+  });
+
+  it("ignores progress from a request that was cancelled", async () => {
+    const view = setup();
+    const { report } = await uploading(view);
+    await wait(1000);
+    report(0.3);
+
+    act(() => view.result.current.actions.cancel());
+    report(0.6);
+
+    expect(view.result.current.state.upload).toBeNull();
+    expect(view.result.current.state.phase).toBe("idle");
+  });
+});
+
+describe("useDictation - stopped at the limit", () => {
+  it("says so while that recording is transcribed, and not after", async () => {
+    const answered = deferred<string>();
+    api.dictate.mockReturnValue(answered.promise);
+    const view = setup({ maxSeconds: 10 });
+    await record(view);
+    await wait(9000);
+    expect(view.result.current.state.stoppedAtLimit).toBe(false);
+
+    await wait(1000);
+
+    expect(view.result.current.state.phase).toBe("transcribing");
+    expect(view.result.current.state.stoppedAtLimit).toBe(true);
+    await act(async () => answered.resolve("hello"));
+    expect(view.result.current.state.stoppedAtLimit).toBe(false);
+  });
+
+  it("is not the microphone going away", async () => {
+    api.dictate.mockReturnValue(new Promise(() => {}));
+    const view = setup();
+    await record(view);
+    await wait(4000);
+
+    act(() => track.dispatchEvent(new Event("ended")));
+
+    expect(view.result.current.state.phase).toBe("transcribing");
+    expect(view.result.current.state.stoppedAtLimit).toBe(false);
+  });
+
+  it("is not said again for a retry of that recording", async () => {
+    api.dictate.mockRejectedValueOnce(refusal(503, { reason: "provider_error" }));
+    const view = setup({ maxSeconds: 10 });
+    await record(view);
+    await wait(10_000);
+    expect(view.result.current.state.phase).toBe("failed");
+    expect(view.result.current.state.stoppedAtLimit).toBe(false);
+
+    api.dictate.mockReturnValueOnce(new Promise(() => {}));
+    act(() => view.result.current.actions.retry());
+
+    expect(view.result.current.state.phase).toBe("transcribing");
+    expect(view.result.current.state.stoppedAtLimit).toBe(false);
+  });
+
+  it("is forgotten when the transcription is cancelled", async () => {
+    api.dictate.mockReturnValue(new Promise(() => {}));
+    const view = setup({ maxSeconds: 10 });
+    await record(view);
+    await wait(10_000);
+    expect(view.result.current.state.stoppedAtLimit).toBe(true);
+
+    act(() => view.result.current.actions.cancel());
+
+    expect(view.result.current.state.stoppedAtLimit).toBe(false);
+  });
+});
+
+describe("useDictation - inserted", () => {
+  async function transcribe(view: ReturnType<typeof setup>): Promise<void> {
+    await record(view);
+    await wait(1500);
+    await act(async () => view.result.current.actions.stop());
+  }
+
+  it("says the text landed for four seconds", async () => {
+    const view = setup();
+    await transcribe(view);
+    expect(view.result.current.state.inserted).toBe(true);
+
+    await wait(3900);
+    expect(view.result.current.state.inserted).toBe(true);
+    await wait(100);
+    expect(view.result.current.state.inserted).toBe(false);
+  });
+
+  it("stops saying it when the person moves on", async () => {
+    const view = setup();
+    await transcribe(view);
+
+    act(() => view.result.current.actions.dismissInserted());
+
+    expect(view.result.current.state.inserted).toBe(false);
+    // The timer went with it: nothing fires into the next recording.
+    await wait(4000);
+    expect(view.result.current.state.inserted).toBe(false);
+  });
+
+  it("stops saying it when the next recording starts", async () => {
+    const view = setup();
+    await transcribe(view);
+
+    await record(view);
+
+    expect(view.result.current.state.inserted).toBe(false);
+  });
+
+  it("does not say it for a failure", async () => {
+    api.dictate.mockRejectedValueOnce(refusal(400, { reason: "empty" }));
+    const view = setup();
+
+    await transcribe(view);
+
+    expect(view.result.current.state.inserted).toBe(false);
+  });
+});
+
+describe("wordCount", () => {
+  it.each([
+    ["", 0],
+    ["hello", 1],
+    ["  focus on   enterprise churn, three bullets each. ", 7],
+    // Written without spaces: by spaces this would be one word.
+    ["我们明天开会", 3],
+  ])("counts %j as %i words", (text, count) => {
+    expect(wordCount(text)).toBe(count);
   });
 });
 
@@ -855,7 +1050,8 @@ describe("useDictation - WAV, for a provider that does not take WebM or Opus", (
       speak(new Array(TENTH).fill(0.1));
 
       await end(view);
-      await wait(0);
+      // Past "Inserted N words", whose timer outlives an end that transcribed.
+      await wait(4000);
 
       expect(api.dictate).toHaveBeenCalledTimes(uploads ? 1 : 0);
       // The meter's source and analyser, the recorder's source, processor and gain.

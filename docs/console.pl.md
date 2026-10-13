@@ -1,5 +1,5 @@
 ---
-source_sha: "5624cf36a7ed"
+source_sha: "48e679cb5241"
 ---
 
 # Konsola { #the-console }
@@ -166,13 +166,17 @@ Anuluj, poziom dźwięku, licznik czasu i Stop. **Enter** zatrzymuje i
 transkrybuje, **Escape** anuluje, a nic, co zostanie wpisane albo naciśnięte w
 trakcie nagrywania lub transkrypcji, nie jest wysyłane. Nagranie zatrzymuje się
 samo na najdłuższym dyktowaniu organizacji i zostaje przetranskrybowane, a
-mikrofon odłączony w trakcie kończy je tak samo, zamiast je odrzucić.
+mikrofon odłączony w trakcie kończy je tak samo, zamiast je odrzucić. Gdy
+wysyłanie nagrania trwa dłużej niż sekundę, pasek pokazuje, jaka jego część już
+poszła; potem pokazuje **Przepisywanie**, dopóki nie przyjdzie tekst.
 
 Wszystko, co dyktowanie ma do powiedzenia, pojawia się w pasku przyczepionym pod
 kompozytorem: prośba o uprawnienie, zablokowany albo brakujący mikrofon, ostatnie
-30 sekund, pięć sekund bez dźwięku, nagranie krótsze niż sekunda (niewysłane) i
-każda porażka. Nagranie, którego nie udało się przetranskrybować, jest
-zachowywane, dopóki nie naciśniesz **Retry** albo **Discard**.
+30 sekund, pięć sekund bez dźwięku, nagranie krótsze niż sekunda (niewysłane),
+nagranie zatrzymane na limicie, liczba wstawionych słów i każda porażka. Liczba
+słów znika po kilku sekundach albo przy następnym klawiszu. Nagranie, którego nie
+udało się przetranskrybować, jest zachowywane, dopóki nie naciśniesz **Retry**
+albo **Discard**.
 
 Gdy organizacja
 wybrała Server, ale dla wybranego agenta nic się nie rozwiązuje — brak providera

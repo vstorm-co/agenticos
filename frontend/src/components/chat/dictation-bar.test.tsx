@@ -20,6 +20,9 @@ function dictationState(overrides: Partial<DictationState> = {}): DictationState
     canRetry: false,
     retryAfter: null,
     transcript: null,
+    upload: null,
+    stoppedAtLimit: false,
+    inserted: false,
     ...overrides,
   };
 }
@@ -31,6 +34,7 @@ function fakeActions(): DictationActions {
     cancel: vi.fn(),
     retry: vi.fn(),
     dismiss: vi.fn(),
+    dismissInserted: vi.fn(),
   };
 }
 
@@ -55,6 +59,26 @@ describe("clock", () => {
 });
 
 describe("DictationBar", () => {
+  it("counts the upload while it is going up, and pulses only once it is up", () => {
+    const { rerender } = render(
+      <DictationBar
+        state={dictationState({ phase: "transcribing", upload: 42 })}
+        actions={fakeActions()}
+      />,
+    );
+
+    expect(screen.getByTestId("dictation-upload")).toHaveTextContent("Uploading 42%");
+    expect(screen.queryByText("Transcribing")).toBeNull();
+    expect(screen.getByText("0:07 of audio")).toBeInTheDocument();
+
+    rerender(
+      <DictationBar state={dictationState({ phase: "transcribing" })} actions={fakeActions()} />,
+    );
+
+    expect(screen.queryByTestId("dictation-upload")).toBeNull();
+    expect(screen.getByText("Transcribing")).toHaveClass("motion-safe:animate-pulse");
+  });
+
   it("holds Cancel, the clock and Stop while recording, and nothing else", async () => {
     const actions = fakeActions();
     render(<DictationBar state={dictationState()} actions={actions} />);

@@ -159,13 +159,16 @@ bar: Cancel, the level, a timer and Stop. **Enter** stops and transcribes,
 **Escape** cancels, and nothing typed or pressed while a recording is running or
 being transcribed is sent. The recording stops by itself at the organization's
 longest dictation and is transcribed, and a microphone unplugged mid-way ends it
-the same way rather than discarding it.
+the same way rather than discarding it. While the recording uploads, the bar
+shows how much of it has gone up, once that takes longer than a second; after
+that it says **Transcribing** until the text arrives.
 
 Everything dictation has to say appears in a strip attached under the composer:
 the permission prompt, a blocked or missing microphone, the last 30 seconds, five
-seconds without sound, a recording under a second (not sent), and every failure.
-A recording that failed to transcribe is kept until you press **Retry** or
-**Discard**.
+seconds without sound, a recording under a second (not sent), a recording that
+stopped at the limit, how many words were inserted, and every failure. The word
+count goes away after a few seconds or at your next key. A recording that failed
+to transcribe is kept until you press **Retry** or **Discard**.
 
 Where the organization has chosen Server but nothing resolves for
 the agent you picked - no provider on the agent or the organization, or no

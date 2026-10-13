@@ -38,6 +38,13 @@ const RELEASE = 0.08;
 const LEVEL_EVERY_MS = 70;
 /** Samples per Web Audio callback: about 85 ms at 48 kHz, the most a stop loses. */
 const WAV_BUFFER_SIZE = 4096;
+/**
+ * An upload that ends sooner than this shows no percentage: a number that is
+ * there and gone again in the same breath is a flicker, not news.
+ */
+const UPLOAD_QUIET_MS = 1000;
+/** How long "Inserted N words" stays under the box, unless a key goes first. */
+const INSERTED_MS = 4000;
 /** These failures keep the recording, because sending it again can succeed. */
 const RETRYABLE: ReadonlySet<DictationReason> = new Set([
   "provider_error",
@@ -71,6 +78,22 @@ export interface DictationState {
    * cannot reach.
    */
   transcript: { id: number; text: string } | null;
+  /**
+   * Whole percent of the recording uploaded, while it is going up - or null
+   * before the upload has run for a second, once all of it has gone, and
+   * outside transcribing. Null while transcribing is the indeterminate part.
+   */
+  upload: number | null;
+  /**
+   * True from the auto-stop at the longest dictation until the transcription
+   * ends - not when the microphone went away, and not for a retry.
+   */
+  stoppedAtLimit: boolean;
+  /**
+   * True for a few seconds after a transcript arrives, while the box says it
+   * landed; `dismissInserted` ends it sooner.
+   */
+  inserted: boolean;
 }
 
 export interface DictationActions {
@@ -84,6 +107,8 @@ export interface DictationActions {
   retry(): void;
   /** Clear a failure and drop the held recording. */
   dismiss(): void;
+  /** Stop saying the last transcript was inserted - the person moved on. */
+  dismissInserted(): void;
 }
 
 export interface UseDictationOptions {
@@ -195,6 +220,19 @@ function wavRecorder(stream: MediaStream, done: (recording: Blob) => void): Reco
   };
 }
 
+/**
+ * How many words a transcript holds, by the browser's word boundaries rather
+ * than by spaces: Chinese and Japanese are written without them, and a sentence
+ * in either would otherwise count as one word.
+ */
+export function wordCount(text: string): number {
+  let words = 0;
+  for (const segment of new Intl.Segmenter(undefined, { granularity: "word" }).segment(text)) {
+    if (segment.isWordLike) words += 1;
+  }
+  return words;
+}
+
 /** A failure the hook knows, or `"mic"`: the browser refused, and `mic` says why. */
 type Failure = DictationReason | "mic" | "mic_insecure" | "mic_busy";
 
@@ -245,6 +283,9 @@ export function useDictation({ mic, send: sendTo, maxSeconds, format }: UseDicta
   const [canRetry, setCanRetry] = useState(false);
   const [retryAfter, setRetryAfter] = useState<number | null>(null);
   const [transcript, setTranscript] = useState<DictationState["transcript"]>(null);
+  const [upload, setUpload] = useState<number | null>(null);
+  const [stoppedAtLimit, setStoppedAtLimit] = useState(false);
+  const [inserted, setInserted] = useState(false);
 
   // The latest of everything an async continuation reads: by the time a
   // `getUserMedia` prompt is answered the render it started in is long gone.
@@ -271,6 +312,7 @@ export function useDictation({ mic, send: sendTo, maxSeconds, format }: UseDicta
   /** Tears down the recording's timers, frames, listeners and analyser. */
   const teardownRef = useRef<() => void>(() => {});
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const insertedRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const moveTo = useCallback((next: DictationPhase) => {
     phaseRef.current = next;
@@ -282,6 +324,12 @@ export function useDictation({ mic, send: sendTo, maxSeconds, format }: UseDicta
     countdownRef.current = null;
     retryAfterRef.current = null;
     setRetryAfter(null);
+  }, []);
+
+  const dismissInserted = useCallback(() => {
+    if (insertedRef.current !== null) clearTimeout(insertedRef.current);
+    insertedRef.current = null;
+    setInserted(false);
   }, []);
 
   const startCountdown = useCallback((seconds: number) => {
@@ -310,12 +358,20 @@ export function useDictation({ mic, send: sendTo, maxSeconds, format }: UseDicta
       setCanRetry(false);
       clearCountdown();
       moveTo("transcribing");
+      const began = Date.now();
+      const progress = (fraction: number) => {
+        if (session !== sessionRef.current) return;
+        const quiet = Date.now() - began < UPLOAD_QUIET_MS;
+        setUpload(fraction >= 1 || quiet ? null : Math.floor(fraction * 100));
+      };
       try {
-        const text = await sendRef.current!(blob, secondsRef.current, controller.signal);
+        const text = await sendRef.current!(blob, secondsRef.current, controller.signal, progress);
         if (session !== sessionRef.current) return;
         blobRef.current = null;
         transcriptIdRef.current += 1;
         setTranscript({ id: transcriptIdRef.current, text });
+        setInserted(true);
+        insertedRef.current = setTimeout(dismissInserted, INSERTED_MS);
         moveTo("idle");
       } catch (error) {
         if (session !== sessionRef.current) return;
@@ -334,9 +390,13 @@ export function useDictation({ mic, send: sendTo, maxSeconds, format }: UseDicta
         moveTo("failed");
       } finally {
         if (abortRef.current === controller) abortRef.current = null;
+        if (session === sessionRef.current) {
+          setUpload(null);
+          setStoppedAtLimit(false);
+        }
       }
     },
-    [clearCountdown, moveTo, startCountdown],
+    [clearCountdown, dismissInserted, moveTo, startCountdown],
   );
 
   /** Watch the stream's level for the waveform and the silence hint. */
@@ -425,7 +485,10 @@ export function useDictation({ mic, send: sendTo, maxSeconds, format }: UseDicta
       const tick = setInterval(() => {
         const seconds = Math.floor((Date.now() - startedAt) / 1000);
         setElapsed(seconds);
-        if (seconds >= maxRef.current) finish();
+        if (seconds >= maxRef.current && recorder.recording) {
+          setStoppedAtLimit(true);
+          finish();
+        }
       }, 1000);
       // The device went away or the permission was revoked mid-sentence: what
       // was recorded up to here is still the person's dictation.
@@ -459,6 +522,8 @@ export function useDictation({ mic, send: sendTo, maxSeconds, format }: UseDicta
     sendRef.current = sendTo;
     blobRef.current = null;
     clearCountdown();
+    dismissInserted();
+    setStoppedAtLimit(false);
     setFailure(null);
     setCanRetry(false);
     setElapsed(0);
@@ -482,7 +547,7 @@ export function useDictation({ mic, send: sendTo, maxSeconds, format }: UseDicta
       return;
     }
     record(stream, session);
-  }, [sendTo, clearCountdown, moveTo, record]);
+  }, [sendTo, clearCountdown, dismissInserted, moveTo, record]);
 
   const stop = useCallback(() => {
     const recorder = recorderRef.current;
@@ -499,7 +564,10 @@ export function useDictation({ mic, send: sendTo, maxSeconds, format }: UseDicta
     closeRecording();
     blobRef.current = null;
     clearCountdown();
-  }, [clearCountdown, closeRecording]);
+    dismissInserted();
+    setUpload(null);
+    setStoppedAtLimit(false);
+  }, [clearCountdown, closeRecording, dismissInserted]);
 
   const cancel = useCallback(() => {
     abandon();
@@ -546,7 +614,10 @@ export function useDictation({ mic, send: sendTo, maxSeconds, format }: UseDicta
       canRetry,
       retryAfter,
       transcript,
+      upload,
+      stoppedAtLimit,
+      inserted,
     },
-    actions: { start, stop, cancel, retry, dismiss },
+    actions: { start, stop, cancel, retry, dismiss, dismissInserted },
   };
 }

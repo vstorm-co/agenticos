@@ -20,12 +20,12 @@ import {
  * asserting on `delegations` proves the state; this proves what the reader gets.
  */
 
-const { get, post } = vi.hoisted(() => ({
+const { get, upload } = vi.hoisted(() => ({
   get: vi.fn(),
-  post: vi.fn(async () => ({ text: "hello" })),
+  upload: vi.fn(async () => ({ text: "hello" })),
 }));
 vi.mock("@/lib/api-client", () => ({
-  apiClient: { get, post, patch: vi.fn(), put: vi.fn(), delete: vi.fn() },
+  apiClient: { get, post: vi.fn(), upload, patch: vi.fn(), put: vi.fn(), delete: vi.fn() },
   ApiError: class extends Error {},
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -38,20 +38,24 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 const dictation = vi.hoisted(() => ({
   phase: "idle" as string,
   reason: null as string | null,
+  upload: null as number | null,
+  inserted: false,
   /** The format the container last handed the recorder. */
   format: undefined as string | undefined,
   /** Where the container last told the recorder to send a recording. */
   send: undefined as
-    ((recording: Blob, seconds: number, signal: AbortSignal) => unknown) | null | undefined,
+    | ((
+        recording: Blob,
+        seconds: number,
+        signal: AbortSignal,
+        onProgress: (fraction: number) => void,
+      ) => unknown)
+    | null
+    | undefined,
 }));
-vi.mock("@/hooks/use-dictation", () => ({
-  useDictation: ({
-    format,
-    send,
-  }: {
-    format: string;
-    send: ((recording: Blob, seconds: number, signal: AbortSignal) => unknown) | null;
-  }) => {
+vi.mock("@/hooks/use-dictation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/use-dictation")>()),
+  useDictation: ({ format, send }: { format: string; send: typeof dictation.send }) => {
     dictation.format = format;
     dictation.send = send;
     return {
@@ -64,9 +68,19 @@ vi.mock("@/hooks/use-dictation", () => ({
         reason: dictation.reason,
         canRetry: dictation.reason !== null,
         retryAfter: null,
-        transcript: null,
+        transcript: dictation.inserted ? { id: 1, text: "hello there" } : null,
+        upload: dictation.upload,
+        stoppedAtLimit: false,
+        inserted: dictation.inserted,
       },
-      actions: { start: vi.fn(), stop: vi.fn(), cancel: vi.fn(), retry: vi.fn(), dismiss: vi.fn() },
+      actions: {
+        start: vi.fn(),
+        stop: vi.fn(),
+        cancel: vi.fn(),
+        retry: vi.fn(),
+        dismiss: vi.fn(),
+        dismissInserted: vi.fn(),
+      },
     };
   },
 }));
@@ -199,6 +213,8 @@ beforeEach(() => {
   readiness.current = { engine: "server", ready: true, max_seconds: 300, provider: "openai" };
   dictation.phase = "idle";
   dictation.reason = null;
+  dictation.upload = null;
+  dictation.inserted = false;
   dictation.format = undefined;
   dictation.send = undefined;
   useAuthStore.setState({
@@ -281,6 +297,26 @@ describe("the chat container - server dictation", () => {
     expect(glow).toHaveAttribute("data-processing", "true");
   });
 
+  it("holds the sweep while the bar counts the upload", async () => {
+    dictation.phase = "transcribing";
+    dictation.upload = 42;
+    mount();
+
+    expect(await screen.findByText("Uploading 42%")).toBeInTheDocument();
+    const glow = screen.getByTestId("voice-glow");
+    expect(glow).toHaveAttribute("data-active", "true");
+    expect(glow).toHaveAttribute("data-processing", "false");
+  });
+
+  it("shows the words that landed without reading them out a second time", async () => {
+    // `ChatInput`'s status region says "Inserted 2 words" already.
+    dictation.inserted = true;
+    mount();
+
+    expect(await screen.findByTestId("dictation-strip-text")).toHaveTextContent("Inserted 2 words");
+    expect(screen.getByTestId("dictation-strip")).toHaveAttribute("aria-live", "off");
+  });
+
   it("puts a failure in the strip under the box, which loses its bottom corners", async () => {
     dictation.phase = "failed";
     dictation.reason = "provider_error";
@@ -349,11 +385,14 @@ describe("the chat container - server dictation", () => {
     mount();
     const recording = new Blob(["a"], { type: "audio/webm" });
 
-    await expect(dictation.send!(recording, 2, new AbortController().signal)).resolves.toBe(
-      "hello",
-    );
-    expect(post).toHaveBeenCalledWith("/agents/a-1/dictation", expect.any(FormData), {
+    const onProgress = vi.fn();
+
+    await expect(
+      dictation.send!(recording, 2, new AbortController().signal, onProgress),
+    ).resolves.toBe("hello");
+    expect(upload).toHaveBeenCalledWith("/agents/a-1/dictation", expect.any(FormData), {
       signal: expect.any(AbortSignal),
+      onProgress,
     });
   });
 

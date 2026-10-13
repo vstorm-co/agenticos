@@ -13,8 +13,12 @@ import {
   retryAfterSeconds,
 } from "./dictation-api";
 
-const { post, get } = vi.hoisted(() => ({ post: vi.fn(), get: vi.fn() }));
-vi.mock("@/lib/api-client", () => ({ apiClient: { post, get } }));
+const { upload, get, sendWithProgress } = vi.hoisted(() => ({
+  upload: vi.fn(),
+  get: vi.fn(),
+  sendWithProgress: vi.fn(),
+}));
+vi.mock("@/lib/api-client", () => ({ apiClient: { upload, get }, sendWithProgress }));
 
 /** A refusal the way the backend writes one: the envelope, with `details`. */
 function refusal(status: number, details: Record<string, unknown> | null = null): ApiError {
@@ -24,9 +28,12 @@ function refusal(status: number, details: Record<string, unknown> | null = null)
 }
 
 beforeEach(() => {
-  post.mockReset();
-  post.mockResolvedValue({ text: "hello there" });
+  upload.mockReset();
+  upload.mockResolvedValue({ text: "hello there" });
+  sendWithProgress.mockReset();
 });
+
+const noProgress = () => {};
 
 describe("dictate", () => {
   it.each([
@@ -38,54 +45,65 @@ describe("dictate", () => {
   ])("sends a %s recording as %s to the agent's dictation route", async (type, name) => {
     const signal = new AbortController().signal;
 
-    const text = await dictate("a1", new Blob(["audio"], { type }), 4.2, signal);
+    const onProgress = vi.fn();
+
+    const text = await dictate("a1", new Blob(["audio"], { type }), 4.2, signal, onProgress);
 
     expect(text).toBe("hello there");
-    expect(post).toHaveBeenCalledOnce();
-    const [endpoint, form, options] = post.mock.calls[0]!;
+    expect(upload).toHaveBeenCalledOnce();
+    const [endpoint, form, options] = upload.mock.calls[0]!;
     expect(endpoint).toBe("/agents/a1/dictation");
     const file = (form as FormData).get("file");
     expect(file).toBeInstanceOf(File);
     expect((file as File).name).toBe(name);
     expect((file as File).type).toBe(type);
-    expect(options).toEqual({ signal });
+    // The upload reports its progress to whoever asked for it.
+    expect(options).toEqual({ signal, onProgress });
   });
 
   it("sends the recorded length beside the file, never below zero", async () => {
     const signal = new AbortController().signal;
 
-    await dictate("a1", new Blob(["audio"], { type: "audio/webm" }), 12.5, signal);
-    await dictate("a1", new Blob(["audio"], { type: "audio/webm" }), -3, signal);
+    await dictate("a1", new Blob(["audio"], { type: "audio/webm" }), 12.5, signal, noProgress);
+    await dictate("a1", new Blob(["audio"], { type: "audio/webm" }), -3, signal, noProgress);
 
-    expect((post.mock.calls[0]![1] as FormData).get("duration")).toBe("12.5");
-    expect((post.mock.calls[1]![1] as FormData).get("duration")).toBe("0");
+    expect((upload.mock.calls[0]![1] as FormData).get("duration")).toBe("12.5");
+    expect((upload.mock.calls[1]![1] as FormData).get("duration")).toBe("0");
   });
 });
 
 describe("dictateOnPage", () => {
   const target = { apiUrl: "https://api.test", publicKey: "pk/1", visitorKey: "v".repeat(32) };
 
-  it("posts to the page's own route with the visitor's key in a header", async () => {
-    const fetcher = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValue(new Response(JSON.stringify({ text: "hi" }), { status: 200 }));
+  it("posts to the page's own route with the visitor's key in a header, reporting progress", async () => {
+    sendWithProgress.mockResolvedValue(
+      new Response(JSON.stringify({ text: "hi" }), { status: 200 }),
+    );
     const signal = new AbortController().signal;
+    const onProgress = vi.fn();
 
-    const text = await dictateOnPage(target, new Blob(["a"], { type: "audio/wav" }), 3, signal);
+    const text = await dictateOnPage(
+      target,
+      new Blob(["a"], { type: "audio/wav" }),
+      3,
+      signal,
+      onProgress,
+    );
 
     expect(text).toBe("hi");
-    const [url, init] = fetcher.mock.calls[0]!;
+    const [url, init, progress] = sendWithProgress.mock.calls[0]!;
     expect(url).toBe("https://api.test/api/v1/embed/pk%2F1/dictation");
-    expect(init?.headers).toEqual({ "X-Visitor-Key": target.visitorKey });
-    expect(init?.signal).toBe(signal);
-    const form = init?.body as FormData;
+    expect(init.method).toBe("POST");
+    expect(init.headers).toEqual({ "X-Visitor-Key": target.visitorKey });
+    expect(init.signal).toBe(signal);
+    expect(progress).toBe(onProgress);
+    const form = init.body as FormData;
     expect((form.get("file") as File).name).toBe("recording.wav");
     expect(form.get("duration")).toBe("3");
-    fetcher.mockRestore();
   });
 
   it("turns a refusal into the ApiError the composer's reasons read", async () => {
-    const fetcher = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+    sendWithProgress.mockResolvedValue(
       new Response(
         JSON.stringify({
           error: { code: "X", message: "Too long", details: { reason: "too_large" } },
@@ -94,22 +112,30 @@ describe("dictateOnPage", () => {
       ),
     );
 
-    const refused = dictateOnPage(target, new Blob(["a"]), 1, new AbortController().signal);
+    const refused = dictateOnPage(
+      target,
+      new Blob(["a"]),
+      1,
+      new AbortController().signal,
+      noProgress,
+    );
 
     await expect(refused).rejects.toBeInstanceOf(ApiError);
     await refused.catch((error: unknown) => expect(dictationReason(error)).toBe("too_large"));
-    fetcher.mockRestore();
   });
 
   it("reads a refusal with no body as its status", async () => {
-    const fetcher = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValue(new Response("<html>gateway</html>", { status: 429 }));
+    sendWithProgress.mockResolvedValue(new Response("<html>gateway</html>", { status: 429 }));
 
-    const refused = dictateOnPage(target, new Blob(["a"]), 1, new AbortController().signal);
+    const refused = dictateOnPage(
+      target,
+      new Blob(["a"]),
+      1,
+      new AbortController().signal,
+      noProgress,
+    );
 
     await refused.catch((error: unknown) => expect(dictationReason(error)).toBe("rate_limited"));
-    fetcher.mockRestore();
   });
 });
 

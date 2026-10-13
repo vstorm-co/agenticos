@@ -1,6 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 
-import { apiClient } from "@/lib/api-client";
+import { apiClient, sendWithProgress, type UploadProgress } from "@/lib/api-client";
 import { ApiError, parseErrorMessage } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
 import type { DictationEngine, RecordingFormat } from "@/types/organization";
@@ -33,14 +33,16 @@ export interface DictationStatus {
  * Sends one recording somewhere that turns it into text.
  *
  * The composer posts to its agent, a hosted page to its public key; the hook
- * that records takes this rather than knowing either. It rejects with an
- * `ApiError` carrying the server's `details.reason`, a `TypeError` when the
+ * that records takes this rather than knowing either. `onProgress` hears how
+ * much of the recording has gone up, and 1 once all of it has. It rejects with
+ * an `ApiError` carrying the server's `details.reason`, a `TypeError` when the
  * request never left, or an `AbortError` when it was cancelled.
  */
 export type DictationSend = (
   recording: Blob,
   seconds: number,
   signal: AbortSignal,
+  onProgress: UploadProgress,
 ) => Promise<string>;
 
 /** One agent's or one channel bot's share of the organization's transcription. */
@@ -142,19 +144,23 @@ function dictationForm(recording: Blob, seconds: number): FormData {
  * `seconds` is how long the browser recorded, sent as `duration` beside the
  * file. The server records it with the call's usage only where the provider
  * states no length of its own, and clamps it to the organization's longest
- * dictation - it is the browser's word, not a measurement. The form is built
- * here rather than through `apiClient.upload`, which sends the file alone.
+ * dictation - it is the browser's word, not a measurement.
+ *
+ * The progress is the upload to this app's own route, which reads the whole
+ * body before passing it on: at 1 the recording has reached the console's
+ * server, not yet the platform.
  */
 export async function dictate(
   agentId: string,
   recording: Blob,
   seconds: number,
   signal: AbortSignal,
+  onProgress: UploadProgress,
 ): Promise<string> {
-  const { text } = await apiClient.post<{ text: string }>(
+  const { text } = await apiClient.upload<{ text: string }>(
     `/agents/${agentId}/dictation`,
     dictationForm(recording, seconds),
-    { signal },
+    { signal, onProgress },
   );
   return text;
 }
@@ -168,14 +174,16 @@ export async function dictate(
  * `X-Visitor-Key` - a header, because the key is a bearer credential for the
  * whole transcript and a query string lands in access logs. A refusal becomes
  * the same `ApiError` the composer's does, so `dictationReason` reads it alike.
+ * By `sendWithProgress` rather than `fetch`, so the visitor sees it go up too.
  */
 export async function dictateOnPage(
   target: { apiUrl: string; publicKey: string; visitorKey: string },
   recording: Blob,
   seconds: number,
   signal: AbortSignal,
+  onProgress: UploadProgress,
 ): Promise<string> {
-  const response = await fetch(
+  const response = await sendWithProgress(
     `${target.apiUrl}/api/v1/embed/${encodeURIComponent(target.publicKey)}/dictation`,
     {
       method: "POST",
@@ -183,6 +191,7 @@ export async function dictateOnPage(
       headers: { "X-Visitor-Key": target.visitorKey },
       signal,
     },
+    onProgress,
   );
   const body: unknown = await response.json().catch(() => null);
   if (!response.ok) throw new ApiError(response.status, parseErrorMessage(body), body);
@@ -196,8 +205,8 @@ export async function dictateOnPage(
  * middleware refusing before the route ran, which is the same answer for the
  * person: the recording is too large. A 404 is an embed whose operator has
  * since turned server dictation off, which for the person is the same as it not
- * being set up. A `TypeError` is what `fetch` throws when the request never left
- * the browser.
+ * being set up. A `TypeError` is what `fetch`, and `sendWithProgress` like it,
+ * throws when the request never left the browser.
  */
 export function dictationReason(error: unknown): DictationReason | null {
   // Not every runtime makes a `DOMException` an `Error`, so both are asked.

@@ -291,6 +291,9 @@ function dictationState(overrides: Partial<DictationState> = {}): DictationState
     canRetry: false,
     retryAfter: null,
     transcript: null,
+    upload: null,
+    stoppedAtLimit: false,
+    inserted: false,
     ...overrides,
   };
 }
@@ -311,6 +314,7 @@ function serverDictation(
       cancel: vi.fn(),
       retry: vi.fn(),
       dismiss: vi.fn(),
+      dismissInserted: vi.fn(),
     },
     voiceSettingsHref: null,
     agentVoiceHref: null,
@@ -553,6 +557,35 @@ describe("ChatInput inserting a transcript", () => {
     expect(document.querySelector('[role="status"][aria-live="polite"]')).toHaveTextContent(
       "Inserted 3 words",
     );
+  });
+
+  it("counts words the way the strip does, which spaces alone would not", async () => {
+    await dictateInto("", null, "我们明天开会");
+
+    expect(document.querySelector('[role="status"][aria-live="polite"]')).toHaveTextContent(
+      "Inserted 3 words",
+    );
+  });
+
+  it("puts the note away on the next key, but not on a modifier alone", async () => {
+    const dictation = serverDictation({}, { inserted: true, transcript: { id: 1, text: "hi" } });
+    render(<ChatInput onSend={vi.fn()} dictation={dictation} />);
+    const textarea = screen.getByRole("textbox");
+
+    fireEvent.keyDown(textarea, { key: "Shift" });
+    expect(dictation.actions.dismissInserted).not.toHaveBeenCalled();
+    fireEvent.keyDown(textarea, { key: "a" });
+
+    expect(dictation.actions.dismissInserted).toHaveBeenCalledOnce();
+  });
+
+  it("has nothing to put away when nothing was just inserted", () => {
+    const dictation = serverDictation();
+    render(<ChatInput onSend={vi.fn()} dictation={dictation} />);
+
+    fireEvent.keyDown(screen.getByRole("textbox"), { key: "a" });
+
+    expect(dictation.actions.dismissInserted).not.toHaveBeenCalled();
   });
 
   it("goes at the end, joined by a space, when the text was edited while a failure waited", async () => {

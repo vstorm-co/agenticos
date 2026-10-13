@@ -27,7 +27,10 @@ Two things are versioned separately from this file and worth knowing about:
   `details.reason`, each dictation is one `ml_service_calls` row, and the audio
   is not stored. A per-person `RATE_LIMIT_DICTATION_PER_MINUTE` (10) meters it on
   its own counter. With Mistral the composer records 16 kHz WAV rather than
-  WebM or Opus, which Mistral does not document as input.
+  WebM or Opus, which Mistral does not document as input. An upload that takes
+  over a second shows its percentage before the transcribing sweep, and the
+  strip under the box says when a recording stopped at the organization's limit
+  and how many words it inserted - on a hosted page too.
   See [Dictation in chat](docs/ml-services.md#dictation-in-chat).
 - **A Voice card on the organization's Members page.** For `org:settings`
   holders: the dictation engine (Off, Browser or Server), the provider and model

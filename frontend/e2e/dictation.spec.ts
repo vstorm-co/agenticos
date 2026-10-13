@@ -39,6 +39,7 @@ interface SpeechSettings {
   chat_dictation: "off" | "browser" | "server";
   speech_to_text_provider: string | null;
   speech_to_text_model: string | null;
+  dictation_max_seconds: number;
 }
 
 interface OrgRow extends SpeechSettings {
@@ -85,11 +86,15 @@ test.beforeAll(async ({ playwright }, testInfo) => {
     chat_dictation: org!.chat_dictation,
     speech_to_text_provider: org!.speech_to_text_provider,
     speech_to_text_model: org!.speech_to_text_model,
+    dictation_max_seconds: org!.dictation_max_seconds,
   };
+  // The shortest limit an organization may set, so the auto-stop is reached
+  // in a test; the other recordings here last a second.
   await patchSpeech(request, {
     chat_dictation: "server",
     speech_to_text_provider: "openai",
     speech_to_text_model: "whisper-1",
+    dictation_max_seconds: 10,
   });
   await request.dispose();
 });
@@ -206,5 +211,30 @@ test.describe("Server dictation", () => {
     await strip.getByRole("button", { name: "Retry" }).click();
     await expect(composer).toHaveValue("second time lucky");
     expect(calls).toBe(2);
+  });
+
+  test("stops itself at the limit, says so while transcribing, then says what landed", async ({
+    page,
+  }) => {
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    await stubDictation(page, async (route) => {
+      await held;
+      await route.fulfill(transcribed("three words here"));
+    });
+
+    const composer = await readyComposer(page);
+    await page.getByRole("button", { name: "Voice input" }).click();
+
+    // Nothing is pressed: the organization's 10 s limit stops it.
+    const strip = page.getByTestId("dictation-strip");
+    await expect(strip).toContainText("Stopped at the 0:10 limit.", { timeout: 15_000 });
+    release();
+
+    await expect(composer).toHaveValue("three words here");
+    await expect(strip).toContainText("Inserted 3 words");
+    // The next key is the person moving on, and the note goes with it.
+    await composer.press("End");
+    await expect(strip).not.toContainText("Inserted");
   });
 });

@@ -1,14 +1,19 @@
 import { forwardRef, type ReactNode } from "react";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useTranslations } from "next-intl";
+import { createTranslator, useTranslations } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { DictationActions, DictationState } from "@/hooks/use-dictation";
 
+import de from "../../../messages/de.json";
+import en from "../../../messages/en.json";
+import pl from "../../../messages/pl.json";
+
 import {
   dictationHint,
   DictationStrip,
+  movesOn,
   type DictationHintInput,
   type DictationUnavailable,
 } from "./dictation-strip";
@@ -50,6 +55,9 @@ function dictationState(overrides: Partial<DictationState> = {}): DictationState
     canRetry: false,
     retryAfter: null,
     transcript: null,
+    upload: null,
+    stoppedAtLimit: false,
+    inserted: false,
     ...overrides,
   };
 }
@@ -61,6 +69,7 @@ function fakeActions(): DictationActions {
     cancel: vi.fn(),
     retry: vi.fn(),
     dismiss: vi.fn(),
+    dismissInserted: vi.fn(),
   };
 }
 
@@ -220,6 +229,18 @@ describe("dictationHint", () => {
       [],
     ],
     [
+      "the auto-stop at the limit, while that recording is transcribed",
+      { state: { phase: "transcribing", stoppedAtLimit: true }, maxSeconds: 10 },
+      /^Stopped at the 0:10 limit\. Transcribing everything up to here\.$/,
+      [],
+    ],
+    [
+      "the words a transcript inserted",
+      { state: { inserted: true, transcript: { id: 3, text: "focus on churn, three bullets" } } },
+      /^Inserted 5 words$/,
+      [],
+    ],
+    [
       "a recording under a second",
       { state: { phase: "too_short" } },
       /That was under a second, so nothing was sent\./,
@@ -317,6 +338,127 @@ describe("dictationHint", () => {
     expect(names).toEqual(buttons);
   });
 
+  it("keeps the words that landed out of the live region where the composer says them", () => {
+    const input = {
+      actions: fakeActions(),
+      maxSeconds: 300,
+      unavailable: null,
+      voiceSettingsHref: null,
+      agentVoiceHref: null,
+      closeExplanation: vi.fn(),
+    };
+    const state = dictationState({ inserted: true, transcript: { id: 1, text: "hello" } });
+    const { rerender } = render(<Harness {...input} state={state} />);
+    // The default: a page with no announcement of its own reads it from here.
+    expect(screen.getByTestId("dictation-strip")).toHaveAttribute("aria-live", "polite");
+
+    rerender(<Harness {...input} state={state} insertAnnounced />);
+
+    expect(screen.getByTestId("dictation-strip")).toHaveAttribute("aria-live", "off");
+    expect(screen.getByTestId("dictation-strip-text")).toHaveTextContent("Inserted 1 word");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it.each<[string, Record<string, unknown>, string, [number, string][]]>([
+    [
+      "en",
+      en,
+      "chat.dictation",
+      [
+        [1, "Inserted 1 word"],
+        [2, "Inserted 2 words"],
+        [5, "Inserted 5 words"],
+      ],
+    ],
+    [
+      "pl",
+      pl,
+      "chat.dictation",
+      [
+        [1, "Wstawiono 1 słowo"],
+        [3, "Wstawiono 3 słowa"],
+        [5, "Wstawiono 5 słów"],
+        [22, "Wstawiono 22 słowa"],
+        [25, "Wstawiono 25 słów"],
+      ],
+    ],
+    [
+      "pl",
+      pl,
+      "hosted.dictation",
+      [
+        [1, "Wstawiono 1 słowo"],
+        [4, "Wstawiono 4 słowa"],
+        [12, "Wstawiono 12 słów"],
+      ],
+    ],
+    [
+      "de",
+      de,
+      "chat.dictation",
+      [
+        [1, "1 Wort eingefügt"],
+        [7, "7 Wörter eingefügt"],
+      ],
+    ],
+  ])("counts inserted words in %s (%s)", (locale, messages, namespace, cases) => {
+    const t = createTranslator({
+      locale,
+      messages,
+      namespace,
+    } as never) as unknown as Parameters<typeof dictationHint>[1];
+    for (const [count, expected] of cases) {
+      const text = Array.from({ length: count }, (_, i) => `w${i}`).join(" ");
+      const { unmount } = render(
+        <DictationStrip
+          hint={dictationHint(
+            {
+              state: dictationState({ inserted: true, transcript: { id: count, text } }),
+              actions: fakeActions(),
+              maxSeconds: 300,
+              unavailable: null,
+              voiceSettingsHref: null,
+              agentVoiceHref: null,
+              closeExplanation: vi.fn(),
+            },
+            t,
+          )}
+        />,
+      );
+      expect(screen.getByTestId("dictation-strip-text")).toHaveTextContent(expected);
+      unmount();
+    }
+  });
+
+  it("states the limit the same way in every catalog", () => {
+    for (const messages of [en, pl, de]) {
+      const t = createTranslator({
+        locale: "en",
+        messages,
+        namespace: "hosted.dictation",
+      } as never) as unknown as Parameters<typeof dictationHint>[1];
+      const { unmount } = render(
+        <DictationStrip
+          hint={dictationHint(
+            {
+              state: dictationState({ phase: "transcribing", stoppedAtLimit: true }),
+              actions: fakeActions(),
+              maxSeconds: 300,
+              unavailable: null,
+              voiceSettingsHref: null,
+              agentVoiceHref: null,
+              closeExplanation: vi.fn(),
+              visitor: true,
+            },
+            t,
+          )}
+        />,
+      );
+      expect(screen.getByTestId("dictation-strip-text")).toHaveTextContent("5:00");
+      unmount();
+    }
+  });
+
   it("tells a hosted page's visitor what to do instead, naming no admin and no setting", () => {
     // A visitor has nobody to ask and nowhere to go: the copy is the visitor's own
     // namespace, and the sentence about the admin is not built at all.
@@ -407,4 +549,19 @@ describe("dictationHint", () => {
       expect(actions.dismiss).not.toHaveBeenCalled();
     },
   );
+});
+
+describe("movesOn", () => {
+  it.each([
+    ["a", true],
+    ["Enter", true],
+    ["ArrowLeft", true],
+    ["Backspace", true],
+    ["Shift", false],
+    ["Control", false],
+    ["Alt", false],
+    ["Meta", false],
+  ])("reads %s as moving on: %s", (key, expected) => {
+    expect(movesOn(key)).toBe(expected);
+  });
 });

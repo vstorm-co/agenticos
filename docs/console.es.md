@@ -1,5 +1,5 @@
 ---
-source_sha: "5624cf36a7ed"
+source_sha: "48e679cb5241"
 ---
 
 # La consola { #the-console }
@@ -166,12 +166,16 @@ grabación: Cancelar, el nivel, un temporizador y Detener. **Enter** detiene y
 transcribe, **Escape** cancela, y nada de lo que se escriba o pulse mientras una
 grabación está en curso o transcribiéndose se envía. La grabación se detiene sola
 al llegar al dictado más largo de la organización y se transcribe, y un micrófono
-desconectado a mitad la termina igual en vez de descartarla.
+desconectado a mitad la termina igual en vez de descartarla. Si la subida tarda
+más de un segundo, la barra muestra cuánto se ha subido ya; después muestra
+**Transcribing** hasta que llega el texto.
 
 Todo lo que el dictado tiene que decir aparece en una franja unida bajo el
 compositor: la petición de permiso, un micrófono bloqueado o ausente, los últimos
 30 segundos, cinco segundos sin sonido, una grabación de menos de un segundo (no
-se envía) y cada fallo. Una grabación que no se pudo transcribir se conserva
+se envía), una grabación que se detuvo en el límite, cuántas palabras se
+insertaron y cada fallo. El recuento de palabras desaparece a los pocos segundos
+o con tu siguiente tecla. Una grabación que no se pudo transcribir se conserva
 hasta que pulsas **Retry** o **Discard**.
 
 Si la organización eligió Server pero
