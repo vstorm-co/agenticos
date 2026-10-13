@@ -200,6 +200,7 @@ function respond(path: string, options?: { params?: Record<string, string> }): u
         by_agent: [],
         by_provider: [],
         by_key: [],
+        by_day: [],
       };
     case "/agents":
       return {

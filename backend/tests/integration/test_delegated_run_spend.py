@@ -338,6 +338,19 @@ class TestTheThreeBreakdowns:
             fixture.researcher.id: Decimal("0.40"),
         }
 
+    async def test_the_days_sum_to_the_bill_too(self, db):
+        """The bars over the window are the fourth split of the same money: own
+        spend per run, so a delegated request is its $1.00 on the day it ran, not
+        $1.40."""
+        fixture = await _one_delegated_request(db)
+
+        rows = await agent_run_repo.spend_by_day(
+            db, organization_id=fixture.org.id, since=month_start()
+        )
+
+        assert sum(cost for _day, cost, _runs in rows) == Decimal("1.00")
+        assert len(rows) == 1
+
     async def test_each_vendor_is_paid_its_own_share_and_only_its_own(self, db):
         """The least visible of the three, and it has now been wrong twice in
         opposite directions.

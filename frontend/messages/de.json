@@ -4453,7 +4453,11 @@
       "decidedByWhom": "von {email}",
       "anAgent": "Ein Agent",
       "decidedSection": "Entschieden",
-      "waitingSection": "Wartet auf Sie"
+      "waitingSection": "Wartet auf Sie",
+      "share": "Anteil",
+      "monthAgainstCap": "${spent} von ${cap} in diesem Monat",
+      "spendOverTime": "Ausgaben im Zeitverlauf",
+      "spendOverTimeHint": "Was jeder Tag des Zeitraums gekostet hat, in UTC-Tagen."
     },
     "sandboxes": {
       "addConnection": "Verbindung hinzufügen",

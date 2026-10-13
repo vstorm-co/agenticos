@@ -52,7 +52,13 @@ describe("the Runs figure and the Spend figure", () => {
     vi.restoreAllMocks();
     vi.spyOn(apiClient, "get").mockImplementation((async (path: string) => {
       if (path === "/spend") {
-        return { month_to_date_usd: "31.20", by_agent: [], by_provider: [], by_key: [] };
+        return {
+          month_to_date_usd: "31.20",
+          by_agent: [],
+          by_provider: [],
+          by_key: [],
+          by_day: [],
+        };
       }
       if (path === "/approvals") return { items: [], total: 0 };
       return { items: [], total: 8412 };

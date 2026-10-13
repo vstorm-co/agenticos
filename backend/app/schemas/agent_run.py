@@ -1,6 +1,6 @@
 """Schemas for run history, approvals and the cost dashboard."""
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -395,6 +395,14 @@ class CostByKey(BaseSchema):
     run_count: int
 
 
+class CostByDay(BaseSchema):
+    """One day's spend, for the bars over the window."""
+
+    day: date
+    cost_usd: Decimal
+    run_count: int
+
+
 class CostSummary(BaseSchema):
     """What the cost dashboard renders."""
 
@@ -431,3 +439,7 @@ class CostSummary(BaseSchema):
     by_agent: list[CostByAgent]
     by_provider: list[CostByProvider]
     by_key: list[CostByKey]
+    by_day: list[CostByDay] = Field(
+        default_factory=list,
+        description="Spend per UTC day over the window; a day with no runs has no entry",
+    )

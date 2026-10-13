@@ -58,7 +58,7 @@ from collections import Counter
 from collections.abc import AsyncGenerator, Awaitable, Callable, Mapping, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from functools import partial
 from typing import TYPE_CHECKING, Any, cast
@@ -5209,6 +5209,18 @@ class AgentRunnerService:
         further down.
         """
         return await agent_run_repo.spend_by_provider(
+            self.db, organization_id=ctx.organization_id, since=since, until=until
+        )
+
+    async def spend_by_day(
+        self, ctx: AuthContext, *, since: datetime, until: datetime | None = None
+    ) -> list[tuple[date, Decimal, int]]:
+        """What the organization spent each day of a window, own spend per run.
+
+        Over the same window as the splits beside it, so the bars and the
+        breakdowns describe the same runs.
+        """
+        return await agent_run_repo.spend_by_day(
             self.db, organization_id=ctx.organization_id, since=since, until=until
         )
 

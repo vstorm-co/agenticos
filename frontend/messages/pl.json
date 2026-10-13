@@ -4341,7 +4341,11 @@
       "decidedByWhom": "przez {email}",
       "anAgent": "Agent",
       "decidedSection": "Zdecydowane",
-      "waitingSection": "Czeka na ciebie"
+      "waitingSection": "Czeka na ciebie",
+      "share": "Udział",
+      "monthAgainstCap": "${spent} z ${cap} w tym miesiącu",
+      "spendOverTime": "Wydatki w czasie",
+      "spendOverTimeHint": "Ile kosztował każdy dzień okna (dni w UTC)."
     },
     "sandboxes": {
       "addConnection": "Dodaj połączenie",

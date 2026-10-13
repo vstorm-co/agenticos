@@ -29,9 +29,11 @@ export interface TrendPoint {
 export function TrendChartImpl({
   data,
   variant = "area",
+  money = false,
 }: {
   data: TrendPoint[];
   variant?: "area" | "bars";
+  money?: boolean;
 }) {
   // One axis configuration, two marks. Recharts wants a different chart element
   // for each, and duplicating the axes to switch between them is how the two
@@ -70,9 +72,11 @@ export function TrendChartImpl({
           fontSize={11}
           tickLine={false}
           axisLine={false}
-          width={32}
+          width={money ? 44 : 32}
           tickCount={4}
-          allowDecimals={false}
+          // Counts are whole; dollars are not, and a run costs cents.
+          allowDecimals={money}
+          tickFormatter={money ? (value: number) => `$${value.toFixed(2)}` : undefined}
           tick={{
             fontFamily: "var(--font-mono)",
             fill: "oklch(from var(--color-foreground) l c h / 0.45)",
@@ -87,6 +91,7 @@ export function TrendChartImpl({
             fontSize: "12px",
           }}
           labelStyle={{ color: "var(--color-muted-foreground)" }}
+          formatter={money ? (value) => `$${Number(value).toFixed(4)}` : undefined}
         />
         <defs>
           <linearGradient id={washId} x1="0" y1="0" x2="0" y2="1">

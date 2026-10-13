@@ -4571,7 +4571,11 @@
       "decidedByWhom": "by {email}",
       "anAgent": "An agent",
       "decidedSection": "Decided",
-      "waitingSection": "Waiting on you"
+      "waitingSection": "Waiting on you",
+      "share": "Share",
+      "monthAgainstCap": "${spent} of ${cap} this month",
+      "spendOverTime": "Spend over time",
+      "spendOverTimeHint": "What each day of the window cost, in UTC days."
     },
     "sandboxes": {
       "addConnection": "Add connection",

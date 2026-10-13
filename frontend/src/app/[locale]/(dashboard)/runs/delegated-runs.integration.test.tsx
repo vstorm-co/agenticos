@@ -81,6 +81,7 @@ const SPEND = {
   ],
   by_provider: [],
   by_key: [],
+  by_day: [],
 };
 
 function run(overrides: Partial<AgentRun> = {}): AgentRun {

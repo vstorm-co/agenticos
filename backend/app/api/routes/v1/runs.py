@@ -39,6 +39,7 @@ from app.schemas.agent_run import (
     ApprovalList,
     ApprovalRead,
     CostByAgent,
+    CostByDay,
     CostByKey,
     CostByProvider,
     CostSummary,
@@ -608,6 +609,10 @@ async def get_spend(
             for secret_id, label, cost, runs in await service.spend_by_key(
                 ctx, since=since, until=to_date
             )
+        ],
+        by_day=[
+            CostByDay(day=day, cost_usd=cost, run_count=runs)
+            for day, cost, runs in await service.spend_by_day(ctx, since=since, until=to_date)
         ],
     )
 

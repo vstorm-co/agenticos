@@ -50,6 +50,7 @@ const EMPTY_SPEND = {
   by_agent: [],
   by_provider: [],
   by_key: [],
+  by_day: [],
 };
 
 function wrapper({ children }: { children: ReactNode }) {

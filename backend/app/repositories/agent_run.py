@@ -1017,6 +1017,33 @@ async def spend_by_provider(
     return [(row[0], Decimal(row[1]), row[2]) for row in result.all()]
 
 
+async def spend_by_day(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    since: datetime,
+    until: datetime | None = None,
+) -> list[tuple[date, Decimal, int]]:
+    """Spend per calendar day (UTC) over a window - the bill's shape over time.
+
+    Each run's **own** spend, as :func:`spend_by_provider`, so the days sum to
+    the same total as the other splits. A day with no runs has no row: the
+    caller draws the gap.
+    """
+    day = func.date(func.timezone("UTC", AgentRun.started_at))
+    result = await db.execute(
+        select(day, func.coalesce(func.sum(_own_cost()), 0), func.count(AgentRun.id))
+        .where(
+            AgentRun.organization_id == organization_id,
+            AgentRun.started_at >= since,
+            *([] if until is None else [AgentRun.started_at <= until]),
+        )
+        .group_by(day)
+        .order_by(day)
+    )
+    return [(row[0], Decimal(row[1]), row[2]) for row in result.all()]
+
+
 async def spend_by_key(
     db: AsyncSession,
     *,

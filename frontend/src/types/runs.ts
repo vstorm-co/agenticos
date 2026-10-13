@@ -345,6 +345,14 @@ export interface CostByAgent {
   monthly_cap_usd: string | null;
 }
 
+/** One UTC day's spend - `GET /spend` sends only the days that had runs. */
+export interface CostByDay {
+  /** `YYYY-MM-DD`. */
+  day: string;
+  cost_usd: string;
+  run_count: number;
+}
+
 /** One model provider's share of the bill. */
 export interface CostByProvider {
   /** Null for runs recorded before this was tracked - shown as such, never folded in. */
@@ -390,6 +398,8 @@ export interface CostSummary {
   by_provider: CostByProvider[];
   /** Which key it went through, which is how a leaked or misused one is found. */
   by_key: CostByKey[];
+  /** Spend per UTC day over the window - days with no runs are absent. */
+  by_day: CostByDay[];
 }
 
 /**

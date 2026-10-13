@@ -54,6 +54,7 @@ function serve(permissions: Permission[]) {
         by_agent: [],
         by_provider: [],
         by_key: [],
+        by_day: [],
       });
     return Promise.resolve({ items: [], total: 0 });
   });
