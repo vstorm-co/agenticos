@@ -132,14 +132,18 @@ describe("YourConnections", () => {
     expect(screen.getByText("Connected")).toBeInTheDocument();
   });
 
-  it("says when the chosen account no longer authorizes", () => {
+  it("says when the chosen account no longer authorizes", async () => {
     // The server decides usability now; the client reads `authorized` rather than
     // re-deriving it from OAuth consent alone (#1443).
     state.connections = [own({ oauth_authorized: false, authorized: false })];
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
     render(<YourConnections />);
 
     expect(screen.getByText("Needs authorizing again")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Open MCP servers" })).toBeInTheDocument();
+    // In a new tab: the conversation, and the question in it, stay where they are.
+    await userEvent.click(screen.getByRole("button", { name: "Open MCP servers" }));
+    expect(open).toHaveBeenCalledWith("/mcp-servers", "_blank", "noopener");
+    open.mockRestore();
   });
 });
 
