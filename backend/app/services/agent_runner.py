@@ -171,7 +171,7 @@ from app.db.models.agent_environment import ConnectionKind
 from app.db.models.agent_exposure import AgentExposure
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunOrder, RunStatus, RunSurface
 from app.db.models.chat_file import ChatFile
-from app.db.models.conversation import Message, ToolCall
+from app.db.models.conversation import Message
 from app.db.models.intercepted_tool_call import InterceptedToolCall
 from app.db.models.run_manifest import RunManifest
 from app.db.session import get_worker_db_context
@@ -330,32 +330,6 @@ def _with_test_secrets(spec: AgentSpec, overrides: Mapping[UUID, UUID | None]) -
             )
         capabilities.append(binding.model_copy(update={"secret_id": test_id}))
     return spec.model_copy(update={"capabilities": capabilities})
-
-
-def _call_order(
-    rows: Sequence[tuple[ToolCall, Message]],
-) -> Callable[[tuple[ToolCall, Message]], tuple[datetime, int, int, str]]:
-    """How a run's calls sort into the order they were made.
-
-    By start time first. A turn writes every call it made with one `started_at`,
-    so a tie is broken by the turn - in the order the rows came - and inside it
-    by the call's position in the turn's `parts`, which record the order it
-    happened in. A turn without `parts` falls back to the provider's call id,
-    which is stable if not meaningful.
-    """
-    turns = {message.id: index for index, (_, message) in enumerate(rows)}
-
-    def key(row: tuple[ToolCall, Message]) -> tuple[datetime, int, int, str]:
-        call, message = row
-        positions = [
-            part.get("tool_call_id") for part in message.parts or [] if part.get("type") == "tool"
-        ]
-        position = (
-            positions.index(call.tool_call_id) if call.tool_call_id in positions else len(positions)
-        )
-        return call.started_at, turns[message.id], position, call.tool_call_id
-
-    return key
 
 
 def _delegate_workspace(spec: AgentSpec, shared: list[CapabilityBindingSpec]) -> DelegateWorkspace:
@@ -3439,6 +3413,7 @@ class AgentRunnerService:
             calls=[
                 InterceptedToolCall(
                     agent_id=call.agent_id,
+                    tool_call_id=call.tool_call_id,
                     tool_name=call.tool_name,
                     tool_id=call.tool_id,
                     args=call.args,
@@ -3495,7 +3470,7 @@ class AgentRunnerService:
             recorded_calls(
                 [
                     CallRow(tool_name=call.tool_name, args=call.args, result=call.result)
-                    for call, _ in sorted(rows, key=_call_order(rows))
+                    for call, _ in rows
                     if call.result is not None
                 ],
                 tools=tools,

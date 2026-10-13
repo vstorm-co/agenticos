@@ -90,6 +90,7 @@ def upgrade() -> None:
         sa.Column("run_id", sa.UUID(), nullable=False),
         sa.Column("agent_id", sa.UUID(), nullable=True),
         sa.Column("sequence", sa.Integer(), nullable=False),
+        sa.Column("tool_call_id", sa.String(length=100), nullable=False),
         sa.Column("tool_name", sa.String(length=128), nullable=False),
         sa.Column("tool_id", sa.String(length=256), nullable=False),
         sa.Column(

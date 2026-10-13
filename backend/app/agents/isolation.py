@@ -197,6 +197,7 @@ class InterceptedCall:
     """One call an isolated run answered without executing it."""
 
     agent_id: UUID | None
+    tool_call_id: str
     tool_name: str
     tool_id: str
     args: dict[str, Any]
@@ -270,19 +271,19 @@ class IsolationGuard(AbstractCapability[AgentDeps]):
             # defaults it never wrote, and would never match.
             recorded = recording.answer(tool.tool_id, call.args_as_dict())
             if recorded is not None:
-                self._intercept(tool_def.name, tool, args, InterceptionOutcome.REPLAYED)
+                self._intercept(call, tool, args, InterceptionOutcome.REPLAYED)
                 return recorded.result
             if not (tool.read_only and self.isolation.live_reads):
-                self._intercept(tool_def.name, tool, args, InterceptionOutcome.DIVERGENT)
+                self._intercept(call, tool, args, InterceptionOutcome.DIVERGENT)
                 return _divergent_notice(tool_def.name)
         elif not (tool.read_only or tool.test):
             self._intercept(
-                tool_def.name, tool, args, InterceptionOutcome.BLOCKED, InterceptionReason.WRITES
+                call, tool, args, InterceptionOutcome.BLOCKED, InterceptionReason.WRITES
             )
             return _blocked_notice(tool_def.name)
         if self.approval is not None and self.approval.gates(tool_def):
             self._intercept(
-                tool_def.name,
+                call,
                 tool,
                 args,
                 InterceptionOutcome.BLOCKED,
@@ -293,7 +294,7 @@ class IsolationGuard(AbstractCapability[AgentDeps]):
 
     def _intercept(
         self,
-        name: str,
+        call: ToolCallPart,
         tool: ToolClass,
         args: dict[str, Any],
         outcome: InterceptionOutcome,
@@ -303,7 +304,8 @@ class IsolationGuard(AbstractCapability[AgentDeps]):
         self.isolation.intercepted.append(
             InterceptedCall(
                 agent_id=self.agent_id,
-                tool_name=name,
+                tool_call_id=call.tool_call_id,
+                tool_name=call.tool_name,
                 tool_id=tool.tool_id,
                 args=dict(args),
                 outcome=outcome,

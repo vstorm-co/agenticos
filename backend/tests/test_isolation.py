@@ -123,9 +123,17 @@ class TestWhatAnIsolatedRunExecutes:
 
         assert world.effects == []
         assert [
-            (call.tool_name, call.tool_id, call.args, call.outcome)
+            (call.tool_call_id, call.tool_name, call.tool_id, call.args, call.outcome)
             for call in isolation.intercepted
-        ] == [("crm_create", "tool:crm_create", {"name": "Ada"}, InterceptionOutcome.BLOCKED)]
+        ] == [
+            (
+                "call-0",
+                "crm_create",
+                "tool:crm_create",
+                {"name": "Ada"},
+                InterceptionOutcome.BLOCKED,
+            )
+        ]
         # The model is told, so it does not report a contact it never created.
         assert "Not executed" in answer
 

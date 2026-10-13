@@ -262,6 +262,7 @@ async def _run(db, org: Organization) -> AgentRun:
 
 def _call(tool_name: str, outcome: str = "blocked") -> InterceptedToolCall:
     return InterceptedToolCall(
+        tool_call_id=f"call-{tool_name}",
         tool_name=tool_name,
         tool_id=f"tool:{tool_name}",
         args={"to": "a@b.c"},
@@ -318,6 +319,7 @@ class TestInterceptedCalls:
                 organization_id=org.id,
                 run_id=run.id,
                 sequence=0,
+                tool_call_id="call-send",
                 tool_name="send",
                 tool_id="tool:send",
                 outcome="executed",
@@ -339,6 +341,7 @@ class TestInterceptedCalls:
                 organization_id=org.id,
                 run_id=run.id,
                 sequence=0,
+                tool_call_id="call-send",
                 tool_name="send",
                 tool_id="tool:send",
                 outcome=outcome,

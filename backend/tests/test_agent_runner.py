@@ -10,7 +10,7 @@ import asyncio
 import logging
 import uuid
 from collections.abc import Awaitable, Callable
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
@@ -4616,6 +4616,7 @@ class TestAnIsolatedRun:
             intercepted=[
                 InterceptedCall(
                     agent_id=None,
+                    tool_call_id="call-1",
                     tool_name="crm_create",
                     tool_id="tool:crm_create",
                     args={"name": "Ada"},
@@ -4635,7 +4636,8 @@ class TestAnIsolatedRun:
 
         written.assert_awaited_once()
         (row,) = written.await_args.kwargs["calls"]
-        assert (row.tool_name, row.args, row.outcome, row.reason) == (
+        assert (row.tool_call_id, row.tool_name, row.args, row.outcome, row.reason) == (
+            "call-1",
             "crm_create",
             {"name": "Ada"},
             "blocked",
@@ -4735,19 +4737,11 @@ class TestARecordingOfAPastRun:
         )
 
     @pytest.mark.anyio
-    async def test_calls_written_at_one_instant_keep_the_order_the_turn_recorded(self):
-        """A turn writes all its calls with one `started_at`; its `parts` say the order."""
-        turn = MagicMock(
-            id=uuid.uuid4(),
-            parts=[
-                {"type": "text"},
-                {"type": "tool", "tool_call_id": "zz"},
-                {"type": "tool", "tool_call_id": "aa"},
-            ],
-        )
+    async def test_calls_are_answered_in_the_order_the_repository_gives_them(self):
+        turn = MagicMock(id=uuid.uuid4(), parts=None)
         rows = [
-            _row("now", {}, "second", call_id="aa", at=self.START, turn=turn),
-            _row("now", {}, "first", call_id="zz", at=self.START, turn=turn),
+            _row("now", {}, "first", call_id="b", at=self.START, turn=turn),
+            _row("now", {}, "second", call_id="a", at=self.START, turn=turn),
         ]
 
         recording = await self._recording(rows, self._manifest("now", "now"))
@@ -4755,22 +4749,6 @@ class TestARecordingOfAPastRun:
         assert [recording.answer("tool:now", {}) for _ in range(2)] == [
             RecordedCall("tool:now", "{}", "first"),
             RecordedCall("tool:now", "{}", "second"),
-        ]
-
-    @pytest.mark.anyio
-    async def test_without_parts_a_tie_falls_back_to_the_call_id_and_time_still_leads(self):
-        older_turn = MagicMock(id=uuid.uuid4(), parts=None)
-        turn = MagicMock(id=uuid.uuid4(), parts=[{"type": "tool", "tool_call_id": "other"}])
-        rows = [
-            _row("now", {}, "0", call_id="m", at=self.START, turn=older_turn),
-            _row("now", {}, "2", call_id="b", at=self.START + timedelta(seconds=1), turn=turn),
-            _row("now", {}, "1", call_id="a", at=self.START + timedelta(seconds=1), turn=turn),
-        ]
-
-        recording = await self._recording(rows, self._manifest("now", "now", "now"))
-
-        assert [recording.answer("tool:now", {}) for _ in range(3)] == [
-            RecordedCall("tool:now", "{}", result) for result in ("0", "1", "2")
         ]
 
     @pytest.mark.anyio

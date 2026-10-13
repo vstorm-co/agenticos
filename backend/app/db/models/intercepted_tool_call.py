@@ -83,6 +83,9 @@ class InterceptedToolCall(Base, TimestampMixin):
         nullable=True,
     )
     sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    # The provider's id for the call, which the run's transcript row and its
+    # trajectory carry too - so a held call joins the calls it sits among.
+    tool_call_id: Mapped[str] = mapped_column(String(100), nullable=False)
     tool_name: Mapped[str] = mapped_column(String(128), nullable=False)
     # `capability:<capability>.<tool>`, which survives a rename, or
     # `tool:<name>` for an MCP or framework tool.

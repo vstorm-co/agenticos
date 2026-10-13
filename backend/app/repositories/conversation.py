@@ -1031,11 +1031,12 @@ async def get_open_tool_call_in_run(
 async def list_tool_calls_for_run(
     db: AsyncSession, *, run_id: UUID, organization_id: UUID
 ) -> list[tuple[ToolCall, Message]]:
-    """Every call one run's transcript holds, with the turn that made it.
+    """Every call one run's transcript holds, with its turn, in the order made.
 
-    Ordered by when each call started and then by turn. Calls a turn wrote at
-    once share a `started_at`, so the caller breaks those ties by the turn's own
-    `parts`; the turn comes back with each row for that reason.
+    By start time, then turn. A turn writes every call it made with one
+    `started_at`, so inside a turn the order is the call's position in the
+    turn's `parts`, which record it as it happened; a turn without `parts`
+    falls back to the provider's call id, which is stable if not meaningful.
     """
     result = await db.execute(
         select(ToolCall, Message)
@@ -1044,7 +1045,22 @@ async def list_tool_calls_for_run(
         .where(Message.run_id == run_id, Conversation.organization_id == organization_id)
         .order_by(ToolCall.started_at, Message.created_at, Message.id)
     )
-    return [(row[0], row[1]) for row in result.all()]
+    rows = [(row[0], row[1]) for row in result.all()]
+    turns = {message.id: index for index, (_, message) in reversed(list(enumerate(rows)))}
+    return sorted(rows, key=lambda row: _call_order(row, turns))
+
+
+def _call_order(
+    row: tuple[ToolCall, Message], turns: dict[UUID, int]
+) -> tuple[datetime, int, int, str]:
+    call, message = row
+    positions = [
+        part.get("tool_call_id") for part in message.parts or [] if part.get("type") == "tool"
+    ]
+    position = (
+        positions.index(call.tool_call_id) if call.tool_call_id in positions else len(positions)
+    )
+    return call.started_at, turns[message.id], position, call.tool_call_id
 
 
 async def create_tool_call(
