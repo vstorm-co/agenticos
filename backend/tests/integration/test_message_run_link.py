@@ -356,3 +356,30 @@ class TestFindingTheCallAnApprovalLeftOpen:
         )
 
         assert found is None
+
+
+class TestHowEachRunEnded:
+    """What a transcript reads beside each turn: the run's status and how long it took."""
+
+    async def test_a_finished_run_answers_its_status_and_duration(self, db) -> None:
+        organization = await _org(db)
+        owner = await _user(db)
+        conversation = await _conversation(db, organization, owner)
+        agent = await _agent(db, organization, owner)
+        finished = await _run(
+            db,
+            conversation,
+            agent,
+            started_at=_START,
+            ended_at=_START + timedelta(seconds=12, milliseconds=400),
+        )
+        still_running = await _run(db, conversation, agent, started_at=_START, ended_at=None)
+
+        outcomes = await conversation_repo.run_outcomes(db, {finished.id, still_running.id})
+
+        assert outcomes[finished.id] == conversation_repo.RunOutcome("completed", 12_400)
+        # Nothing to measure yet, which is not the same claim as "took no time".
+        assert outcomes[still_running.id].duration_ms is None
+
+    async def test_no_runs_asks_nothing(self, db) -> None:
+        assert await conversation_repo.run_outcomes(db, set()) == {}

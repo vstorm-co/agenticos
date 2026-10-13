@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MessageItem } from "./message-item";
-import { mustShowEveryStep, runsOf } from "./turn-parts";
+import { foldWork, mustShowEveryStep, runsOf } from "./turn-parts";
 import { useAuthStore, useChatStore, useFilePreviewStore } from "@/stores";
 import { ChatScope } from "@/stores/chat-scope";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
@@ -331,6 +331,9 @@ describe("the ordered timeline", () => {
         { id: "p-3", type: "text", content: "Thirty days." },
       ],
     });
+    // Finished, the work folds into one line above the answer; opened, it is in the
+    // order it happened.
+    fireEvent.click(screen.getByRole("button", { name: "Worked · 1 step" }));
 
     // Only the top level: the reasoning renders its own Markdown now, so its mock
     // sits *inside* the `details`. This is about the order of the parts, not of
@@ -915,6 +918,8 @@ describe("the step a reopened turn leaves open", () => {
       />,
     );
 
+    expect(screen.queryByTestId("tool-tc-a")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Worked · 1 step" }));
     expect(screen.getByTestId("tool-tc-a")).toHaveAttribute("data-open", "false");
   });
 
@@ -1041,5 +1046,72 @@ describe("the footer of a turn drawn in several messages", () => {
     item({ content: "Six sheets.", usage: USAGE });
 
     expect(screen.getByText(/6,603/)).toBeInTheDocument();
+  });
+});
+
+describe("the work before an answer", () => {
+  const call = (
+    id: string,
+    status: ToolCall["status"] = "completed",
+    name = "ls",
+  ): MessagePart => ({
+    id: `p-${id}`,
+    type: "tool",
+    toolCall: { id: `tc-${id}`, name, args: {}, status },
+  });
+  const text = (id: string, content: string): MessagePart => ({ id, type: "text", content });
+  const thought: MessagePart = { id: "p-th", type: "thinking", content: "Hmm." };
+
+  it("folds the thinking, the calls and the narration into one line above the answer", () => {
+    const split = foldWork(
+      runsOf([
+        thought,
+        text("n", "Let me check."),
+        call("a"),
+        call("b"),
+        text("ans", "Thirty days."),
+      ]),
+    );
+    expect(split?.steps).toBe(2);
+    expect(split?.folded).toHaveLength(3);
+    expect(split?.shown).toHaveLength(1);
+  });
+
+  it("folds nothing without an answer, or without work in front of it", () => {
+    expect(foldWork(runsOf([call("a")]))).toBeNull();
+    expect(foldWork(runsOf([text("ans", "Hello.")]))).toBeNull();
+    expect(foldWork(runsOf([text("n", "First."), text("ans", "Second.")]))).toBeNull();
+  });
+
+  it("keeps on the page what a person has to see", () => {
+    // A failure, a long passage that is an answer of its own, a question the agent
+    // asked and what the person added mid-run all stay where they were.
+    const long = text("long", "x".repeat(401));
+    const asked: MessagePart = { id: "p-q", type: "ask_user", question: "Which?", answer: "A" };
+    const steer: MessagePart = { id: "p-s", type: "steer", content: "Also B." };
+    const split = foldWork(
+      runsOf([call("a"), long, asked, steer, call("bad", "error"), text("ans", "Done.")]),
+    );
+    expect(split?.steps).toBe(1);
+    expect(split?.shown).toHaveLength(5);
+  });
+
+  it("times a reloaded turn by its run, under its last segment only", () => {
+    const parts = [call("a"), text("ans", "Done.")];
+    const { unmount } = item({ parts, runDurationMs: 12_400 });
+    expect(screen.getByRole("button", { name: "Worked for 12s · 1 step" })).toBeInTheDocument();
+    unmount();
+
+    item({ parts, runDurationMs: 12_400 }, { endsTurn: false });
+    expect(screen.getByRole("button", { name: "Worked · 1 step" })).toBeInTheDocument();
+  });
+
+  it("says the turn is working while it streams, and only once there is work", () => {
+    const { unmount } = item({ parts: [call("a", "running")], isStreaming: true });
+    expect(screen.getByRole("status")).toHaveTextContent("Working");
+    unmount();
+
+    item({ parts: [text("ans", "Thir")], isStreaming: true });
+    expect(screen.queryByText(/Working/)).not.toBeInTheDocument();
   });
 });

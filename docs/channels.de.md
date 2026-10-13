@@ -1,5 +1,5 @@
 ---
-source_sha: "4dbf0368c985"
+source_sha: "63611bd6d466"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1730,6 +1730,18 @@ dieselbe Zeile, die der Schritt liest, um zu entscheiden, ob er sich selbst
 öffnet, sodass die Leiste und der Schritt nicht widersprechen können. Nichts
 markiert einen Schritt, der einfach funktioniert hat, also bedeutet eine Markierung
 das, was sie sagt.
+
+Sobald die Runde geantwortet hat, **faltet sich die Arbeit über der Antwort in eine
+Zeile** — *Worked for 12s · 3 steps* —, hinter der das Nachdenken, die Aufrufe und
+die kurze Erzählung dazwischen liegen, einen Klick entfernt. Die Dauer ist die des
+Runs, von seinem Start bis zu seinem Ende, sie schließt also das Warten auf eine
+Freigabe ein. Solange die Runde noch arbeitet, steht an derselben Stelle *Working
+for 5s…*, über das ein Licht wandert.
+
+Was nie gefaltet wird, bleibt auf der Seite:
+die drei Arten von Läufen oben, eine Frage, die der Agent gestellt hat, was die
+Person mitten in der Runde ergänzt hat, und ein Abschnitt, der lang genug ist, um
+eine eigene Antwort zu sein.
 
 **Was sich selbst öffnet, folgt dem, was jemand beobachtet, außer wenn das
 Ergebnis der Punkt ist.**

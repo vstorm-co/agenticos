@@ -61,6 +61,11 @@ export interface ChatMessage {
    * has no answer on screen to mark.
    */
   wasStopped?: boolean;
+  /**
+   * How long the run behind this turn was open, from the stored run. Absent on a
+   * live turn, which times itself, and on a turn written outside a run.
+   */
+  runDurationMs?: number;
   /** True if message ID is a temporary client-minted id, not yet replaced by server ID */
   isTemporaryId?: boolean;
   /**

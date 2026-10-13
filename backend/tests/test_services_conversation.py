@@ -11,6 +11,7 @@ from pydantic_ai.messages import ModelMessagesTypeAdapter, ModelRequest, SystemP
 
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.repositories import conversation_repo
+from app.repositories.conversation import RunOutcome
 from app.services.conversation import ConversationService
 
 # Every conversation belongs to a tenant; the service refuses reads from another one.
@@ -1208,7 +1209,7 @@ class TestConversationServiceListMessages:
         with patch("app.services.conversation.conversation_repo") as mock_repo:
             mock_repo.get_conversation_by_id = AsyncMock(return_value=mock_conv)
             mock_repo.get_messages_by_conversation = AsyncMock(return_value=mock_messages)
-            mock_repo.run_statuses = AsyncMock(return_value={})
+            mock_repo.run_outcomes = AsyncMock(return_value={})
             mock_repo.count_messages = AsyncMock(return_value=2)
             mock_repo.conversation_cost = AsyncMock(return_value=None)
 
@@ -1236,7 +1237,7 @@ class TestConversationServiceListMessages:
         with patch("app.services.conversation.conversation_repo") as mock_repo:
             mock_repo.get_conversation_by_id = AsyncMock(return_value=mock_conv)
             mock_repo.get_messages_by_conversation = AsyncMock(return_value=[])
-            mock_repo.run_statuses = AsyncMock(return_value={})
+            mock_repo.run_outcomes = AsyncMock(return_value={})
             mock_repo.count_messages = AsyncMock(return_value=0)
             mock_repo.conversation_cost = AsyncMock(return_value=None)
 
@@ -1256,7 +1257,7 @@ class TestConversationServiceListMessages:
         with patch("app.services.conversation.conversation_repo") as mock_repo:
             mock_repo.get_conversation_by_id = AsyncMock(return_value=MockConversation(id=conv_id))
             mock_repo.get_messages_by_conversation = AsyncMock(return_value=[])
-            mock_repo.run_statuses = AsyncMock(return_value={})
+            mock_repo.run_outcomes = AsyncMock(return_value={})
             mock_repo.count_messages = AsyncMock(return_value=400)
             mock_repo.conversation_cost = AsyncMock(return_value=None)
 
@@ -1280,7 +1281,7 @@ class TestConversationServiceListMessages:
             ) as authorize,
         ):
             mock_repo.get_messages_by_conversation = AsyncMock(return_value=[])
-            mock_repo.run_statuses = AsyncMock(return_value={})
+            mock_repo.run_outcomes = AsyncMock(return_value={})
             mock_repo.count_messages = AsyncMock(return_value=0)
             mock_repo.conversation_cost = AsyncMock(return_value=None)
 
@@ -1297,7 +1298,7 @@ class TestConversationServiceListMessages:
         with patch("app.services.conversation.conversation_repo") as mock_repo:
             mock_repo.get_conversation_by_id = AsyncMock(return_value=mock_conv)
             mock_repo.get_messages_by_conversation = AsyncMock(return_value=[])
-            mock_repo.run_statuses = AsyncMock(return_value={})
+            mock_repo.run_outcomes = AsyncMock(return_value={})
             mock_repo.count_messages = AsyncMock(return_value=0)
             mock_repo.conversation_cost = AsyncMock(return_value=None)
 
@@ -1804,12 +1805,16 @@ class TestSayingATurnWasStopped:
                 return_value=[MockMessage(run_id=run_id)]
             )
             mock_repo.count_messages = AsyncMock(return_value=1)
-            mock_repo.run_statuses = AsyncMock(return_value={run_id: "cancelled"})
+            mock_repo.run_outcomes = AsyncMock(
+                return_value={run_id: RunOutcome(status="cancelled", duration_ms=12_400)}
+            )
             mock_repo.conversation_cost = AsyncMock(return_value=None)
 
             items, _total = await self._listed(service, conv_id)
 
         assert items[0].run_status == "cancelled"
+        # And how long it took, which folds the work before an answer into one line.
+        assert items[0].run_duration_ms == 12_400
 
     @pytest.mark.anyio
     async def test_a_turn_written_outside_a_run_says_nothing(self, service: ConversationService):
@@ -1822,7 +1827,7 @@ class TestSayingATurnWasStopped:
             mock_repo.favourite_ids = AsyncMock(return_value=set())
             mock_repo.get_messages_by_conversation = AsyncMock(return_value=[MockMessage()])
             mock_repo.count_messages = AsyncMock(return_value=1)
-            mock_repo.run_statuses = AsyncMock(return_value={})
+            mock_repo.run_outcomes = AsyncMock(return_value={})
             mock_repo.conversation_cost = AsyncMock(return_value=None)
 
             items, _total = await self._listed(service, conv_id)
@@ -1859,7 +1864,7 @@ class TestWhatTheThreadCost:
                 return_value=MockConversation(id=conv_id, organization_id=TEST_ORG_ID)
             )
             mock_repo.get_messages_by_conversation = AsyncMock(return_value=[])
-            mock_repo.run_statuses = AsyncMock(return_value={})
+            mock_repo.run_outcomes = AsyncMock(return_value={})
             mock_repo.count_messages = AsyncMock(return_value=0)
             mock_repo.conversation_cost = AsyncMock(return_value=None)
 
@@ -1875,7 +1880,7 @@ class TestWhatTheThreadCost:
                 return_value=MockConversation(id=conv_id, organization_id=TEST_ORG_ID)
             )
             mock_repo.get_messages_by_conversation = AsyncMock(return_value=[])
-            mock_repo.run_statuses = AsyncMock(return_value={})
+            mock_repo.run_outcomes = AsyncMock(return_value={})
             mock_repo.count_messages = AsyncMock(return_value=0)
             mock_repo.conversation_cost = AsyncMock(
                 return_value=(3_000, 300, Decimal("0.030000"), True)

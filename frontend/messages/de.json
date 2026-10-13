@@ -1176,7 +1176,14 @@
       "done": "Erledigt",
       "earlierSteps": "{count} frühere Schritte",
       "failed": "Fehlgeschlagen",
-      "running": "Läuft"
+      "running": "Läuft",
+      "working": "Arbeitet…",
+      "workingFor": "Arbeitet seit {duration}…",
+      "thoughtFor": "Hat {duration} nachgedacht",
+      "worked": "Gearbeitet · {count, plural, =1 {1 Schritt} other {# Schritte}}",
+      "workedFor": "{duration} gearbeitet · {count, plural, =1 {1 Schritt} other {# Schritte}}",
+      "elapsedSeconds": "{seconds} s",
+      "elapsedMinutes": "{minutes} min{seconds, plural, =0 {} other { # s}}"
     },
     "streamError": "❌ Fehler: {message}",
     "turnInterrupted": "Die Verbindung ist mitten in der Antwort abgerissen. Der Agent beendet den Zug und speichert ihn in dieser Unterhaltung.",

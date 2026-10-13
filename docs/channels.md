@@ -1560,6 +1560,15 @@ Which tools count as that kind is `opensOnSight` in `lib/tool-catalog.ts`, the s
 row the step reads to decide whether to open itself, so the rail and the step cannot
 disagree. Nothing marks a step that simply worked, so a marker means what it says.
 
+Once the turn has answered, **the work above the answer folds into one line** —
+*Worked for 12s · 3 steps* — with the thinking, the calls and the short narration
+between them behind it, one click away. The length is the run's, from its start to its
+end, so it includes any wait for an approval. While the turn is still working, the
+same place reads *Working for 5s…* with a light passing over it.
+
+What is never folded stays on the page: the three kinds of run above, a question the agent asked,
+what the person added mid-turn, and a passage long enough to be an answer of its own.
+
 **What opens itself follows what somebody is watching, except when the result is the
 point.**
 

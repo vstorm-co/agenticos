@@ -1176,7 +1176,14 @@
       "done": "Gotowe",
       "earlierSteps": "Wcześniejsze kroki: {count}",
       "failed": "Błąd",
-      "running": "W toku"
+      "running": "W toku",
+      "working": "Pracuje…",
+      "workingFor": "Pracuje od {duration}…",
+      "thoughtFor": "Myślał przez {duration}",
+      "worked": "Pracował · {count, plural, one {1 krok} few {# kroki} many {# kroków} other {# kroku}}",
+      "workedFor": "Pracował {duration} · {count, plural, one {1 krok} few {# kroki} many {# kroków} other {# kroku}}",
+      "elapsedSeconds": "{seconds} s",
+      "elapsedMinutes": "{minutes} min{seconds, plural, =0 {} other { # s}}"
     },
     "streamError": "❌ Błąd: {message}",
     "turnInterrupted": "Połączenie zerwało się w trakcie odpowiedzi. Agent kończy turę i zapisuje ją w tej rozmowie.",

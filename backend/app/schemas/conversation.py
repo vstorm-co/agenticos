@@ -277,6 +277,14 @@ class MessageRead(MessageBase, TimestampSchema):
             "half-written answer that reads exactly like a complete one."
         ),
     )
+    run_duration_ms: int | None = Field(
+        default=None,
+        description=(
+            "How long the run that produced this turn was open, in milliseconds - "
+            "from its start to its end, including any wait for an approval. Null for "
+            "a turn written outside a run and for a run that has not ended."
+        ),
+    )
     tool_calls: list[ToolCallRead] = Field(default_factory=list)
     files: list[MessageFileRead] = Field(default_factory=list)
     user_rating: int | None = Field(

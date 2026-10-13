@@ -311,6 +311,7 @@ export function MessageItem({
           isUser={isUser}
           mcpServers={mcpServers}
           openLastStep={openLastStep}
+          endsTurn={endsTurn}
           onCiteClick={onCiteClick}
         />
 
@@ -411,12 +412,15 @@ function MessageBody({
   isUser,
   mcpServers,
   openLastStep,
+  endsTurn,
   onCiteClick,
 }: {
   message: ChatMessage;
   isUser: boolean;
   mcpServers: ReturnType<typeof useMcpToolServers>;
   openLastStep: boolean;
+  /** The run's span is said once, under the turn's last segment. */
+  endsTurn: boolean;
   onCiteClick?: (index: number) => void;
 }) {
   const t = useTranslations("chat");
@@ -458,6 +462,8 @@ function MessageBody({
           openLastStep={openLastStep}
           conversationId={message.conversationId}
           onCiteClick={onCiteClick}
+          startedAt={message.timestamp}
+          durationMs={endsTurn ? message.runDurationMs : undefined}
         />
       ) : (
         /* Legacy fallback: user / pre-parts messages. */

@@ -1176,7 +1176,14 @@
       "done": "Done",
       "earlierSteps": "{count} earlier steps",
       "failed": "Failed",
-      "running": "Running"
+      "running": "Running",
+      "working": "Working…",
+      "workingFor": "Working for {duration}…",
+      "thoughtFor": "Thought for {duration}",
+      "worked": "Worked · {count, plural, =1 {1 step} other {# steps}}",
+      "workedFor": "Worked for {duration} · {count, plural, =1 {1 step} other {# steps}}",
+      "elapsedSeconds": "{seconds}s",
+      "elapsedMinutes": "{minutes}m{seconds, plural, =0 {} other { #s}}"
     },
     "streamError": "❌ Error: {message}",
     "turnInterrupted": "The connection dropped mid-answer. The agent finishes the turn and saves it to this conversation.",

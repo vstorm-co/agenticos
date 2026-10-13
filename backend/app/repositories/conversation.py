@@ -809,20 +809,40 @@ async def attributed_to_run(db: AsyncSession, run_id: UUID) -> tuple[int, int, D
     return int(input_tokens), int(output_tokens), Decimal(cost_usd)
 
 
-async def run_statuses(db: AsyncSession, run_ids: Collection[UUID]) -> dict[UUID, str]:
-    """How each of these runs ended, for the turns they produced.
+class RunOutcome(NamedTuple):
+    """How a run ended and how long it took, for the turns it produced."""
+
+    status: str
+    duration_ms: int | None
+
+
+async def run_outcomes(db: AsyncSession, run_ids: Collection[UUID]) -> dict[UUID, RunOutcome]:
+    """How each of these runs ended and how long it took, for the turns they produced.
 
     One query for a page of messages, the same bargain the rating counts make. A
-    transcript needs it to say that a turn was *stopped*: a cancelled run leaves a
-    half-written answer that reads exactly like a complete one, and the reader is
-    left believing the agent said all it had to say.
+    transcript needs the status to say that a turn was *stopped*: a cancelled run
+    leaves a half-written answer that reads exactly like a complete one. It needs the
+    duration to fold the work before an answer into "Worked for 12s" - a span that
+    includes any wait for an approval, because the run was open all that time.
     """
     if not run_ids:
         return {}
     result = await db.execute(
-        select(AgentRun.id, AgentRun.status).where(AgentRun.id.in_(list(run_ids)))
+        select(AgentRun.id, AgentRun.status, AgentRun.started_at, AgentRun.ended_at).where(
+            AgentRun.id.in_(list(run_ids))
+        )
     )
-    return dict(result.all())
+    return {
+        run_id: RunOutcome(
+            status=status,
+            duration_ms=(
+                round((ended - started).total_seconds() * 1000)
+                if started is not None and ended is not None
+                else None
+            ),
+        )
+        for run_id, status, started, ended in result.all()
+    }
 
 
 async def get_recent_messages(

@@ -1,5 +1,5 @@
 ---
-source_sha: "4dbf0368c985"
+source_sha: "63611bd6d466"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1617,6 +1617,16 @@ Które narzędzia liczą się jako ten rodzaj, mówi `opensOnSight`
 w `lib/tool-catalog.ts`, ten sam wiersz, który krok czyta, decydując, czy się
 otworzyć, więc szyna i krok nie mogą się nie zgadzać. Nic nie oznacza kroku,
 który po prostu zadziałał, więc oznaczenie znaczy to, co mówi.
+
+Gdy tura już odpowiedziała, **praca nad odpowiedzią zwija się w jedną linijkę** —
+*Worked for 12s · 3 steps* — a myślenie, wywołania i krótka narracja między nimi
+są za nią, jedno kliknięcie dalej. Długość to długość runu, od jego startu do
+końca, więc obejmuje też czekanie na zgodę. Dopóki tura pracuje, w tym samym
+miejscu jest *Working for 5s…*, po którym przesuwa się światło.
+
+To, czego nigdy się nie zwija, zostaje na stronie: trzy rodzaje przebiegów opisane wyżej, pytanie
+zadane przez agenta, to, co osoba dopisała w trakcie, i fragment na tyle długi,
+że jest osobną odpowiedzią.
 
 **To, co otwiera się samo, idzie za tym, na co ktoś patrzy, poza sytuacją, gdy to
 wynik jest sednem.**

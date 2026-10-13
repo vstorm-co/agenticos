@@ -13,6 +13,7 @@ import { AgentSteps } from "./agent-step";
 import { ThinkingOrb } from "@/components/ui/thinking-orb";
 import { MarkdownContent } from "./markdown-content";
 import { ToolCallCard } from "./tool-call-card";
+import { useTurnElapsed, WorkFold, WorkingLine } from "./work-fold";
 
 /**
  * A turn's body: its reasoning, its work and its words, in the order they arrived.
@@ -43,6 +44,8 @@ export function TurnParts({
   openLastStep = false,
   conversationId,
   onCiteClick,
+  startedAt,
+  durationMs,
 }: {
   parts: MessagePart[];
   isStreaming: boolean;
@@ -52,61 +55,81 @@ export function TurnParts({
   openLastStep?: boolean;
   conversationId?: string;
   onCiteClick?: (index: number) => void;
+  /** When the turn began, which a live turn counts its working time from. */
+  startedAt?: Date;
+  /** How long the run took, for a reloaded turn; absent where it is not known. */
+  durationMs?: number;
 }) {
-  return (
-    <>
-      {runsOf(parts).map((run) =>
-        run.kind === "tools" ? (
-          <div key={run.parts[0].id} className="w-full">
-            {/* The rail folds its own earlier steps away, but it cannot see what is
+  const runs = runsOf(parts);
+  const elapsed = useTurnElapsed(startedAt, isStreaming);
+  const render = (run: PartRun) =>
+    run.kind === "tools" ? (
+      <div key={run.parts[0].id} className="w-full">
+        {/* The rail folds its own earlier steps away, but it cannot see what is
                 in them - so whether this run holds something a person has to answer
                 is decided here, where the statuses and the names are. */}
-            <AgentSteps
-              showAll={mustShowEveryStep(run.parts)}
-              done={run.parts.length > 1 && !isStreaming}
-            >
-              {run.parts.map((part, step) => (
-                <ToolCallCard
-                  key={part.id}
-                  toolCall={part.toolCall!}
-                  conversationId={conversationId}
-                  mcpServers={mcpServers}
-                  // The last call of that turn, which is the one whose result the
-                  // reader is here for.
-                  startOpen={openLastStep && run.isLast && step === run.parts.length - 1}
-                />
-              ))}
-            </AgentSteps>
-          </div>
-        ) : run.part.type === "thinking" ? (
-          <ThinkingBlock
-            key={run.part.id}
-            text={run.content}
-            open={isStreaming && run.isLast}
-            // The block still taking deltas, not every block in a streaming
-            // turn: the orb marks where the thinking is arriving, and a turn
-            // that thought twice would otherwise show two of them.
-            isStreaming={isStreaming && run.isLast}
-          />
-        ) : run.part.type === "steer" ? (
-          <SteerBlock key={run.part.id} text={run.content} />
-        ) : run.part.type === "ask_user" ? (
-          <AskUserBlock
-            key={run.part.id}
-            question={run.part.question ?? ""}
-            answer={run.part.answer ?? ""}
-            askedBy={run.part.askedBy}
-          />
-        ) : (
-          <TextBubble
-            key={run.part.id}
-            text={run.content}
-            showCursor={isStreaming && run.isLast}
-            isUser={isUser}
-            onCiteClick={onCiteClick}
-          />
-        ),
-      )}
+        <AgentSteps
+          showAll={mustShowEveryStep(run.parts)}
+          done={run.parts.length > 1 && !isStreaming}
+        >
+          {run.parts.map((part, step) => (
+            <ToolCallCard
+              key={part.id}
+              toolCall={part.toolCall!}
+              conversationId={conversationId}
+              mcpServers={mcpServers}
+              // The last call of that turn, which is the one whose result the
+              // reader is here for.
+              startOpen={openLastStep && run.isLast && step === run.parts.length - 1}
+            />
+          ))}
+        </AgentSteps>
+      </div>
+    ) : run.part.type === "thinking" ? (
+      <ThinkingBlock
+        key={run.part.id}
+        text={run.content}
+        open={isStreaming && run.isLast}
+        // The block still taking deltas, not every block in a streaming
+        // turn: the orb marks where the thinking is arriving, and a turn
+        // that thought twice would otherwise show two of them.
+        isStreaming={isStreaming && run.isLast}
+      />
+    ) : run.part.type === "steer" ? (
+      <SteerBlock key={run.part.id} text={run.content} />
+    ) : run.part.type === "ask_user" ? (
+      <AskUserBlock
+        key={run.part.id}
+        question={run.part.question ?? ""}
+        answer={run.part.answer ?? ""}
+        askedBy={run.part.askedBy}
+      />
+    ) : (
+      <TextBubble
+        key={run.part.id}
+        text={run.content}
+        showCursor={isStreaming && run.isLast}
+        isUser={isUser}
+        onCiteClick={onCiteClick}
+      />
+    );
+
+  if (isStreaming) {
+    return (
+      <>
+        {runs.some(isWork) && <WorkingLine elapsedMs={elapsed} />}
+        {runs.map(render)}
+      </>
+    );
+  }
+  const split = foldWork(runs);
+  if (split === null) return <>{runs.map(render)}</>;
+  return (
+    <>
+      <WorkFold steps={split.steps} durationMs={durationMs ?? elapsed}>
+        {split.folded.map(render)}
+      </WorkFold>
+      {split.shown.map(render)}
     </>
   );
 }
@@ -363,4 +386,41 @@ export function mustShowEveryStep(parts: MessagePart[]): boolean {
     }
     return toolEntry(call.name)?.opensOnSight === true;
   });
+}
+
+/** Narration short enough to be part of the work rather than part of the answer. */
+const NARRATION_CHARS = 400;
+
+/** Whether a stretch is the agent working - calling tools or thinking. */
+function isWork(run: PartRun): boolean {
+  return run.kind === "tools" || run.part.type === "thinking";
+}
+
+/**
+ * A finished turn's work before its answer, split from what stays on the page.
+ *
+ * Folded: every run of tool calls and every thought before the last text, and the
+ * short narration between them ("Let me check the list."). Kept, in order: a run a
+ * person has to see (`mustShowEveryStep`), a question the agent asked, what the
+ * person added mid-turn, and a passage long enough to be an answer of its own.
+ * Null when there is no answer to fold the work above, or no work in front of it.
+ */
+export function foldWork(
+  runs: PartRun[],
+): { folded: PartRun[]; shown: PartRun[]; steps: number } | null {
+  const answer = runs.findLastIndex((run) => run.kind === "other" && run.part.type === "text");
+  if (answer <= 0) return null;
+  const folded: PartRun[] = [];
+  const kept: PartRun[] = [];
+  for (const run of runs.slice(0, answer)) {
+    const foldable =
+      run.kind === "tools"
+        ? !mustShowEveryStep(run.parts)
+        : run.part.type === "thinking" ||
+          (run.part.type === "text" && run.content.length <= NARRATION_CHARS);
+    (foldable ? folded : kept).push(run);
+  }
+  if (!folded.some(isWork)) return null;
+  const steps = folded.reduce((sum, run) => sum + (run.kind === "tools" ? run.parts.length : 0), 0);
+  return { folded, shown: [...kept, ...runs.slice(answer)], steps };
 }

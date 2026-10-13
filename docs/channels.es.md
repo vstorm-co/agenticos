@@ -1,5 +1,5 @@
 ---
-source_sha: "4dbf0368c985"
+source_sha: "63611bd6d466"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1632,6 +1632,17 @@ Qué herramientas cuentan como de ese tipo es `opensOnSight` en
 `lib/tool-catalog.ts`, la misma fila que lee el paso para decidir si se abre solo,
 así que el raíl y el paso no pueden discrepar. Nada marca un paso que simplemente
 funcionó, así que una marca significa lo que dice.
+
+En cuanto el turno ha respondido, **el trabajo sobre la respuesta se pliega en una
+línea** — *Worked for 12s · 3 steps* —, con el razonamiento, las llamadas y la breve
+narración entre ellas detrás, a un clic. La duración es la del run, de su inicio a
+su fin, así que incluye cualquier espera por una aprobación. Mientras el turno sigue
+trabajando, en el mismo sitio se lee *Working for 5s…* con una luz que pasa por
+encima.
+
+Lo que nunca se pliega se queda en la página: los tres tipos de tramo de
+arriba, una pregunta que hizo el agente, lo que la persona añadió a mitad del turno
+y un pasaje lo bastante largo como para ser una respuesta por sí mismo.
 
 **Lo que se abre solo sigue a lo que alguien está mirando, salvo cuando el resultado
 es lo importante.**

@@ -833,6 +833,38 @@
   }
 }
 
+/* A line of text a light passes over while the agent works - "Working for 5s". The
+   words stay readable at every frame: the sweep is the foreground over the muted
+   colour, not a fade. Still, in the muted colour, without motion. */
+.shimmer-text {
+  color: transparent;
+  background: linear-gradient(
+      90deg,
+      var(--color-muted-foreground) 35%,
+      var(--color-foreground) 50%,
+      var(--color-muted-foreground) 65%
+    )
+    0 0 / 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: shimmer-text 2.2s linear infinite;
+}
+@keyframes shimmer-text {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .shimmer-text {
+    animation: none;
+    background: none;
+    color: var(--color-muted-foreground);
+  }
+}
+
 /* =========================================================================
    Agent step animations - used by ToolCallCard.
    step-card-in  : card entrance (a panel appears in the timeline)
