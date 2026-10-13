@@ -80,7 +80,7 @@ test.describe("Models", () => {
     // picking the one the form already shows is a Radix select answering with the
     // value it holds, so nothing fires and the form stays exactly as it was. That
     // is why this read as "Add model not found" in CI and passed on a laptop - the
-    // button says "Use this model" while the fields still match the profile the
+    // button says "In use" while the fields still match the profile the
     // agent is on, and which provider that is depends on what ran before.
     await pickProvider(page, "Anthropic");
     await pickProvider(page, "OpenAI");

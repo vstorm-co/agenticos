@@ -230,7 +230,7 @@ export function PortalTriggerDialog({
           />
         </DialogHeader>
 
-        <div className="min-h-0 scrollbar-thin overflow-y-auto px-6 py-5">
+        <div key={step} className="wizard-step-in min-h-0 scrollbar-thin overflow-y-auto px-6 py-5">
           {step === "preset" && (
             <div className="space-y-2">
               {portal.presets.map((entry) => {
@@ -280,7 +280,7 @@ export function PortalTriggerDialog({
                         <span className="flex items-center gap-2">
                           <AgentAvatar
                             agentId={agent.id}
-                            name={agent.name}
+                            slug={agent.slug}
                             hasAvatar={agent.has_avatar}
                             colorSlot={agent.avatar_color}
                             size="sm"

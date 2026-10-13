@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
-import { render as baseRender, screen } from "@testing-library/react";
+import { render as baseRender, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactElement } from "react";
 
@@ -149,6 +149,16 @@ describe("AddSecretDialog", () => {
     expect(screen.getByLabelText(/Api Key/, { selector: "input" })).toHaveAttribute(
       "type",
       "password",
+    );
+  });
+
+  it("shows the service it will store the key for, not a blank picker", async () => {
+    open();
+
+    // The first service in the family is the default; the picker names it, as
+    // the hint and the suggested name under it already do.
+    await waitFor(() =>
+      expect(screen.getByRole("combobox", { name: "Which one" })).toHaveTextContent("OpenAI"),
     );
   });
 

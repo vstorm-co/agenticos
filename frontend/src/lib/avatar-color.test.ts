@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import { AVATAR_COLORS, AVATAR_COLOR_COUNT, avatarInitials, avatarPalette } from "./avatar-color";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+import {
+  AVATAR_COLORS,
+  AVATAR_COLOR_COUNT,
+  AVATAR_HUES,
+  avatarHue,
+  avatarInitials,
+  avatarPalette,
+} from "./avatar-color";
 
 /**
  * The letters and the colour a face nobody uploaded is drawn from. Both are
@@ -74,5 +84,42 @@ describe("AVATAR_COLORS", () => {
     expect(AVATAR_COLORS).toHaveLength(AVATAR_COLOR_COUNT);
     expect(AVATAR_COLORS[0]!.slot).toBe(1);
     expect(AVATAR_COLORS.at(-1)!.slot).toBe(AVATAR_COLOR_COUNT);
+  });
+});
+
+describe("avatarHue", () => {
+  it("gives a chosen slot the hue of the swatch that chose it", () => {
+    // Slot 7 is the green one in the picker, so a face picked there is drawn at
+    // the green one's hue and not at some other green.
+    expect(avatarHue(7)).toBe(AVATAR_HUES[6]);
+  });
+
+  it("hands the colour back to the generator when nothing was chosen", () => {
+    // Not a hole: `undefined` is what lets the generator derive a hue from the
+    // name across the whole circle, which is what "auto" in the picker means.
+    expect(avatarHue(null)).toBeUndefined();
+    expect(avatarHue()).toBeUndefined();
+  });
+
+  it("hands it back for a slot out of range too", () => {
+    expect(avatarHue(0)).toBeUndefined();
+    expect(avatarHue(AVATAR_COLOR_COUNT + 1)).toBeUndefined();
+  });
+
+  it("has a hue for every slot the picker offers", () => {
+    expect(AVATAR_HUES).toHaveLength(AVATAR_COLOR_COUNT);
+  });
+
+  it("matches the hue channel of every `--avatar-*` token", () => {
+    // The two lists are written in different languages and cannot import from
+    // each other. This is what stops the picker showing one colour and the face
+    // it picks wearing another.
+    const css = readFileSync(join(__dirname, "../app/globals.css"), "utf8");
+    const hues = AVATAR_HUES.map((_, i) => {
+      const token = new RegExp(`--avatar-${i + 1}:\\s*oklch\\([^)]*?([\\d.]+)\\s*\\)`);
+      return Number(css.match(token)?.[1]);
+    });
+
+    expect(hues).toEqual([...AVATAR_HUES]);
   });
 });

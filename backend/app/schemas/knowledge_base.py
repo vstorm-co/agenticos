@@ -31,11 +31,35 @@ class KnowledgeBaseCreate(BaseSchema):
             "so it cannot be changed later. Omit for the deployment default."
         ),
     )
+    embedding_provider: str | None = Field(
+        default=None,
+        max_length=32,
+        description=(
+            "Whose endpoint serves that model, from "
+            "`GET /rag/embedding-models`. Unlike the model this one can be "
+            "changed later. Required for a new collection; a knowledge base "
+            "joining a collection name already in use adopts that collection's."
+        ),
+    )
     embedding_secret_id: UUID | None = Field(
         default=None,
         description=(
             "The organization vault key that pays for this collection's "
-            "embeddings. Omit to use the deployment's key."
+            "embeddings. Must be a key for the chosen provider. There is no "
+            "deployment-wide key: a new personal or organization collection "
+            "must name one, and a knowledge base joining an existing collection "
+            "adopts its key - a missing one included, which `PATCH /kb/{id}` "
+            "then supplies."
+        ),
+    )
+    embedding_endpoint_id: UUID | None = Field(
+        default=None,
+        description=(
+            "Where a keyless provider is reached: a local service of kind "
+            "`embedding` whose provider is the chosen one - the organization's own "
+            "or the deployment's. Required for a keyless provider, refused for a "
+            "keyed one; an app-scoped collection may name only a deployment-wide "
+            "service."
         ),
     )
     ingestion_config: IngestionConfig | None = Field(
@@ -43,14 +67,22 @@ class KnowledgeBaseCreate(BaseSchema):
         description=(
             "How documents put into this collection are parsed, chunked and "
             "described. Omit to inherit this deployment's defaults. The embedding "
-            "model is deliberately not here: it is recorded from the deployment at "
-            "creation and cannot be changed afterwards."
+            "model is deliberately not here: it is recorded at creation and cannot "
+            "be changed afterwards."
         ),
     )
 
 
 class KnowledgeBaseUpdate(BaseSchema):
-    """Schema for updating a Knowledge Base."""
+    """Schema for updating a Knowledge Base.
+
+    The embedding *model* is deliberately absent: the vector column was created
+    at its width and every stored vector is in its space. The provider and the
+    key that pays are here, because the same model served from somewhere else is
+    still the same model - which is what makes rotating a credential or moving
+    to an organization's own account something other than re-ingesting
+    everything.
+    """
 
     name: str | None = Field(default=None, min_length=1, max_length=128)
     description: str | None = Field(default=None, max_length=500)
@@ -59,6 +91,32 @@ class KnowledgeBaseUpdate(BaseSchema):
         description=(
             "Replaces the collection's configuration wholesale. Takes effect for "
             "documents ingested afterwards; nothing already indexed is re-parsed."
+        ),
+    )
+    embedding_provider: str | None = Field(
+        default=None,
+        max_length=32,
+        description=(
+            "Move this collection's embeddings to another provider of the same "
+            "model. Refused if that provider does not serve the collection's "
+            "model at its recorded width."
+        ),
+    )
+    embedding_secret_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The organization vault key that pays from now on. Must be a key "
+            "for the provider the collection ends up on. Null leaves the key "
+            "alone; a collection cannot be left without one, because there is "
+            "no deployment-wide key to fall back to."
+        ),
+    )
+    embedding_endpoint_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The local service a keyless provider is reached at from now on. Must "
+            "be of kind `embedding` and for the provider the collection ends up "
+            "on. Null leaves it alone."
         ),
     )
 
@@ -80,7 +138,10 @@ class KnowledgeBaseRead(BaseSchema, TimestampSchema):
     # width, so the choice is frozen with the collection.
     embedding_model: str
     embedding_dim: int
+    # Editable, unlike the two above - see `KnowledgeBaseUpdate`.
+    embedding_provider: str
     embedding_secret_id: UUID | None = None
+    embedding_endpoint_id: UUID | None = None
     # Derived per request from `rag_documents`, not stored. Defaulted rather than
     # required so the single-row responses - create, read, update - stay
     # constructible straight from the ORM row, which is what they are: a

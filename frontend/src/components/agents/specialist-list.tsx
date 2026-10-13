@@ -229,7 +229,7 @@ function SpecialistEditor({
         </Button>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor="specialist-name">{t("specialistName")}</Label>
           <Input
@@ -349,7 +349,7 @@ function SpecialistResources({
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label>{t("specialistModel")}</Label>
           <ModelProfilePicker
@@ -436,7 +436,7 @@ function SpecialistCapabilities({
       <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
         {t("specialistCapabilities")}
       </p>
-      <div className="grid gap-1.5 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
         {grantable.map((entry) => (
           <div
             key={entry.id}

@@ -42,6 +42,13 @@ overrides it** - somebody holding `members:invite` named that address on purpose
 and a list of domains is deployment policy for strangers rather than a veto over a
 deliberate act. `closed` is not overridden by anything, because "closed" that
 lets some registrations through is not closed.
+
+A **directory group mapping** counts as an invitation. A sign-in through the
+company directory or an OIDC provider reporting a group that some organization
+has mapped was admitted by whoever wrote that mapping - a person holding both
+`members:manage` and `roles:manage` who decided that everyone in the group
+belongs (#1773). So `invite_only` and the domain list admit it, and `closed`
+still refuses it.
 """
 
 from __future__ import annotations
@@ -60,6 +67,7 @@ async def check_may_register(
     email: str,
     is_first_user: bool,
     invitation_token: str | None = None,
+    admitted_by_directory: bool = False,
 ) -> None:
     """Raise unless this deployment admits an account for `email`.
 
@@ -71,6 +79,9 @@ async def check_may_register(
         invitation_token: The invitation the registration is arriving through, if
             any. Consulted only where the policy has narrowed registration, and it
             grants nothing beyond being allowed to create the account.
+        admitted_by_directory: Whether the sign-in carries a directory group some
+            organization has mapped. Treated as an invitation - see the module
+            docstring.
 
     Raises:
         AuthorizationError: With the sentence the sign-up form shows. The refusal
@@ -94,7 +105,7 @@ async def check_may_register(
     # Only asked where the answer can change the outcome. An `open` deployment with no
     # domain list refuses nobody, so looking for an invitation there would be a query
     # per registration for a verdict nothing reads.
-    invited = (
+    invited = admitted_by_directory or (
         await _is_invited(db, email=email, invitation_token=invitation_token)
         if mode == "invite_only" or bool(domains)
         else False

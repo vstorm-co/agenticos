@@ -11,6 +11,7 @@ import boto3
 from botocore.config import Config
 
 from app.core.config import settings
+from app.services.rag.filters import Source
 from app.services.rag.remote_names import destination_within
 from app.services.rag.sources.base import BaseDocumentSource, SourceFile
 
@@ -23,6 +24,8 @@ class S3Source(BaseDocumentSource):
     Works with AWS S3, MinIO, and any S3-compatible storage.
     Uses credentials from app settings (S3_ENDPOINT, S3_ACCESS_KEY, etc.).
     """
+
+    SOURCE = Source.S3
 
     def __init__(self, bucket: str = ""):
         self.bucket = bucket or settings.S3_RAG_BUCKET

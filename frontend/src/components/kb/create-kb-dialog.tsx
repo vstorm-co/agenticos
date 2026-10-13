@@ -9,6 +9,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { FormField } from "@/components/ui/form-field";
@@ -22,12 +23,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useQuery } from "@tanstack/react-query";
+import { EmbeddingProviderFields, useEmbeddingProviders } from "@/components/kb/embedding-picker";
 import { IngestionSettings } from "@/components/kb/ingestion-settings";
-import { InlineSecret } from "@/components/vault/inline-secret";
 import { ProviderRow } from "@/components/vault/provider-row";
-import { useKnowledgeBases, useSecrets } from "@/hooks";
-import { apiClient } from "@/lib/api-client";
+import { useKnowledgeBases } from "@/hooks";
 import { submitFailure } from "@/lib/api-error";
 import {
   DEFAULT_INGESTION_CONFIG,
@@ -44,17 +43,6 @@ import { DIALOG_COLUMN, DIALOG_WIDE } from "@/lib/dialog-sizes";
 const MAX_NAME = 128;
 const MAX_DESCRIPTION = 500;
 
-/** Purposes whose keys can pay for embeddings - mirrors the backend's list. */
-const EMBEDDING_KEY_PURPOSE = "openrouter";
-
-/** Sentinel for "the deployment's key" - a Select item may not be empty. */
-const DEPLOYMENT_KEY = "__deployment__";
-
-interface EmbeddingModels {
-  default: string;
-  models: { model: string; dim: number }[];
-}
-
 interface CreateKBDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -69,27 +57,28 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
   const [scope, setScope] = useState<KBScope>("personal");
   const [ingestion, setIngestion] = useState<IngestionConfig>(DEFAULT_INGESTION_CONFIG);
   const [embeddingModel, setEmbeddingModel] = useState<string | null>(null);
+  const [embeddingProvider, setEmbeddingProvider] = useState<string | null>(null);
   const [embeddingSecretId, setEmbeddingSecretId] = useState<string | null>(null);
+  const [embeddingEndpointId, setEmbeddingEndpointId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
   const { createKB } = useKnowledgeBases();
-  const { secrets } = useSecrets();
-  const embeddingKeys = secrets.filter((secret) => secret.purpose === EMBEDDING_KEY_PURPOSE);
-  // Which models this build can index with. A build property, not tenant data,
-  // so it never goes stale while a dialog is open.
-  //
-  // `isError` is read because the section has three states and used to draw
-  // two. `staleTime` governs staleness, not failure, so it is the retry count
-  // that decides how long refused lasts: the client retries once, and after
-  // that the query is settled in error for the life of the dialog. Reopening
-  // does refetch - `retryOnMount` defaults to true - so this is a message about
-  // one dialog rather than a permanent state, and it is still a message
-  // "Loading models…" was never going to become.
-  const { data: embeddingModels, isError: modelsUnreadable } = useQuery({
-    queryKey: ["rag", "embedding-models"],
-    queryFn: () => apiClient.get<EmbeddingModels>("/rag/embedding-models"),
-    staleTime: Infinity,
-  });
+  const { models: embeddingModels, unreadable: modelsUnreadable } = useEmbeddingProviders();
+  // Whose endpoint the models on offer belong to. The provider decides both the
+  // model list and which vault keys can pay, so it is resolved before either -
+  // and a model the chosen provider does not serve is not a model this
+  // collection can be created with.
+  // No deployment default for either: the first provider the catalog lists is
+  // preselected so the model list has something to show, the first model that
+  // provider serves is preselected for the same reason, and the key or server
+  // beside them stays empty until somebody chooses one.
+  const provider = embeddingProvider ?? embeddingModels?.providers[0]?.provider ?? "";
+  const providerEntry = embeddingModels?.providers.find((item) => item.provider === provider);
+  const offered = providerEntry?.models ?? [];
+  const firstOffered = offered[0]?.model ?? "";
+  const model = offered.some((entry) => entry.model === embeddingModel)
+    ? (embeddingModel ?? firstOffered)
+    : firstOffered;
 
   // Nobody has chosen an ingestion configuration until it differs from what is
   // shown, and sending one they did not choose is not a harmless default: the
@@ -106,7 +95,9 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
     setScope("personal");
     setIngestion(DEFAULT_INGESTION_CONFIG);
     setEmbeddingModel(null);
+    setEmbeddingProvider(null);
     setEmbeddingSecretId(null);
+    setEmbeddingEndpointId(null);
     setErrors({});
   };
 
@@ -123,10 +114,14 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
       // The key is absent rather than undefined: "inherit the deployment's
       // defaults" is a thing the API is told by being told nothing.
       if (chosen) input.ingestion_config = ingestion;
-      if (embeddingModel && embeddingModel !== embeddingModels?.default) {
-        input.embedding_model = embeddingModel;
-      }
+      // The model, the provider and the key or server are always sent: the API
+      // has no deployment default for any of them, and a missing key comes back
+      // as a refusal on that field rather than as a collection that cannot
+      // index its first document.
+      if (model) input.embedding_model = model;
+      if (provider) input.embedding_provider = provider;
       if (embeddingSecretId) input.embedding_secret_id = embeddingSecretId;
+      if (embeddingEndpointId) input.embedding_endpoint_id = embeddingEndpointId;
       const kb = await createKB(input);
       reset();
       onOpenChange(false);
@@ -143,7 +138,14 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
       const failure = submitFailure(
         error,
         {
-          fields: ["name", "description", ...INGESTION_FORM_FIELDS],
+          fields: [
+            "name",
+            "description",
+            "embedding_provider",
+            "embedding_secret_id",
+            "embedding_endpoint_id",
+            ...INGESTION_FORM_FIELDS,
+          ],
         },
         tErrors,
       );
@@ -161,6 +163,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
       <DialogContent className={cn(DIALOG_COLUMN, DIALOG_WIDE)}>
         <DialogHeader>
           <DialogTitle>{t("createKnowledgeBase")}</DialogTitle>
+          <DialogDescription>{t("createKbDescription")}</DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col gap-4">
           <div className="-mx-1 min-h-0 flex-1 scrollbar-thin space-y-4 overflow-y-auto px-1">
@@ -191,9 +194,9 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
               />
             </FormField>
             <div className="space-y-1.5" data-tour="kb-dialog-scope">
-              <Label htmlFor="kb-scope">{t("scope")}</Label>
+              <Label htmlFor="kb-scope">{t("whoCanSearchIt")}</Label>
               <Select value={scope} onValueChange={(v) => setScope(v as KBScope)}>
-                <SelectTrigger id="kb-scope">
+                <SelectTrigger id="kb-scope" aria-describedby="kb-scope-hint">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -201,12 +204,19 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                   <SelectItem value="org">{t("organizationAllMembers")}</SelectItem>
                 </SelectContent>
               </Select>
+              {/* What the choice means, said for the one that is chosen - the
+                  two option labels name an audience, not the consequence. */}
+              <p id="kb-scope-hint" className="text-muted-foreground text-xs">
+                {scope === "org" ? t("scopeHintOrg") : t("scopeHintPersonal")}
+              </p>
             </div>
 
             {/*
-              Folded away like the parsing section: the choice is frozen at
-              creation (the vector column is created at the model's width), so
-              it matters - but the default is right for almost everyone.
+              Folded away like the parsing section: the *model* is frozen at
+              creation (the vector column is created at its width), so it
+              matters - but the default is right for almost everyone. The
+              provider and the key are not frozen and can be changed on the
+              collection's own page afterwards.
             */}
             <details
               className="group border-border rounded-lg border"
@@ -215,123 +225,85 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
               <summary className="text-foreground flex cursor-pointer list-none items-center gap-1.5 p-3 text-sm">
                 <ChevronRight className="h-3.5 w-3.5 transition-transform group-open:rotate-90" />
                 {t("embeddings")}
-                <span className="text-muted-foreground ml-auto text-xs">
-                  {embeddingModel && embeddingModel !== embeddingModels?.default
-                    ? embeddingModel
-                    : t("deploymentDefault")}
-                </span>
+                {model && <span className="text-muted-foreground ml-auto text-xs">{model}</span>}
               </summary>
               <div className="space-y-4 border-t p-4">
                 <p className="text-muted-foreground text-xs">{t("frozenAtCreationCollection")}</p>
-                <div className="space-y-1.5">
-                  <Label htmlFor="kb-embedding-model">{t("model")}</Label>
-                  {/*
-                    Not mounted until the list is, rather than mounted empty and
-                    disabled. A Radix select inside a form keeps a hidden native
-                    `<select>` in step with its value: when the value changes it
-                    assigns it and dispatches `change`, and `onValueChange` is
-                    handed whatever the element reads back. The `<option>`
-                    elements are registered by the items a render later, so a
-                    value that arrives with its options is assigned to a
-                    `<select>` that has none, reads back as `""`, and clobbers
-                    the state it was about to display - leaving the trigger on
-                    its placeholder for as long as the dialog is open. Mounting
-                    once the models are here means the value never transitions:
-                    `usePrevious` seeds itself with the current one.
-                  */}
-                  {embeddingModels === undefined ? (
-                    // In flight and refused are not the same sentence. The
-                    // model is frozen at creation - the vector column is made
-                    // at its width - so this is the one choice in the dialog
-                    // nobody can revisit, and a failure that silently removes
-                    // it is worth more than a spinner. Either way the
-                    // collection is created on the deployment's default, which
-                    // is what the message says rather than leaving somebody to
-                    // find out afterwards.
-                    modelsUnreadable ? (
-                      <p className="text-destructive text-sm">{t("modelsUnreadable")}</p>
-                    ) : (
-                      <p className="text-muted-foreground text-sm">{t("loadingModels")}</p>
-                    )
+                {embeddingModels === undefined ? (
+                  // In flight and refused are not the same sentence. The model is
+                  // frozen at creation - the vector column is made at its width -
+                  // so this is the one choice in the dialog nobody can revisit, and
+                  // a failure that silently removes it is worth more than a
+                  // spinner. With no list there is no provider, model or key to
+                  // name, so the collection will be refused - which is what the
+                  // message says rather than leaving somebody to find out on submit.
+                  modelsUnreadable ? (
+                    <p className="text-destructive text-sm">{t("modelsUnreadable")}</p>
                   ) : (
-                    <Select
-                      value={embeddingModel ?? embeddingModels.default}
-                      onValueChange={setEmbeddingModel}
-                    >
-                      <SelectTrigger id="kb-embedding-model">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {embeddingModels.models.map((entry) => (
-                          <SelectItem
-                            key={entry.model}
-                            value={entry.model}
-                            // Without this every row answers to "openrouter…" -
-                            // the mark's title is part of the item's text - and
-                            // typing a model id finds nothing.
-                            textValue={entry.model}
-                            // In the list rather than in the row: the trigger
-                            // draws whatever the row draws, and "deployment
-                            // default" is a comparison against the other options.
-                            trailing={
-                              entry.model === embeddingModels.default && (
+                    <p className="text-muted-foreground text-sm">{t("loadingModels")}</p>
+                  )
+                ) : (
+                  <>
+                    <EmbeddingProviderFields
+                      models={embeddingModels}
+                      provider={provider}
+                      secretId={embeddingSecretId}
+                      endpointId={embeddingEndpointId}
+                      onProvider={setEmbeddingProvider}
+                      onSecretId={setEmbeddingSecretId}
+                      onEndpointId={setEmbeddingEndpointId}
+                      idPrefix="kb-new-embedding"
+                    />
+                    {(errors.embedding_provider ??
+                      errors.embedding_secret_id ??
+                      errors.embedding_endpoint_id) !== undefined && (
+                      <p className="text-destructive text-xs">
+                        {errors.embedding_provider ??
+                          errors.embedding_secret_id ??
+                          errors.embedding_endpoint_id}
+                      </p>
+                    )}
+                    <div className="space-y-1.5">
+                      <Label htmlFor="kb-embedding-model">{t("model")}</Label>
+                      {/*
+                        Mounted only once the list is, never mounted empty. A Radix
+                        select inside a form keeps a hidden native `<select>` in step
+                        with its value: the `<option>` elements are registered by the
+                        items a render later, so a value that arrives with its
+                        options is assigned to a `<select>` that has none, reads back
+                        as `""`, and clobbers the state it was about to display.
+                      */}
+                      <Select value={model} onValueChange={setEmbeddingModel}>
+                        <SelectTrigger id="kb-embedding-model">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {offered.map((entry) => (
+                            <SelectItem
+                              key={entry.model}
+                              value={entry.model}
+                              // Without this every row answers to the provider's
+                              // name - the mark's title is part of the item's text -
+                              // and typing a model id finds nothing.
+                              textValue={entry.model}
+                              // In the list rather than in the row: the trigger draws
+                              // whatever the row draws, and the width is a comparison
+                              // against the other options.
+                              trailing={
                                 <span className="text-muted-foreground ml-auto shrink-0 pl-2 text-xs">
-                                  {t("deploymentDefault")}
+                                  {t("dimensions", { count: entry.dim })}
                                 </span>
-                              )
-                            }
-                          >
-                            {/* Whichever model is chosen, the request goes to
-                                OpenRouter and an OpenRouter key pays for it - so
-                                the mark says which key that is, which a bare
-                                model id never did. */}
-                            <ProviderRow provider={EMBEDDING_KEY_PURPOSE} name={entry.model} />
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="kb-embedding-key">{t("key")}</Label>
-                  <Select
-                    value={embeddingSecretId ?? DEPLOYMENT_KEY}
-                    onValueChange={(v) => setEmbeddingSecretId(v === DEPLOYMENT_KEY ? null : v)}
-                  >
-                    <SelectTrigger id="kb-embedding-key">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {/* The deployment's own key is an OpenRouter key too -
-                          `EmbeddingService` sends every request to
-                          openrouter.ai - so it carries the same mark as the
-                          organization's, and the row says which of them pays. */}
-                      <SelectItem value={DEPLOYMENT_KEY} textValue={t("deploymentKey")}>
-                        <ProviderRow provider={EMBEDDING_KEY_PURPOSE} name={t("deploymentKey")} />
-                      </SelectItem>
-                      {embeddingKeys.map((secret) => (
-                        <SelectItem key={secret.id} value={secret.id} textValue={secret.name}>
-                          <ProviderRow
-                            provider={EMBEDDING_KEY_PURPOSE}
-                            name={secret.name}
-                            hint={secret.hint}
-                          />
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-muted-foreground text-xs">{t("keyHereBillsEmbeddings")}</p>
-                  {/* Rather than only telling somebody to go and add one: a picker
-                      with nothing in it and no way to fill it is a dead end, and
-                      the answer to "add a key in the vault" is a form, not a
-                      sentence. */}
-                  <InlineSecret
-                    kind="api_key"
-                    purpose={EMBEDDING_KEY_PURPOSE}
-                    suggestedName={t("embeddingsKeyName")}
-                    onCreated={setEmbeddingSecretId}
-                  />
-                </div>
+                              }
+                            >
+                              <ProviderRow provider={provider} name={entry.model} />
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-muted-foreground text-xs">{t("widthIsFixed")}</p>
+                    </div>
+                  </>
+                )}
               </div>
             </details>
 

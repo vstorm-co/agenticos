@@ -96,6 +96,9 @@ const COLLECTION: KnowledgeBase = {
   is_default: true,
   ingestion_config: DEFAULT_INGESTION_CONFIG,
   embedding_model: "text-embedding-3-small",
+  embedding_provider: "openrouter",
+  embedding_secret_id: null,
+  embedding_endpoint_id: null,
   embedding_dim: 1536,
   created_at: "2026-01-01T00:00:00Z",
   updated_at: null,
@@ -124,6 +127,7 @@ const DOCUMENT: KBDocument = {
   image_description_model: null,
   embedding_model: "text-embedding-3-small",
   was_overridden: false,
+  organizational_unit: null,
 };
 
 const SOURCE = {
@@ -138,13 +142,19 @@ const SOURCE = {
 
 function serve() {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
-    // Not a list, and the create dialog builds its model select straight off
-    // `models` rather than tolerating whatever arrives - so the catch-all below
-    // would hand it `{items, total}` and it would throw on mount.
+    // Not a list, and the create dialog builds its two selects straight off
+    // `providers` rather than tolerating whatever arrives - so the catch-all
+    // below would hand it `{items, total}` and it would throw on mount.
     if (path === "/rag/embedding-models") {
       return {
-        default: "text-embedding-3-large",
-        models: [{ model: "text-embedding-3-large", dim: 3072 }],
+        providers: [
+          {
+            provider: "openrouter",
+            name: "OpenRouter",
+            keyless: false,
+            models: [{ model: "text-embedding-3-large", dim: 3072 }],
+          },
+        ],
       };
     }
     if (path.includes("/documents")) return { items: [DOCUMENT], total: 57 };

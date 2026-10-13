@@ -29,13 +29,32 @@ from pydantic import BaseModel, ValidationError
 from pydantic_ai_harness.compaction import resolve_context_window
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.capabilities import TOOL_NAME_PATTERN, CapabilityDef, all_capabilities
+from app.agents.capabilities import (
+    FRAMEWORK_TOOL_NAMES,
+    TOOL_NAME_PATTERN,
+    CapabilityDef,
+    all_capabilities,
+)
 from app.agents.capabilities import get as get_capability
 from app.agents.capabilities.approval import ungateable_tool_problems
+from app.agents.capabilities.browser_choice import BrowserChoiceConfig
+from app.agents.capabilities.browser_choice import (
+    validate_cdp_url as validate_browser_choice_cdp_url,
+)
 from app.agents.capabilities.browser_use import BrowserUseConfig, validate_cdp_url
 from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.default_instructions import DEFAULT_INSTRUCTIONS
-from app.agents.spec import AgentSpec, CapabilityBindingSpec, SpecialistSpec, SubagentRef
+from app.agents.mcp import prefix_collisions
+from app.agents.spec import (
+    SPEC_VERSION,
+    AgentSpec,
+    BudgetSpec,
+    CapabilityBindingSpec,
+    McpServerRef,
+    PersonalMcpServerRef,
+    SpecialistSpec,
+    SubagentRef,
+)
 from app.core.audit import record_audit
 from app.core.exceptions import (
     AlreadyExistsError,
@@ -48,6 +67,7 @@ from app.core.permissions import AuthContext, Perm
 from app.db.locks import LockScope, hold_subject
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
 from app.db.models.credential import ModelProfile
+from app.db.models.resource_grant import Visibility
 from app.repositories import (
     agent_environment_repo,
     agent_exposure_repo,
@@ -63,12 +83,20 @@ from app.repositories import (
     skill_repo,
 )
 from app.schemas.agent import (
+    MAX_CATEGORIES,
+    MAX_TAGS,
     AgentRead,
+    AgentTemplateCatalog,
+    AgentTemplateRead,
     AgentVersionRead,
     DelegationTree,
     DelegationTreeNode,
     PublishedModel,
+    TemplateIndustryRead,
+    TemplateInstallResult,
+    normalize_labels_query,
 )
+from app.services import agent_templates, mcp_catalog, skill_library
 from app.services.access import (
     AGENT,
     COLLECTION,
@@ -88,6 +116,7 @@ from app.services.file_storage import (
     get_file_storage,
 )
 from app.services.sandbox_workspace import sandbox_config
+from app.services.skills import SkillService
 
 logger = logging.getLogger(__name__)
 
@@ -105,9 +134,15 @@ _SLUG_TRIM = re.compile(r"-{2,}")
 # all. Removing it here turns delegation off everywhere in one edit, which is
 # what an operator who does not want fan-out billing or nested runs needs, and
 # every spec that delegates then says so at publish instead of at 3am.
+#
+# `conversations:read` is the same kind of lever for `conversation_search`: it is
+# the one switch that stops agents reading past conversations across the whole
+# deployment, for somewhere that considers a transcript too sensitive to be
+# searchable however narrowly the corpus is scoped.
 DEFAULT_GRANTED_SCOPES = frozenset(
     {
         "knowledge:read",
+        "conversations:read",
         "web:read",
         "web:fetch",
         "web:browse",
@@ -228,6 +263,28 @@ async def _browser_use_problems(config: BaseModel | None) -> list[str]:
     return []
 
 
+def _browser_choice_problems(config: BaseModel | None) -> list[str]:
+    """A `cdp_url` this deployment's operator has not vetted, or none at all.
+
+    Sync, unlike `_browser_use_problems`: the check this calls is an exact match
+    against `BROWSER_CDP_ALLOWED_HOSTS` and resolves no DNS, so there is nothing
+    to keep off the event loop. `validate_cdp_url` says why the allowlist is the
+    control here rather than the SSRF guard.
+
+    Its own function rather than one shared with `browser_use`: two capabilities,
+    two endpoints, two controls now, and a helper taking `BaseModel | None` would
+    have to re-derive which it is looking at in order to say anything a person can
+    act on.
+    """
+    if not isinstance(config, BrowserChoiceConfig):
+        return []
+    try:
+        validate_browser_choice_cdp_url(config)
+    except ValueError as exc:
+        return [f"Browser automation's endpoint cannot be used: {exc}."]
+    return []
+
+
 def _tool_override_problems(binding: CapabilityBindingSpec, definition: CapabilityDef) -> list[str]:
     """Everything wrong with how a binding renames its capability's tools.
 
@@ -262,6 +319,22 @@ def _tool_override_problems(binding: CapabilityBindingSpec, definition: Capabili
     if clashing:
         problems.append(
             f"Capability '{binding.id}' would offer two tools called {', '.join(clashing)}"
+        )
+
+    # The count above only sees this capability's own tools, and the framework
+    # adds its own beside them: a run with any deferred capability carries
+    # `load_capability`, so a *rename* onto that name is a duplicate Pydantic AI
+    # refuses mid-turn rather than a collision this loop can see. Renames only -
+    # `skills` declares `load_capability` itself, because that call is where an
+    # approval on opening a skill has to sit.
+    taken = sorted(
+        {override.name for override in binding.tool_overrides.values() if override.name is not None}
+        & FRAMEWORK_TOOL_NAMES
+    )
+    if taken:
+        problems.append(
+            f"Capability '{binding.id}' renames a tool to {', '.join(taken)}, which the "
+            "framework provides itself - two tools of that name abort the turn"
         )
 
     return problems
@@ -678,20 +751,10 @@ class AgentRegistryService:
         """
         return await resolve_access(self.db, ctx, agent, Perm.AGENTS_RUN, resource_type=AGENT)
 
-    async def list_agents(
-        self,
-        ctx: AuthContext,
-        *,
-        shared_with_me: bool = False,
-        include_archived: bool = False,
-        skip: int = 0,
-        limit: int = 50,
-    ) -> tuple[list[AgentRead], int]:
-        """Agents visible to the caller under their role scope and grants.
-
-        `shared_with_me` narrows to what was deliberately shared with them -
-        org-visible or explicitly granted, and not their own.
-        """
+    async def _visible_scope(
+        self, ctx: AuthContext, *, shared_with_me: bool
+    ) -> tuple[bool, list[UUID]]:
+        """Whether the caller's role reaches every agent, and the ids granted to them."""
         # `None` is `visible_resource_ids` saying the role already reaches every
         # agent, which is exactly what `see_all` tells the query - so both come
         # from the one call rather than from the scope being read twice and the
@@ -699,26 +762,82 @@ class AgentRegistryService:
         shared = await visible_resource_ids(
             self.db, ctx, resource_type=AGENT, perm=Perm.AGENTS_VIEW
         )
-        grant_ids = [] if shared is None else shared
-        if shared_with_me and shared is None:
-            # A role that reaches everything never looks its grants up - but
-            # "shared with me" is a question about grants and visibility, not
-            # reach, and without them a Builder's answer would degenerate into
-            # "the whole organization minus mine".
-            grant_ids = await resource_grant_repo.list_shared_ids(
-                self.db,
-                organization_id=ctx.organization_id,
-                subject_user_id=ctx.subject_id,
-                resource_type=AGENT.key,
-            )
+        if shared is not None:
+            return False, shared
+        if not shared_with_me:
+            return True, []
+        # A role that reaches everything never looks its grants up - but
+        # "shared with me" is a question about grants and visibility, not
+        # reach, and without them a Builder's answer would degenerate into
+        # "the whole organization minus mine".
+        grant_ids = await resource_grant_repo.list_shared_ids(
+            self.db,
+            organization_id=ctx.organization_id,
+            subject_user_id=ctx.subject_id,
+            resource_type=AGENT.key,
+        )
+        return True, grant_ids
+
+    async def list_labels(
+        self, ctx: AuthContext, *, shared_with_me: bool = False, include_archived: bool = False
+    ) -> tuple[list[str], list[str]]:
+        """The categories and tags the listing can be filtered to, for the caller.
+
+        Scoped exactly like `list_agents` and unaffected by its filter and paging.
+        """
+        see_all, grant_ids = await self._visible_scope(ctx, shared_with_me=shared_with_me)
+        return await agent_repo.list_visible_labels(
+            self.db,
+            organization_id=ctx.organization_id,
+            user_id=ctx.subject_id,
+            see_all=see_all,
+            shared_ids=grant_ids,
+            shared_with_me=shared_with_me,
+            include_archived=include_archived,
+        )
+
+    async def list_agents(
+        self,
+        ctx: AuthContext,
+        *,
+        shared_with_me: bool = False,
+        include_archived: bool = False,
+        categories: Sequence[str] = (),
+        tags: Sequence[str] = (),
+        skip: int = 0,
+        limit: int = 50,
+    ) -> tuple[list[AgentRead], int]:
+        """Agents visible to the caller under their role scope and grants.
+
+        `shared_with_me` narrows to what was deliberately shared with them -
+        org-visible or explicitly granted, and not their own.
+
+        `categories`/`tags` are the raw discovery-filter query params. They are
+        folded once here with the tolerant query normalizer (over-length items
+        dropped, capped per facet, never raising) and threaded to `list_visible`,
+        which overlaps them against the row - a narrowing on top of the isolation
+        the query already enforces.
+
+        A facet where every supplied value was invalid (too long, once folded)
+        normalizes to `None`, not `[]`: it must not fall back to "no predicate"
+        and broaden into an unfiltered listing, so that case returns empty here
+        rather than reaching `list_visible` at all.
+        """
+        norm_categories = normalize_labels_query(list(categories), max_items=MAX_CATEGORIES)
+        norm_tags = normalize_labels_query(list(tags), max_items=MAX_TAGS)
+        if norm_categories is None or norm_tags is None:
+            return [], 0
+        see_all, grant_ids = await self._visible_scope(ctx, shared_with_me=shared_with_me)
         agents, total = await agent_repo.list_visible(
             self.db,
             organization_id=ctx.organization_id,
             user_id=ctx.subject_id,
-            see_all=shared is None,
+            see_all=see_all,
             shared_ids=grant_ids,
             shared_with_me=shared_with_me,
             include_archived=include_archived,
+            categories=norm_categories,
+            tags=norm_tags,
             skip=skip,
             limit=limit,
         )
@@ -763,6 +882,8 @@ class AgentRegistryService:
                 current_version_id=agent.current_version_id,
                 has_avatar=agent.has_avatar,
                 avatar_color=agent.avatar_color,
+                categories=agent.categories,
+                tags=agent.tags,
                 can_run=agent.id in runnable,
                 shared_user_count=shared_counts.get(agent.id, 0),
                 channels=surfaces.get(agent.id, []),
@@ -824,8 +945,145 @@ class AgentRegistryService:
             if version_id not in profile_ids
         }
 
-    async def create(self, ctx: AuthContext, spec: AgentSpec) -> Agent:
+    async def templates(self, ctx: AuthContext) -> AgentTemplateCatalog:
+        """The shipped agent templates, with what this organization already has.
+
+        `installed` is a slug match, because the slug is what an install would
+        collide on - two agents cannot share one, since a slug is how an agent is
+        mentioned in a channel.
+        """
+        taken = await agent_repo.list_slugs(self.db, organization_id=ctx.organization_id)
+        return AgentTemplateCatalog(
+            industries=[
+                TemplateIndustryRead(
+                    id=industry.id,
+                    templates=[
+                        AgentTemplateRead(
+                            key=template.key,
+                            name=template.name,
+                            description=template.description,
+                            capabilities=[binding["id"] for binding in template.capabilities],
+                            skills=list(template.skills),
+                            mcp=list(template.mcp),
+                            attach=list(template.attach),
+                            budget_usd=template.budget_usd,
+                            installed=slugify(template.name) in taken,
+                        )
+                        for template in industry.templates
+                    ],
+                )
+                for industry in agent_templates.catalog()
+            ]
+        )
+
+    async def install_template(self, ctx: AuthContext, key: str) -> TemplateInstallResult:
+        """Create a draft agent from a shipped template, with its skills.
+
+        A **draft**, deliberately. The template cannot name a model - this
+        platform has no organization-wide default, because a model an agent did
+        not choose is one somebody else's change can swap underneath it - and it
+        cannot name a knowledge collection it has never seen. Publishing an agent
+        missing either would produce answers from nowhere, confidently.
+
+        The skills it expects are installed first, from the gallery, and skipped
+        where the organization already has them. A bundled skill is bound where
+        the organization still has it, and left out where somebody deleted it. Its MCP suggestions are returned
+        rather than bound: a connection needs somebody to authorise it.
+
+        Raises:
+            NotFoundError: If no such template ships with this deployment.
+            AlreadyExistsError: If the slug is taken - which is what installing
+                the same template twice would do, and the second agent would be
+                indistinguishable from the first in a channel.
+        """
+        template = agent_templates.get(key)
+        if template is None:
+            raise NotFoundError(message="No such agent template", details={"key": key})
+
+        # A bundled skill is seeded into every organization when it is created,
+        # so there is nothing to install - only a row to find by its name.
+        # Everything else is a gallery key and is installed first.
+        bundled = {
+            key: entry.name
+            for key in template.skills
+            if (entry := skill_library.get(key)) is not None
+        }
+        gallery_keys = [key for key in template.skills if key not in bundled]
+        if gallery_keys:
+            await SkillService(self.db).install_gallery(ctx, gallery_keys)
+
+        wanted = sorted(
+            {
+                *bundled.values(),
+                *(
+                    entry.name
+                    for gallery_key in gallery_keys
+                    if (entry := skill_library.gallery_get(gallery_key)) is not None
+                ),
+            }
+        )
+        # Only rows the installer may read: a copy its owner made private since
+        # it was seeded would otherwise be bound, reported as installed, and then
+        # refused at publish as a skill that does not exist - the check publish
+        # makes, made here first.
+        rows = [
+            row
+            for name in wanted
+            if (
+                row := await skill_repo.get_by_name(
+                    self.db, name, organization_id=ctx.organization_id
+                )
+            )
+            is not None
+            and await resolve_access(self.db, ctx, row, Perm.SKILLS_VIEW, resource_type=SKILL)
+        ]
+
+        spec = AgentSpec(
+            name=template.name,
+            description=template.description,
+            instructions=template.instructions,
+            capabilities=list(template.capabilities),
+            skill_ids=[row.id for row in rows],
+            budget=(
+                BudgetSpec(monthly_usd=template.budget_usd)
+                if template.budget_usd is not None
+                else None
+            ),
+        )
+        agent = await self.create(ctx, spec)
+        return TemplateInstallResult(
+            agent_id=agent.id,
+            slug=agent.slug,
+            name=agent.name,
+            skills_installed=sorted(row.name for row in rows),
+            attach=list(template.attach),
+            suggested_mcp=list(template.mcp),
+        )
+
+    async def create(
+        self,
+        ctx: AuthContext,
+        spec: AgentSpec,
+        *,
+        # The least-exposing value, deliberately. `org` is what a person picks in
+        # the create form, and `AgentCreate.visibility` carries that choice to the
+        # route - so the default here only ever reaches the callers that make an
+        # agent without anybody choosing: a clone, a promoted specialist, a
+        # template install. Defaulting those to `org` published a copy of a
+        # private agent to the whole tenant, which is what a colleague then read
+        # the instructions out of.
+        visibility: Visibility = Visibility.PRIVATE,
+        categories: list[str] | None = None,
+        tags: list[str] | None = None,
+    ) -> Agent:
         """Create an agent in draft.
+
+        Visible to the organization unless the caller says otherwise. An agent is
+        a thing a company builds, and one nobody else can see is the exception -
+        it used to be the rule, so every agent was made invisible and then shared
+        by hand, which meant the second person to look for it was told it did not
+        exist. A draft cannot run and cannot be reached by an exposure either
+        way, so what this decides is who can find it, not what it can do.
 
         Raises:
             AlreadyExistsError: If the derived slug is taken. Slugs are how agents are
@@ -870,6 +1128,9 @@ class AgentRegistryService:
             draft_spec=spec.model_dump(mode="json"),
             owner_user_id=ctx.user_id,
             created_by_user_id=ctx.user_id,
+            visibility=visibility.value,
+            categories=categories or [],
+            tags=tags or [],
         )
         await record_audit(
             self.db,
@@ -1065,23 +1326,8 @@ class AgentRegistryService:
         problems.add(await self._skill_problems(ctx, spec.skill_ids))
         problems.add(await self._context_problems(ctx, spec.context_ids))
 
-        for connection_id in spec.mcp_server_ids:
-            connection = await mcp_connection_repo.get_org_scoped_by_id(
-                self.db, connection_id=connection_id, organization_id=ctx.organization_id
-            )
-            if connection is None:
-                # Says which of the two ways it can fail applies, because the
-                # likely one - a personal connection picked in the Builder - is
-                # not a missing row and "not found" would send the person
-                # looking for something that is right in front of them.
-                problems.add(
-                    [
-                        f"MCP server {connection_id} is not shared with this organization. "
-                        "A published agent can only use connections the organization owns, "
-                        "never a member's personal one - otherwise what it can reach would "
-                        "depend on who happens to run it."
-                    ]
-                )
+        problems.add(await self._mcp_problems(ctx, spec.mcp_servers))
+        problems.add(await self._observability_problems(ctx, spec))
 
         problems.add(await _sandbox_problems(self.db, ctx, spec))
         problems.merge(await self._delegation_problems(ctx, spec, agent_id=agent_id))
@@ -1127,6 +1373,7 @@ class AgentRegistryService:
             problems.merge(_config_problems(binding.id, exc))
         else:
             problems.add(await _browser_use_problems(config))
+            problems.add(_browser_choice_problems(config))
             problems.add(ungateable_tool_problems(binding, definition, config))
         # A tool_approval key that matches nothing is the dangerous kind of
         # typo: it is not an error at run time, it is silence - the tool the
@@ -1163,9 +1410,12 @@ class AgentRegistryService:
         a refusal that reads differently would map the organization's private
         collections one guess at a time.
         """
+        if not collection_ids:
+            return []
+        found = await knowledge_base_repo.get_by_ids(self.db, collection_ids)
         problems: list[str] = []
         for collection_id in collection_ids:
-            collection = await knowledge_base_repo.get_by_id(self.db, collection_id)
+            collection = found.get(collection_id)
             reachable = collection is not None and await resolve_access(
                 self.db, ctx, collection, Perm.COLLECTIONS_VIEW, resource_type=COLLECTION
             )
@@ -1199,6 +1449,7 @@ class AgentRegistryService:
             self.db, list(skill_ids), organization_id=ctx.organization_id
         )
         problems: list[str] = []
+        registered = {definition.id for definition in all_capabilities()}
         for skill_id in skill_ids:
             skill = found.get(skill_id)
             reachable = skill is not None and await resolve_access(
@@ -1206,6 +1457,75 @@ class AgentRegistryService:
             )
             if not reachable:
                 problems.append(f"Skill not found: {skill_id}")
+                continue
+            # Each skill is a deferred capability now, filed under its own name,
+            # and the platform's capabilities are filed under theirs - in one
+            # namespace. A skill called `planning` on an agent that also has the
+            # `planning` capability is a duplicate id Pydantic AI refuses before
+            # the first token, so the agent would publish and never run.
+            if skill is not None and skill.name in registered:
+                problems.append(
+                    f"Skill '{skill.name}' has the name of a capability this platform "
+                    "offers, and each skill is a capability now - rename the skill"
+                )
+        return problems
+
+    async def _mcp_problems(self, ctx: AuthContext, refs: Sequence[McpServerRef]) -> list[str]:
+        """Every way a set of MCP bindings can be unpublishable.
+
+        An organization binding must name one of the organization's own
+        connections - never a member's, because a published agent's reach
+        cannot depend on whose session runs it. A personal binding must name a
+        catalog service, once, under a prefix no organization binding of the
+        same agent already uses: two servers under one prefix make Pydantic AI
+        raise on the duplicate tool names and abort every turn. All of it asked
+        here, where somebody can still change the binding, rather than at run
+        time where the only options are to guess or to quietly drop a server.
+        """
+        problems: list[str] = []
+        # What each binding would call its tools by, as the toolset builder derives
+        # it - `notion-` and `notion` are one prefix. Paired with a label so the
+        # same `prefix_collisions` the run uses catches a clash here, where somebody
+        # can still fix it, rather than a server being dropped mid-turn (#1442).
+        prefixed: list[tuple[str, str]] = []
+        found = await mcp_connection_repo.get_org_scoped_by_ids(
+            self.db,
+            connection_ids=[
+                ref.connection_id for ref in refs if not isinstance(ref, PersonalMcpServerRef)
+            ],
+            organization_id=ctx.organization_id,
+        )
+        for ref in refs:
+            if isinstance(ref, PersonalMcpServerRef):
+                if mcp_catalog.get_entry(ref.catalog_key) is None:
+                    problems.append(
+                        f"No MCP catalog entry is called {ref.catalog_key!r}. A binding to each "
+                        "person's own account names a catalog service, so their connections can "
+                        "be matched to it."
+                    )
+                    continue
+                prefixed.append((ref.catalog_key, f"each person's own {ref.catalog_key}"))
+                continue
+            connection = found.get(ref.connection_id)
+            if connection is None:
+                # Says which of the two ways it can fail applies, because the
+                # likely one - a personal connection picked in the Builder - is
+                # not a missing row and "not found" would send the person
+                # looking for something that is right in front of them.
+                problems.append(
+                    f"MCP server {ref.connection_id} is not shared with this organization. "
+                    "An organization binding can only use connections the organization owns, "
+                    "never a member's personal one - bind the service to each person's own "
+                    "account instead if that is what you want."
+                )
+                continue
+            prefixed.append((connection.name, f"the connection {connection.name!r}"))
+        for prefix, holders in prefix_collisions(prefixed).items():
+            problems.append(
+                f"Two bindings would present their tools under the prefix {prefix!r}: "
+                f"{' and '.join(holders)}. The model would see every tool twice, which "
+                "aborts the turn - bind one of them, or rename the connection."
+            )
         return problems
 
     async def _context_problems(self, ctx: AuthContext, context_ids: Sequence[UUID]) -> list[str]:
@@ -1302,6 +1622,41 @@ class AgentRegistryService:
             return [
                 f"Capability '{binding.id}' needs a {requirement.kind.value} secret, but "
                 f"'{secret.name}' holds a {secret.kind}"
+            ]
+        return []
+
+    async def _observability_problems(self, ctx: AuthContext, spec: AgentSpec) -> list[str]:
+        """Whether the token an agent redirects its traces with is publishable.
+
+        `factory._instrument` says publishing is where a missing tracing secret
+        is refused because a run is far too late: an unusable token there logs
+        `agent_logfire_token_unavailable` and the agent runs untraced. So the
+        token reference gets the same existence and tenant checks a capability's
+        secret does, plus the `logfire` purpose gate `_check_logfire_secret`
+        already applies on the environment path - a Tavily or OpenAI key passes
+        a kind-only check (all three are `api_key`) and is then handed to Logfire
+        as its token, exposing the credential to the wrong service. The purpose
+        subsumes the kind: `_check_purpose` refuses a `logfire` secret that is
+        not an `api_key` at creation. Miss and refusal read alike, so an id
+        cannot enumerate the vault.
+        """
+        observability = spec.observability
+        if observability is None or observability.token_secret_id is None:
+            return []
+        secret = await organization_secret_repo.get(
+            self.db, observability.token_secret_id, organization_id=ctx.organization_id
+        )
+        if secret is None or not await resolve_access(
+            self.db, ctx, secret, Perm.SECRETS_VIEW, resource_type=SECRET
+        ):
+            return [
+                "The tracing token points at a secret this organization does not have: "
+                f"{observability.token_secret_id}"
+            ]
+        if secret.purpose != "logfire":
+            return [
+                "The tracing token must be a Logfire key, but "
+                f"'{secret.name}' is for {secret.purpose}"
             ]
         return []
 
@@ -1420,10 +1775,11 @@ class AgentRegistryService:
         delegates: list[_PinnedDelegate] = []
         handles: list[str] = []
         problems: list[str] = []
+        found = await agent_repo.get_many(
+            self.db, [ref.agent_id for ref in refs], organization_id=ctx.organization_id
+        )
         for ref in refs:
-            delegate = await agent_repo.get(
-                self.db, ref.agent_id, organization_id=ctx.organization_id
-            )
+            delegate = found.get(ref.agent_id)
             if delegate is None or not await resolve_access(
                 self.db, ctx, delegate, Perm.AGENTS_RUN, resource_type=AGENT
             ):
@@ -1540,6 +1896,13 @@ class AgentRegistryService:
         spec = AgentSpec.model_validate(agent.draft_spec)
         await self.validate_spec(ctx, spec, agent_id=agent.id)
 
+        # Publish is where the spec is confirmed against this deployment's own
+        # registry and models, so the frozen copy carries this deployment's spec
+        # version - not whatever an imported draft claimed. Otherwise the number
+        # is write-only: a `spec_version: 3` YAML publishes carrying constructs
+        # this code understands and stays labelled 3.
+        spec.spec_version = SPEC_VERSION
+
         number = await agent_repo.next_version_number(self.db, agent_id=agent.id)
         version = await agent_repo.create_version(
             self.db,
@@ -1614,8 +1977,11 @@ class AgentRegistryService:
 
         The **first** publish is different, and has to be: an agent with no
         environment has nowhere to run at all, so it gets its `production`
-        default here, pinned to the version that just appeared. Every publish
-        after that leaves it where it is until somebody promotes.
+        default here, on the version that just appeared - and **following
+        publishes**. With one environment there is nothing to promote between,
+        and pinning it made every change a publish and then a promotion before it
+        could be tried. Somebody who adds a `dev` or a `staging` pins
+        `production`, and from then on a publish leaves it where it is.
 
         `Agent.current_version_id` mirrors the default environment, which is what
         a surface naming no environment resolves through - so it moves when that
@@ -1630,6 +1996,7 @@ class AgentRegistryService:
                 name="production",
                 version_id=version.id,
                 is_default=True,
+                tracks_latest=True,
                 created_by_user_id=ctx.user_id,
             )
         else:
@@ -1802,8 +2169,28 @@ class AgentRegistryService:
         agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_EDIT)
         return await agent_repo.update(self.db, agent=agent, update_data={"avatar_color": color})
 
+    async def set_metadata(
+        self, ctx: AuthContext, agent_id: UUID, *, categories: list[str], tags: list[str]
+    ) -> Agent:
+        """Set the agent's discovery categories and tags, or clear them with [].
+
+        Record metadata like the avatar, not the spec: editing takes the same
+        per-resource access check (`AGENTS_EDIT`, grant-aware through `self.get`,
+        so a Viewer holding an explicit edit grant may retag that one agent) but
+        touches no version. The lists arrive already folded by the schema
+        validator, so this only persists them.
+        """
+        agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_EDIT)
+        return await agent_repo.update(
+            self.db, agent=agent, update_data={"categories": categories, "tags": tags}
+        )
+
     async def avatar_path(self, ctx: AuthContext, agent_id: UUID) -> str:
-        """Where the agent's picture is on disk, for the route that streams it.
+        """The storage path of the agent's picture, for the route that streams it.
+
+        The path the storage backend wrote, not a path on this host: an object
+        store has no second kind, and the route hands this to the one place that
+        knows how to turn either into a response (#1423).
 
         Reading the picture goes through the same access check as reading the
         agent: an avatar is not public just because it is an image, and an
@@ -1814,12 +2201,11 @@ class AgentRegistryService:
                 gone - indistinguishable to a caller, and deliberately so.
         """
         agent = await self.get(ctx, agent_id)
-        path = get_file_storage().get_full_path(agent.avatar_url) if agent.avatar_url else None
-        if path is None or not path.exists():
+        if not agent.avatar_url or not await get_file_storage().exists(agent.avatar_url):
             raise NotFoundError(
                 message="This agent has no avatar", details={"agent_id": str(agent_id)}
             )
-        return str(path)
+        return agent.avatar_url
 
     async def delete(self, ctx: AuthContext, agent_id: UUID) -> None:
         """Permanently remove an agent, its versions and its shares."""

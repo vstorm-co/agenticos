@@ -60,22 +60,17 @@ export function KBDetailHeader({
       }
       actions={
         <>
-          <Button variant="outline" size="sm" onClick={onRefresh} disabled={isLoading}>
+          <Button variant="outline" onClick={onRefresh} disabled={isLoading}>
             <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
             {t("refresh")}
           </Button>
           {mayEdit && (
             <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={onEditParseOptions}
-                disabled={isUploading}
-              >
+              <Button variant="outline" onClick={onEditParseOptions} disabled={isUploading}>
                 <SlidersHorizontal className="h-4 w-4" />
                 {t("parseOptions")}
               </Button>
-              <Button size="sm" onClick={onChooseFiles} disabled={isUploading}>
+              <Button onClick={onChooseFiles} disabled={isUploading}>
                 {isUploading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
@@ -95,12 +90,7 @@ export function KBDetailHeader({
               {!kb.is_default && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-8 px-0"
-                      aria-label={t("moreActions")}
-                    >
+                    <Button variant="outline" size="icon" aria-label={t("moreActions")}>
                       <MoreHorizontal className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>

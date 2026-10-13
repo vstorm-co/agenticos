@@ -20,8 +20,8 @@ UUID happened to hash the same way.
 from enum import IntEnum
 from uuid import UUID
 
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import Integer, cast, func, select
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession
 
 
 class LockScope(IntEnum):
@@ -31,6 +31,28 @@ class LockScope(IntEnum):
     ORGANIZATIONS_PER_USER = 1
     #: How many agents one organization may hold.
     AGENTS_PER_ORGANIZATION = 2
+    #: A collection name's claim-and-create against its vector-table drop (#1355).
+    COLLECTION_TEARDOWN = 3
+    #: Which of a member's accounts on one service is the default. The partial
+    #: unique index allows one, and the write is read-then-clear-then-set - so
+    #: two nominations racing each found no sibling to clear and both set it.
+    MCP_DEFAULT_ACCOUNT = 4
+    #: One organization's audit hash chain. `record_audit` reads the chain head
+    #: and appends under this lock, so two audited writes for the same org cannot
+    #: read the same head and fork the chain (#1622).
+    AUDIT_CHAIN_PER_ORG = 5
+    #: Everything held *about* one person, against their erasure. A note is keyed
+    #: by the string `person:<id>` with no foreign key, so a run writing one while
+    #: the account is being deleted commits after the purge has read the table and
+    #: recreates personal data about somebody who asked to be forgotten. The write
+    #: and the purge take this, so one waits for the other and the write that loses
+    #: finds no account to write about (#1421).
+    PERSONAL_DATA_PER_USER = 6
+    #: One sync source's run, from its listing to its last deletion. Two runs of
+    #: one source overlapping let the older listing delete what the newer run had
+    #: just ingested, because the older one never saw it (#987). Session-scoped,
+    #: unlike the rest: a sync spans many transactions.
+    SYNC_SOURCE_RUN = 7
 
 
 def _key(subject: UUID) -> int:
@@ -49,5 +71,71 @@ async def hold_subject(db: AsyncSession, scope: LockScope, subject: UUID) -> Non
     Blocks while another transaction holds the same one. Call it *before* reading
     the count it protects: taken afterwards it serializes nothing, because the
     count both callers read is already stale.
+
+    Both keys are cast to `Integer`, which is what selects the two-argument
+    `pg_advisory_xact_lock(int, int)` overload. Without it a key of exactly
+    `-2147483648` - the value `_key` returns for a subject whose low 32 bits are
+    zero, which the deployment-wide audit chain hits deterministically - binds as
+    `bigint`, and `(int, bigint)` matches no overload (#1622).
     """
-    await db.execute(select(func.pg_advisory_xact_lock(scope.value, _key(subject))))
+    await db.execute(
+        select(func.pg_advisory_xact_lock(cast(scope.value, Integer), cast(_key(subject), Integer)))
+    )
+
+
+async def try_hold_subject_on_connection(
+    connection: AsyncConnection, scope: LockScope, subject: UUID
+) -> bool:
+    """Take a lock for one subject that outlives the transaction, if it is free.
+
+    The one Postgres *session*-scoped lock here, for work that spans many
+    transactions on other sessions - a sync source's run. It is held until this
+    connection closes, which is also what releases it when a worker dies mid-run:
+    there is no unlock to forget. A connection rather than an `AsyncSession`,
+    because a session gives its connection back when it commits and the lock goes
+    with it (`get_worker_connection`). The transaction the check opened is
+    committed here, so the connection does not sit idle in a transaction for the
+    length of the work.
+
+    Never waits. True means this connection holds it; False means another one
+    does - or a subject whose key collides with it, which refuses one run of an
+    unrelated subject rather than serializing it.
+    """
+    result = await connection.execute(
+        select(func.pg_try_advisory_lock(cast(scope.value, Integer), cast(_key(subject), Integer)))
+    )
+    held = bool(result.scalar_one())
+    await connection.commit()
+    return held
+
+
+async def hold_name(db: AsyncSession, scope: LockScope, name: str) -> None:
+    """Take the lock for a string subject - a collection name - until this tx ends.
+
+    The subject here is not a row's id but a name in the deployment-global vector
+    namespace, so the key is `hashtext(name)` rather than a UUID's low bits. Same
+    contract as :func:`hold_subject`: call it *before* the check it protects, so a
+    claim that reads "this name is free" and a teardown that reads "no base holds
+    this name" cannot both act - one drops the table the other just created (#1355).
+    Collisions cost a moment of waiting against an unrelated name, never a wrong
+    answer, because `hashtext` and the scope are the whole key.
+    """
+    await db.execute(select(func.pg_advisory_xact_lock(scope.value, func.hashtext(name))))
+
+
+async def try_hold_name(db: AsyncSession, scope: LockScope, name: str) -> bool:
+    """Take the lock for a string subject if it is free, without ever waiting.
+
+    :func:`hold_name` for a caller that already holds a lock the other side takes
+    *second*. Waiting there is the ABBA deadlock the lock order exists to avoid,
+    so the only answer such a caller can act on is "free, and now mine" or "held
+    by somebody, right now" - never "held, and I will wait to find out".
+
+    True means this transaction holds it until it ends, exactly as `hold_name`
+    would. False means another transaction does, and the caller has to decide
+    what to do about that rather than block.
+    """
+    result = await db.execute(
+        select(func.pg_try_advisory_xact_lock(scope.value, func.hashtext(name)))
+    )
+    return bool(result.scalar_one())

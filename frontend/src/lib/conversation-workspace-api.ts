@@ -19,6 +19,10 @@ export interface ConversationFile {
   is_dir: boolean;
   /** ISO 8601, or null where the backend records no per-file time. */
   modified_at: string | null;
+  /** The first lines of a stored text file, for the tile's page. */
+  preview: string | null;
+  /** A small image scaled to a `data:` URI, so the tile draws the picture. */
+  thumbnail: string | null;
 }
 
 export interface ConversationWorkspace {

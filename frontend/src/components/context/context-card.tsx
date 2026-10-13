@@ -2,7 +2,7 @@
 
 import { FileText, Trash2 } from "lucide-react";
 
-import { Badge, Button, Card, CardContent } from "@/components/ui";
+import { Badge, BlankPeek, Button, Card, DocPeek, TextPeek } from "@/components/ui";
 import { formatBytes } from "@/lib/utils";
 import type { ContextFileSummary } from "@/types/providers";
 import { useTranslations } from "next-intl";
@@ -27,10 +27,20 @@ export function ContextCard({ file, canEdit, onOpen, onDelete }: ContextCardProp
   const t = useTranslations("context");
   const tc = useTranslations("common");
   return (
-    <Card className="hover:border-foreground/20 h-full transition-colors">
-      <CardContent className="flex items-start justify-between gap-3 p-5">
-        <button type="button" onClick={onOpen} className="min-w-0 flex-1 space-y-1.5 text-left">
-          <span className="flex items-center gap-2">
+    <Card className="peek-card group hover:border-foreground/20 relative h-full overflow-hidden">
+      <button type="button" onClick={onOpen} className="flex h-full w-full flex-col text-left">
+        <DocPeek className="h-32">
+          {file.excerpt ? (
+            <TextPeek
+              source={file.excerpt}
+              format={file.format === "md" || file.format === "markdown" ? "markdown" : "plain"}
+            />
+          ) : (
+            <BlankPeek />
+          )}
+        </DocPeek>
+        <span className="flex flex-1 flex-col gap-1.5 p-4 pt-3.5">
+          <span className="flex items-center gap-2 pr-8">
             <span className="text-foreground truncate font-mono text-sm font-medium">
               {file.name}
             </span>
@@ -44,22 +54,23 @@ export function ContextCard({ file, canEdit, onOpen, onDelete }: ContextCardProp
               {file.description}
             </span>
           )}
-          <span className="text-muted-foreground flex items-center gap-1 text-xs">
+          <span className="text-muted-foreground mt-auto flex items-center gap-1 pt-1 text-xs">
             <FileText className="h-3.5 w-3.5 shrink-0" />
             {t("sizeWithFormat", { format: file.format, size: formatBytes(file.size_bytes) })}
           </span>
-        </button>
-        {canEdit && (
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label={tc("deleteNamed", { name: file.name })}
-            onClick={onDelete}
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        )}
-      </CardContent>
+        </span>
+      </button>
+      {canEdit && (
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={tc("deleteNamed", { name: file.name })}
+          onClick={onDelete}
+          className="hover-reveal absolute right-2 bottom-2"
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      )}
     </Card>
   );
 }

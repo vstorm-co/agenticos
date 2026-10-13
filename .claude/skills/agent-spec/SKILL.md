@@ -20,7 +20,7 @@ written. A change that only parses new documents is a 500 on every run of someth
 nobody touched.
 
 `model_config = ConfigDict(extra="forbid")` means an unknown key is a hard error, so
-this is not theoretical. `SPEC_VERSION` is currently **7**.
+this is not theoretical. `SPEC_VERSION` is currently **12**.
 
 ## What each change costs
 
@@ -42,7 +42,7 @@ A narrower rule does not only reject new input — it makes **existing rows
 unreadable**, and a Pydantic model that refuses to validate one field of one row
 takes down the whole listing endpoint with a 500.
 
-`IngestionConfig` / migration `0046_ocr_tesseract` is the worked example outside the
+`IngestionConfig` and its OCR language codes are the worked example outside the
 spec: `ocr_language` went from "anything 2–16 characters" to Tesseract's
 `^[a-z]{3}(\+[a-z]{3})*$`, and every row written before it held `"en"`. The data
 migration shipped in the same revision.

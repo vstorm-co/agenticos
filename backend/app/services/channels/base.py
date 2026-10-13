@@ -1,4 +1,7 @@
+import asyncio
+import logging
 from abc import ABC, abstractmethod
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
@@ -9,6 +12,11 @@ from app.agents.capabilities.channel_tools import (
     ChannelPost,
     ChannelSummary,
 )
+from app.core.memory_keys import room_owner_key
+from app.services.channels import connection_state
+from app.services.channels.exceptions import ChannelNotConfigured
+
+logger = logging.getLogger(__name__)
 
 # Handles every chat platform reserves for addressing the room, rather than one
 # member of it. They match the shape of an agent slug, so `@channel deploying at
@@ -73,7 +81,81 @@ def channel_key(platform_chat_id: str) -> str:
     in with the import - and two implementations of "which channel is this" is
     how one of them ends up asking Mattermost about a thread id.
     """
-    return platform_chat_id.partition(":")[0]
+    return split_thread(platform_chat_id)[0]
+
+
+def memory_room_key(platform: str, platform_chat_id: str, chat_type: str) -> str | None:
+    """The memory store of the room a message arrived in, or `None` for a DM.
+
+    Here rather than in `mentions`, and taking three *required* strings, because
+    that is the difference between a safe default and an unsafe one. Deciding a
+    chat has more than one listener needs the platform's own channel type, which
+    stops at the router: the runner sees a `channel_key`, and a Slack direct
+    message has one of those exactly like a channel does.
+
+    **Anything that is not explicitly `private` is a room**, including a chat type
+    this code has not seen. That is the conservative reading, and the reverse is a
+    leak rather than a lost feature: a room run reads nobody's private notes,
+    while a group conversation mistaken for a private one reads the speaker's
+    own - and splices them into an answer the whole channel sees (#1470).
+
+    Keyed on `channel_key`, not the raw id, so a room remembers across its threads
+    rather than starting over in each one.
+    """
+    if chat_type == "private":
+        return None
+    return room_owner_key(platform, channel_key(platform_chat_id))
+
+
+def split_thread(platform_chat_id: str) -> tuple[str, str]:
+    """The chat and the thread a message's id folds together.
+
+    Slack packs `channel:thread_ts` into `platform_chat_id` and Mattermost packs
+    `channel:root_id` the same way; every other platform's id is the chat with an
+    empty thread. `channel_key` keeps the channel half alone; this keeps both, for
+    a reply that has to be posted back into the thread it came from. The empty
+    string when there is no colon is what an unthreaded reply passes on, which each
+    adapter reads as "top of the channel".
+    """
+    channel, _, thread = platform_chat_id.partition(":")
+    return channel, thread
+
+
+def thread_key(channel_id: str, *, thread_id: str, message_id: str | None) -> str:
+    """The id a message's conversation is keyed on, threads included.
+
+    **A thread is a conversation, wherever the thread is.** A message already in
+    one keys on it; a message that is not yet in one keys on *itself*, because
+    that is where the reply's thread will be rooted. Keyed on the bare channel
+    the two would be different conversations, so the agent would answer a
+    question and then, one message later in the thread it had just opened, have
+    no memory of it - and every unrelated mention in that channel would pile
+    into one conversation besides (#1339).
+
+    That now holds in a **direct message** too, where the chat used to be the
+    unit. One continuous conversation is the wrong default on a platform with
+    threads: a DM never rolls over, so it walks past the context window in days
+    and every turn pays for the whole history. Threading makes each question its
+    own conversation, which is a per-topic context rather than one that has to
+    be trimmed - and the cost is real and worth stating: a new message typed at
+    the bottom of a DM starts fresh, so continuing means replying **inside the
+    thread**. Conversations from before are not migrated; they stop being
+    reached, and nothing in them is lost.
+
+    A platform that identifies no message keys on the chat, which is what
+    Telegram's ordinary chats would need - better one conversation per chat than
+    one per unidentifiable turn - though Telegram has no threads and does not
+    come through here at all.
+
+    This is the only place that decides, and the adapters read the thread back
+    out of the id with :func:`split_thread`. Two mechanisms - an id here and a
+    `reply_to_message_id` fallback in each adapter - is what let them disagree.
+    """
+    if thread_id:
+        return f"{channel_id}:{thread_id}"
+    if not message_id:
+        return channel_id
+    return f"{channel_id}:{message_id}"
 
 
 @dataclass(frozen=True)
@@ -119,7 +201,7 @@ class IncomingMessage:
     bot_id: str  # UUID str of the ChannelBot row
     platform_user_id: str
     platform_chat_id: str
-    chat_type: str  # "private" | "group" | "supergroup" | "channel"
+    chat_type: str  # "private" | "group" - every adapter normalises to these two
     text: str
     raw: dict[str, Any] = field(default_factory=dict)
     platform_username: str | None = None
@@ -133,10 +215,12 @@ class IncomingMessage:
     somebody asks it, while `None` leaves the behaviour a bot had before - answer
     whatever arrives, because what arrives is what that platform chose to deliver.
 
-    Only Mattermost sets it today, and it is the surface the difference was
-    reported on: its socket delivers *every* post in every channel the bot is in,
-    so a default agent answering all of them is a bot that talks over a team
-    (agenticos#634). Slack and Telegram deliver on their own subscription rules.
+    Mattermost and Slack both set it, and both for the same reason: each can be
+    handed every message in every channel the bot is in - Mattermost's socket
+    always is, and a Slack app subscribed to `message.channels` is - so a default
+    agent answering all of them is a bot that talks over a team it was invited
+    to (agenticos#634 on Mattermost, and the same defect on Slack). Telegram
+    delivers on its own subscription rules and leaves this unset.
     """
 
     attachments: list[IncomingAttachment] = field(default_factory=list)
@@ -180,9 +264,40 @@ class OutgoingMessage:
 
 
 class ChannelAdapter(ABC):
-    """Abstract base class for all messaging platform adapters."""
+    """One messaging platform, behind the interface the router speaks.
+
+    An adapter is a singleton serving every bot on its platform, so anything
+    per bot - a self-hosted server's address, a Slack app's own token - is
+    registered against the bot id through :meth:`prepare_connection` before a
+    stream opens, never read off a row at send time.
+
+    **HTTP clients, decided once here rather than three times.** REST traffic
+    the adapter makes itself goes through one `httpx.AsyncClient` per adapter,
+    built in `__init__` and closed in :meth:`aclose`: a streamed turn is dozens
+    of calls to one host, and a client per call throws the pool away before it
+    is reused, paying a TLS handshake each time (#952). A vendor SDK object is
+    the exception and is built per call inside a context manager that closes
+    it: aiogram's `Bot` opens a session it leaks unless closed, and slack-sdk's
+    `AsyncWebClient` is a thin wrapper that holds nothing worth keeping. So
+    Mattermost is one client; Slack is one client for its own downloads and an
+    SDK object per send; Telegram is an SDK object per call, closed on the way
+    out. What none of them does is build an `httpx.AsyncClient` per message.
+    """
 
     platform: str  # class-level constant e.g. "telegram"
+
+    def prepare_connection(  # noqa: B027
+        self, bot_id: str, *, api_base_url: str | None, app_token: str | None
+    ) -> None:
+        """Register what this bot's connection needs before the stream opens.
+
+        The adapter is one object serving every bot, so a per-bot fact - a
+        self-hosted server's address, a Slack app's `xapp-` token - is keyed on
+        the bot id here, and a stream opened before this ran would have nowhere
+        to connect. A platform that needs neither leaves it alone; the supervisor
+        calls it on every adapter the same way, which is what replaced reaching
+        for two differently named methods by `getattr`.
+        """
 
     @abstractmethod
     async def send_message(self, bot_token: str, msg: OutgoingMessage) -> None:
@@ -308,9 +423,23 @@ class ChannelAdapter(ABC):
         raise ChannelDirectoryUnsupported(f"{self.platform} has no channel search for a bot.")
 
     async def channel_history(
-        self, bot_token: str, channel_id: str, *, api_base_url: str | None, limit: int
+        self,
+        bot_token: str,
+        channel_id: str,
+        *,
+        api_base_url: str | None,
+        limit: int,
+        thread_id: str | None = None,
     ) -> list[ChannelPost]:
-        """The last `limit` messages in one channel, newest last.
+        """The last `limit` messages in one conversation, newest last.
+
+        `thread_id` is the conversation the agent is actually in. On a platform
+        with threads the channel and the thread are different transcripts, and
+        the agent answering inside a thread was being handed the *channel's* -
+        so "summarise what we decided above" summarised whatever else the room
+        had been saying. An adapter that supports threads reads the thread when
+        it is given one; `None` is the channel, which is what a top-level
+        message is in.
 
         Raises:
             ChannelDirectoryUnsupported: If this platform does not let a bot read
@@ -320,6 +449,36 @@ class ChannelAdapter(ABC):
             f"{self.platform} does not let a bot read a channel's history."
         )
 
+    async def thread_attachments(
+        self,
+        bot_token: str,
+        channel_id: str,
+        *,
+        thread_id: str,
+        api_base_url: str | None,
+        limit: int,
+    ) -> list[IncomingAttachment]:
+        """Files posted in a thread before we were brought into it, as handles.
+
+        Separate from `channel_history` rather than carried on `ChannelPost`,
+        because of the layering: `ChannelPost` is the *capability's* contract and
+        lives in `app/agents/capabilities/channel_tools`, which this module
+        imports from - so a handle, which is transport, cannot hang off it
+        without inverting that. One method here answers with the transport type
+        and nothing has to move.
+
+        Handles, not bytes, like `IncomingAttachment` everywhere else: fetching
+        belongs to `ChannelAttachmentService`, which validates the size and
+        stores the row.
+
+        Raises:
+            ChannelDirectoryUnsupported: If this platform has no threads, or does
+                not let a bot read messages it was not sent.
+        """
+        raise ChannelDirectoryUnsupported(
+            f"{self.platform} does not let a bot read a thread's files."
+        )
+
     @abstractmethod
     async def start_polling(self, bot_id: str, bot_token: str) -> None:
         """Start long-polling loop for this bot (dev mode)."""
@@ -327,6 +486,15 @@ class ChannelAdapter(ABC):
     @abstractmethod
     async def stop_polling(self, bot_id: str) -> None:
         """Stop polling for this bot."""
+
+    async def aclose(self) -> None:
+        """Release long-lived resources at shutdown.
+
+        A no-op by default; an adapter that holds a reused HTTP client (#952)
+        overrides this to close it. Called once, after polling has stopped and
+        background work has drained.
+        """
+        return
 
     @abstractmethod
     async def register_webhook(self, bot_token: str, url: str, secret: str | None) -> bool:
@@ -353,3 +521,59 @@ class ChannelAdapter(ABC):
     @abstractmethod
     def parse_incoming(self, raw_payload: dict[str, Any], bot_id: str) -> IncomingMessage | None:
         """Parse raw platform payload into IncomingMessage. Return None to ignore."""
+
+
+RECONNECT_FLOOR_SECONDS = 5.0
+RECONNECT_CEILING_SECONDS = 60.0
+
+
+async def supervise_stream(
+    bot_id: str,
+    *,
+    platform: str,
+    session: Callable[[], Awaitable[None]],
+    failing: str,
+) -> None:
+    """Run one bot's inbound stream, session after session, until cancelled.
+
+    The one reconnect loop for Telegram long-polling, Slack Socket Mode and the
+    Mattermost event stream. Each adapter used to carry its own, and the three
+    disagreed: one backed off, two retried every five seconds flat; two knew a
+    configuration error from a crash, one retried a rejected bot token for ever,
+    a traceback every five seconds. A reconnect fix had to find three loops.
+
+    `session` opens one connection and returns when it ends or raises when it
+    fails. A session that ends is reopened after `RECONNECT_FLOOR_SECONDS`; one
+    that raises is reopened after a wait that doubles up to
+    `RECONNECT_CEILING_SECONDS`, so a server down for an hour is not hammered 720
+    times by every bot on it. A clean session resets the wait.
+
+    `ChannelNotConfigured` is not a crash and not something a retry fixes - an
+    operator has to add the token or the server URL - so it is recorded once
+    and the loop stops. `failing` is what the connection row says while a
+    session keeps crashing.
+
+    The wait is outside the `except` on purpose: a session may return without
+    ever awaiting (a row not filled in yet), and awaiting a coroutine that never
+    suspends does not yield to the event loop. Without the wait this loop spun
+    at 100% CPU and nothing else on the process - the health check included -
+    was scheduled again. The line logged before each wait names the delay it is
+    about to wait, so the doubling happens after it.
+    """
+    delay = RECONNECT_FLOOR_SECONDS
+    while True:
+        try:
+            await session()
+        except asyncio.CancelledError:
+            raise
+        except ChannelNotConfigured as exc:
+            logger.warning("%s not started for bot %s: %s", platform, bot_id, exc.message)
+            await connection_state.record_down(bot_id, exc.message)
+            return
+        except Exception:
+            logger.exception("%s failed for bot %s, retrying in %.0fs", platform, bot_id, delay)
+            await connection_state.record_down(bot_id, failing)
+            wait, delay = delay, min(delay * 2, RECONNECT_CEILING_SECONDS)
+        else:
+            wait = delay = RECONNECT_FLOOR_SECONDS
+        await asyncio.sleep(wait)

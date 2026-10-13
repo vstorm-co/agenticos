@@ -29,7 +29,7 @@ const SPEC: AgentSpec = {
   collection_ids: [],
   skill_ids: [],
   context_ids: [],
-  mcp_server_ids: [],
+  mcp_servers: [],
   budget: null,
 };
 
@@ -63,6 +63,35 @@ describe("useAgents", () => {
     expect(result.current.agents).toHaveLength(1);
   });
 
+  it("threads the discovery facet into the request as sorted tuple pairs", async () => {
+    // Repeated keys survive only as tuple pairs, and the facet is sorted so the
+    // order the chips were typed in does not split the cache.
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    const categories = ["sales", "billing"];
+
+    const { result } = renderHook(() => useAgents({ categories, tags: ["urgent"] }), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(apiClient.get).toHaveBeenCalledWith("/agents", {
+      params: [
+        ["category", "billing"],
+        ["category", "sales"],
+        ["tag", "urgent"],
+      ],
+    });
+    // The source array the caller holds is never sorted in place.
+    expect(categories).toEqual(["sales", "billing"]);
+  });
+
+  it("keeps the plain listing request unfiltered so it shares one cache entry", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+
+    const { result } = renderHook(() => useAgents(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(apiClient.get).toHaveBeenCalledWith("/agents", undefined);
+  });
+
   it("posts a whole spec when creating", async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
     vi.mocked(apiClient.post).mockResolvedValue({ id: "a1", name: "Support" });
@@ -70,7 +99,7 @@ describe("useAgents", () => {
     const { result } = renderHook(() => useAgents(), { wrapper });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-    await result.current.create.mutateAsync(SPEC);
+    await result.current.create.mutateAsync({ spec: SPEC });
 
     expect(apiClient.post).toHaveBeenCalledWith("/agents", {
       // Whatever version was read round-trips; the client never authors one.
@@ -293,6 +322,40 @@ describe("useAgent avatar colour", () => {
   });
 });
 
+describe("useAgent metadata", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("patches the row directly with the raw typed values", async () => {
+    // A command, not a spec edit - both facets are always meant and an empty
+    // list clears one, so it hits its own endpoint like the avatar colour.
+    vi.mocked(apiClient.get).mockResolvedValue({ id: "a1", draft_spec: {} });
+    vi.mocked(apiClient.patch).mockResolvedValue({ id: "a1", categories: ["sales"], tags: [] });
+
+    const { result } = renderHook(() => useAgent("a1"), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await result.current.setMetadata.mutateAsync({ categories: ["Sales"], tags: [] });
+
+    expect(apiClient.patch).toHaveBeenCalledWith("/agents/a1/metadata", {
+      categories: ["Sales"],
+      tags: [],
+    });
+  });
+
+  it("reports a refused metadata save rather than swallowing it", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ id: "a1", draft_spec: {} });
+    vi.mocked(apiClient.patch).mockRejectedValue(new Error("too many tags"));
+
+    const { result } = renderHook(() => useAgent("a1"), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await expect(
+      result.current.setMetadata.mutateAsync({ categories: [], tags: Array(21).fill("x") }),
+    ).rejects.toThrow();
+    expect(toast.error).toHaveBeenCalledWith("too many tags");
+  });
+});
+
 describe("useCapabilityCatalog", () => {
   beforeEach(() => vi.clearAllMocks());
 
@@ -324,7 +387,7 @@ describe("useAgents mutations", () => {
     vi.mocked(apiClient.post).mockResolvedValue({ id: "a1", name: "Support" });
     const { result } = renderHook(() => useAgents(), { wrapper });
 
-    await result.current.create.mutateAsync(SPEC);
+    await result.current.create.mutateAsync({ spec: SPEC });
 
     expect(toast.success).toHaveBeenCalledWith("Created Support");
   });
@@ -336,7 +399,7 @@ describe("useAgents mutations", () => {
     vi.mocked(apiClient.post).mockRejectedValue(new Error("handle taken"));
     const { result } = renderHook(() => useAgents(), { wrapper });
 
-    await expect(result.current.create.mutateAsync(SPEC)).rejects.toThrow("handle taken");
+    await expect(result.current.create.mutateAsync({ spec: SPEC })).rejects.toThrow("handle taken");
 
     expect(toast.error).not.toHaveBeenCalled();
   });

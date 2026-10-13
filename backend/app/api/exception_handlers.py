@@ -36,6 +36,7 @@ from starlette.requests import HTTPConnection
 from app.agents.capabilities.budget import BudgetExceeded
 from app.core.exceptions import AppException, ValidationError
 from app.core.field_errors import request_field_problems
+from app.core.middleware import security_headers_for_error
 
 logger = logging.getLogger(__name__)
 
@@ -241,11 +242,15 @@ async def unhandled_exception_handler(
     if _is_websocket(request):
         return None
 
+    # ServerErrorMiddleware, which runs this handler, sits outside the whole
+    # middleware stack, so SecurityHeadersMiddleware never reaches a 500 - it has
+    # to carry the headers itself (#18).
     return _envelope(
         status_code=500,
         code="INTERNAL_ERROR",
         message="An unexpected error occurred",
         details=None,
+        headers=security_headers_for_error(),
     )
 
 

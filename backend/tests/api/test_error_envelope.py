@@ -117,6 +117,7 @@ class TestValidationEnvelope:
         )
         assert response.json()["error"]["message"] == "Some fields need fixing: email, password"
 
+    @pytest.mark.security
     @pytest.mark.anyio
     async def test_a_budget_refusal_is_a_4xx_in_the_same_envelope(self):
         """`BudgetExceeded` reaching HTTP is the platform working - a document
@@ -144,6 +145,7 @@ class TestValidationEnvelope:
         assert '"BUDGET_EXCEEDED"' in body
         assert "Organization monthly budget exhausted" in body
 
+    @pytest.mark.security
     @pytest.mark.anyio
     async def test_a_budget_refusal_on_a_websocket_scope_writes_no_body(self):
         class _Connection:
@@ -419,6 +421,7 @@ class TestDetailsSurviveSerialization:
         with pytest.raises(ValueError):
             await client.get(f"{settings.API_V1_STR}/users/avatar/{uuid4()}")
 
+    @pytest.mark.security
     @pytest.mark.anyio
     async def test_a_budget_refusal_keeps_its_money_exact(self):
         """`jsonable_encoder` answers a `Decimal` with a float; a cap is not a
@@ -495,7 +498,9 @@ class TestDetailsDescribeTheRefusalNotTheServer:
             ),
             pytest.raises(ExternalServiceError) as refusal,
         ):
-            await search_knowledge_base(query="our refund policy", kb_collection_names=["kb_ops"])
+            await search_knowledge_base(
+                query="our refund policy", kb_collection_names=["kb_ops"], organization_id=uuid4()
+            )
 
         response = await self._refusal_on_the_wire(client, refusal.value)
 
@@ -521,7 +526,9 @@ class TestDetailsDescribeTheRefusalNotTheServer:
             ),
             pytest.raises(ExternalServiceError) as refusal,
         ):
-            await search_knowledge_base(query="x", kb_collection_names=["kb_ops", "kb_hr"])
+            await search_knowledge_base(
+                query="x", kb_collection_names=["kb_ops", "kb_hr"], organization_id=uuid4()
+            )
 
         response = await self._refusal_on_the_wire(client, refusal.value)
 

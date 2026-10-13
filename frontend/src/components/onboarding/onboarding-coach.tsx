@@ -646,7 +646,7 @@ export function OnboardingCoach() {
             : // `-translate-x-1/2` stays even though the keyframe ends on the same
               // transform: it is what centres the card for a reader who asked for
               // reduced motion, where the animation does not run at all.
-              `onboarding-coach-card glass-strong text-popover-foreground pointer-events-auto fixed left-1/2 z-[1000000002] w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 rounded-xl p-4 outline-none ${cardAtTop ? "top-6" : "bottom-6"}`
+              `onboarding-coach-card panel-strong text-popover-foreground pointer-events-auto fixed left-1/2 z-[1000000002] w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 rounded-xl p-4 outline-none ${cardAtTop ? "top-6" : "bottom-6"}`
         }
       >
         <IconButton

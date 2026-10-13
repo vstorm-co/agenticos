@@ -17,6 +17,8 @@ interface IngestionPanelProps {
   kb: KnowledgeBase;
   /** Absent when the caller may not write - the panel is then facts only. */
   onEdit?: () => void;
+  /** Opens the provider dialog. Absent for the same reason as `onEdit`. */
+  onEditEmbeddings?: () => void;
 }
 
 /**
@@ -28,9 +30,11 @@ interface IngestionPanelProps {
  * settings are changed. The one control is the way to the form.
  *
  * The embedding model is the exception that proves the rule - it is here as a
- * fact and nowhere as a control, because it cannot be changed at all.
+ * fact and nowhere as a control, because it cannot be changed at all. Which
+ * provider serves it can be, and is its own control: the line reads as one fact
+ * and is two, one frozen by the vectors already stored and one not.
  */
-export function IngestionPanel({ kb, onEdit }: IngestionPanelProps) {
+export function IngestionPanel({ kb, onEdit, onEditEmbeddings }: IngestionPanelProps) {
   const t = useTranslations("kb");
   const config = kb.ingestion_config;
 
@@ -82,12 +86,27 @@ export function IngestionPanel({ kb, onEdit }: IngestionPanelProps) {
           spaces that search would go on comparing and go on answering from.
         */}
         <Fact term={t("embeddings")} note={t("ingestionRecordedNote")}>
-          <span className="inline-flex items-center gap-1.5">
-            <Lock className="text-muted-foreground h-3 w-3 shrink-0" aria-hidden />
-            <span className="font-mono text-xs">{kb.embedding_model}</span>
-            <span className="text-muted-foreground">
-              {t("embeddingDimensions", { count: kb.embedding_dim })}
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="inline-flex items-center gap-1.5">
+              <Lock className="text-muted-foreground h-3 w-3 shrink-0" aria-hidden />
+              <span className="font-mono text-xs">{kb.embedding_model}</span>
+              <span className="text-muted-foreground">
+                {t("embeddingDimensions", { count: kb.embedding_dim })}
+              </span>
             </span>
+            <span className="text-muted-foreground text-xs">
+              {t("servedBy", { provider: kb.embedding_provider })}
+            </span>
+            {onEditEmbeddings && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-xs"
+                onClick={onEditEmbeddings}
+              >
+                {t("changeProvider")}
+              </Button>
+            )}
           </span>
         </Fact>
       </dl>

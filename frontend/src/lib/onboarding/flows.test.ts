@@ -9,7 +9,14 @@ import {
   type FlowId,
   type OrgState,
 } from "@/lib/onboarding/flows";
-import { AGENT_BUILDER, KB_DETAIL, ORG_MEMBERS, ORG_ROLES } from "@/lib/onboarding/tour";
+import {
+  AGENT_BUILDER,
+  KB_DETAIL,
+  ORG_DIRECTORY,
+  ORG_GROUPS,
+  ORG_MEMBERS,
+  ORG_ROLES,
+} from "@/lib/onboarding/tour";
 import { Perm, type Permission } from "@/types/permissions";
 
 const allow = () => true;
@@ -20,6 +27,7 @@ const EMPTY: OrgState = {
   hasSkill: false,
   hasOrgMcp: false,
   hasPublishedAgent: false,
+  hasRunnableAgent: false,
 };
 const HAS_MODEL: OrgState = {
   hasRunnableModel: true,
@@ -27,6 +35,7 @@ const HAS_MODEL: OrgState = {
   hasSkill: false,
   hasOrgMcp: false,
   hasPublishedAgent: false,
+  hasRunnableAgent: false,
 };
 const STOCKED: OrgState = {
   hasRunnableModel: true,
@@ -34,6 +43,7 @@ const STOCKED: OrgState = {
   hasSkill: true,
   hasOrgMcp: true,
   hasPublishedAgent: true,
+  hasRunnableAgent: true,
 };
 const NO_CHOICES: Record<string, "yes" | "skip"> = {};
 
@@ -184,6 +194,20 @@ describe("FLOWS", () => {
     expect(FLOWS["create-mcp"].permission).toBe(Perm.connectionsManage);
     // Anyone may create an organization, so its offer carries no permission.
     expect(FLOWS["create-org"].permission).toBeUndefined();
+    expect(FLOWS["create-group"].permission).toBe(Perm.membersManage);
+  });
+
+  it("keeps create-group a single step on the page's own create button", () => {
+    // Offered at the end of the groups page's walk, so the reader is already
+    // there: the step names the page identity, not a route to navigate to.
+    const flow = FLOWS["create-group"];
+    expect(flow.steps).toHaveLength(1);
+    expect(flow.steps[0]).toMatchObject({
+      page: ORG_GROUPS,
+      target: "org-groups-new",
+      signal: { kind: "created", resource: "group" },
+    });
+    expect(canOfferFlow(flow, deny)).toBe(false);
   });
 });
 
@@ -200,6 +224,10 @@ describe("flowForPage", () => {
     expect(flowForPage(ROUTES.ORGS)).toBe("create-org");
     expect(flowForPage(ORG_MEMBERS)).toBe("create-org");
     expect(flowForPage(ORG_ROLES)).toBe("create-org");
+    expect(flowForPage(ORG_GROUPS)).toBe("create-group");
+    // A mapping is set up once by an administrator who read the page's rules,
+    // so the directory page offers no guided creation.
+    expect(flowForPage(ORG_DIRECTORY)).toBeNull();
   });
 
   it("offers the guided chat run on the chat page", () => {
@@ -208,6 +236,18 @@ describe("flowForPage", () => {
 
   it("offers nothing on a page with no create", () => {
     expect(flowForPage(ROUTES.DASHBOARD)).toBeNull();
+  });
+});
+
+describe("create-routine", () => {
+  it("drops the whole flow for a caller who can run no agent", () => {
+    // The flow's `can` gate is scope-blind, so it passes for a role that says run
+    // while no agent in reach is actually runnable - and the first target mounts
+    // only on that per-agent answer, which the coach would wait on with no
+    // timeout. Zero steps means an inert flow instead of a frozen page.
+    expect(stepsForFlow(FLOWS["create-routine"], STOCKED, allow, NO_CHOICES)).toHaveLength(2);
+    const noRunnable = { ...STOCKED, hasRunnableAgent: false };
+    expect(stepsForFlow(FLOWS["create-routine"], noRunnable, allow, NO_CHOICES)).toHaveLength(0);
   });
 });
 
@@ -431,7 +471,7 @@ describe("stepsForFlow", () => {
   });
 
   it("ends the MCP detour back at the picker, so the connection reaches the agent", () => {
-    // Connecting a server does not bind it: the builder writes `spec.mcp_server_ids`
+    // Connecting a server does not bind it: the builder writes `spec.mcp_servers`
     // only when the picker is toggled. Without this step the walk published an agent
     // that could not reach the server it had just been told to connect for it.
     const yes = stepsForFlow(FLOWS["create-agent"], EMPTY, allow, {

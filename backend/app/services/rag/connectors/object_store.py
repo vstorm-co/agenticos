@@ -29,7 +29,12 @@ from typing import ClassVar
 from pydantic import BaseModel
 
 from app.core.secret_kinds import StorableSecret
-from app.services.rag.connectors import BaseSyncConnector, ConnectorConfig, RemoteFile
+from app.services.rag.connectors import (
+    BaseSyncConnector,
+    ConnectorConfig,
+    RemoteFile,
+    RemoteListing,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -67,21 +72,26 @@ class ObjectStoreConnector(BaseSyncConnector):
     """What a `source_path` from this store starts with - `s3`, `gs`, `azblob`."""
 
     CONTAINER_FIELD: ClassVar[str] = "bucket"
-    """Which `CONFIG_SCHEMA` field names the container. S3 and GCS call it a
+    """Which `CONFIG_MODEL` field names the container. S3 and GCS call it a
     bucket; Azure calls it a container, and the form should say what the store's
     own console says."""
 
     async def list_files(
         self, config: ConnectorConfig, credential: StorableSecret | None
-    ) -> list[RemoteFile]:
-        """Every document under the configured prefix, newest state as listed."""
-        return await asyncio.to_thread(
+    ) -> RemoteListing:
+        """Every document under the configured prefix, newest state as listed.
+
+        Complete by construction: the pagination either reaches the last page or
+        raises, so there is no partial answer for a sync to mistake for a whole one.
+        """
+        files = await asyncio.to_thread(
             self._listing,
             config[self.CONTAINER_FIELD],
             config.get("prefix", ""),
             config,
             credential,
         )
+        return RemoteListing(files=files)
 
     def _listing(
         self,

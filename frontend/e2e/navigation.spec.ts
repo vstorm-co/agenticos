@@ -13,6 +13,7 @@ import {
   gotoRoleMatrix,
   openAgent,
   pageHeading,
+  pageStatus,
   skillCard,
 } from "./helpers";
 
@@ -107,9 +108,10 @@ test.describe("Dashboard navigation", () => {
   test("the agent builder names the agent it is building", async ({ page }) => {
     await openAgent(page, SEEDED_AGENT_NAME);
 
-    // The builder's title is the agent plus its publish state — the one piece of
-    // context that decides what every tab below it is allowed to do.
-    await expect(pageHeading(page)).toContainText("published");
+    // The builder's title is the agent, and beside it its publish state — the one
+    // piece of context that decides what every tab below it is allowed to do.
+    await expect(pageHeading(page)).toContainText(SEEDED_AGENT_NAME);
+    await expect(pageStatus(page)).toContainText("published");
     await expect(page.getByRole("tab", { name: "Build" })).toBeVisible();
   });
 

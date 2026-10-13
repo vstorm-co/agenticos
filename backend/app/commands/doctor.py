@@ -10,27 +10,50 @@ the listing with no explanation.
 
 So this asks, in the order the answers depend on each other: can I reach the
 database, is its schema current, can it hold embeddings, is Redis there, is the
-vault able to unseal, and is there a model an agent could actually run on.
+vault able to unseal, is there a model an agent could actually run on, and is
+scheduled work actually running.
 
 It reuses the same probes the health endpoint publishes rather than asking the
 same questions differently - two implementations of "is this healthy" is how a
 dashboard says green while a terminal says red.
 """
 
-import asyncio
-from typing import Any
+from __future__ import annotations
 
+import asyncio
+from typing import TYPE_CHECKING
+
+import click
 from sqlalchemy import text
 
 from app.commands import command, error, info, success, warning
 from app.core.config import settings
 from app.db.session import get_db_context
-from app.services.health import probe_database, probe_model_access, probe_vector_store
+from app.services.health import (
+    probe_database,
+    probe_model_access,
+    probe_scheduler,
+    probe_vector_store,
+)
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from app.db.models.organization_secret import OrganizationSecret
+    from app.db.models.sandbox_connection import SandboxConnection
 
 # What each outcome prints. `unconfigured` is deliberately not a failure: a
 # deployment that never ingests a document and never runs an agent is installed
 # correctly, it is just not finished - and exiting non-zero on that would make
 # this useless in a provisioning script.
+_ASSUMED_CDP_PORT = 9222
+"""Chromium's own default, and an assumption this command says out loud.
+
+The browser allowlist holds hosts rather than addresses on purpose, so there is
+no configured port to read - which is why a silent host is reported here and
+does not fail the command.
+"""
+
 _MARK = {
     "healthy": ("ok", success),
     "unconfigured": ("--", warning),
@@ -46,7 +69,7 @@ def _report(key: str, status: str, detail: str) -> bool:
     return status == "unhealthy"
 
 
-async def _migrations_current(db: Any) -> tuple[str, str]:
+async def _migrations_current(db: AsyncSession) -> tuple[str, str]:
     """Whether the database is at the newest revision on disk.
 
     Read from `alembic_version` rather than by running Alembic: the point is to
@@ -83,14 +106,120 @@ async def _redis_reachable() -> tuple[str, str]:
     return ("healthy", "PING answered") if answered else ("unhealthy", "PING failed")
 
 
+async def _postgres_tls(db: AsyncSession) -> tuple[str, str]:
+    """Whether the connection this doctor made to Postgres was encrypted.
+
+    Read from `pg_stat_ssl` for the backend serving this session - the transport
+    itself, not the `POSTGRES_SSLMODE` that asked for it (#1418). Not a failure
+    when off: two stores on one compose network need no TLS, and a provisioning
+    script must not exit non-zero on that.
+    """
+    try:
+        on = (
+            await db.execute(text("SELECT ssl FROM pg_stat_ssl WHERE pid = pg_backend_pid()"))
+        ).scalar()
+    except Exception as exc:
+        return "not_checked", f"could not read pg_stat_ssl: {exc}"
+    return ("healthy", "tls=on") if on else ("unconfigured", "tls=off")
+
+
+def _redis_tls() -> tuple[str, str]:
+    """Whether the Redis URL selects TLS. redis-py reads it off the scheme, so
+    `rediss://` is the encrypted transport and `redis://` is not (#1418)."""
+    return (
+        ("healthy", "tls=on")
+        if settings.REDIS_URL.startswith("rediss://")
+        else ("unconfigured", "tls=off")
+    )
+
+
 def _vault_configured() -> tuple[str, str]:
     """A vault with no key cannot unseal a provider credential, so no agent runs."""
-    if not settings.VAULT_MASTER_KEY:
+    if not settings.VAULT_MASTER_KEY and not settings.VAULT_MASTER_KEYS:
         return "unhealthy", "VAULT_MASTER_KEY is unset - no stored credential can be unsealed"
     return "healthy", "a key is configured"
 
 
-async def _sandbox_connections(db: Any) -> tuple[str, str]:
+def _file_storage() -> tuple[str, str]:
+    """Which backend holds uploaded files, and whether it encrypts them (#1423).
+
+    Not a failure either way. `local` is the default and the honest answer for a
+    single host with an encrypted volume - this cannot see the volume, so it
+    reports the backend and leaves the claim to the operator. `s3` with
+    encryption switched off is the one worth saying out loud: a compatible store
+    with no KMS behind it is a legitimate configuration and is not what the
+    at-rest row in `docs/security.md` describes.
+    """
+    if settings.FILE_STORAGE_BACKEND != "s3":
+        return "unconfigured", "backend=local - files are on this host's disk, encrypt the volume"
+    bucket = settings.FILE_STORAGE_S3_BUCKET
+    if not bucket:
+        return (
+            "unhealthy",
+            "backend=s3 but FILE_STORAGE_S3_BUCKET is unset - no upload can be stored",
+        )
+    mode = settings.FILE_STORAGE_S3_ENCRYPTION
+    if mode == "none":
+        return "unconfigured", f"backend=s3 bucket={bucket} encryption=none"
+    return "healthy", f"backend=s3 bucket={bucket} encryption={mode}"
+
+
+async def _browser_endpoints() -> tuple[str, str]:
+    """Whether the browsers a `browser_choice` agent may drive are answering.
+
+    `BROWSER_CDP_ALLOWED_HOSTS` is the whole list an author can name, so it is
+    the whole list worth looking at - and looking here is the difference between
+    finding out now and finding out inside somebody's conversation, forty seconds
+    into a browse.
+
+    **A host that does not answer is reported and does not fail the command**,
+    which is the opposite of how `sandbox connections` treats one and is
+    deliberate. The allowlist holds hosts, not addresses - a host is a trust
+    boundary and a port is not - so this has to assume Chromium's own 9222, and
+    an operator running their browser on another port would be told their
+    deployment is broken when it is not. What the line is for is the other case:
+    nothing is listening anywhere, and an agent published against it will fail.
+
+    `/json/version` is Chromium's own unauthenticated endpoint. Nothing is sent
+    to it and only the browser's version is read back.
+    """
+    hosts = [host.strip() for host in settings.BROWSER_CDP_ALLOWED_HOSTS if host.strip()]
+    if not hosts:
+        return "unconfigured", "no browser host allowed - browser automation is refused"
+
+    import httpx
+
+    silent: list[str] = []
+    reached: list[str] = []
+    for host in hosts:
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                answer = await client.get(f"http://{host}:{_ASSUMED_CDP_PORT}/json/version")
+                answer.raise_for_status()
+                version = answer.json().get("Browser", "a browser")
+        # Every way this can fail - refused, timed out, not a browser - is the
+        # same answer to the only question being asked.
+        except Exception:
+            silent.append(host)
+        else:
+            reached.append(f"{host} ({version})")
+
+    if reached and silent:
+        return (
+            "not_checked",
+            f"{', '.join(reached)}; no answer from {', '.join(silent)} on "
+            f"{_ASSUMED_CDP_PORT} - fine if it listens elsewhere",
+        )
+    if reached:
+        return "healthy", ", ".join(reached)
+    return (
+        "not_checked",
+        f"{', '.join(hosts)} allowed, none answering on {_ASSUMED_CDP_PORT} - "
+        f"a browse fails unless the browser is on another port",
+    )
+
+
+async def _sandbox_connections(db: AsyncSession) -> tuple[str, str]:
     """Whether every registered sandbox host can actually be reached.
 
     Unconfigured is not a failure: the `state` backend needs no service and is
@@ -117,17 +246,13 @@ async def _sandbox_connections(db: Any) -> tuple[str, str]:
     from app.db.models.sandbox_connection import SandboxConnection
 
     rows = (
-        (
-            await db.execute(
-                select(SandboxConnection, OrganizationSecret)
-                .outerjoin(OrganizationSecret, OrganizationSecret.id == SandboxConnection.secret_id)
-                .where(SandboxConnection.is_active.is_(True))
-                .where(SandboxConnection.kind == "docker")
-            )
+        await db.execute(
+            select(SandboxConnection, OrganizationSecret)
+            .outerjoin(OrganizationSecret, OrganizationSecret.id == SandboxConnection.secret_id)
+            .where(SandboxConnection.is_active.is_(True))
+            .where(SandboxConnection.kind == "docker")
         )
-        .tuples()
-        .all()
-    )
+    ).all()
     if not rows:
         return "unconfigured", "no sandbox connection registered - only 'state' workspaces run"
 
@@ -145,7 +270,9 @@ async def _sandbox_connections(db: Any) -> tuple[str, str]:
     return "healthy", f"{healthy} connection(s) answered /policy with a runtime"
 
 
-async def _probe_connection(connection: Any, secret: Any) -> str | None:
+async def _probe_connection(
+    connection: SandboxConnection, secret: OrganizationSecret | None
+) -> str | None:
     """What is wrong with one connection, or `None` if nothing is."""
     from app.core.secret_kinds import ApiKeySecret, SecretKind, unseal_secret
     from app.core.vault import VaultScope
@@ -186,7 +313,14 @@ async def _probe_connection(connection: Any, secret: Any) -> str | None:
     return None
 
 
-async def _run() -> int:
+async def _run(profile: str | None = None) -> int:
+    """Every check, in dependency order, and the profile sheet after them.
+
+    The sheet runs inside this one flow rather than beside it because it is
+    database-backed: opening a second session after the database probe has
+    already failed produces a traceback instead of the command's own summary,
+    and does it in the one case the command exists for (#1448 review).
+    """
     failures = 0
     async with get_db_context() as db:
         database = await probe_database(db)
@@ -194,7 +328,12 @@ async def _run() -> int:
 
         if database.status != "healthy":
             error("Nothing else can be checked without a database. Is it running?")
+            if profile:
+                warning(f"The {profile} profile's sheet needs one too, so it is not printed.")
             return 1
+
+        status, detail = await _postgres_tls(db)
+        failures += _report("postgres", status, detail)
 
         status, detail = await _migrations_current(db)
         failures += _report("migrations", status, detail)
@@ -208,8 +347,17 @@ async def _run() -> int:
     status, detail = await _redis_reachable()
     failures += _report("redis", status, detail)
 
+    status, detail = _redis_tls()
+    failures += _report("redis", status, detail)
+
     status, detail = _vault_configured()
     failures += _report("vault", status, detail)
+
+    status, detail = _file_storage()
+    failures += _report("file storage", status, detail)
+
+    scheduler = await probe_scheduler()
+    failures += _report("scheduler", scheduler.status, scheduler.detail)
 
     # A session of its own, after the vault check rather than beside the database
     # ones above: unsealing a connection's credential is meaningless while the
@@ -219,22 +367,69 @@ async def _run() -> int:
         status, detail = await _sandbox_connections(db)
     failures += _report("sandbox connections", status, detail)
 
+    status, detail = await _browser_endpoints()
+    failures += _report("browser endpoints", status, detail)
+
+    if profile:
+        info(f"\nAgainst the {profile} profile - technical safeguards only:")
+        failures += await _profile_sheet(profile)
+
     return failures
 
 
+#: How a profile control prints. `--` for a control that is the operator's:
+#: it is named rather than passed, and it does not fail the command, because one
+#: nobody can evidence from here is one nobody could ever pass.
+_PROFILE_MARK = {
+    "met": ("ok", success),
+    "unmet": ("!!", error),
+    "attested": ("--", warning),
+}
+
+
+async def _profile_sheet(profile: str) -> int:
+    """Print one row per control and answer how many were unmet.
+
+    Reached only once the database probe has passed, because every row that asks
+    the database would otherwise raise the connection error rather than being
+    reported.
+    """
+    from app.services.deployment_profile import evaluate
+
+    async with get_db_context() as db:
+        results = await evaluate(db, profile)  # ty: ignore[invalid-argument-type]
+    for result in results:
+        mark, printer = _PROFILE_MARK[result.outcome]
+        printer(f"[{mark}] {result.key} ({result.safeguard}): {result.detail}")
+    return sum(1 for result in results if result.failed)
+
+
 @command("doctor", help="Check that this deployment can actually run an agent")
-def doctor() -> None:
+@click.option(
+    "--profile",
+    type=click.Choice(["hipaa"]),
+    default=None,
+    help="Also check this deployment against a security profile's controls",
+)
+def doctor(profile: str | None) -> None:
     """Diagnose a deployment, in dependency order.
 
     Exits non-zero when something is broken, so it can gate a provisioning
     script. A subsystem that is merely unconfigured - pgvector not installed on
     a deployment that has never ingested anything - is a warning, not a failure.
 
+    `--profile` adds a second sheet: one row per control of an opinionated
+    security profile, naming the setting that satisfies it or the one that does
+    not. It is evidence a security officer can read, not a certification - and a
+    control that is genuinely the operator's (volume encryption, a locked rack)
+    prints `--` and is named rather than quietly passed.
+
     Example:
         agenticos cmd doctor
+        agenticos cmd doctor --profile hipaa
     """
     info(f"Checking {settings.PROJECT_NAME} at {settings.POSTGRES_HOST}...")
-    failures = asyncio.run(_run())
+    failures = asyncio.run(_run(profile))
     if failures:
         error(f"{failures} check(s) failed.")
         raise SystemExit(1)

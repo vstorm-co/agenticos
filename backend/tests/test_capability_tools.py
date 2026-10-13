@@ -9,24 +9,62 @@ from __future__ import annotations
 
 import asyncio
 import json
+from decimal import Decimal
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import uuid4
 
 import pytest
-from pydantic_ai_backends import StateBackend
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from pydantic_ai import Agent, ModelRetry, RunContext
+from pydantic_ai.exceptions import ModelHTTPError
+from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
+from pydantic_ai.models.function import AgentInfo, FunctionModel
+from pydantic_ai.models.instrumented import InstrumentationSettings
+from pydantic_ai.models.test import TestModel
+from pydantic_ai.settings import ModelSettings
+from pydantic_ai.usage import RequestUsage, RunUsage
+from pydantic_ai.workspaces import Workspace
+from pydantic_ai_backends import ConsoleCapability, StateBackend
 from pydantic_ai_backends.permissions import PermissionChecker
 
+from app.agents.capabilities.budget import (
+    BudgetExceeded,
+    BudgetGuard,
+    BudgetScope,
+    SpendLedger,
+    SpendLimit,
+    guarded_by,
+    metered_by,
+)
 from app.agents.capabilities.charts import ChartsToolset
 from app.agents.capabilities.charts._spec import ChartSeries, parse_chart_spec
 from app.agents.capabilities.charts._toolset import ChartSeriesInput
 from app.agents.capabilities.code_execution import CodeExecution
-from app.agents.capabilities.code_execution._sandbox import _clip, _format_result, run_python
+from app.agents.capabilities.code_execution._sandbox import (
+    RunOutcome,
+    _clip,
+    _format_result,
+    run_python,
+)
 from app.agents.capabilities.knowledge._search import _format_results
-from app.agents.capabilities.knowledge._toolset import build_knowledge_toolset
+from app.agents.capabilities.knowledge._toolset import _model_generate, build_knowledge_toolset
 from app.agents.capabilities.sandbox._capability import build_workspace
 from app.agents.capabilities.sandbox._permissions import workspace_ruleset
 from app.agents.capabilities.web_research._search import parse_web_search
 from app.agents.deps import AgentDeps
+from app.services.rag.models import ParentContextMode
+from app.services.rag.query_analysis import QueryExpansionFailed
+from tests.workspaces import document_workspace
+
+
+def _tool_ctx(deps: Any = None, *, retry: int = 0, max_retries: int = 1) -> RunContext[Any]:
+    """A context with a retry left, which is what a real call starts with."""
+    return RunContext(
+        deps=deps, model=TestModel(), usage=RunUsage(), retry=retry, max_retries=max_retries
+    )
 
 
 def _ctx(deps: AgentDeps) -> MagicMock:
@@ -81,9 +119,7 @@ class TestKnowledgeTool:
 
     @pytest.mark.anyio
     async def test_a_backend_failure_asks_the_model_to_retry(self):
-        """A transient vector-store error should not end the conversation."""
-        from pydantic_ai import ModelRetry
-
+        """Returned as text it reads as "nothing found", and the model invents."""
         toolset = build_knowledge_toolset(default_top_k=5)
         search = toolset.tools["search_documents"].function
 
@@ -94,7 +130,381 @@ class TestKnowledgeTool:
             ),
             pytest.raises(ModelRetry),
         ):
-            await search(_ctx(AgentDeps()), query="x")
+            await search(_tool_ctx(AgentDeps()), query="x")
+
+    @pytest.mark.anyio
+    async def test_the_last_attempt_says_so_rather_than_ending_the_run(self):
+        """A `ModelRetry` past the budget takes the conversation with it."""
+        toolset = build_knowledge_toolset(default_top_k=5)
+        search = toolset.tools["search_documents"].function
+
+        with patch(
+            "app.agents.capabilities.knowledge._toolset.search_knowledge_base",
+            new=AsyncMock(side_effect=RuntimeError("vector store down")),
+        ):
+            answered = await search(_tool_ctx(AgentDeps(), retry=1), query="x")
+
+        assert "unavailable" in answered
+
+    @pytest.mark.anyio
+    async def test_the_agents_parent_context_mode_reaches_the_backend(self):
+        """The small-to-big mode is the agent's, not the model's, decision (#1651)."""
+        toolset = build_knowledge_toolset(default_top_k=5, parent_context=ParentContextMode.WINDOW)
+        search = toolset.tools["search_documents"].function
+
+        with patch(
+            "app.agents.capabilities.knowledge._toolset.search_knowledge_base",
+            new=AsyncMock(return_value=""),
+        ) as backend:
+            await search(_ctx(AgentDeps(kb_collection_names=["kb_a"])), query="x")
+
+        assert backend.call_args.kwargs["parent_context"] is ParentContextMode.WINDOW
+
+    @pytest.mark.anyio
+    async def test_parent_context_defaults_to_off(self):
+        """An agent that configured nothing gets the unchanged, matched-chunk result."""
+        toolset = build_knowledge_toolset(default_top_k=5)
+        search = toolset.tools["search_documents"].function
+
+        with patch(
+            "app.agents.capabilities.knowledge._toolset.search_knowledge_base",
+            new=AsyncMock(return_value=""),
+        ) as backend:
+            await search(_ctx(AgentDeps(kb_collection_names=["kb_a"])), query="x")
+
+        assert backend.call_args.kwargs["parent_context"] is ParentContextMode.OFF
+
+    @pytest.mark.anyio
+    async def test_business_filters_reach_the_backend(self):
+        """The whitelisted filters are assembled and passed to the search."""
+        toolset = build_knowledge_toolset(default_top_k=5)
+        search = toolset.tools["search_documents"].function
+
+        with patch(
+            "app.agents.capabilities.knowledge._toolset.search_knowledge_base",
+            new=AsyncMock(return_value=""),
+        ) as backend:
+            await search(
+                _ctx(AgentDeps(kb_collection_names=["kb_a"])),
+                query="x",
+                source=["upload"],
+                document_type=["pdf"],
+                organizational_unit=["legal"],
+            )
+
+        filters = backend.call_args.kwargs["filters"]
+        assert filters.source == ["upload"]
+        assert filters.document_type == ["pdf"]
+        assert filters.organizational_unit == ["legal"]
+
+    def test_document_type_is_published_as_a_closed_schema(self):
+        """The model reads the legal document types out of the tool schema.
+
+        A build-time-closed dimension ships as an enum in the schema (like
+        `source`), so the model cannot emit "PDF" or "application/pdf" and only
+        learn the closed set through a post-call retry (FA-039 §2.1, PR #1656).
+        """
+        from app.services.rag.filters import DOCUMENT_TYPE_VOCABULARY
+
+        toolset = build_knowledge_toolset(default_top_k=5)
+        schema = toolset.tools["search_documents"].tool_def.parameters_json_schema
+        enum = schema["$defs"]["DocumentType"]["enum"]
+        assert set(enum) == set(DOCUMENT_TYPE_VOCABULARY)
+
+    @pytest.mark.anyio
+    async def test_an_empty_list_is_normalized_to_no_filter(self):
+        """A model's `[]` means 'not filtering this', not an empty allow-list."""
+        toolset = build_knowledge_toolset(default_top_k=5)
+        search = toolset.tools["search_documents"].function
+
+        with patch(
+            "app.agents.capabilities.knowledge._toolset.search_knowledge_base",
+            new=AsyncMock(return_value=""),
+        ) as backend:
+            await search(_ctx(AgentDeps(kb_collection_names=["kb_a"])), query="x", document_type=[])
+
+        assert backend.call_args.kwargs["filters"].document_type is None
+
+    @pytest.mark.anyio
+    async def test_a_bad_filter_is_a_corrected_call_not_an_outage(self):
+        """An invalid filter steers the model to fix its call, not "we are down".
+
+        It must not reach the broad backend-failure handler (which says the
+        knowledge base is unavailable), and it must not reach the backend at all.
+        """
+        toolset = build_knowledge_toolset(default_top_k=5)
+        search = toolset.tools["search_documents"].function
+
+        with (
+            patch(
+                "app.agents.capabilities.knowledge._toolset.search_knowledge_base",
+                new=AsyncMock(return_value=""),
+            ) as backend,
+            pytest.raises(ModelRetry) as steer,
+        ):
+            await search(
+                _tool_ctx(AgentDeps(kb_collection_names=["kb_a"])),
+                query="x",
+                document_type=["not-a-real-type"],
+            )
+
+        assert "not valid" in str(steer.value)
+        backend.assert_not_awaited()
+
+
+class TestQueryAnalysisWiring:
+    """The tool builds the model-backed generator only when a mode needs it, and
+    hands the mode, its bounds and the generator down to the search (#1649)."""
+
+    @pytest.mark.anyio
+    async def test_model_generate_runs_a_metered_call_over_the_run_model(self):
+        ctx = RunContext(
+            deps=None,
+            model=TestModel(custom_output_text="change my password"),
+            usage=RunUsage(),
+            retry=0,
+            max_retries=1,
+        )
+        generate = _model_generate(ctx)
+        assert generate is not None
+        ledger = SpendLedger()
+        with metered_by(ledger):
+            out = await generate("prompt")
+        assert out == "change my password"
+        # Booked against the run's ledger rather than spent invisibly, which is
+        # what keeps a budget able to see it - and on its own usage, so it takes
+        # nothing from the host run's request allowance.
+        assert ledger.input_tokens > 0
+        assert ctx.usage.requests == 0
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("include_content", [False, True])
+    async def test_the_expansion_call_is_traced_as_its_host_run_is(self, include_content):
+        """The nested agent takes the host agent's instrumentation, so its spans
+        reach the host's exporter and honour its content setting - a host whose
+        spec says `content: none` does not leak the question through the
+        expansion prompt to the global, content-on default."""
+        exporter = InMemorySpanExporter()
+        provider = TracerProvider()
+        provider.add_span_processor(SimpleSpanProcessor(exporter))
+        host = Agent(TestModel())
+        host.instrument = InstrumentationSettings(
+            tracer_provider=provider, include_content=include_content
+        )
+        ctx = RunContext(
+            deps=None,
+            model=TestModel(custom_output_text="a variant"),
+            usage=RunUsage(),
+            agent=host,
+            retry=0,
+            max_retries=1,
+        )
+        generate = _model_generate(ctx)
+        assert generate is not None
+        with metered_by(SpendLedger()):
+            await generate("rephrase: my salary review")
+
+        spans = exporter.get_finished_spans()
+        assert spans
+        recorded = json.dumps([dict(span.attributes or {}) for span in spans], default=str)
+        assert ("my salary review" in recorded) is include_content
+
+    @pytest.mark.anyio
+    async def test_the_expansion_runs_under_the_runs_model_settings(self):
+        """`ctx.model` carries the model but not the settings the factory merged onto
+        the host agent, so an expansion built on it alone ran on the provider's
+        defaults: past the agent's `timeout`, beyond its `max_tokens` (agenticos#1810).
+        The settings have to reach the request itself, not just the agent."""
+        seen: list[dict[str, Any] | None] = []
+
+        def respond(_: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            seen.append(dict(info.model_settings) if info.model_settings else None)
+            return ModelResponse(
+                parts=[TextPart("a variant")],
+                usage=RequestUsage(input_tokens=10, output_tokens=3),
+            )
+
+        settings = ModelSettings(timeout=12.5, max_tokens=64, temperature=0.1)
+        ctx = RunContext(
+            deps=None,
+            model=FunctionModel(respond),
+            usage=RunUsage(),
+            model_settings=settings,
+            retry=0,
+            max_retries=1,
+        )
+        generate = _model_generate(ctx)
+        assert generate is not None
+        assert await generate("rephrase") == "a variant"
+        assert seen == [dict(settings)]
+
+    @pytest.mark.anyio
+    async def test_parallel_expansions_book_exactly_what_each_spent(self):
+        """Two searches the model issued in one turn expand at once. Each books
+        its own response, so the ledger holds the real total - not a snapshot
+        delta that also counted the other call's tokens."""
+        both_in_flight = asyncio.Barrier(2)
+
+        async def respond(_: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            await both_in_flight.wait()
+            return ModelResponse(
+                parts=[TextPart("a variant")],
+                usage=RequestUsage(input_tokens=100, output_tokens=7),
+            )
+
+        ctx = RunContext(
+            deps=None, model=FunctionModel(respond), usage=RunUsage(), retry=0, max_retries=1
+        )
+        generate = _model_generate(ctx)
+        assert generate is not None
+        ledger = SpendLedger()
+        with metered_by(ledger):
+            await asyncio.gather(generate("first"), generate("second"))
+
+        assert (ledger.input_tokens, ledger.output_tokens) == (200, 14)
+        assert len(ledger.entries) == 2
+        assert ctx.usage.requests == 0
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_an_exhausted_budget_skips_the_expansion_and_still_searches(self):
+        """The host guard only refuses the host's next request; the expansion is a
+        request of the tool's own, so it asks first. Refused, it makes no model
+        call and the plain query is searched exactly as `off` would."""
+        model_calls: list[str] = []
+
+        async def respond(_: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            model_calls.append("called")
+            return ModelResponse(parts=[TextPart("a variant")])
+
+        service = MagicMock()
+        service.resolve_scope = AsyncMock(return_value=MagicMock())
+        service.retrieve = AsyncMock(return_value=[])
+        toolset = build_knowledge_toolset(default_top_k=5, query_analysis_mode="multi_query")
+        search = toolset.tools["search_documents"].function
+        ctx = RunContext(
+            deps=AgentDeps(kb_collection_names=["kb_a"], organization_id=uuid4()),
+            model=FunctionModel(respond),
+            usage=RunUsage(),
+            retry=0,
+            max_retries=1,
+        )
+        guard = BudgetGuard(
+            ledger=SpendLedger(),
+            limits=[
+                SpendLimit(
+                    scope=BudgetScope.AGENT,
+                    limit_usd=Decimal("1.00"),
+                    period_spend=AsyncMock(return_value=Decimal("1.00")),
+                )
+            ],
+        )
+
+        with (
+            guarded_by(guard),
+            patch(
+                "app.agents.capabilities.knowledge._search.get_retrieval_service",
+                return_value=service,
+            ),
+        ):
+            answer = await search(ctx, query="reset password")
+
+        assert model_calls == []
+        service.retrieve.assert_awaited_once()
+        assert service.retrieve.await_args.kwargs["query"] == "reset password"
+        assert answer == "No relevant documents found in the knowledge base."
+
+    @pytest.mark.anyio
+    async def test_a_provider_refusal_is_reported_as_an_expected_expansion_failure(self):
+        async def refuse(_: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            raise ModelHTTPError(status_code=503, model_name="m", body="overloaded")
+
+        ctx = RunContext(
+            deps=None, model=FunctionModel(refuse), usage=RunUsage(), retry=0, max_retries=1
+        )
+        generate = _model_generate(ctx)
+        assert generate is not None
+        with pytest.raises(QueryExpansionFailed) as failure:
+            await generate("prompt")
+        assert isinstance(failure.value.__cause__, ModelHTTPError)
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_a_retry_after_the_first_request_reached_the_cap_is_refused(self):
+        """The first request is affordable but takes the run to its cap and answers
+        nothing, which the nested run retries. The retry is refused before it is
+        sent, and the refusal is an expected failure so the plain query is searched
+        (agenticos#1808)."""
+        guard = BudgetGuard(
+            ledger=SpendLedger(),
+            limits=[SpendLimit(scope=BudgetScope.AGENT, limit_usd=Decimal("1.00"))],
+        )
+        model_calls: list[str] = []
+
+        async def respond(_: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            model_calls.append("called")
+            # What this request cost: $2.00 of input on gpt-4.1, over the $1.00 cap.
+            guard.ledger.record("gpt-4.1", RequestUsage(input_tokens=1_000_000), "openai")
+            return ModelResponse(parts=[])
+
+        ctx = RunContext(
+            deps=None, model=FunctionModel(respond), usage=RunUsage(), retry=0, max_retries=1
+        )
+        generate = _model_generate(ctx)
+        assert generate is not None
+        with guarded_by(guard), pytest.raises(QueryExpansionFailed) as failure:
+            await generate("prompt")
+        assert isinstance(failure.value.__cause__, BudgetExceeded)
+        assert model_calls == ["called"]
+
+    @pytest.mark.anyio
+    async def test_a_bug_in_the_expansion_call_is_not_reported_as_expected(self):
+        """Only the declared failures become a fallback; a programming error keeps
+        its own type so it cannot be mistaken for an outage."""
+
+        async def broken(_: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            raise KeyError("a bug")
+
+        ctx = RunContext(
+            deps=None, model=FunctionModel(broken), usage=RunUsage(), retry=0, max_retries=1
+        )
+        generate = _model_generate(ctx)
+        assert generate is not None
+        with pytest.raises(KeyError):
+            await generate("prompt")
+
+    def test_model_generate_returns_none_for_a_model_that_cannot_run_a_request(self):
+        """A realtime model is not request-response, so the modes degrade."""
+        ctx = RunContext(deps=None, model=object(), usage=RunUsage(), retry=0, max_retries=1)
+        assert _model_generate(ctx) is None
+
+    @pytest.mark.anyio
+    async def test_a_mode_hands_a_generator_and_its_bounds_to_the_search(self):
+        toolset = build_knowledge_toolset(
+            default_top_k=5, query_analysis_mode="multi_query", query_analysis_max_variants=2
+        )
+        search = toolset.tools["search_documents"].function
+        with patch(
+            "app.agents.capabilities.knowledge._toolset.search_knowledge_base",
+            new=AsyncMock(return_value="ok"),
+        ) as backend:
+            await search(_tool_ctx(AgentDeps(kb_collection_names=["kb_a"])), query="x")
+        kwargs = backend.await_args.kwargs
+        assert kwargs["analysis_mode"] == "multi_query"
+        assert kwargs["analysis_max_variants"] == 2
+        assert kwargs["generate"] is not None
+
+    @pytest.mark.anyio
+    async def test_the_default_is_off_with_no_generator(self):
+        toolset = build_knowledge_toolset(default_top_k=5)
+        search = toolset.tools["search_documents"].function
+        with patch(
+            "app.agents.capabilities.knowledge._toolset.search_knowledge_base",
+            new=AsyncMock(return_value="ok"),
+        ) as backend:
+            await search(_ctx(AgentDeps(kb_collection_names=["kb_a"])), query="x")
+        assert backend.call_args.kwargs["analysis_mode"] == "off"
+        assert backend.call_args.kwargs["generate"] is None
 
 
 class TestKnowledgeFormatting:
@@ -103,7 +513,7 @@ class TestKnowledgeFormatting:
         assert "No relevant" in _format_results([])
 
     def test_results_carry_their_source(self):
-        result = MagicMock(score=0.9, content="Refunds within 30 days.")
+        result = MagicMock(score=0.9, content="Refunds within 30 days.", expanded_content=None)
         result.metadata = {"filename": "policy.pdf", "page_num": 3}
         formatted = _format_results([result])
         assert "policy.pdf" in formatted
@@ -112,9 +522,27 @@ class TestKnowledgeFormatting:
 
     def test_the_model_is_told_to_cite_inline(self):
         """Without this instruction models append a bibliography nobody reads."""
-        result = MagicMock(score=0.9, content="text")
+        result = MagicMock(score=0.9, content="text", expanded_content=None)
         result.metadata = {"filename": "a.pdf"}
         assert "cite inline" in _format_results([result])
+
+    def test_the_expanded_passage_is_shown_when_present(self):
+        """Small-to-big: the model reads the surrounding context, not the chunk alone."""
+        result = MagicMock(
+            score=0.9,
+            content="the matched chunk",
+            expanded_content="before\n\nthe matched chunk\n\nafter",
+        )
+        result.metadata = {"filename": "a.pdf"}
+        formatted = _format_results([result])
+        assert "before" in formatted
+        assert "after" in formatted
+
+    def test_the_matched_chunk_is_shown_when_there_is_no_expansion(self):
+        """`off` (the default) leaves the formatted output exactly as before."""
+        result = MagicMock(score=0.9, content="just the chunk", expanded_content=None)
+        result.metadata = {"filename": "a.pdf"}
+        assert "just the chunk" in _format_results([result])
 
 
 class TestCodeExecutionTool:
@@ -125,9 +553,49 @@ class TestCodeExecutionTool:
 
         with patch(
             "app.agents.capabilities.code_execution._toolset.run_python",
-            new=AsyncMock(return_value="42"),
+            new=AsyncMock(return_value=RunOutcome("42")),
         ):
-            assert await run("print(6*7)") == "42"
+            assert await run(_tool_ctx(), code="print(6*7)") == "42"
+
+    @pytest.mark.anyio
+    async def test_a_program_that_raises_asks_the_model_to_fix_it(self):
+        """The `code` argument is what the model wrote, so this is a bad call."""
+        toolset = CodeExecution().get_toolset()
+        run = toolset.tools["run_python"].function
+
+        with (
+            patch(
+                "app.agents.capabilities.code_execution._toolset.run_python",
+                new=AsyncMock(return_value=RunOutcome("Execution failed: NameError", fixable=True)),
+            ),
+            pytest.raises(ModelRetry, match="NameError"),
+        ):
+            await run(_tool_ctx(), code="nope")
+
+    @pytest.mark.anyio
+    async def test_a_sandbox_that_died_is_reported_rather_than_retried(self):
+        """No rewrite of the program fixes the sandbox failing to start."""
+        toolset = CodeExecution().get_toolset()
+        run = toolset.tools["run_python"].function
+
+        with patch(
+            "app.agents.capabilities.code_execution._toolset.run_python",
+            new=AsyncMock(return_value=RunOutcome("Execution failed: sandbox unavailable")),
+        ):
+            assert "sandbox unavailable" in await run(_tool_ctx(), code="6*7")
+
+    @pytest.mark.anyio
+    async def test_the_last_attempt_answers_rather_than_ending_the_run(self):
+        toolset = CodeExecution().get_toolset()
+        run = toolset.tools["run_python"].function
+
+        with patch(
+            "app.agents.capabilities.code_execution._toolset.run_python",
+            new=AsyncMock(return_value=RunOutcome("Execution failed: NameError", fixable=True)),
+        ):
+            answered = await run(_tool_ctx(retry=1), code="nope")
+
+        assert "NameError" in answered
 
     @pytest.mark.anyio
     async def test_the_bindings_limits_reach_the_sandbox(self):
@@ -135,10 +603,10 @@ class TestCodeExecutionTool:
         raised in the Builder that never reaches Monty bounds nothing."""
         toolset = CodeExecution(timeout_secs=30.0, max_memory_mb=512).get_toolset()
         run = toolset.tools["run_python"].function
-        sandbox = AsyncMock(return_value="ok")
+        sandbox = AsyncMock(return_value=RunOutcome("ok"))
 
         with patch("app.agents.capabilities.code_execution._toolset.run_python", new=sandbox):
-            await run("6*7")
+            await run(_tool_ctx(), code="6*7")
 
         assert sandbox.call_args.kwargs == {"timeout_secs": 30.0, "max_memory_mb": 512}
 
@@ -161,20 +629,37 @@ class TestCodeExecutionTool:
         assert formatted.strip() != ""
 
     @pytest.mark.anyio
-    async def test_a_sandbox_error_is_returned_not_raised(self):
-        """The model can fix its own syntax error if it is told what went wrong."""
+    async def test_the_sandbox_failing_to_start_is_not_the_programs_fault(self):
+        """A retry prompt here would ask the model to rewrite working code."""
         with patch(
             "app.agents.capabilities.code_execution._sandbox.AsyncMonty",
             side_effect=RuntimeError("sandbox unavailable"),
         ):
-            result = await run_python("this is not python")
-        assert "Execution failed" in result
-        assert "sandbox unavailable" in result
+            outcome = await run_python("this is not python")
+
+        assert "sandbox unavailable" in outcome.text
+        assert outcome.fixable is False
+
+    @pytest.mark.anyio
+    async def test_an_error_in_the_program_is_the_models_to_fix(self):
+        outcome = await run_python("undefined_name")
+
+        assert "NameError" in outcome.text
+        assert outcome.fixable is True
+
+    @pytest.mark.anyio
+    async def test_a_program_that_runs_out_of_time_is_also_the_models_to_fix(self):
+        """The limit reports as `TimeoutError`; cheaper code is the fix."""
+        outcome = await run_python("while True: pass", timeout_secs=0.5)
+
+        assert "TimeoutError" in outcome.text
+        assert outcome.fixable is True
 
 
 class TestChartTool:
     def test_creates_a_parsable_specification(self):
         spec = ChartsToolset().create_chart(
+            _tool_ctx(),
             chart_type="bar",
             title="Revenue",
             x_values=["Jan", "Feb"],
@@ -187,6 +672,7 @@ class TestChartTool:
         """The axis is its own argument, so it cannot be mistaken for a series."""
         spec = parse_chart_spec(
             ChartsToolset().create_chart(
+                _tool_ctx(),
                 chart_type="line",
                 title="Revenue",
                 x_values=["Jan"],
@@ -199,6 +685,7 @@ class TestChartTool:
     def test_a_label_survives_onto_the_emitted_series(self):
         spec = parse_chart_spec(
             ChartsToolset().create_chart(
+                _tool_ctx(),
                 chart_type="line",
                 title="Revenue",
                 x_values=["Jan"],
@@ -240,19 +727,26 @@ class TestTheWorkspaceRefusesAnOffLimitsPath:
     pytestmark = pytest.mark.anyio
 
     @staticmethod
-    def _workspace() -> StateBackend:
-        backend = StateBackend()
-        backend.write("/notes.txt", "ordinary work")
-        backend.write("/chart.png", "not really a png")
-        backend.write("/.env", "OPENAI_API_KEY=sk-live-secret")
-        backend.write("/sub/.env", "NESTED=sk-live-secret")
-        backend.write("/credentials.txt", "PASSWORD=hunter2")
-        backend.write("/etc/passwd", "root:x:0:0")
-        return backend
+    def _workspace() -> Workspace:
+        document = StateBackend()
+        for path, text in {
+            "/notes.txt": "ordinary work",
+            "/chart.png": "not really a png",
+            "/.env": "OPENAI_API_KEY=sk-live-secret",
+            "/sub/.env": "NESTED=sk-live-secret",
+            "/credentials.txt": "PASSWORD=hunter2",
+            "/etc/passwd": "root:x:0:0",
+        }.items():
+            document.write_bytes(path, text.encode())
+        return document_workspace(document)
 
     async def _call(self, name: str, **kwargs: Any) -> Any:
-        capability = build_workspace(backend=self._workspace(), include_execute=False)
-        result = capability._toolset.tools[name].function(MagicMock(), **kwargs)
+        capability = build_workspace(include_execute=False)
+        console = next(c for c in capability.capabilities if isinstance(c, ConsoleCapability))
+        ctx = RunContext(
+            deps=None, model=TestModel(), usage=RunUsage(), workspace=self._workspace()
+        )
+        result = console._toolset.tools[name].function(ctx, **kwargs)
         return await result if asyncio.iscoroutine(result) else result
 
     @pytest.mark.parametrize("path", ["/.env", "/sub/.env", "/credentials.txt", "/etc/passwd"])

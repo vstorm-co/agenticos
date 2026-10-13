@@ -16,11 +16,15 @@ applies to one lapses the day somebody switches `method`.
 
 import re
 
+import httpx2
+import pymupdf
 import pytest
 from pydantic import ValidationError
 from pydantic_ai import ModelRetry
 from pydantic_ai._run_context import RunContext
 from pydantic_ai.capabilities import WebFetch
+from pydantic_ai.common_tools import web_fetch as web_fetch_module
+from pydantic_ai.messages import BinaryContent
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.native_tools import WebFetchTool
 from pydantic_ai.tools import Tool
@@ -28,7 +32,8 @@ from pydantic_ai.usage import RunUsage
 
 from app.agents.capabilities._registry import CapabilityBinding, build, get
 from app.agents.capabilities.web_fetch import WebFetchConfig
-from app.agents.capabilities.web_fetch._capability import FETCH_DESCRIPTION
+from app.agents.capabilities.web_fetch._capability import FETCH_TEXT, TRUNCATION_MARKER
+from app.services import file_upload
 from app.services.agent_registry import DEFAULT_GRANTED_SCOPES
 
 pytestmark = pytest.mark.anyio
@@ -154,12 +159,13 @@ class TestWhatReachesTheFetch:
         """The library ships its own wording, and the Builder shows ours.
 
         The person choosing what to approve and the model choosing when to call
-        should be reading the same sentence - so the declared description is the
-        one handed to the tool, and this is what fails if they drift.
+        should be reading the same sentence - so the Builder shows the summary
+        that opens what the model reads, and this is what fails if they drift.
         """
         declared = next(tool for tool in get("web_fetch").tools if tool.id == "web_fetch")
-        assert declared.description == FETCH_DESCRIPTION
-        assert _local_tool(_built()).description == FETCH_DESCRIPTION
+        assert declared.description == FETCH_TEXT.summary
+        assert _local_tool(_built()).description == FETCH_TEXT.render()
+        assert _local_tool(_built()).description.startswith(f"<summary>{FETCH_TEXT.summary}")
 
     def test_the_content_bound_reaches_the_fetching_tool(self):
         fetcher = _local_tool(_built(max_content_chars=2_000)).function.__self__
@@ -289,6 +295,148 @@ class TestTheDomainFilterConfiguration:
         config = WebFetchConfig(allowed_domains=None, blocked_domains=None)
         assert config.allowed_domains is None
         assert config.blocked_domains is None
+
+
+def _serving(monkeypatch: pytest.MonkeyPatch, media_type: str, body: bytes) -> None:
+    """Answer every fetch with `body`, as the library's guarded download would."""
+
+    async def download(url: str, **_: object) -> httpx2.Response:
+        return httpx2.Response(200, headers={"content-type": media_type}, content=body)
+
+    monkeypatch.setattr(web_fetch_module, "safe_download", download)
+
+
+def _pdf(text: str) -> bytes:
+    document = pymupdf.open()
+    document.new_page().insert_text((72, 72), text)
+    return document.tobytes()
+
+
+class TestWhatADocumentBecomes:
+    """A fetched document reaches the model as text, the way an attachment does.
+
+    The library hands a PDF back as raw bytes for a model to read natively, and a
+    model served behind an OpenAI-compatible endpoint that cannot refuses the
+    whole request - `Unsupported chat content part type: 'file'` - after which the
+    agent fetched the same PDF again and failed the same way.
+    """
+
+    async def test_a_pdf_comes_back_as_its_text(self, monkeypatch: pytest.MonkeyPatch):
+        _serving(monkeypatch, "application/pdf", _pdf("Mer liv og boliger i bygatene"))
+
+        fetched = await _fetch(_built(), "https://example.com/files/planinitiativ.pdf")
+
+        assert not isinstance(fetched, BinaryContent)
+        assert fetched == {
+            "url": "https://example.com/files/planinitiativ.pdf",
+            "title": "",
+            "content": "Mer liv og boliger i bygatene",
+        }
+
+    async def test_a_long_document_is_cut_at_the_content_limit(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        """The same rule as a page: a long one arrives shortened, and says so."""
+        _serving(monkeypatch, "application/pdf", _pdf("y" * 80))
+        fetcher = _local_tool(_built()).function.__self__
+        fetcher.max_content_length = 20
+
+        fetched = await fetcher("https://example.com/a.pdf")
+
+        assert isinstance(fetched, dict)
+        assert fetched["content"] == "y" * 20 + TRUNCATION_MARKER
+
+    async def test_a_long_document_is_read_only_as_far_as_the_limit(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        """The content limit is the parse budget, not a cut after a whole parse: a
+        PDF that inflates past it stops being read at the page that crosses it
+        (#1990)."""
+        document = pymupdf.open()
+        for n in range(50):
+            document.new_page().insert_text((72, 72), f"page {n:02d} " + "x" * 40)
+        _serving(monkeypatch, "application/pdf", document.tobytes())
+        read: list[int] = []
+        get_text = pymupdf.Page.get_text
+
+        def counted(page: pymupdf.Page, *args: object, **kwargs: object) -> object:
+            read.append(page.number)
+            return get_text(page, *args, **kwargs)
+
+        monkeypatch.setattr(pymupdf.Page, "get_text", counted)
+        fetcher = _local_tool(_built()).function.__self__
+        fetcher.max_content_length = 100
+
+        fetched = await fetcher("https://example.com/a.pdf")
+
+        assert isinstance(fetched, dict)
+        assert read == [0, 1, 2]
+        assert fetched["content"].endswith(TRUNCATION_MARKER)
+        assert len(fetched["content"]) == 100 + len(TRUNCATION_MARKER)
+
+    async def test_a_pdf_stopped_by_the_page_cap_says_so(self, monkeypatch: pytest.MonkeyPatch):
+        """Text that exactly fills the content limit is not cut because the page note
+        does not fit: the model is told where the page cap stopped (#1990)."""
+        monkeypatch.setattr(file_upload, "_PDF_MAX_PAGES", 3)
+        document = pymupdf.open()
+        for text in ["a", "b", "c", "d", "e"]:
+            document.new_page().insert_text((72, 72), text)
+        _serving(monkeypatch, "application/pdf", document.tobytes())
+        fetcher = _local_tool(_built()).function.__self__
+        fetcher.max_content_length = 7
+
+        fetched = await fetcher("https://example.com/a.pdf")
+
+        assert isinstance(fetched, dict)
+        assert fetched["content"] == "a\n\nb\n\nc\n\n" + file_upload.PDF_PAGES_CUT_MARKER.format(
+            read=3, total=5
+        )
+
+    async def test_a_pdf_with_no_text_before_the_page_cap_returns_the_note_alone(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        """Not the no-readable-text retry: the pages after the cap may hold text,
+        and the model is told they were skipped rather than that there is none."""
+        monkeypatch.setattr(file_upload, "_PDF_MAX_PAGES", 2)
+        document = pymupdf.open()
+        for _ in range(4):
+            document.new_page()
+        _serving(monkeypatch, "application/pdf", document.tobytes())
+
+        fetched = await _fetch(_built(), "https://example.com/scan.pdf")
+
+        assert isinstance(fetched, dict)
+        assert fetched["content"] == file_upload.PDF_PAGES_CUT_MARKER.format(read=2, total=4)
+
+    async def test_an_image_stays_an_image(self, monkeypatch: pytest.MonkeyPatch):
+        """A model that reads pictures is the only reason to fetch one."""
+        _serving(monkeypatch, "image/png", b"\x89PNG\r\n\x1a\n")
+
+        fetched = await _fetch(_built(), "https://example.com/chart.png")
+
+        assert isinstance(fetched, BinaryContent)
+        assert fetched.media_type == "image/png"
+
+    async def test_a_binary_with_no_text_is_a_retry_naming_what_came_back(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        _serving(monkeypatch, "application/octet-stream", bytes(range(128, 256)))
+
+        with pytest.raises(
+            ModelRetry, match="application/octet-stream, which has no readable text"
+        ):
+            await _fetch(_built(), "https://example.com/blob")
+
+    async def test_a_page_is_still_markdown(self, monkeypatch: pytest.MonkeyPatch):
+        _serving(
+            monkeypatch, "text/html", b"<html><title>T</title><body><p>Hello</p></body></html>"
+        )
+
+        fetched = await _fetch(_built(), "https://example.com/")
+
+        assert isinstance(fetched, dict)
+        assert fetched["title"] == "T"
+        assert fetched["content"].endswith("Hello")
 
 
 class TestHowItIsSwitchedOn:

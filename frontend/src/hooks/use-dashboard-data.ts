@@ -7,8 +7,8 @@ import { qk } from "@/lib/query-keys";
 import { listSyncSources } from "@/lib/rag-api";
 import { useOrgStore } from "@/stores";
 import type { UsagePeriod } from "./use-usage-stats";
-import type { AdminOrganization, AdminStats, SystemHealth } from "@/types/admin";
-import type { Conversation, RatingSummary } from "@/types/conversation";
+import type { AdminStats, SystemHealth } from "@/types/admin";
+import type { AdminRatingsSummary, Conversation } from "@/types/conversation";
 import type { AgentRunList } from "@/types/runs";
 
 /** Failed or out-of-budget runs, newest first - the recent-failures card. */
@@ -112,20 +112,6 @@ export function useSystemHealth(options?: { enabled?: boolean }) {
   return { health: data ?? null, isLoading, error, refetch };
 }
 
-/** The largest organizations - the app admin's top-organizations card. */
-export function useAdminOrganizations(limit = 5, options?: { enabled?: boolean }) {
-  const { data, isLoading, error, refetch } = useQuery({
-    queryKey: qk.admin.organizations(),
-    queryFn: () =>
-      apiClient.get<{ items: AdminOrganization[] }>("/admin/organizations", {
-        params: { limit: String(limit) },
-      }),
-    enabled: options?.enabled ?? true,
-    ...DASHBOARD_FRESHNESS,
-  });
-  return { organizations: data?.items ?? [], isLoading, error, refetch };
-}
-
 /**
  * Deployment-wide answer quality - the app admin's ratings card.
  *
@@ -137,7 +123,7 @@ export function useAdminRatingsSummary(period: UsagePeriod, options?: { enabled?
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.admin.ratings({ from: period.from, to: period.to }),
     queryFn: () =>
-      apiClient.get<RatingSummary>("/admin/ratings/summary", {
+      apiClient.get<AdminRatingsSummary>("/admin/ratings/summary", {
         params: { from: period.from, to: period.to },
       }),
     enabled: options?.enabled ?? true,

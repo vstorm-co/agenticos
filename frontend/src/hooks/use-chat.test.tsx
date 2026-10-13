@@ -9,6 +9,7 @@ import { qk } from "@/lib/query-keys";
 import {
   useAgentSelectionStore,
   useAuthStore,
+  useBrowserPanelStore,
   useChatStore,
   useConversationStore,
   useOrgStore,
@@ -33,6 +34,9 @@ const { sent, socket, connect, disconnect } = vi.hoisted(() => ({
     onClose: null as (() => void) | null,
     url: "",
     protocols: undefined as string[] | undefined,
+    // The getter itself, kept so a test can ask what the *next* handshake would
+    // carry. `protocols` above is what this render's would.
+    getProtocols: null as (() => string[] | undefined) | null,
     isConnected: true,
   },
 }));
@@ -70,14 +74,18 @@ const decider = makeWrapper(["approvals:decide"]);
 vi.mock("./use-websocket", () => ({
   useWebSocket: (options: {
     url: string;
-    protocols?: string[];
+    protocols?: () => string[] | undefined;
     onMessage?: (event: MessageEvent) => void;
     onClose?: () => void;
   }) => {
     socket.onMessage = options.onMessage ?? null;
     socket.onClose = options.onClose ?? null;
     socket.url = options.url;
-    socket.protocols = options.protocols;
+    // Called, because the real hook calls it when it opens a socket rather than
+    // holding the value: that is what keeps a refreshed token from recycling a
+    // live connection.
+    socket.getProtocols = options.protocols ?? null;
+    socket.protocols = options.protocols?.();
     return {
       isConnected: socket.isConnected,
       connect,
@@ -126,6 +134,7 @@ function parkedTurn() {
 beforeEach(() => {
   vi.clearAllMocks();
   socket.isConnected = true;
+  socket.getProtocols = null;
   useAgentSelectionStore.setState({ selectedAgentId: null });
   useAuthStore.setState({ accessToken: "t-1" });
   useOrgStore.setState({ activeOrgId: null });
@@ -369,9 +378,86 @@ describe("useChat - the streamed answer", () => {
     expect(result.current.isProcessing).toBe(false);
   });
 
+  it("draws a tool call while its arguments are still streaming", () => {
+    // A `write_file` carrying a whole report streams its arguments for minutes
+    // before `tool_call` exists. Without this the chat showed only a cursor.
+    renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+
+    receive("part_start", {
+      index: 1,
+      part_type: "ToolCallPart",
+      tool_name: "write_file",
+      tool_call_id: "tc-1",
+    });
+    expect(streaming()?.toolCalls).toEqual([
+      { id: "tc-1", name: "write_file", args: {}, status: "pending", argsChars: 0 },
+    ]);
+
+    receive("tool_call_delta", { index: 1, args_delta: '{"path": ' });
+    receive("tool_call_delta", { index: 1, args_delta: { content: "ab" } });
+    receive("tool_call_delta", { index: 1, args_delta: null });
+    expect(streaming()?.toolCalls?.[0]?.argsChars).toBe(
+      9 + JSON.stringify({ content: "ab" }).length,
+    );
+
+    receive("tool_call", { tool_call_id: "tc-1", tool_name: "write_file", args: { path: "a.md" } });
+    expect(streaming()?.toolCalls).toEqual([
+      {
+        id: "tc-1",
+        name: "write_file",
+        args: { path: "a.md" },
+        status: "running",
+        argsChars: undefined,
+      },
+    ]);
+    expect(streaming()?.parts?.filter((part) => part.type === "tool")).toHaveLength(1);
+  });
+
+  it("ignores a delta for a part that is not a tool call it drew", () => {
+    renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("part_start", { index: 0, part_type: "TextPart" });
+
+    receive("tool_call_delta", { index: 0, args_delta: '{"q":' });
+
+    expect(streaming()?.toolCalls).toEqual([]);
+  });
+
+  it("does not draw a tool call with no message open", () => {
+    renderHook(() => useChat(), { wrapper });
+
+    receive("part_start", {
+      index: 0,
+      part_type: "ToolCallPart",
+      tool_name: "write_file",
+      tool_call_id: "tc-1",
+    });
+
+    expect(useChatStore.getState().messages).toEqual([]);
+  });
+
+  it("forgets the previous response's parts when the next request starts", () => {
+    // Part indices restart per model response, so index 1 is somebody else now.
+    renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("part_start", {
+      index: 1,
+      part_type: "ToolCallPart",
+      tool_name: "write_file",
+      tool_call_id: "tc-1",
+    });
+    receive("tool_call", { tool_call_id: "tc-1", tool_name: "write_file", args: {} });
+
+    receive("model_request_start", {});
+    receive("tool_call_delta", { index: 1, args_delta: '{"q":' });
+
+    expect(streaming()?.toolCalls?.[0]?.argsChars).toBeUndefined();
+  });
+
   it("ignores the narration frames the server sends around every turn", () => {
-    // The six frames `agent_session.py` sends that this hook deliberately does not
-    // read. They must pass through without opening a message, because a turn that
+    // The frames `agent_session.py` sends that this hook deliberately does not
+    // read, and the two it reads only for a tool call. They must pass through without opening a message, because a turn that
     // began with one of these would show an empty assistant bubble before the model
     // said anything.
     //
@@ -410,6 +496,52 @@ describe("useChat - failures and interruptions", () => {
     receive("error", { message: "" });
 
     expect(streaming()?.content).toContain("Unknown error");
+  });
+
+  it.each([
+    ["the turn failed", () => receive("error", { message: "Timed out" })],
+    ["the run was cancelled", () => receive("complete", { stopped: true })],
+  ])("marks a call still being written unfinished when %s", (_, end) => {
+    renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("part_start", {
+      index: 0,
+      part_type: "ToolCallPart",
+      tool_name: "read_file",
+      tool_call_id: "tc-0",
+    });
+    receive("tool_call", { tool_call_id: "tc-0", tool_name: "read_file", args: {} });
+    receive("part_start", {
+      index: 1,
+      part_type: "ToolCallPart",
+      tool_name: "write_file",
+      tool_call_id: "tc-1",
+    });
+    receive("tool_call_delta", { index: 1, args_delta: '{"content": "' });
+    const id = streaming()?.id as string;
+
+    end();
+
+    const calls = useChatStore.getState().messages.find((m) => m.id === id)?.toolCalls;
+    expect(calls?.map((call) => [call.id, call.status, call.argsChars])).toEqual([
+      ["tc-0", "running", undefined],
+      ["tc-1", "unfinished", undefined],
+    ]);
+  });
+
+  it("marks a call still being written unfinished when the person presses stop", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("part_start", {
+      index: 0,
+      part_type: "ToolCallPart",
+      tool_name: "write_file",
+      tool_call_id: "tc-1",
+    });
+
+    act(() => result.current.stopGeneration());
+
+    expect(useChatStore.getState().messages[0]?.toolCalls?.[0]?.status).toBe("unfinished");
   });
 
   it("stops processing on an error with nothing open", () => {
@@ -675,9 +807,17 @@ describe("useChat - the conversation a turn belongs to", () => {
     renderHook(() => useChat(), { wrapper });
     receive("model_request_start", {});
 
+    const temporary = streaming()?.id;
+
     receive("message_saved", { message_id: "m-real" });
 
-    expect(streaming()).toMatchObject({ id: "m-real", isTemporaryId: false });
+    // And keeps rendering under the id it streamed under: a new React key would be
+    // a new bubble, cutting the text reveal off at the end of the turn.
+    expect(streaming()).toMatchObject({
+      id: "m-real",
+      isTemporaryId: false,
+      renderKey: temporary,
+    });
   });
 
   it("re-reads what the thread has cost once a turn has added to it", async () => {
@@ -869,6 +1009,7 @@ describe("useChat - the conversation a turn belongs to", () => {
     expect(useChatStore.getState().messages[0]).toMatchObject({
       id: "m-real",
       isTemporaryId: false,
+      renderKey: expect.any(String),
     });
   });
 
@@ -1939,6 +2080,280 @@ describe("useChat - what goes out with a turn", () => {
 
     expect(frame(1)).toMatchObject({ model_profile_id: "p-1" });
   });
+
+  it("carries the approval mode, and only when it is not the agent's", () => {
+    // A client that never touched the control sends nothing, and the server
+    // follows the spec - which is the behaviour that existed before it (#925).
+    const { result } = renderHook(() => useChat(), { wrapper });
+
+    act(() => result.current.sendMessage("first"));
+    expect(frame(0)).not.toHaveProperty("approval_mode");
+
+    act(() => result.current.setApprovalMode("ask_all"));
+    receive("complete", {});
+    act(() => result.current.sendMessage("second"));
+
+    expect(frame(1)).toMatchObject({ approval_mode: "ask_all" });
+  });
+
+  it("stops carrying it when the mode goes back to the agent's", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.setApprovalMode("approve_all"));
+    act(() => result.current.sendMessage("first"));
+    expect(frame(0)).toMatchObject({ approval_mode: "approve_all" });
+
+    act(() => result.current.setApprovalMode("follow_agent"));
+    receive("complete", {});
+    act(() => result.current.sendMessage("second"));
+
+    expect(frame(1)).not.toHaveProperty("approval_mode");
+  });
+});
+
+describe("useChat - a socket that went away mid-answer", () => {
+  it("ends the turn on screen and asks for the transcript to be re-read", () => {
+    // Every frame that ends a turn arrives on the socket, so a drop ends nothing:
+    // `isProcessing` stayed true and the composer spun until somebody reloaded
+    // the page - which used to be the act that destroyed the answer, because the
+    // server cancelled the turn when the socket went.
+    const onTurnInterrupted = vi.fn();
+    const { result, rerender } = renderHook(() => useChat({ onTurnInterrupted }), { wrapper });
+    act(() => result.current.sendMessage("a long question"));
+    receive("model_request_start", {});
+    expect(result.current.isProcessing).toBe(true);
+
+    socket.isConnected = false;
+    rerender();
+    socket.isConnected = true;
+    rerender();
+
+    expect(result.current.isProcessing).toBe(false);
+    expect(result.current.interrupted).toBe(true);
+    expect(streaming()?.isStreaming).toBe(false);
+    expect(onTurnInterrupted).toHaveBeenCalledTimes(1);
+  });
+
+  it("says so on the drop, because a connection that never comes back never ends the turn", () => {
+    // Acting only on the way back up left a reader who lost connectivity
+    // outright with the screen this notice was written to remove: no notice, no
+    // ending, a composer that spins. The copy is as true offline as online.
+    const { result, rerender } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("a long question"));
+    receive("model_request_start", {});
+
+    socket.isConnected = false;
+    rerender();
+
+    expect(result.current.isProcessing).toBe(false);
+    expect(result.current.interrupted).toBe(true);
+    expect(streaming()?.isStreaming).toBe(false);
+  });
+
+  it("belongs to the conversation it happened in, not to whichever one is open", () => {
+    // The window is the length of a reconnect. Opening another thread inside it
+    // used to draw the notice over one that was never interrupted, and re-read
+    // that one instead of the thread still being written.
+    const onTurnInterrupted = vi.fn();
+    let conversationId = "c-interrupted";
+    const { result, rerender } = renderHook(() => useChat({ conversationId, onTurnInterrupted }), {
+      wrapper,
+    });
+    act(() => result.current.sendMessage("a long question"));
+    receive("model_request_start", {});
+
+    socket.isConnected = false;
+    rerender();
+    expect(result.current.interrupted).toBe(true);
+
+    conversationId = "c-other";
+    rerender();
+    expect(result.current.interrupted).toBe(false);
+
+    socket.isConnected = true;
+    rerender();
+    expect(onTurnInterrupted).not.toHaveBeenCalled();
+
+    conversationId = "c-interrupted";
+    rerender();
+    expect(result.current.interrupted).toBe(true);
+  });
+
+  it("says nothing about a socket that came back with no turn in flight", () => {
+    const onTurnInterrupted = vi.fn();
+    const { result, rerender } = renderHook(() => useChat({ onTurnInterrupted }), { wrapper });
+
+    socket.isConnected = false;
+    rerender();
+    socket.isConnected = true;
+    rerender();
+
+    expect(result.current.interrupted).toBe(false);
+    expect(onTurnInterrupted).not.toHaveBeenCalled();
+  });
+
+  it("holds the queue while the turn it lost is still being written", async () => {
+    // The turn runs on under a socket this client no longer has. A queued
+    // message sent now would run a second turn against a history missing the
+    // first one's answer.
+    vi.useFakeTimers();
+    const { result, rerender } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("first"));
+    act(() => result.current.sendMessage("second"));
+    expect(result.current.queuedMessages).toHaveLength(1);
+
+    socket.isConnected = false;
+    rerender();
+    socket.isConnected = true;
+    rerender();
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+
+    expect(result.current.queuedMessages).toHaveLength(1);
+    expect(sent).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
+  });
+
+  it("releases the queue when the reader asks something else instead", async () => {
+    vi.useFakeTimers();
+    const { result, rerender } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("first"));
+    act(() => result.current.sendMessage("second"));
+    socket.isConnected = false;
+    rerender();
+    socket.isConnected = true;
+    rerender();
+
+    act(() => result.current.sendMessage("never mind, this instead"));
+    receive("complete", {});
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+
+    expect(result.current.interrupted).toBe(false);
+    expect(result.current.queuedMessages).toEqual([]);
+    vi.useRealTimers();
+  });
+
+  it("goes on saying the earlier answer is coming once the reader asks something else", () => {
+    // The lost turn runs on under its old session, so this question loads a
+    // history without its answer and that answer lands in the transcript after
+    // it. Not corruption, and stated nowhere until now.
+    const { result, rerender } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("first"));
+    socket.isConnected = false;
+    rerender();
+    socket.isConnected = true;
+    rerender();
+    expect(result.current.interrupted).toBe(true);
+
+    act(() => result.current.sendMessage("never mind, this instead"));
+
+    expect(result.current.interrupted).toBe(false);
+    expect(result.current.detachedTurnPending).toBe(true);
+
+    act(() => result.current.acknowledgeDetachedTurn());
+    expect(result.current.detachedTurnPending).toBe(false);
+  });
+
+  it("holds the queue after the reader opens another thread", async () => {
+    // The notice is scoped to its thread; the queue is not. Scoped, switching
+    // away released the interrupted thread's own queued message into whichever
+    // thread was opened next - the drain runs before the effect that clears the
+    // queue on a switch, and the send it schedules cannot be called back.
+    vi.useFakeTimers();
+    let conversationId = "c-interrupted";
+    const { result, rerender } = renderHook(() => useChat({ conversationId }), { wrapper });
+    act(() => result.current.sendMessage("first"));
+    act(() => result.current.sendMessage("second"));
+    socket.isConnected = false;
+    rerender();
+    socket.isConnected = true;
+    rerender();
+
+    conversationId = "c-other";
+    rerender();
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+
+    expect(result.current.queuedMessages).toHaveLength(1);
+    expect(sent).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
+  });
+
+  it("keeps a warning per thread rather than one between them", () => {
+    // Interrupted in A, asked something else, switched to B, dropped again:
+    // one slot would have taken A's warning down while A's answer was still on
+    // its way.
+    let conversationId = "c-a";
+    const { result, rerender } = renderHook(() => useChat({ conversationId }), { wrapper });
+    act(() => result.current.sendMessage("in A"));
+    socket.isConnected = false;
+    rerender();
+    socket.isConnected = true;
+    rerender();
+    act(() => result.current.sendMessage("never mind, this instead"));
+    expect(result.current.detachedTurnPending).toBe(true);
+
+    conversationId = "c-b";
+    rerender();
+    act(() => result.current.sendMessage("in B"));
+    socket.isConnected = false;
+    rerender();
+    socket.isConnected = true;
+    rerender();
+    act(() => result.current.sendMessage("never mind here either"));
+    expect(result.current.detachedTurnPending).toBe(true);
+
+    conversationId = "c-a";
+    rerender();
+    expect(result.current.detachedTurnPending).toBe(true);
+  });
+
+  it("resolves itself when the answer it was waiting for lands", () => {
+    // Pressing the notice's button re-reads the transcript, and the answer
+    // arriving in it is the only signal this client has that the turn is over.
+    // Without this the reader is told an answer is still coming while they are
+    // looking at it, and the queue stays held behind a turn that has finished.
+    const { result, rerender } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("a long question"));
+    receive("model_request_start", {});
+    socket.isConnected = false;
+    rerender();
+    socket.isConnected = true;
+    rerender();
+    expect(result.current.interrupted).toBe(true);
+
+    // What a re-read brings back: the finished answer, in the transcript.
+    act(() =>
+      useChatStore.getState().addMessage({
+        id: "landed",
+        role: "assistant",
+        content: "the answer that was still being written",
+        timestamp: new Date(),
+      }),
+    );
+
+    expect(result.current.interrupted).toBe(false);
+  });
+
+  it("acknowledging a thread with nothing coming changes nothing", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+
+    act(() => result.current.acknowledgeDetachedTurn());
+
+    expect(result.current.detachedTurnPending).toBe(false);
+  });
+
+  it("says nothing about an answer nobody was waiting for", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("first"));
+    receive("complete", {});
+    act(() => result.current.sendMessage("second"));
+
+    expect(result.current.detachedTurnPending).toBe(false);
+  });
 });
 
 describe("useChat - the outbound queue", () => {
@@ -2034,6 +2449,32 @@ describe("useChat - the socket it opens", () => {
     expect(connect).not.toHaveBeenCalled();
   });
 
+  it("does not touch the socket when the token is refreshed", () => {
+    // The refresh runs on a timer nobody asked for, roughly every twenty minutes
+    // per open tab. It used to close the socket an answer was streaming on - the
+    // server read that as the reader leaving and cancelled the run, and the
+    // client never got the frame that would have ended the turn on screen.
+    renderHook(() => useChat(), { wrapper });
+    expect(connect).toHaveBeenCalledTimes(1);
+
+    act(() => useAuthStore.setState({ accessToken: "t-2" }));
+
+    expect(connect).toHaveBeenCalledTimes(1);
+    expect(disconnect).not.toHaveBeenCalled();
+    // And the next handshake would present the new one, because the getter reads
+    // the store rather than closing over a value.
+    expect(socket.getProtocols?.()).toEqual(["access_token.t-2", "chat"]);
+  });
+
+  it("drops the socket when the token goes away", () => {
+    // A logout is a reason to close it. Which token it is, is not.
+    renderHook(() => useChat(), { wrapper });
+
+    act(() => useAuthStore.setState({ accessToken: null }));
+
+    expect(disconnect).toHaveBeenCalled();
+  });
+
   it("carries the active organization in the URL, because a handshake takes no headers", () => {
     useOrgStore.setState({ activeOrgId: "org 7" });
 
@@ -2042,14 +2483,13 @@ describe("useChat - the socket it opens", () => {
     expect(socket.url).toContain("organization_id=org%207");
   });
 
-  it("refreshes the token when the socket drops, once", async () => {
+  it("refreshes the token when the socket drops, once, through the locked client", async () => {
     // A dropped socket is usually a stale token; one in-flight `/auth/me` is
-    // enough, and one per backoff attempt would stampede it.
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue({ ok: true, json: () => Promise.resolve({ access_token: "t-2" }) });
-    vi.stubGlobal("fetch", fetchMock);
+    // enough, and one per backoff attempt would stampede it. Through `apiClient`,
+    // because its /auth/me runs under the cross-tab lock and a bare fetch did not.
+    get.mockResolvedValue({ access_token: "t-2" });
     renderHook(() => useChat(), { wrapper });
+    get.mockClear();
 
     await act(async () => {
       socket.onClose?.();
@@ -2057,14 +2497,13 @@ describe("useChat - the socket it opens", () => {
       await Promise.resolve();
     });
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(get.mock.calls.filter(([path]) => path === "/auth/me")).toHaveLength(1);
     expect(useAuthStore.getState().accessToken).toBe("t-2");
-    vi.unstubAllGlobals();
   });
 
   it("keeps the token it has when the refresh is refused", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 401 }));
     renderHook(() => useChat(), { wrapper });
+    get.mockRejectedValue(new ApiError(401, "Not authenticated"));
 
     await act(async () => {
       socket.onClose?.();
@@ -2072,15 +2511,11 @@ describe("useChat - the socket it opens", () => {
     });
 
     expect(useAuthStore.getState().accessToken).toBe("t-1");
-    vi.unstubAllGlobals();
   });
 
   it("keeps the token when the refresh answers without one", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({}) }),
-    );
     renderHook(() => useChat(), { wrapper });
+    get.mockResolvedValue({});
 
     await act(async () => {
       socket.onClose?.();
@@ -2088,12 +2523,11 @@ describe("useChat - the socket it opens", () => {
     });
 
     expect(useAuthStore.getState().accessToken).toBe("t-1");
-    vi.unstubAllGlobals();
   });
 
-  it("survives a refresh that could not be made at all", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+  it("keeps the token when the refresh answers with nothing at all", async () => {
     renderHook(() => useChat(), { wrapper });
+    get.mockResolvedValue(null);
 
     await act(async () => {
       socket.onClose?.();
@@ -2101,7 +2535,6 @@ describe("useChat - the socket it opens", () => {
     });
 
     expect(useAuthStore.getState().accessToken).toBe("t-1");
-    vi.unstubAllGlobals();
   });
 
   it("closes the socket when the chat goes away", () => {
@@ -2110,5 +2543,201 @@ describe("useChat - the socket it opens", () => {
     unmount();
 
     expect(disconnect).toHaveBeenCalled();
+  });
+});
+
+describe("what the person cannot reach", () => {
+  const NOTION = {
+    catalog_key: "notion",
+    name: "Notion",
+    gap: "not_connected",
+    url: "http://localhost:3000/mcp-servers?connect=notion",
+  };
+
+  it("holds the turn's unavailable personal services for the card", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+
+    receive("personal_services_unavailable", { services: [NOTION] });
+
+    expect(result.current.personalGaps).toEqual([NOTION]);
+  });
+
+  it("keeps them up past the end of the turn", () => {
+    // The card belongs beside the answer that says the agent could not reach
+    // them, and that answer is on screen after `complete`.
+    const { result } = renderHook(() => useChat(), { wrapper });
+
+    receive("personal_services_unavailable", { services: [NOTION] });
+    receive("complete", {});
+
+    expect(result.current.personalGaps).toEqual([NOTION]);
+  });
+
+  it("drops them when the next question is sent", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("personal_services_unavailable", { services: [NOTION] });
+
+    act(() => result.current.sendMessage("try again"));
+
+    expect(result.current.personalGaps).toEqual([]);
+  });
+});
+
+describe("a run waiting for a service to be connected", () => {
+  const REQUEST = { catalog_key: "notion", name: "Notion", gap: "not_connected" };
+
+  it("holds the request the paused run sent", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+
+    receive("connect_account", REQUEST);
+
+    expect(result.current.pendingConnection).toEqual(REQUEST);
+  });
+
+  it("answers the run and takes the card down", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("connect_account", REQUEST);
+
+    act(() => result.current.sendConnectionResponse(true));
+
+    expect(result.current.pendingConnection).toBeNull();
+    expect(frame(0)).toEqual({ type: "connect_account_response", connected: true });
+  });
+
+  it("keeps the card when the socket is offline", () => {
+    // The run is still waiting; a card taken down now leaves no way to release it.
+    socket.isConnected = false;
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("connect_account", REQUEST);
+
+    act(() => result.current.sendConnectionResponse(false));
+
+    expect(result.current.pendingConnection).toEqual(REQUEST);
+    expect(sent).not.toHaveBeenCalled();
+  });
+
+  it("releases the run as a skip when another conversation is opened", () => {
+    // Taken down without an answer, the run would wait behind a card nobody can see.
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("connect_account", REQUEST);
+
+    act(() => {
+      useConversationStore.getState().setCurrentConversationId("c-2");
+    });
+
+    expect(result.current.pendingConnection).toBeNull();
+    expect(frame(0)).toEqual({ type: "connect_account_response", connected: false });
+  });
+
+  it.each(["complete", "error"])("takes the card down when the turn ends (%s)", (type) => {
+    // The run it belonged to is gone; answering the card would reach nothing.
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("connect_account", REQUEST);
+
+    receive(type, {});
+    act(() => {
+      useConversationStore.getState().setCurrentConversationId("c-2");
+    });
+
+    expect(result.current.pendingConnection).toBeNull();
+    expect(sent).not.toHaveBeenCalled();
+  });
+
+  it("does not answer twice for a card already answered", () => {
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("connect_account", REQUEST);
+    act(() => result.current.sendConnectionResponse(true));
+
+    act(() => {
+      useConversationStore.getState().setCurrentConversationId("c-2");
+    });
+
+    expect(sent).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("useChat - watching a browse", () => {
+  /** One browser frame, replayed the way the server sends one. */
+  function browserFrame(type: string, data: Record<string, unknown>): void {
+    receive(type, { kind: type, call_id: "c1", ...data });
+  }
+
+  it("collects a browse without opening anything over the conversation", () => {
+    // The browse shows itself as a card in the transcript. A panel that opened
+    // itself would say watching the browser matters more than reading the
+    // answer, which is true for about four seconds.
+    const { result } = renderHook(() => useChat(), { wrapper });
+
+    browserFrame("browser_opened", { step: 0, goal: "find the price", max_steps: 25 });
+
+    expect(useBrowserPanelStore.getState().openCallId).toBeNull();
+    expect(result.current.browses).toHaveLength(1);
+    expect(result.current.browses[0]).toMatchObject({ callId: "c1", goal: "find the price" });
+  });
+
+  it("fills the browse from its steps, its pictures and its outcome", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+
+    browserFrame("browser_opened", { step: 0, goal: "g", max_steps: 25 });
+    browserFrame("browser_frame", { step: 1, image: "data:image/jpeg;base64,AAA" });
+    browserFrame("browser_step", {
+      step: 1,
+      operation: "CLICK",
+      target: "Accept all",
+      confidence: 0.42,
+    });
+    browserFrame("browser_finished", { step: 2, outcome: "blocked", detail: "Sign in first" });
+
+    expect(result.current.browses[0]).toMatchObject({
+      image: "data:image/jpeg;base64,AAA",
+      imageStep: 1,
+      outcome: "blocked",
+      detail: "Sign in first",
+    });
+    expect(result.current.browses[0]?.steps[0]).toMatchObject({
+      operation: "CLICK",
+      confidence: 0.42,
+    });
+  });
+
+  it("drops the previous turn's browse when a new question is asked", () => {
+    // The panel draws the newest browse, so without this the next turn opens
+    // under the last turn's viewport - and a finished browse keeps a screenshot
+    // alive for as long as the hook does.
+    const { result } = renderHook(() => useChat(), { wrapper });
+    browserFrame("browser_opened", { step: 0, goal: "first" });
+    browserFrame("browser_finished", { step: 1, outcome: "done" });
+
+    act(() => result.current.sendMessage("something else"));
+
+    expect(result.current.browses).toEqual([]);
+    expect(useBrowserPanelStore.getState().openCallId).toBeNull();
+  });
+
+  it("a new turn's browse replaces the last one rather than joining it", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    browserFrame("browser_opened", { step: 0, goal: "first" });
+    act(() => result.current.sendMessage("something else"));
+
+    browserFrame("browser_opened", { step: 0, goal: "second" });
+
+    expect(result.current.browses).toHaveLength(1);
+    expect(result.current.browses[0]).toMatchObject({ goal: "second" });
+  });
+
+  it("keeps taking frames while the panel somebody opened is closed again", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    browserFrame("browser_opened", { step: 0, goal: "g" });
+    act(() => useBrowserPanelStore.getState().open("c1", "panel"));
+    act(() => useBrowserPanelStore.getState().close());
+
+    browserFrame("browser_step", { step: 1, operation: "CLICK" });
+
+    expect(useBrowserPanelStore.getState().openCallId).toBeNull();
+    // The frames still arrive; only the panel is closed. The card is still there.
+    expect(result.current.browses[0]?.steps).toHaveLength(1);
   });
 });

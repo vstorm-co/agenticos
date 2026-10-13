@@ -23,10 +23,14 @@ tools listed.
 | id | Name | Category | Tools | Scope | Key |
 |---|---|---|---|---|---|
 | `knowledge` | Knowledge search | knowledge | `search_documents` | `knowledge:read` | — |
-| `skills` | Skills | knowledge | `list_skills`, `load_skill`, `read_skill_resource` | `knowledge:read` | — |
+| `skills` | Skills | knowledge | `read_skill_resource` | `knowledge:read` | — |
 | `context` | Context | knowledge | `list_context`, `read_context` | — | — |
+| `memory_files` | Memory files | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — |
+| `memory_mem0` | Memory (mem0) | knowledge | `remember`, `recall` | — | required |
+| `conversation_search` | Conversation search | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — |
 | `web_research` | Web search | research | `web_search` | `web:read` | for paid services |
 | `web_fetch` | Web fetch | research | `web_fetch` | `web:fetch` | — |
+| `browser_choice` | Browser automation (choose) | research | `browse_page` | `web:browse` | via the `browser` extra |
 | `browser_use` | Browser automation | research | `browse_web` | `web:browse` | via the `browser-use` extra |
 | `code_execution` | Run Python | analysis | `run_python` | `code:execute` | — |
 | `sandbox` | Files & shell | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | for Daytona |
@@ -40,16 +44,20 @@ tools listed.
 | `clock` | Date and time | utility | none, by design | — | — |
 | `guardrails` | Guardrails | utility | none, by design | — | — |
 | `compaction` | Context management | utility | none, by design | — | — |
+| `media` | Media offload | utility | none, by design | — | — |
 | `tool_output_limits` | Tool output limits | utility | `read_tool_result` | — | — |
+| `artifacts` | Artifacts | utility | `publish_artifact`, `read_artifact` | — | — |
 | `channel_tools` | Chat channel lookup | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
 
-Six of those have no tools on purpose. `thinking` changes how the model runs
+Seven of those have no tools on purpose. `thinking` changes how the model runs
 rather than what it can reach, `clock` puts the date in the instructions,
 `tool_search` contributes its search function only once it wraps a toolset that
 has deferred tools — in isolation it declares nothing — `guardrails` inspects and
 rewrites the text flowing through a run, `compaction` rewrites the history a
-request carries, and `system_reminders` appends steering text to the request tail.
-None of the six leaves anything for a person to approve, so none
+request carries, `media` rewrites what a compacted history is *stored* as, and
+`system_reminders` appends steering text to the request tail.
+
+None of the seven leaves anything for a person to approve, so none
 declares a tool. A capability with genuinely no
 tools says so with `tools=()` rather than omitting the argument; see
 [Add a capability](../howto/add-capability.md).
@@ -76,26 +84,117 @@ nobody connected to it.
 | Config | Default | Range |
 |---|---|---|
 | `default_top_k` | 5 | 1–50 |
+| `self_query_enabled` | `false` | on / off |
+| `query_analysis_mode` | `off` | `off`, `multi_query`, `hyde` |
+| `query_analysis_max_variants` | 3 | 1–5 |
+| `parent_context` | `off` | `off`, `window`, `parent` |
 
 `default_top_k` applies only when the model does not ask for a number itself.
+
+`parent_context` turns on small-to-big retrieval. Matching and ranking always run
+on the precise small chunks; this only decides how much surrounding context each
+match is *returned* with, assembled on the return path:
+
+| Mode | What the model receives |
+|---|---|
+| `off` | The matched chunk alone — the default, unchanged behaviour |
+| `window` | The matched chunk with the chunk before and after it in the same document |
+| `parent` | The matched chunk with as much of its document around it as fits, nearest text first |
+
+The matched chunk is never shortened. Only the text added around it counts against
+two fixed limits - 8,000 characters per result and 24,000 per search - so turning
+the mode on never shows the model less than `off` does. A passage stays contiguous:
+it grows outward from the match and stops at the first chunk that does not fit or
+was already returned with an earlier result, so text that was not adjacent in the
+document is never joined.
+
+Chunks are read by position around the match, never the whole document, and the
+expansion stays inside the caller's own tenant and collection scope. It never
+changes which chunks matched, their scores or their citations; a citation says
+`with surrounding text` when the passage reaches past the chunk it names.
+
+`self_query_enabled` turns on self-query, off by default. When a search runs
+with no filter the model named itself, an LLM reads the question — "PDFs from
+last month about onboarding" — and derives the business filters it implies: a
+source, a document type, an organizational unit, a date range. The model's own
+explicit filters always win; self-query only fills the gap. When inferred filters
+are applied, the result starts with a line naming them, and the model can repeat
+the search without them by passing `infer_filters=false`.
+
+The inferred object is the same validated filter a caller supplies, so it carries
+no tenant or authorization field and cannot widen access — it can only narrow
+within the agent's own tenant and collections. An organizational unit is kept
+only when the bound collections actually carry it, read under the same scope as
+the search; collections carrying more than 200 units between them offer none for
+inference. A document id is never inferred. An empty or failed inference searches
+unfiltered within that still-enforced scope.
+
+**Cost:** each search the model runs without filters of its own makes one extra
+model request for the inference (two if its output needs correcting). It runs on
+the agent's own model, is billed to the run like any other request, and is
+refused before it is sent when the budget is already spent. It is traced like
+the agent's own requests, so an agent set to record no content keeps the
+question out of its traces here too.
 
 Bound with no collections, this capability contributes **nothing** — it is not
 attached at all. A search tool that always returns empty is worse than no search
 tool, because the model keeps trying it and reasons from the silence.
 
+### Query analysis and expansion
+
+Short, underspecified or vocabulary-mismatched questions under-retrieve. Off by
+default, `query_analysis_mode` optionally expands the query *before* retrieval:
+
+| Mode | What it does | Cost |
+|---|---|---|
+| `off` | Search the query as written | none |
+| `multi_query` | The run's model writes up to `query_analysis_max_variants` rephrasings; the original and the variants are each searched and their results fused | one model call, plus one retrieval per query |
+| `hyde` | The run's model writes a short hypothetical answer, and retrieval runs against *its* embedding | one model call |
+
+`multi_query` and `hyde` each add one model call before the search, so they trade
+latency and a little spend for recall on fuzzy questions. `multi_query` also
+retrieves once per query, one after another, and each retrieval embeds its own
+query — the variants are not batched into one embedding call — so keep
+`query_analysis_max_variants` low to bound the fan-out.
+
+Both modes use the agent's own model — there is no separate model to configure —
+and their cost is metered against the run's budget like any other model call. An
+exhausted budget skips the expansion without calling the model, and so does a
+model that fails or cannot answer a plain request: the search then runs on the
+query as written rather than failing.
+
+Expansion widens *recall*, never *access*. Every query it produces is searched
+under the same tenant scope and the same business filters as the original, so an
+expanded query can never reach another organization's or an out-of-scope document.
+It composes with reranking: expansion widens the candidate set and the results are
+fused, and a reranker would reorder what fusion returned. With `parent_context` on,
+surrounding text is added once, to the fused results, so its limits cover the
+whole search rather than each query.
+
 ## Skills
 
-`list_skills`, `load_skill`, `read_skill_resource`
+`read_skill_resource`
 
 Written know-how the agent loads only when it decides it is relevant, one skill at
 a time — the alternative being an instructions field that grows until every run
 pays for every procedure. See [Skills](../skills.md) for what a skill is and how
 one gets into an organization.
 
-These three tools come from `pydantic-ai-skills`, so their names and wording are
-somebody else's to change. A drift test compares what the registry declares
-against the tools the model is actually offered, which is what reports the day
-that happens.
+**Each bound skill is a capability of its own.** Its name and description sit in
+the catalog the model reads every turn, and the model pulls the body in with
+`load_capability` — the agent framework's own tool, which is why it is not in the
+list above and why a spec cannot grant, gate or rename it. `read_skill_resource`
+is the one tool this capability contributes, and it appears only when at least one
+bound skill ships a file beside its instructions.
+
+The tool comes from `pydantic-ai-skills`, so its name and wording are somebody
+else's to change. A drift test compares what the registry declares against the
+tools the model is actually offered, which is what reports the day that happens.
+
+`run_skill_script` is switched off rather than exposed: a skill's files reach a
+run under `/workspace/skills/`, where the [sandbox](../sandbox.md)'s own `execute`
+runs them under the operator's ceilings, and a second execution path would be a
+second set of rules to get wrong.
 
 ## Context
 
@@ -124,6 +223,197 @@ Bound with nothing usable — no files, or only `link` files with the read tool
 turned off — this capability contributes **nothing** and is not attached, the
 same way `knowledge` bound to no collections is not. Files are managed under
 `/api/v1/context` and bound to an agent by id (`AgentSpec.context_ids`).
+
+## Memory files
+
+`list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory`
+
+Notes an agent keeps of its own across conversations, indexed by one it maintains
+itself. Where `context` is a library a person authors and binds to many agents,
+memory is the agent's own: it writes through tools mid-run, and nobody else writes
+here at all. It is not bound by id — enabling the capability gives the agent its
+notes.
+
+**`MEMORY.md` is the index, and it is shown to the agent every request.** It is an
+ordinary note the agent writes and edits with the same tools as any other, and the
+capability splices it into the instructions the way a bound context file is
+spliced in. So the agent meets what it has saved before it decides anything, and
+opens a listed note with `read_memory` when the line says it is worth reading —
+rather than having to decide to call a listing tool a lighter model rarely calls.
+
+### Whose notes, and who may hear them
+
+A note belongs either to one person or to one group chat, and **a run touches
+exactly one store: the conversation's own.** Which one is derived server-side from
+who will hear the answer, never from the model — so no tool takes a scope and
+there is nothing for the agent to get wrong.
+
+- One to one — web chat, the HTTP API, a direct message — the notes are that
+  person's, and nobody else ever reads them. The same person reaches one store
+  from all three: a linked chat account resolves to their account rather than to
+  the surface they arrived on.
+- In a group chat the notes are the chat's, and everyone in the chat reads them.
+  The speaker's own notes are **not** reachable there: something written down
+  alone with somebody is not read back aloud where a whole channel sees it.
+- On a public widget or an embed there is nobody to attribute anything to, so
+  there is no store, and the tools say so rather than saving somewhere.
+- On a schedule or an event trigger there is no store either, even though the
+  run executes as the trigger's creator. The creator lends the run their
+  authority, not their identity, so nobody is listening and the tools refuse.
+  Put a fact a scheduled run needs in the trigger's prompt or in a bound
+  context file. See [Trigger](../concepts.md#it-is-not-that-persons-conversation).
+
+There is no organisation-wide store. One existed and was removed: it was a second
+mechanism for what [context files](../context.md) already do — standing knowledge
+a person authors and binds to agents — and one job with two mechanisms is how the
+two disagree. Memory is what the *agent* learned; anything a human writes belongs
+in context.
+
+One switch, **Allow personal memory**, drops the per-person store entirely for
+compliance or privacy; the notes kept in group chats stay.
+
+### What is injected, and what is only fetched
+
+A tool result is something a model weighs; the instructions are what it obeys. So
+the index reaches the prompt only where its content could have steered nobody but
+the reader: in a one-to-one conversation it is injected, and in a group chat it
+stays reachable with `read_memory` and is never injected. A room's notes are
+self-scoped to nobody, so one colleague's sentence would otherwise arrive as
+another colleague's instructions in the same channel.
+
+An index larger than about 6,000 characters is left out rather than cut. Half an
+index — ending mid-line, mid-filename — is worse than none.
+
+### Reading it, and erasing it
+
+Nobody browses somebody *else's* notes by organization role. That was the whole
+of the earlier answer - erasure and no listing at all - and it was half right: a
+listing is a surveillance affordance of a colleague's store, and the opposite of
+one of your own. So the answer now has three parts (#1594).
+
+**Your own, always, at Settings → Memory.** No permission gates it, because the
+answer is the same for a Viewer and an Owner: what agents here have written down
+about you, across every agent, with which one wrote each note and when. Three
+things you can do to a note:
+
+| | |
+|---|---|
+| **Stop using it** | The note is no longer listed, read or editable by any tool, so it stops reaching the model - and it still exists, for you to look at and restore. The middle answer, for a note that is wrong or too personal and that you are not yet sure you want gone. |
+| **Use it again** | Restores it. |
+| **Delete it** | Gone. |
+
+A suppressed note's *name* is still taken, so an agent writing that name again
+revives the row with the new content. That is not the suppression being undone:
+what you suppressed is overwritten, and the row holds something the agent has
+learned since. The alternative - a name permanently unusable - is a store that
+silently refuses to work and never says why.
+
+**The index follows.** `MEMORY.md` is spliced into the instructions of every
+request, so a note you stopped whose index line still describes it is a note
+still reaching the model. Suppressing or deleting a note therefore drops the
+index lines that **name** it. A line that describes the note without naming it
+survives - the pruning is line-level and keyed on the name, because that is what
+the index is - and restoring a note does not put a line back: the agent writes
+the index, and this is not the place to author prose in its voice.
+
+**Somebody else's, only a deployment administrator.** `GET /memory/person/{id}`,
+naming the tenant, and refused to everybody else: not an Owner, not an Admin, not
+somebody holding an edit grant on the agent that wrote the note. The reasoning is
+the one above - an organization role is not the party a subject-access request
+reaches, and the deployment's own administrator, who already administers accounts
+across tenants, is. The read is recorded in the audit trail with the actor, the
+tenant, the subject and a reason, and **no content**: an entry holding what it
+looked at would be a second copy of the thing being protected.
+
+**Erasure**, unchanged. A person clears everything an agent remembers about them
+from their own profile, and an administrator holding `members:manage` can do it
+for somebody else; both delete the rows here **and** the matching memories in
+mem0 for every agent that binds it. Clearing one agent's memory entirely is in
+its toolbox, beside the capability.
+
+**What the self-service view does not reach.** An agent bound to mem0 keeps its
+memories in somebody else's service, and this page does not list them - mem0's
+API answers what a *question* matches, not what a store holds. Those agents are
+**named** on the page rather than left out, because a list of native notes
+presented as a complete inventory would be worse than one that says what it
+misses. Erasure does reach mem0; reading does not.
+
+## Memory (mem0)
+
+`remember`, `recall`
+
+Semantic memory kept in a [mem0](https://mem0.ai) service — cloud, or self-hosted
+via `base_url` — rather than in this deployment. `remember` keeps a short
+self-contained sentence; `recall` finds the ones a question is about by meaning
+rather than by name. It needs an API key from the organisation's vault.
+
+Which memories a run can reach obeys exactly the rule above, because mem0 is
+handed the whole scope as its `user_id`: `{org}:{agent}:{owner}`. One mem0 account
+therefore cannot mix two organisations', two agents', or two people's memories.
+
+Two differences worth knowing before choosing it. **Nothing is stored here**, so
+erasing a person's memory reaches mem0 through its own API rather than through a
+row we delete. And **mem0 bills its own embedding out of band**, so the
+deployment's spend ledger does not see it and a budget cap does not bound it.
+
+A self-hosted `base_url` must be https and on `MEM0_ALLOWED_HOSTS`. An empty
+allowlist refuses self-hosted mem0 outright, which is deliberate: the key travels
+in an `Authorization` header, so a builder who may bind but not read a shared key
+must not be able to point it at a server of their own.
+
+## Conversation search
+
+`search_conversations`, `read_conversation`
+
+Finds a past conversation by what was **said** in it, and opens it in full. Memory
+can only recall what some earlier turn thought worth writing down; everything else
+was said, stored, and until this existed unreachable — so "what did we decide about
+the Q3 pricing" answered "I have no record of that" in a product holding the whole
+exchange.
+
+`search_conversations` returns the best-matching threads, each with its title, when
+it was last active, how many turns matched, and the strongest passage with the
+matched words in bold. `read_conversation` opens one as Markdown, split into
+`USER:` and `AI:` in the order the turns were written, naming who spoke where a
+room has several people in it. A long thread comes a window at a time and the
+answer says how to ask for the next.
+
+### Whose conversations
+
+One person's: the person the run is answering. Three ways in, the same three the
+console allows — conversations they own, conversations shared with them, and
+channel threads they took part in *and are still a member of*, confirmed against
+the chat platform. A trigger's run-log is deliberately not among them: it is a
+transcript of runs made under somebody else's authority, and an agent searching on
+a person's behalf holds no permission of theirs to check it with.
+
+**And only where that person is the only listener.** In a group chat both tools
+refuse, saying why: the corpus is personal, so answering from it in a channel would
+read one person's private conversations out to everyone in the room. It is the
+line the memory index draws, one layer further out.
+
+A schedule or an event trigger answers nobody, so both tools refuse there too,
+for the reason [memory files](#whose-notes-and-who-may-hear-them) do.
+
+### How it matches
+
+PostgreSQL full-text search — a `tsvector` maintained by the database over every
+message, a GIN index, `websearch_to_tsquery` for the query and `ts_rank_cd` for
+the order. Quoted `"exact phrases"`, `or`, and a leading `-` to exclude a word all
+work. Not `ILIKE`, which matches inside words and cannot rank; not embeddings,
+which is what [knowledge search](#knowledge-search) already is and answers a
+different question.
+
+Words are matched whole and case-folded but **not stemmed**: `meeting` does not
+find `meetings`. The configuration is fixed in the database and `english` would
+stem one language while mangling every other — PostgreSQL ships no Polish
+dictionary at all — so evenness across languages is bought at the price of word
+forms. The tool description states it, so a model that finds nothing tries another
+form of the word rather than concluding nothing was said.
+
+An operator who does not want agents reading conversations at all withholds the
+`conversations:read` scope, which turns it off across the whole deployment. There
+is no setting that widens the corpus.
 
 ## Web search
 
@@ -183,30 +473,53 @@ scope.
   of the two is ever offered, so a run cannot pick between them per call.
 
 The fetch itself is Pydantic AI's `web_fetch_tool` over its SSRF-guarded
-`safe_download`, and that is the reason this is not code of ours. The URL comes
-from the **model** and is dereferenced from inside the container, so validating it
-up front — the way `app.core.sanitize.validate_webhook_url` does for a callback
-somebody handed us — is not sufficient on its own: `httpx` resolves the hostname a
-second time and follows redirects without asking again, so a name that answered
-publicly a moment ago can answer `169.254.169.254` now, and a public URL can
-redirect to one. `safe_download` pins the address it resolved into the request and
-re-validates every hop, the domain filters included. It also bounds the body as it
-streams and refuses the compression encodings that cannot be bounded that way.
+`safe_download`, and that is the reason this is not code of ours.
+
+What a response turns into is decided here:
+
+- A page (HTML, Markdown, JSON, plain text) comes back as Markdown.
+- An image comes back as an image, for a model that reads pictures.
+- A PDF or an office document comes back as its **extracted text**, read by the same
+  parser a chat attachment goes through, and cut at `max_content_chars` like a page.
+  The library would hand back the raw bytes for the model to read natively. A model
+  served behind an OpenAI-compatible endpoint that cannot do that refuses the whole
+  request (`Unsupported chat content part type: 'file'`), and the agent then fetches
+  the same document again. Only the text up to `max_content_chars` is extracted, and
+  a PDF is read for at most 2,000 pages: one longer than that ends with a note
+  naming the page it stopped at, and when the pages read held no text the note is
+  all that comes back.
+- A binary with no readable text (a scanned PDF, an archive) reaches the model as a
+  retryable error that names what came back.
+
+The URL comes from the **model** and is dereferenced from inside the container, so
+validating it up front — the way `app.core.sanitize.validate_webhook_url` does for a
+callback somebody handed us — is not sufficient on its own. `httpx` resolves the
+hostname a second time and follows redirects without asking again, so a name that
+answered publicly a moment ago can answer `169.254.169.254` now, and a public URL
+can redirect to one.
+
+`safe_download` pins the address it resolved into the request and re-validates every
+hop, the domain filters included. It also bounds the body as it streams, and refuses
+the compression encodings that cannot be bounded that way.
 
 Private, loopback, link-local and cloud-metadata addresses are refused, and the
 refusal reaches the model as a retryable error rather than as an empty page — a
 refusal shaped like a result is one the model answers around without saying it had
 to. The library can be told to permit local addresses; nothing here exposes that.
 
-The domain filters are **not** the security boundary — `safe_download` is. They
-match the hostname exactly, with no wildcards and no implicit subdomains, so they
-answer "which sites may this agent read" and not "can this agent reach our
-network". An entry that could never match is refused at publish: a wildcard, a
-scheme, a path, a port, or an empty **allowlist**, each of which would otherwise
-leave a denylist quietly not denying or an allowlist quietly denying everything.
-An empty *denylist* denies nothing, which is what leaving it unset already means,
-so it is read as unset rather than refused — an imported spec that spells "no
-denied hosts" as `[]` is saying something true.
+!!! warning "The domain filters are not the security boundary — `safe_download` is"
+
+    They match the hostname exactly, with no wildcards and no implicit subdomains,
+    so they answer *which sites may this agent read* and not *can this agent reach
+    our network*.
+
+An entry that could never match is refused at publish: a wildcard, a scheme, a path,
+a port, or an empty **allowlist**. Each would otherwise leave a denylist quietly not
+denying, or an allowlist quietly denying everything.
+
+An empty *denylist* denies nothing, which is what leaving it unset already means, so
+it is read as unset rather than refused — an imported spec that spells "no denied
+hosts" as `[]` is saying something true.
 
 An entry that *can* match is stored in the single spelling DNS would be asked for:
 lower case, no trailing root label, IDNA-encoded. A name has more than one
@@ -216,21 +529,131 @@ spelling, and an exact match against one of them is a filter with a hole in it �
 identically. Every equivalent spelling is handed to the filter at build time; the
 spec stores one.
 
-Approval and `native` do not combine. The [approval](../governance.md) gate wraps
-*tool execution*, which is the only place a call can be held, so a fetch the model
-provider runs on its own side never reaches it. A binding that requires approval
-for `web_fetch` and sets `method` to `native` — or to `auto`, where which of the
-two runs is a property of the model profile and changes without republishing — is
-refused at publish rather than given a gate that silently never fires. Set `method`
-to `local`, or drop the approval requirement; both are legitimate agents, and which
-one is wanted is not a decision to make on the author's behalf. A version published
-before that refusal existed is refused again when it is assembled, because nothing
-re-validates a frozen version — so such an agent stops running until it is edited,
-rather than going on fetching unapproved.
+!!! warning "Approval and `native` do not combine"
+
+    The [approval](../governance.md) gate wraps *tool execution*, which is the only
+    place a call can be held — so a fetch the model provider runs on its own side
+    never reaches it.
+
+A binding that requires approval for `web_fetch` and sets `method` to `native` — or
+to `auto`, where which of the two runs is a property of the model profile and
+changes without republishing — is **refused at publish**, rather than given a gate
+that silently never fires.
+
+Set `method` to `local`, or drop the approval requirement. Both are legitimate
+agents, and which one is wanted is not a decision to make on the author's behalf.
+
+A version published before that refusal existed is refused again when it is
+assembled, because nothing re-validates a frozen version. So such an agent stops
+running until it is edited, rather than going on fetching unapproved.
 
 A page arrives as Markdown, truncated at `max_content_chars`; a PDF or an image
 arrives as binary content the model reads natively. Nothing summarises it — what
 to do with a page belongs to the agent's instructions.
+
+## Browser automation (choose)
+
+`browse_page` — *Work through a web page towards a goal, one chosen action at a time.*
+
+A goal and a starting URL. It opens the page in a Chromium you run and then repeats
+three things: read the page into a numbered table of the elements a person could act
+on, ask a decision model which operation and which element, carry that out. Only
+typing a field's value reaches a language model.
+
+Reach for it when a page has to be *operated* — a form, a filter, a consent gate, a
+multi-step flow, a search whose results need a click. For a page you only need to
+read, [web fetch](#web-fetch) is faster and has no side effects.
+
+**It chooses; it does not compose.** A browser agent that writes its next action can
+emit any string, so the page's text is an instruction channel into the model and the
+only defence is telling the model not to listen. This one answers a pick-one whose
+options are built on the server from the live DOM, so a page cannot offer an action
+by describing one.
+
+That is not the same as safe. "Delete account" is an action a page genuinely offers,
+so the capability is **`side_effecting`** and `browse_page` can be put behind
+[approval](../governance.md).
+
+**It is not held for approval by default**, which is the one place the tool's flag
+disagrees with the capability's. An approval on a browse arrives *before* the first
+page is fetched, on a goal in natural language and a URL — so it asks somebody to
+approve actions nobody can see yet, which is consent without information. What
+replaces it is watching: the console draws the browse while it runs, every step
+names what was chosen and how sure the engine was, and `allowed_domains` bounds
+where it can go at all. An operator who wants the gate sets `tool_approval` on the
+binding, which wins over this; `min_confidence` is the automatic version of the same
+instinct.
+
+**It reports being blocked.** A sign-in wall, a consent gate, a captcha, a page that
+does not contain what was asked for: the engine says so, and the browse ends with an
+outcome rather than with silence at the step ceiling. Four outcomes, and all four are
+ordinary — finished, blocked by the page, stopped at the step limit, and the browser
+could not be reached.
+
+| Config | Default | Values |
+|---|---|---|
+| `cdp_url` | the one allowed host, where there is one | a Chromium DevTools endpoint; required, and its host must be on `BROWSER_CDP_ALLOWED_HOSTS`. With exactly one host allowed the form arrives filled in |
+| `allowed_domains` | null | hosts the browser may be on; globs like `*.example.com` allowed; null is unrestricted |
+| `decision_model` | `jev-latest` | a picker over `app/core/catalog/decision_models.json`; a pinned build such as `jev-1.13.0` can be typed, because an agent whose confidence floor was tuned against a version needs one |
+| `decision_base_url` | null | where that model runs. Empty is the vendor's own `https://api.typesafe.ai`, which is where page content goes unless this says otherwise |
+| `max_steps` | 25 | 1–100; each step is one decision request |
+| `candidate_cap` | 60 | 2–200; how many elements may be offered as choices in one step |
+| `min_confidence` | 0.0 | 0–1; refuse to act on a pick scored below this, ending the browse as blocked |
+| `preview` | `true` | send the viewport to the chat while the browse runs |
+| `preview_width` | 1024 | 320–1920; how wide those frames are |
+
+**The browser is one you run, and the operator says which.** There is no local
+mode and no Chromium in the API image: `cdp_url` points at a browser service an
+operator runs and isolates. The host must be on
+[`BROWSER_CDP_ALLOWED_HOSTS`](../configuration.md), and an empty allowlist — the
+default — refuses browser automation outright. Checked **at publish**, when the
+spec is saved, rather than on every run.
+
+That is an allowlist rather than the SSRF check every other tenant-supplied URL
+goes through, and the reason is what `cdp_url` is: it lives in a spec, which
+anyone holding `edit` on the agent writes, so the address is tenant-controlled and
+the request is this deployment's. The SSRF guard is wrong for it in both
+directions — it admits only *public* addresses, so it refuses the isolated service
+on your own network that this page tells you to run, and it accepts a CDP debugger
+exposed to the internet, which is the worse posture of the two. A vetted host
+needs no address check; an unvetted one is refused whatever it resolves to.
+
+**Each browse gets a browser context of its own**, disposed when it ends. On a
+long-lived browser shared by many callers, the default context would keep a cookie
+set when one person's agent signed in — and the next caller of the same agent would
+arrive already authenticated as them. Closing the tab does not clear that;
+disposing the context does.
+
+**Every step sends the page to the decision model.** Its URL, its title, its
+element labels and a bounded excerpt of its visible text — which on the vendor's
+public endpoint is a third party, and may be the contents of an internal system.
+The text is there because without it the engine cannot tell that it has *finished*:
+a price, a confirmation and "no results" are ordinary text rather than controls, so
+`DONE` would be a guess. A value the agent types is deliberately not sent — the step
+is recorded as "filled" without it, so a password does not travel to that endpoint.
+
+Two things make that a decision rather than an accident: the capability requires an
+API key from this deployment's vault, so it cannot run until an operator adds one,
+and `decision_base_url` points the decision model somewhere else — at a host on
+[`DECISION_MODEL_ALLOWED_HOSTS`](../configuration.md), because that field is in the
+spec and the key is unsealed into a header to whatever it names. An empty allowlist,
+the default, permits only the vendor's endpoint. See [what leaves the deployment](../data-protection.md#what-leaves-the-deployment).
+
+**Both model paths are metered, and neither is priced.** The decision model runs once
+per step and the run's own model once per field typed; both book tokens against the
+run's budget. A price is another matter: the bundled price snapshot does not know the
+decision model, so a browse shows usage and no cost, and a budget denominated in
+dollars does not constrain it. `max_steps` is what bounds a browse.
+
+**`cdp-use` and the TypeSafe SDK arrive with the `browser` extra**, which a default
+install does not have. An operator who wants the capability installs
+`agenticos[browser]`; a bound agent whose deployment lacks it fails the one tool
+loudly, with the install line.
+
+**It streams while it runs.** The console draws the viewport, the page it is on, and
+each step with the probability the engine found it at — see
+[the console](../console.md). `preview` off keeps the narration and drops the
+pictures.
 
 ## Browser automation
 
@@ -270,7 +693,9 @@ event loop the run assembles on).
 model — the one whose credential was resolved from the vault — and each of its steps
 is one model request, booked against the run's budget through the same ambient-usage
 ledger a compaction summary uses. It is not browser-use's own hosted model, and it is
-not spend the budget guard cannot see.
+not spend the budget guard cannot see. Each step asks the budget before it is sent, so
+once the run's budget is spent the browser agent's next step is refused rather than
+paid for.
 
 **`browser-use` is an optional extra.** It pulls a heavy tree (Chromium via
 Playwright) and pins dependencies a minor lower than the rest of the platform, so it
@@ -290,9 +715,10 @@ memory are the only limits worth setting.
 | `timeout_secs` | 10 | > 0, ≤ 120 |
 | `max_memory_mb` | 256 | 16–4096 |
 
-Capped rather than open-ended, and per agent rather than per deployment: an author
-raising a limit for one data-heavy agent should not need an operator or a
-redeploy.
+!!! info "Per agent, not per deployment"
+
+    An author raising a limit for one data-heavy agent should not need an
+    operator or a redeploy — and the ceilings are capped rather than open-ended.
 
 ## Files & shell
 
@@ -387,7 +813,10 @@ that mattered. `execute` runs arbitrary commands on somebody's host.
 
 A binding that wants the stricter behaviour sets it per tool:
 `tool_approval: {"write_file": "required"}`. See [Governance](../governance.md) for
-how an approval is put to a person.
+how an approval is put to a person — and for the two things one *chat session* can
+say on top of the spec: waive every gated call for this conversation, or ask about
+every tool the agent has, including the MCP tools the spec-driven gate deliberately
+leaves alone (agenticos#925).
 
 **Some paths are refused whatever the approval policy says.** Credentials
 (`**/.env`, `**/*.pem`, `**/*.key`, `**/credentials*`, `**/.ssh/**`, `**/.aws/**`)
@@ -412,7 +841,7 @@ Files somebody attaches to a message land in `/uploads` — see
 [File processing](../file-processing.md).
 
 **Skills become files too.** An agent with both a workspace and skills gets each
-skill as `/skills/<name>/SKILL.md` with its resources beside it, which is what
+skill as `/workspace/skills/<name>/SKILL.md` with its resources beside it, which is what
 makes a skill's script runnable at all: it is on disk next to the shell that can
 run it. There is deliberately no `run_skill_script` — `execute` already has the
 approval gate and the operator's ceilings behind it, and a second execution path
@@ -431,15 +860,17 @@ them.*
 Renders numbers the model already has. It does not fetch, compute or aggregate —
 pair it with `code_execution` or `knowledge` for that. No configuration.
 
-The numbers arrive as columns — one `x_values` list for the axis, one `values`
-list per series — because a free-form `data` argument is not something a JSON
-Schema can describe, and a model given an array of objects with no declared
-properties sent back a single empty one. A chart with nothing in it is now
-unexpressible rather than merely refused; an axis with no points, a chart with no
-series, or a series holding fewer numbers than the axis has points all come back
-as a retry naming what is missing. A frame drawn around no data reads as "there
-is no trend" rather than as a mistake, and it is persisted and re-rendered on
-every replay of the conversation.
+The numbers arrive as **columns** — one `x_values` list for the axis, one `values`
+list per series — because a free-form `data` argument is not something a JSON Schema
+can describe, and a model given an array of objects with no declared properties sent
+back a single empty one.
+
+A chart with nothing in it is now unexpressible rather than merely refused. An axis
+with no points, a chart with no series, or a series holding fewer numbers than the
+axis has points all come back as a retry naming what is missing.
+
+A frame drawn around no data reads as "there is no trend" rather than as a mistake —
+and it is persisted, and re-rendered on every replay of the conversation.
 
 ## Image generation
 
@@ -521,6 +952,49 @@ under `/output`, so a later `execute` step can build with it — assemble a PDF,
 slide, a page. An agent without a workspace still generates and shows images; it
 simply has nowhere to build with them.
 
+## Artifacts
+
+`publish_artifact` — *Publish a finished page - a report, a small dashboard, a
+summary - under a stable link.*
+`read_artifact` — *Read the current version of a page this agent published, as it
+was written.*
+
+Publishes one self-contained HTML or Markdown document as an
+[artifact](../artifacts.md): a shared resource with an owner, a visibility and
+grants, opened in a browser under a link that stays put. No configuration.
+
+**The name is the identity.** `(organization, agent, environment, name)` picks the
+artifact, so the next run of the same agent that publishes `weekly-report` - from
+a chat, a schedule or the API - adds a version to the same one instead of making a
+second link. The environment comes from the run, so a run in `staging` publishes a
+page of its own. Identical bytes add no version and answer `unchanged`.
+
+**Where the page comes from.** `path` reads a file from the run's workspace
+through its own backend, so it works wherever the `sandbox` capability does;
+`content` takes the page inline for an agent with no workspace; `edits` are exact
+replacements applied to the version `read_artifact` returned, and a publish in
+between refuses them rather than overwrite it. Exactly one of the three. A wrong
+call - more than one, none, a name outside `^[a-z0-9][a-z0-9-]{0,63}$`, an unknown
+extension, an empty or oversized page, an edit that matches no place or several -
+is a retry naming what to change. A read the workspace's permission rules refuse,
+and a page the run's person may not open, are results, not retries.
+
+**Reading back.** `read_artifact` returns a header line (version, format, size)
+and the source, cut at 100,000 characters with the header saying so. It opens
+only what the run's person may open in the console, and nothing on a public
+widget, an embed, a schedule or an event trigger, where no identified person is
+listening.
+
+**Not side-effecting.** A first publication is private to the person the run was
+for, and only a person widens who reads it, so the approval gate would only
+park the scheduled report this exists for. An author who wants each republish of
+a shared page approved sets `tool_approval` on `publish_artifact`.
+
+**The page has no network.** It is served in an opaque origin under a `sandbox`
+policy with `connect-src 'none'`, and the tool text tells the model to inline its
+own data and load charts from the deployment's [library set](../artifacts.md#the-library-set)
+rather than a CDN. See [how the page is isolated](../artifacts.md#how-the-page-is-isolated).
+
 ## Delegation
 
 `task` — *hand a self-contained piece of work to one of this agent's specialists.*
@@ -550,18 +1024,22 @@ the YAML export and the permission model can all see it.
 | `max_result_chars` | 2000 | 200–20000 |
 | `share_with_delegates` | none | capability ids this agent is itself bound to, except `subagents` |
 
-**The mode is the author's decision, not the model's.** The library's `task` tool
-takes a `mode` argument defaulting to `sync`, so "the model chose to wait" and
-"the model said nothing" are the same call — there is no way to honour both a
-setting and a choice, and the setting was reviewed. So the argument is replaced on
-the way through, and `auto` is how an author deliberately hands the decision over.
-`auto` is resolved *before* the delegation starts, because whether a panel stays
-open after the parent has answered depends on the answer. A pinned delegate or a
-specialist may override the mode for itself: one slow researcher is the case worth
-running in the background. The instructions **mark that delegate**, beside its
-name — a single sentence stating the configured mode was a promise the overriding
-delegate then broke, telling the model to expect an answer and handing it a task
-id.
+**The mode is the author's decision, not the model's.**
+
+The library's `task` tool takes a `mode` argument defaulting to `sync`, so "the
+model chose to wait" and "the model said nothing" are the same call. There is no way
+to honour both a setting and a choice, and the setting was reviewed.
+
+So the argument is replaced on the way through, and `auto` is how an author
+deliberately hands the decision over. `auto` is resolved *before* the delegation
+starts, because whether a panel stays open after the parent has answered depends on
+the answer.
+
+A pinned delegate or a specialist may override the mode for itself — one slow
+researcher is the case worth running in the background. The instructions then
+**mark that delegate**, beside its name: a single sentence stating the configured
+mode was a promise the overriding delegate then broke, telling the model to expect
+an answer and handing it a task id.
 
 **A `sync`-only agent is offered none of the six task-lifecycle tools.** Each of
 `check_task`, `wait_tasks`, `list_active_tasks`, `send_message_to_subagent` and the
@@ -572,16 +1050,20 @@ either, or permission to invent specialists. `sync` is the default, so this is t
 common configuration, and six tool descriptions withheld is six the model no longer
 pays for on every turn. `task` stays — a `sync` agent still delegates.
 
-**Fan-out and nesting are ceilings, not errors.** Past `max_fanout` the next
-delegation comes back as a tool result the model can act on — wait, or do the work
-itself — because a pacing limit should not end a run. `max_depth` counts levels of
-delegation **including the configured agent's own**: 1 is this agent delegating and
-its delegates not, 2 allows one nested level. At the bound a delegate is built
-*without* the delegation capability rather than with one that can only refuse - a
-tool that always answers "no delegates available" is a description the model pays
-for on every turn and tries anyway. There is deliberately no 0: turning delegation
-off is disabling the binding, and a second spelling of the same switch is one that
-disagrees with the first.
+**Fan-out and nesting are ceilings, not errors.**
+
+Past `max_fanout` the next delegation comes back as a tool result the model can act
+on — wait, or do the work itself — because a pacing limit should not end a run.
+
+`max_depth` counts levels of delegation **including the configured agent's own**: 1
+is this agent delegating and its delegates not; 2 allows one nested level.
+
+At the bound a delegate is built *without* the delegation capability, rather than
+with one that can only refuse. A tool that always answers "no delegates available"
+is a description the model pays for on every turn and tries anyway.
+
+There is deliberately no 0. Turning delegation off is disabling the binding, and a
+second spelling of the same switch is one that disagrees with the first.
 
 **And every agent in the tree is held to its own `max_depth`, not the root's.** A
 delegate gets the *lower* of what the tree has left and what its own spec allows,
@@ -597,43 +1079,59 @@ it stopped rather than delegating again, which is what makes the approval apply 
 the call the reviewer actually saw. [Governance](../governance.md) has the shape of
 the stored state and why re-running would answer differently.
 
-**A background delegation cannot stop to ask a person.** A gated tool inside one
-is refused rather than parked, and the refusal tells the model to delegate that
-work with `mode="sync"` instead. The reason is not policy but lifetime: the
-approval channel closes over the request's database session, and a background
-delegation outlives the tool call that started it, so by the time it wanted to ask,
-there is nothing left to write the question with. A background delegation that
-suspends anyway — a shape the library documents as undeliverable — is recorded
-`failed` with that same message, because the alternative is a task that reports
-"still running" for as long as the process lives: its spend attributed to nothing,
-its fan-out slot never released, and the panel a surface opened never closed.
+**A background delegation cannot stop to ask a person.**
 
-**A sync delegate may ask the parent's person, when `allow_questions` is set.** Off
-by default: a specialist works autonomously and says so if it could not. Set on, a
-delegate whose mode is sync is given the library's `ask_parent` tool, and a question
-it asks is answered by the run's own `ask_user` channel — the person already holding
-the parent's tool call — never by the model. It is the author's decision because the
-question wears a name the author published; a specialist the model *invents* never
-asks, whatever this says, because instructions a model wrote a moment ago are not the
-author's to put to a person. Only sync: a background delegation has handed back a
-task id with nobody left to answer, and `auto` may become one. Reaching a pre-built
-delegate needed an upstream change —
+A gated tool inside one is refused rather than parked, and the refusal tells the
+model to delegate that work with `mode="sync"` instead.
+
+The reason is not policy but **lifetime**. The approval channel closes over the
+request's database session, and a background delegation outlives the tool call that
+started it — so by the time it wanted to ask, there is nothing left to write the
+question with.
+
+A background delegation that suspends anyway — a shape the library documents as
+undeliverable — is recorded `failed` with that same message. The alternative is a
+task that reports "still running" for as long as the process lives: its spend
+attributed to nothing, its fan-out slot never released, and the panel a surface
+opened never closed.
+
+**A sync delegate may ask the parent's person, when `allow_questions` is set.**
+
+Off by default: a specialist works autonomously and says so if it could not.
+
+Set on, a delegate whose mode is sync is given the library's `ask_parent` tool, and
+a question it asks is answered by the run's own `ask_user` channel — the person
+already holding the parent's tool call — never by the model.
+
+It is the author's decision because the question wears a name the author published.
+A specialist the model *invents* never asks, whatever this says: instructions a
+model wrote a moment ago are not the author's to put to a person.
+
+Only sync. A background delegation has handed back a task id with nobody left to
+answer, and `auto` may become one.
+
+Reaching a pre-built delegate needed an upstream change.
 [subagents-pydantic-ai#76](https://github.com/vstorm-co/subagents-pydantic-ai/pull/76)
 honours `can_ask_questions` for a caller-supplied agent, which every delegate here
 is — landing the sync half of
 [#184](https://github.com/vstorm-co/agenticos/issues/184).
 
-**`answer_subagent` is offered to no model.** It answers a question a *background*
-delegate parked on, and no delegate here parks on one: a sync question goes to a
-person through `ask_user` and never this tool, and an async delegate is not given
-`ask_parent` at all. So the tool's only possible answer is "that delegation is not
-waiting for an answer". It stays *declared*, because a tool absent from the
-declaration cannot be gated by the approval policy or renamed by a binding and that
-half of the failure is silent; it is filtered out of the offered set, because the
-other half is a description in every turn's context describing an action that cannot
-happen, and tool descriptions are the strongest prompt in this product. The tool
-becomes reachable only when the background half of
-[#184](https://github.com/vstorm-co/agenticos/issues/184) is answered — where the
+**`answer_subagent` is offered to no model.**
+
+It answers a question a *background* delegate parked on, and no delegate here parks
+on one: a sync question goes to a person through `ask_user` and never this tool, and
+an async delegate is not given `ask_parent` at all. So the tool's only possible
+answer is "that delegation is not waiting for an answer".
+
+It stays **declared**, because a tool absent from the declaration cannot be gated by
+the approval policy or renamed by a binding, and that half of the failure is silent.
+
+It is **filtered out of the offered set**, because the other half is a description
+in every turn's context describing an action that cannot happen — and tool
+descriptions are the strongest prompt in this product.
+
+The tool becomes reachable only when the background half of
+[#184](https://github.com/vstorm-co/agenticos/issues/184) is answered: where the
 parent's own model answers while nothing obliges it to look, the delegate blocking
 on a fan-out slot the turn's end cancels.
 
@@ -673,14 +1171,17 @@ that binds `sandbox` *without* being shared the parent's gets the in-memory
 workspace, because only the run opens one.
 
 **`subagents` cannot be shared**, and it is the one id "does the parent hold it"
-could never refuse — an agent that shares anything holds it by definition. Shared,
-the parent's binding lands on a delegate that binds none, and the runtime then
-reads the *parent's* specialists, `allow_dynamic`, `max_fanout`, `max_depth` and
-share list as though the delegate's author had chosen them. Publishing refuses it,
-and the runtime drops it from the share list as well, so a spec stored before that
-rule cannot widen a delegate either. Whether a delegate may delegate at all is its
-own spec's answer, and so is how deep it may go — bounded by what the tree above it
-has left.
+could never refuse — an agent that shares anything holds it by definition.
+
+Shared, the parent's binding lands on a delegate that binds none, and the runtime
+then reads the *parent's* specialists, `allow_dynamic`, `max_fanout`, `max_depth`
+and share list as though the delegate's author had chosen them.
+
+Publishing refuses it, and the runtime drops it from the share list as well, so a
+spec stored before that rule cannot widen a delegate either.
+
+Whether a delegate may delegate at all is its own spec's answer, and so is how deep
+it may go — bounded by what the tree above it has left.
 
 Sharing is also the only route to an [MCP connection](../mcp.md) for an inline
 specialist, which cannot bind one at all: a connection is organization-scoped
@@ -693,17 +1194,23 @@ renamed by a binding, and the dangerous half of that is silent — so all ten ar
 declared, and a default configuration offers seven.
 
 What the switch buys is a specialist the model writes itself: instructions and a
-model, and nothing else. It is built through the same `build_agent` an inline
-specialist comes through, on the run's shared budget guard and its approval
-channel, so its requests are priced and counted against the cap somebody set. That
-is the entire reason this took a factory rather than a flag: a specialist the
-library built for itself would sit outside this deployment's model catalog, its
+model, and nothing else.
+
+It is built through the same `build_agent` an inline specialist comes through, on
+the run's shared budget guard and its approval channel, so its requests are priced
+and counted against the cap somebody set.
+
+That is the entire reason this took a **factory** rather than a flag. A specialist
+the library built for itself would sit outside this deployment's model catalog, its
 vault and its budget guard — an unmetered request, possibly to a provider the
 organization holds no key for. The factory is what routes it back through this
-platform instead. (Before `subagents-pydantic-ai` 0.2.18 the library also carried a
-default model string a modelless specialist was compiled from; 0.2.18 removed that
-fallback, so a specialist naming no model is now refused rather than built — this
-platform refuses it earlier still, in `DelegatingToolset._refuse_dynamic`.)
+platform instead.
+
+!!! note "A specialist naming no model is refused"
+
+    Before `subagents-pydantic-ai` 0.2.18 the library carried a default model string
+    a modelless specialist was compiled from. 0.2.18 removed that fallback, and this
+    platform refuses it earlier still, in `DelegatingToolset._refuse_dynamic`.
 
 The model may name only a model the organization has a profile for, and the refusal
 names the list. It may not attach capabilities: letting a model grant its own child
@@ -713,15 +1220,19 @@ means publishing an agent, which is a person's action. `MAX_DYNAMIC_SPECIALISTS`
 bounds how many one run may keep.
 
 That a specialist is not persisted is a design, and it has an exit rather than a
-dead end: a person can **promote** one to a draft agent. Its definition rides the
-opening `SubagentStarted` frame — the one place it is legible after the model wrote
-it and before the turn ends — so the chat delegation panel can offer to keep it
-while the run is still on screen, and the Builder offers the same on an inline
-specialist. Promotion creates a draft owned by whoever promoted it, gated on
-`agents:edit`, and stops there: it does not publish, does not pin the new agent as a
-delegate, and does not remove the specialist it came from. See
-[Concepts](../concepts.md#delegate-vs-inline-specialist) for why the persistence rule
-is the reason the exit exists rather than a limitation it works around.
+dead end: a person can **promote** one to a draft agent.
+
+Its definition rides the opening `SubagentStarted` frame — the one place it is
+legible after the model wrote it and before the turn ends — so the chat delegation
+panel can offer to keep it while the run is still on screen, and the Builder offers
+the same on an inline specialist.
+
+Promotion creates a draft owned by whoever promoted it, gated on `agents:edit`, and
+stops there: it does not publish, does not pin the new agent as a delegate, and does
+not remove the specialist it came from.
+
+See [Concepts](../concepts.md#delegate-vs-inline-specialist) for why the persistence
+rule is the reason the exit exists, rather than a limitation it works around.
 
 A kept one lasts the whole run it was invented in, an approval park included: the
 registration lives in a registry the delegation library builds per *built* agent,
@@ -733,15 +1244,19 @@ state — a name created in one reply is unknown in the next, and `create_agent`
 description tells the model to create it again if `task` says so.
 
 **The delegation library's own unspecialised delegate is not offered at all**, and
-there is no setting for it. Before subagents-pydantic-ai 0.2.18 it would have run on
-a model this deployment did not configure — compiled from the library's own default
-model string, outside the organization's profiles, its vault and the run's budget
-guard, exactly like the run-time specialist above before it took a factory. A
-catch-all is a legitimate thing to want; write it as an inline specialist, where you
-can read what it does and it is priced like everything else. The library's own is
-fixed as of 0.2.18 ([#174](https://github.com/vstorm-co/agenticos/issues/174)): with
-no default model or factory it now refuses to build the delegate rather than picking
-a model.
+there is no setting for it.
+
+Before subagents-pydantic-ai 0.2.18 it would have run on a model this deployment did
+not configure — compiled from the library's own default model string, outside the
+organization's profiles, its vault and the run's budget guard. Exactly like the
+run-time specialist above, before it took a factory.
+
+A catch-all is a legitimate thing to want. Write it as an inline specialist, where
+you can read what it does and it is priced like everything else.
+
+The library's own is fixed as of 0.2.18
+([#174](https://github.com/vstorm-co/agenticos/issues/174)): with no default model
+or factory, it now refuses to build the delegate rather than picking a model.
 
 What the model is told about all of this is written here rather than by the
 library: the delegates by name and description, the mode this run will actually
@@ -785,11 +1300,46 @@ declares `side_effecting=False`. The three subtask tools are declared even when 
 checklist does not offer them, because a tool absent from the declaration can be
 neither gated by the approval policy nor renamed by a binding.
 
-**The plan survives an approval park.** The checklist is state, and a run that parks
-on an approval mid-plan resumes as a fresh run — so the store is owned by the runner,
-not the capability: it is seeded from `paused_state` on resume and read back when the
-run stops. An agent that does not bind the capability pays nothing — no tools, no
-reminder, no stored plan.
+**The plan belongs to the conversation, not to one turn of it.**
+
+The checklist is state, and every boundary a run has would otherwise lose it. A run
+that parks on an approval mid-plan resumes as a fresh run — and a chat message *is*
+a run here, so the next message started from an empty store.
+
+An agent wrote three steps, was asked to begin the first, and answered that no plan
+existed and it had never created one (agenticos#1077).
+
+So the store is the **runner's**, not the capability's. It is seeded from the
+conversation's stored plan, or from `paused_state` on a resume, which is the newer
+copy, and written back to the conversation when the run stops.
+
+A surface with no conversation — a bare API call — keeps a plan for the length of
+its run, which is all it has.
+
+**A finished checklist is history, and a new turn does not start from it.** The
+row keeps it — nothing is deleted — but a plan whose every step is `completed` or
+`cancelled` is not seeded into the next turn: the tail reminder would call a task
+nobody is doing "your current plan", and `read_plan` would answer with it
+(agenticos#1221).
+
+Keeping the row takes one more rule, because a turn writes its store back when it
+ends: the turn whose store was opened empty *over* a finished plan writes nothing.
+It did nothing to the checklist, and an empty dump would delete the row on the
+very next ordinary message. An agent that starts new work dumps a plan and
+replaces it as usual.
+
+The filter is at the *seed*, not at the moment the last step is ticked, and that
+is the whole of the choice. Within the turn that finishes a plan the store still
+holds it, so the agent can summarise what it just did and nothing contradicts the
+transcript. It is the next question that starts clean — and the ticked checklist
+is still in the messages above it, where it reads as what was done rather than as
+what is being done. A `blocked` step is work outstanding, so a plan holding one is
+seeded: something still has to unblock it. A resume seeds from `paused_state` and
+is untouched, being mid-plan by construction.
+
+An agent that does not bind the capability pays nothing: no tools, no reminder, and
+nothing stored, because an empty checklist against a column that is null is not a
+change to write.
 
 **It spends no tokens of its own.** The tools are local checklist edits with no model
 or embedding request behind them, so unlike knowledge or delegation there is no
@@ -846,15 +1396,19 @@ the real conversation) stays byte-identical turn over turn while only the small
 reminder falls outside the cache. Injecting into the system prompt instead would
 bust the cached prefix on every fire *and* accumulate stale reminders.
 
-**An LLM reminder is metered and inherits the run's model.** It writes its text
-through an agent it builds itself, which no budget guard wraps, so its spend is
-booked against the run's ledger the way a summary is, and it runs under the run's
-usage limits minus one reserved request so it can never push the run past its own
-step limit. It uses the run's own model — the one whose credential the vault
-resolved — rather than a name from config, the same decision
-[Context management](#context-management) makes about its summariser. On any error,
-or when the reserved budget is already spent, it falls back to the goal-reanchor
-line, so a failed generation never blocks the run.
+**An LLM reminder is metered and inherits the run's model.**
+
+It writes its text through an agent it builds itself, which no budget guard wraps —
+so its spend is booked against the run's ledger the way a summary is, and it runs
+under the run's usage limits minus one reserved request, so it can never push the
+run past its own step limit.
+
+It uses the run's own model — the one whose credential the vault resolved — rather
+than a name from config, the same decision
+[Context management](#context-management) makes about its summariser.
+
+On any error, or when the reserved budget is already spent, it falls back to the
+goal-reanchor line. A failed generation never blocks the run.
 
 ## Date and time
 
@@ -955,6 +1509,49 @@ reported by every agent, whether or not it compacts — see
 The warning matters most to the agent that will *not* compact, which is the one
 that reaches the ceiling and gets refused.
 
+## Media offload
+
+No tools. Writes a compacted conversation's large parts out to storage and leaves
+a `media+sha256://…` reference in the stored history. The content-addressed
+stores and the walkers come from
+[`pydantic-ai-harness`](https://github.com/pydantic/pydantic-ai-harness).
+
+| Config | Default | |
+|---|---|---|
+| `threshold_bytes` | 32768 | 1 KiB–10 MiB; parts at least this large are stored out of line |
+
+**There is one place media actually piles up, and this is it.** An attachment
+reaches the model once, on the turn it was attached: the ordinary history is
+rebuilt from the transcript's *text*, so a picture is not re-sent on later turns.
+A conversation that has been [compacted](#context-management) is the exception —
+the library's own dump of the run's messages is stored whole and replayed exactly
+as the model last saw it, base64 and all, until the next summary replaces it.
+That blob is rows in Postgres and bytes on the wire, every turn in between.
+
+**Where the bytes go, and how long they live.** Into the deployment's own file
+storage, at `media/<organization>/<conversation>/<digest>`. The organization is
+the isolation: a media URI is a content hash, so two tenants holding the same
+picture compute the same URI, and the organization comes from the run rather than
+from the URI. The conversation is the lifetime — a content hash records nothing
+about who still references it, so the thread's prefix is removed with the thread
+and the tenant's with the tenant. The store issues no public URL; a URL a model
+provider can fetch is a URL anybody can.
+
+**Offloading is optional; restoring is not.** Binding the capability is the
+decision to offload. Re-inlining happens for every conversation whether or not it
+is still bound, because a conversation whose agent was unbound afterwards still
+has markers in its history and a marker nobody re-inlines is a picture the model
+is handed in a language it does not read.
+
+**Both directions fail soft.** Losing a summary a model was paid to produce,
+because a store hiccuped, is worse than a history that is larger than it needed
+to be. A failure is logged and the history is used as it stands.
+
+It does not reduce what the model is *sent*: the parts are re-inlined before the
+request goes out, which is what keeps the run correct. Rewriting them to a URL
+the model fetches itself is a different feature and would need the public URL
+this store deliberately does not issue.
+
 ## Tool output limits
 
 One tool, `read_tool_result`. Where `compaction` trims history *inside* the window
@@ -971,9 +1568,9 @@ produced, and lets the reduced form persist. The reduction itself is
 | Config | Default | |
 |---|---|---|
 | `action` | `spill` | `spill`, `truncate`, `summarize` |
-| `threshold` | 10000 | size at or above which a return is reduced |
+| `threshold` | 60000 | size at or above which a return is reduced; 15000 when `over_tokens` is set |
 | `over_tokens` | `false` | measure the threshold in estimated tokens, not characters |
-| `max_chars` | 4000 | characters kept when a return is truncated, or a spill falls back to one |
+| `max_chars` | 20000 | characters kept when a return is truncated, or a spill falls back to one; left unset, never more than the threshold |
 | `truncation_strategy` | `head_tail` | `head`, `tail`, `head_tail` — which end(s) to keep |
 | `strip_ansi` | `false` | strip terminal colour codes before measuring and reducing |
 | `summary_prompt` | the library's own | what the summarising model is told; must contain `{tool_name}` and `{output}` |
@@ -985,25 +1582,34 @@ from_end, pattern)` — the same page-through pattern `read_file` gives it over 
 workspace. `truncate` is the cheap, lossy clamp with a marker saying what was cut;
 `summarize` replaces the return with an LLM summary and is the expensive one.
 
-**A spill goes to the agent's own backend.** An agent that binds `sandbox` already
-has a filesystem — `state`, a Docker container, Daytona — that the runner opened for
-the run and keyed to the organization; the spill lives there, under a
-`tool_output/` prefix, so it shares that workspace's lifetime and the agent can even
-reach it through its own `read_file` and `grep`. On the default `run` session scope
-that lifetime *is* the run, which is what the "must not outlive the run" requirement
-asks for. A spill is a within-run artefact and never outlives the run on a
-longer-scoped workspace (`conversation`, `user`, `agent`) either: a `state`
-workspace has the reserved prefix stripped at flush, so accumulated spills can no
-longer push it toward its byte cap and refuse the agent's own writes, and a
-*container* workspace has the run's spills deleted off its filesystem when the
-workspace closes — by the exact handles the run recorded, never by sweeping the
-prefix, so two concurrent runs sharing a workspace cannot take each other's spills
-mid-flight ([#803](https://github.com/vstorm-co/agenticos/issues/803)). An agent with
-no backend gets an in-memory one built for the run and discarded with it, so the
-spill is never written to shared disk. A spill the backend refuses — a `state`
-workspace already at its byte cap — falls back to a truncation rather than a silent
-drop; so does a `summarize` whose model call fails (`summarize` → `spill` →
-`truncate`).
+**A spill goes to the agent's own backend.**
+
+An agent that binds `sandbox` already has a filesystem — `state`, a Docker
+container, Daytona — that the runner opened for the run and keyed to the
+organization. The spill lives there, under a `tool_output/` prefix, so it shares
+that workspace's lifetime and the agent can even reach it through its own
+`read_file` and `grep`.
+
+On the default `run` session scope that lifetime *is* the run, which is what the
+"must not outlive the run" requirement asks for.
+
+A spill is a within-run artefact and never outlives the run on a longer-scoped
+workspace (`conversation`, `user`, `agent`) either:
+
+- a `state` workspace has the reserved prefix stripped at flush, so accumulated
+  spills can no longer push it toward its byte cap and refuse the agent's own
+  writes;
+- a *container* workspace has the run's spills deleted off its filesystem when the
+  workspace closes — by the exact handles the run recorded, never by sweeping the
+  prefix, so two concurrent runs sharing a workspace cannot take each other's spills
+  mid-flight ([#803](https://github.com/vstorm-co/agenticos/issues/803)).
+
+An agent with no backend gets an in-memory one built for the run and discarded with
+it, so the spill is never written to shared disk.
+
+A spill the backend refuses — a `state` workspace already at its byte cap — falls
+back to a truncation rather than a silent drop. So does a `summarize` whose model
+call fails: `summarize` → `spill` → `truncate`.
 
 **A summary is billed to the run.** Like `compaction`'s, the summarising call runs
 through an `Agent` the harness builds itself, outside the budget guard, so its
@@ -1060,8 +1666,9 @@ deliberately not exposed.
 
 No tools. Inspects the text flowing through a run at three edges and either
 **redacts** a match or **blocks** the run. The checks are ready-made detectors from
-`pydantic-ai-harness`; an agent is data, so the config selects and parameterises
-them rather than carrying a Python guard.
+`pydantic-ai-harness`, plus a phone number detector the harness does not ship; an
+agent is data, so the config selects and parameterises them rather than carrying a
+Python guard.
 
 | Edge | Reads | Redact | Block |
 |---|---|---|---|
@@ -1072,11 +1679,30 @@ them rather than carrying a Python guard.
 | Config | Default | |
 |---|---|---|
 | `redact_secrets_*` | `false` | scrub API keys, tokens, JWTs and PEM blocks |
-| `redact_pii_*` | `false` | scrub email, IBAN (mod-97), card (Luhn) and US SSN |
+| `redact_pii_*` | `false` | scrub email, phone number (valid in its numbering plan), IBAN (mod-97), card (Luhn) and US SSN |
 | `blocked_keywords_*` | `""` | comma- or newline-separated terms; a match ends the run |
+| `phone_regions` | `"US, GB, DE, PL"` | ISO 3166 codes, comma- or newline-separated, whose national phone formats PII redaction reads, at most 16 |
 
-Every field defaults off, and a capability enabled with no edge configured attaches
+Every edge field defaults off, and a capability enabled with no edge configured attaches
 nothing — an agent that does not use it pays nothing.
+
+**A phone number is redacted only when it is a real number.** The detector is
+libphonenumber's, at its `STRICT_GROUPING` leniency: a candidate is accepted only
+when it fits the numbering plan of its country and its separators fall where that
+country groups digits, so a date, an amount or an order id that a digit-count rule
+would take comes through. A number written with `+` names its
+country and is redacted whatever `phone_regions` lists. A national number, such as
+`415-555-0132`, is read against each listed country, and each one added widens what
+a bare run of digits can be: `123456789` is a valid Polish landline, so with `PL`
+listed a nine-digit order id is redacted too. Grouping cuts both ways: a US ZIP+4
+that starts with `0`, such as `02134-1234`, is grouped as a German area code and
+number, so with `DE` listed it is redacted. List the countries the agent serves.
+An unknown code (`UK` for `GB` is the common one), or a list of more than 16, is
+refused at publish. With up to four countries, a text longer than 200,000 characters
+or with more than 10,000 digits is not read at all. Each country past four is another
+pass over the text, so both limits shrink in proportion, to 50,000 characters and
+2,500 digits at sixteen. A text over the limit ends the run with
+`guardrail_blocked`, because passing it on unread would pass on every number in it.
 
 **Redaction rewrites; a block is a run outcome.** A redactor scrubs the match and
 the run finishes — an answer that quoted a key back has still done the work. A
@@ -1084,6 +1710,32 @@ keyword block instead ends the run with status `guardrail_blocked`, its own outc
 beside `budget_exceeded`, because a refusal is the platform working and an operator
 filtering for problems should be able to find it rather than have it read like any
 completed answer. See [Governance](../governance.md).
+
+**An output check screens the answer before anyone sees it.** Every surface
+streams: the web chat and the embedded widget send the answer as it is written, and
+a channel bot edits its reply as the text arrives. When any output check is
+configured, each piece of text and reasoning is held back until it is complete,
+checked with the same detectors, and only then sent. A key split across two chunks is still caught. One split across two parts, such as
+text before a tool call and text after it, or reasoning and then the answer, ends
+the run before its second half is sent, because the first is already on screen. So is text the model writes before it calls a tool, which is not
+part of the final answer but is still shown and stored. The cost is that such an
+agent's answer arrives one step at a time rather than word by word. An agent with
+no output check streams as before. A keyword block in the
+answer ends the run before any of the blocked text is shown or stored. Reasoning is
+not the answer, so a blocked keyword there does not end the run: that reasoning step
+shows `[reasoning withheld by the output guardrail]` instead.
+
+**What the stream screen does not cover yet.** Two streamed paths are not screened:
+a tool call's arguments as they stream, and a delegate's own streamed answer in the
+delegation panel ([#2000](https://github.com/vstorm-co/agenticos/issues/2000)). The stream screen inherits the phone detector's
+size limits, so an answer part too long for it ends the run as the final answer
+would. Because the screen hooks the run's event stream, a guarded agent's model
+requests stream even through the HTTP API, so its model must support streaming.
+
+**The input edge changes what the model reads, not the transcript.** A redacted
+prompt reaches the model scrubbed, but the conversation stores the message as the
+person typed it, personal data included. Anyone who can read the conversation can
+read that message.
 
 **Tool-result screening is the reason this edge matters most.** It is the only guard
 on untrusted content entering the loop — a fetched page, a file, an MCP server's
@@ -1154,16 +1806,18 @@ files" and "may it read them" are two decisions even though one capability answe
 both, so enabling stays per capability while approving happens per tool. `default`
 follows the capability's own `side_effecting` flag.
 
-`tool_overrides` exists because a tool's description is the highest-leverage
-prompt in the product — it is what the model reads before deciding to call —
-and its name steers just as hard: `search_refund_policy` is not
-`search_documents`. An agent that needs different behaviour from the same tool
-usually needs these reworded, not a second capability written.
+!!! tip "A tool's description is the highest-leverage prompt in the product"
 
-Both are keyed on the tool's **stable id**, never on the name the model sees. That
-is what keeps an approval gate attached to a renamed tool; keying it on the
-visible name would mean a rename silently removes the gate and a side-effecting
-call goes unattended with nothing reporting it. An id no such capability exposes
+    It is what the model reads before deciding to call, and its name steers just
+    as hard: `search_refund_policy` is not `search_documents`. An agent that
+    needs different behaviour from the same tool usually needs these reworded,
+    not a second capability written.
+
+!!! danger "Keyed on the tool's stable id, never on the name the model sees"
+
+    That is what keeps an approval gate attached to a renamed tool. Keying it on
+    the visible name would mean a rename silently removes the gate, and a
+    side-effecting call then goes unattended with nothing reporting it. An id no such capability exposes
 is refused at publish, and so is a name no model could call.
 
 ## Scopes
@@ -1174,25 +1828,97 @@ the agent is assembled:
 | Scope | Declared by |
 |---|---|
 | `knowledge:read` | `knowledge`, `skills` |
+| `conversations:read` | `conversation_search` |
 | `web:read` | `web_research` |
 | `web:fetch` | `web_fetch` |
-| `web:browse` | `browser_use` |
+| `web:browse` | `browser_choice`, `browser_use` |
 | `code:execute` | `code_execution` |
 | `sandbox:execute` | `sandbox` |
 | `agents:delegate` | `subagents` |
 
-All seven are granted by default today (`DEFAULT_GRANTED_SCOPES` in
-`app/services/agent_registry.py`). Per-organization scope management is
-[roadmap](../ROADMAP.md) work; the check is live and honest in the meantime rather
-than disabled and forgotten.
+!!! note "All eight are granted by default today"
 
-`agents:delegate` is the one worth understanding, because it is *not* the gate on
-who may be delegated to — that is `agents:run`, checked on the publisher against
-each delegate's row. This scope answers a question no permission can: whether this
-**deployment** allows agents to call agents at all. Removing it from that set turns
-delegation off everywhere in one edit, which is what an operator who does not want
-nested runs or fan-out billing needs, and every spec that delegates then says so at
-publish rather than at 3am.
+    `DEFAULT_GRANTED_SCOPES` in `app/services/agent_registry.py`.
+    Per-organization scope management is [roadmap](https://github.com/vstorm-co/agenticos/blob/main/docs/ROADMAP.md) work; the check
+    is live and honest in the meantime rather than disabled and forgotten.
+
+!!! warning "`agents:delegate` is not the gate on *who* may be delegated to"
+
+    That is `agents:run`, checked on the publisher against each delegate's row.
+    This scope answers a question no permission can: whether this **deployment**
+    allows agents to call agents at all. Remove it from that set and delegation
+    is off everywhere in one edit.
+
+An operator who does not want nested runs or fan-out billing removes it, and
+every spec that delegates then says so at publish rather than at 3am.
+`conversations:read` is the same kind of lever for conversation search: one edit
+stops every agent reading past conversations, for a deployment that considers a
+transcript too sensitive to be searchable however narrowly the corpus is scoped.
+
+## What a tool tells the model
+
+A tool definition is a prompt. The model picks a tool, and fills in its
+arguments, from nothing but the text attached to it — so every tool here carries
+four things, and the fourth is the one usually left out:
+
+1. **What it does**, in a sentence. This is also what the Builder shows beside
+   the approval checkbox, so it is written once and read by both.
+2. **When to use it, and when to use something else.** `create_chart` says it is
+   for numbers you already have and `generate_image` for something to be drawn;
+   `glob` says it searches recursively where `ls` does not.
+3. **What every argument means**, including its default and its ceiling.
+4. **What comes back** — the shape of the answer, what a failure looks like, and
+   where the result is a truncated slice rather than the whole set. A model that
+   does not know `grep` answers in three different shapes depending on
+   `output_mode`, or that `glob` stops at 100 paths, reasons from a slice as
+   though it were everything.
+
+All four reach the model in one shape, and it is pydantic-ai's own: the prose inside
+`<summary>`, the return description inside `<returns>`.
+
+A tool written here gets that for free — the framework builds it from the
+docstring's `Returns:` section.
+
+A tool that comes from a library is registered with an explicit description, which
+takes that path away. So its text goes through `ToolText` in
+`app/agents/capabilities/_tool_text.py`, which renders what the framework would
+have.
+
+Two conventions in one tool list is one more thing for the model to reconcile, and
+`tests/test_tool_text_shape.py` is what keeps there being one: it pins `ToolText`
+against a tool pydantic-ai builds itself, and checks that every capability's tools
+carry a return shape.
+
+That covers the tools this deployment did not write, either: `planning` and the
+delegation tools are handed this repository's text, `web_fetch` and
+`search_tools` are re-described where they are built, and `read_tool_result` and
+`read_skill_resource` are re-described in place on the library's own toolset.
+One of those was worth the trouble beyond consistency — the library's sentence
+for `read_tool_result` said nothing about what a handle answers with, which is
+the one thing a model holding a handle needs.
+
+A tool from a library that this repository has no text for keeps the library's,
+which is the right default: `run_skill_script` is excluded rather than described,
+and if it ever arrives it arrives saying whatever its author wrote.
+
+### A mistake, a result, and a refusal
+
+How a tool reports trouble decides what the model does next, and the three are
+not interchangeable.
+
+| The failure | What the tool does | Why |
+|---|---|---|
+| The model's own arguments — a chart series with the wrong number of values, a context file that does not exist, a `NameError` in Python it wrote | Retry prompt | Calling again differently is a plausible fix, and the message says what a correct call looks like |
+| A transient failure of what is behind the tool — a search provider down, a knowledge base timing out | Retry prompt | An error in the shape of a result reads as "nothing found", and the model then answers from memory, confidently, without saying that it had to |
+| A result that is simply bad news — a command that exited non-zero, a search with no hits, a channel this bot cannot see | Returned as text | It is the answer. The model reasons about it and moves on |
+| A refusal — a permission rule, a capability the deployment does not offer | Returned as text | A retry prompt invites the model to look for a way around it |
+
+Retries are budgeted: a tool call gets one attempt to correct itself, and a
+retry raised *past* that budget ends the whole run rather than the call. So the
+last attempt returns its message instead of raising — steered while there is
+budget for it, and never worse than the answer it would have given anyway. The
+one helper that decides this is `app/agents/capabilities/_failures.py`;
+`pydantic-ai-backend` holds the same rule for the workspace tools.
 
 ## Adding to this list
 

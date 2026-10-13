@@ -55,14 +55,9 @@ export default function AccountSettingsPage() {
       setNewPassword("");
       setConfirmPassword("");
     } catch (err) {
-      // Backend may not have this endpoint yet - surface a helpful message.
-      if (err instanceof ApiError && err.status === 404) {
-        toast.error(t("passwordChangeRequiresBackend"));
-      } else {
-        toast.error(
-          err instanceof ApiError ? getErrorMessage(err, tErrors) : t("failedUpdatePassword"),
-        );
-      }
+      toast.error(
+        err instanceof ApiError ? getErrorMessage(err, tErrors) : t("failedUpdatePassword"),
+      );
     } finally {
       setSaving(false);
     }

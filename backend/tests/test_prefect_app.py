@@ -1,5 +1,6 @@
 """The Prefect runner registers its deployments with a ceiling on concurrency."""
 
+from datetime import timedelta
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -79,13 +80,56 @@ async def test_every_deployment_is_registered_before_the_runner_starts(
         "sync-collection",
         "rag-sync-check",
         "run-scheduled-trigger",
+        "org-purge-cleanup",
         "agent-triggers-check",
         "portal-poll",
         "sandbox-log-sweep",
         "mcp-connection-sweep",
         "approval-expiry-sweep",
         "invitation-expiry-sweep",
+        "stale-run-sweep",
+        "teardown-reservation-sweep",
+        "retention-sweep",
         "weekly-usage-report",
         "monthly-usage-report",
+        "notification-delivery-sweep",
+        "notification-retention-sweep",
     }
     assert captured_runner.start.await_count == 1
+
+
+class TestTheIntervalFloor:
+    """`WORKER_MIN_INTERVAL_SECONDS` - a floor, not a multiplier.
+
+    Every flow run is a separate Python process that imports the whole
+    application, so on a laptop the four minute-ticks cost far more in imports
+    than the work they do. A deployment leaves this at `0` and gets exactly the
+    intervals the code declares.
+    """
+
+    def test_zero_leaves_every_declared_interval_alone(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(settings, "WORKER_MIN_INTERVAL_SECONDS", 0)
+
+        assert prefect_app._every(60).interval == timedelta(seconds=60)
+        assert prefect_app._every(86_400).interval == timedelta(seconds=86_400)
+
+    def test_a_floor_lengthens_only_what_is_faster_than_it(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The whole reason this is a floor. A multiplier would turn the daily
+        sweeps into weeks to quieten a minute-tick, which is how a retention
+        policy stops running without anybody deciding that."""
+        monkeypatch.setattr(settings, "WORKER_MIN_INTERVAL_SECONDS", 600)
+
+        assert prefect_app._every(60).interval == timedelta(seconds=600)
+        assert prefect_app._every(900).interval == timedelta(seconds=900)
+        assert prefect_app._every(86_400).interval == timedelta(seconds=86_400)
+
+    def test_a_floor_below_every_interval_changes_nothing(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(settings, "WORKER_MIN_INTERVAL_SECONDS", 30)
+
+        assert prefect_app._every(60).interval == timedelta(seconds=60)

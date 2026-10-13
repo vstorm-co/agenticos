@@ -44,6 +44,15 @@ from app.services.rag.vectorstore import PgVectorStore
 pytestmark = pytest.mark.anyio
 
 
+@pytest.fixture(autouse=True)
+def _not_reserved(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A create reaches `claim`, which reads the teardown-reservation repo (#1362);
+    mock it at the boundary so a name is free unless a test says otherwise."""
+    from app.repositories import collection_teardown_repo
+
+    monkeypatch.setattr(collection_teardown_repo, "is_reserved", AsyncMock(return_value=False))
+
+
 def _modelled_collection_names() -> list[str]:
     """The collection name each prefixed model table would answer to."""
     return sorted(
@@ -225,7 +234,11 @@ class TestKnowledgeBaseCreate:
             pytest.raises(BadRequestError) as refused,
         ):
             await service.create(
-                KnowledgeBaseCreate(name="Handbook", collection_name="documents"),
+                KnowledgeBaseCreate(
+                    name="Handbook",
+                    collection_name="documents",
+                    embedding_model="text-embedding-3-small",
+                ),
                 ctx=self._ctx(),
             )
 
@@ -233,7 +246,7 @@ class TestKnowledgeBaseCreate:
         created.assert_not_awaited()
 
     async def test_a_near_miss_name_is_still_created(self) -> None:
-        service = KnowledgeBaseService(MagicMock())
+        service = KnowledgeBaseService(MagicMock(execute=AsyncMock()))
         created = AsyncMock(return_value=MagicMock())
 
         with (
@@ -242,9 +255,18 @@ class TestKnowledgeBaseCreate:
                 "app.repositories.knowledge_base_repo.list_by_collection_name",
                 new=self._unclaimed(),
             ),
+            # The name is what this test is about; the provider and key a new
+            # collection must name are somebody else's assertion.
+            patch.object(KnowledgeBaseService, "_check_embedding_secret", new=AsyncMock()),
         ):
             await service.create(
-                KnowledgeBaseCreate(name="Handbook", collection_name="documents_archive"),
+                KnowledgeBaseCreate(
+                    name="Handbook",
+                    collection_name="documents_archive",
+                    embedding_model="text-embedding-3-small",
+                    embedding_provider="openrouter",
+                    embedding_secret_id=uuid.uuid4(),
+                ),
                 ctx=self._ctx(),
             )
 

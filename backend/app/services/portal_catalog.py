@@ -46,6 +46,11 @@ class DeliveryMode(StrEnum):
     MANUAL = "manual"
     # The provider pushes nothing; a background job asks it on a schedule.
     POLLING = "polling"
+    # The provider's app is already delivering, to one URL it was configured with
+    # once. Nothing is registered per trigger and nothing is pasted - a GitHub App
+    # receives its installation's events, and the delivery is routed by what it
+    # carries rather than by the URL it arrived at (#1072).
+    APP_WEBHOOK = "app_webhook"
 
 
 @dataclass(frozen=True)

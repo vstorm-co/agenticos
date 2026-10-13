@@ -22,14 +22,33 @@ is the shape of the tools and never a result.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass
-from functools import cache
 from types import SimpleNamespace
 from typing import Any
 
+from pydantic_ai import Agent as PydanticAgent
+from pydantic_ai.capabilities import AbstractCapability, CombinedCapability, WrapperCapability
+from pydantic_ai.models.test import TestModel
+from pydantic_ai.tools import RunContext
+from pydantic_ai.usage import RunUsage
+
 from app.agents.capabilities import all_capabilities
-from app.agents.capabilities._registry import CapabilityBinding, CapabilityBuildContext
+from app.agents.capabilities._registry import (
+    CapabilityBinding,
+    CapabilityBuildContext,
+    get,
+)
+from app.agents.capabilities.channel_tools import CHANNEL_DIRECTORY_RESOURCE
+from app.agents.deps import AgentDeps
+from app.agents.subagent_runtime import (
+    SUBAGENT_RUNTIME_RESOURCE,
+    DynamicSpecialists,
+    ResolvedSubagent,
+    SubagentRuntime,
+)
+from app.core.secret_kinds import ApiKeySecret, SecretKind
 
 logger = logging.getLogger(__name__)
 
@@ -37,15 +56,123 @@ logger = logging.getLogger(__name__)
 # names are never shown and never searched; only the tools' own shape is read.
 _DOCUMENTATION_STUB: dict[str, Any] = {
     "kb_collection_names": ["documentation-probe"],
+    # A `link`-mode file, because that is the arrangement that offers tools at
+    # all: `context` contributes nothing without files, so without this the
+    # Builder falls back to the catalog's one-liner for `list_context` and
+    # `read_context` - the two tools whose text somebody wrote and nobody sees.
+    "context_files": [
+        SimpleNamespace(
+            name="documentation_probe",
+            description="Stands in for a context file so the context toolset builds.",
+            content="",
+            mode="link",
+            format="markdown",
+        )
+    ],
+    # With a resource, because `read_skill_resource` is offered only to an agent
+    # whose skills ship something to read - a skill with none contributes deferred
+    # capabilities and no tool at all, and the Builder would describe nothing.
     "skills": [
         SimpleNamespace(
             name="documentation_probe",
             description="Stands in for a skill so the skills toolset builds.",
             content="",
-            resources=[],
+            resources=[
+                SimpleNamespace(
+                    name="documentation_probe.md",
+                    description="Stands in for a skill's file.",
+                    content="",
+                )
+            ],
         )
     ],
+    # A channel directory and a delegate, so the two capabilities that offer tools
+    # only when a run has something to reach do build. Neither is called: what is
+    # read back is the shape of the tools, never a result - the directory answers
+    # nothing and the delegate is never delegated to.
+    CHANNEL_DIRECTORY_RESOURCE: SimpleNamespace(),
+    SUBAGENT_RUNTIME_RESOURCE: SubagentRuntime(
+        subagents=(
+            ResolvedSubagent(
+                name="documentation_probe",
+                description="Stands in for a delegate so the delegation toolset builds.",
+                build=lambda: PydanticAgent(TestModel()),
+            ),
+        ),
+        record=None,
+        depth_remaining=1,
+        # The widest configuration, because `subagents` is the one capability whose
+        # tool list is not fixed: `create_agent` and `delegate` are offered only to
+        # an agent whose author asked for them, and a tool nobody can describe is
+        # exactly the one somebody reaching for this page needs described.
+        dynamic=DynamicSpecialists(
+            build=lambda **_: PydanticAgent(TestModel()),
+            allowed_models=(),
+        ),
+    ),
 }
+
+
+# A capability whose *tools* are configuration builds nothing from an empty blob,
+# so the widest setting is the one worth documenting: a tool nobody can describe
+# is exactly the one somebody reaching for this page needs described.
+_DOCUMENTATION_CONFIGS: dict[str, dict[str, Any]] = {
+    "channel_tools": {"tools": sorted(get("channel_tools").tool_ids)},
+}
+
+
+def _documentation_secret(definition: Any) -> ApiKeySecret | None:
+    """A stand-in credential for a capability that will not build without one.
+
+    Read for its *shape* and never used: nothing here calls the service, so the
+    value only has to satisfy the builder that a key exists. Without it a
+    capability whose key is unconditional builds as `None`, has no toolset, and
+    falls back to the catalog's one-line summary - which is how `memory_mem0`
+    showed the Builder a sentence while the model was reading six (#1473).
+
+    Only `API_KEY`, because it is the only kind any capability requires
+    unconditionally; another kind arriving that way should show up as a missing
+    contract rather than be quietly stubbed with the wrong shape.
+    """
+    requirement = definition.secret
+    if requirement is None or not definition.needs_secret(definition.validate_config({})):
+        return None
+    if requirement.kind is not SecretKind.API_KEY:
+        return None
+    return ApiKeySecret(api_key="documentation-probe")
+
+
+def probe_context(built: AbstractCapability[Any]) -> RunContext[AgentDeps]:
+    """A run context that reaches nothing, for listing `built`'s tools.
+
+    `get_tools` takes one because a capability may vary its list by the run - and
+    none of them varies it by anything this carries. Deps are empty, so a
+    capability reading them for a tenant or an audience sees the same "nothing" a
+    run outside a conversation would.
+
+    It does carry what a run registers: every capability in `built`'s tree. A
+    combination - the `sandbox` binding is a workspace and a console - attributes
+    each tool to the capability that owns it and looks that one up in the run,
+    and raises for a capability the run never registered. Public because the
+    registry's drift tests list tools exactly the way the catalog does.
+    """
+    registered: dict[str, AbstractCapability[Any]] = {}
+    pending: list[AbstractCapability[Any]] = [built]
+    while pending:
+        capability = pending.pop()
+        registered[f"probe-{len(registered)}"] = capability
+        if isinstance(capability, CombinedCapability):
+            pending.extend(capability.capabilities)
+        elif isinstance(capability, WrapperCapability):
+            pending.append(capability.wrapped)
+    return RunContext(
+        deps=AgentDeps(),
+        model=TestModel(),
+        usage=RunUsage(),
+        retry=0,
+        max_retries=1,
+        capabilities=registered,
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,43 +186,90 @@ class ToolContract:
     """JSON Schema of the arguments, as the model is given them."""
 
 
-@cache
-def tool_contracts() -> dict[str, dict[str, ToolContract]]:
+async def tool_contracts() -> dict[str, dict[str, ToolContract]]:
     """Every capability's tools, keyed by capability id then tool id.
 
-    Cached for the process: capabilities are registered at import and the
-    answer changes on redeploy, not between requests. A capability that fails
-    to build is logged and skipped rather than failing the catalog - the
-    Builder can still offer it, with one fewer thing to read.
+    Cached for the process: capabilities are registered at import and the answer
+    changes on redeploy, not between requests. The build runs under a lock so two
+    requests hitting a cold process (right after a restart) build it once rather
+    than racing to do the same whole-catalog work.
+
+    A capability that fails to build is logged and skipped rather than failing the
+    catalog - the Builder can still offer it, with one fewer thing to read - but a
+    build that could not complete every capability is not cached. A transient
+    failure at cold start (a resource not yet warm) is then retried on the next
+    call rather than frozen as an empty contract set until the next redeploy.
+
+    Async because the tools have to be *asked for* rather than read off the
+    toolset: a capability that filters or wraps its tools - `subagents` offers
+    `create_agent` only where the binding allows it - answers `get_tools`, and
+    reading the `tools` attribute reaches only a plain `FunctionToolset`. Doing
+    that raised for the one capability whose tool list is not fixed, which the
+    catalog swallowed into an empty contract set and the Builder rendered as a
+    one-liner (#1473).
     """
-    contracts: dict[str, dict[str, ToolContract]] = {}
-    for definition in all_capabilities():
-        try:
-            contracts[definition.id] = _contracts_for(definition)
-        except Exception:
-            logger.exception("Could not read the tool contracts for capability %s", definition.id)
-            contracts[definition.id] = {}
-    return contracts
+    global _CACHED
+    if _CACHED is not None:
+        return _CACHED
+    async with _LOCK:
+        # Re-check under the lock: a coroutine that raced us here may have built
+        # the catalog while we waited, and rebuilding it is the duplicated
+        # cold-start work the lock exists to prevent.
+        if _CACHED is not None:
+            return _CACHED
+        contracts: dict[str, dict[str, ToolContract]] = {}
+        complete = True
+        for definition in all_capabilities():
+            try:
+                contracts[definition.id] = await _contracts_for(definition)
+            except Exception:
+                logger.exception(
+                    "Could not read the tool contracts for capability %s", definition.id
+                )
+                contracts[definition.id] = {}
+                complete = False
+        if complete:
+            _CACHED = contracts
+        return contracts
 
 
-def _contracts_for(definition: Any) -> dict[str, ToolContract]:
+_CACHED: dict[str, dict[str, ToolContract]] | None = None
+_LOCK = asyncio.Lock()
+
+
+def real_tool_definition(tool: Any) -> Any:
+    """The `ToolDefinition` a built tool carries, however it is wrapped.
+
+    `tool_def` is where a `Tool` keeps it; a bare toolset object with none of
+    that wrapping keeps the fields directly, which is why this falls back to
+    the object itself rather than assuming the attribute. The one place that
+    knows this shape, so a reader asking what the model was actually sent -
+    this module, a test proving a capability's declared blurb has not drifted
+    from it (`tests/test_capability_registry.py`) - reads it the same way.
+    """
+    return getattr(tool, "tool_def", tool)
+
+
+async def _contracts_for(definition: Any) -> dict[str, ToolContract]:
+    blob = _DOCUMENTATION_CONFIGS.get(definition.id, {})
     built = definition.builder(
         CapabilityBuildContext(
-            binding=CapabilityBinding(capability_id=definition.id),
-            config=None,
+            binding=CapabilityBinding(capability_id=definition.id, config=blob),
+            config=definition.validate_config(blob),
             resources=_DOCUMENTATION_STUB,
+            secret=_documentation_secret(definition),
         )
     )
     toolset = built.get_toolset() if built is not None else None
     if toolset is None:
         return {}
 
+    # Asked for, not read off: `get_tools` is what a run calls, so this is the
+    # list after any filtering or wrapping the capability does - which is the
+    # list the model is actually sent.
     contracts: dict[str, ToolContract] = {}
-    for tool_id, tool in toolset.tools.items():
-        # Unwrapped rather than assumed: what a toolset holds is a tool object
-        # whose `tool_def` is the thing handed to the model. Reading the wrapper
-        # would give a description that no model has ever seen.
-        definition_for_model = getattr(tool, "tool_def", tool)
+    for tool_id, tool in (await toolset.get_tools(probe_context(built))).items():
+        definition_for_model = real_tool_definition(tool)
         contracts[tool_id] = ToolContract(
             description=getattr(definition_for_model, "description", "") or "",
             parameters=getattr(definition_for_model, "parameters_json_schema", None) or {},

@@ -5,11 +5,15 @@ import uuid
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import ColumnElement, Select, func, select
+from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import OrgRoleName
-from app.db.models.organization import Organization, OrganizationMember
+from app.db.models.agent import Agent
+from app.db.models.organization import Organization, OrganizationMember, OrgRole
+from app.db.models.user import User
+from app.repositories._search import contains_ci
 
 
 def _slugify(text: str) -> str:
@@ -50,6 +54,20 @@ async def get_by_slug(db: AsyncSession, slug: str) -> Organization | None:
     return result.scalar_one_or_none()
 
 
+async def list_by_ids(db: AsyncSession, org_ids: list[UUID]) -> list[Organization]:
+    """The rows named by `org_ids`, in no particular order.
+
+    For rendering a human-readable audience description (#1598, Decision 5)
+    against ids an app admin already chose - not an access check, and not
+    scoped to one tenant, since an announcement's whole point is addressing
+    more than one.
+    """
+    if not org_ids:
+        return []
+    result = await db.execute(select(Organization).where(Organization.id.in_(org_ids)))
+    return list(result.scalars().all())
+
+
 async def get_personal_for_user(db: AsyncSession, user_id: UUID) -> Organization | None:
     result = await db.execute(
         select(Organization).where(
@@ -60,12 +78,78 @@ async def get_personal_for_user(db: AsyncSession, user_id: UUID) -> Organization
     return result.scalar_one_or_none()
 
 
-async def list_for_user(db: AsyncSession, user_id: UUID) -> list[Organization]:
+async def list_created_by(db: AsyncSession, user_id: UUID) -> list[Organization]:
+    """Every organization this user created - the rows that block their deletion.
+
+    `organizations.created_by_user_id` is `ON DELETE RESTRICT`, so each of these
+    has to be handed on or removed before the user row can go (#9).
+    """
     result = await db.execute(
         select(Organization)
+        .where(Organization.created_by_user_id == user_id)
+        .order_by(Organization.is_personal.desc(), Organization.created_at.asc())
+    )
+    return list(result.scalars().all())
+
+
+async def reassign_creator(
+    db: AsyncSession, *, org: Organization, new_creator_id: UUID
+) -> Organization:
+    org.created_by_user_id = new_creator_id
+    await db.flush()
+    await db.refresh(org)
+    return org
+
+
+async def list_for_user(db: AsyncSession, user_id: UUID) -> list[tuple[Organization, str]]:
+    """Each organization the user belongs to, with the role their membership carries.
+
+    The role comes off the same membership row the join already filters on, so a
+    caller needs no second per-organization lookup to learn it (#953).
+    """
+    result = await db.execute(
+        select(Organization, OrganizationMember.role)
         .join(OrganizationMember, OrganizationMember.organization_id == Organization.id)
         .where(OrganizationMember.user_id == user_id)
         .order_by(Organization.is_personal.desc(), Organization.created_at.asc())
+    )
+    return [(org, role) for org, role in result.all()]
+
+
+async def member_counts_for(db: AsyncSession, org_ids: list[UUID]) -> dict[UUID, int]:
+    """How many members each of the named organizations has, in one grouped query.
+
+    One read for a whole page of organizations rather than a `count(*)` per row
+    (#953). An organization absent from the result has no members; every id the
+    caller passes for a listing has at least the caller, so in practice each is
+    present.
+    """
+    if not org_ids:
+        return {}
+    result = await db.execute(
+        select(OrganizationMember.organization_id, func.count(OrganizationMember.id))
+        .where(OrganizationMember.organization_id.in_(org_ids))
+        .group_by(OrganizationMember.organization_id)
+    )
+    return dict(result.all())
+
+
+async def list_owned_by(db: AsyncSession, user_id: UUID) -> list[Organization]:
+    """Non-personal organizations where the user holds an Owner membership.
+
+    Distinct from `list_created_by`: ownership moves without the creator FK
+    moving, so a user can be the sole Owner of an org they did not create - one
+    `list_created_by` never returns, whose only owner would otherwise cascade
+    away on the user's deletion and leave it ownerless (#1117).
+    """
+    result = await db.execute(
+        select(Organization)
+        .join(OrganizationMember, OrganizationMember.organization_id == Organization.id)
+        .where(
+            OrganizationMember.user_id == user_id,
+            OrganizationMember.role == OrgRoleName.OWNER.value,
+            Organization.is_personal.is_(False),
+        )
     )
     return list(result.scalars().all())
 
@@ -156,6 +240,20 @@ async def set_avatar_color(
     return org
 
 
+async def set_chat_approval_waiver(
+    db: AsyncSession, org: Organization, *, allowed: bool
+) -> Organization:
+    """Allow or forbid chat sessions here granting standing consent (#925).
+
+    Its own function rather than a field on :func:`update`, which skips a `None`
+    argument and so cannot express a boolean somebody deliberately set to false.
+    """
+    org.chat_may_waive_approvals = allowed
+    await db.flush()
+    await db.refresh(org)
+    return org
+
+
 async def delete(db: AsyncSession, org: Organization) -> None:
     await db.delete(org)
     await db.flush()
@@ -184,3 +282,184 @@ async def count_members(db: AsyncSession, org_id: UUID) -> int:
         )
     )
     return result.scalar() or 0
+
+
+type AdminOrganizationRow = tuple[Organization, int, int, UUID | None, str | None, str | None]
+
+
+async def admin_list_with_counts(
+    db: AsyncSession,
+    *,
+    skip: int = 0,
+    limit: int = 50,
+    search: str | None = None,
+    sort_by: str = "created_at",
+    sort_dir: str = "desc",
+    kind: str = "all",
+) -> tuple[list[AdminOrganizationRow], int]:
+    """Every organization on the deployment, with its size and who answers for it.
+
+    Deliberately cross-tenant, and only ever reached behind the `is_app_admin`
+    gate: this is the one surface that answers "what tenants exist" at all.
+
+    Narrowing, ordering and paging all happen here rather than in the page,
+    which is the whole point - a client sort over one server page claims a
+    whole-collection order that fifty rows cannot deliver, so the admin's list
+    had no sort at all until this (#921).
+
+    The owner is the earliest of them, because an organization can hold several
+    and the founder is the one a deployment admin means; `DISTINCT ON` picks it
+    in the same pass rather than in a query per row. Every owner field is
+    nullable: an organization whose last owner left has none, which is a state
+    the deployment admin is the one person able to fix.
+    """
+    member_counts = (
+        select(
+            OrganizationMember.organization_id,
+            func.count(OrganizationMember.user_id).label("member_count"),
+        )
+        .group_by(OrganizationMember.organization_id)
+        .subquery()
+    )
+    agent_counts = (
+        select(Agent.organization_id, func.count(Agent.id).label("agent_count"))
+        .group_by(Agent.organization_id)
+        .subquery()
+    )
+    owners = (
+        select(
+            OrganizationMember.organization_id,
+            User.id.label("owner_user_id"),
+            User.email.label("owner_email"),
+            User.full_name.label("owner_name"),
+        )
+        .join(User, User.id == OrganizationMember.user_id)
+        .where(OrganizationMember.role == OrgRole.OWNER.value)
+        .ext(distinct_on(OrganizationMember.organization_id))
+        .order_by(OrganizationMember.organization_id, OrganizationMember.joined_at)
+        .subquery()
+    )
+    member_count = func.coalesce(member_counts.c.member_count, 0).label("member_count")
+    agent_count = func.coalesce(agent_counts.c.agent_count, 0).label("agent_count")
+
+    def joined[*Ts](stmt: Select[*Ts]) -> Select[*Ts]:
+        # The count query carries the same joins as the page query because the
+        # search reaches the owner's address through one of them. None of the
+        # three can multiply a row: each yields at most one per organization.
+        return (
+            stmt.outerjoin(member_counts, member_counts.c.organization_id == Organization.id)
+            .outerjoin(agent_counts, agent_counts.c.organization_id == Organization.id)
+            .outerjoin(owners, owners.c.organization_id == Organization.id)
+        )
+
+    query = joined(
+        select(
+            Organization,
+            member_count,
+            agent_count,
+            owners.c.owner_user_id,
+            owners.c.owner_email,
+            owners.c.owner_name,
+        )
+    )
+    count_query = joined(select(func.count()).select_from(Organization))
+
+    conditions: list[ColumnElement[bool]] = []
+    if search:
+        # The three things a deployment admin has to go on: what the tenant is
+        # called, what it is called in a URL, and who to ask about it.
+        conditions.append(
+            contains_ci(Organization.name, search)
+            | contains_ci(Organization.slug, search)
+            | contains_ci(owners.c.owner_email, search)
+        )
+    if kind == "personal":
+        conditions.append(Organization.is_personal.is_(True))
+    elif kind == "team":
+        conditions.append(Organization.is_personal.is_(False))
+    for condition in conditions:
+        query = query.where(condition)
+        count_query = count_query.where(condition)
+
+    sort_columns = {
+        "name": Organization.name,
+        "slug": Organization.slug,
+        "members": member_count,
+        "agents": agent_count,
+        "created_at": Organization.created_at,
+    }
+    column = sort_columns.get(sort_by, Organization.created_at)
+    ordered = column.desc() if sort_dir == "desc" else column.asc()
+    # The id breaks the tie, so paging is stable: two organizations sharing a
+    # name or a member count would otherwise be ordered by whatever the planner
+    # returned, and a row could appear on two pages or on neither.
+    query = query.order_by(ordered, Organization.id).offset(skip).limit(limit)
+
+    total = await db.scalar(count_query) or 0
+    rows = (await db.execute(query)).all()
+    return [
+        (organization, int(members), int(agents), owner_id, owner_email, owner_name)
+        for organization, members, agents, owner_id, owner_email, owner_name in rows
+    ], total
+
+
+async def admin_get_with_counts(db: AsyncSession, org_id: UUID) -> AdminOrganizationRow | None:
+    """One organization with the size, agents and owner `admin_list_with_counts` carries.
+
+    The per-tenant view behind the deployment admin's listing (#1245): cross-tenant
+    by construction and reached only behind the `is_app_admin` gate, it answers
+    "what is this tenant" for an admin who belongs to none of them. It reaches the
+    same three facts the listing does - member count, agent count, the earliest
+    owner - and nothing a tenant keeps to itself.
+    """
+    member_counts = (
+        select(
+            OrganizationMember.organization_id,
+            func.count(OrganizationMember.user_id).label("member_count"),
+        )
+        .where(OrganizationMember.organization_id == org_id)
+        .group_by(OrganizationMember.organization_id)
+        .subquery()
+    )
+    agent_counts = (
+        select(Agent.organization_id, func.count(Agent.id).label("agent_count"))
+        .where(Agent.organization_id == org_id)
+        .group_by(Agent.organization_id)
+        .subquery()
+    )
+    owners = (
+        select(
+            OrganizationMember.organization_id,
+            User.id.label("owner_user_id"),
+            User.email.label("owner_email"),
+            User.full_name.label("owner_name"),
+        )
+        .join(User, User.id == OrganizationMember.user_id)
+        .where(
+            OrganizationMember.organization_id == org_id,
+            OrganizationMember.role == OrgRole.OWNER.value,
+        )
+        .ext(distinct_on(OrganizationMember.organization_id))
+        .order_by(OrganizationMember.organization_id, OrganizationMember.joined_at)
+        .subquery()
+    )
+    row = (
+        await db.execute(
+            select(
+                Organization,
+                func.coalesce(member_counts.c.member_count, 0),
+                func.coalesce(agent_counts.c.agent_count, 0),
+                owners.c.owner_user_id,
+                owners.c.owner_email,
+                owners.c.owner_name,
+            )
+            .outerjoin(member_counts, member_counts.c.organization_id == Organization.id)
+            .outerjoin(agent_counts, agent_counts.c.organization_id == Organization.id)
+            .outerjoin(owners, owners.c.organization_id == Organization.id)
+            .where(Organization.id == org_id)
+        )
+    ).first()
+    if row is None:
+        return None
+    organization, members, agents, owner_id, owner_email, owner_name = row
+    return organization, int(members), int(agents), owner_id, owner_email, owner_name

@@ -60,7 +60,7 @@ vi.mock("@/hooks", () => ({
         collection_ids: [],
         skill_ids: [],
         context_ids: [],
-        mcp_server_ids: [],
+        mcp_servers: [],
         subagents: [],
       } satisfies AgentSpec,
     },
@@ -71,6 +71,7 @@ vi.mock("@/hooks", () => ({
     rollback: { mutateAsync: vi.fn() },
     setAvatar: { mutateAsync: vi.fn(), isPending: false },
     setColor: { mutate: vi.fn(), isPending: false },
+    setMetadata: { mutate: vi.fn(), isPending: false },
   }),
   useAgentEnvironments: () => ({ environments: [], promote: { mutateAsync: vi.fn() } }),
   useAgents: () => ({

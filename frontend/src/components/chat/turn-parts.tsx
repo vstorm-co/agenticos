@@ -1,12 +1,15 @@
 "use client";
 
-import { MessageCircleQuestion, Sparkles } from "lucide-react";
+import { MessageCircleQuestion } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { useLinger, useSmoothText } from "@/hooks/use-smooth-text";
 import { toolEntry } from "@/lib/tool-catalog";
+import { cn } from "@/lib/utils";
 import type { McpServerRef } from "@/lib/tool-steps";
 import type { MessagePart } from "@/types";
 import { AgentSteps } from "./agent-step";
+import { ThinkingOrb } from "@/components/ui/thinking-orb";
 import { MarkdownContent } from "./markdown-content";
 import { ToolCallCard } from "./tool-call-card";
 
@@ -79,13 +82,17 @@ export function TurnParts({
             key={run.part.id}
             text={run.content}
             open={isStreaming && run.isLast}
-            isStreaming={isStreaming}
+            // The block still taking deltas, not every block in a streaming
+            // turn: the orb marks where the thinking is arriving, and a turn
+            // that thought twice would otherwise show two of them.
+            isStreaming={isStreaming && run.isLast}
           />
         ) : run.part.type === "ask_user" ? (
           <AskUserBlock
             key={run.part.id}
             question={run.part.question ?? ""}
             answer={run.part.answer ?? ""}
+            askedBy={run.part.askedBy}
           />
         ) : (
           <TextBubble
@@ -117,11 +124,16 @@ export function ThinkingBlock({
           bordered panel around it gives it more weight on the page than the answer
           itself - which is backwards, and was the loudest thing in every turn. */}
       <summary className="text-muted-foreground hover:text-foreground/80 flex cursor-pointer items-center gap-2 text-[13px] select-none">
-        <Sparkles className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden />
+        {/* The same mark either way: moving while the reasoning arrives, frozen
+            once it is done. Swapping it for a different glyph at the end drew
+            the eye to a change that meant nothing. */}
+        <ThinkingOrb
+          state="breathing"
+          size={20}
+          paused={!isStreaming}
+          className="-my-2 h-6 w-6 opacity-80"
+        />
         {t("thoughtAboutIt")}
-        {isStreaming && (
-          <span className="bg-foreground/40 inline-block h-1 w-1 animate-pulse rounded-full" />
-        )}
       </summary>
       {/* Markdown, not a `<pre>`. Reasoning is written the way the answer is - the
           models that expose it head each block with `**Analyzing attached files**`
@@ -145,13 +157,26 @@ export function ThinkingBlock({
  * neither the question nor the answer the rest of the turn depended on (#502). An
  * aside rather than a bubble, so it reads as a step in the turn, not a message.
  */
-export function AskUserBlock({ question, answer }: { question: string; answer: string }) {
+export function AskUserBlock({
+  question,
+  answer,
+  askedBy,
+}: {
+  question: string;
+  answer: string;
+  askedBy?: string;
+}) {
   const t = useTranslations("chat");
   return (
     <div className="border-foreground/10 text-muted-foreground space-y-1.5 border-l pl-3.5 text-[13px]">
       <div className="flex items-center gap-2">
         <MessageCircleQuestion className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden />
-        <span className="font-medium">{t("askUserAsked")}</span>
+        {/* Who asked, where a delegate did. The main agent asking is the ordinary
+            case and says nothing extra; a specialist asking is the thing a reader
+            cannot reconstruct from the transcript otherwise (#1042). */}
+        <span className="font-medium">
+          {askedBy ? t("askUserAskedBy", { name: askedBy }) : t("askUserAsked")}
+        </span>
       </div>
       <p className="text-foreground/80 break-words whitespace-pre-wrap">{question}</p>
       <div className="font-medium">{t("askUserAnswered")}</div>
@@ -172,6 +197,9 @@ export function AskUserBlock({ question, answer }: { question: string; answer: s
  * its bubble precisely because it is the short one, and the contrast is what makes a
  * long transcript scannable at all.
  */
+/** How long a streamed word takes to fade in - `.stream-word` in globals.css. */
+const WORD_FADE_MS = 700;
+
 export function TextBubble({
   text,
   showCursor,
@@ -183,19 +211,33 @@ export function TextBubble({
   isUser: boolean;
   onCiteClick?: (index: number) => void;
 }) {
+  const visible = useSmoothText(text, showCursor && !isUser);
+  // Words keep their fade-in spans until the last one has finished fading: a fast
+  // model ends its turn while its final words are still surfacing.
+  const flowing = useLinger(showCursor || visible.length < text.length, WORD_FADE_MS);
   if (isUser) {
+    // A panel rather than the inverted slab this was. `bg-foreground` made the
+    // question the brightest object on the page, louder than the answer under
+    // it - which is backwards: the question is what somebody already knows they
+    // asked. The border is what keeps the shape in the light theme, where the
+    // fill is three percent off the page.
     return (
-      <div className="bg-foreground text-background relative rounded-2xl rounded-tr-sm px-3 py-2 sm:px-4 sm:py-2.5">
+      <div className="bg-secondary text-secondary-foreground border-border/60 relative rounded-2xl rounded-tr-sm border px-3 py-2 sm:px-4 sm:py-2.5">
         <p className="text-sm break-words whitespace-pre-wrap">{text}</p>
       </div>
     );
   }
 
   return (
-    <div className="prose-sm max-w-none text-[15px] leading-relaxed">
-      <MarkdownContent content={text} onCiteClick={onCiteClick} />
+    // While the turn streams, each new block - a paragraph, a list, a table - rises
+    // into place and each new word fades in, instead of appearing; both come off
+    // when the turn ends, so nothing already read ever animates again.
+    <div
+      className={cn("prose-sm max-w-none text-[15px] leading-relaxed", showCursor && "stream-in")}
+    >
+      <MarkdownContent content={visible} onCiteClick={onCiteClick} streaming={flowing} />
       {showCursor && (
-        <span className="ml-1 inline-block h-4 w-1.5 animate-pulse rounded-full bg-current" />
+        <span className="stream-cursor ml-1 inline-block h-4 w-1.5 animate-pulse rounded-full bg-current" />
       )}
     </div>
   );

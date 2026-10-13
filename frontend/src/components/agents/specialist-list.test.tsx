@@ -121,7 +121,6 @@ beforeEach(() => {
       model: "claude",
       secret_id: null,
       params: {},
-      allow_byo: false,
       fallback_profile_ids: [],
     },
   ];
@@ -304,6 +303,7 @@ describe("what a specialist can do", () => {
         enabled: true,
         file_count: 0,
         built_in: false,
+        excerpt: "",
       },
     ];
     const onChange = mount({ specialists: [specialist()] });
@@ -325,6 +325,9 @@ describe("what a specialist can do", () => {
         name: "Policies",
         description: null,
         embedding_model: "text-embedding-3-small",
+        embedding_provider: "openrouter",
+        embedding_secret_id: null,
+        embedding_endpoint_id: null,
         document_count: 2,
         indexed_count: 2,
         chunk_count: 10,
@@ -366,6 +369,9 @@ describe("what a specialist can do", () => {
         name: "Policies",
         description: null,
         embedding_model: "text-embedding-3-small",
+        embedding_provider: "openrouter",
+        embedding_secret_id: null,
+        embedding_endpoint_id: null,
         document_count: 2,
         indexed_count: 2,
         chunk_count: 10,

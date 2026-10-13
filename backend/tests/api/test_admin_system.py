@@ -20,6 +20,7 @@ from httpx import ASGITransport, AsyncClient
 from app.api.deps import get_current_user, get_db_session, get_redis
 from app.core.config import settings
 from app.main import app
+from app.services import health
 
 pytestmark = pytest.mark.anyio
 
@@ -62,9 +63,12 @@ class _User:
 def _client(user: _User, mock_redis: Any) -> AsyncGenerator[AsyncClient, None]:
     app.dependency_overrides[get_current_user] = lambda: user
     app.dependency_overrides[get_redis] = lambda: mock_redis
-    # SELECT 1, the pgvector version, the embedding table count, then the
+    # SELECT 1, the pgvector capability row (what the image ships, what this role
+    # may do with it), the pgvector version, the embedding table count, then the
     # (profiles, organizations) pair.
-    app.dependency_overrides[get_db_session] = lambda: _Session(1, "0.8.0", 2, (3, 2))
+    app.dependency_overrides[get_db_session] = lambda: _Session(
+        1, ("0.8.0", True, True, True), "0.8.0", 2, (3, 2)
+    )
     return AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
 
 
@@ -82,7 +86,14 @@ async def member_client(mock_redis: Any) -> AsyncGenerator[AsyncClient, None]:
     app.dependency_overrides.clear()
 
 
-async def test_every_check_says_what_it_verified(admin_client: AsyncClient) -> None:
+async def test_every_check_says_what_it_verified(
+    admin_client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def heartbeat_just_now() -> datetime:
+        return datetime.now(UTC)
+
+    monkeypatch.setattr(health, "_last_heartbeat", heartbeat_just_now)
+
     response = await admin_client.get(f"{settings.API_V1_STR}/admin/system")
 
     assert response.status_code == 200
@@ -92,11 +103,13 @@ async def test_every_check_says_what_it_verified(admin_client: AsyncClient) -> N
         "redis",
         "vector_store",
         "model_access",
+        "scheduler",
     ]
     assert all(check["detail"] for check in checks)
     by_key = {check["key"]: check for check in checks}
     assert "pgvector 0.8.0" in by_key["vector_store"]["detail"]
     assert "3 model profile(s)" in by_key["model_access"]["detail"]
+    assert by_key["scheduler"]["status"] == "healthy"
 
 
 async def test_a_member_cannot_read_the_deployment_s_configuration(

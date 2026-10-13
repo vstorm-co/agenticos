@@ -32,7 +32,7 @@ from app.schemas.sync_source import SyncSourceClone, SyncSourceCreate, SyncSourc
 from app.services import sync_source as sync_source_module
 from app.services.sync_source import SyncSourceService
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 _ORG = uuid.uuid4()
 _CALLER = uuid.uuid4()
@@ -60,6 +60,7 @@ def _row(**overrides) -> SimpleNamespace:
         "collection_name": "legal",
         "config": dict(_CONFIG),
         "secret_id": _SECRET,
+        "organizational_unit": None,
         "sync_mode": "new_only",
         "schedule_minutes": None,
         "is_active": True,

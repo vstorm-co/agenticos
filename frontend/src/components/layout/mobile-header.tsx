@@ -6,14 +6,18 @@
  * Above `md` there is no header: the brand heads the column, and search, the
  * organization, language, theme and the account moved into it (see
  * `SidebarShell`). Below `md` the column is a slide-over, so a button has to
- * exist to open it - that button and the brand are the whole of this file, and
+ * exist to open it - that button and the brand are most of this file, and
  * the reason it is named for the viewport rather than for the page.
+ *
+ * The bell is the one control repeated here rather than left to the drawer:
+ * unread state is worth seeing without first opening the column that holds it.
  */
 
 import { Menu } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { BrandLink } from "@/components/layout/brand-link";
+import { NotificationBell } from "@/components/layout/notification-bell";
 import { Button } from "@/components/ui";
 import { useSidebarStore } from "@/stores";
 
@@ -22,12 +26,15 @@ export function MobileHeader() {
   const t = useTranslations("nav");
 
   return (
-    <header className="bg-background/95 supports-[backdrop-filter]:bg-background/70 sticky top-0 z-40 flex h-14 w-full shrink-0 items-center gap-1 border-b px-3 backdrop-blur md:hidden">
+    <header className="bg-background sticky top-0 z-40 flex h-14 w-full shrink-0 items-center gap-1 border-b px-3 md:hidden">
       <Button variant="ghost" size="sm" className="h-9 w-9 p-0" onClick={toggle}>
         <Menu className="h-5 w-5" />
         <span className="sr-only">{t("toggleMenu")}</span>
       </Button>
       <BrandLink />
+      <div className="ml-auto">
+        <NotificationBell variant="icon" />
+      </div>
     </header>
   );
 }

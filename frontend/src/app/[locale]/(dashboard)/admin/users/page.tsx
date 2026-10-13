@@ -87,7 +87,7 @@ export default function AdminUsersPage() {
               seed={u.id}
               name={u.full_name || u.email}
               imageSrc={`/api/users/avatar/${u.id}`}
-              className="h-8 w-8 shrink-0 text-[10px]"
+              className="h-8 w-8 shrink-0 text-[11px]"
               ariaHidden
             />
             <div className="min-w-0">

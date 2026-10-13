@@ -30,15 +30,25 @@ from app.core.logging import setup_logging
 from app.worker.tasks.approval_tasks import approval_expiry_sweep_flow
 from app.worker.tasks.invitation_tasks import invitation_expiry_sweep_flow
 from app.worker.tasks.mcp_tasks import mcp_connection_sweep_flow
+from app.worker.tasks.notification_tasks import (
+    notification_delivery_sweep_flow,
+    notification_retention_sweep_flow,
+)
 from app.worker.tasks.rag_tasks import (
     check_scheduled_syncs_flow,
     ingest_document_flow,
+    retention_sweep_flow,
     sync_collection_flow,
     sync_single_source_flow,
 )
 from app.worker.tasks.report_tasks import (
     monthly_usage_report_flow,
     weekly_usage_report_flow,
+)
+from app.worker.tasks.run_tasks import stale_run_sweep_flow
+from app.worker.tasks.teardown_tasks import (
+    external_state_cleanup_flow,
+    teardown_reservation_sweep_flow,
 )
 from app.worker.tasks.trigger_tasks import (
     check_agent_triggers_flow,
@@ -48,6 +58,24 @@ from app.worker.tasks.trigger_tasks import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _every(seconds: float) -> IntervalSchedule:
+    """The interval a deployment declares, never faster than the configured floor.
+
+    `WORKER_MIN_INTERVAL_SECONDS` is `0` on a deployment, so this is the
+    declared interval and nothing else. It exists for the machine that is also
+    running an editor: every run here is a separate Python process that imports
+    the whole application, so four minute-ticks cost far more in imports than
+    the work they do - see the setting's own note for the measurement.
+
+    A floor rather than a multiplier, so raising it lengthens only what is
+    already faster than it: the daily sweeps stay daily whatever it is set to,
+    which a multiplier would silently turn into weeks.
+    """
+    return IntervalSchedule(
+        interval=timedelta(seconds=max(seconds, settings.WORKER_MIN_INTERVAL_SECONDS))
+    )
 
 
 async def main() -> None:
@@ -63,18 +91,24 @@ async def main() -> None:
     deployments.append(
         await check_scheduled_syncs_flow.ato_deployment(
             name="rag-sync-check",
-            schedules=[IntervalSchedule(interval=60)],
+            schedules=[_every(60)],
         )
     )
     # On-demand: one fired run per due trigger, submitted by the heartbeat below.
     deployments.append(
         await run_scheduled_trigger_flow.ato_deployment(name="run-scheduled-trigger")
     )
+    # On-demand: the external cleanup a committed delete leaves - a purged org's
+    # tables and files (#1274), a dropped RAG collection's (#1349) - submitted after
+    # the delete commits so it survives the request process dying mid-cleanup. The
+    # deployment name stays `org-purge-cleanup` (its #1274 name) so an upgrade does
+    # not strand runs queued under the old identifier; the flow it serves is general.
+    deployments.append(await external_state_cleanup_flow.ato_deployment(name="org-purge-cleanup"))
     # Every minute: fire the agent triggers that have come due.
     deployments.append(
         await check_agent_triggers_flow.ato_deployment(
             name="agent-triggers-check",
-            schedules=[IntervalSchedule(interval=60)],
+            schedules=[_every(60)],
         )
     )
     # Daily: drop sandbox operations past the retention window. The window is
@@ -83,7 +117,7 @@ async def main() -> None:
     deployments.append(
         await sweep_sandbox_operations_flow.ato_deployment(
             name="sandbox-log-sweep",
-            schedules=[IntervalSchedule(interval=86400)],
+            schedules=[_every(86400)],
         )
     )
     # Every minute: read the connected accounts nobody pushes to. A separate
@@ -93,7 +127,7 @@ async def main() -> None:
     deployments.append(
         await poll_portal_grants_flow.ato_deployment(
             name="portal-poll",
-            schedules=[IntervalSchedule(interval=60)],
+            schedules=[_every(60)],
         )
     )
     # Every 15 minutes: often enough that a dead grant is noticed within one
@@ -103,7 +137,7 @@ async def main() -> None:
     deployments.append(
         await mcp_connection_sweep_flow.ato_deployment(
             name="mcp-connection-sweep",
-            schedules=[IntervalSchedule(interval=900)],
+            schedules=[_every(900)],
         )
     )
     # Hourly, against a threshold measured in days: precision here buys nothing,
@@ -112,7 +146,7 @@ async def main() -> None:
     deployments.append(
         await approval_expiry_sweep_flow.ato_deployment(
             name="approval-expiry-sweep",
-            schedules=[IntervalSchedule(interval=3600)],
+            schedules=[_every(3600)],
         )
     )
     # Hourly for the same reason as the approval sweep: the invitation TTL is
@@ -120,7 +154,37 @@ async def main() -> None:
     deployments.append(
         await invitation_expiry_sweep_flow.ato_deployment(
             name="invitation-expiry-sweep",
-            schedules=[IntervalSchedule(interval=3600)],
+            schedules=[_every(3600)],
+        )
+    )
+    # Hourly like the sweeps above, and for the same arithmetic: the ceiling is
+    # measured in hours, so a crashed run reaped 40 minutes late costs nothing -
+    # what matters is that it is reaped at all, because nothing else ever will.
+    deployments.append(
+        await stale_run_sweep_flow.ato_deployment(
+            name="stale-run-sweep",
+            schedules=[_every(3600)],
+        )
+    )
+    # Hourly, against a threshold measured in hours: a teardown reservation whose
+    # durable drop was lost to the commit-to-dispatch gap - or failed for good -
+    # blocks its collection name with nothing left to reattempt it. This reaps them,
+    # dropping the table and freeing the name (#1364).
+    deployments.append(
+        await teardown_reservation_sweep_flow.ato_deployment(
+            name="teardown-reservation-sweep",
+            schedules=[_every(3600)],
+        )
+    )
+    # Daily: apply every organization's retention policy. Every period is
+    # measured in days, so the hour a row leaves is nobody's business, and an
+    # hourly sweep would ask every tenant the same question twenty-four times
+    # for one answer. It works a backlog off over several days rather than
+    # blocking the runner for an hour on the first pass (#1420).
+    deployments.append(
+        await retention_sweep_flow.ato_deployment(
+            name="retention-sweep",
+            schedules=[_every(86400)],
         )
     )
     # Usage reports. An interval rather than a cron because the schedule only
@@ -130,13 +194,32 @@ async def main() -> None:
     deployments.append(
         await weekly_usage_report_flow.ato_deployment(
             name="weekly-usage-report",
-            schedules=[IntervalSchedule(interval=timedelta(days=7))],
+            schedules=[_every(7 * 86_400)],
         )
     )
     deployments.append(
         await monthly_usage_report_flow.ato_deployment(
             name="monthly-usage-report",
-            schedules=[IntervalSchedule(interval=timedelta(days=30))],
+            schedules=[_every(30 * 86_400)],
+        )
+    )
+    # Every minute, matching the other frequent sweeps here: defining the flow
+    # alone does not run it. A pending delivery sits queued for at most one
+    # tick before the sweep claims and sends it.
+    deployments.append(
+        await notification_delivery_sweep_flow.ato_deployment(
+            name="notification-delivery-sweep",
+            schedules=[_every(60)],
+        )
+    )
+    # Daily, matching the sandbox-log sweep above: drop notifications past their
+    # retention window. Read ones age out in ninety days; anything, read or
+    # not, ages out in a year. `announcements` themselves are untouched - only
+    # the per-recipient deliveries a broadcast fanned out to.
+    deployments.append(
+        await notification_retention_sweep_flow.ato_deployment(
+            name="notification-retention-sweep",
+            schedules=[_every(86400)],
         )
     )
     logger.info(

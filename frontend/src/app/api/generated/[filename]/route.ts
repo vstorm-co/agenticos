@@ -17,7 +17,7 @@ export async function GET(
     // Forward ?download=true so an explicit Download control can force a save
     // dialog; the default renders the image inline in the chat.
     const qs = request.nextUrl.searchParams.toString();
-    const url = `${BACKEND_URL}/api/v1/generated/${filename}${qs ? `?${qs}` : ""}`;
+    const url = `${BACKEND_URL}/api/v1/generated/${encodeURIComponent(filename)}${qs ? `?${qs}` : ""}`;
     const response = await fetch(url, {
       headers: {
         Authorization: `Bearer ${accessToken}`,

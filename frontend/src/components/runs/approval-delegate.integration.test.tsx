@@ -48,6 +48,7 @@ function approval(overrides: Partial<ToolApproval> = {}): ToolApproval {
     status: "pending",
     decided_by_user_id: null,
     decided_at: null,
+    decided_via: "click" as const,
     note: null,
     created_at: "2026-08-04T09:00:00Z",
     ...overrides,

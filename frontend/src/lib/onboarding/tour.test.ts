@@ -3,7 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   AGENT_BUILDER,
   KB_DETAIL,
+  ORG_DIRECTORY,
+  ORG_GROUPS,
   ORG_MEMBERS,
+  ORG_RETENTION,
   ORG_ROLES,
   pageHasSteps,
   pageKey,
@@ -62,9 +65,15 @@ describe("pageKey", () => {
     expect(pageKey("/rag/abc-123/anything")).toBe(KB_DETAIL);
   });
 
-  it("splits the two organization detail routes onto their own identities", () => {
+  it("splits the three organization detail routes onto their own identities", () => {
     expect(pageKey("/orgs/abc-123/members")).toBe(ORG_MEMBERS);
     expect(pageKey("/orgs/abc-123/roles")).toBe(ORG_ROLES);
+    // Its own identity rather than a third stop on the members walk: the page is
+    // gated on `org:settings`, and an ungated step waits four seconds for a card
+    // the refusal never mounts (#1420).
+    expect(pageKey("/orgs/abc-123/retention")).toBe(ORG_RETENTION);
+    expect(pageKey("/orgs/abc-123/groups")).toBe(ORG_GROUPS);
+    expect(pageKey("/orgs/abc-123/directory")).toBe(ORG_DIRECTORY);
   });
 
   it("collapses each settings tab and each workspace onto one identity", () => {
@@ -169,12 +178,16 @@ describe("stepsForPage", () => {
       "chat-start",
       "chat-agent-picker",
       "chat-composer",
+      "chat-plan",
       "chat-model-picker",
+      "chat-approval-mode",
+      "chat-your-connections",
     ]);
   });
 
   it("walks the list and then the whole builder when asked from the Agents list", () => {
     expect(stepsForPage(ROUTES.AGENTS, () => true).map((step) => step.id)).toEqual([
+      "agents-templates",
       "agents-new",
       "agents-filters",
       ...BUILDER_STEPS,
@@ -188,10 +201,12 @@ describe("stepsForPage", () => {
   });
 
   it("gives Settings and a workspace their own '?' stop, from any of their routes", () => {
-    // Settings collapses its four tabs onto one identity, so help opened on any of
-    // them lands the same stop; a workspace detail has its own.
+    // Settings collapses its five tabs onto one identity, so help opened on any of
+    // them lands the same stops; a workspace detail has its own. The memory stop
+    // is optional - its card renders only where an agent has written something.
     expect(stepsForPage(ROUTES.SETTINGS_NOTIFICATIONS, () => true).map((s) => s.id)).toEqual([
       "settings-tabs",
+      "my-memory",
     ]);
     expect(stepsForPage("/workspaces/some-id", () => true).map((s) => s.id)).toEqual([
       "workspaces-detail",
@@ -216,7 +231,7 @@ describe("stepsForPage", () => {
       stepsForPage(ROUTES.AGENTS, (permission) => permission === Perm.agentsEdit).map(
         (step) => step.id,
       ),
-    ).toEqual(["agents-new", "agents-filters"]);
+    ).toEqual(["agents-templates", "agents-new", "agents-filters"]);
   });
 
   it("hands the builder walk to anyone who may view an agent", () => {
@@ -233,6 +248,7 @@ describe("stepsForPage", () => {
       "knowledge-tabs",
       "knowledge-integrations",
       "knowledge-add-integration",
+      "knowledge-local-services",
       ...KB_STEPS,
     ]);
   });
@@ -315,6 +331,40 @@ describe("pageHasSteps", () => {
     // shorter walk, not no button — and a walk that a permission does empty is
     // closed by `useOnboardingTour`, not prejudged here.
     expect(pageHasSteps(ROUTES.SKILLS)).toBe(true);
+  });
+});
+
+describe("the groups and directory pages", () => {
+  it("have stops, so their headers render a help button at all", () => {
+    expect(pageHasSteps("/orgs/some-id/groups")).toBe(true);
+    expect(pageHasSteps("/orgs/some-id/directory")).toBe(true);
+  });
+
+  it("show every member what a group is for, and only a member manager its create button", () => {
+    const viewer = stepsForPage("/orgs/some-id/groups", () => false).map((step) => step.id);
+    const manager = stepsForPage("/orgs/some-id/groups", () => true).map((step) => step.id);
+
+    expect(viewer).toEqual(["org-groups"]);
+    expect(manager).toEqual(["org-groups", "org-groups-new"]);
+  });
+
+  it("walk the directory only for a member manager, and adding only with roles:manage", () => {
+    const path = "/orgs/some-id/directory";
+    const membersOnly = (perm: Permission) => perm === Perm.membersManage;
+
+    expect(stepsForPage(path, () => false)).toEqual([]);
+    expect(stepsForPage(path, membersOnly).map((step) => step.id)).toEqual(["org-directory"]);
+    expect(stepsForPage(path, () => true).map((step) => step.id)).toEqual([
+      "org-directory",
+      "org-directory-new",
+    ]);
+  });
+
+  it("leave the members walk as it was", () => {
+    // Their own journeys, so the members "?" still ends on the create-org offer.
+    expect(stepsForPage("/orgs/some-id/members", () => true).map((step) => step.id)).toEqual(
+      ORG_STEPS,
+    );
   });
 });
 

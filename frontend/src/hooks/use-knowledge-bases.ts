@@ -10,7 +10,7 @@ import {
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { apiClient, ApiError } from "@/lib/api-client";
-import { parseErrorMessage } from "@/lib/api-error";
+import { getErrorMessage, parseErrorMessage } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
 import type {
   ConnectorList,
@@ -22,6 +22,7 @@ import { overrideSize } from "@/lib/ingestion-config";
 import { useTenantGuard, useTenantId } from "@/hooks/use-organizations";
 import type {
   CreateKnowledgeBaseInput,
+  EmbeddingProviderInput,
   IngestionConfig,
   IngestionOverride,
   KBDocument,
@@ -150,6 +151,7 @@ export interface UploadProgress {
 export function useKBDetail(id: string | null) {
   const queryClient = useQueryClient();
   const t = useTranslations("knowledgeBases");
+  const tErrors = useTranslations("errors");
   const activeOrgId = useTenantId();
 
   /**
@@ -264,11 +266,14 @@ export function useKBDetail(id: string | null) {
   // page's error. The three sections are not - they report through
   // `sectionFailures` instead.
   const loadError = kbQuery.error ?? documentsQuery.error;
-  const error = loadError
-    ? loadError instanceof Error
-      ? loadError.message
-      : failedLoadMessage
-    : null;
+  // Through `getErrorMessage`, so a BFF refusal's code resolves against the
+  // `errors` catalog rather than arriving humanized into English (#655).
+  // Memoized because the React Compiler cannot preserve the surrounding hook's
+  // manual memoization across a bare call here.
+  const error = useMemo(
+    () => (loadError ? getErrorMessage(loadError, tErrors, failedLoadMessage) : null),
+    [loadError, tErrors, failedLoadMessage],
+  );
 
   // A first load of a load-bearing read that failed with nothing to show - as
   // opposed to a refresh that failed over data already on screen. `isLoadingError`
@@ -303,9 +308,9 @@ export function useKBDetail(id: string | null) {
     try {
       await fetchNextPage({ throwOnError: true });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : failedLoadMoreMessage);
+      toast.error(getErrorMessage(e, tErrors, failedLoadMoreMessage));
     }
-  }, [id, fetchNextPage, failedLoadMoreMessage]);
+  }, [id, fetchNextPage, failedLoadMoreMessage, tErrors]);
 
   /**
    * Replace how this collection's documents are parsed, from now on.
@@ -333,8 +338,35 @@ export function useKBDetail(id: string | null) {
     [id, activeOrgId, stillSameTenant, queryClient, t],
   );
 
+  /**
+   * Move this collection's embeddings to another provider, or another key.
+   *
+   * The model is not here and cannot be: the vector column was created at its
+   * width and every stored vector is in its space. The provider is, because the
+   * same model served from elsewhere is the same model - which is what makes
+   * rotating a credential something other than re-ingesting the collection.
+   *
+   * The refusal is rethrown, like `updateIngestion`: the dialog owns both
+   * fields, and a provider that cannot serve this model belongs under the
+   * select that named it.
+   */
+  const updateEmbeddings = useCallback(
+    async (input: EmbeddingProviderInput): Promise<KnowledgeBase> => {
+      // i18n-exempt: a narrowing guard on a hook only mounted with an id, not copy.
+      if (!id) throw new Error("No knowledge base is open");
+      const startedIn = activeOrgId;
+      const updated = await apiClient.patch<KnowledgeBase>(`/kb/${id}`, input);
+      if (stillSameTenant(startedIn)) {
+        queryClient.setQueryData(qk.kb.detail(id), updated);
+        toast.success(t("embeddingsSaved"));
+      }
+      return updated;
+    },
+    [id, activeOrgId, stillSameTenant, queryClient, t],
+  );
+
   const uploadDocument = useCallback(
-    async (file: File, override?: IngestionOverride) => {
+    async (file: File, override?: IngestionOverride, organizationalUnit?: string) => {
       if (!id) return;
       const startedIn = activeOrgId;
       const uploadId = `${uploadIdRef.current++}`;
@@ -355,6 +387,13 @@ export function useKBDetail(id: string | null) {
         // empty object would mark the document as overridden for no reason.
         if (override !== undefined && overrideSize(override) > 0) {
           formData.append("ingestion", JSON.stringify(override));
+        }
+        // Which part of the organization this file belongs to, carried the same
+        // way. Sent only when it says something - the server reads a blank as
+        // "none", and an absent field says the same thing without asking it
+        // (#1777).
+        if (organizationalUnit) {
+          formData.append("organizational_unit", organizationalUnit);
         }
         // Use XHR (not fetch) so we can read real byte-level upload progress via
         // upload.onprogress. The BFF route forwards the multipart body raw to
@@ -406,14 +445,14 @@ export function useKBDetail(id: string | null) {
         toast.success(t("uploaded", { name: file.name }));
         await refresh();
       } catch (e) {
-        const msg = e instanceof Error ? e.message : t("uploadFailed");
+        const msg = getErrorMessage(e, tErrors, t("uploadFailed"));
         toast.error(msg);
         throw e;
       } finally {
         clear();
       }
     },
-    [id, refresh, activeOrgId, t],
+    [id, refresh, activeOrgId, t, tErrors],
   );
 
   const deleteDocument = useCallback(
@@ -439,10 +478,10 @@ export function useKBDetail(id: string | null) {
         );
         toast.success(t("documentRemoved"));
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : t("failedDeleteDocument"));
+        toast.error(getErrorMessage(e, tErrors, t("failedDeleteDocument")));
       }
     },
-    [id, activeOrgId, stillSameTenant, queryClient, t],
+    [id, activeOrgId, stillSameTenant, queryClient, t, tErrors],
   );
 
   /**
@@ -465,10 +504,10 @@ export function useKBDetail(id: string | null) {
       queryClient.invalidateQueries({ queryKey: qk.kb.list() });
       toast.success(t("deleted"));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : t("failedDelete"));
+      toast.error(getErrorMessage(e, tErrors, t("failedDelete")));
       throw e;
     }
-  }, [id, queryClient, t]);
+  }, [id, queryClient, t, tErrors]);
 
   /**
    * Wire up a sync source, and leave its refusal to the wizard.
@@ -529,11 +568,11 @@ export function useKBDetail(id: string | null) {
         }
         return created;
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : t("failedCloneIntegration"));
+        toast.error(getErrorMessage(e, tErrors, t("failedCloneIntegration")));
         throw e;
       }
     },
-    [id, activeOrgId, stillSameTenant, queryClient, t],
+    [id, activeOrgId, stillSameTenant, queryClient, t, tErrors],
   );
 
   const triggerSyncSource = useCallback(
@@ -545,10 +584,10 @@ export function useKBDetail(id: string | null) {
         // Refresh later to pick up new docs that the worker pulls in.
         setTimeout(() => refresh(), 2000);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : t("failedTriggerSync"));
+        toast.error(getErrorMessage(e, tErrors, t("failedTriggerSync")));
       }
     },
-    [id, refresh, t],
+    [id, refresh, t, tErrors],
   );
 
   const deleteSyncSource = useCallback(
@@ -568,10 +607,10 @@ export function useKBDetail(id: string | null) {
         );
         toast.success(t("syncSourceRemoved"));
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : t("failedRemoveSyncSource"));
+        toast.error(getErrorMessage(e, tErrors, t("failedRemoveSyncSource")));
       }
     },
-    [id, activeOrgId, stillSameTenant, queryClient, t],
+    [id, activeOrgId, stillSameTenant, queryClient, t, tErrors],
   );
 
   return {
@@ -592,6 +631,7 @@ export function useKBDetail(id: string | null) {
     refresh,
     loadMoreDocuments,
     updateIngestion,
+    updateEmbeddings,
     uploadDocument,
     deleteDocument,
     deleteCollection,

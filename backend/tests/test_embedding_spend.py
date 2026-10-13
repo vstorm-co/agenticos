@@ -186,10 +186,12 @@ class TestIngestionRefusedAtTheCap:
                 "app.worker.tasks.rag_tasks.assert_organization_within_budget",
                 new=AsyncMock(side_effect=refusal),
             ),
-            patch("app.worker.tasks.rag_tasks._ingestion_service_for") as pipeline,
+            patch("app.worker.tasks.rag_tasks._ingestion_service") as pipeline,
         ):
             documents.return_value.get_document = AsyncMock(return_value=record)
             with pytest.raises(BudgetExceeded):
-                await _run_ingestion(str(uuid.uuid4()), "docs", "unreached/f.pdf", "f.pdf", False)
+                await _run_ingestion(
+                    str(uuid.uuid4()), "docs", "unreached/f.pdf", "f.pdf", False, 1
+                )
 
         pipeline.assert_not_called()

@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Building2, ChevronDown, ExternalLink, Plug, Plus, User } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ChevronRight, ExternalLink, Plug, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -10,11 +10,6 @@ import {
   Card,
   CardContent,
   ConfirmDialog,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
   ListCard,
   Pager,
   SearchInput,
@@ -23,33 +18,48 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-  useListControls,
 } from "@/components/ui";
 import { McpServerIcon } from "@/components/mcp/mcp-server-icon";
 import { McpConnectionDialog } from "@/components/mcp/mcp-connection-dialog";
+import { ServerConnectionsDialog } from "@/components/mcp/server-connections-dialog";
 import { McpToolPickerDialog } from "@/components/mcp/mcp-tool-picker-dialog";
 import {
-  SCOPE_LABEL,
   type ConnectionFormValues,
   type DraftState,
   type Scope,
   type ToolPickerState,
 } from "@/components/mcp/mcp-server-list-types";
 import { useMcpServers } from "@/hooks";
+import { MCP_PAGE_SIZE, useMcpCatalog, useMcpCatalogPage } from "@/hooks/use-mcp-servers";
 import { cn } from "@/lib/utils";
 import { getErrorMessage } from "@/lib/api-error";
 import type { McpConnectionRecord } from "@/lib/mcp-connections-api";
 import { startMcpOAuth } from "@/lib/mcp-connections-api";
+import { type McpOAuthClient, mcpOAuthClient, secretWithoutClientId } from "@/lib/mcp-oauth";
 import {
+  connectionState,
   CUSTOM_CATEGORY,
+  matchingCustomRows,
+  customRows,
+  isReviewed,
   MCP_AUTH_LABEL,
   MCP_STATE_LABEL,
-  connectionState,
+  rowsForEntries,
+  slugForPrefix,
 } from "@/lib/mcp-servers";
 import type { McpServerRow } from "@/lib/mcp-servers";
 import { useTranslations } from "next-intl";
 
 const NAME_PATTERN = /^[a-z0-9][a-z0-9-]{0,31}$/;
+
+/**
+ * `?connect=<catalog key>` opens the personal connect flow for that server.
+ *
+ * The link an agent hands somebody when a binding to each person's own account
+ * finds they have none: the backend writes it (`_personal_gap_briefing`), so the
+ * parameter's name is a contract between the two rather than this file's own.
+ */
+const CONNECT_PARAM = "connect";
 
 /** Whether a row is filtered by whether anybody has connected it. */
 type StateFilter = "all" | "connected" | "not-connected";
@@ -63,6 +73,28 @@ type StateFilter = "all" | "connected" | "not-connected";
  */
 function categoryLabel(category: string): string {
   return category.replace(/-/g, " ");
+}
+
+/**
+ * A name nothing in this scope holds yet, for a second account on one server.
+ *
+ * A slug of the entry's key first (the name, not the namespace it lives in - so
+ * `com.snitcher/snitcher` seeds `snitcher`, which the tool-prefix pattern accepts,
+ * #1628); then `-2`, `-3` and so on. A name is unique per organization and becomes
+ * the tool prefix, so seeding one already taken made the form's first submit a
+ * guaranteed conflict, and each suffixed candidate stays within the pattern's 32.
+ */
+function freeName(row: McpServerRow, taken: Set<string>): string | undefined {
+  const key = row.entry?.key;
+  if (key === undefined) return undefined;
+  const base = slugForPrefix(key);
+  if (base === "") return undefined;
+  if (!taken.has(base)) return base;
+  for (let n = 2; ; n += 1) {
+    const suffix = `-${n}`;
+    const candidate = `${base.slice(0, 32 - suffix.length)}${suffix}`;
+    if (!taken.has(candidate)) return candidate;
+  }
 }
 
 /** The row's sentence, from whichever side wrote it. */
@@ -88,10 +120,11 @@ interface McpServerListProps {
  * difference decides what the connection can be used for:
  *
  * - **Organization** - the organization's credential. The only kind an agent
- *   spec may bind, because a published agent must not reach different tools
- *   depending on whose session ran it. Gated on `connections:manage`.
- * - **You** - your own credential, used by your assistant in chat and by
- *   nothing else. Never offered to an agent.
+ *   spec may name by id, because a published agent must not reach different
+ *   tools depending on whose session built it. Gated on `connections:manage`.
+ * - **You** - your own credential. What an agent bound to *each person's own
+ *   account* speaks through when you are the one talking to it, and what a
+ *   `?connect=<key>` arrival from such an agent creates.
  *
  * OAuth is offered on the personal column only. A consent grant is one human's,
  * and holding it as the organization's would give everybody that member's
@@ -101,44 +134,85 @@ interface McpServerListProps {
 export function McpServerList({ canManageOrganization }: McpServerListProps) {
   const t = useTranslations("mcp");
   const tErrors = useTranslations("errors");
-  const { rows, organization, personal, recordTools } = useMcpServers();
+  const { organization, personal, recordTools } = useMcpServers();
+  // The whole curated catalog, for the category filter alone - see below.
+  const catalog = useMcpCatalog();
   const [category, setCategory] = useState<string>("all");
   const [state, setState] = useState<StateFilter>("all");
+  // The query, the category and the page all go to the server, because the list
+  // is a request now rather than a filter over what the client holds. It held
+  // the curated hundred and filtered them locally, which was right until 5,703
+  // mirrored registry servers arrived behind them: filtering a page is filtering
+  // whatever that page happened to contain, and so is ranking one.
+  const [query, setQuery] = useState("");
+  const [page, setPage] = useState(0);
+  const listing = useMcpCatalogPage(query, category === "all" ? "" : category, page);
 
-  // The catalog is compiled into the deployment and merged with the
-  // organization's connections in the browser, so filtering it is a filter and
-  // not a request. A round trip per keystroke over data already in hand would
-  // be the slower design, not the more scalable one.
-  const categories = useMemo(
-    () => [...new Set(rows.map((row) => row.category).filter(Boolean))].sort(),
-    [rows],
+  // The page's catalog entries with their connections folded on. Custom rows are
+  // *not* built from a page: whether a connection is "not in the catalog" is a
+  // question about every entry, so asking it of fifty answers "yes" for a
+  // connection whose entry is on another page - which put the Notion connection
+  // at the foot of every page as an uncatalogued server, five times over, until
+  // searching "notion" brought its entry onto the page and it merged again.
+  const pageRows = useMemo(
+    () => rowsForEntries(listing.servers, organization.connections, personal.connections),
+    [listing.servers, organization.connections, personal.connections],
   );
-  const narrowed = useMemo(
+
+  // Asked of the whole catalog, and appended once - on the last page, after
+  // everything the catalog and the mirror hold, because that is where "and these
+  // are yours" belongs in a list of five thousand.
+  const customs = useMemo(
     () =>
-      // Custom servers last: the catalog is the point of the grid, and what
-      // somebody typed a URL for is the exception to it. Catalog order is
-      // otherwise preserved by `mergeServers`.
-      [...rows]
-        .sort(
-          (a, b) => Number(a.category === CUSTOM_CATEGORY) - Number(b.category === CUSTOM_CATEGORY),
-        )
-        .filter((row) => category === "all" || row.category === category)
-        .filter((row) => {
-          if (state === "all") return true;
-          const connected = row.organization !== null || row.personal !== null;
-          return state === "connected" ? connected : !connected;
-        }),
-    [rows, category, state],
+      matchingCustomRows(
+        customRows(catalog.servers, organization.connections, personal.connections),
+        query,
+        category === "all" ? "" : category,
+      ),
+    [catalog.servers, organization.connections, personal.connections, query, category],
   );
-  const list = useListControls({
-    items: narrowed,
-    matches: (row, query) =>
-      row.name.toLowerCase().includes(query) ||
-      rowDescription(row, t).toLowerCase().includes(query) ||
-      (row.url ?? "").toLowerCase().includes(query),
-  });
+
+  const pageCount = Math.max(1, Math.ceil((listing.total + customs.length) / MCP_PAGE_SIZE));
+  const onLastPage = page >= pageCount - 1;
+  const rows = useMemo(
+    () => (onLastPage ? [...pageRows, ...customs] : pageRows),
+    [onLastPage, pageRows, customs],
+  );
+
+  // Answered by the server rather than derived from the rows on screen: a page
+  // holds whichever categories landed on it, so a filter built from one offers a
+  // different set on page two.
+  const categories = useMemo(
+    () => [...new Set(catalog.servers.map((entry) => entry.category).filter(Boolean))].sort(),
+    [catalog.servers],
+  );
+
+  // The one filter still applied in the browser, and the only one that can be:
+  // whether anybody has connected a server is a fact the client holds and the
+  // server would have to be told. It narrows the page rather than the list, which
+  // is the honest limit of doing it here.
+  const visible = useMemo(
+    () =>
+      rows.filter((row) => {
+        if (state === "all") return true;
+        const connected = row.organizations.length > 0 || row.personals.length > 0;
+        return state === "connected" ? connected : !connected;
+      }),
+    [rows, state],
+  );
+
+  function ask(next: string) {
+    setQuery(next);
+    setPage(0);
+  }
+
+  function narrow(next: string) {
+    setCategory(next);
+    setPage(0);
+  }
 
   const [draft, setDraft] = useState<DraftState | null>(null);
+  const [managing, setManaging] = useState<McpServerRow | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [toolPicker, setToolPicker] = useState<ToolPickerState | null>(null);
@@ -157,8 +231,21 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
   const openDraft = (scope: Scope, row: McpServerRow, existing: McpConnectionRecord | null) => {
     // The dialog seeds its own fields from this - name, url and auth type off
     // the row and any connection being edited.
-    setDraft({ scope, row, existing });
+    setDraft({
+      scope,
+      row,
+      existing,
+      suggestedName: existing ? undefined : freeName(row, takenNames(scope)),
+    });
   };
+
+  /** The names this scope already holds, which a new connection cannot take. */
+  const takenNames = (scope: Scope): Set<string> =>
+    new Set(
+      (scope === "organization" ? organization.connections : personal.connections).map(
+        (connection) => connection.name,
+      ),
+    );
 
   /** Probe a server, returning its tools or null after saying why not. */
   const probe = async (scope: Scope, connection: McpConnectionRecord) => {
@@ -184,6 +271,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
     if (!tools) return;
     setToolPicker({
       scope,
+      name: connection.name,
       connection,
       tools,
       checked: new Set(
@@ -191,14 +279,25 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
           ? tools.map((tool) => tool.name)
           : connection.allowed_tools,
       ),
+      appliesTo: "connection",
     });
   };
 
-  const handleOAuth = async (row: McpServerRow, name: string, scope: Scope = "personal") => {
+  const handleOAuth = async (
+    row: McpServerRow,
+    name: string,
+    scope: Scope = "personal",
+    client?: McpOAuthClient,
+  ) => {
     setBusyId(row.key);
     try {
-      const { authorization_url } = await startMcpOAuth({ name, url: row.url ?? "" }, scope);
-      window.location.href = authorization_url;
+      const { authorization_url } = await startMcpOAuth(
+        { name, url: row.url ?? "", catalog_key: row.entry?.key, ...client },
+        scope,
+      );
+      // `assign`, not a write to `href`: the React compiler reads a property
+      // write on `window` as mutating a value from outside the component.
+      window.location.assign(authorization_url);
     } catch (caught) {
       toast.error(getErrorMessage(caught, tErrors, t("couldNotStartSign")));
       setBusyId(null);
@@ -206,9 +305,71 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
     // On success the browser navigates away - leave the row busy.
   };
 
+  // The key `?connect=` arrived with, read once. Lazily, so the server render -
+  // which has no window - and the client's first render agree on a closed
+  // dialog; the row it names is derived below rather than set from an effect.
+  const [connectKey, setConnectKey] = useState<string | null>(() =>
+    typeof window === "undefined"
+      ? null
+      : new URL(window.location.href).searchParams.get(CONNECT_PARAM),
+  );
+  const catalogLoaded = catalog.servers.length > 0;
+  const requestedRow = useMemo(
+    () =>
+      connectKey === null || !catalogLoaded
+        ? null
+        : (rowsForEntries(catalog.servers, organization.connections, personal.connections).find(
+            (row) => row.entry?.key === connectKey,
+          ) ?? null),
+    [connectKey, catalogLoaded, catalog.servers, organization.connections, personal.connections],
+  );
+  // A token or credential-free server opens the personal connect dialog as
+  // soon as the catalog has named the row - derived, so nothing has to be set.
+  // Closing it is what clears the request.
+  const requestedDraft: DraftState | null =
+    draft === null && requestedRow !== null && requestedRow.auth !== "oauth"
+      ? {
+          scope: "personal",
+          row: requestedRow,
+          existing: null,
+          suggestedName: freeName(requestedRow, takenNames("personal")),
+        }
+      : null;
+  const activeDraft = draft ?? requestedDraft;
+  const closeDraft = () => {
+    setDraft(null);
+    setConnectKey(null);
+  };
+
+  // The two halves that are not a render: the parameter is stripped as it is
+  // read, like the OAuth outcome, so a reload does not reopen a dialog somebody
+  // closed - and OAuth is a navigation, which no render can express. Guarded on
+  // the parameter still being in the URL, so a refetch of the connections does
+  // not send the browser to the consent screen a second time.
+  useEffect(() => {
+    if (connectKey === null || !catalogLoaded) return;
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has(CONNECT_PARAM)) return;
+    url.searchParams.delete(CONNECT_PARAM);
+    window.history.replaceState({}, "", url.toString());
+    if (requestedRow === null) {
+      toast.error(t("noSuchServerToConnect", { key: connectKey }));
+      return;
+    }
+    if (requestedRow.auth !== "oauth") return;
+    const taken = new Set(personal.connections.map((connection) => connection.name));
+    const name = freeName(requestedRow, taken) ?? slugForPrefix(connectKey);
+    startMcpOAuth({ name, url: requestedRow.url ?? "", catalog_key: connectKey }, "personal")
+      .then(({ authorization_url }) => window.location.assign(authorization_url))
+      .catch((caught: unknown) =>
+        toast.error(getErrorMessage(caught, tErrors, t("couldNotStartSign"))),
+      );
+  }, [connectKey, catalogLoaded, requestedRow, personal.connections, t, tErrors]);
+
   const handleSubmit = async (values: ConnectionFormValues) => {
-    if (!draft) return;
+    if (!activeDraft) return;
     const name = values.name.trim().toLowerCase();
+    const label = values.label.trim();
     const url = values.url.trim();
     // Only a token connection carries one. Switching to OAuth or None and
     // submitting must not quietly store whatever was typed before.
@@ -221,7 +382,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
       toast.error(t("urlMustStartWithHttp"));
       return;
     }
-    const { row, existing } = draft;
+    const { row, existing } = activeDraft;
     const scope = values.scope;
 
     // OAuth is not a row this dialog writes: the grant is obtained at the
@@ -229,8 +390,17 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
     // Sending the form would make an unauthorized bearer connection that then
     // has to be repaired.
     if (values.auth === "oauth" && existing === null) {
-      setDraft(null);
-      await handleOAuth({ ...row, url }, name, scope);
+      if (secretWithoutClientId(values.clientId, values.clientSecret)) {
+        toast.error(t("clientSecretNeedsId"));
+        return;
+      }
+      closeDraft();
+      await handleOAuth(
+        { ...row, url },
+        name,
+        scope,
+        mcpOAuthClient(values.clientId, values.clientSecret),
+      );
       return;
     }
 
@@ -240,17 +410,19 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
         const created = await api(scope).create({
           name,
           url,
+          ...(label ? { label } : {}),
           ...(token ? { auth_token: token } : {}),
-          // Only the organization API records provenance; a personal connection
-          // has no column for it and would 422 on an unexpected field.
-          ...(scope === "organization" && row.entry ? { catalog_key: row.entry.key } : {}),
+          // Provenance for both owners: it groups the row under its catalog entry,
+          // and a personal connection without it can never be matched to a
+          // binding to each person's own account.
+          ...(row.entry ? { catalog_key: row.entry.key } : {}),
         });
         toast.success(
           scope === "organization"
             ? t("connectedForOrg", { name })
             : t("connectedForYou", { name }),
         );
-        setDraft(null);
+        closeDraft();
         void handleTools(scope, created);
       } else {
         // Only what changed. Re-sending the same URL discards the last check
@@ -258,11 +430,14 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
         // bound to a server nobody has reached.
         await api(scope).update(existing.id, {
           ...(name !== existing.name ? { name } : {}),
+          // `""` is what clears one, so an emptied field has to be sent rather
+          // than treated as "nothing to say".
+          ...(label !== (existing.label ?? "") ? { label } : {}),
           ...(url !== existing.url ? { url } : {}),
           ...(token ? { auth_token: token } : values.clearToken ? { auth_token: "" } : {}),
         });
         toast.success(t("serverUpdated", { name }));
-        setDraft(null);
+        closeDraft();
       }
     } catch (caught) {
       toast.error(getErrorMessage(caught, tErrors, t("couldNotSaveServer")));
@@ -287,6 +462,18 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
     } finally {
       setConfirmBusy(false);
       setDisconnecting(null);
+    }
+  };
+
+  const handleNominate = async (connection: McpConnectionRecord, use: boolean) => {
+    setBusyId(connection.id);
+    try {
+      await api("personal").update(connection.id, { is_default: use });
+      toast.success(use ? t("agentsSpeakAsThis") : t("agentsNoLongerSpeak"));
+    } catch (caught) {
+      toast.error(getErrorMessage(caught, tErrors));
+    } finally {
+      setBusyId(null);
     }
   };
 
@@ -316,18 +503,12 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
       <ListCard
         data-tour="mcp-catalog"
         title={t("servers")}
-        counted={t("serverCount", { count: rows.length })}
-        controls={
-          <SearchInput
-            value={list.query}
-            onChange={list.setQuery}
-            placeholder={t("searchServers")}
-          />
-        }
+        counted={t("serverCount", { count: listing.total + customs.length })}
+        controls={<SearchInput value={query} onChange={ask} placeholder={t("searchServers")} />}
         contentClassName="space-y-4 p-4"
       >
         <div data-tour="mcp-filter" className="flex flex-wrap items-center gap-2">
-          <Select value={category} onValueChange={setCategory}>
+          <Select value={category} onValueChange={narrow}>
             <SelectTrigger className="w-auto min-w-40" aria-label={t("category")}>
               <SelectValue />
             </SelectTrigger>
@@ -370,8 +551,8 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                     docsUrl: null,
                     tokenHint: null,
                     entry: null,
-                    organization: null,
-                    personal: null,
+                    organizations: [],
+                    personals: [],
                   },
                   null,
                 )
@@ -397,8 +578,8 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
          * cards then land in two or three rows with no scrolling, which is the
          * only reason to lay a catalog out as a grid rather than as rows.
          */}
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {list.visible.map((row, index) => (
+        <div className="rise-in grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {visible.map((row, index) => (
             <Card
               key={row.key}
               role="group"
@@ -420,11 +601,26 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                   <div className="min-w-0 flex-1 space-y-1">
                     <div className="flex items-start justify-between gap-2">
                       <span className="truncate text-sm font-medium">{row.name}</span>
-                      <Badge variant="outline" className="shrink-0">
-                        {t(MCP_AUTH_LABEL[row.auth])}
-                      </Badge>
+                      {/* One list holds both kinds, so the difference has to be
+                          on the row rather than in a heading over half of it.
+                          Nobody here checked a registry server: the description
+                          is the publisher's and there is no token hint, which is
+                          worth knowing before pasting a credential into it. */}
+                      {isReviewed(row) ? (
+                        <Badge variant="outline" className="shrink-0">
+                          {t(MCP_AUTH_LABEL[row.auth])}
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant="secondary"
+                          className="shrink-0"
+                          title={t("fromRegistryHint")}
+                        >
+                          {t("fromRegistry")}
+                        </Badge>
+                      )}
                     </div>
-                    <p className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
+                    <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
                       {row.category === CUSTOM_CATEGORY
                         ? t("notCatalog")
                         : categoryLabel(row.category)}
@@ -479,49 +675,46 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
                     is scannable. State rides on the trigger rather than on a
                     chip of its own, because a chip on some cards and not others
                     is the misalignment again, one row up. */}
-                  <div className="border-border mt-3 flex flex-wrap items-center gap-1.5 border-t pt-3">
-                    {(row.organization === null || row.personal === null) && (
+                  {/* `min-w-0` so the row can shrink rather than overflow. Every
+                      `Button` is `whitespace-nowrap` and nothing here could give
+                      way, so the two controls took the full width, `ml-auto`
+                      collapsed to nothing, and the `shrink-0` dot was pushed
+                      past the card's right edge - visibly outside it on a card
+                      with three connections. */}
+                  <div className="border-border mt-3 flex min-w-0 items-center gap-1.5 border-t pt-3">
+                    {/* Exactly two controls, whatever the card holds. The row
+                        used to grow one chip per connection, so a server with
+                        three accounts stood taller than its neighbours and the
+                        grid went ragged - the misalignment this footer exists
+                        to prevent, reintroduced one row down. */}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="shrink-0"
+                      onClick={() => openDraft(defaultScope(row, canManageOrganization), row, null)}
+                      disabled={busyId === row.key}
+                    >
+                      <Plug className="mr-1 h-3.5 w-3.5" />
+                      {busyId === row.key ? t("redirecting") : t("connectAction")}
+                    </Button>
+                    {connectionCount(row) > 0 && (
                       <Button
                         size="sm"
-                        variant="outline"
-                        onClick={() =>
-                          openDraft(defaultScope(row, canManageOrganization), row, null)
-                        }
-                        disabled={busyId === row.key}
+                        variant="ghost"
+                        // The one control allowed to give way: the count is the
+                        // least important thing on the row, and something has to
+                        // shrink or the dot leaves the card.
+                        className="min-w-0"
+                        onClick={() => setManaging(row)}
+                        aria-label={t("manageConnectionsOn", { name: row.name })}
                       >
-                        <Plug className="mr-1 h-3.5 w-3.5" />
-                        {busyId === row.key ? t("redirecting") : t("connectAction")}
+                        <span className="truncate">
+                          {t("connectionCount", { count: connectionCount(row) })}
+                        </span>
+                        <ChevronRight className="ml-1 h-3.5 w-3.5" />
                       </Button>
                     )}
-                    {row.organization && canManageOrganization && (
-                      <ConnectionMenu
-                        scope="organization"
-                        row={row}
-                        connection={row.organization}
-                        busyId={busyId}
-                        onEdit={(connection) => openDraft("organization", row, connection)}
-                        onTools={(connection) => handleTools("organization", connection)}
-                        onDisconnect={(connection) => handleDisconnect("organization", connection)}
-                        onOAuth={() =>
-                          handleOAuth(row, row.organization?.name ?? row.name, "organization")
-                        }
-                      />
-                    )}
-                    {row.organization && !canManageOrganization && (
-                      <ScopeChip scope="organization" connection={row.organization} />
-                    )}
-                    {row.personal && (
-                      <ConnectionMenu
-                        scope="personal"
-                        row={row}
-                        connection={row.personal}
-                        busyId={busyId}
-                        onEdit={(connection) => openDraft("personal", row, connection)}
-                        onTools={(connection) => handleTools("personal", connection)}
-                        onDisconnect={(connection) => handleDisconnect("personal", connection)}
-                        onOAuth={() => handleOAuth(row, row.personal?.name ?? row.name, "personal")}
-                      />
-                    )}
+                    <StateDot row={row} />
                   </div>
                 </div>
               </CardContent>
@@ -530,18 +723,37 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
         </div>
 
         <Pager
-          page={list.page}
-          pageCount={list.pageCount}
-          matched={list.matched}
-          total={list.total}
-          onPage={list.setPage}
-          counted={t("serverCount", { count: list.total })}
+          page={page}
+          pageCount={pageCount}
+          matched={listing.total + customs.length}
+          total={listing.total + customs.length}
+          onPage={setPage}
+          counted={t("serverCount", { count: listing.total + customs.length })}
         />
       </ListCard>
 
+      <ServerConnectionsDialog
+        row={managing}
+        canManageOrganization={canManageOrganization}
+        busyId={busyId}
+        onClose={() => setManaging(null)}
+        onConnect={(scope, row) => {
+          setManaging(null);
+          openDraft(scope, row, null);
+        }}
+        onEdit={(scope, row, connection) => {
+          setManaging(null);
+          openDraft(scope, row, connection);
+        }}
+        onTools={handleTools}
+        onDisconnect={handleDisconnect}
+        onNominate={handleNominate}
+        onOAuth={(scope, row, connection) => handleOAuth(row, connection.name, scope)}
+      />
+
       <McpConnectionDialog
-        draft={draft}
-        onClose={() => setDraft(null)}
+        draft={activeDraft}
+        onClose={closeDraft}
         submitting={submitting}
         canManageOrganization={canManageOrganization}
         onSubmit={handleSubmit}
@@ -575,46 +787,6 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
 }
 
 /**
- * Where a server is held, and whether it works there.
- *
- * A chip per owner rather than a panel per owner. The card sits in a grid, and
- * the question somebody scanning a grid is asking is "is this connected, and
- * for whom" - two words, twice. Everything you can *do* about it hangs off one
- * button below, because the owner is a choice inside the flow rather than a
- * reason to draw the flow twice.
- */
-function ScopeChip({
-  scope,
-  connection,
-}: {
-  scope: Scope;
-  connection: McpConnectionRecord | null;
-}) {
-  const t = useTranslations("mcp");
-  const state = connectionState(connection);
-  const Icon = scope === "organization" ? Building2 : User;
-
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs",
-        state === "connected"
-          ? "border-success/40 bg-success/10 text-foreground"
-          : state === "error"
-            ? "border-destructive/40 bg-destructive/10 text-foreground"
-            : "border-border text-muted-foreground",
-      )}
-      title={`${t(SCOPE_LABEL[scope])}: ${t(MCP_STATE_LABEL[state])}`}
-    >
-      <Icon className="h-3 w-3 shrink-0" aria-hidden />
-      {t(SCOPE_LABEL[scope])}
-      <span aria-hidden>·</span>
-      {t(MCP_STATE_LABEL[state])}
-    </span>
-  );
-}
-
-/**
  * Which owner the Connect button offers first.
  *
  * The one that has nothing yet, preferring the organization when both are
@@ -622,8 +794,11 @@ function ScopeChip({
  * which is what somebody adding one on this page is usually after.
  */
 function defaultScope(row: McpServerRow, canManageOrganization: boolean): Scope {
-  if (canManageOrganization && row.organization === null) return "organization";
-  return "personal";
+  // The empty side first, then the organization's - which is the one an agent
+  // can actually be bound to, so it is the right default for a second account.
+  if (canManageOrganization && row.organizations.length === 0) return "organization";
+  if (row.personals.length === 0) return "personal";
+  return canManageOrganization ? "organization" : "personal";
 }
 
 /**
@@ -635,79 +810,41 @@ function defaultScope(row: McpServerRow, canManageOrganization: boolean): Scope 
  * personal connection". The owner is what the trigger says; the verbs are
  * inside.
  */
-function ConnectionMenu({
-  scope,
-  row,
-  connection,
-  busyId,
-  onEdit,
-  onTools,
-  onDisconnect,
-  onOAuth,
-}: {
-  scope: Scope;
-  row: McpServerRow;
-  connection: McpConnectionRecord;
-  busyId: string | null;
-  onEdit: (connection: McpConnectionRecord) => void;
-  onTools: (connection: McpConnectionRecord) => void;
-  onDisconnect: (connection: McpConnectionRecord) => void;
-  onOAuth: () => void;
-}) {
+/** How many accounts this server holds, across both owners. */
+function connectionCount(row: McpServerRow): number {
+  return row.organizations.length + row.personals.length;
+}
+
+/**
+ * The card's one piece of state, as a dot.
+ *
+ * The worst state wins: a card whose three accounts include one that failed
+ * says so, because "mostly working" is not what somebody scanning a grid of
+ * sixty servers for a broken one needs to see.
+ */
+function StateDot({ row }: { row: McpServerRow }) {
   const t = useTranslations("mcp");
-  const state = connectionState(connection);
-  const busy = busyId === connection.id || busyId === row.key;
-  const owner = t(SCOPE_LABEL[scope]);
-  const Icon = scope === "organization" ? Building2 : User;
+  const states = [...row.organizations, ...row.personals].map((c) => connectionState(c));
+  if (states.length === 0) return null;
+  const worst = states.includes("error")
+    ? "error"
+    : states.includes("needs-authorization")
+      ? "needs-authorization"
+      : states.includes("disabled")
+        ? "disabled"
+        : "connected";
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={busy}
-          aria-label={t("manageNamed", { name: owner })}
-          title={`${owner}: ${t(MCP_STATE_LABEL[state])}`}
-        >
-          <Icon className="mr-1 h-3.5 w-3.5" />
-          {owner}
-          {/* The state, as a dot on the control that acts on it. A separate chip
-              put it on its own line, which made the action row sit lower on the
-              cards that had one - the misalignment this layout exists to fix. */}
-          <span
-            aria-hidden
-            className={cn(
-              "ml-1.5 inline-block h-1.5 w-1.5 rounded-full",
-              state === "connected"
-                ? "bg-success"
-                : state === "error"
-                  ? "bg-destructive"
-                  : "bg-muted-foreground/50",
-            )}
-          />
-          <ChevronDown className="ml-1 h-3 w-3 opacity-60" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start">
-        {/* First, and only when it is the thing standing between this server and
-            working: an unauthorized connection is the one state where every
-            other verb here is premature. */}
-        {state === "needs-authorization" && (
-          <DropdownMenuItem onSelect={onOAuth}>{t("finishSign")}</DropdownMenuItem>
-        )}
-        <DropdownMenuItem onSelect={() => onTools(connection)}>
-          {t("checkConnection")}
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => onEdit(connection)}>{t("settings")}</DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          className="text-destructive focus:text-destructive"
-          onSelect={() => onDisconnect(connection)}
-        >
-          {t("disconnect")}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <span
+      className={cn(
+        "ml-auto inline-block h-2 w-2 shrink-0 rounded-full",
+        worst === "connected"
+          ? "bg-success"
+          : worst === "error"
+            ? "bg-destructive"
+            : "bg-muted-foreground/50",
+      )}
+      title={t(MCP_STATE_LABEL[worst])}
+    />
   );
 }

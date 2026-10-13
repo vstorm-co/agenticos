@@ -116,7 +116,7 @@ function SpendingLimitForm({ org }: { org: Organization }) {
           </Button>
         )}
       </div>
-      <p className="text-foreground/55 mt-3 text-xs">
+      <p className="text-muted-foreground mt-3 text-xs">
         {org.monthly_budget_usd === null
           ? t("spentNoLimit", { spent: monthToDate.toFixed(2) })
           : t("spentOfLimit", {

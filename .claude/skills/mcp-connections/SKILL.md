@@ -26,13 +26,21 @@ Two kinds, differing in exactly two places and both are the point:
 
 |  | Personal | Organization |
 |---|---|---|
-| Reached by | That member's own assistant | Any agent whose spec names it |
+| Reached by | Its owner, through a binding to *each person's own account* | Any agent whose spec names it |
 | Gate | Owner only | `mcp:manage` |
 | Credential sealed to | The **member** | The **organization** |
-| A spec may bind it | **No** | Yes, via `mcp_server_ids` |
+| A spec may name it | **No** - a spec names the *service* (`account: personal`, `catalog_key`) and the owner's connection is found at run time | Yes, `account: organization`, `connection_id` |
 
-A published agent that answered differently depending on whose session ran it could
-not be reviewed or reasoned about — that is why only org connections are bindable.
+A spec binds a service one of two ways (`McpServerRef` in `app/agents/spec.py`).
+`OrgMcpServerRef` is the organization's connection, answering for everybody.
+`PersonalMcpServerRef` names a catalog key: `build_toolsets_for_agent` looks up
+the *sender's* own connection by that key on every turn - the message's author,
+never the thread's - and where there is none (an API key, the widget, a
+schedule, an unlinked chat sender) reports the gap instead of skipping the
+server, and `_with_personal_service_gaps` in the runner tells the model what is
+missing and where the person connects it. A member's connection is never named
+by id: a published agent that reached different tools depending on who built it
+could not be reviewed.
 
 A personal connection is sealed to the member rather than an organization because it
 has none, and its owner may belong to several: binding it to whichever was active
@@ -62,6 +70,12 @@ Five steps in `mcp_oauth.py`: discover (RFC 9728 → RFC 8414) → dynamic clien
 registration (RFC 7591) → consent URL (PKCE + state + RFC 8707 resource indicator) →
 exchange → refresh. Split across two HTTP requests because this is a web app, not a
 CLI.
+
+**A server with no registration endpoint (HubSpot) refuses at step two**, and the
+only way past is a client the operator registered at the provider by hand.
+`McpOAuthStart` takes `client_id` / `client_secret` for that (#1620); the connect
+dialog collects them in `McpOAuthClientFields`, with the redirect URL the provider
+has to hold - `{FRONTEND_URL}/api/me/mcp-connections/oauth/callback`, exactly.
 
 **Every URL in that flow is SSRF-checked and pinned**, not just the one somebody
 typed — discovery means the remote server picks most of the addresses we call. The

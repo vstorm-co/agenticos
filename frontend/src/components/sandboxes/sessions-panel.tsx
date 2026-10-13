@@ -160,7 +160,7 @@ export function SessionsPanel({ connections }: SessionsPanelProps) {
             <span className="text-foreground text-xs font-medium">
               {nameOf(session) ?? t("anAgent")}
             </span>
-            <span className="text-muted-foreground/70 truncate font-mono text-[10px]">
+            <span className="text-muted-foreground truncate font-mono text-[11px]">
               {session.session_id}
             </span>
           </span>
@@ -222,8 +222,8 @@ export function SessionsPanel({ connections }: SessionsPanelProps) {
               {left !== null && (
                 <span
                   className={cn(
-                    "text-[10px]",
-                    left < 120 ? "text-amber-600" : "text-muted-foreground/70",
+                    "text-[11px]",
+                    left < 120 ? "text-amber-600" : "text-muted-foreground",
                   )}
                 >
                   {t("reapedIn", { time: idle(left) })}
@@ -375,9 +375,7 @@ export function SessionsPanel({ connections }: SessionsPanelProps) {
                   it audits what was done, and is not a way to read the work. */}
               <DialogDescription className="text-xs">{t("whatIsRecorded")}</DialogDescription>
               {watching !== null && (
-                <p className="text-muted-foreground/70 truncate font-mono text-[10px]">
-                  {watching}
-                </p>
+                <p className="text-muted-foreground truncate font-mono text-[11px]">{watching}</p>
               )}
             </DialogHeader>
             <div className="min-h-0 flex-1 overflow-auto">

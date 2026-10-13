@@ -50,10 +50,15 @@ export function useSecrets() {
     staleTime: Infinity,
   });
 
-  const invalidate = useCallback(
-    () => queryClient.invalidateQueries({ queryKey: qk.secrets.list() }),
-    [queryClient],
-  );
+  const invalidate = useCallback(async () => {
+    // Cancel an in-flight read before invalidating: invalidateQueries dedupes
+    // its refetch onto a fetch already running, so a list read that began before
+    // this mutation committed resolves with the pre-write list and the table
+    // shows a stale count until a reload (#130, the same dedup race as #154).
+    // Cancelling first forces a genuinely new post-commit fetch.
+    await queryClient.cancelQueries({ queryKey: qk.secrets.list() });
+    await queryClient.invalidateQueries({ queryKey: qk.secrets.list() });
+  }, [queryClient]);
 
   // Neither writing mutation toasts its failure: a name already in use is the
   // refusal people actually hit, and it belongs beside the field that holds the

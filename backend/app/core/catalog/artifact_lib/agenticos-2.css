@@ -1,0 +1,802 @@
+/*
+ * AgenticOS page styles, version 2 - served to published artifacts.
+ *
+ * The console's own look, so a page an agent publishes reads as part of the
+ * product: neutral graphite, flat surfaces with a hairline border, no accent
+ * hue, green and red only where they mean better and worse. Light and dark
+ * follow the viewer's system setting.
+ *
+ * Version 2 is a superset of version 1's classes with the console's current
+ * proportions, plus the components a report is made of: a header, stats with a
+ * delta, sections, tabs, callouts, key-value lists and icons. Pages published
+ * against agenticos-1.css keep it; this file is never edited in a way that
+ * changes an existing page - a change like that is agenticos-3.css.
+ */
+
+:root {
+  color-scheme: light dark;
+  --ao-bg: oklch(97.8% 0.002 265);
+  --ao-fg: oklch(17.5% 0.004 265);
+  --ao-card: oklch(100% 0 0);
+  --ao-muted: oklch(95.5% 0.002 265);
+  --ao-muted-fg: oklch(47.8% 0.006 265);
+  --ao-subtle-fg: oklch(60% 0.006 265);
+  --ao-border: oklch(90% 0.003 265);
+  --ao-border-strong: oklch(84% 0.003 265);
+  --ao-primary: oklch(21% 0.01 250);
+  --ao-primary-fg: oklch(98.5% 0 0);
+  --ao-success: oklch(55% 0.11 155);
+  --ao-success-soft: oklch(95% 0.03 155);
+  --ao-warning: oklch(58% 0.11 72);
+  --ao-warning-soft: oklch(95.5% 0.035 80);
+  --ao-danger: oklch(54% 0.17 25);
+  --ao-danger-soft: oklch(95.5% 0.025 25);
+  /* Series colours for charts: graphite steps first, so a single series never
+     looks like a status. */
+  --ao-series-1: oklch(35% 0.01 265);
+  --ao-series-2: oklch(58% 0.01 265);
+  --ao-series-3: oklch(76% 0.01 265);
+  --ao-series-4: oklch(58% 0.1 155);
+  --ao-series-5: oklch(64% 0.1 72);
+  --ao-series-6: oklch(56% 0.17 25);
+  --ao-radius: 0.75rem;
+  --ao-radius-sm: 0.5rem;
+  --ao-font: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --ao-font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ao-bg: oklch(21% 0.0025 265);
+    --ao-fg: oklch(94.5% 0.003 265);
+    --ao-card: oklch(24.5% 0.0025 265);
+    --ao-muted: oklch(28.5% 0.0025 265);
+    --ao-muted-fg: oklch(71.2% 0.006 265);
+    --ao-subtle-fg: oklch(60% 0.006 265);
+    --ao-border: oklch(32% 0.003 265);
+    --ao-border-strong: oklch(38% 0.003 265);
+    --ao-primary: oklch(96% 0.003 250);
+    --ao-primary-fg: oklch(16% 0.01 250);
+    --ao-success: oklch(74% 0.12 155);
+    --ao-success-soft: oklch(30% 0.04 155);
+    --ao-warning: oklch(79% 0.11 78);
+    --ao-warning-soft: oklch(31% 0.04 78);
+    --ao-danger: oklch(71% 0.15 25);
+    --ao-danger-soft: oklch(30% 0.05 25);
+    --ao-series-1: oklch(90% 0.005 265);
+    --ao-series-2: oklch(70% 0.008 265);
+    --ao-series-3: oklch(52% 0.01 265);
+    --ao-series-4: oklch(74% 0.11 155);
+    --ao-series-5: oklch(78% 0.1 78);
+    --ao-series-6: oklch(70% 0.15 25);
+  }
+}
+
+/* Base */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--ao-bg);
+  color: var(--ao-fg);
+  font: 14px/1.55 var(--ao-font);
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "cv11", "ss01";
+}
+
+h1,
+h2,
+h3,
+h4 {
+  margin: 0 0 0.5em;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+
+h1 {
+  font-size: 1.625rem;
+}
+
+h2 {
+  font-size: 1.0625rem;
+}
+
+h3 {
+  font-size: 0.9375rem;
+}
+
+h4 {
+  font-size: 0.875rem;
+}
+
+p {
+  margin: 0 0 1em;
+}
+
+a,
+.ao-link {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--ao-border-strong);
+  text-underline-offset: 3px;
+}
+
+a:hover,
+.ao-link:hover {
+  text-decoration-color: currentColor;
+}
+
+code,
+pre,
+.ao-mono {
+  font-family: var(--ao-font-mono);
+  font-size: 0.85em;
+}
+
+:not(pre) > code {
+  padding: 0.1em 0.4em;
+  border-radius: 0.3rem;
+  background: var(--ao-muted);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+pre {
+  overflow-x: auto;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--ao-border);
+  border-radius: var(--ao-radius-sm);
+  background: var(--ao-muted);
+}
+
+hr {
+  margin: 2rem 0;
+  border: 0;
+  border-top: 1px solid var(--ao-border);
+}
+
+/* Lucide draws an <svg class="lucide"> in place of <i data-lucide>. One em, so
+   an icon is the size of the text it sits in. */
+svg.lucide,
+.ao-icon {
+  width: 1em;
+  height: 1em;
+  flex-shrink: 0;
+  stroke-width: 1.75;
+  vertical-align: -0.125em;
+}
+
+/* Layout */
+
+.ao-page {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 2.5rem 1.5rem 4rem;
+}
+
+.ao-page-narrow {
+  max-width: 46rem;
+}
+
+.ao-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.ao-header h1 {
+  margin: 0;
+}
+
+.ao-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+  color: var(--ao-muted-fg);
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+.ao-subtitle {
+  margin: 0.375rem 0 0;
+  color: var(--ao-muted-fg);
+  font-size: 0.9375rem;
+}
+
+.ao-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem 1rem;
+  margin-top: 0.75rem;
+  color: var(--ao-muted-fg);
+  font-size: 0.8125rem;
+}
+
+.ao-meta > * {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.ao-section {
+  margin-top: 2.25rem;
+}
+
+.ao-section-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.875rem;
+}
+
+.ao-section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 1rem;
+}
+
+.ao-section > .ao-section-title {
+  margin-bottom: 0.75rem;
+}
+
+.ao-section-title svg.lucide {
+  color: var(--ao-muted-fg);
+}
+
+.ao-section-desc {
+  margin: 0.25rem 0 0;
+  color: var(--ao-muted-fg);
+  font-size: 0.8125rem;
+}
+
+.ao-grid {
+  display: grid;
+  gap: 0.875rem;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+}
+
+.ao-grid-2,
+.ao-grid-3,
+.ao-grid-4 {
+  display: grid;
+  gap: 0.875rem;
+  grid-template-columns: 1fr;
+}
+
+/* Four stats are four short numbers: two a row on a phone, not a column of four. */
+.ao-grid-4 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (min-width: 640px) {
+  .ao-grid-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ao-grid-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 960px) {
+  .ao-grid-4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.ao-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+
+.ao-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ao-spacer {
+  flex: 1;
+}
+
+/* Surfaces */
+
+.ao-card {
+  min-width: 0;
+  padding: 1.125rem 1.25rem;
+  border: 1px solid var(--ao-border);
+  border-radius: var(--ao-radius);
+  background: var(--ao-card);
+}
+
+.ao-card-flush {
+  padding: 0;
+  overflow: hidden;
+}
+
+.ao-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.875rem;
+}
+
+.ao-card-flush > .ao-card-header {
+  margin: 0;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--ao-border);
+}
+
+.ao-card-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.ao-card-desc {
+  margin: 0.2rem 0 0;
+  color: var(--ao-muted-fg);
+  font-size: 0.8125rem;
+}
+
+/* Numbers */
+
+.ao-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.ao-stat-label,
+.ao-kpi-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--ao-muted-fg);
+  font-size: 0.8125rem;
+}
+
+.ao-stat-value,
+.ao-kpi-value {
+  font-size: 1.75rem;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.ao-stat-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--ao-muted-fg);
+  font-size: 0.8125rem;
+}
+
+.ao-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: var(--ao-muted);
+  color: var(--ao-muted-fg);
+  font-size: 0.75rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.ao-up {
+  color: var(--ao-success);
+}
+
+.ao-down {
+  color: var(--ao-danger);
+}
+
+.ao-delta.ao-up {
+  background: var(--ao-success-soft);
+}
+
+.ao-delta.ao-down {
+  background: var(--ao-danger-soft);
+}
+
+.ao-num,
+.ao-tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Tables */
+
+.ao-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--ao-border);
+  border-radius: var(--ao-radius);
+  background: var(--ao-card);
+}
+
+.ao-card-flush > .ao-table-wrap,
+.ao-card > .ao-table-wrap {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.ao-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.ao-table th,
+.ao-table td {
+  padding: 0.625rem 0.875rem;
+  border-bottom: 1px solid var(--ao-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.ao-table th {
+  color: var(--ao-muted-fg);
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.ao-table thead th {
+  background: color-mix(in srgb, var(--ao-muted) 55%, transparent);
+}
+
+.ao-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.ao-table tbody tr:hover {
+  background: color-mix(in srgb, var(--ao-muted) 45%, transparent);
+}
+
+.ao-table td.ao-num,
+.ao-table th.ao-num {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.ao-table .ao-strong {
+  font-weight: 500;
+}
+
+/* Small parts */
+
+.ao-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: var(--ao-muted);
+  color: var(--ao-muted-fg);
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.ao-badge-outline {
+  border: 1px solid var(--ao-border);
+  background: transparent;
+}
+
+.ao-badge-success {
+  background: var(--ao-success-soft);
+  color: var(--ao-success);
+}
+
+.ao-badge-warning {
+  background: var(--ao-warning-soft);
+  color: var(--ao-warning);
+}
+
+.ao-badge-danger {
+  background: var(--ao-danger-soft);
+  color: var(--ao-danger);
+}
+
+.ao-icon-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--ao-radius-sm);
+  background: var(--ao-muted);
+  color: var(--ao-muted-fg);
+  font-size: 1rem;
+}
+
+.ao-callout {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--ao-border);
+  border-radius: var(--ao-radius);
+  background: var(--ao-card);
+  font-size: 0.875rem;
+}
+
+.ao-callout > svg.lucide {
+  margin-top: 0.15rem;
+  color: var(--ao-muted-fg);
+}
+
+.ao-callout-warning {
+  border-color: color-mix(in srgb, var(--ao-warning) 30%, var(--ao-border));
+  background: var(--ao-warning-soft);
+}
+
+.ao-callout-warning > svg.lucide {
+  color: var(--ao-warning);
+}
+
+.ao-callout-danger {
+  border-color: color-mix(in srgb, var(--ao-danger) 30%, var(--ao-border));
+  background: var(--ao-danger-soft);
+}
+
+.ao-callout-danger > svg.lucide {
+  color: var(--ao-danger);
+}
+
+.ao-callout-success {
+  border-color: color-mix(in srgb, var(--ao-success) 30%, var(--ao-border));
+  background: var(--ao-success-soft);
+}
+
+.ao-callout-success > svg.lucide {
+  color: var(--ao-success);
+}
+
+.ao-kv {
+  display: grid;
+  grid-template-columns: minmax(8rem, auto) 1fr;
+  margin: 0;
+}
+
+.ao-kv > dt,
+.ao-kv > dd {
+  margin: 0;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--ao-border);
+}
+
+.ao-kv > dt {
+  padding-right: 1rem;
+  color: var(--ao-muted-fg);
+}
+
+.ao-kv > dt:last-of-type,
+.ao-kv > dd:last-of-type {
+  border-bottom: 0;
+}
+
+.ao-progress {
+  height: 0.375rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--ao-muted);
+}
+
+.ao-progress > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ao-series-1);
+}
+
+.ao-muted {
+  color: var(--ao-muted-fg);
+}
+
+.ao-small {
+  font-size: 0.8125rem;
+}
+
+.ao-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ao-empty {
+  padding: 2.5rem 1rem;
+  color: var(--ao-muted-fg);
+  text-align: center;
+}
+
+.ao-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem 1rem;
+  margin-top: 3rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--ao-border);
+  color: var(--ao-muted-fg);
+  font-size: 0.8125rem;
+}
+
+.ao-footer > * {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+/* Controls */
+
+.ao-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  height: 2rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--ao-border);
+  border-radius: var(--ao-radius-sm);
+  background: var(--ao-card);
+  color: var(--ao-fg);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.ao-button:hover {
+  background: var(--ao-muted);
+}
+
+.ao-button-primary {
+  border-color: var(--ao-primary);
+  background: var(--ao-primary);
+  color: var(--ao-primary-fg);
+}
+
+.ao-button-primary:hover {
+  background: color-mix(in srgb, var(--ao-primary) 88%, var(--ao-bg));
+}
+
+/* A segmented control: `.ao-tabs` around `button.ao-tab`s, the chosen one with
+   aria-selected="true". `AO.tabs()` in agenticos-2.js wires it to panels. */
+.ao-tabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.125rem;
+  padding: 0.1875rem;
+  border-radius: 0.625rem;
+  background: var(--ao-muted);
+}
+
+.ao-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  height: 1.75rem;
+  padding: 0 0.75rem;
+  border: 0;
+  border-radius: 0.4375rem;
+  background: transparent;
+  color: var(--ao-muted-fg);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.ao-tab:hover {
+  color: var(--ao-fg);
+}
+
+.ao-tab[aria-selected="true"] {
+  background: var(--ao-card);
+  color: var(--ao-fg);
+  box-shadow: 0 1px 2px oklch(0% 0 0 / 0.08);
+}
+
+[data-ao-panel][hidden] {
+  display: none;
+}
+
+/* Charts */
+
+/* A fixed height, so a responsive chart does not grow with its own canvas. */
+.ao-chart {
+  position: relative;
+  height: 18rem;
+}
+
+.ao-chart-sm {
+  height: 12rem;
+}
+
+.ao-chart-lg {
+  height: 24rem;
+}
+
+.ao-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem 1rem;
+  color: var(--ao-muted-fg);
+  font-size: 0.8125rem;
+}
+
+.ao-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.ao-swatch {
+  display: inline-block;
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 0.1875rem;
+  background: var(--ao-series-1);
+}
+
+/* Small screens and paper */
+
+@media (max-width: 639px) {
+  .ao-page {
+    padding: 1.5rem 1rem 3rem;
+  }
+
+  h1 {
+    font-size: 1.375rem;
+  }
+
+  .ao-stat-value,
+  .ao-kpi-value {
+    font-size: 1.5rem;
+  }
+}
+
+@media print {
+  :root {
+    color-scheme: light;
+  }
+
+  body {
+    background: #fff;
+  }
+
+  .ao-card,
+  .ao-table-wrap {
+    break-inside: avoid;
+  }
+
+  .ao-tabs {
+    display: none;
+  }
+
+  [data-ao-panel][hidden] {
+    display: block;
+  }
+}

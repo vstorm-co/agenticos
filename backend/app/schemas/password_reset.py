@@ -1,8 +1,20 @@
 """Password-reset and magic-link request/confirm schemas."""
 
-from pydantic import EmailStr, Field
+import re
+
+from pydantic import EmailStr, Field, field_validator
 
 from app.schemas.base import BaseSchema
+
+# Where a magic link may land: a path on this deployment, and nothing else. A
+# value with a scheme ("https://evil.example"), a protocol-relative one
+# ("//evil.example"), a backslash variant ("/\evil.example", which browsers
+# normalise to "//") or a control character ("/\t/evil.example", which the URL
+# parser strips before parsing) would each turn the link into an open redirect -
+# and this one is *signed into a token* and followed from an email, so it must
+# not be storable in the first place. `frontend/src/lib/auth-landing.ts` refuses
+# the same shapes again at the landing; this is what keeps them out of the token.
+_SAFE_RETURN_PATH = re.compile(r"^/(?![/\\])[^\s\\\x00-\x1f\x7f]*$")
 
 
 class PasswordResetRequest(BaseSchema):
@@ -15,6 +27,18 @@ class PasswordResetConfirm(BaseSchema):
     """Step 2 - user clicks link, posts new password with token."""
 
     token: str = Field(..., min_length=10)
+    new_password: str = Field(..., min_length=8, max_length=128)
+
+
+class PasswordChangeRequest(BaseSchema):
+    """A signed-in user changing their own password, proving the current one.
+
+    `current_password` only has to be present; whether it is right is decided
+    against the stored hash, not by its length. `new_password` takes the same
+    bounds every other password field does.
+    """
+
+    current_password: str = Field(..., min_length=1)
     new_password: str = Field(..., min_length=8, max_length=128)
 
 
@@ -33,12 +57,45 @@ class PasswordResetConfirmResponse(BaseSchema):
 
 
 class MagicLinkRequest(BaseSchema):
-    """Email-only request - symmetric with password reset."""
+    """Email, and where the link should land.
+
+    `return_to` is the path the visitor was headed to when they were asked to
+    sign in. It travels *in the token* rather than in a session store, because a
+    magic link is followed from an email: a different tab, often a different
+    application, sometimes a different browser, where `sessionStorage` is empty
+    by construction (#1214).
+    """
 
     email: EmailStr
+    return_to: str | None = Field(default=None, max_length=512)
+
+    @field_validator("return_to")
+    @classmethod
+    def _only_a_path_on_this_deployment(cls, value: str | None) -> str | None:
+        if value is not None and not _SAFE_RETURN_PATH.match(value):
+            raise ValueError("must be a path on this deployment, beginning with a single '/'")
+        return value
 
 
 class MagicLinkVerifyRequest(BaseSchema):
     """Step 2 - user clicked email link, exchange token for session."""
 
     token: str = Field(..., min_length=10)
+
+
+class EmailChangeConfirm(BaseSchema):
+    """The link sent to an address a change was requested for (#1772).
+
+    Unauthenticated, like the reset confirm beside it: the link is followed from
+    the new address, which is routinely a different browser from the one that
+    asked for the change. The token is the whole of the proof.
+    """
+
+    token: str = Field(..., min_length=10)
+
+
+class EmailChangeConfirmResponse(BaseSchema):
+    """Returned after a successful confirm - the address is now the account's."""
+
+    success: bool = True
+    message: str = "Email address confirmed. It is now the address for this account."

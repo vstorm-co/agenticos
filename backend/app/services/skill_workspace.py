@@ -1,19 +1,22 @@
 """Skills as files in the workspace, and what the agent writes back.
 
-Until now a skill reached the model only through `load_skill`, as text in the
-conversation. That is enough to *read* a checklist and not enough to use one: a
-skill whose resource is `reconcile.py` was handing an agent a script it could
-quote and not run, while the same agent had a shell one tool call away.
+A skill reaches the model as instructions it pulls in with `load_capability`, and
+its files through `read_skill_resource`. That is enough to *read* a checklist and
+not enough to use one: a skill whose resource is `reconcile.py` was handing an
+agent a script it could quote and not run, while the same agent had a shell one
+tool call away.
 
 So when a run has both skills and a workspace, the skills are also files:
 
-    /skills/<name>/SKILL.md      the body, with its name and description
-    /skills/<name>/<resource>    each resource, beside it
+    /workspace/skills/<name>/SKILL.md      the body, with its name and description
+    /workspace/skills/<name>/<resource>    each resource, beside it
 
-`SKILL.md` is the format `pydantic-ai-skills` already reads, and the frontmatter
-is parsed with that library's own parser rather than a second one of ours - two
-parsers for one format is how a skill starts meaning different things in two
-places.
+`SKILL.md` is the Agent Skills format, and the frontmatter is read back with
+`skill_library.split_frontmatter` - the same reader the bundled skill gallery and
+the agent templates go through. One parser for one format is what keeps a skill
+from meaning different things in two places; the shelf that reads `SKILL.md` off
+disk is where it lives, and `pydantic-ai-skills` stopped publishing one of its
+own at 2.0.
 
 **No second way to run things.** There is deliberately no `run_skill_script`
 here. The sandbox already has `execute`, with the workspace's permission rules
@@ -33,14 +36,43 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any
 
-from pydantic_ai_backends import AsyncBackendProtocol, BackendProtocol, ensure_async
-from pydantic_ai_skills import parse_skill_md
+from pydantic_ai.workspaces import Workspace
 
 from app.db.models.skill import Skill
+from app.services.skill_library import split_frontmatter
 
 logger = logging.getLogger(__name__)
 
-SKILLS_ROOT = "/skills"
+# Inside the workspace, not beside it. The container runtimes run as an unprivileged user
+# (`_image.py` refuses root), and `/` is root's: `mkdir -p /skills` fails with "Permission
+# denied", every write is refused, and the agent that was promised its scripts on disk finds
+# no /skills at all (2026-09-14, first live run of a skill with 81 resources). `/workspace` is
+# the one directory every backend guarantees writable, so the skills live under it.
+SKILLS_ROOT = "/workspace/skills"
+
+LEGACY_SKILLS_ROOT = "/skills"
+"""Where skills were written before they moved inside the workspace.
+
+Nothing writes here. It is named so the two listing filters still recognise a
+workspace that predates the move, and so a flush can drop that tree instead of
+persisting a second copy of every skill beside the new one.
+"""
+
+RESERVED_SKILL_PREFIXES = ("workspace/skills/", "skills/")
+"""Every spelling a materialised skill path arrives in, the leading slash stripped.
+
+`workspace/skills/...` from a `state` backend and from a container that lists
+absolute in-container paths; `skills/...` from a container that lists relative to
+its own workspace root, and from a workspace written before the move. Matched
+after `lstrip("/")` for the reason `_NOT_THE_AGENTS` documents: the two backends
+disagree about the leading slash, so one spelling with the slash stripped at the
+match is the only form that catches both.
+
+Read by `channels.attachments` and `sandbox_workspace`, which is why it lives
+beside the root rather than in either of them - a filter that knows a different
+set of prefixes than the writer uses is how skill files reached a channel reply.
+"""
+
 BODY_FILE = "SKILL.md"
 
 # A ceiling on what one turn may propose, per file. Skills are instructions and
@@ -83,7 +115,7 @@ def skill_dir(name: str) -> str:
 
 
 def render_body(skill: Skill) -> str:
-    """The skill as `SKILL.md`, in the format the library parses.
+    """The skill as `SKILL.md`, in the format `split_frontmatter` reads back.
 
     The name and description are in the frontmatter rather than implied by the
     directory, because they are what the agent edits when it improves a skill's
@@ -93,22 +125,19 @@ def render_body(skill: Skill) -> str:
     return f"---\nname: {skill.name}\ndescription: {skill.description}\n---\n\n{skill.content}\n"
 
 
-async def materialise(
-    backend: BackendProtocol | AsyncBackendProtocol, skills: list[Skill]
-) -> MaterialisedSkills:
+async def materialise(workspace: Workspace, skills: list[Skill]) -> MaterialisedSkills:
     """Write each skill into the workspace, and remember what was written.
 
     Never raises. A workspace that refuses a write - past its storage ceiling,
     holding a path the backend rejects - must not stop the run: the skills are
     still in the prompt, which is how they worked before this existed.
 
-    Awaited, and that matters more here than anywhere else this wraps a backend.
-    This runs inside `prepare`, once per file per skill, before the model has seen
-    a token - so on a container-backed workspace an agent with five skills and
-    three resources each paid fifteen synchronous round trips on the event loop
-    before its first word.
+    Awaited, and that matters more here than anywhere else: this runs inside
+    `prepare`, once per file per skill, before the model has seen a token - so on
+    a container-backed workspace an agent with five skills and three resources
+    each pays fifteen round trips before its first word, and they must not block
+    the event loop.
     """
-    writer = ensure_async(backend)
     state = MaterialisedSkills()
     for skill in skills:
         state.owners[skill.name] = skill.id
@@ -116,28 +145,26 @@ async def materialise(
         for resource in skill.resources:
             files[f"{skill_dir(skill.name)}/{resource.name}"] = resource.content
         for path, content in files.items():
-            if await _write(writer, path, content):
+            if await _write(workspace, path, content):
                 state.written[path] = content
     return state
 
 
-async def _write(backend: AsyncBackendProtocol, path: str, content: str) -> bool:
+async def _write(workspace: Workspace, path: str, content: str) -> bool:
     """Whether the file made it. A refusal is logged rather than raised."""
     try:
-        result = await backend.write(path, content)
+        await workspace.write_text(path, content)
+    except OSError as refused:
+        # The workspace said no - past its storage ceiling, a path it rejects.
+        logger.warning("skill_materialise_refused", extra={"path": path, "reason": str(refused)})
+        return False
     except Exception:
         logger.warning("skill_materialise_failed", extra={"path": path}, exc_info=True)
-        return False
-    error = getattr(result, "error", None)
-    if error:
-        logger.warning("skill_materialise_refused", extra={"path": path, "reason": error})
         return False
     return True
 
 
-async def collect_changes(
-    backend: BackendProtocol | AsyncBackendProtocol, state: MaterialisedSkills
-) -> list[SkillChange]:
+async def collect_changes(workspace: Workspace, state: MaterialisedSkills) -> list[SkillChange]:
     """What the agent left under `/skills` that is not what was put there.
 
     Compared against what this run wrote rather than against the database: the
@@ -151,7 +178,7 @@ async def collect_changes(
     guessing wrong silently drops organizational know-how.
     """
     try:
-        present = await _read_tree(ensure_async(backend))
+        present = await _read_tree(workspace)
     except Exception:
         # A remote workspace that cannot be listed is a run that proposes
         # nothing, which is the same as one that changed nothing.
@@ -159,7 +186,7 @@ async def collect_changes(
         return []
 
     changes: list[SkillChange] = []
-    for name, files in _by_skill(present).items():
+    for name, files in present.items():
         if files == {
             path: content for path, content in state.written.items() if _skill_of(path) == name
         }:
@@ -170,37 +197,39 @@ async def collect_changes(
     return changes
 
 
-async def _read_tree(backend: AsyncBackendProtocol) -> dict[str, str]:
-    """Every file under `/skills`, by path.
+async def _read_tree(workspace: Workspace) -> dict[str, dict[str, str]]:
+    """Every file one level inside a skill's directory under `SKILLS_ROOT`, by skill and path.
+
+    Two levels and no further, because that is the format: a skill is a directory
+    of files, and `_skill_of` reads nothing deeper. Listed rather than globbed, so a
+    dot-prefixed resource - a `.gitignore` the agent gave a skill - is in the
+    proposal like any other file; a proposal is supposed to be everything the
+    agent left different.
 
     Oversized files are dropped rather than truncated: half a script is not a
     script, and storing it as a proposal would offer a reviewer something that
     cannot be right.
     """
-    tree: dict[str, str] = {}
-    # Two patterns: `**/*` does not match a name beginning with a dot, so a skill the
-    # agent gave a `.gitignore` or a dot-prefixed resource would have that file
-    # dropped from the proposal without a word - and a proposal is supposed to be
-    # everything the agent left different.
-    listed = {
-        str(entry["path"]): entry
-        for pattern in (f"{SKILLS_ROOT}/**/*", f"{SKILLS_ROOT}/**/.*")
-        for entry in await backend.glob_info(pattern)
-    }
-    for path, entry in sorted(listed.items()):
-        if entry.get("is_dir"):
+    tree: dict[str, dict[str, str]] = {}
+    try:
+        skills = await workspace.list_dir(SKILLS_ROOT)
+    except FileNotFoundError:
+        return tree
+    for skill in sorted(skills, key=lambda entry: entry.path):
+        if not skill.is_dir:
             continue
-        # `or 0`, not a default on `get`: `size` is `int | None` and a listing that
-        # carries the key with `None` - a host that did not measure the file - would
-        # otherwise compare `None` to an int and raise inside the ingestion of a
-        # skill proposal.
-        if (entry.get("size") or 0) > MAX_PROPOSED_BYTES:
-            logger.warning("skill_proposal_too_large", extra={"path": path})
-            continue
-        # `read_bytes`, not `read`: the toolset's `read` numbers lines for a
-        # model to quote, and a proposal built from that would store the line
-        # numbers as part of the skill.
-        tree[path] = (await backend.read_bytes(path)).decode("utf-8", errors="replace")
+        for entry in sorted(await workspace.list_dir(skill.path), key=lambda e: e.path):
+            if entry.is_dir:
+                continue
+            # A container's listing does not measure its files - its shell lists
+            # names - so an unmeasured one is asked, rather than read whole first.
+            size = entry.size if entry.size is not None else (await workspace.stat(entry.path)).size
+            if size is not None and size > MAX_PROPOSED_BYTES:
+                logger.warning("skill_proposal_too_large", extra={"path": entry.path})
+                continue
+            tree.setdefault(skill.name, {})[entry.path] = (
+                await workspace.read_bytes(entry.path)
+            ).decode("utf-8", errors="replace")
     return tree
 
 
@@ -208,22 +237,12 @@ def _skill_of(path: str) -> str | None:
     """The directory a path sits in, which is the skill's name.
 
     `None` for anything not exactly one level deep. A skill is a directory of
-    files; nesting is not part of the format, and treating `/skills/a/b/c` as
+    files; nesting is not part of the format, and treating `/workspace/skills/a/b/c` as
     belonging to `a` would flatten two files onto one name.
     """
     rest = path[len(SKILLS_ROOT) + 1 :] if path.startswith(f"{SKILLS_ROOT}/") else ""
     parts = [part for part in rest.split("/") if part]
     return parts[0] if len(parts) == 2 else None
-
-
-def _by_skill(tree: dict[str, str]) -> dict[str, dict[str, str]]:
-    grouped: dict[str, dict[str, str]] = {}
-    for path, content in tree.items():
-        name = _skill_of(path)
-        if name is None:
-            continue
-        grouped.setdefault(name, {})[path] = content
-    return grouped
 
 
 def _to_change(name: str, files: dict[str, str], skill_id: Any | None) -> SkillChange | None:
@@ -240,7 +259,7 @@ def _to_change(name: str, files: dict[str, str], skill_id: Any | None) -> SkillC
         return None
 
     try:
-        frontmatter, instructions = parse_skill_md(body)
+        frontmatter, instructions = split_frontmatter(body)
     except ValueError:
         # Malformed frontmatter the model wrote. Refused rather than guessed at,
         # because the description is what every other agent reads first.
@@ -251,7 +270,7 @@ def _to_change(name: str, files: dict[str, str], skill_id: Any | None) -> SkillC
         name=name,
         skill_id=skill_id,
         description=str(frontmatter.get("description") or ""),
-        content=instructions,
+        content=instructions.strip(),
         resources={
             path.rsplit("/", 1)[1]: content for path, content in files.items() if path != body_path
         },

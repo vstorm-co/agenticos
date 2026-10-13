@@ -252,6 +252,16 @@ interface CapabilityDetailProps {
    * a tab of its own: this is how it behaves, which is what Settings is.
    */
   settingsExtra?: ReactNode;
+  /**
+   * An action this capability offers, below its settings rather than above them.
+   *
+   * Distinct from `settingsExtra`, which is configuration the capability draws
+   * itself and therefore belongs with the rest of the form. This is for the one
+   * thing that is not configuration at all - emptying an agent's memory - and it
+   * goes last because a destructive button at the top of a settings tab is a
+   * button somebody presses on the way past.
+   */
+  settingsFooter?: ReactNode;
 }
 
 /**
@@ -279,6 +289,7 @@ export function CapabilityDetail({
   readOnly,
   resources,
   settingsExtra,
+  settingsFooter,
 }: CapabilityDetailProps) {
   const t = useTranslations("agents");
   const configErrors = capabilityConfigErrors(configProblems ?? [], binding.id);
@@ -340,6 +351,8 @@ export function CapabilityDetail({
       </div>
 
       {definition.config_schema && <SchemaPreview schema={definition.config_schema} />}
+
+      {settingsFooter}
     </>
   );
 
@@ -484,18 +497,24 @@ interface SecretFieldProps {
 }
 
 /**
- * What the key chosen here would be for - "tavily", "brave" - when the binding
- * has said, and null when the requirement is unconditional and no field names a
- * service.
+ * What the key chosen here would be for - "tavily", "mem0" - or null when
+ * nothing says.
  *
- * It is the same answer `InlineSecret` stores under `purpose`, read back: the
- * conditional field *is* the service, so a requirement gated on `method` needs a
- * key for whichever method was picked.
+ * It is the same answer `InlineSecret` stores under `purpose`, read back. Two
+ * sources, in this order, because they answer for different shapes of
+ * capability. A capability offering several services gates its key on the choice,
+ * so the conditional field *is* the service and the binding's own configuration
+ * has the answer. A capability with one service needs its key unconditionally, so
+ * there is no condition to read and the requirement names the service outright.
+ *
+ * Reading only the condition is what left the mem0 picker offering every API key
+ * in the vault, and storing an inline-created one as `custom` (#1470).
  */
 function purposeOf(binding: CapabilityBindingSpec, requirement: SecretRequirement): string | null {
   const field = requirement.required_when?.field;
   const chosen = field === undefined ? undefined : binding.config[field];
-  return typeof chosen === "string" && chosen !== "" ? chosen : null;
+  if (typeof chosen === "string" && chosen !== "") return chosen;
+  return requirement.purpose;
 }
 
 /**

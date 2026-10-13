@@ -1,6 +1,6 @@
 ---
 description: Frontend conventions — App Router, data layer, stores, i18n, permissions
-globs: ["frontend/**/*.ts", "frontend/**/*.tsx", "frontend/**/*.css"]
+paths: ["frontend/**/*.ts", "frontend/**/*.tsx", "frontend/**/*.css"]
 ---
 
 # Frontend Conventions
@@ -9,7 +9,7 @@ Deeper guidance lives in the `frontend-feature` skill.
 
 ## Stack
 
-Next.js 15 (App Router) · React 19 · TypeScript strict · Tailwind · `next-intl` ·
+Next.js (App Router) · React · TypeScript strict · Tailwind · `next-intl` ·
 TanStack Query · Zustand · vitest + Testing Library · Playwright. Package manager and
 runner: **bun**.
 
@@ -129,26 +129,31 @@ There is no `(marketing)` route group.
   phrase* (`counted="40 skills"`, from the caller's namespace) or a key, never a word.
   The guard only reads props named in `READABLE_ATTRS`, so copy arriving through a new
   prop name is invisible until that name is added - `noun` and `term` were (#362).
-- **English is the source language, and `pl.json` holds only what is translated.**
-  `src/i18n.ts` merges `en.json` underneath every locale, so a missing translation
-  renders English instead of the key. A module-level table of labels cannot call a
-  translator, so it holds *keys* and the component translates at the point of use;
-  a pure helper either answers with a key or takes `t`.
+- **English is the source language; a translation holds only what is translated.**
+  `src/i18n.ts` merges `en.json` underneath every locale - `pl.json` and `de.json`
+  today - so a missing translation renders English instead of the key. A
+  module-level table of labels cannot call a translator, so it holds *keys* and the
+  component translates at the point of use; a pure helper either answers with a key
+  or takes `t`.
 - **The product's own nouns stay English in every locale**, and this is the list:
   **agent, spec, capability, skill, embed, budget, run, prompt, provider, token,
   vault, workspace, sandbox, MCP**. They name things a client also meets in
   `docs/`, in the API and in the YAML a spec exports into their own repository, so
   translating them in the UI and nowhere else makes two vocabularies for one
   product - a Polish reader looking up *zdolność* finds nothing. Inflect them
-  rather than replacing them (`agenta`, `w spec`, `runy`), and translate everything
-  around them. Decided before the first namespace rather than after the third
-  (#643); a word joining the list belongs here, not in one `pl.json` entry.
-- **Translate a namespace, not a branch.** Seventy Polish strings among four
+  rather than replacing them (`agenta`, `w spec`, `runy`; `der Agent`, `die
+  Capability`, `der Run`), and translate everything around them. The gender each
+  kept noun takes in German is fixed in `docs/howto/translate.md`, so one page does
+  not say *der Sandbox* and the next *ein Sandbox*. Decided before the first
+  namespace rather than after the third (#643); a word joining the list belongs
+  here, not in one catalog entry.
+- **Translate a namespace, not a branch.** Seventy translated strings among four
   hundred English ones in one dialog is worse than a consistently English one, so
   the unit of work is the namespace a person reads on one screen - which is why
   #634 finished `hosted` (12 keys, what a Polish visitor lands on) and left
-  `agents` (509) whole. Polish also makes the count rule bite harder than English
-  does: `one`/`few`/`many`/`other` where `en.json` needed `=1`/`other`.
+  `agents` (509) whole. `de.json` is the first catalog translated whole. Polish also
+  makes the count rule bite harder than English does: `one`/`few`/`many`/`other`
+  where `en.json` needed `=1`/`other`.
 - **The locale lives in a cookie, and a switch goes through `@/lib/locale-navigation`.**
   `localePrefix: "as-needed"` means an unprefixed path *is* English, and 49 files import
   a plain `next/link` - so a switch that only rewrites the URL survives exactly one
@@ -181,7 +186,11 @@ There is no `(marketing)` route group.
   199 MB installed to draw 89 marks that are the same artwork either way.
   The generator refuses a source SVG it cannot draw with paths alone, or one
   carrying a literal fill: a mark that silently loses a layer still renders, and
-  is still the wrong logo.
+  is still the wrong logo. It also emits `src/lib/auth-glyphs.generated.ts` —
+  just the identity-provider marks — because `BrandIcon` reads the 89-mark table
+  by dynamic key, which no bundler can tree-shake, so importing it put every mark
+  on the critical path of the sign-in page; the auth pages import `AUTH_GLYPHS`
+  and draw it through `GlyphIcon` instead (#955).
 - Do not hand-edit `src/lib/mcp-logos.generated.ts` — run `bun run gen:mcp-logos`.
 - **A dependency nothing imports fails `make lint`.** `bun run lint:deps` is knip
   narrowed to that one question, and it runs in `lint-frontend`. A false positive
@@ -254,8 +263,38 @@ is a whole catalog spotlights the entire viewport, which highlights nothing, so 
 describing step takes the header and the card's own anchor is left to the guided
 flow, which needs the list reachable.
 
-The full picture, including what CLAUDE.md requires, is in `CLAUDE.md` under
-"A new surface owes the walkthrough a stop".
+A page without a stop renders no help button (`pageHasSteps`). Check this when
+verifying that a new page has been registered in the walkthrough.
+
+## A feature with glanceable state owes the dashboard a widget
+
+The arrangeable dashboard is a registry with the same failure mode as the tour: a
+feature added anywhere else is simply absent from the catalog, nothing fails, and
+the product reads as parallel features rather than one — #594 stitched exactly
+these seams after W3 shipped four features on branches that could not see each
+other. If a feature produces activity or state a person would want at a glance
+(runs, schedules, sync health, spend), it ships its card in the same change. Five
+edits, each demonstrated by every existing widget:
+
+- the id in `WidgetId` and its def in `WIDGETS` (`src/lib/dashboard/registry.ts`) —
+  gate on the permission the card's **primary** read demands, and fetch a more
+  privileged half conditionally rather than raising the gate to it (the routines
+  card gates `agents:view`, which `GET /triggers` asks, and reads the run outcomes
+  only for a caller holding `runs:view` — a card that 403s on a permission its
+  primary data never needed is a card its audience cannot add);
+- the component under `components/dashboard/widgets/`, registered in
+  `WIDGET_COMPONENTS` (`widgets/index.ts`) — built on `WidgetFrame` and the
+  `widget-states` trio, reusing an existing hook rather than adding a card-only
+  endpoint;
+- a placement in `DEFAULT_SECTIONS` (`src/lib/dashboard/layouts.ts`) when the card
+  belongs on the default arrangement, not merely in the add-a-widget catalog;
+- the id mirrored in `WIDGET_IDS` in `backend/app/schemas/dashboard_layout.py` —
+  `backend/tests/test_dashboard_registry.py` fails the build when the two drift,
+  and `registry.test.ts`'s gate table plus its widget count both name the new id;
+- `dashboard.widgets.<id>.*` copy (title, description, states) in en **and** pl,
+  and the file itself in `vitest.config.ts`'s coverage include — the widget
+  directory is gated file-by-file, so a new card is otherwise invisible to the
+  100% gate however green its tests run.
 
 ## Permissions
 
@@ -291,7 +330,7 @@ From `frontend/` — at the repository root vitest finds no config and reports p
 failures. While writing, run only what covers the change:
 
 ```bash
-bunx vitest run src/components/chat/usage-strip.test.tsx
+bunx vitest run src/components/chat/usage-meter.test.tsx
 ```
 
 Once, before the push — from the repository root, because CI's `test-frontend` job

@@ -7,11 +7,13 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { ArrowRight } from "lucide-react";
 
+import { DirectoryLoginForm } from "@/components/auth/directory-login-form";
 import { OAuthBlock } from "@/components/auth/oauth-buttons";
+import { returnToForAttempt } from "@/lib/oauth-return";
 import { Button, Input, Label } from "@/components/ui";
 import { useAuth } from "@/hooks";
 import { ApiError } from "@/lib/api-client";
-import { getErrorMessage } from "@/lib/api-error";
+import { getErrorMessage, isTimeout } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { registerHref } from "@/lib/invitation-links";
 import { EMAIL_RE } from "@/lib/utils";
@@ -28,9 +30,12 @@ export function LoginForm() {
   const signUpHref = registerHref(search.toString());
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  // A sign-in that failed away from this page - a Kerberos ticket the backend
+  // refused, or a browser with none to offer - lands back here with its reason.
+  const [error, setError] = useState(search.get("error") ?? "");
   const [isLoading, setIsLoading] = useState(false);
   const [emailTouched, setEmailTouched] = useState(false);
+  const [directory, setDirectory] = useState(false);
 
   const emailValid = !email || EMAIL_RE.test(email);
 
@@ -47,7 +52,11 @@ export function LoginForm() {
       toast.success(t("loginSuccess"));
     } catch (err) {
       const message =
-        err instanceof ApiError ? getErrorMessage(err, tErrors) : t("loginFailedPleaseTry");
+        err instanceof ApiError
+          ? getErrorMessage(err, tErrors)
+          : isTimeout(err)
+            ? t("loginTimedOut")
+            : t("loginFailedPleaseTry");
       setError(message);
       toast.error(message);
       setIsLoading(false);
@@ -57,8 +66,8 @@ export function LoginForm() {
   return (
     <div className="space-y-8">
       <div className="space-y-2">
-        <span className="eyebrow text-foreground/55">{t("welcomeBack")}</span>
-        <h1 className="text-display-md text-foreground [&_em]:font-normal [&_em]:italic">
+        <span className="text-muted-foreground text-sm font-medium">{t("welcomeBack")}</span>
+        <h1 className="text-foreground text-[2rem] leading-tight font-semibold tracking-tight text-balance [&_em]:not-italic">
           {t.rich("signInHeading", { em: (chunks) => <em>{chunks}</em> })}
         </h1>
         <p className="text-foreground/65 text-sm">
@@ -72,82 +81,82 @@ export function LoginForm() {
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-5">
-        <div className="space-y-1.5">
-          <Label
-            htmlFor="email"
-            className="text-foreground/80 text-xs font-medium tracking-wider uppercase"
-          >
-            {t("email")}
-          </Label>
-          <Input
-            id="email"
-            type="email"
-            placeholder={t("emailPlaceholder")}
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            onBlur={() => setEmailTouched(true)}
-            required
-            disabled={isLoading}
-            autoComplete="email"
-            className={`h-12 rounded-xl ${emailTouched && email && !emailValid ? "border-destructive" : ""}`}
-          />
-          {emailTouched && email && !emailValid && (
-            <p className="text-destructive text-xs">{t("emailRequired")}</p>
-          )}
-        </div>
-
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
-            <Label
-              htmlFor="password"
-              className="text-foreground/80 text-xs font-medium tracking-wider uppercase"
-            >
-              {t("password")}
+      {directory ? (
+        <DirectoryLoginForm onBack={() => setDirectory(false)} />
+      ) : (
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div className="space-y-1.5">
+            <Label htmlFor="email" className="text-foreground text-sm font-medium">
+              {t("email")}
             </Label>
-            <Link
-              href={ROUTES.FORGOT_PASSWORD}
-              className="text-foreground/55 hover:text-foreground text-xs font-medium underline-offset-4 hover:underline"
-            >
-              {t("forgotShort")}
-            </Link>
+            <Input
+              id="email"
+              type="email"
+              placeholder={t("emailPlaceholder")}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              onBlur={() => setEmailTouched(true)}
+              required
+              disabled={isLoading}
+              autoComplete="email"
+              className={`h-11 rounded-lg text-[15px] ${emailTouched && email && !emailValid ? "border-destructive" : ""}`}
+            />
+            {emailTouched && email && !emailValid && (
+              <p className="text-destructive text-xs">{t("emailRequired")}</p>
+            )}
           </div>
-          <Input
-            id="password"
-            type="password"
-            placeholder="••••••••"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            disabled={isLoading}
-            autoComplete="current-password"
-            className="h-12 rounded-xl"
-          />
-        </div>
 
-        {error && (
-          <p className="border-destructive/30 bg-destructive/5 text-destructive rounded-lg border px-3 py-2 text-sm">
-            {error}
-          </p>
-        )}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="password" className="text-foreground text-sm font-medium">
+                {t("password")}
+              </Label>
+              <Link
+                href={ROUTES.FORGOT_PASSWORD}
+                className="text-muted-foreground hover:text-foreground text-xs font-medium underline-offset-4 hover:underline"
+              >
+                {t("forgotShort")}
+              </Link>
+            </div>
+            <Input
+              id="password"
+              type="password"
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              disabled={isLoading}
+              autoComplete="current-password"
+              className="h-11 rounded-lg text-[15px]"
+            />
+          </div>
 
-        <Button
-          type="submit"
-          disabled={isLoading}
-          className="bg-foreground text-background hover:bg-foreground/90 h-12 w-full rounded-full text-base font-medium"
-        >
-          {isLoading ? (
-            t("loggingIn")
-          ) : (
-            <>
-              {t("login")}
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </>
+          {error && (
+            <p className="border-destructive/35 bg-destructive/[0.07] text-foreground rounded-lg border px-3 py-2 text-sm">
+              {error}
+            </p>
           )}
-        </Button>
-      </form>
 
-      <OAuthBlock label={t("orSignInWith")} />
+          <Button type="submit" disabled={isLoading} className="h-11 w-full text-[15px]">
+            {isLoading ? (
+              t("loggingIn")
+            ) : (
+              <>
+                {t("login")}
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </>
+            )}
+          </Button>
+        </form>
+      )}
+
+      {!directory && (
+        <OAuthBlock
+          label={t("orSignInWith")}
+          returnTo={returnToForAttempt(search)}
+          onDirectorySignIn={() => setDirectory(true)}
+        />
+      )}
     </div>
   );
 }

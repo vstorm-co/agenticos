@@ -1,5 +1,7 @@
 "use client";
 
+import type { ApprovalMode } from "@/components/chat/chat-controls";
+
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useWebSocket } from "./use-websocket";
@@ -14,8 +16,11 @@ import type {
   ActionRequest,
   AskUserAnswer,
   AskUserQuestion,
+  BrowserFrame,
   ChatMessageFile,
   Compaction,
+  ConnectionRequest,
+  PersonalServiceGap,
   ConversationCost,
   Decision,
   Delegation,
@@ -33,8 +38,10 @@ import {
   resolveAwaitingOnResume,
   resumeFailureStatus,
 } from "@/lib/delegations";
+import { applyBrowserFrame, type Browse } from "@/lib/browse";
+import { useBrowserPanelStore } from "@/stores/browser-panel-store";
 import { buildAssistantParts } from "@/lib/conversation-to-chat";
-import { WS_URL } from "@/lib/constants";
+import { usePublicConfig } from "@/components/public-config/public-config-provider";
 import { toast } from "sonner";
 
 import { apiClient } from "@/lib/api-client";
@@ -49,6 +56,11 @@ export interface QueuedMessage {
   files?: ChatMessageFile[];
 }
 
+/** One conversation, including the one a first question has not named yet. */
+interface ConversationRef {
+  id: string | null;
+}
+
 interface UseChatOptions {
   conversationId?: string | null;
   onConversationCreated?: (conversationId: string) => void;
@@ -60,12 +72,22 @@ interface UseChatOptions {
    * before the answer can be told who gave it.
    */
   onTurnSaved?: () => void;
+  /**
+   * The socket came back after dropping mid-answer.
+   *
+   * Every frame that ends a turn arrives on the socket, so a socket that went
+   * away ends nothing: without this the composer spun for ever and the only way
+   * out was a page reload. The turn itself is still being written server-side,
+   * so what this asks for is a re-read of the transcript - the place a finished
+   * turn actually lands.
+   */
+  onTurnInterrupted?: () => void;
 }
 
 export function useChat(options: UseChatOptions = {}) {
   const tErrors = useTranslations("errors");
 
-  const { conversationId, onConversationCreated, onTurnSaved } = options;
+  const { conversationId, onConversationCreated, onTurnSaved, onTurnInterrupted } = options;
   // `chat.unknownError` was in the catalog and read by nothing, while this hook
   // wrote the words out (#425). The `❌ Error:` in front of it is still English:
   // no catalog message holds it, so it belongs to the copy the guard has never
@@ -111,6 +133,11 @@ export function useChat(options: UseChatOptions = {}) {
     currentMessageIdRef.current = id;
   }, []);
   const currentGroupIdRef = useRef<string | null>(null);
+  // The tool calls whose arguments are still streaming, by the part index their
+  // `tool_call_delta` frames carry - which is all those frames carry. The count is
+  // kept here rather than read back from the store so a delta is one write, not a
+  // lookup and a write, on a stream that can be tens of thousands of frames long.
+  const streamingCallsRef = useRef<Map<number, { id: string; chars: number }>>(new Map());
   // Outbound queue: messages typed while agent is busy / socket offline. Held
   // here (not in the chat history) so the UI can surface them as cancellable
   // "pending" entries above the input. The ref is the source of truth for the
@@ -118,6 +145,10 @@ export function useChat(options: UseChatOptions = {}) {
   const messageQueueRef = useRef<QueuedMessage[]>([]);
   const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([]);
   const modelProfileRef = useRef<string | null>(null);
+  // Read at send time like the model profile, and for the same reason: the queue
+  // drainer sends a turn up to a minute later, and the frame must carry whatever
+  // the control says when it actually leaves.
+  const approvalModeRef = useRef<ApprovalMode>("follow_agent");
   // The agent the in-flight turn was addressed to, captured when the frame goes
   // out. A ref for the same reason `currentMessageIdRef` is one - the WS handler
   // reads it while stamping the assistant message - and captured rather than
@@ -139,6 +170,12 @@ export function useChat(options: UseChatOptions = {}) {
   // effect reads as "a reloaded parked run".
   const approvalOfferedForRef = useRef<Set<string>>(new Set());
   const [pendingQuestions, setPendingQuestions] = useState<AskUserQuestion[] | null>(null);
+  // A run paused until the person connects one of their own services, or `null`.
+  const [pendingConnection, setPendingConnection] = useState<ConnectionRequest | null>(null);
+  // Whether a run on the server is still waiting on that card. Beside the state
+  // because leaving the conversation takes the card down, and a run nobody
+  // answers waits for as long as the socket stays open.
+  const awaitingConnectionRef = useRef(false);
   // The delegations of the turn on screen, keyed by their own `task_id` and held
   // *outside* the assistant message on purpose.
   //
@@ -149,6 +186,20 @@ export function useChat(options: UseChatOptions = {}) {
   // started to handle. Here the panels simply outlive `complete`, and each closes
   // on its own `subagent_complete`.
   const [delegations, setDelegations] = useState<Delegation[]>([]);
+  // The browses of the turn on screen, keyed by their own `call_id` and held
+  // outside the assistant message for the reason the delegations above are: a
+  // `browse_page` call outlives nothing here, but its finish frame can land
+  // after `complete`, and anything hung off the streaming message would lose the
+  // outcome - which for a browse is the whole answer.
+  const [browses, setBrowses] = useState<Browse[]>([]);
+  // Selected rather than destructured, so a frame arriving does not re-render
+  // this hook's whole tree every time the panel's own open state changes.
+  //
+  // Only `close`. Nothing here opens the panel: a browse shows itself as a card
+  // in the transcript, and expanding it is somebody's decision rather than the
+  // product's - a window opening over the conversation says watching the browser
+  // matters more than reading the answer, which is true for about four seconds.
+  const closeBrowserPanel = useBrowserPanelStore((state) => state.close);
   // The summary in flight, or `null`. Cleared by the finishing frame and by the
   // end of the turn: a `complete` that arrived without one - a run that failed
   // between the two - would otherwise leave the notice up until the next message.
@@ -157,6 +208,54 @@ export function useChat(options: UseChatOptions = {}) {
   // it outlives a turn: it describes what is configured, and clearing it when the
   // turn ends would flash the one message that explains why nothing happened.
   const [compactionImpossible, setCompactionImpossible] = useState<Compaction | null>(null);
+  // The agent's personal MCP services this person cannot reach, for the turn on
+  // screen. Cleared when the next question is sent: the card belongs beside the
+  // answer that says the agent could not reach them.
+  const [personalGaps, setPersonalGaps] = useState<PersonalServiceGap[]>([]);
+  // A turn whose socket went away, until something resolves it. Two jobs: it is
+  // the notice the composer draws instead of a spinner nothing will ever stop,
+  // and it holds the outbound queue - the turn is still being written under a
+  // socket this client no longer has, and a queued message sent now would run a
+  // second turn against a history missing the first one's answer.
+  //
+  // The conversation it happened in, not a boolean: a value from the thread
+  // somebody just left is not a value about this one, and `lastUsage` draws that
+  // same line for the same reason. Wrapped rather than a bare id because a turn
+  // can be interrupted before its conversation has one - the first question of a
+  // new thread - and `null` there means "this new conversation", not "nothing".
+  const [interruptedFor, setInterruptedFor] = useState<ConversationRef | null>(null);
+  // The same turn, after the reader decided not to wait for it. The queue is
+  // released - that was their call - and the notice stays, saying the earlier
+  // answer is still being written and will arrive in the transcript out of
+  // order. Without it, that answer lands after the later question with nothing
+  // anywhere having said it would.
+  // A *set*, because a reader can leave one detached turn behind and collect
+  // another: interrupted in A, ask something else, switch to B, dropped again.
+  // One slot would have taken A's warning down while A's answer was still on
+  // its way, which is the one thing that warning exists to say.
+  const [detachedThreads, setDetachedThreads] = useState<ReadonlySet<string | null>>(
+    () => new Set(),
+  );
+  // Which conversation the drop happened in, or `null` for no drop at all. Read
+  // on the way back up, in a ref because the flip to disconnected and the flip
+  // to connected are two runs of one effect and `isProcessing` has been cleared
+  // in between.
+  const interruptedRef = useRef<ConversationRef | null>(null);
+  // The thread whose notice is up, mirroring `interruptedFor`. `doSend` reads it
+  // to move the notice from "still waiting" to "still coming"; it is not state,
+  // because reaching for state inside a setter's updater is how a side effect
+  // ends up running twice.
+  const interruptedForRef = useRef<ConversationRef | null>(null);
+  // How many answers the interrupted thread had finished at the moment its
+  // socket went. The turn landing takes it past this, which is the only signal
+  // this client has that the turn it lost is over.
+  const finishedWhenInterrupted = useRef(0);
+  // Both notices belong to the thread the turn was interrupted in. Opening
+  // another one while a reconnect is in flight used to draw the notice over a
+  // thread that was never interrupted, and re-read that thread instead of the
+  // one still being written.
+  const interrupted = interruptedFor !== null && interruptedFor.id === activeConversationId;
+  const detachedTurnPending = detachedThreads.has(activeConversationId);
 
   /**
    * Re-read what the whole thread has cost, after a turn has added to it.
@@ -188,6 +287,23 @@ export function useChat(options: UseChatOptions = {}) {
       // Deliberately silent: see above.
     }
   }, [activeConversationId, setCurrentCost]);
+
+  // A call whose arguments were still streaming when the turn ended never became a
+  // call: the model was stopped or failed mid-way. `unfinished` rather than left
+  // `pending`, which animates under a turn that is over.
+  const abandonStreamingCalls = useCallback(
+    (messageId: string) => {
+      const message = useChatStore.getState().messages.find((m) => m.id === messageId);
+      for (const { id } of streamingCallsRef.current.values()) {
+        const call = message?.toolCalls?.find((c) => c.id === id);
+        if (call?.status === "pending") {
+          updateToolCallPart(messageId, id, { status: "unfinished", argsChars: undefined });
+        }
+      }
+      streamingCallsRef.current.clear();
+    },
+    [updateToolCallPart],
+  );
 
   const handleWebSocketMessage = useCallback(
     (event: MessageEvent) => {
@@ -240,6 +356,7 @@ export function useChat(options: UseChatOptions = {}) {
               ...msg,
               id: message_id,
               isTemporaryId: false,
+              renderKey: msg.renderKey ?? msg.id,
             }));
             // And point the ref at it. Everything after this - `complete` writing
             // what the turn cost, an `error` marking the message failed - addresses
@@ -258,6 +375,7 @@ export function useChat(options: UseChatOptions = {}) {
                 ...msg,
                 id: message_id,
                 isTemporaryId: false,
+                renderKey: msg.renderKey ?? msg.id,
               }));
             }
           }
@@ -288,6 +406,51 @@ export function useChat(options: UseChatOptions = {}) {
           // exactly as `thinking_delta` below already did.
           if (!currentMessageIdRef.current) {
             createNewMessage("");
+          }
+          // Part indices restart with every model response.
+          streamingCallsRef.current.clear();
+          break;
+        }
+
+        case "part_start": {
+          // A tool call opening. Its arguments stream before `tool_call` exists, and
+          // a `write_file` carrying a whole report can take minutes to write them -
+          // time the chat used to spend showing nothing but a cursor. So the step is
+          // drawn now, as `pending`, and `tool_call` fills it in.
+          const { index, tool_name, tool_call_id } = wsEvent.data as {
+            index: number;
+            tool_name?: string;
+            tool_call_id?: string;
+          };
+          if (currentMessageIdRef.current && tool_name && tool_call_id) {
+            streamingCallsRef.current.set(index, { id: tool_call_id, chars: 0 });
+            addToolCallPart(currentMessageIdRef.current, {
+              id: tool_call_id,
+              name: tool_name,
+              args: {},
+              status: "pending",
+              argsChars: 0,
+            });
+          }
+          break;
+        }
+
+        case "tool_call_delta": {
+          const { index, args_delta } = wsEvent.data as {
+            index: number;
+            args_delta: string | Record<string, unknown> | null;
+          };
+          const streaming = streamingCallsRef.current.get(index);
+          if (currentMessageIdRef.current && streaming && args_delta) {
+            // The length and not the text: the arguments can run to megabytes, and
+            // `tool_call` delivers them parsed once they are complete.
+            streaming.chars +=
+              typeof args_delta === "string"
+                ? args_delta.length
+                : JSON.stringify(args_delta).length;
+            updateToolCallPart(currentMessageIdRef.current, streaming.id, {
+              argsChars: streaming.chars,
+            });
           }
           break;
         }
@@ -328,7 +491,20 @@ export function useChat(options: UseChatOptions = {}) {
               args,
               status: "running",
             };
-            addToolCallPart(currentMessageIdRef.current, toolCall);
+            const drawn = useChatStore
+              .getState()
+              .messages.find((m) => m.id === currentMessageIdRef.current)
+              ?.toolCalls?.some((call) => call.id === tool_call_id);
+            // The step `part_start` drew while the arguments streamed, when there
+            // was one. Adding a second would draw the call twice.
+            if (drawn) {
+              updateToolCallPart(currentMessageIdRef.current, tool_call_id, {
+                ...toolCall,
+                argsChars: undefined,
+              });
+            } else {
+              addToolCallPart(currentMessageIdRef.current, toolCall);
+            }
           }
           break;
         }
@@ -384,6 +560,17 @@ export function useChat(options: UseChatOptions = {}) {
           break;
         }
 
+        case "browser_opened":
+        case "browser_step":
+        case "browser_frame":
+        case "browser_finished": {
+          // One branch for every frame: the envelope's `type` is the frame's own
+          // `kind` (see `AgentSession._browser_event`), so the payload narrows
+          // itself and the cases share one reducer.
+          setBrowses((current) => applyBrowserFrame(current, wsEvent.data as BrowserFrame));
+          break;
+        }
+
         case "compaction_impossible": {
           // Not a state - a setting. The fixed overhead is already past the
           // trigger, so no summary can get under it and the platform refuses to
@@ -408,7 +595,16 @@ export function useChat(options: UseChatOptions = {}) {
           break;
         }
 
+        case "personal_services_unavailable": {
+          // Before the model answers, so the button that connects the account is on
+          // screen while the agent is still saying it cannot reach it.
+          setPersonalGaps((wsEvent.data as { services: PersonalServiceGap[] }).services);
+          break;
+        }
+
         case "error": {
+          setPendingConnection(null);
+          awaitingConnectionRef.current = false;
           if (currentMessageIdRef.current) {
             const id = currentMessageIdRef.current;
             const { message } = wsEvent.data as { message: string };
@@ -420,6 +616,7 @@ export function useChat(options: UseChatOptions = {}) {
               `\n\n${t("streamError", { message: message || t("unknownError") })}`,
             );
             updateMessage(id, (msg) => ({ ...msg, isStreaming: false }));
+            abandonStreamingCalls(id);
           }
           setIsProcessing(false);
           // The turn is over and no `subagent_complete` is coming for whatever was
@@ -464,6 +661,14 @@ export function useChat(options: UseChatOptions = {}) {
           break;
         }
 
+        case "connect_account": {
+          // The agent reached for a service this person has not connected, and
+          // the run is waiting on them - the only moment the card is worth its space.
+          setPendingConnection(wsEvent.data as ConnectionRequest);
+          awaitingConnectionRef.current = true;
+          break;
+        }
+
         case "ask_user": {
           const { questions } = wsEvent.data as {
             questions: { question: string; options: string[]; allow_custom: boolean }[];
@@ -480,6 +685,10 @@ export function useChat(options: UseChatOptions = {}) {
 
         case "complete": {
           setIsProcessing(false);
+          // A turn that ended is waiting on nothing: a card left up would answer
+          // a run that is gone - a sibling tool failing or parking ends it too.
+          setPendingConnection(null);
+          awaitingConnectionRef.current = false;
           // `wsEvent.data`, not `event.data`: the latter is the raw JSON string
           // this handler parsed, and reading a field off it silently yields
           // `undefined` - which looked exactly like a turn nobody measured.
@@ -499,6 +708,7 @@ export function useChat(options: UseChatOptions = {}) {
             // a run that was cancelled, so whatever was open is closed here. Until
             // now the frontend never read this field at all.
             if (stopped) setDelegations(closeOpenDelegations);
+            if (currentMessageIdRef.current) abandonStreamingCalls(currentMessageIdRef.current);
             // Whatever else this turn did, it is not summarising any more.
             setCompacting(null);
             if (usage) {
@@ -543,6 +753,7 @@ export function useChat(options: UseChatOptions = {}) {
       appendThinkingDelta,
       addToolCallPart,
       updateToolCallPart,
+      abandonStreamingCalls,
       setCurrentConversationId,
       setCurrentMessageId,
       onConversationCreated,
@@ -553,10 +764,24 @@ export function useChat(options: UseChatOptions = {}) {
     ],
   );
 
-  // Access token lives in memory only (populated by login/refresh responses).
-  // It is sent to the WS via Sec-WebSocket-Protocol rather than a URL query
-  // string so it does not end up in access logs or Referer headers.
-  const accessToken = useAuthStore((state) => state.accessToken);
+  // Whether there is an access token, not which one it is.
+  //
+  // It lives in memory only (populated by login/refresh responses) and is sent
+  // to the WS via Sec-WebSocket-Protocol rather than a URL query string, so it
+  // does not end up in access logs or Referer headers. The socket authenticates
+  // with the token it shook hands with and the server never re-checks it, so
+  // the *value* is not this hook's business - and subscribing to it made it so.
+  // `ensureTokenRefresh` mints a new one about every twenty minutes per open tab
+  // (it polls every ten, and the BFF's access cookie expires after fifteen, so
+  // every second poll refreshes), and each new value closed the socket a turn
+  // was streaming on: the server read the close as the reader leaving, cancelled
+  // the run, and the `complete` frame that would have ended the turn on screen
+  // went to the socket that had just gone. Turns run for minutes here, so a
+  // large share of them were caught.
+  //
+  // A boolean, so this re-renders when a token appears or goes away - a login, a
+  // logout - and not when one is replaced.
+  const hasAccessToken = useAuthStore((state) => state.accessToken !== null);
 
   // The active org travels in the query string because a browser cannot set
   // headers on a WebSocket handshake (the HTTP API uses X-Organization-Id).
@@ -565,14 +790,18 @@ export function useChat(options: UseChatOptions = {}) {
   // socket, so a conversation never continues under the wrong organization.
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const tenantId = useTenantId();
+  const { wsUrl: wsOrigin } = usePublicConfig();
   const wsUrl = useMemo(() => {
-    const base = `${WS_URL}/api/v1/ws/agent`;
+    const base = `${wsOrigin}/api/v1/ws/agent`;
     return activeOrgId ? `${base}?organization_id=${encodeURIComponent(activeOrgId)}` : base;
-  }, [activeOrgId]);
-  const wsProtocols = useMemo(
-    () => (accessToken ? [`access_token.${accessToken}`, "chat"] : undefined),
-    [accessToken],
-  );
+  }, [wsOrigin, activeOrgId]);
+  // Read from the store when a socket is actually opened, so a reconnect
+  // authenticates with the freshest token without a refresh being able to
+  // provoke one. Stable, so `connect` keeps its identity.
+  const wsProtocols = useCallback(() => {
+    const token = useAuthStore.getState().accessToken;
+    return token ? [`access_token.${token}`, "chat"] : undefined;
+  }, []);
 
   // Guards against firing a token refresh on every backoff attempt - one
   // in-flight /me at a time is enough to recover a stale access token.
@@ -586,16 +815,21 @@ export function useChat(options: UseChatOptions = {}) {
     // auto-reconnect (and the token-gated connect effect) uses a fresh one.
     // The hook only calls this on genuine drops (not deliberate disconnects),
     // and the ref keeps concurrent reconnect attempts from stampeding /me.
+    // Through `apiClient`, whose /auth/me runs under the cross-tab auth lock:
+    // this read can spend the refresh cookie too, and several tabs' sockets
+    // dropping together would otherwise rotate it more than once.
     onClose: () => {
       if (refreshingRef.current) return;
       refreshingRef.current = true;
       void (async () => {
         try {
-          const res = await fetch("/api/auth/me");
-          if (res.ok) {
-            const data = (await res.json()) as { access_token?: string };
-            if (data.access_token) useAuthStore.getState().setAccessToken(data.access_token);
-          }
+          // Through `apiClient`, not a bare fetch: `/auth/me` refreshes on the
+          // server when the access cookie has expired, and only `apiClient` sends
+          // it under the cross-tab auth lock. An expired access token closes this
+          // socket at the same moment the page's own requests start refreshing,
+          // and the unserialized refresh here was one of that burst.
+          const data = await apiClient.get<{ access_token?: string }>("/auth/me");
+          if (data?.access_token) useAuthStore.getState().setAccessToken(data.access_token);
         } catch {
           // ignore - backoff reconnect will retry
         } finally {
@@ -609,12 +843,16 @@ export function useChat(options: UseChatOptions = {}) {
   // available (the WS authenticates via Sec-WebSocket-Protocol). Connecting
   // before the token loads used to open a token-less socket that the server
   // rejects, triggering a reconnect storm + console errors on every page load.
-  // When the token refreshes, `connect` changes identity → reconnect with it.
+  //
+  // Gated on whether there is a token, not on which one it is: a refresh landing
+  // mid-answer used to run this cleanup and take the turn with it. A genuine
+  // drop still reconnects through the hook's own backoff, and reads the newest
+  // token when it does.
   useEffect(() => {
-    if (!accessToken) return;
+    if (!hasAccessToken) return;
     connect();
     return () => disconnect();
-  }, [accessToken, connect, disconnect]);
+  }, [hasAccessToken, connect, disconnect]);
 
   const doSend = useCallback(
     (content: string, fileIds?: string[], files?: ChatMessageFile[]) => {
@@ -623,6 +861,29 @@ export function useChat(options: UseChatOptions = {}) {
       // late frame from a background delegation of the turn before is dropped by
       // `applyDelegationFrame` rather than opening a nameless panel.
       setDelegations([]);
+      // A browse belongs to the turn that started it, and the panel draws the
+      // newest one - so without this the next turn opens under the last turn's
+      // viewport, and a browse that finished keeps a screenshot alive for as
+      // long as the hook does.
+      setBrowses([]);
+      closeBrowserPanel();
+      setPersonalGaps([]);
+      // Asking something new is the reader deciding not to wait for the turn
+      // whose socket went away. Their call to make, and it is the only other
+      // thing that releases the queue.
+      //
+      // The consequence used to be stated nowhere: the lost turn runs on under
+      // its old session for up to the detached grace, so this question loads a
+      // history without its answer, and that answer lands in the transcript
+      // after this one was asked. The notice does not go away, it changes what
+      // it says - the reader is told which answer is still coming rather than
+      // finding it later in the wrong place.
+      const waiting = interruptedForRef.current;
+      if (waiting !== null) {
+        interruptedForRef.current = null;
+        setInterruptedFor(null);
+        setDetachedThreads((threads) => new Set(threads).add(waiting.id));
+      }
       // A new question ends whatever the agent was saying, and it is the only
       // boundary that always holds. `complete` clears this on every ordinary
       // ending, but a socket that dropped mid-answer sends no `complete` at all -
@@ -653,6 +914,13 @@ export function useChat(options: UseChatOptions = {}) {
       // A model profile from the vault - the agent runs on it for this turn
       // instead of the model its spec names, and the run records which.
       if (modelProfileRef.current) payload.model_profile_id = modelProfileRef.current;
+      // How much this session wants to be asked before a gated tool runs. Sent
+      // only when it is not the default, so a client that never touched the
+      // control sends nothing and the server follows the agent - and refused
+      // rather than downgraded if this caller may not waive (#925).
+      if (approvalModeRef.current !== "follow_agent") {
+        payload.approval_mode = approvalModeRef.current;
+      }
       // Read at send time, not captured in the closure: the queue drainer calls
       // this up to a turn later, and the frame must name whatever is selected
       // when it actually leaves. The picker keeps a published agent selected
@@ -664,7 +932,16 @@ export function useChat(options: UseChatOptions = {}) {
       turnAgentIdRef.current = agentId;
       sendMessage(payload);
     },
-    [addMessage, updateMessage, setCurrentMessageId, sendMessage, conversationId],
+    [
+      addMessage,
+      updateMessage,
+      setCurrentMessageId,
+      sendMessage,
+      conversationId,
+      // The store action that shuts the browse panel when this turn ends the
+      // previous one's browse. Stable, and listed rather than omitted.
+      closeBrowserPanel,
+    ],
   );
 
   const sendChatMessage = useCallback(
@@ -710,13 +987,19 @@ export function useChat(options: UseChatOptions = {}) {
     clearQueued();
     setPendingApproval(null);
     setPendingQuestions(null);
+    setPendingConnection(null);
     approvalOfferedForRef.current = new Set();
     // A delegation belongs to a run in one organization, and to one conversation
     // inside it - the effect below is the other half of that sentence. Left on
     // screen it would show the previous tenant's specialist names and prompts to
     // the new one.
     setDelegations([]);
-  }, [tenantId, clearQueued]);
+    // And the browse panel, which holds a screenshot of a page the previous
+    // tenant's agent was looking at - the one piece of this state that is a
+    // picture of somebody else's data.
+    setBrowses([]);
+    closeBrowserPanel();
+  }, [tenantId, clearQueued, closeBrowserPanel]);
 
   // The other half: a delegation, an approval and a question all belong to a run in
   // *this* conversation, and all three are drawn over whatever transcript is on
@@ -759,12 +1042,23 @@ export function useChat(options: UseChatOptions = {}) {
     // approval is exactly that turn.
     if (previous === activeConversationId || previous === null) return;
     setDelegations([]);
+    setBrowses([]);
+    closeBrowserPanel();
     setPendingApproval(null);
     setPendingQuestions(null);
+    setPendingConnection(null);
+    // The card goes with the conversation it was in, and the run waiting on it
+    // is told to carry on without - or it holds the turn open behind a card
+    // nobody can see any more.
+    if (awaitingConnectionRef.current) {
+      awaitingConnectionRef.current = false;
+      sendMessage({ type: "connect_account_response", connected: false });
+    }
     setCompacting(null);
     setCompactionImpossible(null);
+    setPersonalGaps([]);
     approvalOfferedForRef.current = new Set();
-  }, [activeConversationId]);
+  }, [activeConversationId, closeBrowserPanel, sendMessage]);
 
   // The caller's permissions, for the restore effect below: rebuilding the
   // approval panel reads an endpoint gated on `approvals:decide`, so a caller
@@ -975,7 +1269,7 @@ export function useChat(options: UseChatOptions = {}) {
             usage: {
               input_tokens: resumed.input_tokens,
               output_tokens: resumed.output_tokens,
-              cost_usd: Number(resumed.cost_usd),
+              cost_usd: resumed.cost_usd ?? "0",
               cost_is_partial: resumed.cost_is_partial,
               // A resume is not told where the run stands against its budget, and
               // an invented percentage is worse than a bar that is not drawn.
@@ -1057,27 +1351,118 @@ export function useChat(options: UseChatOptions = {}) {
     [isConnected, sendMessage],
   );
 
-  const stopGeneration = useCallback(() => {
-    sendMessage({ type: "stop" });
+  /** Release a run paused on `connect_account`: `true` once connected, `false` to go on without. */
+  const sendConnectionResponse = useCallback(
+    (connected: boolean) => {
+      if (!isConnected) return;
+      setPendingConnection(null);
+      awaitingConnectionRef.current = false;
+      sendMessage({ type: "connect_account_response", connected });
+    },
+    [isConnected, sendMessage],
+  );
+
+  /** Take the turn off screen without telling the server anything.
+   *
+   *  What `stopGeneration` does after it has sent its frame, and what a
+   *  reconnect needs on its own - so it is one function rather than two answers
+   *  to "what does the end of a turn look like on this client". Optimistic, and
+   *  it has to be: the server's own `complete` carries `stopped`, but nothing
+   *  guarantees it arrives, because the socket may be what went away. Closing
+   *  here means the panels never outlive the run that fed them.
+   */
+  const endTurnLocally = useCallback(() => {
     if (currentMessageIdRef.current) {
       updateMessage(currentMessageIdRef.current, (msg) => ({ ...msg, isStreaming: false }));
+      abandonStreamingCalls(currentMessageIdRef.current);
     }
     setCurrentMessageId(null);
     currentGroupIdRef.current = null;
     setIsProcessing(false);
     setPendingApproval(null);
     setPendingQuestions(null);
-    // Optimistic, and it has to be: the `stop` frame cancels the turn task and the
-    // server's own `complete` carries `stopped`, but nothing guarantees it arrives -
-    // the socket may be what went away. Closing here means the panels never outlive
-    // the run that fed them.
+    setPendingConnection(null);
+    awaitingConnectionRef.current = false;
     setDelegations(closeOpenDelegations);
-  }, [sendMessage, updateMessage, setCurrentMessageId]);
+  }, [updateMessage, abandonStreamingCalls, setCurrentMessageId]);
+
+  const stopGeneration = useCallback(() => {
+    sendMessage({ type: "stop" });
+    endTurnLocally();
+  }, [sendMessage, endTurnLocally]);
+
+  const acknowledgeDetachedTurn = useCallback(() => {
+    setDetachedThreads((threads) => {
+      if (!threads.has(activeConversationId)) return threads;
+      const next = new Set(threads);
+      next.delete(activeConversationId);
+      return next;
+    });
+  }, [activeConversationId]);
+
+  // A socket that dropped mid-answer, and came back.
+  //
+  // Nothing else notices. Every frame that ends a turn arrives on the socket, so
+  // a drop ends nothing at all: `isProcessing` stayed true and the composer spun
+  // until somebody reloaded the page - which used to be the same act that
+  // destroyed the answer they were reaching for, because the server cancelled
+  // the turn when the socket went. It no longer does, so the turn is still being
+  // written and the transcript is where it lands: stop narrating a stream that is
+  // not arriving, and ask for a re-read.
+  //
+  // Deliberately does NOT hand the composer straight back - `interrupted` holds
+  // the queue - because the turn is still running under a socket this client no
+  // longer has.
+  //
+  // The notice is drawn on the way *down*, not on the way back up. Acting only
+  // on the return left a reader whose connectivity never comes back with the
+  // screen this was written to remove - no notice, no ending, a composer that
+  // spins - and the notice's own copy is as true offline as it is online: the
+  // agent finishes the turn and saves it to the conversation either way.
+  //
+  // The re-read is the half that needs the socket, and it is the only thing the
+  // return still does - for the conversation the drop happened in, which is not
+  // necessarily the one on screen by then.
+  const wasConnected = useRef(isConnected);
+  useEffect(() => {
+    const dropped = wasConnected.current && !isConnected;
+    const returned = !wasConnected.current && isConnected;
+    wasConnected.current = isConnected;
+    if (dropped && isProcessing) {
+      const thread = { id: activeConversationId };
+      interruptedRef.current = thread;
+      interruptedForRef.current = thread;
+      endTurnLocally();
+      setInterruptedFor(thread);
+      // The baseline the effect below watches. Taken here, after
+      // `endTurnLocally` has stopped the half-written answer streaming: that
+      // stop makes it *finished* by the count's own definition, so a baseline
+      // read a moment earlier would be one short and the notice would clear
+      // itself immediately.
+      finishedWhenInterrupted.current = useChatStore
+        .getState()
+        .messages.filter((message) => message.role === "assistant" && !message.isStreaming).length;
+    }
+    const thread = interruptedRef.current;
+    if (!returned || thread === null) return;
+    interruptedRef.current = null;
+    if (thread.id !== activeConversationId) return;
+    onTurnInterrupted?.();
+  }, [isConnected, isProcessing, activeConversationId, endTurnLocally, onTurnInterrupted]);
 
   // Drain message queue when processing finishes AND we're back online.
   // Re-runs on either flip so a reconnect after offline → drains; a busy turn
   // ending → drains the next one.
+  //
+  // Gated on there being *any* unresolved interruption, not on the notice being
+  // the one on screen. The notice is scoped to its thread; the queue is not, and
+  // holding it is about a turn still running server-side rather than about what
+  // the reader is looking at. Scoped, switching away from an interrupted thread
+  // released its own queued message into whichever thread was opened next -
+  // this effect runs before the one that clears the queue on a switch, and the
+  // send it schedules cannot be called back (#1775).
   useEffect(() => {
+    if (interruptedFor !== null) return;
     if (isConnected && !isProcessing && messageQueueRef.current.length > 0) {
       const next = messageQueueRef.current.shift();
       setQueuedMessages([...messageQueueRef.current]);
@@ -1087,7 +1472,30 @@ export function useChat(options: UseChatOptions = {}) {
         setTimeout(() => doSend(next.content, next.fileIds, next.files), 100);
       }
     }
-  }, [isProcessing, isConnected, doSend]);
+  }, [isProcessing, isConnected, interruptedFor, doSend]);
+
+  // The interrupted turn's answer landing is the only thing that actually
+  // resolves it, and the transcript is where it lands - not the socket this
+  // client no longer has. So the count of finished answers in the thread is the
+  // signal: a re-read that brings one back clears the notice and releases the
+  // queue, rather than leaving a reader told an answer is still coming while
+  // they are looking at it (#1775).
+  //
+  // Counted rather than matched on an id: the turn was interrupted before it
+  // had one, and the count is the same question asked in a way this client can
+  // answer.
+  const finishedTurns = messages.filter(
+    (message) => message.role === "assistant" && !message.isStreaming,
+  ).length;
+  useEffect(() => {
+    const thread = interruptedForRef.current;
+    // Only for the thread it happened in: `messages` is replaced wholesale on a
+    // switch, so a busier thread would otherwise read as this one's answer.
+    if (thread === null || thread.id !== activeConversationId) return;
+    if (finishedTurns <= finishedWhenInterrupted.current) return;
+    interruptedForRef.current = null;
+    setInterruptedFor(null);
+  }, [finishedTurns, activeConversationId]);
 
   // The live turn's cost, and only while it still belongs to the conversation on
   // screen. A value from the thread somebody just left is not a value about this one.
@@ -1100,9 +1508,24 @@ export function useChat(options: UseChatOptions = {}) {
     isProcessing,
     compacting,
     compactionImpossible,
+    /** A turn whose socket went away. The answer is still being written; see `onTurnInterrupted`. */
+    interrupted,
+    /**
+     * A turn whose socket went away that the reader decided not to wait for.
+     *
+     * Its answer is still coming and will land in the transcript after the
+     * question asked in the meantime. The notice is the only thing that says so.
+     */
+    detachedTurnPending,
+    /** The reader has gone to look for that answer; stop saying it is coming. */
+    acknowledgeDetachedTurn,
+    /** The agent's personal MCP services this person cannot reach, for the turn on screen. */
+    personalGaps,
     lastUsage: onThisConversation ? liveUsage.usage : null,
     /** The turn's delegations, in the order they started. See `DelegationPanels`. */
     delegations,
+    /** The turn's browses, in the order they started. See `BrowserPanel`. */
+    browses,
     connect,
     disconnect,
     sendMessage: sendChatMessage,
@@ -1114,9 +1537,15 @@ export function useChat(options: UseChatOptions = {}) {
     setModelProfile: (profileId: string | null) => {
       modelProfileRef.current = profileId;
     },
+    setApprovalMode: (mode: ApprovalMode) => {
+      approvalModeRef.current = mode;
+    },
     pendingApproval,
     sendResumeDecisions,
     pendingQuestions,
     sendAskUserResponses,
+    /** The service a paused run is waiting for the person to connect. See `ConnectAccountPrompt`. */
+    pendingConnection,
+    sendConnectionResponse,
   };
 }

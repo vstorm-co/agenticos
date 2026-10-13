@@ -5,7 +5,7 @@ import { X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { FileIcon } from "./file-icon";
-import { Spinner } from "@/components/ui";
+import { DocPeek, Spinner, TextPeek } from "@/components/ui";
 import { resolveFileKind, suffixOf } from "@/lib/file-kinds";
 import { cn, formatBytes } from "@/lib/utils";
 
@@ -80,7 +80,8 @@ interface FileCardProps {
   className?: string;
 }
 
-const CARD = "border-border bg-card relative flex w-56 flex-col gap-1.5 rounded-lg border p-2";
+const CARD =
+  "peek-card group border-border bg-card relative flex w-56 flex-col gap-1.5 rounded-lg border p-2";
 
 /**
  * The chip. One row, one line of name, one line of type and size.
@@ -135,23 +136,34 @@ export function FileCard({
 
       {/* The middle band is the point of the card, and it is *reserved* whether or
           not there is anything to put in it: cards of two heights in one strip read
-          as two kinds of thing. A file with no preview shows its mark instead. */}
-      <div className="flex h-16 w-full items-center justify-center overflow-hidden rounded">
+          as two kinds of thing. It is the same document peek the skill, context and
+          artifact cards use - the file's top on a sheet of paper - so a file looks
+          like one thing on every screen. A file with no preview shows its mark on
+          the page instead. */}
+      <DocPeek
+        size="compact"
+        className="h-20 w-full rounded-md"
+        paperClassName={isImage && imageUrl != null ? "p-0" : undefined}
+      >
         {isImage && imageUrl != null ? (
           <div className="bg-muted relative h-full w-full">
             <Image src={imageUrl} alt={name} fill className="object-cover" unoptimized />
           </div>
         ) : preview ? (
-          <p className="text-muted-foreground line-clamp-4 w-full self-start font-mono text-[10px] leading-tight whitespace-pre-wrap">
-            {preview}
-          </p>
+          <TextPeek
+            source={preview}
+            format={suffixOf(name) === "md" ? "markdown" : "plain"}
+            className="[&_p]:text-[11px]"
+          />
         ) : (
-          <FileIcon name={name} mimeType={mimeType} className="text-muted-foreground/40 h-8 w-8" />
+          <div className="flex justify-center pt-2.5">
+            <FileIcon name={name} mimeType={mimeType} className="text-muted-foreground h-7 w-7" />
+          </div>
         )}
-      </div>
+      </DocPeek>
 
       {meta !== "" && (
-        <p className="text-muted-foreground font-mono text-[10px] tracking-wider uppercase">
+        <p className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
           {meta}
         </p>
       )}
@@ -180,7 +192,7 @@ export function FileCard({
             {name}
           </span>
           {meta !== "" && (
-            <span className="text-muted-foreground truncate font-mono text-[10px] tracking-wide uppercase">
+            <span className="text-muted-foreground truncate font-mono text-[11px] tracking-wide uppercase">
               {meta}
             </span>
           )}
@@ -262,7 +274,7 @@ export function PendingFileCard({
           <span title={name} className="truncate text-xs leading-tight font-medium">
             {name}
           </span>
-          <span className="text-muted-foreground truncate font-mono text-[10px] tracking-wide uppercase">
+          <span className="text-muted-foreground truncate font-mono text-[11px] tracking-wide uppercase">
             {t("uploading", { size: formatBytes(size) })}
           </span>
         </span>
@@ -282,7 +294,7 @@ export function PendingFileCard({
         </span>
       </div>
       <div className="h-16 w-full" />
-      <p className="text-muted-foreground font-mono text-[10px] tracking-wider uppercase">
+      <p className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
         {t("uploading", { size: formatBytes(size) })}
       </p>
     </div>

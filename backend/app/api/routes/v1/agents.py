@@ -18,15 +18,22 @@ client of it, and a client's own scripts are another. There is deliberately no
 private variant, which is what keeps "the Builder is just another client" true.
 """
 
-from typing import Any
+from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Query, Response, UploadFile, status
-from fastapi.responses import FileResponse
 
 from app.agents.capabilities import all_capabilities
 from app.agents.spec import AgentSpec
-from app.api.deps import AgentRegistrySvc, AgentRunnerSvc, Auth, limit_agent_run, require
+from app.api.deps import (
+    AgentRegistrySvc,
+    AgentRunnerSvc,
+    Auth,
+    DBSession,
+    limit_agent_run,
+    require,
+)
+from app.api.routes.v1._stored_bytes import stored_image_response
 from app.core.exceptions import NotFoundError
 from app.core.permissions import Perm
 from app.db.models.agent_run import RunSurface
@@ -37,12 +44,14 @@ from app.schemas.agent import (
     AgentDetail,
     AgentDraftUpdate,
     AgentList,
+    AgentMetadataRequest,
     AgentPublish,
     AgentRead,
     AgentRollback,
     AgentRunRequest,
     AgentRunResult,
     AgentSpecImport,
+    AgentTemplateCatalog,
     AgentVersionDetail,
     AgentVersionList,
     AgentVersionRead,
@@ -53,10 +62,12 @@ from app.schemas.agent import (
     McpCatalog,
     McpCatalogEntry,
     SpecialistPromote,
+    TemplateInstallRequest,
+    TemplateInstallResult,
 )
+from app.services import mcp_catalog, mcp_listing
+from app.services.attachments import load_attached_files
 from app.services.capability_contracts import tool_contracts
-from app.services.file_storage import sniff_image_media_type
-from app.services.mcp_catalog import CATALOG
 
 router = APIRouter()
 
@@ -68,7 +79,7 @@ router = APIRouter()
 )
 async def list_capability_catalog() -> Any:
     """Every capability an agent can be given, with the schema its form is built from."""
-    contracts = tool_contracts()
+    contracts = await tool_contracts()
     items = [
         CapabilityCatalogEntry(
             id=definition.id,
@@ -100,15 +111,48 @@ async def list_capability_catalog() -> Any:
 
 
 @router.get(
+    "/templates",
+    response_model=AgentTemplateCatalog,
+    dependencies=[Depends(require(Perm.AGENTS_VIEW))],
+)
+async def list_agent_templates(service: AgentRegistrySvc, ctx: Auth) -> Any:
+    """Shipped agent templates by industry, with what this organization already has."""
+    return await service.templates(ctx)
+
+
+@router.post(
+    "/templates/install",
+    response_model=TemplateInstallResult,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require(Perm.AGENTS_EDIT))],
+)
+async def install_agent_template(
+    data: TemplateInstallRequest, service: AgentRegistrySvc, ctx: Auth
+) -> Any:
+    """Create a draft agent from a template, installing the skills it expects.
+
+    A draft, not a published agent: the template names no model - there is no
+    organization-wide default here - and may name no collection. The result says
+    what is still to attach.
+    """
+    return await service.install_template(ctx, data.key)
+
+
+@router.get(
     "/mcp-catalog",
     response_model=McpCatalog,
     dependencies=[Depends(require(Perm.AGENTS_VIEW))],
 )
-async def list_mcp_catalog() -> Any:
-    """Servers an organization can connect in one click, plus the custom option.
+async def list_mcp_catalog(db: DBSession) -> Any:
+    """The whole curated catalog, unpaged, plus what the mirror reaches.
 
-    Hand-curated rather than mirrored from the public registry: each entry is a
-    small promise that the auth flow works and the description is honest.
+    Unpaged on purpose and not the browsable list: a caller resolving a
+    *connection* to the entry it points at needs every entry to compare against,
+    and a page cannot answer that. `/agents/mcp-servers` is the paged list.
+
+    Hand-curated rather than mirrored: each entry is a small promise that the
+    auth flow works and the description is honest. `registry_total` says how many
+    the mirror holds beside them, so a count line can say what searching reaches.
     """
     items = [
         McpCatalogEntry(
@@ -122,9 +166,46 @@ async def list_mcp_catalog() -> Any:
             token_hint=entry.token_hint or None,
             icon=entry.icon or None,
         )
-        for entry in CATALOG
+        for entry in mcp_catalog.CATALOG
     ]
-    return McpCatalog(items=items, total=len(items))
+    return McpCatalog(
+        items=items,
+        total=len(items),
+        registry_total=await mcp_listing.mirror_size(db),
+    )
+
+
+@router.get(
+    "/mcp-servers",
+    response_model=McpCatalog,
+    dependencies=[Depends(require(Perm.AGENTS_VIEW))],
+)
+async def list_mcp_servers(
+    db: DBSession,
+    q: str = Query("", max_length=100, description="Filter by name, description, host or category"),
+    category: str = Query("", max_length=32, description="One catalog category, or blank for all"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+) -> Any:
+    """One paged list: the curated catalog, then the mirrored public registry.
+
+    The console used to hold the curated hundred and filter it in the browser,
+    which is right for a list the client holds - and this one stopped being that
+    when 5,703 mirrored servers arrived behind them. Merging two paged sources in
+    the browser means the browser working out which page of which source a page of
+    the list needs, so the join happens in `mcp_listing.page` and the client
+    renders rows.
+
+    A registry row carries `reviewed: false`, the only thing separating it from a
+    curated one: nobody here checked it, the description is the publisher's, and
+    there is no token hint because the registry has no such field.
+    """
+    found = await mcp_listing.page(db, query=q, category=category, skip=skip, limit=limit)
+    return McpCatalog(
+        items=[McpCatalogEntry(**vars(server)) for server in found.items],
+        total=found.total,
+        registry_total=found.registry_total,
+    )
 
 
 @router.get("", response_model=AgentList, dependencies=[Depends(require(Perm.AGENTS_VIEW))])
@@ -135,18 +216,32 @@ async def list_agents(
         False, description="Only what was shared with the caller - never their own rows"
     ),
     include_archived: bool = Query(False),
+    category: Annotated[
+        list[str], Query(description="Keep agents in any of these categories")
+    ] = [],  # noqa: B006
+    tag: Annotated[list[str], Query(description="Keep agents carrying any of these tags")] = [],  # noqa: B006
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
-    """Agents this member can see - their own, plus what was shared with them."""
+    """Agents this member can see - their own, plus what was shared with them.
+
+    `category`/`tag` are repeatable discovery filters: OR within a facet, AND
+    across facets, matched case-insensitively (query values are folded the same
+    way stored ones are). The service folds and bounds them.
+    """
     items, total = await service.list_agents(
         ctx,
         shared_with_me=shared_with_me,
         include_archived=include_archived,
+        categories=category,
+        tags=tag,
         skip=skip,
         limit=limit,
     )
-    return AgentList(items=items, total=total)
+    categories, tags = await service.list_labels(
+        ctx, shared_with_me=shared_with_me, include_archived=include_archived
+    )
+    return AgentList(items=items, total=total, categories=categories, tags=tags)
 
 
 @router.post(
@@ -157,7 +252,13 @@ async def list_agents(
 )
 async def create_agent(data: AgentCreate, service: AgentRegistrySvc, ctx: Auth) -> Any:
     """Create an agent in draft. It cannot run until published."""
-    return await service.create(ctx, data.spec)
+    return await service.create(
+        ctx,
+        data.spec,
+        visibility=data.visibility,
+        categories=data.categories,
+        tags=data.tags,
+    )
 
 
 @router.post(
@@ -183,21 +284,11 @@ async def promote_specialist(data: SpecialistPromote, service: AgentRegistrySvc,
 async def get_agent(agent_id: UUID, service: AgentRegistrySvc, ctx: Auth) -> Any:
     """One agent with the spec currently being edited."""
     agent = await service.get(ctx, agent_id)
-    return AgentDetail(
-        id=agent.id,
-        slug=agent.slug,
-        name=agent.name,
-        description=agent.description,
-        status=agent.status,
-        visibility=agent.visibility,
-        owner_user_id=agent.owner_user_id,
-        current_version_id=agent.current_version_id,
-        has_avatar=agent.has_avatar,
-        avatar_color=agent.avatar_color,
-        can_run=await service.may_run(ctx, agent),
-        created_at=agent.created_at,
-        updated_at=agent.updated_at,
-        draft_spec=AgentSpec.model_validate(agent.draft_spec),
+    # `model_validate` reads the row's columns and parses `draft_spec` (JSONB) into
+    # `AgentSpec` off the schema field, so this route names only the one value the
+    # row does not carry: `can_run` is this caller's, not the agent's (#545).
+    return AgentDetail.model_validate(agent).model_copy(
+        update={"can_run": await service.may_run(ctx, agent)}
     )
 
 
@@ -297,14 +388,9 @@ async def get_version(
 ) -> Any:
     """One version with the spec it froze - what a diff is read from."""
     version = await service.get_version(ctx, agent_id, version_id)
-    return AgentVersionDetail(
-        id=version.id,
-        version=version.version,
-        note=version.note,
-        published_by_user_id=version.published_by_user_id,
-        created_at=version.created_at,
-        spec=AgentSpec.model_validate(version.spec),
-    )
+    # The whole row maps off the schema, `spec` (JSONB) parsed into `AgentSpec` on
+    # the field rather than by hand here (#545).
+    return AgentVersionDetail.model_validate(version)
 
 
 @router.get(
@@ -387,24 +473,40 @@ async def set_agent_avatar_color(
     return await service.set_avatar_color(ctx, agent_id, color=data.color)
 
 
+@router.patch(
+    "/{agent_id}/metadata",
+    response_model=AgentRead,
+)
+async def set_agent_metadata(
+    agent_id: UUID,
+    data: AgentMetadataRequest,
+    service: AgentRegistrySvc,
+    ctx: Auth,
+) -> Any:
+    """Set the agent's discovery categories and tags, or clear a facet with [].
+
+    Per-resource, so no route gate: the service's grant-aware `AGENTS_EDIT` check
+    decides, and a Viewer holding an explicit edit grant on this agent is allowed.
+    """
+    return await service.set_metadata(ctx, agent_id, categories=data.categories, tags=data.tags)
+
+
 @router.get(
     "/{agent_id}/avatar",
-    response_class=FileResponse,
+    response_class=Response,
     response_model=None,
 )
-async def get_agent_avatar(agent_id: UUID, service: AgentRegistrySvc, ctx: Auth) -> FileResponse:
+async def get_agent_avatar(agent_id: UUID, service: AgentRegistrySvc, ctx: Auth) -> Response:
     """Stream the agent's picture to someone entitled to see the agent."""
-    path = await service.avatar_path(ctx, agent_id)
+    stored = await service.avatar_path(ctx, agent_id)
     # The type comes from the file's own bytes, not its stored name, and it is
     # refused if the bytes are not an image: the avatar is served from the app's
     # own origin, so a file whose bytes are HTML must never be served as something
     # a browser runs, whatever it was named (#1035, same class as #702).
-    media_type = sniff_image_media_type(path)
-    if media_type is None:
+    response = await stored_image_response(stored, headers={"X-Content-Type-Options": "nosniff"})
+    if response is None:
         raise NotFoundError(message="This agent has no avatar", details={"agent_id": str(agent_id)})
-    return FileResponse(
-        path=path, media_type=media_type, headers={"X-Content-Type-Options": "nosniff"}
-    )
+    return response
 
 
 @router.post(
@@ -447,6 +549,7 @@ async def run_agent(
     agent_id: UUID,
     data: AgentRunRequest,
     service: AgentRunnerSvc,
+    db: DBSession,
     ctx: Auth,
 ) -> Any:
     """Run a published agent and return its answer.
@@ -455,7 +558,23 @@ async def run_agent(
     surface, so the run is recorded, the budget applies, and the cost lands in
     the same dashboard - an API caller cannot route around governance by not
     using the UI.
+
+    **It can attach a file and it can say what it parked on** (#936). Both were
+    accidents rather than decisions: `execute` has taken attachments since the
+    widget grew them, and `parked_calls` has computed the parked list since the
+    resume needed it - this surface simply never passed the one or read the
+    other. The surface whose whole purpose is "run it from your own backend" was
+    the one that could not send a document, and a caller whose run stopped for an
+    approval got an empty string and a status.
     """
+    attachments = await load_attached_files(
+        db,
+        [str(file_id) for file_id in data.file_ids],
+        # Their own uploads and nobody else's. `POST /files/upload` attributes an
+        # upload to whoever made it, and this is the same scope the chat reads
+        # under - so a caller cannot attach a file by guessing its id.
+        user_id=ctx.subject_id,
+    )
     output, run = await service.execute(
         ctx,
         agent_id,
@@ -463,6 +582,7 @@ async def run_agent(
         surface=RunSurface.API,
         conversation_id=data.conversation_id,
         environment_id=data.environment_id,
+        attachments=attachments,
     )
     return AgentRunResult(
         run_id=run.id,
@@ -472,4 +592,5 @@ async def run_agent(
         cost_is_partial=run.cost_is_partial,
         input_tokens=run.input_tokens,
         output_tokens=run.output_tokens,
+        parked=await service.parked_calls(ctx, run),
     )

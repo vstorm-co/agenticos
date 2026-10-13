@@ -162,7 +162,7 @@ export function SecretsTable({
                 seed={secret.created_by_user_id ?? secret.created_by_email}
                 name={secret.created_by_email}
                 imageSrc={secret.created_by_avatar_url ?? undefined}
-                className="h-6 w-6 text-[10px]"
+                className="h-6 w-6 text-[11px]"
                 ariaHidden
               />
               <span className="text-muted-foreground truncate text-xs">

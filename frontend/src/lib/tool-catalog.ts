@@ -20,6 +20,10 @@
  * tool it exposes. Those fall back to a humanized name and the generic renderer,
  * which is the honest answer for a tool this side has never heard of.
  *
+ * `load_capability` is the exception, and `FRAMEWORK_TOOLS` below is where it is
+ * written down: Pydantic AI contributes it to every agent that has a deferred
+ * capability, so no capability registers it and every skills agent emits it.
+ *
  * Dependency-free on purpose - it is the vocabulary, not the presentation.
  */
 
@@ -48,19 +52,24 @@ export type StepKind =
  * test, a hook and a server component - the components live in
  * `components/chat/tool-results/` and one of them pulls in Recharts.
  *
- * `"none"` is a call with nothing worth opening: the step says the agent looked, and
- * what it got back is a prompt fragment rather than something a person reads.
+ * There is no "nothing to open" any more. `list_context` carried one on the grounds
+ * that what comes back is a prompt fragment, and the question it is the answer to -
+ * "does it actually see my glossary" - is answered by the list and by nothing else.
  */
 export type ToolRenderer =
+  | "artifact"
   | "chart"
   | "generated-image"
   | "web-search"
   | "rag"
   | "run-python"
+  | "loaded-skill"
   | "load-skill"
+  | "skill-list"
+  | "context-list"
+  | "plan"
   | "workspace"
-  | "generic"
-  | "none";
+  | "generic";
 
 /**
  * The tense pair for a step that names its own subject: *Writing test1.md*.
@@ -118,6 +127,14 @@ export interface ToolEntry {
    * replayed conversation a wall of diffs.
    */
   opensOnSight?: boolean;
+  /**
+   * Never open this step on its own - not even as the last step of a turn.
+   *
+   * For the agent's bookkeeping: what it noted to itself for next time is not
+   * something the person asked to see, and as the last step of a turn it opened
+   * over the answer it came after. It is still a line somebody can open.
+   */
+  staysClosed?: boolean;
 }
 
 /**
@@ -127,6 +144,32 @@ export interface ToolEntry {
  * there.
  */
 export const TOOL_CATALOG: Record<string, ToolEntry> = {
+  // artifacts - the published page is the answer, so its card opens where it lands.
+  publish_artifact: {
+    kind: "write",
+    render: "artifact",
+    captionKey: "publishingArtifact",
+    displayNameKey: "publishArtifact",
+    opensWhenDone: true,
+    opensOnSight: true,
+  },
+  read_artifact: {
+    kind: "read",
+    render: "generic",
+    captionKey: "readingArtifact",
+    displayNameKey: "readArtifact",
+  },
+
+  // browser_choice - a whole browse. The step card stays generic because the live
+  // view is its own panel beside the transcript: a frame per step folded into the
+  // message list would rewrite the transcript thirty times over.
+  browse_page: {
+    kind: "web",
+    render: "generic",
+    captionKey: "workingThroughPage",
+    displayNameKey: "browsePage",
+  },
+
   // browser_use - one autonomous browsing step; what comes back is a text result, so
   // the generic renderer, not a browser view.
   browse_web: {
@@ -219,7 +262,7 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
   // reach the model as a tool call, so there is nothing to render for them here.
   list_context: {
     kind: "list",
-    render: "none",
+    render: "context-list",
     captionKey: "lookingThroughContext",
     displayNameKey: "availableContext",
   },
@@ -238,19 +281,43 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     displayNameKey: "knowledgeBaseSearch",
   },
 
-  // skills
-  list_skills: {
-    kind: "skill",
-    render: "none",
-    captionKey: "lookingThroughSkills",
-    displayNameKey: "availableSkills",
+  // memory - the agent's own file store. An index and a note read back as text, so the
+  // generic renderer serves; `delete_memory` is `edit` because `StepKind` has no delete.
+  // All of it `staysClosed`: bookkeeping, not an answer.
+  list_memory: { kind: "list", render: "generic", captionKey: "memoryChecking", staysClosed: true },
+  read_memory: { kind: "read", render: "generic", captionKey: "memoryReading", staysClosed: true },
+  write_memory: { kind: "write", render: "generic", captionKey: "memorySaving", staysClosed: true },
+  edit_memory: { kind: "edit", render: "generic", captionKey: "memoryUpdating", staysClosed: true },
+  delete_memory: {
+    kind: "edit",
+    render: "generic",
+    captionKey: "memoryForgetting",
+    staysClosed: true,
   },
-  load_skill: {
-    kind: "skill",
-    render: "load-skill",
-    captionKey: "loadingSkill",
-    displayNameKey: "loadSkill",
+  remember: {
+    kind: "write",
+    render: "generic",
+    captionKey: "memoryRemembering",
+    staysClosed: true,
   },
+  recall: { kind: "search", render: "generic", captionKey: "memoryRecalling", staysClosed: true },
+
+  // conversation search - past threads, found and opened. Both answer in Markdown,
+  // which the generic renderer already shows as prose.
+  search_conversations: {
+    kind: "search",
+    render: "generic",
+    captionKey: "searchingConversations",
+    displayNameKey: "conversationSearch",
+  },
+  read_conversation: {
+    kind: "read",
+    render: "generic",
+    captionKey: "readingConversation",
+    displayNameKey: "pastConversation",
+  },
+
+  // skills - opening one is `load_capability`, in FRAMEWORK_TOOLS below
   read_skill_resource: {
     kind: "skill",
     render: "generic",
@@ -301,54 +368,57 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
   },
   delegate: { kind: "delegate", render: "generic", captionKey: "delegating" },
 
-  // planning - the model's own checklist. The tool result is the rendered plan or a
-  // one-line confirmation, so nothing opens underneath these steps.
+  // planning - the model's own checklist. Every one of these answers with the plan
+  // as it now stands or with one line about one step, so they share a renderer that
+  // draws a checklist and falls back to the line. Never the generic one: `write_plan`
+  // is called with the whole ordered list every time, so it opened as forty lines of
+  // pretty-printed arguments above a rendered copy of the same steps.
   write_plan: {
     kind: "write",
-    render: "generic",
+    render: "plan",
     captionKey: "writingPlan",
     displayNameKey: "plan",
   },
-  read_plan: { kind: "read", render: "generic", captionKey: "readingPlan", displayNameKey: "plan" },
+  read_plan: { kind: "read", render: "plan", captionKey: "readingPlan", displayNameKey: "plan" },
   add_task: {
     kind: "write",
-    render: "generic",
+    render: "plan",
     captionKey: "addingStep",
     displayNameKey: "addStep",
   },
   update_task_status: {
     kind: "edit",
-    render: "generic",
+    render: "plan",
     captionKey: "updatingStep",
     displayNameKey: "updateStep",
   },
   update_task_statuses: {
     kind: "edit",
-    render: "generic",
+    render: "plan",
     captionKey: "updatingSteps",
     displayNameKey: "updateSteps",
   },
   remove_task: {
     kind: "edit",
-    render: "generic",
+    render: "plan",
     captionKey: "removingStep",
     displayNameKey: "removeStep",
   },
   add_subtask: {
     kind: "write",
-    render: "generic",
+    render: "plan",
     captionKey: "addingSubtask",
     displayNameKey: "addSubtask",
   },
   set_dependency: {
     kind: "edit",
-    render: "generic",
+    render: "plan",
     captionKey: "settingDependency",
     displayNameKey: "setDependency",
   },
   get_available_tasks: {
     kind: "list",
-    render: "generic",
+    render: "plan",
     captionKey: "checkingAvailableSteps",
     displayNameKey: "availableSteps",
   },
@@ -382,9 +452,58 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
   },
 };
 
+/**
+ * Tools the agent framework contributes, which no capability registers.
+ *
+ * Kept out of `TOOL_CATALOG` so the drift check against the backend registry stays an
+ * exact match in both directions - a surplus row there is a renderer nothing reaches,
+ * and that is the half that hid #144.
+ *
+ * `load_capability` is Pydantic AI's own, and it is how a model opens a skill: every
+ * skill an agent is given is a deferred capability, so this is the call a person sees
+ * where `load_skill` used to be. Without a row it would render as *Load Capability*
+ * over a JSON blob, which says nothing about which skill was opened.
+ */
+export const FRAMEWORK_TOOLS: Record<string, ToolEntry> = {
+  load_capability: {
+    kind: "skill",
+    render: "loaded-skill",
+    captionKey: "loadingSkill",
+    displayNameKey: "loadSkill",
+  },
+};
+
+/**
+ * Tools no agent emits any more, kept for the conversations that recorded them.
+ *
+ * A stored turn holds the tool name it actually called and the result it actually
+ * got, so removing an entry here does not remove the call - it removes the only
+ * thing that knew how to draw it, and an old thread reopens showing raw XML where
+ * it used to show a skill's description (#1704 review).
+ *
+ * Out of `TOOL_CATALOG` on purpose, like `FRAMEWORK_TOOLS`: the drift check
+ * against the backend registry is a statement about what this deployment offers
+ * *now*, and a legacy renderer must not make it pass by naming a tool nobody
+ * registers.
+ */
+export const LEGACY_TOOLS: Record<string, ToolEntry> = {
+  list_skills: {
+    kind: "skill",
+    render: "skill-list",
+    captionKey: "lookingThroughSkills",
+    displayNameKey: "availableSkills",
+  },
+  load_skill: {
+    kind: "skill",
+    render: "load-skill",
+    captionKey: "loadingSkill",
+    displayNameKey: "loadSkill",
+  },
+};
+
 /** What this side knows about `name`, or null for a tool it has never heard of. */
 export function toolEntry(name: string): ToolEntry | null {
-  return TOOL_CATALOG[name] ?? null;
+  return TOOL_CATALOG[name] ?? FRAMEWORK_TOOLS[name] ?? LEGACY_TOOLS[name] ?? null;
 }
 
 /**

@@ -69,6 +69,7 @@ CONTEXT = ResourceType(key="context", view=Perm.CONTEXT_VIEW, edit=Perm.CONTEXT_
 # organization key is everybody's - decided per row rather than by one
 # permission that gated the entire vault.
 SECRET = ResourceType(key="secret", view=Perm.SECRETS_VIEW, edit=Perm.SECRETS_EDIT)
+ARTIFACT = ResourceType(key="artifact", view=Perm.ARTIFACTS_VIEW, edit=Perm.ARTIFACTS_EDIT)
 
 
 # The grant level a member needs before a scope-based check is even consulted.
@@ -85,6 +86,8 @@ _PERM_MIN_GRANT: dict[Perm, GrantLevel] = {
     Perm.CONTEXT_EDIT: GrantLevel.EDIT,
     Perm.SECRETS_VIEW: GrantLevel.READ,
     Perm.SECRETS_EDIT: GrantLevel.EDIT,
+    Perm.ARTIFACTS_VIEW: GrantLevel.READ,
+    Perm.ARTIFACTS_EDIT: GrantLevel.EDIT,
 }
 
 
@@ -280,4 +283,7 @@ async def publisher_context(
         organization_id=organization_id,
         role=role,
         channel_identity_id=channel_identity_id,
+        # `user_id` is the publisher standing in for an asker nobody signed in as, so
+        # per-user memory must refuse rather than attribute their note to the owner (#788).
+        subject_is_publisher_fallback=True,
     )

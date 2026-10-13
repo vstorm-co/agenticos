@@ -2,6 +2,15 @@ export interface User {
   id: string;
   email: string;
   full_name?: string | null;
+  /**
+   * An address asked for and not yet confirmed, or null.
+   *
+   * A change is staged rather than applied: the account keeps receiving mail at
+   * `email` until the link sent to the new address comes back, so a form that
+   * showed the old value and said nothing would read as a change that did not
+   * take. Optional because a persisted store may predate it.
+   */
+  pending_email?: string | null;
   is_active: boolean;
   /** Platform-superadmin flag - the gate for the /admin surface. Optional
    *  because a persisted store may predate it; absent means not an admin. */
@@ -19,6 +28,23 @@ export interface User {
   notify_budget_alerts?: boolean;
   notify_approval_requests?: boolean;
   notify_usage_reports?: boolean;
+  /**
+   * Set while an administrator is acting as this account, and what the banner
+   * is drawn from. Absent - not merely null - on a persisted store that predates
+   * it, which reads the same as nobody acting as anybody.
+   */
+  impersonation?: Impersonation | null;
+}
+
+/** An administrator acting as the signed-in account: who, and until when. */
+export interface Impersonation {
+  session_id: string;
+  impersonator: {
+    id: string;
+    email: string;
+    full_name?: string | null;
+  };
+  expires_at: string;
 }
 
 export interface Session {
@@ -39,6 +65,15 @@ export interface SessionListResponse {
 
 export interface LoginRequest {
   email: string;
+  password: string;
+}
+
+/**
+ * A directory (LDAP) sign-in. A username rather than an email address, because
+ * the directory binds with the account's own name.
+ */
+export interface DirectoryLoginRequest {
+  username: string;
   password: string;
 }
 

@@ -5,7 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
 import { useKBDetail, useKnowledgeBases } from "./use-knowledge-bases";
-import { apiClient } from "@/lib/api-client";
+import { apiClient, ApiError } from "@/lib/api-client";
+import { parseErrorMessage } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
 import { useOrgStore } from "@/stores";
 import { DEFAULT_INGESTION_CONFIG } from "@/lib/ingestion-config";
@@ -323,6 +324,43 @@ describe("one collection's page", () => {
     }
   });
 
+  it("moves a collection's embeddings to another provider", async () => {
+    // The model cannot move - the vector column was created at its width - and the
+    // provider can, which is the whole of what this call is for: a rotated key or
+    // an organization's own account, without re-ingesting the collection.
+    serveDetail();
+    const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
+    await waitFor(() => expect(result.current.kb).toMatchObject({ name: "Handbook" }));
+
+    await act(async () => {
+      await result.current.updateEmbeddings({
+        embedding_provider: "openai",
+        embedding_secret_id: "s-1",
+      });
+    });
+
+    expect(apiClient.patch).toHaveBeenCalledWith("/kb/kb-1", {
+      embedding_provider: "openai",
+      embedding_secret_id: "s-1",
+    });
+    expect(toast.success).toHaveBeenCalledWith("Embedding provider updated");
+  });
+
+  it("raises a refused move for the dialog to place under its own select", async () => {
+    // A provider that cannot serve this model belongs beside the control that
+    // named it, not in a toast about a collection somebody has to re-find.
+    serveDetail();
+    const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
+    await waitFor(() => expect(result.current.kb).toMatchObject({ name: "Handbook" }));
+    vi.mocked(apiClient.patch).mockRejectedValue(new Error("Cannot serve it at 1536"));
+
+    await expect(result.current.updateEmbeddings({ embedding_provider: "openai" })).rejects.toThrow(
+      "Cannot serve it at 1536",
+    );
+    expect(toast.error).not.toHaveBeenCalled();
+    vi.mocked(apiClient.patch).mockResolvedValue({ id: "kb-1", name: "Handbook" });
+  });
+
   it("keeps a save that finished late off the next organization's page", async () => {
     // Save the ingestion settings, close the dialog, switch before the PATCH
     // returns. The caller still gets its row - it asked, and the save happened
@@ -492,6 +530,30 @@ describe("one collection's page", () => {
     expect(toast.error).toHaveBeenCalledWith("Failed to load more documents");
   });
 
+  it("resolves a BFF refusal's code against the catalog, not into English", async () => {
+    // The regression #655 is about. A refusal a BFF route mints carries a code
+    // and no sentence, and `parseErrorMessage` humanizes it so that a reader
+    // showing `.message` says something rather than a sentinel - "Backend
+    // unavailable". The catalog says "Backend **service** unavailable", and it
+    // is the catalog that is translated. The difference is visible in English
+    // only for a code whose copy is not its own name; under `pl` it is every
+    // one of them.
+    serveDetail({ documents: [document("d-1")], documentsTotal: 3 });
+    const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
+    await waitFor(() => expect(result.current.documents).toHaveLength(1));
+
+    const refusal = { code: "BACKEND_UNAVAILABLE" };
+    vi.mocked(apiClient.get).mockRejectedValue(
+      new ApiError(503, parseErrorMessage(refusal), refusal),
+    );
+    await act(async () => {
+      await result.current.loadMoreDocuments();
+    });
+
+    expect(toast.error).toHaveBeenCalledWith("Backend service unavailable");
+    expect(toast.error).not.toHaveBeenCalledWith("Backend unavailable");
+  });
+
   it("loads no more documents when nothing is open", async () => {
     const { result } = renderHook(() => useKBDetail(null), { wrapper });
 
@@ -517,6 +579,16 @@ describe("one collection's page", () => {
     });
     await waitFor(() => expect(result.current.kb).toMatchObject({ ocr: true }));
     expect(toast.success).toHaveBeenCalledWith("Ingestion settings saved");
+  });
+
+  it("refuses to move embeddings with no collection open", async () => {
+    // Rather than PATCHing `/kb/null`, which answers 404 and reads as a bug.
+    const { result } = renderHook(() => useKBDetail(null), { wrapper });
+
+    await expect(result.current.updateEmbeddings({ embedding_provider: "openai" })).rejects.toThrow(
+      "No knowledge base is open",
+    );
+    expect(apiClient.patch).not.toHaveBeenCalled();
   });
 
   it("refuses to save parsing settings with no collection open", async () => {
@@ -731,6 +803,28 @@ describe("uploading a document", () => {
       await upload;
     });
     expect((xhr(1).send.mock.calls[0]![0] as FormData).get("ingestion")).toBe('{"ocr":true}');
+  });
+
+  it("sends the organizational unit only when one was named", async () => {
+    // Nothing wrote this dimension until #1777, so its filter matched nothing
+    // and its facet was empty. A blank one is not a value: the server reads it
+    // as none, and an absent field says the same without asking it.
+    serveDetail();
+    const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
+
+    await act(async () => {
+      const upload = result.current.uploadDocument(new File(["x"], "a.pdf"), {}, "");
+      (await sent(0)).onload!();
+      await upload;
+    });
+    expect((xhr(0).send.mock.calls[0]![0] as FormData).get("organizational_unit")).toBeNull();
+
+    await act(async () => {
+      const upload = result.current.uploadDocument(new File(["x"], "b.pdf"), {}, "Legal");
+      (await sent(1)).onload!();
+      await upload;
+    });
+    expect((xhr(1).send.mock.calls[0]![0] as FormData).get("organizational_unit")).toBe("Legal");
   });
 
   it("reads the refusal out of the envelope the backend actually sends", async () => {

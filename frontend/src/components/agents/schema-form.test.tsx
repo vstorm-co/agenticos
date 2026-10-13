@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { SchemaForm } from "./schema-form";
@@ -32,6 +32,22 @@ const SCHEMA: JsonSchema = {
     },
   },
   required: ["default_top_k"],
+};
+
+/** A field that suggests the usual answers and accepts any other. */
+const OPEN_SCHEMA: JsonSchema = {
+  type: "object",
+  properties: {
+    decision_model: {
+      type: "string",
+      title: "Decision model",
+      description: "The model that picks each step",
+      default: "jev-latest",
+      "x-suggestions": ["jev-latest", "jev-preview"],
+      "x-enum-labels": { "jev-latest": "Jev (latest)", "jev-preview": "Jev (preview)" },
+      "x-placeholder": "jev-latest",
+    },
+  },
 };
 
 function renderForm(value: Record<string, unknown> = {}, onChange = vi.fn()) {
@@ -295,6 +311,165 @@ describe("SchemaForm", () => {
     await userEvent.type(screen.getByLabelText(/Summary prompt/), "!");
 
     expect(onChange).toHaveBeenLastCalledWith({ summary_prompt: "Summarise!" });
+  });
+
+  it("draws a connector's plain multi-line field as a raw textarea, not the editor", () => {
+    // `x-textarea` is a connector's plain config box: a textarea like the prompt
+    // editor, but without the editor's Markdown toolbar - a raw config value is
+    // not prose, so dressing it as Markdown would only mislead.
+    render(
+      <SchemaForm
+        schema={{
+          type: "object",
+          properties: {
+            manifest: { type: "string", "x-textarea": true, title: "Manifest" },
+          },
+        }}
+        value={{}}
+        onChange={vi.fn()}
+        idPrefix="x"
+      />,
+    );
+
+    expect(screen.getByLabelText(/Manifest/).tagName).toBe("TEXTAREA");
+    expect(screen.queryByRole("button", { name: /Preview/i })).toBeNull();
+  });
+
+  it("prefers the Markdown editor when a field is marked both prose and textarea", () => {
+    // The two are exclusive, and prose wins: nothing emits both, but the guard
+    // that keeps a prompt in its editor rather than a bare textarea is worth
+    // stating.
+    render(
+      <SchemaForm
+        schema={{
+          type: "object",
+          properties: {
+            summary_prompt: { type: "string", "x-multiline": true, "x-textarea": true },
+          },
+        }}
+        value={{}}
+        onChange={vi.fn()}
+        idPrefix="x"
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: /Preview/i })).toBeVisible();
+  });
+
+  it("shows a textarea's default as its value and leaves one with none empty", () => {
+    render(
+      <SchemaForm
+        schema={{
+          type: "object",
+          properties: {
+            region_note: {
+              type: "string",
+              "x-textarea": true,
+              default: "us-east-1",
+              title: "Note",
+            },
+            manifest: { type: "string", "x-textarea": true, title: "Manifest" },
+          },
+        }}
+        value={{}}
+        onChange={vi.fn()}
+        idPrefix="x"
+      />,
+    );
+
+    expect(screen.getByLabelText(/Note/)).toHaveValue("us-east-1");
+    expect(screen.getByLabelText(/Manifest/)).toHaveValue("");
+  });
+
+  it("clears a textarea back to unset and edits it like any other field", async () => {
+    const onChange = vi.fn();
+    render(
+      <SchemaForm
+        schema={{
+          type: "object",
+          properties: { manifest: { type: "string", "x-textarea": true, title: "Manifest" } },
+        }}
+        value={{ manifest: "a" }}
+        onChange={onChange}
+        idPrefix="x"
+      />,
+    );
+
+    await userEvent.type(screen.getByLabelText(/Manifest/), "b");
+    expect(onChange).toHaveBeenLastCalledWith({ manifest: "ab" });
+
+    await userEvent.clear(screen.getByLabelText(/Manifest/));
+    expect(onChange).toHaveBeenLastCalledWith({ manifest: undefined });
+  });
+
+  it("points a refused textarea at the sentence explaining it", () => {
+    render(
+      <SchemaForm
+        schema={{
+          type: "object",
+          properties: { manifest: { type: "string", "x-textarea": true, title: "Manifest" } },
+        }}
+        value={{}}
+        onChange={vi.fn()}
+        idPrefix="x"
+        errors={{ manifest: "That manifest is not valid JSON" }}
+      />,
+    );
+
+    const field = screen.getByLabelText(/Manifest/);
+    expect(field).toHaveAttribute("aria-invalid", "true");
+    expect(field).toHaveAccessibleDescription(/not valid JSON/);
+  });
+
+  it("shows an x-placeholder as a hint and never as the field's value", () => {
+    // A connector default is a placeholder, not a value (its effective value is
+    // resolved server-side), so it arrives on `x-placeholder` and the field
+    // stays empty until somebody types.
+    render(
+      <SchemaForm
+        schema={{
+          type: "object",
+          properties: {
+            region: { type: "string", title: "Region", "x-placeholder": "us-east-1" },
+            port: { type: "integer", title: "Port", "x-placeholder": "443" },
+            manifest: {
+              type: "string",
+              "x-textarea": true,
+              title: "Manifest",
+              "x-placeholder": "one path per line",
+            },
+          },
+        }}
+        value={{}}
+        onChange={vi.fn()}
+        idPrefix="x"
+      />,
+    );
+
+    const region = screen.getByLabelText(/Region/);
+    expect(region).toHaveValue("");
+    expect(region).toHaveAttribute("placeholder", "us-east-1");
+    expect(screen.getByLabelText(/Port/)).toHaveAttribute("placeholder", "443");
+    expect(screen.getByLabelText(/Manifest/)).toHaveAttribute("placeholder", "one path per line");
+  });
+
+  it("marks a refused boolean's switch, not only the sentence under it", () => {
+    // A field-level refusal has to reach the control it is about: the sentence
+    // renders for every kind, but assistive technology finds it through the
+    // switch's own aria-invalid and aria-describedby.
+    render(
+      <SchemaForm
+        schema={{ type: "object", properties: { verbose: { type: "boolean", title: "Verbose" } } }}
+        value={{}}
+        onChange={vi.fn()}
+        idPrefix="x"
+        errors={{ verbose: "Pick one" }}
+      />,
+    );
+
+    const toggle = screen.getByRole("switch", { name: /Verbose/ });
+    expect(toggle).toHaveAttribute("aria-invalid", "true");
+    expect(toggle).toHaveAccessibleDescription(/Pick one/);
   });
 
   it("keeps the other fields when one changes", async () => {
@@ -740,5 +915,130 @@ describe("a choice that names a service", () => {
     await userEvent.click(screen.getByLabelText("Strategy"));
     const option = await screen.findByRole("option", { name: "Summarize" });
     expect(option.querySelector("svg")).toBeNull();
+  });
+});
+
+describe("a masked multiline field", () => {
+  it("renders a textarea rather than an input, so a pasted PEM keeps its lines", () => {
+    const onChange = vi.fn();
+    render(
+      <SchemaForm
+        schema={{
+          type: "object",
+          properties: {
+            private_key: {
+              type: "string",
+              title: "Private key",
+              format: "password",
+              "x-textarea": true,
+            },
+          },
+        }}
+        value={{}}
+        onChange={onChange}
+        idPrefix="secret"
+      />,
+    );
+
+    const field = screen.getByLabelText("Private key");
+    // A browser strips line breaks out of an <input> value, which is how the
+    // PEM's header, body and footer collapsed into a key that would not sign.
+    expect(field.tagName).toBe("TEXTAREA");
+
+    fireEvent.change(field, { target: { value: "-----BEGIN-----\nbody\n-----END-----" } });
+    expect(String(onChange.mock.calls.at(-1)?.[0].private_key)).toContain("\n");
+  });
+
+  it("masks it until the reveal is pressed, because a paste is checked once", async () => {
+    render(
+      <SchemaForm
+        schema={{
+          type: "object",
+          properties: {
+            private_key: {
+              type: "string",
+              title: "Private key",
+              format: "password",
+              "x-textarea": true,
+            },
+          },
+        }}
+        value={{}}
+        onChange={vi.fn()}
+        idPrefix="secret"
+      />,
+    );
+
+    const field = screen.getByLabelText("Private key");
+    expect(field.className).toContain("text-security:disc");
+
+    await userEvent.click(screen.getByRole("button", { name: /Private key/ }));
+    expect(screen.getByLabelText("Private key").className).not.toContain("text-security:disc");
+  });
+});
+
+describe("a field that suggests rather than restricts", () => {
+  function renderOpen(value: Record<string, unknown> = {}) {
+    const onChange = vi.fn();
+    render(
+      <SchemaForm schema={OPEN_SCHEMA} value={value} onChange={onChange} idPrefix="browser" />,
+    );
+    return onChange;
+  }
+
+  it("is an input somebody can type into, not a closed select", () => {
+    // An `<input list=...>` reports `combobox`, which is what it is - the
+    // distinction that matters is that it takes free text, where `enum`
+    // would have rendered a select and forbidden the pinned build this
+    // field exists to allow.
+    renderOpen();
+    const field = screen.getByRole("combobox");
+    expect(field.tagName).toBe("INPUT");
+    expect(field).toHaveAttribute("list");
+  });
+
+  it("offers the catalog through a datalist", () => {
+    const { container } = render(
+      <SchemaForm schema={OPEN_SCHEMA} value={{}} onChange={vi.fn()} idPrefix="browser" />,
+    );
+
+    const list = container.querySelector("datalist");
+    expect(list).not.toBeNull();
+    expect([...(list?.querySelectorAll("option") ?? [])].map((o) => o.value)).toEqual([
+      "jev-latest",
+      "jev-preview",
+    ]);
+    // Labelled the way a select labels its options.
+    expect(list?.textContent).toContain("Jev (latest)");
+    expect(screen.getByRole("combobox")).toHaveAttribute(
+      "list",
+      "browser-decision_model-suggestions",
+    );
+  });
+
+  it("shows the default until somebody types", () => {
+    renderOpen();
+    expect(screen.getByRole("combobox")).toHaveValue("jev-latest");
+  });
+
+  it("accepts a value the catalog does not hold", () => {
+    // `fireEvent.change` rather than typing: the form is controlled by its
+    // caller, and this test's `value` never moves - so typing would report
+    // one character at a time rather than the string.
+    const onChange = renderOpen();
+
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "jev-1.13.0" } });
+
+    expect(onChange).toHaveBeenLastCalledWith({ decision_model: "jev-1.13.0" });
+  });
+
+  it("clearing it means unset rather than an empty string", () => {
+    // An unset field falls back to the capability's own default; an empty
+    // string is a model id nothing answers to.
+    const onChange = renderOpen({ decision_model: "jev-preview" });
+
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "" } });
+
+    expect(onChange).toHaveBeenLastCalledWith({});
   });
 });

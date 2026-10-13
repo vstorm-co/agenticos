@@ -54,6 +54,7 @@ from app.schemas.sandbox_connection import (
     SandboxSessionRead,
     SandboxSessionUsage,
 )
+from app.services.notifications import NotificationService
 from app.services.organization_secret import OrganizationSecretService
 from app.services.sandbox_runtimes import CATALOG
 
@@ -180,7 +181,13 @@ class SandboxConnectionService:
             await sandbox_connection_repo.clear_default(
                 self.db, organization_id=ctx.organization_id, except_id=row.id
             )
-        await record_audit(
+        notifications = NotificationService(self.db)
+        # Before the audit entry, never after it: `record_audit` holds the
+        # chain lock to the end of the transaction, and the notification
+        # below reaches for a `users` row that `admin_delete` takes first
+        # and the chain second (#1763).
+        audience = await notifications.hold_security_audience(ctx.organization_id)
+        entry = await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
             organization_id=ctx.organization_id,
@@ -189,6 +196,7 @@ class SandboxConnectionService:
             target_id=str(row.id),
             details={"name": row.name, "kind": row.kind},
         )
+        await notifications.security_event(entry, recipients=audience)
         return to_read(row)
 
     async def update(
@@ -224,7 +232,13 @@ class SandboxConnectionService:
         """
         row = await self.get(ctx, connection_id)
         await sandbox_connection_repo.delete(self.db, connection=row)
-        await record_audit(
+        notifications = NotificationService(self.db)
+        # Before the audit entry, never after it: `record_audit` holds the
+        # chain lock to the end of the transaction, and the notification
+        # below reaches for a `users` row that `admin_delete` takes first
+        # and the chain second (#1763).
+        audience = await notifications.hold_security_audience(ctx.organization_id)
+        entry = await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
             organization_id=ctx.organization_id,
@@ -233,6 +247,7 @@ class SandboxConnectionService:
             target_id=str(connection_id),
             details={"name": row.name},
         )
+        await notifications.security_event(entry, recipients=audience)
 
     @staticmethod
     def runtime_catalog() -> list[SandboxRuntimeOption]:

@@ -1,9 +1,9 @@
 """User repository."""
 
+from collections.abc import Sequence
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import delete as sql_delete
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,6 +15,75 @@ from app.repositories._search import contains_ci
 async def get_by_id(db: AsyncSession, user_id: UUID) -> User | None:
     """Get user by ID."""
     return await db.get(User, user_id)
+
+
+async def get_by_id_for_update(db: AsyncSession, user_id: UUID) -> User | None:
+    """Fetch a user row and acquire a SELECT FOR UPDATE lock."""
+    result = await db.execute(select(User).where(User.id == user_id).with_for_update())
+    return result.scalar_one_or_none()
+
+
+async def get_by_id_for_no_key_update(db: AsyncSession, user_id: UUID) -> User | None:
+    """Fetch a user row and acquire a SELECT FOR NO KEY UPDATE lock.
+
+    Weaker than FOR UPDATE: it serialises against another FOR UPDATE (so two
+    ordered self-deletes still queue on a shared row) but does *not* conflict
+    with the FOR KEY SHARE an unrelated foreign-key write takes on this row - a
+    channel identity relinked to this user, say - so locking a delete's heirs
+    this way does not deadlock against those writes (#1134). `key_share=True`
+    is SQLAlchemy's spelling of FOR NO KEY UPDATE.
+    """
+    result = await db.execute(
+        select(User).where(User.id == user_id).with_for_update(key_share=True)
+    )
+    return result.scalar_one_or_none()
+
+
+async def hold_key_share(db: AsyncSession, user_ids: Sequence[UUID]) -> None:
+    """Take the weakest row lock on each of `user_ids`, in id order.
+
+    `FOR KEY SHARE` is exactly what a foreign key referencing these rows takes
+    when it is inserted, so this acquires nothing extra - it only acquires it
+    *earlier*. That is the whole purpose: `record_audit` holds a
+    transaction-scoped lock on the audit chain, and a write that reaches for a
+    user row afterwards closes an ABBA cycle against `app_admin_ids_for_update`,
+    which takes its rows first and the chain second (#1763). A caller about to
+    write notifications inside an audited transaction takes them here instead,
+    before the chain lock, so every transaction takes user rows first.
+
+    `ORDER BY id`, for the same reason `app_admin_ids_for_update` orders: two
+    callers taking overlapping sets take them in the same order and one waits
+    rather than both holding half. Key share conflicts with nothing another
+    audited write does, so this queues only against an exclusive locker - an
+    admin deletion, which is the other side of the cycle.
+    """
+    if not user_ids:
+        return
+    await db.execute(
+        select(User.id)
+        .where(User.id.in_(sorted(user_ids)))
+        .order_by(User.id)
+        .with_for_update(read=True, key_share=True)
+    )
+
+
+async def app_admin_ids_for_update(db: AsyncSession) -> list[UUID]:
+    """Every app admin's id, locked, in a fixed order.
+
+    The lock is on the *set* rather than on one row, because what has to hold is
+    a fact about the set: a deployment keeps at least one administrator. Two
+    admins deleting each other locked different target rows, never contended,
+    and both committed - leaving nobody who could sign in to administer the
+    deployment and a direct database write as the only recovery (#1208).
+
+    `ORDER BY id` is what keeps that from being a deadlock instead: rows are
+    locked in the order they are returned, so two requests taking the same set
+    take it in the same order and one waits rather than both holding half of it.
+    """
+    result = await db.execute(
+        select(User.id).where(User.is_app_admin.is_(True)).order_by(User.id).with_for_update()
+    )
+    return list(result.scalars().all())
 
 
 async def get_by_email(db: AsyncSession, email: str) -> User | None:
@@ -57,7 +126,8 @@ async def create(
 
     Note: Password should already be hashed by the service layer.
 
-    There is no `role`: the column was dropped in migration `0066`, and authority
+    There is no `role`: the column was dropped before the migration chain was
+    squashed, and authority
     inside an organization is a membership row plus the permission catalog.
     `is_app_admin` is the one privilege a user carries on their own row, and it
     administers the deployment rather than any organization.
@@ -116,19 +186,22 @@ async def delete(db: AsyncSession, user_id: UUID) -> User | None:
     return user
 
 
-async def delete_non_admins(db: AsyncSession) -> int:
-    """Bulk-delete every user who does not administer the deployment.
+async def list_non_admins(db: AsyncSession) -> list[User]:
+    """Every user who does not administer the deployment.
 
-    Used by `agenticos cmd seed --clear`. Keyed on `is_app_admin` because that is
-    the only privilege left on a user row - the `role` column this used to read
-    was dropped in migration `0066`, so the old predicate raised
-    `AttributeError` before deleting anything.
+    Keyed on `is_app_admin` because that is the only privilege left on a user row
+    - the `role` column this used to read was dropped before the migration chain
+    was squashed, so the old predicate raised `AttributeError` before deleting
+    anything.
 
-    Returns the number of rows removed.
+    Returned rather than bulk-deleted so `UserService.delete_non_admins` can
+    remove them one at a time through the single-row `delete`, which reconciles
+    each user's personal org and owned rows first: a bulk `DELETE users` 500s on
+    the personal-org `created_by_user_id` RESTRICT FK every seeded account has
+    (#1124).
     """
-    result = await db.execute(sql_delete(User).where(User.is_app_admin.is_(False)))
-    await db.flush()
-    return result.rowcount  # ty: ignore[unresolved-attribute]
+    result = await db.execute(select(User).where(User.is_app_admin.is_(False)))
+    return list(result.scalars().all())
 
 
 async def has_any(db: AsyncSession) -> bool:

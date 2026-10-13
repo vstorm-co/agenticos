@@ -17,6 +17,7 @@
  */
 
 import { ROUTES } from "@/lib/constants";
+import { runsHref } from "@/lib/runs/filter-params";
 import { Perm, type Permission } from "@/types/permissions";
 
 export type WidgetId =
@@ -54,7 +55,9 @@ export type WidgetId =
   | "channels"
   | "knowledge"
   | "activity-rhythm"
-  | "routines";
+  | "routines"
+  | "notifications"
+  | "artifacts";
 
 /** The closed set of card widths the grid supports (12 columns). */
 export type Span = "s3" | "s4" | "s5" | "s6" | "s7" | "s8" | "s12";
@@ -215,6 +218,9 @@ const holds =
   (permission: Permission): Gate =>
   (can) =>
     can(permission);
+// A card whose primary read (`GET /notifications`) needs nothing beyond being
+// signed in - every membership, including a viewer's, has its own inbox.
+const everyone: Gate = () => true;
 
 export const WIDGETS: Record<WidgetId, WidgetDef> = {
   "activity-rhythm": {
@@ -254,6 +260,13 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     category: "attention",
     seeAll: ROUTES.RAG,
   },
+  notifications: {
+    id: "notifications",
+    gate: everyone,
+    defaultSpan: "s4",
+    defaultRows: "r3",
+    category: "attention",
+  },
   summary: {
     id: "summary",
     gate: holds(Perm.runsView),
@@ -263,15 +276,17 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     options: { period: true, agent: true, person: true },
     seeAll: ROUTES.RUNS,
   },
-  // Four counters and no series behind any of them, so two rows is the height:
-  // a third was a hand's width of nothing under the numbers.
+  // Counters and no series behind any of them, so two rows is the height: a
+  // third was a hand's width of nothing under the numbers.
   platform: {
     id: "platform",
     gate: adminOnly,
     defaultSpan: "s8",
     defaultRows: "r2",
     category: "platform",
-    seeAll: ROUTES.ADMIN,
+    // The people behind the counts. It pointed at `/admin`, which rendered
+    // these same figures a second time and now redirects here anyway (#922).
+    seeAll: ROUTES.ADMIN_USERS,
   },
   health: {
     id: "health",
@@ -288,7 +303,9 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultSpan: "s7",
     defaultRows: "r3",
     category: "platform",
-    seeAll: ROUTES.ADMIN,
+    // The whole tenant list, which is what "see all" means on a card showing
+    // the largest few.
+    seeAll: ROUTES.ADMIN_ORGANIZATIONS,
   },
   // No seeAll: the deployment-wide ratings page left with the admin overhaul -
   // ratings are read where the runs are, on the Activity page, per org.
@@ -401,7 +418,11 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultSpan: "s7",
     defaultRows: "r3",
     category: "attention",
-    seeAll: ROUTES.RUNS,
+    // The queue, not the run history. "See all" on a card counting what is
+    // waiting used to open Activity on Runs, where nothing can be decided -
+    // the same wrong destination the approval alert had, for the same reason:
+    // there was no URL for the tab until #934.
+    seeAll: runsHref({ tab: "approvals" }),
   },
   "recent-failures": {
     id: "recent-failures",
@@ -494,6 +515,16 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultRows: "r3",
     category: "workspace",
     options: { period: true },
+  },
+  // The pages agents published that the caller may open, newest first. What
+  // `GET /artifacts` itself asks, and nothing more.
+  artifacts: {
+    id: "artifacts",
+    gate: holds(Perm.artifactsView),
+    defaultSpan: "s6",
+    defaultRows: "r4",
+    category: "workspace",
+    seeAll: ROUTES.ARTIFACTS,
   },
   "shared-with-you": {
     id: "shared-with-you",

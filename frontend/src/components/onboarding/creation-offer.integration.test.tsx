@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -19,19 +19,29 @@ vi.mock("@/hooks/use-permissions", () => ({
 // render needs a client, and `seed` fills whichever of those a test is about.
 function renderOffer(
   node: ReactElement,
-  seed: { catalog?: { items: unknown[] }; agents?: number } = {},
+  seed: { catalog?: { items: unknown[] }; agents?: number; anyRunnable?: boolean } = {},
 ) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   if (seed.catalog) client.setQueryData(qk.mcpServers.catalog(), seed.catalog);
+  if (seed.anyRunnable !== undefined) {
+    client.setQueryData(qk.agents.anyRunnable(), seed.anyRunnable);
+  }
   if (seed.agents !== undefined) {
     client.setQueryData(qk.agents.list(), { items: [], total: seed.agents });
   }
-  return render(<QueryClientProvider client={client}>{node}</QueryClientProvider>);
+  return { client, ...render(<QueryClientProvider client={client}>{node}</QueryClientProvider>) };
 }
 
 beforeEach(() => {
   rig.can = () => true;
-  useOnboardingStore.setState({ isOpen: false, index: 0, mode: "tour", flowId: null, offer: null });
+  useOnboardingStore.setState({
+    isOpen: false,
+    index: 0,
+    mode: "tour",
+    flowId: null,
+    offer: null,
+    offerFromTour: false,
+  });
 });
 
 describe("CreationOffer", () => {
@@ -87,22 +97,83 @@ describe("CreationOffer", () => {
   });
 
   it("does not offer a first agent to an organization that already has one", () => {
-    // This is what the first-run tour ends with, having just walked the reader
-    // through an existing agent's builder in detail — so to an organization with
-    // six agents it answers a question nobody asked.
-    useOnboardingStore.setState({ offer: "create-agent" });
+    // This is what the first-run tour ends with (`offerFromTour: true`), having
+    // just walked the reader through an existing agent's builder in detail — so to
+    // an organization with six agents it answers a question nobody asked.
+    useOnboardingStore.setState({ offer: "create-agent", offerFromTour: true });
     renderOffer(<CreationOffer />, { agents: 6 });
     expect(screen.queryByText("Create your first agent?")).toBeNull();
   });
 
   it("offers it where the organization has none", () => {
-    useOnboardingStore.setState({ offer: "create-agent" });
+    useOnboardingStore.setState({ offer: "create-agent", offerFromTour: true });
     renderOffer(<CreationOffer />, { agents: 0 });
     expect(screen.getByText("Create your first agent?")).toBeInTheDocument();
+  });
+
+  it("still offers create-agent from the Agents ? walk when the org has agents", () => {
+    // The explicit help walk ends on the same offer (`offerFromTour: false`), and
+    // asking to build one is the whole point of it — so unlike the first-run tour
+    // ending, it is not gated on the agent count (#910).
+    useOnboardingStore.setState({ offer: "create-agent", offerFromTour: false });
+    renderOffer(<CreationOffer />, { agents: 6 });
+    expect(screen.getByText("Create your first agent?")).toBeInTheDocument();
+  });
+
+  it("keeps a suppressed tour offer suppressed once a later walk flips the mode", () => {
+    // A tour offer suppressed for an org with agents lingers in the store; opening
+    // a "?" walk sets `mode: "page"` without clearing it. Reading live `mode`
+    // would resurface the stale dialog over the new walk, so the origin is
+    // snapshotted at offer time and the suppression holds regardless of `mode`.
+    useOnboardingStore.setState({ offer: "create-agent", offerFromTour: true, mode: "page" });
+    renderOffer(<CreationOffer />, { agents: 6 });
+    expect(screen.queryByText("Create your first agent?")).toBeNull();
+  });
+
+  it("snapshots the tour as the offer's origin when the walk ends there", () => {
+    useOnboardingStore.getState().openTour();
+    useOnboardingStore.getState().openOffer("create-agent");
+    expect(useOnboardingStore.getState().offerFromTour).toBe(true);
+  });
+
+  it("snapshots a page walk as the offer's origin", () => {
+    useOnboardingStore.getState().openPage();
+    useOnboardingStore.getState().openOffer("create-agent");
+    expect(useOnboardingStore.getState().offerFromTour).toBe(false);
   });
 
   it("renders nothing when there is no offer", () => {
     const { container } = renderOffer(<CreationOffer />);
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it("suppresses the routine offer for a caller who can run no agent", () => {
+    // Role-level `agents:run` passes the flow's own gate, but the flow's first
+    // target is the Routines page's create buttons, which mount only on the
+    // per-agent answer - and the coach waits on a flow target without a timeout.
+    // The check reads the same cached answer the buttons read, so the two can
+    // never disagree.
+    useOnboardingStore.setState({ offer: "create-routine" });
+    renderOffer(<CreationOffer />, { anyRunnable: false });
+    expect(screen.queryByText("Set up your first routine?")).toBeNull();
+  });
+
+  it("offers the routine flow to a caller with a runnable agent", () => {
+    useOnboardingStore.setState({ offer: "create-routine" });
+    renderOffer(<CreationOffer />, { anyRunnable: true });
+    expect(screen.getByText("Set up your first routine?")).toBeInTheDocument();
+  });
+
+  it("holds the routine offer until the runnable-agent answer lands, then shows it", async () => {
+    // A walk can finish before the page's runnable-agent sweep resolves. The
+    // offer is subscribed to that query, not snapshotting it: unanswered means
+    // no dialog yet, and the store still holds the offer - so when the answer
+    // lands as yes, the dialog appears rather than having been lost.
+    useOnboardingStore.setState({ offer: "create-routine" });
+    const { client } = renderOffer(<CreationOffer />);
+    expect(screen.queryByText("Set up your first routine?")).toBeNull();
+
+    act(() => client.setQueryData(qk.agents.anyRunnable(), true));
+    expect(await screen.findByText("Set up your first routine?")).toBeInTheDocument();
   });
 });

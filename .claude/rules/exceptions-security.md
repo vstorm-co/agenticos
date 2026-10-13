@@ -1,6 +1,6 @@
 ---
 description: Exception handling patterns and security conventions
-globs: ["backend/app/core/**/*.py", "backend/app/services/**/*.py"]
+paths: ["backend/app/core/**/*.py", "backend/app/services/**/*.py"]
 ---
 
 # Exceptions & Security
@@ -135,5 +135,6 @@ grants on a row, so on a per-resource route it refuses a Viewer holding an
 explicit `edit` grant before `resolve_access` can widen their access.
 
 `UserRole`, `User.has_role()`, `RoleChecker`, `CurrentAdmin` and
-`CurrentSuperuser` no longer exist - the `users.role` column was dropped in
-migration `0066`. Do not reintroduce them.
+`CurrentSuperuser` no longer exist - the `users.role` column was dropped before
+the migration chain was squashed, so `0001_baseline` simply creates `users`
+without it. Do not reintroduce them.

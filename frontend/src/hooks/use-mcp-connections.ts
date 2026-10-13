@@ -4,7 +4,9 @@ import { useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 
+import { getErrorMessage } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
+import { DASHBOARD_FRESHNESS } from "@/lib/query-freshness";
 import {
   createMcpConnection,
   deleteMcpConnection,
@@ -27,6 +29,7 @@ interface UseMcpConnectionsResult {
     url: string;
     auth_token?: string;
     allowed_tools?: string[] | null;
+    catalog_key?: string;
   }) => Promise<McpConnectionRecord>;
   update: (
     id: string,
@@ -37,6 +40,10 @@ interface UseMcpConnectionsResult {
       allowed_tools?: string[];
       clear_allowed_tools?: boolean;
       is_enabled?: boolean;
+      /** Speak as this one where an agent asked for the member's own account. */
+      is_default?: boolean;
+      /** `""` clears it, back to showing the slug. */
+      label?: string;
     },
   ) => Promise<McpConnectionRecord>;
   remove: (id: string) => Promise<void>;
@@ -52,6 +59,7 @@ interface UseMcpConnectionsResult {
  */
 export function useMcpConnections(): UseMcpConnectionsResult {
   const t = useTranslations("mcp");
+  const tErrors = useTranslations("errors");
   const queryClient = useQueryClient();
 
   const {
@@ -63,14 +71,15 @@ export function useMcpConnections(): UseMcpConnectionsResult {
   } = useQuery({
     queryKey: qk.mcpConnections.list(),
     queryFn: listMcpConnections,
+    // Fresh on focus, like a dashboard card: the consent that creates one of
+    // these happens in another tab, and the chat card waiting on it reads this
+    // list when the person comes back.
+    ...DASHBOARD_FRESHNESS,
   });
 
-  const error =
-    queryError instanceof Error
-      ? queryError.message
-      : queryError
-        ? t("failedLoadConnections")
-        : null;
+  const error = queryError
+    ? getErrorMessage(queryError, tErrors, t("failedLoadConnections"))
+    : null;
 
   const writeCache = useCallback(
     (updater: (prev: McpConnectionRecord[]) => McpConnectionRecord[]) =>

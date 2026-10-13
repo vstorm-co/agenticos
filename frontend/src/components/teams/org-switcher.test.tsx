@@ -3,7 +3,12 @@ import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { OrgSwitcher } from "./org-switcher";
+import { OrganizationMenuItems } from "./org-switcher";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useOrgStore } from "@/stores";
 
 /**
@@ -38,16 +43,25 @@ vi.mock("@/hooks", () => ({
   }),
 }));
 
+/**
+ * The items are menu content now, so the test provides the menu. Open by
+ * default: there is no trigger of its own to click any more - the account's
+ * menu at the foot of the sidebar is what carries these.
+ */
 function mount() {
   render(
     <NextIntlClientProvider locale="en" messages={{}}>
-      <OrgSwitcher />
+      <DropdownMenu open>
+        <DropdownMenuTrigger>open</DropdownMenuTrigger>
+        <DropdownMenuContent>
+          <OrganizationMenuItems />
+        </DropdownMenuContent>
+      </DropdownMenu>
     </NextIntlClientProvider>,
   );
 }
 
 async function choose(name: string) {
-  await userEvent.click(screen.getByRole("button", { name: /Organization/ }));
   await userEvent.click(await screen.findByText(name));
 }
 
@@ -56,7 +70,7 @@ beforeEach(() => {
   useOrgStore.setState({ activeOrgId: ACME, refusedOrgIds: [] });
 });
 
-describe("OrgSwitcher", () => {
+describe("OrganizationMenuItems", () => {
   it("takes an organization-scoped page to the same page for the one picked", async () => {
     pathname = `/orgs/${ACME}/members`;
     mount();

@@ -76,9 +76,9 @@ afterEach(() => {
  * with a credential it has already refused.
  */
 describe("connecting", () => {
-  it("opens a socket with the protocols it was given", () => {
+  it("opens a socket with the protocols its getter returns", () => {
     const { result } = renderHook(() =>
-      useWebSocket({ url: "wss://api/chat", protocols: ["access_token.t-1", "chat"] }),
+      useWebSocket({ url: "wss://api/chat", protocols: () => ["access_token.t-1", "chat"] }),
     );
 
     act(() => result.current.connect());
@@ -89,7 +89,20 @@ describe("connecting", () => {
   });
 
   it("opens one without protocols when there are none", () => {
-    const { result } = renderHook(() => useWebSocket({ url: "wss://api/chat", protocols: [] }));
+    const { result } = renderHook(() =>
+      useWebSocket({ url: "wss://api/chat", protocols: () => [] }),
+    );
+
+    act(() => result.current.connect());
+
+    expect(latest().protocols).toBeUndefined();
+  });
+
+  it("opens one without protocols when the getter has no token to give", () => {
+    // What `useChat` passes before a token is in memory.
+    const { result } = renderHook(() =>
+      useWebSocket({ url: "wss://api/chat", protocols: () => undefined }),
+    );
 
     act(() => result.current.connect());
 
@@ -152,23 +165,44 @@ describe("connecting", () => {
     expect(sockets()).toHaveLength(1);
   });
 
-  it("swaps the socket when the token changes", () => {
-    // A refreshed access token arrives as a different subprotocol, and the old
-    // socket is authenticated with a credential that is about to expire.
-    const { result, rerender } = renderHook(
-      ({ token }: { token: string }) =>
-        useWebSocket({ url: "wss://api/chat", protocols: [`access_token.${token}`] }),
-      { initialProps: { token: "t-1" } },
+  it("keeps the live socket when only the token changes", () => {
+    // The token is verified once, at the handshake, and never again - so a
+    // refreshed one is not a different socket. Recycling the connection here is
+    // what cancelled a turn mid-answer: the console refreshes on a timer nobody
+    // asked for, the server read the close as the reader leaving, and the run
+    // was recorded `cancelled` while the panel went on spinning.
+    let token = "t-1";
+    const { result, rerender } = renderHook(() =>
+      useWebSocket({ url: "wss://api/chat", protocols: () => [`access_token.${token}`] }),
     );
     act(() => result.current.connect());
     act(() => latest().open());
     const first = latest();
 
-    rerender({ token: "t-2" });
+    token = "t-2";
+    rerender();
+    act(() => result.current.connect());
+
+    expect(sockets()).toHaveLength(1);
+    expect(first.close).not.toHaveBeenCalled();
+  });
+
+  it("swaps the socket when the address changes", () => {
+    // The organization travels in the query string, and a conversation may not
+    // continue under another tenant. This is the one change that must swap.
+    const { result, rerender } = renderHook(
+      ({ org }: { org: string }) => useWebSocket({ url: `wss://api/chat?organization_id=${org}` }),
+      { initialProps: { org: "a" } },
+    );
+    act(() => result.current.connect());
+    act(() => latest().open());
+    const first = latest();
+
+    rerender({ org: "b" });
     act(() => result.current.connect());
 
     expect(sockets()).toHaveLength(2);
-    expect(latest().protocols).toEqual(["access_token.t-2"]);
+    expect(latest().url).toBe("wss://api/chat?organization_id=b");
     // Discarded silently: its handlers are detached first, so its close cannot
     // re-enter the reconnect logic for a socket nobody wants.
     expect(first.onclose).toBeNull();
@@ -218,6 +252,30 @@ describe("reconnecting", () => {
     expect(sockets()).toHaveLength(2);
     act(() => vi.advanceTimersByTime(100));
     expect(sockets()).toHaveLength(3);
+  });
+
+  it("reconnects with the token it holds now, not the one it opened with", () => {
+    // The getter is read when a socket is opened rather than captured, which is
+    // what lets a refresh reach the *next* handshake without disturbing the live
+    // one. A drop after a refresh must therefore present the new credential -
+    // the old one is what the server had already stopped accepting.
+    let token = "t-1";
+    const { result } = renderHook(() =>
+      useWebSocket({
+        url: "wss://api/chat",
+        protocols: () => [`access_token.${token}`],
+        reconnectInterval: 100,
+      }),
+    );
+    act(() => result.current.connect());
+    act(() => latest().open());
+
+    token = "t-2";
+    act(() => latest().drop(1006));
+    act(() => vi.advanceTimersByTime(100));
+
+    expect(sockets()).toHaveLength(2);
+    expect(latest().protocols).toEqual(["access_token.t-2"]);
   });
 
   it("caps the backoff rather than waiting minutes", () => {
@@ -383,15 +441,15 @@ describe("disconnecting", () => {
 
   it("keeps a socket that was replaced before the teardown fired", () => {
     // The deferred close must only clear the reference if it still points at the
-    // socket it was scheduled for.
+    // socket it was scheduled for. Driven by the address, because that is now
+    // the only thing that replaces a socket.
     const { result, rerender } = renderHook(
-      ({ token }: { token: string }) =>
-        useWebSocket({ url: "wss://api/chat", protocols: [`access_token.${token}`] }),
-      { initialProps: { token: "t-1" } },
+      ({ org }: { org: string }) => useWebSocket({ url: `wss://api/chat?organization_id=${org}` }),
+      { initialProps: { org: "a" } },
     );
     act(() => result.current.connect());
     act(() => result.current.disconnect());
-    rerender({ token: "t-2" });
+    rerender({ org: "b" });
     act(() => result.current.connect());
 
     act(() => vi.advanceTimersByTime(1000));

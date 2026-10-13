@@ -37,6 +37,11 @@ The kinds are the shapes that actually exist, and no more:
     A Google OAuth client's `client_id` and `client_secret`, for connecting a
     mailbox a trigger reads. The same two fields as GitHub's and a separate kind
     on purpose: a kind names what a credential is *for*.
+`entra_app`
+    A Microsoft Entra app registration - tenant, client id and client secret -
+    that a SharePoint or OneDrive sync source reads a site with. Three fields,
+    because a client secret is useless without the tenant and the app it
+    belongs to.
 
 Two unions, deliberately. :data:`StorableSecret` is what a person can save;
 :data:`SecretValue` adds `none`, which the runtime can hold but nobody can
@@ -52,12 +57,14 @@ from enum import StrEnum
 from typing import Annotated, Any, Literal
 
 from pydantic import (
+    AfterValidator,
     BaseModel,
     ConfigDict,
     Field,
     PlainSerializer,
     SecretStr,
     TypeAdapter,
+    ValidationError,
     field_validator,
     model_validator,
 )
@@ -75,7 +82,10 @@ class SecretKind(StrEnum):
     AWS_CREDENTIALS = "aws_credentials"
     GCP_SERVICE_ACCOUNT = "gcp_service_account"
     GITHUB_OAUTH_APP = "github_oauth_app"
+    GITHUB_APP = "github_app"
     GOOGLE_OAUTH_APP = "google_oauth_app"
+    GIT_TOKEN = "git_token"
+    ENTRA_APP = "entra_app"
 
 
 def _reveal(value: SecretStr) -> str:
@@ -89,6 +99,34 @@ def _reveal(value: SecretStr) -> str:
 # of dumping a model into a log line stays harmless.
 SealedStr = Annotated[SecretStr, PlainSerializer(_reveal, when_used="json")]
 
+MIN_CREDENTIAL_LENGTH = 8
+"""The shortest value a credential field accepts.
+
+:attr:`_SecretBase.hint` shows the last four characters of a credential to
+everyone who may list secrets and writes them into the audit trail, so a value
+shorter than this would be published whole by its own hint. The floor also
+catches a truncated paste while the form is still open, rather than at the
+first run.
+"""
+
+
+def _long_enough_to_hint(value: SecretStr) -> SecretStr:
+    if len(value) < MIN_CREDENTIAL_LENGTH:
+        raise ValueError(
+            f"Must be at least {MIN_CREDENTIAL_LENGTH} characters - is the paste complete?"
+        )
+    return value
+
+
+# A sealed field that authenticates: long enough that the four-character hint
+# cannot give it away. `minLength` is declared on the schema the forms are
+# generated from, and the validator carries the message a form can show.
+CredentialStr = Annotated[
+    SealedStr,
+    AfterValidator(_long_enough_to_hint),
+    Field(json_schema_extra={"minLength": MIN_CREDENTIAL_LENGTH}),
+]
+
 
 class _SecretBase(BaseModel):
     """Common configuration for every secret payload."""
@@ -99,6 +137,8 @@ class _SecretBase(BaseModel):
     def hint(self) -> str:
         """Four characters an operator can recognise this credential by.
 
+        Never the whole credential: every field that authenticates is a
+        :data:`CredentialStr`, at least :data:`MIN_CREDENTIAL_LENGTH` long.
         Taken from the field that identifies the credential rather than from the
         one that authenticates it where the two differ - an AWS access key id is
         public, and showing four characters of it is strictly better than
@@ -121,7 +161,7 @@ class ApiKeySecret(_SecretBase):
     """One opaque token."""
 
     kind: Literal[SecretKind.API_KEY] = SecretKind.API_KEY
-    api_key: SealedStr = Field(title="API key", description="The token, sealed before storage")
+    api_key: CredentialStr = Field(title="API key", description="The token, sealed before storage")
 
     @property
     def hint(self) -> str:
@@ -132,7 +172,7 @@ class AzureOpenAISecret(_SecretBase):
     """An Azure OpenAI deployment: key, endpoint and pinned API version."""
 
     kind: Literal[SecretKind.AZURE_OPENAI] = SecretKind.AZURE_OPENAI
-    api_key: SealedStr = Field(title="API key")
+    api_key: CredentialStr = Field(title="API key")
     azure_endpoint: str = Field(
         min_length=1,
         title="Endpoint",
@@ -150,9 +190,9 @@ class AwsCredentialsSecret(_SecretBase):
 
     kind: Literal[SecretKind.AWS_CREDENTIALS] = SecretKind.AWS_CREDENTIALS
     aws_access_key_id: str = Field(min_length=1, title="Access key ID")
-    aws_secret_access_key: SealedStr = Field(title="Secret access key")
+    aws_secret_access_key: CredentialStr = Field(title="Secret access key")
     region_name: str = Field(min_length=1, title="Region", description="e.g. us-east-1")
-    aws_session_token: SealedStr | None = Field(
+    aws_session_token: CredentialStr | None = Field(
         default=None,
         title="Session token",
         description="Only for temporary STS credentials",
@@ -227,6 +267,87 @@ class GcpServiceAccountSecret(_SecretBase):
         return email[-4:]
 
 
+class GitTokenSecret(_SecretBase):
+    """An access token for git over HTTPS, and the one host it may be sent to.
+
+    A kind of its own rather than an `api_key`, because a Git source sends its
+    token to a URL the source's editor types. With any API key eligible, a member
+    who could edit a source could pick the organization's model key, point the
+    source at a server of their own and read the key out of the basic-auth header
+    (#987). Here the host is part of what the vault holds - set by whoever added
+    the token, sealed with it - and the connector refuses to send the token
+    anywhere else.
+    """
+
+    kind: Literal[SecretKind.GIT_TOKEN] = SecretKind.GIT_TOKEN
+    token: CredentialStr = Field(
+        title="Access token",
+        description="A token that can read the repository, e.g. a fine-grained GitHub token",
+    )
+    host: str = Field(
+        min_length=1,
+        max_length=253,
+        pattern=r"^([A-Za-z0-9.-]+|\[[0-9A-Fa-f:.]+\])(:[0-9]{1,5})?$",
+        title="Host",
+        description="Where the token may be sent, e.g. github.com or gitlab.example.com:8443",
+    )
+
+    @property
+    def hint(self) -> str:
+        return self.token.get_secret_value()[-4:]
+
+    def allows(self, hostname: str, port: int | None) -> bool:
+        """Whether a repository at this host and port may be sent the token.
+
+        `hostname` as `urlsplit` answers it: lower-cased, and an IPv6 literal
+        without its brackets - which the stored host keeps, as a URL writes it.
+        An internationalized name arrives IDNA-encoded (`xn--...`), the only
+        spelling `host` can store: `GitConfig` encodes the URL's host before
+        anything reads it.
+        """
+        host = f"[{hostname}]" if ":" in hostname else hostname
+        expected = host if port in (None, 443) else f"{host}:{port}"
+        return self.host.lower().removesuffix(":443") == expected.lower()
+
+
+class EntraAppSecret(_SecretBase):
+    """A Microsoft Entra app registration a SharePoint or OneDrive source signs in as.
+
+    The client credentials flow: the app proves itself with its secret and gets
+    a Microsoft Graph token carrying the *application* permissions an
+    administrator consented to. Those decide the source's reach, not anything a
+    source's editor types: `Files.Read.All` reads every drive in the tenant,
+    `Sites.Selected` only the sites the app was granted
+    (`docs/howto/configure-sync-sources.md#sharepoint-and-onedrive-setup`).
+
+    `tenant_id` goes into the sign-in URL's path, so it is held to what a tenant
+    id or a tenant's domain can be spelled with.
+    """
+
+    kind: Literal[SecretKind.ENTRA_APP] = SecretKind.ENTRA_APP
+    tenant_id: str = Field(
+        min_length=1,
+        max_length=253,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9.-]*$",
+        title="Tenant ID",
+        description="The directory (tenant) id, or the tenant's domain, e.g. contoso.onmicrosoft.com",
+    )
+    client_id: str = Field(
+        pattern=r"^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$",
+        title="Client ID",
+        description="The app registration's application (client) id",
+    )
+    client_secret: CredentialStr = Field(
+        title="Client secret", description="The secret's value, not its id"
+    )
+
+    @property
+    def hint(self) -> str:
+        # The client id, not the secret: it is public, and it is what names the
+        # app registration in the Entra admin center.
+        return self.client_id[-4:]
+
+
 class GithubOAuthAppSecret(_SecretBase):
     """A GitHub OAuth App's credentials: a public client id and a secret."""
 
@@ -237,13 +358,58 @@ class GithubOAuthAppSecret(_SecretBase):
         title="Client ID",
         description="The OAuth App's client id, e.g. Iv1.0123456789abcdef",
     )
-    client_secret: SealedStr = Field(min_length=1, title="Client secret")
+    client_secret: CredentialStr = Field(title="Client secret")
 
     @property
     def hint(self) -> str:
         # The client id, not the secret: it is public, and it is what names the
         # app in the GitHub settings the same key sits next to.
         return self.client_id[-4:]
+
+
+class GithubAppSecret(_SecretBase):
+    """A GitHub App's identity: its id, its private key and its webhook secret.
+
+    A different kind from `github_oauth_app` and not a variant of it, because the
+    two authorise differently rather than differently-shaped. An OAuth App holds
+    a token scoped to the *person* who consented - `repo` and `admin:repo_hook`,
+    read-write on every repository that account can administer, and no expiry at
+    all. An App is *installed* on chosen repositories with chosen permissions,
+    and its access is a token minted from this private key that lives an hour
+    (#1072).
+
+    All three fields are credentials. The app id is public in the sense that it
+    appears in the App's settings page, but it is useless without the key and
+    there is nothing gained by treating it as a hint - so the hint is the last
+    four of the app id, which is what names the App on that page.
+    """
+
+    kind: Literal[SecretKind.GITHUB_APP] = SecretKind.GITHUB_APP
+    app_id: str = Field(
+        min_length=1,
+        max_length=32,
+        title="App ID",
+        description="The numeric App ID from the App's settings page",
+    )
+    private_key: CredentialStr = Field(
+        title="Private key",
+        description="The PEM the App's settings page generated. Signs the JWT that mints installation tokens",
+        # The one multi-line secret in this file, and it has to say so. The vault
+        # form is generated from this schema, and a `CredentialStr` alone renders
+        # as `<input type="password">` - where a browser strips the line breaks
+        # out of the value, collapsing the PEM's header, body and footer into a
+        # key `jwt.encode` cannot use. The failure then surfaces an hour later as
+        # an installation token that will not mint (#1072).
+        json_schema_extra={"x-textarea": True},
+    )
+    webhook_secret: CredentialStr = Field(
+        title="Webhook secret",
+        description="The secret configured on the App. One App, one webhook URL, one secret for every installation",
+    )
+
+    @property
+    def hint(self) -> str:
+        return self.app_id[-4:]
 
 
 class GoogleOAuthAppSecret(_SecretBase):
@@ -268,7 +434,7 @@ class GoogleOAuthAppSecret(_SecretBase):
         title="Client ID",
         description="The OAuth client's id, e.g. 1234-abc.apps.googleusercontent.com",
     )
-    client_secret: SealedStr = Field(min_length=1, title="Client secret")
+    client_secret: CredentialStr = Field(title="Client secret")
 
     @property
     def hint(self) -> str:
@@ -283,7 +449,10 @@ StorableSecret = Annotated[
     | AwsCredentialsSecret
     | GcpServiceAccountSecret
     | GithubOAuthAppSecret
-    | GoogleOAuthAppSecret,
+    | GithubAppSecret
+    | GoogleOAuthAppSecret
+    | GitTokenSecret
+    | EntraAppSecret,
     Field(discriminator="kind"),
 ]
 """Every shape a person can actually save."""
@@ -295,7 +464,10 @@ SecretValue = Annotated[
     | AwsCredentialsSecret
     | GcpServiceAccountSecret
     | GithubOAuthAppSecret
-    | GoogleOAuthAppSecret,
+    | GithubAppSecret
+    | GoogleOAuthAppSecret
+    | GitTokenSecret
+    | EntraAppSecret,
     Field(discriminator="kind"),
 ]
 """What the runtime holds - :data:`StorableSecret` plus "there is no credential"."""
@@ -305,7 +477,9 @@ STORABLE_KINDS: frozenset[SecretKind] = frozenset(SecretKind) - {SecretKind.NONE
 _STORABLE_ADAPTER: TypeAdapter[StorableSecret] = TypeAdapter(StorableSecret)
 
 
-def seal_secret(value: StorableSecret, *, scope: VaultScope, key_version: int = 1) -> SealedSecret:
+def seal_secret(
+    value: StorableSecret, *, scope: VaultScope, key_version: int | None = None
+) -> SealedSecret:
     """Seal a typed secret into one envelope.
 
     The whole payload is sealed as a single JSON document rather than field by
@@ -330,9 +504,19 @@ def unseal_secret(
             is not a secret payload, or holds a different kind than the column
             says - which would mean a row was edited underneath the schema.
     """
-    value = _STORABLE_ADAPTER.validate_json(
-        unseal(ciphertext, scope=scope, key_version=key_version)
-    )
+    try:
+        value = _STORABLE_ADAPTER.validate_json(
+            unseal(ciphertext, scope=scope, key_version=key_version)
+        )
+    except ValidationError:
+        # A `ValidationError` message embeds the offending input - here the
+        # decrypted credential - so it must reach neither a log line nor a span.
+        # `from None`, not `from exc`: chaining would keep the plaintext in the
+        # traceback (#21).
+        raise BadRequestError(
+            message="Stored secret is not a usable payload",
+            details={"recorded": kind.value},
+        ) from None
     if value.kind is not kind:
         raise BadRequestError(
             message="Stored secret does not match its recorded kind",
@@ -362,7 +546,10 @@ _KIND_MODELS: dict[SecretKind, type[BaseModel]] = {
     SecretKind.AWS_CREDENTIALS: AwsCredentialsSecret,
     SecretKind.GCP_SERVICE_ACCOUNT: GcpServiceAccountSecret,
     SecretKind.GITHUB_OAUTH_APP: GithubOAuthAppSecret,
+    SecretKind.GITHUB_APP: GithubAppSecret,
     SecretKind.GOOGLE_OAUTH_APP: GoogleOAuthAppSecret,
+    SecretKind.GIT_TOKEN: GitTokenSecret,
+    SecretKind.ENTRA_APP: EntraAppSecret,
 }
 
 _KIND_LABELS: dict[SecretKind, tuple[str, str]] = {
@@ -384,9 +571,24 @@ _KIND_LABELS: dict[SecretKind, tuple[str, str]] = {
         "A GitHub OAuth App's client id and secret, used to connect a GitHub "
         "account for repository webhooks.",
     ),
+    SecretKind.GITHUB_APP: (
+        "GitHub App",
+        "A GitHub App's id, private key and webhook secret. Installed on chosen "
+        "repositories with scoped permissions, and delivering without a "
+        "per-repository hook.",
+    ),
     SecretKind.GOOGLE_OAUTH_APP: (
         "Google OAuth client",
         "A Google OAuth client's id and secret, used to connect a mailbox an agent is run by.",
+    ),
+    SecretKind.GIT_TOKEN: (
+        "Git access token",
+        "A token that reads repositories over HTTPS, and the one host it may be sent to.",
+    ),
+    SecretKind.ENTRA_APP: (
+        "Microsoft Entra app",
+        "An app registration's tenant, client id and client secret - for reading "
+        "SharePoint sites and OneDrive folders through Microsoft Graph.",
     ),
 }
 
@@ -450,6 +652,17 @@ class SecretRequirement(BaseModel):
 
     kind: SecretKind
     description: str = Field(description="What the secret is for, shown next to the picker")
+    purpose: str | None = Field(
+        default=None,
+        description=(
+            "Which service in the deployment's catalog this key is for - a "
+            "`services.json` id such as `mem0`. It is what narrows the picker from "
+            "every key of the right *kind* to the ones that would actually work, and "
+            "what a key created from the picker is stored under. Null where the "
+            "capability offers several services and `required_when` already names "
+            "the chosen one, which is the case web search covers."
+        ),
+    )
     required_when: SecretCondition | None = Field(
         default=None,
         description=(

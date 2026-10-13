@@ -101,7 +101,7 @@ export function ConversationFilters({
             {agents.map((agent) => (
               <SelectItem key={agent.id} value={agent.id}>
                 <span className="flex items-center gap-2">
-                  <AgentAvatar agentId={agent.id} name={agent.name} size="sm" />
+                  <AgentAvatar agentId={agent.id} slug={agent.slug} size="sm" />
                   <span className="truncate">{agent.name}</span>
                 </span>
               </SelectItem>
@@ -126,7 +126,7 @@ export function ConversationFilters({
         </Select>
       </div>
       {agentId !== null && (
-        <p className="text-muted-foreground text-[10px]">{t("agentFilterHint")}</p>
+        <p className="text-muted-foreground text-[11px]">{t("agentFilterHint")}</p>
       )}
     </div>
   );

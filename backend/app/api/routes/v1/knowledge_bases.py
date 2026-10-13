@@ -8,8 +8,7 @@ app-admin role required by the bulk `/rag` endpoints.
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile, status
 
 from app.api.deps import (
     Auth,
@@ -21,6 +20,7 @@ from app.api.deps import (
     VectorStoreSvc,
     require,
 )
+from app.api.routes.v1._stored_bytes import stored_file_response
 from app.core.exceptions import NotFoundError
 from app.core.permissions import Perm
 from app.schemas.knowledge_base import (
@@ -129,7 +129,12 @@ async def delete_knowledge_base(
     service: KnowledgeBaseSvc,
     ctx: Auth,
 ) -> None:
-    """Delete a Knowledge Base. Default KBs cannot be deleted."""
+    """Delete a Knowledge Base - its documents, files and vector table too.
+
+    Default KBs cannot be deleted. The physical `rag_<collection>` table is dropped
+    by the durable cleanup the service dispatches after the commit, which builds its
+    own vector engine - so the route no longer wires a store in (#1266, #1349).
+    """
     await service.delete(kb_id, ctx=ctx)
 
 
@@ -168,6 +173,14 @@ async def upload_kb_document(
             "keys keep the collection's setting. Recorded on the document."
         ),
     ),
+    organizational_unit: str | None = Form(
+        default=None,
+        max_length=255,
+        description=(
+            "Which part of the organization this document belongs to. Stamped on "
+            "every chunk and narrowable on at retrieval; blank means none."
+        ),
+    ),
 ) -> Any:
     """Upload a file into the KB's underlying vector collection.
 
@@ -189,6 +202,7 @@ async def upload_kb_document(
         replace=replace,
         vector_store=vector_store,
         override=parse_override(ingestion),
+        organizational_unit=organizational_unit,
         organization_id=ctx.organization_id,
         knowledge_base_id=kb.id,
     )
@@ -201,7 +215,7 @@ async def download_kb_document(
     service: KnowledgeBaseSvc,
     rag_doc_svc: RAGDocumentSvc,
     ctx: Auth,
-) -> FileResponse:
+) -> Response:
     """Download (or open inline) the original file for a KB document."""
     kb = await service.get(kb_id, ctx=ctx)
     doc = await rag_doc_svc.get_document(str(doc_id))
@@ -210,16 +224,19 @@ async def download_kb_document(
             message="Document not found in this knowledge base",
             details={"kb_id": str(kb_id), "doc_id": str(doc_id)},
         )
-    file_path, filename, mime_type = await rag_doc_svc.get_download_info(str(doc_id))
-    return FileResponse(
-        path=file_path,
-        filename=filename,
+    stored, filename, mime_type = await rag_doc_svc.get_download_info(str(doc_id))
+    response = await stored_file_response(
+        stored,
         media_type=mime_type,
+        attachment_name=filename,
         # The BFF forwards this rather than inventing one, which is why it is here:
         # a stored document does not change, and re-downloading it every time the
         # viewer is opened is a round trip for bytes the browser already has.
         headers={"Cache-Control": "private, max-age=3600"},
     )
+    if response is None:
+        raise NotFoundError(message="File not found on disk")
+    return response
 
 
 @router.get("/{kb_id}/documents/{doc_id}/parsed", response_model=RAGParsedContent)
@@ -400,7 +417,7 @@ async def trigger_kb_sync_source(
             message="Sync source not found in this knowledge base",
             details={"kb_id": str(kb_id), "source_id": str(source_id)},
         )
-    sync_log = await sync_source_svc.trigger_sync(str(source_id))
+    sync_log = await sync_source_svc.trigger_sync(str(source_id), user_id=ctx.user_id)
     return RAGSyncResponse(
         id=str(sync_log.id),
         status="running",

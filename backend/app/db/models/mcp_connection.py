@@ -49,6 +49,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.vault import is_key_version_available
 from app.db.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
@@ -81,6 +82,17 @@ class McpConnection(Base, TimestampMixin):
             "portal_key",
             unique=True,
             postgresql_where=text("purpose = 'portal'"),
+        ),
+        # One default per person per catalog entry, and only for a personal row:
+        # an organization's connection is bound by id and has nothing to
+        # nominate. What makes a member holding two Notion accounts able to say
+        # which an agent speaks as (#1342).
+        Index(
+            "uq_mcp_connections_user_default",
+            "user_id",
+            "catalog_key",
+            unique=True,
+            postgresql_where=text("scope = 'user' AND is_default AND catalog_key IS NOT NULL"),
         ),
         CheckConstraint("scope IN ('user', 'org')", name="ck_mcp_connection_scope"),
         CheckConstraint("purpose IN ('mcp', 'portal')", name="ck_mcp_connection_purpose"),
@@ -140,6 +152,24 @@ class McpConnection(Base, TimestampMixin):
     scope: Mapped[str] = mapped_column(String(8), nullable=False, default="user", index=True)
     # Which catalog entry this came from, when it was not added by raw URL.
     catalog_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # What a person reads. `name` is the tool prefix and is constrained to what a
+    # tool name can carry, which makes it a poor label: two Notion accounts are
+    # `notion` and `notion-2`, and neither says which workspace it reaches.
+    # Optional, not unique, and never a replacement - the slug stays on screen
+    # beside it, because a run's tool calls are recorded under the prefix.
+    label: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Every tool the server offered the last time anything probed it - the
+    # catalogue `allowed_tools` is chosen from. Recorded so the Builder can list
+    # them without holding `connections:manage`, which gates the probe because it
+    # dials out to a third party. Null until the connection is next checked.
+    last_tools: Mapped[list[dict[str, str]] | None] = mapped_column(JSONB, nullable=True)
+    # Which of this member's accounts on one service an agent speaks as, where a
+    # binding asked to substitute theirs and they hold more than one. False on
+    # every row until somebody chooses: a single account is substituted whether
+    # or not it is marked, so nothing needs a default until there is a choice.
+    is_default: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=text("false"), nullable=False
+    )
     # What this row *is*. `mcp` is a remote MCP server an agent gets tools from -
     # every row before triggers existed. `portal` is a third-party grant a trigger
     # portal spends: an OAuth payload, its scopes and, for a polled portal, the
@@ -157,6 +187,16 @@ class McpConnection(Base, TimestampMixin):
     purpose: Mapped[str] = mapped_column(String(16), nullable=False, default="mcp", index=True)
     # Which portal a `purpose = 'portal'` row holds the grant for. Null on an MCP row.
     portal_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # The provider's own id for the account this grant is on, where the provider
+    # names one and a *delivery* has to be routed back to it. A GitHub App's
+    # installation id is the case that needs it: one App has one webhook URL, so
+    # the delivery cannot name a trigger and the installation in its payload is
+    # the only thing that says whose it is - which means the lookup has to be a
+    # query, not a field inside the encrypted grant (#1072). Indexed and
+    # deliberately not unique: two organizations could in principle install two
+    # different Apps that GitHub numbered the same, and the signature is what
+    # settles which grant the delivery belongs to.
+    portal_account_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     # Where a polled portal's reader has got to - Gmail's `historyId`, and whatever
     # the next polled portal needs. JSONB rather than a column per provider: the
     # shape is the adapter's business and nothing else reads inside it.
@@ -205,3 +245,25 @@ class McpConnection(Base, TimestampMixin):
             f"<McpConnection(name={self.name} scope={self.scope} "
             f"url={self.url} enabled={self.is_enabled})>"
         )
+
+    @property
+    def account_authorized(self) -> bool:
+        """Whether this connection's stored credential can be used right now.
+
+        The side-effect-free half of `_resolve_auth_headers`, and the single place
+        the answer is decided so a run and the rendered list cannot drift (#1443):
+        an OAuth or bearer credential is usable once its payload/token is written
+        and the master key that sealed it is still configured - the half
+        `_resolve_auth_headers` finds missing after a `SECRET_KEY` rotation. It
+        decrypts and refreshes nothing, so two failures it cannot see are left to
+        the run that actually unseals: a ciphertext tampered with under a still
+        configured key, and an OAuth grant the provider has revoked or expired past
+        its refresh - the sweep marks the latter `last_status="error"` beforehand.
+        """
+        if self.auth_type == "oauth":
+            return self.oauth_payload is not None and is_key_version_available(
+                self.secret_key_version
+            )
+        if self.auth_token is None:
+            return True
+        return is_key_version_available(self.secret_key_version)

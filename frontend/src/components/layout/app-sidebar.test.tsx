@@ -13,7 +13,9 @@ vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
   permanentRedirect: vi.fn(),
 }));
-vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
+vi.mock("next-intl", async () => ({
+  useTranslations: (await import("@/test-utils/intl")).keyTranslations(),
+}));
 vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can }) }));
 vi.mock("@/stores", () => ({ useAuthStore: () => ({ user: currentUser() }) }));
 

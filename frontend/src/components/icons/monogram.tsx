@@ -27,7 +27,7 @@ export function Monogram({ label, className }: MonogramProps) {
     <span
       aria-hidden
       className={cn(
-        "border-border text-muted-foreground flex items-center justify-center rounded-[3px] border text-[10px] font-medium uppercase",
+        "border-border text-muted-foreground flex items-center justify-center rounded-[3px] border text-[11px] font-medium uppercase",
         className,
       )}
     >

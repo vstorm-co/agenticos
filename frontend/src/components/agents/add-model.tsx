@@ -26,7 +26,7 @@ import {
   useSecrets,
 } from "@/hooks";
 import { Perm } from "@/types/permissions";
-import type { ModelProfile } from "@/types/providers";
+import type { ModelApi, ModelProfile, ProviderInfo } from "@/types/providers";
 import { useTranslations } from "next-intl";
 
 interface AddModelProps {
@@ -74,6 +74,27 @@ interface AddModelProps {
  * hard-coded list is wrong within a month - worse, wrong in the direction of
  * hiding the model somebody came here for.
  */
+/**
+ * The provider to start on, when the organization has told us which one it uses.
+ *
+ * A deployment can reach every provider in the catalog, but the keys it holds
+ * say which of them it can actually run on. An organization with exactly one key
+ * was being asked to choose from a list with one real answer in it - and then to
+ * choose the key underneath, which it also had one of.
+ *
+ * Exactly one, not "the first": two keys is a real choice and guessing between
+ * them would put a model on the wrong account, which is a bill somebody else
+ * pays. A secret's purpose *is* the provider id, which is what makes this a
+ * lookup rather than a convention.
+ */
+export function soleKeyedProvider(
+  providers: readonly { id: string }[],
+  secrets: readonly { purpose?: string | null }[],
+): string | undefined {
+  const keyed = providers.filter((entry) => secrets.some((secret) => secret.purpose === entry.id));
+  return keyed.length === 1 ? keyed[0]?.id : undefined;
+}
+
 /**
  * What a model id looks like for this provider, before it is refused.
  *
@@ -128,6 +149,23 @@ export function modelIdIsWellFormed(providerId: string, model: string): boolean 
 }
 
 /**
+ * The API a profile gets when nobody picks one - the rule the service applies.
+ *
+ * The provider's own endpoint gets its `native_api`; an endpoint of the
+ * reader's gets Chat Completions, which every OpenAI-compatible server
+ * implements. Shown in the select rather than left implicit, because neither is
+ * right everywhere: a regional OpenAI endpoint is an endpoint that serves
+ * Responses.
+ */
+export function defaultApi(
+  capabilities: Pick<ProviderInfo, "native_api"> | null,
+  baseUrl: string,
+): ModelApi | null {
+  if (capabilities?.native_api == null) return null;
+  return baseUrl.trim() === "" ? capabilities.native_api : "chat";
+}
+
+/**
  * What this form can mark, for `submitFailure`.
  *
  * Every refusal `POST /model-profiles` gives names one of these three now: a
@@ -135,7 +173,8 @@ export function modelIdIsWellFormed(providerId: string, model: string): boolean 
  * is about `base_url`, a keyed one with no key is about `secret_id` (#898), and
  * the endpoint checks were already there (#891). `base_url` is only offered
  * while that input is on screen - a refusal about a field the reader cannot see
- * belongs in the line above the button, which is at least readable.
+ * belongs in the line above the button, which is at least readable. The API
+ * select needs no entry: its one refusal is for a provider it is not drawn for.
  */
 function markable(acceptsEndpoint: boolean): { fields: readonly string[] } {
   return { fields: acceptsEndpoint ? ["model", "base_url", "secret_id"] : ["model", "secret_id"] };
@@ -159,15 +198,36 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
   // control.
   const canStoreKey = can(Perm.secretsEdit);
 
-  const [providerId, setProviderId] = useState(selected?.provider ?? "");
+  // What somebody picked, which is not the same as what the field shows: a
+  // `null` here means nobody has picked yet, and the answer below is what the
+  // organization already told us.
+  const [pickedProvider, setPickedProvider] = useState<string | null>(selected?.provider ?? null);
   const [model, setModel] = useState(selected?.model ?? "");
   const [label, setLabel] = useState("");
   const [secretId, setSecretId] = useState(selected?.secret_id ?? "");
   const [baseUrl, setBaseUrl] = useState(selected?.base_url ?? "");
+  // `null` until somebody picks, so the select follows the endpoint the way the
+  // service's default does - typing a vLLM address moves it to Chat Completions.
+  const [pickedApi, setPickedApi] = useState<ModelApi | null>(null);
   const [failure, setFailure] = useState(NO_FAILURE);
   const [naming, setNaming] = useState(false);
 
   const providers = purposes.filter((entry) => entry.category === "model_provider");
+  /*
+   * The provider an organization with exactly one key is obviously going to
+   * pick, chosen for them.
+   *
+   * A deployment can reach every provider in the catalog, but the keys it holds
+   * say which of them it can actually run on - and an organization with one key
+   * was being asked to choose from a list with one real answer in it, then to
+   * choose the key under it, which it also had one of.
+   *
+   * Derived rather than written into state by an effect: the keys arrive after
+   * the first render, so an effect would be a second render that fills a field
+   * somebody may already be typing in. The moment anybody picks anything,
+   * `pickedProvider` wins and this stops being consulted.
+   */
+  const providerId = pickedProvider ?? soleKeyedProvider(providers, secrets) ?? "";
   const provider = providers.find((entry) => entry.id === providerId);
   // The purposes list says which providers a *key* can be stored for; only the
   // provider catalog knows whether one accepts an endpoint and whether it can run
@@ -182,6 +242,19 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
   // the rule `ModelProfileService.create_profile` enforces; anything looser here
   // would offer a submit the API refuses.
   const keyOptional = (capabilities?.keyless ?? false) && baseUrl.trim() !== "";
+  // Only `openai` and `azure` serve both of OpenAI's APIs; for every other
+  // provider there is nothing to choose and the field is not drawn.
+  const choosesApi = (capabilities?.apis.length ?? 0) > 1;
+  // Before anybody picks: the model in use's own choice while its provider and
+  // endpoint are the ones on screen, and otherwise the default for what is - so
+  // pointing the model in use at a vLLM does not carry Responses there with it.
+  const startingApi =
+    selected?.api != null &&
+    providerId === selected.provider &&
+    baseUrl.trim() === (selected.base_url ?? "")
+      ? selected.api
+      : defaultApi(capabilities, baseUrl);
+  const api = choosesApi ? (pickedApi ?? startingApi) : null;
   // The keys already stored for this provider. A secret's purpose *is* the
   // provider id, which is what makes this a lookup rather than a convention.
   const keys = secrets.filter((secret) => secret.purpose === providerId);
@@ -194,33 +267,32 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
 
   // Whether the form is still showing the model it *started* on, untouched.
   //
-  // What makes pre-filling safe: pressing the button without changing anything
-  // selects that model again rather than minting a second row saying the same
-  // thing. Narrowed to `selected` rather than "any profile with this pair", which
-  // was the first attempt and was wrong twice over. It renamed the button whenever
-  // the organization happened to already have the pair - so a flow that deliberately
-  // re-adds one found no "Add model" to press - and worse, it would then have
-  // *selected the old profile* while ignoring the endpoint, the key and the name
-  // somebody had just typed. A form with any of those filled in is creating
-  // something, whatever its first two fields say.
+  // What makes pre-filling safe: untouched, the form is showing the model in
+  // use, so the form says so in place of a button - it used to offer "Use
+  // this model", which selected the model already selected. Narrowed to `selected` rather
+  // than "any profile with this pair", which was the first attempt and was wrong
+  // twice over. It renamed the button whenever the organization happened to
+  // already have the pair - so a flow that deliberately re-adds one found no
+  // "Add model" to press - and worse, it would then have *selected the old
+  // profile* while ignoring the endpoint, the key and the name somebody had
+  // just typed. A form with any of those filled in is creating something,
+  // whatever its first two fields say.
   const unchanged =
     selected !== undefined &&
     provider?.id === selected.provider &&
     model.trim() === selected.model &&
     label.trim() === "" &&
     baseUrl.trim() === (selected.base_url ?? "") &&
+    api === (selected.api ?? null) &&
     // The key is part of "changed" too: an organization with two keys for one
     // provider can re-point a model at the other, and a submit that ignored this
     // would select the old profile and silently drop the key just picked.
     (secretId === "" || secretId === (selected.secret_id ?? ""));
-  const already = unchanged ? selected : undefined;
 
   const canSubmit =
     provider !== undefined &&
     model.trim() !== "" &&
-    // A model the organization already has needs no key decision: it has whatever
-    // it was created with, and this submit only selects it.
-    (already !== undefined || chosenKey !== "" || keyOptional) &&
+    (chosenKey !== "" || keyOptional) &&
     modelIdIsWellFormed(provider.id, model.trim());
 
   // Both ways of choosing a key, because a refusal that outlives the value it
@@ -234,10 +306,6 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
     /* v8 ignore next -- the id comes from the list this select was built from */
     if (provider === undefined) return;
     setFailure(NO_FAILURE);
-    if (already !== undefined) {
-      onCreated(already);
-      return;
-    }
     try {
       const profile = await createProfile.mutateAsync({
         label: label.trim() || `${provider.label} · ${model.trim()}`,
@@ -249,6 +317,9 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
         // Only when the provider has one. Sending it otherwise is refused rather
         // than dropped, which is the right refusal but a pointless round trip.
         base_url: acceptsEndpoint && baseUrl.trim() !== "" ? baseUrl.trim() : null,
+        // Sent even when it is the default, so what the select shows is what is
+        // stored - and a refusal, were there one, would be about this field.
+        api,
       });
       onCreated(profile);
     } catch (error) {
@@ -269,10 +340,11 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
           <Select
             value={providerId}
             onValueChange={(value) => {
-              setProviderId(value);
+              setPickedProvider(value);
               setSecretId("");
               setModel("");
               setBaseUrl("");
+              setPickedApi(null);
               setFailure(NO_FAILURE);
             }}
           >
@@ -438,6 +510,33 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
         </FormField>
       )}
 
+      {provider !== undefined && api !== null && (
+        <FormField
+          htmlFor="add-model-api"
+          label={t("modelApi")}
+          description={providerId === "azure" ? t("modelApiHintAzure") : t("modelApiHint")}
+        >
+          <Select
+            value={api}
+            onValueChange={(value) => {
+              setPickedApi(capabilities?.apis.find((entry) => entry === value) ?? null);
+              setFailure(NO_FAILURE);
+            }}
+          >
+            <SelectTrigger id="add-model-api">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {capabilities?.apis.map((entry) => (
+                <SelectItem key={entry} value={entry}>
+                  {entry === "responses" ? t("modelApiResponses") : t("modelApiChat")}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FormField>
+      )}
+
       {/* The name is derived and almost never worth changing - it exists so an
           organization can run the same model twice under two keys and tell them
           apart. Behind a disclosure rather than in the way. */}
@@ -469,15 +568,23 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
       {failure.toast !== null && <p className="text-destructive text-xs">{failure.toast}</p>}
 
       <div className="flex items-center gap-2 pt-1">
-        <Button
-          type="button"
-          size="sm"
-          disabled={disabled || !canSubmit || createProfile.isPending}
-          onClick={submit}
-        >
-          {already === undefined && <Plus className="h-4 w-4" />}
-          {already === undefined ? t("addModel") : t("useThisModel")}
-        </Button>
+        {unchanged ? (
+          // A state, not an action: there is nothing to add until a field changes.
+          <span className="text-muted-foreground inline-flex h-8 items-center gap-1.5 text-sm">
+            <Check className="text-success h-4 w-4" />
+            {t("modelInUse")}
+          </span>
+        ) : (
+          <Button
+            type="button"
+            size="sm"
+            disabled={disabled || !canSubmit || createProfile.isPending}
+            onClick={submit}
+          >
+            <Plus className="h-4 w-4" />
+            {t("addModel")}
+          </Button>
+        )}
         {onCancel && (
           <Button type="button" size="sm" variant="ghost" onClick={onCancel}>
             {t("cancel")}

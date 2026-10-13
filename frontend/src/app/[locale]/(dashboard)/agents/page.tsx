@@ -3,10 +3,12 @@
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Bot, Plus } from "lucide-react";
+import { Bot, Library, Plus } from "lucide-react";
 
 import { AgentCard } from "@/components/agents/agent-card";
+import { AgentTemplateDialog } from "@/components/agents/agent-template-dialog";
 import { CreateAgentDialog } from "@/components/agents/create-agent-dialog";
+import { LabelFilter } from "@/components/agents/label-filter";
 import { PageHeader } from "@/components/dashboard/page-header";
 import {
   Button,
@@ -73,18 +75,50 @@ export default function AgentsPage() {
   const router = useRouter();
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
+  // The discovery facet is server-driven: it filters the whole set rather than
+  // the fetched page, so it drives the request rather than the client `useMemo`
+  // the status and text filters do.
+  const [categories, setCategories] = useState<string[]>([]);
+  const [tags, setTags] = useState<string[]>([]);
   const [createOpen, setCreateOpen] = useState(false);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
+  const tTemplates = useTranslations("agentTemplates");
   const [pendingDelete, setPendingDelete] = useState<Agent | null>(null);
   const [pendingArchive, setPendingArchive] = useState<Agent | null>(null);
 
   // Archived agents are fetched only when they could be shown. The list is the
   // same query otherwise, so switching between the first three filters costs
   // nothing.
-  const { agents, isLoading, clone, archive, unarchive, remove } = useAgents({
+  const {
+    agents,
+    total,
+    categoryOptions,
+    tagOptions,
+    isLoading,
+    clone,
+    archive,
+    unarchive,
+    remove,
+  } = useAgents({
     includeArchived: filter === "all" || filter === "archived",
+    categories,
+    tags,
   });
   const { can } = usePermissions();
   const canEdit = can(Perm.agentsEdit);
+
+  // Any narrowing at all - the client status/text filters and the server facet.
+  // A zero-match facet returns an empty page, so this is what tells "no agent
+  // matched" from "no agents exist", and it gates the Clear-filters CTA.
+  const filtersActive =
+    filter !== "all" || query.trim() !== "" || categories.length > 0 || tags.length > 0;
+
+  const clearFilters = () => {
+    setFilter("all");
+    setQuery("");
+    setCategories([]);
+    setTags([]);
+  };
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -121,6 +155,24 @@ export default function AgentsPage() {
         </SelectContent>
       </Select>
       <SearchInput value={query} onChange={setQuery} placeholder={t("searchAgents2")} />
+      <LabelFilter
+        options={categoryOptions}
+        selected={categories}
+        onChange={setCategories}
+        ariaLabel={t("filterByCategory")}
+        allLabel={t("allCategories")}
+        countLabel={(count) => t("categoryCount", { count })}
+        clearLabel={t("clearFilter")}
+      />
+      <LabelFilter
+        options={tagOptions}
+        selected={tags}
+        onChange={setTags}
+        ariaLabel={t("filterByTag")}
+        allLabel={t("allTags")}
+        countLabel={(count) => t("tagCount", { count })}
+        clearLabel={t("clearFilter")}
+      />
     </div>
   );
 
@@ -131,10 +183,20 @@ export default function AgentsPage() {
         description={t("agentConfigurationNotCode")}
         actions={
           canEdit ? (
-            <Button data-tour="agents-new" onClick={() => setCreateOpen(true)}>
-              <Plus className="h-4 w-4" />
-              {t("newAgent")}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                data-tour="agents-templates"
+                onClick={() => setTemplatesOpen(true)}
+              >
+                <Library className="h-4 w-4" />
+                {tTemplates("browse")}
+              </Button>
+              <Button data-tour="agents-new" onClick={() => setCreateOpen(true)}>
+                <Plus className="h-4 w-4" />
+                {t("newAgent")}
+              </Button>
+            </div>
           ) : undefined
         }
       />
@@ -145,7 +207,7 @@ export default function AgentsPage() {
           render inside the same frame. */}
       {isLoading ? (
         <AgentsCard visible={null} total={0} controls={galleryControls}>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
             {[0, 1, 2].map((row) => (
               <div key={row} className="border-border rounded-xl border p-4">
                 <div className="flex items-start gap-3">
@@ -161,32 +223,29 @@ export default function AgentsPage() {
           </div>
         </AgentsCard>
       ) : (
-        <AgentsCard visible={visible.length} total={agents.length} controls={galleryControls}>
+        <AgentsCard visible={visible.length} total={total} controls={galleryControls}>
           {visible.length === 0 ? (
             <ListCardEmpty
               icon={Bot}
-              title={agents.length === 0 ? t("noAgentsYet") : t("nothingMatches")}
+              title={filtersActive ? t("nothingMatches") : t("noAgentsYet")}
               description={
-                agents.length === 0
-                  ? canEdit
+                filtersActive
+                  ? t("noAgentHereMatches")
+                  : canEdit
                     ? t("createOneGiveInstructions")
                     : t("nobodyHasSharedAgent")
-                  : t("noAgentHereMatches")
               }
               cta={
-                agents.length > 0
+                filtersActive
                   ? {
                       label: t("clearFilters"),
-                      onClick: () => {
-                        setFilter("all");
-                        setQuery("");
-                      },
+                      onClick: clearFilters,
                     }
                   : undefined
               }
             />
           ) : (
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <div className="rise-in grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
               {visible.map((agent) => (
                 <AgentCard
                   key={agent.id}
@@ -209,6 +268,7 @@ export default function AgentsPage() {
         </AgentsCard>
       )}
 
+      <AgentTemplateDialog open={templatesOpen} onOpenChange={setTemplatesOpen} />
       <CreateAgentDialog
         open={createOpen}
         onOpenChange={setCreateOpen}

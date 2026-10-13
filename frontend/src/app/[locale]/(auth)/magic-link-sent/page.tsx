@@ -44,8 +44,8 @@ export default async function MagicLinkSentPage({ searchParams }: PageProps) {
       </div>
 
       <div className="space-y-2">
-        <span className="eyebrow text-foreground/55">{t("magicLink")}</span>
-        <h1 className="text-display-md text-foreground [&_em]:font-normal [&_em]:italic">
+        <span className="text-muted-foreground text-sm font-medium">{t("magicLink")}</span>
+        <h1 className="text-foreground text-[2rem] leading-tight font-semibold tracking-tight text-balance [&_em]:not-italic">
           {t.rich("inboxIncoming", { em: (chunks) => <em>{chunks}</em> })}
         </h1>
         <p className="text-foreground/70 text-sm">
@@ -75,7 +75,7 @@ export default async function MagicLinkSentPage({ searchParams }: PageProps) {
 
       <Link
         href={ROUTES.LOGIN}
-        className="text-foreground/55 hover:text-foreground inline-flex items-center gap-2 text-sm font-medium"
+        className="text-muted-foreground hover:text-foreground inline-flex items-center gap-2 text-sm font-medium"
       >
         <ArrowLeft className="h-4 w-4" />
         {t("backSign")}

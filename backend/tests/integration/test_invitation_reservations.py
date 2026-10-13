@@ -15,6 +15,7 @@ is the row lock and the `WHERE` being re-evaluated against the version it locked
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -171,3 +172,70 @@ async def test_two_registrations_racing_on_the_last_use_do_not_both_get_it(db, e
     assert [first, second].count(True) == 1
     await db.refresh(invite)
     assert len(invite.reserved_emails) == 1
+
+
+async def _acceptor(db) -> User:
+    user = User(
+        id=uuid.uuid4(),
+        email=f"{uuid.uuid4().hex}@example.com",
+        hashed_password="x",
+        is_active=True,
+    )
+    db.add(user)
+    await db.flush()
+    return user
+
+
+async def test_two_accepts_of_a_one_use_link_admit_exactly_one_member(db, engine) -> None:
+    """The acceptance-side race, which `reserve_use` does not cover.
+
+    `accept` reads `used_count`, checks it against `max_uses`, and increments -
+    unlocked, two accepts of a one-use link both read zero and both create a
+    member (#17). Locking the invitation row in `accept` serializes them.
+
+    Deterministic on purpose: one acceptance is held open (uncommitted, lock on
+    the invitation row) while the other runs. With the lock the second blocks on
+    the `get_by_token` read and, once the first commits, re-reads an exhausted
+    link and is refused; without it the second blocks later on the `record_use`
+    write, having already passed the guard against a `used_count` of zero, and a
+    second member is created. `gather` alone does not reproduce it - the pair
+    serialises and the first commits before the second reads.
+    """
+    from app.core.exceptions import BadRequestError
+    from app.repositories import member_repo
+    from app.services.invitation import InvitationService
+
+    invite = await _link(db, max_uses=1)
+    one = await _acceptor(db)
+    two = await _acceptor(db)
+    await db.commit()
+
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    session_a = factory()
+    b_task: asyncio.Task[None] | None = None
+    try:
+        await InvitationService(session_a).accept(invite.token, accepting_user_id=one.id)
+
+        async def accept_b() -> None:
+            async with factory() as session_b:
+                await InvitationService(session_b).accept(invite.token, accepting_user_id=two.id)
+                await session_b.commit()
+
+        b_task = asyncio.create_task(accept_b())
+        await asyncio.sleep(0.4)
+        assert not b_task.done()  # blocked on A's lock
+
+        await session_a.commit()
+
+        with pytest.raises(BadRequestError):
+            await b_task
+        b_task = None
+    finally:
+        if b_task is not None:
+            b_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await b_task
+        await session_a.close()
+
+    members = await member_repo.count_for_org(db, invite.organization_id)
+    assert members == 1

@@ -1,4 +1,4 @@
-import { Bell, Shield, Slash, UserCircle } from "lucide-react";
+import { Bell, Brain, Shield, Slash, UserCircle } from "lucide-react";
 
 import type { PageTab } from "@/components/dashboard/page-tabs";
 import { ROUTES } from "@/lib/constants";
@@ -31,5 +31,6 @@ export const SETTINGS_TABS: readonly PageTab[] = [
   { labelKey: "profile", href: ROUTES.SETTINGS_PROFILE, icon: UserCircle },
   { labelKey: "account", href: ROUTES.SETTINGS_ACCOUNT, icon: Shield },
   { labelKey: "slashCommands", href: ROUTES.SETTINGS_SLASH_COMMANDS, icon: Slash },
+  { labelKey: "memory", href: ROUTES.SETTINGS_MEMORY, icon: Brain },
   { labelKey: "notifications", href: ROUTES.SETTINGS_NOTIFICATIONS, icon: Bell },
 ];

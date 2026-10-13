@@ -100,7 +100,12 @@ describe("arriving with an invitation", () => {
     // Somebody holding an invitation is not the audience for "ask an administrator
     // to invite you" - the policy admits them, and telling them otherwise reads as
     // a refusal they have already satisfied.
-    searchParams.value = new URLSearchParams({ invitation: "tok" });
+    // The token is gone by the time the form renders - it was staged into a cookie
+    // (#1414) - so the invited signal is now the credential-free pending landing,
+    // bound to the flow whose cookie the register proxy forwards.
+    searchParams.value = new URLSearchParams({
+      returnTo: "/invitations/pending?flow=0123456789abcdef0123456789abcdef",
+    });
 
     render(<RegisterForm />, { wrapper: branded({ signupMode: "invite_only" }) });
 
@@ -117,7 +122,11 @@ describe("arriving with an invitation", () => {
   it("still shows no form on a closed deployment", () => {
     // "Closed" that lets some registrations through is not closed, and the backend
     // agrees - so offering the form here would be a form that always fails.
-    searchParams.value = new URLSearchParams({ invitation: "tok" });
+    // The token is gone by the time the form renders - it was staged into a cookie
+    // (#1414) - so the invited signal is now the credential-free pending landing.
+    searchParams.value = new URLSearchParams({
+      returnTo: "/invitations/pending?flow=0123456789abcdef0123456789abcdef",
+    });
 
     render(<RegisterForm />, { wrapper: branded({ signupMode: "closed" }) });
 

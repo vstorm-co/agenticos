@@ -31,6 +31,7 @@ from app.agents.capabilities.planning._capability import (
     dump_plan,
     new_plan_store,
     open_plan_store,
+    still_open,
 )
 
 __all__ = [
@@ -41,6 +42,7 @@ __all__ = [
     "dump_plan",
     "new_plan_store",
     "open_plan_store",
+    "still_open",
 ]
 
 

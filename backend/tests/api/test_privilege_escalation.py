@@ -32,7 +32,7 @@ from app.core.config import settings
 from app.main import app
 from app.schemas.user import UserCreate, UserRead, UserUpdate
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 # Every spelling somebody might reach for. `role` is included deliberately: the
 # column was dropped in migration 0066, and a schema that started accepting it
@@ -44,6 +44,7 @@ def _stored_user(*, is_app_admin: bool = False) -> MagicMock:
     user = MagicMock()
     user.id = uuid4()
     user.email = "member@example.com"
+    user.pending_email = None
     user.full_name = "A Member"
     user.is_active = True
     user.is_app_admin = is_app_admin
@@ -73,10 +74,14 @@ class _RecordingUserService:
         self.received = user_in
         return self.stored
 
-    async def update_current(self, user: MagicMock, user_in: UserUpdate) -> MagicMock:
+    async def update_current(
+        self, user: MagicMock, user_in: UserUpdate, *, current_session_id: UUID | None = None
+    ) -> tuple[MagicMock, str | None]:
         # The self-update route goes through the self-suspend guard; this test is
         # about which fields reach the update, so it delegates like the real one.
-        return await self.update(user.id, user_in)
+        # The second half of the answer is the email-change token (#1772), and
+        # nothing here asks for an address change.
+        return await self.update(user.id, user_in), None
 
     async def admin_update(
         self, user_id: UUID, user_in: UserUpdate, *, acting_admin_id: UUID
@@ -170,13 +175,29 @@ class TestPatchingYourOwnProfile:
 
 
 class TestAnAppAdminPatchingSomebodyElse:
-    async def test_even_an_app_admin_cannot_grant_the_flag_over_http(self) -> None:
+    async def test_even_an_app_admin_cannot_grant_the_flag_over_http(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """`PATCH /users/{id}` is app-admin gated and can edit any account, which is
         the surface where granting would be most tempting to wire up. The privilege
         is CLI-only on purpose: it is the one thing that reaches every tenant."""
         admin = _stored_user(is_app_admin=True)
         target = _stored_user(is_app_admin=False)
         service = _RecordingUserService(target)
+
+        # This route now delegates to `admin_users.update_user` (#1598), which
+        # also records an audit entry and sends a `security_event`
+        # notification - this test is about the escalation guard, not the
+        # audit trail, and `_client`'s own `db` mock has nothing to answer
+        # `record_audit`'s real queries with.
+        monkeypatch.setattr(
+            "app.api.routes.v1.admin_users.record_audit",
+            AsyncMock(return_value=MagicMock()),
+        )
+        monkeypatch.setattr(
+            "app.api.routes.v1.admin_users.NotificationService",
+            MagicMock(return_value=AsyncMock()),
+        )
 
         async with _client(caller=admin, service=service) as client:
             response = await client.patch(

@@ -51,6 +51,7 @@ const SPEND = {
   by_agent: [
     {
       agent_id: "agent-1",
+      agent_slug: "agent",
       agent_name: "Agent",
       cost_usd: "12.40",
       run_count: 3,

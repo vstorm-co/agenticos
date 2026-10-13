@@ -28,7 +28,7 @@ export function SectionHeading({
     <div className={cn("flex items-start justify-between gap-3", className)}>
       <div className="min-w-0">
         {eyebrow && (
-          <p className="text-muted-foreground mb-1 font-mono text-[11px] font-medium tracking-[0.1em] uppercase">
+          <p className="text-muted-foreground mb-1 font-mono text-xs font-medium tracking-[0.1em] uppercase">
             {eyebrow}
           </p>
         )}

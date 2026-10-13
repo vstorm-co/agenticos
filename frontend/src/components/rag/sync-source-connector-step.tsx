@@ -85,7 +85,7 @@ export function ConnectorStep({
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="text-foreground text-sm font-semibold">{conn.name}</p>
-                    <p className="text-foreground/55 truncate font-mono text-[10px] tracking-wider uppercase">
+                    <p className="text-muted-foreground truncate font-mono text-[11px] tracking-wider uppercase">
                       {conn.type}
                     </p>
                   </div>

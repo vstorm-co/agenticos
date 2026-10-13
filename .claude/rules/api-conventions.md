@@ -1,6 +1,6 @@
 ---
 description: API design, REST conventions, auth, pagination, response format
-globs: ["backend/app/api/**/*.py"]
+paths: ["backend/app/api/**/*.py"]
 ---
 
 # API Conventions

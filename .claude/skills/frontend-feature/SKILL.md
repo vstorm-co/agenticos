@@ -3,7 +3,9 @@ name: frontend-feature
 description: Build or change a page, view or data-driven feature in the Next.js frontend — a route under the dashboard, wiring UI to a backend endpoint, a Zustand store, a permission that must hide a control, or localized copy. Use for any work in frontend/src, including "the page renders but shows an empty state" and "this button should not be visible to a Viewer".
 ---
 
-# Frontend — Next.js 15, React 19
+# Frontend — Next.js and React
+
+Use the versions declared in `frontend/package.json` and the lockfile.
 
 `.claude/rules/frontend.md` has the conventions. `docs/architecture.md` has the
 request path. This is the working layout and the traps.

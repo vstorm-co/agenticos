@@ -38,13 +38,18 @@ import { CapabilityWorkbench } from "@/components/agents/capability-workbench";
 import { EmbedsPanel } from "@/components/agents/embeds-panel";
 import { ExposuresPanel } from "@/components/agents/exposures-panel";
 import { TriggersPanel } from "@/components/triggers/triggers-panel";
-import { McpServerPicker } from "@/components/agents/mcp-server-picker";
+import type { McpCatalogEntry } from "@/types/mcp";
+import { ConnectServerDialog } from "@/components/agents/connect-server-dialog";
+import { McpToolPickerDialog } from "@/components/mcp/mcp-tool-picker-dialog";
+import type { ToolPickerState } from "@/components/mcp/mcp-server-list-types";
+import { bindingKey, McpServerPicker } from "@/components/agents/mcp-server-picker";
+import { StaleReferences } from "@/components/agents/stale-references";
 import { McpServerList } from "@/components/mcp/mcp-server-list";
+import { MetadataEditor } from "@/components/agents/metadata-editor";
 import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
 import { ObservabilityCard } from "@/components/agents/observability-card";
 import { PublishDialog } from "@/components/agents/publish-dialog";
 import { PublishState } from "@/components/agents/publish-state";
-import { RunSummary } from "@/components/agents/run-summary";
 import { ModelSettingsForm } from "@/components/agents/model-settings-form";
 import { ThinkingSetting } from "@/components/agents/thinking-setting";
 import { EnvironmentsPanel } from "@/components/agents/environments-panel";
@@ -94,7 +99,6 @@ import {
   useModelProviders,
   useOrgMcpConnections,
   usePermissions,
-  useRuns,
   useSkills,
 } from "@/hooks";
 import {
@@ -107,23 +111,62 @@ import {
   withSkills,
 } from "@/lib/agent-spec";
 import { useContextFiles } from "@/hooks/use-context";
-import type { FieldProblem } from "@/lib/api-error";
+import { getErrorMessage, type FieldProblem } from "@/lib/api-error";
+import { toolsForBinding } from "@/lib/binding-tools";
 import { ROUTES } from "@/lib/constants";
 import { useAgentSelectionStore, useConversationStore } from "@/stores";
 import { cn } from "@/lib/utils";
-import type { AgentSpec, CapabilityBindingSpec } from "@/types/agents";
+import type { AgentSpec, CapabilityBindingSpec, McpServerRef } from "@/types/agents";
+import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
 import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
+import { toast } from "sonner";
 import { DIALOG_CANVAS, DIALOG_SCROLL } from "@/lib/dialog-sizes";
+import { narrowedSelection } from "@/lib/mcp-servers";
 
 interface PageProps {
   params: Promise<{ id: string }>;
+}
+
+/**
+ * What the tool picker opens with for one binding.
+ *
+ * The tools come from the connection's **last successful probe** rather than a
+ * fresh one: probing dials out to a third party and is gated on
+ * `connections:manage`, which an agent author need not hold (#1341).
+ *
+ * A connection nothing has probed yet has no catalogue, and a binding that
+ * already names tools would then read "0 of 0 on" while its card says three -
+ * so the names it holds stand in. They came from the server once, they are what
+ * the agent is bound to, and they can at least be narrowed further without a
+ * probe. The dialog says where to get the real list.
+ */
+function toolChoice(
+  ref: McpServerRef,
+  connection: OrgMcpConnectionRecord,
+  name: string,
+): ToolPickerState {
+  const probed = connection.last_tools;
+  const tools =
+    probed ?? (ref.allowed_tools ?? []).map((tool) => ({ name: tool, description: "" }));
+  return {
+    scope: "organization",
+    // The server's name, not the connection's: a binding to each person's own
+    // account borrows an organization connection's probe for the catalogue of
+    // tools and is not a narrowing of that connection.
+    name,
+    connection,
+    tools,
+    checked: new Set(ref.allowed_tools ?? tools.map((one) => one.name)),
+    appliesTo: "agent",
+  };
 }
 
 export default function AgentBuilderPage({ params }: PageProps) {
   const t = useTranslations("pages.agents");
   const tc = useTranslations("common");
   const tAgents = useTranslations("agents");
+  const tErrors = useTranslations("errors");
   const { id } = use(params);
   const router = useRouter();
   const { agent, isLoading, saveDraft, validate, publish, rollback, setAvatar, setColor } =
@@ -135,23 +178,47 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // The Builder holds the set rather than paging it: the gallery has to know
   // which selected skills still exist, and it can only tell that from what it
   // has. 100 is the endpoint's ceiling; `total` says when that is not all.
-  const { skills, total: skillCount } = useSkills({ limit: 100 });
-  const { files: contextFiles, total: contextCount } = useContextFiles({ limit: 100 });
-  const { kbs: collections } = useKnowledgeBases();
+  const {
+    skills,
+    total: skillCount,
+    isLoading: skillsLoading,
+    error: skillsError,
+  } = useSkills({ limit: 100 });
+  const {
+    files: contextFiles,
+    total: contextCount,
+    isLoading: contextLoading,
+    error: contextError,
+  } = useContextFiles({ limit: 100 });
+  const {
+    kbs: collections,
+    isLoading: collectionsLoading,
+    listError: collectionsError,
+  } = useKnowledgeBases();
   // Only the newest, and only for the number below: the history card pages the
   // rest itself, so a page that fetched fifty to read one would be fetching a
   // list nothing on it renders.
   const { versions } = useAgentVersions(id, { limit: 1 });
-  const { runs } = useRuns(id);
   const { can, isLoaded: permissionsLoaded } = usePermissions();
   // The organization's servers, never the author's own: a personal connection
   // is refused at publish, so offering one would be offering a choice that
   // cannot be published. `useMcpCatalog` only supplies the names and logos -
   // the ids the spec stores belong to the connections.
-  const { connections: mcpConnections } = useOrgMcpConnections();
+  const {
+    connections: mcpConnections,
+    test: probeMcpConnection,
+    isLoading: connectionsLoading,
+    error: connectionsError,
+  } = useOrgMcpConnections();
+  const [connectingServer, setConnectingServer] = useState<McpCatalogEntry | null>(null);
+  const [toolPicker, setToolPicker] = useState<ToolPickerState | null>(null);
+  // Which binding the open tool picker narrows, by `bindingKey`. Kept beside the
+  // picker state rather than inside it because the dialog is shared with the
+  // servers page, where a binding is not a thing.
+  const [toolBinding, setToolBinding] = useState<string | null>(null);
   const { exposures } = useExposures(id);
   const { embeds } = useEmbeds(id);
-  const { servers: mcpCatalog } = useMcpCatalog();
+  const { servers: mcpCatalog, isLoading: catalogLoading, error: catalogError } = useMcpCatalog();
   const selectAgentForChat = useAgentSelectionStore((state) => state.select);
   const resetConversation = useConversationStore((state) => state.reset);
 
@@ -191,6 +258,24 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
   const canEdit = can(Perm.agentsEdit);
   const canPublish = can(Perm.agentsPublish);
+
+  // The stale-reference check reads a reference as dead when its id is absent
+  // from a list, so it must not run until every list it consults has *succeeded*:
+  // each defaults to `[]` while loading and stays `[]` when the request fails, so
+  // gating on "no longer loading" alone would still declare every reference stale
+  // when a list 403s - which the org-connections read does for an editor without
+  // `connections:manage` (#1472).
+  const referenceListsLoaded =
+    !collectionsLoading &&
+    !collectionsError &&
+    !contextLoading &&
+    !contextError &&
+    !skillsLoading &&
+    !skillsError &&
+    !connectionsLoading &&
+    !connectionsError &&
+    !catalogLoading &&
+    !catalogError;
 
   // A builder who cannot add a model, in an organization that has none, can
   // create a draft they can never make work. Both halves are read from a
@@ -349,17 +434,28 @@ export default function AgentBuilderPage({ params }: PageProps) {
         title: t("mcpServers"),
         icon: MAP_ICONS.mcp,
         side: "right",
-        items: spec.mcp_server_ids.map((entry) => {
-          const connection = mcpConnections.find((row) => row.id === entry);
+        items: spec.mcp_servers.map((ref) => {
+          if (ref.account === "personal") {
+            // Named after the service, because there is no connection to name:
+            // whose answers is decided when somebody talks to the agent.
+            const entry = mcpCatalog.find((one) => one.key === ref.catalog_key);
+            const name = entry?.name ?? ref.catalog_key;
+            return {
+              key: bindingKey(ref),
+              label: t("eachPersonsOwnNamed", { name }),
+              mcp: { icon: entry?.icon ?? null, name },
+            };
+          }
+          const connection = mcpConnections.find((row) => row.id === ref.connection_id);
           // The mark belongs to the *catalog* entry a connection matches, not to
           // the connection - which is how the picker resolves it, and the same
           // three-source fallback `McpServerIcon` applies underneath.
           const known =
             connection === undefined ? null : entryForConnection(connection, mcpCatalog);
           return {
-            key: entry,
-            label: connection?.name ?? t("namedMissing", { name: entry }),
-            mcp: { icon: known?.icon ?? null, name: connection?.name ?? entry },
+            key: bindingKey(ref),
+            label: connection?.name ?? t("namedMissing", { name: ref.connection_id }),
+            mcp: { icon: known?.icon ?? null, name: connection?.name ?? ref.connection_id },
           };
         }),
         empty: t("noMcpServersAttached"),
@@ -532,6 +628,9 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
   const isPublished = agent.status === "published";
 
+  // The Memory tab exists only when the capability is bound; a bare binding reads as
+  // what the builder returns for one (native, both shapes on).
+
   const update = (changes: Partial<AgentSpec>) => setSpec({ ...spec, ...changes });
 
   const toggleCapability = (capabilityId: string) => {
@@ -616,11 +715,11 @@ export default function AgentBuilderPage({ params }: PageProps) {
     <div className="space-y-6">
       <PageHeader
         title={
-          <span className="flex items-center gap-3">
-            <span className="group relative">
+          <span className="flex min-w-0 items-center gap-3">
+            <span className="group relative shrink-0">
               <AgentAvatar
                 agentId={id}
-                name={agent.name}
+                slug={agent.slug}
                 hasAvatar={agent.has_avatar}
                 colorSlot={agent.avatar_color}
                 size="lg"
@@ -639,7 +738,16 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 </button>
               )}
             </span>
-            {agent.name}
+            {/* One line, whatever the width: the actions wrap under it before
+                the name is broken, and a name longer than the column ends in
+                an ellipsis with the whole of it on hover. */}
+            <span className="truncate" title={agent.name}>
+              {agent.name}
+            </span>
+          </span>
+        }
+        badges={
+          <>
             <AgentStatusBadge status={agent.status} />
             {/* Two badges, two different questions. This one: is the stored
                 draft what published surfaces are answering with - computed
@@ -660,12 +768,12 @@ export default function AgentBuilderPage({ params }: PageProps) {
               ) : (
                 isDirty && <Badge variant="secondary">{t("unsaved")}</Badge>
               ))}
-          </span>
+          </>
         }
         description={agent.description ?? undefined}
         breadcrumbs={[{ label: t("agents"), href: ROUTES.AGENTS }, { label: agent.name }]}
         actions={
-          <div className="flex items-center gap-2">
+          <>
             {/* Trying the agent happens in the chat, which streams, keeps the
                 conversation and can hand a tool call to the approval queue.
                 Only a published agent has a version to run - the chat's own
@@ -767,9 +875,32 @@ export default function AgentBuilderPage({ params }: PageProps) {
               className="hidden"
               onChange={handleAvatar}
             />
-          </div>
+          </>
         }
       />
+
+      {((agent.categories ?? []).length > 0 || (agent.tags ?? []).length > 0) && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {(agent.categories ?? []).map((label) => (
+            <Badge
+              key={`c:${label}`}
+              variant="outline"
+              className="text-muted-foreground font-normal"
+            >
+              {label}
+            </Badge>
+          ))}
+          {(agent.tags ?? []).map((label) => (
+            <Badge
+              key={`t:${label}`}
+              variant="outline"
+              className="text-muted-foreground font-normal"
+            >
+              {label}
+            </Badge>
+          ))}
+        </div>
+      )}
 
       <Dialog open={mapOpen} onOpenChange={setMapOpen}>
         <DialogContent className={cn(DIALOG_SCROLL, DIALOG_CANVAS)}>
@@ -803,6 +934,48 @@ export default function AgentBuilderPage({ params }: PageProps) {
           <McpServerList canManageOrganization={can(Perm.connectionsManage)} />
         </DialogContent>
       </Dialog>
+
+      <McpToolPickerDialog
+        toolPicker={toolPicker}
+        setToolPicker={setToolPicker}
+        submitting={false}
+        // Written into the spec rather than onto the connection: this is the
+        // agent's narrowing, and the connection's own allowlist is everybody's.
+        // Every tool checked means "no narrowing from here", which is null - not
+        // a list that would freeze out a tool the server adds later.
+        onSave={() => {
+          if (toolPicker === null) return;
+          const allowed = narrowedSelection(
+            toolPicker.checked,
+            toolPicker.tools,
+            // Only a real probe can mean "everything": where the catalogue is
+            // the binding's own names, all-checked is true by construction.
+            toolPicker.connection.last_tools !== null,
+          );
+          update({
+            mcp_servers: spec.mcp_servers.map((ref) =>
+              bindingKey(ref) === toolBinding ? { ...ref, allowed_tools: allowed } : ref,
+            ),
+          });
+          setToolPicker(null);
+          setToolBinding(null);
+        }}
+      />
+
+      <ConnectServerDialog
+        entry={connectingServer}
+        onClose={() => setConnectingServer(null)}
+        // Bound as soon as it exists: somebody who connected a server from
+        // inside the Builder was going to tick it next.
+        onConnected={(connectionId) =>
+          update({
+            mcp_servers: [
+              ...spec.mcp_servers,
+              { account: "organization", connection_id: connectionId, allowed_tools: null },
+            ],
+          })
+        }
+      />
 
       <PublishDialog
         open={publishOpen}
@@ -872,6 +1045,23 @@ export default function AgentBuilderPage({ params }: PageProps) {
       {/* Tabs, because the alternative was a single column of eleven cards and
           a page of scroll between the instructions and the version history.
           Grouped by the question being answered, not by implementation. */}
+      {/* Above the tabs, whatever tab is open: a reference to something deleted
+          is refused at publish, and the panel that would have listed it belongs
+          to a capability the agent may not even have switched on. */}
+      <StaleReferences
+        spec={spec}
+        collections={collections}
+        contextFiles={contextFiles}
+        contextTotal={contextCount}
+        skills={skills}
+        skillTotal={skillCount}
+        connections={mcpConnections}
+        catalog={mcpCatalog}
+        loaded={referenceListsLoaded}
+        onRemove={update}
+        disabled={!canEdit}
+      />
+
       <Tabs defaultValue="build">
         <TabsList>
           <TabsTrigger value="build" data-tour="agent-tab-build">
@@ -960,6 +1150,25 @@ export default function AgentBuilderPage({ params }: PageProps) {
               />
             </CardContent>
           </Card>
+
+          {/* Discovery metadata, not the spec: it autosaves at once like the
+              avatar, so it hangs off the same role-level `canEdit` every other
+              editing control on this page does. */}
+          {canEdit && (
+            <Card>
+              <CardHeader>
+                <CardTitle>{t("discovery")}</CardTitle>
+                <CardDescription>{t("discoveryHelp")}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <MetadataEditor
+                  agentId={id}
+                  categories={agent.categories ?? []}
+                  tags={agent.tags ?? []}
+                />
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="toolbox" className="mt-6 space-y-6">
@@ -970,6 +1179,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             </CardHeader>
             <CardContent>
               <CapabilityWorkbench
+                agentId={id}
                 catalog={grantable}
                 selected={spec.capabilities}
                 onToggle={toggleCapability}
@@ -1060,10 +1270,26 @@ export default function AgentBuilderPage({ params }: PageProps) {
               <McpServerPicker
                 connections={mcpConnections}
                 catalog={mcpCatalog}
-                selectedIds={spec.mcp_server_ids}
-                onToggle={(connectionId) =>
-                  update({ mcp_server_ids: toggleId(spec.mcp_server_ids, connectionId) })
-                }
+                value={spec.mcp_servers}
+                onChange={(mcp_servers) => update({ mcp_servers })}
+                onTools={async (ref, connection, name) => {
+                  setToolBinding(bindingKey(ref));
+                  // A connection nobody has checked has no tool list; check it
+                  // here for whoever may, rather than sending them to the servers
+                  // page to press the button and find their way back.
+                  try {
+                    const { connection: probed, error } = await toolsForBinding(
+                      connection,
+                      can(Perm.connectionsManage) ? probeMcpConnection : null,
+                    );
+                    if (error !== null) toast.error(error);
+                    setToolPicker(toolChoice(ref, probed, name));
+                  } catch (caught) {
+                    toast.error(getErrorMessage(caught, tErrors));
+                    setToolPicker(toolChoice(ref, connection, name));
+                  }
+                }}
+                onConnect={setConnectingServer}
                 disabled={!canEdit}
               />
               <p className="text-muted-foreground mt-4 text-xs">{t("twoLimitsWorthKnowing")}</p>
@@ -1080,23 +1306,36 @@ export default function AgentBuilderPage({ params }: PageProps) {
             <CardContent className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="monthly">{t("monthlyUsd")}</Label>
-                <Input
-                  id="monthly"
-                  type="number"
-                  step="1"
-                  min="0"
-                  value={spec.budget?.monthly_usd ?? ""}
-                  disabled={!canEdit}
-                  onChange={(event) =>
-                    update({
-                      budget: {
-                        ...spec.budget,
-                        monthly_usd: event.target.value ? Number(event.target.value) : null,
-                      },
-                    })
-                  }
-                  placeholder={t("noLimit")}
-                />
+                <div className="relative">
+                  <span
+                    aria-hidden
+                    className="text-muted-foreground pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm"
+                  >
+                    $
+                  </span>
+                  <Input
+                    id="monthly"
+                    type="number"
+                    step="1"
+                    min="0"
+                    value={spec.budget?.monthly_usd ?? ""}
+                    disabled={!canEdit}
+                    onChange={(event) =>
+                      update({
+                        budget: {
+                          ...spec.budget,
+                          monthly_usd: event.target.value ? Number(event.target.value) : null,
+                        },
+                      })
+                    }
+                    placeholder={t("noLimit")}
+                    aria-describedby="monthly-hint"
+                    className="pl-7"
+                  />
+                </div>
+                <p id="monthly-hint" className="text-muted-foreground text-xs">
+                  {t("monthlyUsdHint")}
+                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="max-steps">{t("maxStepsPerRun")}</Label>
@@ -1112,8 +1351,11 @@ export default function AgentBuilderPage({ params }: PageProps) {
                     update({ max_steps: event.target.value ? Number(event.target.value) : null })
                   }
                   placeholder={t("n100Default")}
+                  aria-describedby="max-steps-hint"
                 />
-                <p className="text-muted-foreground text-xs">{t("howManyModelRequests")}</p>
+                <p id="max-steps-hint" className="text-muted-foreground text-xs">
+                  {t("howManyModelRequests")}
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -1188,16 +1430,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 }
                 promoting={promote.isPending}
               />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>{t("recentRuns")}</CardTitle>
-              <CardDescription>{t("whetherAgentWorkingWhat")}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <RunSummary agentId={id} runs={runs} />
             </CardContent>
           </Card>
         </TabsContent>

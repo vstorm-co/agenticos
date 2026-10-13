@@ -14,7 +14,9 @@ const OWNER: User = {
   created_at: "2026-01-01T00:00:00Z",
 };
 
-vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
+vi.mock("next-intl", async () => ({
+  useTranslations: (await import("@/test-utils/intl")).keyTranslations(),
+}));
 vi.mock("@/hooks", () => ({ useAuth: () => ({ user: currentUser(), logout: vi.fn() }) }));
 vi.mock("@/stores", () => ({
   useAuthStore: <T,>(selector: (state: { avatarVersion: number }) => T): T =>

@@ -324,14 +324,25 @@ async def claim_due(db: AsyncSession, *, now: datetime, limit: int = 100) -> lis
     * no non-terminal top-level run sits in the trigger's own run-log
       conversation. The `last_run_id` join is a fast, indexed check on the *linked*
       previous run, but the link and the run are written in two steps: `_run`
-      commits an `awaiting_approval` row, and only then does `fire` stamp
-      `last_run_id` against it. A worker that dies between those leaves a durable
-      parked run the schedule must still wait behind, with `last_run_id` still
-      naming the previous terminal run - so once the lease lapses the join alone
-      would reclaim the trigger and fire over the pending approval. This `EXISTS`
-      reconciles the conversation directly, catching an in-flight run whether or
-      not it was ever linked. Top-level only (`parent_run_id IS NULL`): a
-      delegated child shares the conversation but is not the fire.
+      commits its row, and only then does `fire` stamp `last_run_id` against it. A
+      worker that dies between those leaves a durable run the schedule must still
+      wait behind, with `last_run_id` still naming the previous terminal run - so
+      once the lease lapses the join alone would reclaim the trigger and fire over
+      it. This `EXISTS` reconciles the conversation directly, catching an
+      in-flight run whether or not it was ever linked. Top-level only
+      (`parent_run_id IS NULL`): a delegated child shares the conversation but is
+      not the fire.
+
+      `running` earns the block as much as `awaiting_approval` does, and for a
+      reason the lease cannot cover: a run's row is committed `running` before
+      its model is called (#12), so a *concurrent* `run_now` or event fire -
+      which takes no lease - is visible here for its whole life, and a schedule
+      that ignored it would run the same agent twice into one run log, paying
+      for both. What keeps a *crashed* run's durable `running` row from wedging
+      the schedule for ever is not this predicate but the stale-run sweep,
+      which ends such a row `failed` within its ceiling
+      (`app/services/run_reaper.py`); until it does, waiting behind a row that
+      claims to be running is the safe reading of it.
     """
     in_flight = aliased(AgentRun)
     has_run_in_flight = (

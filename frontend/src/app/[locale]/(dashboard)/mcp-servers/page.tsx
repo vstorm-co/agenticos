@@ -51,7 +51,7 @@ export default function McpServersPage() {
         // same columns - a skeleton that draws a different shape is a layout
         // jump on every load.
         <ListCard title={tMcp("servers")} counted={null} contentClassName="p-4">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {Array.from({ length: 8 }, (_, tile) => (
               <div key={tile} className="border-border rounded-xl border p-4">
                 <div className="flex items-start gap-2.5">

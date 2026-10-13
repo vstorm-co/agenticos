@@ -1,8 +1,7 @@
 "use client";
 
-import { Sparkles } from "lucide-react";
-
 import { useBranding } from "@/components/branding/branding-provider";
+import { AMIGO_HEAD_DATA_URI } from "@/lib/amigo-head.generated";
 import { cn } from "@/lib/utils";
 
 /**
@@ -41,17 +40,24 @@ export function BrandMark({ className, size = 24 }: { className?: string; size?:
   }
 
   return (
-    <span
+    // Amigo, cropped to his head so he fits a square slot. An `<img>` on a data
+    // URI rather than inline paths, because `icon.tsx` hands `next/og` that exact
+    // string - one drawing is what keeps the browser tab and the sidebar showing
+    // the same face.
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={AMIGO_HEAD_DATA_URI}
+      alt=""
       aria-hidden
       title={appName}
-      className={cn(
-        "bg-foreground text-background inline-flex shrink-0 items-center justify-center rounded-md",
-        className,
-      )}
-      style={{ width: size, height: size }}
+      width={size}
+      height={size}
+      className={cn("shrink-0", className)}
+      // The drawing is 16 pixels wide, so it is exact at 16, 32, 48 and 64 and
+      // interpolated everywhere else; `pixelated` keeps those edges hard instead
+      // of smearing a sprite into a smudge.
+      style={{ width: size, height: size, imageRendering: "pixelated" }}
       data-testid="brand-glyph"
-    >
-      <Sparkles style={{ width: size * 0.58, height: size * 0.58 }} />
-    </span>
+    />
   );
 }

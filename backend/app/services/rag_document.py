@@ -1,17 +1,17 @@
 # ruff: noqa: I001 - Imports structured for Jinja2 template conditionals
 """RAG document service."""
 
-import anyio
 import logging
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from uuid import UUID
 
+import anyio
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.exceptions import BadRequestError, NotFoundError
+from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.rag_document import DocumentStatus, RAGDocument
@@ -19,7 +19,7 @@ from app.services.rag.config import get_supported_formats
 from app.services.rag.documents import has_indexable_text
 from app.services.rag.ingestion import IngestionService
 from app.services.rag.vectorstore import BaseVectorStore
-from app.repositories import rag_document_repo
+from app.repositories import collection_teardown_repo, knowledge_base_repo, rag_document_repo
 from app.schemas.rag import (
     RAGIngestResponse,
     RAGParsedContent,
@@ -27,7 +27,9 @@ from app.schemas.rag import (
     RAGTrackedDocumentItem,
     RAGTrackedDocumentList,
 )
+from app.schemas.sync_source import blank_is_absent
 from app.services.file_storage import get_file_storage
+from app.services.notifications import NotificationService
 from app.services.spend import assert_organization_within_budget
 from app.services.ingestion_config import (
     IngestionConfig,
@@ -63,6 +65,7 @@ def _tracked_item(doc: RAGDocument) -> RAGTrackedDocumentItem:
         image_description_model=doc.image_description_model,
         embedding_model=doc.embedding_model,
         was_overridden=doc.ingestion_override is not None,
+        organizational_unit=doc.organizational_unit,
     )
 
 
@@ -72,18 +75,22 @@ class RAGDocumentService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def list_documents(self, *, collections: list[str]) -> RAGTrackedDocumentList:
-        """List tracked RAG documents belonging to the named collections.
+    async def list_documents(
+        self, *, collections: list[str], skip: int = 0, limit: int = 50
+    ) -> RAGTrackedDocumentList:
+        """List a page of tracked RAG documents belonging to the named collections.
 
-        The argument is required and takes no default on purpose: the caller
-        decides which collections it is entitled to see, and there is no way to
-        ask for "all of them" by forgetting to say. An empty list is an empty
-        answer.
+        The `collections` argument is required and takes no default on purpose:
+        the caller decides which collections it is entitled to see, and there is
+        no way to ask for "all of them" by forgetting to say. An empty list is an
+        empty answer.
         """
-        docs = await rag_document_repo.get_all(self.db, collections=collections)
+        rows, total = await rag_document_repo.get_all(
+            self.db, collections=collections, skip=skip, limit=limit
+        )
         return RAGTrackedDocumentList(
-            items=[_tracked_item(d) for d in docs],
-            total=len(docs),
+            items=[_tracked_item(d) for d in rows],
+            total=total,
         )
 
     async def list_for_kb(
@@ -119,12 +126,15 @@ class RAGDocumentService:
         filetype: str,
         storage_path: str | None = None,
         source_path: str | None = None,
+        sync_source_id: UUID | None = None,
         organization_id: UUID | None = None,
         knowledge_base_id: UUID | None = None,
         ingestion_config: IngestionConfig | None = None,
         ingestion_override: IngestionOverride | None = None,
         image_description_model: str | None = None,
         embedding_model: str | None = None,
+        organizational_unit: str | None = None,
+        initiated_by_user_id: UUID | None = None,
     ) -> RAGDocument:
         """Create a new RAG document tracking record.
 
@@ -139,6 +149,22 @@ class RAGDocumentService:
         `replace=false`, mean both to exist. Retiring by that name would delete
         the first one's failed row - its diagnosis, its retry and its stored file
         - for a caller who asked for no such thing.
+
+        `initiated_by_user_id` is who to notify about this document's outcome
+        (#1598) - `dispatch_upload` passes its caller's; a sync or a CLI ingest
+        passes none, and their `ingestion_completed`/`ingestion_failed` falls
+        back to the organization's administrators instead.
+
+        `organizational_unit` is which part of the organization this document
+        belongs to - the FA-039 retrieval dimension. It is stored on the row so
+        the worker reads what this upload decided rather than a flow parameter a
+        queued run would not carry, exactly as the resolved `ingestion_config`
+        is. `None` leaves the dimension absent, which is what every chunk
+        carried before anything wrote it (#1777).
+
+        `sync_source_id` is the source a connector sync ingested this for, and
+        the row is opened claimed by it: that claim is what lets a later run of
+        the source remove it once it is no longer listed (`unlisted_by_source`).
         """
         if source_path:
             await rag_document_repo.discard_failed(
@@ -152,6 +178,7 @@ class RAGDocumentService:
             filetype=filetype,
             storage_path=storage_path or "",
             source_path=source_path,
+            sync_source_id=sync_source_id,
             organization_id=organization_id,
             knowledge_base_id=knowledge_base_id,
             ingestion_config=(
@@ -164,6 +191,8 @@ class RAGDocumentService:
             ),
             image_description_model=image_description_model,
             embedding_model=embedding_model,
+            organizational_unit=organizational_unit,
+            initiated_by_user_id=initiated_by_user_id,
         )
 
     async def dispatch_upload(
@@ -178,6 +207,7 @@ class RAGDocumentService:
         override: IngestionOverride | None = None,
         organization_id: UUID | None = None,
         knowledge_base_id: UUID | None = None,
+        organizational_unit: str | None = None,
     ) -> RAGIngestResponse:
         """Validate, persist, and queue an uploaded file for ingestion.
 
@@ -198,8 +228,8 @@ class RAGDocumentService:
           3. resolution of the image-description model, so a bad profile id in
              an override is refused here and not in a worker an hour later;
           4. permanent storage via `FileStorage`;
-          5. a RAGDocument recording the resolved configuration and the override
-             that produced it;
+          5. a RAGDocument recording the resolved configuration, the override
+             that produced it and the organizational unit this upload named;
           6. lazy creation of the target vector collection;
           7. tmp-copy under `MEDIA_DIR/_rag_tmp` (shared with worker container);
           8. dispatch of the ingestion task on the configured task backend.
@@ -234,6 +264,23 @@ class RAGDocumentService:
 
         image_model = await ingestion.resolved_image_model(ctx.organization_id, config)
 
+        # Refuse a write to a name mid-teardown, the way `claim` refuses a create of
+        # one: the durable drop frees the name only once its table is gone, and a write
+        # slipped into that window would `_ensure_collection`-recreate the table the
+        # drop then destroys, orphaning this row and losing its vectors. The reservation
+        # is committed with the delete, so this catches every upload that arrives after
+        # it. Deliberately unlocked: taking the teardown lock here, before the insert's
+        # foreign-key lock on the knowledge_bases row, would invert
+        # `KnowledgeBaseService.delete`'s order (that row first, then the teardown lock)
+        # and deadlock. Fully serialising the narrow commit-to-reserve window, and the
+        # worker ingestion paths, is #1382 (#1362, #1364).
+        if await collection_teardown_repo.is_reserved(self.db, collection_name):
+            raise AlreadyExistsError(
+                message=f"A collection named '{collection_name}' is being torn down; "
+                "try again shortly",
+                details={"collection": collection_name},
+            )
+
         storage = get_file_storage()
         storage_path = await storage.save(f"rag/{collection_name}", filename, file_data)
         rag_doc = await self.create_document(
@@ -248,6 +295,8 @@ class RAGDocumentService:
             ingestion_override=override,
             image_description_model=image_model,
             embedding_model=collection.embedding_model,
+            organizational_unit=blank_is_absent(organizational_unit),
+            initiated_by_user_id=ctx.user_id,
         )
         doc_id = rag_doc.id
 
@@ -259,6 +308,7 @@ class RAGDocumentService:
             filename=filename,
             file_data=file_data,
             replace=replace,
+            attempt=1,
         )
 
         return RAGIngestResponse(
@@ -277,8 +327,15 @@ class RAGDocumentService:
         filename: str,
         file_data: bytes,
         replace: bool,
+        attempt: int,
     ) -> None:
         """Put the file where the worker can read it and dispatch the parse.
+
+        `attempt` has no default: `dispatch_upload` passes `1`, `retry_ingestion`
+        its freshly bumped value, and each is a deliberate choice at the one
+        place that knows which attempt is being dispatched (#1598) - carried
+        through to `complete_ingestion`/`fail_ingestion` at settlement, per
+        Decision 1's "threaded through the call, not read back" rule.
 
         The copy under `MEDIA_DIR/_rag_tmp` is what the flow opens: permanent
         storage may be somewhere the worker container cannot reach, and the
@@ -306,6 +363,7 @@ class RAGDocumentService:
                 filepath=tmp_path,
                 source_path=filename,
                 replace=replace,
+                attempt=attempt,
             ),
             name=f"ingest-document-{doc_id}",
         )
@@ -317,34 +375,65 @@ class RAGDocumentService:
         *,
         chunk_count: int,
         replaced_document_id: str | None,
+        attempt: int,
     ) -> None:
         """Mark a document as successfully ingested, retiring what it replaced.
 
-        Neither keyword has a default on purpose. `chunk_count` had one, `0`,
-        and all four call sites took it - so every document in the product
-        reported an empty collection that answered searches perfectly well
-        (#147). `replaced_document_id` is the same shape of trap one step on: a
-        call site that omits it leaves a stale row behind and the collection
-        over-reports by exactly the size of the document just replaced.
+        Neither `chunk_count` nor `replaced_document_id` has a default on
+        purpose. `chunk_count` had one, `0`, and all four call sites took it -
+        so every document in the product reported an empty collection that
+        answered searches perfectly well (#147). `replaced_document_id` is the
+        same shape of trap one step on: a call site that omits it leaves a
+        stale row behind and the collection over-reports by exactly the size
+        of the document just replaced. `attempt` is the same shape again, one
+        layer up (#1598): it is the attempt this settlement is *about*,
+        carried from whichever call dispatched it (`dispatch_upload` or
+        `retry_ingestion`, by way of `ingest_document_flow`) rather than read
+        back from `doc.ingestion_attempt` here - a slow attempt settling after
+        a newer retry has already bumped that column would otherwise steal the
+        newer attempt's notification dedup key. A settlement whose `attempt`
+        no longer matches the row's current one belongs to a superseded retry
+        and is silently ignored, matching the delivery sweep's own "who still
+        holds the claim" rule one layer up (Decision 3).
         """
         doc = await self.get_document(doc_id)
-        await rag_document_repo.update_status(
+        updated = await rag_document_repo.update_status(
             self.db,
             doc.id,
             status=DocumentStatus.DONE,
             vector_document_id=vector_document_id,
             chunk_count=chunk_count,
             completed_at=datetime.now(UTC),
+            expected_attempt=attempt,
         )
+        if updated is None:
+            logger.info(
+                "Ignoring a stale ingestion settlement for %s: attempt %d no longer current",
+                doc_id,
+                attempt,
+            )
+            return
         if replaced_document_id:
             await self._retire_superseded(
                 collection_name=doc.collection_name,
                 vector_document_id=replaced_document_id,
                 keep_id=doc.id,
+                source_path=doc.source_path,
             )
+        # No notification on the way out. A document that indexed cleanly is
+        # not news: the collection already shows its status, and one row per
+        # file made the ordinary case - thirty files dropped in at once -
+        # thirty interruptions that buried the rows worth reading.
+        # `ingestion_failed` still fires, and a connector run still reports its
+        # whole-attempt figure through `sync_completed`.
 
     async def _retire_superseded(
-        self, *, collection_name: str, vector_document_id: str, keep_id: UUID
+        self,
+        *,
+        collection_name: str,
+        vector_document_id: str,
+        keep_id: UUID,
+        source_path: str | None,
     ) -> None:
         """Drop the tracking rows for a vector document a replacement deleted.
 
@@ -356,9 +445,19 @@ class RAGDocumentService:
         gone, and a directory synced nightly accumulates one dead row per file
         per run.
 
-        The stored file goes with it, on the same best-effort terms as
-        `delete_document`: a storage backend that refuses must not leave the
-        database describing vectors nobody holds.
+        The stored files are unlinked by a durable cleanup handed over after the
+        commit (`spawn_after_commit` → `dispatch_external_state_cleanup`), so a
+        rollback leaves them beside the rows it restores rather than gone (#1293),
+        and a worker restart mid-drain no longer orphans the ones still queued -
+        the run is recorded on the Prefect server and retried (#1349). An unlink
+        before the commit would strand a restored row on a missing file.
+
+        The sync sources claiming a superseded row at the replacement's own
+        address claim the replacement instead: a second source re-ingesting a
+        page the first also lists must not leave the first with no claim on it,
+        or the second dropping the page later would remove it from under the
+        first (#1879). A row at another address - one the store matched by name
+        or by content - keeps its claims to itself, and they go with it.
         """
         superseded = await rag_document_repo.get_superseded(
             self.db,
@@ -366,24 +465,61 @@ class RAGDocumentService:
             vector_document_id=vector_document_id,
             keep_id=keep_id,
         )
+        if source_path is not None:
+            await rag_document_repo.transfer_claims(
+                self.db,
+                from_ids=[stale.id for stale in superseded if stale.source_path == source_path],
+                to_id=keep_id,
+            )
+        storage_paths = [stale.storage_path for stale in superseded if stale.storage_path]
         for stale in superseded:
-            if stale.storage_path:
-                try:
-                    await get_file_storage().delete(stale.storage_path)
-                except Exception as exc:
-                    logger.warning("Failed to delete superseded file: %s", exc)
             await rag_document_repo.delete(self.db, stale.id)
+        if storage_paths:
+            from app.core.background import spawn_after_commit
+            from app.worker.tasks.teardown_tasks import dispatch_external_state_cleanup
 
-    async def fail_ingestion(self, doc_id: str, error_message: str) -> None:
-        """Mark a document ingestion as failed."""
+            spawn_after_commit(
+                self.db,
+                dispatch_external_state_cleanup(storage_paths, []),
+                name="retire-superseded-cleanup",
+            )
+
+    async def fail_ingestion(self, doc_id: str, error_message: str, *, attempt: int) -> None:
+        """Mark a document ingestion as failed.
+
+        `attempt` carries the same "no default, threaded from dispatch, never
+        read back" rule `complete_ingestion` documents (#1598): a stale
+        settlement - from an attempt a later retry already superseded - is
+        ignored rather than overwriting a newer attempt's own outcome.
+        """
         doc = await self.get_document(doc_id)
-        await rag_document_repo.update_status(
+        updated = await rag_document_repo.update_status(
             self.db,
             doc.id,
             status=DocumentStatus.ERROR,
             error_message=error_message,
             completed_at=datetime.now(UTC),
+            expected_attempt=attempt,
         )
+        if updated is None:
+            logger.info(
+                "Ignoring a stale ingestion settlement for %s: attempt %d no longer current",
+                doc_id,
+                attempt,
+            )
+            return
+        try:
+            await NotificationService(self.db).ingestion_failed(
+                doc, attempt=attempt, error_message=error_message
+            )
+        except Exception:
+            # The same best-effort boundary `complete_ingestion` draws, and
+            # for a sharper reason: a worker caller runs this inside
+            # `get_worker_db_context`, so an exception escaping here rolls
+            # back the `ERROR` transition just recorded, and `_fail_document`
+            # swallows it - leaving a failed document in `PROCESSING` for
+            # ever because its failure notification could not be addressed.
+            logger.exception("Failed to notify about a failed ingestion for %s", doc_id)
 
     async def retry_ingestion(self, doc_id: str) -> RAGDocument:
         """Parse a failed document again, from the file it was uploaded with.
@@ -399,6 +535,12 @@ class RAGDocumentService:
         nothing - so a retry replaced the diagnosis with a document that would
         stay `processing` for ever, which is worse than the failure it was
         asked to fix.
+
+        Bumps `ingestion_attempt` before dispatching (#1598): this is a
+        resubmission of the same document id, not a new document, so without
+        a counter a second failure would carry the same notification dedup
+        key as the first and the unique constraint would silently drop it -
+        exactly when a person most wants to hear that the retry failed too.
 
         Raises:
             NotFoundError: If document does not exist.
@@ -417,12 +559,21 @@ class RAGDocumentService:
                 details={"doc_id": doc_id, "filename": doc.filename},
             )
         file_data = await get_file_storage().load(doc.storage_path)
+        new_attempt = doc.ingestion_attempt + 1
         updated = await rag_document_repo.update_status(
             self.db,
             doc.id,
             status=DocumentStatus.PROCESSING,
             error_message="",
             completed_at=None,
+            ingestion_attempt=new_attempt,
+            # Conditioned on the attempt this read still saw, not an
+            # unconditional write - two concurrent retries reading the same
+            # `doc.ingestion_attempt` must not both compute and dispatch the
+            # same `new_attempt`, which is exactly the collision
+            # `expected_attempt` closes for `complete_ingestion`/
+            # `fail_ingestion` one layer up.
+            expected_attempt=doc.ingestion_attempt,
         )
         if updated is None:
             raise NotFoundError(message="Document not found", details={"doc_id": doc_id})
@@ -432,19 +583,46 @@ class RAGDocumentService:
             filename=updated.filename,
             file_data=file_data,
             replace=True,
+            attempt=new_attempt,
         )
         return updated
+
+    async def _vector_tenant(self, doc: RAGDocument) -> UUID | None:
+        """The tenant this document's chunks are stamped and scoped by (#1684).
+
+        Off the knowledge base the document is tracked under, not `organization_id`
+        on the row: an app-scoped base's documents carry the uploader's
+        organization for billing, but their vectors are deployment-wide and carry
+        no tenant, so scoping a read or a delete by the row's organization would
+        miss them. A document with no base, or whose base is gone, is
+        deployment-wide (`None`).
+        """
+        if doc.knowledge_base_id is None:
+            return None
+        kb = await knowledge_base_repo.get_by_id(self.db, doc.knowledge_base_id)
+        return kb.vector_tenant if kb is not None else None
 
     async def delete_document(
         self,
         doc_id: str,
         ingestion_service: IngestionService,
     ) -> None:
-        """Delete a document with cascading cleanup.
+        """Delete a document's row, then its vectors and its file after the commit.
 
-        Removes the record from the database and attempts to clean up the vector
-        store entry and stored file. Failures in cleanup are logged but do not
-        prevent the DB deletion.
+        The row goes in the request's transaction; the vector-store entry and the
+        stored file are removed only once it commits (`spawn_after_commit`). Doing
+        either before the commit strands a rolled-back delete on state already gone -
+        a restored row pointing at vectors, or a file, the failed request deleted
+        anyway (#1293, #1347). Both are best-effort in the background: `remove_document`
+        catches its own store failures, and an escaped one is logged by the background
+        runner rather than raised. The store rides the process's vector engine, not
+        this request's session, so the deferred coroutine may hold it safely.
+
+        A single document's cleanup stays in-process, where the bulk teardown paths
+        (`delete_by_collection`, `_retire_superseded`, `KnowledgeBaseService.delete`)
+        hand theirs to a durable Prefect run (#1349): the leak a lost single-document
+        task would strand is one file and one document's vectors, and a durable run
+        per document delete is disproportionate to that.
 
         **`ingestion_service` has no default, and that is the whole of it.** It
         was `Any = None`, and the vector cleanup ran only when a caller happened
@@ -456,29 +634,152 @@ class RAGDocumentService:
         the caller may omit is an argument some caller will.
         """
         doc = await self.get_document(doc_id)
-
-        if doc.vector_document_id:
-            try:
-                await ingestion_service.remove_document(doc.collection_name, doc.vector_document_id)
-            except Exception as e:
-                logger.warning("Failed to delete from vector store: %s", e)
-
-        if doc.storage_path:
-            try:
-                storage = get_file_storage()
-                await storage.delete(doc.storage_path)
-            except Exception as e:
-                logger.warning("Failed to delete file: %s", e)
-
+        collection_name = doc.collection_name
+        vector_document_id = doc.vector_document_id
+        storage_path = doc.storage_path
+        # The tenant the chunks were stamped with at ingest - the collection's
+        # own, off its knowledge base - so the vector delete is scoped to them and
+        # cannot reach another org's document in a collection whose name they
+        # share (#1684). Read now, before the row is deleted.
+        tenant = await self._vector_tenant(doc)
         await rag_document_repo.delete(self.db, doc.id)
 
-    async def delete_by_collection(self, collection_name: str) -> int:
-        """Delete all RAG document records for a collection.
+        from app.core.background import spawn_after_commit
 
-        Returns:
-            Number of deleted records.
+        if vector_document_id:
+            spawn_after_commit(
+                self.db,
+                ingestion_service.remove_document(
+                    collection_name, vector_document_id, tenant=tenant
+                ),
+                name="delete-document-vectors",
+            )
+        if storage_path:
+            from app.services.file_storage import delete_files_best_effort
+
+            spawn_after_commit(
+                self.db, delete_files_best_effort([storage_path]), name="delete-document-file"
+            )
+
+    async def unlisted_by_source(
+        self, *, sync_source_id: UUID, collection_name: str, listed: set[str]
+    ) -> list[RAGDocument]:
+        """The documents a source claims that its latest listing no longer names.
+
+        `listed` is every `source_path` the listing answered, whether or not this
+        run ingested it: a file skipped as unchanged, or one that failed to
+        download, is still there.
         """
-        return await rag_document_repo.delete_by_collection(self.db, collection_name)
+        rows = await rag_document_repo.get_settled_for_sync_source(
+            self.db, sync_source_id=sync_source_id, collection_name=collection_name
+        )
+        return [row for row in rows if row.source_path not in listed]
+
+    async def release_claim(self, doc_id: str, *, sync_source_id: UUID) -> RAGDocument | None:
+        """Withdraw this source's claim, or answer the document for it to remove.
+
+        The document is locked first, until this session's transaction ends
+        (`lock_for_removal`). When another source feeding the collection still
+        claims it, this source's claim is dropped and the answer is `None`, as
+        it is for a row already gone. Otherwise this source is the last to list
+        it: its claim stays, and the locked row is answered for the caller to
+        remove whole in the same transaction - vectors first, then
+        `forget_document` - so a vector delete that fails leaves it claimed and
+        the next run of this source tries again (#1879).
+        """
+        row_id = UUID(doc_id)
+        doc = await rag_document_repo.lock_for_removal(self.db, row_id)
+        if doc is None:
+            return None
+        if not await rag_document_repo.is_claimed_by_another_source(
+            self.db, row_id, sync_source_id=sync_source_id
+        ):
+            return doc
+        await rag_document_repo.delete_claim(self.db, row_id, sync_source_id=sync_source_id)
+        return None
+
+    async def claim_listed(
+        self, *, sync_source_id: UUID, collection_name: str, documents: set[tuple[str, str]]
+    ) -> None:
+        """Claim the stored documents at addresses a sync listed (`claim_listed`).
+
+        `documents` are `(source_path, vector_document_id)` pairs, each the
+        stored document the run found at a listed file's address.
+        """
+        await rag_document_repo.claim_listed(
+            self.db,
+            sync_source_id=sync_source_id,
+            collection_name=collection_name,
+            documents=documents,
+        )
+
+    async def add_claims(self, doc_id: str, *, sync_source_ids: set[UUID]) -> None:
+        """Claim a settled document for other sources that list its address (`add_claims`)."""
+        await rag_document_repo.add_claims(self.db, UUID(doc_id), sync_source_ids=sync_source_ids)
+
+    async def claimants(self, doc_ids: list[str]) -> set[UUID]:
+        """Every source claiming any of these documents."""
+        return await rag_document_repo.get_claimants(self.db, [UUID(doc_id) for doc_id in doc_ids])
+
+    async def stale_for_source(
+        self, *, sync_source_id: UUID, collection_name: str
+    ) -> list[RAGDocument]:
+        """The rows a dead run of this source left `PROCESSING` (`get_stale_for_sync_source`)."""
+        return await rag_document_repo.get_stale_for_sync_source(
+            self.db, sync_source_id=sync_source_id, collection_name=collection_name
+        )
+
+    async def settled_at(
+        self, *, sync_source_id: UUID, collection_name: str, source_path: str
+    ) -> list[RAGDocument]:
+        """The settled rows this source claims at one address."""
+        rows = await rag_document_repo.get_settled_for_sync_source(
+            self.db, sync_source_id=sync_source_id, collection_name=collection_name
+        )
+        return [row for row in rows if row.source_path == source_path]
+
+    async def tracked_vector_ids(
+        self, *, collection_name: str, vector_document_ids: set[str]
+    ) -> set[str]:
+        """Which of these stored documents some row of the collection tracks."""
+        return await rag_document_repo.get_tracked_vector_ids(
+            self.db, collection_name=collection_name, vector_document_ids=vector_document_ids
+        )
+
+    async def forget_document(self, doc_id: str) -> None:
+        """Delete a document's row alone, once its vectors are already gone.
+
+        The worker's half of `delete_document`: a sync removing what its source
+        no longer lists holds the ingester for the collection, removes the
+        vectors through it first and calls this only when that succeeded - so a
+        failed vector delete leaves the row for the next run to try again,
+        rather than vectors nothing tracks. A synced document stores no file.
+        """
+        await rag_document_repo.delete(self.db, UUID(doc_id))
+
+    async def delete_by_collection(self, collection_name: str) -> None:
+        """Delete a collection's document rows and unlink their stored uploads.
+
+        The bulk row delete used to return only a count, so nothing removed the
+        uploaded files and every one was orphaned on disk when a collection was
+        dropped (#1265). The unlink is handed to a durable cleanup after the commit
+        (`spawn_after_commit` → `dispatch_external_state_cleanup`), so a rollback
+        keeps the files beside the rows it restores (#1293) and a worker restart
+        mid-drain no longer loses the ones still queued - the run is recorded on the
+        Prefect server and retried (#1349). Best-effort: the cleanup resolves the
+        storage backend only when it runs, so a misconfigured backend fails the
+        background run, not the drop.
+        """
+        storage_paths = await rag_document_repo.delete_by_collection(self.db, collection_name)
+        if storage_paths:
+            from app.core.background import spawn_after_commit
+            from app.worker.tasks.teardown_tasks import dispatch_external_state_cleanup
+
+            spawn_after_commit(
+                self.db,
+                dispatch_external_state_cleanup(storage_paths, []),
+                name="delete-collection-cleanup",
+            )
 
     async def get_parsed_content(
         self, doc_id: str, vector_store: BaseVectorStore
@@ -505,7 +806,9 @@ class RAGDocumentService:
                 details={"doc_id": doc_id, "status": doc.status},
             )
 
-        chunks = await vector_store.get_document_chunks(doc.collection_name, doc.vector_document_id)
+        chunks = await vector_store.get_document_chunks(
+            doc.collection_name, doc.vector_document_id, await self._vector_tenant(doc)
+        )
 
         pages: list[RAGParsedPage] = []
         for chunk in chunks:
@@ -528,7 +831,10 @@ class RAGDocumentService:
         """Get file download information for a document.
 
         Returns:
-            Tuple of (file_path, filename, mime_type).
+            Tuple of (storage_path, filename, mime_type). The storage path the
+            backend wrote, not a path on this host: an object store has no
+            second kind, and the route hands this to the one place that knows how
+            to turn either into a response (#1423).
 
         Raises:
             NotFoundError: If document or its file does not exist.
@@ -537,9 +843,7 @@ class RAGDocumentService:
         if not doc.storage_path:
             raise NotFoundError(message="No file stored for this document")
 
-        storage = get_file_storage()
-        file_path = storage.get_full_path(doc.storage_path)
-        if not file_path:
+        if not await get_file_storage().exists(doc.storage_path):
             raise NotFoundError(message="File not found on disk")
 
         mime_map = {
@@ -549,4 +853,4 @@ class RAGDocumentService:
             "md": "text/markdown",
         }
         mime_type = mime_map.get(doc.filetype, "application/octet-stream")
-        return str(file_path), doc.filename, mime_type
+        return doc.storage_path, doc.filename, mime_type

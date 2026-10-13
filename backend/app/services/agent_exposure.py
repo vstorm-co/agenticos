@@ -23,11 +23,13 @@ exactly the people it is for.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities import CapabilityToolInfo
 from app.agents.capabilities import get as get_capability
 from app.agents.capabilities.channel_tools import CHANNEL_TOOLS_CAPABILITY_ID
 from app.core.audit import record_audit
@@ -47,6 +49,7 @@ from app.schemas.agent_exposure import (
 )
 from app.schemas.channel_bot import UsageReporting
 from app.services.agent_registry import AgentRegistryService
+from app.services.capability_contracts import ToolContract, tool_contracts
 from app.services.channels.directory import PLATFORM_TOOLS
 from app.services.channels.formatting import house_style
 from app.services.channels.prompt_variables import VARIABLES as PROMPT_VARIABLES
@@ -76,17 +79,52 @@ def _surface_for(bot: ChannelBot) -> ExposureSurface:
         ) from exc
 
 
-def _lookups_for(surface: ExposureSurface) -> list[ExposureTool]:
+# Matches the wrapper `doc_descriptions`/`ToolText.render` put around a tool's
+# text when it has a `Returns:` section - present on all four `channel_tools`
+# entries. Stripped for the lookups list: it is read-only and informational,
+# not an editor for what a model is sent, and the model-only half - the answer's
+# shape, past `<returns>` - has no bearing on whether to grant the tool.
+_WRAPPED_SUMMARY = re.compile(r"^<summary>(.*?)</summary>", re.DOTALL)
+
+
+def _prose(description: str) -> str:
+    """The human-readable half of a tool's real description.
+
+    A description with no `<summary>` wrapper (no `Returns:` section) is
+    already prose throughout and is returned unchanged.
+    """
+    match = _WRAPPED_SUMMARY.match(description)
+    return match.group(1) if match else description
+
+
+def _description_for(tool: CapabilityToolInfo, contracts: dict[str, ToolContract]) -> str:
+    """The real description, or the catalog's one-liner when there is none.
+
+    A capability whose documentation build failed, or a tool with no docstring
+    at all, must not leave the lookup undescribed - `contracts.get`, never
+    `contracts[tool.id]`, and a falsy description falls back the same as a
+    missing one.
+    """
+    contract = contracts.get(tool.id)
+    if contract is None or not contract.description:
+        return tool.description
+    return _prose(contract.description)
+
+
+async def _lookups_for(surface: ExposureSurface) -> list[ExposureTool]:
     """The channel lookups this platform can answer, as the form offers them.
 
-    Registry order, and registry text: the description a person reads while
+    Registry order, and the *real* description: the text a person reads while
     deciding whether to grant a tool is the one the model reads before deciding
-    to call it. Anything the platform has no equivalent for is left out rather
-    than offered and refused - see `PLATFORM_TOOLS`.
+    to call it, read off the built toolset the same way the Toolbox panel is -
+    the catalog's hand-typed one-liner was a second, shorter copy of it (#1473).
+    Anything the platform has no equivalent for is left out rather than offered
+    and refused - see `PLATFORM_TOOLS`.
     """
+    contracts = (await tool_contracts()).get(CHANNEL_TOOLS_CAPABILITY_ID, {})
     available = PLATFORM_TOOLS.get(surface.value, ())
     return [
-        ExposureTool(id=tool.id, name=tool.name, description=tool.description)
+        ExposureTool(id=tool.id, name=tool.name, description=_description_for(tool, contracts))
         for tool in get_capability(CHANNEL_TOOLS_CAPABILITY_ID).tools
         if tool.id in available
     ]
@@ -114,7 +152,7 @@ def _variables_for(surface: ExposureSurface) -> list[ExposureVariable]:
     ]
 
 
-def _checked_tools(tools: list[str], surface: ExposureSurface) -> list[str]:
+async def _checked_tools(tools: list[str], surface: ExposureSurface) -> list[str]:
     """The granted lookups, in registry order, or a refusal naming what is wrong.
 
     Ordered rather than stored as sent, so two saves that grant the same things
@@ -127,14 +165,15 @@ def _checked_tools(tools: list[str], surface: ExposureSurface) -> list[str]:
             whose form will show the fourth unticked next time somebody looks,
             with nothing saying why.
     """
-    offered = {tool.id for tool in _lookups_for(surface)}
+    lookups = await _lookups_for(surface)
+    offered = {tool.id for tool in lookups}
     unknown = sorted(set(tools) - offered)
     if unknown:
         raise BadRequestError(
             message=f"{surface.value} cannot answer: {', '.join(unknown)}",
             details={"surface": surface.value, "tools": unknown, "available": sorted(offered)},
         )
-    return [tool.id for tool in _lookups_for(surface) if tool.id in set(tools)]
+    return [tool.id for tool in lookups if tool.id in set(tools)]
 
 
 def _update_action(changes: dict[str, Any]) -> str:
@@ -169,10 +208,10 @@ class AgentExposureService:
             self.db, agent_id=agent.id, organization_id=ctx.organization_id
         )
         names = await self._bot_names(ctx)
-        return [self._read(exposure, names) for exposure in exposures]
+        return [await self._read(exposure, names) for exposure in exposures]
 
     @staticmethod
-    def _read(exposure: AgentExposure, names: dict[UUID, str]) -> ExposureRead:
+    async def _read(exposure: AgentExposure, names: dict[UUID, str]) -> ExposureRead:
         """One binding as the Builder shows it, lookups included."""
         surface = ExposureSurface(exposure.surface)
         return ExposureRead(
@@ -188,7 +227,7 @@ class AgentExposureService:
             session_scope=exposure.session_scope,
             prompt=exposure.prompt,
             tools=list(exposure.tools or []),
-            available_tools=_lookups_for(surface),
+            available_tools=await _lookups_for(surface),
             available_variables=_variables_for(surface),
             usage_reporting=UsageReporting.model_validate(exposure.usage_reporting or {}),
             is_active=exposure.is_active,
@@ -338,7 +377,9 @@ class AgentExposureService:
             # against the whole capability: what a Telegram bot may be asked is
             # a shorter list than what a Mattermost bot may, and a granted tool
             # that can only ever refuse is a checkbox that lies.
-            changes["tools"] = _checked_tools(changes["tools"], ExposureSurface(exposure.surface))
+            changes["tools"] = await _checked_tools(
+                changes["tools"], ExposureSurface(exposure.surface)
+            )
         updated = await agent_exposure_repo.update(self.db, exposure=exposure, update_data=changes)
         await record_audit(
             self.db,

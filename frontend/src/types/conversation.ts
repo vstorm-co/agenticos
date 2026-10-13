@@ -1,4 +1,5 @@
 import { RatingValue, type ChatMessageFile, type UserRating } from "./chat";
+import type { RatingsByDay } from "./stats";
 
 /**
  * An agent that answered in a conversation.
@@ -20,6 +21,12 @@ export interface Conversation {
   created_at: string;
   updated_at: string;
   is_archived: boolean;
+  /**
+   * Whether **the caller** has starred it. A property of the reader rather than
+   * of the row - a thread can be shared, and one person's star must not decide
+   * where it sits for everybody who can see it (#929).
+   */
+  is_favourite?: boolean;
   /** In the order they first answered. Empty means the general assistant. */
   agents?: ConversationAgent[];
 }
@@ -127,13 +134,16 @@ export interface MessageRatingListResponse {
   total: number;
 }
 
-export interface RatingSummary {
+// Distinct from `RatingsSummary` in `./stats` (which carries a from/to/scope
+// window): this is the admin `/admin/ratings/summary` response, named apart so
+// the two are not confused on import by a single trailing `s` (#559).
+export interface AdminRatingsSummary {
   total_ratings: number;
   like_count: number;
   dislike_count: number;
   average_rating: number;
   with_comments: number;
-  ratings_by_day: Array<{ date: string; likes: number; dislikes: number }>;
+  ratings_by_day: RatingsByDay[];
 }
 
 export interface ConversationShare {

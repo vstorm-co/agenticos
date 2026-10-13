@@ -42,10 +42,10 @@ export function TermsBodyEn({ appName }: LegalBodyProps) {
 
       <h2>{t("n4YourContent")}</h2>
       <p>{t("youOwnWhatYou")}</p>
-      <p>
-        <strong>{t("weDonAposT3")}</strong>
-        {t("period")}
-      </p>
+      {/* One message with a tag, not a head and a tail. Split in two it rendered
+          `...Customer Data.Period.` with no space in every language, and gave a
+          translator half a sentence to work with. */}
+      <p>{t.rich("weDoNotTrainOnCustomerData", { b: (chunks) => <strong>{chunks}</strong> })}</p>
 
       <h2>{t("n5SubscriptionsBilling")}</h2>
       <p>{t("paidPlansRenewAutomatically")}</p>

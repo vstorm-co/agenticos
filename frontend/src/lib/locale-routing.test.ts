@@ -41,7 +41,7 @@ describe("pickedLocale", () => {
   it("answers null for nothing, for empty, and for a locale we do not serve", () => {
     expect(pickedLocale(undefined)).toBeNull();
     expect(pickedLocale("")).toBeNull();
-    expect(pickedLocale("de")).toBeNull();
+    expect(pickedLocale("fr")).toBeNull();
   });
 });
 

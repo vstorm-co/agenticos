@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import type { ReactNode } from "react";
 import { getErrorMessage } from "@/lib/api-error";
 import { Button, Spinner } from "@/components/ui";
 import { Send, Mic, MicOff, Paperclip } from "lucide-react";
 import { toast } from "sonner";
+
 import { uploadFile, type FileUploadResponse } from "@/lib/file-api";
-import { CHAT_MAX_UPLOAD_SIZE_MB } from "@/lib/utils";
+import { usePublicConfig } from "@/components/public-config/public-config-provider";
 import { createPortal } from "react-dom";
 
 import { AttachmentCard, PendingAttachmentCard } from "./attachment-card";
@@ -38,6 +40,7 @@ import { FileDropOverlay } from "@/components/files";
 import { useChanged } from "@/hooks/use-changed";
 import { useFileDrop } from "@/hooks/use-file-drop";
 import { useTranslations } from "next-intl";
+import type { UseMicrophoneResult } from "voice-glow";
 
 /**
  * Past this many characters, a paste is a file rather than a message.
@@ -87,6 +90,27 @@ interface ChatInputProps {
    * rather than around - see `into`. Absent, it renders in place.
    */
   attachmentSlot?: HTMLElement | null;
+  /**
+   * The microphone the voice glow listens to, opened by this component's own
+   * button and owned by the caller - the glow is drawn around the composer box,
+   * which this component is inside rather than around. Optional, because a
+   * caller that draws no glow has nothing to listen with and dictation does not
+   * need it: the Web Speech API captures its own audio.
+   */
+  mic?: UseMicrophoneResult;
+  /**
+   * Who answers - drawn on the control row after the attach button.
+   *
+   * Slots rather than a row of the caller's own, because the send button has to
+   * stay inside this `<form>` to submit it.
+   */
+  controlsSlot?: ReactNode;
+  /**
+   * Icons drawn before the microphone: what the conversation is using, and the
+   * model it runs on. Icons, because a line of readings and a model's name took
+   * the width of the row and were read past on every message.
+   */
+  actionsSlot?: ReactNode;
 }
 
 export function ChatInput({
@@ -97,10 +121,14 @@ export function ChatInput({
   slashContext,
   commands,
   attachmentSlot,
+  mic,
+  controlsSlot,
+  actionsSlot,
 }: ChatInputProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("chat.input");
   const tCommands = useTranslations("chat.commands");
+  const { chatMaxUploadSizeMb } = usePublicConfig();
   const [message, setMessage] = useState("");
   const [attachedFiles, setAttachedFiles] = useState<Attachment[]>([]);
   const [pending, setPending] = useState<PendingUpload[]>([]);
@@ -218,6 +246,7 @@ export function ChatInput({
   const toggleMic = useCallback(() => {
     if (isListening) {
       recognitionRef.current?.stop();
+      mic?.stop();
       setIsListening(false);
       return;
     }
@@ -253,26 +282,33 @@ export function ChatInput({
 
     recognition.onend = () => {
       setIsListening(false);
+      mic?.stop();
       setMessage((prev) => prev.replace(/\u200B/g, ""));
     };
 
     recognition.onerror = () => {
       setIsListening(false);
+      mic?.stop();
       toast.error(t("speechError"));
     };
 
     recognitionRef.current = recognition;
     recognition.start();
+    // A second capture, for the glow only. The Web Speech API analyses its own
+    // audio and hands back text without ever exposing a stream, so there is
+    // nothing to share; this one is read for its level and never recorded, and
+    // a browser that refuses it leaves the dictation working.
+    void mic?.start();
     setIsListening(true);
     finalTranscript = message;
-  }, [isListening, message]);
+  }, [isListening, message, mic]);
 
   // File upload to backend - shared by the file picker, drag-and-drop and paste.
   const uploadFiles = useCallback(
     async (files: File[], { pasted = false }: { pasted?: boolean } = {}) => {
       const accepted = files.filter((file) => {
-        if (file.size <= CHAT_MAX_UPLOAD_SIZE_MB * 1024 * 1024) return true;
-        toast.error(t("fileTooLarge", { file: file.name, max: CHAT_MAX_UPLOAD_SIZE_MB }));
+        if (file.size <= chatMaxUploadSizeMb * 1024 * 1024) return true;
+        toast.error(t("fileTooLarge", { file: file.name, max: chatMaxUploadSizeMb }));
         return false;
       });
       if (accepted.length === 0) return;
@@ -298,7 +334,7 @@ export function ChatInput({
         }
       }
     },
-    [t],
+    [chatMaxUploadSizeMb, t, tErrors],
   );
 
   /**
@@ -324,10 +360,19 @@ export function ChatInput({
 
   const handleFileSelect = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const files = e.target.files;
-      if (!files || files.length === 0) return;
+      // `e.target.files` is the input's own live `FileList`, not a copy of one:
+      // resetting the input empties that same object in place, so the array has
+      // to be built *before* the reset. Reading it after meant `Array.from` saw
+      // an empty list and the upload returned at its own empty guard - no card,
+      // no toast, no request, on every pick through the picker. jsdom does not
+      // reproduce the clear, so the unit suite stayed green throughout.
+      const files = Array.from(e.target.files ?? []);
+      // Cleared unconditionally, and before the early return: picking the same
+      // file twice in a row has to fire `change` again, which is what somebody
+      // does after a refusal they have since fixed.
       e.target.value = "";
-      await uploadFiles(Array.from(files));
+      if (files.length === 0) return;
+      await uploadFiles(files);
     },
     [uploadFiles],
   );
@@ -351,7 +396,7 @@ export function ChatInput({
       <FileDropOverlay
         active={isDragging}
         title={t("dropFilesAttach")}
-        hint={t("dropMaxSize", { max: CHAT_MAX_UPLOAD_SIZE_MB })}
+        hint={t("dropMaxSize", { max: chatMaxUploadSizeMb })}
       />
       {showPalette && (
         <SlashCommandPalette
@@ -381,27 +426,62 @@ export function ChatInput({
           </AttachmentRow>,
         )}
 
-      <div className="flex items-end gap-2">
-        <textarea
-          ref={textareaRef}
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          onKeyDown={handleKeyDown}
-          onPaste={handlePaste}
-          placeholder={t("placeholder")}
-          disabled={disabled}
-          rows={1}
-          className="placeholder:text-muted-foreground min-h-[40px] flex-1 resize-none scrollbar-thin bg-transparent py-2.5 text-sm focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 sm:text-base"
-        />
+      {/* The text has the box to itself, and every control is on one row under
+          it. The buttons used to sit *beside* the textarea, which is fine on
+          one line and wrong on ten: the send button drifted to the vertical
+          middle of a tall message, with text above it and text below. */}
+      <textarea
+        ref={textareaRef}
+        value={message}
+        onChange={(e) => setMessage(e.target.value)}
+        onKeyDown={handleKeyDown}
+        onPaste={handlePaste}
+        placeholder={t("placeholder")}
+        disabled={disabled}
+        rows={1}
+        className="placeholder:text-muted-foreground block min-h-[40px] w-full resize-none scrollbar-thin bg-transparent py-2.5 text-sm focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 sm:text-base"
+      />
 
-        <div className="flex shrink-0 items-center gap-0.5 pb-1">
+      {/* `min-w-0` and a shrinkable right group: at 390px the controls used to
+          run 27px past the composer's own edge, measured on an iPhone 15. */}
+      <div className="flex items-center gap-1.5 pt-0.5 pb-1">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={disabled || isUploading}
+          className="h-9 w-9 shrink-0"
+          title={t("attachFile")}
+          aria-label={t("attachFile")}
+        >
+          {isUploading ? (
+            <Spinner className="text-muted-foreground h-4 w-4" />
+          ) : (
+            <Paperclip className="text-muted-foreground h-4 w-4" />
+          )}
+        </Button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          onChange={handleFileSelect}
+          accept="image/jpeg,image/png,image/gif,image/webp,image/tiff,.tiff,.tif,.txt,.md,.csv,.json,.py,.js,.ts,.tsx,.html,.css,.yaml,.yml,.toml,.xml,.sql,.sh,.pdf,.docx,.doc,.xlsx,.xlsm,.xls,.pptx,.odt,.ods,.odp,.msg,application/msword,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-outlook,application/vnd.oasis.opendocument.text,application/vnd.oasis.opendocument.spreadsheet,application/vnd.oasis.opendocument.presentation,application/xml"
+          multiple
+          className="hidden"
+        />
+        {controlsSlot ? (
+          <div className="flex min-w-0 items-center gap-1">{controlsSlot}</div>
+        ) : null}
+
+        <div className="ml-auto flex shrink-0 items-center gap-1">
+          {actionsSlot}
           <Button
             type="button"
             variant="ghost"
             size="icon"
             onClick={toggleMic}
             disabled={disabled}
-            className="h-9 w-9"
+            className="h-9 w-9 shrink-0"
             title={isListening ? t("stopRecording") : t("voiceInput")}
             aria-label={isListening ? t("stopRecording") : t("voiceInput")}
           >
@@ -412,37 +492,12 @@ export function ChatInput({
             )}
           </Button>
 
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={disabled || isUploading}
-            className="h-9 w-9"
-            title={t("attachFile")}
-            aria-label={t("attachFile")}
-          >
-            {isUploading ? (
-              <Spinner className="text-muted-foreground h-4 w-4" />
-            ) : (
-              <Paperclip className="text-muted-foreground h-4 w-4" />
-            )}
-          </Button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            onChange={handleFileSelect}
-            accept="image/jpeg,image/png,image/gif,image/webp,.txt,.md,.csv,.json,.py,.js,.ts,.tsx,.html,.css,.yaml,.yml,.toml,.xml,.sql,.sh,.pdf,.docx,.xlsx,.xlsm"
-            multiple
-            className="hidden"
-          />
-
           {isProcessing && onStop ? (
             <Button
               type="button"
               size="icon"
               onClick={onStop}
-              className="h-9 w-9 rounded-lg"
+              className="h-9 w-9 shrink-0 rounded-lg"
               title={t("stopGenerating")}
             >
               <span className="h-3 w-3 rounded-[3px] bg-current" aria-hidden="true" />
@@ -452,6 +507,7 @@ export function ChatInput({
             <Button
               type="submit"
               size="icon"
+              className="shrink-0"
               disabled={disabled || isUploading || (!message.trim() && attachedFiles.length === 0)}
             >
               {isProcessing ? <Spinner className="h-4 w-4" /> : <Send className="h-4 w-4" />}

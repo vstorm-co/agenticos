@@ -15,13 +15,16 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.agents.model_resolver import PROVIDERS
+from app.commands import bootstrap as bootstrap_cmd
 from app.commands.bootstrap import (
     DEFAULT_MODELS,
+    DEMO_CAPABILITIES,
     _resolve_demo_agent,
     _resolve_model,
     _resolve_organization,
 )
 from app.core.permissions import AuthContext, OrgRoleName
+from app.db.models.resource_grant import Visibility
 
 
 def _ctx() -> AuthContext:
@@ -179,9 +182,70 @@ class TestModel:
                 new=AsyncMock(return_value=profile),
             ) as create_profile,
         ):
-            await _resolve_model(MagicMock(), _ctx(), "openai", "sk-test", "gpt-4o-mini")
+            await _resolve_model(MagicMock(), _ctx(), "openai", "sk-test-1234", "gpt-4o-mini")
 
         assert create_profile.call_args.kwargs["model"] == "gpt-4o-mini"
+
+
+class TestTheAgentsFile:
+    """`AGENTS.md`, which the demo agent reads before explaining the platform.
+
+    Bootstrap is idempotent, and this is the part of it that writes a document
+    somebody may have edited - so a second run has to find the file rather than
+    collide with it or overwrite what is in it.
+    """
+
+    @pytest.mark.anyio
+    async def test_a_second_run_keeps_the_file_the_operator_has_edited(self):
+        existing = MagicMock(id=uuid.uuid4())
+        with (
+            patch(
+                "app.commands.bootstrap.context_repo.get_by_name",
+                new=AsyncMock(return_value=existing),
+            ),
+            patch("app.commands.bootstrap.ContextService.create", new=AsyncMock()) as create,
+        ):
+            found = await bootstrap_cmd._resolve_agents_md(MagicMock(), _ctx())
+
+        assert found == existing.id
+        create.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_the_first_run_writes_it_for_the_whole_organization(self):
+        # Private would make the file invisible to everyone but the bootstrapper,
+        # and it is the explanation every agent in the organization reads.
+        created = MagicMock(id=uuid.uuid4())
+        with (
+            patch(
+                "app.commands.bootstrap.context_repo.get_by_name",
+                new=AsyncMock(return_value=None),
+            ),
+            patch(
+                "app.commands.bootstrap.ContextService.create",
+                new=AsyncMock(return_value=created),
+            ) as create,
+        ):
+            assert await bootstrap_cmd._resolve_agents_md(MagicMock(), _ctx()) == created.id
+
+        assert create.await_args.kwargs["name"] == bootstrap_cmd.AGENTS_MD_NAME
+        assert create.await_args.kwargs["visibility"] == Visibility.ORG
+
+
+class TestBundledSkills:
+    @pytest.mark.anyio
+    async def test_a_skill_the_deployment_does_not_ship_is_simply_absent(self):
+        """Not a publish that fails. A catalog is allowed to change, and an agent
+        missing one shipped skill is a smaller problem than a bootstrap that
+        stops."""
+        one = MagicMock(id=uuid.uuid4())
+        answers = [one] + [None] * 20
+        with patch(
+            "app.commands.bootstrap.skill_repo.get_by_name",
+            new=AsyncMock(side_effect=answers),
+        ):
+            found = await bootstrap_cmd._bundled_skill_ids(MagicMock(), _ctx())
+
+        assert found == [one.id]
 
 
 class TestDemoAgent:
@@ -210,6 +274,11 @@ class TestDemoAgent:
                 new=AsyncMock(return_value=None),
             ),
             patch(
+                "app.commands.bootstrap._resolve_agents_md",
+                new=AsyncMock(return_value=uuid.uuid4()),
+            ),
+            patch("app.commands.bootstrap._bundled_skill_ids", new=AsyncMock(return_value=[])),
+            patch(
                 "app.commands.bootstrap.AgentRegistryService.create",
                 new=AsyncMock(return_value=agent),
             ) as create,
@@ -232,6 +301,11 @@ class TestDemoAgent:
                 new=AsyncMock(return_value=None),
             ),
             patch(
+                "app.commands.bootstrap._resolve_agents_md",
+                new=AsyncMock(return_value=uuid.uuid4()),
+            ),
+            patch("app.commands.bootstrap._bundled_skill_ids", new=AsyncMock(return_value=[])),
+            patch(
                 "app.commands.bootstrap.AgentRegistryService.create",
                 new=AsyncMock(return_value=agent),
             ),
@@ -253,6 +327,11 @@ class TestDemoAgent:
                 new=AsyncMock(return_value=None),
             ),
             patch(
+                "app.commands.bootstrap._resolve_agents_md",
+                new=AsyncMock(return_value=uuid.uuid4()),
+            ),
+            patch("app.commands.bootstrap._bundled_skill_ids", new=AsyncMock(return_value=[])),
+            patch(
                 "app.commands.bootstrap.AgentRegistryService.create",
                 new=AsyncMock(return_value=agent),
             ) as create,
@@ -262,7 +341,14 @@ class TestDemoAgent:
 
         spec = create.call_args.args[1]
         assert spec.model_profile_id == profile_id
-        assert [c.id for c in spec.capabilities] == ["clock"]
+        # The shipped set, not a hand-written copy of it: this test is about the
+        # spec carrying what bootstrap decided, and the decision lives there.
+        assert [c.id for c in spec.capabilities] == [
+            capability["id"] for capability in DEMO_CAPABILITIES
+        ]
+        # Everything in it runs on one API key: no sandbox service to stand up,
+        # no second credential for search. That is the claim bootstrap makes.
+        assert {c.id for c in spec.capabilities} >= {"web_research", "sandbox", "subagents"}
 
 
 class TestEndToEnd:
@@ -272,6 +358,20 @@ class TestEndToEnd:
     steps run in an order where each has what the previous produced, and that
     the transaction is committed rather than left open.
     """
+
+    @pytest.fixture(autouse=True)
+    def mirror(self, monkeypatch):
+        """The registry-mirror step, stubbed for every test in this class.
+
+        It is a real repository call and these tests hand `_bootstrap` a
+        `MagicMock` session, so unstubbed it fails inside `count` at `await
+        db.execute(...)`. That is a fact about the fixture rather than about the
+        step, and the step has its own tests.
+        """
+        stub = AsyncMock()
+        monkeypatch.setattr(bootstrap_cmd, "_resolve_mcp_mirror", stub)
+        self.mirror = stub
+        return stub
 
     @staticmethod
     def _db_context(db):
@@ -313,12 +413,15 @@ class TestEndToEnd:
             ) as resolve_model,
             patch("app.commands.bootstrap._resolve_demo_agent", new=AsyncMock()) as demo,
         ):
-            await _bootstrap("admin@example.com", "password123", "Acme", "openai", "sk-test", None)
+            await _bootstrap(
+                "admin@example.com", "password123", "Acme", "openai", "sk-test-1234", None
+            )
 
         register.assert_awaited_once()
         # The agent must be given the model the previous step produced.
         assert demo.call_args.args[2] == profile_id
         assert resolve_model.await_count == 1
+        self.mirror.assert_awaited()
         db.commit.assert_awaited_once()
 
     @pytest.mark.anyio
@@ -389,3 +492,26 @@ class TestEndToEnd:
 
         assert result.exit_code == 0
         run.assert_called_once()
+
+
+class TestDemoInstructions:
+    """What the shipped agent is told, where getting it wrong is visible to a client."""
+
+    def test_the_demo_agent_is_told_which_language_to_answer_in(self):
+        """A greeting in one language was answered in a different one entirely.
+
+        Asked "co tma" - Polish, mistyped - the agent replied in Czech, because
+        nothing told it what to do with a question that was not English and a
+        model will happily guess. The rule has to be explicit and it has to be a
+        request that switches it, not a guess: inferring the language from the
+        question is the behaviour that produced the Czech.
+        """
+        from app.commands.bootstrap import DEMO_INSTRUCTIONS
+
+        # Wrapped to the file's width, so the assertion reads the sentence rather
+        # than the line breaks the prompt happens to carry.
+        said = " ".join(DEMO_INSTRUCTIONS.split())
+
+        assert "**Answer in English**, whatever language the question arrives in." in said
+        assert "Switch only when somebody asks you to in as many words" in said
+        assert "Do not infer a language from the question" in said

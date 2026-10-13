@@ -410,10 +410,10 @@ class TestSeedSkillsSurvivesARacingListing:
             SimpleNamespace(key="code-review", name="code-review", resources=()),
             SimpleNamespace(key="incident-report", name="incident-report", resources=()),
         ]
-        install = AsyncMock(
+        refresh = AsyncMock(
             side_effect=[
                 IntegrityError("INSERT", {}, Exception("duplicate key")),
-                SimpleNamespace(name="incident-report", resources=()),
+                seed_command.LibraryRefresh.INSTALL,
             ]
         )
 
@@ -425,7 +425,7 @@ class TestSeedSkillsSurvivesARacingListing:
         monkeypatch.setattr(
             seed_command,
             "SkillService",
-            lambda _db: SimpleNamespace(install_from_library=install),
+            lambda _db: SimpleNamespace(refresh_from_library=refresh),
         )
         monkeypatch.setattr(seed_command.skill_library, "library", lambda: bundled)
         monkeypatch.setattr(
@@ -440,11 +440,78 @@ class TestSeedSkillsSurvivesARacingListing:
         result = CliRunner().invoke(seed_command.seed_skills, [])
 
         assert result.exit_code == 0, result.output
-        assert "code-review - already there, left alone" in result.output
+        assert "code-review - installed by somebody else meanwhile, left alone" in result.output
         assert "incident-report - installed" in result.output
         # One savepoint per install, so the rollback of the loser's is what the
         # winner's flush runs after.
         assert db.begin_nested.call_count == 2
+
+
+class TestSeedSkillsSaysWhatItDoes:
+    """Each outcome is named, and a dry run reports the plan rather than "would
+    install" for every skill - which is what made an up-to-date organization look
+    like one missing all of them."""
+
+    def _run(self, monkeypatch, args: list[str], outcomes: list[object]):
+        from unittest.mock import AsyncMock, MagicMock
+
+        from app.commands import seed_skills as seed_command
+
+        bundled = [
+            SimpleNamespace(key=f"skill-{i}", name=f"skill-{i}", resources=())
+            for i in range(len(outcomes))
+        ]
+        service = SimpleNamespace(
+            refresh_from_library=AsyncMock(side_effect=outcomes),
+            plan_library_refresh=AsyncMock(side_effect=outcomes),
+        )
+
+        @asynccontextmanager
+        async def session() -> AsyncGenerator[object, None]:
+            yield MagicMock()
+
+        monkeypatch.setattr(seed_command, "get_db_context", session)
+        monkeypatch.setattr(seed_command, "SkillService", lambda _db: service)
+        monkeypatch.setattr(seed_command.skill_library, "library", lambda: bundled)
+        monkeypatch.setattr(
+            seed_command.organization_repo,
+            "list_all",
+            AsyncMock(return_value=[SimpleNamespace(id=uuid4(), name="Acme")]),
+        )
+        monkeypatch.setattr(
+            seed_command.member_repo, "first_owner_id", AsyncMock(return_value=uuid4())
+        )
+        return CliRunner().invoke(seed_command.seed_skills, args), service
+
+    def test_every_outcome_is_named(self, monkeypatch) -> None:
+        from app.services.skills import LibraryRefresh
+
+        result, service = self._run(monkeypatch, [], list(LibraryRefresh))
+
+        assert result.exit_code == 0, result.output
+        for line in (
+            "skill-0 - installed",
+            "skill-1 - up to date",
+            "skill-2 - updated to the bundled version",
+            "skill-3 - edited here, left alone (--replace takes the bundled version)",
+            "skill-4 - differs from the bundled version",
+        ):
+            assert line in result.output
+        assert service.refresh_from_library.await_args.kwargs == {"replace_edited": False}
+
+    def test_a_dry_run_plans_and_writes_nothing(self, monkeypatch) -> None:
+        from app.services.skills import LibraryRefresh
+
+        result, service = self._run(
+            monkeypatch, ["--dry-run", "--replace"], [LibraryRefresh.UPDATE, LibraryRefresh.INSTALL]
+        )
+
+        assert result.exit_code == 0, result.output
+        assert "skill-0 - would update to the bundled version" in result.output
+        assert "skill-1 - would install" in result.output
+        assert "Dry run - nothing was written." in result.output
+        service.refresh_from_library.assert_not_called()
+        assert service.plan_library_refresh.await_args.kwargs == {"replace_edited": True}
 
 
 class TestTheConsoleScript:

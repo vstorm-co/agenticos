@@ -1,9 +1,17 @@
-# Testing Guide
+# Testing
 
-## Running Tests
+Four layers, one runner, and a coverage gate that fails the build below 100% on the
+platform layer.
 
-While writing, run what covers the change — a file answers in about a second where
-the suite takes a minute and a half, and says the same thing:
+The short version of what to run: the tests that cover the change while you are
+writing, and the suites once before you push.
+
+## Running tests
+
+!!! tip "While writing, run what covers the change; the suite is the pre-push gate"
+
+    A file answers in about a second where the suite takes a minute and a half,
+    and says the same thing about the change.
 
 ```bash
 cd backend
@@ -23,8 +31,13 @@ suite is import-bound — every worker imports the app once — and gains nothin
 that, while an uncapped `auto` on a many-core laptop is *slower* than serial, all of
 it worker startup (#520).
 
-**Every run is shuffled**, by `pytest-randomly`, and the header says with what:
-`Using --randomly-seed=1697040112`. An order-dependent test — one that passes only
+!!! warning "Every run is shuffled, and a test that passed yesterday may have been depending on the order"
+
+    `pytest-randomly` prints the seed in the header
+    (`Using --randomly-seed=1697040112`). Replay that seed **serially** to get
+    the same order back - `-n auto` does not fix which worker runs what.
+
+An order-dependent test — one that passes only
 because something before it left state behind — is the classic "green on my laptop,
 red in CI", and a suite that always runs in collection order never asks the question.
 CI asks it in a fresh order every run.
@@ -64,81 +77,235 @@ repeating their commands, and `tests/test_ci_parity.py` fails if a gating job
 grows a step `make check` does not run. It has drifted four times — see
 [Commands](commands.md#before-a-pull-request) for what `check` leaves out and why.
 
-**CI may run fewer jobs than `check` does, and that is not drift.** `test`,
-`test-frontend` and `e2e` are skipped on a pull request whose changed paths cannot
-affect them — a docs-only change runs none of the three, a backend-only change runs
-no frontend suite. What decides is `scripts/ci_changed_scope.py`, it errs towards
-running, and [Branches](branching.md#a-required-check-may-legitimately-report-skipped)
-has the rule and why a `skipped` required check still lets a merge through. Locally
-there is no equivalent: `check` runs everything.
+!!! info "CI may run fewer jobs than `check` does, and that is not drift"
 
-`make test-fast` skips coverage, which makes it the wrong last word before a push:
-the gate is most of what these commands are for. `pytest` without `uv run` picks up
-whatever interpreter is on the path rather than the pinned 3.12.
+    `test`, `test-frontend` and `e2e` are skipped on a pull request whose changed
+    paths cannot affect them, and a `skipped` required check still lets a merge
+    through. Locally there is no equivalent: `check` runs everything.
 
-## Test Structure
+A docs-only change runs none of the three; a backend-only change runs no frontend
+suite. What decides is `scripts/ci_changed_scope.py`, it errs towards running, and
+[Branches](branching.md#a-required-check-may-legitimately-report-skipped) has the
+rule.
+
+!!! danger "Two ways to push something that has not been verified"
+
+    `make test-fast` skips coverage, which makes it the wrong last word before a
+    push - the gate is most of what these commands are for. And `pytest` without
+    `uv run` picks up whatever interpreter is on the path rather than the pinned
+    3.12.
+
+## Test structure
+
+Four layers, and which one a test belongs to is decided by what it needs rather
+than by what it is about.
 
 ```
-tests/
-├── conftest.py          # Shared fixtures
-├── api/                 # API endpoint tests
-│   ├── test_health.py
-│   └── test_auth.py
-├── unit/                # Unit tests (services, utils)
-│   └── test_services.py
-└── integration/         # Integration tests
-    └── test_db.py
+backend/tests/
+├── conftest.py          # the shared fixtures, and the test database's name
+├── test_*.py            # unit: one module, its dependencies mocked at the repository boundary
+├── api/                 # the app driven through `client`, grouped by the question asked
+└── integration/
+    └── conftest.py      # creates a database of its own, and drops it afterwards
 ```
 
-## Key Fixtures (`conftest.py`)
+`tests/api/` is grouped by **what is being asked**, not by route module: some files
+take one endpoint (`test_admin_ratings_window.py`), and `test_platform_routes.py`
+sweeps a whole family at once, which is why `agents.py` has no file of its own.
+Look for the question before looking for the path.
+
+| Layer | Where | For |
+|---|---|---|
+| Unit | `tests/test_*.py` | One module. Repositories are mocked; the service under test never is |
+| API | `tests/api/`, and some at the top level | The route: its gate, its status code, what reaches the service |
+| Integration | `tests/integration/` | What only a database answers - an `ORDER BY`, a cascade, a unique constraint, a query that is really tenant-scoped |
+| E2E | `frontend/e2e/` | Journeys crossing the whole system - see [Frontend Tests](#frontend-tests) |
+
+There is no `tests/unit/` directory: a unit test is a `test_*.py` at the top of
+`tests/`. The layer is **what a test needs, not where it sits**, and the top level
+holds plenty that drives the app through an `AsyncClient` of its own -
+`test_rag_document_listing.py`, `test_oauth_signin_exchange.py`,
+`test_security_headers.py`. Looking only under `tests/api/` for existing route
+coverage will miss them.
+
+**One exception, and it is at the top level rather than in `integration/`.**
+`tests/test_migrations.py` cycles the whole Alembic chain against a real database,
+which it creates and drops itself under a name of its own - because
+`downgrade base` drops every table, and inheriting `POSTGRES_DB` once emptied a
+developer's working database. It is collected by an ordinary `pytest tests/`. It
+is not in `integration/` because it does not use that package's `db` fixture at
+all: it runs `alembic` in subprocesses.
+
+## Async - anyio, not pytest-asyncio
 
 ```python
-# Database session for tests
-@pytest.fixture
-async def db_session():
-    async with async_session() as session:
-        yield session
-        await session.rollback()
+import pytest
 
-# Test client
-@pytest.fixture
-def client():
-    return TestClient(app)
-
-# Authenticated client
-@pytest.fixture
-async def auth_client(client, test_user):
-    token = create_access_token(test_user.id)
-    client.headers["Authorization"] = f"Bearer {token}"
-    return client
+pytestmark = pytest.mark.anyio   # at the top of the module
 ```
 
-## Writing Tests
+or `@pytest.mark.anyio` on the test, which `tests/api/test_users.py` does where
+only some of a file is async. Either works; the module-level form is the habit
+here because most files are async throughout.
 
-### API Endpoint Test
+!!! warning "`@pytest.mark.asyncio` does not work here, and there is no `asyncio_mode` to make it"
+
+    The suite runs on **anyio**. An unmarked `async def` fails at collection with
+    a message about the framework rather than about the test, so it reads as a
+    broken environment on the way in.
+
+An unmarked `async def` is not a silent pass: pytest 9 fails it at collection
+with *"async def functions are not natively supported"* and lists the plugins
+that would fix it. The `anyio_backend` fixture pins `asyncio`, because that is
+what uvicorn runs.
+
+## Key fixtures (`tests/conftest.py`)
+
+Five. None of them is a `test_user` or a signed-in client, and that is the
+point: an authenticated caller is a dependency override, so a test says which
+authority it is exercising rather than inheriting one. `tests/api/test_users.py`
+builds an `auth_client` of its own out of exactly those overrides - a local
+fixture for the file that needs one, not a shared one every file inherits.
+
+| Fixture | |
+|---|---|
+| `anyio_backend` | Pins `asyncio`, and nothing names it - anyio asks for it |
+| `client` | `httpx.AsyncClient` over `ASGITransport(app=app)` — **not** Starlette's `TestClient`. Overrides `get_db_session` and `get_redis`, and clears `app.dependency_overrides` afterwards |
+| `mock_db_session` | An `AsyncMock`. Its `info` is a real dict, because that is where `spawn_after_commit` queues work |
+| `mock_redis` | A `MagicMock(spec=RedisClient)` with the async methods stubbed |
+| `api_key_headers` | The service-to-service header, for a route behind `ValidAPIKey` |
+
+`tests/integration/conftest.py` adds the ones that touch a database. The package
+refuses any database whose name contains neither `test` nor `ci`, and empties
+every table between tests. **It skips itself when none is reachable only outside
+CI**: with `CI` set it raises instead, because a skip and a Postgres service that
+failed to start read identically in pytest's output and only one of them is
+acceptable on a runner.
+
+| Fixture | |
+|---|---|
+| `db` | A real `AsyncSession` - what almost every integration test takes |
+| `engine` | The `AsyncEngine` behind it, for a test that needs a session `db` cannot be: *more than one* - a race, a concurrent write, two transactions that have to interleave, where one `AsyncSession` shared across them is not a second connection but a corrupted one - or one the code under test makes for itself, which is how the RAG tests hand `PgVectorStore` its own `async_sessionmaker`. Eighteen files take it |
+| `database_url`, `schema_url` | Session-scoped, and the reason the two above are safe: they name the throwaway database and create its schema once |
+
+## Writing tests
+
+Name the behaviour, not the function, so that a failure says what broke:
+`test_a_grant_widens_access_without_promoting_the_member`, not `test_resolve`.
+
+### A service test
+
 ```python
-def test_health_check(client):
-    response = client.get("/api/v1/health")
-    assert response.status_code == 200
-    assert response.json()["status"] == "healthy"
+import pytest
+from unittest.mock import AsyncMock
+from uuid import uuid4
+
+from app.core.exceptions import NotFoundError
+from app.repositories import user as user_repo
+from app.services.user import UserService
+
+pytestmark = pytest.mark.anyio
+
+
+async def test_an_unknown_user_is_a_refusal_rather_than_a_none(monkeypatch, mock_db_session):
+    monkeypatch.setattr(user_repo, "get_by_id", AsyncMock(return_value=None))
+    service = UserService(mock_db_session)
+
+    with pytest.raises(NotFoundError):
+        await service.get_by_id(uuid4())
 ```
 
-### Service Test
+The repository is mocked and the service is not. A test that mocks the thing it
+is testing passes when the implementation is deleted.
+
+### An API test
+
+The caller is an override, which is what makes the refusal testable:
+
 ```python
-async def test_create_item(db_session):
-    service = ItemService(db_session)
-    item = await service.create(ItemCreate(name="Test"))
-    assert item.name == "Test"
+import pytest
+from httpx import AsyncClient
+from uuid import uuid4
+
+from app.api import deps
+from app.core.permissions import AuthContext, OrgRoleName
+from app.main import app
+
+pytestmark = pytest.mark.anyio
+
+
+async def test_creating_an_agent_without_agents_edit_is_refused(client: AsyncClient):
+    # A role, not a permission list: `AuthContext` reads its own permissions out
+    # of `ROLE_PERMS` by name, so the test exercises the catalog rather than a
+    # set it invented.
+    viewer = AuthContext(
+        user_id=uuid4(), organization_id=uuid4(), role=str(OrgRoleName.VIEWER)
+    )
+    app.dependency_overrides[deps.get_auth_context] = lambda: viewer
+
+    response = await client.post("/api/v1/agents", json={"name": "Support"})
+
+    assert response.status_code == 403
 ```
 
-### Test with Authentication
+`tests/api/test_platform_routes.py` does this by sweeping, rather than one
+assertion per route: the gate a route carries is a table, and a table is walked
+rather than restated. It walks the **platform prefixes** - `/agents`, `/runs`,
+`/approvals`, `/spend`, `/stats`, `/skills` and the rest of `_PLATFORM_PREFIXES` -
+which is why most of those have no file of their own, and why `/auth`,
+`/organizations` and `/users` still need their own: the sweep passes over them.
+
+### An integration test
+
+Only for what a mocked session cannot answer, which is usually an ordering, a
+constraint or a cascade. `tests/integration/test_message_order.py` is the shape:
+a turn writes its question and its answer inside one transaction, so both rows
+carry the same `created_at` to the microsecond and the tie is broken by a column
+rather than by the planner.
+
 ```python
-def test_protected_endpoint(auth_client):
-    response = auth_client.get("/api/v1/users/me")
-    assert response.status_code == 200
+import pytest
+
+from app.repositories import conversation as conversation_repo
+from app.services.transcript import TranscriptService
+
+pytestmark = pytest.mark.anyio
+
+
+async def test_the_question_precedes_the_answer_it_got(db):
+    # `_conversation` and `_run` are the file's own builders - a row per table,
+    # added to `db` and flushed. Nothing is mocked; that is the whole point.
+    conversation = await _conversation(db)
+    run = await _run(db, conversation)
+
+    await TranscriptService(db).record(run, prompt="ask", answer="answer")
+
+    written = await conversation_repo.get_messages_by_conversation(db, conversation.id)
+    assert [message.role for message in written] == ["user", "assistant"]
 ```
 
-## Frontend Tests
+The bug there *was* Postgres, and a mocked session would have passed against the
+schema that had no tiebreak at all.
+
+### What is worth a test here
+
+!!! important "Cover the refusal"
+
+    Most of this platform's value is in what it refuses, so the refusal is the
+    case that has to exist:
+
+    - a cross-tenant read — **including one where the caller owns the row**;
+    - an ungranted scope;
+    - a budget checked *before* the model request, and recorded even when the run
+      fails;
+    - a spec refused at publish rather than at run time;
+    - no plaintext secret in any response, log line or audit entry.
+
+`.claude/rules/testing.md` and the `backend-tests` skill carry the rest - the
+traps, the worked examples and the history behind each. This page is the shape of
+the suite; neither repeats the other.
+
+## Frontend tests
 
 Run these from `frontend/`. At the repository root vitest finds no configuration,
 reports well over a hundred phantom failures and leaves a stray `node_modules/`.
@@ -146,7 +313,7 @@ reports well over a hundred phantom failures and leaves a stray `node_modules/`.
 ```bash
 cd frontend
 
-bunx vitest run src/components/chat/usage-strip.test.tsx   # one spec, ~2s
+bunx vitest run src/components/chat/usage-meter.test.tsx   # one spec, ~2s
 bunx vitest run src/components/chat                        # one directory
 bun run test                                               # watch mode
 bun run test:coverage                                      # the suite plus the gate CI applies
@@ -274,8 +441,40 @@ eight). So:
 - **A product spec that is about the rendering says so**, and reloads first if it
   needs a list it can trust. `vault.spec.ts` has three `page.reload()` calls
   marked `#230`; when that issue closes, they come out.
+- **A product spec that made the write waits the same way the fixtures do.**
+  `nowListed` and `nowMatching` in `e2e/helpers.ts` are `nowThere` moved out of
+  `seed.setup.ts`, so there is one primitive rather than two
+  ([#162](https://github.com/vstorm-co/agenticos/issues/162)). It splits one
+  failure into two: a failure in the poll is a write that never landed, a failure
+  in the assertion after it is a page that did not draw a row the API was
+  serving. `journey.spec.ts` ends by proving a run was *priced* — five things had
+  to happen, and a bare `toBeVisible()` on the row said only that one of them had
+  not.
 
-## Test Database
+### Every wait says what it was waiting for
+
+`expect(locator).toBeVisible()` fails with `element(s) not found`, which names
+the one thing that cannot be the cause. Playwright takes a message as the second
+argument, and the suite's long journeys use it:
+
+```ts
+await expect(
+  row,
+  `run ${id} is priced at ${cost}, but Activity draws no row for ${modelLabel}`,
+).toBeVisible();
+```
+
+Four specs have flaked with the anonymous form, and each cost a diagnosis that
+started from nothing ([#130](https://github.com/vstorm-co/agenticos/issues/130),
+[#132](https://github.com/vstorm-co/agenticos/issues/132),
+[#154](https://github.com/vstorm-co/agenticos/issues/154),
+[#162](https://github.com/vstorm-co/agenticos/issues/162)). The message costs a
+line and is the whole of the difference between "it flaked again" and a
+diagnosis. When one fails in CI anyway, `playwright-results` beside
+`playwright-report` is the screenshot, the video, the trace and Playwright's own
+`error-context.md`.
+
+## Test database
 
 Most tests don't hit a real database. The `client` fixture in `tests/conftest.py` overrides
 `get_db_session` with a mocked async session (`AsyncMock`) via FastAPI's
@@ -290,43 +489,60 @@ fixture from `tests/integration/conftest.py` rather than building an engine of i
 own — that fixture is what puts the schema in place.
 
 **The schema is built once for the whole process, and the data reset between tests.**
-The `schema_url` fixture runs `create_all` a single time; the function-scoped `engine`
-fixture then hands each test an empty database by `TRUNCATE`-ing every model table
-(and dropping any table a test created outside the models — a runtime
-`rag_<collection>`, an ordering probe) rather than rebuilding the schema. It used to
-`drop_all` + `create_all` before *every* test, ~0.4s of DDL that was very nearly the
-entire runtime of a suite whose assertions are microseconds of Postgres work; building
-it once cut `tests/integration` from ~125s to ~50s
-([#215](https://github.com/vstorm-co/agenticos/issues/215)). `TRUNCATE` rather than a
-transaction rollback because the API-flow tests commit through the real
-`get_db_session`, so their rows outlive a rollback.
+
+The `schema_url` fixture runs `create_all` a single time. The function-scoped
+`engine` fixture then hands each test an empty database by `TRUNCATE`-ing every model
+table — and dropping any table a test created outside the models, a runtime
+`rag_<collection>` or an ordering probe — rather than rebuilding the schema.
+
+It used to `drop_all` + `create_all` before *every* test: ~0.4s of DDL that was very
+nearly the entire runtime of a suite whose assertions are microseconds of Postgres
+work. Building it once cut `tests/integration` from ~125s to ~50s
+([#215](https://github.com/vstorm-co/agenticos/issues/215)).
+
+`TRUNCATE` rather than a transaction rollback, because the API-flow tests commit
+through the real `get_db_session` and their rows outlive a rollback.
 
 **The database it uses belongs to the pytest process that asked for it**:
 `<POSTGRES_DB>_p<pid>`, created when the session starts and dropped when it ends,
-failure included. That is what makes two runs at once safe — two worktrees, or a
-worktree and a `make test`, against the one Postgres container — and it needs nothing
-passed on the command line. The name was constant until [#189](https://github.com/vstorm-co/agenticos/issues/189),
-and because each test dropped and recreated the schema on that shared database, two
-runs spent their time dropping each other's tables and reporting failures that belonged
-to neither branch. The suite still refuses any database whose name does not contain
-`test` or `ci`: it drops tables unconditionally, so the guard is the only thing between
-it and a development database.
+failure included.
+
+That is what makes two runs at once safe — two worktrees, or a worktree and a
+`make test`, against the one Postgres container — and it needs nothing passed on the
+command line.
+
+The name was constant until
+[#189](https://github.com/vstorm-co/agenticos/issues/189). Because each test dropped
+and recreated the schema on that shared database, two runs spent their time dropping
+each other's tables and reporting failures that belonged to neither branch.
+
+!!! danger "The suite refuses any database whose name does not contain `test` or `ci`"
+
+    It drops tables unconditionally, so that guard is the only thing between it and a
+    development database.
 
 **The credential is resolved once, in `tests/conftest.py`, and everything reads it
-back off the settings object.** Two engines reach that database — the fixture's, and
-the application's, built at import time in `app/db/session.py` — and a test asking
-whether a write is visible needs both. They used to resolve the password separately,
-the fixture defaulting to `postgres` where `app/core/config.py` defaults to empty, and
-nothing could see it while every test connected through the fixture. The first one to
-drive the application's engine failed to authenticate on a checkout with no
-`backend/.env` — which is **every git worktree**, the file being untracked — two
-failures against a full green everywhere else, reading exactly like a branch
-regression ([#485](https://github.com/vstorm-co/agenticos/issues/485)). The suite now
-seeds `POSTGRES_PASSWORD=postgres` before the settings object is built, and only when
-neither the environment nor a `.env` supplies one, so a real password is never
-replaced by the default. `app/core/config.py` still defaults it to empty, which is
-what makes a missing `.env` announce itself in `alembic check` rather than reaching a
-database with a guess.
+back off the settings object.**
+
+Two engines reach that database — the fixture's, and the application's, built at
+import time in `app/db/session.py` — and a test asking whether a write is visible
+needs both.
+
+They used to resolve the password separately, the fixture defaulting to `postgres`
+where `app/core/config.py` defaults to empty, and nothing could see it while every
+test connected through the fixture.
+
+The first test to drive the application's engine failed to authenticate on a checkout
+with no `backend/.env` — which is **every git worktree**, the file being untracked.
+Two failures against a full green everywhere else, reading exactly like a branch
+regression ([#485](https://github.com/vstorm-co/agenticos/issues/485)).
+
+The suite now seeds `POSTGRES_PASSWORD=postgres` before the settings object is built,
+and only when neither the environment nor a `.env` supplies one, so a real password
+is never replaced by the default.
+
+`app/core/config.py` still defaults it to empty, which is what makes a missing `.env`
+announce itself in `alembic check` rather than reaching a database with a guess.
 
 ### The migration suite has a third one
 
@@ -365,13 +581,17 @@ URL, so what a laptop ran was never what CI ran
 
 `tests/conftest.py` therefore assigns `PREFECT_API_URL` **empty** before Prefect is
 imported, next to the database name and password above and for the same reason.
+
 Deleting the variable would not do: an unset variable leaves the dotenv source to
-answer, and the dotenv source is what holds the URL. An empty assignment outranks it
-because Prefect's settings model carries `env_ignore_empty=False` — which is Prefect's
-rule and not ours, `app/core/config.py` setting it the other way, so the same line
-against one of our own settings would be discarded and the `.env` would answer anyway.
+answer, and the dotenv source is what holds the URL.
+
+An empty assignment outranks it because Prefect's settings model carries
+`env_ignore_empty=False` — which is Prefect's rule and not ours. `app/core/config.py`
+sets it the other way, so the same line against one of *our* settings would be
+discarded and the `.env` would answer anyway.
+
 Prefect reads an empty URL as no URL and starts a temporary server of its own for the
-call — which is what CI has always done — so the run no longer depends on whether a
+call, which is what CI has always done. So the run no longer depends on whether a
 Prefect server happens to be up, in either direction.
 
 **That server's state is a SQLite database under `PREFECT_HOME`, and the suite gives it
@@ -390,3 +610,14 @@ been red on the default. What the raised allowance buys is that the one step who
 nothing here bounds — a migration on a contended machine, or a temporary directory that
 has been swept — waits rather than failing a suite that a second run would pass.
 `tests/test_prefect_test_environment.py` pins all four properties.
+
+## Recap
+
+- **Four layers**: unit, integration, API, E2E. Pick by what the test needs to be
+  true, not by what it is about.
+- Async tests use **anyio**. `@pytest.mark.asyncio` does nothing here.
+- **Cover the refusal.** Most of this platform's value is in what it refuses.
+- The platform layer is at **100%**, and adding a module to it means editing two
+  lists in `backend/pyproject.toml`.
+- The order is shuffled every run; replay a failure with its printed seed before
+  concluding anything about the change.

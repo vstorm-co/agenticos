@@ -147,7 +147,7 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
               </span>
             )}
           </span>
-          <span className="text-muted-foreground shrink-0 font-mono text-[10px] tracking-wider uppercase">
+          <span className="text-muted-foreground shrink-0 font-mono text-[11px] tracking-wider uppercase">
             {value === null ? t("agentModel") : t("thisChat")}
           </span>
         </p>

@@ -2,15 +2,18 @@
 import { useMemo, useState, type MouseEvent } from "react";
 import { Code2 } from "lucide-react";
 import type { ToolCall } from "@/types";
-import { cn } from "@/lib/utils";
+import { cn, formatBytes } from "@/lib/utils";
 import { toolStep } from "@/lib/tool-steps";
 import { toolEntry } from "@/lib/tool-catalog";
 import { AgentStep } from "./agent-step";
 import { ChartMessage, parseChartResult } from "./chart-message";
 import { RAGSearchResults } from "./tool-results/rag";
 import { WebSearchResults, parseWebSearch } from "./tool-results/web-search";
+import { parsePublishedArtifact, PublishedArtifactResult } from "./tool-results/artifact";
 import { GeneratedImageResult, parseGeneratedImage } from "./tool-results/generated-image";
-import { LoadSkillResult } from "./tool-results/skills";
+import { LoadSkillResult, LoadedSkillResult } from "./tool-results/skills";
+import { ContextListResult, SkillListResult } from "./tool-results/catalogs";
+import { PlanToolResult } from "./tool-results/plan";
 import { GenericToolResult, RawToolView } from "./tool-results/generic";
 import { RunPythonResult } from "./tool-results/run-python";
 import { WorkspaceToolResult } from "./tool-results/workspace";
@@ -106,9 +109,10 @@ export function ToolCallCard({
   // transcript they came back to for something else. Opening those on mount made every
   // past turn a wall, which is what a replayed conversation looked like. A chart is the
   // other way round: only the last step of a turn is handed `startOpen`, so three
-  // charts arrived as two headers and one picture.
+  // charts arrived as two headers and one picture. And bookkeeping never opens on
+  // its own - see `staysClosed`.
   const [expanded, setExpanded] = useState(
-    toolCall.status === "completed" && (startOpen || opensOnSight),
+    toolCall.status === "completed" && entry?.staysClosed !== true && (startOpen || opensOnSight),
   );
   const [showRaw, setShowRaw] = useState(false);
 
@@ -134,6 +138,13 @@ export function ToolCallCard({
       ? parseGeneratedImage(toolCall.result)
       : null;
 
+  const publishedArtifact =
+    renderer === "artifact" &&
+    toolCall.status === "completed" &&
+    typeof toolCall.result === "string"
+      ? parsePublishedArtifact(toolCall.result)
+      : null;
+
   const isRunning = toolCall.status === "running" || toolCall.status === "pending";
   // Its own state, not a kind of running: a parked call produces no result until
   // somebody decides, so a spinner here is a lie that never resolves.
@@ -157,47 +168,44 @@ export function ToolCallCard({
     }
   }
 
-  // `render: "none"` is a call with nothing worth opening - `list_skills` says the
-  // agent looked, and the list it got back is a prompt fragment rather than something
-  // a person reads.
-  const openable = renderer !== "none";
+  // While the model is still writing the arguments, how far it has got is the only
+  // sign the step is moving - a report handed to `write_file` streams for minutes.
+  const streamed =
+    toolCall.status === "pending" && toolCall.argsChars
+      ? t("argumentsStreamed", { size: formatBytes(toolCall.argsChars) })
+      : null;
 
   return (
     <AgentStep
       label={step.label}
-      detail={isRunning ? null : step.detail}
+      detail={isRunning ? streamed : step.detail}
       kind={step.kind}
       logoDomain={step.logoDomain}
       state={isParked ? "parked" : isRunning ? "running" : isError ? "error" : "done"}
-      expanded={expanded && openable}
-      onToggle={
-        openable
-          ? () =>
-              setExpanded((prev) => {
-                const next = !prev;
-                if (!next) setShowRaw(false);
-                return next;
-              })
-          : undefined
+      expanded={expanded}
+      onToggle={() =>
+        setExpanded((prev) => {
+          const next = !prev;
+          if (!next) setShowRaw(false);
+          return next;
+        })
       }
       actions={
-        openable ? (
-          <button
-            type="button"
-            onClick={(event: MouseEvent) => {
-              event.stopPropagation();
-              setShowRaw((raw) => !raw);
-            }}
-            title={showRaw ? t("showFormatted") : t("showRaw")}
-            aria-label={showRaw ? t("showFormatted") : t("showRaw")}
-            className={cn(
-              "text-muted-foreground/60 hover:text-foreground shrink-0 rounded-md p-1",
-              showRaw && "text-foreground",
-            )}
-          >
-            <Code2 className="h-3 w-3" />
-          </button>
-        ) : undefined
+        <button
+          type="button"
+          onClick={(event: MouseEvent) => {
+            event.stopPropagation();
+            setShowRaw((raw) => !raw);
+          }}
+          title={showRaw ? t("showFormatted") : t("showRaw")}
+          aria-label={showRaw ? t("showFormatted") : t("showRaw")}
+          className={cn(
+            "text-muted-foreground hover:text-foreground shrink-0 rounded-md p-1",
+            showRaw && "text-foreground",
+          )}
+        >
+          <Code2 className="h-3 w-3" />
+        </button>
       }
     >
       {showRaw ? (
@@ -208,12 +216,22 @@ export function ToolCallCard({
         <WebSearchResults data={webResults} />
       ) : generatedImage !== null ? (
         <GeneratedImageResult data={generatedImage} />
+      ) : publishedArtifact !== null ? (
+        <PublishedArtifactResult data={publishedArtifact} />
       ) : chartSpec !== null ? (
         <ChartMessage spec={chartSpec} />
       ) : renderer === "run-python" ? (
         <RunPythonResult toolCall={toolCall} resultText={resultText} />
+      ) : renderer === "loaded-skill" ? (
+        <LoadedSkillResult result={toolCall.result} status={toolCall.status} />
       ) : renderer === "load-skill" ? (
         <LoadSkillResult resultText={resultText} status={toolCall.status} />
+      ) : renderer === "skill-list" ? (
+        <SkillListResult result={toolCall.result} />
+      ) : renderer === "context-list" ? (
+        <ContextListResult resultText={resultText} />
+      ) : renderer === "plan" ? (
+        <PlanToolResult toolCall={toolCall} resultText={resultText} />
       ) : renderer === "workspace" ? (
         <WorkspaceToolResult
           toolCall={toolCall}

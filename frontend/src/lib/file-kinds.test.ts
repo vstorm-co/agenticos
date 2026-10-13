@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   codeLanguage,
   hasSourceView,
+  isRenderSafeImage,
   readsAsText,
   resolveFileKind,
   suffixOf,
@@ -141,6 +142,42 @@ describe("offering the source as well", () => {
     // rendered form for a toggle to switch away from.
     for (const kind of ["code", "text", "pdf", "image", "unknown"] as FileKind[])
       expect(hasSourceView(kind)).toBe(false);
+  });
+});
+
+/**
+ * Which images a browser may draw inline, mirroring the server's allowlist.
+ *
+ * The gate the inline `<img>` decision keys off, because a TIFF is an `image` kind
+ * (its bytes are an image) but not one any browser draws — the server sends it as a
+ * download and the model gets PNG pages instead (#1591).
+ */
+describe("deciding which images render inline", () => {
+  it("accepts the four web-safe raster types", () => {
+    for (const mime of ["image/png", "image/jpeg", "image/gif", "image/webp"])
+      expect(isRenderSafeImage(mime)).toBe(true);
+  });
+
+  it("refuses a TIFF, an SVG and anything that is not an image", () => {
+    for (const mime of ["image/tiff", "image/svg+xml", "application/pdf", "text/plain"])
+      expect(isRenderSafeImage(mime)).toBe(false);
+  });
+
+  it("refuses a missing or empty type, and reads past a charset parameter", () => {
+    expect(isRenderSafeImage(null)).toBe(false);
+    expect(isRenderSafeImage(undefined)).toBe(false);
+    expect(isRenderSafeImage("IMAGE/PNG; charset=binary")).toBe(true);
+  });
+
+  it("still calls a TIFF an image kind, for its icon", () => {
+    // The kind drives the icon (its bytes are an image); the render gate above is
+    // what keeps it off the screen as an inline thumbnail.
+    expect(resolveFileKind("scan.tiff", "image/tiff")).toBe("image");
+    // On the suffix alone, too: a workspace or legacy TIFF reaches this with no MIME
+    // and must not fall through to `unknown` (#1591).
+    expect(resolveFileKind("scan.tiff")).toBe("image");
+    expect(resolveFileKind("scan.tif")).toBe("image");
+    expect(resolveFileKind("deck.odp")).toBe("document");
   });
 });
 

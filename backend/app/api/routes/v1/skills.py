@@ -19,7 +19,10 @@ from app.api.deps import Auth, SkillSvc, require
 from app.core.permissions import Perm
 from app.repositories.skill import SkillSort
 from app.schemas.skill import (
+    GalleryInstallRequest,
+    GalleryInstallResult,
     SkillCreate,
+    SkillGallery,
     SkillList,
     SkillRead,
     SkillResourceCreate,
@@ -75,6 +78,36 @@ async def create_skill(data: SkillCreate, service: SkillSvc, ctx: Auth) -> Any:
         content=data.content,
         category=data.category,
     )
+
+
+@router.get(
+    "/gallery",
+    response_model=SkillGallery,
+    dependencies=[Depends(require(Perm.SKILLS_VIEW))],
+)
+async def skill_gallery(service: SkillSvc, ctx: Auth) -> Any:
+    """The industry gallery - names, descriptions and what is already installed.
+
+    Declared before `/{skill_id}`: that path parses a UUID, so a later
+    declaration would answer this URL with a 422 about a malformed id rather
+    than reaching here.
+    """
+    return await service.gallery(ctx)
+
+
+@router.post(
+    "/gallery/install",
+    response_model=GalleryInstallResult,
+    dependencies=[Depends(require(Perm.SKILLS_EDIT))],
+)
+async def install_from_gallery(data: GalleryInstallRequest, service: SkillSvc, ctx: Auth) -> Any:
+    """Copy one gallery skill, or a whole shelf, into this organization.
+
+    Answers 200 with what happened to each key rather than refusing the request
+    over one of them - installing ten where one is already present must not
+    lose the other nine.
+    """
+    return await service.install_gallery(ctx, data.keys)
 
 
 @router.get("/{skill_id}", response_model=SkillRead)

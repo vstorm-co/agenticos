@@ -76,6 +76,29 @@ export function ScheduleStep({
         </div>
       )}
 
+      {/* Free text, and one field rather than a picker: the vocabulary is
+          whatever a deployment's corpus turns out to use, and the collection's
+          facet endpoint reports the values it actually holds. A closed list
+          would have to be maintained before the first document could be filed
+          under anything (#1777). */}
+      <div className="space-y-1.5">
+        <Label
+          htmlFor="organizational-unit"
+          className="text-foreground/80 text-xs font-medium tracking-wider uppercase"
+        >
+          {t("organizationalUnit")}
+        </Label>
+        <Input
+          id="organizational-unit"
+          maxLength={255}
+          placeholder={t("organizationalUnitPlaceholder")}
+          value={form.organizational_unit ?? ""}
+          onChange={(e) => setForm((f) => ({ ...f, organizational_unit: e.target.value || null }))}
+          className="h-10 rounded-xl"
+        />
+        <p className="text-muted-foreground text-xs">{t("organizationalUnitDetail")}</p>
+      </div>
+
       <div className="space-y-2">
         <Label className="text-foreground/80 text-xs font-medium tracking-wider uppercase">
           {t("syncMode")}
@@ -96,7 +119,7 @@ export function ScheduleStep({
                 )}
               >
                 <p className="text-foreground text-sm font-semibold">{t(mode.words)}</p>
-                <p className="text-foreground/55 mt-0.5 text-xs">{t(`${mode.words}Detail`)}</p>
+                <p className="text-muted-foreground mt-0.5 text-xs">{t(`${mode.words}Detail`)}</p>
               </button>
             );
           })}
@@ -118,7 +141,7 @@ export function ScheduleStep({
                   setForm((f) => ({ ...f, schedule_minutes: p.value === 0 ? null : p.value }))
                 }
                 className={cn(
-                  "border-foreground/15 inline-flex rounded-full border px-3 py-1.5 font-mono text-[11px] tracking-wider uppercase transition-colors",
+                  "border-foreground/15 inline-flex rounded-full border px-3 py-1.5 font-mono text-xs tracking-wider uppercase transition-colors",
                   active
                     ? "bg-foreground text-background border-foreground"
                     : "text-foreground/65 hover:text-foreground hover:border-foreground/40",
@@ -130,7 +153,7 @@ export function ScheduleStep({
           })}
         </div>
         <div className="flex items-center gap-2 pt-1">
-          <Label htmlFor="custom-schedule" className="text-foreground/55 text-xs">
+          <Label htmlFor="custom-schedule" className="text-muted-foreground text-xs">
             {t("customMinutes")}
           </Label>
           <Input

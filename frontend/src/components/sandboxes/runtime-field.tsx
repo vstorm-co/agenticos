@@ -118,12 +118,12 @@ export function RuntimeField({
                     (runtime.builds || missing) && (
                       <span className="ml-auto flex shrink-0 items-center gap-2 pl-3">
                         {runtime.builds && (
-                          <span className="text-muted-foreground text-[10px] uppercase">
+                          <span className="text-muted-foreground text-[11px] uppercase">
                             {t("builds")}
                           </span>
                         )}
                         {missing && (
-                          <span className="text-[10px] text-amber-600 uppercase">
+                          <span className="text-[11px] text-amber-600 uppercase">
                             {t("notOnThisHost")}
                           </span>
                         )}

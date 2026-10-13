@@ -1,12 +1,13 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { toast } from "sonner";
 
 import { ChatInput } from "./chat-input";
+import { PublicConfigProvider } from "@/components/public-config/public-config-provider";
 import type { FileUploadResponse } from "@/lib/file-api";
-import { CHAT_MAX_UPLOAD_SIZE_MB } from "@/lib/utils";
+import { DEFAULT_PUBLIC_CONFIG } from "@/lib/public-config";
 
 const state = vi.hoisted(() => ({
   upload: vi.fn<(file: File) => Promise<FileUploadResponse>>(),
@@ -37,6 +38,7 @@ function uploaded(overrides: Partial<FileUploadResponse> = {}): FileUploadRespon
 }
 
 const LONG = "x".repeat(50_000);
+const CHAT_MAX_UPLOAD_SIZE_MB = DEFAULT_PUBLIC_CONFIG.chatMaxUploadSizeMb;
 
 beforeEach(() => {
   state.upload.mockReset();
@@ -101,7 +103,65 @@ describe("ChatInput paste", () => {
   });
 });
 
+/**
+ * A `FileList` that empties *in place* when the input is reset, as Blink's does.
+ *
+ * This is the one browser behaviour this suite cannot get from jsdom, and the
+ * reason the picker shipped broken with every test here green: jsdom hands the
+ * input a fresh list on reset, so a handler that captures `input.files` and
+ * *then* sets `input.value = ""` still sees a populated list under test and an
+ * empty one in Chrome, Edge and Safari. Modelled rather than trusted.
+ */
+function blinkFileList(...files: File[]): FileList {
+  const list = {
+    length: files.length,
+    item: (index: number): File | null => files[index] ?? null,
+    clear(): void {
+      this.length = 0;
+    },
+    *[Symbol.iterator](): Generator<File> {
+      for (let index = 0; index < this.length; index++) yield files[index]!;
+    },
+  };
+  files.forEach((file, index) => Object.defineProperty(list, index, { value: file }));
+  // A test double for a host object with no constructor reachable from script.
+  return list as unknown as FileList;
+}
+
+/** Wire `input.value = ""` to clear `input.files` in place, the way a browser does. */
+function pick(input: HTMLInputElement, ...files: File[]): void {
+  const list = blinkFileList(...files);
+  Object.defineProperty(input, "files", { configurable: true, get: () => list });
+  Object.defineProperty(input, "value", {
+    configurable: true,
+    get: () => "",
+    set: () => (list as unknown as { clear: () => void }).clear(),
+  });
+  fireEvent.change(input);
+}
+
 describe("ChatInput attachments", () => {
+  it("uploads a file picked through the paperclip, having copied it before resetting the input", async () => {
+    // The picker was dead on every real browser: the handler kept the input's
+    // own live `FileList`, reset the input - which empties that same object -
+    // and only then read it, so `Array.from` saw nothing and the upload
+    // returned at its empty guard. No card, no toast, no request, nothing in
+    // either service's logs. Drag-and-drop and paste were unaffected, because
+    // neither goes through the input.
+    state.upload.mockResolvedValue(uploaded({ filename: "notes.txt", size: 2 }));
+    const { container } = render(<ChatInput onSend={vi.fn()} />);
+
+    pick(
+      container.querySelector<HTMLInputElement>('input[type="file"]')!,
+      new File(["hi"], "notes.txt", { type: "text/plain" }),
+    );
+
+    await waitFor(() => expect(state.upload).toHaveBeenCalledOnce());
+    expect(state.upload.mock.calls[0]![0].name).toBe("notes.txt");
+    expect(await screen.findByText("notes.txt")).toBeVisible();
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
   it("shows a card per queued file while it uploads, not one box beside the finished ones", async () => {
     let answer: (file: FileUploadResponse) => void = () => {};
     state.upload.mockImplementation(
@@ -197,5 +257,24 @@ describe("ChatInput attachments", () => {
 
     expect(await screen.findByText("atlimit.csv")).toBeVisible();
     expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("takes the ceiling from the deployment, not from the build (#1544)", async () => {
+    // One published image serves every deployment, so the number the composer
+    // refuses at is the running server's `CHAT_MAX_UPLOAD_SIZE_MB`, handed down
+    // through the public-config context rather than inlined at build time.
+    const { container } = render(
+      <PublicConfigProvider config={{ ...DEFAULT_PUBLIC_CONFIG, chatMaxUploadSizeMb: 1 }}>
+        <ChatInput onSend={vi.fn()} />
+      </PublicConfigProvider>,
+    );
+
+    await userEvent.upload(
+      container.querySelector<HTMLInputElement>('input[type="file"]')!,
+      new File([new Uint8Array(1024 * 1024 + 1)], "export.csv", { type: "text/csv" }),
+    );
+
+    expect(toast.error).toHaveBeenCalledWith("export.csv: File too large. Maximum 1MB.");
+    expect(state.upload).not.toHaveBeenCalled();
   });
 });

@@ -150,6 +150,7 @@ async def test_a_down_rated_turn_carries_its_verdict_and_the_words_left_with_it(
     assert service.transcript_ratings.await_args.args[1] == [message.id]
 
 
+@pytest.mark.security
 async def test_a_missing_or_cross_tenant_run_is_a_404_naming_only_the_id() -> None:
     """One 404 shape for both, because the service answers a foreign run exactly
     as it answers a fictional one - the response cannot be used to tell them

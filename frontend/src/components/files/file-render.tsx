@@ -6,7 +6,8 @@ import { useTranslations } from "next-intl";
 import { CopyButton } from "@/components/chat/copy-button";
 import { MarkdownContent } from "@/components/chat/markdown-content";
 import { Button } from "@/components/ui";
-import { codeLanguage, type FileKind } from "@/lib/file-kinds";
+import { GeneratedImage } from "@/components/ui/generated-image";
+import { codeLanguage, isRenderSafeImage, type FileKind } from "@/lib/file-kinds";
 import { parseDelimited } from "@/lib/delimited";
 
 /**
@@ -94,13 +95,27 @@ interface FileBytesViewProps {
 export function FileBytesView({ name, url, mediaType, onDownload }: FileBytesViewProps) {
   const t = useTranslations("files");
 
-  if (mediaType.startsWith("image/"))
+  if (isRenderSafeImage(mediaType))
     // A plain `img` and not `next/image`: the source is a blob URL made in this
     // browser from bytes fetched with the organization header, and the optimizer
     // would need a URL it could fetch server-side - which is exactly the request
     // that would arrive without that header.
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={url} alt={name} className="max-h-[70vh] w-full object-contain" />;
+    //
+    // Gated on the render-safe allowlist, not `image/` alone: the server sends a
+    // TIFF with `media_type=image/tiff` (only its disposition forced to attachment),
+    // so `startsWith("image/")` would still draw a broken `<img>` for it (#1591).
+    // The picture condenses out of a churning mosaic rather than replacing a
+    // spinner, so the moment a file first appears has no cut in it. A browser
+    // without WebGL gets the plain image; the WebGL half is imported on demand,
+    // because it carries `three` and no other page needs it.
+    return (
+      <GeneratedImage
+        src={url}
+        alt={name}
+        borderRadius={12}
+        className="max-h-[70vh] w-full object-contain"
+      />
+    );
 
   if (mediaType === "application/pdf")
     // An iframe rather than an object or an embed: it is the element every browser
@@ -202,7 +217,7 @@ function PlainText({ text }: { text: string }) {
           {numbered && (
             <pre
               aria-hidden
-              className="text-muted-foreground/45 bg-muted/40 sticky left-0 shrink-0 border-r px-2 py-3 text-right tabular-nums select-none"
+              className="text-muted-foreground bg-muted/40 sticky left-0 shrink-0 border-r px-2 py-3 text-right tabular-nums select-none"
             >
               {lines.map((_, index) => index + 1).join("\n")}
             </pre>
@@ -250,7 +265,7 @@ function DelimitedTable({ text }: { text: string }) {
               {header.map((cell, index) => (
                 <th
                   key={index}
-                  className="border-border border-b px-2.5 py-1.5 text-left font-mono text-[10px] font-semibold tracking-wider uppercase"
+                  className="border-border border-b px-2.5 py-1.5 text-left font-mono text-[11px] font-semibold tracking-wider uppercase"
                 >
                   {cell}
                 </th>
@@ -274,7 +289,7 @@ function DelimitedTable({ text }: { text: string }) {
         </table>
       </div>
       {body.length > MAX_ROWS && (
-        <p className="text-muted-foreground text-center text-[10px] tracking-wider uppercase">
+        <p className="text-muted-foreground text-center text-[11px] tracking-wider uppercase">
           {t("truncatedRows", { shown: MAX_ROWS, total: body.length })}
         </p>
       )}

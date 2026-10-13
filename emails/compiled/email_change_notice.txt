@@ -1,0 +1,15 @@
+Subject: A change of email address was requested on your [[app_name]] account
+
+Hi [[name]],
+
+Somebody asked to move this [[app_name]] account to:
+
+[[new_email]]
+
+Nothing has changed yet. Your account still uses this address, and it will keep
+using it unless that link is confirmed from the new address.
+
+If you did not ask for this, change your password now and tell whoever
+administers this deployment. Somebody may have your session.
+
+- The [[app_name]] Team

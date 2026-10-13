@@ -57,7 +57,11 @@ const BY_SUFFIX: Record<string, FileKind> = {
   bmp: "image",
   ico: "image",
   avif: "image",
+  // A TIFF's bytes are an image and its icon should say so, even where the server
+  // sent no MIME (a workspace or legacy file). `isRenderSafeImage` is the separate
+  // gate that keeps it off the screen as an inline thumbnail (#1591).
   tiff: "image",
+  tif: "image",
   pdf: "pdf",
   mp4: "video",
   webm: "video",
@@ -92,6 +96,8 @@ const BY_SUFFIX: Record<string, FileKind> = {
   odt: "document",
   rtf: "document",
   pptx: "document",
+  odp: "document",
+  msg: "document",
   epub: "document",
   zip: "archive",
   tar: "archive",
@@ -231,6 +237,29 @@ function fromMediaType(mime: string): FileKind | null {
   if (mime === "application/x-yaml" || mime === "application/yaml") return "code";
   if (mime === "application/zip" || mime === "application/gzip") return "archive";
   return null;
+}
+
+/**
+ * The raster image types a browser draws inline from this origin, mirroring the
+ * server's `RENDER_SAFE_MIME_TYPES` (minus PDF, which is not an `<img>`).
+ *
+ * Keyed on the media type, not on the `image` FileKind, because `resolveFileKind`
+ * calls a TIFF an `image` (its bytes *are* an image, and its icon should say so) —
+ * but no browser draws `image/tiff`, so the server sends it as a download and the
+ * model gets PNG pages instead. The inline `<img>` decision therefore has to key off
+ * this allowlist, or a TIFF card renders a broken thumbnail (#1591, §8 finding I).
+ */
+const RENDER_SAFE_IMAGE_TYPES: ReadonlySet<string> = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/gif",
+  "image/webp",
+]);
+
+/** Whether a media type is a raster image a browser can draw inline from our origin. */
+export function isRenderSafeImage(mimeType?: string | null): boolean {
+  const mime = (mimeType ?? "").toLowerCase().split(";")[0]?.trim() ?? "";
+  return RENDER_SAFE_IMAGE_TYPES.has(mime);
 }
 
 const TEXT_KINDS: ReadonlySet<FileKind> = new Set<FileKind>([

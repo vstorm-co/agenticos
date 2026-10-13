@@ -33,7 +33,9 @@ from urllib.parse import urlparse
 
 from pydantic import Field, field_validator
 
+from app.core.retention import MAX_RETENTION_DAYS, MIN_RETENTION_DAYS
 from app.schemas.base import BaseSchema
+from app.schemas.retention import RetentionDays
 
 SignupMode = Literal["open", "invite_only", "closed"]
 """Who may create an account. `app/services/signup_policy.py` is where it is applied."""
@@ -145,6 +147,19 @@ class DeploymentSettingsRead(BrandingRead):
     announcement_level: NoticeLevel = "info"
     max_organizations_per_user: int | None = None
     max_agents_per_organization: int | None = None
+    notify_impersonated_users: bool = False
+    """Whether somebody is emailed when an administrator acts as them.
+
+    Here and not in `BrandingRead`: what the deployment tells its own users about
+    administrator access is the administrator's business, not a stranger's on the
+    sign-in page.
+    """
+    retention_defaults: RetentionDays | None = None
+    """Days per class, for an organization that has set nothing itself (#1420)."""
+    retention_max_days: RetentionDays | None = None
+    """The ceiling an organization cannot raise, per class."""
+    audit_retention_floor_days: int | None = None
+    """The shortest an audit entry may live. Null takes the built-in six years."""
     updated_at: datetime | None = None
 
 
@@ -180,6 +195,29 @@ class DeploymentSettingsUpdate(BaseSchema):
     # cannot own the personal organization sign-up creates for it.
     max_organizations_per_user: int | None = Field(default=None, ge=1, le=10_000)
     max_agents_per_organization: int | None = Field(default=None, ge=1, le=10_000)
+
+    notify_impersonated_users: bool | None = None
+
+    # The three bounds retention resolves against (#1420). Mappings with holes
+    # rather than integers, because "unset" and "keep for ever" are different
+    # answers - see `app/core/retention.py`.
+    retention_defaults: RetentionDays | None = None
+    retention_max_days: RetentionDays | None = None
+    audit_retention_floor_days: int | None = Field(
+        default=None, ge=MIN_RETENTION_DAYS, le=MAX_RETENTION_DAYS
+    )
+
+    @field_validator("retention_defaults", "retention_max_days", mode="after")
+    @classmethod
+    def _within_bounds(cls, value: RetentionDays | None) -> RetentionDays | None:
+        """Refuse a period outside the bounds, naming the class that is wrong."""
+        for name, days in (value or {}).items():
+            if days is not None and not (MIN_RETENTION_DAYS <= days <= MAX_RETENTION_DAYS):
+                raise ValueError(
+                    f"{name}: a period is between {MIN_RETENTION_DAYS} "
+                    f"and {MAX_RETENTION_DAYS} days"
+                )
+        return value
 
     @field_validator("app_name", "tagline", "description", "footer_text", mode="after")
     @classmethod

@@ -43,6 +43,8 @@ const OPENAI: ProviderInfo = {
   secret_kind: "api_key",
   supports_base_url: true,
   keyless: true,
+  apis: ["responses", "chat"],
+  native_api: "responses",
 };
 
 const PURPOSE: SecretPurpose = {
@@ -63,7 +65,6 @@ function profile(overrides: Partial<ModelProfile> = {}): ModelProfile {
     model: "gpt-4.1",
     secret_id: null,
     params: {},
-    allow_byo: false,
     fallback_profile_ids: [],
     ...overrides,
   };

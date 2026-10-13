@@ -220,7 +220,13 @@ export function OnboardingTour() {
       // On the right page. Reveal the tab that opens the section, switch to it,
       // then land the spotlight on the target — the caption never having moved.
       if (step.activate) {
-        const trigger = await waitForElement(`[data-tour="${step.activate}"]`, signal);
+        // An optional step's tab can itself be conditional (the Memory tab renders only
+        // when the capability is bound), so the activate wait takes the short timeout too.
+        const trigger = await waitForElement(
+          `[data-tour="${step.activate}"]`,
+          signal,
+          step.optional ? OPTIONAL_WAIT_MS : undefined,
+        );
         if (signal.aborted) return;
         if (trigger instanceof HTMLElement) {
           show(trigger, true);

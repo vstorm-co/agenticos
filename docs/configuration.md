@@ -1,4 +1,4 @@
-# Configuration Reference
+# Configuration
 
 All configuration is managed via environment variables, loaded from
 `backend/.env` using [pydantic-settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/).
@@ -9,11 +9,11 @@ Settings are defined in `app/core/config.py` and accessed via the global
 ```python
 from app.core.config import settings
 
-print(settings.EMBEDDING_MODEL)
+print(settings.MAX_UPLOAD_SIZE_MB)
 print(settings.DEBUG)
 ```
 
-## Getting Started
+## Getting started
 
 `make install` creates `backend/.env` from `backend/.env.example` when there is
 none, and never touches it again — so on a fresh checkout there is nothing to
@@ -27,12 +27,16 @@ openssl rand -hex 32   # SECRET_KEY — signs every access token
 openssl rand -hex 32   # VAULT_MASTER_KEY — unwraps every credential stored at rest
 ```
 
-`SECRET_KEY` ships as a published string, and an empty `VAULT_MASTER_KEY` falls
-back to it so a fresh checkout runs at all. Both are fine on a laptop and are the
-whole security of a deployment anywhere else — and setting `VAULT_MASTER_KEY`
-explicitly is also what lets stored secrets survive a `SECRET_KEY` rotation.
+!!! danger "`SECRET_KEY` ships as a published string"
 
-## Project Settings
+    An empty `VAULT_MASTER_KEY` falls back to it so a fresh checkout runs at all.
+    Both are fine on a laptop and are the whole security of a deployment anywhere
+    else. Setting `VAULT_MASTER_KEY` explicitly is also what lets stored secrets
+    survive a `SECRET_KEY` rotation.
+
+The config refuses an unset `VAULT_MASTER_KEY` outside `local`/`development`.
+
+## Project settings
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -44,8 +48,26 @@ explicitly is also what lets stored secrets survive a `SECRET_KEY` rotation.
 | `MODELS_CACHE_DIR` | `./models_cache` | Directory for cached ML models |
 | `MEDIA_DIR` | `./media` | Directory for uploaded files |
 | `MAX_UPLOAD_SIZE_MB` | `50` | Knowledge-base document cap, and the number the whole-request ceiling below is derived from. A document at this size is chunked and embedded, not held in one piece |
-| `CHAT_MAX_UPLOAD_SIZE_MB` | `10` | What may be attached in chat. Its own setting rather than the one above, because an attachment to an agent with no workspace is pasted whole into the prompt — so the two surfaces fail differently at the same size. Was a hardcoded 10 MiB no operator could raise ([#498](https://github.com/vstorm-co/agenticos/issues/498)); set the frontend's `NEXT_PUBLIC_CHAT_MAX_UPLOAD_SIZE_MB` to match, or the composer refuses a file the server would take |
+| `CHAT_MAX_UPLOAD_SIZE_MB` | `10` | What may be attached in chat. Its own setting rather than the one above, because an attachment to an agent with no workspace is pasted whole into the prompt — so the two surfaces fail differently at the same size. Was a hardcoded 10 MiB no operator could raise ([#498](https://github.com/vstorm-co/agenticos/issues/498)); the frontend container reads the same `CHAT_MAX_UPLOAD_SIZE_MB` at runtime, so give both containers one value or the composer refuses a file the server would take |
 | `EMBED_MAX_UPLOAD_SIZE_MB` | `5` | What a **stranger** may upload to a hosted page. A ceiling on top of `CHAT_MAX_UPLOAD_SIZE_MB`, never a way past it |
+| `ML_MAX_UPLOAD_SIZE_MB` | `25` | What one call to the [ML services](ml-services.md) may submit — a document to parse, a scan to recognise, a recording to transcribe. Its own setting because the bytes are parsed or sent to an engine inside one request rather than written down, so the ceiling is about what a single synchronous call may occupy. It sits at the transcription client's own 25 MB, the smallest engine ceiling behind that surface |
+| `ML_MAX_CONCURRENT_PARSES` | `4` | How many documents one worker parses at once for the [ML services](ml-services.md). A rate limit counts starts and cannot see what is still running, so without this a minute's allowance of OCR calls is that many recognitions in flight. Over it a caller is refused with a `Retry-After` rather than queued |
+| `MEM0_ALLOWED_HOSTS` | `[]` (empty) | Hostnames a self-hosted mem0 memory service may point at. A `base_url` comes from an agent spec, so without an allowlist a Builder who can bind (but not read) a shared mem0 key could aim it at their own server and capture the key from the request header. Empty refuses self-hosted mem0 and allows only the managed cloud; add a trusted hostname to enable a self-hosted deployment. See [secrets](secrets.md) |
+| `BROWSER_CDP_ALLOWED_HOSTS` | `[]` (empty) | Hostnames a browsing agent may drive a Chromium at. A `cdp_url` comes from an agent spec, which anyone holding `edit` on that agent writes, so the address is tenant-controlled and the request is this deployment's - the same shape `MEM0_ALLOWED_HOSTS` exists for, and the reason this is an allowlist rather than the SSRF guard every other tenant-supplied URL goes through. That guard admits only *public* addresses, so it refuses the isolated browser service on the deployment's own network that [the capability](reference/capabilities.md#browser-automation-choose) tells you to run, and accepts a CDP debugger exposed to the internet, which is worse. Matching is exact and case-folded, with no globs. Empty refuses browser automation outright |
+| `DECISION_MODEL_ALLOWED_HOSTS` | `[]` (empty) | Hosts a browsing agent's decision model may run on, beyond the vendor's own endpoint. `decision_base_url` comes from an agent spec and the vault key is unsealed into a request header to whatever it names, so without an allowlist an author who may *bind* a shared TypeSafe key - binding is not reading, and the API never returns the value - could point it at a server of their own and collect it. Approval is no help: the same author publishes the binding. Empty allows only the vendor endpoint, which is the default. See [secrets](secrets.md) |
+| `FILE_IO_MAX_WORKERS` | `8` | Size of the dedicated thread pool that runs blocking file work — parsing an upload and reading or writing its bytes. Kept off `asyncio`'s shared default executor, which also runs `bcrypt` and pinned-host DNS, so a burst of uploads cannot leave sign-in and outbound requests queued behind them ([#1108](https://github.com/vstorm-co/agenticos/issues/1108)). Raise it on a host that parses many uploads at once. Must be a positive integer — a `0` or negative value is refused at startup |
+| `CHAT_CONVERT_TIMEOUT_SECONDS` | `60` | How long a single DOC → text LibreOffice conversion may run before it is killed. Far below the knowledge base's 600s because this is an interactive upload |
+| `CHAT_CONVERT_MAX_CONCURRENCY` | `2` | How many LibreOffice conversions may run at once. The subprocess bypasses `FILE_IO_MAX_WORKERS`, so this bounds it separately |
+| `CHAT_CONVERT_KILL_GRACE_SECONDS` | `5` | The wait between `TERM` and `KILL` when a conversion is force-stopped |
+| `CHAT_CONVERT_OUTPUT_MAX_BYTES` | `20971520` (20 MiB) | Ceiling on a conversion's output file, checked before it is read back |
+| `CHAT_TIFF_MAX_INLINE_PAGES` | `10` | How many pages of a multi-page TIFF are converted to PNG and shown to the model |
+| `CHAT_IMAGE_MAX_PIXELS` | `40000000` (~40 MP) | Per-image pixel bound checked before a TIFF page is decoded — a decompression-bomb guard |
+| `CHAT_ARCHIVE_MEMBER_MAX_BYTES` | `52428800` (50 MiB) | Decompressed-size cap per member of a ZIP-backed office file (ODF, PPTX) |
+| `CHAT_ARCHIVE_TOTAL_MAX_BYTES` | `104857600` (100 MiB) | Total decompressed-size cap across a ZIP-backed office file |
+| `CHAT_ARCHIVE_MAX_MEMBERS` | `2000` | Member-count cap for a ZIP-backed office file |
+| `CHAT_PARSED_TEXT_MAX_CHARS` | `1000000` | Cap on stored extracted text, so a small ZIP/OLE cannot expand the row |
+| `CHAT_PROMPT_TEXT_MAX_CHARS` | `200000` | Per-file cap on the parsed text pasted into a no-workspace prompt |
+| `CHAT_TURN_TEXT_MAX_CHARS` | `500000` | Aggregate cap on attachment text across one turn |
 | `DEFAULT_ORG_MONTHLY_BUDGET_USD` | `100` | The monthly spend ceiling a **new** organization starts with, in USD, so it is not one runaway agent away from a surprise bill. Applies at creation only; existing organizations are untouched and any organization can be cleared back to no cap afterwards. Must be positive; leave **empty** to start organizations uncapped (the older opt-in posture) |
 
 ### The size of a request, as opposed to the size of a file
@@ -78,6 +100,7 @@ with no such limit of its own.
 | `SECRET_KEY` | (insecure default) | JWT signing key. **Must** be changed in production. Generate with: `openssl rand -hex 32` |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `30` | Access token lifetime |
 | `REFRESH_TOKEN_EXPIRE_MINUTES` | `10080` | Refresh token lifetime (7 days) |
+| `REFRESH_REUSE_GRACE_SECONDS` | `60` | How long after a rotation the spent refresh token is still answered, with the same successor token each time, so a lost response or a burst of refreshes does not end the session; `0` turns it off |
 | `ALGORITHM` | `HS256` | JWT signing algorithm |
 
 Production validation: `SECRET_KEY` must be at least 32 characters and cannot
@@ -93,9 +116,10 @@ ciphertext is therefore useless outside the tenant it was sealed for.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `VAULT_MASTER_KEY` | (empty, falls back to `SECRET_KEY`) | Master key for the secret vault. Set it explicitly in production so stored secrets survive a `SECRET_KEY` rotation. Generate with: `openssl rand -hex 32` |
+| `VAULT_MASTER_KEY` | (empty, falls back to `SECRET_KEY`) | Master key for the secret vault — shorthand for version 1 of `VAULT_MASTER_KEYS`. Required outside `local`/`development` (unless the map below is set), so a staging vault cannot boot sealed under the published `SECRET_KEY` default. Generate with: `openssl rand -hex 32` |
+| `VAULT_MASTER_KEYS` | `{}` | Every master key still in use, by version, as JSON — `{"1": "<old>", "2": "<new>"}`. The highest version seals new secrets; older ones keep existing rows readable until `agenticos cmd vault-rotate` re-wraps them. When set it is the whole truth: `VAULT_MASTER_KEY` must then be empty. See [Secrets](secrets.md#operations) |
 
-### API Key
+### API key
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -113,6 +137,7 @@ Production validation: `API_KEY` cannot use the default value in
 | `GOOGLE_CLIENT_SECRET` | (empty) | Google OAuth2 client secret |
 | `GOOGLE_REDIRECT_URI` | `http://localhost:8000/api/v1/oauth/google/callback` | OAuth2 callback URL |
 | `FRONTEND_URL` | `http://localhost:3000` | Frontend URL for OAuth2 redirects |
+| `DESKTOP_DEEP_LINK_SCHEME` | `agenticos` | The scheme the desktop shell registers for a sign-in handed to the system browser ([Desktop](desktop.md#signing-in)). The callback builds a redirect out of it, so it is a setting rather than anything a caller can choose |
 
 Getting the pair: [Google Cloud console](https://console.cloud.google.com/) →
 APIs & Services → Credentials → Create OAuth client ID → **Web application**.
@@ -124,6 +149,135 @@ API, which then sends the browser on to `FRONTEND_URL`. Registering the
 frontend URL instead is the mistake worth naming: the consent screen works, and
 the callback 404s.
 
+The browser is sent on with a single-use, one-minute code, never the session
+tokens themselves: a token in a redirect URL reaches the address bar, the
+frontend server's access log, and the `Referer` of the next same-origin request,
+and the refresh token is good for a week. The frontend swaps the code for the
+token pair server to server at `POST /api/v1/oauth/exchange`, which redeems it
+exactly once.
+
+
+### Single sign-on (generic OIDC)
+
+Any identity provider that publishes a discovery document: Microsoft Entra ID,
+Okta, Keycloak, Auth0, Authentik, Google Workspace through its OIDC endpoint. A
+company self-hosting this runs one already, and will not create local passwords
+for its staff - without this, its MFA and its offboarding are solved twice.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OIDC_ISSUER` | (empty) | The issuer URL. Empty means no SSO, and the callback answers 404 |
+| `OIDC_CLIENT_ID` | (empty) | The client the provider issued for this deployment |
+| `OIDC_CLIENT_SECRET` | (empty) | Its secret |
+| `OIDC_REDIRECT_URI` | `http://localhost:8000/api/v1/oauth/oidc/callback` | The callback, registered at the provider |
+| `OIDC_SCOPES` | `openid email profile` | Space-separated. Add the provider's own scope where it needs one for the claims |
+| `OIDC_VERIFIED_CLAIM` | (empty) | A third claim to accept as "this address is confirmed", for a provider that names it something of its own |
+| `OIDC_GROUPS_CLAIM` | (empty) | The claim listing a person's groups, usually `groups`. Set, each sign-in applies the [directory group mappings](directory.md#directory-group-mappings); empty leaves memberships alone. Refused together with `LDAP_URL` |
+
+The issuer is the only URL. Authorization, token, userinfo and JWKS come from
+`<issuer>/.well-known/openid-configuration`, which the provider keeps correct
+across a key rotation or an endpoint move - so there are no further endpoints to
+get subtly wrong. The flow is authorization-code with PKCE.
+
+The claims are read from the ID token, and from the **UserInfo endpoint** when
+the ID token does not carry them. A provider is entitled to keep `email` and its
+verification claim at UserInfo and put neither in the token, so reading only the
+token would refuse an entirely compliant provider one request short of a valid
+identity.
+
+Two buttons on the frontend, configured there:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OAUTH_PROVIDERS` | `google` | Add `oidc` to show the SSO button; set it to `oidc` alone for SSO only. `ldap` adds the directory form and `kerberos` the Windows sign-in button, below |
+| `OIDC_DISPLAY_NAME` | `SSO` | What the button calls the provider: `Acme SSO`, `Okta` |
+| `OIDC_ICON` | (empty) | `google`, `github` or `microsoft` - the marks the sign-in page already ships. Anything else draws a plain key |
+
+Where each issuer lives, and what to register:
+
+| Provider | Issuer | Register the redirect URI as |
+|----------|--------|------------------------------|
+| **Entra ID** | `https://login.microsoftonline.com/<tenant-id>/v2.0` | A **Web** platform redirect URI on the app registration. Grant `openid`, `email`, `profile` under API permissions |
+| **Okta** | `https://<org>.okta.com` (or a custom authorization server's `/oauth2/<id>`) | A sign-in redirect URI on a **Web** application |
+| **Keycloak** | `https://<host>/realms/<realm>` | A valid redirect URI on a confidential client with standard flow enabled |
+
+Two things the platform requires of whatever provider it is pointed at:
+
+- **The address must be confirmed.** Two claims are accepted: the standard
+  `email_verified`, and Entra ID's `xms_edov`, which is what Entra sends instead
+  - it emits no `email_verified` at all, and it is an **optional claim** you
+  enable on the app registration, so an Entra tenant that has not enabled it
+  sends neither and every sign-in is refused. `OIDC_VERIFIED_CLAIM` names a third
+  for a provider that calls it something else. Absent counts as not verified: an
+  unconfirmed address means anybody at that provider can claim anybody's work
+  address, and the domain allow-list below is built on an address meaning
+  something.
+- **A stable `sub`.** The account is keyed on it, not on the address, so a
+  person who changes their name or whose domain is bought keeps their history -
+  and the next holder of a freed address does not inherit it. It is stored
+  **namespaced by the issuer**, because a `sub` is unique within its issuer and
+  nowhere else: pointing the deployment at a different tenant or realm cannot
+  then sign a new principal into an old one's account.
+
+The sign-up policy applies here exactly as it applies to the registration form:
+an `invite_only` deployment refuses an SSO sign-in from somebody nobody invited,
+and an allowed-domains list refuses an address outside it, with the same
+sentence on the sign-in page. See
+[Who may register](deployment.md#who-may-register).
+
+With `OIDC_GROUPS_CLAIM` set, the provider's groups decide memberships: each
+organization's [directory group mappings](directory.md#directory-group-mappings)
+join people with a role and place them in groups, and a mapped group admits a
+first sign-in on an `invite_only` deployment the way an invitation does. An Entra
+ID group overage is refused rather than read as "no groups" - see
+[The groups claim over OIDC](directory.md#the-groups-claim-over-oidc).
+
+SAML and SCIM are not implemented. Most identity providers a mid-size company
+runs speak OIDC, and these settings are the whole of what they need. A directory
+with no identity provider in front of it can be used directly - see below.
+
+### Directory sign-in (LDAP)
+
+Signing in with an Active Directory, OpenLDAP or FreeIPA account, by binding as
+it. [Directory sign-in and groups](directory.md) explains the sign-in, what it
+refuses and how groups are read. Empty `LDAP_URL` switches it off, and the route
+answers 404.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `LDAP_URL` | (empty) | `ldaps://host[:port]`, or `ldap://` with StartTLS |
+| `LDAP_START_TLS` | `false` | Upgrade an `ldap://` connection before binding |
+| `LDAP_ALLOW_PLAINTEXT` | `false` | Accept `ldap://` without StartTLS, which sends passwords in the clear. Refused at startup otherwise |
+| `LDAP_CA_CERT_FILE` | (empty) | A PEM bundle to verify the directory's certificate against, for a company CA |
+| `LDAP_BIND_DN` / `LDAP_BIND_PASSWORD` | (empty) | The service account a sign-in searches with. Both or neither; neither searches anonymously |
+| `LDAP_USER_BASE_DN` | (empty) | Where accounts are searched. Required with `LDAP_URL` |
+| `LDAP_USER_FILTER` | matches `uid`, `sAMAccountName`, `userPrincipalName` or `mail` | Must contain `{username}`, which is escaped before it is put in |
+| `LDAP_EMAIL_ATTRIBUTE` | `mail` | The account's address |
+| `LDAP_NAME_ATTRIBUTE` | `displayName` | The account's display name |
+| `LDAP_ID_ATTRIBUTE` | `entryUUID` | The stable identifier the account is keyed on - `objectGUID` on Active Directory |
+| `LDAP_GROUP_ATTRIBUTE` | `memberOf` | Where the account's groups are read from |
+| `LDAP_GROUP_BASE_DN` | (empty) | Search here for groups instead, for a directory without `memberOf` |
+| `LDAP_GROUP_FILTER` | `(member={dn})` | The group search, with `{dn}` or `{username}` |
+| `LDAP_TIMEOUT_SECONDS` | `10` | Connect and read timeout for each directory request |
+
+The frontend shows the form with `ldap` in `OAUTH_PROVIDERS`, and names it with
+`LDAP_DISPLAY_NAME` (default `LDAP`).
+
+### Kerberos sign-in
+
+Integrated Windows sign-in through SPNEGO, resolving the ticket's principal
+through the directory above - so it needs `LDAP_URL`, and an image built with the
+`kerberos` extra. See [Integrated Windows sign-in](directory.md#integrated-windows-sign-in-kerberos).
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `KERBEROS_ENABLED` | `false` | Offer Kerberos sign-in. Refused at startup without `LDAP_URL` |
+| `KERBEROS_KEYTAB` | (empty) | The keytab holding the service's key. Empty uses the default keytab (`KRB5_KTNAME`, else `/etc/krb5.keytab`) |
+| `KERBEROS_SERVICE_PRINCIPAL` | (empty) | `HTTP/<api host>@<REALM>`. Empty accepts a ticket for any principal in the keytab |
+| `LDAP_KERBEROS_FILTER` | `(userPrincipalName={principal})` | How the principal is found in the directory: `{principal}` is `user@REALM`, `{username}` the part before `@` |
+
+The frontend shows the button with `kerberos` in `OAUTH_PROVIDERS`, and names it
+with `KERBEROS_DISPLAY_NAME` (default `Kerberos`).
 
 ## Database (PostgreSQL)
 
@@ -134,6 +288,7 @@ the callback 404s.
 | `POSTGRES_USER` | `postgres` | PostgreSQL user |
 | `POSTGRES_PASSWORD` | (empty) | PostgreSQL password |
 | `POSTGRES_DB` | `agenticos` | Database name |
+| `POSTGRES_SSLMODE` | (empty) | Encrypt the connection: `require`, `verify-ca` or `verify-full`. Empty is plaintext. See [Encrypted connections](#encrypted-connections-tls) |
 | `DB_POOL_SIZE` | `5` | Connection pool size |
 | `DB_MAX_OVERFLOW` | `10` | Max overflow connections |
 | `DB_POOL_TIMEOUT` | `30` | Pool timeout in seconds |
@@ -144,12 +299,122 @@ Computed properties:
 
 ## Redis
 
+The compose files run **Valkey** (`valkey/valkey:8-alpine`), the BSD-3-Clause fork of
+Redis 7.2, rather than Redis itself, which has been RSALv2 or SSPL-1.0 since 7.4.0 -
+neither an open-source licence ([licences](licenses.md)). It speaks the same protocol
+on the same port, so the settings below, the `redis://` scheme and the `redis` service
+name are unchanged, and a deployment that points these at a managed Redis, Valkey or
+Elasticache instead works exactly as before.
+
+It is run as a cache and nothing else: `--save ''`, no volume, so it starts empty
+after every restart. Everything the platform keeps here - rate-limit buckets,
+channel dedupe claims, membership answers - carries a TTL and rebuilds itself.
+
+A snapshot bought nothing and cost one outage: Valkey 8 forks Redis 7.2 and refuses
+an RDB written by Redis 7.4, so the first deploy onto a host that had run
+`redis:7-alpine` crash-looped and took every service that waits on the cache with
+it. A managed instance that does persist is fine; the platform does not rely on
+it either way.
+
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `REDIS_HOST` | `localhost` | Redis host |
 | `REDIS_PORT` | `6379` | Redis port |
 | `REDIS_PASSWORD` | (none) | Redis password (optional) |
 | `REDIS_DB` | `0` | Redis database number |
+| `REDIS_SSL` | `false` | Encrypt the connection (`rediss://`). See [Encrypted connections](#encrypted-connections-tls) |
+
+## Encrypted connections (TLS)
+
+Both stores connect in plaintext by default. On a single host with Postgres and
+Redis on the same Docker network that is fine, and it is what the shipped compose
+files run. On a managed Postgres, or a Redis on another node, encrypting the
+connection is the transmission-security control a reviewer asks for first (HIPAA
+§164.312(e), SOC 2 CC6.7).
+
+Setting `POSTGRES_SSLMODE` builds the URL each driver understands — `?ssl=<mode>`
+for the app's asyncpg, `?sslmode=<mode>` for Alembic's psycopg2 — and `REDIS_SSL`
+switches the Redis scheme to `rediss://`. `require` encrypts the connection;
+`verify-ca` and `verify-full` also check the server's certificate.
+
+`REDIS_SSL` also asks for a valid certificate chain and a matching hostname on
+the URL itself, rather than leaving both to redis-py's defaults.
+
+!!! warning "A private CA is a file the drivers read, not the OS trust store"
+
+    Neither driver consults the container's trust store, and the image runs as a
+    non-root user with no entrypoint that could rebuild it. asyncpg and libpq
+    both read the CA file `PGSSLROOTCERT` names; redis-py trusts whatever bundle
+    OpenSSL points at, which `SSL_CERT_FILE` overrides. Mount the CA once and set
+    both variables to it - `verify-ca` and `verify-full` fail without the first,
+    since asyncpg then looks for `~/.postgresql/root.crt` and finds nothing.
+
+!!! note "Every service that opens a store connection needs the change"
+
+    `app`, `migrate` and `prefect-runner` each connect to Postgres and Redis, and
+    the shipped compose files pin `POSTGRES_HOST=db` and `REDIS_HOST=redis` in
+    each one's `environment`, which wins over an env file. So a managed store is
+    an override file that reaches all three, not a line in `.env`.
+
+```yaml
+# docker-compose.managed.yml - a managed Postgres and Redis, verified against a
+# private CA. Run with `docker compose -f docker-compose.yml -f docker-compose.managed.yml up -d`.
+x-managed: &managed
+  environment:
+    POSTGRES_HOST: db.internal.example.com
+    POSTGRES_SSLMODE: verify-full
+    PGSSLROOTCERT: /run/tls/managed-ca.crt
+    REDIS_HOST: redis.internal.example.com
+    REDIS_SSL: "true"
+    SSL_CERT_FILE: /run/tls/managed-ca.crt
+  volumes:
+    - ./ca/managed-ca.crt:/run/tls/managed-ca.crt:ro
+
+services:
+  app: *managed
+  migrate: *managed
+  prefect-runner: *managed
+```
+
+The bundled `db` and `redis` services keep starting, unused; `agenticos cmd
+doctor` shows which store each connection actually reached and whether it was
+encrypted (`postgres: tls=on/off`, `redis: tls=on/off`, from `pg_stat_ssl` and the
+URL scheme).
+
+## Email (SMTP)
+
+The deployment sends mail through an SMTP server, and one with none configured
+does not fail — it runs, and every mail-dependent flow silently stops, none of
+them announcing itself:
+
+- **passwordless sign-in and password resets** — the magic-link and reset emails
+  are the self-service ways into an account;
+- **invitations** — an invited address is never mailed (the console now says so
+  rather than claiming it sent one, #1484);
+- **notifications** — a budget breach, an approval request, a usage report, the
+  notice sent when an administrator acts as another account.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SMTP_HOST` | `localhost` | SMTP server host |
+| `SMTP_PORT` | `587` | SMTP server port. `587` and `25` negotiate STARTTLS; `465` opens TLS from the start |
+| `SMTP_USER` | (empty) | Username the relay authenticates with, alongside `SMTP_PASSWORD`. Leave empty for an unauthenticated relay |
+| `SMTP_PASSWORD` | (empty) | Password for that username |
+| `SMTP_TLS` | `true` | Whether to encrypt the connection. The port picks the scheme — STARTTLS on `587`, implicit TLS on `465` — unless `SMTP_TLS_MODE` says otherwise. Set `false` only for an unencrypted relay, such as a local server on `25` |
+| `SMTP_TLS_MODE` | `auto` | How the encrypted connection is opened. `auto` lets the port choose; `implicit` opens TLS from the first byte and `starttls` negotiates the upgrade, whatever the port. Ignored when `SMTP_TLS=false` |
+| `EMAIL_FROM` | `noreply@agenticos.com` | The `From` address on every message |
+| `EMAIL_FROM_NAME` | `agenticos` | The display name shown beside that address |
+
+!!! note "How the connection is encrypted"
+
+    `SMTP_TLS` is the on/off switch; the port chooses the scheme. The shipped
+    default — `587` with `SMTP_TLS=true` — negotiates STARTTLS, which is what a
+    standards-compliant submission server expects. Use `465` for a server that
+    wants implicit TLS instead, and `SMTP_TLS=false` on `25` for a plaintext relay.
+
+    A server that speaks implicit TLS on a port other than `465` — `8465`, say —
+    needs `SMTP_TLS_MODE=implicit`, because `auto` would offer it a plaintext
+    handshake and every send would fail. `starttls` is the mirror case.
 
 ## Background work (Prefect)
 
@@ -196,7 +461,19 @@ approvals are a weekly ritual. Expiring a call also **ends its run** — see
 [Governance](governance.md#a-decision-nobody-makes) for what that settles and what
 it deliberately leaves alone.
 
-## AI Models — configured in the app, not here
+### Stale-run reaping
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `STALE_RUN_REAPED_AFTER_HOURS` | `6` | How long a run may sit `running` before the hourly sweep decides its process died and ends it as `failed`. Zero or below switches the sweep off |
+
+A run's row is committed before its model is called, so a worker killed mid-run
+leaves it `running` with nothing left to finish it. The ceiling does not have to
+be exact — a live run the sweep flips anyway is flipped back by its own terminal
+write — so set it well past your longest legitimate run and no closer. See
+[Governance](governance.md#a-run-whose-process-died).
+
+## AI models — configured in the app, not here
 
 Chat models are not environment variables. Each organization stores its own
 provider keys in the vault (Settings → Models), and every agent's spec names
@@ -210,6 +487,38 @@ see RAG below.
 
 ## Observability (Logfire)
 
+Optional, and off until a token is set. Nothing in this section has to be
+configured: with `LOGFIRE_TOKEN` unset the platform runs in full, and a run still
+records its own trace id locally. What a token buys is the traces, and a trace is
+a copy of the run — the user's message, the model's output and every tool
+argument and result — because recording exactly that is what an observability
+backend is for. Setting the token is therefore a decision about where run content
+may go, not only about dashboards. A deployment over health, legal or HR data
+reads [what leaves the machine](data-protection.md#traces) before setting it.
+
+Three things can point runs at a project, and they stack:
+
+- `LOGFIRE_TOKEN` here instruments Pydantic AI globally, so every run exports
+  into the deployment's own project. Two processes configure it: the API at
+  startup (`app/main.py`), and a fired run in the Prefect worker, which sets
+  itself up because each flow run gets a subprocess of its own. The worker's
+  spans carry `<service name>-worker`, so one project can tell a slow scheduled
+  run from a slow chat turn.
+- An [environment](environments.md#tracing-per-environment) can carry its own
+  write token, sealed in the vault, which redirects the runs bound to it.
+- An agent's [`observability`](reference/spec.md#observability) block names a
+  project of its own — a client's, usually.
+
+The agent's `content` mode decides how much each span carries: `full`, the
+default, records the message, the output and every tool call; `none` records
+timing, tokens, cost and tool names only. It is applied where the agent is
+instrumented, so it holds whichever token traces the run — under the
+deployment-wide one the agent is pinned to content-free instrumentation instead,
+and a specialist the agent delegates to — written inline or invented mid-run by
+the model — inherits the mode. One limit
+before relying on it: attaching that instrumentation is best-effort, and a
+failure is logged while the run continues.
+
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `LOGFIRE_TOKEN` | (none) | Pydantic Logfire token. Get one at https://logfire.pydantic.dev |
@@ -219,26 +528,47 @@ see RAG below.
 | `LOGFIRE_PROJECT` | (none) | Project slug, alongside the organization. With either unset a run's `logfire_trace_id` is still recorded and no link is offered |
 | `LOGFIRE_BASE_URL` | `https://logfire-us.pydantic.dev` | Which Logfire deployment those slugs belong to. `logfire-eu` is a different host, and a link built for the wrong one 404s |
 
-## Web Search
+## Web search
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 
 ## RAG (Retrieval Augmented Generation)
 
-### Vector Database
+### Vector database
 
 pgvector uses the existing PostgreSQL connection. No additional configuration
-is needed.
+is needed — but the **image** must be `pgvector/pgvector:pg16`, which every
+compose file here pins.
+
+!!! note "\"Vector store: unconfigured\" on a fresh deployment is not a fault"
+
+    The extension is created the first time a collection is written to, so
+    before the first document it is genuinely absent and the admin System page
+    and `agenticos cmd doctor` both say so. It resolves itself on the first
+    ingestion.
+
+    What is a fault is `unhealthy` there, and it names which of three: the image
+    does not ship pgvector; the connecting role may not create it; or the data
+    directory carries the extension row while the image it now runs on has lost
+    the library. All three fail an upload after the bytes have been accepted, and
+    all three used to read the same as a healthy first day
+    ([#1504](https://github.com/vstorm-co/agenticos/issues/1504)).
 
 ### Embeddings
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `OPENROUTER_API_KEY` | (empty) | The fallback embeddings credential, for collections that chose no vault key of their own — and the one a degraded choice falls back to. Not "every collection embeds on it": see [File processing](file-processing.md#embeddings-the-model-and-whose-key-pays) |
-| `EMBEDDING_MODEL` | `text-embedding-3-large` | What a **new** collection is built with. The width is recorded on the row and never changes afterwards, so changing this does not invalidate existing collections — they keep embedding with the model they were created with |
+Nothing here. Every collection names the provider it embeds through, the model,
+and either the organization vault key that pays for it or - for the keyless
+`ollama` provider - a **local service**, a row under Knowledge → Integrations
+that says where the deployment's or the organization's Ollama answers. See
+[File processing](file-processing.md#embeddings-the-model-whose-endpoint-answers-and-whose-key-pays).
 
-### Document Parsing — configured per collection, not here
+There used to be two variables. `EMBEDDING_MODEL` preselected a model for new
+collections and is gone: the form offers the models the chosen provider serves.
+`EMBEDDING_OLLAMA_BASE_URL` named one Ollama for the whole deployment and is a
+local service now, per organization or deployment-wide.
+
+### Document parsing — configured per collection, not here
 
 Parser, OCR, chunk size, chunk overlap, chunking strategy and the
 image-description model are **not** environment variables. They are stored on
@@ -253,17 +583,19 @@ different answers on the same deployment. `PDF_PARSER`, `CHAT_PDF_PARSER`,
 `RAG_ENABLE_OCR`, `RAG_CHUNK_SIZE`, `RAG_CHUNK_OVERLAP` and
 `RAG_CHUNKING_STRATEGY` were removed; setting them now does nothing.
 
-What stays here is what a tenant must not choose:
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `LLAMAPARSE_API_KEY` | (empty) | Fallback LlamaParse key for collections that chose no vault key of their own |
-| `LITEPARSE_OCR_SERVER_URL` | (empty) | HTTP OCR server; an address on the deployment's own network |
+Two things that used to stay here are rows in the product now. A LlamaParse
+key is a vault entry the collection's ingestion configuration names
+(`llamaparse_secret_id`), and a collection on LlamaParse without one is refused
+at the form - `LLAMAPARSE_API_KEY` is gone. An OCR server LiteParse sends pages
+to is a local service of kind `ocr` under Knowledge → Integrations, chosen per
+collection (`ocr_endpoint_id`), registered by an organization operator or, for
+every organization, by the deployment's administrator - `LITEPARSE_OCR_SERVER_URL`
+is gone too. Neither was visible to the tenant whose documents it decided about.
 
 Chat attachments are read with PyMuPDF and are not configurable: an attachment
 belongs to no collection, so there is no stored configuration to read.
 
-### Google Drive Sync
+### Google Drive sync
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -282,7 +614,41 @@ folder with the service account's own email address** - it is a principal like
 any other, and a folder nobody shared with it lists as empty rather than as
 refused.
 
-### S3/MinIO Sync
+## Uploaded files at rest
+
+Where chat attachments, avatars, branding images and the originals of
+knowledge-base documents are stored. One backend per deployment, never per
+organization, and switching it does not move what the other already holds.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `FILE_STORAGE_BACKEND` | `local` | `local` writes under `MEDIA_DIR`; `s3` writes to an S3-compatible bucket |
+| `FILE_STORAGE_S3_BUCKET` | (empty) | The bucket. Required when the backend is `s3`; the API refuses to start an upload without it |
+| `FILE_STORAGE_S3_ENDPOINT` | (none) | Empty for AWS. The address of the service for MinIO or another compatible store |
+| `FILE_STORAGE_S3_REGION` | `us-east-1` | AWS region |
+| `FILE_STORAGE_S3_ACCESS_KEY` | (empty) | Leave **empty on AWS**: boto3's own credential chain then answers, which is an instance profile or an IRSA role rather than a long-lived key in an environment file |
+| `FILE_STORAGE_S3_SECRET_KEY` | (empty) | The other half, same |
+| `FILE_STORAGE_S3_PATH_STYLE` | `false` | `true` for MinIO and most compatible stores, which address a bucket by path. A virtual-host request to one fails DNS rather than S3 |
+| `FILE_STORAGE_S3_PREFIX` | (empty) | Every key this deployment writes sits under it, so one bucket can hold more than one deployment without their keys meeting |
+| `FILE_STORAGE_S3_ENCRYPTION` | `sse-s3` | What the store is asked for on every write: `sse-s3` (the bucket's own key), `sse-kms` (the key below), or `none` |
+| `FILE_STORAGE_S3_KMS_KEY_ID` | (none) | The KMS key id or ARN. **Required** when the mode is `sse-kms`: S3 reads an unnamed `aws:kms` as its own AWS-managed `aws/s3` key rather than as the bucket's default, so leaving it empty would encrypt under a key nobody chose |
+
+!!! warning "`none` is for a store with no KMS behind it, and it is not encryption"
+
+    MinIO refuses SSE-S3 unless a KES server is configured, so a compatible store
+    with no KMS needs `none` to work at all — and a deployment running that way
+    has the encryption its volumes give it and nothing more.
+    `agenticos cmd doctor` reports that configuration as unconfigured rather than
+    healthy, and the at-rest row in [security](security.md#what-is-encrypted-where)
+    says the same.
+
+A bucket the deployment writes to needs `s3:PutObject`, `s3:GetObject`,
+`s3:DeleteObject` and `s3:ListBucket` on it, plus `kms:Encrypt`,
+`kms:Decrypt` and `kms:GenerateDataKey` on the key when the mode is `sse-kms`.
+For a local MinIO, `make docker-minio` starts one on `:9000` with
+`minioadmin` / `minioadmin`.
+
+### S3/MinIO sync
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -292,10 +658,33 @@ refused.
 | `S3_RAG_BUCKET` | `agenticos-rag` | Bucket name |
 | `S3_RAG_REGION` | `us-east-1` | AWS region. A credential's own region wins where it has one |
 
+This is the *sync connector*, which reads a bucket a tenant owns — not the
+deployment's own file storage above. The two are configured separately and
+deliberately: one is infrastructure, the other is a tenant's data.
+
 **The key pair here is the CLI's, not a sync source's.** An `s3` sync source names
 an `aws_credentials` secret in its organization's vault, the same way a `gdrive` one
 names a service account. The endpoint and region still fall back to these settings
 because neither names a principal — they say where the store is, not who is asking.
+
+## Published artifacts
+
+Pages agents publish with the `artifacts` capability. Their bytes live in the
+file storage above; these bound them and say where they are served from. See
+[Artifacts](artifacts.md).
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ARTIFACT_MAX_BYTES` | 5 MiB | One version of one page. A publication above it is refused with a message the model reads |
+| `ARTIFACT_MAX_VERSIONS` | `20` | Versions kept per artifact. The oldest is removed when a newer one lands, unless the public link is pinned to it |
+| `ARTIFACT_VIEW_TTL_SECONDS` | `300` | How long a signed content address opens, at most 3600. Also how long an open page outlives a revoked grant or link |
+| `ARTIFACT_ORIGIN` | (empty) | Where content is served from - the pages, their [library set](artifacts.md#the-library-set) and the embed document. Empty serves it from `PUBLIC_BASE_URL`, isolated by its `sandbox` policy. Set it to a host on a separate registrable domain, routed to this API, to also put the page on another site |
+
+**`ARTIFACT_ORIGIN` is read twice, and both have to see it.** The backend signs
+content addresses on it, and the frontend adds it to the console's `frame-src`.
+Set it in the backend's environment and in the frontend's; the compose files
+pass it to both. A value in only one of them shows an empty frame, because the
+browser refuses to load the page from an origin the console did not allow.
 
 ## Agent workspaces
 
@@ -339,13 +728,16 @@ shipped compose file for the same reason: it asks a human to paste this value in
 a browser.
 
 `SANDBOXD_TOKEN` in `backend/.env` is the *service's* own — what the daemon in the
-compose file will accept. `make sandbox-token` generates it, and the connection
-form stores the same value in the vault for you: the API reads this setting for
-exactly one purpose, offering it to the vault, and asking somebody to copy a secret
-out of a file their own stack is already reading is friction with nothing behind
-it. It is never used to reach a host — resolving a connection unseals the vault
-entry that connection names, and that stays the only path — so a deployment that
-leaves it unset loses one button and nothing else, and pastes the token instead.
+compose file will accept.
+
+`make sandbox-token` generates it, and the connection form stores the same value in
+the vault for you. The API reads this setting for exactly one purpose: offering it to
+the vault. Asking somebody to copy a secret out of a file their own stack is already
+reading is friction with nothing behind it.
+
+It is **never** used to reach a host — resolving a connection unseals the vault entry
+that connection names, and that stays the only path. So a deployment that leaves it
+unset loses one button and nothing else, and pastes the token instead.
 
 The same form asks whether a service is already answering, rather than making an
 operator know that a `make dev` sandbox service lives at `http://sandboxd:8080`.
@@ -454,17 +846,23 @@ allows any runtime at all. No connection registered is a warning, not a failure 
 the `state` workspace needs none.
 
 **Browsing what the agents kept.** Workspaces is its own screen — not part of
-Sandboxes, which is about *hosts*. Each row names the agent, the conversation the
-files belong to (or how many chats reach them, for a workspace no single
-conversation owns), who can see them, how big it is and when it was last used.
-**Open** goes to that workspace's own page, in the shape the skills editor uses:
-the tree on the left — folders walked one at a time, a search box over the whole
-tree rather than the folder on screen — and the file itself rendered beside it, so
-reading three files is three clicks and the list never closes. Downloading is on
-the row rather than beside the reader, because selecting a file reads it and a
-large archive is one somebody wants a copy of without paying for that. A second view on the listing flattens every file the reader
-can see into one grid — the "who is holding a copy of that CSV" question the
-per-workspace page cannot answer.
+Sandboxes, which is about *hosts*.
+
+Each row names the agent, the conversation the files belong to (or how many chats
+reach them, for a workspace no single conversation owns), who can see them, how big
+it is and when it was last used.
+
+**Open** goes to that workspace's own page, in the shape the skills editor uses: the
+tree on the left — folders walked one at a time, with a search box over the whole
+tree rather than the folder on screen — and the file itself rendered beside it. So
+reading three files is three clicks, and the list never closes.
+
+Downloading is on the row rather than beside the reader, because selecting a file
+reads it and a large archive is one somebody wants a copy of without paying for that.
+
+A second view on the listing flattens every file the reader can see into one grid —
+the "who is holding a copy of that CSV" question the per-workspace page cannot
+answer.
 
 **Clicking a file opens it in a viewer, and it is the same viewer in the chat panel.**
 An image is a picture, a PDF is the browser's own PDF view, markdown offers *Preview*
@@ -474,21 +872,28 @@ as markdown — and anything else is its text. Download is always there, includi
 what cannot be shown at all. One component, because "open this file" meaning two
 different things on two screens is how the second one ends up missing a case.
 
-Bytes come from `GET /sandbox-workspaces/{id}/raw?path=…`, or from `GET
-/conversations/{id}/workspace/raw?path=…` for the panel beside a chat. Two routes
-rather than one because they authorise different callers — the conversation route is
-reached by fetching the conversation, so somebody a chat was *shared with* keeps
-access — and one module deciding what may be displayed, so the answer cannot differ
-by surface. Almost everything is served as an attachment; **raster images and PDFs**
-are served for display, a raster because it cannot execute and a PDF because the
-browser renders it in its own viewer, which never gets the page's DOM. **SVG and HTML
-are downloadable and never displayable** — an SVG served inline from this origin is
-stored cross-site scripting written by whatever the agent decided to save, and "the
-agent wrote it" is not a trust boundary. Everything else is typed
-`application/octet-stream` with `X-Content-Type-Options: nosniff`, so a browser
-cannot decide such a body is HTML after all. The filename travels as `filename*`
-only, because a workspace path can hold any UTF-8 and the bare form has no way to
-say so.
+Bytes come from `GET /sandbox-workspaces/{id}/raw?path=…`, or from
+`GET /conversations/{id}/workspace/raw?path=…` for the panel beside a chat.
+
+Two routes rather than one because they authorise different callers — the
+conversation route is reached by fetching the conversation, so somebody a chat was
+*shared with* keeps access — and one module deciding what may be displayed, so the
+answer cannot differ by surface.
+
+Almost everything is served as an attachment. **Raster images and PDFs** are served
+for display: a raster because it cannot execute, a PDF because the browser renders it
+in its own viewer, which never gets the page's DOM.
+
+!!! danger "SVG and HTML are downloadable and never displayable"
+
+    An SVG served inline from this origin is stored cross-site scripting written by
+    whatever the agent decided to save, and "the agent wrote it" is not a trust
+    boundary.
+
+Everything else is typed `application/octet-stream` with
+`X-Content-Type-Options: nosniff`, so a browser cannot decide such a body is HTML
+after all. The filename travels as `filename*` only, because a workspace path can
+hold any UTF-8 and the bare form has no way to say so.
 
 Only a **stored** workspace can serve arbitrary bytes. A container-backed one is read
 through the workspace archive, whose only reader is textual, so a text file is served
@@ -529,56 +934,78 @@ on disk, so its files exist only while a sandbox is running and cannot be read
 without starting one: the Files panel could then only say so, for a file the agent
 had demonstrably just written.
 
-Every compose file therefore sets one, overridable with `SANDBOX_WORKSPACE_ROOT` (an
-environment variable where compose interpolates it — the project root, not
-`backend/.env`, except on the `dev` and `prod` targets which pass that file
-explicitly) — one host path,
-bind-mounted at the same location on both sides, because the service creates the
-directory and then asks the *daemon* to mount it and the daemon resolves the path on
-the host. A named volume, or any path existing only inside the service's container,
-is refused with "mounts denied". Local dev defaults to
-`/tmp/agenticos-sandbox-workspaces`, which Docker Desktop shares and anybody can
-write to, so a laptop needs no setup; the server files default to
-`/var/lib/agenticos/sandbox-workspaces`, which has to exist and be writable by uid
-10001 (`install -d -o 10001` once) and belongs on storage somebody backs up. A
-reboot sweeps `/tmp`, which is the one reason not to point a real deployment there.
+Every compose file therefore sets one, overridable with `SANDBOX_WORKSPACE_ROOT` —
+an environment variable where compose interpolates it, so the project root rather
+than `backend/.env`, except on the `dev` and `prod` targets which pass that file
+explicitly.
 
-That is reported rather than raised. Every listing carries `unreadable_reason`, and
-a client shows it as an explanation instead of an error, because neither cause is a
+One host path, bind-mounted at the same location on both sides, because the service
+creates the directory and then asks the *daemon* to mount it — and the daemon
+resolves the path on the host. A named volume, or any path existing only inside the
+service's container, is refused with `mounts denied`.
+
+| | Default | |
+|---|---|---|
+| Local dev | `/tmp/agenticos-sandbox-workspaces` | Docker Desktop shares it and anybody can write to it, so a laptop needs no setup |
+| The server files | `/var/lib/agenticos/sandbox-workspaces` | Has to exist and be writable by uid 10001 — `sudo mkdir -p <path> && sudo chown 10001:10001 <path>`, once. Not `install -d -o 10001`: `install` resolves the owner through the passwd database and refuses a uid no account owns. It belongs on storage somebody backs up |
+
+A reboot sweeps `/tmp`, which is the one reason not to point a real deployment
+there.
+
+That is reported rather than raised. Every listing carries `unreadable_reason`, and a
+client shows it as an explanation instead of an error — because neither cause is a
 fault: a service keeping nothing on disk is a configuration with a one-line fix the
-message names, and a host that is down will be up later. Raising made it a 500,
-which a browser could only render as "something went wrong" — beside an empty list,
-which reads as "there are no files". Two wrong answers at once. Reading *one file*
-from such a host is refused with the same sentence rather than reported as "no such
-file", which would say the file is missing when it is not.
+message names, and a host that is down will be up later.
 
-**What is running is read from the service too.** The Sandboxes screen keeps it on
-its own tab, apart from the connections table, and lists this organization's open
-sandboxes on the host it names — the default connection until the operator picks
-another — sortable by idle time and memory: runtime, what shares each one, idle
-time, and memory against its own ceiling when asked — plus the activity log
-per sandbox: which paths were read, which commands ran, and how each went. Neither
-file contents nor command output is recorded by the service, which is what keeps
-an audit trail from becoming a way to read another agent's work. The dashboard
-answers the same three questions in its own section, for a caller holding
-`connections:manage`; memory is behind a switch there for the same reason it is on
-the screen, because the service samples each sandbox individually for it.
+Raising made it a 500, which a browser could only render as "something went wrong",
+beside an empty list, which reads as "there are no files". Two wrong answers at once.
 
-**All three ceilings now divide.** The session listing is filtered to the caller's
-organization but carries `SANDBOXD_MAX_SESSIONS` and `SANDBOXD_MAX_OPEN_SESSIONS`
-through from the service untouched, so those two count every tenant on the host while
-the rows count one - `len(sessions)` divides only against `SANDBOXD_MAX_SESSIONS_PER_TENANT`.
-The response carries two host-wide numerators for the other pair, taken from the
-unfiltered list before the filter narrows it: `host_session_count`, the resident
-sandboxes the service marks `state == "running"`, against `limit`; and
-`host_open_count`, every session that exists resident or hibernated, against
-`open_limit`. Now the capacity card can say why a session was refused while this
-organization is short of its own ceiling: the host itself is full of somebody else's
-work. That the two are host-wide is a deliberate, narrow disclosure - two aggregate
-integers naming nothing, a long way from the session rows the filter withholds, and
+Reading *one file* from such a host is refused with the same sentence rather than
+reported as "no such file", which would say the file is missing when it is not.
+
+**What is running is read from the service too.**
+
+The Sandboxes screen keeps it on its own tab, apart from the connections table, and
+lists this organization's open sandboxes on the host it names — the default
+connection until the operator picks another.
+
+Each row carries the runtime, what shares that sandbox, its idle time, and its memory
+against its own ceiling when asked. Sortable by idle time and memory. Beside them is
+the activity log per sandbox: which paths were read, which commands ran, and how each
+went.
+
+Neither file contents nor command output is recorded by the service, which is what
+keeps an audit trail from becoming a way to read another agent's work.
+
+The dashboard answers the same three questions in its own section, for a caller
+holding `connections:manage`. Memory is behind a switch there for the same reason it
+is on the screen: the service samples each sandbox individually for it.
+
+**All three ceilings now divide.**
+
+The session listing is filtered to the caller's organization, but it carries
+`SANDBOXD_MAX_SESSIONS` and `SANDBOXD_MAX_OPEN_SESSIONS` through from the service
+untouched — so those two count every tenant on the host while the rows count one.
+`len(sessions)` divides only against `SANDBOXD_MAX_SESSIONS_PER_TENANT`.
+
+So the response carries two host-wide numerators for the other pair, taken from the
+unfiltered list before the filter narrows it:
+
+- `host_session_count` — the resident sandboxes the service marks
+  `state == "running"`, against `limit`;
+- `host_open_count` — every session that exists, resident or hibernated, against
+  `open_limit`.
+
+Now the capacity card can say why a session was refused while this organization is
+short of its own ceiling: the host itself is full of somebody else's work.
+
+That the two are host-wide is a deliberate, narrow disclosure — two aggregate
+integers naming nothing, a long way from the session rows the filter withholds — and
 the listing is gated on `connections:view`, the authority to watch a host rather than
-any member's. They are `None` on a Daytona connection, which enforces no ceilings of
-ours to divide.
+any member's.
+
+They are `None` on a Daytona connection, which enforces no ceilings of ours to
+divide.
 
 That listing is **filtered, not forwarded**. One `sandboxd` answers for every
 organization that registered a connection at its address, so passing its response
@@ -600,7 +1027,7 @@ Neither view asks a Daytona connection any of this. It publishes no allowlist of
 own and holds none of our sessions to enumerate — what it permits is a setting on
 that account, and what runs there is visible in its own dashboard.
 
-## Messaging Channels
+## Messaging channels
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -628,7 +1055,7 @@ sandbox limits are per-agent capability configuration
 Production validation: `CORS_ORIGINS` cannot contain `"*"` in
 `ENVIRONMENT=production`.
 
-## Rate Limiting
+## Rate limiting
 
 Applied to the surfaces a stranger can reach, and only those: the public run API,
 the widget's script, its config, either surface's socket handshake, a hosted
@@ -643,6 +1070,7 @@ ceiling is a separate decision, not this one.
 | `RATE_LIMIT_EMBED_PER_MINUTE` | `20` | Per address, and **two separate counters of this size**: one for `widget.js`, one for admission — the widget's `/config` plus either surface's socket handshake. See below |
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | A hosted page's config, **per page** — and its logo, on a counter of its own. See below |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Files a visitor may store on a hosted page. Counted **per address and per visitor key**, and both have to allow it — the key is minted by the browser, so counting only that bounds nothing |
+| `RATE_LIMIT_ML_PER_MINUTE` | `30` | The [ML services](ml-services.md), per caller. These endpoints do their work synchronously, so an unbounded caller occupies the parsing pool rather than a budget |
 | `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Whether `X-Forwarded-For` names the caller |
 
 **What a refused caller gets** is this API's own error envelope with
@@ -652,15 +1080,18 @@ header — which is the one a fetch wrapper or a CDN actually backs off on. The
 socket handshake is the exception, because a WebSocket has no status to answer
 with: it closes with `4029` (see [channels](channels.md#the-raw-websocket)).
 
-**Two counters, not one, and the reason is arithmetic.** Loading a page with a
-widget on it costs three requests to this API: the script, the config, and the
-socket. Counted together, `20` bought about seven page loads for a cold browser
-rather than twenty admissions, and a limit wrong by a factor of three is worse
-than no limit because it reads as the number you set. So `widget.js` has its own
-bucket — it is cacheable, and a refusal there breaks the widget outright instead
-of delaying one message. The config and the handshake stay together, because
-together they *are* one admission: a browser that read a config and opened no
-socket did not get in.
+**Two counters, not one, and the reason is arithmetic.**
+
+Loading a page with a widget on it costs three requests to this API: the script, the
+config, and the socket. Counted together, `20` bought about seven page loads for a
+cold browser rather than twenty admissions — and a limit wrong by a factor of three
+is worse than no limit, because it reads as the number you set.
+
+So `widget.js` has its own bucket. It is cacheable, and a refusal there breaks the
+widget outright instead of delaying one message.
+
+The config and the handshake stay together, because together they *are* one
+admission: a browser that read a config and opened no socket did not get in.
 
 The counts live in the deployment's Redis, so they hold across workers —
 production runs four, and a count kept per process would let through four times
@@ -696,13 +1127,16 @@ different attacks: the IP bounds a flood from one source, the address bounds a
 brute force against one account.
 
 It is separate from, and lower than, the run allowance because the cost of a
-single attempt is what it defends. `verify_password` is bcrypt, ~170ms with no
-suspension point, so an unmetered `/login` flood for any address that has an
-account saturates a worker's event loop with no credentials at all. Two more
-things close the rest of that surface, and need no configuration: bcrypt runs in
-a thread so it never blocks the loop, and an address with no account is verified
-against a dummy hash rather than skipped, so a known and an unknown address take
-the same time to refuse and the timing no longer says which addresses exist.
+**single attempt** is what it defends. `verify_password` is bcrypt, ~170ms with no
+suspension point, so an unmetered `/login` flood for any address that has an account
+saturates a worker's event loop with no credentials at all.
+
+Two more things close the rest of that surface, and need no configuration:
+
+- bcrypt runs in a thread, so it never blocks the loop;
+- an address with **no** account is verified against a dummy hash rather than
+  skipped, so a known and an unknown address take the same time to refuse and the
+  timing no longer says which addresses exist.
 
 ### `RATE_LIMIT_TRUST_FORWARDED_FOR`, and why it is off
 
@@ -712,16 +1146,45 @@ a busy site behind Cloudflare exhausts the widget's twenty admissions a minute
 for everybody at once. Turning this on reads the **rightmost** `X-Forwarded-For`
 hop instead — the address the trusted proxy itself appended.
 
-It is off by default because the header is set by whoever is calling: trusted
-unconditionally, a per-address limit becomes a per-header limit that anybody
-bypasses by varying one string. The rightmost hop is read rather than the
-leftmost for the same reason — `X-Forwarded-For` is a list the client starts and
-each proxy appends to, so the head is what the client typed and only the tail is
-what a proxy you control wrote. **Turn it on only when a single proxy you control
-is the only thing that can reach the API** — if the container's port is published
-as well, a caller can set the header themselves and the limit stops meaning
-anything; and with two proxies in front, collapse the header to one hop at your
-edge, because only the last hop is trustworthy.
+It is off by default because the header is set by whoever is calling. Trusted
+unconditionally, a per-address limit becomes a per-header limit that anybody bypasses
+by varying one string.
+
+The **rightmost** hop is read rather than the leftmost for the same reason:
+`X-Forwarded-For` is a list the client starts and each proxy appends to, so the head
+is what the client typed and only the tail is what a proxy you control wrote.
+
+**The auth surface needs this too, and the frontend now makes it possible.** Auth
+requests reach the API server-side through the frontend's own `/api/auth/*` routes,
+so without help the address on them is the frontend container's and
+`RATE_LIMIT_AUTH_PER_MINUTE`'s per-IP half puts the whole deployment in one bucket —
+about eleven logins then lock everyone out for a minute, and an exhausted refresh
+bucket signs sessions out. Unlike a hosted page's config fetch, those routes
+**forward the caller's `X-Forwarded-For`**
+([#1047](https://github.com/vstorm-co/agenticos/issues/1047)), so with this setting on
+the limit keys on the real client. Turn it on for the auth limit under the same rule
+as everything else — one proxy you control in front, appending the client as the
+rightmost hop — which is the deployment decision this setting is; left off, the limit
+stays safe but shared.
+
+!!! danger "Turn it on only when a single proxy you control is the only thing that can reach the API"
+
+    If the container's port is published as well, a caller can set the header
+    themselves and the limit stops meaning anything.
+
+    **The frontend's port counts as the API's here.** Its `/api/auth/*` routes
+    forward whatever `X-Forwarded-For` they were handed, so a caller who can
+    reach port 3000 past the proxy chooses the address their login attempts are
+    counted against just as surely as one who can reach port 8000 — and every
+    accepted attempt against an address nobody holds still costs a bcrypt. Both
+    `docker-compose-prod.yml` and `docker-compose-prod.frontend.yml` therefore
+    publish on `127.0.0.1` by default, where the host's reverse proxy reaches
+    them and nothing else does. `BIND_HOST=0.0.0.0` opens them again, for a
+    proxy that genuinely runs elsewhere — with that proxy's own network as the
+    thing keeping the promise.
+
+    With two proxies in front, collapse the header to one hop at your edge — only
+    the last hop is trustworthy.
 
 ## A worker whose event loop has stopped turning
 
@@ -761,16 +1224,19 @@ changing the number:
   after one reads a stale stamp that says nothing.
 
 The local stack's reload supervisor reads the same variable for the judgement it
-makes from *outside* the worker, so one number covers both. Set it to `0` while
-debugging: a breakpoint blocks the event loop and nothing can tell that from a
-deadlock, so a worker sitting on one is otherwise killed under you.
+makes from *outside* the worker, so one number covers both.
+
+!!! tip "Set it to `0` while debugging"
+
+    A breakpoint blocks the event loop and nothing can tell that from a deadlock,
+    so a worker sitting on one is otherwise killed under you.
 
 It cannot see a process that is not running at all — `kill -STOP`, a frozen
 cgroup — because a watchdog inside a stopped process is stopped too. That case
 is the one the supervisors already cover: the reload supervisor's beat goes
 stale and production's pipe ping goes unanswered.
 
-## Docker / Production
+## Docker / production
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -778,14 +1244,23 @@ stale and production's pipe ping goes unanswered.
 | `ACME_EMAIL` | `admin@example.com` | Let's Encrypt email for SSL certs |
 | `REDIS_PASSWORD` | `change-me-in-production` | Redis password for production |
 
-## Production Checklist
+## Production checklist
 
-Before deploying to production, ensure these variables are properly set:
-1. `SECRET_KEY` -- Generate a unique 64-character hex key: `openssl rand -hex 32`
-2. `API_KEY` -- Generate a unique key: `openssl rand -hex 32`
-3. `ENVIRONMENT` -- Set to `production`
-4. `DEBUG` -- Set to `false`
-5. `POSTGRES_PASSWORD` -- Use a strong, unique password
-6. `CORS_ORIGINS` -- List only your actual frontend domain(s)
-7. `REDIS_PASSWORD` -- Set a strong password
-8. `OPENROUTER_API_KEY` -- Your production API key
+!!! danger "Every one of these ships with a default that is wrong in production"
+
+    A deployment reachable from anywhere else has all nine set deliberately.
+
+- [ ] `SECRET_KEY` — a unique 64-character hex key: `openssl rand -hex 32`
+- [ ] `API_KEY` — a unique key: `openssl rand -hex 32`
+- [ ] `VAULT_MASTER_KEY` — a unique key: `openssl rand -hex 32`. The config
+      refuses an empty one outside `local`/`development`
+- [ ] `ENVIRONMENT` — `production`
+- [ ] `DEBUG` — `false`
+- [ ] `POSTGRES_PASSWORD` — a strong, unique password
+- [ ] `REDIS_PASSWORD` — a strong password
+- [ ] `CORS_ORIGINS` — only your actual frontend domain(s)
+
+Email is deliberately **not** on this list: a deployment runs without it. But
+invitations, password resets and notifications all go silently unsent until
+`SMTP_HOST` and the rest of [Email (SMTP)](#email-smtp) point at a real server —
+so a deployment that skips it should be skipping it knowingly.

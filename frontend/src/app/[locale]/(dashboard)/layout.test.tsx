@@ -51,4 +51,18 @@ describe("the dashboard's scroll container", () => {
 
     expect((main?.props as { className: string }).className).toContain("overflow-auto");
   });
+
+  it("declares no room under a page, because its padding edge is not where a page ends", () => {
+    // `DeploymentGate` wraps every page in a `min-h-0 flex-1` box, so a long
+    // page overflows that and this element's bottom padding stays buried
+    // mid-content - 0px below the last card at every width. The room under a
+    // page is `PageTransition`'s, where it is painted (#933).
+    const className = (
+      find(DashboardLayout({ children: null }), "main")?.props as {
+        className: string;
+      }
+    ).className;
+
+    expect(className).not.toMatch(/(^|\s|:)pb-/);
+  });
 });

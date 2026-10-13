@@ -18,7 +18,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from typing import Any
@@ -85,8 +85,15 @@ async def _mcp_transport(
 
     The transport is inferred from the URL exactly as the toolset layer does it
     (FastMCP): a path segment `/sse` selects the SSE client (used by servers
-    like Atlassian/Jira), everything else uses streamable HTTP. The streamable
-    client yields a third session-id callable we don't need here.
+    like Atlassian/Jira), everything else uses streamable HTTP.
+
+    The streamable client takes a **client**, not headers, since MCP 2.0: it was
+    `streamablehttp_client(url, headers=...)` yielding three values, and is
+    `streamable_http_client(url, http_client=...)` yielding two. A rename alone
+    compiles and silently drops every `Authorization` a connection carries -
+    which is the whole of what reaches a private MCP server - so the headers go
+    into the client `create_mcp_http_client` builds, and the client is owned
+    here so it closes with the transport (#1820).
     """
     from pydantic_ai.mcp import infer_transport_type_from_url
 
@@ -96,9 +103,12 @@ async def _mcp_transport(
         async with sse_client(url, headers=headers or None) as (read, write):
             yield read, write
     else:
-        from mcp.client.streamable_http import streamablehttp_client
+        from mcp.client.streamable_http import create_mcp_http_client, streamable_http_client
 
-        async with streamablehttp_client(url, headers=headers or None) as (read, write, _):
+        async with (
+            create_mcp_http_client(headers=headers or None) as http_client,
+            streamable_http_client(url, http_client=http_client) as (read, write),
+        ):
             yield read, write
 
 
@@ -159,9 +169,24 @@ def probe_error_message(exc: BaseException) -> str:
     return str(exc) or exc.__class__.__name__
 
 
-def _tool_prefix(name: str) -> str:
+def tool_prefix(name: str) -> str:
     """Connection name → tool prefix, e.g. "github-work" → "github_work"."""
     return re.sub(r"[^a-z0-9_]", "_", name.lower()).strip("_") or "mcp"
+
+
+def prefix_collisions[T](holders: Iterable[tuple[str, T]]) -> dict[str, list[T]]:
+    """Which tool prefixes more than one name reduces to, and who holds each.
+
+    Two servers under one prefix emit the same tool names and pydantic-ai raises
+    on the duplicate, aborting the turn - so a publish is refused and a run drops
+    the loser, and both decide it here rather than each computing it apart (#1442).
+    `github`, `GitHub` and `github-` are one prefix; every value lists its holders
+    in the order given, the one that keeps the prefix first.
+    """
+    grouped: dict[str, list[T]] = {}
+    for name, holder in holders:
+        grouped.setdefault(tool_prefix(name), []).append(holder)
+    return {prefix: held for prefix, held in grouped.items() if len(held) > 1}
 
 
 def _make_toolset(spec: McpServerSpec) -> Any:
@@ -171,6 +196,14 @@ def _make_toolset(spec: McpServerSpec) -> Any:
     same tool name can't collide (pydantic-ai raises on duplicates). The
     allowlist filter runs before prefixing, so it compares against the
     unprefixed names the user picked in the UI.
+
+    A tool error the server reports reaches the model as a failed result
+    (`tool_error_behavior="failed"`), not as a retry. A retry spends the tool's
+    one-attempt budget, and the error after it ends the whole run with
+    `UnexpectedModelBehavior` - which is how most failed runs here ended: a
+    Notion query the server refused twice took the conversation down, where the
+    model reading the refusal could have fixed the query or said it could not.
+    Repeats stay bounded by the run's step limit.
     """
     from pydantic_ai.mcp import MCPToolset
 
@@ -179,42 +212,40 @@ def _make_toolset(spec: McpServerSpec) -> Any:
         headers=spec.headers or None,
         id=f"mcp:{spec.name}",
         init_timeout=CONNECT_TIMEOUT_SECS,
+        tool_error_behavior="failed",
     )
     if spec.allowed_tools is not None:
         allowed = set(spec.allowed_tools)
         server = server.filtered(lambda _ctx, tool: tool.name in allowed)
-    return server.prefixed(_tool_prefix(spec.name))
+    return server.prefixed(tool_prefix(spec.name))
 
 
 def _dedupe_by_prefix(specs: list[McpServerSpec]) -> list[McpServerSpec]:
     """Drop specs whose tool prefix an earlier spec already claimed.
 
-    Two servers sharing a prefix emit identical tool names and pydantic-ai
-    raises on duplicates, which aborts the whole turn. Deployment-managed
-    servers come first, so they win over a user connection that happens to
-    pick the same name (e.g. both called "github").
+    The defensive net beneath `build_toolsets_for_agent`, which already removes a
+    collision and reports it on `unavailable` (#1442): in a real run nothing is
+    dropped here. Kept because this is the one function that attaches the toolsets,
+    and a duplicate prefix reaching pydantic-ai aborts the whole turn. The first
+    spec keeps the prefix, so a deployment-managed server ordered ahead of a user
+    connection of the same name wins.
     """
-    unique: list[McpServerSpec] = []
-    taken: set[str] = set()
-    for spec in specs:
-        prefix = _tool_prefix(spec.name)
-        if prefix in taken:
-            logger.warning(
-                "Skipping MCP server %r: tool prefix %r is already used by another server",
-                spec.name,
-                prefix,
-            )
-            continue
-        taken.add(prefix)
-        unique.append(spec)
-    return unique
+    losers = {
+        id(spec)
+        for held in prefix_collisions((s.name, s) for s in specs).values()
+        for spec in held[1:]
+    }
+    return [spec for spec in specs if id(spec) not in losers]
 
 
-async def build_mcp_toolsets(specs: list[McpServerSpec]) -> list[Any]:
-    """Toolsets for every reachable server in *specs* (probed concurrently)."""
-    specs = _dedupe_by_prefix(specs)
-    if not specs:
-        return []
+async def probe_toolsets(specs: list[McpServerSpec]) -> list[tuple[McpServerSpec, Any | None]]:
+    """Every spec paired with its toolset, or `None` where its probe failed.
+
+    Probed concurrently, in the order given. A caller that has to decide
+    something about the servers that actually answered - which of two colliding
+    prefixes is attached (#1442) - reads this rather than `build_mcp_toolsets`,
+    which only says what survived.
+    """
 
     async def _try(spec: McpServerSpec) -> Any | None:
         try:
@@ -227,4 +258,12 @@ async def build_mcp_toolsets(specs: list[McpServerSpec]) -> list[Any]:
         return _make_toolset(spec)
 
     results = await asyncio.gather(*(_try(spec) for spec in specs))
-    return [toolset for toolset in results if toolset is not None]
+    return list(zip(specs, results, strict=True))
+
+
+async def build_mcp_toolsets(specs: list[McpServerSpec]) -> list[Any]:
+    """Toolsets for every reachable server in *specs* (probed concurrently)."""
+    specs = _dedupe_by_prefix(specs)
+    if not specs:
+        return []
+    return [toolset for _spec, toolset in await probe_toolsets(specs) if toolset is not None]

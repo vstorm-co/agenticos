@@ -5,6 +5,8 @@ import { useTranslations } from "next-intl";
 import { Figure } from "@/components/ui";
 import { useKnowledgeBases } from "@/hooks";
 import { WidgetFrame } from "../widget-frame";
+import { Database } from "lucide-react";
+
 import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-states";
 import type { DashboardWidgetProps } from "./types";
 
@@ -44,7 +46,11 @@ export function KnowledgeWidget({ title, hint, seeAll, options }: DashboardWidge
       {listError ? (
         <WidgetErrorBody onRetry={fetchKBs} />
       ) : kbs.length === 0 ? (
-        <WidgetEmptyBody title={t("empty.title")} description={t("empty.description")} />
+        <WidgetEmptyBody
+          icon={Database}
+          title={t("empty.title")}
+          description={t("empty.description")}
+        />
       ) : (
         <div className="grid flex-1 grid-cols-3 content-center gap-4">
           <Figure label={t("collections")} value={kbs.length.toLocaleString()} />

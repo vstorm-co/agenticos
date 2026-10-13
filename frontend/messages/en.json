@@ -25,8 +25,7 @@
     "failedLoadUsers": "Failed to load users",
     "failedUpdateUser": "Failed to update user",
     "impersonate": "Impersonate",
-    "impersonationTokenCopiedValid": "Impersonation token copied (valid 1h)",
-    "impersonationTokenCreated1h": "Impersonation token created (1h)",
+    "nowActingAs": "Now acting as {email}",
     "joined": "Joined",
     "likes": "Likes",
     "message": "Message",
@@ -52,7 +51,26 @@
     "userIdCopied": "User ID copied",
     "userUpdated": "User updated",
     "users": "Users",
-    "view": "View"
+    "view": "View",
+    "lastSeen": "Last seen",
+    "neverSignedIn": "Never signed in",
+    "memberships": "Access",
+    "noMemberships": "In no organizations.",
+    "membershipsCouldNotBeRead": "The organizations could not be read.",
+    "openSessions": "{count, plural, =0 {No sessions open} =1 {1 session open} other {# sessions open}}",
+    "newestSession": "newest {when}",
+    "personalOrg": "Personal",
+    "suspendUserNamed": "Suspend {email}?",
+    "suspendSignsThemOutImmediately": "They are signed out immediately and cannot sign in again until somebody reactivates the account.",
+    "suspendUser": "Suspend",
+    "demoteUserNamed": "Remove deployment administration from {email}?",
+    "demoteLosesEveryAdminSurface": "They lose every /admin page and the cross-tenant reads behind it. Only another app admin, or the CLI, can give it back.",
+    "demoteUser": "Remove admin",
+    "emailCopied": "Email copied",
+    "promoteUserNamed": "Give {email} deployment administration?",
+    "promoteGrantsEveryTenant": "They gain every /admin page and every permission in every organization on this deployment, including ones they are not a member of.",
+    "sessions": "Sessions",
+    "sessionsCouldNotBeRead": "The sessions could not be read."
   },
   "agents": {
     "accentColour": "Accent colour",
@@ -70,7 +88,6 @@
     "addedFirstMessageEach": "Added to the first message of each conversation. It never replaces the agent's own instructions.",
     "agent": "Agent",
     "agentCount": "{count, plural, =1 {1 agent} other {# agents}}",
-    "agentHasNotRun": "This agent has not run yet. Publish it and send it a message, or test it from the header.",
     "alertApprovals": "Approval requests",
     "alertApprovalsTrigger": "A tool call parked, and the run is waiting on a person to decide.",
     "alertAudience": "{alert}: {audience}",
@@ -160,6 +177,7 @@
     "contextCount": "{count, plural, =1 {1 context file} other {# context files}}",
     "contextFilesDetail": "Standing context this agent reads - a glossary or policy injected into its prompt, or files it reads on demand.",
     "contextFilesHeading": "Context files",
+    "contextInjectOnlyNoTools": "Every file bound here is injected into the prompt, so the read tools (list_context, read_context) are not attached - the agent already has the text and has nothing to read on demand. Set a file to linked to give it the tools.",
     "contextLoadingHint": "An injected file is added to every run; a linked one the agent reads only when it decides it is relevant. <link>Manage context</link>",
     "contextOffButBound": "Context is switched off, so none of these files reach the model - not the injected ones either, because the injection happens here. They stay in the spec and are still checked at publish; switch it on above, or unpick them.",
     "contextPlacement": "Context for this placement",
@@ -237,7 +255,7 @@
     "followCapabilityAlwaysAsk": "Follow the capability - always ask",
     "followCapabilityNeverAsk": "Follow the capability - never ask",
     "followsLatest": "Follows latest",
-    "followsLatestFor": "{name} follows every publish",
+    "pinnedFor": "{name} is pinned",
     "gatewayLitellmProxyModel": "A gateway, a LiteLLM proxy, or a model server on this network. Give one and the key becomes optional — there is nothing to authenticate against on your own hardware.",
     "giveSpecialistCapability": "Give this specialist {name}",
     "giveThisAgent": "Give this agent {name}",
@@ -306,7 +324,7 @@
     "mapTreeTruncated": "The delegation tree is larger than one response walks, so its deepest parts are not drawn.",
     "mapTreeUnavailable": "The full delegation tree could not be loaded, so only direct delegates are shown.",
     "mattermostServerUrl": "Server URL",
-    "mattermostServerUrlHint": "https://mattermost.your-company.com",
+    "mattermostServerUrlHint": "The address you open Mattermost at in the browser, without a path",
     "mattermostWebhookToken": "Webhook token (optional)",
     "mattermostWebhookTokenHint": "The token Mattermost shows for the outgoing webhook",
     "maxTokens": "Max tokens",
@@ -318,7 +336,6 @@
     "model2": "Model",
     "modelIdOpenRouterHint": "Namespaced by origin, as OpenRouter lists it - openai/gpt-5, anthropic/claude-opus-5.",
     "modelIdProviderHint": "As the provider names it. Free text, because they ship new ones faster than any list here could be updated.",
-    "modelTheseRunsHad": "A model in these runs had no price, so this is a floor.",
     "modelsCouldNotBeListed": "Models could not be listed",
     "modelsCouldNotBeListedHint": "This panel is empty because the request for this organization's models did not answer, not because it has none.",
     "moreActionsFor": "More actions for {name}",
@@ -358,7 +375,6 @@
     "notList": "not in the list",
     "notPublishedAnySite": "Not published to any site yet.",
     "notSet": "Not set",
-    "notStarted": "not started",
     "nothingToShareWithDelegates": "This agent is bound to nothing else, so there is nothing to pass on.",
     "offRemovesShellEntirely": "Off removes the shell entirely, rather than asking before each command.",
     "oneAtTime": "One at a time",
@@ -367,7 +383,7 @@
     "openAgentPage": "Open {name}",
     "optionalPointModelAt": "Optional. Point this model at a gateway or proxy instead of the provider's own API; the key is still what authenticates.",
     "organizationAposSOwn": "The organization's own monthly cap is not here. It stops every agent in the organization and an agent's author cannot raise it, so its alert always goes to the admins.",
-    "organizationHasNoChannel": "No bot is free to bind. A bot answers as one agent, so one already serving another agent is not offered here - register another under Channels.",
+    "organizationHasNoChannel": "No bot is free to bind. A bot answers as one agent, so one already serving another agent is not offered here - <link>register another under Channels</link>.",
     "organizationHasNoCollections": "This organization has no collections yet. An agent with none searches nothing.",
     "organizationHasNoContext": "This organization has no context files yet.",
     "organizationHasNoModels": "This organization has no models yet. An agent cannot run without one.",
@@ -378,6 +394,12 @@
     "orphanedContext": "This agent also references {count, plural, =1 {1 context file} other {# context files}} this organization no longer has. Publishing is refused until they are cleared:",
     "orphanedServers": "This agent also references {count, plural, =1 {1 server} other {# servers}} this organization does not offer - removed since, or carried in from an imported spec. Publishing is refused until they are cleared:",
     "orphanedSkills": "This agent also references {count, plural, =1 {1 skill} other {# skills}} this organization no longer has. Publishing is refused until they are cleared:",
+    "staleReferences": "This draft still references {list} this organization no longer has. Publishing is refused until they are cleared.",
+    "staleCollections": "{count, plural, =1 {1 knowledge collection} other {# knowledge collections}}",
+    "staleContext": "{count, plural, =1 {1 context file} other {# context files}}",
+    "staleSkills": "{count, plural, =1 {1 skill} other {# skills}}",
+    "staleServers": "{count, plural, =1 {1 MCP server} other {# MCP servers}}",
+    "removeStaleReferences": "Remove them",
     "overridden": "overridden",
     "pageAllowFiles": "A way to attach a file",
     "pageAllowFilesHint": "The only thing here that lets a stranger store something on this deployment. The file goes through the same checks and parser a member's upload does, under a smaller cap and a limit per visitor - and the agent reads it the way it reads any attachment.",
@@ -410,7 +432,7 @@
     "platform": "Platform",
     "polling": "Polling",
     "production": "production",
-    "promote": "Promote to…",
+    "promote": "Promote",
     "promoteSpecialist": "Promote to a draft agent",
     "promoteSpecialistDetail": "Creates a draft agent from this specialist. It is not published, not pinned as a delegate, and this specialist stays where it is.",
     "promoteVersionTo": "Promote v{version} to…",
@@ -486,9 +508,12 @@
     "secretMissingFromVault": "The secret selected here is not in this organization's vault - it was deleted, or the spec was written against another organization. Publishing refuses it.",
     "secretOfWrongKind": "\"{name}\" is of kind {kind}; this capability needs {needed}. Publishing refuses it.",
     "secretUnchanged": "Leave blank to keep the stored secret",
-    "seeEveryRunActivity": "See every run in Activity",
     "separateWithCommas": "Separate with commas",
     "separatesStagingTrafficFrom": "Separates staging traffic from the real thing in the same project.",
+    "traceContent": "Trace content",
+    "traceContentFull": "Full — messages, output and tool calls",
+    "traceContentNone": "None — timing and cost only",
+    "traceContentHint": "\"None\" keeps timing, tokens, cost and tool names but sends no message text or tool arguments — for a project over health, legal or HR data.",
     "serverCount": "{count, plural, =1 {1 server} other {# servers}}",
     "servesVersion": "serves v{version}",
     "serviceName": "Service name",
@@ -507,6 +532,9 @@
     "skillLoadingHint": "The agent loads a skill only when it decides one is relevant, so twenty skills cost almost nothing in context. <link>Manage skills</link>",
     "skillsDetail": "Written know-how the agent loads only when it decides a skill is relevant, so twenty skills cost almost nothing in context.",
     "skillsHeading": "Skills",
+    "artifactPagesHeading": "Page style",
+    "artifactPagesDetail": "Bind the artifact-pages skill and the agent builds pages from its templates, the served chart library and your organization's style - edit the skill to set your brand. The agent reads it through the Skills capability, so switch that on too.",
+    "artifactPagesMissing": "This organization has no artifact-pages skill. Seed the bundled skills to add it.",
     "skillsOffButBound": "Skills is switched off, so none of these are loaded - the agent is resolved with them and then reads none. They stay in the spec and are still checked at publish; switch it on above, or unpick them.",
     "socketFramesAndCloseCodes": "Frames and close codes",
     "socketIntegration": "WebSocket - for an interface you are building",
@@ -528,7 +556,6 @@
     "specialistUnnamed": "New specialist",
     "specialistsHeading": "Inline specialists",
     "specialistsNotVersioned": "Defined here, not published: a specialist has no version, cannot be pinned, and changes the moment this agent is edited.",
-    "spent": "Spent",
     "startsAsDraftNothing": "It starts as a draft. Nothing runs until you publish it.",
     "statusArchived": "archived",
     "statusDraft": "draft",
@@ -573,7 +600,12 @@
     "use": "Use",
     "useCustomModel": "Use <mono>{name}</mono>",
     "useSavedModelCount": "Use a saved model ({count})",
-    "useThisModel": "Use this model",
+    "modelInUse": "In use",
+    "modelApi": "API",
+    "modelApiResponses": "Responses",
+    "modelApiChat": "Chat Completions",
+    "modelApiHint": "OpenAI's own API serves every model on Responses, and its newest models on nothing else. Most OpenAI-compatible servers (vLLM, LM Studio) implement only Chat Completions.",
+    "modelApiHintAzure": "Responses needs a recent api_version on the Azure key; Chat Completions works with any.",
     "usingKey": "Using <strong>{name}</strong>",
     "variableDescription": "Variable {index} description",
     "variableDescriptionPlaceholder": "Which plan this visitor is on",
@@ -616,7 +648,18 @@
     "youNotVisitorsWhich": "For you, not for visitors - which placement this is.",
     "yourBackendSignsToken": "Your backend signs a token we verify",
     "zoom": "Zoom in",
-    "zoomOut": "Zoom out"
+    "zoomOut": "Zoom out",
+    "whichAccount": "Which {name} account this agent uses",
+    "accountForServer": "Whose {name} account this agent uses",
+    "organizationsAccount": "The organization's account",
+    "eachPersonsOwnAccount": "Each person's own account",
+    "useEachPersonsOwnAccount": "Use each person's own account",
+    "eachPersonsOwnAccountHint": "Whoever talks to this agent connects their own account and the agent speaks to the service as them - in the dashboard, in direct messages and in channels alike. Not available to API keys, the widget, schedules and triggers, where nobody is signed in.",
+    "everyToolThisServerOffers": "Every tool it offers",
+    "whoCanFindIt": "Who can find it",
+    "visibilityOrgHint": "Everyone in the organization. A draft still cannot run.",
+    "visibilityPrivateHint": "You, and whoever you share it with afterwards.",
+    "preview": "Preview"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -627,6 +670,7 @@
     "confirmPassword": "Confirm Password",
     "continueWithGithub": "Continue with GitHub",
     "continueWithGoogle": "Continue with Google",
+    "continueWithProvider": "Continue with {provider}",
     "continueWithMicrosoft": "Continue with Microsoft",
     "createHeading": "Create your <em>workspace.</em>",
     "creatingAccount": "Creating account...",
@@ -644,7 +688,17 @@
     "loggingIn": "Logging in...",
     "login": "Login",
     "loginFailedPleaseTry": "Login failed. Please try again.",
+    "loginTimedOut": "The server did not answer in time. Check your connection and try again.",
     "loginSuccess": "Successfully logged in",
+    "emailChange": {
+      "confirming": "Confirming this address…",
+      "errorHeading": "Couldn't confirm this address",
+      "errorInvalid": "This link is invalid, has expired, or has already been used.",
+      "errorMissingToken": "No token in this link. Ask for the change again from your profile.",
+      "signIn": "Go to sign in",
+      "success": "Address confirmed",
+      "successHint": "This is now the address for your account. Sign in with it from here."
+    },
     "magicLink": {
       "errorHeading": "Couldn't sign you in",
       "errorInvalid": "Magic link is invalid or has expired.",
@@ -702,6 +756,7 @@
     "signInHeading": "Sign in to <em>your workspace.</em>",
     "signUpWithGithub": "Sign up with GitHub",
     "signUpWithGoogle": "Sign up with Google",
+    "signUpWithProvider": "Sign up with {provider}",
     "signUpWithMicrosoft": "Sign up with Microsoft",
     "somethingWentWrongPlease": "Something went wrong. Please try again.",
     "welcomeBack": "Welcome back",
@@ -710,7 +765,10 @@
     "signupDomainsAllowed": "Only addresses at {domains} can register here.",
     "signupClosedHeading": "Sign-up is closed",
     "signupClosedBody": "{app} is not accepting new accounts. Ask an administrator to invite you.",
-    "signupWithInvitation": "You are registering with an invitation, so this deployment's sign-up restrictions do not apply to you."
+    "signupWithInvitation": "You are registering with an invitation, so this deployment's sign-up restrictions do not apply to you.",
+    "directorySignIn": "Sign in with {provider}",
+    "directoryUsername": "{provider} username",
+    "useEmailInstead": "Use email and password instead"
   },
   "billing": {
     "description": "Manage your subscription for {org}.",
@@ -718,6 +776,7 @@
     "title": "Billing"
   },
   "chat": {
+    "accessLevel": "Access level",
     "accessRevoked": "Access revoked",
     "agentPicker": {
       "appliesNext": "Applies from your next message — earlier answers keep their agent.",
@@ -741,9 +800,11 @@
     "archivedToast": "Conversation archived",
     "askUserAnswered": "You answered",
     "askUserAsked": "Asked you",
+    "askUserAskedBy": "Asked by {name}",
     "attachedFile": "Attached file",
     "backAgentAposS": "Back to the agent's own model",
     "cancel": "Cancel",
+    "choosePerson": "Choose someone",
     "chunkNumber": "chunk {number}",
     "close": "Close",
     "closeSourcesPanel": "Close sources panel",
@@ -759,11 +820,56 @@
     "compacting": "Summarising the conversation so far, to keep it inside the model's limit…",
     "compactingCount": "{count, plural, =1 {Summarising 1 earlier message} other {Summarising # earlier messages}} to keep the conversation inside the model's limit…",
     "compactionImpossible": "Context management cannot run: this agent's instructions and tools take {overhead, number} tokens of the {window, number}-token window it was given, which is already past the point it would compact at. Raise the window or the fraction in the Toolbox.",
+    "personalServices": {
+      "intro": "This agent works in these services through your own accounts. Connect them, then ask again.",
+      "dismiss": "Dismiss",
+      "connect": "Connect",
+      "openServers": "Open MCP servers",
+      "nowConnected": "Connected. Ask again.",
+      "yourAccounts": "This agent uses your own accounts for these services.",
+      "gap": {
+        "not_connected": "You have not connected this yet.",
+        "undecided": "You hold several connections to it and none is marked as default.",
+        "unauthorized": "Your connection to it needs authorizing again.",
+        "nobody_to_speak_as": "Nobody is signed in here, so it is not available."
+      },
+      "status": {
+        "connected": "Connected",
+        "not_connected": "Not connected",
+        "undecided": "Several accounts, none marked default",
+        "unauthorized": "Needs authorizing again"
+      }
+    },
+    "connectAccount": {
+      "title": "The agent needs your {name}",
+      "connect": "Connect",
+      "openServers": "Open MCP servers",
+      "continue": "Continue",
+      "skip": "Skip",
+      "gap": {
+        "not_connected": "Connect your own {name} account and the agent carries on with it.",
+        "undecided": "You hold several {name} connections. Mark one as default, then continue.",
+        "unauthorized": "Your {name} connection needs authorizing again. Authorize it, then continue."
+      }
+    },
     "controls": {
+      "approvalMode": "Approval mode",
       "backAgentAposS": "Back to the agent's own model",
-      "controls": "Controls",
+      "cannotWaive": "Waiving approvals needs permission to decide them, and this organization has to allow it.",
       "escToClose": "esc to close",
+      "howMuchToBeAsked": "How much do you want to be asked before a tool runs?",
       "label": "Chat controls",
+      "mode": {
+        "follow_agent": "Follow the agent",
+        "approve_all": "Approve everything",
+        "ask_all": "Ask about everything"
+      },
+      "modeHint": {
+        "follow_agent": "The agent's own settings decide which tools need a person.",
+        "approve_all": "Every gated call runs without asking, for this conversation. Each one is still recorded against your account.",
+        "ask_all": "Ask before every tool this agent can use, including the ones it does not normally gate."
+      },
+      "modelTitle": "Model: {model}",
       "savedForChat": "Saved for this chat",
       "savesOnSend": "Saves on send",
       "whichModelRunsHere": "Which model this conversation runs on. Everything else about the agent stays as it is."
@@ -779,6 +885,7 @@
       "copied": "Copied!",
       "copiedToClipboard": "Copied to clipboard",
       "copy": "Copy",
+      "copyTable": "Copy table",
       "copyToClipboard": "Copy to clipboard"
     },
     "copyLink": "Link copied to clipboard",
@@ -802,6 +909,7 @@
     "download": "Download",
     "dropFilesAttach": "Drop files to attach",
     "edit": "Edit",
+    "editMeans": "Edit lets them rename, archive and delete this conversation, and add turns to it.",
     "empty": {
       "brainstormPrompt": "Give me 5 ideas for an onboarding email sequence for a developer tool.",
       "brainstormTitle": "Brainstorm",
@@ -821,15 +929,16 @@
     "failedArchiveConversation": "Failed to archive conversation",
     "failedCreateConversation": "Failed to create conversation",
     "failedDeleteConversation": "Failed to delete conversation",
+    "failedFavouriteConversation": "Could not change the favourite",
     "failedFetchMessages": "Failed to fetch messages",
     "failedLoadCommands": "Failed to load commands",
-    "failedRemoveRating": "Failed to remove rating",
     "failedRenameConversation": "Failed to rename conversation",
     "failedRestoreConversation": "Failed to restore conversation",
-    "failedSubmitRating": "Failed to submit rating",
     "failedToGenerateLink": "Failed to generate link",
     "failedToRevoke": "Failed to revoke access",
     "failedToShare": "Failed to share conversation",
+    "favourite": "Favourite",
+    "favourites": "Favourites",
     "feedbackHelp": "Help us improve by optionally letting us know what wasn't helpful.",
     "fileCount": "{count, plural, =1 {1 file} other {# files}}",
     "files": {
@@ -867,9 +976,9 @@
     "knowledgeBase": "Knowledge base",
     "link": "Link",
     "linkGenerated": "Share link generated",
+    "linkIsViewOnly": "Anyone with the link can read this conversation. A link is always read-only.",
     "loading": "Loading…",
-    "memberEmail": "Email address",
-    "memberSuggestions": "Matching members",
+    "membersCouldNotBeRead": "The people in this organization could not be read.",
     "modelPicker": {
       "agentModel": "Agent's model",
       "chooseProvider": "Choose a provider",
@@ -891,11 +1000,21 @@
       "hint": "↑↓ to navigate · ↵ to run · esc to dismiss",
       "noMatching": "No matching commands. Press <key>Esc</key> to dismiss."
     },
+    "plan": {
+      "heading": "Plan",
+      "allDone": "Every step is done",
+      "count": "{completed}/{total}",
+      "progress": "{completed} of {total, plural, =1 {1 step} other {# steps}} completed",
+      "statusPending": "Not started",
+      "statusInProgress": "In progress",
+      "statusCompleted": "Done",
+      "statusCancelled": "Cancelled",
+      "statusBlocked": "Blocked"
+    },
     "queuedSendsAfterCurrent": "Queued · sends after current reply",
     "rating": {
       "unknownError": "Unknown error"
     },
-    "ratingFailed": "Failed to submit rating",
     "ratingRemoved": "Rating removed",
     "regenerate": "Regenerate response",
     "reject": "Reject",
@@ -955,6 +1074,9 @@
       "running": "Running"
     },
     "streamError": "❌ Error: {message}",
+    "turnInterrupted": "The connection dropped mid-answer. The agent finishes the turn and saves it to this conversation.",
+    "turnInterruptedRecheck": "Check for it",
+    "turnStillArriving": "The earlier answer is still being written. It lands in this conversation when it finishes, below the question you have just asked.",
     "thankYouFeedback": "Thanks for your feedback!",
     "thinking": "Thinking...",
     "thoughtAboutIt": "Thought about it",
@@ -971,9 +1093,9 @@
       "answerDelegate": "Answer Delegate",
       "answeringDelegate": "Answering a delegate",
       "arguments": "Arguments",
+      "argumentsStreamed": "{size} so far",
       "askingDelegateStop": "Asking a delegate to stop",
       "availableContext": "Available Context",
-      "availableSkills": "Available Skills",
       "availableSteps": "Available Steps",
       "browseWeb": "Browse the Web",
       "browsingWeb": "Browsing the web",
@@ -984,6 +1106,7 @@
       "channelMembers": "Channel Members",
       "channelSearch": "Channel Search",
       "contextFile": "Context File",
+      "conversationSearch": "Conversation Search",
       "chart": "Chart",
       "checkingAvailableSteps": "Checking available steps",
       "checkingDelegate": "Checking on a delegate",
@@ -1012,6 +1135,8 @@
       "listing": "{named, select, no {Listing…} other {Listing {subject}}}",
       "loadSkill": "Load Skill",
       "loading": "Loading…",
+      "availableSkills": "Available Skills",
+      "lookingThroughSkills": "Looking through the skills",
       "loadingSkill": "Loading a skill",
       "lookedFor": "{named, select, no {Looked for…} other {Looked for {subject}}}",
       "lookingAtChannel": "Looking at the channel",
@@ -1021,18 +1146,28 @@
       "lookingForChannel": "Looking for a channel",
       "lookingThatUp": "Looking that up",
       "lookingThroughContext": "Looking through the context files",
-      "lookingThroughSkills": "Looking through the skills",
+      "memoryChecking": "Checking its memory",
+      "memoryForgetting": "Forgetting a memory",
+      "memoryReading": "Reading a memory",
+      "memoryRecalling": "Searching its memory",
+      "memoryRemembering": "Remembering a fact",
+      "memorySaving": "Saving to memory",
+      "memoryUpdating": "Updating a memory",
       "messageDelegate": "Message Delegate",
       "moreEntries": "and {count, plural, =1 {1 more} other {# more}} — open the raw view for all of them",
       "noArguments": "No arguments",
+      "noContext": "No context files are attached to this agent.",
+      "noSkills": "No skills are attached to this agent.",
       "noRelevantDocuments": "No relevant documents found",
       "noWebResults": "No web results found",
       "output": "Output",
+      "pastConversation": "Past Conversation",
       "patternInFile": "{pattern} in {file}",
       "plan": "Plan",
       "read": "{named, select, no {Read…} other {Read {subject}}}",
       "reading": "{named, select, no {Reading…} other {Reading {subject}}}",
       "readingChannel": "Reading the channel",
+      "readingConversation": "Reading a past conversation",
       "readingContext": "Reading a context file",
       "readingPlan": "Reading the plan",
       "readingSkillFiles": "Reading a skill's files",
@@ -1047,6 +1182,7 @@
       "runningNamed": "Running {name}",
       "searchedFor": "{named, select, no {Searched for…} other {Searched for {subject}}}",
       "searching": "Searching",
+      "searchingConversations": "Searching past conversations",
       "searchingDocuments": "Searching the documents",
       "searchingFor": "{named, select, no {Searching for…} other {Searching for {subject}}}",
       "searchingWeb": "Searching the web",
@@ -1070,32 +1206,77 @@
       "webSearch": "Web Search",
       "writing": "{named, select, no {Writing…} other {Writing {subject}}}",
       "writingPlan": "Writing the plan",
-      "wrote": "{named, select, no {Wrote…} other {Wrote {subject}}}"
+      "wrote": "{named, select, no {Wrote…} other {Wrote {subject}}}",
+      "workingThroughPage": "Working through a page",
+      "browsePage": "Work Through a Page",
+      "publishingArtifact": "Publishing a page",
+      "publishArtifact": "Published page",
+      "readingArtifact": "Reading a published page",
+      "readArtifact": "Read a Published Page",
+      "artifactVersion": "Version {version} · open the page",
+      "artifactUnchanged": "Unchanged, still version {version} · open the page"
     },
     "turnWasStopped": "stopped",
+    "unfavourite": "Remove from favourites",
     "unknownError": "Unknown error",
     "usage": {
-      "agentShare": "· {percent}% of this agent's month",
+      "agentBudget": "This agent's budget",
+      "agentBudgetDetail": "Of this agent's monthly cap - the one its author can raise",
+      "context": "Context",
       "contextOf": "{used, number} of {window, number} tokens in the model's context window",
-      "contextPercent": "Context {percent}%",
+      "conversation": "This conversation",
       "inContainer": "{used} of {limit} — the memory ceiling of this conversation's own container, not a quota shared with anything else",
-      "orgShare": "· {percent}% of the organization's",
-      "sandboxMemoryFull": "sandbox memory {percent}% full",
-      "sandboxMemoryUsed": "sandbox memory {used}",
+      "inUse": "in use",
+      "label": "Usage of this conversation",
+      "labelNearLimit": "Usage of this conversation - near a limit",
+      "monthShare": "{percent}% of the month",
+      "orgBudget": "Organization budget",
+      "orgBudgetDetail": "Of the cap that stops every agent in the organization at once",
+      "percent": "{percent}%",
+      "sandboxMemory": "Sandbox memory",
       "storedOf": "{used} of {limit} stored",
       "threadTotal": "${cost}",
       "threadTotalDetail": "{input, number} in · {output, number} out billed across this conversation",
       "threadTotalPartial": "≥ ${cost}",
       "threadTotalPartialDetail": "{input, number} in · {output, number} out billed across this conversation — a floor: some model in it had no price",
       "unmeasured": "in use — this host did not report a number",
-      "workspaceFull": "workspace {percent}% full",
-      "workspaceInUse": "workspace in use",
-      "workspaceUsed": "Workspace used",
-      "workspaceUsedAmount": "workspace {used} stored"
+      "workspace": "Workspace",
+      "workspaceUsed": "Workspace used"
     },
     "view": "View",
+    "viewMeans": "View lets them read this conversation and nothing else.",
     "web": "Web",
-    "whatWentWrong": "What went wrong?"
+    "whatWentWrong": "What went wrong?",
+    "rail": {
+      "label": "Jump to a message",
+      "previous": "Previous message",
+      "next": "Next message",
+      "jumpTo": "Jump to the message from {author}",
+      "you": "You",
+      "agent": "Agent",
+      "empty": "No text in this message"
+    },
+    "browserHeading": "Browser",
+    "browserClose": "Close the browser panel",
+    "browserGoal": "Goal",
+    "browserSteps": "Steps",
+    "browserStep": "Step {step}",
+    "browserStepOf": "Step {step} of {total}",
+    "browserWaitingForFrame": "Waiting for the first view of the page…",
+    "browserNoPreview": "This agent runs without a live preview.",
+    "browserViewportAlt": "The page as it looked at step {step}",
+    "browserConfidenceHint": "The engine found this pick with probability {value}",
+    "browserOutcome": {
+      "done": "Finished",
+      "blocked": "Blocked by the page",
+      "exhausted": "Stopped at the step limit",
+      "failed": "The browser could not be reached"
+    },
+    "browserResize": "Resize the browser view",
+    "browserOpenPanel": "Open in the side panel",
+    "browserOpenFull": "Open full screen",
+    "conversationActions": "Conversation actions",
+    "imageNotLoaded": "Image (not loaded)"
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",
@@ -1217,7 +1398,8 @@
         "empty": {
           "title": "Nothing ran in this period",
           "description": "Pick a wider window, or give an agent a surface and the numbers start here."
-        }
+        },
+        "spendLabel": "{amount} spent"
       },
       "active-users": {
         "empty": {
@@ -1288,7 +1470,8 @@
           "database": "Database",
           "redis": "Redis",
           "vector_store": "Vector store",
-          "model_access": "Model access"
+          "model_access": "Model access",
+          "scheduler": "Scheduled jobs"
         }
       },
       "knowledge-freshness": {
@@ -1432,7 +1615,8 @@
         "organizations": "Organizations",
         "title": "Platform at a glance",
         "users": "Users",
-        "description": "Deployment-wide counts: organizations, people, agents, conversations."
+        "description": "Deployment-wide counts: organizations, people, agents, conversations.",
+        "messages": "{count, plural, =1 {1 message} other {# messages}}"
       },
       "platform-ratings": {
         "empty": {
@@ -1453,7 +1637,8 @@
         "open": "Open runs",
         "title": "Recent failures",
         "unknownAgent": "Unknown agent",
-        "description": "Runs that failed or ran out of budget, most recent first."
+        "description": "Runs that failed or ran out of budget, most recent first.",
+        "timesFailed": "× {count}"
       },
       "runs": {
         "delta": "vs the previous period",
@@ -1555,7 +1740,8 @@
         "title": "Spend",
         "unit": "in this period",
         "description": "What the period cost, and this calendar month to date. The month figure reconciles with the invoice, so it deliberately ignores the period filter.",
-        "split": "{models} on models · {ingestion} on indexing"
+        "split": "{models} on models · {ingestion} on indexing",
+        "spentLabel": "{amount} spent"
       },
       "surfaces": {
         "empty": {
@@ -1626,6 +1812,7 @@
         "description": "What runs with nobody at the keyboard, soonest first, and how the last one went.",
         "unnamed": "Untitled routine",
         "cost": "${cost}",
+        "nextFire": "next {at} UTC",
         "paused": "paused",
         "neverRun": "not run yet",
         "fired": "fired",
@@ -1634,8 +1821,8 @@
         "status": {
           "failed": "failed",
           "budget_exceeded": "over budget",
+          "guardrail_blocked": "guardrail blocked",
           "running": "running",
-          "pending": "starting",
           "cancelled": "cancelled",
           "awaiting_approval": "awaiting approval"
         },
@@ -1689,6 +1876,22 @@
         "empty": {
           "title": "Nothing ran in this period",
           "description": "The rhythm appears once there are runs to place on it."
+        }
+      },
+      "notifications": {
+        "title": "Notifications",
+        "description": "Your most recent notifications.",
+        "empty": {
+          "title": "Nothing here yet",
+          "description": "Notifications will show up here."
+        }
+      },
+      "artifacts": {
+        "title": "Artifacts",
+        "description": "The pages your agents published most recently.",
+        "empty": {
+          "title": "Nothing published yet",
+          "description": "Reports and dashboards an agent publishes appear here."
         }
       }
     },
@@ -1799,7 +2002,8 @@
       "oneAgent": "One agent",
       "onePerson": "One person",
       "reset": "Follow the page again"
-    }
+    },
+    "pageStatus": "Status"
   },
   "errors": {
     "authorizationFailed": "Authorization failed",
@@ -1808,7 +2012,9 @@
     "failedToGetUser": "Failed to get user",
     "fileNotFound": "File not found",
     "forbidden": "Forbidden",
+    "impersonationEnded": "The impersonation has ended",
     "internalServerError": "Internal server error",
+    "invitationNotFound": "This invitation is no longer available",
     "loginFailed": "Login failed",
     "missingAuthorizationCode": "Missing authorization code",
     "missingTokens": "Missing tokens",
@@ -1891,8 +2097,12 @@
     "cancel": "Cancel",
     "cancel2": "Cancel",
     "cancel3": "Cancel",
+    "changeProvider": "Change provider",
+    "characterCount": "{count, plural, =1 {1 character} other {# characters}}",
+    "characters": "Characters",
     "charactersEachPieceRepeats": "Characters each piece repeats from the one before it, so a sentence split across a boundary is still findable.",
     "charactersPerEmbeddedPiece": "Characters per embedded piece. Smaller pieces match a question more precisely; larger ones carry more of the surrounding argument.",
+    "chunkCount": "{count, plural, =1 {1 chunk} other {# chunks}}",
     "chunkSize": "Chunk size",
     "chunking": "Chunking",
     "chunkingFixed": "Fixed",
@@ -1902,22 +2112,23 @@
     "chunkingRecursive": "Recursive",
     "chunkingRecursiveHint": "Split on paragraphs, then sentences, then words - whatever fits.",
     "chunkingSummary": "{size, plural, =1 {1 character} other {# characters}}, {overlap, number} overlapping · {strategy}",
+    "chunks": "Chunks",
     "configuredOnceUsedAs": "Configured once, used in as many knowledge bases as you like. Each copy syncs on its own schedule.",
     "create": "Create",
     "createKnowledgeBase": "Create knowledge base",
     "creating": "Creating...",
     "customized": "customized",
-    "deploymentDefault": "deployment default",
     "deploymentDefaults": "deployment defaults",
-    "deploymentKey": "Deployment key",
-    "deploymentKey2": "Deployment key",
+    "chooseKey": "Choose a key",
     "describeImages": "Describe images",
     "describedByModelIndexed": "Described by a model and indexed",
     "descriptionOptional": "Description (optional)",
+    "dimensions": "{count, plural, =1 {1 dimension} other {# dimensions}}",
     "edit": "Edit",
     "embeddingDimensions": "· {count, plural, =1 {1 dimension} other {# dimensions}}",
+    "embeddingProvider": "Embedding provider",
     "embeddings": "Embeddings",
-    "embeddingsKeyName": "OpenRouter (embeddings)",
+    "embeddingsKeyName": "{provider} (embeddings)",
     "eng": "eng",
     "everyMinutes": "every {minutes}m",
     "everyPageCameBack": "Every page came back as empty scaffolding, which is what an unreadable scan looks like. If this file is a scan or a photo, turn on reading scanned pages in the parse options and upload it again.",
@@ -1944,8 +2155,10 @@
     "integrationRemoved": "Integration removed",
     "integrationSaved": "Integration saved - use it in a knowledge base to start syncing",
     "itsCredentialsAreCopied": "Its credentials are copied into an independent source. The original stays here for the next knowledge base that needs it.",
+    "json": "JSON",
     "key": "Key",
-    "keyHereBillsEmbeddings": "A key here bills embeddings to this organization instead of using the deployment's.",
+    "keyRequiredHere": "Embeddings bill this key, and it has to be one for the chosen provider. There is no deployment-wide key to fall back to.",
+    "keylessProvider": "{provider} takes no key: it is a server on the deployment's own network, and nothing is billed for these embeddings.",
     "knowledgeBase": "Knowledge base",
     "knowledgeBasesAlreadyUsing": "Knowledge bases already using it keep their own copy - this only removes the one nothing is syncing from.",
     "leaveEmptyAutoGenerate": "Leave empty to auto-generate",
@@ -1959,14 +2172,15 @@
     "maximumPages": "Maximum pages",
     "model": "Model",
     "model2": "Model",
-    "modelsUnreadable": "The list of models could not be read. This collection will be created on the deployment's default.",
+    "modelIsFixed": "Model, fixed by the vectors already stored",
+    "modelsUnreadable": "The list of providers could not be read, so no provider or key can be chosen. Creating this collection will be refused until it can.",
     "name": "Name",
     "nameCopy": "Name for the copy",
     "noParsedContentShow": "No parsed content to show",
     "notDescribedPictureTable": "Not described - a picture of a table is not searchable",
     "notRead": "Not read",
     "notRequested": "Not requested",
-    "nothingChanged2": "Nothing changed",
+    "applyUploadSettings": "Apply",
     "nothingHereYetAdd": "Nothing here yet. Add one to connect a source before you know which knowledge bases will need it.",
     "nothingIndexedDocumentIts": "Nothing is indexed for this document. Its vectors may have been removed since it was ingested.",
     "nothingReadableCameOut": "Nothing readable came out of this parse",
@@ -1976,15 +2190,19 @@
     "onlyOcrPagesNeed": "Only OCR the pages that need it",
     "organizationAllMembers": "Organization - all members",
     "output": "Output",
+    "organizationalUnit": "Organizational unit",
+    "organizationalUnitDetail": "Recorded on each file you add next, so a search can be narrowed to it. Leave it empty to file them under nothing.",
+    "organizationalUnitPlaceholder": "e.g. Legal",
     "overlap": "Overlap",
     "overlapRepeats": "adjacent chunks repeat their overlap, so boundary text appears twice",
     "pageNumber": "Page {number}",
     "pageParsedNothingReadable": "This page parsed to nothing readable - likely an unreadable scan.",
     "pagePictureTextCarries": "A page that is a picture of text carries no text to extract. PyMuPDF hands such a page to the image model; LiteParse runs its own OCR.",
-    "parseNextUploadDifferently": "Parse the next upload differently",
+    "nextUploadsTitle": "How the next uploads are read and filed",
     "parseTimeoutSeconds": "Parse timeout (seconds)",
     "parsed": "Parsed",
     "parsedWith": "parsed with {parser}",
+    "parser": "Parser",
     "parserLiteparse": "LiteParse",
     "parserLiteparseHint": "Local, with its own OCR. Also reads spreadsheets, slide decks and images.",
     "parserLlamaparse": "LlamaParse",
@@ -2001,6 +2219,7 @@
     "problemWholeBetween": "A whole number between {min} and {max}.",
     "productDocs": "Product docs",
     "prompt": "Prompt",
+    "providerMoveKeepsTheIndex": "The same model served from somewhere else is the same model, so nothing already indexed changes - the next request just goes to the new provider, on the new key.",
     "readAsImages": "Read as images",
     "readScannedPages": "Read scanned pages",
     "reasoning": "Reasoning",
@@ -2010,9 +2229,9 @@
     "save": "Save",
     "saving": "Saving…",
     "scannedPages": "Scanned pages",
-    "scope": "Scope",
     "selectKnowledgeBase": "Select a knowledge base…",
     "sendPicturesInsideDocument": "Send the pictures inside a document to a model and index what it says about them. Needs a model profile with a working key, which is checked when this is saved.",
+    "servedBy": "served by {provider}",
     "strategy": "Strategy",
     "temperature": "Temperature",
     "tierAgentic": "Agentic",
@@ -2029,9 +2248,39 @@
     "useStandardPrompt": "Use the standard prompt",
     "whatDocumentsWillKb": "What documents will this KB contain?",
     "whatModelAskedSay": "What the model is asked to say about each image. What it answers is what a search matches, so name the things worth finding.",
-    "whatWasIndexed": "What was indexed: {count, plural, =1 {1 chunk} other {# chunks}}",
     "whereLiteparseStopsWhat": "Where LiteParse stops. This is what bounds the cost of one document - the timeout only bounds the wait.",
-    "whoseAccountEachParse": "Whose account each parse is billed to."
+    "whoseAccountEachParse": "Whose account each parse is billed to.",
+    "widthIsFixed": "The width comes with the model, and the collection is created at it.",
+    "localServices": "Local services",
+    "localServicesHint": "Servers on the deployment's own network - an Ollama that embeds, an OCR sidecar for LiteParse - registered once and chosen per collection. Nothing sent to one leaves the deployment.",
+    "addServer": "Add server",
+    "loadingLocalServices": "Loading servers…",
+    "noLocalServicesYet": "Nothing here yet. Register an Ollama or an OCR server to keep embeddings and OCR on your own network.",
+    "failedLoadLocalServices": "Failed to load local services",
+    "localServiceKind": "Kind",
+    "embeddingServer": "Embedding server (Ollama)",
+    "ocrServer": "OCR server (LiteParse)",
+    "address": "Address",
+    "addressHint": "The root the service answers on. Ollama's OpenAI-compatible root ends in /v1; an OCR server's is its base.",
+    "ollamaAddressExample": "http://ollama:11434/v1",
+    "ocrAddressExample": "http://ocr:8000",
+    "deploymentWide": "Deployment-wide",
+    "deploymentWideHint": "Offered to every organization, and the only kind of server an app-scoped collection may embed through.",
+    "deploymentWideNamed": "{name} (deployment)",
+    "collectionsPointingAtItStop": "Collections pointing at this server stop indexing or reading pages until they are moved to another one.",
+    "server": "Server",
+    "chooseServer": "Choose a server",
+    "serverOnDeploymentNetwork": "Registered for this organization. The address has to be reachable from the worker.",
+    "registeringNeedsPermission": "Registering a server needs the connections permission. Ask an administrator to add one.",
+    "register": "Register",
+    "registering": "Registering…",
+    "ocrServerSetting": "OCR server",
+    "ocrServerHint": "Where LiteParse sends pages to be read. The built-in Tesseract runs inside the worker.",
+    "builtInTesseract": "Built-in Tesseract",
+    "createKbDescription": "Upload documents into it once it exists. Agents search it when it is attached to them or picked in chat.",
+    "whoCanSearchIt": "Who can search it",
+    "scopeHintPersonal": "Only you can see it, upload to it and search it.",
+    "scopeHintOrg": "Everyone in this organization can find it and search it."
   },
   "knowledgeBases": {
     "active": "Active",
@@ -2039,6 +2288,7 @@
     "deleted": "Knowledge base deleted",
     "description": "Manage your document collections used for AI retrieval.",
     "documentRemoved": "Document removed",
+    "embeddingsSaved": "Embedding provider updated",
     "failedCloneIntegration": "Failed to clone integration",
     "failedDelete": "Failed to delete knowledge base",
     "failedDeleteDocument": "Failed to delete document",
@@ -2065,13 +2315,21 @@
     "breadcrumb": "Breadcrumb",
     "checkingAuthentication": "Checking authentication...",
     "commandPalette": "Command palette",
+    "endImpersonation": "End impersonation",
     "esc": "ESC",
     "goBack": "Go back",
+    "impersonationActingAs": "Acting as {target}. Everything you do is recorded as {admin}.",
+    "impersonationEndFailed": "Could not end the impersonation. Try again.",
+    "impersonationEnded": "Impersonation ended. You are yourself again.",
+    "impersonationEndsAt": "Ends at {time}",
+    "invitationNotStaged": "Your invitation could not be prepared",
+    "invitationNotStagedHint": "The server could not be reached, or asked you to wait a moment. Your invitation link is still valid.",
     "navigate": "Navigate",
     "noMatches": "No matches.",
     "open": "Open",
     "primary": "Primary",
     "quickActions": "Quick actions",
+    "retryInvitation": "Try again",
     "searchJump": "Search or jump to…"
   },
   "legal": {
@@ -2152,7 +2410,6 @@
     "operateMaintainImproveService": "To operate, maintain, and improve the Service;",
     "pageviewFeatureUsageCounters": "- pageview and feature-usage counters.",
     "paidPlansRenewAutomatically": "Paid plans renew automatically until canceled. Fees are non-refundable except where required by law. You can cancel anytime - your plan stays active until the end of the current billing period.",
-    "period": "Period.",
     "pl": {
       "accountResponsibility": "Odpowiadasz za bezpieczeństwo swoich danych logowania oraz za działania wykonane na Twoim koncie. Powiadom nas na <mail>security@example.com</mail> jeśli podejrzewasz, że konto zostało skompromitowane.",
       "aiOutputDisclaimer": "Output AI może zawierać nieścisłości. <strong>Nie polegaj na Usłudze dla porad w dziedzinach, gdzie błędy mają realne konsekwencje</strong> (medyczne, prawne, finansowe) bez niezależnej weryfikacji.",
@@ -2314,7 +2571,6 @@
     "weAposLlNotify": "We'll notify you in-app or via email before any material change takes effect. Continued use after the effective date constitutes acceptance.",
     "weDonAposT": "We don't set advertising cookies. Some embedded content (videos, payment widgets) may set cookies - those are governed by their providers' policies.",
     "weDonAposT2": "We don't train any of our own models on your data.",
-    "weDonAposT3": "We don't train on your Customer Data.",
     "weHostPrimarilyEu": "We host primarily in the EU. Where data is processed outside your country, we rely on standard contractual clauses or equivalent safeguards.",
     "weKeepCustomerData": "We keep Customer Data for as long as your account is active. After deletion, backups are purged within 30 days. Logs and metrics are retained up to 90 days for security and operational analysis.",
     "weMayUpdateThese": "We may update these Terms when the Service evolves. Material changes will be announced via email or in-app at least 30 days before they take effect. Continued use after the effective date constitutes acceptance.",
@@ -2336,11 +2592,16 @@
     "yourChoices": "Your choices",
     "yourResponseCookieBanner": "- your response to the cookie banner.",
     "yourRightsDescription": "Depending on where you live, you may have rights to access, correct, delete, or export your personal data, and to object to or restrict certain processing. Email <mail>privacy@example.com</mail> to exercise them. We respond within 30 days.",
-    "yourSelectedLanguage": "- your selected language."
+    "yourSelectedLanguage": "- your selected language.",
+    "weDoNotTrainOnCustomerData": "<b>We don't train on your Customer Data.</b> Period."
   },
   "mcp": {
     "accessToken": "Access token",
+    "accountsOnThisServer": "Each account connected to this server, and where it can be used.",
     "addCustomServer": "Add a custom server",
+    "agentsNoLongerSpeak": "Agents no longer speak as this account",
+    "agentsSpeakAsThis": "Agents will speak as this account",
+    "agentsSpeakAsThisOne": "Agents speak as this one",
     "allCategories": "All categories",
     "anyState": "Any state",
     "authApiToken": "API token",
@@ -2348,23 +2609,30 @@
     "authNoCredentials": "No credentials",
     "authNoneHint": "The server is open, or it is on a network only you can reach.",
     "authOauth": "OAuth",
-    "authOauthHint": "Sign in at the provider. Discovered from the server's own metadata - nothing to configure here.",
+    "authOauthHint": "Sign in at the provider. Discovered from the server's own metadata - usually nothing to configure here.",
     "authTokenHint": "A static credential, sent as `Authorization: Bearer`.",
     "authentication": "Authentication",
     "authentication2": "Authentication",
+    "authorize": "Authorize",
+    "boundByAgents": "The only kind an agent can be bound to.",
     "cancel": "Cancel",
     "cancel2": "Cancel",
     "category": "Category",
     "checkConnection": "Check connection",
     "checkFailed": "The check failed",
+    "checkItOnTheServersPage": "Check it on the MCP servers page, then come back.",
+    "clientSecretNeedsId": "A client secret needs the client ID it belongs to.",
     "connect": "Connect for",
     "connect2": "Connect for",
     "connectAction": "Connect",
+    "connectAnother": "Connect another",
     "connectCheck": "Connect & check",
+    "connectCustomForScope": "Add an MCP server for {scope, select, organization {the organization} other {yourself}}",
     "connectForScope": "Connect {name} for {scope, select, organization {the organization} other {yourself}}",
     "connected": "Connected",
     "connectedForOrg": "{name} is now available to this organization's agents.",
     "connectedForYou": "{name} is connected for your assistant.",
+    "connectionCount": "{count, plural, =1 {1 connection} other {# connections}}",
     "connectionState": "Connection state",
     "couldNotDisconnect": "Could not disconnect",
     "couldNotSaveServer": "Could not save the server",
@@ -2377,25 +2645,42 @@
     "disconnectOrgWarning": "Disconnect \"{name}\"? Agents bound to it keep running, without its tools.",
     "disconnectServerTitle": "Disconnect server?",
     "disconnectWarning": "Disconnect \"{name}\"?",
+    "displayName": "Name",
+    "displayNameHint": "What this connection is called on screen. Optional — without one it is shown under its tool prefix.",
+    "displayNamePlaceholder": "Company wiki",
     "documentation": "Documentation",
+    "edit": "Edit",
     "editNamed": "Edit \"{name}\"",
     "everyAgentCanReach": "Every agent can reach it. An agent spec can only bind the organization's servers.",
     "existingConnectionCannotChange": "An existing connection cannot change owner.",
     "failedLoadConnections": "Failed to load connections",
     "failedLoadOrgServers": "Failed to load the organization's MCP servers",
-    "finishSign": "Finish sign-in",
-    "github": "github",
-    "manageNamed": "Manage {name}",
-    "name": "Name",
+    "finishConsentThenReturn": "Finish in the tab that opened, then come back — the server appears here once it is authorised.",
+    "consentTabBlocked": "Your browser blocked the sign-in tab. Allow pop-ups for this site, then try again.",
+    "fromRegistry": "Registry",
+    "fromRegistryHint": "From the public MCP registry. Nobody here reviewed it: the description is the publisher's, and there is no guidance on what credential it wants.",
+    "manageConnectionsOn": "Manage connections on {name}",
+    "name": "Tool prefix",
+    "prefixPlaceholder": "wiki",
     "nameMustBeLowercase": "Name must be lowercase letters, digits and hyphens (max 32 characters).",
-    "namePrefixesToolNames": "Lowercase letters, digits and hyphens. It prefixes the server's tool names, so it has to be unique among {scope, select, organization {the organization's} other {your}} servers.",
+    "namePrefixesToolNames": "Lowercase letters, digits and hyphens. The model reads it before every tool call, so it has to be unique among {scope, select, organization {the organization's} other {your}} servers.",
     "needsAuthorization": "Needs authorization",
+    "noToolMatches": "No tool matches that.",
+    "noToolsProbed": "Nothing has checked this connection yet, so there is no tool list to choose from.",
+    "noneHere": "None yet.",
     "notCatalog": "not in the catalog",
     "notConnected": "Not connected",
+    "oauthClientId": "Client ID",
+    "oauthClientSecret": "Client secret",
+    "oauthClientSecretHint": "Sealed with the rest of the sign-in and never shown again. Leave it empty for a public client.",
     "oauthConnected": "{name} is connected.",
     "oauthConnectedUnnamed": "The server is connected.",
     "oauthFailed": "Sign-in failed, and no connection was saved.",
     "oauthMissingCode": "The provider sent no authorization code.",
+    "oauthOwnClient": "Your own client (optional)",
+    "oauthOwnClientHint": "Most servers register this app themselves - leave these empty. A provider that refuses to, such as HubSpot, hands out credentials only for an app created in its own portal: create one there, give it the redirect URL below, and paste its credentials here.",
+    "oauthRedirectUrl": "Redirect URL",
+    "oauthRedirectUrlHint": "Enter it at the provider exactly as shown.",
     "oauthRefusedWithReason": "Sign-in failed, and no connection was saved — {reason}",
     "organization": "the organization",
     "pasteHere": "Paste it here",
@@ -2407,7 +2692,11 @@
     "saving2": "Saving…",
     "scopeOrganization": "Organization",
     "scopeYou": "You",
+    "noSuchServerToConnect": "No server in the catalog is called {key}.",
     "searchServers": "Search servers…",
+    "searchTools": "Search tools…",
+    "selectAll": "Select all",
+    "selectNone": "Select none",
     "selfHostedYouSupply": "Self-hosted - you supply the URL when connecting",
     "serverCouldNotBe": "The server could not be reached",
     "serverCount": "{count, plural, =1 {1 server} other {# servers}}",
@@ -2418,14 +2707,19 @@
     "settings": "Settings",
     "stateDisabled": "Disabled",
     "storedEncryptedNeverShown": "Stored encrypted and never shown again.",
-    "toggleNamed": "Toggle {name}",
+    "theOrganizations": "The organization's",
     "toolSelectionSaved": "Tool selection saved.",
+    "tools": "Tools",
     "toolsFrom": "Tools from \"{name}\"",
+    "toolsSelected": "{on} of {total} on",
     "unreachable": "Unreachable",
     "urlMustStartWithHttp": "URL must start with http:// or https://",
     "useServiceCredentialNot": "Use a service credential, not your own - every agent bound to this server acts with it. Sealed for this organization and never shown again.",
-    "whichToolsExposed": "Which tools this connection exposes. Selecting all keeps tools the server adds later enabled automatically.{scope, select, organization { This applies to every agent bound to this server - per-agent tool selection does not exist yet.} other {}}",
+    "whichToolsAgent": "Which of these tools this agent may call. The connection's own list still applies — this narrows within it. Selecting all leaves the agent following the connection, including tools the server adds later.",
+    "whichToolsConnection": "Which tools this connection exposes at all. Selecting all keeps tools the server adds later enabled automatically.{scope, select, organization { It applies to every agent bound to this server; an agent can narrow further, and cannot reach past it.} other {}}",
     "whoeverSignsGrantsIf": "Whoever signs in grants it. If their access at the provider is revoked, this server stops working for every agent until somebody signs in again - so use an account the organization controls.",
+    "yourChatAndDirectMessages": "Yours alone — your chat, and your direct messages in a channel.",
+    "yours": "Yours",
     "yoursAloneYourOwn": "Yours alone, in your own chat. No agent can bind it."
   },
   "members": {
@@ -2435,7 +2729,6 @@
     "failedRemove": "Failed to remove member",
     "failedRevoke": "Failed to revoke invitation",
     "failedRole": "Failed to update role",
-    "inviteSent": "Invitation sent to {email}",
     "joined": "Joined",
     "memberRemoved": "Member removed",
     "pendingInvitations": "Pending invitations",
@@ -2448,6 +2741,7 @@
     "you": "(you)"
   },
   "nav": {
+    "memory": "Memory",
     "account": "Account",
     "activity": "Activity",
     "admin": "Admin",
@@ -2490,7 +2784,6 @@
     "slashCommands": "Slash commands",
     "startNewChat": "Start new chat",
     "system": "System",
-    "systemHealth": "System health",
     "team": "Team",
     "toggleMenu": "Toggle menu",
     "untitledConversation": "Untitled conversation",
@@ -2502,7 +2795,10 @@
     "allOrganizations": "All organizations",
     "context": "Context",
     "deploymentSettings": "Deployment",
-    "routines": "Routines"
+    "routines": "Routines",
+    "collapseSidebar": "Collapse the sidebar",
+    "expandSidebar": "Expand the sidebar",
+    "artifacts": "Artifacts"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -2545,12 +2841,144 @@
         "title": "Create an organization?",
         "body": "An organization is a separate space with its own agents, members and settings. Want to create one now? We'll walk you through it."
       },
+      "create-group": {
+        "title": "Create a group?",
+        "body": "A group lets you share an agent, a skill or a collection with several people in one step. Want to create one now? We'll walk you through it."
+      },
+      "create-routine": {
+        "title": "Set up your first routine?",
+        "body": "A routine runs an agent with nobody at the keyboard - on a schedule, or when an event arrives. Want to set one up now? We'll walk you through it and fire the first run together."
+      },
       "explore-chat": {
         "title": "Take a quick tour of chat?",
         "body": "See how to start a conversation, switch which agent answers, and change the model or thinking effort for a single chat. Want a quick guided run through it?"
       }
     },
     "steps": {
+      "activity-approvals": {
+        "title": "What's waiting on you",
+        "body": "Runs that paused for a human decision queue here. Approve or reject each one and the run picks up from where it stopped — this tab only appears if you're allowed to decide them."
+      },
+      "activity-overview": {
+        "title": "Watch activity",
+        "body": "Every run is recorded with its cost and outcome, so you can see what your agents did and step in when one is waiting on a decision. These figures summarise the lot."
+      },
+      "activity-runs": {
+        "title": "Every run",
+        "body": "The full history: who ran which agent, what it cost and how it ended. Filter it, or open a run to see the whole conversation and the tools it called."
+      },
+      "activity-spend": {
+        "title": "Where the money went",
+        "body": "Spend over time and by agent, against the budgets you've set — so an agent quietly getting expensive shows up here before the bill does."
+      },
+      "agent-availability": {
+        "title": "Put it to work",
+        "body": "Availability is where a published agent goes live — a web chat, an embed on your site, Slack or Telegram — and where you decide who to share it with."
+      },
+      "agent-history": {
+        "title": "Every version, kept",
+        "body": "Each publish freezes the spec as a version you can promote to an environment, roll back to, or read the run history against."
+      },
+      "agent-instructions": {
+        "title": "Instructions are the behaviour",
+        "body": "Open an agent and you land in the Builder, where it's assembled tab by tab. Build comes first: the instructions are its behaviour, written in plain Markdown rather than code."
+      },
+      "agent-knowledge": {
+        "title": "Point it at your docs",
+        "body": "Knowledge lets the agent search the collections you pick, so it answers from your own material instead of guessing from training alone."
+      },
+      "agent-limits": {
+        "title": "Keep it in bounds",
+        "body": "Cap the monthly spend and the steps a single run may take, and choose who gets told when the agent hits a limit or fails."
+      },
+      "agent-mcp": {
+        "title": "And whole tool sets",
+        "body": "Below the capabilities, attach MCP servers — ready-made tool sets like GitHub or Slack, connected once for the organization and reused across agents."
+      },
+      "agent-model": {
+        "title": "Choose the brain",
+        "body": "The model underneath does the reasoning. Swap it, dial how hard it thinks, or turn on step-by-step reasoning — all without touching the instructions above."
+      },
+      "agent-publish": {
+        "title": "Publish to ship it",
+        "body": "Nothing runs until you publish. Publishing freezes the current draft as a version, and that version is what answers everywhere the agent is available."
+      },
+      "agent-skills": {
+        "title": "Hand it a playbook",
+        "body": "Skills are written know-how the agent reads before it acts — a procedure, a house style, a checklist — and the same one can be shared across agents."
+      },
+      "agent-toolbox": {
+        "title": "Give it tools",
+        "body": "The Toolbox is what an agent can actually do. Switch on built-in capabilities like web search, code or files, and each becomes a tool the model may call mid-answer."
+      },
+      "agents-filters": {
+        "title": "Find one fast",
+        "body": "Filter by status or search by name once the roster grows past a screenful."
+      },
+      "agents-new": {
+        "title": "Build an agent",
+        "body": "An agent is its instructions, a model, and the tools, MCP servers and skills you give it. Create one here, then publish a version so it runs the same way everywhere — chat, API, Slack or a widget."
+      },
+      "channels-list": {
+        "title": "Connected channels",
+        "body": "The platforms this organization is reachable on. A channel belongs to the organization, not one agent, so the same bot can serve every agent bound to it."
+      },
+      "channels-new": {
+        "title": "Reach agents where people are",
+        "body": "Register a chat platform — Slack, Telegram, Mattermost — and any agent can be bound to answer there. The bot's token is sealed in the vault. Add one here."
+      },
+      "chat-agent-picker": {
+        "title": "Choose who answers",
+        "body": "Switch between your agents right here. Each brings its own instructions, tools and knowledge, so the same question can get a very different answer."
+      },
+      "chat-approval-mode": {
+        "title": "Decide how much you are asked",
+        "body": "Follow the agent's own settings, ask about every tool it can use, or - if you may decide approvals - let this conversation run without stopping. Every waived call is still recorded against your account."
+      },
+      "chat-your-connections": {
+        "title": "Your own accounts, where the agent uses them",
+        "body": "An agent bound to each person's own account speaks to Notion or Jira as you. This lists which of its services need an account of yours, and connects one without leaving the chat."
+      },
+      "chat-composer": {
+        "title": "Ask anything",
+        "body": "Type a message, drop in a file, or start with a slash-command. Enter sends; Shift+Enter adds a line."
+      },
+      "chat-model-picker": {
+        "title": "Tune the model",
+        "body": "Pick which of the organization's models answers — just for this conversation, without changing the agent."
+      },
+      "chat-plan": {
+        "title": "What it is working to",
+        "body": "An agent that plans keeps a checklist here, above the composer - the step in flight, and how much is left. Open it for the whole plan; it stays current as the run works through it."
+      },
+      "chat-start": {
+        "title": "Chat with your agents",
+        "body": "New chat opens a fresh thread, and your past conversations stack up in this rail. It's the quickest way to try an agent out and watch how it works, step by step."
+      },
+      "context-list": {
+        "title": "Shared context",
+        "body": "The context files this organization holds. One file can feed every agent, so a fact you fix here is fixed for all of them at once."
+      },
+      "context-new": {
+        "title": "Add standing context",
+        "body": "Context files are the background every agent carries — company facts, tone, terms — injected into each prompt without you pasting them in every time. Add one here."
+      },
+      "dashboard-actions": {
+        "title": "Start here",
+        "body": "These shortcuts are the quickest way in: open a chat, create your first agent, review anything waiting on a decision, or invite a teammate."
+      },
+      "dashboard-customize": {
+        "title": "Make it your own",
+        "body": "Customize opens an editor: drag a card to move it between sections, drag its edge to resize it from a quarter of the row to the whole width, hide the ones you never read, and Add a widget for the rest of the catalog - the same card more than once if you want it per agent. Sections can be renamed, coloured, collapsed and added to. Save keeps it, Cancel discards it, and Reset to default puts back the arrangement you started with. Layouts holds several of these arrangements and switches between them, so the one you read on a Monday need not be the one you read while something is on fire. All of it is per person - nobody else sees your arrangement."
+      },
+      "dashboard-filters": {
+        "title": "Slice the dashboard",
+        "body": "Every number on this page follows the period you pick here, and you can hide sections you don't need. The view lives in the URL, so it survives a reload and travels in a link."
+      },
+      "finish": {
+        "title": "You're all set",
+        "body": "That's the tour. Replay any page's tips anytime from the help button at the top — head to your dashboard whenever you're ready to start building."
+      },
       "flow-agent-create": {
         "title": "Name your agent",
         "body": "Choose New agent, give it a name and a short description, and create it. That opens the builder, where the rest of this happens. We'll move on as soon as it's created."
@@ -2558,18 +2986,6 @@
       "flow-agent-instructions": {
         "title": "Write its instructions",
         "body": "Tell the agent who it is and what it should do — this is its system prompt. Write a line or two, then choose Next."
-      },
-      "flow-agent-model-add": {
-        "title": "Add a model",
-        "body": "Your organization has no model yet. Pick a provider, name a model, and paste a key — it's stored in the vault and the model is ready. We'll move on once it's added."
-      },
-      "flow-agent-model-pick": {
-        "title": "Choose its model",
-        "body": "Pick the model this agent should run on from the list — an agent needs one to run, so we'll move on once it's set."
-      },
-      "flow-agent-model-none": {
-        "title": "No model in this organization yet",
-        "body": "An agent needs a model to run, and this organization has none. Adding one needs the connections permission you don't have — ask an admin to add a model, then this agent can use it. Choose Next to look at the rest for now."
       },
       "flow-agent-knowledge": {
         "title": "Give it documents to read (optional)",
@@ -2579,49 +2995,25 @@
         "title": "No knowledge base yet — create one?",
         "body": "A knowledge base lets this agent search your documents and cite them, and you don't have one yet. Want to create one now and attach it? We'll guide you there and all the way back."
       },
+      "flow-agent-knowledge-attach": {
+        "title": "Attach what you made",
+        "body": "Open the Knowledge tab and attach the knowledge base you just created, then choose Next."
+      },
       "flow-agent-knowledge-create": {
         "title": "Create the knowledge base",
         "body": "Choose New knowledge base — the form opens and we'll walk it together, field by field. Afterwards we'll walk you back to your agent."
-      },
-      "flow-agent-knowledge-return-nav": {
-        "title": "Back to your agents",
-        "body": "Choose Agents in the sidebar to head back to the agent you were building."
       },
       "flow-agent-knowledge-return-edit": {
         "title": "Open your agent again",
         "body": "Choose the edit pencil on the agent you just built to reopen its builder."
       },
-      "flow-agent-knowledge-attach": {
-        "title": "Attach what you made",
-        "body": "Open the Knowledge tab and attach the knowledge base you just created, then choose Next."
-      },
-      "flow-agent-skills": {
-        "title": "Give it skills (optional)",
-        "body": "A skill is written know-how the agent loads when it's relevant — a refund policy, a house style. Attach any, or choose Next to move on."
-      },
-      "flow-agent-skills-ask": {
-        "title": "No skills yet — create one?",
-        "body": "A skill is written know-how the agent loads when it's relevant, and you don't have one yet. Want to create one now and attach it? We'll guide you there and all the way back."
-      },
-      "flow-agent-skills-create": {
-        "title": "Create the skill",
-        "body": "Choose New skill — the form opens and we'll walk it together, field by field. Afterwards we'll walk you back to your agent."
-      },
-      "flow-agent-skills-return-nav": {
+      "flow-agent-knowledge-return-nav": {
         "title": "Back to your agents",
         "body": "Choose Agents in the sidebar to head back to the agent you were building."
       },
-      "flow-agent-skills-return-edit": {
-        "title": "Open your agent again",
-        "body": "Choose the edit pencil on the agent you just built to reopen its builder."
-      },
-      "flow-agent-skills-attach": {
-        "title": "Attach your skill",
-        "body": "Open the Skills tab and attach the skill you just created, then choose Next."
-      },
-      "flow-agent-tools": {
-        "title": "Give it tools (optional)",
-        "body": "Capabilities let the agent do things — search the web, run code, call another system. Switch on what it needs, or choose Next to move on."
+      "flow-agent-limits": {
+        "title": "Set a budget (optional)",
+        "body": "Cap what this agent can spend in a month and how many steps one run may take, and choose who's told when it reaches a limit. It's how an agent that loops or runs away stops itself. Choose Next to move on."
       },
       "flow-agent-mcp": {
         "title": "Add MCP servers (optional)",
@@ -2631,17 +3023,25 @@
         "title": "No MCP server connected — connect one?",
         "body": "An MCP server gives this agent tools from another system, and you haven't connected one yet. Want to connect one now? It's a quick dialog right here — no leaving the builder, and we'll pick up the moment it's connected."
       },
-      "flow-agent-mcp-connect": {
-        "title": "Open the catalog",
-        "body": "Choose Connect a server — the catalog opens right here in the builder, and we'll pick one together."
-      },
       "flow-agent-mcp-attach": {
         "title": "Give it the server",
         "body": "Connecting a server doesn't hand it to this agent. Tick the one you just connected so the agent can use its tools, then choose Next."
       },
-      "flow-agent-limits": {
-        "title": "Set a budget (optional)",
-        "body": "Cap what this agent can spend in a month and how many steps one run may take, and choose who's told when it reaches a limit. It's how an agent that loops or runs away stops itself. Choose Next to move on."
+      "flow-agent-mcp-connect": {
+        "title": "Open the catalog",
+        "body": "Choose Connect a server — the catalog opens right here in the builder, and we'll pick one together."
+      },
+      "flow-agent-model-add": {
+        "title": "Add a model",
+        "body": "Your organization has no model yet. Pick a provider, name a model, and paste a key — it's stored in the vault and the model is ready. We'll move on once it's added."
+      },
+      "flow-agent-model-none": {
+        "title": "No model in this organization yet",
+        "body": "An agent needs a model to run, and this organization has none. Adding one needs the connections permission you don't have — ask an admin to add a model, then this agent can use it. Choose Next to look at the rest for now."
+      },
+      "flow-agent-model-pick": {
+        "title": "Choose its model",
+        "body": "Pick the model this agent should run on from the list — an agent needs one to run, so we'll move on once it's set."
       },
       "flow-agent-publish": {
         "title": "Publish it",
@@ -2655,65 +3055,45 @@
         "title": "Send it a message",
         "body": "Type a prompt and send it — your agent's first run, and the end of the tour. We'll close the moment it's on its way."
       },
-      "flow-skill-create": {
-        "title": "Add your skill",
-        "body": "Choose New skill — the form opens and we'll walk it together, field by field."
+      "flow-agent-skills": {
+        "title": "Give it skills (optional)",
+        "body": "A skill is written know-how the agent loads when it's relevant — a refund policy, a house style. Attach any, or choose Next to move on."
       },
-      "flow-kb-create": {
-        "title": "Create the knowledge base",
-        "body": "Choose New knowledge base — the form opens and we'll walk it together, field by field."
+      "flow-agent-skills-ask": {
+        "title": "No skills yet — create one?",
+        "body": "A skill is written know-how the agent loads when it's relevant, and you don't have one yet. Want to create one now and attach it? We'll guide you there and all the way back."
       },
-      "flow-skill-field-name": {
-        "title": "Name it",
-        "body": "Short and specific, like refund-policy — it's how the model refers to this skill, and it can't be changed later. Then choose Next."
+      "flow-agent-skills-attach": {
+        "title": "Attach your skill",
+        "body": "Open the Skills tab and attach the skill you just created, then choose Next."
       },
-      "flow-skill-field-description": {
-        "title": "Say when it applies",
-        "body": "This is the only part the model reads when deciding whether to open the skill at all — write when to reach for it, not what's inside. Then choose Next."
+      "flow-agent-skills-create": {
+        "title": "Create the skill",
+        "body": "Choose New skill — the form opens and we'll walk it together, field by field. Afterwards we'll walk you back to your agent."
       },
-      "flow-skill-field-source": {
-        "title": "Write the skill",
-        "body": "Switch to Source and write the know-how itself in Markdown — the steps, the rules, the exceptions. You can refine it anytime after. Then choose Next."
+      "flow-agent-skills-return-edit": {
+        "title": "Open your agent again",
+        "body": "Choose the edit pencil on the agent you just built to reopen its builder."
       },
-      "flow-skill-field-create": {
-        "title": "Create it",
-        "body": "Choose Create. We'll move on the moment it's saved."
+      "flow-agent-skills-return-nav": {
+        "title": "Back to your agents",
+        "body": "Choose Agents in the sidebar to head back to the agent you were building."
       },
-      "flow-kb-field-name": {
-        "title": "Name it",
-        "body": "Name it after what it will hold — Product docs, Support wiki — so anyone attaching it to an agent knows what they're giving it. Then choose Next."
+      "flow-agent-tools": {
+        "title": "Give it tools (optional)",
+        "body": "Capabilities let the agent do things — search the web, run code, call another system. Switch on what it needs, or choose Next to move on."
       },
-      "flow-kb-field-scope": {
-        "title": "Choose who it belongs to",
-        "body": "Personal is yours alone; Organization makes it available to every member and agent. For a base your agents will search, pick Organization. Then choose Next."
+      "flow-chat-agent": {
+        "title": "Choose who answers",
+        "body": "This picks which of your published agents replies. Open it to switch agents — you can even change partway through a conversation. Choose Next."
       },
-      "flow-kb-field-embeddings": {
-        "title": "Embeddings (leave the default)",
-        "body": "How documents are indexed for search. It's frozen at creation, but the deployment default is right for almost everyone — expand it only if you know you need a different model. Choose Next."
+      "flow-chat-composer": {
+        "title": "Type and send",
+        "body": "Write your message here and send it — that's your first conversation. Choose Finish when you're ready."
       },
-      "flow-kb-field-create": {
-        "title": "Create it",
-        "body": "Choose Create. We'll move on the moment it exists — you'll add documents to it right after."
-      },
-      "flow-mcp-field-pick": {
-        "title": "Pick a server",
-        "body": "This is the catalog of systems your agents can get tools from. Find the one you want and choose Connect on it."
-      },
-      "flow-mcp-field-form": {
-        "title": "Fill in the connection",
-        "body": "Name it — the name prefixes its tool names — keep Organization so your agents can use it, and paste a token if this server asks for one. Then choose Next."
-      },
-      "flow-mcp-field-connect": {
-        "title": "Connect it",
-        "body": "Choose Connect. We check the server answers and move on the moment it's connected — a server that signs in through the provider will hand off to their consent screen instead."
-      },
-      "flow-routine-run-now": {
-        "title": "Fire it once, now",
-        "body": "Run now runs the routine immediately - same agent, same prompt, same run log - without waiting for its schedule. It is how you find out whether the prompt says what you meant before the clock does."
-      },
-      "flow-org-create": {
-        "title": "Create the organization",
-        "body": "Choose New organization, give it a name, and create it. We'll move on as soon as it exists."
+      "flow-chat-controls": {
+        "title": "Tune this conversation",
+        "body": "Open Controls to run this chat on a different model, or change how hard it thinks — just for this conversation, without touching the agent itself. Choose Next."
       },
       "flow-chat-needs-agent": {
         "title": "No published agent to chat with yet",
@@ -2723,165 +3103,73 @@
         "title": "Start a conversation",
         "body": "Choose New conversation to begin a fresh thread. Each one keeps its own history and settings. Choose Next when you've had a look."
       },
-      "flow-chat-agent": {
-        "title": "Choose who answers",
-        "body": "This picks which of your published agents replies. Open it to switch agents — you can even change partway through a conversation. Choose Next."
+      "flow-kb-create": {
+        "title": "Create the knowledge base",
+        "body": "Choose New knowledge base — the form opens and we'll walk it together, field by field."
       },
-      "flow-chat-controls": {
-        "title": "Tune this conversation",
-        "body": "Open Controls to run this chat on a different model, or change how hard it thinks — just for this conversation, without touching the agent itself. Choose Next."
+      "flow-kb-field-create": {
+        "title": "Create it",
+        "body": "Choose Create. We'll move on the moment it exists — you'll add documents to it right after."
       },
-      "flow-chat-composer": {
-        "title": "Type and send",
-        "body": "Write your message here and send it — that's your first conversation. Choose Finish when you're ready."
+      "flow-kb-field-embeddings": {
+        "title": "Embeddings (leave the default)",
+        "body": "How documents are indexed for search. It's frozen at creation, but the deployment default is right for almost everyone — expand it only if you know you need a different model. Choose Next."
       },
-      "welcome": {
-        "title": "Welcome to AgenticOS",
-        "body": "This is where your team builds, runs and governs its AI agents. We'll step through each section and point out what's worth noticing — about a minute, and you can close it whenever you like."
+      "flow-kb-field-name": {
+        "title": "Name it",
+        "body": "Name it after what it will hold — Product docs, Support wiki — so anyone attaching it to an agent knows what they're giving it. Then choose Next."
       },
-      "dashboard-actions": {
-        "title": "Start here",
-        "body": "These shortcuts are the quickest way in: open a chat, create your first agent, review anything waiting on a decision, or invite a teammate."
+      "flow-kb-field-scope": {
+        "title": "Choose who it belongs to",
+        "body": "Personal is yours alone; Organization makes it available to every member and agent. For a base your agents will search, pick Organization. Then choose Next."
       },
-      "dashboard-filters": {
-        "title": "Slice the dashboard",
-        "body": "Every number on this page follows the period you pick here, and you can hide sections you don't need. The view lives in the URL, so it survives a reload and travels in a link."
+      "flow-mcp-field-connect": {
+        "title": "Connect it",
+        "body": "Choose Connect. We check the server answers and move on the moment it's connected — a server that signs in through the provider will hand off to their consent screen instead."
       },
-      "dashboard-customize": {
-        "title": "Make it your own",
-        "body": "Customize opens an editor: drag a card to move it between sections, drag its edge to resize it from a quarter of the row to the whole width, hide the ones you never read, and Add a widget for the rest of the catalog - the same card more than once if you want it per agent. Sections can be renamed, coloured, collapsed and added to. Save keeps it, Cancel discards it, and Reset to default puts back the arrangement you started with. Layouts holds several of these arrangements and switches between them, so the one you read on a Monday need not be the one you read while something is on fire. All of it is per person - nobody else sees your arrangement."
+      "flow-mcp-field-form": {
+        "title": "Fill in the connection",
+        "body": "Name it — the name prefixes its tool names — keep Organization so your agents can use it, and paste a token if this server asks for one. Then choose Next."
       },
-      "chat-start": {
-        "title": "Chat with your agents",
-        "body": "New chat opens a fresh thread, and your past conversations stack up in this rail. It's the quickest way to try an agent out and watch how it works, step by step."
+      "flow-mcp-field-pick": {
+        "title": "Pick a server",
+        "body": "This is the catalog of systems your agents can get tools from. Find the one you want and choose Connect on it."
       },
-      "chat-agent-picker": {
-        "title": "Choose who answers",
-        "body": "Switch between your agents right here. Each brings its own instructions, tools and knowledge, so the same question can get a very different answer."
+      "flow-org-create": {
+        "title": "Create the organization",
+        "body": "Choose New organization, give it a name, and create it. We'll move on as soon as it exists."
       },
-      "chat-composer": {
-        "title": "Ask anything",
-        "body": "Type a message, drop in a file, or start with a slash-command. Enter sends; Shift+Enter adds a line."
+      "flow-routine-run-now": {
+        "title": "Fire it once, now",
+        "body": "Run now runs the routine immediately - same agent, same prompt, same run log - without waiting for its schedule. It is how you find out whether the prompt says what you meant before the clock does."
       },
-      "chat-model-picker": {
-        "title": "Tune the model",
-        "body": "Pick which of the organization's models answers — just for this conversation, without changing the agent."
+      "flow-skill-create": {
+        "title": "Add your skill",
+        "body": "Choose New skill — the form opens and we'll walk it together, field by field."
       },
-      "agents-new": {
-        "title": "Build an agent",
-        "body": "An agent is its instructions, a model, and the tools, MCP servers and skills you give it. Create one here, then publish a version so it runs the same way everywhere — chat, API, Slack or a widget."
+      "flow-skill-field-create": {
+        "title": "Create it",
+        "body": "Choose Create. We'll move on the moment it's saved."
       },
-      "agents-filters": {
-        "title": "Find one fast",
-        "body": "Filter by status or search by name once the roster grows past a screenful."
+      "flow-skill-field-description": {
+        "title": "Say when it applies",
+        "body": "This is the only part the model reads when deciding whether to open the skill at all — write when to reach for it, not what's inside. Then choose Next."
       },
-      "agent-instructions": {
-        "title": "Instructions are the behaviour",
-        "body": "Open an agent and you land in the Builder, where it's assembled tab by tab. Build comes first: the instructions are its behaviour, written in plain Markdown rather than code."
+      "flow-skill-field-name": {
+        "title": "Name it",
+        "body": "Short and specific, like refund-policy — it's how the model refers to this skill, and it can't be changed later. Then choose Next."
       },
-      "agent-model": {
-        "title": "Choose the brain",
-        "body": "The model underneath does the reasoning. Swap it, dial how hard it thinks, or turn on step-by-step reasoning — all without touching the instructions above."
-      },
-      "agent-toolbox": {
-        "title": "Give it tools",
-        "body": "The Toolbox is what an agent can actually do. Switch on built-in capabilities like web search, code or files, and each becomes a tool the model may call mid-answer."
-      },
-      "agent-mcp": {
-        "title": "And whole tool sets",
-        "body": "Below the capabilities, attach MCP servers — ready-made tool sets like GitHub or Slack, connected once for the organization and reused across agents."
-      },
-      "agent-knowledge": {
-        "title": "Point it at your docs",
-        "body": "Knowledge lets the agent search the collections you pick, so it answers from your own material instead of guessing from training alone."
-      },
-      "agent-skills": {
-        "title": "Hand it a playbook",
-        "body": "Skills are written know-how the agent reads before it acts — a procedure, a house style, a checklist — and the same one can be shared across agents."
-      },
-      "agent-limits": {
-        "title": "Keep it in bounds",
-        "body": "Cap the monthly spend and the steps a single run may take, and choose who gets told when the agent hits a limit or fails."
-      },
-      "agent-availability": {
-        "title": "Put it to work",
-        "body": "Availability is where a published agent goes live — a web chat, an embed on your site, Slack or Telegram — and where you decide who to share it with."
-      },
-      "agent-history": {
-        "title": "Every version, kept",
-        "body": "Each publish freezes the spec as a version you can promote to an environment, roll back to, or read the run history against."
-      },
-      "agent-publish": {
-        "title": "Publish to ship it",
-        "body": "Nothing runs until you publish. Publishing freezes the current draft as a version, and that version is what answers everywhere the agent is available."
-      },
-      "skills-new": {
-        "title": "Reusable skills",
-        "body": "A skill is a packaged set of instructions an agent can draw on for a task. Write one once here and share it across the agents that need it."
-      },
-      "skills-list": {
-        "title": "Your skills",
-        "body": "The skills you've written or installed. An agent picks the ones it needs from its Skills tab, and the same skill can serve several agents at once."
-      },
-      "context-new": {
-        "title": "Add standing context",
-        "body": "Context files are the background every agent carries — company facts, tone, terms — injected into each prompt without you pasting them in every time. Add one here."
-      },
-      "context-list": {
-        "title": "Shared context",
-        "body": "The context files this organization holds. One file can feed every agent, so a fact you fix here is fixed for all of them at once."
-      },
-      "channels-new": {
-        "title": "Reach agents where people are",
-        "body": "Register a chat platform — Slack, Telegram, Mattermost — and any agent can be bound to answer there. The bot's token is sealed in the vault. Add one here."
-      },
-      "channels-list": {
-        "title": "Connected channels",
-        "body": "The platforms this organization is reachable on. A channel belongs to the organization, not one agent, so the same bot can serve every agent bound to it."
-      },
-      "activity-overview": {
-        "title": "Watch activity",
-        "body": "Every run is recorded with its cost and outcome, so you can see what your agents did and step in when one is waiting on a decision. These figures summarise the lot."
-      },
-      "activity-approvals": {
-        "title": "What's waiting on you",
-        "body": "Runs that paused for a human decision queue here. Approve or reject each one and the run picks up from where it stopped — this tab only appears if you're allowed to decide them."
-      },
-      "activity-runs": {
-        "title": "Every run",
-        "body": "The full history: who ran which agent, what it cost and how it ended. Filter it, or open a run to see the whole conversation and the tools it called."
-      },
-      "activity-spend": {
-        "title": "Where the money went",
-        "body": "Spend over time and by agent, against the budgets you've set — so an agent quietly getting expensive shows up here before the bill does."
-      },
-      "run-detail-input": {
-        "title": "What the model was actually given",
-        "body": "The prompt as it was composed and sent, every tool with the description the model reads, the settings, and one bar per request — recorded from the wire, so it is what was sent rather than what the spec says."
-      },
-      "knowledge-new": {
-        "title": "Knowledge bases",
-        "body": "Upload documents so your agents can answer from them. Each collection is searchable and stays private to your organization — create your first one here."
-      },
-      "knowledge-tabs": {
-        "title": "Browse or search",
-        "body": "Two views of the same knowledge: the collections you've built, and a search that runs across all of them at once."
-      },
-      "knowledge-integrations": {
-        "title": "Reusable connections",
-        "body": "Connections shared across the organization: set up an S3 bucket, a drive, a site or a repo once here, and clone it into any collection instead of re-configuring it each time."
-      },
-      "knowledge-add-integration": {
-        "title": "Add a connection",
-        "body": "Start a new one here — pick a connector like S3 or Google Drive, give it credentials, and it becomes available to clone into any collection that needs it."
-      },
-      "kb-header": {
-        "title": "Inside a collection",
-        "body": "The collection's name, scope and controls sit up top — refresh it, drop in files, change how they're read, or remove it."
+      "flow-skill-field-source": {
+        "title": "Write the skill",
+        "body": "Switch to Source and write the know-how itself in Markdown — the steps, the rules, the exceptions. You can refine it anytime after. Then choose Next."
       },
       "kb-documents": {
         "title": "What's in it",
         "body": "Every document the collection holds, with the status of each as it's parsed and indexed. Add more here, or preview and remove what's already there."
+      },
+      "kb-header": {
+        "title": "Inside a collection",
+        "body": "The collection's name, scope and controls sit up top — refresh it, drop in files, change how they're read, or remove it."
       },
       "kb-ingestion": {
         "title": "How documents are read",
@@ -2891,79 +3179,157 @@
         "title": "Keep it in step",
         "body": "Connect a drive, a site or a repo, and the collection refreshes itself from the source instead of waiting on a manual re-upload."
       },
-      "orgs-new": {
-        "title": "Your organizations",
-        "body": "Everything is scoped to an organization. Create one, or switch between the ones you belong to — each keeps its own agents, keys and knowledge apart."
+      "knowledge-add-integration": {
+        "title": "Add a connection",
+        "body": "Start a new one here — pick a connector like S3 or Google Drive, give it credentials, and it becomes available to clone into any collection that needs it."
       },
-      "org-profile": {
-        "title": "Name and face",
-        "body": "The organization's name and avatar, shown wherever it appears. Owners and admins can change them here."
+      "knowledge-integrations": {
+        "title": "Reusable connections",
+        "body": "Connections shared across the organization: set up an S3 bucket, a drive, a site or a repo once here, and clone it into any collection instead of re-configuring it each time."
       },
-      "org-members": {
-        "title": "Who's in it",
-        "body": "Everyone in the organization and the role each holds. Invite teammates, change a role, or remove someone — all from this list."
+      "knowledge-new": {
+        "title": "Knowledge bases",
+        "body": "Upload documents so your agents can answer from them. Each collection is searchable and stays private to your organization — create your first one here."
       },
-      "org-roles": {
-        "title": "What each role may do",
-        "body": "The permission matrix, role by role: what each may touch and how far it reaches. Sharing a single resource can widen access beyond the role, never narrow it."
-      },
-      "vault-new": {
-        "title": "The vault",
-        "body": "API keys and other credentials live here, encrypted at rest. Agents use them to reach the tools they need, and nobody sees a stored secret again."
-      },
-      "vault-keys": {
-        "title": "What's stored",
-        "body": "Every credential in this organization, listed by name and kind. An agent references a key by its name; the value itself is shown to no one once it's saved."
-      },
-      "mcp-catalog": {
-        "title": "Plug in tools",
-        "body": "MCP servers are ready-made tool sets your agents can call. Connect one here, then add it to an agent from its Toolbox."
-      },
-      "mcp-filter": {
-        "title": "Find a server",
-        "body": "Search the catalog, or narrow it by category and by whether you've already connected it."
+      "knowledge-tabs": {
+        "title": "Browse or search",
+        "body": "Two views of the same knowledge: the collections you've built, and a search that runs across all of them at once."
       },
       "mcp-add": {
         "title": "Bring your own",
         "body": "Not in the catalog? Add a custom server by pasting its URL — for the whole organization, or just for yourself."
       },
+      "mcp-catalog": {
+        "title": "Plug in tools",
+        "body": "MCP servers are ready-made tool sets your agents can call. Connect one here, then add it to an agent from its Toolbox."
+      },
       "mcp-connect": {
         "title": "Connect, then pick tools",
         "body": "Connecting a server asks how to sign in, then lets you choose exactly which of its tools your agents are allowed to call."
       },
-      "sandboxes-connections": {
-        "title": "Where agents run code",
-        "body": "Agents that write and run code do it on these hosts. Watch the live sessions and set the ceilings from here."
+      "mcp-filter": {
+        "title": "Find a server",
+        "body": "Search the catalog, or narrow it by category and by whether you've already connected it."
       },
-      "routines-list": {
-        "title": "What runs without you",
-        "body": "Every schedule and trigger across the organization, with what it last did. An agent working while nobody is at the keyboard shows up here first."
+      "notification-bell": {
+        "title": "Stay in the loop",
+        "body": "A run that failed, an approval waiting on you, a budget about to run out, a message from an app admin - it all lands here, with an in-app and email toggle for the kinds you can turn off in Settings."
+      },
+      "org-members": {
+        "title": "Who's in it",
+        "body": "Everyone in the organization and the role each holds. Invite teammates, change a role, or remove someone — all from this list."
+      },
+      "org-profile": {
+        "title": "Name and face",
+        "body": "The organization's name and avatar, shown wherever it appears. Owners and admins can change them here."
+      },
+      "org-retention": {
+        "title": "How long data lives here",
+        "body": "A period per class - conversations, runs, workspaces, memory, uploads and the audit trail. A sweep runs daily and deletes for good, within whatever bounds the deployment set; the audit trail has a floor you can lengthen and never shorten."
+      },
+      "org-groups": {
+        "title": "Share with a group",
+        "body": "A group is a named set of members. Share an agent, a skill, a collection or a vault secret with it, and everybody in it gets that access at once - their roles stay as they are."
+      },
+      "org-groups-new": {
+        "title": "Create a group",
+        "body": "Give it a name and, if you like, a line on what it is for. Then open its members to add people, or let a directory mapping place them when they sign in."
+      },
+      "org-directory": {
+        "title": "Who the directory lets in",
+        "body": "Each mapping turns a directory group - an LDAP group or an OIDC groups claim - into a role here, and optionally a group. The sync applies them at every sign-in and keeps the memberships it made in step."
+      },
+      "org-directory-new": {
+        "title": "Map a directory group",
+        "body": "Paste the group's DN or claim value and pick a role. You can only hand out roles below your own."
+      },
+      "flow-group-create": {
+        "title": "Create the group",
+        "body": "Choose New group, give it a name, and create it. We'll move on as soon as it exists."
+      },
+      "org-roles": {
+        "title": "What each role may do",
+        "body": "The permission matrix, role by role: what each may touch and how far it reaches. Sharing a single resource can widen access beyond the role, never narrow it."
+      },
+      "my-memory": {
+        "title": "What agents remember about you",
+        "body": "Agents keep notes between conversations. This is yours: read what was written, stop a note being used without destroying it, or delete it outright. A note in an external memory service is named here but not shown."
+      },
+      "orgs-new": {
+        "title": "Your organizations",
+        "body": "Everything is scoped to an organization. Create one, or switch between the ones you belong to — each keeps its own agents, keys and knowledge apart."
       },
       "routines-create": {
         "title": "Two ways to start one",
         "body": "A schedule runs on the clock - every hour, weekday mornings, the first of the month. A trigger runs when something happens: a GitHub issue, an email arriving, or a signed POST from your own code."
       },
+      "routines-list": {
+        "title": "What runs without you",
+        "body": "Every schedule and trigger across the organization, with what it last did. An agent working while nobody is at the keyboard shows up here first."
+      },
+      "run-detail-input": {
+        "title": "What the model was actually given",
+        "body": "The prompt as it was composed and sent, every tool with the description the model reads, the settings, and one bar per request — recorded from the wire, so it is what was sent rather than what the spec says."
+      },
+      "sandboxes-connections": {
+        "title": "Where agents run code",
+        "body": "Agents that write and run code do it on these hosts. Watch the live sessions and set the ceilings from here."
+      },
+      "settings-tabs": {
+        "title": "Your settings",
+        "body": "Your profile, sign-in and security, notifications, and slash-commands all live behind these tabs — switch between them here."
+      },
+      "skills-list": {
+        "title": "Your skills",
+        "body": "The skills you've written or installed. An agent picks the ones it needs from its Skills tab, and the same skill can serve several agents at once."
+      },
+      "skills-new": {
+        "title": "Reusable skills",
+        "body": "A skill is a packaged set of instructions an agent can draw on for a task. Write one once here and share it across the agents that need it."
+      },
+      "vault-keys": {
+        "title": "What's stored",
+        "body": "Every credential in this organization, listed by name and kind. An agent references a key by its name; the value itself is shown to no one once it's saved."
+      },
+      "vault-new": {
+        "title": "The vault",
+        "body": "API keys and other credentials live here, encrypted at rest. Agents use them to reach the tools they need, and nobody sees a stored secret again."
+      },
+      "welcome": {
+        "title": "Welcome to AgenticOS",
+        "body": "This is where your team builds, runs and governs its AI agents. We'll step through each section and point out what's worth noticing — about a minute, and you can close it whenever you like."
+      },
       "workspaces-browser": {
         "title": "Files agents kept for you",
         "body": "When an agent saves a file, it lands here — browse, preview and download whatever your conversations produced."
-      },
-      "finish": {
-        "title": "You're all set",
-        "body": "That's the tour. Replay any page's tips anytime from the help button at the top — head to your dashboard whenever you're ready to start building."
       },
       "workspaces-detail": {
         "title": "Inside a workspace",
         "body": "The files from one workspace. Browse the folders, preview a file, or download whatever an agent produced for you."
       },
-      "settings-tabs": {
-        "title": "Your settings",
-        "body": "Your profile, sign-in and security, notifications, and slash-commands all live behind these tabs — switch between them here."
+      "skills-gallery": {
+        "title": "Start from the gallery",
+        "body": "Seventy ready-made skills, grouped by industry. Install one, or a whole shelf, then edit it like any other."
+      },
+      "agents-templates": {
+        "title": "Start from a template",
+        "body": "Twenty-eight ready-made agents by industry. Installing one creates a draft with its skills already bound."
+      },
+      "knowledge-local-services": {
+        "title": "Local services",
+        "body": "Servers on your own network: register an Ollama to embed with no key, or an OCR server for LiteParse, and pick one per collection - so a knowledge base can stay entirely on your hardware."
+      },
+      "artifacts-list": {
+        "title": "Published pages",
+        "body": "Reports and dashboards your agents published. Open one to see it, pick an earlier version, share it with colleagues or give it a public link."
       }
     }
   },
   "organizations": {
     "accessLost": "You no longer have access to that organization.",
     "accessLostSwitched": "You no longer have access to that organization. Switched to {name}.",
+    "accessLostLink": "That link is for an organization you no longer have access to.",
+    "accessLostLinkSwitched": "That link is for an organization you no longer have access to. Showing {name} instead.",
     "created": "Organization created",
     "creating": "Creating...",
     "deleted": "Organization deleted",
@@ -2983,6 +3349,53 @@
     "you": "(you)"
   },
   "pages": {
+    "retention": {
+      "title": "Data retention",
+      "description": "How long this organization keeps each class of data, and what the deployment allows.",
+      "organizations": "Organizations",
+      "members": "Members",
+      "notYours": "Retention is an administrator's setting",
+      "askAnAdmin": "How long this organization keeps its data is set by an Owner or an Admin. Ask one of them if it needs to change.",
+      "howLongEachClassLives": "How long each class lives",
+      "dataClass": "Data",
+      "keepForDays": "Keep for (days)",
+      "whatSweeps": "What actually happens",
+      "forEver": "for ever",
+      "keptForEver": "Kept until somebody deletes it",
+      "afterDays": "Deleted after {days} days",
+      "atLeastDays": "Kept at least {days} days",
+      "cappedByDeployment": "Deleted after {days} days — the deployment's limit",
+      "conflictingBounds": "This deployment's own bounds contradict each other for: {classes}. An administrator has to settle which applies before those periods mean anything.",
+      "hardDeleteNotice": "A sweep runs once a day and deletes for good. What a purged run spent still counts toward the month's bill.",
+      "save": "Save",
+      "saving": "Saving…",
+      "saved": "Saved",
+      "classes": {
+        "conversations": "Conversations, their messages and their files",
+        "runs": "Runs and their manifests",
+        "workspaces": "Agent workspaces",
+        "memory": "Agent memory",
+        "knowledge_documents": "Uploaded documents",
+        "audit": "Audit trail",
+        "artifacts": "Published artifacts and their versions"
+      }
+    },
+    "memory": {
+      "showing": "Showing {from}–{to} of {total}",
+      "newer": "Newer",
+      "older": "Older",
+      "title": "Your memory",
+      "description": "What the agents here have written down about you, and what you can do about it.",
+      "nothingYet": "Nothing written down yet",
+      "nothingYetWhy": "Agents write a note when they learn something worth keeping between conversations. Nothing here means none of them has.",
+      "externalStores": "These agents also keep memories in an external service, which this page cannot read: {agents}.",
+      "writtenBy": "Written by {agent} · {when}",
+      "anAgent": "an agent",
+      "suppressed": "Suppressed",
+      "suppress": "Stop using this note",
+      "restore": "Use this note again",
+      "delete": "Delete this note"
+    },
     "admin": {
       "active": "Active",
       "active24h": "Active 24h",
@@ -3004,7 +3417,6 @@
       "eachRowSaysWhat": "Each row says what was checked. Auto-refreshes every 30s.",
       "everyCheckPassed": "Every check passed",
       "everyStatusHereComes": "Every status here comes from a probe that ran when this page loaded. There is no uptime history: nothing records one, and a number that looks like one would be made up.",
-      "everyTenantDeploymentOnly": "Every tenant in the deployment - only the platform admin sees this list.",
       "failedFetchHealth": "Failed to fetch health",
       "failingServices": "Failing: {names}",
       "inspect": "Inspect",
@@ -3012,7 +3424,6 @@
       "json": "JSON",
       "latencyMs": "{ms} ms",
       "likes": "Likes",
-      "manageUsers": "Manage users",
       "members": "Members",
       "message": "Message",
       "messages": "Messages",
@@ -3024,18 +3435,18 @@
       "organizations": "Organizations",
       "organizations2": "Organizations",
       "overallStatus": "Overall status",
-      "perServiceStatusUptime": "Per-service status & uptime",
       "personal": "Personal",
       "refresh2": "Refresh",
       "resultCount": "{count, plural, =1 {1 result} other {# results}}",
       "searchByEmailName": "Search by email or name…",
-      "searchSuspendImpersonate": "Search, suspend, impersonate",
       "serviceDatabase": "Database",
       "serviceDatabaseDetail": "PostgreSQL primary",
       "serviceModelAccess": "Model access",
       "serviceModelAccessDetail": "Provider keys and profiles",
       "serviceRedis": "Redis",
       "serviceRedisDetail": "Cache & queue broker",
+      "serviceScheduler": "Scheduled jobs",
+      "serviceSchedulerDetail": "Triggers, emails and sweeps, via Prefect",
       "serviceVectorStore": "Vector store",
       "serviceVectorStoreDetail": "pgvector, same database",
       "services": "Services",
@@ -3047,9 +3458,7 @@
       "stateUnhealthy": "Failing",
       "status": "Status",
       "suspended": "Suspended",
-      "systemHealth": "System health",
       "totalCount": "{count, number} total",
-      "totalUsers": "Total users",
       "tryAgain": "Try again",
       "user": "User",
       "usersConversationsOrgsSystem": "Users, conversations, organizations, and system health.",
@@ -3114,7 +3523,27 @@
       "limitsOrganizationsHint": "Counts the organizations an account owns, including the personal one it is given at sign-up. Being invited into somebody else's does not count. Leave empty for no limit.",
       "limitsAgents": "Agents per organization",
       "limitsAgentsHint": "Archived agents do not count, so retiring one frees its place. Leave empty for no limit.",
-      "limitsUnlimited": "No limit"
+      "limitsUnlimited": "No limit",
+      "adminAccessTitle": "Administrator access",
+      "adminAccessHint": "What happens when an administrator acts as somebody's account.",
+      "impersonationNoticeToggle": "Email people when an administrator acts as them",
+      "impersonationNoticeToggleHint": "Sent once, when the impersonation starts, naming the administrator. Off, the audit trail is the only record.",
+      "searchOrganizations": "Search by name, slug or owner…",
+      "filterByKind": "Filter by kind",
+      "kindAll": "All organizations",
+      "kindPersonal": "Personal",
+      "kindTeam": "Team",
+      "noOrganizationsMatch": "No organizations match \"{query}\".",
+      "backToOrganizations": "Back to organizations",
+      "orgDetailCouldNotBeRead": "This organization could not be read",
+      "orgNotFound": "Organization not found",
+      "orgNotFoundHint": "It may have been deleted since the list was loaded.",
+      "owner": "Owner",
+      "noOwner": "No owner",
+      "monthlyBudgetUsd": "Monthly budget (USD)",
+      "noBudget": "No budget",
+      "noMembers": "No members",
+      "membersTruncated": "Showing the first {shown} of {total} members"
     },
     "agentDetail": {
       "perMonth": "${amount} per month"
@@ -3149,6 +3578,23 @@
       "environments": "Environments",
       "exportYaml": "Export YAML",
       "filterByStatus": "Filter by status",
+      "filterByCategory": "Filter by category",
+      "filterByTag": "Filter by tag",
+      "allCategories": "All categories",
+      "categoryCount": "{count, plural, =1 {1 category} other {# categories}}",
+      "allTags": "All tags",
+      "tagCount": "{count, plural, =1 {1 tag} other {# tags}}",
+      "clearFilter": "Clear filter",
+      "categories": "Categories",
+      "tags": "Tags",
+      "discovery": "Categories and tags",
+      "discoveryHelp": "Labels for finding this agent. They are saved at once and are not part of the published spec, so retagging never needs a publish. The server lower-cases, trims and de-duplicates them.",
+      "addCategory": "Add a category",
+      "addCategoryPlaceholder": "Add a category",
+      "removeCategory": "Remove category {value}",
+      "addTag": "Add a tag",
+      "addTagPlaceholder": "Add a tag",
+      "removeTag": "Remove tag {value}",
       "history": "History",
       "howAgentAsksIts": "How this agent asks its model to behave, on top of whatever the model profile already sets. A setting nobody touches is not sent at all - that is deliberate rather than tidy: reasoning models reject a temperature outright, so an agent that never chose one must not have one sent on its behalf. A provider that does not implement a setting ignores it. Reasoning itself is a capability, below.",
       "howManyModelRequests": "How many model requests one run may make. A tool loop hits this long before it costs enough to hit a budget.",
@@ -3163,14 +3609,16 @@
       "mapSurfaces": "Surfaces",
       "maxStepsPerRun": "Max steps per run",
       "mcpServers": "MCP servers",
-      "mcpServersDescription": "External tools this agent may call, from the servers <servers>your organization has connected</servers>. Only the organization's servers appear here - an agent everyone runs cannot depend on whose credential is behind it, so a personal connection is refused at publish.",
+      "mcpServersDescription": "External tools this agent may call, from <servers>the catalog</servers>. Bind a server to the organization's account, which answers for everybody, or to each person's own account, which they connect themselves. A member's connection is never bound directly - an agent everyone runs cannot depend on whose credential is behind it.",
       "model": "Model",
       "modelSettings": "Model settings",
       "monthlyUsd": "Monthly (USD)",
+      "monthlyUsdHint": "Runs stop once this agent spends this much in a calendar month. Blank leaves only the organization's limit.",
       "moreActions": "More actions",
       "n100Default": "100 (default)",
       "namedMissing": "{name} (missing)",
-      "namedPointersAtPublished": "A publish mints a version; putting it somewhere is a separate decision. An environment either waits to be promoted onto - which the default does - or follows every publish, which is what a dev environment usually wants. A bot bound to an environment serves its version.",
+      "eachPersonsOwnNamed": "{name} (each person's own)",
+      "namedPointersAtPublished": "A publish mints a version; putting it somewhere is a separate decision. An environment either waits to be promoted onto or follows every publish. Production follows while it is the only environment; pin it once a dev or staging sits beside it. A bot bound to an environment serves its version.",
       "newAgent": "New agent",
       "noAgentHereMatches": "No agent here matches that filter and search.",
       "noAgentsYet": "No agents yet",
@@ -3188,7 +3636,6 @@
       "perMonth": "${amount} per month",
       "publish": "Publish",
       "publishAgentChatWith": "Publish this agent to chat with it - the chat runs the published version",
-      "recentRuns": "Recent runs",
       "removesAgentEveryVersion": "This removes the agent, every version of it and every share pointing at it. Its past runs are kept for the record. Archive instead if you only want it to stop.",
       "removesAgentEveryVersion2": "This removes the agent, every version of it and every share pointing at it. Its past runs are kept for the record. Archive instead if you only want it to stop.",
       "replaceAvatar": "Replace avatar",
@@ -3216,15 +3663,15 @@
       "versions": "Versions",
       "visualMap": "Visual map",
       "whatAgentCanDo": "What this agent can do, and where it keeps what it produces. Anything that acts on the outside world needs a human approval before it runs.",
-      "whetherAgentWorkingWhat": "Whether this agent is working, and what it has cost. The full history - surfaces, tokens, the version each run executed - lives in Activity rather than being half-rebuilt here.",
       "youAreSupportCopilot": "You are Support Copilot. Answer from the product wiki and cite the document you used. If the wiki does not cover it, say so rather than guessing.",
       "avatarColour": "Fallback colour",
       "knowledge": "Knowledge",
-      "skills": "Skills"
+      "skills": "Skills",
+      "categoriesHint": "Broad groups - support, finance, internal. The catalog filters by these.",
+      "tagsHint": "Anything narrower you want to search by later.",
+      "labelCount": "{used} of {max}"
     },
     "auth": {
-      "agentHereDataNot": "An agent here is data, not code - instructions, a model, a set of capabilities. It runs the same way on web chat, the HTTP API and Slack, on your infrastructure and against your keys.",
-      "apache20Your": "Apache-2.0 · your infrastructure · your keys",
       "backSign": "Back to sign in",
       "checkSpamFolder": "Don't see it? Check your spam folder, or <link>try again</link>.",
       "inboxIncoming": "Inbox, <em>incoming.</em>",
@@ -3232,16 +3679,12 @@
       "magicLinkSent": "We sent a sign-in link. Click it to continue - expires in 15 minutes.",
       "magicLinkSentTo": "We sent a sign-in link to <strong>{email}</strong>. Click it to continue - expires in 15 minutes.",
       "missingExpiredLink": "Missing or expired link",
-      "operatingSystemHeading": "The operating system for <em>your company's</em> AI agents.",
       "orReturnToSignIn": "Or <link>return to sign in</link>.",
       "pageExpectsTokenFrom": "This page expects a token from your reset email. Request a new link to continue.",
-      "pitchAgents": "Agents built in a UI, versioned on publish",
-      "pitchGovernance": "Budgets, approvals and an audit trail on every run",
-      "pitchKnowledge": "Knowledge, skills and tools switched on per agent",
       "requestNewLink": "Request a new link",
       "resetPassword": "Reset password",
-      "selfHostedOpenSource": "Self-hosted, open source",
-      "tryAgain": "try again"
+      "tryAgain": "try again",
+      "tagline": "One place to <b>build</b>, <b>run</b> and <b>govern</b> your company’s AI agents."
     },
     "channelLink": {
       "connectThisAccount": "Connect this account",
@@ -3270,6 +3713,7 @@
       "botTokenHintMattermost": "The bot account's access token",
       "botTokenHintSlack": "The bot user OAuth token (xoxb-...) from your Slack app",
       "botTokenHintTelegram": "The token @BotFather gives you when you create a bot",
+      "botUpdated": "{bot} updated",
       "bots": "Bots",
       "cancel": "Cancel",
       "channels": "Channels",
@@ -3277,15 +3721,23 @@
       "columnAnswering": "Answering here",
       "columnBot": "Bot",
       "columnDelivery": "Delivery",
+      "connectionDown": "Not connected",
+      "credentialStored": "Stored. Leave blank to keep it.",
+      "credentialUnset": "Not set.",
+      "editBot": "Edit {bot}",
+      "editChannel": "Edit channel",
+      "editChannelDescription": "Change what this bot is called, or replace one of its credentials. A credential is never read back, so a field left blank keeps the value already stored.",
       "mattermostServerUrl": "Server URL",
-      "mattermostServerUrlHint": "https://mattermost.your-company.com",
+      "mattermostServerUrlHint": "The address you open Mattermost at in the browser, without a path",
       "mattermostWebhookToken": "Webhook token (optional)",
       "mattermostWebhookTokenHint": "The token Mattermost shows for the outgoing webhook",
       "name": "Name",
       "nameHint": "What this bot is called here. People never see it.",
       "needChannelsManage": "Managing an organization's channels needs the channels:manage permission.",
       "noAgentBound": "No agent bound - this bot answers nothing",
+      "noAppToken": "No app-level token",
       "noChannelsYet": "No channel registered yet",
+      "noSigningSecret": "No signing secret",
       "pageDescription": "The chat platforms this organization is reachable on. A bot serves every agent bound to it - bind one under an agent's Availability tab.",
       "pauseBot": "Pause {bot}",
       "paused": "Paused",
@@ -3294,10 +3746,18 @@
       "register": "Register",
       "registeredCount": "{count, plural, =1 {1 channel registered} other {# channels registered}}",
       "removeBot": "Remove {bot}",
+      "replaceBotToken": "Replace bot token",
       "resumeBot": "Resume {bot}",
+      "save": "Save",
       "signingSecret": "Signing secret",
       "signingSecretHint": "From the Slack app's Basic Information, under App Credentials. Inbound events are verified with it.",
       "supportBot": "Support bot",
+      "tokenTooShort": "A token this short is not one the platform issued",
+      "transcriptionModel": "Transcription model",
+      "transcriptionModelHint": "Which of that provider's models to use.",
+      "transcriptionOff": "Do not transcribe",
+      "transcriptionProvider": "Voice transcription",
+      "transcriptionProviderHint": "Which provider turns a voice message into text before the agent reads it.",
       "webhook": "Webhook",
       "webhookToken": "No webhook token"
     },
@@ -3344,6 +3804,8 @@
       "dropUpload": "Drop to upload",
       "embeddedWith": "Embedded with {model}",
       "everyMinutes": "every {minutes}m",
+      "filedUnder": "Filed under {unit}",
+      "filedUnderNext": "The next files you add are filed under <strong>{unit}</strong>.",
       "filesWillBeAddedTo": "Files will be added to <strong>{name}</strong>",
       "groupRelatedDocumentsInto": "Group related documents into a base. Open one to upload files, then choose in chat which bases the agent should search.",
       "howDocumentsAreRead": "How documents are read",
@@ -3423,6 +3885,7 @@
       "loginTitle": "Sign in",
       "magicLinkSentDescription": "We sent you a sign-in link.",
       "magicLinkSentTitle": "Check your email",
+      "emailChangeTitle": "Confirm your email address",
       "magicLinkTitle": "Sign in",
       "privacyDescription": "How {app} collects, uses, and protects your data.",
       "privacyPolicy": "Privacy Policy",
@@ -3434,6 +3897,7 @@
       "termsOfService": "Terms of Service"
     },
     "orgs": {
+      "retention": "Retention",
       "active": "Active",
       "all": "all",
       "avatarColour": "Fallback colour",
@@ -3537,9 +4001,6 @@
       "onboardingTitle": "Get started",
       "onboardingUnderConstruction": "Onboarding is under construction",
       "pageError": "Page error:",
-      "pitchAgents": "Agents built in a UI, versioned on publish",
-      "pitchGovernance": "Budgets, approvals and an audit trail on every run",
-      "pitchKnowledge": "Knowledge, skills and tools switched on per agent",
       "sectionFailed": "This section failed to load",
       "shareLinkExpired": "This share link may have expired or been revoked.",
       "shareLinkNotFound": "Share link not found",
@@ -3557,188 +4018,188 @@
       "aParkedRunIsStill": "A parked run is still parked. Nothing was decided, and nothing expired.",
       "activity": "Activity",
       "activity2": "Activity",
+      "agentColumn": "Agent",
+      "agentFilter": "Filter by agent",
       "agentsAreRunningWithout": "Agents are running without needing you.",
-      "allRuns": "All runs",
+      "answered": "They answered",
+      "anyAgent": "All agents",
+      "anyModel": "Any model",
+      "anyPerson": "Anyone",
+      "anyRating": "Any rating",
       "anyStatus": "Any status",
       "anySurface": "Any surface",
+      "anyVersion": "Any version",
+      "approvalCount": "{count, plural, =1 {1 request} other {# requests}}",
       "approvals": "Approvals",
+      "approvalsCounted": "{waiting, plural, =0 {Nothing waiting} =1 {1 waiting} other {# waiting}} · {decided, plural, =1 {1 decided in this window} other {# decided in this window}}",
+      "approvalsTitle": "Approvals",
       "approve": "Approve",
+      "argumentSchema": "Argument schema",
       "askedBy": "Asked by {name}",
+      "askedByColumn": "Asked by",
+      "askedUser": "Asked the user",
+      "askedUserBy": "Asked by {name}",
+      "attachedFiles": "{count, plural, =1 {1 file attached} other {# files attached}}",
+      "byAgent": "By agent",
       "byKey": "By key",
       "byPerson": "By person",
       "byProvider": "By provider",
+      "calendarAligned": "Calendar month, so it reconciles against an invoice.",
+      "closeRunDetail": "Close the run detail",
+      "contextCarried": "{tokens} ctx",
+      "contextCarriedHint": "Tokens the history sent with this turn occupied, after any compaction",
       "cost": "Cost",
       "currentVersion": "Current",
+      "dearestAgent": "Spending the most",
+      "decidedBy": "Decided by",
+      "decidedByStandingConsent": "waived in advance for the conversation",
+      "decisionApproved": "Approved",
+      "decisionColumn": "Decision",
+      "decisionExpired": "Expired",
+      "decisionPending": "Pending",
+      "decisionRejected": "Rejected",
+      "decisionsCouldNotBeRead": "The decided record could not be read.",
       "delegated": "Delegated",
       "delegatedCostIsAlreadyIn": "A delegated run's cost is already inside the run it was delegated from, so these do not add up down the column.",
       "delegatedTask": "Delegated · {taskId}",
+      "delegations": "Delegations",
       "delegationsAlreadyCounted": "{count, plural, =1 {One delegation, and its cost is already inside the run above} other {# delegations, and their cost is already inside the run above}}",
       "deletedAgent": "Deleted agent",
       "deletedKey": "Deleted key",
       "deletedVersion": "Deleted version",
+      "earlierInThread": "Run {position} in this thread",
       "exportCsv": "Export CSV",
       "exportFailed": "The export could not be produced.",
       "fromDateToDate": "{from} to {to}.",
       "fromDateToNow": "{from} to now.",
       "inlineSpecialist": "Inline specialist",
+      "keyColumn": "Key",
       "lastDays": "Last {days} days.",
+      "lastRequestContext": "What the model saw last",
       "loosenAFilterAbove": "Loosen a filter above and the history comes back.",
+      "manifestCouldNotBeRead": "What went in could not be read",
+      "messagesCount": "{count, plural, =1 {1 message} other {# messages}}",
+      "milliseconds": "{ms} ms",
       "model": "Model",
+      "modelFilter": "Filter by model",
       "modelRunHadNo": "A model in this run had no price, so this is a floor",
+      "modelSettings": "Model settings",
+      "monthToDate": "Month to date",
       "narrowedToOneAgent": "Narrowed to one agent, including what it did as somebody's delegate.",
+      "nextRun": "Next run",
       "noAccessToRuns": "No access to run activity",
+      "noAgentHasSpent": "No agent has cost anything yet.",
+      "noInstructionsSent": "No instructions were sent with this run.",
+      "noRequestsRecorded": "This run made no model request.",
+      "noRunsInWindow": "No runs in this window",
       "noRunsMatch": "No runs match these filters",
       "noRunsRatedDown": "No runs rated down",
       "noSuchRun": "No such run",
+      "noToolsSent": "The model was given no tools.",
+      "noTranscriptRecorded": "No transcript recorded",
       "nobodyHasRunAnything": "Nobody has run anything yet.",
       "notRecorded": "Not recorded",
       "nothingHereWasRatedDown": "No run in this list was rated down.",
+      "nothingRecordedBecause": "The run never reached a model - stopped by a budget or a guardrail - or it ran before this was recorded.",
+      "nothingRecordedForThisRun": "Nothing was recorded for this run",
       "nothingSpentYet": "Nothing spent yet.",
       "nothingWaiting": "Nothing waiting",
+      "openTheAgent": "Open the agent",
+      "openTheChatBehind": "Open the chat this run happened in",
       "openTheRunItCame": "Open the run it came from",
+      "openTheTraceInLogfire": "Open the trace in Logfire",
       "othersRanAgents": "{count, plural, =1 {1 more person ran at least one agent} other {# more people ran at least one agent}}",
+      "overRunsInWindow": "Over {count, plural, =0 {no runs} =1 {1 run} other {# runs}} in this window.",
+      "overTheWindowAbove": "Over the window above, so the two figures agree.",
+      "parkedColumn": "Parked",
       "perPersonDisclosure": "Everyone holding runs:view sees this - builders and operators as well as owners and admins.",
+      "perRun": "Cost per run",
       "perVersionCompleted": "completed",
       "perVersionCostPerRun": "per run",
       "perVersionLatency": "p95",
+      "personColumn": "Person",
+      "personFilter": "Filter by person",
+      "previousRun": "Previous run",
       "problemsOnly": "Problems",
+      "providerColumn": "Provider",
       "queueCouldNotBeRead": "The approvals queue could not be read",
       "ratedDown": "Rated down",
+      "ratedDownCount": "{count, plural, =1 {Rated down once} other {Rated down # times}}",
+      "ratedUp": "Rated up",
+      "ratingFilter": "Filter by rating",
+      "reasoning": "Reasoning",
+      "recordWasTrimmed": "This record was trimmed to fit its size limit - the messages, and possibly the argument schemas, were dropped.",
       "reject": "Reject",
+      "requestDetail": "{input} in, {output} out · {messages} messages carried · finished {finish}",
+      "requestIndex": "#{index}",
+      "requests": "{count, plural, =0 {Requests} =1 {1 request} other {# requests}}",
+      "resizeRunDetail": "Resize the run detail",
+      "resumeFailed": "The run could not be resumed.",
+      "resumeRun": "Resume",
       "runCouldNotBeRead": "That run could not be read",
       "runCount": "{count, plural, =1 {1 run} other {# runs}}",
+      "runDetail": "Run detail",
       "runHistory2": "Run history",
       "runHistoryCouldNot": "Run history could not be read",
       "runHistoryDescription": "Every run records the agent <em>version</em> it executed, so what happened last week stays answerable after the agent has been rewritten.",
+      "runResumed": "Run resumed - the agent picked up where it parked.",
       "runs": "Runs",
       "runs2": "Runs",
       "runsViewIsMissing": "Reading run history and spend takes the runs:view permission, which this account does not hold. Nothing failed - the page did not ask.",
+      "settingPair": "{key} {value}",
+      "showArguments": "Arguments",
       "showEveryAgent": "Show every agent",
       "showingTheNewestOf": "{shown, plural, =1 {Showing the newest of {total} decided in this window} other {Showing the newest # of {total} decided in this window}}. Export the CSV for the whole record.",
-      "showingTheOldestOf": "{shown, plural, =1 {Showing the oldest of {total} waiting} other {Showing the oldest # of {total} waiting}}. The queue drains from the top, so deciding these brings up the next.",
-      "slowRuns": "Slow runs",
       "someRunsCouldNotBePriced": "{count, plural, =1 {1 run in this window could not be priced, so the figures below are a floor} other {# runs in this window could not be priced, so the figures below are a floor}}",
       "specialistHasNoAgent": "Defined inside its parent's agent rather than published on its own, so there is no agent page to open.",
       "spend": "Spend",
       "spendCouldNotBeRead": "Spend could not be read",
+      "spendFacet": "Slice spend by",
+      "spendWindow": "Spend",
       "started": "Started",
       "status": "Status",
       "statusFilter": "Filter by status",
       "surface": "Surface",
+      "surfaceApi": "API",
+      "surfaceEmbed": "Embed",
       "surfaceFilter": "Filter by surface",
+      "surfaceMattermost": "Mattermost",
+      "surfaceSchedule": "Schedule",
+      "surfaceSlack": "Slack",
+      "surfaceTelegram": "Telegram",
+      "surfaceTrigger": "Trigger",
+      "surfaceWeb": "Web",
+      "systemPrompt": "System prompt",
       "theCostIsAFloor": "A model in these runs had no price, so this agent's cost is a floor",
       "theMoneyWasStill": "The money was still spent. This is the report failing, not the meter.",
       "theRunNamedIn": "The run named in this link is not in this organization, or has been deleted.",
       "theseRunsHappenedThe": "The runs happened either way. This is the list failing, not the record.",
+      "thisRun": "This run",
+      "thisRunRanWithNoConversation": "This run ran with no conversation behind it - an API call, or a resumed run.",
+      "timeline": "Timeline",
       "tokens": "Tokens",
       "took": "Took",
+      "toolColumn": "Tool",
+      "toolInput": "Input",
+      "toolOutput": "Output",
+      "toolsSent": "{count, plural, =0 {Tools} =1 {1 tool} other {# tools}}",
+      "transcriptCouldNotBeRead": "The transcript could not be read",
       "tryAgain": "Try again",
+      "turnAgent": "Agent",
+      "turnSystem": "System",
+      "turnUser": "You",
+      "turnsInRun": "{count, plural, =1 {1 turn} other {# turns}}",
+      "unpricedRuns": "{count, plural, =1 {1 run} other {# runs}} in this row could not be priced - the cost is a floor.",
       "version": "version",
+      "versionFilter": "Filter by version",
       "versionStripCouldNot": "The per-version summary could not be read",
       "versionsCaption": "The last 30 days, so a version can show fewer runs than the whole history in the table below. Completed counts every status - nothing excluded, so it reads the same as the dashboard's Outcomes donut. Runs include what this version did as a delegate.",
       "versionsTitle": "By version",
-      "whatYourAgentsDid2": "What your agents did, what it cost, and what is waiting on a person.",
-      "whoIsSpendingCouldNotBeRead": "Who is spending could not be read.",
-      "spendWindow": "Spend",
-      "monthToDate": "Month to date",
-      "calendarAligned": "Calendar month, so it reconciles against an invoice.",
-      "perRun": "Cost per run",
-      "overRunsInWindow": "Over {count, plural, =0 {no runs} =1 {1 run} other {# runs}} in this window.",
-      "dearestAgent": "Spending the most",
-      "noAgentHasSpent": "No agent has cost anything yet.",
-      "overTheWindowAbove": "Over the window above, so the two figures agree.",
-      "noRunsInWindow": "No runs in this window",
-      "widenTheWindowAbove": "Nothing ran in the window above. Widen it, or run an agent.",
-      "ratingFilter": "Filter by rating",
-      "anyRating": "Any rating",
-      "ratedUp": "Rated up",
-      "agentFilter": "Filter by agent",
-      "anyAgent": "All agents",
-      "personFilter": "Filter by person",
-      "anyPerson": "Anyone",
-      "versionFilter": "Filter by version",
-      "anyVersion": "Any version",
-      "openTheChatBehind": "Open the chat this run happened in",
-      "openTheTraceInLogfire": "Open the trace in Logfire",
-      "byAgent": "By agent",
-      "whereTheMoneyWent": "Where the money went",
-      "spendFacet": "Slice spend by",
-      "agentColumn": "Agent",
-      "providerColumn": "Provider",
-      "keyColumn": "Key",
-      "personColumn": "Person",
-      "unpricedRuns": "{count, plural, =1 {1 run} other {# runs}} in this row could not be priced - the cost is a floor.",
-      "transcriptCouldNotBeRead": "The transcript could not be read",
-      "noTranscriptRecorded": "No transcript recorded",
-      "thisRunRanWithNoConversation": "This run ran with no conversation behind it - an API call, or a resumed run.",
-      "turnUser": "You",
-      "turnAgent": "Agent",
-      "turnSystem": "System",
-      "reasoning": "Reasoning",
-      "askedUser": "Asked the user",
-      "answered": "They answered",
-      "ratedDownCount": "{count, plural, =1 {Rated down once} other {Rated down # times}}",
-      "previousRun": "Previous run",
-      "nextRun": "Next run",
-      "timeline": "Timeline",
-      "delegations": "Delegations",
-      "openTheAgent": "Open the agent",
-      "earlierInThread": "Run {position} in this thread",
-      "turnsInRun": "{count, plural, =1 {1 turn} other {# turns}}",
-      "thisRun": "This run",
-      "attachedFiles": "{count, plural, =1 {1 file attached} other {# files attached}}",
-      "contextCarried": "{tokens} ctx",
-      "contextCarriedHint": "Tokens the history sent with this turn occupied, after any compaction",
-      "resizeRunDetail": "Resize the run detail",
-      "closeRunDetail": "Close the run detail",
       "whatWentIn": "What went in",
-      "systemPrompt": "System prompt",
-      "noInstructionsSent": "No instructions were sent with this run.",
-      "modelSettings": "Model settings",
-      "settingPair": "{key} {value}",
-      "toolsSent": "{count, plural, =0 {Tools} =1 {1 tool} other {# tools}}",
-      "noToolsSent": "The model was given no tools.",
-      "argumentSchema": "Argument schema",
-      "requests": "{count, plural, =0 {Requests} =1 {1 request} other {# requests}}",
-      "noRequestsRecorded": "This run made no model request.",
-      "requestIndex": "#{index}",
-      "requestDetail": "{input} in, {output} out · {messages} messages carried · finished {finish}",
-      "milliseconds": "{ms} ms",
-      "lastRequestContext": "What the model saw last",
-      "messagesCount": "{count, plural, =1 {1 message} other {# messages}}",
-      "recordWasTrimmed": "This record was trimmed to fit its size limit - the messages, and possibly the argument schemas, were dropped.",
-      "nothingRecordedForThisRun": "Nothing was recorded for this run",
-      "nothingRecordedBecause": "The run never reached a model - stopped by a budget or a guardrail - or it ran before this was recorded.",
-      "manifestCouldNotBeRead": "What went in could not be read",
-      "toolInput": "Input",
-      "toolOutput": "Output",
-      "runDetail": "Run detail",
-      "approvalsTitle": "Approvals",
-      "approvalsCounted": "{waiting, plural, =0 {Nothing waiting} =1 {1 waiting} other {# waiting}} · {decided, plural, =1 {1 decided in this window} other {# decided in this window}}",
-      "decisionPending": "Pending",
-      "showArguments": "Arguments",
-      "resumeRun": "Resume",
-      "decisionsCouldNotBeRead": "The decided record could not be read.",
-      "toolColumn": "Tool",
-      "decisionColumn": "Decision",
-      "decidedBy": "Decided by",
-      "parkedColumn": "Parked",
-      "decisionApproved": "Approved",
-      "decisionRejected": "Rejected",
-      "decisionExpired": "Expired",
-      "askedByColumn": "Asked by",
-      "surfaceWeb": "Web",
-      "surfaceEmbed": "Embed",
-      "surfaceApi": "API",
-      "surfaceSlack": "Slack",
-      "surfaceTelegram": "Telegram",
-      "surfaceMattermost": "Mattermost",
-      "surfaceSchedule": "Schedule",
-      "surfaceTrigger": "Trigger",
-      "runResumed": "Run resumed - the agent picked up where it parked.",
-      "resumeFailed": "The run could not be resumed.",
-      "modelFilter": "Filter by model",
-      "anyModel": "Any model"
+      "whatYourAgentsDid2": "What your agents did, what it cost, and what is waiting on a person.",
+      "whereTheMoneyWent": "Where the money went",
+      "whoIsSpendingCouldNotBeRead": "Who is spending could not be read.",
+      "widenTheWindowAbove": "Nothing ran in the window above. Widen it, or run an agent."
     },
     "sandboxes": {
       "addConnection": "Add connection",
@@ -3764,7 +4225,9 @@
       "cancel": "Cancel",
       "cancel2": "Cancel",
       "changePassword": "Change password",
-      "changingEmailMayRequire": "Changing email may require re-verification depending on your auth setup.",
+      "changingEmailMayRequire": "A new address is confirmed from a link sent to it. This account keeps its current address until then.",
+      "emailChangePending": "Waiting for {email} to be confirmed. This account keeps its current address until then.",
+      "emailChangeSent": "Check {email} to confirm the change. This account keeps its current address until you do.",
       "chatAccountAnswersAs": "Answers as",
       "chatAccountNoAgentsHere": "No agent you can see answers on this bot.",
       "chatAccountNotUsedYet": "Not used anywhere yet. Send one of your organization's bots a message.",
@@ -3780,24 +4243,28 @@
       "disconnectAccount": "Disconnect {account}",
       "displayName": "Display name",
       "email": "Email",
+      "emailChannel": "Email",
       "emailsAboutRunsNobody": "Emails about runs nobody is watching. Each switch is checked before the email is sent. These are your own opt-outs and only ever subtract: an agent decides who should hear about it, and switching one off here removes you from that list whatever the agent says. Who an agent tells is set on the agent, under Limits.",
       "failedDeleteAccount": "Failed to delete account",
+      "failedLoadPreferences": "Failed to load notification preferences",
       "failedSavePreference": "Failed to save preference",
       "failedSignOutEverywhere": "Failed to sign out everywhere",
       "failedUpdatePassword": "Failed to update password",
       "failedUpdateProfile": "Failed to update profile",
       "failedUploadAvatar2": "Failed to upload avatar",
       "howShouldWeCall": "How should we call you?",
+      "inAppChannel": "In-app",
       "irreversible": "This is irreversible",
       "manageYourAccountIntegrations": "Manage your account, integrations, notifications, and slash commands.",
       "memberSince": "Member since {date}",
       "newPassword": "New password",
       "newPasswordMustBe": "New password must be at least 8 characters",
-      "noAppNotifications": "No in-app notifications.",
       "noBillingEmail": "No billing email.",
       "noChatAccountsYet": "None connected. Message one of your organization's bots and it will send you a link.",
       "noMarketingEmail": "No marketing email.",
       "notOptional": "Not optional -",
+      "notificationPreferences": "Notification preferences",
+      "notificationPreferencesDescription": "More granular than the emails above - in-app and email, per event, for the moments your agents run somewhere nobody is watching live. An unset switch defaults to on.",
       "nothingChanged": "Nothing changed",
       "nothingHereChargesYou": "Nothing here charges you, so there are no renewals, payment failures or credit warnings.",
       "optionalApprovals": "Approval requests",
@@ -3809,8 +4276,19 @@
       "optionalUsage": "Usage reports",
       "optionalUsageAudience": "The organization's report goes to owners and admins. An agent can also ask for a report of its own. A period with zero runs sends nothing.",
       "optionalUsageTrigger": "Weekly and monthly, when your organization's agents ran anything at all.",
-      "passwordChangeRequiresBackend": "Password change requires backend wiring (POST /auth/password/change).",
       "passwordUpdated": "Password updated",
+      "prefAgentUsageReport": "Per-agent usage report",
+      "prefAgentUsageReportTrigger": "One agent's own weekly or monthly spend, if it has asked for its own report under Limits.",
+      "prefAnnouncement": "Announcements",
+      "prefAnnouncementTrigger": "An app admin sends a message to a chosen audience across the deployment.",
+      "prefIngestionCompleted": "Document ingested",
+      "prefIngestionCompletedTrigger": "A file finishes parsing and indexing into a knowledge base.",
+      "prefIngestionFailed": "Ingestion failed",
+      "prefIngestionFailedTrigger": "A file fails to parse or index, or a sync fails before a single file could be opened.",
+      "prefRunCompleted": "Run completed",
+      "prefRunCompletedTrigger": "A run finishes on a surface nobody is watching live - a schedule, a channel mention, an API call.",
+      "prefRunFailed": "Run failed",
+      "prefRunFailedTrigger": "The same run, when it does not finish cleanly.",
       "passwordsDoNotMatch": "Passwords do not match",
       "permanentlyRemoveYourAccount": "Permanently remove your account, conversations, and uploaded data. This can't be undone.",
       "personalInfo": "Personal info",
@@ -3840,7 +4318,6 @@
       "signedOutFromAll": "Signed out from all devices",
       "slashCommands": "Slash commands",
       "squareImagesLookBest": "Square images look best. Up to 2MB. JPG, PNG, WEBP, or GIF.",
-      "thereNoNotificationFeed": "There is no notification feed to route anything to; activity lives on the pages that own it.",
       "transactionalEmailsWhatTriggers": "The transactional emails, what triggers each, and why none of them is optional.",
       "updatePassword": "Update password",
       "uploadAvatar3": "Upload avatar",
@@ -3903,7 +4380,7 @@
     },
     "context": {
       "context": "Context",
-      "contextStandingKnowledge": "Standing context every agent can draw on - a glossary, a policy, a brand voice. Injected into the prompt or read on demand, and current the moment you edit it here.",
+      "contextStandingKnowledge": "An AGENTS.md for your agents. Standing knowledge every one of them can draw on - a glossary, a policy, a brand voice - written once here instead of pasted into each set of instructions. Injected into the prompt or read on demand, and current the moment you edit it.",
       "newContext": "New context file",
       "youCannotSeeOrganization": "You cannot see this organization's context files",
       "askAdministratorAccessContext": "Ask an administrator for access to context files.",
@@ -3994,9 +4471,13 @@
     "noConnectorsEnabled": "No connectors enabled.",
     "noFilesProcessed": "no files processed",
     "noSyncRunsYet": "No sync runs yet.",
+    "organizationalUnit": "Organizational unit",
+    "organizationalUnitDetail": "Stamped on every document this source brings in, so a search can be narrowed to it. Leave it empty for none.",
+    "organizationalUnitPlaceholder": "e.g. Legal",
     "orgIntegrations": "Org integrations",
     "orgIntegrationsLoadFailed": "Existing workspace integrations could not be loaded; you can still create a new source.",
     "pickExistingOrgIntegration": "Pick an existing org integration to use in this knowledge base. Its credentials are copied independently — you can adjust the schedule separately.",
+    "removedCount": "{count} removed",
     "schedule": "Schedule",
     "search": {
       "allBases": "All knowledge bases",
@@ -4229,13 +4710,14 @@
       "fromTheAgent": "By the agent",
       "host": "on the host",
       "lastUsed": "Last used",
+      "listingTruncated": "This is not every file. Reading a host is a round trip per folder, so the listing stops at six levels deep and 2,000 entries.",
       "noAgentKeepingFiles": "No agent is keeping files yet. One appears here the first time an agent with a workspace writes something.",
       "noMatches": "Nothing in this workspace matches “{query}”.",
-      "listingTruncated": "This is not every file. Reading a host is a round trip per folder, so the listing stops at six levels deep and 2,000 entries.",
       "nothingListed": "Nothing could be listed here.",
       "onTheHostUnmeasured": "These files are on their host. Turn on Count files to read them.",
       "open": "Open",
       "openTheChatBehindFiles": "Open the chat these files belong to",
+      "owner": "Owner",
       "pickAFile": "Pick a file to read it here.",
       "preview": "Preview",
       "searchLabel": "Search files by name",
@@ -4295,8 +4777,8 @@
     "access": "Access",
     "accessFor": "Access for {name}",
     "accessRemoved": "Access removed",
-    "addSomeone": "Add someone",
-    "chooseMember": "Choose a member",
+    "addSubject": "Add a person or group",
+    "chooseSubject": "Choose a member or group",
     "collectionRuntimeNote": "Sharing controls who can pick this collection in the Builder and who can change it. An agent connected to it searches it for everyone who can run that agent, including people who cannot open the collection themselves.",
     "everyoneAlreadyHasAccess": "Everyone already has access",
     "failedLoadShares": "Failed to load shares",
@@ -4307,20 +4789,23 @@
     "levelUse": "Can use",
     "notSharedWithAnyone": "Not shared with anyone yet.",
     "ownedBy": "Owned by {email}",
-    "people": "People",
-    "peopleReaches": "A share lifts one person's access to this {resource, select, agent {agent} skill {skill} collection {collection} other {secret}} without changing their role anywhere else. Can view sees the configuration, can use also runs it, can edit also changes it.",
+    "peopleAndGroups": "People and groups",
+    "peopleReaches": "A share lifts the access of one person, or of everybody in a group, to this {resource, select, agent {agent} skill {skill} collection {collection} artifact {artifact} other {secret}} without changing their role anywhere else. Can view sees the configuration, can use also runs it, can edit also changes it.",
     "secretRuntimeNote": "Sharing controls who can bind this key to an agent and who can rotate it - not who benefits from it. Once an agent uses this key, it runs with it for everyone who can run that agent, including people who cannot see the key here.",
     "share": "Share",
     "sharingUpdated": "Sharing updated",
     "visibility": "Visibility",
     "visibilityOrg": "Organization",
-    "visibilityOrgReaches": "Everyone in the organization who can view {resource, select, agent {agents} skill {skills} collection {collections} other {secrets}} at all.",
+    "visibilityOrgReaches": "Everyone in the organization who can view {resource, select, agent {agents} skill {skills} collection {collections} artifact {artifacts} other {secrets}} at all.",
     "visibilityPrivate": "Private",
-    "visibilityPrivateReaches": "Only you and the people listed below. Nobody else finds this {resource, select, agent {agent} skill {skill} collection {collection} other {secret}} in their list - and if it has no owner yet, it becomes yours.",
-    "visibilityReaches": "Who reaches this {resource, select, agent {agent} skill {skill} collection {collection} other {secret}} without being named. Sharing adds people on top of this; it never takes access away.",
+    "visibilityPrivateReaches": "Only you and the people listed below. Nobody else finds this {resource, select, agent {agent} skill {skill} collection {collection} artifact {artifact} other {secret}} in their list - and if it has no owner yet, it becomes yours.",
+    "visibilityReaches": "Who reaches this {resource, select, agent {agent} skill {skill} collection {collection} artifact {artifact} other {secret}} without being named. Sharing adds people on top of this; it never takes access away.",
     "visibilityTeam": "Team (no longer offered)",
-    "visibilityTeamReaches": "Anyone whose role reaches team {resource, select, agent {agents} skill {skills} collection {collections} other {secrets}}. This organization has no teams - pick one of the two above.",
-    "visibilityUpdated": "Visibility updated"
+    "visibilityTeamReaches": "Anyone whose role reaches team {resource, select, agent {agents} skill {skills} collection {collections} artifact {artifacts} other {secrets}}. This organization has no teams - pick one of the two above.",
+    "visibilityUpdated": "Visibility updated",
+    "groupsHeading": "Groups",
+    "membersHeading": "Members",
+    "groupSubject": "Group"
   },
   "skills": {
     "addFile": "Add file",
@@ -4355,6 +4840,7 @@
     "fileCount": "{count, plural, =0 {No files} =1 {1 file} other {# files}}",
     "fileRemoved": "File removed",
     "fileSaved": "File saved",
+    "fileTree": "Skill files",
     "files": "Files",
     "files2": "Files",
     "files3": "Files",
@@ -4364,7 +4850,7 @@
     "folderMadeByNaming": "A folder is made by naming a file inside it - there is nothing else to create.",
     "groupsListingNeverReaches": "Groups the listing. Never reaches the model.",
     "hide": "Hide",
-    "howModelRefersSkill": "How the model refers to this skill. It cannot be changed later.",
+    "howModelRefersSkill": "How the model refers to this skill: lowercase letters, digits and hyphens, such as refund-policy. It cannot be changed later.",
     "howRefundsTheirExceptions": "How refunds and their exceptions are handled.",
     "markdownLoadedOnlyAfter": "Markdown. Loaded only after the description convinced the model to, so length costs nothing until it is needed.",
     "markdownYouCanFill": "Markdown. You can fill this in later - it is loaded only after the description convinced the model to.",
@@ -4391,18 +4877,48 @@
     "showWhatChangedIn": "Show what changed in {name}",
     "sizeUploadsWhenCreated": "{size} · uploads when the skill is created",
     "support": "support",
-    "whatSoModelCan": "What is in it, so the model can decide without loading it"
+    "whatSoModelCan": "What is in it, so the model can decide without loading it",
+    "gallery": {
+      "browse": "Skill gallery",
+      "title": "Skill gallery",
+      "description": "Ready-made skills by industry. Installing copies one into your organization, where you can edit it.",
+      "industryHint": "Install one, or the whole shelf. A skill you already have is left exactly as it is.",
+      "back": "All industries",
+      "install": "Install",
+      "installAll": "{count, plural, =0 {All installed} =1 {Install 1 skill} other {Install all # skills}}",
+      "alreadyInstalled": "Installed",
+      "allInstalled": "All installed",
+      "available": "{count, plural, =1 {1 skill} other {# skills}}",
+      "installed": "{count, plural, =1 {1 skill installed} other {# skills installed}}",
+      "allPresent": "{count, plural, =1 {You already had that skill} other {You already had all # skills}}",
+      "industry": {
+        "healthcare": "Healthcare",
+        "finance": "Finance and insurance",
+        "ecommerce": "E-commerce and print on demand",
+        "software": "Software teams",
+        "public-sector": "Public sector and utilities",
+        "legal": "Legal and professional services",
+        "manufacturing": "Manufacturing and logistics"
+      }
+    },
+    "moreFiles": "{count, plural, =1 {+1 file} other {+# files}}",
+    "bodyPlaceholder": "# Refunds\n\nUse this when a customer asks for their money back.\n\n## Steps\n\n1. Check the order date.\n2. Within 14 days, refund without asking.\n3. After that, ask a person to approve it."
   },
   "states": {
     "loading": "Loading"
   },
   "teams": {
     "acmeCom": "acme.com",
+    "approvalWaiver": "Waiving approvals in chat",
+    "approvalWaiverDescription": "Whether a conversation may run without stopping for approvals.",
+    "approvalWaiverHint": "When this is on, somebody who may decide approvals can let one conversation run every gated tool call without being asked. Each waived call is still recorded against their account.",
     "cancel": "Cancel",
     "cancel2": "Cancel",
     "cancel3": "Cancel",
     "ceilingWhatEveryAgent": "The ceiling on what every agent in this workspace can spend between the first of the ",
     "colleagueExampleCom": "colleague@example.com",
+    "copied": "Copied",
+    "copy": "Copy",
     "copyLink": "Copy link",
     "copyNowShownOnce": "Copy it now - it is shown once, and no later request returns it.",
     "create2": "Create",
@@ -4415,17 +4931,22 @@
     "emptyNoLimit": "empty for no limit.",
     "enterAmountDollarsLeave": "Enter an amount in dollars, or leave it empty for no limit.",
     "howManyPeople": "How many people",
+    "inviteEmailed": "Emailed to {email}. The link below is your own copy, in case it does not arrive.",
+    "inviteLinkLabel": "Invitation link",
+    "inviteLinkOnce": "Shown once. Nothing stores it, so copy it before you close this.",
     "inviteMember": "Invite member",
+    "inviteNotEmailed": "The invitation exists, but no email reached {email} — this deployment did not send one. Pass them the link yourself.",
+    "inviteReady": "Invitation ready",
     "inviteWithLink": "Invite with a link",
     "joinAs": "Join as",
     "joined": "Joined",
     "limitUsd": "Limit (USD)",
     "manageOrganizations": "Manage organizations",
     "member": "Member",
-    "monthNextAgentS": "month and the next. An agent's own limit can tighten it, never loosen it. Leave it ",
     "monthlyLimitRemoved": "Monthly limit removed",
     "monthlyLimitUpdated": "Monthly limit updated",
     "monthlySpendingLimit": "Monthly spending limit",
+    "monthNextAgentS": "month and the next. An agent's own limit can tighten it, never loosen it. Leave it ",
     "myTeam": "My Team",
     "newOrganization": "New organization",
     "noLimit": "No limit",
@@ -4440,12 +4961,14 @@
     "role2": "Role",
     "roleFor": "Role for {email}",
     "rolesUnavailable": "The role list could not be loaded, so there is nothing to invite anybody as. Reload the page and try again.",
-    "selectOrg": "Select org",
-    "sendInvite": "Send invite",
     "sending2": "Sending...",
+    "sendInvite": "Send invite",
     "spentNoLimit": "${spent} spent this month, against no limit.",
     "spentOfLimit": "${spent} of ${limit} spent this month.",
     "unlimited": "Unlimited",
+    "waiverAllowed": "Conversations may now waive approvals",
+    "waiverFailed": "Could not change whether chats may waive approvals",
+    "waiverForbidden": "Conversations may no longer waive approvals",
     "you": "(you)"
   },
   "theme": {
@@ -4458,7 +4981,11 @@
     "systemTheme": "System theme",
     "systemTheme2": "System theme",
     "themeTitle": "Theme: {theme}",
-    "toggleTheme": "Toggle theme"
+    "toggleTheme": "Toggle theme",
+    "appearance": "Appearance",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System"
   },
   "time": {
     "daysAgo": "{count, plural, other {#d ago}}",
@@ -4474,6 +5001,10 @@
     "confirm": "to confirm",
     "dismissQuestions": "Dismiss questions",
     "done": "Done",
+    "jsonItems": "{count, plural, =0 {empty} =1 {1 item} other {# items}}",
+    "jsonKeys": "{count, plural, =0 {empty} =1 {1 key} other {# keys}}",
+    "jsonShowAll": "show all {count, plural, =1 {1 character} other {# characters}}",
+    "jsonShowLess": "show less",
     "labelPreview": "{label} preview",
     "markdown": "Markdown",
     "matchedOfTotal": "{matched} of {counted}",
@@ -4603,7 +5134,23 @@
     "droppedUnknownFormat": "{count, plural, =1 {One file has a format a context file cannot declare and was skipped} other {# files have a format a context file cannot declare and were skipped}}",
     "droppedNotText": "{count, plural, =1 {One file was not text and was skipped} other {# files were not text and were skipped}}",
     "droppedTooLarge": "{count, plural, =1 {One file is over {max} - a document that large belongs in a knowledge collection} other {# files are over {max} - a document that large belongs in a knowledge collection}}",
-    "moreFilesWaiting": "{count, plural, =1 {1 more file waiting} other {# more files waiting}}"
+    "moreFilesWaiting": "{count, plural, =1 {1 more file waiting} other {# more files waiting}}",
+    "bodyPlaceholder": "# Glossary\n\nWhat a term means here, and what it does not.\n\n- **SLA** - the response time we promise, not the fix time.\n"
+  },
+  "memory": {
+    "clearAction": "Clear memory",
+    "clearBody": "Deletes every note this agent has written, for every person and every group chat it has talked to. Nothing brings them back.",
+    "clearBodyWithMem0": "Deletes every note this agent has written, for every person and every group chat it has talked to. It does not reach what this agent remembers in mem0 — those are addressed per person, and are removed by forgetting that person.",
+    "clearConfirm": "This agent will lose everything it has written down. Its conversations are untouched.",
+    "clearTitle": "Clear this agent's memory",
+    "clearedToast": "{count, plural, =0 {There was nothing to clear} =1 {1 note deleted} other {# notes deleted}}",
+    "forgetAction": "Forget everything about me",
+    "forgetBody": "Every agent in this organization forgets what it has written down about you — in this deployment and in mem0, where an agent keeps its memories there. Your conversations stay; only what agents noted about you goes.",
+    "forgetConfirm": "Every agent in this organization will forget what it noted about you. Your conversations are untouched.",
+    "forgetMemberConfirm": "Every agent in this organization will forget what it noted about {name}. Their conversations are untouched.",
+    "forgetNamed": "Forget what agents know about {name}",
+    "forgetTitle": "What agents remember about you",
+    "forgottenToast": "{count, plural, =0 {There was nothing to forget} =1 {1 note forgotten} other {# notes forgotten}}"
   },
   "avatarColor": {
     "auto": "Automatic colour",
@@ -4829,5 +5376,196 @@
     "authorFilterPlaceholder": "e.g. Jane Doe",
     "textFilterLabel": "Text contains",
     "textFilterPlaceholder": "e.g. hiring"
+  },
+  "agentTemplates": {
+    "browse": "Agent templates",
+    "title": "Agent templates",
+    "description": "Ready-made agents by industry. Installing one creates a draft you finish and publish.",
+    "industryHint": "Each arrives as a draft: pick a model, attach what it needs, then publish.",
+    "back": "All industries",
+    "use": "Use this",
+    "alreadyInstalled": "Installed",
+    "count": "{count, plural, =1 {1 agent} other {# agents}}",
+    "budget": "{amount} USD / month",
+    "bringsSkills": "{count, plural, =1 {Installs 1 skill with it} other {Installs # skills with it}}",
+    "needsAttaching": "You still attach: {what}",
+    "suggestsMcp": "Works well with: {servers}",
+    "installed": "{name} created as a draft — pick a model, then publish",
+    "industry": {
+      "healthcare": "Healthcare",
+      "finance": "Finance and insurance",
+      "ecommerce": "E-commerce and print on demand",
+      "software": "Software teams",
+      "public-sector": "Public sector and utilities",
+      "legal": "Legal and professional services",
+      "manufacturing": "Manufacturing and logistics",
+      "general": "General purpose"
+    }
+  },
+  "notifications": {
+    "markAllRead": "Mark all read",
+    "loadMore": "Load more",
+    "failedLoad": "Failed to load notifications",
+    "unreadCount": "{count, plural, =1 {1 unread notification} other {# unread notifications}}",
+    "rowUnread": "Unread",
+    "rowRead": "Read",
+    "empty": {
+      "title": "No notifications yet",
+      "description": "Budget alerts, approvals, run failures and more will show up here."
+    },
+    "clearAll": "Clear all",
+    "dismissRow": "Dismiss"
+  },
+  "artifacts": {
+    "title": "Artifacts",
+    "description": "Pages your agents published - reports, small dashboards, summaries. Each one keeps its link when the agent publishes it again, and its earlier versions stay readable.",
+    "cannotSee": "You cannot see this organization's artifacts",
+    "askForAccess": "Ask an administrator for access to artifacts.",
+    "count": "{count, plural, =1 {1 artifact} other {# artifacts}}",
+    "search": "Search artifacts…",
+    "noMatches": "No artifact matches",
+    "noMatchesWhy": "Titles and names are searched.",
+    "noneYet": "Nothing published yet",
+    "noneYetWhy": "An agent with the Artifacts capability publishes a page here when you ask it for a report or a dashboard. It is private to you until you share it.",
+    "sharedOrg": "Whole organization",
+    "publicBadge": "Public link",
+    "publishedVersion": "Version {version} · {when}",
+    "versionUnavailable": "This version is not available",
+    "versionUnavailableWhy": "It was replaced by newer versions and is no longer kept, or your access changed a moment ago. Pick the latest version above.",
+    "unavailable": "This artifact is not available",
+    "unavailableWhy": "It was deleted, or you no longer have access to it.",
+    "couldNotLoad": "This artifact could not be loaded",
+    "deleteTitle": "Delete {title}?",
+    "deleteWhy": "Every version and the public link go with it, and nobody it was shared with can open it any more. The agent makes a new one the next time it publishes under this name.",
+    "deleted": "Artifact deleted",
+    "publicLink": "Public link",
+    "publicLinkOn": "Anyone with this link can open the latest version, without an account.",
+    "publicLinkNone": "Only people this artifact is shared with can open it.",
+    "createPublicLink": "Create a public link",
+    "rotatePublicLink": "Replace the link",
+    "disablePublicLink": "Turn off",
+    "publicLinkReady": "Public link ready",
+    "publicLinkOff": "Public link turned off",
+    "version": "Version",
+    "latestVersion": "Latest version",
+    "versions": "Versions",
+    "versionNumber": "v{version}",
+    "latestShort": "Latest",
+    "latestVersionHint": "Follows the next publication",
+    "currentTag": "Current",
+    "publicUpdated": "Updated {when}",
+    "backToArtifacts": "Back to artifacts",
+    "share": "Share",
+    "moreActions": "More actions",
+    "accessRestricted": "Only people with access",
+    "accessPublic": "Anyone with the link",
+    "shareTitle": "Share {title}",
+    "shareWhy": "Who can open this page. An agent never widens it - only a person, from here.",
+    "pageLink": "Link to this page",
+    "pageLinkWhy": "Opens the page for anyone who already has access, after they sign in. Sending it gives nobody access by itself.",
+    "maybeOtherOrganization": "If it was shared with you in another organization, switch to it.",
+    "switchOrganization": "Switch organization",
+    "versionBadge": "v{version}",
+    "publicLinkSaved": "Public link settings saved",
+    "versionRestored": "Restored as version {version}",
+    "restoreVersion": "Restore this version",
+    "filterByAgent": "Filter by agent",
+    "everyAgent": "Every agent",
+    "environmentBadge": "Published from this environment",
+    "openLinkTitle": "Open this link?",
+    "openLinkWhy": "The page wants to open another site in a new tab. Check the address before you go on.",
+    "openLink": "Open link",
+    "linkExpiry": "Stops opening after",
+    "linkExpiryWhy": "Leave it empty to keep the link on until you turn it off.",
+    "linkVersion": "Shows",
+    "linkVersionWhy": "Pin a version so a new publication does not change what people with the link see.",
+    "embedSites": "Sites that may embed it",
+    "embedSitesWhy": "One site per line. Only these can put the page in an iframe.",
+    "embedNeedsNoPassword": "A page behind a password cannot be embedded. Remove the password to embed it.",
+    "saveLinkSettings": "Save link settings",
+    "linkPassword": "Password",
+    "linkPasswordOn": "People with the link have to type the password first.",
+    "linkPasswordWhy": "Optional. At least 6 characters, asked before the page opens.",
+    "changePassword": "Change password",
+    "setPassword": "Set password",
+    "removePassword": "Remove password",
+    "embedSnippet": "Embed code",
+    "linkViews": "{count, plural, =0 {Not opened yet} =1 {Opened once} other {Opened # times}}",
+    "linkViewsLast": "{count, plural, =1 {Opened once} other {Opened # times}}, last {when}",
+    "wrongPassword": "That password is not right.",
+    "passwordTitle": "This page is protected",
+    "passwordWhy": "Type the password you were given to open it.",
+    "openPage": "Open the page"
+  },
+  "groups": {
+    "title": "Groups",
+    "description": "Named sets of this organization's members, shared with as one.",
+    "organizations": "Organizations",
+    "members": "Members",
+    "intro": "A group is a set of members you can share agents, skills, collections and vault secrets with in one step. Everybody in it gets the access the share gives, and nothing about their role changes. Directory mappings can also place people in a group when they sign in.",
+    "newGroup": "New group",
+    "editGroup": "Edit group",
+    "name": "Name",
+    "namePlaceholder": "Finance",
+    "descriptionLabel": "Description",
+    "descriptionPlaceholder": "What this group is for",
+    "cancel": "Cancel",
+    "save": "Save",
+    "create": "Create",
+    "created": "Group created",
+    "saved": "Group saved",
+    "deleted": "Group deleted",
+    "memberAdded": "Added to the group",
+    "memberRemoved": "Removed from the group",
+    "groupCount": "{count, plural, =0 {No groups} =1 {1 group} other {# groups}}",
+    "membersOf": "Members of {name}",
+    "memberCount": "{count, plural, =1 {1 member} other {# members}}",
+    "editNamed": "Edit {name}",
+    "emptyTitle": "No groups yet",
+    "emptyBody": "Create a group to share with several people at once.",
+    "deleteTitle": "Delete {name}?",
+    "deleteBody": "Everything shared with this group stops reaching its members through it, and the directory mappings that name it are deleted too. The members themselves stay in the organization.",
+    "delete": "Delete",
+    "membersBody": "Who this group reaches. People marked Directory were placed by the directory sign-in sync, which removes them again when the directory stops listing them.",
+    "nobodyYet": "Nobody is in this group yet.",
+    "directoryMemberHint": "Placed by the directory sign-in sync, which removes them when the directory stops listing them. Removing them here lasts until their next sign-in.",
+    "addMember": "Add a member",
+    "chooseMember": "Choose a member",
+    "everyoneIsIn": "Everyone is already in this group",
+    "add": "Add"
+  },
+  "directory": {
+    "navLabel": "Directory",
+    "title": "Directory mappings",
+    "description": "Which directory groups make somebody what in this organization.",
+    "organizations": "Organizations",
+    "members": "Members",
+    "badge": "Directory",
+    "memberHint": "Kept in step by the directory sync, which changes and removes this membership as the directory does. Changing the role here takes it over, and the sync leaves it alone from then on.",
+    "howItWorks": "When somebody signs in through the directory (LDAP or Kerberos), or through an OIDC provider that sends a groups claim, every mapping below that matches one of their directory groups places them in this organization with the mapped role, and in the mapped group if there is one.",
+    "precedence": "When several mappings match, the role is chosen in this order: admin, builder, operator, member, viewer. Memberships the sync made are marked Directory, and it updates and removes only those. Changing such a member's role by hand takes the membership over.",
+    "removal": "Deleting a mapping removes the people it placed at their next sign-in, unless their membership was taken over.",
+    "notYours": "Directory mappings are for member managers",
+    "askAnAdmin": "Reading them takes the permission to manage members. Ask an administrator of this organization.",
+    "listTitle": "Mappings",
+    "mappingCount": "{count, plural, =0 {No mappings} =1 {1 mapping} other {# mappings}}",
+    "externalGroup": "Directory group",
+    "externalGroupHint": "An LDAP group DN, or a value of the OIDC provider's groups claim. Case does not matter.",
+    "role": "Role",
+    "group": "Group",
+    "groupHint": "Optional. Signing in also places the person in this group.",
+    "noGroup": "No group",
+    "addMapping": "Add mapping",
+    "dialogBody": "Everybody the directory lists in this group gets the role below when they sign in.",
+    "noRoleToOffer": "No role you can hand out",
+    "emptyTitle": "No mappings yet",
+    "emptyBody": "Map a directory group to a role, and its members join this organization when they sign in.",
+    "deleteTitle": "Delete this mapping?",
+    "deleteBody": "The people {group} placed here leave the organization at their next sign-in, unless their membership was taken over.",
+    "delete": "Delete",
+    "cancel": "Cancel",
+    "add": "Add",
+    "mappingAdded": "Mapping added",
+    "mappingDeleted": "Mapping deleted"
   }
 }

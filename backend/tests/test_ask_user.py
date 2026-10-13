@@ -9,8 +9,14 @@ shape the WebSocket client has actually been able to send.
 from __future__ import annotations
 
 import pytest
+from subagents_pydantic_ai import SubAgentState
 
-from app.agents.ask_user import MAX_QUESTIONS, QuestionItem, format_answers
+# The library binds this itself around every delegation and exports the reader
+# rather than the binder, so a test that wants to *be* inside a delegation
+# reaches for it here.
+from subagents_pydantic_ai._state import bind_subagent_state
+
+from app.agents.ask_user import MAX_QUESTIONS, QuestionItem, asking_delegate, format_answers
 
 
 class TestQuestionItem:
@@ -82,3 +88,27 @@ class TestFormatAnswers:
 
     def test_nothing_asked_renders_nothing(self):
         assert format_answers([], []) == ""
+
+
+class TestWhichDelegateIsAsking:
+    """`asking_delegate`, and the one thing it is easy to get wrong.
+
+    The name is only readable from inside the delegation, because that is the
+    only place the library binds the state. A caller that reads it where the
+    *answer* arrives - the socket's receive loop, a different task - gets `None`
+    for every question and the transcript quietly stops naming anybody (#1042).
+    """
+
+    def test_inside_a_delegation_it_names_the_subagent(self) -> None:
+        with bind_subagent_state(SubAgentState(ask_timeout_seconds=300.0, name="researcher")):
+            assert asking_delegate() == "researcher"
+
+    def test_outside_one_it_is_none(self) -> None:
+        """The main agent asking a question itself, which is the ordinary case."""
+        assert asking_delegate() is None
+
+    def test_a_delegation_that_carries_no_name_is_none_rather_than_empty(self) -> None:
+        """An older library, or a state built by hand. `None` reads the same as
+        the main agent asking, which is the honest answer when nothing said."""
+        with bind_subagent_state(SubAgentState(ask_timeout_seconds=300.0)):
+            assert asking_delegate() is None

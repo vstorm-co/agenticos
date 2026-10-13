@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { PageIcon } from "@/components/dashboard/page-icon";
 import { RestartTourButton } from "@/components/onboarding/restart-tour-button";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
@@ -18,6 +19,8 @@ interface PageHeaderProps {
   breadcrumbs?: Crumb[];
   /** Right-aligned actions (buttons, etc.). */
   actions?: ReactNode;
+  /** State of the thing on the page (status pills), set above the actions. */
+  badges?: ReactNode;
   className?: string;
 }
 
@@ -30,6 +33,7 @@ export function PageHeader({
   description,
   breadcrumbs,
   actions,
+  badges,
   className,
 }: PageHeaderProps) {
   const t = useTranslations("dashboard");
@@ -62,18 +66,42 @@ export function PageHeader({
         </nav>
       )}
 
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div className="min-w-0">
-          <h1 className="text-foreground text-2xl leading-tight font-semibold tracking-tight text-balance">
-            {title}
-          </h1>
+      {/* Wrapping rather than squeezing. With the actions fixed and the text
+          column shrinking to fit beside them, a page with five buttons broke
+          its own title over two lines and every pill in it over two more. The
+          text column claims 20rem before anything else, and when that and the
+          actions do not fit on one line the actions move under the title - the
+          description's length plays no part, since the basis, not the text,
+          decides the line. The actions sit level with the title rather than
+          with the description's last line: a four-line description used to
+          leave the page's primary button floating halfway down the header. */}
+      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-4">
+        <div className="min-w-0 flex-1 basis-80">
+          <div className="flex items-center gap-3">
+            <PageIcon />
+            <h1 className="text-foreground min-w-0 text-2xl leading-tight font-semibold tracking-tight text-balance">
+              {title}
+            </h1>
+          </div>
+          {/* Status belongs to the thing named, so it sits under the name - it
+              used to float above the action buttons, reading as a caption for
+              them rather than as a fact about the page. */}
+          {badges && (
+            <div
+              role="group"
+              aria-label={t("pageStatus")}
+              className="mt-2 flex flex-wrap items-center gap-2 whitespace-nowrap"
+            >
+              {badges}
+            </div>
+          )}
           {description && (
             <p className="text-muted-foreground mt-1.5 max-w-2xl text-sm leading-relaxed text-pretty">
               {description}
             </p>
           )}
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex max-w-full min-w-0 flex-wrap items-center gap-2 sm:justify-end">
           {actions}
           <RestartTourButton />
         </div>

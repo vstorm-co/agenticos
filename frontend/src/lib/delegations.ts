@@ -162,7 +162,7 @@ export function applyDelegationFrame(current: Delegation[], frame: SubagentFrame
         // ties this panel to the run history entry it produced, and the backend
         // sends it for exactly that. See `runId` on `Delegation`.
         runId: frame.run_id,
-        costUsd: frame.cost_usd,
+        costUsd: frame.cost_usd == null ? null : Number(frame.cost_usd),
         inputTokens: frame.input_tokens,
         outputTokens: frame.output_tokens,
         error: frame.error,

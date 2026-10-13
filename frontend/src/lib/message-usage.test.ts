@@ -46,7 +46,7 @@ describe("what a stored message says it cost", () => {
       message({ input_tokens: 1200, output_tokens: 300, cost_usd: "0.012500" }),
     );
 
-    expect(usage).toMatchObject({ input_tokens: 1200, output_tokens: 300, cost_usd: 0.0125 });
+    expect(usage).toMatchObject({ input_tokens: 1200, output_tokens: 300, cost_usd: "0.012500" });
   });
 
   it("says nothing about a message nobody measured", () => {
@@ -66,7 +66,7 @@ describe("what a stored message says it cost", () => {
     // answer as "not recorded".
     const usage = storedUsage(message({ input_tokens: 10, output_tokens: 0, cost_usd: null }));
 
-    expect(usage).toMatchObject({ input_tokens: 10, output_tokens: 0, cost_usd: 0 });
+    expect(usage).toMatchObject({ input_tokens: 10, output_tokens: 0, cost_usd: "0" });
   });
 
   it("carries no budget or workspace figure", () => {

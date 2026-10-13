@@ -24,194 +24,31 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
-import {
-  MessagesSquare,
-  Activity,
-  Boxes,
-  FileText,
-  FolderOpen,
-  BookOpen,
-  Bot,
-  Building2,
-  Database,
-  KeyRound,
-  LayoutDashboard,
-  MessageSquare,
-  Plug,
-  Repeat,
-  ShieldCheck,
-  type LucideIcon,
-} from "lucide-react";
+import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
 import { BrandLink } from "@/components/layout/brand-link";
 import { SidebarShell } from "@/components/layout/sidebar-shell";
+import { useMounted } from "@/hooks/use-mounted";
 import { usePermissions } from "@/hooks/use-permissions";
-import { stripLocale } from "@/lib/active-route";
-import { ROUTES } from "@/lib/constants";
 import { cn, isAppAdmin } from "@/lib/utils";
-import { useAuthStore } from "@/stores";
-import { Perm } from "@/types/permissions";
-import type { Permission } from "@/types/permissions";
+import { useAuthStore, useSidebarStore } from "@/stores";
+import { NAV_GROUPS, isActive, type NavItem } from "@/lib/nav-sections";
 
-type NavItem = {
-  labelKey: string;
-  href: string;
-  icon: LucideIcon;
-  /** Hidden unless the caller holds this. Omitted means always shown. */
-  permission?: Permission;
-  /** A `data-tour` anchor the onboarding coach points at — only where a flow returns here. */
-  dataTour?: string;
-};
+export { NAV_GROUPS, isActive, navSectionFor, type NavDomain } from "@/lib/nav-sections";
 
-type NavGroup = {
-  /** `null` for the first group, which needs no label above the top item. */
-  labelKey: string | null;
-  items: NavItem[];
-  adminOnly?: boolean;
-};
-
-export const NAV_GROUPS: NavGroup[] = [
-  {
-    labelKey: null,
-    items: [
-      { labelKey: "dashboard", href: ROUTES.DASHBOARD, icon: LayoutDashboard },
-      { labelKey: "chat", href: ROUTES.CHAT, icon: MessageSquare },
-    ],
-  },
-  {
-    labelKey: "build",
-    items: [
-      {
-        labelKey: "agents",
-        href: ROUTES.AGENTS,
-        icon: Bot,
-        permission: Perm.agentsView,
-        dataTour: "nav-agents",
-      },
-      { labelKey: "skills", href: ROUTES.SKILLS, icon: BookOpen, permission: Perm.skillsView },
-      { labelKey: "context", href: ROUTES.CONTEXT, icon: FileText, permission: Perm.contextView },
-      { labelKey: "activity", href: ROUTES.RUNS, icon: Activity, permission: Perm.runsView },
-      // The org-wide create-and-manage home for triggers. Gated on `agents:view`,
-      // the floor for seeing an agent's schedule; the create controls inside gate
-      // further on `agents:run`, so a viewer sees the list without the buttons.
-      { labelKey: "routines", href: ROUTES.ROUTINES, icon: Repeat, permission: Perm.agentsView },
-    ],
-  },
-  {
-    labelKey: "knowledge",
-    items: [
-      {
-        labelKey: "knowledgeBases",
-        href: ROUTES.RAG,
-        icon: Database,
-        permission: Perm.collectionsView,
-      },
-    ],
-  },
-  {
-    labelKey: "workspace",
-    items: [
-      { labelKey: "organizations", href: ROUTES.ORGS, icon: Building2 },
-      {
-        // Gated on what the backend gates listing on: a Member holding secrets
-        // at OWN scope can use the Vault, so the nav must not hide it behind
-        // the broader connections:manage.
-        labelKey: "vault",
-        href: ROUTES.VAULT,
-        icon: KeyRound,
-        permission: Perm.secretsView,
-      },
-      {
-        labelKey: "mcpServers",
-        href: ROUTES.MCP_SERVERS,
-        icon: Plug,
-        permission: Perm.agentsView,
-      },
-      {
-        // A chat platform an organization is reachable on. Beside the MCP
-        // servers because it is the same kind of thing - a connection the
-        // organization owns, holding a credential in the vault - and not on
-        // an agent's page, where registering one made it look like a property
-        // of that agent rather than something every agent can be bound to.
-        labelKey: "channels",
-        href: ROUTES.CHANNELS,
-        icon: MessagesSquare,
-        permission: Perm.agentsView,
-      },
-      {
-        // Gated on what the backend gates reading these on. Watching where
-        // sandboxes run - the session list, a host's ceilings - is an operator's
-        // job and rides on connections:view; only the add-and-edit controls on
-        // the page itself need connections:manage.
-        labelKey: "sandboxes",
-        href: ROUTES.SANDBOXES,
-        icon: Boxes,
-        permission: Perm.connectionsView,
-      },
-      {
-        // Deliberately ungated, unlike Sandboxes above. These are the files an
-        // agent kept *for the person looking*, and the backend narrows the listing
-        // to what they are part of - so a permission here would hide somebody's own
-        // workspace behind an operator's authority.
-        labelKey: "workspaces",
-        href: ROUTES.WORKSPACES,
-        icon: FolderOpen,
-      },
-    ],
-  },
-  {
-    labelKey: "admin",
-    adminOnly: true,
-    items: [{ labelKey: "adminOverview", href: ROUTES.ADMIN, icon: ShieldCheck }],
-  },
-];
-
-/**
- * Every destination the nav declares. What makes one entry's section end is the
- * next entry beginning, so the rule below needs the whole table, not one row.
- */
-const NAV_HREFS: readonly string[] = NAV_GROUPS.flatMap((group) =>
-  group.items.map((item) => item.href),
-);
-
-/** Whether `path` is `href` or something below it: `/agents/abc`, never `/agents-archive`. */
-function isInside(path: string, href: string): boolean {
-  return path === href || path.startsWith(`${href}/`);
-}
-
-/**
- * Whether `pathname` belongs to the section `href` names.
- *
- * A sub-page lights its section, and that is the default rather than something
- * an entry opts into - the old opt-in was remembered for five of the eleven
- * entries, so opening a knowledge base left the sidebar claiming you were
- * nowhere. Where two entries both contain the path the longer href wins, which
- * is the whole exception, stated once here instead of per entry: a `/settings`
- * entry would not steal `/settings/providers` from the entry that owns it, and
- * were that entry ever removed `/settings` takes the sub-route back with no
- * flag to remember. Adding a row to `NAV_GROUPS` therefore cannot get this
- * wrong in either direction.
- *
- * Which section a URL falls in is a fact about the route table, so every
- * declared destination counts - including ones the caller's permissions hide.
- *
- * `hrefs` is a parameter only so the rule can be exercised against a nav table
- * this one does not happen to contain today.
- */
-export function isActive(
-  pathname: string,
-  href: string,
-  hrefs: readonly string[] = NAV_HREFS,
-): boolean {
-  const path = stripLocale(pathname);
-  if (!isInside(path, href)) return false;
-  return !hrefs.some((other) => other.length > href.length && isInside(path, other));
-}
-
-function NavLink({ item, onNavigate }: { item: NavItem; onNavigate?: () => void }) {
+function NavLink({
+  item,
+  onNavigate,
+  collapsed = false,
+}: {
+  item: NavItem;
+  onNavigate?: () => void;
+  collapsed?: boolean;
+}) {
   const pathname = usePathname();
   const t = useTranslations("nav");
   const active = isActive(pathname, item.href);
+  const label = t(item.labelKey);
 
   return (
     <Link
@@ -219,18 +56,24 @@ function NavLink({ item, onNavigate }: { item: NavItem; onNavigate?: () => void 
       onClick={onNavigate}
       data-tour={item.dataTour}
       aria-current={active ? "page" : undefined}
+      // On the rail the label is the only thing naming this destination, so it
+      // moves to `title` and `aria-label` rather than disappearing - a column
+      // of eleven unlabelled icons is a column nobody can read.
+      title={collapsed ? label : undefined}
+      aria-label={collapsed ? label : undefined}
       className={cn(
-        "flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm transition-colors",
-        // Selected is a neutral raised pill with a dark label - the register
-        // OpenAI's and ElevenLabs' consoles use. The accent stays out of the
-        // nav so the one place it appears in content still reads as a signal.
+        "flex items-center rounded-lg text-sm transition-colors",
+        collapsed ? "h-9 w-9 justify-center" : "gap-2.5 px-2.5 py-1.5",
+        // Selected is a neutral raised pill with a dark label. Section hues live
+        // on the page's own tile, not here: a column of coloured pills competed
+        // with the content it points at.
         active
           ? "bg-accent text-foreground font-medium"
-          : "text-muted-foreground hover:text-foreground",
+          : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
       )}
     >
       <item.icon className="h-4 w-4 shrink-0" aria-hidden />
-      <span className="truncate">{t(item.labelKey)}</span>
+      {collapsed ? null : <span className="truncate">{label}</span>}
     </Link>
   );
 }
@@ -239,7 +82,13 @@ function NavLink({ item, onNavigate }: { item: NavItem; onNavigate?: () => void 
  * The link list on its own, so the desktop column and the mobile slide-over
  * cannot drift into offering different destinations.
  */
-export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
+export function SidebarNav({
+  onNavigate,
+  collapsed = false,
+}: {
+  onNavigate?: () => void;
+  collapsed?: boolean;
+}) {
   const { can } = usePermissions();
   const { user } = useAuthStore();
   const t = useTranslations("nav");
@@ -251,16 +100,29 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   })).filter((group) => group.items.length > 0 && (!group.adminOnly || admin));
 
   return (
-    <nav aria-label={t("primary")} className="flex flex-col gap-5 px-3 py-4">
+    <nav
+      aria-label={t("primary")}
+      className={cn("flex flex-col py-4", collapsed ? "items-center gap-3 px-2" : "gap-5 px-3")}
+    >
       {groups.map((group) => (
-        <div key={group.labelKey ?? "main"} className="flex flex-col gap-0.5">
-          {group.labelKey && (
-            <div className="text-muted-foreground px-2.5 pb-1.5 text-[11px] font-medium tracking-wide uppercase">
-              {t(group.labelKey)}
-            </div>
-          )}
+        <div
+          key={group.labelKey ?? "main"}
+          className={cn("flex flex-col gap-0.5", collapsed && "w-full items-center gap-1")}
+        >
+          {group.labelKey &&
+            // The heading is what tells the four groups apart, and on the rail
+            // there is no room for the word. A rule does the same job: it says
+            // "a different kind of thing starts here" without claiming to say
+            // which, which an abbreviation would do badly.
+            (collapsed ? (
+              <div aria-hidden className="bg-border mb-1 h-px w-5" />
+            ) : (
+              <div className="text-muted-foreground px-2.5 pb-1.5 text-xs font-medium tracking-wide uppercase">
+                {t(group.labelKey)}
+              </div>
+            ))}
           {group.items.map((item) => (
-            <NavLink key={item.href} item={item} onNavigate={onNavigate} />
+            <NavLink key={item.href} item={item} onNavigate={onNavigate} collapsed={collapsed} />
           ))}
         </div>
       ))}
@@ -269,19 +131,68 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
 }
 
 export function AppSidebar() {
+  const t = useTranslations("nav");
+  // The stored value only after mount. `persist` reads `localStorage`
+  // synchronously, so the browser's first render already knows the column was
+  // collapsed while the server rendered it expanded - two different trees,
+  // which React reports as a hydration mismatch and repairs by rebuilding.
+  // Both first renders agree on "expanded" now, and the rail arrives one
+  // render later. The width transition is held back with it, so that arrival
+  // is a jump rather than an animation somebody watches on every reload.
+  const mounted = useMounted();
+  const stored = useSidebarStore((state) => state.isCollapsed);
+  const collapsed = mounted && stored;
+  const toggleCollapsed = useSidebarStore((state) => state.toggleCollapsed);
+
   return (
-    // Translucent over the ambient backdrop, the way a macOS sidebar frosts
-    // the desktop: the accent wash pulls through the blur, so the column still
-    // reads as its own panel without going flat white. The card tint keeps it
-    // a step above the page in dark mode too.
-    <aside className="bg-card/55 hidden w-[240px] shrink-0 border-r backdrop-blur-2xl md:flex md:flex-col">
+    // `bg-sidebar`, a surface of its own, where this used to be `bg-card/55`
+    // over a blur. Translucency put the column's apparent depth at the mercy of
+    // whatever was behind it - it read as one shade over the page and another
+    // over a card scrolled underneath - and the blur cost a compositor layer
+    // the width of the window on every scroll. A token is one colour, it is the
+    // deepest of the four surfaces in both themes, and a deployment can
+    // retheme it.
+    <aside
+      className={cn(
+        "bg-sidebar hidden shrink-0 border-r md:flex md:flex-col",
+        mounted && "transition-[width] duration-200",
+        collapsed ? "w-14" : "w-[240px]",
+      )}
+    >
       {/* The brand heads the column because there is no top bar above `md` for
-          it to head instead. */}
-      <div className="flex h-14 shrink-0 items-center border-b px-3">
-        <BrandLink />
+          it to head instead, and the collapse control sits beside it: the one
+          control that is about the column rather than about anything in it,
+          on the column's own title bar - where every editor and console with a
+          collapsible panel puts one. Search and the bell are actions and live
+          with the account at the foot, where a hand rests. */}
+      <div
+        className={cn(
+          "flex h-14 shrink-0 items-center border-b",
+          collapsed ? "justify-center px-2" : "gap-1 px-3",
+        )}
+      >
+        {collapsed ? null : (
+          <div className="min-w-0 flex-1">
+            <BrandLink />
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={toggleCollapsed}
+          aria-label={collapsed ? t("expandSidebar") : t("collapseSidebar")}
+          aria-expanded={!collapsed}
+          title={collapsed ? t("expandSidebar") : t("collapseSidebar")}
+          className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors outline-none focus-visible:ring-1"
+        >
+          {collapsed ? (
+            <PanelLeftOpen className="h-[1.1rem] w-[1.1rem]" aria-hidden />
+          ) : (
+            <PanelLeftClose className="h-[1.1rem] w-[1.1rem]" aria-hidden />
+          )}
+        </button>
       </div>
-      <SidebarShell>
-        <SidebarNav />
+      <SidebarShell collapsed={collapsed}>
+        <SidebarNav collapsed={collapsed} />
       </SidebarShell>
     </aside>
   );

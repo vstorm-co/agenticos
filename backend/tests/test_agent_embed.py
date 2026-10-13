@@ -211,7 +211,9 @@ class TestTokenMode:
 
         assert admission.visitor == "user-42"
 
-    def test_a_rotated_embed_secret_still_verifies_a_visitor_token(self):
+    @pytest.mark.security
+    def test_a_rotated_embed_secret_still_verifies_a_visitor_token(self, monkeypatch):
+        monkeypatch.setattr(settings, "VAULT_MASTER_KEYS", {1: "k1" * 20, 2: "k2" * 20})
         """The latent bug this issue is about: the verifier unsealed at an
         implicit v1, so the day a master-key rotation `rewrap`s the vault, a `jwt`
         embed sealed at v1 and moved to v2 could never be opened again - every
@@ -220,7 +222,9 @@ class TestTokenMode:
         `unseal` patch, because the version is the whole point."""
         org = uuid.uuid4()
         secret = "s" * 32
-        sealed, _v1 = seal_fields({"jwt_secret": secret}, scope=VaultScope.organization(org))
+        sealed, _v1 = seal_fields(
+            {"jwt_secret": secret}, scope=VaultScope.organization(org), key_version=1
+        )
         rotated = rewrap(
             sealed["jwt_secret"].ciphertext,
             scope=VaultScope.organization(org),
@@ -237,6 +241,22 @@ class TestTokenMode:
 
         assert _service()._verify_token(embed, token) == "user-42"
 
+    @pytest.mark.parametrize("claim", ["exp", "iat"])
+    @pytest.mark.parametrize("value", [None, [], {}])
+    def test_a_signed_token_with_a_malformed_time_claim_is_refused_not_500ed(self, claim, value):
+        """`exp`/`iat` as null, [] or {} makes PyJWT's own validation run `int()`
+        on it - a raw `TypeError`, not a `PyJWTError` - so a malformed-but-signed
+        token escaped the handler and became a 500 rather than a clean refusal
+        (#1107)."""
+        secret = "s" * 32
+        token = jwt.encode({"sub": "user-42", claim: value}, secret, algorithm="HS256")
+        with (
+            patch(f"{MODULE}.unseal", return_value=secret),
+            pytest.raises(EmbedDenied),
+        ):
+            _service()._verify_token(self._jwt_embed(), token)
+
+    @pytest.mark.security
     @pytest.mark.anyio
     async def test_a_token_signed_with_the_wrong_secret_is_refused(self):
         token = jwt.encode({"sub": "user-42"}, "attacker-secret", algorithm="HS256")
@@ -295,6 +315,68 @@ class TestTokenMode:
             await _service().admit("key-123", origin="https://acme.test", token=token)
 
     @pytest.mark.anyio
+    async def test_a_token_with_no_issued_at_is_refused_rather_than_treated_as_fresh(self):
+        """`{"sub": ...}` alone is correctly signed and carries no freshness claim,
+        which the old opportunistic `if isinstance(iat, ...)` check skipped - so
+        PyJWT accepted it forever and one scraped token answered on the bill
+        indefinitely (#23)."""
+        secret = "s" * 32
+        token = jwt.encode({"sub": "user-42"}, secret, algorithm="HS256")
+        with (
+            patch(
+                f"{MODULE}.agent_embed_repo.get_by_key",
+                new=AsyncMock(return_value=self._jwt_embed()),
+            ),
+            patch(f"{MODULE}.unseal", return_value=secret),
+            pytest.raises(EmbedDenied),
+        ):
+            await _service().admit("key-123", origin="https://acme.test", token=token)
+
+    @pytest.mark.anyio
+    async def test_a_stale_iat_is_refused_even_behind_a_future_exp(self):
+        """`exp` must not let a stale `iat` through: a far-future `exp` is common in
+        a customer's own tokens, and treating it as freshness would let a copied
+        token replay past the 12h ceiling until it expired. `exp` may only shorten
+        the window, never extend it (#23)."""
+        secret = "s" * 32
+        old = int(time.time()) - 60 * 60 * 24 * 30
+        token = jwt.encode(
+            {"sub": "user-42", "iat": old, "exp": int(time.time()) + 60 * 60 * 24 * 365},
+            secret,
+            algorithm="HS256",
+        )
+        with (
+            patch(
+                f"{MODULE}.agent_embed_repo.get_by_key",
+                new=AsyncMock(return_value=self._jwt_embed()),
+            ),
+            patch(f"{MODULE}.unseal", return_value=secret),
+            pytest.raises(EmbedDenied),
+        ):
+            await _service().admit("key-123", origin="https://acme.test", token=token)
+
+    @pytest.mark.anyio
+    async def test_a_recent_iat_alongside_a_future_exp_is_admitted(self):
+        """The ordinary case a customer mints: a fresh `iat` and an `exp` for the
+        session. It passes on the `iat`; PyJWT validates the `exp` too."""
+        secret = "s" * 32
+        token = jwt.encode(
+            {"sub": "user-42", "iat": int(time.time()), "exp": int(time.time()) + 3600},
+            secret,
+            algorithm="HS256",
+        )
+        with (
+            patch(
+                f"{MODULE}.agent_embed_repo.get_by_key",
+                new=AsyncMock(return_value=self._jwt_embed()),
+            ),
+            patch(f"{MODULE}.unseal", return_value=secret),
+        ):
+            admission = await _service().admit("key-123", origin="https://acme.test", token=token)
+
+        assert admission.visitor == "user-42"
+
+    @pytest.mark.anyio
     async def test_the_origin_is_checked_before_the_token(self):
         """A probe from an unlisted site must learn nothing about tokens - the
         unseal is what would tell it, so it must never happen."""
@@ -313,10 +395,12 @@ class TestTokenMode:
 
 
 class TestSecretRules:
+    @pytest.mark.security
     def test_a_token_embed_must_bring_a_secret(self):
         with pytest.raises(BadRequestError):
             _service()._check_secret("jwt", None)
 
+    @pytest.mark.security
     def test_a_public_embed_refuses_a_secret_nothing_would_read(self):
         """Stored and never consulted is a secret somebody believes protects them."""
         with pytest.raises(BadRequestError):
@@ -1320,8 +1404,7 @@ class TestAPagesOwnPicture:
     @pytest.mark.anyio
     async def test_the_public_route_serves_the_uploaded_file(self):
         embed = _embed(kind="page", config={"logo": "custom"}, logo_path="0f9c/abc123_logo.png")
-        storage = MagicMock()
-        storage.get_full_path.return_value = MagicMock(exists=lambda: True)
+        storage = MagicMock(exists=AsyncMock(return_value=True))
 
         with (
             patch(f"{MODULE}.agent_embed_repo.get_by_key", new=AsyncMock(return_value=embed)),
@@ -1329,8 +1412,10 @@ class TestAPagesOwnPicture:
         ):
             path = await _service().page_logo_path("key-123")
 
-        assert path is not None
-        storage.get_full_path.assert_called_once_with("0f9c/abc123_logo.png")
+        # The storage path rather than a path on this host: the route resolves it
+        # through the backend, which may be an object store (#1423).
+        assert path == "0f9c/abc123_logo.png"
+        storage.exists.assert_awaited_once_with("0f9c/abc123_logo.png")
 
     @pytest.mark.anyio
     async def test_a_custom_logo_with_nothing_uploaded_shows_none(self):
@@ -1379,8 +1464,7 @@ class TestAPagesOwnPicture:
         """A path in the column is not a file on the disk. The route resolves the
         one and answers 404 for the other, so this has to ask the same question."""
         embed = _embed(kind="page", config={"logo": "agent"})
-        storage = MagicMock()
-        storage.get_full_path.return_value = MagicMock(exists=lambda: False)
+        storage = MagicMock(exists=AsyncMock(return_value=False))
 
         with (
             patch(f"{MODULE}.agent_repo.get", new=AsyncMock(return_value=_agent("a/b.png"))),
@@ -1393,8 +1477,7 @@ class TestAPagesOwnPicture:
     @pytest.mark.anyio
     async def test_an_avatar_that_is_there_is_advertised(self):
         embed = _embed(kind="page", config={"logo": "agent"})
-        storage = MagicMock()
-        storage.get_full_path.return_value = MagicMock(exists=lambda: True)
+        storage = MagicMock(exists=AsyncMock(return_value=True))
 
         with (
             patch(f"{MODULE}.agent_repo.get", new=AsyncMock(return_value=_agent("a/b.png"))),

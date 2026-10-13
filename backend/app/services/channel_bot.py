@@ -29,8 +29,14 @@ from app.schemas.channel_bot import (
     ChannelBotRead,
     ChannelBotUpdate,
 )
-from app.services.channels import SECRET_MINTED_BY_US, get_adapter, inbound_webhook_url
+from app.services.channels import (
+    SECRET_MINTED_BY_US,
+    connection_state,
+    get_adapter,
+    inbound_webhook_url,
+)
 from app.services.channels.supervisor import close_inbound_stream, open_inbound_stream
+from app.services.speech_to_text import is_offered as stt_is_offered
 
 logger = logging.getLogger(__name__)
 
@@ -196,6 +202,8 @@ class ChannelBotService:
             slack_app_token_encrypted=self._seal_at(
                 data.slack_app_token, key_version=sealed.key_version
             ),
+            speech_to_text_provider=data.speech_to_text_provider,
+            speech_to_text_model=data.speech_to_text_model,
         )
         self._reopen_stream(bot)
         return bot
@@ -238,6 +246,44 @@ class ChannelBotService:
         ).ciphertext
 
     @staticmethod
+    def _check_transcription(bot: ChannelBot, update_data: dict[str, Any]) -> None:
+        """Both halves of the transcription pair, against what is already stored.
+
+        The schema can only see the request, and a patch legitimately carries one
+        field: somebody switching model keeps the provider. So the pairing is
+        decided here, where the other half is known - a provider with no model has
+        nothing to call and a model with no provider has nowhere to send it, and
+        either alone is a setting that reads as configured and does nothing. That
+        is the state somebody debugs by sending voice notes into silence.
+
+        Clearing is a pair too: turning transcription off means both fields null,
+        not a provider left pointing at nothing.
+        """
+        provider_given = "speech_to_text_provider" in update_data
+        model_given = "speech_to_text_model" in update_data
+        if not provider_given and not model_given:
+            return
+        provider = (
+            update_data["speech_to_text_provider"]
+            if provider_given
+            else bot.speech_to_text_provider
+        )
+        model = update_data["speech_to_text_model"] if model_given else bot.speech_to_text_model
+        if (provider is None) != (model is None):
+            raise BadRequestError(
+                message=(
+                    "Transcription needs a provider and a model together - one without "
+                    "the other is a setting that cannot run"
+                ),
+                details={"fields": ["speech_to_text_provider", "speech_to_text_model"]},
+            )
+        if provider is not None and model is not None and not stt_is_offered(provider, model):
+            raise refused_field(
+                "speech_to_text_model",
+                f"'{model}' is not a transcription model this deployment offers for {provider}",
+            )
+
+    @staticmethod
     def _check_server_url(platform: str, api_base_url: str | None) -> None:
         """Which platform may carry a server URL, and which may not lose one.
 
@@ -275,13 +321,15 @@ class ChannelBotService:
                 details={"platform": platform},
             )
 
-    async def get(self, bot_id: UUID) -> ChannelBot:
+    async def get(self, bot_id: UUID, *, for_update: bool = False) -> ChannelBot:
         """Get one of this organization's bots; raises NotFoundError if not found.
 
         A bot belonging to another organization is reported as missing rather
         than forbidden, so the endpoint cannot be used to probe for bot ids.
         """
-        bot = await channel_bot_repo.get_for_org(self.db, bot_id, organization_id=self._org_id)
+        bot = await channel_bot_repo.get_for_org(
+            self.db, bot_id, organization_id=self._org_id, for_update=for_update
+        )
         if not bot:
             raise NotFoundError(
                 message="Channel bot not found",
@@ -311,9 +359,18 @@ class ChannelBotService:
             self.db, channel_bot_ids=[bot.id for bot in bots]
         )
         total = await channel_bot_repo.count(self.db, organization_id=self._org_id)
+        # One read per row, from the Redis every worker shares - the supervisor
+        # holding the socket is usually in another process, so this cannot be
+        # asked of the adapter here. A webhook bot is not asked at all: it holds
+        # no connection, and a `down` beside one would be a fault reported about
+        # a design (#1351).
+        connections = {
+            bot.id: await connection_state.read(bot.id) for bot in bots if not bot.webhook_mode
+        }
         return [
             ChannelBotRead.model_validate(bot).model_copy(
                 update={
+                    "connection": connections.get(bot.id),
                     "agents": [
                         BotAgent(
                             id=agent.id,
@@ -322,7 +379,7 @@ class ChannelBotService:
                             has_avatar=agent.has_avatar,
                         )
                         for agent in answering.get(bot.id, [])
-                    ]
+                    ],
                 }
             )
             for bot in bots
@@ -339,10 +396,15 @@ class ChannelBotService:
     async def update(self, bot_id: UUID, data: ChannelBotUpdate) -> ChannelBot:
         """Update a channel bot. Only the fields the caller sent are applied;
         an explicit null clears a Slack credential, an omission leaves it."""
-        bot = await self.get(bot_id)
+        # Locked from the read: every credential below is sealed at the row's
+        # recorded key version, and a rotation committing between an unlocked
+        # read and this write would tag the new envelopes with a version they
+        # were not sealed under.
+        bot = await self.get(bot_id, for_update=True)
         update_data = writable(data, over=ChannelBot)
         if "api_base_url" in update_data:
             self._check_server_url(bot.platform, update_data["api_base_url"])
+        self._check_transcription(bot, update_data)
         if "slack_signing_secret" in update_data or "slack_app_token" in update_data:
             self._check_slack_fields(
                 bot.platform,

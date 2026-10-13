@@ -143,6 +143,9 @@ async def _resolve_in_org(
             conversation_id,
             organization_id=organization_id,
             user_id=user_id,
+            # Every turn of an existing chat resolves the thread through here and
+            # serializes none of it, so the star would be a query per message.
+            include_favourite=False,
         )
     except NotFoundError as exc:
         raise AuthorizationError(

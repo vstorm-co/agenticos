@@ -4,7 +4,7 @@
  * IMPORTANT: This file should only be imported in server-side code (API routes, Server Components).
  */
 
-import { NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 
 import type { BffErrorCode } from "@/lib/bff-errors";
 
@@ -49,11 +49,51 @@ export class BackendApiError extends Error {
     public status: number,
     public statusText: string,
     public data?: unknown,
+    // The response headers, retained so a BFF route can forward `Retry-After`
+    // on a 429 - a rate limit is a wait, and the interval is in a header the
+    // route would otherwise drop (#1047).
+    public headers?: Headers,
   ) {
     // i18n-exempt: an Error message for a log, never rendered.
     super(`Backend API error: ${status} ${statusText}`);
     this.name = "BackendApiError";
   }
+}
+
+/**
+ * Forward the incoming caller's address to the backend on an auth call.
+ *
+ * The auth rate limiter keys its per-IP bucket on `caller_ip`, which reads
+ * `X-Forwarded-For` only when the deployment trusts it. Without this the backend
+ * sees the frontend container and the whole deployment shares one bucket, so a
+ * handful of logins lock everyone out (#1047). Forwarded verbatim: the backend
+ * reads the rightmost hop, and the trust setting is what a deployment turns on
+ * once its proxy topology makes that hop the real client - see
+ * `docs/configuration.md`.
+ */
+export function forwardedFor(request: NextRequest): Record<string, string> {
+  const forwarded = request.headers.get("x-forwarded-for");
+  return forwarded ? { "x-forwarded-for": forwarded } : {};
+}
+
+/**
+ * Forward the backend's 429 to the browser as a rate-limit result.
+ *
+ * The backend answers a rate limit with its `RATE_LIMIT_EXCEEDED` envelope and a
+ * `Retry-After` header; an auth route that flattened it to "login failed" or
+ * "session expired" (clearing the cookies) told the caller the wrong thing and
+ * dropped the wait interval (#1047). This passes the envelope through - the
+ * client resolves its code and `retry_after_seconds` - and re-sets `Retry-After`.
+ */
+export function forwardRateLimit(error: BackendApiError): NextResponse {
+  const response = bffJson(error.data ?? { error: { code: "RATE_LIMIT_EXCEEDED" } }, {
+    status: 429,
+  });
+  const retryAfter = error.headers?.get("retry-after");
+  if (retryAfter) {
+    response.headers.set("Retry-After", retryAfter);
+  }
+  return response;
 }
 
 interface RequestOptions extends RequestInit {
@@ -100,7 +140,7 @@ export async function backendFetch<T>(endpoint: string, options: RequestOptions 
     } catch {
       errorData = null;
     }
-    throw new BackendApiError(response.status, response.statusText, errorData);
+    throw new BackendApiError(response.status, response.statusText, errorData, response.headers);
   }
 
   const text = await response.text();

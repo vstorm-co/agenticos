@@ -43,6 +43,7 @@ const WEATHER: CapabilityCatalogEntry = {
     kind: "api_key",
     description: "The forecast service's API key. It refuses an unauthenticated request.",
     required_when: null,
+    purpose: null,
   },
 };
 
@@ -61,6 +62,7 @@ const SEARCH: CapabilityCatalogEntry = {
     kind: "api_key",
     description: "The API key for the chosen search service",
     required_when: { field: "method", equals: ["tavily", "brave", "exa"] },
+    purpose: null,
   },
 };
 
@@ -247,6 +249,7 @@ describe("CapabilitySettings secret picker", () => {
           kind: "aws_credentials",
           description: "The role this capability assumes.",
           required_when: null,
+          purpose: null,
         },
       },
     });
@@ -301,6 +304,7 @@ describe("CapabilitySettings secret picker", () => {
           kind: "api_key",
           description: "The API key for the chosen search service",
           required_when: { field: "method", equals: ["tavily", "brave", "exa"] },
+          purpose: null,
         },
       },
     });
@@ -417,6 +421,32 @@ describe("SecretField · narrowing by what a key is for", () => {
 
     expect(screen.getByRole("option", { name: /Tavily/ })).toBeInTheDocument();
     expect(screen.queryByRole("option", { name: /OpenAI/ })).toBeNull();
+  });
+
+  it("narrows on a service the requirement names, with no condition to read", async () => {
+    // The regression this covers: a capability that needs its key *unconditionally*
+    // has no `required_when` field to read a service off, so the slot fell back to
+    // "any key of this kind" and offered every API key in the vault (#1470).
+    const UNCONDITIONAL = {
+      ...WEATHER,
+      id: "memory_mem0",
+      requires_secret: {
+        kind: "api_key" as const,
+        description: "The mem0 API key",
+        required_when: null,
+        purpose: "mem0",
+      },
+    };
+    serve([
+      { ...API_KEY_SECRET, id: "sec-mem0", name: "mem0 key", purpose: "mem0" },
+      { ...API_KEY_SECRET, id: "sec-llama", name: "LlamaParse", purpose: "llamaparse" },
+    ]);
+    mount(binding({ id: "memory_mem0" }), { definition: UNCONDITIONAL });
+
+    await userEvent.click(await screen.findByLabelText("Secret"));
+
+    expect(screen.getByRole("option", { name: /mem0 key/ })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /LlamaParse/ })).toBeNull();
   });
 
   it("keeps offering the keys that never said what they were for", async () => {

@@ -89,6 +89,16 @@ class RedisClient:
             raise RuntimeError("Redis client not connected")
         return await self.client.delete(key)  # type: ignore[no-any-return]
 
+    async def getdel(self, key: str) -> str | None:
+        """Read a key and delete it in one atomic step (Redis GETDEL).
+
+        A single-use value cannot be read twice: the second reader finds the key
+        already gone, so a replayed OAuth exchange code redeems nothing.
+        """
+        if not self.client:
+            raise RuntimeError("Redis client not connected")
+        return await self.client.getdel(key)  # ty: ignore[invalid-return-type]
+
     async def exists(self, key: str) -> bool:
         """Check if key exists."""
         if not self.client:

@@ -150,7 +150,7 @@ export function WorkspaceBrowser() {
             <span aria-hidden>
               <AgentAvatar
                 agentId={workspace.agent_id}
-                name={workspace.agent_name}
+                slug={workspace.agent_slug}
                 hasAvatar={workspace.agent_has_avatar}
                 size="sm"
               />
@@ -189,6 +189,32 @@ export function WorkspaceBrowser() {
               </span>
             </div>
           </div>
+        ),
+      },
+      {
+        key: "owner",
+        header: t("owner"),
+        sortable: true,
+        // Owned last rather than first: the scopes with no owner are the common
+        // ones, and an absence is not a name.
+        sortValue: (workspace) => workspace.owner_name ?? "",
+        // **Who, beside who else.** `access_label` one column along describes the
+        // *scope* - "everybody who talks to this agent", "one person" - and on an
+        // `agent`-scoped workspace shared by six people that is exactly the
+        // question this row could not answer (#137).
+        //
+        // `owner_name`, not `owner_label`: that one is the scope in words ("Your
+        // files for this agent"), so a column drawing it under this heading names
+        // nobody. An em dash for the three scopes that record no owner, which is
+        // the honest answer rather than the scope again.
+        //
+        // Plain text, never a link: an owner who arrived through Slack is a
+        // platform id rather than an account, so half the rows would carry a
+        // destination that does not exist (#131).
+        cell: (workspace) => (
+          <span className="text-muted-foreground block min-w-0 truncate text-xs">
+            {workspace.owner_name ?? "—"}
+          </span>
         ),
       },
       {
@@ -411,7 +437,7 @@ function FlatFiles() {
            suffix and the size;
            the line under it carries what only this view knows: the agent holding
            the file and who else can see it. */
-        <ul className="grid items-start gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        <ul className="rise-in grid items-start gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {list.visible.map((file) => (
             <li key={key(file)} className="space-y-1">
               <FileCard
@@ -426,11 +452,11 @@ function FlatFiles() {
                   attached and a PDF an agent produced are read for different
                   reasons, and the path is not always the answer - `report.csv` at
                   a workspace root could be either. */}
-              <p className="text-muted-foreground flex items-center gap-1 px-1 text-[11px]">
+              <p className="text-muted-foreground flex items-center gap-1 px-1 text-xs">
                 <span
                   className={cn(
-                    "shrink-0 rounded px-1 py-0.5 text-[10px]",
-                    file.from_upload ? "bg-accent text-foreground" : "text-muted-foreground/70",
+                    "shrink-0 rounded px-1 py-0.5 text-[11px]",
+                    file.from_upload ? "bg-accent text-foreground" : "text-muted-foreground",
                   )}
                 >
                   {file.from_upload ? t("workspaces.fromMe") : t("workspaces.fromTheAgent")}

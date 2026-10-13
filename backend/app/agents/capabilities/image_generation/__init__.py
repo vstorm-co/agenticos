@@ -11,7 +11,6 @@ from app.agents.capabilities._registry import (
     register,
 )
 from app.agents.capabilities.image_generation._capability import ImageGeneration
-from app.agents.capabilities.sandbox import WORKSPACE_BACKEND_RESOURCE
 from app.core.secret_kinds import ApiKeySecret, SecretKind, SecretRequirement
 from app.services.image_models import (
     default_choice,
@@ -165,5 +164,4 @@ def _build(ctx: CapabilityBuildContext) -> ImageGeneration:
         model_id=resolved_model_id(config.provider, config.model),
         tool_settings=config.to_tool_kwargs(),
         api_key=api_key,
-        workspace_backend=ctx.resources.get(WORKSPACE_BACKEND_RESOURCE),
     )

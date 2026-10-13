@@ -43,7 +43,10 @@ vi.mock("@/hooks", () => ({
   }),
   // What the filter bar's selects offer. One agent and two versions are enough
   // to prove the narrowing each control asks for.
-  useAgents: () => ({ agents: [{ id: "agent-1", name: "Support agent" }], isLoading: false }),
+  useAgents: () => ({
+    agents: [{ id: "agent-1", slug: "support-agent", name: "Support agent" }],
+    isLoading: false,
+  }),
   useAllAgentVersions: () => ({
     versions: [
       { id: "ver-2", version: 2 },
@@ -179,37 +182,16 @@ describe("run history controls", () => {
     });
   });
 
-  it("the slow-runs view sorts by duration over a threshold", async () => {
+  it("offers no canned views, only the filters and the sort", async () => {
+    // "All runs" and "Slow runs" were two buttons for one query the Took
+    // header already answers - and "slow" was a fixed thirty seconds, which is
+    // a definition rather than a question. The filter behind them is gone from
+    // the wire and from the route.
     renderTab();
 
-    await userEvent.click(screen.getByRole("button", { name: "Slow runs" }));
-
-    expect(lastOptions()).toMatchObject({
-      orderBy: "duration",
-      descending: true,
-      tookOverMs: 30_000,
-    });
-    expect(screen.getByRole("button", { name: "Slow runs" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
-  });
-
-  it("the all-runs view returns to the feed and drops the threshold", async () => {
-    renderTab();
-
-    await userEvent.click(screen.getByRole("button", { name: "Slow runs" }));
-    await userEvent.click(screen.getByRole("button", { name: "All runs" }));
-
-    expect(lastOptions()).toMatchObject({
-      orderBy: "started_at",
-      descending: true,
-      tookOverMs: undefined,
-    });
-    expect(screen.getByRole("button", { name: "All runs" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    expect(screen.queryByRole("button", { name: "Slow runs" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "All runs" })).not.toBeInTheDocument();
+    expect(lastOptions()).not.toHaveProperty("tookOverMs");
   });
 
   it("the Took header flips the duration sort each time it is used", async () => {

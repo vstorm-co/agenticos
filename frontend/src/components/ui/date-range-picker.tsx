@@ -101,7 +101,7 @@ export function DateRangePicker({ value, onChange, maxDate, className }: DateRan
             <div className="text-foreground pb-2 text-center text-sm font-medium">
               {monthLabel(month)}
             </div>
-            <div className="text-muted-foreground grid grid-cols-7 pb-1 text-center text-[11px]">
+            <div className="text-muted-foreground grid grid-cols-7 pb-1 text-center text-xs">
               {WEEKDAYS.map((weekday) => (
                 <span key={weekday}>{weekday}</span>
               ))}
@@ -123,7 +123,7 @@ export function DateRangePicker({ value, onChange, maxDate, className }: DateRan
                     aria-pressed={!disabled && highlight(cell.date)}
                     className={cn(
                       "mx-auto flex size-8 items-center justify-center rounded-md text-sm",
-                      disabled && "text-muted-foreground/40 pointer-events-none",
+                      disabled && "text-muted-foreground pointer-events-none",
                       !disabled && "hover:bg-accent",
                       !disabled && highlight(cell.date) && "bg-primary text-primary-foreground",
                     )}

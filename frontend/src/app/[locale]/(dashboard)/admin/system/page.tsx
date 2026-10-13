@@ -2,7 +2,16 @@
 
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AlertCircle, CheckCircle2, Cpu, Database, HardDrive, RefreshCw, Zap } from "lucide-react";
+import {
+  AlertCircle,
+  CalendarClock,
+  CheckCircle2,
+  Cpu,
+  Database,
+  HardDrive,
+  RefreshCw,
+  Zap,
+} from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { getErrorMessage } from "@/lib/api-error";
@@ -22,6 +31,7 @@ const META: Record<string, { words: string; icon: LucideIcon }> = {
   redis: { words: "serviceRedis", icon: Zap },
   vector_store: { words: "serviceVectorStore", icon: HardDrive },
   model_access: { words: "serviceModelAccess", icon: Cpu },
+  scheduler: { words: "serviceScheduler", icon: CalendarClock },
 };
 
 const STATUS_DOT: Record<CheckStatus, string> = {
@@ -198,7 +208,7 @@ export default function SystemHealthPage() {
                       </span>
                     </div>
                     {check.latency_ms !== null && (
-                      <span className="text-muted-foreground text-[11px] tabular-nums">
+                      <span className="text-muted-foreground text-xs tabular-nums">
                         {t("latencyMs", { ms: check.latency_ms })}
                       </span>
                     )}

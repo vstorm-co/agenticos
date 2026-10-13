@@ -1,20 +1,52 @@
 """Session service (PostgreSQL async)."""
 
 import hashlib
+import hmac
+import logging
+import secrets
 from datetime import UTC, datetime, timedelta
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.audit import record_audit
 from app.core.config import settings
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import AuthenticationError, NotFoundError
+from app.core.security import create_refresh_token, read_uuid_claim
 from app.db.models.session import Session
 from app.repositories import session_repo
 from app.schemas.session import SessionListResponse, SessionRead
 
+logger = logging.getLogger(__name__)
 
-def _hash_token(token: str) -> str:
+
+def hash_token(token: str) -> str:
+    """The fingerprint a session row holds for its credential; never the credential."""
     return hashlib.sha256(token.encode()).hexdigest()
+
+
+def successor_refresh_token(
+    spent_token: str, *, subject: str, credential_version: int, expires_at: datetime
+) -> str:
+    """The refresh token a rotation of `spent_token` issues - the same bytes every time.
+
+    The `jti` is an HMAC of the spent token's hash and `exp` is the row's own
+    expiry, so the successor can be rebuilt later from what the row stores, without
+    the row ever holding a credential. Unique along a chain because every spent
+    token is.
+    """
+    jti = hmac.new(
+        settings.SECRET_KEY.encode(), hash_token(spent_token).encode(), hashlib.sha256
+    ).hexdigest()[:32]
+    return create_refresh_token(
+        subject=subject, credential_version=credential_version, jti=jti, expires_at=expires_at
+    )
+
+
+def refresh_expiry() -> datetime:
+    """When a refresh token minted now stops refreshing."""
+    return datetime.now(UTC) + timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
 
 
 def _parse_user_agent(user_agent: str | None) -> tuple[str | None, str | None]:
@@ -54,14 +86,66 @@ class SessionService:
         refresh_token: str,
         ip_address: str | None = None,
         user_agent: str | None = None,
+        *,
+        session_id: UUID | None = None,
     ) -> Session:
+        """The row a sign-in is tracked by, whose id the access token names in `sid`.
+
+        `session_id` lets the caller choose the id up front, for a flow that has to
+        mint the token before the row exists: the OAuth callback names the id in the
+        token, hands out a single-use code, and only then writes the row - so a
+        failure issuing the code leaves no phantom session behind. Left `None`, the
+        row's own default assigns the id (login and magic-link read it back off the
+        returned row).
+        """
         device_name, device_type = _parse_user_agent(user_agent)
         expires_at = datetime.now(UTC) + timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
 
         return await session_repo.create(
             self.db,
             user_id=user_id,
-            refresh_token_hash=_hash_token(refresh_token),
+            refresh_token_hash=hash_token(refresh_token),
+            expires_at=expires_at,
+            device_name=device_name,
+            device_type=device_type,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            session_id=session_id,
+        )
+
+    async def rotate_session(
+        self,
+        session: Session,
+        new_refresh_token: str,
+        *,
+        expires_at: datetime | None = None,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
+    ) -> Session:
+        """Rotate a login's refresh token in place, keeping the session row's id.
+
+        Refresh mints a new refresh token and a new access token; the row keeps
+        its id so the access token's `sid` is stable across the refresh - a live
+        socket, or a second tab, holding the old access token is not cut off by a
+        routine rotation (#1437, #1501) - while the new token's hash replaces the
+        old, which is what stops the spent refresh token being replayed.
+
+        The device and address are moved to wherever the refresh came from, the way
+        recreating the row used to: the sessions list is what a person revokes an
+        unfamiliar device from, so it has to show where the credential is being used
+        now, not only where the login began (#1501 review).
+
+        `expires_at` must be the `exp` the new token was minted with when it came
+        from `successor_refresh_token`, or a reissue within the grace window would
+        rebuild a different token than the row holds.
+        """
+        if expires_at is None:
+            expires_at = refresh_expiry()
+        device_name, device_type = _parse_user_agent(user_agent)
+        return await session_repo.rotate(
+            self.db,
+            session=session,
+            refresh_token_hash=hash_token(new_refresh_token),
             expires_at=expires_at,
             device_name=device_name,
             device_type=device_type,
@@ -70,20 +154,261 @@ class SessionService:
         )
 
     async def get_user_sessions(self, user_id: UUID) -> list[Session]:
-        return await session_repo.get_user_sessions(self.db, user_id, active_only=True)
+        return await session_repo.get_user_sessions(self.db, user_id, open_only=True)
 
-    async def count_user_sessions(self, user_id: UUID) -> int:
-        return await session_repo.count_user_sessions(self.db, user_id, active_only=True)
+    async def count_user_sessions(self, user_id: UUID, *, now: datetime | None = None) -> int:
+        return await session_repo.count_user_sessions(self.db, user_id, open_only=True, now=now)
+
+    async def verify_access_session(self, *, payload: dict[str, Any], subject: str) -> None:
+        """Refuse an ordinary access token whose login session has been revoked.
+
+        A token minted since #1501 carries `sid`, the id of the `sessions` row its
+        login owns, so `DELETE /sessions` and the password-reset revoke-all - both
+        of which flip the row's `is_active` - refuse the token here on its next use,
+        an HTTP request or a WebSocket frame, instead of letting it live to its
+        `exp`. The row is also the login's own lifetime: an `expires_at` in the past
+        is a login that is over however fresh the access token looks, which is why
+        this still bites under the socket's `allow_expired` recheck (#1437).
+
+        A token with no `sid` predates the binding: it cannot be tied to a row and
+        is left to expire, the pre-#1501 behaviour, so an existing sign-in is not
+        logged out the moment this deploys - within one access-token lifetime every
+        live token has refreshed into a bound one.
+
+        An impersonation token carries `act` and its own `sid`, both already
+        verified by :meth:`ImpersonationService.verify` before this runs, so it
+        returns early here - looking its row up again would refuse it, an
+        impersonation row being exactly what an *ordinary* `sid` may not name. An
+        ordinary `sid` must therefore name an ordinary row (no impersonator), the
+        subject's own, still active and unexpired - the id alone is the binding,
+        since a signed token cannot carry a `sid` this deployment did not mint.
+
+        Raises:
+            AuthenticationError: The token names a session that is gone, deactivated,
+                expired, an impersonation, or another user's.
+        """
+        if read_uuid_claim(payload, "act") is not None:
+            return
+        session_id = read_uuid_claim(payload, "sid")
+        if session_id is None:
+            return
+        row = await session_repo.get_by_id(self.db, session_id)
+        if (
+            row is None
+            or not row.is_active
+            or row.expires_at <= datetime.now(UTC)
+            or row.impersonator_user_id is not None
+            or str(row.user_id) != subject
+        ):
+            raise AuthenticationError(message="Session has ended")
 
     async def validate_refresh_token(self, refresh_token: str) -> Session | None:
-        token_hash = _hash_token(refresh_token)
-        session = await session_repo.get_by_refresh_token_hash(self.db, token_hash)
+        """The session a refresh token belongs to, or None for one that cannot refresh.
 
-        if session and session.expires_at > datetime.now(UTC):
+        An impersonation row is found by the hash of its *access* token, and a
+        refresh minted from it would be a plain token as the target - no `act`,
+        no `sid`, a fresh week-long session - which launders the administrator
+        out of every request that follows and makes the impersonation unendable
+        again (#1044). So an impersonation is not a refresh token, whoever holds
+        it: its window is the access token's own, and nothing extends it.
+        """
+        token_hash = hash_token(refresh_token)
+        # Locked: a refresh and a concurrent one bearing the same token serialize
+        # here, so the second finds the hash already rotated away and refuses,
+        # rather than both rotating the row (#1501 review).
+        session = await session_repo.get_by_refresh_token_hash(self.db, token_hash, for_update=True)
+
+        if (
+            session
+            and session.impersonator_user_id is None
+            and session.expires_at > datetime.now(UTC)
+        ):
             await session_repo.update_last_used(self.db, session.id)
             return session
 
         return None
+
+    async def claim_refresh_grace(self, refresh_token: str) -> Session | None:
+        """The session a just-spent refresh token may still refresh, inside the grace window.
+
+        Called only where `validate_refresh_token` has already declined, and
+        before `detect_refresh_reuse`. The token the last rotation spent is, for
+        `REFRESH_REUSE_GRACE_SECONDS` after that rotation, what an honest client
+        holds when its refresh response never arrived - a VPN reconnecting, a lid
+        closed mid-request - or when a second tab refreshed on the same cookie a
+        moment after the first. Treating that as a replay ended the session and
+        signed the person out several times a day. So inside the window the spent
+        token is answered again - by `reissue_within_grace`, with the successor the
+        row already holds, never with a new rotation.
+
+        The window is the cost: a stolen refresh token replayed within seconds of
+        the victim's own refresh is accepted rather than detected. Outside it,
+        `detect_refresh_reuse` ends the chain exactly as before.
+
+        Returns:
+            The session to rotate, or `None` when the token is not the one the
+            last rotation of a live, ordinary session spent within the window.
+        """
+        grace = settings.REFRESH_REUSE_GRACE_SECONDS
+        if grace <= 0:
+            return None
+        # Locked like the ordinary lookup, so a grace answer never interleaves
+        # with a rotation of the same row.
+        session = await session_repo.get_by_previous_refresh_token_hash(
+            self.db, hash_token(refresh_token), for_update=True
+        )
+        now = datetime.now(UTC)
+        if (
+            session is None
+            or session.impersonator_user_id is not None
+            or session.expires_at <= now
+            or session.rotated_at is None
+            # Not in the future either: a clock set back after the rotation
+            # would otherwise keep the spent token inside the window for as long
+            # as the clock is behind.
+            or not timedelta(0) <= now - session.rotated_at <= timedelta(seconds=grace)
+        ):
+            return None
+        logger.info("refresh_token_grace_reuse", extra={"session_id": str(session.id)})
+        return session
+
+    def reissue_within_grace(
+        self, session: Session, spent_token: str, *, credential_version: int
+    ) -> str:
+        """The successor a grace-window refresh answers with: the token the row holds now.
+
+        Rotating again here, as the first version of the window did, moved the
+        previous hash on - so in a burst of three refreshes on one cookie the third
+        matched nothing, got a 401, and its response cleared the cookie the other
+        two had just set. The session stayed active and the browser lost it.
+        Answering every request in the burst with the *same* token lets the cookie
+        jar converge whichever response lands last, and a client whose response
+        was lost gets back exactly the token it missed.
+
+        Raises:
+            AuthenticationError: The row has rotated past that successor since - a
+                later refresh on the new token - or the account's credential
+                version has moved, so the rebuilt token is not the one it holds.
+        """
+        successor = successor_refresh_token(
+            spent_token,
+            subject=str(session.user_id),
+            credential_version=credential_version,
+            expires_at=session.expires_at,
+        )
+        if not secrets.compare_digest(hash_token(successor), session.refresh_token_hash):
+            raise AuthenticationError(message="Invalid or expired refresh token")
+        return successor
+
+    async def detect_refresh_reuse(
+        self, refresh_token: str, *, ip_address: str | None = None
+    ) -> Session | None:
+        """End the chain a spent refresh token was replayed on, and say so.
+
+        Called only where `validate_refresh_token` has already declined, which is
+        the whole set of invalid tokens: a typo, an expired one, a revoked one -
+        and the one that matters, a token the legitimate user rotated away a
+        moment ago, presented by somebody else. Rotation re-keys the row in place
+        so all of those fail identically, which is why this had no signal behind
+        it before (#1519).
+
+        A match is the reuse case from RFC 6819 section 5.2.2.3. The response is
+        to end **that chain**: the session row whose rotation spent the token,
+        which is the grant the replayed credential belonged to. Not every session
+        the person has - a replay proves the one chain leaked, and logging
+        somebody out of the laptop in front of them because a phone's token was
+        replayed is a heavier default than the evidence supports. An operator who
+        wants the wider response has `DELETE /sessions` and the audit entry that
+        tells them to.
+
+        Idempotent by construction: the lookup is restricted to an *active* row,
+        so a retry of the same replay finds nothing and records nothing, and one
+        breach stays one signal rather than a stream.
+
+        Returns:
+            The session that was ended, or `None` when the token was invalid for
+            any of the ordinary reasons.
+        """
+        session = await session_repo.get_by_previous_refresh_token_hash(
+            self.db, hash_token(refresh_token), for_update=True
+        )
+        if session is None:
+            return None
+
+        await session_repo.deactivate(self.db, session.id)
+        await record_audit(
+            self.db,
+            # **Nobody.** A request that reaches this method has authenticated
+            # no one: holding a spent token establishes possession, not identity,
+            # and the likeliest holder is not the person whose session it was.
+            # Naming them as the actor would put the victim in the trail as the
+            # party who did this, which is the wrong first fact for whoever reads
+            # it during an incident. `actor_user_id` is null for exactly this -
+            # "no session behind it" - and `action` says what happened.
+            actor_user_id=None,
+            action="session.refresh_token_reused",
+            target_type="session",
+            target_id=str(session.id),
+            # No token, no hash: the entry says a spent credential was presented
+            # and whose session it belonged to, which is what a reader acts on.
+            # The credential itself has no business in a table people can export.
+            details={
+                "session_user_id": str(session.user_id),
+                "device_name": session.device_name,
+                "reason": "a refresh token this session had already rotated away was presented",
+            },
+            ip_address=ip_address,
+        )
+        logger.warning(
+            "refresh_token_reuse_detected",
+            extra={"session_id": str(session.id), "user_id": str(session.user_id)},
+        )
+        # **Committed here, because the caller's next act is to raise.** The
+        # refusal goes out as an `AuthenticationError`, and the request session's
+        # exception branch rolls back everything the request wrote - which would
+        # be this deactivation and this audit entry, leaving a 401, a compromised
+        # chain still live, and no record that anything happened. The two
+        # sanctioned commits in the agent run paths exist for the same reason:
+        # work that must survive the failure that follows it.
+        #
+        # Safe to end the transaction here: nothing else has written on this
+        # path. `validate_refresh_token` has already declined, so it touched no
+        # row, and the route does nothing but refuse afterwards.
+        await self.db.commit()
+        return session
+
+    async def open_impersonation(
+        self,
+        *,
+        session_id: UUID,
+        target_id: UUID,
+        impersonator_id: UUID,
+        access_token: str,
+        expires_at: datetime,
+        ip_address: str | None,
+        user_agent: str | None,
+    ) -> Session:
+        """The row an administrator's access to somebody else's account is.
+
+        Its id is the caller's, because the token that names it in `sid` has to be
+        minted before the row exists and the row has to hold that token's hash:
+        one of the two is decided first, and an id is the cheaper one to decide.
+        The device columns are the administrator's browser, which is where the
+        session actually is.
+        """
+        device_name, device_type = _parse_user_agent(user_agent)
+        return await session_repo.create(
+            self.db,
+            session_id=session_id,
+            user_id=target_id,
+            refresh_token_hash=hash_token(access_token),
+            expires_at=expires_at,
+            device_name=device_name,
+            device_type=device_type,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            impersonator_user_id=impersonator_id,
+        )
 
     async def logout_session(self, session_id: UUID, user_id: UUID) -> Session:
         session = await session_repo.get_by_id(self.db, session_id)
@@ -97,7 +422,7 @@ class SessionService:
         return await session_repo.deactivate_all_user_sessions(self.db, user_id)
 
     async def logout_by_refresh_token(self, refresh_token: str) -> Session | None:
-        token_hash = _hash_token(refresh_token)
+        token_hash = hash_token(refresh_token)
         return await session_repo.deactivate_by_refresh_token_hash(self.db, token_hash)
 
     async def list_sessions(
@@ -113,10 +438,14 @@ class SessionService:
         the caller pages on it: revoking the last session on a page has to leave
         the client able to work out that the page is gone.
         """
+        # One cutoff for both statements. A session lapsing between them would
+        # otherwise be in the page and outside the total, which breaks the
+        # invariant the caller pages on without anybody writing a row.
+        now = datetime.now(UTC)
         sessions = await session_repo.get_user_sessions(
-            self.db, user_id, active_only=True, skip=skip, limit=limit
+            self.db, user_id, open_only=True, now=now, skip=skip, limit=limit
         )
-        total = await self.count_user_sessions(user_id)
+        total = await self.count_user_sessions(user_id, now=now)
         return SessionListResponse(
             items=[
                 SessionRead(

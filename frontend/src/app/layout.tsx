@@ -3,8 +3,10 @@ import { getLocale } from "next-intl/server";
 import localFont from "next/font/local";
 import "./globals.css";
 import { BrandingProvider } from "@/components/branding/branding-provider";
+import { PublicConfigProvider } from "@/components/public-config/public-config-provider";
 import { readBranding } from "@/lib/branding-server";
-import { SITE } from "@/lib/seo";
+import { readPublicConfig } from "@/lib/public-config";
+import { SITE, siteOrigin } from "@/lib/seo";
 
 // Vendored, not `next/font/google`: that helper resolves a family against
 // `fonts.gstatic.com` while `next build` runs, so a 404 from the CDN failed the
@@ -135,8 +137,9 @@ const monoExt = localFont({
 export async function generateMetadata(): Promise<Metadata> {
   const { appName, tagline, description, faviconUrl } = await readBranding();
   const headline = `${appName} - ${tagline}`;
+  const origin = siteOrigin();
   return {
-    metadataBase: new URL(SITE.url),
+    metadataBase: new URL(origin),
     title: {
       default: headline,
       template: `%s | ${appName}`,
@@ -154,7 +157,7 @@ export async function generateMetadata(): Promise<Metadata> {
       siteName: appName,
       title: headline,
       description,
-      url: SITE.url,
+      url: origin,
       images: [{ url: "/opengraph-image", width: 1200, height: 630, alt: appName }],
     },
     twitter: {
@@ -205,6 +208,7 @@ export default async function RootLayout({
   // name: the brand link, the sign-in header and the footer are all in the first
   // paint, and a client fetch shows `agenticos` for a frame before the real name.
   const branding = await readBranding();
+  const publicConfig = readPublicConfig(process.env);
 
   return (
     <html
@@ -213,7 +217,9 @@ export default async function RootLayout({
       className={`${display.variable} ${displayExt.variable} ${body.variable} ${bodyExt.variable} ${mono.variable} ${monoExt.variable}`}
     >
       <body className="font-body">
-        <BrandingProvider branding={branding}>{children}</BrandingProvider>
+        <BrandingProvider branding={branding}>
+          <PublicConfigProvider config={publicConfig}>{children}</PublicConfigProvider>
+        </BrandingProvider>
       </body>
     </html>
   );

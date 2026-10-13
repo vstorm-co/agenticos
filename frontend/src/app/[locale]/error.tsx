@@ -32,9 +32,7 @@ export default function Error({
       </h1>
       <p className="text-muted-foreground mt-3 max-w-md">{t("errorOccurredWhileLoading")}</p>
       {error.digest && (
-        <p className="text-muted-foreground/60 mt-1 text-xs">
-          {t("errorId", { id: error.digest })}
-        </p>
+        <p className="text-muted-foreground mt-1 text-xs">{t("errorId", { id: error.digest })}</p>
       )}
       <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
         <Button onClick={reset}>{t("tryAgain")}</Button>

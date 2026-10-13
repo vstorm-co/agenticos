@@ -79,6 +79,8 @@ export function ImageGenerationSection({
       ? storedModel
       : (current?.models[0]?.id ?? "");
 
+  const selected = current?.models.find((entry) => entry.id === model);
+
   const setConfig = (patch: Record<string, unknown>) =>
     onChange({ ...binding, config: { ...binding.config, ...patch } });
 
@@ -126,7 +128,15 @@ export function ImageGenerationSection({
             onValueChange={(next) => setConfig({ model: next })}
           >
             <SelectTrigger id="image-model">
-              <SelectValue placeholder={t("imageModelPlaceholder")} />
+              {/* The trigger draws the name alone. Radix mirrors an item's
+                  `ItemText` into the closed trigger, and this item's is two
+                  lines - so the sentence saying when to reach for the model
+                  arrived inside a 36px-high field, laid out as a block in the
+                  middle of it. Explicit children keep the sentence in the list,
+                  which is the only place it means anything. */}
+              <SelectValue placeholder={t("imageModelPlaceholder")}>
+                <span className="truncate">{selected?.name ?? model}</span>
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {(current?.models ?? []).map((entry) => (

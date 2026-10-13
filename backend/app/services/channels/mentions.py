@@ -38,6 +38,7 @@ handle typed into a public channel is a name, not a key.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 from dataclasses import dataclass, field
@@ -97,6 +98,10 @@ def drawn_chart(called: list[RecordedToolCall]) -> bytes | None:
     a reply carries one image. A result that no longer parses is skipped rather
     than raised on: the payload is whatever the tool returned, and a chart that
     cannot be drawn must not cost somebody the answer it came with.
+
+    Blocking: Pillow rasterises and PNG-encodes here, and a channel turn runs on
+    the loop the pollers and the other webhook tasks share - so the callers reach
+    it through `asyncio.to_thread`, never inline.
     """
     for call in reversed(called):
         if call.tool_name != _CHART_TOOL or call.result is None:
@@ -245,10 +250,12 @@ class ChannelAgentRouter:
         admit_unlinked: bool = False,
         conversation_id: UUID | None = None,
         platform_chat_id: str | None = None,
+        memory_room_key: str | None = None,
         channel_directory: ChannelDirectory | None = None,
         turn: int = 0,
         attachments: list[ChatFile] | None = None,
         stream: RunStream | None = None,
+        message_history: list[Any] | None = None,
     ) -> AnsweredTurn:
         """Run the agent named in `text` and return what it said.
 
@@ -352,7 +359,18 @@ class ChannelAgentRouter:
             surface=_SURFACES.get(platform, RunSurface.API),
             conversation_id=conversation_id,
             channel_key=(None if platform_chat_id is None else channel_key(platform_chat_id)),
+            memory_room_key=memory_room_key,
             channel_directory=channel_directory,
+            # The thread this agent was brought into, where the router read one.
+            # Without it a named agent answered an existing thread as though it
+            # were empty, because only the default path prepended the backfill.
+            message_history=message_history,
+            # The same rule as the default path: a mention from a member speaks
+            # through that person's own MCP accounts, and the room reads the
+            # answer exactly as it reads the question. `sender`, not `user_id`,
+            # for the same reason - a former member's turn runs under the
+            # publisher, whose accounts must not be reached for.
+            acts_for_sender=sender is not None,
             # The binding is what let this message through, so it is also what
             # the run is attributed to and bounded by. Resolving it here and
             # then not passing it on would leave a cap somebody set on this bot
@@ -365,7 +383,7 @@ class ChannelAgentRouter:
             ),
             attachments=produced,
             refused=refused,
-            image_png=drawn_chart(called),
+            image_png=await asyncio.to_thread(drawn_chart, called),
             awaiting_approval_run_id=(
                 run.id if run.status == RunStatus.AWAITING_APPROVAL else None
             ),
@@ -384,6 +402,7 @@ class ChannelAgentRouter:
         admit_unlinked: bool = False,
         conversation_id: UUID | None = None,
         platform_chat_id: str | None = None,
+        memory_room_key: str | None = None,
         channel_directory: ChannelDirectory | None = None,
         turn: int = 0,
         attachments: list[ChatFile] | None = None,
@@ -421,13 +440,16 @@ class ChannelAgentRouter:
         # a message naming no handle was answered with a list of slugs instead
         # of an answer, for agents they could not see.
         exposure, agent = exposed[0]
-        ctx = await self._membership_context(
+        sender = await self._membership_context(
             organization_id,
             user_id,
             slug=agent.slug,
             channel_identity_id=channel_identity_id,
             admit_unlinked=admit_unlinked,
-        ) or await self._binding_context(exposure, channel_identity_id=channel_identity_id)
+        )
+        ctx = sender or await self._binding_context(
+            exposure, channel_identity_id=channel_identity_id
+        )
         produced: list[OutgoingAttachment] = []
         refused: list[str] = []
         called: list[RecordedToolCall] = []
@@ -443,7 +465,15 @@ class ChannelAgentRouter:
             surface=_SURFACES.get(platform, RunSurface.API),
             conversation_id=conversation_id,
             channel_key=(None if platform_chat_id is None else channel_key(platform_chat_id)),
+            memory_room_key=memory_room_key,
             channel_directory=channel_directory,
+            # A sender who is a member speaks through their own MCP accounts, in
+            # a room as much as in a direct message: the account is this
+            # message's author, never the thread's. `sender`, not `user_id`: a
+            # linked account whose person has left the organization runs under
+            # the binding's publisher, and the publisher's accounts are not the
+            # room's to use.
+            acts_for_sender=sender is not None,
             message_history=message_history,
             exposure=exposure,
         )
@@ -453,7 +483,7 @@ class ChannelAgentRouter:
             ),
             attachments=produced,
             refused=refused,
-            image_png=drawn_chart(called),
+            image_png=await asyncio.to_thread(drawn_chart, called),
             awaiting_approval_run_id=(
                 run.id if run.status == RunStatus.AWAITING_APPROVAL else None
             ),
@@ -539,10 +569,14 @@ class ChannelAgentRouter:
         A linked account that is no longer a member takes the same path as an
         unlinked one rather than a third: there is no membership to read a role
         from, and in a room a former member is no more entitled than the stranger
-        beside them.
+        beside them. A deactivated account is one of those, which is why this is
+        the joined read: the membership row outlives a deactivation, and the link
+        in `channel_identities` outlives it too, so the plain read ran an
+        offboarded Owner's turns at their full authority from a chat account
+        nobody had unlinked - refused everywhere they sign in, except here.
         """
         if user_id is not None:
-            membership = await member_repo.get(
+            membership = await member_repo.get_active(
                 self.db, organization_id=organization_id, user_id=user_id
             )
             if membership is not None:

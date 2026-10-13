@@ -48,10 +48,11 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ci.yml"
 MAKEFILE = REPO_ROOT / "Makefile"
 
-# The jobs `make check` claims to reproduce. `e2e` and `docker` are out of scope
-# on purpose and the reasons are in the `check` target: e2e needs a migrated
-# database, a seeded organization and a running backend, and the image build runs
-# only on a push to `main`.
+# The jobs `make check` claims to reproduce. `e2e` is out of scope on purpose and
+# the reason is in the `check` target: it needs a migrated database, a seeded
+# organization and a running backend. The image build is not in this workflow at
+# all any more - `images.yml` builds and publishes on a push to `main` and on a
+# tag, and `test_images_workflow.py` is what reads that file.
 GATING_JOBS = ("lint", "test", "test-frontend", "docs", "security")
 
 # Commands that prepare a runner rather than check anything. They have no place in
@@ -89,6 +90,16 @@ CI_ONLY_TARGETS = {
     # Informational, `if: always()`, and reported at `--cov-fail-under=0`. It
     # gates nothing, so requiring it locally would only cost a second suite run.
     "coverage-all",
+    # Starts MinIO for `tests/integration/test_s3_file_storage.py` (#1423).
+    # Environment setup rather than a check - `check` checks a checkout, it does
+    # not build one - and the suite skips itself where the store is not there, so
+    # a laptop without Docker still runs everything else.
+    "docker-minio",
+    # Writes the security refusal-test list to the job summary and an artifact
+    # (#1417). Informational and `if: always()`; the `security` marker is held by
+    # `tests/test_security_marker.py`, which `make test` already runs, so the
+    # report itself gates nothing.
+    "security-report",
 }
 
 _MAKE_INVOCATION = re.compile(r"^make\s+([a-z][a-z0-9-]*)((?:\s+[A-Z_]+=\S+)*)$")
@@ -301,4 +312,35 @@ class TestCheckRunsNothingCIDoesNot:
         assert not missing, (
             f"`make check` runs {missing} and no CI job does. Either CI is missing a "
             "gate a branch will pass locally, or the target does not belong in `check`."
+        )
+
+
+class TestCheckRunsUnderThePinnedInterpreter:
+    """A target reachable from `check` must not depend on the host's own `python3`.
+
+    `check_routes.py` shells out as a bare `python3 scripts/check_routes.py` and
+    uses `ast.FunctionDef | ast.AsyncFunctionDef` in an `isinstance` check, which
+    needs 3.10+ at runtime. CI's runner ships a `python3` new enough to satisfy
+    that by chance; a laptop whose system `python3` predates 3.10 crashed with a
+    bare `TypeError` on the identical `make lint-backend` step CI ran clean -
+    green build, red `make check`, the exact failure mode #143 named. The fix
+    was `uv run --directory backend python3 ../scripts/check_routes.py`, which
+    runs under `backend/.python-version`'s pin regardless of the host; this test
+    is what stops the next guard script reopening the gap under a different name.
+    """
+
+    def test_no_target_reachable_from_check_invokes_a_bare_python3_script(
+        self, recipes: dict[str, str], check_closure: set[str]
+    ) -> None:
+        offenders = {
+            target: line.strip()
+            for target in check_closure
+            for line in recipes.get(target, "").splitlines()
+            if line.strip().startswith("python3 ")
+        }
+        assert not offenders, (
+            f"these targets, reachable from `make check`, run a script under the "
+            f"host's own python3 rather than the pinned interpreter: {offenders} - "
+            "route each through `uv run --directory backend python3 "
+            "../scripts/<name>.py`, the fix `check_routes.py` already got"
         )

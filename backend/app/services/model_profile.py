@@ -10,10 +10,12 @@ import logging
 from urllib.parse import urlparse
 from uuid import UUID
 
+from pydantic import TypeAdapter
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.model_resolver import (
     PROVIDERS,
+    ModelApi,
     ModelRequestSpec,
     ProviderSpec,
     ResolvedCredential,
@@ -41,6 +43,10 @@ logger = logging.getLogger(__name__)
 MAX_FALLBACK_DEPTH = 3
 
 _ALLOWED_ENDPOINT_SCHEMES = frozenset({"http", "https"})
+
+# The column is a plain string; this is what turns it back into the choice
+# `create_profile` validated, and fails loudly on a value it never wrote.
+_stored_api = TypeAdapter[ModelApi | None](ModelApi | None).validate_python
 
 
 def _validate_model_id(provider: str, model: str) -> None:
@@ -128,8 +134,8 @@ class ModelProfileService:
         model: str,
         secret_id: UUID | None,
         base_url: str | None = None,
+        api: ModelApi | None = None,
         params: dict | None = None,
-        allow_byo: bool = False,
         fallback_profile_ids: list[UUID] | None = None,
     ) -> ModelProfile:
         """Define a selectable model.
@@ -138,6 +144,11 @@ class ModelProfileService:
         API - a gateway, a LiteLLM proxy, an Ollama on this network. It is only
         accepted for providers whose SDK names an endpoint parameter; offering it
         for the rest would store a value the client silently drops.
+
+        `api` is accepted for the same reason only where the provider serves both
+        of OpenAI's APIs, and stored for every profile on one: omitted, it is the
+        provider's default for the endpoint, written down so that a later change
+        of default cannot move an existing profile to an API its endpoint lacks.
 
         `secret_id` is optional exactly for the keyless providers, which is what
         makes a self-hosted model configurable at all: a model server on the
@@ -150,8 +161,9 @@ class ModelProfileService:
                 different provider than the profile claims - a mismatch that
                 would otherwise surface as an authentication error from the
                 provider, days later and far from its cause. Also on an endpoint
-                for a provider that has none, a keyless provider with no
-                endpoint, or a keyed provider with no key.
+                for a provider that has none, an API choice for a provider
+                that serves one API, a keyless provider with no endpoint, or a
+                keyed provider with no key.
             AlreadyExistsError: If the label is taken. Agents reference a model
                 by this name, so a duplicate is an agent nobody can point at
                 the model they meant.
@@ -173,6 +185,15 @@ class ModelProfileService:
                 "base_url",
                 f"{spec.name} runs without a key, so it needs an endpoint to reach - "
                 "there is no public API to fall back on",
+                provider=provider,
+            )
+
+        if api is None:
+            api = spec.default_api(base_url)
+        elif api not in spec.apis:
+            raise refused_field(
+                "api",
+                f"{spec.name} serves one API, so there is nothing to choose",
                 provider=provider,
             )
 
@@ -220,8 +241,8 @@ class ModelProfileService:
             model=model,
             secret_id=secret_id,
             base_url=base_url,
+            api=api,
             params=params,
-            allow_byo=allow_byo,
             fallback_profile_ids=[str(pid) for pid in (fallback_profile_ids or [])],
             context_length=await self._context_length(ctx, provider, model),
         )
@@ -275,10 +296,15 @@ class ModelProfileService:
             target_id=str(profile_id),
         )
 
-    async def _resolve_credential(
+    async def resolve_credential(
         self, organization_id: UUID, profile: ModelProfile
     ) -> ResolvedCredential:
         """The key this model runs on, from whichever store holds it.
+
+        Public because it has a second caller now: transcription runs on the
+        credential the organization already configured for a provider, and a
+        second implementation of "find the key for this profile" is how the two
+        stores came apart in the first place.
 
         A vault secret first: that is the one people manage, and picking
         "OpenRouter" there is what makes OpenRouter's models runnable. A legacy
@@ -303,6 +329,7 @@ class ModelProfileService:
                     provider=profile.provider,
                     secret=NoSecret(),
                     base_url=profile.base_url,
+                    api=_stored_api(profile.api),
                 )
             raise BadRequestError(
                 message=f"Model '{profile.label}' has no key configured - add one in the vault",
@@ -330,6 +357,7 @@ class ModelProfileService:
             # This was hardcoded to `None`, which is why no deployment could reach
             # a gateway however carefully it stored the URL.
             base_url=profile.base_url,
+            api=_stored_api(profile.api),
         )
 
     async def resolve(
@@ -384,7 +412,7 @@ class ModelProfileService:
                 message="This agent has no model selected",
             )
 
-        credential = await self._resolve_credential(organization_id, profile)
+        credential = await self.resolve_credential(organization_id, profile)
 
         fallbacks: list[tuple[ResolvedCredential, str]] = []
         fallback_ids = [UUID(pid) for pid in profile.fallback_profile_ids[:MAX_FALLBACK_DEPTH]]
@@ -402,7 +430,7 @@ class ModelProfileService:
                     continue
                 try:
                     fallbacks.append(
-                        (await self._resolve_credential(organization_id, fallback), fallback.model)
+                        (await self.resolve_credential(organization_id, fallback), fallback.model)
                     )
                 except BadRequestError:
                     logger.warning(

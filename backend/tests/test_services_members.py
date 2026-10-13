@@ -1,5 +1,6 @@
 """Tests for MemberService and InvitationService."""
 
+import contextlib
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -13,6 +14,7 @@ from app.core.exceptions import (
     NotFoundError,
 )
 from app.schemas.organization import OrganizationMemberUpdate
+from app.services.email.providers.base import SendResult
 from app.services.invitation import InvitationService
 from app.services.member import MemberService
 
@@ -297,6 +299,34 @@ class TestMemberService:
             await service.remove(uuid.uuid4(), uuid.uuid4(), requester_id=uuid.uuid4())
 
     @pytest.mark.anyio
+    async def test_a_custom_role_that_does_not_outrank_an_admin_cannot_remove_one(
+        self, service, monkeypatch
+    ):
+        """The hole the literal `admin`-vs-`admin` rule left, that `change_role`
+        already closes with the catalog (#700, #1066). A custom role (Phase 2)
+        holding `members:manage` whose set does not outrank an Admin's would pass
+        the literal - `requester.role == "admin"` is false - and remove the Admin.
+        The catalog bounds it by the same ceiling `change_role` uses."""
+        from app.core.permissions import ROLE_PERMS, Perm, Scope
+
+        monkeypatch.setitem(ROLE_PERMS, "test:members-only", {Perm.MEMBERS_MANAGE: Scope.ALL})
+        mock_requester = MagicMock(role="test:members-only")
+        mock_target = MagicMock(role="admin")
+
+        call_count = 0
+
+        async def mock_get(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            return mock_requester if call_count == 1 else mock_target
+
+        with (
+            patch("app.services.member.member_repo.get", new=mock_get),
+            pytest.raises(AuthorizationError),
+        ):
+            await service.remove(uuid.uuid4(), uuid.uuid4(), requester_id=uuid.uuid4())
+
+    @pytest.mark.anyio
     async def test_change_role_admin_cannot_demote_admin(self, service):
         """The other half of test_remove_admin_cannot_remove_admin: demoting a
         peer Admin to Viewer strips the same authority `remove` refuses to touch,
@@ -362,6 +392,22 @@ class TestMemberService:
             pytest.raises(BadRequestError),
         ):
             await service.transfer_ownership(uuid.uuid4(), uid, requester_id=uid)
+
+    @pytest.mark.anyio
+    async def test_transfer_ownership_refuses_a_personal_org(self, service):
+        """A personal org is 1:1 with its creator; handing it to another member
+        leaves a non-creator owner that account deletion cannot see and would
+        orphan (#1136)."""
+        requester = MagicMock(role="owner")
+        with (
+            patch("app.services.member.member_repo.get", new=AsyncMock(return_value=requester)),
+            patch(
+                "app.services.member.organization_repo.get_by_id",
+                new=AsyncMock(return_value=MagicMock(is_personal=True)),
+            ),
+            pytest.raises(BadRequestError),
+        ):
+            await service.transfer_ownership(uuid.uuid4(), uuid.uuid4(), requester_id=uuid.uuid4())
 
 
 class TestRoleAssigned:
@@ -494,6 +540,119 @@ class TestInvitationService:
             await service.invite(
                 uuid.uuid4(), "user@example.com", "member", requester_id=uuid.uuid4()
             )
+
+    def _invited(self, *, send, delivers: bool = True):
+        """Every patch `invite` needs to reach the email, with `send` as the outcome.
+
+        The repository, the organization and the requester are all mocked: what
+        these four tests are about is the one boolean the caller gets back, which
+        nothing was reporting. `delivers` is the provider's own answer to whether
+        accepting a message means it leaves the deployment - false for the log
+        provider a deployment with no `SMTP_*` falls back to.
+        """
+        requester = MagicMock()
+        requester.role = "owner"
+        email_service = MagicMock()
+        email_service.send_invitation = send
+        email_service.delivers = delivers
+        return (
+            patch(
+                "app.services.invitation.member_repo.get",
+                new=AsyncMock(return_value=requester),
+            ),
+            patch(
+                "app.services.invitation.user_repo.get_by_email", new=AsyncMock(return_value=None)
+            ),
+            patch(
+                "app.services.invitation.invitation_repo.get_pending_for_org_email",
+                new=AsyncMock(return_value=None),
+            ),
+            patch(
+                "app.services.invitation.invitation_repo.create",
+                new=AsyncMock(return_value=MagicMock(token="tok")),
+            ),
+            patch(
+                "app.services.invitation.organization_repo.get_by_id",
+                new=AsyncMock(return_value=MagicMock(name="Acme")),
+            ),
+            patch(
+                "app.services.invitation.user_repo.get_by_id",
+                new=AsyncMock(return_value=MagicMock(full_name="Owner", email="o@example.com")),
+            ),
+            patch(
+                "app.services.invitation.DeploymentSettingsService.effective_app_name",
+                new=AsyncMock(return_value="AgenticOS"),
+            ),
+            patch(
+                "app.services.invitation.get_email_service",
+                new=MagicMock(return_value=email_service),
+            ),
+        )
+
+    @pytest.mark.anyio
+    async def test_a_delivered_invitation_says_it_was_delivered(self, service):
+        accepted = AsyncMock(return_value=SendResult(provider_message_id="1", accepted=True))
+        with contextlib.ExitStack() as stack:
+            for context in self._invited(send=accepted):
+                stack.enter_context(context)
+            _invite, delivered = await service.invite(
+                uuid.uuid4(), "user@example.com", "member", requester_id=uuid.uuid4()
+            )
+
+        assert delivered is True
+
+    @pytest.mark.anyio
+    async def test_a_provider_that_only_logs_has_not_delivered_anything(self, service):
+        """`accepted=True` from `LogProvider` means the message was written to the
+        application log, which is not a delivery. Reading only `accepted` told a
+        developer with no `SMTP_*` that their invitation had been emailed."""
+        logged = AsyncMock(return_value=SendResult(provider_message_id="log", accepted=True))
+        with contextlib.ExitStack() as stack:
+            for context in self._invited(send=logged, delivers=False):
+                stack.enter_context(context)
+            _invite, delivered = await service.invite(
+                uuid.uuid4(), "user@example.com", "member", requester_id=uuid.uuid4()
+            )
+
+        assert delivered is False
+
+    @pytest.mark.anyio
+    async def test_an_invitation_no_mail_server_accepted_says_so(self, service):
+        """The whole point of the pair. The provider answering `accepted=False` -
+        which is what a deployment with no `SMTP_*` does - used to be logged and
+        discarded, and the inviter was told their invitation had been sent (#1484).
+        """
+        refused = AsyncMock(
+            return_value=SendResult(provider_message_id="", accepted=False, error="no provider")
+        )
+        with contextlib.ExitStack() as stack:
+            for context in self._invited(send=refused):
+                stack.enter_context(context)
+            invite, delivered = await service.invite(
+                uuid.uuid4(), "user@example.com", "member", requester_id=uuid.uuid4()
+            )
+
+        assert delivered is False
+        # And the invitation itself still exists: it is a row, the row was written,
+        # and failing the request would leave a pending invitation nobody was told
+        # about.
+        assert invite.token == "tok"
+
+    @pytest.mark.anyio
+    async def test_an_email_that_raises_is_not_a_delivery_either(self, service):
+        """A provider that raises on the way out reaches a different branch from one
+        that answers `accepted=False`, and the caller must not be able to tell them
+        apart - both mean the link is the only way in."""
+        exploded = AsyncMock(side_effect=RuntimeError("connection refused"))
+        with contextlib.ExitStack() as stack:
+            for context in self._invited(send=exploded):
+                stack.enter_context(context)
+            invite, delivered = await service.invite(
+                uuid.uuid4(), "user@example.com", "member", requester_id=uuid.uuid4()
+            )
+
+        assert delivered is False
+        assert invite.token == "tok"
 
     @pytest.mark.anyio
     async def test_accept_raises_on_missing_token(self, service):

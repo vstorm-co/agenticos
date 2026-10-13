@@ -13,8 +13,8 @@ is why every write in this API used to be acknowledged before it was durable
 """
 # ruff: noqa: I001 - Imports structured for Jinja2 template conditionals
 
-from collections.abc import AsyncGenerator, Awaitable, Callable
-from typing import Annotated, Any
+from collections.abc import Awaitable, Callable
+from typing import Annotated
 
 from fastapi import Depends
 from fastapi import Header
@@ -81,9 +81,15 @@ async def get_redis(request: Request) -> RedisClient:
 Redis = Annotated[RedisClient, Depends(get_redis)]
 
 
+from app.services.personal_data import PersonalDataService
 from app.services.user import UserService
 from app.services.session import SessionService
+from app.services.impersonation import ImpersonationService
+from app.services.ws_auth import authenticate_socket_token
+from app.services.oauth_exchange import OAuthExchangeService
 from app.services.conversation import ConversationService
+from app.services.local_service import LocalServiceService
+from app.services.ml import MLService
 from app.services.sandbox_connection import SandboxConnectionService
 from app.services.sandbox_workspace import SandboxWorkspaceService
 from app.services.conversation_share import ConversationShareService
@@ -94,13 +100,31 @@ def get_user_service(db: DBSession) -> UserService:
     return UserService(db)
 
 
+def get_personal_data_service(db: DBSession) -> PersonalDataService:
+    """What this deployment holds about one person - read out, or removed (#1421)."""
+    return PersonalDataService(db)
+
+
 def get_session_service(db: DBSession) -> SessionService:
     """Create SessionService instance with database session."""
     return SessionService(db)
 
 
+def get_impersonation_service(db: DBSession) -> ImpersonationService:
+    """Create ImpersonationService instance with database session."""
+    return ImpersonationService(db)
+
+
+def get_oauth_exchange_service(redis: Redis) -> OAuthExchangeService:
+    """Create OAuthExchangeService instance with the Redis client."""
+    return OAuthExchangeService(redis)
+
+
 UserSvc = Annotated[UserService, Depends(get_user_service)]
+PersonalDataSvc = Annotated[PersonalDataService, Depends(get_personal_data_service)]
 SessionSvc = Annotated[SessionService, Depends(get_session_service)]
+ImpersonationSvc = Annotated[ImpersonationService, Depends(get_impersonation_service)]
+OAuthExchangeSvc = Annotated[OAuthExchangeService, Depends(get_oauth_exchange_service)]
 
 
 def get_conversation_service(db: DBSession) -> ConversationService:
@@ -123,6 +147,20 @@ def get_sandbox_connection_service(db: DBSession) -> SandboxConnectionService:
 
 
 SandboxConnectionSvc = Annotated[SandboxConnectionService, Depends(get_sandbox_connection_service)]
+
+
+def get_local_service_service(db: DBSession) -> LocalServiceService:
+    return LocalServiceService(db)
+
+
+LocalServiceSvc = Annotated[LocalServiceService, Depends(get_local_service_service)]
+
+
+def get_ml_service(db: DBSession) -> MLService:
+    return MLService(db)
+
+
+MLSvc = Annotated[MLService, Depends(get_ml_service)]
 
 
 def get_conversation_share_service(db: DBSession) -> ConversationShareService:
@@ -237,8 +275,20 @@ def get_file_upload_service(db: DBSession) -> FileUploadService:
 FileUploadSvc = Annotated[FileUploadService, Depends(get_file_upload_service)]
 from app.repositories import member_repo, organization_repo
 from app.services.organization import OrganizationService
+from app.services.retention import RetentionService
 from app.services.member import MemberService
 from app.services.invitation import InvitationService
+from app.services.invitation_staging import InvitationStagingService
+
+
+def get_retention_service(db: DBSession) -> RetentionService:
+    """Retention as a request sees it: read and change, never sweep.
+
+    The sweep is the flow's, and it is the flow that injects the vector remover
+    a document purge needs - so a request that somehow reached `sweep()` would
+    report the document class as failed rather than half-purge it.
+    """
+    return RetentionService(db)
 
 
 def get_organization_service(db: DBSession) -> OrganizationService:
@@ -256,9 +306,58 @@ def get_invitation_service(db: DBSession) -> InvitationService:
     return InvitationService(db)
 
 
+def get_invitation_staging_service(redis: Redis) -> InvitationStagingService:
+    """Create InvitationStagingService instance with the Redis client."""
+    return InvitationStagingService(redis)
+
+
 OrganizationSvc = Annotated[OrganizationService, Depends(get_organization_service)]
+RetentionSvc = Annotated[RetentionService, Depends(get_retention_service)]
 MemberSvc = Annotated[MemberService, Depends(get_member_service)]
 InvitationSvc = Annotated[InvitationService, Depends(get_invitation_service)]
+InvitationStagingSvc = Annotated[InvitationStagingService, Depends(get_invitation_staging_service)]
+from app.services.group import GroupService
+from app.services.directory import (
+    DirectoryMappingService,
+    DirectorySignInService,
+    DirectorySyncService,
+    build_directory,
+    build_ticket_acceptor,
+)
+
+
+def get_group_service(db: DBSession) -> GroupService:
+    """Create GroupService instance with database session."""
+    return GroupService(db)
+
+
+def get_directory_mapping_service(db: DBSession) -> DirectoryMappingService:
+    """Create DirectoryMappingService instance with database session."""
+    return DirectoryMappingService(db)
+
+
+def get_directory_sign_in_service(db: DBSession) -> DirectorySignInService:
+    """The directory sign-in, with whichever adapters the deployment configured.
+
+    Built per request from the settings: constructing the LDAP adapter opens no
+    connection, and a test overriding the settings gets adapters that match.
+    """
+    return DirectorySignInService(
+        db,
+        directory=build_directory(settings),
+        acceptor=build_ticket_acceptor(settings),
+    )
+
+
+def get_directory_sync_service(db: DBSession) -> DirectorySyncService:
+    """Create DirectorySyncService instance with database session."""
+    return DirectorySyncService(db)
+
+
+GroupSvc = Annotated[GroupService, Depends(get_group_service)]
+DirectorySyncSvc = Annotated[DirectorySyncService, Depends(get_directory_sync_service)]
+DirectoryMappingSvc = Annotated[DirectoryMappingService, Depends(get_directory_mapping_service)]
+DirectorySignInSvc = Annotated[DirectorySignInService, Depends(get_directory_sign_in_service)]
 from app.core.exceptions import (
     AuthenticationError,
     AuthorizationError,
@@ -266,40 +365,36 @@ from app.core.exceptions import (
     RateLimitError,
 )
 from app.services import rate_limit
-from app.core.audit import set_impersonator
-from app.core.security import verify_token
+from app.core.security import encode_untrusted, verify_token
 from app.db.models.user import User
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
-
-
-def _impersonator_from(payload: dict[str, Any]) -> UUID | None:
-    """The administrator behind an impersonated token, or None for an ordinary one.
-
-    An `act` claim that is not a valid uuid is dropped rather than trusted: a
-    malformed actor is no actor, and the request is still attributable to its
-    subject. Set on the audit context so every action the request records names
-    who was really acting (#943).
-    """
-    act = payload.get("act")
-    if not act:
-        return None
-    try:
-        return UUID(str(act))
-    except ValueError:
-        return None
+oauth2_scheme_optional = OAuth2PasswordBearer(
+    tokenUrl=f"{settings.API_V1_STR}/auth/login", auto_error=False
+)
 
 
 async def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],
     user_service: UserSvc,
+    impersonation: ImpersonationSvc,
+    session: SessionSvc,
 ) -> User:
     """Get current authenticated user from JWT token.
 
-    Returns the full User object including role information.
+    An impersonated token - one carrying `act` - is bound to the session row it
+    names before the subject is loaded, so an impersonation that has been ended
+    is refused here rather than served for the rest of its hour (#1044). The
+    check also puts who is really acting on the request's audit context (#943).
+
+    An ordinary token carrying a `sid` is bound to its login's session row the
+    same way, so signing out everywhere refuses it here rather than letting it
+    live to its `exp` (#1501); a token minted before that binding has no `sid`
+    and is left to expire.
 
     Raises:
-        AuthenticationError: If token is invalid or user not found.
+        AuthenticationError: If token is invalid, its session or impersonation has
+            ended, or the user is not found.
     """
 
     payload = verify_token(token)
@@ -313,7 +408,8 @@ async def get_current_user(
     if user_id is None:
         raise AuthenticationError(message="Invalid token payload")
 
-    set_impersonator(_impersonator_from(payload))
+    await impersonation.verify(payload=payload, token=token, subject=user_id)
+    await session.verify_access_session(payload=payload, subject=user_id)
 
     user = await user_service.get_by_id(UUID(user_id))
     if not user.is_active:
@@ -328,6 +424,36 @@ async def get_current_user(
 # global privilege is `CurrentAppAdmin` below, which gates the deployment's own
 # administration rather than a tenant's.
 CurrentUser = Annotated[User, Depends(get_current_user)]
+
+
+async def get_current_session_id(
+    token: Annotated[str | None, Depends(oauth2_scheme_optional)],
+) -> UUID | None:
+    """The session row the caller's access token names, or None.
+
+    Ordinary access tokens carry a `sid` naming their own session (#1439), so a
+    request can spare that session when a password change revokes the account's
+    others. A token minted by a login path that opens no session (OAuth), or
+    before this claim existed, carries none - and the caller then falls back to
+    revoking every session, the safe default. Optional rather than a gate: the
+    route it serves already authenticates through `CurrentUser`, so a missing or
+    unreadable token here is simply no session to spare, not a refusal.
+    """
+    if token is None:
+        return None
+    payload = verify_token(token)
+    if payload is None:
+        return None
+    raw = payload.get("sid")
+    if not raw:
+        return None
+    try:
+        return UUID(str(raw))
+    except ValueError:
+        return None
+
+
+CurrentSessionId = Annotated[UUID | None, Depends(get_current_session_id)]
 from app.db.models.organization import Organization, OrgRole
 
 # Module-level alias so tests can patch via `app.api.deps._member_repo`.
@@ -501,6 +627,26 @@ def get_context_service(db: DBSession) -> ContextService:
 
 ContextSvc = Annotated[ContextService, Depends(get_context_service)]
 
+from app.services.artifact import ArtifactService
+
+
+def get_artifact_service(db: DBSession) -> ArtifactService:
+    """Create ArtifactService instance with database session."""
+    return ArtifactService(db)
+
+
+ArtifactSvc = Annotated[ArtifactService, Depends(get_artifact_service)]
+
+from app.services.memory import MemoryService
+
+
+def get_memory_service(db: DBSession) -> MemoryService:
+    """Create MemoryService instance with database session."""
+    return MemoryService(db)
+
+
+MemorySvc = Annotated[MemoryService, Depends(get_memory_service)]
+
 
 def get_skill_proposal_service(db: DBSession) -> SkillProposalService:
     return SkillProposalService(db)
@@ -593,6 +739,27 @@ async def limit_agent_run(ctx: Auth) -> None:
     _refuse_if_over(decision, "Too many runs in the last minute. Wait and try again.")
 
 
+async def limit_ml_call(ctx: Auth) -> None:
+    """Refuse a caller asking the ML services for more than their share.
+
+    Keyed on the caller for the reason the run limit is: this surface is
+    authenticated, so there is a subject to count, and an integration behind one
+    address is not a crowd. What it bounds is different, though - the ML
+    endpoints do their work synchronously, so an unbounded caller occupies the
+    parsing pool and the worker rather than spending a budget.
+
+    Usage::
+
+        @router.post("/documents/ocr", dependencies=[Depends(limit_ml_call)])
+    """
+    decision = await rate_limit.consume(
+        surface="ml_call",
+        caller=f"user:{ctx.subject_id}",
+        limit=rate_limit.ml_limit(),
+    )
+    _refuse_if_over(decision, "Too many ML service calls in the last minute. Wait and try again.")
+
+
 def _refuse_if_over(decision: rate_limit.Decision, message: str) -> None:
     """Turn a rate limiter's refusal into this API's own 429.
 
@@ -639,6 +806,30 @@ async def enforce_auth_limit(
     _refuse_if_over(decision, "Too many attempts. Please wait and try again.")
 
 
+async def limit_personal_data_export(ctx: Auth) -> None:
+    """Refuse a caller asking for personal-data exports faster than a person would.
+
+    Keyed on the caller, like the run limit beside it, and for the same reason:
+    the endpoint is authenticated, so there is a subject to count.
+
+    Its own limit rather than the run one, because what is being rationed is
+    different. A run costs money; an export costs almost nothing and hands over
+    everything this deployment holds about somebody in one file. A person does
+    that once. A stolen session walking the deployment's people does it
+    repeatedly, and per *hour* is what makes that slow enough to notice (#1421).
+
+    Usage::
+
+        @router.get("/export", dependencies=[Depends(limit_personal_data_export)])
+    """
+    decision = await rate_limit.consume(
+        surface="personal_data_export",
+        caller=f"user:{ctx.subject_id}",
+        limit=rate_limit.export_limit(),
+    )
+    _refuse_if_over(decision, "Too many export requests. Try again later.")
+
+
 async def limit_embed_script(request: Request) -> None:
     """Refuse an address asking for a widget's script too often.
 
@@ -672,6 +863,22 @@ async def limit_hosted_config(public_key: str) -> None:
     """
     _refuse_if_over(
         await rate_limit.hosted_admission_allowed(public_key),
+        "Too many requests. Try again shortly.",
+    )
+
+
+async def limit_public_artifact(public_key: str) -> None:
+    """Refuse a public artifact link opened too often. Per link, not per address."""
+    _refuse_if_over(
+        await rate_limit.public_artifact_allowed(public_key),
+        "Too many requests. Try again shortly.",
+    )
+
+
+async def limit_artifact_content(token: str) -> None:
+    """Refuse a signed artifact address loaded too often. Per address, before any read."""
+    _refuse_if_over(
+        await rate_limit.artifact_content_allowed(token),
         "Too many requests. Try again shortly.",
     )
 
@@ -798,28 +1005,16 @@ async def get_current_user_ws(
     if not auth_token:
         raise WebSocketException(code=4001, reason="Missing authentication token")
 
-    payload = verify_token(auth_token)
-    if payload is None:
-        raise WebSocketException(code=4001, reason="Invalid or expired token")
-
-    if payload.get("type") != "access":
-        raise WebSocketException(code=4001, reason="Invalid token type")
-
-    user_id = payload.get("sub")
-    if user_id is None:
-        raise WebSocketException(code=4001, reason="Invalid token payload")
-
-    set_impersonator(_impersonator_from(payload))
+    # The token the socket was opened with, so the session can re-run the check
+    # below on every inbound frame - a handshake authenticates once, and without
+    # this a session revoked afterwards keeps being served (#1437).
+    websocket.state.auth_token = auth_token
 
     async with get_db_context() as db:
-        user_service = UserService(db)
         try:
-            user = await user_service.get_by_id(UUID(user_id))
-        except NotFoundError:
-            raise WebSocketException(code=4001, reason="User not found") from None
-
-        if not user.is_active:
-            raise WebSocketException(code=4001, reason="User account is disabled")
+            user = await authenticate_socket_token(db, auth_token)
+        except AuthenticationError as exc:
+            raise WebSocketException(code=4001, reason=exc.message) from None
 
         # Eagerly load all columns, then detach from session to avoid
         # "instance not bound to a Session" errors after the context manager exits
@@ -898,7 +1093,7 @@ async def verify_api_key(
     """
     if api_key is None:
         raise AuthenticationError(message="API Key header missing")
-    if not secrets.compare_digest(api_key, settings.API_KEY):
+    if not secrets.compare_digest(encode_untrusted(api_key), settings.API_KEY.encode()):
         raise AuthorizationError(message="Invalid API Key")
     return api_key
 
@@ -910,12 +1105,10 @@ from fastapi import Request
 
 from app.core.config import settings
 from app.services.rag.embeddings import EmbeddingService
-from app.services.embedding_resolution import embeddings_for_collection
 from app.services.rag.ingestion import IngestionService
 from app.services.rag.documents import DocumentProcessor
 from app.services.rag.retrieval import RetrievalService
-from app.services.rag.vectorstore import PgVectorStore
-from app.services.rag.vectorstore import BaseVectorStore
+from app.services.rag.vectorstore import BaseVectorStore, process_vector_store
 
 
 def get_embedding_service(request: Request) -> EmbeddingService:
@@ -928,33 +1121,36 @@ def get_embedding_service(request: Request) -> EmbeddingService:
 EmbeddingSvc = Annotated[EmbeddingService, Depends(get_embedding_service)]
 
 
-async def get_vectorstore(
-    request: Request, embedder: EmbeddingSvc
-) -> AsyncGenerator[BaseVectorStore, None]:
+def get_vectorstore(request: Request, embedder: EmbeddingSvc) -> BaseVectorStore:
     """The store this request reads, from the lifespan or built for the request.
 
-    The lifespan builds one for the process and disposes it at shutdown. It is
-    absent when that construction failed - the lifespan catches and logs
-    "pgvector connection failed" and carries on serving - and then this builds
-    one per request, each with a pooled engine of its own. Undisposed, that is a
-    degraded deployment answering knowledge-base requests by consuming its
-    remaining Postgres connections a handful at a time (#948), so a store built
-    here is closed when the request ends. The lifespan's is not: it does not
-    belong to this request.
+    The lifespan builds one for the process. It is absent when the embedding
+    warmup failed - the lifespan logs it and carries on serving - and then this
+    builds one per request. Both ride the application's own engine, so the
+    per-request one owns nothing to dispose: it used to open a pooled engine of
+    its own, and a degraded deployment answered knowledge-base requests by
+    consuming its remaining Postgres connections a handful at a time (#948).
     """
     if hasattr(request.state, "vector_store"):
-        yield request.state.vector_store
-        return
-    store = PgVectorStore(
-        settings=settings.rag, embedding_service=embedder, resolver=embeddings_for_collection
-    )
-    try:
-        yield store
-    finally:
-        await store.aclose()
+        return request.state.vector_store  # type: ignore[no-any-return]
+    return process_vector_store(settings.rag, embedder)
 
 
 VectorStoreSvc = Annotated[BaseVectorStore, Depends(get_vectorstore)]
+
+
+def get_organization_teardown_service(
+    db: DBSession, vector_store: VectorStoreSvc
+) -> OrganizationService:
+    """OrganizationService that can also drop a deleted tenant's vector tables.
+
+    Only the delete route wires the vector store in; every other org route uses
+    the plain factory so it does not build a store it never touches (#9).
+    """
+    return OrganizationService(db, vector_store=vector_store)
+
+
+OrganizationTeardownSvc = Annotated[OrganizationService, Depends(get_organization_teardown_service)]
 
 
 def get_retrieval_service(vector_store: VectorStoreSvc) -> RetrievalService:
@@ -977,7 +1173,13 @@ def get_ingestion_service(
     processor: DocumentProcessorSvc,
     vector_store: VectorStoreSvc,
 ) -> IngestionService:
-    """Create IngestionService instance."""
+    """Create IngestionService instance.
+
+    No tenant is bound here: the request never ingests through this service (the
+    API dispatches ingestion to a worker), and its one use - deleting a document -
+    passes the collection's own tenant explicitly, resolved from the knowledge
+    base the route already loaded (#1684).
+    """
     return IngestionService(processor=processor, vector_store=vector_store)
 
 
@@ -1053,3 +1255,34 @@ def get_audit_service(db: DBSession) -> AuditService:
 
 
 AuditSvc = Annotated[AuditService, Depends(get_audit_service)]
+from app.services.notification_center import NotificationCenterService
+
+
+def get_notification_center_service(db: DBSession) -> NotificationCenterService:
+    """Create NotificationCenterService instance with database session."""
+    return NotificationCenterService(db)
+
+
+NotificationCenterSvc = Annotated[
+    NotificationCenterService, Depends(get_notification_center_service)
+]
+from app.services.notification_delivery import NotificationDeliveryService
+
+
+def get_notification_delivery_service(db: DBSession) -> NotificationDeliveryService:
+    """Create NotificationDeliveryService instance with database session."""
+    return NotificationDeliveryService(db)
+
+
+NotificationDeliverySvc = Annotated[
+    NotificationDeliveryService, Depends(get_notification_delivery_service)
+]
+from app.services.announcement import AnnouncementService
+
+
+def get_announcement_service(db: DBSession) -> AnnouncementService:
+    """Create AnnouncementService instance with database session."""
+    return AnnouncementService(db)
+
+
+AnnouncementSvc = Annotated[AnnouncementService, Depends(get_announcement_service)]

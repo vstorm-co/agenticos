@@ -15,6 +15,7 @@ it is absent rather than proceed unattended.
 from typing import Any
 
 from pydantic import BaseModel, Field
+from subagents_pydantic_ai import current_subagent_state
 
 MAX_QUESTIONS = 10
 
@@ -31,6 +32,24 @@ class QuestionItem(BaseModel):
         default=True,
         description="Whether the user may type a free-form answer instead of picking an option.",
     )
+
+
+def asking_delegate() -> str | None:
+    """The delegate whose `ask_parent` is running, or `None` for the main agent.
+
+    `ask_parent` hands the surface the question and nothing else, so a stored
+    question could say that one was asked and not who asked it - and a specialist
+    asking reads differently in a transcript from the agent the person is talking
+    to asking (#1042). The library binds the delegation's state for the duration
+    of the delegation, so it is bound in the call this is made from and unbound
+    again the moment the delegation returns.
+
+    **Call it where the question is put, not where its answer arrives.** The
+    answer comes back on the socket's receive loop, which is a different task
+    with no delegation bound, and this would answer `None` for every question.
+    """
+    state = current_subagent_state()
+    return state.name if state is not None else None
 
 
 def render_answer(answer: dict[str, Any] | None) -> str:

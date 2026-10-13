@@ -52,6 +52,12 @@ class Perm(StrEnum):
     # the same answer - and left a member no way to keep a key of their own.
     SECRETS_VIEW = "secrets:view"
     SECRETS_EDIT = "secrets:edit"
+    # A page an agent published. A resource like the rest - an owner, a
+    # visibility, grants - and its own pair because opening a report is
+    # something a role gets without also being able to build the agent that
+    # wrote it. `edit` covers managing it: sharing, the public link, deletion.
+    ARTIFACTS_VIEW = "artifacts:view"
+    ARTIFACTS_EDIT = "artifacts:edit"
 
     APPROVALS_DECIDE = "approvals:decide"
     # Watching a host and managing one are separate authorities. Reading a
@@ -71,6 +77,13 @@ class Perm(StrEnum):
     BUDGETS_MANAGE = "budgets:manage"
     RUNS_VIEW = "runs:view"
     AUDIT_READ = "audit:read"
+    # Calling the standalone ML services - parsing a document, recognising a
+    # scan, transcribing a recording, scanning text for personal data - without
+    # starting an agent run. Its own permission because the caller is usually
+    # not a person: it is another Urban Stack component holding a key, and
+    # widening `agents:run` to cover it would have handed every such integration
+    # the ability to spend the organization's model budget as well.
+    ML_INVOKE = "ml:invoke"
 
 
 RESOURCE_PERMS: frozenset[Perm] = frozenset(
@@ -87,6 +100,8 @@ RESOURCE_PERMS: frozenset[Perm] = frozenset(
         Perm.CONTEXT_EDIT,
         Perm.SECRETS_VIEW,
         Perm.SECRETS_EDIT,
+        Perm.ARTIFACTS_VIEW,
+        Perm.ARTIFACTS_EDIT,
     }
 )
 
@@ -187,6 +202,8 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.SKILLS_EDIT: Scope.ALL,
         Perm.CONTEXT_VIEW: Scope.ALL,
         Perm.CONTEXT_EDIT: Scope.ALL,
+        Perm.ARTIFACTS_VIEW: Scope.ALL,
+        Perm.ARTIFACTS_EDIT: Scope.ALL,
     },
     # Admin runs the org day to day but cannot delete it.
     OrgRoleName.ADMIN: {
@@ -203,6 +220,8 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.SKILLS_EDIT: Scope.ALL,
         Perm.CONTEXT_VIEW: Scope.ALL,
         Perm.CONTEXT_EDIT: Scope.ALL,
+        Perm.ARTIFACTS_VIEW: Scope.ALL,
+        Perm.ARTIFACTS_EDIT: Scope.ALL,
     },
     # Builder sees the whole org to learn from it, but edits only what is theirs
     # or was shared with them - so one builder cannot rewrite another's agent.
@@ -217,6 +236,8 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.SKILLS_EDIT: Scope.SHARED,
         Perm.CONTEXT_VIEW: Scope.ALL,
         Perm.CONTEXT_EDIT: Scope.SHARED,
+        Perm.ARTIFACTS_VIEW: Scope.ALL,
+        Perm.ARTIFACTS_EDIT: Scope.SHARED,
         Perm.SECRETS_VIEW: Scope.SHARED,
         Perm.SECRETS_EDIT: Scope.OWN,
         Perm.MCP_MANAGE: Scope.ALL,
@@ -227,6 +248,7 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.CONNECTIONS_VIEW: Scope.ALL,
         Perm.CONNECTIONS_MANAGE: Scope.ALL,
         Perm.RUNS_VIEW: Scope.ALL,
+        Perm.ML_INVOKE: Scope.ALL,
     },
     # Operator keeps the running system healthy: approves, watches, reruns -
     # but does not build. `connections:view` without `connections:manage` is
@@ -239,10 +261,12 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.COLLECTIONS_VIEW: Scope.ALL,
         Perm.SKILLS_VIEW: Scope.ALL,
         Perm.CONTEXT_VIEW: Scope.ALL,
+        Perm.ARTIFACTS_VIEW: Scope.ALL,
         Perm.SECRETS_VIEW: Scope.SHARED,
         Perm.APPROVALS_DECIDE: Scope.ALL,
         Perm.CONNECTIONS_VIEW: Scope.ALL,
         Perm.RUNS_VIEW: Scope.ALL,
+        Perm.ML_INVOKE: Scope.ALL,
     },
     # Member is the everyday user: builds their own agents, sees nobody else's
     # unless it was shared.
@@ -256,14 +280,18 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.SKILLS_EDIT: Scope.OWN,
         Perm.CONTEXT_VIEW: Scope.SHARED,
         Perm.CONTEXT_EDIT: Scope.OWN,
+        Perm.ARTIFACTS_VIEW: Scope.SHARED,
+        Perm.ARTIFACTS_EDIT: Scope.OWN,
         Perm.SECRETS_VIEW: Scope.SHARED,
         Perm.SECRETS_EDIT: Scope.OWN,
+        Perm.ML_INVOKE: Scope.ALL,
     },
     OrgRoleName.VIEWER: {
         Perm.AGENTS_VIEW: Scope.SHARED,
         Perm.COLLECTIONS_VIEW: Scope.SHARED,
         Perm.SKILLS_VIEW: Scope.SHARED,
         Perm.CONTEXT_VIEW: Scope.SHARED,
+        Perm.ARTIFACTS_VIEW: Scope.SHARED,
     },
 }
 
@@ -348,6 +376,25 @@ class AuthContext:
     who typed it. It decides nothing - no permission reads it - and travels here
     only because every consumer that opens a run already holds this object
     (#639).
+    """
+
+    subject_is_publisher_fallback: bool = False
+    """Whether `user_id` is the publisher standing in for an unidentified asker.
+
+    On a hosted or embedded surface there is no signed-in person, so
+    `publisher_context` runs the turn as the agent's publisher: `user_id` is the
+    owner, not whoever is actually chatting. This is how a consumer tells that
+    apart from a real subject (web chat, API, a linked member), where `user_id`
+    *is* the asker. Like `channel_identity_id` it decides no permission - it
+    exists so a person store can refuse to attribute a stranger's note to the
+    owner rather than leak it into the owner's store (#788).
+
+    Invariant: set `True` in exactly one place - `publisher_context`, the sole
+    constructor that runs a turn as someone other than the asker. Any future
+    stand-in constructor must set it too, or a person-store write silently lands
+    in the owner's store as if it were the visitor's. `test_publisher_standing.py` pins
+    the one assignment site by grep, the way `AuthContext.anonymous` is the one
+    subject-less constructor.
     """
 
     @classmethod

@@ -80,6 +80,24 @@ as the Builder is concerned. Registration is an import, not a scan.
 **3. A changed `id`.** Ids are in every published spec and in clients' git
 repositories. Rename the class freely; never re-id.
 
+## What the tool says, and what it says when the call was wrong
+
+Both are prompt, and both have a house shape - `references/tool-text-and-failures.md`
+has it, with the worked examples. The two things that keep being missed:
+
+- **A docstring with no `Returns:`.** The model cannot infer the shape of the
+  answer, that a list stopped at 100 entries, or that a failure still carries
+  output. Every tool here now says so; a new one that does not is the odd one out.
+- **A bare `raise ModelRetry`.** Use `steer(ctx, ...)` from
+  `capabilities/_failures.py`. A retry past a tool's budget - one attempt, by
+  default - does not fail the call, it ends the run with
+  `UnexpectedModelBehavior`, so the same malformed chart sent twice takes the
+  conversation with it. `steer` returns the message on the last attempt instead.
+  A tool that needs it takes `ctx`; `RunContext` never reaches the schema.
+
+And what stays a returned string: a result that is bad news, and a refusal. A
+retry prompt on a refusal invites the model to look for a way around it.
+
 ## Then
 
 - Add the module to `load_builtins()` in `_registry.py`.
@@ -96,6 +114,8 @@ repositories. Rename the class freely; never re-id.
 - `references/registry-contract.md` — every `@register` argument, `ctx.resources`,
   returning `None`, scopes, conditional secrets, returning a capability we did not
   write.
+- `references/tool-text-and-failures.md` — the four parts of a tool's docstring,
+  and which failures steer the model rather than answering it.
 - `references/approval-and-overrides.md` — how `side_effecting`, `approval`,
   `tool_approval` and `tool_overrides` resolve, and why everything keys on the
   stable tool id.

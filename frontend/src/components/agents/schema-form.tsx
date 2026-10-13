@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
   Switch,
+  Textarea,
 } from "@/components/ui";
 import { BrandIcon, type BrandName } from "@/components/icons/brand-icon";
 import { ProviderIcon } from "@/components/vault/provider-icon";
@@ -139,6 +140,16 @@ function SchemaField({
   // in would freeze it against a later change in code.
   const fallback = defaultOf(property);
   const multiline = property["x-multiline"] === true;
+  // A connector's plain-text config box (`textarea`), distinct from the prompt
+  // editor `multiline` gets: the two never coincide on one field.
+  const textarea = property["x-textarea"] === true && !multiline;
+  // A hint shown in grey while the field is empty, never stored. A connector's
+  // config default lands here rather than on `default`, because its effective
+  // value is resolved server-side (an S3 region falls back to the credential's,
+  // not to the schema's) - so showing it as the value would claim a setting the
+  // sync will not use.
+  const placeholder =
+    typeof property["x-placeholder"] === "string" ? property["x-placeholder"] : undefined;
   // Off on every mount, including a re-open of the same dialog: revealing is a
   // decision about the room you are in, and the room changes.
   const [revealed, setRevealed] = useState(false);
@@ -163,9 +174,38 @@ function SchemaField({
             checked={value === undefined ? fallback === true : value === true}
             onCheckedChange={onChange}
             disabled={disabled}
+            {...invalid}
           />
         )}
       </div>
+
+      {kind === "suggested" && (
+        <>
+          <Input
+            id={id}
+            list={`${id}-suggestions`}
+            placeholder={placeholder}
+            value={typeof value === "string" ? value : typeof fallback === "string" ? fallback : ""}
+            disabled={disabled}
+            onChange={(event) =>
+              onChange(event.target.value === "" ? undefined : event.target.value)
+            }
+            {...invalid}
+          />
+          {/* A native datalist rather than a combobox component: this is an
+              ordinary text field that offers the usual answers, and anything
+              richer would be a widget standing between somebody and a string
+              they already know how to type. i18n-exempt: option values are
+              identifiers the backend validates, not copy. */}
+          <datalist id={`${id}-suggestions`}>
+            {(suggestions(property) ?? []).map((choice) => (
+              <option key={choice} value={choice}>
+                {enumLabel(property, choice)}
+              </option>
+            ))}
+          </datalist>
+        </>
+      )}
 
       {kind === "number" && (
         <Input
@@ -173,6 +213,7 @@ function SchemaField({
           type="number"
           min={property.minimum}
           max={property.maximum}
+          placeholder={placeholder}
           value={numberText(value, fallback)}
           disabled={disabled}
           // Empty means "unset", which is not the same as zero: an unset field
@@ -259,7 +300,58 @@ function SchemaField({
         />
       )}
 
-      {kind === "string" && !multiline && (
+      {kind === "string" && textarea && (
+        /* A connector's plain-text config box (`textarea`) - not the
+           MarkdownEditor above, which is for prose.
+
+           Masked when the schema says so, which used to be impossible: every
+           secret was single-line, so this branch assumed one and the masked
+           control below was an `<input type="password">`. A GitHub App's private
+           key is a PEM - a header, a base64 body over many lines, a footer - and
+           a browser strips line breaks out of an input value, so pasting one
+           into that control silently produced an unusable key and the failure
+           surfaced later as a JWT that would not sign (#1072). A masked textarea
+           is shown as its own line count so nothing is inferred from the dots. */
+        <div className="relative">
+          <Textarea
+            id={id}
+            rows={masked ? 4 : 6}
+            placeholder={placeholder}
+            value={typeof value === "string" ? value : typeof fallback === "string" ? fallback : ""}
+            disabled={disabled}
+            spellCheck={false}
+            className={cn(
+              "font-mono text-xs",
+              masked && "pr-10",
+              // No `type="password"` on a textarea, so the masking is the font.
+              // It hides the value from a shoulder and from a screenshot, which
+              // is what this masking is for, and the reveal beside it is how the
+              // paste gets checked.
+              masked && !revealed && "[-webkit-text-security:disc] [text-security:disc]",
+            )}
+            onChange={(event) =>
+              onChange(event.target.value === "" ? undefined : event.target.value)
+            }
+            {...invalid}
+          />
+          {masked && (
+            <button
+              type="button"
+              onClick={() => setRevealed((shown) => !shown)}
+              disabled={disabled}
+              aria-label={
+                revealed ? t("hideNamed", { name: label }) : t("showNamed", { name: label })
+              }
+              aria-pressed={revealed}
+              className="text-muted-foreground hover:text-foreground absolute top-1 right-1 rounded-md p-2 disabled:pointer-events-none disabled:opacity-50"
+            >
+              {revealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          )}
+        </div>
+      )}
+
+      {kind === "string" && !multiline && !textarea && (
         <div className="relative">
           <Input
             id={id}
@@ -269,6 +361,7 @@ function SchemaField({
             type={masked && !revealed ? "password" : undefined}
             autoComplete={masked ? "off" : undefined}
             maxLength={property.maxLength}
+            placeholder={placeholder}
             value={typeof value === "string" ? value : typeof fallback === "string" ? fallback : ""}
             disabled={disabled}
             onChange={(event) =>
@@ -311,7 +404,7 @@ function SchemaField({
   );
 }
 
-type FieldKind = "string" | "number" | "boolean" | "enum" | "stringList";
+type FieldKind = "string" | "number" | "boolean" | "enum" | "suggested" | "stringList";
 
 /**
  * What kind of input a property needs.
@@ -320,7 +413,26 @@ type FieldKind = "string" | "number" | "boolean" | "enum" | "stringList";
  * rather than a plain type, so the null branch has to be looked past - without
  * that, every optional field would fall through to a text box.
  */
+/**
+ * The values a field suggests without restricting itself to them.
+ *
+ * `x-suggestions` is the open counterpart of `enum`: the backend validates a
+ * plain string and the catalog is what most people want, so the form offers the
+ * catalog and still accepts anything. A browsing agent's `decision_model` is the
+ * case it was added for - the catalog holds the moving aliases, and an agent
+ * whose confidence floor was tuned against a pinned build has to be able to name
+ * that build.
+ */
+function suggestions(property: JsonSchemaProperty): string[] | null {
+  const values = property["x-suggestions"];
+  return Array.isArray(values) && values.every((v) => typeof v === "string") ? values : null;
+}
+
 function resolveKind(property: JsonSchemaProperty): FieldKind {
+  // Before the enum check: a field carrying suggestions is an *open* string
+  // that happens to know the usual answers, and rendering it as a closed
+  // select would forbid the unusual one it exists to allow.
+  if (suggestions(property) !== null) return "suggested";
   // Before the type check, not after: a `Literal` is a string, and a text box
   // for a closed set of values is a way to type one the backend will refuse.
   if (enumChoices(property) !== null) return "enum";

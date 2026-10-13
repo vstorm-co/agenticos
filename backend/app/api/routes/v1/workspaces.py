@@ -74,6 +74,7 @@ async def list_workspaces(
             id=overview.row.id,
             agent_id=overview.row.agent_id,
             agent_name=overview.agent_name,
+            agent_slug=overview.agent_slug,
             agent_has_avatar=overview.agent_has_avatar,
             conversation_id=overview.row.conversation_id,
             conversation_is_mine=overview.conversation_is_callers,
@@ -82,6 +83,7 @@ async def list_workspaces(
             scope=overview.row.scope,
             backend=overview.row.backend,
             owner_label=owner_label(overview.row),
+            owner_name=overview.owner_name,
             access_label=overview.access_label,
             bytes_total=overview.row.bytes_total,
             file_count=counted.counts.get(overview.row.id, (None, None))[0],
@@ -148,6 +150,8 @@ async def list_files(workspace_id: UUID, workspaces: WorkspaceSvc, ctx: Auth) ->
             size=entry.get("size"),
             is_dir=bool(entry.get("is_dir")),
             modified_at=entry.get("modified_at"),
+            preview=contents.previews.get(str(entry.get("path"))),
+            thumbnail=contents.thumbnails.get(str(entry.get("path"))),
         )
         for entry in contents.entries
     ]

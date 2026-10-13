@@ -9,6 +9,7 @@ from uuid import UUID
 from pydantic import AfterValidator, EmailStr, Field, field_validator
 
 from app.core.permissions import OrgRoleName
+from app.db.models.organization import MembershipSourceLiteral
 from app.schemas.base import BaseSchema, TimestampSchema
 from app.schemas.user import UserRead
 
@@ -62,6 +63,15 @@ class OrganizationUpdate(BaseSchema):
             "or null for no limit. Omit to leave the current setting alone."
         ),
     )
+    chat_may_waive_approvals: bool | None = Field(
+        default=None,
+        description=(
+            "Whether a chat session here may grant standing consent to gated tool "
+            "calls. Omit to leave it alone. Changing it needs 'approvals:decide' - "
+            "it is a decision about the approval queue, not about the organization's "
+            "name."
+        ),
+    )
 
 
 class OrganizationRead(BaseSchema, TimestampSchema):
@@ -74,6 +84,14 @@ class OrganizationRead(BaseSchema, TimestampSchema):
     member_count: int = 0
     role: str  # current user's role in this org
     monthly_budget_usd: Decimal | None = None
+    chat_may_waive_approvals: bool = Field(
+        default=False,
+        description=(
+            "Whether a chat session here may grant standing consent to gated tool "
+            "calls. The chat reads it to decide whether to offer the control at "
+            "all; who may then use it is `approvals:decide`."
+        ),
+    )
 
 
 class OrganizationList(BaseSchema):
@@ -91,6 +109,9 @@ class OrganizationMemberRead(BaseSchema):
     avatar_url: str | None = None
     avatar_color: int | None = None
     joined_at: datetime
+    source: MembershipSourceLiteral = "manual"
+    """`directory` when the directory sync made this membership and keeps its
+    role - changing the role by hand takes it over and makes it `manual`."""
     can_change_role: bool = False
     """Whether the caller listing may change this member's role - the server's
     own answer to `change_role`'s rule, so the client renders a selector only
@@ -130,7 +151,7 @@ InvitableRole = Annotated[str, AfterValidator(_invitable_role)]
 
 
 class InvitationCreate(BaseSchema):
-    email: EmailStr
+    email: EmailStr = Field(max_length=255)
     role: InvitableRole = "member"
 
 
@@ -192,12 +213,24 @@ class InvitationRead(BaseSchema):
 class InvitationCreated(InvitationRead):
     """The one response that carries the token, returned to the inviter once.
 
-    The invitation is delivered by email; this is the copy of the link for the
-    person who just sent it, for when the mail does not arrive. Nothing reads it
-    back afterwards - there is no endpoint that returns a stored token.
+    This is the copy of the link for the person who just sent it, for when the
+    mail does not arrive. Nothing reads it back afterwards - there is no endpoint
+    that returns a stored token.
     """
 
     invitation_token: str
+
+    email_delivered: bool | None = None
+    """Whether the email carrying this invitation was accepted for delivery.
+
+    Three states, and the third is why this is not a plain `bool`. `True` and
+    `False` are the outcome of an email that was attempted; `None` means none was
+    - which is what an invite *link* is, since it has no address to send to.
+
+    It exists because the inviter was being told "invitation sent" either way. A
+    deployment with no `SMTP_*` configured mails nobody, and on its first day that
+    is every deployment - so the one sentence on screen was false and the link
+    beside it was being discarded unread (#1484)."""
 
 
 class InvitationList(BaseSchema):
@@ -207,6 +240,26 @@ class InvitationList(BaseSchema):
 
 class InvitationAccept(BaseSchema):
     token: str
+
+
+class InvitationStageRequest(BaseSchema):
+    """The token an invitee holds, offered for the server-side exchange (#1414)."""
+
+    token: str = Field(min_length=1, max_length=64)
+
+
+class InvitationStaged(BaseSchema):
+    """The opaque handle the exchange mints, for the frontend's server layer to hold.
+
+    It stands in for the token through the sign-in round trip. What keeps it off a
+    script is not this model - it is the response body of a public endpoint - but
+    where the frontend puts it: its server layer reads the handle and sets it as an
+    `httpOnly` cookie the browser cannot read, rather than handing it to page code.
+    The handle holds nothing about the invitation - not the token, not the
+    organization - so it names nobody even to whoever reads it in transit.
+    """
+
+    handle: str
 
 
 class TransferOwnershipRequest(BaseSchema):

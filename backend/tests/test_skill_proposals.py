@@ -65,7 +65,13 @@ def _change(**overrides: object) -> SkillChange:
 
 def _service(monkeypatch) -> SkillProposalService:
     """A service whose skill writes succeed, so the tests are about the decision."""
-    service = SkillProposalService(MagicMock())
+    db = MagicMock()
+    db.flush = AsyncMock()
+    # `record_audit` reads the chain head and takes the per-org lock, both via
+    # `execute`; the mock must await and answer the head read with an empty chain.
+    db.execute = AsyncMock()
+    db.execute.return_value.scalar_one_or_none.return_value = None
+    service = SkillProposalService(db)
     skill = MagicMock(id=uuid.uuid4())
     skill.name = "refunds"
     service.skills = MagicMock()

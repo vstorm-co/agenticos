@@ -8,6 +8,8 @@ import { ROUTES } from "@/lib/constants";
 import { timeAgo } from "@/lib/utils";
 import { Button } from "@/components/ui";
 import { WidgetFrame } from "../widget-frame";
+import { ShieldCheck } from "lucide-react";
+
 import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-states";
 import type { DashboardWidgetProps } from "./types";
 
@@ -30,7 +32,11 @@ export function ApprovalsWidget({ title, hint, seeAll, options }: DashboardWidge
       ) : error ? (
         <WidgetErrorBody onRetry={() => refetch()} />
       ) : approvals.length === 0 ? (
-        <WidgetEmptyBody title={t("empty.title")} description={t("empty.description")} />
+        <WidgetEmptyBody
+          icon={ShieldCheck}
+          title={t("empty.title")}
+          description={t("empty.description")}
+        />
       ) : (
         <div className="flex h-full flex-col justify-between gap-2">
           <ul className="space-y-2">

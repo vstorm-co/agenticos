@@ -35,12 +35,9 @@ page already reports ingestion status by polling the org-scoped document
 listing, which is why the stream was not worth rebuilding.
 """
 
-import contextlib
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
-from fastapi.responses import FileResponse
-from sqlalchemy.exc import SQLAlchemyError
 
 from app.api.deps import (
     Auth,
@@ -55,7 +52,7 @@ from app.api.deps import (
     VectorStoreSvc,
     require,
 )
-from app.core.config import settings
+from app.api.routes.v1._stored_bytes import stored_file_response
 from app.core.exceptions import NotFoundError
 from app.core.permissions import Perm
 from app.schemas.rag import (
@@ -63,6 +60,7 @@ from app.schemas.rag import (
     RAGCollectionInfo,
     RAGCollectionList,
     RAGDocumentList,
+    RAGFilterValues,
     RAGIngestResponse,
     RAGMessageResponse,
     RAGRetryResponse,
@@ -84,24 +82,33 @@ from app.schemas.sync_source import (
     SyncSourceUpdate,
 )
 from app.services.ingestion_config import PdfParserName, parse_override
-from app.services.rag.config import EMBEDDING_DIMENSIONS, get_supported_formats
+from app.services.rag import embedding_providers
+from app.services.rag.config import get_supported_formats
+from app.services.rag.filters import resolve_legacy_filter, scope_for_tenant
 
 router = APIRouter()
 
 
 @router.get("/embedding-models", response_model=EmbeddingModelsResponse)
 async def list_embedding_models() -> Any:
-    """The embedding models this build can index with, and their widths.
+    """Which providers this build can embed through, and the models each serves.
 
     Deployment description, like `/supported-formats`: the list feeds the
-    create-collection form, and hardcoding it in the client is how the form
-    and the build drift apart. The default is named so the form can preselect
-    what an untouched deployment would use.
+    create-collection form and the one that moves an existing collection to
+    another provider, and hardcoding it in the client is how the form and the
+    build drift apart. There is no deployment default in it: the model, the
+    provider and what pays - a vault key, or a local service for a keyless
+    provider - are the collection's own choice, every time.
     """
     return {
-        "default": settings.EMBEDDING_MODEL,
-        "models": [
-            {"model": model, "dim": dim} for model, dim in sorted(EMBEDDING_DIMENSIONS.items())
+        "providers": [
+            {
+                "provider": entry.provider,
+                "name": entry.name,
+                "models": [{"model": model.model, "dim": model.dim} for model in entry.models],
+                "keyless": entry.keyless,
+            }
+            for entry in embedding_providers.providers()
         ],
     }
 
@@ -136,7 +143,8 @@ async def list_collections(access: CollectionAccessSvc, ctx: Auth) -> Any:
     after the first document is ingested) still appears here, and dropping a
     collection here removes the KB too.
     """
-    return RAGCollectionList(items=await access.readable_names(ctx))
+    names = await access.readable_names(ctx)
+    return RAGCollectionList(items=names, total=len(names))
 
 
 @router.post(
@@ -174,13 +182,12 @@ async def create_collection(
 )
 async def drop_collection(
     name: str,
-    vector_store: VectorStoreSvc,
     rag_doc_svc: RAGDocumentSvc,
     kb_svc: KnowledgeBaseSvc,
     access: CollectionAccessSvc,
     ctx: Auth,
 ) -> None:
-    """Drop a collection - vectors, SQL document records, and the KB row.
+    """Drop a collection - its vectors, SQL document records, and the KB row.
 
     A name no knowledge base in the caller's reach owns is a 404. It used to be
     204 for absolutely anything, which is two problems in one answer: a
@@ -188,19 +195,18 @@ async def drop_collection(
     be used to confirm a deletion, and that 204 was also what another tenant's
     collection returned.
 
-    The vector table may not exist yet for a zero-document KB, so the
-    vector-store drop is best-effort - but only against the database. It used to
-    suppress `Exception`, which now also covers the store *refusing* the name:
-    the drop would be skipped, the row and the document records deleted anyway,
-    and the table left behind with nobody left who can name it. `SQLAlchemyError`
-    is the "no such table" case this was written for; a `BadRequestError` is the
-    store saying it will not touch that name, and the caller has to hear it.
+    The document rows and the KB row go in the request; the stored files and the
+    vector table are torn down by the durable cleanup the services hand over after
+    the commit, which takes the collection-teardown lock and re-reads the reference
+    check before dropping only what no base still claims (#1347, #1349, #1355, #913).
+    So the route no longer wires a store in.
     """
     collection = await access.writable(ctx, name)
-    with contextlib.suppress(SQLAlchemyError):
-        await vector_store.delete_collection(collection.collection_name)
-    await rag_doc_svc.delete_by_collection(collection.collection_name)
+    # delete_for_rag_collection takes the collection's teardown lock; it must run
+    # before the document rows are deleted, because a concurrent org purge takes that
+    # lock before touching the same rows and the opposite order deadlocks (#1387).
     await kb_svc.delete_for_rag_collection(collection)
+    await rag_doc_svc.delete_by_collection(collection.collection_name)
 
 
 @router.get(
@@ -216,7 +222,9 @@ async def get_collection_info(
 ) -> Any:
     """Retrieve stats for a specific collection."""
     collection = await access.readable(ctx, name)
-    return await vector_store.get_collection_info(collection.collection_name)
+    return await vector_store.get_collection_info(
+        collection.collection_name, ctx.organization_id, tenant=collection.vector_tenant
+    )
 
 
 @router.get(
@@ -232,7 +240,9 @@ async def list_documents(
 ) -> Any:
     """List all documents in a specific collection."""
     collection = await access.readable(ctx, name)
-    return await vector_store.get_document_list(collection.collection_name)
+    return await vector_store.get_document_list(
+        collection.collection_name, collection.vector_tenant
+    )
 
 
 @router.post(
@@ -253,11 +263,26 @@ async def search_documents(
     from it - see `CollectionAccessService.readable_all`.
     """
     names = request.collection_names or [request.collection_name]
-    collections = [kb.collection_name for kb in await access.readable_all(ctx, names)]
+    # The authorized knowledge base for each name carries the tenant its rows are
+    # scoped by; threading it through means the search reads the base the caller
+    # was authorized for, not a same-named base in their organization the store
+    # would otherwise resolve without checking resource access (#1684).
+    kbs = await access.readable_all(ctx, names)
+    collections = [kb.collection_name for kb in kbs]
+    # One scope per base, built from *its own* resolved tenant - `AppScope` for
+    # an app-scoped base every organization reads, `TenantScope` for an org one -
+    # never from `ctx.organization_id` directly, which cannot match an app-scoped
+    # base's untagged rows (#1684, FA-039). The request body carries business
+    # filters only, so a supplied filter can only narrow, never widen, access
+    # (FA-039 §2.2).
+    scopes = {kb.collection_name: scope_for_tenant(kb.vector_tenant) for kb in kbs}
+    filters = resolve_legacy_filter(request.filter, request.filters)
     if len(collections) > 1:
         results = await retrieval_service.retrieve_multi(
             query=request.query,
             collection_names=collections,
+            scopes=scopes,
+            filters=filters,
             limit=request.limit,
             min_score=request.min_score,
         )
@@ -265,12 +290,41 @@ async def search_documents(
         results = await retrieval_service.retrieve(
             query=request.query,
             collection_name=collections[0],
+            scope=scopes[collections[0]],
+            filters=filters,
             limit=request.limit,
             min_score=request.min_score,
-            filter=request.filter or "",
         )
     api_results = [RAGSearchResult(**hit.model_dump()) for hit in results]
     return RAGSearchResponse(results=api_results)
+
+
+@router.get(
+    "/collections/{name}/filter-values",
+    response_model=RAGFilterValues,
+    dependencies=[Depends(require(Perm.COLLECTIONS_VIEW))],
+)
+async def list_filter_values(
+    name: str,
+    vector_store: VectorStoreSvc,
+    access: CollectionAccessSvc,
+    ctx: Auth,
+) -> Any:
+    """Distinct in-scope values for the free-form filter dimensions.
+
+    Makes `organizational_unit` - the one author-supplied, corpus-dependent
+    filter dimension - discoverable, so a caller narrows on values that exist
+    rather than guessing one that returns silently empty. Tenant-scoped by the
+    same trusted context every search uses, so it never reveals another
+    organization's values.
+    """
+    collection = await access.readable(ctx, name)
+    values = await vector_store.distinct_metadata_values(
+        collection.collection_name,
+        ["organizational_unit"],
+        scope_for_tenant(collection.vector_tenant),
+    )
+    return RAGFilterValues(organizational_unit=values.get("organizational_unit", []))
 
 
 @router.delete(
@@ -288,7 +342,9 @@ async def delete_document(
 ) -> None:
     """Delete a specific document by its ID from a collection."""
     collection = await access.writable(ctx, name)
-    success = await ingestion_service.remove_document(collection.collection_name, document_id)
+    success = await ingestion_service.remove_document(
+        collection.collection_name, document_id, tenant=collection.vector_tenant
+    )
     if not success:
         raise NotFoundError(
             message="Document not found",
@@ -317,6 +373,14 @@ async def ingest_file(
             "for this file only. Omitted keys keep the collection's setting."
         ),
     ),
+    organizational_unit: str | None = Form(
+        default=None,
+        max_length=255,
+        description=(
+            "Which part of the organization this document belongs to. Stamped on "
+            "every chunk and narrowable on at retrieval; blank means none."
+        ),
+    ),
 ) -> Any:
     """Upload and queue a file for ingestion into a collection.
 
@@ -335,7 +399,12 @@ async def ingest_file(
         replace=replace,
         vector_store=vector_store,
         override=parse_override(ingestion),
+        organizational_unit=organizational_unit,
         organization_id=ctx.organization_id,
+        # Link the document to the KB whose collection this is, the same way the
+        # per-KB upload route does. Without it these rows carry no KB id, so a KB
+        # delete keyed on it cannot reach them and leaves them orphaned (#1266).
+        knowledge_base_id=collection.id,
     )
 
 
@@ -349,14 +418,17 @@ async def list_rag_documents(
     access: CollectionAccessSvc,
     ctx: Auth,
     collection_name: str | None = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
 ) -> Any:
-    """List tracked RAG documents.
+    """List a page of tracked RAG documents.
 
     Without `collection_name` this answers with the caller's collections -
-    not, as it once did, with every document in the deployment.
+    not, as it once did, with every document in the deployment - and it pages
+    rather than serializing every row across them (#27).
     """
     collections = await access.readable_names_for(ctx, collection_name)
-    return await rag_doc_svc.list_documents(collections=collections)
+    return await rag_doc_svc.list_documents(collections=collections, skip=skip, limit=limit)
 
 
 @router.get(
@@ -372,16 +444,19 @@ async def download_rag_document(
 ) -> Any:
     """Download the original file for a tracked document."""
     doc = await access.readable_document(ctx, doc_id)
-    file_path, filename, mime_type = await rag_doc_svc.get_download_info(str(doc.id))
-    return FileResponse(
-        path=file_path,
-        filename=filename,
+    stored, filename, mime_type = await rag_doc_svc.get_download_info(str(doc.id))
+    response = await stored_file_response(
+        stored,
         media_type=mime_type,
+        attachment_name=filename,
         # The BFF forwards this rather than inventing one, which is why it is here:
         # a stored document does not change, and re-downloading it every time the
         # viewer is opened is a round trip for bytes the browser already has.
         headers={"Cache-Control": "private, max-age=3600"},
     )
+    if response is None:
+        raise NotFoundError(message="File not found on disk")
+    return response
 
 
 @router.delete(
@@ -458,6 +533,10 @@ async def trigger_local_sync(
         collection_name=collection.collection_name,
         mode=request.mode,
         path=request.path,
+        # The base the caller was authorized to write, so the sync stamps its rows
+        # with that base's tenant instead of writing them untagged into an
+        # org-backed collection where normal reads would never see them (#1684).
+        knowledge_base_id=collection.id,
     )
     return RAGSyncResponse(
         id=str(sync_log.id),
@@ -602,7 +681,7 @@ async def trigger_sync_source(
 ) -> Any:
     """Trigger a manual sync for a configured source."""
     source = await access.sync_source(ctx, source_id)
-    sync_log = await sync_source_svc.trigger_sync(str(source.id))
+    sync_log = await sync_source_svc.trigger_sync(str(source.id), user_id=ctx.user_id)
     return RAGSyncResponse(
         id=str(sync_log.id),
         status="running",

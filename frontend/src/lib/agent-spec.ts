@@ -21,6 +21,10 @@ import type {
 /** The capability that turns bound skills into tools the model can call. */
 export const SKILLS_ID = "skills";
 
+/** The capability that publishes pages, and the bundled skill that teaches it to build them. */
+export const ARTIFACTS_ID = "artifacts";
+export const ARTIFACT_PAGES_SKILL = "artifact-pages";
+
 /** The capability that searches the collections bound in `collection_ids`. */
 export const KNOWLEDGE_ID = "knowledge";
 
@@ -87,6 +91,24 @@ export const THINKING_ID = "thinking";
  * decision as switching on a chart tool.
  */
 export const SANDBOX_ID = "sandbox";
+
+/**
+ * The memory-files capability, whose panel carries one action as well as settings.
+ *
+ * There is no memory tab and no browsing surface: what an agent wrote down about
+ * a named colleague is not a screen an operator pages through, and standing
+ * knowledge somebody *wants* an agent to have belongs in context files (#1470).
+ * What is left is clearing, which lives in the panel of the capability that keeps
+ * the notes.
+ */
+export const MEMORY_FILES_ID = "memory_files";
+
+/**
+ * The mem0 capability, named here only so the clear action can say what it does
+ * not reach: those memories live in mem0's own service, addressed per person,
+ * with no way to empty one agent's namespace wholesale.
+ */
+export const MEMORY_MEM0_ID = "memory_mem0";
 
 /**
  * The bindings with one capability switched on or off.

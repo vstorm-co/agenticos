@@ -1,16 +1,101 @@
 """Schemas for the agent registry and the tool catalog."""
 
+import unicodedata
 from datetime import datetime
 from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from app.agents.capabilities import CapabilityToolInfo
 from app.agents.spec import AgentSpec, DelegationMode, SpecialistSpec
 from app.core.secret_kinds import SecretRequirement
+from app.db.models.resource_grant import Visibility
 from app.schemas.base import BaseSchema
+
+# The longest a single category/tag may be, matching the `String(32)` array
+# column that stores it. Measured on the *folded* value, since `casefold()` can
+# expand text.
+LABEL_MAX_LENGTH = 32
+# How many of each facet an agent may carry - a discovery aid, not a taxonomy.
+MAX_CATEGORIES = 10
+MAX_TAGS = 20
+
+
+def _fold_labels(values: list[str]) -> list[str]:
+    """Canonicalize discovery labels: trim, fold case, drop empties, dedupe.
+
+    The pure value-shaping core both entry points share. In order: collapse
+    internal whitespace runs to one space and trim, NFC-normalize, fold case with
+    `str.casefold()`, then NFC-normalize *again* so visually identical spellings
+    (composed vs. decomposed, the full Unicode case map) become one canonical
+    form the plain GIN index can match, drop anything empty after trimming, and
+    de-duplicate preserving first-seen order. Idempotent: re-folding a folded
+    list changes nothing.
+
+    `casefold()` rather than `lower()` because `lower()` leaves `"ß"`/`"ss"` and
+    NFC/NFD variants distinct, splitting one tag into several. The second
+    normalization matters because `casefold()` can itself produce a decomposed
+    sequence even from NFC input - Greek `"ΐ"` folds to a byte-distinct but
+    canonically equivalent spelling depending on which precomposed or combining
+    form of the letter it started from - so skipping it leaves two case-fold
+    outputs that array-overlap compares as different strings.
+    """
+    seen: dict[str, None] = {}
+    for value in values:
+        collapsed = " ".join(value.split())
+        if not collapsed:
+            continue
+        folded = unicodedata.normalize("NFC", unicodedata.normalize("NFC", collapsed).casefold())
+        if folded not in seen:
+            seen[folded] = None
+    return list(seen)
+
+
+def normalize_labels_strict(values: list[str]) -> list[str]:
+    """Fold labels for the write path, raising on an item too long to store.
+
+    Called inside a Pydantic `field_validator`, so a `ValueError` surfaces as a
+    clean 422 rather than reaching the `String(32)` column as a database error.
+    The length check is on the final folded value that will actually be stored,
+    not the trimmed input, because `casefold()` can expand text (`"ß"` -> `"ss"`):
+    a 32-char input can fold past the column width.
+    """
+    folded = _fold_labels(values)
+    for label in folded:
+        if len(label) > LABEL_MAX_LENGTH:
+            raise ValueError(
+                f"A category or tag may be at most {LABEL_MAX_LENGTH} characters after "
+                f"normalization; {label!r} is {len(label)}."
+            )
+    return folded
+
+
+def normalize_labels_query(values: list[str], *, max_items: int) -> list[str] | None:
+    """Fold labels for the filter path: tolerant, bounded, never raising.
+
+    A bad or oversized discovery query param should quietly narrow the result on
+    that item, not 400 the page. So an over-length item is **dropped** (measured
+    on the same folded value the write path checks) rather than raised on, and
+    never truncated - truncating could turn an invalid label into a
+    valid-but-unintended match. The folded, de-duplicated list is then capped to
+    `max_items`, the same bound the write path enforces, so a runaway filter is
+    trimmed rather than executed. The cap is a parameter because the one helper
+    cannot otherwise know it is folding categories (10) or tags (20).
+
+    Returns `None`, not `[]`, when the caller supplied at least one non-blank
+    value and every one of them was dropped for being too long: that facet is
+    unsatisfiable (no stored label can be over the column width), which the
+    caller must treat as "match nothing" rather than "no predicate" - the two
+    read the same as an empty list, but only a blank/absent facet means the
+    latter.
+    """
+    folded = _fold_labels(values)
+    kept = [label for label in folded if len(label) <= LABEL_MAX_LENGTH]
+    if folded and not kept:
+        return None
+    return kept[:max_items]
 
 
 class PublishedModel(BaseSchema):
@@ -51,6 +136,20 @@ class AgentRead(BaseSchema):
         description=(
             "Chosen default-avatar colour, slot 1-10; null is auto (derived from the id). "
             "Only shown when the agent has no picture. A display choice, not the spec."
+        ),
+    )
+    categories: list[str] = Field(
+        description=(
+            "Editable, org-local discovery categories, normalized (trimmed, case-folded, "
+            "de-duplicated) and stored on the row - not part of the spec, so retagging "
+            "needs no publish. Required, not defaulted: both array columns are NOT NULL, "
+            "so a missing value means a hand-built path forgot them rather than 'none'."
+        ),
+    )
+    tags: list[str] = Field(
+        description=(
+            "Editable, org-local discovery tags, normalized the same way as categories. "
+            "Required for the same reason - a false empty list would hide a regression."
         ),
     )
     shared_user_count: int = Field(
@@ -124,12 +223,43 @@ class AgentDetail(AgentRead):
 class AgentList(BaseSchema):
     items: list[AgentRead]
     total: int
+    categories: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Every distinct category on the agents the caller may list - the "
+            "filter's choices, unaffected by the filter and paging that shaped `items`"
+        ),
+    )
+    tags: list[str] = Field(
+        default_factory=list,
+        description="Every distinct tag on the agents the caller may list, the same way",
+    )
 
 
 class AgentCreate(BaseSchema):
     """Create an agent from a spec. The handle is derived from the name."""
 
     spec: AgentSpec
+    # Discovery labels, folded the same way `AgentMetadataRequest` folds them.
+    # They are not spec, and they are offered here because the catalog a new
+    # agent joins is the moment somebody knows what to call it - the detail page
+    # can still change them afterwards without a publish.
+    categories: list[str] = Field(default_factory=list, max_length=MAX_CATEGORIES)
+    tags: list[str] = Field(default_factory=list, max_length=MAX_TAGS)
+    visibility: Visibility = Field(
+        default=Visibility.ORG,
+        description=(
+            "Who can find this agent. `org` - the default - is everyone in the "
+            "organization; `private` is the owner and whoever they grant it to. "
+            "A draft cannot run either way, so this decides who sees it, not "
+            "what it does."
+        ),
+    )
+
+    @field_validator("categories", "tags", mode="after")
+    @classmethod
+    def _normalize(cls, v: list[str]) -> list[str]:
+        return normalize_labels_strict(v)
 
 
 class AgentDraftUpdate(BaseSchema):
@@ -149,6 +279,24 @@ class AgentAvatarColorRequest(BaseSchema):
         le=10,
         description="Default-avatar colour, slot 1-10; null resets to auto.",
     )
+
+
+class AgentMetadataRequest(BaseSchema):
+    """Editable discovery metadata for an agent - its categories and tags.
+
+    A command body, not a partial `*Update`: both fields are always meant, and an
+    empty list clears that facet. The validator folds each list (trim, case-fold,
+    drop empties, dedupe) and raises on an item longer than the stored width,
+    which surfaces as a 422; `max_length` caps how many of each facet may be sent.
+    """
+
+    categories: list[str] = Field(default_factory=list, max_length=MAX_CATEGORIES)
+    tags: list[str] = Field(default_factory=list, max_length=MAX_TAGS)
+
+    @field_validator("categories", "tags", mode="after")
+    @classmethod
+    def _normalize(cls, v: list[str]) -> list[str]:
+        return normalize_labels_strict(v)
 
 
 class AgentPublish(BaseSchema):
@@ -393,11 +541,28 @@ class McpCatalogEntry(BaseSchema):
         default=None,
         description="Brand mark to draw, by name. Null falls back to a monogram in the client.",
     )
+    reviewed: bool = Field(
+        default=True,
+        description=(
+            "Whether somebody here checked this entry - that the auth flow works and "
+            "the description is honest. False for a server mirrored from the public "
+            "registry, where the description is the publisher's and there is no token "
+            "hint because the registry has no such field."
+        ),
+    )
 
 
 class McpCatalog(BaseSchema):
     items: list[McpCatalogEntry]
     total: int
+    registry_total: int = Field(
+        default=0,
+        description=(
+            "How many servers the mirrored public registry holds, for a console that "
+            "has to say what searching reaches. Zero on the registry's own responses - "
+            "there `total` is the result count and this would be the same number twice."
+        ),
+    )
 
 
 class CapabilityCatalog(BaseSchema):
@@ -417,6 +582,16 @@ class AgentRunRequest(BaseSchema):
         description=(
             "Run the version this named environment pins instead of the "
             "default - how a dev environment is exercised before promotion"
+        ),
+    )
+    file_ids: list[UUID] = Field(
+        default_factory=list,
+        description=(
+            "Files already uploaded through `POST /files/upload`, to attach to this "
+            "turn. Where each one goes is the agent's to decide - written into its "
+            "workspace when it has one, read into the prompt when it does not - which "
+            "is the same routing the chat and the widget get. They must be the "
+            "caller's own uploads"
         ),
     )
 
@@ -512,3 +687,52 @@ class AgentRunResult(BaseSchema):
             "arrive."
         ),
     )
+
+
+class AgentTemplateRead(BaseSchema):
+    """One shipped template as the picker shows it - never the instructions."""
+
+    key: str = Field(description="`<industry>/<folder>`, how an install request names it")
+    name: str
+    description: str
+    capabilities: list[str] = Field(description="Capability ids it switches on")
+    skills: list[str] = Field(description="Gallery keys installed with it, if missing")
+    mcp: list[str] = Field(description="Catalog keys worth connecting - suggestions, not bindings")
+    attach: list[str] = Field(
+        description="What a person still has to provide before publishing: collection, context"
+    )
+    budget_usd: float | None = None
+    installed: bool = Field(
+        description="Whether this organization already has an agent by that name"
+    )
+
+
+class TemplateIndustryRead(BaseSchema):
+    id: str
+    templates: list[AgentTemplateRead]
+
+
+class AgentTemplateCatalog(BaseSchema):
+    industries: list[TemplateIndustryRead]
+
+
+class TemplateInstallRequest(BaseSchema):
+    key: str = Field(min_length=1, max_length=128)
+
+
+class TemplateInstallResult(BaseSchema):
+    """What was created, and what the person still has to do.
+
+    An installed template is a **draft**: it names no model, because this
+    platform has no organization-wide default on purpose, and it may name no
+    collection. Both are decisions the spec refuses to make on somebody's
+    behalf, so the result carries them back rather than publishing something
+    that would answer its first question from nowhere.
+    """
+
+    agent_id: UUID
+    slug: str
+    name: str
+    skills_installed: list[str] = Field(description="Gallery skills copied in for this agent")
+    attach: list[str] = Field(description="What to attach before publishing")
+    suggested_mcp: list[str] = Field(description="Catalog keys worth connecting")

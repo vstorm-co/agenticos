@@ -36,6 +36,7 @@ from app.agents.capabilities.budget import (
 )
 from app.agents.capabilities.compaction import ContextGauge
 from app.agents.capabilities.guardrails import GuardrailBlocked
+from app.agents.capabilities.media import MediaOffload
 from app.agents.deps import AgentDeps
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.permissions import OrgRoleName
@@ -47,7 +48,7 @@ from app.services.agent_chat import (
     requested_environment_id,
     requested_model_profile_id,
 )
-from app.services.agent_runner import AgentRunnerService, PreparedRun
+from app.services.agent_runner import AgentRunnerService, PersonalServiceGap, PreparedRun
 
 pytestmark = pytest.mark.anyio
 
@@ -246,6 +247,8 @@ async def _run(
     user_input: Any = "what is the refund window",
     attachments: Any = None,
     subagent_events: Any = None,
+    on_personal_gaps: Any = None,
+    request_connection: Any = None,
 ):
     return await ChatAgentRunner(db).run(
         user=user or _user(),
@@ -260,6 +263,8 @@ async def _run(
         ask_user=ask_user or AsyncMock(return_value=[]),
         stream=stream,
         subagent_events=subagent_events,
+        on_personal_gaps=on_personal_gaps,
+        request_connection=request_connection,
     )
 
 
@@ -286,6 +291,32 @@ class TestKeepingASummary:
 
         assert turn.summarized_history is not None
         assert turn.summarized_history[0]["parts"][0]["content"] == "Summary: …"
+
+    async def test_an_agent_bound_to_media_offload_stores_the_offloaded_history(self):
+        """The one place media piles up is this blob, so the capability that
+        empties it is read off the built agent here rather than passed down -
+        the same way the context gauge is (#55)."""
+        prepared = _prepared()
+        prepared.built.context.summarized = True
+        offload: MediaOffload[object] = MediaOffload(organization_id=None, conversation_id=None)
+        offload.externalize = AsyncMock(return_value=[{"kind": "request", "parts": []}])
+        # A real list, because `built` is a MagicMock: `.capabilities` on one is
+        # another mock, and iterating it yields nothing rather than the entry.
+        prepared.built.capabilities = [offload]
+        prepared.built.agent.iter = MagicMock(
+            return_value=_Iteration(
+                _agent_run(
+                    "the refund window is 30 days",
+                    messages=[ModelRequest(parts=[SystemPromptPart(content="Summary: …")])],
+                )
+            )
+        )
+
+        with _runner(prepared):
+            turn = await _run(_db())
+
+        assert turn.summarized_history == [{"kind": "request", "parts": []}]
+        offload.externalize.assert_awaited_once()
 
     async def test_the_overhead_the_turn_measured_leaves_with_it(self):
         """A one-request turn never measures one of its own before it decides, so
@@ -424,6 +455,16 @@ class TestWhoTheRunBelongsTo:
 
             runner.prepare.assert_not_called()
 
+    async def test_the_dashboard_always_has_a_person_at_the_keyboard(self):
+        """A personal MCP binding speaks as whoever typed - in a conversation
+        shared with others too, exactly as it does in a channel. The binding is
+        explicit in the spec, so the answer landing where others read it is the
+        author's decision and not a surprise the surface has to prevent."""
+        with _runner(_prepared()) as runner:
+            await _run(_db(), conversation_id=uuid.uuid4())
+
+        assert runner.prepare.call_args.kwargs["acts_for_sender"] is True
+
 
 class TestMeteringWhatTheTurnEmbedded:
     """A knowledge search embeds the question, and somebody has to pay for it.
@@ -542,6 +583,29 @@ class TestRecordingTheRun:
         assert (turn.output, turn.model_label) == ("42 days", "gpt-4.1")
         assert runner.finish.call_args.kwargs["status"] is RunStatus.COMPLETED
 
+    async def test_the_run_row_is_committed_before_the_stream_starts(self):
+        """The transaction ends before the model is asked anything (#12).
+
+        The row is then visible from another session for the life of the run,
+        and the pooled connection is returned instead of being held `idle in
+        transaction` for however long somebody watches the answer arrive.
+        """
+        db = _db()
+        order: list[str] = []
+
+        async def note_commit() -> None:
+            order.append("commit")
+
+        async def note_stream(_agent_run: MagicMock) -> None:
+            order.append("stream")
+
+        db.commit = AsyncMock(side_effect=note_commit)
+
+        with _runner(_prepared()):
+            await _run(db, stream=AsyncMock(side_effect=note_stream))
+
+        assert order[:2] == ["commit", "stream"]
+
     async def test_a_failed_run_still_records_what_it_spent(self):
         """The tokens were spent before it broke; a budget that ignores that is not one."""
         db = _db()
@@ -551,7 +615,9 @@ class TestRecordingTheRun:
 
         finished = runner.finish.call_args.kwargs
         assert finished["status"] is RunStatus.FAILED
-        db.commit.assert_awaited_once()
+        # Two commits: the one that opened the run row to other sessions before
+        # the stream started, and the one that lands the terminal write.
+        assert db.commit.await_count == 2
 
     async def test_a_failed_chat_run_records_the_refusal_and_not_the_provider(self, caplog):
         """The same rule the chat frame took in #659, on the row rather than the
@@ -590,8 +656,9 @@ class TestRecordingTheRun:
         finished = runner.finish.call_args.kwargs
         assert finished["status"] is RunStatus.CANCELLED
         assert finished["error"] is None
-        db.commit.assert_awaited_once()
+        assert db.commit.await_count == 2
 
+    @pytest.mark.security
     async def test_a_budget_stop_is_recorded_as_a_budget_stop_not_a_failure(self):
         """An operator filtering run history for problems should not wade through it."""
         stopped = BudgetExceeded(limit_usd=1, spent_usd=2, scope=BudgetScope.AGENT)
@@ -867,6 +934,8 @@ class TestAttachmentsAreRoutedHereAndNotBySurfaces:
         will look for it."""
         from pydantic_ai_backends import StateBackend
 
+        from tests.workspaces import document_workspace
+
         attachment = SimpleNamespace(
             id=uuid.uuid4(),
             filename="raport.csv",
@@ -876,11 +945,13 @@ class TestAttachmentsAreRoutedHereAndNotBySurfaces:
             file_type="text",
             parsed_content="month,total",
         )
-        backend = StateBackend()
+        document = StateBackend()
         prepared = _prepared()
         # `parses_documents` is what says the runtime can read a PDF itself; a
         # stored workspace cannot, and so keeps the extracted text beside the file.
-        prepared.workspace = SimpleNamespace(backend=backend, briefing=None, parses_documents=False)
+        prepared.workspace = SimpleNamespace(
+            workspace=document_workspace(document), briefing=None, parses_documents=False
+        )
 
         with (
             _runner(prepared),
@@ -891,7 +962,7 @@ class TestAttachmentsAreRoutedHereAndNotBySurfaces:
         ):
             await _run(_db(), attachments=[attachment])
 
-        assert any(path.startswith("/uploads/") for path in backend.files)
+        assert any(path.startswith("/uploads/") for path in document.files)
 
     async def test_a_prompt_already_assembled_as_parts_keeps_its_text(self):
         """A caller passing the richer shape would otherwise have its
@@ -913,3 +984,105 @@ class TestAttachmentsAreRoutedHereAndNotBySurfaces:
 
         prompt = prepared.built.agent.iter.call_args.args[0]
         assert prompt.startswith("what is thisand this")
+
+
+class TestACommitThatCannotLand:
+    """The terminal commit must not replace the exception that ended the run (#235)."""
+
+    @pytest.mark.anyio
+    async def test_a_failing_commit_does_not_mask_the_cancellation(self):
+        """A stop cancels the turn; a commit that then cannot land - a
+        serialization failure, a dropped connection - must not turn that into a
+        failed turn by replacing the `CancelledError`."""
+
+        async def _cancelled(agent_run: Any) -> None:
+            raise asyncio.CancelledError
+
+        db = _db()
+        # Two commits reach the session now: the opening one before the model
+        # call (#12) and the terminal one. Only the terminal write is under
+        # test, so the first is allowed to land.
+        db.commit = AsyncMock(side_effect=[None, RuntimeError("could not serialize access")])
+        with _runner(_prepared()), pytest.raises(asyncio.CancelledError):
+            await _run(db, stream=_cancelled)
+        assert db.commit.await_count == 2
+
+    @pytest.mark.anyio
+    async def test_a_failing_commit_on_a_clean_run_still_surfaces(self):
+        """When nothing else ended the run, a commit that cannot land is the one
+        thing wrong and does surface."""
+        db = _db()
+        # Two commits reach the session now: the opening one before the model
+        # call (#12) and the terminal one. Only the terminal write is under
+        # test, so the first is allowed to land.
+        db.commit = AsyncMock(side_effect=[None, RuntimeError("could not commit")])
+        with _runner(_prepared()), pytest.raises(RuntimeError, match="could not commit"):
+            await _run(db)
+
+    @pytest.mark.anyio
+    async def test_a_failing_finish_does_not_mask_the_cancellation(self):
+        """The masking window is the whole terminal write, not only the commit:
+        `finish` hits the same connection first and must not replace the
+        `CancelledError` either (#235)."""
+
+        async def _cancelled(agent_run: Any) -> None:
+            raise asyncio.CancelledError
+
+        db = _db()
+        with _runner(_prepared()) as runner:
+            runner.finish = AsyncMock(side_effect=RuntimeError("connection dropped"))
+            with pytest.raises(asyncio.CancelledError):
+                await _run(db, stream=_cancelled)
+        # Only the opening commit; the terminal one is never reached.
+        db.commit.assert_awaited_once()
+
+    @pytest.mark.anyio
+    async def test_a_commit_failure_surfaces_even_inside_a_callers_except(self):
+        """#235 review: a caller's handled exception must not make this run's own
+        commit failure look like the thing being unwound and get swallowed."""
+        db = _db()
+        # Two commits reach the session now: the opening one before the model
+        # call (#12) and the terminal one. Only the terminal write is under
+        # test, so the first is allowed to land.
+        db.commit = AsyncMock(side_effect=[None, RuntimeError("could not commit")])
+        with _runner(_prepared()):
+            try:
+                raise ValueError("boom")  # noqa: TRY301 - a caller already mid-except
+            except ValueError:
+                with pytest.raises(RuntimeError, match="could not commit"):
+                    await _run(db)
+
+
+class TestTellingTheChatWhatThePersonCannotReach:
+    """A personal binding nobody can speak through is one sentence in the model's
+    instructions and one card in the chat, and the card has to be up while the
+    sentence is being said - so the sink is called before the run, not after."""
+
+    async def test_the_gaps_reach_the_sink_before_the_run(self):
+        prepared = _prepared()
+        gap = PersonalServiceGap(catalog_key="notion", name="Notion", gap="not_connected")
+        prepared.personal_service_gaps = [gap]
+        sink = AsyncMock()
+
+        with _runner(prepared):
+            await _run(_db(), on_personal_gaps=sink)
+
+        sink.assert_awaited_once_with([gap])
+
+    async def test_a_turn_with_nothing_missing_says_nothing(self):
+        sink = AsyncMock()
+
+        with _runner(_prepared()):
+            await _run(_db(), on_personal_gaps=sink)
+
+        sink.assert_not_awaited()
+
+    async def test_the_way_to_ask_for_a_connection_reaches_the_build(self):
+        """It decides what is built - a tool instead of a briefing - so it has to
+        arrive at `prepare`, not be set on the deps afterwards like the sinks."""
+        ask = AsyncMock()
+
+        with _runner(_prepared()) as runner:
+            await _run(_db(), request_connection=ask)
+
+        assert runner.prepare.await_args.kwargs["request_connection"] is ask

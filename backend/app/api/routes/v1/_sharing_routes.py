@@ -1,7 +1,7 @@
 """One sharing API, generated per resource type.
 
 Agents, collections and skills share the same sharing model - an owner, a
-visibility, and a list of explicit grants - because the access rules underneath
+visibility, and a list of explicit grants to members or groups - because the access rules underneath
 them are deliberately resource-type agnostic. Writing the same four endpoints
 three times would guarantee they drift: the fix applied to one, the field added
 to another.
@@ -50,7 +50,7 @@ def build_sharing_router(
     resource_type: ResourceType,
     load: ResourceLoader,
 ) -> APIRouter:
-    """Four sharing endpoints for one resource type.
+    """Five sharing endpoints for one resource type.
 
     The path parameter is `resource_id` for every type rather than `agent_id`,
     `kb_id` and so on: FastAPI binds path parameters by name, so per-type names
@@ -67,9 +67,13 @@ def build_sharing_router(
         return await load(db, resource_id, ctx.organization_id)
 
     async def _sharing_of(service: SharingService, ctx: Any, resource: Any) -> ResourceSharing:
-        grants, emails = await service.get_sharing(ctx, resource, resource_type=resource_type)
+        state = await service.get_sharing(ctx, resource, resource_type=resource_type)
         return ResourceSharing.of(
-            resource, resource_type=resource_type.key, grants=grants, emails=emails
+            resource,
+            resource_type=resource_type.key,
+            grants=state.grants,
+            emails=state.emails,
+            group_names=state.group_names,
         )
 
     @router.get("/{resource_id}/sharing", response_model=ResourceSharing)
@@ -90,22 +94,28 @@ def build_sharing_router(
         service: SharingSvc,
         ctx: Auth,
     ) -> Any:
-        """Share with a member, or change the level they already have."""
+        """Share with a member or a group, or change the level they already have."""
         resource = await _resolve(db, resource_id, ctx)
-        grant = await service.share(
-            ctx,
-            resource,
-            resource_type=resource_type,
-            subject_user_id=data.subject_user_id,
-            level=GrantLevel(data.level),
-        )
-        return ResourceGrantRead(
-            id=grant.id,
-            subject_user_id=grant.subject_user_id,
-            resource_type=grant.resource_type,
-            resource_id=grant.resource_id,
-            level=grant.level,
-        )
+        if data.subject_group_id is not None:
+            grant = await service.share_with_group(
+                ctx,
+                resource,
+                resource_type=resource_type,
+                group_id=data.subject_group_id,
+                level=GrantLevel(data.level),
+            )
+        else:
+            # `ResourceGrantUpsert` guarantees exactly one subject, so with no
+            # group named there is a person.
+            assert data.subject_user_id is not None
+            grant = await service.share(
+                ctx,
+                resource,
+                resource_type=resource_type,
+                subject_user_id=data.subject_user_id,
+                level=GrantLevel(data.level),
+            )
+        return ResourceGrantRead.of(grant, emails={}, group_names={})
 
     @router.delete(
         "/{resource_id}/sharing/grants/{subject_user_id}",
@@ -124,6 +134,22 @@ def build_sharing_router(
         await service.revoke(
             ctx, resource, resource_type=resource_type, subject_user_id=subject_user_id
         )
+
+    @router.delete(
+        "/{resource_id}/sharing/group-grants/{group_id}",
+        status_code=status.HTTP_204_NO_CONTENT,
+        response_model=None,
+    )
+    async def unshare_group(
+        resource_id: UUID,
+        group_id: UUID,
+        db: DBSession,
+        service: SharingSvc,
+        ctx: Auth,
+    ) -> None:
+        """Stop sharing with a group."""
+        resource = await _resolve(db, resource_id, ctx)
+        await service.revoke_group(ctx, resource, resource_type=resource_type, group_id=group_id)
 
     @router.patch("/{resource_id}/sharing/visibility", response_model=ResourceSharing)
     async def set_visibility(

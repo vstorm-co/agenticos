@@ -2,7 +2,10 @@
 description: Review code changes against project conventions
 ---
 
-Review the staged and unstaged changes on this branch.
+Review the scope requested by the user. For a branch review, include committed
+changes relative to the PR base (or the merge base with the target branch), plus
+relevant staged and unstaged changes. State the base and scope reviewed.
+Review without editing files unless fixes were requested.
 
 Read the change in the context of the system, not as a diff. For each file, check:
 
@@ -13,7 +16,7 @@ Read the change in the context of the system, not as a diff. For each file, chec
 - Listings call `visible_resource_ids(...)` — `None` means "reaches everything", `[]`
   means "nothing extra"; confusing them leaks or hides rows
 - No `UserRole`, `has_role`, `RoleChecker`, `CurrentAdmin`, `CurrentSuperuser`, no
-  `--role` flag. Those were removed in migration `0066`
+  `--role` flag. Those were removed before the migration chain was squashed
 - Org-scoped rows: is the tenant actually constrained, in the schema and not only in a
   `WHERE`?
 
@@ -26,7 +29,7 @@ Read the change in the context of the system, not as a diff. For each file, chec
 
 **Secrets**
 - Everything at rest goes through `app/core/vault.py`. A second encryption mechanism is
-  the defect migration `0038` removed
+  the defect the vault was built to remove
 - No plaintext in a response, a log line, an audit entry or a spec. `SecretStr` on every
   secret-bearing field
 - A capability declares a secret *kind*; a binding names the instance
@@ -55,14 +58,13 @@ Read the change in the context of the system, not as a diff. For each file, chec
 **Docs** — behaviour changed means the page changed, in this change. Run
 `python3 scripts/docs_drift.py`; it names the pages owed. A refactor with no
 behaviour change owes nothing — say so rather than editing a page for the sake of
-it. The trigger map is in `CLAUDE.md` under *Documentation*.
+it. The trigger map is in `scripts/docs_drift.py`; the topic index is in
+`CLAUDE.md` under *Documentation*.
 
-Then run:
-
-```bash
-make lint
-make test-fast     # or make test if the platform layer changed
-```
+Run checks relevant to the changed code and any suspected defects. Use frontend
+checks for frontend changes and backend checks for backend changes; do not treat a
+backend-only test run as verification of the frontend. Reuse available results for
+the same revision where appropriate and report any checks not run.
 
 Report findings with `file:line` references, most severe first, each with the concrete
 failure it causes. Say plainly if you found nothing worth changing.

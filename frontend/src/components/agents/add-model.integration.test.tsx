@@ -33,6 +33,8 @@ interface ProviderCapabilities {
   secret_kind: string;
   supports_base_url: boolean;
   keyless: boolean;
+  apis: ("chat" | "responses")[];
+  native_api: "chat" | "responses" | null;
 }
 
 const state = {
@@ -109,16 +111,26 @@ function capabilities(
     secret_kind: "api_key",
     supports_base_url: false,
     keyless: false,
+    apis: [],
+    native_api: null,
     ...overrides,
   };
 }
 
+const OPENAI_CAPABILITIES: Partial<ProviderCapabilities> = {
+  supports_base_url: true,
+  keyless: true,
+  apis: ["responses", "chat"],
+  native_api: "responses",
+};
+
 beforeEach(() => {
   state.purposes = [purpose("openai", "OpenAI"), purpose("openrouter", "OpenRouter")];
-  // What each provider's SDK actually reads. `openai` takes an endpoint and is
-  // keyless, because OpenAI-compatible servers exist; `openrouter` takes neither.
+  // What each provider's SDK actually reads. `openai` takes an endpoint, is
+  // keyless because OpenAI-compatible servers exist, and serves both of its
+  // APIs; `openrouter` does none of that.
   state.catalog = [
-    capabilities("openai", "OpenAI", { supports_base_url: true, keyless: true }),
+    capabilities("openai", "OpenAI", OPENAI_CAPABILITIES),
     capabilities("openrouter", "OpenRouter"),
   ];
   state.secrets = [];
@@ -863,6 +875,109 @@ describe("the two refusals that named a provider and the one that named a value"
   });
 });
 
+describe("choosing which of OpenAI's APIs a model's requests go to", () => {
+  /**
+   * OpenAI's newest models are served on Responses only and answer Chat
+   * Completions with a 400, while most OpenAI-compatible servers implement only
+   * Chat Completions. Neither default is right everywhere, so the form shows the
+   * one it would use and lets it be changed.
+   */
+
+  async function fillOpenAi() {
+    state.secrets = [secret()];
+    mount();
+    await pickProvider("OpenAI");
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+  }
+
+  async function pickApi(name: string) {
+    await userEvent.click(screen.getByLabelText("API"));
+    await userEvent.click(screen.getByRole("option", { name }));
+  }
+
+  function sent() {
+    return state.createProfile.mutateAsync.mock.calls.at(-1)?.[0];
+  }
+
+  it("is offered only where the provider serves both", async () => {
+    mount();
+    await pickProvider("OpenRouter");
+    expect(screen.queryByLabelText("API")).toBeNull();
+  });
+
+  it("sends none for a provider that serves one", async () => {
+    state.secrets = [secret({ purpose: "openrouter" })];
+    state.models = [];
+    mount();
+    await pickProvider("OpenRouter");
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.type(screen.getByPlaceholderText("Search models…"), "openai/gpt-5");
+    await userEvent.click(screen.getByText("not in the list"));
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+
+    expect(sent()).toEqual(expect.objectContaining({ api: null }));
+  });
+
+  it("starts on Responses for the provider's own endpoint, and sends it", async () => {
+    await fillOpenAi();
+    expect(screen.getByLabelText("API")).toHaveTextContent("Responses");
+
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+    expect(sent()).toEqual(expect.objectContaining({ api: "responses" }));
+  });
+
+  it("follows an endpoint to Chat Completions", async () => {
+    await fillOpenAi();
+    await userEvent.type(screen.getByLabelText("Endpoint"), "http://vllm:8000/v1");
+    expect(screen.getByLabelText("API")).toHaveTextContent("Chat Completions");
+
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+    expect(sent()).toEqual(
+      expect.objectContaining({ base_url: "http://vllm:8000/v1", api: "chat" }),
+    );
+  });
+
+  it("keeps a choice somebody made over the endpoint's default", async () => {
+    // A regional OpenAI endpoint is an endpoint that serves Responses.
+    await fillOpenAi();
+    await userEvent.type(screen.getByLabelText("Endpoint"), "https://eu.api.openai.com/v1");
+    await pickApi("Responses");
+
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+    expect(sent()).toEqual(expect.objectContaining({ api: "responses" }));
+  });
+
+  it("keeps that choice while the endpoint is still being edited", async () => {
+    await fillOpenAi();
+    await userEvent.type(screen.getByLabelText("Endpoint"), "https://eu.api.openai.com");
+    await pickApi("Responses");
+    await userEvent.type(screen.getByLabelText("Endpoint"), "/v1");
+
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+    expect(sent()).toEqual(expect.objectContaining({ api: "responses" }));
+  });
+
+  it("forgets that choice when the provider changes", async () => {
+    state.catalog = [
+      capabilities("openai", "OpenAI", OPENAI_CAPABILITIES),
+      capabilities("azure", "Azure OpenAI", { apis: ["responses", "chat"], native_api: "chat" }),
+    ];
+    state.purposes = [purpose("openai", "OpenAI"), purpose("azure", "Azure OpenAI")];
+    mount();
+    await pickProvider("^OpenAI");
+    // With an endpoint OpenAI starts on Chat, so Responses is a real choice - and
+    // the opposite of Azure's default, so carrying it across would show.
+    await userEvent.type(screen.getByLabelText("Endpoint"), "https://eu.api.openai.com/v1");
+    await pickApi("Responses");
+    await pickProvider("Azure OpenAI");
+
+    expect(screen.getByLabelText("API")).toHaveTextContent("Chat Completions");
+    // Azure's Responses API depends on the key's api_version, so its hint says so.
+    expect(screen.getByText(/recent api_version on the Azure key/)).toBeInTheDocument();
+  });
+});
+
 describe("the model the agent is already on", () => {
   /** The profile shape this form is handed, and the row the organization has for it. */
   function inUse(overrides: Record<string, unknown> = {}) {
@@ -873,7 +988,6 @@ describe("the model the agent is already on", () => {
       model: "openai/gpt-5.5",
       secret_id: "s-1",
       params: {},
-      allow_byo: false,
       fallback_profile_ids: [],
       ...overrides,
     } as Parameters<typeof AddModel>[0]["selected"];
@@ -892,17 +1006,15 @@ describe("the model the agent is already on", () => {
     expect(screen.getByLabelText("Model")).toHaveTextContent("openai/gpt-5.5");
   });
 
-  it("selects it again rather than minting a second row that says the same thing", async () => {
+  it("says the model is in use and offers nothing to press until a field changes", async () => {
     // What makes pre-filling the form safe. Without it, opening the panel and
-    // pressing the button would create a duplicate profile every time.
+    // pressing the button would create a duplicate profile every time - and the
+    // "Use this model" that replaced that selected the model already selected.
     state.secrets = [secret({ id: "s-1", purpose: "openrouter", name: "Router key" })];
-    const selected = inUse();
-    const { onCreated } = mount({ selected });
+    mount({ selected: inUse() });
 
-    await userEvent.click(screen.getByRole("button", { name: "Use this model" }));
-
-    expect(state.createProfile.mutateAsync).not.toHaveBeenCalled();
-    expect(onCreated).toHaveBeenCalledWith(selected);
+    expect(screen.getByText("In use")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add model" })).not.toBeInTheDocument();
   });
 
   it("creates rather than reuses once an endpoint has been typed", async () => {
@@ -924,7 +1036,7 @@ describe("the model the agent is already on", () => {
     // typed is making something new whatever its first two fields say.
     state.secrets = [secret({ id: "s-1", purpose: "openrouter", name: "Router key" })];
     mount({ selected: inUse() });
-    expect(screen.getByRole("button", { name: "Use this model" })).toBeInTheDocument();
+    expect(screen.getByText("In use")).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Name it something else" }));
     await userEvent.type(screen.getByLabelText("Name"), "the cheap one");
@@ -932,13 +1044,38 @@ describe("the model the agent is already on", () => {
     expect(screen.getByRole("button", { name: "Add model" })).toBeInTheDocument();
   });
 
-  it("needs no key decision to select a model the organization already has", async () => {
-    // It has whatever it was created with. Requiring one again would make the
-    // panel unusable for a provider whose key somebody else stored.
-    state.secrets = [];
-    mount({ selected: inUse() });
+  it("starts on the API the model in use stored, and is unchanged on it", async () => {
+    state.secrets = [secret({ id: "s-1", purpose: "openai", name: "OpenAI prod" })];
+    mount({
+      selected: inUse({ provider: "openai", model: "gpt-5", base_url: null, api: "chat" }),
+    });
 
-    expect(screen.getByRole("button", { name: "Use this model" })).toBeEnabled();
+    expect(screen.getByLabelText("API")).toHaveTextContent("Chat Completions");
+    expect(screen.getByText("In use")).toBeInTheDocument();
+  });
+
+  it("creates rather than reuses once another API has been picked", async () => {
+    state.secrets = [secret({ id: "s-1", purpose: "openai", name: "OpenAI prod" })];
+    mount({
+      selected: inUse({ provider: "openai", model: "gpt-5", base_url: null, api: "chat" }),
+    });
+
+    await userEvent.click(screen.getByLabelText("API"));
+    await userEvent.click(screen.getByRole("option", { name: "Responses" }));
+
+    expect(screen.getByRole("button", { name: "Add model" })).toBeInTheDocument();
+  });
+
+  it("leaves the stored API behind once the endpoint changes", async () => {
+    // Pointing the model in use at a vLLM must not carry Responses there with it.
+    state.secrets = [secret({ id: "s-1", purpose: "openai", name: "OpenAI prod" })];
+    mount({
+      selected: inUse({ provider: "openai", model: "gpt-5", base_url: null, api: "responses" }),
+    });
+
+    await userEvent.type(screen.getByLabelText("Endpoint"), "http://vllm:8000/v1");
+
+    expect(screen.getByLabelText("API")).toHaveTextContent("Chat Completions");
   });
 
   it("creates rather than reuses once a different key has been picked", async () => {
@@ -950,7 +1087,7 @@ describe("the model the agent is already on", () => {
       secret({ id: "s-2", purpose: "openrouter", name: "Router key two" }),
     ];
     mount({ selected: inUse({ secret_id: "s-1" }) });
-    expect(screen.getByRole("button", { name: "Use this model" })).toBeInTheDocument();
+    expect(screen.getByText("In use")).toBeInTheDocument();
 
     await userEvent.click(screen.getByLabelText("Key"));
     await userEvent.click(screen.getByRole("option", { name: /Router key two/ }));

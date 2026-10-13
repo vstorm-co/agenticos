@@ -51,15 +51,17 @@ from app.core.audit import record_audit
 from app.core.background import spawn_after_commit
 from app.core.config import settings
 from app.core.exceptions import (
+    AppException,
     AuthorizationError,
     BadRequestError,
     NotFoundError,
     ValidationError,
 )
 from app.core.permissions import AuthContext, Perm
+from app.core.secret_kinds import GithubAppSecret, SecretKind
 from app.core.vault import VaultScope, seal, unseal
 from app.db.models.agent_run import RunStatus, RunSurface
-from app.db.models.agent_trigger import AgentTrigger, ScheduleKind, TriggerType
+from app.db.models.agent_trigger import AgentTrigger, EventSource, ScheduleKind, TriggerType
 from app.db.models.mcp_connection import McpConnection
 from app.db.session import get_db_context
 from app.db.updates import writable
@@ -85,6 +87,7 @@ from app.services.access import AGENT, resolve_access, visible_resource_ids
 from app.services.agent_registry import AgentRegistryService
 from app.services.mcp_connection import McpConnectionService
 from app.services.portal_catalog import DeliveryMode
+from app.services.portals.github_app import GitHubAppPortalAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -372,6 +375,7 @@ class AgentTriggerService:
         for trigger, agent in rows:
             read = TriggerRead.model_validate(trigger)
             read.agent_name = agent.name
+            read.agent_slug = agent.slug
             read.agent_has_avatar = agent.has_avatar
             read.agent_avatar_color = agent.avatar_color
             if agent.id not in can_run:
@@ -688,6 +692,16 @@ class AgentTriggerService:
                 target=data.target,
                 secret=cast(str, plaintext_secret),
             )
+        elif portal is not None and portal.delivery is DeliveryMode.APP_WEBHOOK and data.target:
+            # An App portal registers nothing - the installation already delivers -
+            # but the row still has to remember *which* repository this trigger is
+            # for, because that is what `prepare_app_fires` matches a delivery
+            # against. Only the auto-registration branch above wrote
+            # `provider_target`, so an App trigger saved a null one and every
+            # correctly signed delivery was skipped for not matching it.
+            trigger.provider_target = data.target
+            trigger.delivery_mode = portal.delivery.value
+            await self.db.flush()
         # Reload before returning: opening the run-log conversation flushed a
         # `conversation_id` update, and the server-side `updated_at` (onupdate) it
         # triggered is now expired on the instance. Serializing the response reads
@@ -1201,6 +1215,144 @@ class AgentTriggerService:
         context = trigger_events.render_context(source, payload=payload)
         return EventFireDecision(trigger_id=trigger.id, event_context=context)
 
+    async def prepare_app_fires(
+        self, *, body: bytes, headers: Mapping[str, str]
+    ) -> list[EventFireDecision]:
+        """Route one GitHub App delivery to every trigger it matches (#1072).
+
+        **The URL names nothing here**, which is the whole difference from
+        :meth:`prepare_event_fire`. An App has one webhook URL and one signing
+        secret per installation, so a delivery carries an `installation.id` and a
+        `repository.full_name` and the routing is a lookup rather than a path
+        parameter.
+
+        Three steps, in this order and for this reason:
+
+        1. **Read the installation id out of the unverified body.** It selects
+           candidate grants and authorises nothing; the signature is still what
+           proves the delivery. Selecting the key to check with is the one thing
+           that has to happen before the check.
+        2. **Verify against that organization's own webhook secret.** A delivery
+           whose signature matches no candidate is refused, exactly as a
+           per-trigger one is, because a misconfigured secret is the integrator's
+           to fix and GitHub surfaces a 403.
+        3. **Match every active trigger** on that organization pointing at that
+           repository. One event firing several triggers is the polled shape, not
+           the per-URL one - and it is correct here: two triggers on the same
+           repository is what the presets invite.
+
+        Returns:
+            One decision per trigger to fire, possibly none. A delivery for an
+            installation nobody holds, a repository nothing points at or an event
+            no filter matches all answer the same empty list, so the response
+            tells a caller nothing about what exists.
+
+        Raises:
+            AuthorizationError: The signature verified against no candidate grant.
+            BadRequestError: The body is not a JSON object.
+        """
+        payload = _parse_json(body)
+        installation = payload.get("installation")
+        installation_id = str(installation.get("id")) if isinstance(installation, dict) else None
+        if not installation_id:
+            return []
+
+        grants = await mcp_connection_repo.portal_grants_for_account(
+            self.db,
+            portal_key=GitHubAppPortalAdapter.portal_key,
+            portal_account_id=installation_id,
+        )
+        organization_id = await self._organization_for_app_delivery(
+            grants, body=body, headers=headers
+        )
+        if organization_id is None:
+            raise AuthorizationError(
+                message="Webhook signature did not verify",
+                details={"installation_id": installation_id},
+            )
+
+        repository = payload.get("repository")
+        full_name = repository.get("full_name") if isinstance(repository, dict) else None
+        if not full_name:
+            return []
+
+        triggers = await agent_trigger_repo.list_active_for_event_source(
+            self.db, organization_id=organization_id, event_source=EventSource.GITHUB.value
+        )
+        decisions: list[EventFireDecision] = []
+        for trigger in triggers:
+            if trigger.portal_key != GitHubAppPortalAdapter.portal_key:
+                continue
+            if trigger.provider_target != full_name:
+                continue
+            if not trigger_events.event_matches(
+                EventSource.GITHUB.value,
+                headers=headers,
+                payload=payload,
+                config=trigger.event_config,
+            ):
+                continue
+            delivery = trigger_events.delivery_id(EventSource.GITHUB.value, headers)
+            if delivery is not None and not await trigger_dedupe.claim_event_delivery(
+                trigger_id=trigger.id, delivery_id=delivery
+            ):
+                continue
+            decisions.append(
+                EventFireDecision(
+                    trigger_id=trigger.id,
+                    event_context=trigger_events.render_context(
+                        EventSource.GITHUB.value, payload=payload
+                    ),
+                )
+            )
+        return decisions
+
+    async def _organization_for_app_delivery(
+        self,
+        grants: Sequence[McpConnection],
+        *,
+        body: bytes,
+        headers: Mapping[str, str],
+    ) -> UUID | None:
+        """Whose delivery this is: the grant whose App secret signed it.
+
+        Every candidate is tried rather than the first, because two organizations
+        could in principle hold grants GitHub numbered the same and answering the
+        first would hand one of them the other's deliveries. An organization that
+        has stored no App secret is skipped rather than raised on: its grant
+        cannot have signed this, and a delivery is not the place to tell somebody
+        their vault is incomplete.
+        """
+        from app.services.organization_secret import OrganizationSecretService
+
+        secrets_service = OrganizationSecretService(self.db)
+        for grant in grants:
+            # Both casts annotate what the caller already guaranteed, the idiom
+            # `_unseal_event_secret` uses: the query filtered on `purpose='portal'`
+            # and a portal grant always has an organization, and `app_secret`
+            # refuses anything whose sealed kind is not the one asked for. Guards
+            # here would be branches no test could reach under the 100% gate.
+            organization_id = cast(UUID, grant.organization_id)
+            try:
+                secret = cast(
+                    GithubAppSecret,
+                    await secrets_service.app_secret(organization_id, kind=SecretKind.GITHUB_APP),
+                )
+            except AppException:
+                logger.warning(
+                    "github_app_secret_unavailable",
+                    extra={"organization_id": str(organization_id)},
+                )
+                continue
+            if trigger_events.verify_signature(
+                EventSource.GITHUB.value,
+                secret=secret.webhook_secret.get_secret_value(),
+                body=body,
+                headers=headers,
+            ):
+                return organization_id
+        return None
+
     async def prepare_polled_fires(
         self,
         *,
@@ -1357,7 +1509,7 @@ class AgentTriggerService:
         scheduled worker path passes it. `run_now` and an event fire reach `fire`
         with no claim behind them, and a marker they find belongs to a concurrent
         scheduled fire still relying on it: clearing it would reopen the trigger to
-        the next tick mid-run, the self-overlap `0025` exists to close.
+        the next tick mid-run, the self-overlap `0051_trigger_fire_in_flight` exists to close.
 
         The identity check is what keeps a slow fire from clearing a *newer* claim's
         marker. If this fire outran the lease, `claim_due` may have re-claimed the
@@ -1371,10 +1523,13 @@ class AgentTriggerService:
 
         While the run executes, the marker is *renewed* (`_keep_lease_alive`): a
         run longer than the lease is otherwise indistinguishable from a crashed
-        one - its own `running` row commits only when it finishes, so no other
-        session can see it - and the next heartbeat would re-claim the trigger and
-        fire it on top of itself. Each renewal moves the ticket, so the clear here
-        names the timestamp the row actually holds.
+        one, and the next heartbeat would re-claim the trigger and fire it on
+        top of itself. The run's own committed `running` row (#12) also blocks
+        `claim_due` while it stands, but that row is bounded by the stale-run
+        sweep rather than by liveness - a crashed fire's row reads `running`
+        until the sweep ends it - so the renewed marker stays the signal that
+        distinguishes a slow fire from a dead one. Each renewal moves the
+        ticket, so the clear here names the timestamp the row actually holds.
         """
         trigger = await agent_trigger_repo.get_by_id(self.db, trigger_id)
         if trigger is None:
@@ -1385,9 +1540,9 @@ class AgentTriggerService:
             return
         # The ticket the marker currently holds, renewed in place while the run
         # executes: a run longer than the lease would otherwise look dead to the
-        # next heartbeat - its own `running` row is invisible to other sessions
-        # until this transaction commits - and be fired on top of itself. A list,
-        # because the renewer moves it and the `finally` must clear the *latest*.
+        # next heartbeat and be fired on top of itself - the marker is the
+        # schedule's liveness signal, not the run row (#12). A list, because
+        # the renewer moves it and the `finally` must clear the *latest*.
         ticket = [claimed_at]
         renewer = asyncio.create_task(self._keep_lease_alive(trigger.id, ticket))
         try:
@@ -1505,41 +1660,40 @@ class AgentTriggerService:
             # run already accounted for and retry the same outage. Recover the row
             # from the trigger's own conversation, stamp it, and return.
             logger.exception("trigger_fire_run_errored", extra={"trigger_id": str(trigger.id)})
+            # This fire's own uncommitted writes go back before anything is
+            # read. A failure before `_run`'s opening commit leaves a
+            # flushed-but-uncommitted `running` row in this session; a failure
+            # *after* it - a transcript or conversation write dying between the
+            # opening and the terminal commit - leaves a flushed terminal state
+            # over a durably `running` row. Swallowing the error, as this
+            # handler does, would commit either half-written shape with the
+            # worker context on its clean exit: the first as a phantom run
+            # nothing will ever finish, the second as an outcome with no record
+            # behind it. And the conversation's tail cannot arbitrate - a run's
+            # row is committed `running` before its model is called (#12), so
+            # the latest row here can be a *concurrent* fire's, committed after
+            # this fire flushed its own. The rollback makes what this session
+            # sees exactly what everybody else sees, so the branches below
+            # reason about durable rows only; a durably `running` remainder is
+            # the stale-run sweep's to end.
+            await self.db.rollback()
             run = await agent_run_repo.latest_run_for_conversation(
                 self.db, conversation_id, organization_id=ctx.organization_id
             )
             if run is None or run.id == previous_run_id:
-                # No run row for *this* fire: the error struck before one was created
-                # - a spec that no longer builds, a model profile deleted since
-                # publish - or the tail is still the previous fire's run. Nothing of
-                # this fire's to stamp; the next interval tries again once the cause
-                # is fixed.
+                # Nothing durable of this fire's: the error struck before its
+                # opening commit - a spec that no longer builds, a model profile
+                # deleted since publish - or the tail is still the previous
+                # fire's run. Nothing to stamp; the next interval tries again
+                # once the cause is fixed.
                 return
-            if run.status == RunStatus.RUNNING.value:
-                # The error struck after `create_run` flushed the row `running` but
-                # before `_run` could record it terminal - `workspaces.open`,
-                # `build_agent` and delegation setup all run after the row exists, and
-                # an error from any of them escapes `_run`'s `finally`. Nothing else
-                # will ever finish this run, and a non-terminal `last_run_id` makes
-                # `claim_due`'s no-overlap guard skip the trigger on every tick for
-                # ever. It can only be this fire's own orphan - `claim_due` proved the
-                # previous run terminal at claim time, and an in-flight run's row is
-                # invisible to other transactions until its own commit lands - so
-                # settle it before stamping.
-                run.status = RunStatus.FAILED.value
-                run.ended_at = datetime.now(UTC)
-                run.error = "fire failed before the runner could record the run"
-            elif run.status != RunStatus.FAILED.value:
-                # This fire produced a terminal or parked write that never durably
-                # committed: a finalization or persistence step - the transcript, the
-                # conversation state, the run's own commit - failed after the run had
-                # finished, so `_run` never reached its commit and the row is only
-                # flushed, not durable. Unlike a recorded failure this is not an
-                # outcome to leave for the next fire: swallowing it would let the
-                # worker context commit a completed run with no transcript behind it
-                # while Prefect sees success. Re-raise, so the half-written state rolls
-                # back and the flow is marked failed.
-                raise
+            if run.status != RunStatus.FAILED.value:
+                # A durable row this fire cannot claim as its own outcome: a
+                # concurrent fire's run, live or settled - or this fire's own
+                # opening commit whose terminal write was lost above. Not ours
+                # to stamp; a concurrent fire stamps its run itself, and the
+                # sweep bounds a `running` remainder.
+                return
 
         trigger.last_run_id = run.id
         # Stamp the fire on every path, not just the scheduled heartbeat: without
@@ -1580,6 +1734,9 @@ class AgentTriggerService:
             user_id=trigger.created_by_user_id,
             organization_id=trigger.organization_id,
             role=membership.role,
+            # The creator is the authority a fire runs under, not a memory end-user: an
+            # unattended run must not read or write their personal store.
+            subject_is_publisher_fallback=True,
         )
 
     async def _run_log(self, trigger: AgentTrigger, *, agent_name: str) -> UUID:

@@ -4,8 +4,20 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 interface UseWebSocketOptions {
   url: string;
-  /** WebSocket subprotocols (e.g. ["access_token.<jwt>", "chat"]) */
-  protocols?: string[];
+  /** The subprotocols to open with, read when a socket is actually opened.
+   *
+   *  A function rather than an array, because one of them carries a credential:
+   *  `access_token.<jwt>` is what the handshake authenticates with, and
+   *  `get_current_user_ws` verifies it once and never again - so a socket that
+   *  is already up does not need the refreshed one. Passed as a value it was
+   *  part of this hook's idea of *which socket this is*, and the console
+   *  re-mints that token on a timer, unprompted - so a refresh closed the
+   *  socket an answer was streaming on, and the server, reading that close as
+   *  the reader leaving, cancelled the turn.
+   *
+   *  Evaluated on each `connect()` instead: a reconnect always presents the
+   *  freshest token, and a refresh on its own changes nothing. */
+  protocols?: () => string[] | undefined;
   onMessage?: (event: MessageEvent) => void;
   onOpen?: () => void;
   onClose?: (event: CloseEvent) => void;
@@ -24,8 +36,14 @@ interface UseWebSocketOptions {
 // normal close (1000) is not.
 const NO_RETRY_CLOSE_CODES = new Set([1000, 1001, 1005, 1008, 4001, 4401, 4403]);
 
-const sigOf = (url: string, protocols?: string[]) =>
-  JSON.stringify({ url, protocols: protocols ?? null });
+/** What identifies the socket this hook is holding.
+ *
+ *  The address, and only the address - which carries the organization, the one
+ *  change that must not be answered by keeping the old connection. The
+ *  subprotocols are deliberately absent: the only one that ever varies is the
+ *  access token, and a token that changed is not a different socket. It is the
+ *  same socket, still authenticated by the credential it shook hands with. */
+const sigOf = (url: string) => JSON.stringify({ url });
 
 /** Detach handlers before closing so a deliberate teardown can't re-enter the
  *  onclose logic (reconnect / token refresh) for a socket we're discarding. */
@@ -56,7 +74,8 @@ export function useWebSocket({
   const wsRef = useRef<WebSocket | null>(null);
   // Params the live socket was opened with - lets connect() tell a StrictMode
   // remount / quick nav-back (same params → reuse the socket) apart from a real
-  // change like a refreshed token (different params → swap the socket).
+  // change like switching organization (different params → swap the socket).
+  // A refreshed token is deliberately not such a change; see `protocols`.
   const wsSigRef = useRef<string | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   // Deferred teardown timer. disconnect() schedules the close instead of doing
@@ -74,13 +93,20 @@ export function useWebSocket({
   const onOpenRef = useRef(onOpen);
   const onCloseRef = useRef(onClose);
   const onErrorRef = useRef(onError);
+  // Here for the same reason the four above are, and it is what keeps a token
+  // refresh out of `connect`'s identity: read through the ref, the getter is
+  // not a dependency, so a new one does not rebuild `connect` and re-run the
+  // caller's lifecycle effect. Seeded rather than left undefined because the
+  // first `connect()` can run before this effect has flushed.
+  const protocolsRef = useRef(protocols);
 
   useEffect(() => {
     onMessageRef.current = onMessage;
     onOpenRef.current = onOpen;
     onCloseRef.current = onClose;
     onErrorRef.current = onError;
-  }, [onMessage, onOpen, onClose, onError]);
+    protocolsRef.current = protocols;
+  }, [onMessage, onOpen, onClose, onError, protocols]);
 
   // `connect` reconnects by calling itself from a timeout, and a `useCallback`
   // cannot reference its own binding before it exists. Held in a ref, kept
@@ -100,7 +126,7 @@ export function useWebSocket({
       closeTimeoutRef.current = null;
     }
 
-    const sig = sigOf(url, protocols);
+    const sig = sigOf(url);
     const live = wsRef.current;
 
     // Same params + live socket → reuse it (StrictMode double-mount, fast
@@ -114,16 +140,19 @@ export function useWebSocket({
       return;
     }
 
-    // Params changed (e.g. token refresh) or a stale socket lingers → discard it
-    // silently before opening the replacement.
+    // The address changed (an organization switch), or a stale socket lingers →
+    // discard it silently before opening the replacement.
     if (live) {
       silentClose(live);
       wsRef.current = null;
     }
 
     shouldReconnectRef.current = true;
-    const ws =
-      protocols && protocols.length > 0 ? new WebSocket(url, protocols) : new WebSocket(url);
+    // Read here rather than captured: this is the one moment the credential is
+    // used, so reading it now is what lets a refreshed token reach the *next*
+    // handshake without disturbing the live one.
+    const opening = protocolsRef.current?.();
+    const ws = opening && opening.length > 0 ? new WebSocket(url, opening) : new WebSocket(url);
     wsRef.current = ws;
     wsSigRef.current = sig;
 
@@ -164,7 +193,7 @@ export function useWebSocket({
     ws.onerror = (error) => {
       onErrorRef.current?.(error);
     };
-  }, [url, protocols, reconnect, reconnectInterval, maxReconnectAttempts]);
+  }, [url, reconnect, reconnectInterval, maxReconnectAttempts]);
 
   useEffect(() => {
     connectRef.current = connect;

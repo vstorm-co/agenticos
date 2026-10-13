@@ -19,7 +19,7 @@ caller walks them, so it can bound them and decide what a new origin means.
 And it does not rewrite the request the caller holds - the address is
 substituted inside the transport, on a copy, so `response.request.url` is still
 the URL the flow believes it asked for. That matters more than it looks:
-`httpx` resolves a relative `Location` against the request it sent, and against
+`httpx2` resolves a relative `Location` against the request it sent, and against
 the dialled URL a relative redirect would land on the pinned IP with the name
 lost. It is also why `NO_PROXY` and mount patterns still match on the host -
 they are compared before the transport substitutes anything.
@@ -46,7 +46,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
-import httpx
+import httpx2
 
 from app.core.sanitize import PinnedAddress, resolve_pinned_url
 
@@ -59,27 +59,27 @@ logger = logging.getLogger(__name__)
 # only the first of them - so this pool keeps nothing alive to be shared. The
 # flow it serves makes a handful of requests to several hosts, which is the
 # shape that loses least by it.
-_NO_REUSE = httpx.Limits(max_keepalive_connections=0)
+_NO_REUSE = httpx2.Limits(max_keepalive_connections=0)
 
 # A failure to *connect* is the only one another address may be tried after:
 # nothing was sent, so nothing is sent twice. A read or write failure means the
 # token grant may already have been processed at the other end.
-_UNREACHED = (httpx.ConnectError, httpx.ConnectTimeout)
+_UNREACHED = (httpx2.ConnectError, httpx2.ConnectTimeout)
 
 
-def _dial(request: httpx.Request, pinned: PinnedAddress, ip: str, body: bytes) -> httpx.Request:
+def _dial(request: httpx2.Request, pinned: PinnedAddress, ip: str, body: bytes) -> httpx2.Request:
     """Copy *request* addressed at a validated IP rather than at the hostname.
 
     The body is passed as bytes rather than as the original stream so that a
     second address can be tried after a refused connection; a stream would be
     consumed by the first attempt.
     """
-    headers = httpx.Headers(request.headers)
+    headers = httpx2.Headers(request.headers)
     headers["Host"] = request.url.netloc.decode("ascii")
     extensions = dict(request.extensions)
     if request.url.scheme == "https":
         extensions["sni_hostname"] = pinned.hostname
-    return httpx.Request(
+    return httpx2.Request(
         request.method,
         request.url.copy_with(host=ip, port=pinned.port),
         headers=headers,
@@ -88,7 +88,7 @@ def _dial(request: httpx.Request, pinned: PinnedAddress, ip: str, body: bytes) -
     )
 
 
-class PinnedTransport(httpx.AsyncBaseTransport):
+class PinnedTransport(httpx2.AsyncBaseTransport):
     """Validates each request's URL and sends it to an address that passed.
 
     Every address the name answered with was checked, so trying the next one
@@ -98,13 +98,13 @@ class PinnedTransport(httpx.AsyncBaseTransport):
     whole flow.
     """
 
-    def __init__(self, inner: httpx.AsyncBaseTransport) -> None:
+    def __init__(self, inner: httpx2.AsyncBaseTransport) -> None:
         self._inner = inner
 
-    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+    async def handle_async_request(self, request: httpx2.Request) -> httpx2.Response:
         """Raises a `UrlRefusedError` out of `client.send` rather than connecting.
 
-        The refusal crosses `httpx` untouched, so the caller catches the same
+        The refusal crosses `httpx2` untouched, so the caller catches the same
         type it would from a direct call and quotes what it is allowed to
         quote - a host, never a URL (#861).
         """
@@ -124,8 +124,8 @@ class PinnedTransport(httpx.AsyncBaseTransport):
         await self._inner.aclose()
 
 
-class PinnedAsyncClient(httpx.AsyncClient):
-    """An `httpx.AsyncClient` whose every hop is SSRF-checked and pinned.
+class PinnedAsyncClient(httpx2.AsyncClient):
+    """An `httpx2.AsyncClient` whose every hop is SSRF-checked and pinned.
 
     Redirects are off: a flow that lets a remote server choose its next address
     should count the hops and see each one, and the transport only ever sees a
@@ -133,15 +133,15 @@ class PinnedAsyncClient(httpx.AsyncClient):
 
     `transport` replaces the network for a test; it is wrapped, not bypassed, so
     a test observes exactly what would go on the wire. Passing one also turns
-    off `httpx`'s environment-proxy mounting, which is why the real client does
+    off `httpx2`'s environment-proxy mounting, which is why the real client does
     not name a transport of its own.
     """
 
     def __init__(
         self,
         *,
-        timeout: httpx.Timeout,
-        transport: httpx.AsyncBaseTransport | None = None,
+        timeout: httpx2.Timeout,
+        transport: httpx2.AsyncBaseTransport | None = None,
     ) -> None:
         super().__init__(
             timeout=timeout,
@@ -149,7 +149,7 @@ class PinnedAsyncClient(httpx.AsyncClient):
             limits=_NO_REUSE,
             transport=transport,
         )
-        # Read before written on purpose: `httpx` builds these in its own
+        # Read before written on purpose: `httpx2` builds these in its own
         # `__init__` - the default pool, plus one mount per proxy the
         # environment names - and wrapping what it built is what applies the pin
         # to whichever of them a URL selects. Naming a transport here instead is

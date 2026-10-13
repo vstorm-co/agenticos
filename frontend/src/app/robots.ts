@@ -1,7 +1,10 @@
 import type { MetadataRoute } from "next";
 
 import { locales } from "@/i18n";
-import { SITE } from "@/lib/seo";
+import { siteOrigin } from "@/lib/seo";
+
+// Rendered per request, not prerendered at build: the origin is a runtime setting (#1544).
+export const dynamic = "force-dynamic";
 
 /** Robots policy.
  *
@@ -21,9 +24,10 @@ export default function robots(): MetadataRoute.Robots {
     ...locales.map((locale) => `/${locale}${path}`),
   ]);
 
+  const origin = siteOrigin();
   return {
     rules: [{ userAgent: "*", allow, disallow: ["/"] }],
-    sitemap: `${SITE.url}/sitemap.xml`,
-    host: SITE.url,
+    sitemap: `${origin}/sitemap.xml`,
+    host: origin,
   };
 }

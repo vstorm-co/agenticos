@@ -1,0 +1,52 @@
+# Puts the production API behind an existing Traefik. An overlay, never alone:
+#
+#   docker compose --env-file backend/.env \
+#     -f docker-compose-prod.yml -f docker-compose-prod.traefik.yml up -d --build
+#
+# The alternative this replaces is `nginx/nginx.conf`, which is a reverse proxy
+# on the *host* reaching the loopback ports. Use one or the other. Traefik is
+# worth the labels where it is already running: it discovers the container, asks
+# Let's Encrypt for the certificate and renews it, with nothing to reload.
+#
+# What it needs from the deployment, in `backend/.env`:
+#
+#   API_DOMAIN=api.example.com        # required, refuses to start without it
+#   TRAEFIK_NETWORK=traefik_webgateway
+#   TRAEFIK_ENTRYPOINT=websecure
+#   TRAEFIK_CERT_RESOLVER=letsencrypt
+#
+# and from Traefik itself: `providers.docker` watching a network this joins.
+# Where `exposedByDefault` is false - which it should be - `traefik.enable=true`
+# below is what opts this one service in, and every other service in the stack
+# stays unreachable because nothing labels them.
+#
+# `traefik.docker.network` is not optional here and the failure is confusing
+# without it. This container sits on three networks, and Traefik picks one of
+# its addresses to route to; picking `data` (which is `internal: true`) or the
+# wrong end of `edge` gives a gateway timeout on a container that is up and
+# healthy.
+#
+# The loopback publish from the base file stays. It is how you `curl` the API
+# from the host while diagnosing something, and nothing off the host can reach
+# it.
+
+services:
+  app:
+    networks:
+      # Only the addition. A service's `networks` is a mapping, and compose merges
+      # mappings across `-f` files by key - so `data` and `edge` come from the base
+      # file with their aliases intact, and repeating them here would be a second
+      # copy to keep in step.
+      proxy:
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=${TRAEFIK_NETWORK:-traefik_webgateway}"
+      - "traefik.http.routers.agenticos-api.rule=Host(`${API_DOMAIN:?API_DOMAIN is required, e.g. api.example.com}`)"
+      - "traefik.http.routers.agenticos-api.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}"
+      - "traefik.http.routers.agenticos-api.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-letsencrypt}"
+      - "traefik.http.services.agenticos-api.loadbalancer.server.port=8000"
+
+networks:
+  proxy:
+    name: ${TRAEFIK_NETWORK:-traefik_webgateway}
+    external: true

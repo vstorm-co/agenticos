@@ -10,6 +10,14 @@ feat/… fix/… ──pull request──▶ main
 Everything reaching it does so as a squashed commit from a short-lived branch,
 after CI has run on the pull request.
 
+A push to `main` and a `v*` tag each also publish the two container images -
+`ghcr.io/vstorm-co/agenticos-backend` and `-frontend`, `edge` and `sha-<short>`
+from the branch, the version and `latest` from the tag - through
+`.github/workflows/images.yml`. It has no pull-request trigger, so a fork cannot
+publish under the organization's name, and it refuses a commit that is not on
+`main`, so a tag pushed from a branch cannot move `latest` either;
+[Deploy](deploy.md#the-images) says what pulls them.
+
 There is no `dev`. There was, briefly: work landed there and reached `main` in
 release pull requests. At this size it bought a staging branch nobody needed and
 cost a second place for every change to sit, so it was removed.
@@ -20,6 +28,7 @@ cost a second place for every change to sit, so it was removed.
 |---|---|
 | No direct push to `main` | Ruleset — a pull request is required |
 | CI green before merge | Required status checks: `lint`, `test`, `test-frontend`, `e2e`, `docs`, `Security Scan` |
+| No new code-scanning alert merged | Code-scanning merge protection on the ruleset. **Not** the `analyze` jobs' own status, which is green whatever the analysis found — see [CodeQL](#codeql-runs-on-the-pull-request) below |
 | Squash on merge | Ruleset — the only allowed merge method |
 | Conversations resolved | Ruleset |
 | Stale approvals dismissed on a new push | Ruleset |
@@ -28,6 +37,7 @@ cost a second place for every change to sit, so it was removed.
 | Spelling, across every tracked file | codespell — as a hook on the files a commit touches, and as `make lint-spelling` in CI's `lint` job over the whole tree |
 | Routes hold only routers, no banner comments, no dead code | `check_routes.py`, `check_comments.py` and `vulture` — hooks in `.pre-commit-config.yaml` (each scans the whole tree, `pass_filenames: false`) and steps of `make lint-backend` in CI's `lint` job |
 | No dependency declared that nothing imports | `deptry` — a step of `make lint-backend` in CI's `lint` job, gating on DEP002 and DEP004. Not a pre-commit hook: it reads the whole manifest against the whole tree, so there is no per-file version of the question |
+| YAML formatting, workflow security, the pre-commit basics, across every tracked file | yamlfmt, zizmor and `pre-commit-hooks` (`end-of-file-fixer`, `trailing-whitespace`, `check-yaml/json/toml`, `detect-private-key` …) — as hooks on the files a commit touches, and as `make lint-precommit` in CI's `lint` job over the whole tree. Like spelling, these are per-file by nature, so a `rev:` bump that brings a new rule breaks every existing file with nothing noticing until an unrelated edit is refused by it |
 
 A hook only ever reads what a commit touches, which makes it a poor gate on its
 own: a misspelling that merges with its file sits there until somebody edits that
@@ -42,28 +52,38 @@ workflow is how a build ends up passing on nothing.
 
 ### A required check may legitimately report `skipped`
 
+!!! info "A `skipped` required check is a pass, not a problem"
+
+    GitHub satisfies a required status check with `success`, `skipped` **or**
+    `neutral`. So a backend-only branch gets no frontend answer at all - which
+    means "green" on such a branch is a claim about fewer jobs than `make check`
+    runs.
+
 Three of those six do not run on every pull request. `test`, `test-frontend` and
 `e2e` are 8.2, 5.3 and 5.1 billed minutes each, and a `changes` job decides which
 of them a change set can provably not affect — `scripts/ci_changed_scope.py`, so
 the rule is testable rather than a glob in a YAML file
 ([#317](https://github.com/vstorm-co/agenticos/issues/317)).
 
-This is legal because GitHub satisfies a required status check with **`success`,
-`skipped` or `neutral`**. It is why the gate is a job-level `if:` and **not** a
+That is why the gate is a job-level `if:` and **not** a
 `paths:` filter on the workflow: a filtered-out workflow never posts its checks at
 all, so the ruleset waits for six contexts that will never arrive and the merge
 button stays grey forever.
 
-The classifier is written the timid way round — **a job is skipped only when every
-changed path is provably irrelevant to it**, so an unrecognised path runs
-everything. The permissive spelling of the same idea would let a new directory
-silently stop a suite from running, which is not a red build but a green one with a
-gate missing from it, and this repository has already paid for that twice (#143,
-#165). Only two exemptions exist, both checked rather than assumed: `docs/**`,
-`mkdocs.yml` and a top-level `*.md` (no test reads any of them), and the opposite
-half of the tree for each of the two unit suites. `e2e` is exempted from neither
-half. `lint` is never gated at all, because `make lint-spelling` is the only thing
-that reads every tracked file.
+The classifier is written the timid way round: **a job is skipped only when every
+changed path is provably irrelevant to it**, so an unrecognised path runs everything.
+
+The permissive spelling of the same idea would let a new directory silently stop a
+suite from running — which is not a red build but a green one with a gate missing
+from it, and this repository has already paid for that twice (#143, #165).
+
+Only two exemptions exist, both checked rather than assumed:
+
+- `docs/**`, `mkdocs.yml` and a top-level `*.md`, because no test reads any of them;
+- the opposite half of the tree, for each of the two unit suites.
+
+`e2e` is exempted from neither half, and `lint` is never gated at all — because
+`make lint-spelling` and `make lint-precommit` read every tracked file.
 
 The second exemption stops short of one directory. `frontend/src/app/api/**` is
 the BFF, and `backend/tests/api/test_bff_forwarded_paths.py` checks the
@@ -114,12 +134,36 @@ produces no evidence that it did not, so nothing about a run can reveal the
 regression. The same file asserts the other property no run can show — that every
 job bounds its own runtime, below.
 
-Two limits worth stating plainly. **A green stacked pull request was checked against
+One limit worth stating plainly: **a green stacked pull request was checked against
 its parent, not against `main`** — checks belong to a head commit, so retargeting
 carries the old result forward unchanged; that is inherent to stacking rather than
-something a trigger can fix, and it is a reason to keep stacks short. And **CodeQL is
-not configured here**: it runs from GitHub's default setup, whose triggers are not in
-this repository, so whether it reads a stacked pull request is not ours to decide.
+something a trigger can fix, and it is a reason to keep stacks short.
+
+### CodeQL runs on the pull request
+
+CodeQL used to be the second limit here. It ran from GitHub's default setup on a weekly
+schedule, whose triggers were not in this repository, so a finding arrived on `main`
+after the merge that introduced it. `.github/workflows/codeql.yml` replaces that
+([#1415](https://github.com/vstorm-co/agenticos/issues/1415)): the analysis runs on
+the pull request, on the same trigger as everything else here, and the weekly full
+run is kept for the query packs that update between merges.
+
+Two repository settings go with the workflow, and it can make neither. The first is
+that default setup has to be switched off — GitHub refuses an advanced upload while
+it is configured, so the two cannot coexist:
+
+```bash
+gh api -X DELETE repos/vstorm-co/agenticos/code-scanning/default-setup
+```
+
+The second is what actually refuses a merge. **A green `analyze` job means the
+analysis ran, not that it found nothing**: `codeql-action/analyze` uploads its
+results and exits 0 whatever is in them. Blocking the pull request is
+[code scanning merge protection](https://docs.github.com/en/code-security/code-scanning/managing-code-scanning-alerts/about-code-scanning-alerts),
+a rule on `main`'s ruleset beside the six required status checks, configured with a
+tool and a severity threshold. Without it the alert is visible on the pull request
+and in the Security tab, and nothing stops the merge — which is where this repository
+was before, only slower.
 
 ### Every job bounds its own runtime
 
@@ -157,13 +201,16 @@ first six days of August were superseded while still in flight — about 1,800 b
 minutes answering questions about commits nobody was waiting on.
 
 **A push to `main` is exempt, and the way it is exempted is the interesting part.**
+
 The merge's own run is what makes the history and the badge mean anything, so a
-`main` run must neither be cancelled nor queued. `cancel-in-progress: false` gives
-only the first of those: `false` means *queue*, and GitHub cancels any previously
-**pending** run in a group when a newer one is queued. With a single group for
-`main`, merge A running and B pending, C landing would cancel B outright and B's
-commit would get no CI at all — at fourteen releases in six days against a ~10
-minute `main` run, two merges inside one window is not a rare shape.
+`main` run must neither be cancelled nor queued.
+
+`cancel-in-progress: false` gives only the first of those. `false` means *queue*, and
+GitHub cancels any previously **pending** run in a group when a newer one is queued.
+
+With a single group for `main` — merge A running, B pending — C landing would cancel
+B outright, and B's commit would get no CI at all. At fourteen releases in six days
+against a ~10 minute `main` run, two merges inside one window is not a rare shape.
 
 So the group carries `github.run_id` on a push, which is unique per run: every
 merge gets a group of its own and collides with nothing. Pull requests all resolve
@@ -203,18 +250,24 @@ then reports as somebody else's cancellation.
 
 ## Squash, and why the pull request title matters
 
-`main` keeps one commit per pull request, built from the **pull request title and
-body** rather than from the branch's own commits. So `wip`, `fixup` and `try
-again` never reach it — and the description is not a courtesy, it is the commit
-message that survives. `CLAUDE.md` has the format.
+!!! important "The pull request description *is* the commit message that survives"
+
+    `main` keeps one commit per pull request, built from the title and body rather
+    than from the branch's own commits. `CLAUDE.md` has the format.
+
+So `wip`, `fixup` and `try again` never reach it — and the description is not a
+courtesy.
 
 ## The escape hatch
 
-There are **no bypass actors**. An owner who needs to merge something now
-disables the ruleset, merges, and turns it back on. That is deliberate: a bypass
-that is always available is a bypass that gets used weekly, and a release path
-nobody can describe. Three clicks and an audit entry is the right amount of
-friction for something that should be rare.
+!!! warning "There are no bypass actors"
+
+    An owner who needs to merge something now disables the ruleset, merges, and
+    turns it back on - three clicks and an audit entry, which is the right amount
+    of friction for something that should be rare.
+
+That is deliberate: a bypass that is always available is a bypass that gets used
+weekly, and a release path nobody can describe.
 
 ## Dependency updates
 
@@ -270,3 +323,13 @@ switch is off, for a whole language, which is not a trade worth making —
 so [code-review.md](code-review.md#codeql-and-the-findings-that-block-a-merge)
 lists the findings already adjudicated instead, and resolving one of those costs a
 click rather than an essay.
+
+## Recap
+
+- **One long-lived branch.** Branch, pull request, squash on merge.
+- A push cancels the run in flight, so pushing again is also a decision to stop
+  caring about the previous answer.
+- CI runs **fewer jobs than `make check`** — a skipped required check is a pass, not
+  a problem.
+- `main` is exempt from cancellation, and the way it is exempt is a concurrency
+  group carrying `github.run_id` — unique per run, so no `main` run cancels another.

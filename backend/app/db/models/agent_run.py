@@ -18,6 +18,7 @@ from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -26,6 +27,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
@@ -180,6 +182,16 @@ class AgentRun(Base, TimestampMixin):
         nullable=True,
         index=True,
     )
+    # Whether `user_id` above is a real initiator or the publisher standing in
+    # for one (`AuthContext.subject_is_publisher_fallback`, #788) - a widget,
+    # a hosted page or an unlinked channel message runs as whoever published
+    # the surface, not as the anonymous visitor in front of it. A consumer
+    # reading `user_id` back without this flag cannot tell the two apart,
+    # which is how #1598's run-finished notifications ended up emailing a
+    # public embed's publisher after every anonymous visitor's run.
+    initiated_by_publisher_fallback: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=text("false"), nullable=False
+    )
     conversation_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("conversations.id", ondelete="SET NULL"),
@@ -330,6 +342,27 @@ class ApprovalStatus(enum.StrEnum):
     EXPIRED = "expired"
 
 
+class ApprovalDecidedVia(enum.StrEnum):
+    """How a decision was made, which is not the same question as what it was.
+
+    A waived run and an agent nobody ever gated look identical unless the row
+    says which: `APPROVE_ALL` on a chat session grants every gated call in
+    advance, and a queue of `approved` rows with no way to tell a click from a
+    standing consent is an audit trail that quietly stopped being one (#925).
+
+    Attributes:
+        CLICK: Somebody read the arguments and pressed a button - every approval
+            there has ever been, and the default for a row nothing else says
+            about.
+        STANDING: Granted by the conversation's approval mode, by the account
+            `decided_by_user_id` names. Nobody saw these arguments before they
+            ran; the row is what lets somebody see them afterwards.
+    """
+
+    CLICK = "click"
+    STANDING = "standing"
+
+
 class ToolApproval(Base, TimestampMixin):
     """A side-effecting tool call waiting on a human.
 
@@ -400,10 +433,28 @@ class ToolApproval(Base, TimestampMixin):
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # How, not what. A row approved by a click and one granted in advance by a
+    # conversation's approval mode are both `approved`, and telling them apart is
+    # the difference between an audit trail and a list of green ticks (#925).
+    #
+    # Its own column rather than a sentence in `note`: `note` is what a reviewer
+    # typed, and a machine-written marker in a free-text field is one a filter
+    # has to parse and a person can forge by typing it.
+    decided_via: Mapped[str] = mapped_column(
+        String(16),
+        nullable=False,
+        default=ApprovalDecidedVia.CLICK.value,
+        server_default=ApprovalDecidedVia.CLICK.value,
+    )
+
     __table_args__ = (
         CheckConstraint(
-            "status IN ('pending', 'approved', 'rejected')",
+            "status IN ('pending', 'approved', 'rejected', 'expired')",
             name="ck_tool_approval_status",
+        ),
+        CheckConstraint(
+            "decided_via IN ('click', 'standing')",
+            name="ck_tool_approval_decided_via",
         ),
         # The approvals queue: one organization's pending decisions. The single
         # `status` index the column declares cannot serve it - every row in the

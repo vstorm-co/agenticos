@@ -43,16 +43,21 @@ async def slack_events(
     if bot is None:
         return Response(status_code=200)
 
+    # A bot with no signing secret is not one that skips verification - it is an
+    # unauthenticated endpoint that runs an agent on somebody's budget. Its
+    # siblings (Telegram, Mattermost) refuse an unverifiable event with 403; a
+    # 500 here was a bodiless error to Slack's retrier rather than a clean
+    # refusal that says which bot to configure (#555).
     signing_secret = unseal_slack_signing_secret(bot)
     if not signing_secret:
-        raise HTTPException(
-            status_code=500,
-            detail=(
-                "This bot has no Slack signing secret - add it in the bot's "
-                "settings so inbound events can be verified"
-            ),
+        logger.warning(
+            "Slack bot %s has no signing secret; refusing. Add it in the bot's "
+            "settings so inbound events can be verified.",
+            bot_id,
         )
-    if not adapter.verify_webhook_signature(headers, signing_secret, body=raw_body):
+    if not signing_secret or not adapter.verify_webhook_signature(
+        headers, signing_secret, body=raw_body
+    ):
         raise HTTPException(status_code=403, detail="Invalid Slack signature")
 
     # Logged, never short-circuited: the header says Slack is redelivering, not

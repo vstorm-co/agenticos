@@ -24,6 +24,8 @@ from app.core.permissions import (
     assignable_roles,
 )
 
+pytestmark = pytest.mark.security
+
 
 def _ctx(role: str, *, is_app_admin: bool = False) -> AuthContext:
     return AuthContext(

@@ -176,7 +176,9 @@ def _resolved(model: Model, *, label: str = PROFILE) -> _Resolved:
         provider="openai",
         model="gpt-4.1",
         params={},
-        credential=ResolvedCredential(provider="openai", secret=ApiKeySecret(api_key="sk-test")),
+        credential=ResolvedCredential(
+            provider="openai", secret=ApiKeySecret(api_key="sk-test-key")
+        ),
         fallbacks=[],
         model_under_test=model,
     )
@@ -438,6 +440,7 @@ class TestADynamicSpecialistIsMetered:
 
 
 class TestInventingOneIsSomethingAPersonSeesFirst:
+    @pytest.mark.security
     async def test_both_entry_points_need_approval_by_default(self):
         """The one place delegation and *dynamic* delegation part company.
 

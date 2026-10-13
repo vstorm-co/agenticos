@@ -7,10 +7,12 @@ import { MessagesSquare, Plus } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { AddChannelDialog } from "@/components/channels/add-channel-dialog";
 import { ChannelBotsTable } from "@/components/channels/channel-bots-table";
+import { EditChannelDialog } from "@/components/channels/edit-channel-dialog";
 import { ErrorState } from "@/components/states";
 import { Button, ListCard, ListCardEmpty, Skeleton } from "@/components/ui";
 import { useChannelBots, usePermissions } from "@/hooks";
 import { getErrorMessage } from "@/lib/api-error";
+import type { ChannelBot } from "@/types/channels";
 import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
 
@@ -52,8 +54,11 @@ export default function ChannelsPage() {
   // too - so the hook is told not to fetch at all for somebody without it,
   // rather than putting a 403 in the network log of every member who visits.
   const canManage = can(Perm.channelsManage);
-  const { bots, isLoading, error, create, setActive, remove } = useChannelBots(canManage);
+  const { bots, isLoading, error, create, update, setActive, remove } = useChannelBots(canManage);
   const [adding, setAdding] = useState(false);
+  // The row being edited, which is also what opens the dialog: a bot and an
+  // open flag can disagree, and the disagreement renders last row's answers.
+  const [editing, setEditing] = useState<ChannelBot | null>(null);
 
   if (!canManage) {
     return (
@@ -131,6 +136,7 @@ export default function ChannelsPage() {
           <ChannelBotsTable
             bots={bots}
             busy={setActive.isPending || remove.isPending}
+            onEdit={setEditing}
             onToggleActive={(bot) => setActive.mutate({ botId: bot.id, isActive: !bot.is_active })}
             onDelete={(bot) => remove.mutate(bot.id)}
           />
@@ -142,6 +148,13 @@ export default function ChannelsPage() {
         onOpenChange={setAdding}
         onSubmit={create.mutateAsync}
         isPending={create.isPending}
+      />
+
+      <EditChannelDialog
+        bot={editing}
+        onOpenChange={(open) => !open && setEditing(null)}
+        onSubmit={(botId, data) => update.mutateAsync({ botId, data })}
+        isPending={update.isPending}
       />
     </div>
   );

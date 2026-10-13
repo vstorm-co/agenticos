@@ -35,7 +35,7 @@ export function RunWaterfall({ requests }: { requests: ManifestRequest[] }) {
     <ol className="space-y-1">
       {requests.map((request) => (
         <li key={request.index} className="grid grid-cols-[2rem_1fr_auto] items-center gap-2">
-          <span className="text-muted-foreground font-mono text-[11px] tabular-nums">
+          <span className="text-muted-foreground font-mono text-xs tabular-nums">
             {t("requestIndex", { index: request.index + 1 })}
           </span>
           <div className="bg-muted/40 h-5 overflow-hidden rounded">
@@ -46,13 +46,13 @@ export function RunWaterfall({ requests }: { requests: ManifestRequest[] }) {
               )}
               style={{ width: `${Math.max((request.duration_ms / slowest) * 100, 4)}%` }}
             >
-              <span className="truncate font-mono text-[10px] whitespace-nowrap">
+              <span className="truncate font-mono text-[11px] whitespace-nowrap">
                 {request.failed ?? request.tool_calls.join(", ")}
               </span>
             </div>
           </div>
           <span
-            className="text-muted-foreground font-mono text-[10px] tabular-nums"
+            className="text-muted-foreground font-mono text-[11px] tabular-nums"
             title={t("requestDetail", {
               input: request.input_tokens,
               output: request.output_tokens,

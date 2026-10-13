@@ -43,6 +43,35 @@ class ChannelSession(Base, TimestampMixin):
     last_message_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     turn_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    thread_backfilled_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    """When the thread above this conversation was read from the platform.
+
+    A bot mentioned in a thread that was already running holds nothing above the
+    mention, because a conversation here is built from what this deployment
+    *received*. The turn that notices reads the thread once and stamps this.
+
+    Null means never, which is the question that actually matters and is why this
+    is a column rather than a flag on the run. "Was the conversation just
+    created" was the first proxy for it, and the two come apart precisely where
+    it hurts: a session opened while the bot was dropping messages exists, holds
+    a few useless turns, and can never be repaired - the proxy said "not new" for
+    ever. Every session written before this column reads null and is read once.
+
+    A timestamp rather than a boolean because it costs the same and answers
+    "when", which is what somebody asks when a transcript looks short.
+
+    **Widening what "read the thread" means requires nulling this column in the
+    same change**, and `0068_reread_channel_threads` is the migration to copy. It
+    says *when* a thread was read and not *what* was read from it, so a stamp
+    written by an earlier, narrower reader is indistinguishable from a complete
+    one - and the rows that most need re-reading are exactly the ones that will
+    not be. That has now happened once: `0067` added the column when reading a
+    thread meant reading its text, files followed a few commits later, and every
+    session stamped in between held a screenshot the agent could not see while
+    reporting, accurately, that it could not see one.
+    """
     """How many turns this chat has had, for "report usage every n messages".
 
     Counted here rather than by counting rows in `messages`: "every tenth

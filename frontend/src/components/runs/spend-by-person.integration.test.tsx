@@ -25,9 +25,10 @@ vi.mock("@/lib/api-client", async () => {
 });
 
 // Full-key echo, so a chrome string is assertable and unambiguous.
-vi.mock("next-intl", () => ({
-  useTranslations: (namespace?: string) => (key: string) =>
+vi.mock("next-intl", async () => ({
+  useTranslations: (await import("@/test-utils/intl")).keyTranslations((namespace, key) =>
     namespace ? `${namespace}.${key}` : key,
+  ),
 }));
 
 const auth = {

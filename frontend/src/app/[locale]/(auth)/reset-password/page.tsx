@@ -38,8 +38,10 @@ export default async function ResetPasswordPage({ searchParams }: PageProps) {
     return (
       <div className="space-y-6">
         <div className="space-y-2">
-          <span className="eyebrow text-foreground/55">{t("resetPassword")}</span>
-          <h1 className="text-display-md text-foreground">{t("missingExpiredLink")}</h1>
+          <span className="text-muted-foreground text-sm font-medium">{t("resetPassword")}</span>
+          <h1 className="text-foreground text-[2rem] leading-tight font-semibold tracking-tight text-balance">
+            {t("missingExpiredLink")}
+          </h1>
           <p className="text-foreground/70 text-sm">{t("pageExpectsTokenFrom")}</p>
         </div>
         <Link
@@ -48,7 +50,7 @@ export default async function ResetPasswordPage({ searchParams }: PageProps) {
         >
           {t("requestNewLink")}
         </Link>
-        <p className="text-foreground/55 text-xs">
+        <p className="text-muted-foreground text-xs">
           {t.rich("orReturnToSignIn", {
             link: (chunks) => (
               <Link

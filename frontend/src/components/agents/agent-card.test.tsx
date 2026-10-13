@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useTranslations } from "next-intl";
 import { describe, expect, it, vi } from "vitest";
@@ -69,6 +69,27 @@ function mount(overrides: Partial<Agent> = {}, { canEdit = true, busy = false } 
  * the accessible names, which is the only way that stays true.
  */
 describe("AgentCard", () => {
+  it("keeps the beam off the element the gallery's entrance animates", () => {
+    // `rise-in` animates each grid child; on the beam's own wrapper, the beam's
+    // animation displaced it and handed it back at opacity 0 when the hover ended.
+    const { container } = render(
+      <AgentCard
+        agent={agent({})}
+        canEdit
+        actions={{
+          onDuplicate: vi.fn(),
+          onArchive: vi.fn(),
+          onRestore: vi.fn(),
+          onDelete: vi.fn(),
+        }}
+      />,
+    );
+
+    expect(container.children).toHaveLength(1);
+    expect(container.firstElementChild).not.toHaveAttribute("data-beam");
+    expect(container.querySelector("[data-beam]")).not.toBeNull();
+  });
+
   it("opens the builder from anywhere on the card", () => {
     mount();
 
@@ -151,6 +172,21 @@ describe("AgentCard", () => {
     expect(actions.onDelete).toHaveBeenCalled();
   });
 
+  it("shows the agent's categories and tags as chips", () => {
+    mount({ categories: ["sales"], tags: ["urgent", "beta"] });
+
+    expect(screen.getByText("sales")).toBeInTheDocument();
+    expect(screen.getByText("urgent")).toBeInTheDocument();
+    expect(screen.getByText("beta")).toBeInTheDocument();
+  });
+
+  it("draws no metadata chips when a listing carries none", () => {
+    // The fields are optional in the type; the card reads them as `?? []`.
+    mount({});
+
+    expect(screen.queryByText("sales")).toBeNull();
+  });
+
   it("shows who the agent is reachable by, as one chip", () => {
     mount({ visibility: "org" });
 
@@ -174,6 +210,32 @@ describe("AgentCard", () => {
       />,
     );
 
-    expect(container.firstElementChild).toHaveClass("pointer-events-none");
+    // The card itself, not the beam wrapped around it.
+    expect(container.querySelector(".bg-card")).toHaveClass("pointer-events-none");
+  });
+
+  it("does not rebuild the card when the beam lights", () => {
+    // The beam is mounted for every card and only runs on the hovered one. If
+    // it mounted on hover instead, the card the mouse had just arrived on would
+    // be torn down and rebuilt under it.
+    const { container } = render(
+      <AgentCard
+        agent={agent({})}
+        canEdit
+        actions={{
+          onDuplicate: vi.fn(),
+          onArchive: vi.fn(),
+          onRestore: vi.fn(),
+          onDelete: vi.fn(),
+        }}
+      />,
+    );
+    const card = container.querySelector(".bg-card")!;
+
+    fireEvent.mouseEnter(card);
+    expect(container.querySelector(".bg-card")).toBe(card);
+
+    fireEvent.mouseLeave(card);
+    expect(container.querySelector(".bg-card")).toBe(card);
   });
 });

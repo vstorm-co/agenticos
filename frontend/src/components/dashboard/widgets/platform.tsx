@@ -29,7 +29,16 @@ export function PlatformWidget({ title, hint, seeAll, options }: DashboardWidget
               ["organizations", stats.total_organizations, null],
               ["users", stats.total_users, t("active24h", { count: stats.active_users_24h ?? 0 })],
               ["agents", stats.total_agents, null],
-              ["conversations", stats.total_conversations, null],
+              [
+                "conversations",
+                stats.total_conversations,
+                // The one figure the deleted admin Overview had that this card
+                // did not, and it is a caption rather than a fifth column: the
+                // card is two rows tall because four counters with no series
+                // behind them fill exactly that, and messages is to
+                // conversations what active-24h is to users (#922).
+                t("messages", { count: stats.total_messages ?? 0 }),
+              ],
             ] as const
           ).map(([key, value, sub]) => (
             <Figure

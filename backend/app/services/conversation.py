@@ -13,9 +13,12 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
+from pydantic import ValidationError
 from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.media import prefix_for, restore_stored_media
+from app.core.background import spawn_after_commit
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.conversation import Conversation, Message, ToolCall
@@ -27,6 +30,7 @@ from app.repositories import (
     conversation_repo,
     conversation_share_repo,
     message_rating_repo,
+    personal_data_repo,
 )
 from app.schemas.conversation import (
     ConversationAgent,
@@ -41,6 +45,7 @@ from app.schemas.conversation import (
 from app.schemas.conversation_share import AdminConversationList, AdminConversationRead
 from app.services.access import AGENT, resolve_access
 from app.services.channels import membership as channel_membership
+from app.services.file_storage import delete_files_best_effort, delete_prefix_best_effort
 from app.services.message_history import HistoryMessage, build_message_history
 
 logger = logging.getLogger(__name__)
@@ -105,17 +110,43 @@ class ConversationService:
         conversation = await conversation_repo.get_conversation_by_id(self.db, conversation_id)
         summary = None if conversation is None else conversation.summary_messages
         if conversation is None or summary is None or conversation.summary_ordinal is None:
-            rows = await conversation_repo.get_recent_messages(
-                self.db, conversation_id, limit=limit
+            return await self._from_transcript(conversation_id, limit, exclude_message_id)
+        # Re-inline whatever the stored history references before it is parsed
+        # (#55). Unconditional: offloading is the `media` capability's decision,
+        # but a conversation whose agent was unbound afterwards still has markers
+        # in its history, and a marker nobody re-inlines is a picture the model
+        # is handed in a language it does not read. A history carrying none costs
+        # one tree walk that changes nothing.
+        if conversation.organization_id is not None:
+            summary = await restore_stored_media(
+                summary,
+                organization_id=conversation.organization_id,
+                conversation_id=conversation_id,
             )
-            return build_message_history(_as_history(rows, exclude_message_id))
+        try:
+            replayed = ModelMessagesTypeAdapter.validate_python(summary)
+        except ValidationError:
+            # A shape `pydantic-ai` no longer reads. The blob is written by the
+            # library and read back turns later, so a version this deployment
+            # upgraded through is exactly where the two disagree - and raising
+            # here would make the thread unanswerable for ever rather than for
+            # one turn, on every message anybody sent it. The transcript is
+            # still whole; the cost is one summary, bought again.
+            logger.exception(
+                "conversation_summary_unreadable", extra={"conversation_id": str(conversation_id)}
+            )
+            return await self._from_transcript(conversation_id, limit, exclude_message_id)
         since = await conversation_repo.get_messages_after(
             self.db, conversation_id, ordinal=conversation.summary_ordinal, limit=limit
         )
-        return [
-            *ModelMessagesTypeAdapter.validate_python(summary),
-            *build_message_history(_as_history(since, exclude_message_id)),
-        ]
+        return [*replayed, *build_message_history(_as_history(since, exclude_message_id))]
+
+    async def _from_transcript(
+        self, conversation_id: UUID, limit: int, exclude_message_id: UUID | None
+    ) -> list[ModelMessage]:
+        """The recent window, which is what every surface read before #49."""
+        rows = await conversation_repo.get_recent_messages(self.db, conversation_id, limit=limit)
+        return build_message_history(_as_history(rows, exclude_message_id))
 
     async def keep_overhead(self, conversation_id: UUID, tokens: int) -> None:
         """Record what a turn measured its instructions and tool schemas at.
@@ -149,6 +180,24 @@ class ConversationService:
             self.db, db_conversation=conversation, state=state
         )
 
+    async def keep_plan(self, conversation_id: UUID, items: list[dict[str, Any]]) -> None:
+        """Record the checklist the run left this conversation with.
+
+        Written only when it moved, for the reason :meth:`keep_overhead` is - and
+        an empty list is treated as no plan, which is what makes this safe to call
+        for every run: an agent that binds no planning capability dumps `[]` every
+        turn, and `[]` against a column that is null is not a change.
+
+        The next run seeds its store from this, so a plan written in one turn is
+        still there in the next. It used to be a run's alone, and a chat message
+        is a run: the agent denied a plan it had written two messages earlier
+        (#1077).
+        """
+        conversation = await conversation_repo.get_conversation_by_id(self.db, conversation_id)
+        if conversation is None or (conversation.plan_items or []) == items:
+            return
+        await conversation_repo.set_plan(self.db, db_conversation=conversation, items=items)
+
     async def keep_summary(self, conversation_id: UUID, messages: list[dict[str, Any]]) -> None:
         """Write down the history a summary reduced this conversation to.
 
@@ -174,6 +223,7 @@ class ConversationService:
         include_messages: bool = False,
         user_id: UUID | None = None,
         for_write: bool = False,
+        include_favourite: bool = True,
         ctx: AuthContext | None = None,
     ) -> Conversation:
         """One conversation, checked against the tenant first and the reader second.
@@ -185,6 +235,13 @@ class ConversationService:
         `for_write` picks which of the two questions is asked. Reading and
         writing stopped being one question when participation became a way in:
         see `_may_read` and `_may_write`.
+
+        `include_favourite` is on by default so that a route cannot forget it -
+        that is the whole of #1254, and the flag reached two responses out of
+        eight while each route had to remember. It is turned **off** by the
+        callers that use this only to authorize and then discard the row:
+        `GET /conversations/{id}/messages` resolves it through `transcript`, which
+        serializes no star.
         """
         conversation = await conversation_repo.get_conversation_by_id(
             self.db, conversation_id, include_messages=include_messages
@@ -225,6 +282,15 @@ class ConversationService:
                 msg.rating_count = rating_counts.get(msg.id)  # ty: ignore[unresolved-attribute]
         if include_messages and conversation.messages:
             await self._attach_authors(conversation.messages)
+        # Here rather than at each route, because this is the one read every
+        # reader-scoped one goes through - `update`, `archive` and `set_favourite`
+        # all return the object it hands back. Only two responses carried the flag
+        # before, so `GET /conversations/{id}` and the PATCH answered `false` to a
+        # caller who really had starred the thread (#1254). Skipped entirely for a
+        # call with no reader: an internal read pays no query, and a star belongs
+        # to nobody in particular there.
+        if include_favourite:
+            await self._attach_favourites([conversation], user_id=user_id)
         return conversation
 
     async def _may_read(
@@ -313,11 +379,19 @@ class ConversationService:
         `role: "assistant"` turn to it. There is no owner to defer to, so the
         people who were in the room are who tidies it up; participation carries
         the write only while there is nobody it would be taken from.
+
+        **A share carries the write only at `edit`.** Any share at all used to,
+        so the two levels the sharing dialog offers meant the same thing: a
+        conversation shared to *view* could be renamed, archived, deleted, or
+        given a `role: "assistant"` turn that everybody reads in `/chat` and the
+        model is handed back as its own words. The level is stated to whoever
+        grants it, so it has to be the level that is enforced (#931).
         """
         owner = getattr(conversation, "user_id", None)
         if owner is not None and str(owner) == str(user_id):
             return True
-        if await conversation_share_repo.get_share(self.db, conversation.id, user_id):
+        share = await conversation_share_repo.get_share(self.db, conversation.id, user_id)
+        if share is not None and share.permission == "edit":
             return True
         if owner is None:
             return await channel_membership.confirms_participation(
@@ -386,6 +460,18 @@ class ConversationService:
             archived_only=archived_only,
             sort_by=sort_by,
             sort_dir=sort_dir,
+            # Only where the list is the active one. A star survives archiving -
+            # the thread is still one somebody cares about - but the band is the
+            # active list's, and a band inside the archive would be a second
+            # place to look for what archiving just moved (#929).
+            #
+            # `include_archived` is excluded for a second reason: that listing is
+            # the mixed one `ChatContainer` uses to find the conversation somebody
+            # has open, and enough old archived favourites at the top of it would
+            # push the selected row off the first page.
+            favourites_first_for=(
+                None if archived_only or include_archived or user_id is None else user_id
+            ),
             participant_conversation_ids=participant_ids,
         )
         total = await conversation_repo.count_conversations(
@@ -399,6 +485,7 @@ class ConversationService:
             participant_conversation_ids=participant_ids,
         )
         await self._attach_agents(items)
+        await self._attach_favourites(items, user_id=user_id)
         return items, total
 
     async def _attach_agents(self, conversations: Sequence[Conversation]) -> None:
@@ -427,6 +514,65 @@ class ConversationService:
                 )
                 for agent in by_conversation.get(conversation.id, [])
             ]
+
+    async def _attach_favourites(
+        self, conversations: Sequence[Conversation], *, user_id: UUID | None
+    ) -> None:
+        """Say, per row, whether this reader has starred it.
+
+        Set on the ORM object for the reason `_attach_agents` is: the route
+        serializes the row straight through the read schema. One query for the
+        page, and none at all for a listing with no reader - the admin one,
+        where a star belongs to nobody in particular and the column would be a
+        different person's every request.
+        """
+        if not conversations:
+            return
+        starred = (
+            set()
+            if user_id is None
+            else await conversation_repo.favourite_ids(
+                self.db,
+                user_id=user_id,
+                conversation_ids=[conversation.id for conversation in conversations],
+            )
+        )
+        for conversation in conversations:
+            conversation.is_favourite = conversation.id in starred  # ty: ignore[unresolved-attribute]
+
+    async def set_favourite(
+        self,
+        conversation_id: UUID,
+        *,
+        organization_id: UUID,
+        user_id: UUID,
+        favourite: bool,
+        ctx: AuthContext | None = None,
+    ) -> Conversation:
+        """Star or unstar a conversation for one reader.
+
+        Checked as a **read**, not a write: a star says where a thread sits in
+        the starrer's own sidebar and changes nothing about the thread, so
+        somebody a conversation was shared with may favourite it exactly as its
+        owner may. `for_write` here would refuse the reader the feature is for.
+
+        `ctx` travels for the same reason it does on every other read: without
+        it `_may_read_trigger_log` answers false, and a trigger's run-log the
+        caller may read through `runs:view` is one they could not star.
+        """
+        conversation = await self.get_conversation(
+            conversation_id,
+            organization_id=organization_id,
+            user_id=user_id,
+            include_favourite=False,
+            ctx=ctx,
+        )
+        await conversation_repo.set_favourite(
+            self.db, user_id=user_id, conversation_id=conversation.id, favourite=favourite
+        )
+        await self._attach_agents([conversation])
+        conversation.is_favourite = favourite  # ty: ignore[unresolved-attribute]
+        return conversation
 
     async def admin_list_with_users(
         self,
@@ -535,13 +681,49 @@ class ConversationService:
         organization_id: UUID,
         user_id: UUID | None = None,
     ) -> bool:
+        """Delete one thread, its turns, and the files that arrived with them.
+
+        `user_id` is what makes this self-service: a person deletes their own
+        chat history without an administrator, and the ownership check is inside
+        `get_conversation` rather than at the route, so every caller gets it
+        (FA-015).
+
+        **The attachments' bytes are unlinked, and they were not.**
+        `chat_files.message_id` is `ON DELETE CASCADE` from `messages`, which
+        cascades from `conversations` - so deleting a thread removed every row
+        that named a file and left the file itself on disk: personal data kept
+        after somebody asked for it to be deleted, and reachable by nothing
+        (#1421). The paths are read before the delete, because afterwards there
+        is nothing left to read them from.
+
+        The unlink is handed to `spawn_after_commit` for the reason #1293 gives:
+        an unlink before the commit is undone by a rollback as a file already
+        gone, leaving a restored row pointing at nothing.
+        """
         conversation = await self.get_conversation(
             conversation_id,
             organization_id=organization_id,
             user_id=user_id,
             for_write=True,
+            include_favourite=False,
         )
+        attachments = await personal_data_repo.attachment_paths_in(self.db, conversation_id)
         await conversation_repo.delete_conversation(self.db, db_conversation=conversation)
+        if attachments:
+            spawn_after_commit(
+                self.db,
+                delete_files_best_effort(attachments),
+                name="delete-conversation-attachments",
+            )
+        # And whatever the `media` capability offloaded out of this thread's
+        # compacted history. Those objects are content-addressed, so nothing
+        # records that they are still referenced - the thread's own prefix is
+        # their lifetime, and this is where it ends (#55).
+        spawn_after_commit(
+            self.db,
+            delete_prefix_best_effort(prefix_for(organization_id, conversation_id)),
+            name="delete-conversation-media",
+        )
         return True
 
     async def get_message(self, message_id: UUID) -> Message:
@@ -553,7 +735,7 @@ class ConversationService:
             )
         return message
 
-    async def list_messages(
+    async def transcript(
         self,
         conversation_id: UUID,
         *,
@@ -563,8 +745,8 @@ class ConversationService:
         include_tool_calls: bool = False,
         user_id: UUID | None = None,
         ctx: AuthContext | None = None,
-    ) -> tuple[list[Message | MessageRead], int]:
-        """One conversation's messages, for a reader who is allowed to see them.
+    ) -> tuple[list[Message | MessageRead], int, ConversationCost | None]:
+        """One conversation's messages and its cost, for a reader allowed to see them.
 
         `organization_id` keeps this out of another tenant's transcript;
         `user_id` keeps it out of a colleague's. Both are needed: the tenant
@@ -575,9 +757,20 @@ class ConversationService:
         When `user_id` is given the messages are also enriched with that
         reader's rating - a second job for one argument, and the reason its
         authorizing half was missed for so long.
+
+        The page and the cost share one authorization: on a channel thread each
+        `get_conversation` can ask the platform whether the reader is still in
+        the room.
+
+        The cost is summed over every turn, not over the page asked for, and is
+        `None` where nothing in the thread was ever measured.
         """
         await self.get_conversation(
-            conversation_id, organization_id=organization_id, user_id=user_id, ctx=ctx
+            conversation_id,
+            organization_id=organization_id,
+            user_id=user_id,
+            include_favourite=False,
+            ctx=ctx,
         )
         items = await conversation_repo.get_messages_by_conversation(
             self.db,
@@ -590,6 +783,7 @@ class ConversationService:
         statuses = await conversation_repo.run_statuses(
             self.db, {msg.run_id for msg in items if msg.run_id is not None}
         )
+        cost = await self._cost(conversation_id)
         if user_id is not None and items:
             message_ids = [msg.id for msg in items]
             user_ratings = await message_rating_repo.get_user_ratings_for_messages(
@@ -609,30 +803,11 @@ class ConversationService:
                 # complete one, and the reader believes the agent finished.
                 msg_schema.run_status = statuses.get(msg.run_id) if msg.run_id else None
                 enriched.append(msg_schema)
-            return enriched, total
-        return list(items), total
+            return enriched, total, cost
+        return list(items), total, cost
 
-    async def conversation_cost(
-        self,
-        conversation_id: UUID,
-        *,
-        organization_id: UUID,
-        user_id: UUID | None = None,
-        ctx: AuthContext | None = None,
-    ) -> ConversationCost | None:
-        """What this whole thread has cost, or `None` where nothing was measured.
-
-        Scoped exactly as :meth:`list_messages` is, and for the same reason: it
-        is a fact about a transcript, and a total is enough to tell how heavily
-        somebody else's conversation was used.
-
-        The sum is over every turn, not over the page the caller asked for. A
-        client adding up what it was handed would answer "the first hundred
-        turns" while the label says "this conversation".
-        """
-        await self.get_conversation(
-            conversation_id, organization_id=organization_id, user_id=user_id, ctx=ctx
-        )
+    async def _cost(self, conversation_id: UUID) -> ConversationCost | None:
+        """The thread's totals. Unscoped: the caller must have authorized the read."""
         totals = await conversation_repo.conversation_cost(self.db, conversation_id)
         if totals is None:
             return None
@@ -684,7 +859,11 @@ class ConversationService:
         would silently reopen it.
         """
         conversation = await self.get_conversation(
-            conversation_id, organization_id=organization_id, user_id=user_id, for_write=True
+            conversation_id,
+            organization_id=organization_id,
+            user_id=user_id,
+            for_write=True,
+            include_favourite=False,
         )
         if conversation.is_archived:
             raise BadRequestError(
@@ -827,6 +1006,31 @@ class ConversationService:
                 details={"file_ids": sorted(set(ids))},
             )
 
+    async def list_turn_attachments(
+        self, message_id: UUID | None, file_ids: list[str], *, user_id: UUID
+    ) -> list[Any]:
+        """This turn's attachments: the caller's own files among `file_ids` that
+        are linked to this turn's message or still unlinked (#1756).
+
+        The run's own load path, distinct from `list_attached_files`: that one
+        validates a *fresh* submission and refuses an already-linked id, which is
+        exactly what the turn's files are once `persist_user_turn` has linked them.
+        Loaded by id (the primary key) and scoped to the caller (#706). A file a
+        best-effort `link_files_to_message` left unlinked is still read, so a
+        transient link failure does not silently drop the turn's attachments; a
+        file already on a *different* message is skipped - `persist_user_turn`
+        refuses to re-link one, so it never reaches here.
+
+        `message_id` is None when `persist_user_turn` swallowed a write failure and
+        wrote no prompt row: only the caller's still-unlinked uploads then match, so
+        the files still reach the model rather than being dropped (#1654 review).
+        """
+        ids, _ = _file_uuids(file_ids)
+        rows = await chat_file_repo.get_many(self.db, ids, user_id=user_id)
+        kept = [row for row in rows if row.message_id in (message_id, None)]
+        kept.sort(key=lambda row: row.created_at)
+        return kept
+
     async def list_attached_files(self, file_ids: list[str], *, user_id: UUID) -> list[Any]:
         """The caller's rows behind the ids a client sent; anybody else's resolve to nothing (#706).
 
@@ -839,4 +1043,19 @@ class ConversationService:
         ids, malformed = _file_uuids(file_ids)
         if malformed:
             raise BadRequestError(message="Invalid file id", details={"file_ids": malformed})
-        return await chat_file_repo.get_many(self.db, ids, user_id=user_id)
+        rows = await chat_file_repo.get_many(self.db, ids, user_id=user_id)
+        # Every requested id has to resolve to a row of theirs that nothing has
+        # claimed yet. Returning only what matched ran the turn on silently
+        # partial input - billed, answered, and missing the document the caller
+        # believed it had sent - and an already-linked file was worse: the model
+        # received it while `_attach` updated no row, so the new turn could not
+        # show the file it had actually used (#936).
+        by_id = {row.id: row for row in rows}
+        unknown = [str(file_id) for file_id in ids if file_id not in by_id]
+        claimed = [str(row.id) for row in rows if row.message_id is not None]
+        if unknown or claimed:
+            raise BadRequestError(
+                message="Those files cannot be attached to this message",
+                details={"unknown": unknown, "already_attached": claimed},
+            )
+        return rows

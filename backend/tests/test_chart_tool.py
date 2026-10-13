@@ -3,7 +3,9 @@
 import json
 
 import pytest
-from pydantic_ai import ModelRetry
+from pydantic_ai import ModelRetry, RunContext
+from pydantic_ai.models.test import TestModel
+from pydantic_ai.usage import RunUsage
 
 from app.agents.capabilities.charts import ChartsToolset
 from app.agents.capabilities.charts._spec import (
@@ -18,12 +20,20 @@ from app.agents.capabilities.charts._toolset import ChartSeriesInput
 _charts = ChartsToolset()
 
 
+def _tool_ctx(*, retry: int = 0, max_retries: int = 1) -> RunContext[None]:
+    """A context with a retry left, which is what a real call starts with."""
+    return RunContext(
+        deps=None, model=TestModel(), usage=RunUsage(), retry=retry, max_retries=max_retries
+    )
+
+
 class TestCreateChart:
     """The tool emits a valid JSON ChartSpec, or a retry the model can act on."""
 
     @pytest.mark.parametrize("chart_type", ["line", "bar", "pie", "area", "scatter"])
     def test_create_chart_each_type_returns_valid_spec(self, chart_type: str):
         result = _charts.create_chart(
+            _tool_ctx(),
             chart_type=chart_type,
             title="Demo",
             x_values=["A", "B"],
@@ -41,6 +51,7 @@ class TestCreateChart:
         lets a line chart draw connected lines over a single dataset.
         """
         result = _charts.create_chart(
+            _tool_ctx(),
             chart_type="line",
             title="Merged",
             x_values=["Jan", "Feb"],
@@ -58,6 +69,7 @@ class TestCreateChart:
 
     def test_the_x_key_names_the_field_the_axis_is_stored_under(self):
         result = _charts.create_chart(
+            _tool_ctx(),
             chart_type="bar",
             title="Named axis",
             x_values=["Sty"],
@@ -70,6 +82,7 @@ class TestCreateChart:
 
     def test_explicit_label_colour_and_style_are_preserved(self):
         result = _charts.create_chart(
+            _tool_ctx(),
             chart_type="bar",
             title="Styled",
             x_values=["A"],
@@ -90,6 +103,7 @@ class TestCreateChart:
         the renderer already detects for a scatter chart.
         """
         result = _charts.create_chart(
+            _tool_ctx(),
             chart_type="scatter",
             title="Grouped",
             x_values=[0.0],
@@ -108,6 +122,7 @@ class TestCreateChart:
     def test_an_empty_axis_is_a_retry_naming_the_problem(self):
         with pytest.raises(ModelRetry, match="`x_values` was empty"):
             _charts.create_chart(
+                _tool_ctx(),
                 chart_type="line",
                 title="Empty",
                 x_values=[],
@@ -116,7 +131,9 @@ class TestCreateChart:
 
     def test_no_series_is_a_retry_naming_the_problem(self):
         with pytest.raises(ModelRetry, match="`series` was empty"):
-            _charts.create_chart(chart_type="line", title="No series", x_values=["A"], series=[])
+            _charts.create_chart(
+                _tool_ctx(), chart_type="line", title="No series", x_values=["A"], series=[]
+            )
 
     def test_a_series_short_of_values_is_a_retry_naming_both_counts(self):
         """The failure the old free-form `data` argument could not even express.
@@ -126,6 +143,7 @@ class TestCreateChart:
         """
         with pytest.raises(ModelRetry, match=r"'cost' has 3 value\(s\) for 4 x value\(s\)"):
             _charts.create_chart(
+                _tool_ctx(),
                 chart_type="line",
                 title="Ragged",
                 x_values=["Jan", "Feb", "Mar", "Apr"],
@@ -135,6 +153,7 @@ class TestCreateChart:
     def test_a_scatter_series_is_measured_against_its_own_axis(self):
         with pytest.raises(ModelRetry, match=r"'A' has 1 value\(s\) for 2 x value\(s\)"):
             _charts.create_chart(
+                _tool_ctx(),
                 chart_type="scatter",
                 title="Ragged scatter",
                 x_values=[0.0, 1.0, 2.0],
@@ -151,6 +170,7 @@ class TestCreateChart:
         """
         with pytest.raises(ModelRetry, match="title"):
             _charts.create_chart(
+                _tool_ctx(),
                 chart_type="line",
                 title="t" * 201,
                 x_values=["Jan"],
@@ -169,6 +189,7 @@ class TestCreateChart:
         """
         with pytest.raises(TypeError, match="data"):
             _charts.create_chart(  # ty: ignore[unknown-argument]
+                _tool_ctx(),
                 chart_type="line",
                 title="Trend sprzedazy i kosztow",
                 data=[{}],
@@ -182,6 +203,7 @@ class TestParseChartSpec:
 
     def test_round_trip(self):
         result = _charts.create_chart(
+            _tool_ctx(),
             chart_type="pie",
             title="Round trip",
             x_values=["Chrome", "Safari"],

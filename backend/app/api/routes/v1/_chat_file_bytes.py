@@ -10,18 +10,15 @@ that arrived with one of that run's turns. What a browser is then allowed to
 
 from typing import Literal
 
-from fastapi import HTTPException, status
-from fastapi.responses import FileResponse
+from fastapi import HTTPException, Response, status
 
 from app.api.responses import content_disposition
+from app.api.routes.v1._stored_bytes import stored_file_response
 from app.db.models.chat_file import ChatFile
 from app.services.file_storage import RENDER_SAFE_MIME_TYPES
-from app.services.file_upload import FileUploadService
 
 
-def chat_file_response(
-    service: FileUploadService, chat_file: ChatFile, *, disposition: str
-) -> FileResponse:
+async def chat_file_response(chat_file: ChatFile, *, disposition: str) -> Response:
     """One attachment as an HTTP response, however the caller was authorised.
 
     `inline` by default so a PDF, an image or a media file renders where it is
@@ -38,13 +35,10 @@ def chat_file_response(
     Raises:
         HTTPException: 404 where the row points at bytes the storage no longer
             has. A row and its file can part company (a restored database, a
-            cleaned volume), and a response of zero bytes reads as an empty
-            document rather than as a missing one.
+            cleaned volume, a bucket emptied by a lifecycle rule), and a response
+            of zero bytes reads as an empty document rather than as a missing
+            one.
     """
-    file_path = service.get_file_path(chat_file.storage_path)
-    if not file_path:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found on disk")
-
     # `text/html`, an SVG or a spreadsheet is a valid attachment - the agent reads
     # it - but must never render inline: the frontend serves this from the app's
     # own origin, whose CSP allows inline script, so an inline `text/html` is a
@@ -66,4 +60,9 @@ def chat_file_response(
         "X-Frame-Options": "SAMEORIGIN",
         "Content-Security-Policy": "frame-ancestors 'self'",
     }
-    return FileResponse(path=file_path, media_type=chat_file.mime_type, headers=headers)
+    response = await stored_file_response(
+        chat_file.storage_path, media_type=chat_file.mime_type, headers=headers
+    )
+    if response is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found on disk")
+    return response

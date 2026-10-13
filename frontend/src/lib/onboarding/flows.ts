@@ -1,5 +1,11 @@
 import { ROUTES } from "@/lib/constants";
-import { AGENT_BUILDER, KB_DETAIL, ORG_MEMBERS, ORG_ROLES } from "@/lib/onboarding/tour";
+import {
+  AGENT_BUILDER,
+  KB_DETAIL,
+  ORG_GROUPS,
+  ORG_MEMBERS,
+  ORG_ROLES,
+} from "@/lib/onboarding/tour";
 import { Perm, type Permission } from "@/types/permissions";
 
 /**
@@ -26,6 +32,7 @@ export type FlowId =
   | "create-kb"
   | "create-mcp"
   | "create-org"
+  | "create-group"
   | "create-routine"
   | "explore-chat";
 
@@ -41,7 +48,7 @@ export type FlowId =
  * stays org-only. `model` is a model profile (`useModelProviders`), the resource a
  * new agent needs before it can run.
  */
-export type FlowResource = "agent" | "model" | "skill" | "kb" | "mcp" | "org" | "routine";
+export type FlowResource = "agent" | "model" | "skill" | "kb" | "mcp" | "org" | "group" | "routine";
 
 /**
  * How a step knows it is finished. Five shapes.
@@ -94,8 +101,10 @@ export type FlowSignal =
  * key was deleted is not either; a knowledge base, a skill or an MCP connection is
  * simply one the organization holds. `hasPublishedAgent` is the one the chat needs
  * — only a published agent has a version to run, so a draft does not count — which
- * is why the chat run asks to build one when there is none. A flow grows this as it
- * grows the branches that read it.
+ * is why the chat run asks to build one when there is none. `hasRunnableAgent` is
+ * the routine flow's floor: the per-agent `can_run` answer the Routines page gates
+ * its create buttons on, which the role-level permission cannot mirror in either
+ * direction. A flow grows this as it grows the branches that read it.
  */
 export interface OrgState {
   hasRunnableModel: boolean;
@@ -103,6 +112,7 @@ export interface OrgState {
   hasSkill: boolean;
   hasOrgMcp: boolean;
   hasPublishedAgent: boolean;
+  hasRunnableAgent: boolean;
 }
 
 /**
@@ -605,7 +615,7 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
       },
       ...mcpDialogSteps(AGENT_BUILDER, "flow-agent-mcp-ask"),
       // The connection exists, but nothing has given it to the agent: the builder
-      // writes `spec.mcp_server_ids` only when the picker is toggled. So the detour
+      // writes `spec.mcp_servers` only when the picker is toggled. So the detour
       // ends where the knowledge and skill ones do - back at the control that
       // attaches what was just made - rather than publishing an agent that cannot
       // reach the server the walk had the reader connect for it.
@@ -717,17 +727,22 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
   // whichever door it came through.
   "create-routine": {
     id: "create-routine",
-    // The floor a trigger is actually created at, per resource: a Viewer holding
-    // one explicit run grant may create one, where a role-level `agents:run` reads
-    // false. The page hides the buttons on the same test, so a reader who cannot
-    // create one is offered no flow rather than a flow that waits for a control
-    // that never mounts.
+    // The floor a trigger is actually created at is per resource, and the
+    // role-level `agents:run` here misreads it in both directions: a Viewer
+    // holding one explicit run grant may create one where the role reads false,
+    // and the role reads true for a caller none of whose reachable agents is
+    // actually runnable. The page hides its create buttons on the per-agent
+    // answer, and the coach waits on a flow target with no timeout - so every
+    // step carries `hasRunnableAgent`, the same answer, and the mismatch yields
+    // an inert flow rather than a wait on a control that never mounts. The offer
+    // reads the same cache in `CreationOffer`, so it is not made at all.
     permission: Perm.agentsRun,
     steps: [
       {
         id: "flow-routine-create",
         page: ROUTES.ROUTINES,
         target: "routines-create",
+        include: (state) => state.hasRunnableAgent,
         signal: { kind: "created", resource: "routine" },
       },
       // A schedule created at 09:00 and next due at midnight taught nothing: the
@@ -736,7 +751,12 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
       // the same run log - so the walk ends on a routine that has actually run.
       // No signal: the fire is a mutation on a row rather than something
       // appearing, and it is fine to end the walk having pointed at it.
-      { id: "flow-routine-run-now", page: ROUTES.ROUTINES, target: "routine-run-now" },
+      {
+        id: "flow-routine-run-now",
+        page: ROUTES.ROUTINES,
+        target: "routine-run-now",
+        include: (state) => state.hasRunnableAgent,
+      },
     ],
   },
   "create-org": {
@@ -747,6 +767,23 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
         page: ROUTES.ORGS,
         target: "orgs-new",
         signal: { kind: "created", resource: "org" },
+      },
+    ],
+  },
+  // One step for create-org's reason: the dialog is a name and a description, and
+  // walking two fields would be padding. `page` is the groups identity rather than
+  // a route - the offer is made at the end of that page's own walk, so the reader
+  // is already on the organization's groups when it starts.
+  "create-group": {
+    id: "create-group",
+    permission: Perm.membersManage,
+    steps: [
+      {
+        id: "flow-group-create",
+        page: ORG_GROUPS,
+        target: "org-groups-new",
+        permission: Perm.membersManage,
+        signal: { kind: "created", resource: "group" },
       },
     ],
   },
@@ -818,6 +855,8 @@ export function flowForPage(pageId: string): FlowId | null {
     case ORG_MEMBERS:
     case ORG_ROLES:
       return "create-org";
+    case ORG_GROUPS:
+      return "create-group";
     default:
       return null;
   }

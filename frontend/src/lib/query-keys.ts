@@ -5,6 +5,7 @@
  * invalidate precisely (e.g. `queryClient.invalidateQueries({ queryKey: qk.runs.all() })`).
  * Keep keys hierarchical: broader prefixes invalidate everything beneath them.
  */
+import { canonicalFacet } from "@/lib/agent-facets";
 import type { SharingResourceType } from "@/types/sharing";
 
 export const qk = {
@@ -12,6 +13,12 @@ export const qk = {
     me: () => ["auth", "me"] as const,
   },
   health: () => ["health"] as const,
+  memory: {
+    /** Every page of one organization's notes, for invalidating after a write. */
+    all: (orgId: string) => ["memory", orgId] as const,
+    /** One page of what the agents in one organization have written about the caller. */
+    mine: (orgId: string, skip: number) => ["memory", orgId, "mine", skip] as const,
+  },
   organizations: {
     all: () => ["organizations"] as const,
     list: () => ["organizations", "list"] as const,
@@ -19,16 +26,37 @@ export const qk = {
     permissions: (orgId: string) => ["organizations", orgId, "permissions"] as const,
     roleCatalog: () => ["organizations", "role-catalog"] as const,
     audit: (orgId: string) => ["organizations", orgId, "audit"] as const,
+    retention: (orgId: string) => ["organizations", orgId, "retention"] as const,
+    // One group's members sit beneath the list, so invalidating the list after a
+    // change also refetches every member list - a member count moves with them.
+    groups: (orgId: string) => ["organizations", orgId, "groups"] as const,
+    groupMembers: (orgId: string, groupId: string) =>
+      ["organizations", orgId, "groups", groupId, "members"] as const,
+    directoryMappings: (orgId: string) => ["organizations", orgId, "directory-mappings"] as const,
   },
   agents: {
     all: () => ["agents"] as const,
-    /** `includeArchived` is part of the key: the two lists are different rows. */
-    list: (includeArchived = false) => ["agents", "list", includeArchived] as const,
+    /**
+     * `includeArchived` is part of the key: the two lists are different rows.
+     * So is the discovery facet - the server applies it, so two category/tag
+     * selections are two lists and neither may answer for the other from a stale
+     * cache. Keyed on a *sorted* copy so the order the chips were typed in does
+     * not split the cache.
+     */
+    list: (includeArchived = false, categories: string[] = [], tags: string[] = []) =>
+      [
+        "agents",
+        "list",
+        includeArchived,
+        canonicalFacet(categories),
+        canonicalFacet(tags),
+      ] as const,
     // One boolean assembled from as many pages as it takes - "may this caller
     // create a trigger anywhere". Its own key, not a list page's, and under
     // "agents" so the same invalidations that move the list refresh the answer.
     anyRunnable: () => ["agents", "any-runnable"] as const,
     detail: (id: string) => ["agents", id] as const,
+    templates: () => ["agents", "templates"] as const,
     // The page is part of the key: a history past its page size is several
     // answers, and caching one as another shows the wrong decade of the timeline.
     versions: (id: string, skip = 0, limit = 50) =>
@@ -105,6 +133,7 @@ export const qk = {
     // One request rather than the catalog plus a listing per provider: which
     // models qualify is a rule the SDK enforces, so the server answers it.
     imageModels: () => ["providers", "image-models"] as const,
+    speechToTextModels: () => ["providers", "speech-to-text-models"] as const,
   },
   secrets: {
     all: () => ["secrets"] as const,
@@ -131,7 +160,6 @@ export const qk = {
         startedTo?: string;
         orderBy?: string;
         descending?: boolean;
-        tookOverMs?: number;
         rated?: string;
         statuses?: string[];
         surface?: string;
@@ -150,7 +178,6 @@ export const qk = {
         opts.startedTo ?? "no-end",
         opts.orderBy ?? "started_at",
         opts.descending ?? true,
-        opts.tookOverMs ?? "no-min",
         opts.rated ?? "any-rating",
         opts.statuses?.join(",") ?? "any-status",
         opts.surface ?? "any-surface",
@@ -175,7 +202,9 @@ export const qk = {
     // answers "the top level", this answers "what did this run delegate", and
     // caching one as the other would show a run's children as the whole history.
     delegations: (parentRunId: string) => ["runs", "list", "delegations", parentRunId] as const,
-    approvals: () => ["runs", "approvals"] as const,
+    // Keyed on the page, because the queue is server-paged: one key for every
+    // page would show page one's rows under page three's pager (#1336).
+    approvals: (skip = 0) => ["runs", "approvals", skip] as const,
     // The decided record over a window - a different question from the queue,
     // so a different key: the queue must refresh on a decision, the record on
     // a window change.
@@ -235,8 +264,20 @@ export const qk = {
       limit: number;
     }) => ["skills", "list", query] as const,
     detail: (id: string) => ["skills", id] as const,
+    gallery: () => ["skills", "gallery"] as const,
     resource: (skillId: string, resourceId: string) =>
       ["skills", skillId, "resources", resourceId] as const,
+  },
+  artifacts: {
+    all: () => ["artifacts"] as const,
+    list: (query: { search: string; agentId: string | null; skip: number; limit: number }) =>
+      ["artifacts", "list", query] as const,
+    agents: () => ["artifacts", "agents"] as const,
+    detail: (id: string) => ["artifacts", id] as const,
+    versions: (id: string) => ["artifacts", id, "versions"] as const,
+    view: (id: string, versionId: string | null) =>
+      ["artifacts", id, "view", versionId ?? "current"] as const,
+    public: (key: string) => ["artifacts", "public", key] as const,
   },
   context: {
     all: () => ["context"] as const,
@@ -300,6 +341,12 @@ export const qk = {
       ["kb", id, "documents", documentId, "text"] as const,
     documentBytes: (id: string, documentId: string) =>
       ["kb", id, "documents", documentId, "bytes"] as const,
+    // What the parser made of one document, read back out of the chunks it
+    // produced. Registered because two tabs of the viewer read it - the parse as
+    // pages, and the same payload as the JSON that was actually stored - and a
+    // stored parse does not change, so the second tab must not fetch it again.
+    documentParsed: (id: string, documentId: string) =>
+      ["kb", id, "documents", documentId, "parsed"] as const,
   },
   attachments: {
     // A chat attachment, which is scoped to the user rather than to a collection
@@ -332,6 +379,11 @@ export const qk = {
   },
   slashCommands: {
     list: () => ["slash-commands", "list"] as const,
+  },
+  notifications: {
+    preferences: () => ["notifications", "preferences"] as const,
+    inbox: () => ["notifications", "inbox"] as const,
+    unreadCount: () => ["notifications", "unread-count"] as const,
   },
   mcpConnections: {
     list: () => ["mcp-connections", "list"] as const,
@@ -373,6 +425,10 @@ export const qk = {
     // showing every decided proposal must not overwrite it in the cache.
     list: (status: string) => ["skill-changes", "list", status] as const,
   },
+  localServices: {
+    all: () => ["local-services"] as const,
+    list: () => ["local-services", "list"] as const,
+  },
   sandboxConnections: {
     all: () => ["sandbox-connections"] as const,
     list: () => ["sandbox-connections", "list"] as const,
@@ -406,6 +462,10 @@ export const qk = {
     // Builder and Settings, and invalidating the agent registry must not
     // discard a catalog that only changes on redeploy.
     catalog: () => ["mcp-servers", "catalog"] as const,
+    // Keyed on the query and the page: the list is a request now, so each page
+    // of each query is its own resource rather than a filter over one blob.
+    listPage: (query: string, category: string, page: number) =>
+      ["mcp-servers", "list", query, category, page] as const,
   },
   sessions: {
     // The namespace, for invalidating every page at once: a revocation shifts
@@ -423,11 +483,19 @@ export const qk = {
     conversations: (params: { userId?: string; limit?: number }) =>
       ["admin", "conversations", params] as const,
     system: () => ["admin", "system"] as const,
+    /** One person's memberships, last-seen and open sessions - the user drawer. */
+    userDetail: (userId: string) => ["admin", "users", userId, "detail"] as const,
     // The deployment-wide answer-quality summary over a window. The window is
     // the key, so picking another period refetches rather than re-rendering the
     // last one's chart.
     ratings: (params: { from?: string; to?: string }) => ["admin", "ratings", params] as const,
-    organizations: () => ["admin", "organizations"] as const,
+    // The params are part of the key because they are part of the request. The
+    // top-organizations card asks for five and the admin list for fifty of
+    // whatever it is narrowed to; under a bare key whichever mounted first
+    // filled the cache and the other rendered its answer.
+    organizations: (params: Record<string, string>) => ["admin", "organizations", params] as const,
+    // One tenant in full, for the per-tenant page the admin drawer links to (#1245).
+    organizationDetail: (orgId: string) => ["admin", "organizations", orgId, "detail"] as const,
     // This deployment's own identity and access policy, as its administrator
     // edits it. Distinct from `branding.notice()` below, which is the same row
     // read by everybody: invalidating one must not refetch the other, since the

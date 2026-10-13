@@ -5,6 +5,8 @@ import { useTranslations } from "next-intl";
 import { useAdminRatingsSummary } from "@/hooks";
 import { RatingsTrend } from "../primitives/ratings-trend";
 import { WidgetFrame } from "../widget-frame";
+import { ThumbsUp } from "lucide-react";
+
 import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-states";
 import type { DashboardWidgetProps } from "./types";
 
@@ -26,7 +28,11 @@ export function PlatformRatingsWidget({
       ) : error ? (
         <WidgetErrorBody onRetry={() => refetch()} />
       ) : !summary || summary.total_ratings === 0 ? (
-        <WidgetEmptyBody title={t("empty.title")} description={t("empty.description")} />
+        <WidgetEmptyBody
+          icon={ThumbsUp}
+          title={t("empty.title")}
+          description={t("empty.description")}
+        />
       ) : (
         <RatingsTrend
           positivePercent={Math.round((summary.like_count / summary.total_ratings) * 100)}

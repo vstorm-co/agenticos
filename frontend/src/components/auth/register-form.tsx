@@ -17,6 +17,7 @@ import { Button, Input, Label } from "@/components/ui";
 import { useAuth } from "@/hooks";
 import { ApiError } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
+import { invitationFlowFrom } from "@/lib/invitation-links";
 import { privacyLink, termsLink } from "@/lib/legal-links";
 import { EMAIL_RE, getPasswordStrength } from "@/lib/utils";
 
@@ -27,11 +28,14 @@ export function RegisterForm() {
   const router = useRouter();
   const { register } = useAuth();
   const search = useSearchParams();
-  // Present when this form was reached from an invitation. It admits an address the
-  // deployment's sign-up policy would otherwise refuse, and it is the only proof
-  // that can admit a shareable link constraining no address at all (#916).
-  const invitationToken = search.get("invitation");
   const returnTo = search.get("returnTo");
+  // Reached from an invitation when the landing it carries is the staged pending
+  // page for a flow. The token itself is no longer here - it was exchanged for an
+  // httpOnly handle before login (#1414) - so that flow's cookie, forwarded by the
+  // register proxy, is what admits an address the sign-up policy would otherwise
+  // refuse, and what admits a shareable link constraining no address at all (#916).
+  const invitationFlow = invitationFlowFrom(returnTo);
+  const invited = invitationFlow !== null;
   const branding = useBranding();
   const terms = termsLink(branding);
   const privacy = privacyLink(branding);
@@ -68,12 +72,14 @@ export function RegisterForm() {
 
     setIsLoading(true);
     try {
-      await register({
-        email,
-        password,
-        full_name: name || undefined,
-        invitation_token: invitationToken ?? undefined,
-      });
+      await register(
+        {
+          email,
+          password,
+          full_name: name || undefined,
+        },
+        invitationFlow,
+      );
       toast.success(t("registerSuccess"));
       // The invitation is not accepted by registering - that needs a session - so a
       // person who arrived through one is sent back to it after signing in.
@@ -99,8 +105,8 @@ export function RegisterForm() {
   return (
     <div className="space-y-8">
       <div className="space-y-2">
-        <span className="eyebrow text-foreground/55">{t("getStarted")}</span>
-        <h1 className="text-display-md text-foreground [&_em]:font-normal [&_em]:italic">
+        <span className="text-muted-foreground text-sm font-medium">{t("getStarted")}</span>
+        <h1 className="text-foreground text-[2rem] leading-tight font-semibold tracking-tight text-balance [&_em]:not-italic">
           {t.rich("createHeading", { em: (chunks) => <em>{chunks}</em> })}
         </h1>
         <p className="text-foreground/65 text-sm">
@@ -114,14 +120,11 @@ export function RegisterForm() {
         </p>
       </div>
 
-      <SignupPolicyNotice invited={invitationToken !== null} />
+      <SignupPolicyNotice invited={invited} />
 
       <form onSubmit={handleSubmit} className="space-y-5">
         <div className="space-y-1.5">
-          <Label
-            htmlFor="name"
-            className="text-foreground/80 text-xs font-medium tracking-wider uppercase"
-          >
+          <Label htmlFor="name" className="text-foreground text-sm font-medium">
             {t("nameOptional")}
           </Label>
           <Input
@@ -132,15 +135,12 @@ export function RegisterForm() {
             onChange={(e) => setName(e.target.value)}
             disabled={isLoading}
             autoComplete="name"
-            className="h-12 rounded-xl"
+            className="h-11 rounded-lg text-[15px]"
           />
         </div>
 
         <div className="space-y-1.5">
-          <Label
-            htmlFor="email"
-            className="text-foreground/80 text-xs font-medium tracking-wider uppercase"
-          >
+          <Label htmlFor="email" className="text-foreground text-sm font-medium">
             {t("email")}
           </Label>
           <Input
@@ -153,7 +153,7 @@ export function RegisterForm() {
             required
             disabled={isLoading}
             autoComplete="email"
-            className={`h-12 rounded-xl ${emailTouched && email && !emailValid ? "border-destructive" : ""}`}
+            className={`h-11 rounded-lg text-[15px] ${emailTouched && email && !emailValid ? "border-destructive" : ""}`}
           />
           {emailTouched && email && !emailValid && (
             <p className="text-destructive text-xs">{t("emailRequired")}</p>
@@ -161,10 +161,7 @@ export function RegisterForm() {
         </div>
 
         <div className="space-y-1.5">
-          <Label
-            htmlFor="password"
-            className="text-foreground/80 text-xs font-medium tracking-wider uppercase"
-          >
+          <Label htmlFor="password" className="text-foreground text-sm font-medium">
             {t("password")}
           </Label>
           <Input
@@ -176,7 +173,7 @@ export function RegisterForm() {
             required
             disabled={isLoading}
             autoComplete="new-password"
-            className={`h-12 rounded-xl ${password && !passwordLongEnough ? "border-destructive" : ""}`}
+            className={`h-11 rounded-lg text-[15px] ${password && !passwordLongEnough ? "border-destructive" : ""}`}
           />
           {password && (
             <div className="space-y-1.5 pt-1">
@@ -191,9 +188,7 @@ export function RegisterForm() {
                 ))}
               </div>
               <div className="flex items-center justify-between">
-                <p className="text-foreground/55 font-mono text-[11px] tracking-wider uppercase">
-                  {strength.label}
-                </p>
+                <p className="text-muted-foreground text-xs font-medium">{strength.label}</p>
                 <div className="flex items-center gap-1.5 text-xs">
                   {password.length >= 8 ? (
                     <span className="text-brand inline-flex items-center gap-1">
@@ -201,7 +196,7 @@ export function RegisterForm() {
                       {t("n8Chars")}
                     </span>
                   ) : (
-                    <span className="text-foreground/55 inline-flex items-center gap-1">
+                    <span className="text-muted-foreground inline-flex items-center gap-1">
                       <X className="h-3 w-3" />
                       {t("n8Chars2")}
                     </span>
@@ -213,10 +208,7 @@ export function RegisterForm() {
         </div>
 
         <div className="space-y-1.5">
-          <Label
-            htmlFor="confirmPassword"
-            className="text-foreground/80 text-xs font-medium tracking-wider uppercase"
-          >
+          <Label htmlFor="confirmPassword" className="text-foreground text-sm font-medium">
             {t("confirmPassword")}
           </Label>
           <Input
@@ -228,7 +220,7 @@ export function RegisterForm() {
             required
             disabled={isLoading}
             autoComplete="new-password"
-            className={`h-12 rounded-xl ${confirmPassword && !passwordsMatch ? "border-destructive" : ""}`}
+            className={`h-11 rounded-lg text-[15px] ${confirmPassword && !passwordsMatch ? "border-destructive" : ""}`}
           />
           {confirmPassword && !passwordsMatch && (
             <p className="text-destructive inline-flex items-center gap-1 text-xs">
@@ -239,16 +231,12 @@ export function RegisterForm() {
         </div>
 
         {error && (
-          <p className="border-destructive/30 bg-destructive/5 text-destructive rounded-lg border px-3 py-2 text-sm">
+          <p className="border-destructive/35 bg-destructive/[0.07] text-foreground rounded-lg border px-3 py-2 text-sm">
             {error}
           </p>
         )}
 
-        <Button
-          type="submit"
-          disabled={isLoading}
-          className="bg-foreground text-background hover:bg-foreground/90 h-12 w-full rounded-full text-base font-medium"
-        >
+        <Button type="submit" disabled={isLoading} className="h-11 w-full text-[15px]">
           {isLoading ? (
             t("creatingAccount")
           ) : (
@@ -259,7 +247,7 @@ export function RegisterForm() {
           )}
         </Button>
 
-        <p className="text-foreground/50 text-center text-xs">
+        <p className="text-muted-foreground text-center text-xs">
           {t.rich("agreeToTerms", {
             terms: (chunks) => <LegalAnchor link={terms}>{chunks}</LegalAnchor>,
             privacy: (chunks) => <LegalAnchor link={privacy}>{chunks}</LegalAnchor>,
@@ -267,9 +255,10 @@ export function RegisterForm() {
         </p>
       </form>
 
-      {/* The token travels with the provider too: an `invite_only` deployment
-          otherwise refuses the button beside a form that accepts the same person. */}
-      <OAuthBlock label={t("orSignUpWith")} variant="signup" invitation={invitationToken} />
+      {/* The staged invitation travels with the provider too, as its httpOnly
+          handle attached same-origin (#1414): an `invite_only` deployment otherwise
+          refuses the button beside a form that accepts the same person. */}
+      <OAuthBlock label={t("orSignUpWith")} variant="signup" returnTo={returnTo} />
     </div>
   );
 }

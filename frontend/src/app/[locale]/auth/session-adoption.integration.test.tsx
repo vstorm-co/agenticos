@@ -7,6 +7,7 @@ import CallbackPage from "./callback/page";
 import MagicLinkPage from "./magic-link/page";
 import { AuthGuard } from "@/components/layout/auth-guard";
 import { apiClient } from "@/lib/api-client";
+import { rememberReturnTo } from "@/lib/oauth-return";
 import { useAuthStore, useConversationStore } from "@/stores";
 
 /**
@@ -27,7 +28,9 @@ vi.mock("@/lib/api-client", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
   return { ...actual, apiClient: { get: vi.fn(), post: vi.fn() } };
 });
-vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
+vi.mock("next-intl", async () => ({
+  useTranslations: (await import("@/test-utils/intl")).keyTranslations(),
+}));
 
 const replace = vi.hoisted(() => vi.fn());
 const searchParams = vi.hoisted(() => new URLSearchParams());
@@ -59,21 +62,99 @@ beforeEach(() => {
   searchParams.forEach((_, key) => searchParams.delete(key));
   useAuthStore.getState().logout();
   useConversationStore.getState().reset();
+  window.sessionStorage.clear();
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 });
 
 describe("the OAuth callback", () => {
   it("empties the previous account before adopting the one it exchanged", async () => {
-    searchParams.set("access_token", "a-1");
-    searchParams.set("refresh_token", "r-1");
+    searchParams.set("code", "one-time");
     vi.mocked(apiClient.post).mockResolvedValue({ user: arriving, access_token: "t-new" });
     mountOver(<CallbackPage />);
 
     await waitFor(() => expect(useAuthStore.getState().user?.id).toBe("u-new"));
 
+    expect(apiClient.post).toHaveBeenCalledWith("/auth/oauth-callback", { code: "one-time" });
     expect(client.getQueryData(["sessions", "list", 0])).toBeUndefined();
     expect(useConversationStore.getState().currentConversationId).toBeNull();
     expect(useAuthStore.getState().accessToken).toBe("t-new");
+  });
+
+  it("spends a single-use code once across a remount", async () => {
+    // Strict Mode mounts this effect, cleans it up and mounts it again in dev;
+    // both must share the one request, or the second POSTs a code the first
+    // already redeemed and the sign-in 401s (#14, codex).
+    searchParams.set("code", "dupe");
+    let resolve!: (value: { user: typeof arriving; access_token: string }) => void;
+    vi.mocked(apiClient.post).mockReturnValue(
+      new Promise<{ user: typeof arriving; access_token: string }>((r) => {
+        resolve = r;
+      }),
+    );
+
+    render(
+      <QueryClientProvider client={client}>
+        <CallbackPage />
+      </QueryClientProvider>,
+    );
+    render(
+      <QueryClientProvider client={client}>
+        <CallbackPage />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalledTimes(1));
+    resolve({ user: arriving, access_token: "t-new" });
+    await waitFor(() => expect(useAuthStore.getState().user?.id).toBe("u-new"));
+    expect(apiClient.post).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * Where the round trip ends (#135).
+ *
+ * A visitor at `/login?returnTo=/agents/a-1` who signed in with the password
+ * form resumed the deep link; one who clicked a provider button landed on the
+ * dashboard, so which button they picked decided where they ended up. The path
+ * is written beside the provider link - `oauth-buttons.test.tsx` holds that
+ * half - and read back here.
+ */
+describe("where the OAuth callback lands", () => {
+  async function signIn() {
+    searchParams.set("code", "one-time");
+    vi.mocked(apiClient.post).mockResolvedValue({ user: arriving, access_token: "t-new" });
+    render(
+      <QueryClientProvider client={client}>
+        <CallbackPage />
+      </QueryClientProvider>,
+    );
+    await waitFor(() => expect(replace).toHaveBeenCalled());
+    return vi.mocked(replace).mock.calls[0]?.[0];
+  }
+
+  it("resumes the deep link the visitor was headed to", async () => {
+    rememberReturnTo("/agents/a-1");
+
+    expect(await signIn()).toBe("/agents/a-1");
+  });
+
+  it("consumes it, so a second sign-in in this tab does not resume it", async () => {
+    rememberReturnTo("/agents/a-1");
+    await signIn();
+
+    expect(window.sessionStorage.getItem("oauthReturnTo")).toBeNull();
+  });
+
+  it("lands on the dashboard when the trip carried no deep link", async () => {
+    expect(await signIn()).toBe("/dashboard");
+  });
+
+  it("refuses a path that leaves this origin", async () => {
+    // `postSignInDestination` is the one place that decides this, and it stays
+    // the one place: nothing on the way here re-implements the check.
+    rememberReturnTo("//evil.example/agents");
+
+    expect(await signIn()).toBe("/dashboard");
   });
 });
 
@@ -92,6 +173,47 @@ describe("the magic link", () => {
     expect(apiClient.get).toHaveBeenCalledWith("/auth/me");
     expect(client.getQueryData(["sessions", "list", 0])).toBeUndefined();
     expect(useConversationStore.getState().currentConversationId).toBeNull();
+  });
+
+  it("lands where the link was minted for", async () => {
+    // The path travels in the token, which is why this page reads it off the
+    // verify response rather than out of `sessionStorage`: a magic link is
+    // followed from an email, in another tab and often another application,
+    // where the store the OAuth round trip uses is empty (#1214).
+    searchParams.set("token", "m-1");
+    vi.mocked(apiClient.post).mockResolvedValue({
+      access_token: "t-new",
+      return_to: "/agents/a-1",
+    });
+    vi.mocked(apiClient.get).mockResolvedValue(arriving);
+    mountOver(<MagicLinkPage />);
+
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/agents/a-1"));
+  });
+
+  it("lands on the dashboard when the link named nowhere", async () => {
+    searchParams.set("token", "m-1");
+    vi.mocked(apiClient.post).mockResolvedValue({ access_token: "t-new", return_to: null });
+    vi.mocked(apiClient.get).mockResolvedValue(arriving);
+    mountOver(<MagicLinkPage />);
+
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
+  });
+
+  it("refuses a path the token should never have carried", async () => {
+    // Belt and braces: the request refuses these before signing one, so this is
+    // about the landing making its own judgement rather than trusting the
+    // token - the same `postSignInDestination` every other door resolves
+    // through.
+    searchParams.set("token", "m-1");
+    vi.mocked(apiClient.post).mockResolvedValue({
+      access_token: "t-new",
+      return_to: "https://evil.example",
+    });
+    vi.mocked(apiClient.get).mockResolvedValue(arriving);
+    mountOver(<MagicLinkPage />);
+
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
   });
 });
 

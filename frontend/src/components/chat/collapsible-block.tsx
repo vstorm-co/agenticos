@@ -65,7 +65,7 @@ export function CollapsibleBlock({
       className={cn("group border-border bg-muted overflow-hidden rounded-xl border", className)}
     >
       {(label !== null || collapsible) && (
-        <div className="border-foreground/8 text-foreground/55 flex items-center justify-between border-b px-3 py-1.5 font-mono text-[10px] tracking-wider uppercase">
+        <div className="border-foreground/8 text-muted-foreground flex items-center justify-between border-b px-3 py-1.5 font-mono text-[11px] tracking-wider uppercase">
           {collapsible ? (
             <button
               type="button"

@@ -1,0 +1,83 @@
+# Traefik for a host that does not already have one. `docs/deploy.md` has the
+# whole picture; this file is the static configuration, which Traefik reads once
+# at start-up. Everything dynamic - which host routes where - comes from labels
+# on the containers themselves, which is the point of the docker provider.
+
+global:
+  sendAnonymousUsage: false
+
+api:
+  # The dashboard is served but nothing routes to it, so it is reachable only by
+  # publishing a port or adding a router with authentication. Off by default
+  # because a dashboard that lists every route and service is a map of the host.
+  dashboard: true
+  insecure: false
+
+# What the compose healthcheck asks. `traefik healthcheck --ping` has nothing to
+# ask without this, so the container would report unhealthy for ever while
+# serving every request correctly.
+ping: {}
+
+providers:
+  # The middlewares below. Traefik's *static* file is read once and holds no
+  # middlewares, so anything that applies to every route needs a dynamic
+  # provider - which for a fixed rule is a second file rather than a service.
+  file:
+    filename: /etc/traefik/dynamic.yml
+    watch: true
+
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    watch: true
+    # The setting that decides what is public. Nothing is routed unless it says
+    # `traefik.enable=true`, so a service added to the stack later is unreachable
+    # until somebody decides otherwise - rather than exposed until somebody
+    # notices.
+    exposedByDefault: false
+    network: "traefik_webgateway"
+
+log:
+  level: INFO
+  format: common
+
+accessLog:
+  format: common
+
+entryPoints:
+  web:
+    address: :80
+    # Nothing is served over plain HTTP except the ACME challenge, which Traefik
+    # answers before this redirect applies.
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+  websecure:
+    address: :443
+    http:
+      # Applied to everything behind this proxy rather than to our two routers,
+      # because a header that depends on remembering a label is a header the next
+      # service will not have.
+      middlewares:
+        - security-headers@file
+      tls:
+        # Set here rather than per router, so a router that forgets to name a
+        # resolver still gets a certificate instead of Traefik's self-signed one.
+        certResolver: letsencrypt
+
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      # **Not set here.** Traefik does not expand shell placeholders in its static
+      # file, and compose does not interpolate a file it only bind-mounts - so
+      # `${ACME_EMAIL}` written here would be registered with Let's Encrypt
+      # literally. It arrives as `TRAEFIK_CERTIFICATESRESOLVERS_LETSENCRYPT_ACME_EMAIL`
+      # instead, which is the supported second source for any static setting.
+      storage: "/certificates/acme.json"
+      # HTTP-01: Let's Encrypt fetches a file from whatever the name resolves to,
+      # which is why the DNS records come first. The alternative is DNS-01, which
+      # needs an API token for the zone and is what a wildcard certificate would
+      # require.
+      httpChallenge:
+        entryPoint: web

@@ -62,6 +62,7 @@ def a_row(**overrides) -> DeploymentSettings:
         announcement_level="info",
         maintenance_mode=False,
         maintenance_message=None,
+        notify_impersonated_users=False,
     )
     row.created_at = WRITTEN
     row.updated_at = None
@@ -95,6 +96,16 @@ def storage(monkeypatch) -> MagicMock:
     stub.delete = AsyncMock()
     monkeypatch.setattr(module, "get_file_storage", lambda: stub)
     return stub
+
+
+@pytest.fixture(autouse=True)
+def _no_configuration_changed_notification(monkeypatch) -> None:
+    """This file is about the settings row and the audit entry's own fields
+    (#1598), not the `configuration_changed` notification every write now
+    also produces - covered separately in `tests/test_notifications.py`.
+    Left real, it would resolve `member_repo.list_app_admin_ids` against
+    whatever `db` a test happens to pass, real or a bare mock."""
+    monkeypatch.setattr(module, "NotificationService", MagicMock(return_value=AsyncMock()))
 
 
 class TestWhatAStrangerMayRead:
@@ -274,6 +285,40 @@ class TestTheBanner:
         notice = await DeploymentSettingsService(mock_db_session).notice()
 
         assert notice.maintenance_mode is False
+
+
+class TestTellingAnImpersonatedPerson:
+    """A policy the operator sets, never one the code defaults (#1044)."""
+
+    async def test_an_unconfigured_deployment_tells_nobody(self, mock_db_session, repo):
+        repo.get.return_value = None
+
+        assert (
+            await DeploymentSettingsService(mock_db_session).notifies_impersonated_users() is False
+        )
+
+    async def test_it_is_off_until_somebody_turns_it_on(self, mock_db_session, repo):
+        repo.get.return_value = a_row()
+
+        assert (
+            await DeploymentSettingsService(mock_db_session).notifies_impersonated_users() is False
+        )
+
+    async def test_a_deployment_that_turned_it_on_says_so(self, mock_db_session, repo):
+        repo.get.return_value = a_row(notify_impersonated_users=True)
+
+        service = DeploymentSettingsService(mock_db_session)
+        assert await service.notifies_impersonated_users() is True
+        assert (await service.read()).notify_impersonated_users is True
+
+    async def test_it_is_not_on_the_public_branding(self, mock_db_session, repo):
+        """What a deployment tells its users about administrator access is the
+        administrator's business, not a stranger's on the sign-in page."""
+        repo.get.return_value = a_row(notify_impersonated_users=True)
+
+        branding = await DeploymentSettingsService(mock_db_session).branding()
+
+        assert "notify_impersonated_users" not in branding.model_dump()
 
 
 class TestTheAdministratorsView:

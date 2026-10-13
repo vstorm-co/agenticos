@@ -28,7 +28,7 @@ import json
 import logging
 import re
 from collections.abc import AsyncIterator, Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
@@ -64,6 +64,7 @@ from pydantic_ai.models.test import TestModel
 from pydantic_ai.tools import DeferredToolRequests
 from pydantic_ai.toolsets import FunctionToolset
 from pydantic_ai.usage import RunUsage, UsageLimits
+from pydantic_ai_backends import StateBackend
 from subagents_pydantic_ai import SubAgentConfig, TaskHandle, TaskManager, TaskStatus
 
 from app.agents.capabilities import CapabilityBinding, CapabilityBuildContext, build, get
@@ -74,6 +75,7 @@ from app.agents.capabilities.approval import (
     approval_required_tools,
 )
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope, SpendEntry, SpendLedger
+from app.agents.capabilities.sandbox._capability import build_workspace
 from app.agents.capabilities.subagents import Delegation, SubagentsConfig
 from app.agents.capabilities.subagents._capability import (
     BACKGROUND_LIFECYCLE_TOOLS,
@@ -90,10 +92,12 @@ from app.agents.spec import AgentSpec, CapabilityBindingSpec, DelegationMode
 from app.agents.subagent_events import SubagentEvent, SubagentFinished
 from app.agents.subagent_runtime import (
     SUBAGENT_RUNTIME_RESOURCE,
+    DelegateWorkspace,
     DelegationOutcome,
     ResolvedSubagent,
     SubagentRuntime,
 )
+from tests.workspaces import document_workspace
 
 pytestmark = pytest.mark.anyio
 
@@ -1079,6 +1083,7 @@ class TestRecording:
         # the part present either way rather than the filter's own behaviour.
         assert "connect to https://llm.acme.internal/v1" in caplog.text
 
+    @pytest.mark.security
     async def test_a_delegate_stopped_by_the_budget_keeps_the_ceiling_sentence(self):
         """A budget breach is the second ceiling, and its numbers are the point.
 
@@ -1953,6 +1958,7 @@ class TestApprovalInsideADelegation:
     is a database write on a session the parent is still using.
     """
 
+    @pytest.mark.security
     async def test_a_sync_delegation_can_park_the_run_on_its_delegate_s_approval(self):
         approvals = Approvals()
         capability = a_capability(a_runtime(a_delegate(model=one_tool_call(), gated=True)))
@@ -1963,6 +1969,7 @@ class TestApprovalInsideADelegation:
 
         assert [request.tool_name for request in approvals.asked] == ["ping"]
 
+    @pytest.mark.security
     async def test_a_background_delegation_never_reaches_the_approval_queue(self):
         """The refusal that keeps a background delegate off the request's session.
 
@@ -1995,6 +2002,7 @@ class TestApprovalInsideADelegation:
         assert [outcome.status for outcome in recorder.outcomes] == ["completed"]
         assert capability.journal.in_flight() == 0
 
+    @pytest.mark.security
     @pytest.mark.parametrize("mode", ["sync", "async"])
     async def test_only_a_background_delegate_is_handed_no_approval_channel(self, mode: str):
         """The substitution itself, on a delegate with nothing gated.
@@ -2346,6 +2354,78 @@ class TestNarration:
         assert "subagent_tool_result" in sink.kinds
         calls = [frame for frame in sink.frames if frame.kind == "subagent_tool_call"]
         assert calls[0].tool_name == "ping"
+
+
+def _writes_notes(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+    """A delegate's model: write `notes.md`, then answer."""
+    if any(isinstance(part, ToolReturnPart) for part in messages[-1].parts):
+        return ModelResponse(parts=[TextPart("noted")])
+    return ModelResponse(
+        parts=[ToolCallPart("write_file", {"path": "/notes.md", "content": "found it"})]
+    )
+
+
+def _a_writing_delegate(workspace: DelegateWorkspace) -> ResolvedSubagent:
+    """A delegate binding `sandbox`, under the given workspace decision."""
+    return ResolvedSubagent(
+        name="researcher",
+        description="Researches a topic and cites its sources.",
+        build=lambda: PydanticAgent(
+            FunctionModel(_writes_notes),
+            deps_type=AgentDeps,
+            capabilities=[build_workspace(include_execute=False)],
+        ),
+        workspace=workspace,
+    )
+
+
+class TestTheWorkspaceADelegationRunsIn:
+    """`share_with_delegates` decides who works in the parent's files.
+
+    The delegation library hands every delegation the parent's workspace whenever
+    one is attached, so this is the platform's own decision to enforce: without
+    it a delegate nobody shared `sandbox` with ran its own shell in the parent's
+    container.
+    """
+
+    async def test_a_delegate_shared_the_sandbox_writes_into_the_parents_files(self):
+        parents = StateBackend()
+        ctx = replace(a_context(), workspace=document_workspace(parents))
+
+        await delegate_to(a_capability(a_runtime(_a_writing_delegate("parent"))), ctx)
+
+        assert parents.read_bytes("/notes.md") == b"found it"
+
+    @pytest.mark.security
+    async def test_a_delegate_with_a_sandbox_of_its_own_never_touches_the_parents(self):
+        parents = StateBackend()
+        ctx = replace(a_context(), workspace=document_workspace(parents))
+
+        answer = await delegate_to(a_capability(a_runtime(_a_writing_delegate("own"))), ctx)
+
+        assert "noted" in str(answer)
+        assert parents.files == {}
+
+    async def test_a_delegate_with_no_sandbox_is_handed_no_workspace(self):
+        """A delegate binding no `sandbox` - `artifacts` alone, say - read and
+        wrote nothing of the parent's before, and must not start to."""
+        seen: list[bool] = []
+
+        def ping(ctx: RunContext[AgentDeps]) -> str:
+            seen.append(ctx.workspace is not None and ctx.workspace.attached)
+            return "looked"
+
+        delegate = ResolvedSubagent(
+            name="researcher",
+            description="Researches a topic and cites its sources.",
+            build=lambda: PydanticAgent(one_tool_call(), deps_type=AgentDeps, tools=[ping]),
+            workspace="none",
+        )
+        ctx = replace(a_context(), workspace=document_workspace())
+
+        await delegate_to(a_capability(a_runtime(delegate)), ctx)
+
+        assert seen == [False]
 
 
 class TestDelegateDeps:

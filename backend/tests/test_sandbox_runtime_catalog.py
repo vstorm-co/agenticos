@@ -23,6 +23,7 @@ from app.services.sandbox_runtimes import (
     runtime_briefing,
     runtime_parses_documents,
 )
+from tests.workspaces import document_workspace
 
 
 def _sandboxd_environment(name: str) -> dict[str, Any]:
@@ -448,7 +449,7 @@ class TestTheRunsInstructions:
         from app.services.sandbox_workspace import OpenWorkspace
 
         return OpenWorkspace(
-            backend=object(),
+            workspace=document_workspace(),
             kind="service",
             scope="conversation",
             scope_key="xc-1234",
@@ -472,6 +473,37 @@ class TestTheRunsInstructions:
 
         assert result.instructions.startswith("You are an analyst.")
         assert result.instructions.endswith("- pandas")
+        assert spec.instructions == "You are an analyst."
+
+
+class TestTheModelIsToldWhereItsSkillsAre:
+    """The path was only ever discoverable from a skill's own body, so every
+    skill authored against the old root was the model's sole authority for a
+    location the platform had since changed. Said once by the side that chooses
+    it, a body naming the old directory is stale text rather than the answer."""
+
+    @staticmethod
+    def _spec() -> Any:
+        from app.agents.spec import AgentSpec
+
+        return AgentSpec(name="Analyst", instructions="You are an analyst.")
+
+    def test_it_names_the_root_the_files_were_written_under(self) -> None:
+        from app.services.agent_runner import _with_skills_briefing
+        from app.services.skill_workspace import SKILLS_ROOT
+
+        result = _with_skills_briefing(self._spec())
+
+        assert SKILLS_ROOT in result.instructions
+
+    def test_the_published_spec_is_untouched(self) -> None:
+        from app.services.agent_runner import _with_skills_briefing
+
+        spec = self._spec()
+
+        result = _with_skills_briefing(spec)
+
+        assert result.instructions.startswith("You are an analyst.")
         assert spec.instructions == "You are an analyst."
 
 

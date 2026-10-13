@@ -36,9 +36,16 @@ from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart, ToolCall
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 
 from app.agents.capabilities.budget import SpendLedger
-from app.agents.capabilities.sandbox import WORKSPACE_BACKEND_RESOURCE
+from app.agents.capabilities.sandbox import WORKSPACE_RESOURCE
 from app.agents.capabilities.subagents import SubagentsConfig
-from app.agents.spec import AgentSpec, SpecialistSpec, SubagentRef
+from app.agents.spec import (
+    AgentSpec,
+    ObservabilitySpec,
+    OrgMcpServerRef,
+    PersonalMcpServerRef,
+    SpecialistSpec,
+    SubagentRef,
+)
 from app.agents.subagent_runtime import (
     SUBAGENT_RUNTIME_RESOURCE,
     DelegationOutcome,
@@ -55,6 +62,7 @@ from app.services.agent_runner import (
     RecordedDelegation,
     month_start,
 )
+from app.services.mcp_connection import ResolvedMcpToolsets, UnavailablePersonalService
 
 pytestmark = pytest.mark.anyio
 
@@ -269,8 +277,8 @@ async def _prepare(
         name = "delegate" if pinned is None else str(pinned.spec["name"])
         return _agent_row(delegate_id, slug=_slug(name))
 
-    async def get_collection(_db: Any, collection_id: uuid.UUID) -> Any:
-        return known_collections.get(collection_id)
+    async def get_collections(_db: Any, ids: Any) -> Any:
+        return {cid: known_collections[cid] for cid in ids if cid in known_collections}
 
     catalog = [_profile("fast")] if profiles is None else profiles
     by_id = {profile.id: profile for profile in catalog}
@@ -303,10 +311,14 @@ async def _prepare(
         patch.object(
             service.workspaces,
             "open",
-            new=AsyncMock(return_value=None if workspace is None else MagicMock(backend=workspace)),
+            new=AsyncMock(
+                return_value=None if workspace is None else MagicMock(workspace=workspace)
+            ),
         ),
         patch(f"{RUNNER}.workspace_snapshot", new=AsyncMock(return_value=set())),
-        patch(f"{RUNNER}.knowledge_base_repo.get_by_id", new=AsyncMock(side_effect=get_collection)),
+        patch(
+            f"{RUNNER}.knowledge_base_repo.get_by_ids", new=AsyncMock(side_effect=get_collections)
+        ),
         patch(
             f"{RUNNER}.agent_repo.get_version", new=AsyncMock(side_effect=get_version)
         ) as fetch_version,
@@ -374,6 +386,7 @@ class TestTheRuntimeARunIsHanded:
 
         assert prepared.build.call_count == 2
 
+    @pytest.mark.security
     async def test_a_delegate_runs_on_the_runs_own_budget_guard(self):
         """Sharing the guard is what makes a delegation's spend visible to the
         parent's cap before the next request. Without it a delegate meters
@@ -383,6 +396,7 @@ class TestTheRuntimeARunIsHanded:
 
         assert prepared.built("summariser")["shared_budget"] is prepared.build.return_value.budget
 
+    @pytest.mark.security
     async def test_a_delegate_reaches_the_approval_queue_the_parent_is_waiting_on(self):
         """A specialist that needs a person needs the person already waiting."""
         prepared = await _prepare(_delegating(inline=[_specialist()]))
@@ -457,6 +471,37 @@ class TestWhatAnInlineSpecialistCanReach:
 
         assert prepared.built("summariser")["extra_toolsets"] == []
 
+    async def test_a_specialist_inherits_the_parents_refusal_to_trace_content(self):
+        """The parent's `content="none"` is a promise about the run, not about one
+        agent in it. A specialist's spec carried no observability block at all, so
+        the deployment's global instrumentation traced it with content on and the
+        run's prompts left anyway (#1699)."""
+        spec = _delegating(
+            inline=[_specialist()],
+            observability=ObservabilitySpec(token_secret_id=uuid.uuid4(), content="none"),
+        )
+
+        prepared = await _prepare(spec)
+
+        built = prepared.built("summariser")["spec"]
+        assert built.observability is not None
+        assert built.observability.content == "none"
+        # The mode travels; the destination does not. A specialist has no project
+        # of its own and must not be handed the parent's write token.
+        assert built.observability.token_secret_id is None
+
+    async def test_a_specialist_of_a_parent_that_traces_in_full_carries_no_block(self):
+        """`full` changes nothing, so it stays absent rather than writing an empty
+        observability block into every specialist ever built."""
+        spec = _delegating(
+            inline=[_specialist()],
+            observability=ObservabilitySpec(token_secret_id=uuid.uuid4()),
+        )
+
+        prepared = await _prepare(spec)
+
+        assert prepared.built("summariser")["spec"].observability is None
+
 
 class TestSharingACapabilityWithADelegate:
     """`share_with_delegates` exists for the workspace, and the workspace is the
@@ -464,29 +509,55 @@ class TestSharingACapabilityWithADelegate:
     work."""
 
     async def test_a_shared_workspace_is_the_parents_own_session(self):
-        backend = MagicMock(name="workspace-backend")
+        workspace = MagicMock(name="workspace")
         spec = _delegating(
             inline=[_specialist()],
             share=["sandbox"],
             capabilities=[{"id": "sandbox", "config": {}}],
         )
 
-        prepared = await _prepare(spec, workspace=backend)
+        prepared = await _prepare(spec, workspace=workspace)
 
         built = prepared.built("summariser")
-        assert built["resources"][WORKSPACE_BACKEND_RESOURCE] is backend
+        assert built["resources"][WORKSPACE_RESOURCE] is workspace
         # The binding travels as it stands, so the delegate reads and writes with
         # the configuration the parent was published with.
         assert [binding.id for binding in built["spec"].capabilities] == ["sandbox"]
 
+    @pytest.mark.parametrize(
+        ("share", "own", "expected"),
+        [
+            (["sandbox"], [], "parent"),
+            ([], [{"id": "sandbox", "config": {}}], "own"),
+            ([], [], "none"),
+        ],
+        ids=["shared", "binds-its-own", "binds-none"],
+    )
+    async def test_the_share_list_decides_which_workspace_a_delegation_runs_in(
+        self, share, own, expected
+    ):
+        """The delegation library hands every delegation the parent's workspace,
+        so this decision is what keeps a delegate nobody shared `sandbox` with out
+        of the parent's files."""
+        spec = _delegating(
+            inline=[_specialist(capabilities=own)],
+            share=share,
+            capabilities=[{"id": "sandbox", "config": {}}],
+        )
+
+        prepared = await _prepare(spec, workspace=MagicMock(name="workspace"))
+
+        [entry] = prepared.runtime.subagents
+        assert entry.workspace == expected
+
     async def test_a_capability_that_is_not_shared_does_not_travel(self):
-        backend = MagicMock(name="workspace-backend")
+        workspace = MagicMock(name="workspace")
         spec = _delegating(inline=[_specialist()], capabilities=[{"id": "sandbox", "config": {}}])
 
-        prepared = await _prepare(spec, workspace=backend)
+        prepared = await _prepare(spec, workspace=workspace)
 
         built = prepared.built("summariser")
-        assert WORKSPACE_BACKEND_RESOURCE not in built["resources"]
+        assert WORKSPACE_RESOURCE not in built["resources"]
         assert built["spec"].capabilities == []
 
     async def test_a_delegates_own_binding_wins_over_a_shared_one(self):
@@ -654,18 +725,26 @@ class TestAPublishedDelegate:
         does not make them optional."""
         delegate_id = uuid.uuid4()
         connection_id = uuid.uuid4()
-        pinned = _version(delegate_id, AgentSpec(name="Linear Bot", mcp_server_ids=[connection_id]))
+        pinned = _version(
+            delegate_id,
+            AgentSpec(
+                name="Linear Bot", mcp_servers=[OrgMcpServerRef(connection_id=connection_id)]
+            ),
+        )
         spec = _delegating(
             subagents=[SubagentRef(agent_id=delegate_id, agent_version_id=pinned.id)]
         )
 
         with patch(
-            f"{RUNNER}.build_toolsets_for_agent", new=AsyncMock(return_value=["linear-toolset"])
+            f"{RUNNER}.build_toolsets_for_agent",
+            new=AsyncMock(return_value=ResolvedMcpToolsets(["linear-toolset"], [])),
         ) as toolsets:
             prepared = await _prepare(spec, versions={pinned.id: pinned})
             built = prepared.built("linear-bot")
 
-        assert toolsets.await_args_list[-1].kwargs["connection_ids"] == [connection_id]
+        assert toolsets.await_args_list[-1].kwargs["refs"] == [
+            OrgMcpServerRef(connection_id=connection_id)
+        ]
         assert built["extra_toolsets"] == ["linear-toolset"]
 
     async def test_a_delegate_with_no_description_is_still_describable(self):
@@ -903,6 +982,51 @@ class TestASpecialistTheModelInvents:
         assert dynamic is not None
         assert dynamic.allowed_models == ("fast",)
 
+    async def test_one_the_model_invents_inherits_the_refusal_to_trace_content(self):
+        """A specialist nobody reviewed is the last place a run's prompts should
+        start leaving from. `_dynamic_builder` assembles a bare `AgentSpec`, so
+        without the mode it arrived at `_instrument` asking for nothing and the
+        deployment's global instrumentation traced it with content on (#1699)."""
+        prepared = await _prepare(
+            _delegating(
+                allow_dynamic=True,
+                observability=ObservabilitySpec(token_secret_id=uuid.uuid4(), content="none"),
+            ),
+            profiles=[_profile("fast")],
+        )
+
+        spec = prepared.invented(model="fast")["spec"]
+        assert spec.observability is not None
+        assert spec.observability.content == "none"
+        assert spec.observability.token_secret_id is None
+
+    async def test_one_invented_by_a_delegate_follows_that_delegates_own_mode(self):
+        """A published delegate is reviewed on its own spec, so what a specialist
+        it invents may record is its author's answer and not its caller's."""
+        child_id = uuid.uuid4()
+        child = _version(
+            child_id,
+            _delegating(
+                name="Research Bot",
+                allow_dynamic=True,
+                observability=ObservabilitySpec(content="none"),
+            ),
+        )
+        parent = _delegating(
+            subagents=[SubagentRef(agent_id=child_id, agent_version_id=child.id)],
+            max_depth=2,
+        )
+
+        prepared = await _prepare(parent, versions={child.id: child}, profiles=[_profile("fast")])
+        nested = prepared.built("research-bot")["resources"][SUBAGENT_RUNTIME_RESOURCE]
+
+        assert nested.dynamic is not None
+        with patch(f"{RUNNER}.build_agent", new=prepared.build):
+            nested.dynamic.build(name="skimmer", instructions="Be brief.", model="fast")
+        spec = prepared.build.call_args_list[-1].args[0]
+        assert spec.observability is not None
+        assert spec.observability.content == "none"
+
     async def test_the_catalog_is_read_once_for_the_whole_tree(self):
         """It is a fact about the organization, not about a level, and reading it
         costs a query and a vault unseal per profile. Two nested levels that both
@@ -968,6 +1092,7 @@ class TestASpecialistTheModelInvents:
         assert [binding.id for binding in built["spec"].capabilities] == []
         assert SUBAGENT_RUNTIME_RESOURCE not in built["resources"]
 
+    @pytest.mark.security
     async def test_one_is_built_through_the_factory_with_the_runs_budget(self):
         """The property the whole phase exists for, at the seam the runner owns.
 
@@ -996,7 +1121,7 @@ class TestASpecialistTheModelInvents:
         built = prepared.invented(model="fast")
 
         spec = built["spec"]
-        assert (spec.capabilities, spec.subagents, spec.skill_ids, spec.mcp_server_ids) == (
+        assert (spec.capabilities, spec.subagents, spec.skill_ids, spec.mcp_servers) == (
             [],
             [],
             [],
@@ -1658,6 +1783,12 @@ class TestWhoseMonthADelegationCountsTowards:
                 "app.services.spend.ingestion_spend_repo.sum_cost_since",
                 new=AsyncMock(return_value=Decimal("0")),
             ),
+            # Spend a retention sweep already removed the runs for. Nothing has
+            # been purged in these tests, so it contributes nothing (#1420).
+            patch(
+                "app.services.spend.retention_repo.sum_purged_cost_since",
+                new=AsyncMock(return_value=Decimal("0")),
+            ),
         ):
             spent = await AgentRunnerService(_db()).monthly_spend(_ctx())
 
@@ -1681,3 +1812,39 @@ class TestTheRuntimeIsOptional:
         entry = ResolvedSubagent(name="summariser", description="brief", build=MagicMock())
 
         assert (entry.agent_id, entry.agent_version_id) == (None, None)
+
+
+class TestADelegateIsBriefedOnWhatItCannotReach:
+    """A delegate may bind a personal service the parent does not. Silently
+    losing it would have the delegate report failure where the parent could have
+    relayed "connect your Notion" - so the delegate's spec gets the same
+    paragraph the parent's would, and the parent reads it in the answer."""
+
+    async def test_the_delegates_instructions_name_the_missing_service(self):
+        delegate_id = uuid.uuid4()
+        pinned = _version(
+            delegate_id,
+            AgentSpec(
+                name="Notion Bot",
+                instructions="Search Notion.",
+                mcp_servers=[PersonalMcpServerRef(account="personal", catalog_key="notion")],
+            ),
+        )
+        spec = _delegating(
+            subagents=[SubagentRef(agent_id=delegate_id, agent_version_id=pinned.id)]
+        )
+
+        with patch(
+            f"{RUNNER}.build_toolsets_for_agent",
+            new=AsyncMock(
+                return_value=ResolvedMcpToolsets(
+                    [], [UnavailablePersonalService("notion", "not_connected")]
+                )
+            ),
+        ):
+            prepared = await _prepare(spec, versions={pinned.id: pinned})
+            built = prepared.built("notion-bot")
+
+        assert built["spec"].instructions.startswith("Search Notion.\n\n")
+        assert "has not connected their own Notion" in built["spec"].instructions
+        assert built["extra_toolsets"] == []

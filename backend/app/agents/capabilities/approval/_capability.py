@@ -39,6 +39,7 @@ from app.agents.approval import (
     ApprovalRequest,
     refusal,
 )
+from app.agents.capabilities._registry import FRAMEWORK_TOOL_NAMES
 from app.agents.deps import AgentDeps
 
 logger = logging.getLogger(__name__)
@@ -58,9 +59,25 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
     even if one happens to share a name with a gated tool. Their approval is a
     property of the connection, decided where the connection is configured, and
     inventing an answer for them here would be a guess.
+
+    `gate_every_tool` is the one thing that overrides both of those, and it comes
+    from a person rather than from a spec: `ApprovalMode.ASK_ALL` on a chat
+    session asks about everything the agent can reach, MCP tools included (#925).
+    It only ever tightens - a tool the spec gated stays gated - so it needs no
+    permission and no ceiling, and it is the honest answer to "I do not trust this
+    agent yet". Guessing is not the risk in that direction: being asked about a
+    read is a nuisance, where not being asked about a write is the failure the
+    queue exists for.
     """
 
     required_tool_names: frozenset[str] = frozenset()
+    gate_every_tool: bool = False
+    # Tools that are themselves a question to the person there - `connect_account`
+    # acts on nothing and only waits for them. Gated, even under `ASK_ALL`, they
+    # would ask them to approve being asked, and a parked call resumes where
+    # nobody can be asked. Named by the factory for the tools it attached, never
+    # read off tool metadata, which an MCP server writes.
+    asking_tool_names: frozenset[str] = frozenset()
 
     async def wrap_tool_execute(
         self,
@@ -73,7 +90,20 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
     ) -> Any:
         """Ask before executing, and execute only what was asked about."""
         capability_id = tool_def.capability_id
-        if capability_id is None or tool_def.name not in self.required_tool_names:
+        # A capability id is what tells this deployment's tool from an MCP
+        # server's, whose approval is a different question - except for the
+        # framework's own, which carries no capability id and is still ours to
+        # gate: `load_capability` is how a skill is opened, so a spec that asked
+        # for approval before a skill is loaded has nowhere else to put it
+        # (#1704 review).
+        gated = tool_def.name not in self.asking_tool_names and (
+            self.gate_every_tool
+            or (
+                tool_def.name in self.required_tool_names
+                and (capability_id is not None or tool_def.name in FRAMEWORK_TOOL_NAMES)
+            )
+        )
+        if not gated:
             return await handler(args)
 
         ask = ctx.deps.request_approval

@@ -1,72 +1,44 @@
 "use client";
 
-import { Sparkles } from "lucide-react";
-
 import { BrandMark } from "@/components/branding/brand-mark";
 import { useBranding } from "@/components/branding/branding-provider";
+import { ThinkingOrb } from "@/components/ui/thinking-orb";
 import { useTranslations } from "next-intl";
 
-const HIGHLIGHTS = ["pitchAgents", "pitchKnowledge", "pitchGovernance"];
-
+/**
+ * Sign in, sign up, and the password and magic-link pages around them.
+ *
+ * A white page with the form in a narrow column and, beside it on wide screens,
+ * a soft grey panel holding the orb the chat shows while an agent works - the
+ * one moving thing on the page, and the first glimpse of the product somebody
+ * is signing in to. No badges, no licence line: the page asks for an email and
+ * a password and gets out of the way.
+ */
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   const t = useTranslations("pages.auth");
   const { appName } = useBranding();
+
   return (
-    <div className="bg-background text-foreground min-h-screen lg:grid lg:grid-cols-[1.1fr_minmax(0,560px)]">
-      <main id="main" className="theme-light bg-background text-foreground relative flex flex-col">
+    <div className="theme-light bg-background text-foreground grid min-h-screen lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <main id="main" className="bg-card flex flex-col">
         <header className="flex h-16 items-center px-6 sm:px-10">
-          {/* Not a link: the root redirects straight back here, so a brand
-              mark that navigates would be a no-op. */}
-          <span className="text-foreground inline-flex items-center gap-2 text-base font-bold tracking-tight">
+          {/* Not a link: the root redirects straight back here, so a brand mark
+              that navigates would be a no-op. */}
+          <span className="inline-flex items-center gap-2 text-base font-semibold tracking-tight">
             <BrandMark size={22} />
             {appName}
           </span>
         </header>
-
         <div className="flex flex-1 items-center justify-center px-6 py-10 sm:px-10">
-          <div className="w-full max-w-md">{children}</div>
+          <div className="w-full max-w-sm">{children}</div>
         </div>
-
-        <footer className="text-foreground/50 px-6 py-6 font-mono text-[11px] tracking-wider uppercase sm:px-10">
-          © {new Date().getFullYear()} {appName}
-        </footer>
       </main>
 
-      <aside className="hidden p-5 lg:block lg:p-6">
-        <div className="theme-dark bg-background text-foreground border-foreground/10 relative flex h-full flex-col justify-between overflow-hidden rounded-3xl border p-10 shadow-2xl lg:p-12">
-          <div aria-hidden className="pointer-events-none absolute inset-0">
-            <div className="bg-grid absolute inset-0 opacity-[0.55]" />
-            <div className="bg-brand/[0.28] absolute -top-32 -right-20 h-[460px] w-[460px] rounded-full blur-[120px]" />
-            <div className="bg-brand/[0.12] absolute -bottom-20 -left-10 h-[320px] w-[420px] rounded-full blur-[140px]" />
-          </div>
-
-          <div className="relative z-10">
-            <span className="eyebrow-badge inline-flex items-center gap-2">
-              <Sparkles className="h-3 w-3" aria-hidden />
-              {t("selfHostedOpenSource")}
-            </span>
-          </div>
-
-          <div className="relative z-10 max-w-[28rem]">
-            <h2 className="text-display-lg text-foreground mb-6 leading-[1.05] [&_em]:font-normal [&_em]:italic">
-              {t.rich("operatingSystemHeading", { em: (chunks) => <em>{chunks}</em> })}
-            </h2>
-            <p className="text-foreground/65 max-w-md text-base leading-relaxed">
-              {t("agentHereDataNot")}
-            </p>
-
-            <ul className="mt-10 space-y-3">
-              {HIGHLIGHTS.map((key) => (
-                <li key={key} className="text-foreground/85 flex items-center gap-3 text-sm">
-                  <span aria-hidden className="bg-brand h-1.5 w-1.5 shrink-0 rounded-full" />
-                  {t(key)}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <p className="text-foreground/55 relative z-10 max-w-md font-mono text-[11px] leading-relaxed tracking-wider uppercase">
-            {t("apache20Your")}
+      <aside aria-hidden className="hidden p-4 lg:block">
+        <div className="bg-muted relative flex h-full flex-col items-center justify-center overflow-hidden rounded-3xl">
+          <ThinkingOrb state="breathing" size={64} className="scale-[3.2]" />
+          <p className="text-muted-foreground [&_b]:text-foreground mt-28 max-w-sm px-8 text-center text-lg leading-snug [&_b]:font-medium">
+            {t.rich("tagline", { b: (chunks) => <b>{chunks}</b> })}
           </p>
         </div>
       </aside>

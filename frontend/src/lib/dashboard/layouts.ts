@@ -283,6 +283,9 @@ const DEFAULT_SECTIONS: SectionDef[] = [
       { widget: "recent-failures", span: "s6", rows: "r3" },
       { widget: "knowledge-freshness", span: "s6", rows: "r3" },
       { widget: "channels", span: "s6", rows: "r3" },
+      // The only card in this band everybody sees - the rest fail an
+      // organization-scoped gate for a plain member and disappear.
+      { widget: "notifications", span: "s6", rows: "r3" },
       // Beside the channels rather than under Usage: an unattended run nobody is
       // watching is the definition of something that wants attention, and a
       // routine that has been failing every hour is invisible anywhere else on
@@ -349,6 +352,7 @@ const DEFAULT_SECTIONS: SectionDef[] = [
       { widget: "my-top-agents", span: "s6", rows: "r4" },
       { widget: "my-quality", span: "s3", rows: "r3" },
       { widget: "shared-with-you", span: "s3", rows: "r3" },
+      { widget: "artifacts", span: "s6", rows: "r4" },
     ],
   },
 ];

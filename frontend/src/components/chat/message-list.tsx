@@ -133,7 +133,7 @@ export function MessageList({ messages, onRegenerate }: MessageListProps) {
     <div className="space-y-0">
       {messages.map((message, index) => (
         <MessageItem
-          key={message.id}
+          key={message.renderKey ?? message.id}
           message={message}
           agent={message.agentId ? byId.get(message.agentId) : undefined}
           groupPosition={getGroupPosition(message)}

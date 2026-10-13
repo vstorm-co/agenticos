@@ -56,6 +56,9 @@ class RAGDocument(TimestampMixin, Base):
     # refuses a key over about 2700 bytes at insert time, which would turn a long
     # path into the error the `Text` was chosen to avoid.
     source_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Which sync sources list this document is `RAGDocumentClaim`'s, a row per
+    # source: two sources feeding one collection can both list an address, and
+    # one of them no longer listing it is not reason enough to remove it (#1879).
 
     __table_args__ = (
         Index("rag_documents_source_path_idx", "source_path", postgresql_using="hash"),
@@ -87,6 +90,14 @@ class RAGDocument(TimestampMixin, Base):
     # The embedding model this document's vectors were produced by, copied from
     # the collection at ingestion.
     embedding_model: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    # Which part of the organization this document belongs to - the FA-039
+    # dimension a retrieval may narrow on. Recorded on the row rather than passed
+    # to the flow for the same reason the resolved ingestion configuration is:
+    # the worker reads what this upload decided, and a parameter added to the
+    # flow signature would be lost by a run queued before it existed. `None`
+    # leaves the dimension absent on every chunk, which is what they all carried
+    # before (#1777).
+    organizational_unit: Mapped[str | None] = mapped_column(String(255), nullable=True)
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -102,4 +113,29 @@ class RAGDocument(TimestampMixin, Base):
         ForeignKey("knowledge_bases.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
+    )
+    # Who to notify about this document's outcome (#1598) - set from the
+    # caller's AuthContext at upload time, an upload always has one. SET NULL:
+    # deleting the uploader must not delete their document, only make its
+    # completion/failure notification fall back to the collection's admins.
+    initiated_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    # Bumped by `retry_ingestion` at dispatch time, threaded through to
+    # `complete_ingestion`/`fail_ingestion` as an explicit parameter rather than
+    # read back from this column at settlement (#1598). `retry_ingestion`
+    # reparses the same document id, so without a counter a second failure
+    # would share its predecessor's notification dedup key
+    # `(doc_id, ingestion_attempt)` and be silently suppressed by the unique
+    # constraint - exactly when a person most wants to hear the retry failed
+    # too. Reading this column back at settlement, instead of carrying the
+    # dispatched value through the call, would let a slow attempt that
+    # finishes after a newer retry has already bumped it settle under the
+    # newer attempt's number; `complete_ingestion`/`fail_ingestion` reject a
+    # settlement whose passed attempt no longer matches this column.
+    ingestion_attempt: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, server_default="1"
     )

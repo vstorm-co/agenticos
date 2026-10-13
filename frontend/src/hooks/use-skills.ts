@@ -71,10 +71,14 @@ export function useSkills({
     placeholderData: (previous) => previous,
   });
 
-  const invalidate = useCallback(
-    () => queryClient.invalidateQueries({ queryKey: qk.skills.all() }),
-    [queryClient],
-  );
+  const invalidate = useCallback(async () => {
+    // Cancel an in-flight read before invalidating: invalidateQueries dedupes
+    // its refetch onto a fetch already running, so a list read that began before
+    // this mutation committed resolves with the pre-write body, marks the query
+    // fresh, and the gallery keeps the old count until a reload (#154).
+    await queryClient.cancelQueries({ queryKey: qk.skills.all() });
+    await queryClient.invalidateQueries({ queryKey: qk.skills.all() });
+  }, [queryClient]);
 
   // No `onError` here, unlike its neighbours: every way this fails - the name
   // is taken, the description is too long - is something the reader can fix in
@@ -152,10 +156,18 @@ export function useSkill(skillId: string | null) {
     enabled: skillId !== null,
   });
 
+  const invalidate = useCallback(async () => {
+    // Cancel in-flight skills reads before invalidating, so a fetch that began
+    // before this mutation committed cannot be what invalidateQueries dedupes
+    // onto and win with its pre-write body (#154).
+    await queryClient.cancelQueries({ queryKey: qk.skills.all() });
+    await queryClient.invalidateQueries({ queryKey: qk.skills.all() });
+  }, [queryClient]);
+
   const save = useMutation({
     mutationFn: (edit: SkillEdit) => apiClient.patch<Skill>(`/skills/${skillId}`, edit),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: qk.skills.all() });
+      await invalidate();
       // Agents bind to the skill, not to a version of it, so this is already live.
       toast.success(t("savedAgentsCurrent"));
     },
@@ -174,7 +186,7 @@ export function useSkill(skillId: string | null) {
     mutationFn: (resource: NewSkillResource) =>
       apiClient.post<SkillResource>(`/skills/${skillId}/resources`, resource),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: qk.skills.all() });
+      await invalidate();
       toast.success(t("fileAdded"));
     },
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
@@ -184,7 +196,7 @@ export function useSkill(skillId: string | null) {
     mutationFn: ({ id, ...edit }: { id: string; description?: string | null; content?: string }) =>
       apiClient.patch<SkillResource>(`/skills/${skillId}/resources/${id}`, edit),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: qk.skills.all() });
+      await invalidate();
       toast.success(t("fileSaved"));
     },
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
@@ -194,7 +206,7 @@ export function useSkill(skillId: string | null) {
     mutationFn: (resourceId: string) =>
       apiClient.delete<void>(`/skills/${skillId}/resources/${resourceId}`),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: qk.skills.all() });
+      await invalidate();
       toast.success(t("fileRemoved"));
     },
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
@@ -218,7 +230,7 @@ export function useSkill(skillId: string | null) {
         (file) => file.webkitRelativePath || file.name,
       ),
     onSuccess: async (result) => {
-      await queryClient.invalidateQueries({ queryKey: qk.skills.all() });
+      await invalidate();
       toast.success(t("filesUploaded", { count: result.items.length }));
     },
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),

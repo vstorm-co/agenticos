@@ -6,8 +6,10 @@ from decimal import Decimal
 from typing import Any, NamedTuple
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, distinct, func, or_, select
+from sqlalchemy import ColumnElement, Integer, Numeric, distinct, func, or_, select, type_coerce
+from sqlalchemy import delete as sql_delete
 from sqlalchemy import update as sql_update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -15,9 +17,22 @@ from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.channel_session import ChannelSession
+from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Conversation, Message, ToolCall
+from app.db.models.conversation_favourite import ConversationFavourite
 from app.db.models.user import User
 from app.repositories._search import contains_ci
+
+# What `MessageFileRead` serializes, plus the key selectin groups rows by. A
+# transcript never needs `parsed_content`, the upload's whole extracted text. It is
+# narrowed per query rather than deferred on the model because `services/attachments.py`
+# and `routes/v1/files.py` read it, and under asyncio a deferred load is a `MissingGreenlet`.
+_MESSAGE_FILE_COLUMNS = (
+    ChatFile.message_id,
+    ChatFile.filename,
+    ChatFile.mime_type,
+    ChatFile.file_type,
+)
 
 
 async def agents_in_conversations(
@@ -176,7 +191,9 @@ async def get_conversation_by_id(
             select(Conversation)
             .options(
                 selectinload(Conversation.messages).selectinload(Message.tool_calls),
-                selectinload(Conversation.messages).selectinload(Message.files),
+                selectinload(Conversation.messages)
+                .selectinload(Message.files)
+                .load_only(*_MESSAGE_FILE_COLUMNS, raiseload=True),
             )
             .where(Conversation.id == conversation_id)
         )
@@ -360,6 +377,86 @@ def _ordering(columns: dict[str, Any], sort_by: str, sort_dir: str) -> Any:
     return column.nulls_last()
 
 
+def _favourited_by(user_id: UUID) -> ColumnElement[bool]:
+    """Whether this reader has starred the conversation the query is over.
+
+    An `EXISTS` rather than a join, for the reason `agent_id` is one in
+    :func:`_list_filters`: a join against a table keyed on `(user_id,
+    conversation_id)` cannot multiply a row today, and would the moment anything
+    else is keyed differently. Correlated on `Conversation` alone, or SQLAlchemy
+    correlates every table it recognises and the subquery loses its FROM.
+    """
+    return (
+        select(ConversationFavourite.conversation_id)
+        .select_from(ConversationFavourite)
+        .where(
+            ConversationFavourite.conversation_id == Conversation.id,
+            ConversationFavourite.user_id == user_id,
+        )
+        .correlate(Conversation)
+        .exists()
+    )
+
+
+async def favourite_ids(
+    db: AsyncSession, *, user_id: UUID, conversation_ids: Collection[UUID]
+) -> set[UUID]:
+    """Which of these conversations this reader has starred.
+
+    One query for a whole page rather than a column on each row: the flag is the
+    caller's, so it cannot be selected with the conversation without putting the
+    reader into every query that reads one.
+    """
+    if not conversation_ids:
+        return set()
+    result = await db.execute(
+        select(ConversationFavourite.conversation_id).where(
+            ConversationFavourite.user_id == user_id,
+            ConversationFavourite.conversation_id.in_(conversation_ids),
+        )
+    )
+    return set(result.scalars().all())
+
+
+async def set_favourite(
+    db: AsyncSession, *, user_id: UUID, conversation_id: UUID, favourite: bool
+) -> None:
+    """Star or unstar one conversation for one reader.
+
+    Idempotent in both directions, and under contention as well as on a retry.
+    A star is a preference rather than a transaction, and a toast saying
+    "already a favourite" would be the interface apologising for agreeing.
+
+    **A read-then-insert is not enough.** Two overlapping POSTs for the same
+    pair both saw `existing is None` and the second `flush()` raised on the
+    primary key - an integrity error out of an endpoint that promises success,
+    which a double-click or a retried request reaches (#1254). `ON CONFLICT DO
+    NOTHING` is the shape `channel_identity_repo.get_or_create` already uses for
+    this: `DO NOTHING` waits on a concurrent *uncommitted* insert of the same
+    key, because it cannot decide until that transaction ends, and then writes
+    nothing.
+
+    The delete is a statement rather than a fetch-then-delete for the same
+    reason: `DELETE ... WHERE` on a row another transaction is removing affects
+    zero rows instead of raising, and "it was already gone" is the outcome the
+    caller asked for.
+    """
+    if favourite:
+        await db.execute(
+            pg_insert(ConversationFavourite)
+            .values(user_id=user_id, conversation_id=conversation_id)
+            .on_conflict_do_nothing(index_elements=["user_id", "conversation_id"])
+        )
+    else:
+        await db.execute(
+            sql_delete(ConversationFavourite).where(
+                ConversationFavourite.user_id == user_id,
+                ConversationFavourite.conversation_id == conversation_id,
+            )
+        )
+    await db.flush()
+
+
 async def get_conversations_by_user(
     db: AsyncSession,
     user_id: UUID | None = None,
@@ -373,6 +470,7 @@ async def get_conversations_by_user(
     archived_only: bool = False,
     sort_by: str = "updated_at",
     sort_dir: str = "desc",
+    favourites_first_for: UUID | None = None,
     participant_conversation_ids: Collection[UUID] = frozenset(),
 ) -> list[Conversation]:
     """Get one organization's conversations, optionally narrowed to one user.
@@ -381,6 +479,13 @@ async def get_conversations_by_user(
     the tenant would return every tenant's rows, and that mistake must not look
     like an ordinary call. The narrowing arguments after it are shared with the
     admin listing - see :func:`_list_filters` for what each one means.
+
+    `favourites_first_for` puts this reader's starred threads at the top, and it
+    has to happen **here** rather than by grouping the page after it arrives: the
+    list is paged, so a favourite sorted into page two by recency would sit under
+    fifty threads that are not favourites (#929). Within each band the chosen
+    sort still applies, because "the order you starred them in" is a second
+    ordering nobody asked for.
 
     `participant_conversation_ids` widens a user's list to channel threads whose
     membership the caller has already confirmed against the platform - see
@@ -396,7 +501,9 @@ async def get_conversations_by_user(
         archived_only=archived_only,
     ):
         query = query.where(condition)
-    query = query.order_by(_ordering(_sort_columns(), sort_by, sort_dir)).offset(skip).limit(limit)
+    orders = [] if favourites_first_for is None else [_favourited_by(favourites_first_for).desc()]
+    orders.append(_ordering(_sort_columns(), sort_by, sort_dir))
+    query = query.order_by(*orders).offset(skip).limit(limit)
     result = await db.execute(query)
     return list(result.scalars().all())
 
@@ -573,7 +680,9 @@ async def get_messages_by_conversation(
     query = select(Message).where(Message.conversation_id == conversation_id)
     if include_tool_calls:
         query = query.options(selectinload(Message.tool_calls))
-    query = query.options(selectinload(Message.files))
+    query = query.options(
+        selectinload(Message.files).load_only(*_MESSAGE_FILE_COLUMNS, raiseload=True)
+    )
     query = query.order_by(Message.ordinal.asc()).offset(skip).limit(limit)
     result = await db.execute(query)
     return list(result.scalars().all())
@@ -604,11 +713,13 @@ async def conversation_cost(
     floor. It stays `None` where no turn recorded the flag at all, which is the
     honest "nobody knows" rather than "exact".
     """
+    # `type_coerce` states what `coalesce(..., 0)` guarantees: the column is
+    # nullable, the total is not.
     result = await db.execute(
         select(
-            func.coalesce(func.sum(Message.input_tokens), 0),
-            func.coalesce(func.sum(Message.output_tokens), 0),
-            func.coalesce(func.sum(Message.cost_usd), 0),
+            type_coerce(func.coalesce(func.sum(Message.input_tokens), 0), Integer),
+            type_coerce(func.coalesce(func.sum(Message.output_tokens), 0), Integer),
+            type_coerce(func.coalesce(func.sum(Message.cost_usd), 0), Numeric),
             func.bool_or(Message.cost_is_partial),
             func.count(Message.input_tokens),
         ).where(Message.conversation_id == conversation_id)
@@ -633,9 +744,9 @@ async def attributed_to_run(db: AsyncSession, run_id: UUID) -> tuple[int, int, D
     """
     result = await db.execute(
         select(
-            func.coalesce(func.sum(Message.input_tokens), 0),
-            func.coalesce(func.sum(Message.output_tokens), 0),
-            func.coalesce(func.sum(Message.cost_usd), 0),
+            type_coerce(func.coalesce(func.sum(Message.input_tokens), 0), Integer),
+            type_coerce(func.coalesce(func.sum(Message.output_tokens), 0), Integer),
+            type_coerce(func.coalesce(func.sum(Message.cost_usd), 0), Numeric),
         ).where(Message.run_id == run_id)
     )
     input_tokens, output_tokens, cost_usd = result.one()
@@ -688,6 +799,11 @@ async def get_messages_after(
     of the history the summary does not account for. Bounded like
     `get_recent_messages` is, and for the same reason: a thread nobody compacts
     again must not grow into an unbounded prompt.
+
+    Without the attachments its sibling loads: this answers what the *model*
+    reads, and a row's files reach that as text the prompt already carries. A
+    caller that needs them touches `Message.files` and gets a `MissingGreenlet`
+    saying so, which beats a join on every turn for nobody.
     """
     total = await db.scalar(
         select(func.count(Message.id)).where(
@@ -697,7 +813,6 @@ async def get_messages_after(
     query = (
         select(Message)
         .where(Message.conversation_id == conversation_id, Message.ordinal > ordinal)
-        .options(selectinload(Message.files))
         .order_by(Message.ordinal.asc())
         .offset(max(0, (total or 0) - limit))
         .limit(limit)
@@ -746,6 +861,16 @@ async def set_reminder_state(
     return db_conversation
 
 
+async def set_plan(
+    db: AsyncSession, *, db_conversation: Conversation, items: list[dict[str, Any]]
+) -> Conversation:
+    """Record the checklist this conversation's agent is working to."""
+    db_conversation.plan_items = items
+    await db.flush()
+    await db.refresh(db_conversation)
+    return db_conversation
+
+
 async def last_ordinal(db: AsyncSession, conversation_id: UUID) -> int:
     """The ordinal of the newest message, or 0 for a conversation with none."""
     highest = await db.scalar(
@@ -772,7 +897,9 @@ async def get_messages_by_run(
     query = select(Message).where(Message.run_id == run_id)
     if include_tool_calls:
         query = query.options(selectinload(Message.tool_calls))
-    query = query.options(selectinload(Message.files))
+    query = query.options(
+        selectinload(Message.files).load_only(*_MESSAGE_FILE_COLUMNS, raiseload=True)
+    )
     query = query.order_by(Message.ordinal.asc()).offset(skip).limit(limit)
     result = await db.execute(query)
     return list(result.scalars().all())

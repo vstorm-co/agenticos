@@ -10,6 +10,8 @@ from uuid import UUID
 
 from sqlalchemy import Float, and_, false, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import InstrumentedAttribute
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
@@ -72,6 +74,56 @@ async def get_by_slug(db: AsyncSession, slug: str, *, organization_id: UUID) -> 
     return result.scalar_one_or_none()
 
 
+async def list_slugs(db: AsyncSession, *, organization_id: UUID) -> set[str]:
+    """Every agent slug in this organization.
+
+    One query rather than a lookup per shipped template: the template catalog
+    marks two dozen rows as installed, and a slug is what an install would
+    collide on.
+    """
+    result = await db.execute(select(Agent.slug).where(Agent.organization_id == organization_id))
+    return set(result.scalars().all())
+
+
+def _visible_clauses(
+    *,
+    organization_id: UUID,
+    user_id: UUID,
+    see_all: bool,
+    shared_ids: list[UUID],
+    shared_with_me: bool,
+    include_archived: bool,
+) -> list[ColumnElement[bool]]:
+    """The rows a member may list, before any discovery filter narrows them.
+
+    Shared by `list_visible` and `list_visible_labels` so the filter's choices
+    can never be drawn from a wider set than the listing they filter.
+    """
+    where: list[ColumnElement[bool]] = [Agent.organization_id == organization_id]
+    if not include_archived:
+        where.append(Agent.status != AgentStatus.ARCHIVED.value)
+    if shared_with_me:
+        where.append(
+            and_(
+                or_(
+                    Agent.visibility == Visibility.ORG.value,
+                    Agent.id.in_(shared_ids) if shared_ids else false(),
+                ),
+                # IS DISTINCT FROM, not !=: an ownerless row is not the caller's.
+                Agent.owner_user_id.is_distinct_from(user_id),
+            )
+        )
+    elif not see_all:
+        where.append(
+            or_(
+                Agent.owner_user_id == user_id,
+                Agent.visibility == Visibility.ORG.value,
+                Agent.id.in_(shared_ids) if shared_ids else false(),
+            )
+        )
+    return where
+
+
 async def list_visible(
     db: AsyncSession,
     *,
@@ -81,6 +133,8 @@ async def list_visible(
     shared_ids: list[UUID],
     shared_with_me: bool = False,
     include_archived: bool = False,
+    categories: Sequence[str] = (),
+    tags: Sequence[str] = (),
     skip: int = 0,
     limit: int = 50,
 ) -> tuple[list[Agent], int]:
@@ -95,38 +149,71 @@ async def list_visible(
             whatever the role's scope: for a role that already sees
             everything, "shared with me" is still a question about grants
             and visibility, not reach.
+        categories: Discovery filter - keep rows whose categories overlap this
+            list (`&&`). Already normalized and bounded by the caller; an empty
+            list applies no predicate. OR within the facet, AND across facets.
+        tags: The same overlap filter over the tags column.
+
+    The category/tag predicates are additional `AND` clauses on both the data and
+    the count query. They can only narrow an already org- and grant-scoped set,
+    never widen it, so a filter cannot surface an agent the caller could not see.
     """
-    query = select(Agent).where(Agent.organization_id == organization_id)
-    count_query = select(func.count(Agent.id)).where(Agent.organization_id == organization_id)
+    where = _visible_clauses(
+        organization_id=organization_id,
+        user_id=user_id,
+        see_all=see_all,
+        shared_ids=shared_ids,
+        shared_with_me=shared_with_me,
+        include_archived=include_archived,
+    )
+    # Guard on the (already-normalized) list being non-empty: a blank param that
+    # normalized to `[]` upstream must apply no predicate rather than match `{}`.
+    if categories:
+        where.append(Agent.categories.overlap(list(categories)))
+    if tags:
+        where.append(Agent.tags.overlap(list(tags)))
 
-    if not include_archived:
-        query = query.where(Agent.status != AgentStatus.ARCHIVED.value)
-        count_query = count_query.where(Agent.status != AgentStatus.ARCHIVED.value)
-
-    if shared_with_me:
-        shared = and_(
-            or_(
-                Agent.visibility == Visibility.ORG.value,
-                Agent.id.in_(shared_ids) if shared_ids else false(),
-            ),
-            # IS DISTINCT FROM, not !=: an ownerless row is not the caller's.
-            Agent.owner_user_id.is_distinct_from(user_id),
-        )
-        query = query.where(shared)
-        count_query = count_query.where(shared)
-    elif not see_all:
-        visible = or_(
-            Agent.owner_user_id == user_id,
-            Agent.visibility == Visibility.ORG.value,
-            Agent.id.in_(shared_ids) if shared_ids else False,
-        )
-        query = query.where(visible)
-        count_query = count_query.where(visible)
-
+    query = select(Agent).where(*where)
+    count_query = select(func.count(Agent.id)).where(*where)
     query = query.order_by(Agent.created_at.desc()).offset(skip).limit(limit)
     items = list((await db.execute(query)).scalars().all())
     total = (await db.execute(count_query)).scalar() or 0
     return items, total
+
+
+async def list_visible_labels(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    user_id: UUID,
+    see_all: bool,
+    shared_ids: list[UUID],
+    shared_with_me: bool = False,
+    include_archived: bool = False,
+) -> tuple[list[str], list[str]]:
+    """Every distinct category and tag on the agents this member may list.
+
+    The discovery filter's choices, sorted. Drawn from the same visibility as
+    `list_visible` but independent of the filter and paging: a choice that
+    vanished once picked, or with the page that showed it, would strand
+    whoever picked it. A private agent the caller cannot see contributes
+    nothing, so its labels are not disclosed through the menu.
+    """
+    where = _visible_clauses(
+        organization_id=organization_id,
+        user_id=user_id,
+        see_all=see_all,
+        shared_ids=shared_ids,
+        shared_with_me=shared_with_me,
+        include_archived=include_archived,
+    )
+
+    async def distinct(column: InstrumentedAttribute[list[str]]) -> list[str]:
+        labels = select(func.unnest(column).label("label")).where(*where).subquery()
+        result = await db.execute(select(labels.c.label).distinct().order_by(labels.c.label.asc()))
+        return list(result.scalars().all())
+
+    return await distinct(Agent.categories), await distinct(Agent.tags)
 
 
 async def published_budget_caps(
@@ -251,7 +338,7 @@ async def list_current_versions(db: AsyncSession) -> list[tuple[Agent, AgentVers
         .where(Agent.status == AgentStatus.PUBLISHED.value)
         .order_by(Agent.organization_id, Agent.slug)
     )
-    return list(result.tuples().all())
+    return list(result.all())
 
 
 async def list_environment_versions(db: AsyncSession) -> list[tuple[Agent, AgentVersion]]:
@@ -274,7 +361,7 @@ async def list_environment_versions(db: AsyncSession) -> list[tuple[Agent, Agent
         .where(Agent.status == AgentStatus.PUBLISHED.value)
         .order_by(Agent.organization_id, Agent.slug)
     )
-    return list(result.tuples().all())
+    return list(result.all())
 
 
 async def list_active_run_versions(db: AsyncSession) -> list[tuple[Agent, AgentVersion]]:
@@ -317,7 +404,7 @@ async def list_active_run_versions(db: AsyncSession) -> list[tuple[Agent, AgentV
             )
         )
     )
-    return list(result.tuples().all())
+    return list(result.all())
 
 
 async def get_versions_with_agents(
@@ -340,7 +427,7 @@ async def get_versions_with_agents(
         .join(Agent, Agent.id == AgentVersion.agent_id)
         .where(AgentVersion.id.in_(list(version_ids)))
     )
-    return list(result.tuples().all())
+    return list(result.all())
 
 
 async def create(
@@ -353,6 +440,9 @@ async def create(
     draft_spec: dict,
     owner_user_id: UUID | None,
     created_by_user_id: UUID | None,
+    visibility: str,
+    categories: list[str],
+    tags: list[str],
 ) -> Agent:
     agent = Agent(
         organization_id=organization_id,
@@ -362,6 +452,9 @@ async def create(
         draft_spec=draft_spec,
         owner_user_id=owner_user_id,
         created_by_user_id=created_by_user_id,
+        visibility=visibility,
+        categories=categories,
+        tags=tags,
     )
     db.add(agent)
     await db.flush()
@@ -425,6 +518,26 @@ async def get_version(
         )
     )
     return result.scalar_one_or_none()
+
+
+async def get_versions_by_ids(
+    db: AsyncSession, version_ids: Sequence[UUID], *, organization_id: UUID
+) -> dict[UUID, AgentVersion]:
+    """Several versions at once, by id, inside one organization.
+
+    One statement rather than a lookup per id, for a listing that needs the
+    number behind each of a page of pins. A missing id is absent from the map,
+    the same answer the per-id read gave.
+    """
+    if not version_ids:
+        return {}
+    result = await db.execute(
+        select(AgentVersion).where(
+            AgentVersion.id.in_(list(version_ids)),
+            AgentVersion.organization_id == organization_id,
+        )
+    )
+    return {version.id: version for version in result.scalars().all()}
 
 
 async def list_versions(

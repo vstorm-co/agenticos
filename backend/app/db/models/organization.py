@@ -4,8 +4,10 @@ import enum
 import uuid
 from datetime import datetime
 from decimal import Decimal
+from typing import Literal
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -26,6 +28,27 @@ from app.db.base import Base, TimestampMixin
 # Roles live in the permission catalog, which is what actually decides what a
 # role can do; re-declaring them here would let the two lists drift.
 OrgRole = OrgRoleName
+
+
+class MembershipSource(enum.StrEnum):
+    """Who maintains a membership: an administrator, or the directory sync.
+
+    The directory sync only ever rewrites or removes rows it created itself. A
+    membership an administrator made - by invitation, or by changing a role the
+    sync had set - is theirs, and a later sign-in leaves it alone (#1773).
+    """
+
+    MANUAL = "manual"
+    DIRECTORY = "directory"
+
+
+MembershipSourceLiteral = Literal["manual", "directory"]
+"""The stored sources, as a type a schema can be written in.
+
+Declared beside the CHECK constraints that make it true, the way
+`GrantLevelLiteral` is, so a response model promising two values is typed from
+the same place the database enforces them.
+"""
 
 
 class InvitationStatus(enum.StrEnum):
@@ -65,6 +88,32 @@ class Organization(Base, TimestampMixin):
     # against a sum of those, and a float would drift against the total the
     # Activity page shows.
     monthly_budget_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
+
+    # Whether a chat session may grant standing consent to this agent's gated
+    # tools - `ApprovalMode.APPROVE_ALL` (#925). Off by default, and the default is
+    # the point: without a ceiling a Builder's deliberate gate on `send_email` is
+    # one click from nothing in every conversation, which makes the whole per-tool
+    # approval model advisory. An organization decides once that waiving is
+    # allowed at all; who may then do it is `approvals:decide`, which is a
+    # separate question and already answered.
+    #
+    # Only ever *widens* nothing: switching it off does not tighten an existing
+    # spec, it removes an override. So an upgrade changes nobody's behaviour until
+    # somebody turns it on deliberately.
+    chat_may_waive_approvals: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+
+    # How long this organization's data lives, per class, in days. `None` on the
+    # column means it has never had an opinion and takes the deployment's
+    # defaults; a class absent from the mapping means the same for that class
+    # alone, and a class present with `null` means "keep for ever" deliberately -
+    # which is why this is a mapping with holes rather than six columns (#1420).
+    #
+    # The number here is what the organization *asked for*. What actually sweeps
+    # is `app/core/retention.py`'s resolution of it against the deployment's
+    # defaults, its ceiling and the audit floor, and no other place resolves it.
+    retention_days: Mapped[dict[str, int | None] | None] = mapped_column(JSONB, nullable=True)
 
     members: Mapped[list["OrganizationMember"]] = relationship(
         "OrganizationMember",
@@ -110,13 +159,23 @@ class OrganizationMember(Base):
         index=True,
     )
     role: Mapped[str] = mapped_column(String(20), nullable=False, default=OrgRole.MEMBER.value)
+    # SET NULL, not the default NO ACTION: who invited a member is audit context
+    # that should outlive the inviter, and a NO-ACTION reference blocked deleting
+    # anyone who had ever invited another member (#1110). Matches how the
+    # secret/KB attribution FKs already null on the referenced user's deletion.
     invited_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("users.id"),
+        ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
     )
     joined_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    source: Mapped[MembershipSourceLiteral] = mapped_column(
+        String(16),
+        nullable=False,
+        default=MembershipSource.MANUAL.value,
+        server_default=MembershipSource.MANUAL.value,
     )
 
     organization: Mapped["Organization"] = relationship("Organization", back_populates="members")
@@ -124,6 +183,7 @@ class OrganizationMember(Base):
     __table_args__ = (
         UniqueConstraint("organization_id", "user_id", name="uq_org_member"),
         Index("ix_org_member_org_role", "organization_id", "role"),
+        CheckConstraint("source IN ('manual', 'directory')", name="ck_org_member_source"),
     )
 
     def __repr__(self) -> str:
@@ -166,10 +226,14 @@ class Invitation(Base):
     # posted in a channel is a link that can be forwarded, and "anyone with the
     # URL" is a different risk from "anyone at our company".
     email_domain: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    invited_by_user_id: Mapped[uuid.UUID] = mapped_column(
+    # Nullable and SET NULL: the inviter is audit context that outlives them, and
+    # a NOT NULL / NO-ACTION reference made an invitation authored by a user an
+    # absolute bar on deleting that user (#1110). Set on every create, null only
+    # once the inviter is gone.
+    invited_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("users.id"),
-        nullable=False,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
     )
     token: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
     status: Mapped[str] = mapped_column(
@@ -185,7 +249,7 @@ class Invitation(Base):
     accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     accepted_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("users.id"),
+        ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
     )
 

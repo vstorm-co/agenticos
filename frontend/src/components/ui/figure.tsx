@@ -132,7 +132,7 @@ export function DeltaChip({
         <Arrow className="size-3" aria-hidden />
         {Math.abs(delta)}%
       </span>
-      <span className="text-muted-foreground/70">{label}</span>
+      <span className="text-muted-foreground">{label}</span>
     </span>
   );
 }
@@ -152,7 +152,7 @@ export function FigureCard({
         {Icon ? (
           <div className="flex items-start justify-between gap-2">
             <Figure {...figure} />
-            <Icon className="text-muted-foreground/60 mt-0.5 size-4 shrink-0" aria-hidden />
+            <Icon className="text-muted-foreground mt-0.5 size-4 shrink-0" aria-hidden />
           </div>
         ) : (
           <Figure {...figure} />

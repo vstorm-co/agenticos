@@ -76,7 +76,9 @@ describe("dropping files on the context page", () => {
     // The name is the handle, without the extension it carries in `format`.
     expect(await screen.findByDisplayValue("refund-policy")).toBeInTheDocument();
     expect(screen.getByLabelText("Format")).toHaveTextContent("md");
-    expect(screen.getByTestId("rendered")).toHaveTextContent("# Refunds");
+    // The dialog opens on the source, so the dropped bytes are in the editor
+    // rather than in a rendering of them.
+    expect(screen.getByLabelText(/source/i)).toHaveValue("# Refunds");
     // Nothing was created: the mode question is on screen, unanswered.
     expect(post).not.toHaveBeenCalled();
     expect(screen.getByLabelText("Mode")).toBeInTheDocument();

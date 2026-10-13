@@ -10,6 +10,8 @@ import { runsHref } from "@/lib/runs/filter-params";
 import { timeAgo } from "@/lib/utils";
 import { formatUsd } from "../format";
 import { WidgetFrame } from "../widget-frame";
+import { Users } from "lucide-react";
+
 import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-states";
 import type { DashboardWidgetProps } from "./types";
 
@@ -50,7 +52,11 @@ export function TopPeopleWidget({ title, hint, period, seeAll, options }: Dashbo
       ) : error ? (
         <WidgetErrorBody onRetry={() => refetch()} />
       ) : byUser.length === 0 ? (
-        <WidgetEmptyBody title={t("empty.title")} description={t("empty.description")} />
+        <WidgetEmptyBody
+          icon={Users}
+          title={t("empty.title")}
+          description={t("empty.description")}
+        />
       ) : (
         <div className="flex h-full flex-col gap-3">
           <div className="overflow-x-auto">

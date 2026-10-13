@@ -7,8 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.audit import record_audit
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import Perm, assignable_roles, role_has
-from app.db.models.organization import OrganizationMember, OrgRole
-from app.repositories import member_repo, user_repo
+from app.db.models.organization import MembershipSource, OrganizationMember, OrgRole
+from app.repositories import group_repo, member_repo, organization_repo, user_repo
 from app.services.organization import OrganizationService
 
 logger = logging.getLogger(__name__)
@@ -67,6 +67,9 @@ class MemberService:
           `owner` or promotes a peer to their own level, and no Admin demotes a
           peer Admin (the same authority `remove` refuses to let one Admin take).
         - OWNER cannot be demoted via this method (use transfer_ownership).
+        - A directory-managed membership becomes a manual one: the role an
+          administrator chose outlives the next directory sign-in, which only
+          rewrites roles the directory set itself (#1773).
         """
         requester = await member_repo.get(
             self.db, organization_id=organization_id, user_id=requester_id
@@ -114,7 +117,10 @@ class MemberService:
             )
 
         previous_role = target.role
-        updated = await member_repo.update_role(self.db, target, role=new_role)
+        previous_source = target.source
+        updated = await member_repo.update_role(
+            self.db, target, role=new_role, source=MembershipSource.MANUAL
+        )
         await record_audit(
             self.db,
             actor_user_id=requester_id,
@@ -122,7 +128,7 @@ class MemberService:
             action="member.role_changed",
             target_type="member",
             target_id=str(target_user_id),
-            details={"from": previous_role, "to": new_role},
+            details={"from": previous_role, "to": new_role, "source_was": previous_source},
         )
         user = await user_repo.get_by_id(self.db, updated.user_id)
         email = user.email if user else ""
@@ -172,11 +178,23 @@ class MemberService:
                 )
             if requester.role != OrgRole.OWNER.value:
                 raise AuthorizationError(message="Only an Owner can remove another Owner")
-
-        if requester.role == OrgRole.ADMIN.value and target.role == OrgRole.ADMIN.value:
-            raise AuthorizationError(message="Admin cannot remove another Admin")
+        # Every other target is administrable only by a role that strictly
+        # outranks their current one - the catalog-derived ceiling `change_role`
+        # applies, so a custom role that does not outrank an Admin cannot remove
+        # one either, rather than the literal `admin`-vs-`admin` rule that left
+        # that hole open on this side (#700, #1066). The Owner case is decided
+        # above, because an Owner may remove a peer Owner and `assignable_roles`
+        # never offers Owner.
+        elif target.role not in assignable_roles(requester.role):
+            raise AuthorizationError(
+                message="You cannot remove a member your own role does not outrank",
+                details={"target_role": target.role},
+            )
 
         removed_role = target.role
+        await group_repo.delete_memberships_in_org(
+            self.db, organization_id=organization_id, user_id=target_user_id
+        )
         await member_repo.delete(self.db, target)
         await record_audit(
             self.db,
@@ -206,6 +224,9 @@ class MemberService:
             if total > 1:
                 raise BadRequestError(message="Transfer ownership before leaving the organization")
 
+        await group_repo.delete_memberships_in_org(
+            self.db, organization_id=organization_id, user_id=requester_id
+        )
         await member_repo.delete(self.db, membership)
 
     async def transfer_ownership(
@@ -239,6 +260,22 @@ class MemberService:
         if new_owner_user_id == requester_id:
             raise BadRequestError(message="Cannot transfer ownership to yourself")
 
+        # A personal organization is 1:1 with its creator; handing it to another
+        # member leaves it owned by someone who is not the creator, which
+        # `UserService._release_owned_rows` excludes from its ownerless-org guard -
+        # so deleting that member would orphan it (#1136).
+        org = await organization_repo.get_by_id(self.db, organization_id)
+        if org is not None and org.is_personal:
+            raise BadRequestError(message="A personal organization cannot change owner")
+
+        # Serialize with account deletion: deleting a user takes FOR UPDATE on
+        # their row (#1115). Promoting them here without conflicting with that lock
+        # could hand ownership to a membership the deletion cascade is about to
+        # remove, leaving the org with no owner (#1136). Locking the incoming
+        # owner's row makes a transfer that races their deletion wait, then find
+        # them gone at the membership check below.
+        await user_repo.get_by_id_for_update(self.db, new_owner_user_id)
+
         new_owner = await member_repo.get(
             self.db, organization_id=organization_id, user_id=new_owner_user_id
         )
@@ -250,7 +287,11 @@ class MemberService:
 
         await OrganizationService(self.db).refuse_past_the_ceiling(new_owner_user_id)
         await member_repo.update_role(self.db, requester, role=OrgRole.ADMIN.value)
-        await member_repo.update_role(self.db, new_owner, role=OrgRole.OWNER.value)
+        # Manual as well as owner: the directory sync never touches an owner, and
+        # a membership it made must not read as one it still maintains.
+        await member_repo.update_role(
+            self.db, new_owner, role=OrgRole.OWNER.value, source=MembershipSource.MANUAL
+        )
         logger.info(
             "Ownership transferred in org %s from user %s to user %s",
             organization_id,

@@ -80,8 +80,8 @@ describe("the filter bar", () => {
     // A thread answered by an agent that has since been archived is exactly the
     // one somebody comes to this filter looking for.
     listedAgents.mockReturnValue([
-      { id: "a-1", name: "Analyst" },
-      { id: "a-2", name: "Retired support" },
+      { id: "a-1", slug: "analyst", name: "Analyst" },
+      { id: "a-2", slug: "retired-support", name: "Retired support" },
     ]);
     mount();
 
@@ -92,7 +92,7 @@ describe("the filter bar", () => {
   });
 
   it("hands back the chosen agent's id", async () => {
-    listedAgents.mockReturnValue([{ id: "a-1", name: "Analyst" }]);
+    listedAgents.mockReturnValue([{ id: "a-1", slug: "analyst", name: "Analyst" }]);
     const { onAgentChange } = mount();
 
     await userEvent.click(screen.getByRole("combobox", { name: "Filter by agent" }));
@@ -104,7 +104,7 @@ describe("the filter bar", () => {
   it("hands back null for all of them, rather than the sentinel it renders", async () => {
     // A `Select` cannot hold an empty value, so "every agent" is the string
     // `all` on screen and the absence of a filter everywhere else.
-    listedAgents.mockReturnValue([{ id: "a-1", name: "Analyst" }]);
+    listedAgents.mockReturnValue([{ id: "a-1", slug: "analyst", name: "Analyst" }]);
     const { onAgentChange } = mount({ agentId: "a-1" });
 
     await userEvent.click(screen.getByRole("combobox", { name: "Filter by agent" }));
@@ -114,7 +114,7 @@ describe("the filter bar", () => {
   });
 
   it("says what the agent filter means, only while one is applied", () => {
-    listedAgents.mockReturnValue([{ id: "a-1", name: "Analyst" }]);
+    listedAgents.mockReturnValue([{ id: "a-1", slug: "analyst", name: "Analyst" }]);
     const { rerender } = render(
       <ConversationFilters
         search=""

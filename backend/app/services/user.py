@@ -2,35 +2,63 @@ import asyncio
 import contextlib
 import logging
 import secrets
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.audit import record_audit
+from app.core.background import spawn_after_commit
 from app.core.config import settings
 from app.core.exceptions import (
     AlreadyExistsError,
     AuthenticationError,
     AuthorizationError,
+    BadRequestError,
     NotFoundError,
+    RateLimitError,
 )
 from app.core.security import (
+    create_email_change_token,
     create_magic_link_token,
     create_password_reset_token,
     get_password_hash,
     verify_password,
     verify_special_token,
 )
+from app.db.locks import LockScope, hold_name
 from app.db.models.user import User
 from app.db.updates import writable
-from app.repositories import session_repo, user_repo
+from app.repositories import (
+    collection_teardown_repo,
+    knowledge_base_repo,
+    member_repo,
+    organization_repo,
+    organization_secret_repo,
+    personal_data_repo,
+    rag_document_repo,
+    session_repo,
+    user_repo,
+)
 from app.schemas.conversation_share import AdminUserList, AdminUserRead
-from app.schemas.user import UserCreate, UserUpdate
+from app.schemas.user import (
+    AdminUserDetail,
+    AdminUserMembership,
+    UserCreate,
+    UserUpdate,
+)
+from app.services import rate_limit
 from app.services.deployment_settings import DeploymentSettingsService
 from app.services.email.service import get_email_service
-from app.services.file_storage import avatar_filename, get_file_storage
+from app.services.file_storage import avatar_filename, delete_files_best_effort, get_file_storage
 from app.services.organization import OrganizationService
+from app.services.personal_data import PersonalDataService
 from app.services.signup_policy import check_may_register
+
+if TYPE_CHECKING:
+    from app.services.rag.vectorstore import BaseVectorStore
 
 logger = logging.getLogger(__name__)
 
@@ -40,10 +68,26 @@ logger = logging.getLogger(__name__)
 # longer says which addresses have accounts (#947).
 _DUMMY_HASH = get_password_hash(secrets.token_urlsafe(32))
 
+_EMAIL_CHANGE_LIMIT = rate_limit.Limit(attempts=3, window_seconds=3600)
+"""How many *distinct* addresses one account may ask to move to, per hour.
+
+Asking again for the address already staged sends nothing and is not counted,
+so this bounds the mail a single account can cause rather than the times a
+profile form may be saved. `PATCH /users/me` is a console route and console
+routes are unmetered, registration is open by default, and the destination is
+the caller's to name - so without a bound here one account can send this
+deployment's verification mail to any inbox it likes, repeatedly (#1772)."""
+
 
 class UserService:
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: AsyncSession, vector_store: "BaseVectorStore | None" = None):
         self.db = db
+        # Only the account-teardown path drops a departing user's vector tables.
+        # A caller may inject the store (the delete route, a test on its own
+        # engine); when none is given the teardown builds one on the process's
+        # shared vector pool, so every delete path cleans up and no other route
+        # pays for a store it never touches (#1131).
+        self._vector_store = vector_store
 
     async def _is_first_user(self) -> bool:
         count = (await self.db.execute(select(func.count()).select_from(User))).scalar_one()
@@ -70,10 +114,77 @@ class UserService:
         return await user_repo.get_multi(self.db, skip=skip, limit=limit)
 
     async def delete_non_admins(self) -> int:
-        return await user_repo.delete_non_admins(self.db)
+        """Delete every non-admin user, reconciling each as single deletion does.
+
+        Not a bulk `DELETE users`: every account has a personal org whose
+        `created_by_user_id` FK is RESTRICT, so a bulk delete 500s on the first
+        row (#1124). Each goes through `delete`, which runs `_release_owned_rows`
+        - purging the personal org, promoting private secrets, handing off or
+        refusing owned orgs - the same reconciliation `DELETE /users/{id}` uses.
+
+        `is_app_admin` is rechecked under the row lock, not just filtered by the
+        list: a `create-app-admin` that promotes a listed account before this loop
+        reaches it would otherwise have it deleted despite the command's promise
+        to keep admins, since `delete` does not re-read the flag (#1139).
+        """
+        removed = 0
+        for candidate in await user_repo.list_non_admins(self.db):
+            locked = await user_repo.get_by_id_for_update(self.db, candidate.id)
+            if locked is None or locked.is_app_admin:
+                continue
+            await self.delete(candidate.id)
+            removed += 1
+        return removed
 
     async def has_any(self) -> bool:
         return await user_repo.has_any(self.db)
+
+    async def admin_detail(self, user_id: UUID) -> AdminUserDetail:
+        """Where this person has access, when they were last here, what is open.
+
+        Four reads rather than one because they are three tables and two
+        questions, and they are here rather than in the drawer because a client
+        assembling them would make as many round trips to answer one question -
+        and would have to know that "no sessions ever" and "no sessions now" are
+        different answers.
+
+        **Two scopes, not one.** Where somebody was last seen is a fact about
+        every session they have ever had; how many are open is a fact about the
+        ones still usable. Reading both off the open set answered "Never signed
+        in" for anybody who had signed out - which is most accounts most of the
+        time, and the opposite of the truth on the field this drawer exists for
+        (#1256).
+
+        The user is fetched first so an unknown id is a 404 rather than an empty
+        detail about nobody.
+        """
+        await self.get_by_id(user_id)
+        memberships = await organization_repo.list_for_user(self.db, user_id)
+        # `limit=1` because the query is ordered most-recently-used first and the
+        # head is the whole answer. Nothing prunes this table - every refresh
+        # deactivates a row and inserts another - so a year-old account has
+        # thousands of rows and reading them all to look at one grows without
+        # bound.
+        last_used = await session_repo.get_user_sessions(self.db, user_id, open_only=False, limit=1)
+        open_sessions = await session_repo.get_user_sessions(self.db, user_id, open_only=True)
+        return AdminUserDetail(
+            memberships=[
+                AdminUserMembership(
+                    organization_id=organization.id,
+                    name=organization.name,
+                    slug=organization.slug,
+                    is_personal=organization.is_personal,
+                    role=role,
+                )
+                for organization, role in memberships
+            ],
+            last_seen_at=last_used[0].last_used_at if last_used else None,
+            active_sessions=len(open_sessions),
+            # Of the open ones: it is read beside their count, and "newest
+            # session August" under "0 open sessions" is a sentence about
+            # nothing.
+            newest_session_at=max((s.created_at for s in open_sessions), default=None),
+        )
 
     async def admin_list_with_counts(
         self,
@@ -167,6 +278,7 @@ class UserService:
         email: str,
         full_name: str | None = None,
         invitation_token: str | None = None,
+        admitted_by_directory: bool = False,
     ) -> User:
         """Email-matched existing accounts get the OAuth identity attached rather than creating a duplicate.
 
@@ -178,6 +290,9 @@ class UserService:
         a link constraining neither an address nor a domain, which the address-based
         fallback cannot see - so one person could register with a password and not
         with the provider offered beside it.
+
+        `admitted_by_directory` says the identity provider reported a group some
+        organization has mapped, which the sign-up policy reads as an invitation.
         """
         existing = await user_repo.get_by_oauth(self.db, provider, provider_id)
         if existing:
@@ -201,6 +316,7 @@ class UserService:
             email=email,
             is_first_user=await self._is_first_user(),
             invitation_token=invitation_token,
+            admitted_by_directory=admitted_by_directory,
         )
 
         user = await user_repo.create(
@@ -243,19 +359,57 @@ class UserService:
             raise AuthenticationError(message="User account is disabled")
         return user
 
-    async def update(self, user_id: UUID, user_in: UserUpdate) -> User:
+    async def update(
+        self, user_id: UUID, user_in: UserUpdate, *, current_session_id: UUID | None = None
+    ) -> User:
         user = await self.get_by_id(user_id)
 
         update_data = writable(user_in, over=User)
-        if "password" in update_data:
+        # `password` has no column (the row stores `hashed_password`), so writable
+        # keeps an explicit null rather than dropping it. Popped unconditionally so
+        # a null is a no-op, not a hash of None that reaches bcrypt as a 500 (#1497).
+        new_password = update_data.pop("password", None)
+        password_changed = new_password is not None
+        if password_changed:
             update_data["hashed_password"] = await asyncio.to_thread(
-                get_password_hash, update_data.pop("password")
+                get_password_hash, new_password
             )
+            # Bump the credential version alongside the hash, so a refresh token
+            # minted before this change is refused even if it raced the session
+            # revocation below and its session row survived (#1517).
+            update_data["credential_version"] = user.credential_version + 1
 
-        return await user_repo.update(self.db, db_user=user, update_data=update_data)
+        # A staged address change does not survive a credential or address
+        # write. Both are recovery actions - the person acting on the notice
+        # their old address received, or an administrator repairing the account
+        # - and neither should leave an attacker's already-mailed confirmation
+        # link able to move the account afterwards. The password path is also
+        # covered by the token's `cv` claim; the admin address write is covered
+        # only here, because it bumps no version (#1772).
+        if password_changed or update_data.get("email") is not None:
+            update_data["pending_email"] = None
+        updated = await user_repo.update(self.db, db_user=user, update_data=update_data)
+        if password_changed:
+            # A changed password revokes the account's other sessions so a stolen
+            # refresh token cannot outlive it (#1439). `current_session_id` spares
+            # the session that made the change; none given - an admin resetting
+            # another account - revokes them all, the safe reading of a change the
+            # holder did not make.
+            await session_repo.deactivate_all_user_sessions(
+                self.db, user_id, except_session_id=current_session_id
+            )
+        return updated
 
-    async def update_current(self, user: User, user_in: UserUpdate) -> User:
+    async def update_current(
+        self, user: User, user_in: UserUpdate, *, current_session_id: UUID | None = None
+    ) -> tuple[User, str | None]:
         """A user updating their own row through `/users/me`.
+
+        Returns the updated row and, when the patch asked for a new email
+        address, the token to mail to it - the same split
+        `issue_password_reset_token` draws, and for the same reason: this
+        service has no mail provider and should not acquire one to write a
+        column.
 
         `UserUpdate` carries `is_active`, and this route reaches the same column
         the admin route does - so without the same refusal an app admin could
@@ -264,12 +418,216 @@ class UserService:
         terminal). A non-admin deactivating their own account only affects
         themselves and an admin can restore it, so the guard is the app admin's
         alone.
+
+        A password is refused here rather than applied: this route proves nothing
+        about the current one, and honouring it would be the bypass the dedicated
+        `/auth/password/change` endpoint exists to close - a stolen access token
+        changing a password without the old one (#1517).
         """
+        if user_in.password is not None:
+            raise BadRequestError(
+                message="Change your password through /auth/password/change, which proves the current one."
+            )
         if user.is_app_admin and user_in.is_active is False:
             raise AuthorizationError(
                 message="You cannot suspend your own account; ask another app admin to."
             )
-        return await self.update(user.id, user_in)
+        # The address is staged, never written here, and the rest of the patch
+        # applies as it always did. `request_email_change` has the reasoning;
+        # the token comes back so the route can mail it, the same split
+        # `issue_password_reset_token` already draws - this service has no mail
+        # provider and should not acquire one to write a column.
+        email = user_in.email
+        if email is None:
+            return await self.update(user.id, user_in, current_session_id=current_session_id), None
+        updated = await self.update(
+            user.id,
+            user_in.model_copy(update={"email": None}),
+            current_session_id=current_session_id,
+        )
+        return await self.request_email_change(updated, email)
+
+    async def request_email_change(self, user: User, new_email: str) -> tuple[User, str | None]:
+        """Stage an address change and mint the proof it waits for.
+
+        Returns the user and the token to mail to the new address, or a `None`
+        token when there is nothing to prove - the address asked for is the one
+        the account already has, which clears any staging rather than raising:
+        a form submitted twice is not an error a person can act on.
+
+        Nothing is written to `users.email` here. Every mail this deployment
+        sends goes to that column, so an address accepted without proof turns
+        the deployment's own sender into a relay for whoever set it, and points
+        this account's next password-reset link at them (#1772). The old address
+        keeps receiving everything until the new one is confirmed, and is told
+        that a change was asked for - which is what makes a takeover visible to
+        the person losing the account.
+
+        A **repeat of the address already staged sends nothing**, and a
+        third distinct address inside the cooldown window is refused. This route
+        is a console route and so unmetered, registration is open by default,
+        and the address is the caller's to choose: without both, one account
+        could `PATCH /users/me` in a loop and flood any inbox it names with
+        verification mail sent by this deployment, at its SMTP cost and against
+        its sender reputation.
+
+        Raises:
+            AlreadyExistsError: another account already holds that address. The
+                check is best-effort by construction - the winner is decided by
+                the unique constraint at confirmation, not here - and exists so
+                the ordinary typo is refused at the moment it is made.
+            RateLimitError: this account has asked for too many distinct
+                addresses too quickly.
+        """
+        if new_email == user.email:
+            return await user_repo.update(
+                self.db, db_user=user, update_data={"pending_email": None}
+            ), None
+        if new_email == user.pending_email:
+            # Already staged, and the link for it is already in that inbox. A
+            # form saved twice, or a profile page patched for an unrelated
+            # field, is not a reason to send a second one.
+            return user, None
+        existing = await user_repo.get_by_email(self.db, new_email)
+        if existing is not None:
+            raise AlreadyExistsError(
+                message="Email already registered", details={"email": new_email}
+            )
+        decision = await rate_limit.consume(
+            surface="email_change_request",
+            caller=str(user.id),
+            limit=_EMAIL_CHANGE_LIMIT,
+        )
+        if not decision.allowed:
+            raise RateLimitError(
+                message="Too many email change requests. Try again shortly.",
+                details={"retry_after_seconds": decision.retry_after_seconds},
+            )
+        updated = await user_repo.update(
+            self.db, db_user=user, update_data={"pending_email": new_email}
+        )
+        await record_audit(
+            self.db,
+            actor_user_id=user.id,
+            action="user.email_change_requested",
+            target_type="user",
+            target_id=str(user.id),
+            details={"pending_email": new_email},
+        )
+        return updated, create_email_change_token(
+            subject=str(user.id),
+            new_email=new_email,
+            credential_version=user.credential_version,
+        )
+
+    async def confirm_email_change(self, token: str) -> User:
+        """Move a staged address across, once its own link comes back.
+
+        Single-use without a second table: the move clears `pending_email`, so a
+        replayed token finds nothing staged and is refused by the same branch a
+        cancelled change is. The address in the token is checked against the
+        staged one as well, so a token minted for one address cannot confirm a
+        different one staged after it.
+
+        A **credential change since the link was minted invalidates it**: `cv`
+        rides in the token and is compared with the row's own version, so the
+        password change or reset that the old address's notice tells its owner
+        to make is what revokes an attacker's staged change, rather than merely
+        preceding it.
+
+        Raises:
+            AuthenticationError: the link is invalid, expired, replayed, minted
+                before a credential change, or for an address no longer staged.
+            AlreadyExistsError: somebody else took the address in the meantime.
+        """
+        payload = verify_special_token(token, expected_type="email_change")
+        if payload is None or "sub" not in payload or "new" not in payload or "cv" not in payload:
+            raise AuthenticationError(message="This link is invalid or has expired")
+        try:
+            user_id = UUID(str(payload["sub"]))
+        except (TypeError, ValueError) as exc:
+            raise AuthenticationError(message="This link is invalid or has expired") from exc
+
+        # Locked for the whole move: two confirmations of the same staging must
+        # not both read a pending address and both write it.
+        user = await user_repo.get_by_id_for_update(self.db, user_id)
+        if user is None:
+            raise AuthenticationError(message="This link is invalid or has expired")
+        if user.pending_email is None or user.pending_email != payload["new"]:
+            raise AuthenticationError(message="This link is invalid or has expired")
+        if payload["cv"] != user.credential_version:
+            raise AuthenticationError(message="This link is invalid or has expired")
+
+        taken = await user_repo.get_by_email(self.db, user.pending_email)
+        if taken is not None:
+            raise AlreadyExistsError(
+                message="Email already registered", details={"email": user.pending_email}
+            )
+        previous = user.email
+        claimed = user.pending_email
+        # Two accounts can stage the same address and confirm at the same
+        # moment: each locks its own row, so neither read above sees the other,
+        # and the unique index decides. Inside a savepoint, so the loser is a
+        # 409 naming the address rather than an `IntegrityError` escaping as a
+        # 500 - and so the outer transaction survives to report it.
+        try:
+            async with self.db.begin_nested():
+                updated = await user_repo.update(
+                    self.db,
+                    db_user=user,
+                    update_data={"email": claimed, "pending_email": None},
+                )
+        except IntegrityError as exc:
+            raise AlreadyExistsError(
+                message="Email already registered", details={"email": claimed}
+            ) from exc
+        await record_audit(
+            self.db,
+            actor_user_id=user.id,
+            action="user.email_changed",
+            target_type="user",
+            target_id=str(user.id),
+            details={"previous_email": previous, "email": updated.email},
+        )
+        return updated
+
+    async def change_password(
+        self, user: User, *, current_password: str, new_password: str
+    ) -> User:
+        """Change a signed-in user's own password, proving they know the current one.
+
+        The proof is what `PATCH /users/me` cannot ask for, and the reason
+        self-service password change is its own endpoint rather than that route: a
+        stolen access token must not be able to change a password without the old
+        one (#1517). The change bumps the credential version and revokes *every*
+        session - the caller's own included, because the `cv` gate would refuse a
+        spared session's stale-version token at its next refresh anyway. The caller
+        keeps their access through the fresh session the route opens at the new
+        version, while every other device is logged out (#1439).
+
+        Returns the updated user so the route can mint that session at the new
+        `credential_version`.
+
+        The user row is locked for the whole change, so two overlapping requests
+        cannot both prove the same old hash and then have the later one overwrite
+        the first, nor both read the same version and lose one of the two bumps -
+        either would leave a session refreshable past a password change (#1517).
+
+        Raises:
+            AuthenticationError: the current password is wrong, or the account
+                signs in through OAuth alone and has no password to change.
+            NotFoundError: the account no longer exists.
+        """
+        locked = await user_repo.get_by_id_for_update(self.db, user.id)
+        if locked is None:
+            raise NotFoundError(message="User not found", details={"user_id": user.id})
+        stored = locked.hashed_password
+        ok = stored is not None and await asyncio.to_thread(
+            verify_password, current_password, stored
+        )
+        if not ok:
+            raise AuthenticationError(message="Current password is incorrect")
+        return await self.update(locked.id, UserUpdate(password=new_password))
 
     async def update_avatar(self, user_id: UUID, file_data: bytes, content_type: str) -> User:
         ALLOWED_AVATAR_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
@@ -296,18 +654,230 @@ class UserService:
             self.db, db_user=user, update_data={"avatar_url": storage_path}
         )
 
-    def get_avatar_path(self, avatar_url: str) -> str | None:
-        full_path = get_file_storage().get_full_path(avatar_url)
-        return str(full_path) if full_path is not None else None
-
     async def delete(self, user_id: UUID) -> User:
-        user = await user_repo.delete(self.db, user_id)
-        if not user:
-            raise NotFoundError(
-                message="User not found",
-                details={"user_id": user_id},
+        """Remove the account, what is about the person, and nothing the team owns.
+
+        Three steps, in this order and for reasons each has its own comment:
+        lock, hand on what the organization owns, and only then delete. The
+        purge between the second and the third is what no cascade reaches -
+        agent notes keyed by a string, platform identities the key merely
+        unlinks, and workspaces owned by a string reference (#1421). Inside the
+        same transaction, so a deletion that fails afterwards takes it with it.
+
+        The one thing that cannot be inside it is the files: the bytes under
+        `MEDIA_DIR` are unlinked after the commit, because an unlink a rollback
+        undoes leaves a restored row pointing at nothing.
+        """
+        user, locked_heirs = await self._lock_for_delete(user_id)
+        await self._release_owned_rows(user_id, locked_heirs=locked_heirs)
+        # Read before the row goes. `chat_files` cascades from `users`, so the
+        # rows naming each upload disappear with the account and the bytes stay
+        # on disk - an erasure that leaves the person's documents where they
+        # were has not erased them, and nothing left can find them afterwards
+        # (#1421).
+        attachments = await personal_data_repo.attachment_paths_of(self.db, user_id)
+        await PersonalDataService(self.db).purge(user_id)
+        await user_repo.delete(self.db, user_id)
+        if attachments:
+            # After the commit, for the reason #1293 gives: an unlink undone by
+            # a rollback leaves a restored row pointing at a file that is gone.
+            spawn_after_commit(
+                self.db,
+                delete_files_best_effort(attachments),
+                name="delete-account-attachments",
             )
         return user
+
+    async def _lock_for_delete(self, user_id: UUID) -> tuple[User, frozenset[UUID]]:
+        """Lock this user's row and every heir's, in ascending id order (#1134).
+
+        The self lock serves #1115: held before the reconcile's reads, it makes a
+        private secret or personal org inserted concurrently (both take FOR KEY
+        SHARE on this row) wait, so the reconcile sees every child there is - a
+        fresh read under READ COMMITTED - rather than 500ing on a CHECK/RESTRICT
+        blocker that landed between the reconcile and the DELETE.
+
+        The heirs are locked here too, and in a stable order with self, because
+        `reassign_creator` hands a solely-created shared org to an heir and so
+        takes FOR KEY SHARE on the heir's user row through the FK. Two users who
+        co-own each other's shared orgs self-deleting at once would each hold a
+        lock on their own row and then wait for the other's - a cycle Postgres
+        breaks by aborting one with a 40P01 500. Taking every user-row lock in
+        ascending id order makes both requests queue on the lower id first, so
+        the cycle cannot form (#1134).
+
+        Self is FOR UPDATE (for #1115); the heirs are FOR NO KEY UPDATE, one step
+        weaker. It still conflicts with the other self-delete's FOR UPDATE, so the
+        ordering holds, but it does *not* conflict with the FOR KEY SHARE an
+        unrelated foreign-key write takes on an heir - a channel identity relinked
+        to them, say - which FOR UPDATE would have, turning that write into a fresh
+        cross-table deadlock this fix must not introduce.
+
+        Returns:
+            The locked user, and the heir ids locked with them. The second is
+            what `_release_owned_rows` checks its own authoritative read against:
+            memberships are not locked here, so an ownership change landing
+            between the two reads could name an heir this never locked, and
+            `reassign_creator` would then take that user's FK lock outside the
+            ordered sequence - the cycle again, by another door (#1268).
+        """
+        heir_ids: set[UUID] = set()
+        for org in await organization_repo.list_created_by(self.db, user_id):
+            if org.is_personal:
+                continue
+            heir = await member_repo.other_owner_id(
+                self.db, organization_id=org.id, exclude_user_id=user_id
+            )
+            if heir is not None:
+                heir_ids.add(heir)
+
+        user: User | None = None
+        for uid in sorted({user_id, *heir_ids}):
+            if uid == user_id:
+                user = await user_repo.get_by_id_for_update(self.db, uid)
+            else:
+                await user_repo.get_by_id_for_no_key_update(self.db, uid)
+        if user is None:
+            raise NotFoundError(message="User not found", details={"user_id": user_id})
+        return user, frozenset(heir_ids)
+
+    async def _release_owned_rows(self, user_id: UUID, *, locked_heirs: frozenset[UUID]) -> None:
+        """Hand on or remove what would otherwise block the user's deletion (#9).
+
+        Three FK/CHECK pairs make a bare `DELETE users` 500: a private secret's
+        owner is `SET NULL` under a check that forbids an ownerless private
+        secret; every signup creates a personal org, and `created_by_user_id` is
+        `RESTRICT`. Each is resolved here in the request's own transaction, before
+        the row goes.
+
+        A fourth case is not a 500 but a silent orphan: a user who is the sole
+        Owner of an org they did *not* create takes its last owner membership with
+        them (`ON DELETE CASCADE`), leaving nobody who can manage it. That is
+        refused here too (#1117).
+
+        A fifth is another silent orphan: the user's personal-scoped knowledge
+        bases. `owner_user_id` and `organization_id` are both `SET NULL`, so the
+        org purge below (which handles only org-scoped collections) never reaches
+        them, and their documents, files and vector table would be retained and
+        unreachable while the collection name kept blocking reuse. They are torn
+        down explicitly, with the same store the org purge needs (#1131).
+        """
+        from app.services.rag.embeddings import EmbeddingService
+        from app.services.rag.vectorstore import process_vector_store
+
+        # Every refusal is decided first, before any irreversible cleanup. The
+        # personal-KB and personal-org teardown below drop vector tables and
+        # unlink files through sessions of their own, and a BadRequestError raised
+        # afterwards cannot undo them: the request session rolls the relational
+        # deletes back, and the restored rows then point at data already gone
+        # (#1131). So the sole-owner checks run in a side-effect-free pass, and
+        # the heir each shared org is handed to is captured here and reused below
+        # rather than re-read after the cleanup.
+        created = await organization_repo.list_created_by(self.db, user_id)
+        heirs: dict[UUID, UUID] = {}
+        for org in created:
+            if org.is_personal:
+                continue
+            heir = await member_repo.other_owner_id(
+                self.db, organization_id=org.id, exclude_user_id=user_id
+            )
+            if heir is None:
+                raise BadRequestError(
+                    message="Cannot delete the sole owner of a shared organization; "
+                    "transfer ownership or delete the organization first",
+                    details={"user_id": user_id, "organization_id": org.id},
+                )
+            if heir not in locked_heirs:
+                # Ownership moved between the lock pass and this one. Handing the
+                # org to somebody whose row is not locked takes their FK lock
+                # outside the ascending sequence, which is the deadlock #1134
+                # closed. Refusing is safe and the caller can simply try again;
+                # taking the lock here is not (#1268).
+                raise BadRequestError(
+                    message="Ownership of one of this account's organizations changed while "
+                    "the deletion was being prepared; try again",
+                    details={"user_id": user_id, "organization_id": org.id},
+                )
+            heirs[org.id] = heir
+
+        # Ownership moves without the creator FK, so a user can be the sole Owner
+        # of an org they did not create - one `list_created_by` never returns.
+        # Deleting them cascades that last owner membership away and leaves the
+        # org ownerless: no 500, but nobody can manage it through the owner-gated
+        # APIs (#1117). Refuse, unless another owner is there to keep it.
+        created_ids = {org.id for org in created}
+        for org in await organization_repo.list_owned_by(self.db, user_id):
+            if org.id in created_ids:
+                continue
+            other_owner = await member_repo.other_owner_id(
+                self.db, organization_id=org.id, exclude_user_id=user_id
+            )
+            if other_owner is None:
+                raise BadRequestError(
+                    message="Cannot delete the sole owner of a shared organization; "
+                    "transfer ownership or delete the organization first",
+                    details={"user_id": user_id, "organization_id": org.id},
+                )
+
+        await organization_secret_repo.promote_owned_private_to_org(self.db, owner_user_id=user_id)
+
+        await self._purge_personal_collections(user_id)
+
+        vector_store = self._vector_store or process_vector_store(
+            settings.rag, EmbeddingService(settings=settings.rag)
+        )
+        org_service = OrganizationService(self.db, vector_store=vector_store)
+        for org in created:
+            if org.is_personal:
+                await org_service.purge(org)
+            else:
+                await organization_repo.reassign_creator(
+                    self.db, org=org, new_creator_id=heirs[org.id]
+                )
+
+    async def _purge_personal_collections(self, user_id: UUID) -> None:
+        """Remove the user's personal-scoped knowledge bases whole (#1131).
+
+        Mirrors `OrganizationService.purge`'s collection teardown for the rows the
+        org purge cannot see. Each base's document rows and the base row go in the
+        request's transaction; the stored files and the physical `rag_<collection>`
+        tables are handed to the durable cleanup after the commit
+        (`spawn_after_commit` → `dispatch_external_state_cleanup`), so a rollback
+        keeps them, a worker restart mid-cleanup does not orphan them (#1349), and
+        the drop takes the `COLLECTION_TEARDOWN` lock and re-reads the reference
+        check on its own session, so a name a second base still holds - or is
+        mid-claim on - keeps its table (#913, #1355). A table is queued for drop
+        only when no other base claims the name; it is not tenant-unique, so two
+        bases can share one.
+        """
+        storage_paths: list[str] = []
+        collections_to_drop: list[str] = []
+        # Sorted by name so this loop and `OrganizationService.purge` - the two paths
+        # that take several teardown locks in one transaction - acquire any shared name
+        # (#913) in one order, and cannot invert into a teardown-vs-teardown deadlock
+        # (#1387).
+        personal = await knowledge_base_repo.list_personal_by_owner(self.db, user_id)
+        for kb in sorted(personal, key=lambda k: k.collection_name):
+            collection = kb.collection_name
+            # Hold the name before deleting the row: it serializes the reference check
+            # and reservation against a concurrent claim (#1362), and taking the
+            # teardown lock before any row lock keeps one order across every path, so a
+            # concurrent purge cannot invert into a deadlock (#1387).
+            await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection)
+            storage_paths.extend(await rag_document_repo.delete_by_knowledge_base(self.db, kb.id))
+            await knowledge_base_repo.delete(self.db, kb.id)
+            if not await knowledge_base_repo.list_by_collection_name(self.db, collection):
+                collections_to_drop.append(collection)
+                await collection_teardown_repo.reserve(self.db, collection)
+        if storage_paths or collections_to_drop:
+            from app.core.background import spawn_after_commit
+            from app.worker.tasks.teardown_tasks import dispatch_external_state_cleanup
+
+            spawn_after_commit(
+                self.db,
+                dispatch_external_state_cleanup(storage_paths, collections_to_drop),
+                name="purge-personal-collections",
+            )
 
     async def admin_update(
         self, user_id: UUID, user_in: UserUpdate, *, acting_admin_id: UUID
@@ -329,6 +899,17 @@ class UserService:
             raise AuthorizationError(
                 message="You cannot suspend your own account; ask another app admin to."
             )
+        # The same set `admin_delete` locks, and first for the same reason. This
+        # route updates a `users` row and then audits; a concurrent delete locks
+        # every app-admin row and then audits. Without a shared first lock the
+        # two take the target row and the admin set in opposite orders, and the
+        # deadlock aborts a whole PATCH rather than one notification (#1763).
+        #
+        # `FOR UPDATE` rather than the key-share the notification audience
+        # takes: this transaction goes on to *write* the target row, and taking
+        # a weaker lock on a set it then upgrades inside is its own ABBA - two
+        # PATCHes of different admins would each hold the other's key share.
+        await user_repo.app_admin_ids_for_update(self.db)
         return await self.update(user_id, user_in)
 
     async def admin_delete(self, user_id: UUID, *, acting_admin_id: UUID) -> User:
@@ -340,10 +921,26 @@ class UserService:
         only ever shrinks by deletion - so refusing self-deletion is what keeps the
         last admin from being the one removed: any other admin deleting the *last*
         one would have to be deleting themselves.
+
+        **That held for one request at a time and not for two.** A and B deleting
+        each other both passed the not-self check, locked different target rows,
+        never contended, and both committed - nobody left who could sign in to
+        administer the deployment (#1208). So the second check is on the app-admin
+        *set*, taken under a lock in a fixed order: the later request waits, re-reads
+        after the first commits, and is refused because it would empty the set. The
+        set is locked on every admin deletion, target in it or not: taking it
+        first and always is what makes the order total, and deleting a user is an
+        administrator's action rather than a hot path.
         """
         if user_id == acting_admin_id:
             raise AuthorizationError(
                 message="You cannot delete your own account; ask another app admin to."
+            )
+        administrators = await user_repo.app_admin_ids_for_update(self.db)
+        if user_id in administrators and len(administrators) < 2:
+            raise AuthorizationError(
+                message="This is the deployment's last app admin; promote another one first.",
+                details={"app_admins": len(administrators)},
             )
         return await self.delete(user_id)
 
@@ -372,7 +969,16 @@ class UserService:
             self.db,
             db_user=user,
             update_data={
-                "hashed_password": await asyncio.to_thread(get_password_hash, new_password)
+                "hashed_password": await asyncio.to_thread(get_password_hash, new_password),
+                # Bumped for the same reason the self-service change bumps it: a
+                # refresh racing the revocation below must not rotate a token
+                # minted before the reset (#1517). It is also what revokes an
+                # outstanding email-change link, which carries the version it
+                # was minted at (#1772).
+                "credential_version": user.credential_version + 1,
+                # And the staging itself goes, so the console stops showing an
+                # address the recovered account is no longer moving to.
+                "pending_email": None,
             },
         )
         # Revoke any active sessions so a previously-issued refresh token cannot
@@ -381,15 +987,24 @@ class UserService:
         await session_repo.deactivate_all_user_sessions(self.db, user.id)
         return user
 
-    async def issue_magic_link_token(self, email: str) -> tuple[User, str] | None:
+    async def issue_magic_link_token(
+        self, email: str, *, return_to: str | None = None
+    ) -> tuple[User, str] | None:
         user = await user_repo.get_by_email(self.db, email)
         if user is None or not user.is_active:
             return None
-        token = create_magic_link_token(subject=str(user.id))
+        token = create_magic_link_token(subject=str(user.id), return_to=return_to)
         return user, token
 
-    async def consume_magic_link_token(self, token: str) -> User:
-        """Caller is responsible for minting access/refresh tokens for the returned user."""
+    async def consume_magic_link_token(self, token: str) -> tuple[User, str | None]:
+        """The account the link is for, and where it was headed.
+
+        Caller is responsible for minting access/refresh tokens for the returned
+        user. The return path comes back rather than being applied here: it is
+        the client that navigates, and `postSignInDestination` on that side is
+        the one place deciding whether a path is safe to honour - the same
+        judgement for a password login, an OAuth callback and this (#1214).
+        """
         payload = verify_special_token(token, expected_type="magic_link")
         if payload is None or "sub" not in payload:
             raise AuthenticationError(message="Magic link is invalid or has expired")
@@ -401,4 +1016,5 @@ class UserService:
         user = await self.get_by_id(user_id)
         if not user.is_active:
             raise AuthenticationError(message="Account is disabled")
-        return user
+        claimed = payload.get("rt")
+        return user, claimed if isinstance(claimed, str) else None

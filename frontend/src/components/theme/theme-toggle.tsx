@@ -1,8 +1,8 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
 import { Moon, Sun, Monitor } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useMounted } from "@/hooks/use-mounted";
 import { useThemeStore, Theme, getResolvedTheme } from "@/stores/theme-store";
 import { useTranslations } from "next-intl";
 
@@ -14,14 +14,8 @@ interface ThemeToggleProps {
 export function ThemeToggle({ variant = "icon", className }: ThemeToggleProps) {
   const t = useTranslations("theme");
   const { theme, setTheme } = useThemeStore();
-  // `false` on the server, `true` once hydrated - which is the whole question,
-  // and `useSyncExternalStore` answers it without a state write in an effect.
-  // The subscribe callback never fires: the value cannot change after mount.
-  const mounted = useSyncExternalStore(
-    () => () => {},
-    () => true,
-    () => false,
-  );
+  // `false` on the server, `true` once hydrated - `useMounted` says why.
+  const mounted = useMounted();
 
   const resolvedTheme = getResolvedTheme(theme);
 

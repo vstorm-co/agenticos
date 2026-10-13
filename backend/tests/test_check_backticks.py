@@ -19,6 +19,8 @@ the failure mode this file exists to catch.
 from __future__ import annotations
 
 import importlib.util
+import subprocess
+import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -109,3 +111,31 @@ def test_a_copy_of_this_script_is_exempt_even_when_named_directly(tmp_path: Path
     copy.write_text(_SCRIPT.read_text())
 
     assert check_backticks.scan(copy) == []
+
+
+def test_the_no_argument_default_scans_the_repository_not_the_cwd(tmp_path: Path) -> None:
+    """`uv run --directory backend python3 ../scripts/check_backticks.py` runs
+    with cwd already shifted to `backend/` before the script ever sees an
+    argument list - a no-argument default anchored on `Path()` would then scan
+    only that, silently missing `docs/` and `frontend/` with a clean exit and
+    nothing saying why (#1635's own review comment on the branch that
+    introduced this invocation). `REPO_ROOT`, derived from `__file__`, is what
+    keeps the default cwd-independent; proven here from a genuinely different
+    process cwd rather than trusted from the assignment alone.
+    """
+    (tmp_path / "scripts").mkdir()
+    (tmp_path / "scripts" / "check_backticks.py").write_text(_SCRIPT.read_text())
+    (tmp_path / "backend").mkdir()
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "guide.md").write_text(OFFENDING_LINE)
+
+    result = subprocess.run(
+        [sys.executable, "../scripts/check_backticks.py"],
+        cwd=tmp_path / "backend",
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 1, result.stdout
+    assert "docs/guide.md" in result.stdout

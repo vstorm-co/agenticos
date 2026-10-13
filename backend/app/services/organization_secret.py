@@ -26,6 +26,7 @@ from app.core.secret_kinds import (
     GithubOAuthAppSecret,
     GoogleOAuthAppSecret,
     SecretKind,
+    SecretValue,
     StorableSecret,
     describe_kind,
     seal_secret,
@@ -39,6 +40,7 @@ from app.repositories import member_repo, organization_secret_repo, resource_gra
 from app.schemas.resource_grant import as_visibility
 from app.schemas.secret import SecretRead, SecretUsage
 from app.services.access import SECRET, resolve_access, visible_resource_ids
+from app.services.notifications import NotificationService
 
 # The two credentials a connect flow spends: identical fields, separate kinds,
 # because a kind names what a credential is for.
@@ -88,9 +90,9 @@ class OrganizationSecretService:
         a key nothing binds is one nobody can account for, and a key whose owner
         has left is one nobody will rotate.
 
-        Two extra queries for the page, not two per row: emails resolve in one
-        lookup and usage in one per secret, which is bounded by how many secrets
-        an organization has - tens, not thousands.
+        Three extra queries for the page, not three per row: the emails, the
+        grant counts and the agent usage each resolve in one grouped lookup,
+        however many secrets the organization has.
         """
         # `None` is the role already reaching every key; anything else is the
         # extra ids a grant opened up. One call answers both, so the scope is
@@ -127,15 +129,20 @@ class OrganizationSecretService:
             resource_type=SECRET.key,
             resource_ids=[secret.id for secret in secrets],
         )
+        # Which agents bind each key, in one grouped query rather than one per
+        # row: a thirty-secret vault loaded its page in thirty-one queries (#953).
+        usage = await organization_secret_repo.agents_using_for_secrets(
+            self.db,
+            organization_id=ctx.organization_id,
+            secret_ids=[secret.id for secret in secrets],
+        )
         rows: list[SecretRead] = []
         for secret in secrets:
             owner = people.get(secret.owner_user_id) if secret.owner_user_id else None
             author = people.get(secret.created_by_user_id) if secret.created_by_user_id else None
             owner = owner or member_repo.MemberIdentity(email=None, avatar_url=None)
             author = author or member_repo.MemberIdentity(email=None, avatar_url=None)
-            used = await organization_secret_repo.agents_using(
-                self.db, organization_id=ctx.organization_id, secret_id=secret.id
-            )
+            used = usage.get(secret.id, [])
             rows.append(
                 SecretRead(
                     id=secret.id,
@@ -211,7 +218,13 @@ class OrganizationSecretService:
             key_version=sealed.key_version,
             created_by_user_id=ctx.user_id,
         )
-        await record_audit(
+        notifications = NotificationService(self.db)
+        # Before the audit entry, never after it: `record_audit` holds the
+        # chain lock to the end of the transaction, and the notification
+        # below reaches for a `users` row that `admin_delete` takes first
+        # and the chain second (#1763).
+        audience = await notifications.hold_security_audience(ctx.organization_id)
+        entry = await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
             organization_id=ctx.organization_id,
@@ -221,6 +234,7 @@ class OrganizationSecretService:
             # The value never reaches the audit log; the hint is what identifies it.
             details={"name": name, "kind": value.kind.value, "hint": sealed.hint},
         )
+        await notifications.security_event(entry, recipients=audience)
         return secret
 
     async def update(
@@ -265,7 +279,13 @@ class OrganizationSecretService:
         secret = await organization_secret_repo.update(
             self.db, secret=secret, update_data=update_data
         )
-        await record_audit(
+        notifications = NotificationService(self.db)
+        # Before the audit entry, never after it: `record_audit` holds the
+        # chain lock to the end of the transaction, and the notification
+        # below reaches for a `users` row that `admin_delete` takes first
+        # and the chain second (#1763).
+        audience = await notifications.hold_security_audience(ctx.organization_id)
+        entry = await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
             organization_id=ctx.organization_id,
@@ -274,6 +294,7 @@ class OrganizationSecretService:
             target_id=str(secret.id),
             details={"name": secret.name, "kind": secret.kind, "hint": secret.hint},
         )
+        await notifications.security_event(entry, recipients=audience)
         return secret
 
     async def delete(self, ctx: AuthContext, secret_id: UUID) -> None:
@@ -288,7 +309,13 @@ class OrganizationSecretService:
         await organization_secret_repo.delete(
             self.db, secret_id, organization_id=ctx.organization_id
         )
-        await record_audit(
+        notifications = NotificationService(self.db)
+        # Before the audit entry, never after it: `record_audit` holds the
+        # chain lock to the end of the transaction, and the notification
+        # below reaches for a `users` row that `admin_delete` takes first
+        # and the chain second (#1763).
+        audience = await notifications.hold_security_audience(ctx.organization_id)
+        entry = await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
             organization_id=ctx.organization_id,
@@ -297,6 +324,7 @@ class OrganizationSecretService:
             target_id=str(secret_id),
             details={"name": secret.name, "kind": secret.kind},
         )
+        await notifications.security_event(entry, recipients=audience)
 
     async def resolve_for_bindings(
         self, ctx: AuthContext, secret_ids: list[UUID]
@@ -423,6 +451,48 @@ class OrganizationSecretService:
         # for, so this is the concrete type - the cast narrows it without a branch
         # that could never run.
         return cast(OAuthAppSecret, value)
+
+    async def app_secret(self, organization_id: UUID, *, kind: SecretKind) -> SecretValue:
+        """The organization's single org-visible secret of one kind, by id alone.
+
+        The same read as :meth:`oauth_app` with no caller, for the one path that
+        has none: a GitHub App delivery arrives at a shared URL with no session,
+        and the organization is already established - it is the one holding the
+        grant the installation id selected (#1072). Taking an `AuthContext` here
+        would mean fabricating one for a request nobody made, which is worse than
+        naming the organization.
+
+        Raises:
+            NotFoundError: No org-visible secret of this kind. On the delivery
+                path the caller turns that into "nothing to fire", because a
+                deployment that has not stored an App is not one this delivery
+                belongs to.
+            BadRequestError: More than one, with the names that collide.
+        """
+        rows = await organization_secret_repo.list_org_visible_by_kind(
+            self.db, organization_id=organization_id, kind=kind.value
+        )
+        label = describe_kind(kind)
+        if not rows:
+            raise NotFoundError(
+                message=f"No org-visible {label} secret is stored.",
+                details={"kind": kind.value},
+            )
+        if len(rows) > 1:
+            raise BadRequestError(
+                message=(
+                    f"More than one org-visible {label} secret is stored; keep "
+                    "exactly one so it is unambiguous which one is in use."
+                ),
+                details={"kind": kind.value, "names": [row.name for row in rows]},
+            )
+        row = rows[0]
+        return unseal_secret(
+            row.sealed_secret,
+            kind=kind,
+            scope=VaultScope.organization(organization_id),
+            key_version=row.key_version,
+        )
 
     async def _get(
         self, ctx: AuthContext, secret_id: UUID, *, perm: Perm = Perm.SECRETS_VIEW

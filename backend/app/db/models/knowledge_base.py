@@ -50,13 +50,36 @@ class KnowledgeBase(TimestampMixin, Base):
     embedding_model: Mapped[str] = mapped_column(String(128), nullable=False)
     embedding_dim: Mapped[int] = mapped_column(Integer, nullable=False)
 
-    # The organization vault key this collection embeds on; NULL is the
-    # deployment's key. SET NULL on delete: losing a key must degrade billing,
-    # never take document search down.
+    # Whose endpoint answers for that model. Unlike the two above this one is
+    # editable: the same model at the same width produces vectors in the same
+    # space wherever it is served from, so re-pointing the address and the
+    # credential leaves everything already stored valid. It used to be neither
+    # recorded nor chosen - every request went to OpenRouter, hardcoded in
+    # `EmbeddingService` - which is why an organization holding an OpenAI key
+    # could not use it and a rotated key meant re-ingesting the collection.
+    # Values are ids from `app/core/catalog/embedding_providers.json`.
+    embedding_provider: Mapped[str] = mapped_column(
+        String(32), nullable=False, server_default="openrouter"
+    )
+
+    # The organization vault key this collection embeds on. NULL is a collection
+    # that cannot index or search - there is no deployment-wide key - and SET
+    # NULL on delete is what a deleted secret becomes, so the resolver sees it as
+    # a key never chosen rather than as one that went missing.
     embedding_secret_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("organization_secrets.id", ondelete="SET NULL"),
         nullable=True,
+    )
+    # Where a keyless provider is reached: a `local_services` row of kind
+    # `embedding`, the organization's own or the deployment's. NULL for a keyed
+    # provider, whose address is the catalog's. SET NULL on delete for the same
+    # reason as the key above - the resolver then says the service is gone.
+    embedding_endpoint_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("local_services.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
     # How widely the collection is exposed inside its org; combines with the
     # member's role scope and any explicit grant (app.services.access).
@@ -75,6 +98,21 @@ class KnowledgeBase(TimestampMixin, Base):
         nullable=True,
         index=True,
     )
+
+    @property
+    def vector_tenant(self) -> uuid.UUID | None:
+        """The tenant this collection's runtime vector rows are stamped and scoped by.
+
+        A collection name is not unique across organizations, so two that pick the
+        same name share one physical `rag_<name>` table; this keeps each
+        organization's rows its own (#1684). An app-scoped base is deployment-wide,
+        readable by every organization, so its rows carry no tenant; every other
+        scope carries its organization (which is `None` for a personal base, whose
+        isolation is its owner check, not the row tag).
+        """
+        if self.scope == KBScope.APP.value:
+            return None
+        return self.organization_id
 
     def __repr__(self) -> str:
         return f"<KnowledgeBase(id={self.id}, name={self.name!r}, scope={self.scope})>"

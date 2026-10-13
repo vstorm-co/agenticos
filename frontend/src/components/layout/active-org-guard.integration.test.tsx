@@ -11,11 +11,16 @@ import { useOrgStore } from "@/stores";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/dashboard",
+  // An alert link names its organization in `?org=`, which the recovery adopts
+  // the way it adopts the id in `/orgs/{id}` (#1204). Nothing here carries one.
+  useSearchParams: () => new URLSearchParams(),
   // next-intl's createNavigation wraps these at module scope; see `vitest.setup.ts`.
   redirect: vi.fn(),
   permanentRedirect: vi.fn(),
 }));
-vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
+vi.mock("next-intl", async () => ({
+  useTranslations: (await import("@/test-utils/intl")).keyTranslations(),
+}));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/lib/api-client", async () => {
   const { ApiError } = await import("@/lib/api-error");
@@ -78,6 +83,32 @@ function backendRefusing(refusedOrgId: string) {
     throw new Error(`unexpected request to ${endpoint}`);
   });
 }
+
+describe("ActiveOrgGuard settles the active organization", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useOrgStore.setState({ activeOrgId: null, refusedOrgIds: [] });
+  });
+
+  it("chooses one when nothing is chosen, without anybody opening a menu", async () => {
+    // Choosing used to ride on the organization switcher standing permanently in
+    // the sidebar. It is a menu item now, and menu content mounts only when the
+    // menu opens - so `activeOrgId` stayed null until somebody clicked their own
+    // name. Null is not an error anywhere: `useMembers(activeOrgId ?? "")` asks
+    // for nothing, so the sharing panel could not name an owner and the reusable
+    // integrations never arrived, with no failed request to show for it.
+    //
+    // Asserted on the selection rather than on a `/orgs` call: the recovery hook
+    // fetches that list either way, so a call count proves nothing.
+    vi.mocked(apiClient.get).mockResolvedValue({
+      items: [{ id: PERSONAL, name: "Personal", is_personal: true }],
+    });
+
+    render(<ActiveOrgGuard />, { wrapper });
+
+    await waitFor(() => expect(useOrgStore.getState().activeOrgId).toBe(PERSONAL));
+  });
+});
 
 describe("a stale organization does not permanently empty the navigation", () => {
   beforeEach(() => {

@@ -56,6 +56,7 @@ class TestTheAllowanceItself:
         )
 
         assert decision.allowed is True
+        assert decision.metered is True
 
     async def test_the_attempt_after_the_allowance_is_refused(self):
         """Four attempts against a limit of three: the fourth is the one the
@@ -127,10 +128,13 @@ class TestDegradingRatherThanRefusing:
         decision = await rate_limit.consume(surface="s", caller="c", limit=Limit(attempts=1))
 
         assert decision.allowed is True
+        assert decision.metered is False, "allowed by default, not by a count"
 
     async def test_an_unreachable_redis_lets_the_caller_through(self):
         """The same trade-off, and the same reasoning, as the channel dedupe
-        claim: losing the guarantee beats losing the visitor's answer."""
+        claim: losing the guarantee beats losing the visitor's answer. The
+        decision says it was not counted, so a surface that must keep a floor
+        under the caller - the channel router - can count locally meanwhile."""
         client = MagicMock()
         client.count_in_window = AsyncMock(side_effect=ConnectionError("redis is down"))
         rate_limit.configure(client)
@@ -138,6 +142,7 @@ class TestDegradingRatherThanRefusing:
         decision = await rate_limit.consume(surface="s", caller="c", limit=Limit(attempts=1))
 
         assert decision.allowed is True
+        assert decision.metered is False
 
     async def test_degrading_is_logged_rather_than_silent(self, caplog):
         """ "Under the limit" and "not limited at all" are the same response, so
@@ -222,6 +227,14 @@ class TestTheLimitsThemselves:
         monkeypatch.setattr(settings, "RATE_LIMIT_AUTH_PER_MINUTE", 5)
 
         assert rate_limit.auth_limit() == Limit(attempts=5, window_seconds=60)
+
+    def test_the_export_allowance_is_counted_per_hour(self, monkeypatch):
+        """Not per minute, and the window is the point. What is rationed is not
+        load - assembling everything about a person is cheap - but how fast a
+        stolen session can walk the deployment's people (#1421)."""
+        monkeypatch.setattr(settings, "RATE_LIMIT_EXPORT_PER_HOUR", 3)
+
+        assert rate_limit.export_limit() == Limit(attempts=3, window_seconds=3_600)
 
     async def test_admission_is_counted_per_address(self, monkeypatch):
         monkeypatch.setattr(settings, "RATE_LIMIT_EMBED_PER_MINUTE", 2)
@@ -334,6 +347,36 @@ class TestTheHostedPageIsCountedPerPage:
 
         assert (await rate_limit.hosted_logo_allowed("abc123")).allowed is True
         assert client.count_in_window.await_args.args[0] == "ratelimit:hosted_logo:key:abc123"
+
+
+class TestAnArtifactAddressIsCountedPerAddress:
+    """One signed content address, however it was obtained, is one frame's load
+    and a reload or two - not a way to pull a page out of storage on a loop."""
+
+    async def test_the_bucket_is_the_address_by_its_digest(self):
+        client = _redis([1])
+        rate_limit.configure(client)
+
+        assert (await rate_limit.artifact_content_allowed("eyJ.token.sig")).allowed is True
+        key = client.count_in_window.await_args.args[0]
+        assert key.startswith("ratelimit:artifact_content:token:")
+        assert "eyJ.token.sig" not in key
+
+    async def test_two_addresses_do_not_share_one_allowance(self):
+        client = _redis([1, 1])
+        rate_limit.configure(client)
+
+        await rate_limit.artifact_content_allowed("first")
+        await rate_limit.artifact_content_allowed("second")
+
+        first, second = (call.args[0] for call in client.count_in_window.await_args_list)
+        assert first != second
+
+    @pytest.mark.security
+    async def test_an_address_loaded_past_its_allowance_is_refused(self):
+        rate_limit.configure(_redis([rate_limit.ARTIFACT_CONTENT_LOADS_PER_MINUTE + 1]))
+
+        assert (await rate_limit.artifact_content_allowed("t")).allowed is False
 
 
 class TestStoringAFileIsCountedTwice:

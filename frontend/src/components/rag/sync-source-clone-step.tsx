@@ -61,7 +61,7 @@ export function CloneStep({
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="text-foreground text-sm font-semibold">{src.name}</p>
-                  <p className="text-foreground/55 font-mono text-[10px] tracking-wider uppercase">
+                  <p className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
                     {src.connector_type}
                     {src.collection_name ? ` · ${src.collection_name}` : " · unassigned"}
                   </p>

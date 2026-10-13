@@ -36,6 +36,12 @@ export interface DeploymentSettings extends BrandingResponse {
    */
   max_organizations_per_user: number | null;
   max_agents_per_organization: number | null;
+  /**
+   * Whether a person is emailed when an administrator acts as their account. A
+   * policy the operator sets, off until they do - the audit trail records the
+   * impersonation either way.
+   */
+  notify_impersonated_users: boolean;
   updated_at: string | null;
 }
 
@@ -54,6 +60,7 @@ export interface DeploymentSettingsPatch {
   maintenance_message?: string | null;
   max_organizations_per_user?: number | null;
   max_agents_per_organization?: number | null;
+  notify_impersonated_users?: boolean;
 }
 
 /** Which of the two marks an upload replaces. */

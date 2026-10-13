@@ -57,14 +57,47 @@ function agent(name: string, status: Agent["status"]): Agent {
 }
 
 const AGENTS = [agent("Live", "published"), agent("Draft", "draft"), agent("Old", "archived")];
+/** The facet's choices the server offers - every category on a visible agent. */
+const CATEGORIES = ["reports", "sales"];
+
+/** The category/tag facet the request carried, read out of either params shape. */
+function facetOf(options: unknown): { category: string[]; tag: string[] } {
+  const params = (options as { params?: Record<string, string> | [string, string][] } | undefined)
+    ?.params;
+  const pairs = Array.isArray(params)
+    ? params
+    : Object.entries(params ?? {}).map(([k, v]) => [k, v] as [string, string]);
+  return {
+    category: pairs.filter(([k]) => k === "category").map(([, v]) => v),
+    tag: pairs.filter(([k]) => k === "tag").map(([, v]) => v),
+  };
+}
 
 beforeEach(() => {
   vi.mocked(apiClient.get).mockReset();
-  vi.mocked(apiClient.get).mockImplementation((path: string) => {
-    if (path === "/agents") return Promise.resolve({ items: AGENTS, total: AGENTS.length });
+  vi.mocked(apiClient.get).mockImplementation((path: string, options?: unknown) => {
+    if (path === "/agents") {
+      // The server applies the facet, so a non-matching category empties the page.
+      const { category } = facetOf(options);
+      if (category.length > 0 && !category.includes("sales")) {
+        return Promise.resolve({ items: [], total: 0, categories: CATEGORIES, tags: [] });
+      }
+      return Promise.resolve({
+        items: AGENTS,
+        total: AGENTS.length,
+        categories: CATEGORIES,
+        tags: [],
+      });
+    }
     return Promise.resolve({ items: [], total: 0 });
   });
 });
+
+/** Tick one category in the facet menu - the choices are the server's, never typed. */
+async function pickCategory(name: string) {
+  await userEvent.click(screen.getByRole("button", { name: "Filter by category" }));
+  await userEvent.click(await screen.findByRole("menuitemcheckbox", { name }));
+}
 
 /** The status Select, which has no `htmlFor` label of its own. */
 function statusFilter() {
@@ -130,6 +163,94 @@ describe("the agents gallery filter", () => {
 
     expect(await screen.findByText("Old")).toBeInTheDocument();
     expect(screen.queryByText("Live")).toBeNull();
+  });
+
+  it("drives the request with the category facet as tuple pairs", async () => {
+    // The facet goes to the server so it filters the whole set, not the fetched
+    // page - and a repeated key survives only as tuple pairs.
+    render(<AgentsPage />, { wrapper });
+    await screen.findByText("Live");
+
+    await pickCategory("sales");
+
+    await waitFor(() => {
+      const facets = vi
+        .mocked(apiClient.get)
+        .mock.calls.filter(([path]) => path === "/agents")
+        .map(([, options]) => facetOf(options));
+      expect(facets.some((f) => f.category.includes("sales"))).toBe(true);
+    });
+    // Live is still there: "sales" matches in the mock.
+    expect(screen.getByText("Live")).toBeInTheDocument();
+  });
+
+  it("changes the query key with the facet, so a new selection is not answered from a stale page", async () => {
+    render(<AgentsPage />, { wrapper });
+    await screen.findByText("Live");
+
+    // A category the mock does not match empties the page - which only happens
+    // if the facet actually reached a fresh request rather than a cached one.
+    await pickCategory("reports");
+
+    expect(await screen.findByText("Nothing matches")).toBeInTheDocument();
+  });
+
+  it("shows the filter-empty copy, not 'no agents yet', for a zero-match facet", async () => {
+    render(<AgentsPage />, { wrapper });
+    await screen.findByText("Live");
+
+    await pickCategory("reports");
+
+    expect(await screen.findByText("Nothing matches")).toBeInTheDocument();
+    // The trap this guards: a zero-match server facet reading as an empty account.
+    expect(screen.queryByText("No agents yet")).toBeNull();
+    expect(screen.queryByText("Nobody has shared an agent with you yet.")).toBeNull();
+  });
+
+  it("clears the facet from the empty state, bringing the list back", async () => {
+    render(<AgentsPage />, { wrapper });
+    await screen.findByText("Live");
+
+    await pickCategory("reports");
+    await screen.findByText("Nothing matches");
+    await userEvent.keyboard("{Escape}");
+
+    await userEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+
+    expect(await screen.findByText("Live")).toBeInTheDocument();
+  });
+
+  it("offers the server's categories as choices and hides a facet with none", async () => {
+    render(<AgentsPage />, { wrapper });
+    await screen.findByText("Live");
+
+    await userEvent.click(screen.getByRole("button", { name: "Filter by category" }));
+
+    const choices = await screen.findAllByRole("menuitemcheckbox");
+    expect(choices.map((choice) => choice.textContent)).toEqual(["reports", "sales"]);
+    // No agent carries a tag, so there is nothing to filter by and no menu for it.
+    expect(screen.queryByRole("button", { name: "Filter by tag" })).toBeNull();
+  });
+
+  it("names the selection on the trigger and clears it from the menu", async () => {
+    render(<AgentsPage />, { wrapper });
+    await screen.findByText("Live");
+
+    await pickCategory("sales");
+    await userEvent.click(await screen.findByRole("menuitemcheckbox", { name: "reports" }));
+    await userEvent.keyboard("{Escape}");
+    expect(screen.getByRole("button", { name: "Filter by category" })).toHaveTextContent(
+      "2 categories",
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Filter by category" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Clear filter" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Filter by category" })).toHaveTextContent(
+        "All categories",
+      ),
+    );
   });
 
   it("searches by handle as well as by name", async () => {

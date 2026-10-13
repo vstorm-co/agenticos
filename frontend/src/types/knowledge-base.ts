@@ -51,8 +51,16 @@ export interface IngestionConfig {
   pdf_parser: PdfParser;
   ocr: boolean;
   llamaparse_tier: LlamaParseTier;
-  /** The org vault key LlamaParse is billed to; null = the deployment's key. */
+  /**
+   * The org vault key LlamaParse is billed to. There is no deployment key: a
+   * collection parsing with LlamaParse is refused until it names one.
+   */
   llamaparse_secret_id?: string | null;
+  /**
+   * The OCR server LiteParse sends pages to - a local service of kind `ocr`.
+   * Null runs the Tesseract bundled with the worker.
+   */
+  ocr_endpoint_id?: string | null;
   /**
    * Whether LiteParse decides per document if OCR is worth running.
    *
@@ -108,6 +116,23 @@ export interface KnowledgeBase {
    */
   embedding_model: string;
   embedding_dim: number;
+  /**
+   * Whose endpoint serves that model - a provider id from
+   * `GET /rag/embedding-models`.
+   *
+   * Editable, unlike the model above, and the difference is the point: the same
+   * model at the same width produces vectors in the same space wherever it is
+   * served from, so moving a collection to another provider (a rotated key, an
+   * organization's own account) leaves everything already indexed valid, while
+   * moving it to another *model* would not.
+   */
+  embedding_provider: string;
+  embedding_secret_id: string | null;
+  /**
+   * The server a keyless provider is reached at - a local service of kind
+   * `embedding`. Null for a keyed provider, whose address is the vendor's.
+   */
+  embedding_endpoint_id: string | null;
   created_at: string;
   updated_at: string | null;
   /**
@@ -142,11 +167,48 @@ export interface CreateKnowledgeBaseInput {
   ingestion_config?: IngestionConfig;
   /**
    * Frozen at creation: the vector column is created at this model's width.
-   * Omit for the deployment default.
+   * One the chosen provider serves; there is no deployment default.
    */
   embedding_model?: string;
-  /** The org vault key that pays for embeddings; omit for the deployment key. */
+  /** Whose endpoint serves it. Required for a new collection - there is no deployment default. */
+  embedding_provider?: string;
+  /**
+   * The org vault key that pays for embeddings. Required for a personal or
+   * organization collection on a keyed provider; there is no deployment-wide
+   * key to fall back to.
+   */
   embedding_secret_id?: string;
+  /** The local service a keyless provider is reached at. Required for one. */
+  embedding_endpoint_id?: string;
+}
+
+/**
+ * What a collection's embeddings may be re-pointed at after the fact.
+ *
+ * A null key means "leave the key alone": a collection is never left without
+ * one, because there is no deployment-wide key to fall back to.
+ */
+export interface EmbeddingProviderInput {
+  embedding_provider?: string;
+  embedding_secret_id?: string;
+  embedding_endpoint_id?: string;
+}
+
+/** One provider a collection can embed through, from `GET /rag/embedding-models`. */
+export interface EmbeddingProvider {
+  provider: string;
+  name: string;
+  models: { model: string; dim: number }[];
+  /**
+   * An endpoint on the deployment's own network that takes no key - an Ollama.
+   * The picker asks for no key, and it is the only kind of provider an
+   * app-scoped collection may embed through.
+   */
+  keyless: boolean;
+}
+
+export interface EmbeddingModels {
+  providers: EmbeddingProvider[];
 }
 
 /** A single document tracked in a KB's underlying vector collection. */
@@ -186,6 +248,12 @@ export interface KBDocument {
   embedding_model: string | null;
   /** Whether this one document was uploaded with a departure from the collection. */
   was_overridden: boolean;
+  /**
+   * Which part of the organization this document was ingested as belonging to,
+   * and so what a retrieval can narrow to. `null` for a document ingested
+   * before anything wrote the dimension, and for one filed under nothing.
+   */
+  organizational_unit: string | null;
 }
 
 export interface KBDocumentList {

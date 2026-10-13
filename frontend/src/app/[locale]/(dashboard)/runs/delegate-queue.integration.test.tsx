@@ -62,6 +62,7 @@ function approval(overrides: Partial<ToolApproval>): ToolApproval {
     status: "pending",
     decided_by_user_id: null,
     decided_at: null,
+    decided_via: "click" as const,
     note: null,
     created_at: "2026-08-04T09:00:00Z",
     ...overrides,
@@ -76,8 +77,12 @@ function approval(overrides: Partial<ToolApproval>): ToolApproval {
  */
 function serve(approvals: ToolApproval[], permissions: Permission[]) {
   vi.mocked(apiClient.get).mockImplementation((path: string, options?: unknown) => {
-    // The decided record asks /approvals with params; the queue asks bare.
-    if (path === "/approvals" && (options as { params?: unknown } | undefined)?.params) {
+    // The decided record asks with an array of pairs (`status` repeats);
+    // the queue asks with a `skip` since it became server-paged (#1336).
+    if (
+      path === "/approvals" &&
+      Array.isArray((options as { params?: unknown } | undefined)?.params)
+    ) {
       return Promise.resolve({ items: [], total: 0 });
     }
     if (path === "/spend") return Promise.resolve(EMPTY_SPEND);

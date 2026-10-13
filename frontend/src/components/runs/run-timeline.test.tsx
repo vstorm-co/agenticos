@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -19,6 +19,15 @@ import type { RunTranscript, RunTranscriptMessage } from "@/types/runs";
 const useRunTranscriptMock = vi.fn();
 // Partial, because opening an attachment mounts the shared file viewer and that
 // reaches for several hooks of its own. Only the transcript is stood in for.
+// The renderer is tested on its own (`markdown-content.impl.test.tsx`) and the
+// real one arrives through `next/dynamic`, which never resolves in jsdom - so
+// what this file asserts on is the text handed to it. The timeline renders an
+// agent's answer as markdown rather than printing its source, which is the one
+// thing this stub has to preserve.
+vi.mock("@/components/chat/markdown-content", () => ({
+  MarkdownContent: ({ content }: { content: string }) => <div>{content}</div>,
+}));
+
 vi.mock("@/hooks", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks")>()),
   useRunTranscript: (runId: string, scope?: string) => useRunTranscriptMock(runId, scope),
@@ -310,6 +319,30 @@ describe("what the model was actually handed", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
+  it("draws a thumbnail for a render-safe image but not for a TIFF", () => {
+    // A TIFF is an `image` kind no browser draws inline; on the run detail it must
+    // get its glyph rather than a broken thumbnail, while a PNG is drawn (#1591).
+    serve({
+      items: [
+        turn({
+          id: "m-1",
+          role: "user",
+          content: "look",
+          files: [
+            { id: "p", filename: "shot.png", mime_type: "image/png", file_type: "image" },
+            { id: "t", filename: "scan.tiff", mime_type: "image/tiff", file_type: "image" },
+          ],
+        }),
+      ],
+    });
+
+    renderTimeline();
+
+    // `hidden`: the tile's peek is decorative and out of the accessibility tree.
+    expect(screen.getByRole("img", { name: "shot.png", hidden: true })).toBeVisible();
+    expect(screen.queryByRole("img", { name: "scan.tiff", hidden: true })).toBeNull();
+  });
+
   it("puts the model, the cost and the context carried on the turn", () => {
     serve({
       items: [
@@ -359,5 +392,53 @@ describe("what the model was actually handed", () => {
     expect(screen.getByText("This run")).toBeVisible();
     expect(screen.getByText("the held answer")).toBeVisible();
     expect(screen.queryByText("the answer asked for")).toBeNull();
+  });
+});
+
+describe("taking something out of a run", () => {
+  it("actually shows the copy button rather than leaving it transparent", async () => {
+    // `CopyButton` hides itself with `opacity-0 group-hover:opacity-100`, which
+    // watches an *unnamed* `.group`. The wrapper here is `group/copy`, so that
+    // rule never fires and the control shipped invisible at every state -
+    // `getByRole` finds an `opacity-0` element perfectly well, which is why the
+    // first version of these tests passed against a broken feature.
+    serve({ items: [turn({ role: "user", content: "explore the wikipedia page" })] });
+    renderTimeline();
+
+    const copy = (await screen.findAllByRole("button", { name: /copy/i }))[0];
+    expect(copy).toHaveClass("opacity-100");
+    expect(copy).not.toHaveClass("opacity-0");
+  });
+
+  it("offers to copy what the person asked", async () => {
+    // Half of reading a run back is *taking* something from it - the prompt to
+    // try again, the answer to paste into a ticket. None of it was reachable
+    // without selecting text by hand across a scrolling panel.
+    serve({ items: [turn({ role: "user", content: "explore the wikipedia page" })] });
+    renderTimeline();
+
+    expect(await screen.findByText("explore the wikipedia page")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /copy/i }).length).toBeGreaterThan(0);
+  });
+
+  it("offers to copy what the agent answered", async () => {
+    serve({ items: [turn({ role: "assistant", content: "## Poland\n\n**Capital:** Warsaw" })] });
+    renderTimeline();
+
+    expect(await screen.findByText(/Capital/)).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /copy/i }).length).toBeGreaterThan(0);
+  });
+
+  it("offers nothing to copy where there is nothing", async () => {
+    // A turn recorded with no text at all - a run refused before the model
+    // answered. A copy button for an empty string is a control that does
+    // nothing, and it would sit on every one of those rows.
+    // A *user* turn, because an assistant turn with no text produces no parts
+    // at all and so never reaches the panel. A prompt recorded empty does.
+    serve({ items: [turn({ role: "user", content: "" })] });
+    const { container } = renderTimeline();
+
+    await waitFor(() => expect(container.querySelector("li")).toBeTruthy());
+    expect(screen.queryByRole("button", { name: /copy/i })).toBeNull();
   });
 });

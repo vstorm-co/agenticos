@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowRight, Check, Link2, MessageSquare, ShieldCheck } from "lucide-react";
 
 import { Button, Card, CardContent, Skeleton } from "@/components/ui";
+import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import {
   confirmChannelLink,
@@ -36,6 +37,7 @@ const PLATFORM_LABEL: Record<string, string> = {
 export default function ChannelLinkPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params);
   const t = useTranslations("pages.channelLink");
+  const tErrors = useTranslations("errors");
   const [request, setRequest] = useState<ChannelLinkRequest | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [linked, setLinked] = useState(false);
@@ -47,13 +49,16 @@ export default function ChannelLinkPage({ params }: { params: Promise<{ token: s
       .then((found) => {
         if (!cancelled) setRequest(found);
       })
-      .catch((cause: Error) => {
-        if (!cancelled) setError(cause.message);
+      // Through `getErrorMessage`, so a code-only refusal from the proxy - the
+      // 401 an expired cookie mints, among others - resolves against the
+      // catalog instead of arriving humanized into English (#655).
+      .catch((cause: unknown) => {
+        if (!cancelled) setError(getErrorMessage(cause, tErrors));
       });
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, [token, tErrors]);
 
   async function confirm() {
     setConfirming(true);
@@ -61,7 +66,7 @@ export default function ChannelLinkPage({ params }: { params: Promise<{ token: s
       await confirmChannelLink(token);
       setLinked(true);
     } catch (cause) {
-      setError((cause as Error).message);
+      setError(getErrorMessage(cause, tErrors));
     } finally {
       setConfirming(false);
     }
@@ -77,7 +82,7 @@ export default function ChannelLinkPage({ params }: { params: Promise<{ token: s
       <div className="mb-8 text-center">
         <div
           className={`mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl ${
-            linked ? "bg-emerald-500/10 text-emerald-600" : "bg-primary/10 text-primary"
+            linked ? "bg-success/12 text-success" : "bg-primary/10 text-primary"
           }`}
         >
           {linked ? <Check className="h-6 w-6" /> : <Link2 className="h-6 w-6" />}

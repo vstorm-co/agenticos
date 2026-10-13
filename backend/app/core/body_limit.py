@@ -63,6 +63,7 @@ def max_body_bytes() -> int:
         settings.MAX_UPLOAD_SIZE_MB,
         settings.CHAT_MAX_UPLOAD_SIZE_MB,
         settings.EMBED_MAX_UPLOAD_SIZE_MB,
+        settings.ML_MAX_UPLOAD_SIZE_MB,
     )
     return largest_mb * 1024 * 1024 + _ENVELOPE_ALLOWANCE
 

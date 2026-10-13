@@ -4,7 +4,7 @@ import { useTranslations } from "next-intl";
 
 import { FileCard, PendingFileCard } from "@/components/files";
 import { getFileUrl, type FileUploadResponse } from "@/lib/file-api";
-import { resolveFileKind, suffixOf } from "@/lib/file-kinds";
+import { isRenderSafeImage, suffixOf } from "@/lib/file-kinds";
 
 /**
  * One thing attached to the message being written.
@@ -25,7 +25,10 @@ interface AttachmentCardProps {
 
 export function AttachmentCard({ file, pasted, onRemove }: AttachmentCardProps) {
   const t = useTranslations("chat.input");
-  const isImage = resolveFileKind(file.filename, file.mime_type) === "image";
+  // A thumbnail only for a type the browser can actually draw inline: a TIFF is an
+  // `image` kind but not render-safe, so it gets a download card, not a broken
+  // thumbnail (#1591).
+  const isImage = isRenderSafeImage(file.mime_type);
 
   return (
     <FileCard

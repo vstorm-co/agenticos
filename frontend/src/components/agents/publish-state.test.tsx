@@ -34,7 +34,7 @@ function spec(overrides: Partial<AgentSpec> = {}): AgentSpec {
     collection_ids: [],
     skill_ids: [],
     context_ids: [],
-    mcp_server_ids: [],
+    mcp_servers: [],
     ...overrides,
   };
 }

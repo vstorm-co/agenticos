@@ -14,4 +14,4 @@ import { routing } from "@/lib/locale-routing";
  * `usePathname` is next-intl's, which answers without the locale prefix - which is
  * what `push` expects.
  */
-export const { usePathname, useRouter } = createNavigation(routing);
+export const { getPathname, usePathname, useRouter } = createNavigation(routing);

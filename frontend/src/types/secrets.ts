@@ -17,7 +17,9 @@ export type SecretKind =
   | "aws_credentials"
   | "gcp_service_account"
   | "github_oauth_app"
-  | "google_oauth_app";
+  | "google_oauth_app"
+  | "git_token"
+  | "entra_app";
 
 /**
  * Every kind a person can save. `none` is not one of them: it says "there is no
@@ -49,6 +51,17 @@ export interface SecretRequirement {
    * not asking for one it will.
    */
   required_when: SecretCondition | null;
+  /**
+   * Which service in the catalog the key is for - a `services.json` id such as
+   * `mem0` - or null where `required_when` already names it.
+   *
+   * The two are the same question asked of different capabilities. Web search
+   * offers several providers and the chosen one *is* the service, so the
+   * condition answers it. A capability with one service and an unconditional key
+   * has no condition to read, and without this it falls back to "any key of the
+   * right kind", which is every API key in the vault.
+   */
+  purpose: string | null;
 }
 
 /** "This config field is one of these values." Mirrors `SecretCondition`. */

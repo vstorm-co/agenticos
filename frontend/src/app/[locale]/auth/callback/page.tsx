@@ -6,9 +6,31 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Spinner } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
 import { useAdoptSession } from "@/hooks/use-auth";
-import { postSignInDestination } from "@/lib/auth-landing";
+import { goToDestination, postSignInDestination } from "@/lib/auth-landing";
+import { takeReturnTo } from "@/lib/oauth-return";
 import type { User } from "@/types";
 import { useTranslations } from "next-intl";
+
+type Adopted = { user: User; access_token: string };
+
+// A single-use code must be POSTed exactly once. React Strict Mode mounts this
+// effect, cleans it up, and mounts it again in development, and a plain remount
+// does the same: without sharing the request the second POST sends the code the
+// first already spent and gets a 401, failing a sign-in that worked. Keyed by
+// code and held outside the component so it survives the remount; cleared when
+// the request settles.
+const exchanges = new Map<string, Promise<Adopted>>();
+
+function exchangeCode(code: string): Promise<Adopted> {
+  let pending = exchanges.get(code);
+  if (pending === undefined) {
+    pending = apiClient
+      .post<Adopted>("/auth/oauth-callback", { code })
+      .finally(() => exchanges.delete(code));
+    exchanges.set(code, pending);
+  }
+  return pending;
+}
 
 export default function AuthCallbackPage() {
   const t = useTranslations("pages.root");
@@ -26,8 +48,7 @@ export default function AuthCallbackPage() {
   const adoptSession = useAdoptSession();
 
   useEffect(() => {
-    const accessToken = searchParams.get("access_token");
-    const refreshToken = searchParams.get("refresh_token");
+    const code = searchParams.get("code");
     const errParam = searchParams.get("error");
 
     if (errParam) {
@@ -37,25 +58,26 @@ export default function AuthCallbackPage() {
       );
       return () => clearTimeout(t);
     }
-    if (!accessToken || !refreshToken) {
-      router.replace("/login?error=missing_tokens");
+    if (!code) {
+      router.replace("/login?error=missing_code");
       return;
     }
 
     let cancelled = false;
     (async () => {
       try {
-        const data = await apiClient.post<{ user: User; access_token: string }>(
-          "/auth/oauth-callback",
-          { access_token: accessToken, refresh_token: refreshToken },
-        );
+        const data = await exchangeCode(code);
         if (cancelled) return;
         adoptSession(data.user, data.access_token);
-        // No deep link here yet - nothing carries a returnTo through the
-        // provider round trip. It would not need the OAuth `state` parameter:
-        // the trip starts and ends in the same tab on this origin, so
-        // sessionStorage set beside the provider link is enough.
-        router.replace(postSignInDestination());
+        // The deep link the visitor was headed to, written beside the provider
+        // link they clicked and consumed here. Not the OAuth `state` parameter:
+        // the trip starts and ends in the same tab on this origin (#135).
+        //
+        // Through `goToDestination`, which the password form also goes through:
+        // a destination with a fragment has to load the document, and a branch
+        // only one door takes is a deep link that behaves differently depending
+        // on which button was pressed.
+        goToDestination(postSignInDestination(takeReturnTo()), (href) => router.replace(href));
       } catch {
         if (!cancelled) {
           setExchangeFailed(true);

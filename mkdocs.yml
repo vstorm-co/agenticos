@@ -5,7 +5,7 @@
 # is a copy that disagrees with the one contributors read. The nav below decides
 # what an outside reader meets first; nothing is duplicated for them.
 site_name: AgenticOS
-site_description: The operating system for your company's AI agents. Self-hosted, open source, and yours.
+site_description: Build agents in your browser, connect documents and tools, and run them on infrastructure you control.
 site_url: https://vstorm-co.github.io/agenticos/
 repo_url: https://github.com/vstorm-co/agenticos
 repo_name: vstorm-co/agenticos
@@ -13,15 +13,34 @@ edit_uri: edit/main/docs/
 
 docs_dir: docs
 
-# Design artifacts (review demos and their notes) are engineering material for
-# pull-request review, not site pages - unlisted they would still build and
-# publish as orphans nothing links to, which is how a page goes stale unseen.
+# Working material - design demos for pull-request review, change plans, audit
+# reports - is engineering notes rather than site pages. Unlisted they would
+# still build and publish as orphans nothing links to, which is how a page goes
+# stale unseen; they stay readable in the repository, where they are written.
+# `ROADMAP.md` and `about/design.md` are the same kind of material one level up:
+# delivery state written in board shorthand, and the six decisions a contributor
+# needs before their first change. Both are read in the repository, by somebody
+# who has already decided to work on this - publishing them put an internal
+# status report in a tab a prospective user meets first.
 exclude_docs: |
   design/
+  plans/
+  audits/
+  ROADMAP.md
+  about/design.md
+  assets/screens/README.md
 
 theme:
   name: material
   language: en
+  # Amigo's head, cropped square from the mascot by `scripts/gen_amigo_assets.py`
+  # and never drawn twice - the same bargain
+  # `frontend/src/lib/brand-glyphs.generated.ts` takes with every other mark this
+  # product draws. The console's built-in glyph is that same crop as a data URI,
+  # so the site header, the browser tab and the app's sidebar show one face; the
+  # page heroes and the README show the whole character it was cut from.
+  logo: assets/amigo-head.svg
+  favicon: assets/amigo-head.svg
   palette:
     # A theme per system preference, with a manual override - the same bargain
     # the app itself makes.
@@ -40,20 +59,42 @@ theme:
         icon: material/weather-sunny
         name: Switch to light mode
   features:
+    # The seven tabs are the top-level shape of this site, so they stay on
+    # screen while a page scrolls - a reader three sections into `governance.md`
+    # can still see that Reference is one click away.
     - navigation.tabs
+    - navigation.tabs.sticky
     - navigation.sections
     - navigation.top
-    - navigation.instant
+    # `navigation.instant` is deliberately absent. Material's language switcher
+    # keeps the reader on the same page in the other language, and that link is
+    # built server-side per page - instant loading swaps the body without
+    # rebuilding it, so the switcher silently starts sending everyone to the
+    # locale's home page instead. Losing a reader's place on every language
+    # switch costs more than the load it saved.
     - navigation.tracking
     - navigation.indexes
+    # Learn is a sequence, not a bag of pages. The footer's previous/next is what
+    # makes reading it in order the default rather than a thing you have to
+    # navigate back to the sidebar for.
+    - navigation.footer
     - toc.follow
     - search.highlight
     - search.suggest
+    - search.share
     - content.code.copy
     - content.code.annotate
+    - content.tooltips
     - content.action.edit
+    # The tabs on the home page and in the guides pair "what somebody edits"
+    # with "what it becomes". Linking them means a reader who picks the file
+    # view once keeps it on every page that offers the same pair.
+    - content.tabs.link
   icon:
     repo: fontawesome/brands/github
+
+extra_css:
+  - assets/extra.css
 
 markdown_extensions:
   - admonition
@@ -87,8 +128,111 @@ markdown_extensions:
       line_spans: __span
       pygments_lang_class: true
 
+# `scripts/mkdocs_hooks.py` reads CHANGELOG.md into the release-notes page - see
+# its docstring for why that is a hook rather than a snippet include.
+hooks:
+  - scripts/mkdocs_hooks.py
+
+# `mkdocs serve` watches `docs/` and this file. The release-notes page is built
+# from a file outside both.
+watch:
+  - CHANGELOG.md
+
 plugins:
+  # First in the list on purpose: every plugin below it runs once per locale,
+  # against the file tree this one has already resolved. `suffix` structure means
+  # a translation sits beside its source as `<page>.<locale>.md`, so the English
+  # URLs the site has always published keep working - `/install/` stays where it
+  # is and `/pl/install/` is added next to it, rather than everything moving
+  # under `/en/` and every existing link breaking.
+  #
+  # `fallback_to_default` is what stops a missing translation from 404ing. It
+  # serves the English page under the localized URL instead, and
+  # `scripts/mkdocs_hooks.py` stamps a notice on it saying so - an untranslated
+  # page a reader cannot tell from a translated one is the failure this whole
+  # arrangement exists to avoid.
+  - i18n:
+      docs_structure: suffix
+      fallback_to_default: true
+      reconfigure_material: true
+      reconfigure_search: true
+      languages:
+        - locale: en
+          default: true
+          name: English
+          build: true
+          site_description: Build agents in your browser, connect documents and tools, and run them on infrastructure you control.
+        - locale: pl
+          name: Polski
+          build: true
+          site_description: Buduj agentów w przeglądarce, podłącz dokumenty i narzędzia, uruchamiaj na własnej infrastrukturze.
+          nav_translations:
+            Features: Funkcje
+            Learn: Nauka
+            Get started: Pierwsze kroki
+            Build the agent: Zbuduj agenta
+            Put it in front of people: Udostępnij go ludziom
+            Keep it under control: Zachowaj kontrolę
+            How-to - recipes: Przewodniki - przepisy
+            Reference: Referencje
+            Resources: Zasoby
+            Development - contributing: Rozwój - współtworzenie
+            Extending the platform: Rozszerzanie platformy
+            About: O projekcie
+            Use cases: Zastosowania
+            Comparisons: Porównania
+            Release Notes: Informacje o wydaniach
+        - locale: de
+          name: Deutsch
+          build: true
+          site_description: Agents im Browser erstellen, Dokumente und Werkzeuge verbinden und auf eigener Infrastruktur betreiben.
+          nav_translations:
+            Features: Funktionen
+            Learn: Lernen
+            Get started: Erste Schritte
+            Build the agent: Den Agent bauen
+            Put it in front of people: Für Nutzer bereitstellen
+            Keep it under control: Unter Kontrolle halten
+            How-to - recipes: Anleitungen - Rezepte
+            Reference: Referenz
+            Resources: Ressourcen
+            Development - contributing: Entwicklung - Mitwirken
+            Extending the platform: Die Plattform erweitern
+            About: Über das Projekt
+            Use cases: Anwendungsfälle
+            Comparisons: Vergleiche
+            Release Notes: Versionshinweise
+        - locale: es
+          name: Español
+          build: true
+          site_description: Crea agents en el navegador, conecta documentos y herramientas y usa infraestructura bajo tu control.
+          nav_translations:
+            Features: Funciones
+            Learn: Aprende
+            Get started: Primeros pasos
+            Build the agent: Construye el agent
+            Put it in front of people: Ponlo delante de las personas
+            Keep it under control: Mantenlo bajo control
+            How-to - recipes: Guías prácticas - recetas
+            Reference: Referencia
+            Resources: Recursos
+            Development - contributing: Desarrollo - contribuir
+            Extending the platform: Ampliar la plataforma
+            About: Acerca del proyecto
+            Use cases: Casos de uso
+            Comparisons: Comparaciones
+            Release Notes: Notas de la versión
   - search
+  # Screenshots of the console are the only thing on this site a reader cannot
+  # zoom into, and they carry small text - a model picker, a budget field. This
+  # makes them click-to-enlarge rather than asking somebody to open the image in
+  # a new tab and hunt for it.
+  - glightbox:
+      effect: zoom
+      touchNavigation: true
+      draggable: true
+      auto_caption: true
+      caption_position: bottom
   # The API reference is generated from the docstrings rather than written twice.
   # This codebase puts its reasoning in docstrings - why a scope comparison
   # raises, why an audience resolves the way it does - so a hand-written
@@ -108,47 +252,129 @@ plugins:
             filters: ["!^_"]
 
 nav:
-  - Home:
-      - index.md
-      - install.md
-      - first-agent.md
-      - deploy.md
-  - Concepts:
-      - concepts.md
-      - deployment.md
-      - permissions.md
-      - governance.md
-      - triggers.md
-      - models.md
-      - mcp.md
-      - skills.md
-      - secrets.md
-      - channels.md
-      - file-processing.md
-      - sandbox.md
-  - Guides:
-      - howto/add-capability.md
-      - howto/add-mcp-server.md
-      - howto/add-api-endpoint.md
-      - howto/add-background-task.md
-      - howto/customize-agent-prompt.md
-      - howto/add-sync-connector.md
-      - howto/configure-sync-sources.md
-      - howto/use-ratings.md
+  - AgenticOS: index.md
+  - Features: features.md
+  - Use cases:
+      - use-cases.md
+      - Documents and knowledge:
+          - howto/first-document-agent.md
+          - howto/knowledge-base-assistant.md
+          - howto/llm-wiki.md
+          - howto/contract-review.md
+          - howto/document-extraction.md
+          - howto/meeting-summary.md
+      - Customer support and service:
+          - howto/support-widget.md
+          - howto/slack-handbook-assistant.md
+          - howto/support-ticket-triage.md
+          - howto/email-triage.md
+          - howto/onboarding-helpdesk.md
+      - Research and analysis:
+          - howto/deep-research-subagents.md
+          - howto/account-research.md
+          - howto/competitor-monitoring.md
+          - howto/database-questions.md
+          - howto/csv-chart.md
+          - howto/excel-report.md
+      - Automation and teams of agents:
+          - howto/scheduled-report.md
+          - howto/github-issue-triage.md
+          - howto/meeting-to-tasks.md
+          - howto/specialist-team.md
+          - howto/agent-api.md
+      - Personal productivity:
+          - howto/personal-assistant.md
+          - howto/notion-agent.md
+      - Content and communication:
+          - howto/content-repurposing.md
+          - howto/product-descriptions.md
+          - howto/translation-glossary.md
+      - Engineering and safety:
+          - howto/code-review.md
+          - howto/pii-guardrails.md
+  - Comparisons:
+      - about/comparison.md
+      - about/claude-apps.md
+      - about/chatgpt.md
+      - about/copilot-studio.md
+      - about/gemini-enterprise.md
+      - about/dify.md
+      - about/n8n.md
+      - about/viktor.md
+      - about/wonderful.md
+      - about/claude-code.md
+      - about/codex.md
+      - about/opencode.md
+  - Learn:
+      - learn/index.md
+      - Get started:
+          - install.md
+          - howto/first-document-agent.md
+          - first-agent.md
+          - concepts.md
+          - console.md
+          - screens.md
+      - Build the agent:
+          - choosing-models.md
+          - models.md
+          - skills.md
+          - context.md
+          - file-processing.md
+          - mcp.md
+          - sandbox.md
+          - triggers.md
+      - Put it in front of people:
+          - environments.md
+          - channels.md
+          - artifacts.md
+          - desktop.md
+          - rollout.md
+          - deployment.md
+          - deploy.md
+      - Keep it under control:
+          - permissions.md
+          - directory.md
+          - governance.md
+          - secrets.md
+          - data-protection.md
+          - licenses.md
+          - security.md
+      - How-to - recipes:
+          - howto/set-up-knowledge-base.md
+          - howto/customize-agent-prompt.md
+          - howto/configure-sync-sources.md
+          - howto/use-ratings.md
   - Reference:
+      - api.md
+      - ml-services.md
       - configuration.md
       - commands.md
-      - reference/capabilities.md
       - reference/spec.md
+      - reference/capabilities.md
       - reference/permissions.md
-  - Contributing:
-      - architecture.md
-      - patterns.md
-      - adding_features.md
-      - testing.md
-      - code-review.md
-      - branching.md
-      - ROADMAP.md
+      - reference/components.md
+  - Resources:
+      - resources/index.md
+      - Development - contributing:
+          - architecture.md
+          - frontend.md
+          - patterns.md
+          - adding_features.md
+          - testing.md
+          - load-testing.md
+          - code-review.md
+          - branching.md
+          - howto/translate.md
+      - Extending the platform:
+          - howto/add-capability.md
+          - howto/add-mcp-server.md
+          - howto/add-api-endpoint.md
+          - howto/add-background-task.md
+          - howto/add-sync-connector.md
+  - About:
+      - about/index.md
+      - help.md
+  - Release Notes: release-notes.md
 
 extra:
   social:

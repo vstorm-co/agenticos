@@ -131,6 +131,7 @@ export interface RunTranscriptMessage {
         tool_call_id?: string | null;
         question?: string | null;
         answer?: string | null;
+        asked_by?: string | null;
       }[]
     | null;
   tool_calls?:
@@ -296,6 +297,13 @@ export interface ToolApproval {
   status: "pending" | "approved" | "rejected" | "expired";
   decided_by_user_id: string | null;
   decided_at: string | null;
+  /**
+   * How it was decided, which is a different question from what was decided.
+   * `click` is somebody reading the arguments and pressing a button; `standing`
+   * is a conversation that had waived approvals in advance, by the account
+   * `decided_by_user_id` names. Both are `approved` (#925).
+   */
+  decided_via: "click" | "standing";
   note: string | null;
   created_at?: string;
 }
@@ -317,6 +325,8 @@ export interface ApprovalList {
  */
 export interface CostByAgent {
   agent_id: string;
+  /** Its handle, which is what the generated face beside the row is drawn from. */
+  agent_slug: string;
   /** The agent's name. Null only on the usage email's rows, which group by model. */
   agent_name: string | null;
   /** The model, on the usage email's per-model rows only. Null on the Spend tab. */

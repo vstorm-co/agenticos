@@ -10,7 +10,15 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.services.channels.supervisor import close_inbound_stream, open_inbound_stream
+from app.services.channels.mattermost import MattermostAdapter
+from app.services.channels.slack import SlackAdapter
+from app.services.channels.supervisor import (
+    allow_intake,
+    begin_shutdown,
+    close_inbound_stream,
+    open_inbound_stream,
+)
+from app.services.channels.telegram import TelegramAdapter
 
 pytestmark = pytest.mark.anyio
 
@@ -21,16 +29,15 @@ def _adapter(**extra) -> MagicMock:
 
 
 class TestOpening:
-    async def test_the_bot_is_told_its_own_server_before_the_socket_opens(self):
-        """A Mattermost adapter is one object serving every bot, so the address
-        has to be registered against the id first - a stream opened before it
-        has nowhere to connect."""
+    async def test_the_bot_is_told_what_it_needs_before_the_socket_opens(self):
+        """An adapter is one object serving every bot, so a per-bot fact - the
+        Mattermost server address, a Slack app's token - has to be registered
+        against the id first: a stream opened before it has nowhere to connect."""
         order: list[str] = []
         adapter = _adapter(
-            remember_server=MagicMock(side_effect=lambda *_: order.append("remember")),
+            prepare_connection=MagicMock(side_effect=lambda *_, **__: order.append("prepare")),
         )
         adapter.start_polling = AsyncMock(side_effect=lambda *_: order.append("start"))
-        del adapter.remember_app_token
 
         with patch("app.services.channels.supervisor.get_adapter", return_value=adapter):
             await open_inbound_stream(
@@ -38,21 +45,13 @@ class TestOpening:
                 platform="mattermost",
                 token="tok",
                 api_base_url="https://mattermost.acme.com",
+                app_token="xapp",
             )
 
-        assert order == ["remember", "start"]
-        adapter.remember_server.assert_called_once_with("b-1", "https://mattermost.acme.com")
-
-    async def test_a_slack_app_token_is_registered_the_same_way(self):
-        adapter = _adapter(remember_app_token=MagicMock())
-        del adapter.remember_server
-
-        with patch("app.services.channels.supervisor.get_adapter", return_value=adapter):
-            await open_inbound_stream(
-                bot_id="b-1", platform="slack", token="xoxb", app_token="xapp"
-            )
-
-        adapter.remember_app_token.assert_called_once_with("b-1", "xapp")
+        assert order == ["prepare", "start"]
+        adapter.prepare_connection.assert_called_once_with(
+            "b-1", api_base_url="https://mattermost.acme.com", app_token="xapp"
+        )
 
     async def test_an_existing_stream_is_closed_first(self):
         """`start_polling` returns early when a task for that bot is running, so
@@ -62,22 +61,48 @@ class TestOpening:
         adapter = _adapter()
         adapter.stop_polling = AsyncMock(side_effect=lambda *_: order.append("stop"))
         adapter.start_polling = AsyncMock(side_effect=lambda *_: order.append("start"))
-        del adapter.remember_server
-        del adapter.remember_app_token
 
         with patch("app.services.channels.supervisor.get_adapter", return_value=adapter):
             await open_inbound_stream(bot_id="b-1", platform="telegram", token="tok")
 
         assert order == ["stop", "start"]
 
-    async def test_a_platform_with_no_address_is_not_told_one(self):
-        adapter = _adapter(remember_server=MagicMock())
-        del adapter.remember_app_token
 
-        with patch("app.services.channels.supervisor.get_adapter", return_value=adapter):
-            await open_inbound_stream(bot_id="b-1", platform="telegram", token="tok")
+class TestWhatEachAdapterPrepares:
+    """The hook is on the base, so every adapter is asked the same way; what
+    each one keeps is its own. The `getattr` reach this replaced needed the
+    supervisor to know the two method names, and a third adapter would have been
+    a third name."""
 
-        adapter.remember_server.assert_not_called()
+    def test_mattermost_keeps_the_server_and_ignores_the_app_token(self):
+        adapter = MattermostAdapter()
+
+        adapter.prepare_connection("b-1", api_base_url="https://mm.acme.com/", app_token="xapp")
+
+        assert adapter._base_urls == {"b-1": "https://mm.acme.com"}
+
+    def test_slack_keeps_the_app_token_and_ignores_the_server(self):
+        adapter = SlackAdapter()
+
+        adapter.prepare_connection("b-1", api_base_url="https://mm.acme.com", app_token="xapp")
+
+        assert adapter._app_tokens == {"b-1": "xapp"}
+
+    def test_a_platform_that_needs_neither_keeps_nothing(self):
+        adapter = TelegramAdapter()
+
+        adapter.prepare_connection("b-1", api_base_url="https://mm.acme.com", app_token="xapp")
+
+        assert not hasattr(adapter, "_base_urls")
+
+    def test_nothing_is_kept_for_a_bot_that_supplied_nothing(self):
+        mattermost, slack = MattermostAdapter(), SlackAdapter()
+
+        mattermost.prepare_connection("b-1", api_base_url=None, app_token=None)
+        slack.prepare_connection("b-1", api_base_url=None, app_token=None)
+
+        assert mattermost._base_urls == {}
+        assert slack._app_tokens == {}
 
 
 class TestClosing:
@@ -94,3 +119,39 @@ class TestClosing:
         deleted and a background task failing about it."""
         with patch("app.services.channels.supervisor.get_adapter", side_effect=KeyError("discord")):
             await close_inbound_stream(bot_id="b-1", platform="discord")
+
+
+class TestShutdown:
+    """A stream deferred just before shutdown must not reopen intake at exit (#1119).
+
+    The `_shutting_down` flag is a process global; `tests/conftest.py` resets it
+    after every test, so a `begin_shutdown()` here does not leak.
+    """
+
+    async def test_a_late_open_declines_to_reopen_intake_while_shutting_down(self):
+        begin_shutdown()
+        adapter = _adapter()
+        with patch("app.services.channels.supervisor.get_adapter", return_value=adapter) as get:
+            await open_inbound_stream(bot_id="b-1", platform="telegram", token="tok")
+
+        get.assert_not_called()
+        adapter.start_polling.assert_not_awaited()
+
+    async def test_a_shutdown_during_stop_polling_still_declines_to_reopen(self):
+        """The flag can flip while the open is suspended at stop_polling, so it is
+        re-checked before start_polling - a task parked there does not reopen."""
+        adapter = _adapter()
+        adapter.stop_polling = AsyncMock(side_effect=lambda *_: begin_shutdown())
+        with patch("app.services.channels.supervisor.get_adapter", return_value=adapter):
+            await open_inbound_stream(bot_id="b-1", platform="telegram", token="tok")
+
+        adapter.start_polling.assert_not_awaited()
+
+    async def test_intake_reopens_once_a_fresh_lifespan_permits_it(self):
+        begin_shutdown()
+        allow_intake()
+        adapter = _adapter()
+        with patch("app.services.channels.supervisor.get_adapter", return_value=adapter):
+            await open_inbound_stream(bot_id="b-1", platform="telegram", token="tok")
+
+        adapter.start_polling.assert_awaited_once()

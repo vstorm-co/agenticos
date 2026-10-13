@@ -78,7 +78,13 @@ and both server layers return it (**#230**, about one run in eight). Two consequ
   exception in either direction: `a draft agent exists` waits on the Builder's
   heading.
 - **A product spec about the rendering reloads first**, marked `#230`, until that
-  issue closes.
+  issue closes. A spec that *made* the write and then asserts on the row waits the
+  same way the fixtures do: `nowListed` and `nowMatching` in `e2e/helpers.ts` are
+  `nowThere` moved out of `seed.setup.ts` so both sides use one primitive
+  (**#162**). Waiting first splits one failure into two — a failure in the poll is
+  a write that never landed, a failure in the `toBeVisible()` after it is a page
+  that did not draw a row the API was serving, and those are different defects
+  that used to share `element(s) not found`.
 
 The list's `GET` is deliberately not a third wait: `useKnowledgeBases` never makes one,
 and where one is made, #230 is about the answer being wrong rather than late.
@@ -132,7 +138,7 @@ with a mocked API — cheaper and more precise), a service rule (unit), or a con
 
 `auth`, `agents`, `chat`, `journey`, `models`, `skills`, `vault`, `sharing`,
 `navigation`, `sidebar`, `sidebar-active`, `activity`, `refusals`, `mcp-servers`,
-`kb-ingestion`, `kb-integrations`. Read the closest one before adding a new file —
+`kb-ingestion`, `kb-integrations`, `notifications`. Read the closest one before adding a new file —
 `refusals.spec.ts` in particular, since asserting a refusal is where this suite earns
 its keep.
 

@@ -18,6 +18,7 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 
 from app.core.config import settings
+from app.services.rag.filters import Source
 from app.services.rag.remote_names import checked_drive_folder_id, destination_within
 from app.services.rag.sources.base import BaseDocumentSource, SourceFile
 
@@ -44,6 +45,8 @@ class GoogleDriveSource(BaseDocumentSource):
     Authenticates via a service account JSON key file.
     The target folder must be shared with the service account email.
     """
+
+    SOURCE = Source.GDRIVE
 
     def __init__(self):
         creds_file = settings.GOOGLE_DRIVE_CREDENTIALS_FILE

@@ -348,12 +348,14 @@ class TestTheFrameAChatReads:
         """Distinct from zero, which is a different thing to draw."""
         assert usage_frame(None) is None
 
-    def test_the_tokens_and_the_cost_are_numbers(self):
+    def test_the_tokens_are_numbers_and_the_cost_a_decimal_string(self):
         frame = usage_frame(_report())
 
         assert frame is not None
         assert frame["input_tokens"] == 1200
-        assert frame["cost_usd"] == 0.0125
+        # A Decimal string, the shape REST reports money in - one representation
+        # on the wire (#545). The client `Number()`s it where it draws.
+        assert frame["cost_usd"] == "0.0125"
         assert frame["sandbox"] is None
 
     def test_the_budget_share_travels_with_it(self):

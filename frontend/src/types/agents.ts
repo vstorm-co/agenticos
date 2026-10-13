@@ -63,6 +63,10 @@ export interface CapabilityBindingSpec {
   enabled: boolean;
 }
 
+/** How much of a run its spans carry. `full` is everything; `none` is timing,
+ * tokens, cost and tool names but no message text or tool arguments. */
+export type TraceContent = "full" | "none";
+
 /** Where this agent's traces go, when not to the deployment's own project. */
 export interface ObservabilitySpec {
   /** An organization secret holding a Logfire write token - an id, never a token. */
@@ -70,6 +74,8 @@ export interface ObservabilitySpec {
   /** What the agent is called in Logfire; falls back to the agent's name. */
   service_name?: string | null;
   environment?: string | null;
+  /** How much each span carries; falls back to `full`. */
+  content?: TraceContent | null;
 }
 
 /** The agent's half of the two budget levels; the organization's cap is the other. */
@@ -181,7 +187,7 @@ export interface SubagentRef {
  * A typed subset of `AgentSpec` on purpose, using the same
  * `CapabilityBindingSpec` - so one editor serves both and there is no second
  * notion of "agent" for publish validation to miss. `budget`, `notifications`,
- * `observability`, `mcp_server_ids` and `subagents` are deliberately absent:
+ * `observability`, `mcp_servers` and `subagents` are deliberately absent:
  * each only means something for a thing with a version, an owner, or a depth
  * left to spend.
  */
@@ -222,6 +228,37 @@ export interface SubagentsConfig {
   share_with_delegates: string[];
 }
 
+/** One of the organization's MCP connections, used by every run of the agent. */
+export interface OrgMcpServerRef {
+  account: "organization";
+  /** The organization's connection. A personal one is refused at publish. */
+  connection_id: string;
+  /**
+   * Which of the server's tools this agent may call. `null` is every tool the
+   * connection allows. Narrowing only: the connection's own allowlist is an
+   * administrator's ceiling and the two intersect at run time.
+   */
+  allowed_tools: string[] | null;
+}
+
+/**
+ * A service each person reaches through their own account.
+ *
+ * Names a catalog entry rather than a connection: whose connection answers is
+ * decided when the turn runs, from whoever wrote the message. Where nobody did
+ * - an API key, the widget, a schedule, an unlinked chat account - the server
+ * is absent from that run and the agent is told so.
+ */
+export interface PersonalMcpServerRef {
+  account: "personal";
+  catalog_key: string;
+  /** The administrator's ceiling; the person's own connection may narrow further. */
+  allowed_tools: string[] | null;
+}
+
+/** One MCP binding: the organization's connection, or each person's own account. */
+export type McpServerRef = OrgMcpServerRef | PersonalMcpServerRef;
+
 export interface AgentSpec {
   /**
    * Stamped by the server, never authored here.
@@ -242,7 +279,7 @@ export interface AgentSpec {
   collection_ids: string[];
   skill_ids: string[];
   context_ids: string[];
-  mcp_server_ids: string[];
+  mcp_servers: McpServerRef[];
   /**
    * Delegates, each pinned to a published version.
    *
@@ -301,6 +338,16 @@ export interface Agent {
   /** Surfaces with an active binding ("slack", "telegram", ...). Listing only. */
   channels?: string[];
   /**
+   * Editable, org-local discovery metadata - not part of the versioned spec, so
+   * retagging is a cheap row edit like the avatar, never a publish. Optional in
+   * this type to match the other listing-filled fields (`channels?`,
+   * `shared_user_count?`): the backend always sends them, but a required field
+   * here would break every fixture that builds a complete `Agent` and omits the
+   * listing-only ones. Render code reads them as `agent.categories ?? []`.
+   */
+  categories?: string[];
+  tags?: string[];
+  /**
    * The published version's monthly cap - the one the runner enforces, not
    * the draft's promise. Null for drafts and uncapped agents. Listing only.
    */
@@ -343,6 +390,10 @@ export interface AgentDetail extends Agent {
 export interface AgentList {
   items: Agent[];
   total: number;
+  /** Every distinct category on the agents the caller may list - the filter's choices. */
+  categories: string[];
+  /** Every distinct tag on the agents the caller may list. */
+  tags: string[];
 }
 
 /**
@@ -571,6 +622,35 @@ export interface JsonSchemaProperty {
    * they are editing in.
    */
   "x-multiline"?: boolean;
+  /**
+   * Whether this string is a plain multi-line value - a raw textarea, not the
+   * Markdown editor `x-multiline` gets.
+   *
+   * A connector marks it on its `CONFIG_MODEL` field through Pydantic's
+   * `json_schema_extra`, the way a capability marks a multiline prompt, so a
+   * connector's plain config box is not mistaken for prose and dressed with a
+   * Markdown toolbar. Exclusive with `x-multiline`.
+   */
+  "x-textarea"?: boolean;
+  /**
+   * A grey hint shown while a string or number field is empty, never stored.
+   *
+   * Also connector-only: a connector's config default is a placeholder rather
+   * than an authoritative value - its effective default is resolved server-side
+   * (an S3 region falls back to the credential's) - so it arrives here instead
+   * of on `default`, which `SchemaForm` would otherwise render as the value.
+   */
+  "x-placeholder"?: string;
+  /**
+   * Values a field suggests without restricting itself to them.
+   *
+   * The open counterpart of `enum`: the backend validates a plain string, so the
+   * form offers these and still accepts anything else. A browsing agent's
+   * `decision_model` is the case it exists for - the catalog holds the moving
+   * aliases, and an agent whose confidence floor was tuned against a pinned
+   * build has to be able to name that build. `x-enum-labels` names them.
+   */
+  "x-suggestions"?: string[];
   /**
    * What a `list[...]` holds. Only `{"type": "string"}` is rendered; anything
    * else is the richer editor the generated form deliberately does not grow.

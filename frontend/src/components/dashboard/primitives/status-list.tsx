@@ -39,14 +39,15 @@ const MARK: Record<StatusTone, string> = {
  *
  * Coloured text on a card is a word shouted at whatever weight the tone
  * happens to have - four green "ok"s down a healthy card were the loudest ink
- * on it, for the least news on the page. A chip puts the tone in a 12% wash and
- * leaves the word at text weight, so a red one is the only thing that carries.
+ * on it, for the least news on the page. A chip puts the tone in a wash and an
+ * edge and leaves the word in text colour - red words on a red wash measured
+ * under 3:1 - so the hue says which, and the word stays readable.
  */
 const PILL: Record<StatusTone, string> = {
-  ok: "bg-success/12 text-success",
-  warn: "bg-warning/12 text-warning",
-  err: "bg-destructive/12 text-destructive",
-  neutral: "bg-muted text-muted-foreground",
+  ok: "border border-success/30 bg-success/10 text-foreground",
+  warn: "border border-warning/35 bg-warning/10 text-foreground",
+  err: "border border-destructive/35 bg-destructive/10 text-foreground",
+  neutral: "border border-border bg-muted text-muted-foreground",
 };
 
 /** Dot + name + status pill rows - health-style lists. */

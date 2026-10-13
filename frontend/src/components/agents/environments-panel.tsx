@@ -186,17 +186,19 @@ export function EnvironmentsPanel({ agentId, canManage }: { agentId: string; can
             </div>
             {/* The release mode, on the row it governs rather than in a
                 settings dialog: which environments a publish moves is the first
-                thing somebody needs to know when they publish. */}
+                thing somebody needs to know when they publish. The switch is
+                "Pinned", on for the safe default, so a new production reads as
+                held rather than as a switch somebody forgot to turn on. */}
             {canManage && (
               <label className="text-muted-foreground flex shrink-0 items-center gap-1.5 text-xs">
                 <Switch
-                  checked={environment.tracks_latest}
+                  checked={!environment.tracks_latest}
                   disabled={setReleaseMode.isPending}
-                  aria-label={t("followsLatestFor", { name: environment.name })}
-                  onCheckedChange={(checked) =>
+                  aria-label={t("pinnedFor", { name: environment.name })}
+                  onCheckedChange={(pinned) =>
                     setReleaseMode.mutate({
                       environmentId: environment.id,
-                      tracksLatest: checked,
+                      tracksLatest: !pinned,
                     })
                   }
                 />

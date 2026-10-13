@@ -14,7 +14,7 @@ just another client" true rather than aspirational.
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
@@ -27,12 +27,14 @@ from pydantic_ai.tools import DeferredToolRequests
 from pydantic_ai.toolsets import AbstractToolset
 from pydantic_ai.usage import UsageLimits
 
+from app.agents.audience import RunAudience
 from app.agents.capabilities import build as build_capabilities
 from app.agents.capabilities.approval import (
     ApprovalGate,
     approval_required_tools,
     refuse_ungateable_approvals,
 )
+from app.agents.capabilities.artifacts import ARTIFACTS_CAPABILITY_ID
 from app.agents.capabilities.budget import (
     BudgetGuard,
     BudgetScope,
@@ -46,15 +48,43 @@ from app.agents.capabilities.compaction import (
     ContextGauge,
     build_gauge,
 )
-from app.agents.capabilities.system_reminders import REMINDER_STATE_RESOURCE, ReminderState
+from app.agents.capabilities.conversation_search import CONVERSATION_SEARCH_CAPABILITY_ID
+from app.agents.capabilities.media import (
+    CONVERSATION_RESOURCE as MEDIA_CONVERSATION_RESOURCE,
+)
+from app.agents.capabilities.media import (
+    ORGANIZATION_RESOURCE as MEDIA_ORGANIZATION_RESOURCE,
+)
+from app.agents.capabilities.memory_files import MEMORY_FILES_CAPABILITY_ID
+from app.agents.capabilities.memory_mem0 import MEMORY_MEM0_CAPABILITY_ID
+from app.agents.capabilities.system_reminders import (
+    REMINDER_STATE_RESOURCE,
+    ReminderState,
+    SystemReminders,
+)
+from app.agents.connect_on_use import CONNECT_ACCOUNT, ConnectOnUse
 from app.agents.deps import AgentDeps, ApprovalCallback
 from app.agents.manifest import RecordingModel, RunRecorder
-from app.agents.model_resolver import ModelRequestSpec
-from app.agents.observability import instrument_agent
+from app.agents.model_resolver import PROMPT_CACHE_DEFAULTS, ModelRequestSpec
+from app.agents.observability import instrument_agent, suppress_content
 from app.agents.spec import AgentSpec
 from app.core.secret_kinds import ApiKeySecret, StorableSecret
 
 logger = logging.getLogger(__name__)
+
+# The capabilities that read `AgentDeps.audience`. Anything not here gets `None`,
+# so an agent that cannot act on who is listening never carries the fact - and a
+# capability added to this list without reading it would be the same defect in
+# reverse. Ids rather than a per-capability predicate: three near-identical
+# `*_requested` helpers said the same thing three times.
+_AUDIENCE_AWARE = frozenset(
+    {
+        ARTIFACTS_CAPABILITY_ID,
+        MEMORY_FILES_CAPABILITY_ID,
+        MEMORY_MEM0_CAPABILITY_ID,
+        CONVERSATION_SEARCH_CAPABILITY_ID,
+    }
+)
 
 # How many model requests a run may make when its spec does not say. Raised
 # from Pydantic AI's own 50: real agents with skills and MCP tools were hitting
@@ -122,16 +152,20 @@ def build_agent(
     organization_id: UUID,
     agent_id: UUID | None = None,
     run_id: UUID | None = None,
+    conversation_id: UUID | None = None,
     user_id: str | None = None,
     user_name: str | None = None,
+    audience: RunAudience | None = None,
     granted_scopes: frozenset[str] | None = None,
     resources: dict[str, Any] | None = None,
     secrets: Mapping[UUID, StorableSecret] | None = None,
     extra_toolsets: list[AbstractToolset[Any]] | None = None,
+    extra_capabilities: Sequence[AbstractCapability[AgentDeps]] = (),
     agent_period_spend: PeriodSpendLookup | None = None,
     org_period_spend: PeriodSpendLookup | None = None,
     org_monthly_budget_usd: Decimal | None = None,
     request_approval: ApprovalCallback | None = None,
+    gate_every_tool: bool = False,
     shared_budget: BudgetGuard | None = None,
     recorded_overhead: int | None = None,
     recorded_reminder_state: dict[str, Any] | None = None,
@@ -143,6 +177,14 @@ def build_agent(
         model_spec: Already-resolved model and credentials.
         granted_scopes: Scopes the organization allows. Passing `None` skips
             the check and is for internal runs only.
+        gate_every_tool: Ask about every tool the agent can reach, not only the
+            ones the spec gated - `ApprovalMode.ASK_ALL` on a chat session
+            (#925). It only ever tightens, so nothing checks a permission for
+            it; the spec's own gates stay where they are underneath.
+        conversation_id: The thread this run belongs to, where it belongs to
+            one. Read by the `media` capability, whose offloaded bytes live under
+            the thread's own prefix so that deleting the thread deletes them -
+            a content hash records nothing about who still references it (#55).
         resources: Values resolved from the database for this run - collection
             names, skills - which capabilities need but must never fetch
             themselves.
@@ -152,6 +194,11 @@ def build_agent(
             context, and a spec carries only the id.
         extra_toolsets: Toolsets resolved outside the registry, such as MCP
             servers configured per organization.
+        extra_capabilities: Capabilities a surface adds for this run alone,
+            outside the spec - `connect_account` where somebody can connect a
+            service while the run waits. Their tools are never deferred behind
+            tool search: a tool the model has to find first is one it does not
+            know to look for.
         agent_period_spend: How to read what *this agent* has booked this month,
             for the cap in its own spec. Omitted where there is no database to
             ask - a preview - in which case that cap meters only this run.
@@ -217,14 +264,35 @@ def build_agent(
             MODEL_CONTEXT_WINDOW_RESOURCE: model_spec.context_length,
             CONTEXT_GAUGE_RESOURCE: gauge,
             REMINDER_STATE_RESOURCE: reminder_state,
+            # Whose media store this run offloads to, and under which thread's
+            # prefix. Here rather than in the capability's configuration, because
+            # a builder that could choose the organization could point one
+            # tenant's media at another's - and because what will eventually
+            # delete the bytes is the conversation, not a setting.
+            MEDIA_ORGANIZATION_RESOURCE: organization_id,
+            MEDIA_CONVERSATION_RESOURCE: conversation_id,
         },
         secrets=secrets,
     )
+    # Before hooks run in list order, and a compaction strategy rebuilds the
+    # request from the run's history in its own: reminders appended before it
+    # would be dropped (see `SystemReminders.before_model_request`).
+    configured.sort(key=lambda capability: isinstance(capability, SystemReminders))
 
     # Which tools a human must approve before they act. Computed here, while the
     # registry metadata and the spec's overrides are both in hand, so a surface
     # never has to re-derive it from two sources.
     approval_required = approval_required_tools(spec)
+
+    # Derived (or restored) by the caller, because only the runner knows whether
+    # this is a fresh request or a resume - and a resume must not re-derive it from
+    # whoever is resuming (#788). Dropped unless a capability that reads it is
+    # bound, so a spec without one carries no audience at all.
+    bound_audience = (
+        audience
+        if any(binding.enabled and binding.capability_id in _AUDIENCE_AWARE for binding in bindings)
+        else None
+    )
 
     deps = AgentDeps(
         organization_id=organization_id,
@@ -232,6 +300,7 @@ def build_agent(
         run_id=run_id,
         user_id=user_id,
         user_name=user_name,
+        audience=bound_audience,
         # Read from `resources` rather than a parameter of its own: two sources
         # for one list is how they drift apart.
         kb_collection_names=list((resources or {}).get("kb_collection_names") or []),
@@ -270,8 +339,17 @@ def build_agent(
         # instructions.
         ReinjectSystemPrompt(),
         budget,
-        ApprovalGate(required_tool_names=approval_required),
+        ApprovalGate(
+            required_tool_names=approval_required,
+            gate_every_tool=gate_every_tool,
+            asking_tool_names=(
+                frozenset({CONNECT_ACCOUNT})
+                if any(isinstance(extra, ConnectOnUse) for extra in extra_capabilities)
+                else frozenset()
+            ),
+        ),
         *configured,
+        *extra_capabilities,
         # Every agent, not only one that compacts. The warning is most useful to
         # exactly the agent that will not: it is the one that reaches the ceiling
         # and gets refused by the provider.
@@ -279,14 +357,21 @@ def build_agent(
     ]
 
     # Profile settings first, agent overrides second - the agent is the more
-    # specific statement of intent.
+    # specific statement of intent. Under both, the provider's prompt caching,
+    # which a profile can still turn off by setting it false.
     #
     # A setting the author never chose is absent from the dump rather than
     # present as `None`, which is what keeps this merge honest in both
     # directions: it cannot blank out a value the model profile set, and it
     # cannot send `temperature: null` to a reasoning model, which rejects the
     # parameter however it is spelled. See `ModelSettingsSpec`.
-    model_settings = ModelSettings(**{**model_spec.params, **spec.model_settings.model_dump()})
+    model_settings = ModelSettings(
+        **{
+            **PROMPT_CACHE_DEFAULTS.get(model_spec.provider, {}),
+            **model_spec.params,
+            **spec.model_settings.model_dump(),
+        }
+    )
 
     # Wrapped, so what the provider is handed is written down as it is handed
     # over. Reconstructing the prompt and the tool schemas from the spec
@@ -429,22 +514,35 @@ def _instrument(
     may have been deleted after publish, and the choice is between an agent that
     runs untraced and an agent that does not run - publishing is where a missing
     secret is refused, and a run is far too late.
+
+    `content="none"` is enforced even when no per-agent exporter attaches. The
+    deployment instruments Pydantic AI globally with content on, so an agent that
+    asked for no content but has no token - or whose token has gone, or whose
+    traces the environment routes - would otherwise leak its prompts to the
+    operator's project through that global default. `suppress_content` pins it to
+    a content-free instrumentation instead.
     """
     observability = spec.observability
-    if observability is None or observability.token_secret_id is None:
+    if observability is None:
         return
 
-    secret = secrets.get(observability.token_secret_id)
-    if not isinstance(secret, ApiKeySecret):
-        logger.warning(
-            "agent_logfire_token_unavailable",
-            extra={"agent_id": str(agent_id) if agent_id else None},
-        )
-        return
+    want_content = observability.content != "none"
+    attached = False
+    if observability.token_secret_id is not None:
+        secret = secrets.get(observability.token_secret_id)
+        if isinstance(secret, ApiKeySecret):
+            attached = instrument_agent(
+                agent,
+                token=secret.api_key.get_secret_value(),
+                service_name=observability.service_name or spec.name,
+                environment=observability.environment,
+                include_content=want_content,
+            )
+        else:
+            logger.warning(
+                "agent_logfire_token_unavailable",
+                extra={"agent_id": str(agent_id) if agent_id else None},
+            )
 
-    instrument_agent(
-        agent,
-        token=secret.api_key.get_secret_value(),
-        service_name=observability.service_name or spec.name,
-        environment=observability.environment,
-    )
+    if not attached and not want_content:
+        suppress_content(agent)

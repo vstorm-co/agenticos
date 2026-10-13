@@ -1,31 +1,39 @@
-# Architecture Guide
+# Architecture
 
 This project follows a **Repository + Service** layered architecture.
 Every feature — users, conversations, files, RAG documents, sync sources — uses
 the same pattern: **Models → Schemas → Repositories → Services → Endpoints**.
 
-## Request Flow
+## Request flow
 
-```
-HTTP Request → API Route → Service → Repository → Database
-                  ↓
-              Response ← Service ← Repository ←
+```mermaid
+flowchart LR
+    Q([HTTP request]) --> R[API route]
+    R --> S[Service]
+    S --> P[Repository]
+    P --> D[(PostgreSQL)]
+    D -.-> P
+    P -.-> S
+    S -.-> R
+    R -.-> A([Response])
 ```
 
 Routes never contain direct database calls. All data access goes through
 services, which in turn delegate to repositories.
 
-**That is a test rather than a convention.**
-`backend/tests/test_route_layering.py` fails if any module under
-`app/api/routes/` imports from `app.repositories`, and fails just as loudly if its
-allowlist keeps an exemption that no longer applies. The rule had drifted in five
-modules before anything read for it — none of them a leak, because each handler
-passed the scope it happened to know. That is the cost: a scope a route owns is a
+!!! info "It is a test, not a convention"
+
+    `backend/tests/test_route_layering.py` fails if a route imports a
+    repository - and fails just as loudly if its allowlist keeps an exemption
+    that no longer applies.
+
+The rule had drifted in five modules before anything read for it — none of them a
+leak, because each handler passed the scope it happened to know. That is the cost: a scope a route owns is a
 scope no service test can see, and the next reader of the entity has to know to pass
 the same thing. The single exemption is a `Literal` of sort orders, imported as a
 type rather than as data access.
 
-## Directory Structure (`backend/app/`)
+## Directory structure (`backend/app/`)
 
 | Directory / File | Purpose |
 |-----------|---------|
@@ -56,7 +64,7 @@ type rather than as data access.
 | ↳ `message_rating.py` | Message rating schemas |
 | ↳ `rag.py` | RAG query/response schemas |
 | ↳ `sync_source.py` | Sync source schemas |
-| **`db/models/`** | **SQLAlchemy 2.0 models** |
+| **`db/models/`** | **SQLAlchemy 2.1 models** |
 | ↳ `user.py` | User model |
 | ↳ `conversation.py` | Conversation & message models |
 | ↳ `chat_file.py` | Chat file model |
@@ -69,12 +77,12 @@ type rather than as data access.
 | `core/security.py` | JWT / API key utilities |
 | `agents/` | AI agents and tools |
 | `rag/` | RAG module (embeddings, vector store, retrieval) |
-| `rag/connectors/` | Sync connectors (Google Drive, S3) |
+| `rag/connectors/` | Sync connectors (Google Drive, S3, websites) |
 | `commands/` | Django-style CLI commands |
 
-## Layer Responsibilities
+## Layer responsibilities
 
-### API Routes (`api/routes/v1/`)
+### API routes (`api/routes/v1/`)
 - HTTP request/response handling
 - Input validation via Pydantic schemas
 - Authentication and authorization checks
@@ -105,10 +113,10 @@ type rather than as data access.
 - `Response` schemas use `model_config = ConfigDict(from_attributes=True)` for ORM conversion
 
 ### Models (`db/models/`)
-- SQLAlchemy 2.0 model definitions
+- SQLAlchemy 2.1 model definitions
 - Relationships, indexes, and column defaults live here
 
-### RAG Connectors (`rag/connectors/`)
+### RAG connectors (`rag/connectors/`)
 - Pluggable sync adapters that implement `BaseSyncConnector`
 - Each connector provides `list_files()` and `download_file()`
 - Registered in `CONNECTOR_REGISTRY` for discovery at runtime
@@ -121,9 +129,10 @@ matters as much as the fact.
 A route asks for `DBSession` (`app/api/deps.py`), which resolves `get_db_session`
 (`app/db/session.py`). Everything below the route shares that one session:
 services take it in their constructor, repositories take it as their first
-argument, and neither ever calls `commit()`. `flush()` sends the statements so
-the row has an id and the constraints have been checked; the commit happens once,
-on the way out.
+argument, and neither ever calls `commit()` — with one deliberate exception, the
+agent run path, described [below](#the-run-paths-two-commits). `flush()` sends
+the statements so the row has an id and the constraints have been checked; the
+commit happens once, on the way out.
 
 **On the way out means before the response is written.** The alias declares
 `Depends(get_db_session, scope="function")`, which registers the session's exit
@@ -136,8 +145,29 @@ code on the exit stack FastAPI unwinds between the path operation returning and
 4. the response is written to the socket;
 5. the session is closed.
 
-That ordering is the whole contract, and it is what lets a client act on its own
-answer: **a 2xx means the write is readable, not merely accepted.** FastAPI's
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Client
+    participant R as Route
+    participant S as Session
+    C->>R: request
+    R->>S: flush (ids, constraints)
+    R-->>R: return, response_model serializes
+    R->>S: COMMIT
+    S-->>R: committed
+    R->>R: start deferred background work
+    R-->>C: 2xx written
+    R->>S: close
+```
+
+!!! danger "A 2xx means the write is readable, not merely accepted"
+
+    That ordering is the whole contract. A bare `Depends(get_db_session)`
+    anywhere reintroduces FastAPI's default and swaps steps 2 and 4 -
+    `tests/api/test_db_session_scope.py` fails on one.
+
+That ordering is what lets a client act on its own answer. FastAPI's
 default for a dependency with `yield` is `scope="request"`, which puts steps 2
 and 4 the other way round — and did here until [#353][353], where an acceptance
 answered 204 while the membership row it created stayed invisible to the very
@@ -169,6 +199,60 @@ handlers and CLI commands open `get_db_context()`, and worker tasks
 they commit on a clean exit of their own `async with` and start their deferred
 work in the same place — which has nothing to do with a response.
 
+### The run path's two commits
+
+One path deliberately commits earlier than "on the way out": **an agent run.**
+
+The runner commits once *before the model is called* and once more in the terminal
+`finally` — `AgentRunnerService._run`, and `ChatAgentRunner.run` for the streaming
+chat.
+
+A model call takes seconds to minutes, and a transaction left open across it holds a
+pooled connection `idle in transaction` for the duration. Fifteen concurrent runs
+used to be the entire pool ([#12][12]).
+
+Committing first buys two more things: the run row is readable from every other
+session for the whole life of the run, and a resumed run's exit from the approval
+queue is durable before the approved call is replayed — so a crash mid-replay cannot
+hand the same approval out twice ([#3][3]).
+
+The terminal commit is the other half. The session context only commits on a clean
+exit, which a failed, budget-stopped or cancelled run is not, and a run missing from
+history is a run nobody is accountable for.
+
+Both boundaries are proved against a real database in
+`tests/integration/test_run_commit_boundary.py`.
+
+### The one other early commit
+
+`SessionService.detect_refresh_reuse` is the second, and for the opposite reason:
+not that the transaction would be held too long, but that it is about to be
+thrown away. A refresh token that matched no live session may be a replay of one
+a session rotated away, and the response is to end that chain and record it — and
+then to refuse the caller, which raises `AuthenticationError` through the session
+context's *exception* branch and rolls the request back.
+
+Uncommitted, that is a 401, a compromised chain still live, and no record that
+anything happened. `test_the_response_survives_the_refusal_that_follows_it` rolls
+back after the call and asserts what is still there
+([#1519](https://github.com/vstorm-co/agenticos/issues/1519)).
+
+Visibility cuts both ways. Anything that used to reason "an executing run's row
+cannot be seen" now reasons about a row that *is* seen, and the agent-triggers
+scheduler is the one place that did.
+
+Its no-overlap guard blocks on every non-terminal run in the trigger's conversation
+— which now includes a concurrent `run_now` or event fire's live run, protection the
+old invisibility could not offer.
+
+Meanwhile a worker that dies mid-run leaves a `running` row nothing in-process will
+ever finish. What bounds that row is the hourly stale-run sweep, which ends it
+`failed` past `STALE_RUN_REAPED_AFTER_HOURS`. The scheduled fire's own liveness
+signal stays its renewed lease (`app/repositories/agent_trigger.py::claim_due`).
+
+[Governance](governance.md#a-run-whose-process-died) has what the sweep settles and
+deliberately leaves alone.
+
 ### Dispatching background work from a request
 
 **Work that will read a row this request wrote is handed over with
@@ -194,6 +278,13 @@ upload, a sync somebody started, a channel connection's stream and a trigger's
 manual "run now" are all handed over. The ordering is proved against a real
 database in `tests/integration/test_flow_starts_after_commit.py`.
 
+At the other end of the process's life, the application lifespan closes the loop:
+after intake stops and serving has drained, it `await`s `background.drain()` for
+whatever `spawn` handed off and is still in flight, **before** disposing the
+vector store, Redis and the session those tasks read. Without it a shutdown
+mid-ingestion cancelled the flow and left the document in `processing` — the same
+stuck row as [#417][417], reached from the other end.
+
 The trigger's manual fire is there for a second reason worth naming, because it
 is the other half of why a request hands work over at all: `POST
 /agents/{id}/triggers/{id}/run` used to *await* the run it started, so an agent
@@ -201,6 +292,20 @@ slower than a proxy's read timeout answered 504 while the run carried on and
 committed — a failure reported for something that was working, and an invitation
 to press the button again and fire the schedule twice ([#658][658]). The route
 answers `202` and the fire starts after the commit.
+
+!!! warning "It is not a queue that survives the process"
+
+    `spawn_after_commit` runs the work only if the process lives long enough to
+    start it. That is fine for work a later request can reproduce, and not fine
+    for work whose *input* the commit just destroyed - an organization purge
+    hands on the paths and collection names that its own commit removed the last
+    record of, so a crash between the two loses them for good.
+
+    Where that applies, the intent is written as a row in the same transaction
+    and the hand-off becomes an optimisation: `teardown_intents` names what is
+    left to release, the flow deletes the row once it has, and a sweep
+    re-dispatches whatever nothing finished. The row's absence is the
+    completion, so an empty table means nothing is outstanding.
 
 Two things follow from where the queue lives:
 
@@ -218,6 +323,8 @@ emails in `app/services/notifications.py` carry their own context and touch no
 row. Neither is a job queue: anything that must survive a restart is a Prefect
 deployment.
 
+[3]: https://github.com/vstorm-co/agenticos/issues/3
+[12]: https://github.com/vstorm-co/agenticos/issues/12
 [353]: https://github.com/vstorm-co/agenticos/issues/353
 [417]: https://github.com/vstorm-co/agenticos/issues/417
 [658]: https://github.com/vstorm-co/agenticos/issues/658
@@ -236,7 +343,7 @@ Two entries in that dict are seams to other subsystems rather than plain data:
 
 | Resource | Left by the runner | Read by |
 |---|---|---|
-| `WORKSPACE_BACKEND_RESOURCE` | the opened sandbox session | the `sandbox` capability |
+| `WORKSPACE_RESOURCE` | the opened workspace, which the run also gets as `ctx.workspace` | `tool_output_limits`, and a delegate that shares `sandbox` |
 | `SUBAGENT_RUNTIME_RESOURCE` | the resolved delegation tree | the `subagents` capability |
 
 Delegation is the sharpest case for the rule. A delegate is a row; so are its pinned
@@ -260,21 +367,53 @@ in-memory backend.
 
 ### Schema
 
-`0007_delegated_runs` adds two columns to `agent_runs`. `parent_run_id` is a
-self-referential foreign key saying which run delegated this one, and it is what
-keeps the organization's monthly total honest — see
-[Governance](governance.md#what-a-delegated-run-is-recorded-as). It is
-`ON DELETE SET NULL` for the same arithmetic: deleting the parent removes the row
-that contained this cost, so a delegation row that becomes top-level is one that
-*should* start counting, while cascading would delete the record of money that was
-spent. `subagent_task_id` is the delegation library's own task id, which is what
-joins the row to the handle the parent's model saw in its transcript — and because
-a foreign key can only null its own column, that handle outlives the delete and is
-withheld by `AgentRunRead` rather than nulled by a trigger on the hottest insert
-table in the schema. The index on `parent_run_id` serves
-`list_runs(parent_run_id=...)`, which is what `GET /runs?parent_run_id=` asks; see
+`0007_delegated_runs` adds two columns to `agent_runs`.
+
+**`parent_run_id`** is a self-referential foreign key saying which run delegated
+this one, and it is what keeps the organization's monthly total honest — see
+[Governance](governance.md#what-a-delegated-run-is-recorded-as).
+
+It is `ON DELETE SET NULL` for the same arithmetic: deleting the parent removes the
+row that contained this cost, so a delegation row that becomes top-level is one that
+*should* start counting. Cascading would delete the record of money that was spent.
+
+**`subagent_task_id`** is the delegation library's own task id, which joins the row
+to the handle the parent's model saw in its transcript. Because a foreign key can
+only null its own column, that handle outlives the delete and is withheld by
+`AgentRunRead` — rather than nulled by a trigger on the hottest insert table in the
+schema.
+
+The index on `parent_run_id` serves `list_runs(parent_run_id=...)`, which is what
+`GET /runs?parent_run_id=` asks. See
 [Governance](governance.md#what-run-history-shows) for why run history never lists
 the two kinds of row together.
+
+## Deleting a member or a tenant
+
+A few foreign keys would, on delete, drive precisely the write a `CHECK`
+constraint forbids — so the cascade the schema declares and the invariant it also
+declares disagree, and the delete raises inside the database as a 500 rather than
+doing anything. Three pairs are reconciled in the service before the row goes,
+inside the request's own transaction:
+
+- **A leaver's private secret.** `organization_secrets.owner_user_id` is
+  `SET NULL`, but `ck_secret_private_needs_owner` forbids an ownerless private
+  secret. `UserService.delete` promotes the leaver's private secrets to org
+  visibility first, so the null the cascade writes is legal and the key stays
+  reachable by the organization rather than stranded.
+- **A creator's organizations.** `organizations.created_by_user_id` is
+  `RESTRICT`, and every signup creates a personal org, so a bare `DELETE users`
+  never worked for a real account. The personal org is removed with its owner; a
+  shared one is handed to another owner, or the delete is refused when there is
+  none to hand it to.
+- **An org-scoped collection.** `knowledge_bases.organization_id` is `SET NULL`,
+  but `ck_knowledge_bases_org_scope_has_org` forbids an org-scoped row with no
+  org. `OrganizationService.delete` removes org-scoped collections explicitly —
+  vector table and all — before the org row goes; a personal collection that
+  merely carries the org's id is left to the `SET NULL`, which its scope permits.
+  Because dropping the vector table needs the request-scoped store, the delete
+  route wires it in through a dedicated dependency; every other org route uses the
+  plain service and builds no store it would never touch.
 
 ## What a run handed its model, and why it is a table
 
@@ -304,16 +443,20 @@ has been added. The service persists what the wrapper collected and decides
 nothing about its contents.
 
 **An attachment on the transcript is read through the run, not through its
-uploader.** `GET /files/{id}` is scoped to `ChatFile.user_id`, which is the right
-scope for the chat composer and the wrong one for a run review: reading a run is
-the organization's right rather than its starter's, so the attachment cards on a
+uploader.**
+
+`GET /files/{id}` is scoped to `ChatFile.user_id`, which is the right scope for the
+chat composer and the wrong one for a run review. Reading a run is the
+organization's right rather than its starter's, so the attachment cards on a
 colleague's transcript rendered and every preview answered 404.
-`GET /runs/{run_id}/files/{file_id}` authorizes as the transcript does -
-organization, then `runs:view` - and then admits the file only where its
-`message_id` names a turn of the run's own conversation, which is the reach the
-transcript already grants and no wider. Both routes serve the bytes through
-`_chat_file_bytes.py`, so what a browser may *display* does not depend on which
-one authorized the read.
+
+`GET /runs/{run_id}/files/{file_id}` authorizes as the transcript does —
+organization, then `runs:view` — and then admits the file only where its
+`message_id` names a turn of the run's own conversation. That is the reach the
+transcript already grants, and no wider.
+
+Both routes serve the bytes through `_chat_file_bytes.py`, so what a browser may
+*display* does not depend on which one authorized the read.
 
 **The write is guarded *and* nested.** It is reached from a `finally` block, so
 an exception raised while recording a failed run would replace the failure with
@@ -372,17 +515,20 @@ Handing Pydantic's own `exc.errors()` through instead was
 [#882](https://github.com/vstorm-co/agenticos/issues/882) — a second shape,
 carrying `input`, `ctx` and `url`, that nothing on the frontend read.
 
-**An aggregated refusal carries both halves.** `validate_spec` reports every
-problem in a spec at once and most of them are broken references with no input to
-mark, so it answers `details.problems` (a line each, which the Builder lists) and
-`details.fields` for the subset that names one. A capability's configuration is
-the one part of a spec rendered as a generated form, so its refusals name the
-input — `capabilities.knowledge.config.default_top_k`, and
+**An aggregated refusal carries both halves.**
+
+`validate_spec` reports every problem in a spec at once, and most of them are broken
+references with no input to mark. So it answers `details.problems` — a line each,
+which the Builder lists — and `details.fields` for the subset that names one.
+
+A capability's configuration is the one part of a spec rendered as a generated form,
+so its refusals name the input: `capabilities.knowledge.config.default_top_k`, with
 `specialists.researcher.` in front of that for a capability configured inside a
-delegate, because the Builder renders one form per specialist. Keeping only the
-sentence was the other half of #882: saving a draft does not validate a config
-schema at all, so publish validation is the only place a mistyped setting is ever
-refused.
+delegate, because the Builder renders one form per specialist.
+
+Keeping only the sentence was the other half of #882. Saving a draft does not
+validate a config schema at all, so publish validation is the only place a mistyped
+setting is ever refused.
 
 **Two kinds of refusal deliberately name no field**, and the line between them
 and the rest is what stops the one shape from meaning two things again:
@@ -391,8 +537,9 @@ and the rest is what stops the one shape from meaning two things again:
   whoever can drop a file in the synced folder, and both checks in
   `app/services/rag/remote_names.py` run inside a background sync, where the
   reader is a log rather than a form. Same for a Google Drive source read back
-  without its credential: the row is stored, and `CONFIG_SCHEMA` is what refuses
-  it at the route.
+  without its credential: the row is stored, and the connector's
+  `validate_config`, derived from its `CONFIG_MODEL`, is what refuses it at the
+  route.
 - **A conflict.** `AlreadyExistsError` reports a fact about a row that already
   exists, not about the shape of what was sent — and which of a form's own
   inputs produced the taken value is a thing only the form knows, since an
@@ -400,7 +547,7 @@ and the rest is what stops the one shape from meaning two things again:
   claimed by `submitFailure`'s `identifiedBy` on the client, so a 409 carries the
   taken value and no field.
 
-## Key Files
+## Key files
 
 - Entry point: `app/main.py`
 - Configuration: `app/core/config.py`
@@ -409,9 +556,9 @@ and the rest is what stops the one shape from meaning two things again:
 - Exception handlers: `app/api/exception_handlers.py`
 - Field-level refusals: `app/core/field_errors.py`
 
-## Authentication & Authorization
+## Authentication & authorization
 
-### Authentication Methods
+### Authentication methods
 
 The project supports two authentication methods, both always available:
 
@@ -426,6 +573,38 @@ The project supports two authentication methods, both always available:
    - Passed via the `X-API-Key` header (configurable via `API_KEY_HEADER`).
    - A single shared key set via the `API_KEY` environment variable.
    - Uses constant-time comparison (`secrets.compare_digest`) to prevent timing attacks.
+
+### Where a fresh session lands
+
+Three doors establish a session by three routes - the password form, the OAuth
+callback, and a magic link - and exactly one of them decides where the visitor
+ends up: `postSignInDestination` in `frontend/src/lib/auth-landing.ts`, which
+honours a deep link only when it is a same-origin path and answers the dashboard
+otherwise. Three answers in three places is drift, and the drift has been real
+twice: on the roles axis, where the landing forked by role, and on the provider
+axis, where the OAuth round trip lost `?returnTo=`.
+
+What differs per door is only how the path *travels*:
+
+| Door | How the path reaches the landing |
+|---|---|
+| Password form | it never left the tab - read straight off `?returnTo=` |
+| OAuth callback | `sessionStorage`, which is allowed because the round trip starts and ends in the same tab on this origin |
+| Magic link | a signed claim in the token, because the link is followed from an email - another tab, often another application, where `sessionStorage` is empty by construction |
+
+The magic link's path is refused at the **request** rather than filtered at the
+landing: `MagicLinkRequest.return_to` accepts a path on this deployment and
+nothing with a scheme, a second leading slash, a backslash or a control
+character, so a token that could be made to hold an arbitrary string never
+exists. The landing judges it again anyway - a check that runs once, on the
+server, on a value that then travels through an email, is a check the client
+cannot rely on having happened.
+
+`POST /auth/magic-link/verify` therefore answers with `MagicLinkToken` - the
+token pair plus `return_to`, unapplied. Its own schema rather than a nullable
+field on `Token`, because the other three token responses have no return path to
+carry and a field that is always null on most of them is one a client learns to
+ignore.
 
 ### Authorization
 
@@ -497,10 +676,10 @@ return await service.usage(ctx, scope=scope, ...)
 
 `UserRole`, `User.has_role()`, `RoleChecker`, `CurrentAdmin` and
 `CurrentSuperuser` were the template's model and are gone, along with the
-`users.role` column (migration `0066`). They were a third answer to a question
+`users.role` column, which went with the squash into `0001_baseline`. They were a third answer to a question
 that already had two.
 
-### IDOR Protection
+### IDOR protection
 
 Two predicates, and they are not interchangeable. **The organization is what
 bounds a read; the user is what narrows it further.**
@@ -512,7 +691,14 @@ bounds a read; the user is what narrows it further.**
   or somebody it was shared with. The tenant check alone is not enough: without
   this, every member of an organization can read and append to every other
   member's conversation.
-- On `list_messages` that one argument does two jobs — it authorizes, *and* it
+- **A share carries the write only at `edit`.** Reading and writing are two
+  questions — `_may_read` and `_may_write` — and a share used to answer both
+  whatever level it held, so the two levels the sharing dialog offers meant the
+  same thing: a conversation shared to *view* could be renamed, archived,
+  deleted, or given a `role: "assistant"` turn that everybody reads in `/chat`
+  and the model is handed back as its own words. The level is stated to whoever
+  grants it, so it is the level that is enforced (#931).
+- On `transcript` that one argument does two jobs — it authorizes, *and* it
   enriches each message with the caller's own rating. That overload is why its
   authorizing half went missing for so long: the route passed it, the argument
   was plainly there in review, and it was doing the other job.
@@ -528,6 +714,50 @@ indistinguishable from an intention — two routes serving ordinary members simp
 left it out, and any signed-in user could read and append to any conversation in
 the deployment.
 
+### A favourite belongs to the reader, not to the thread
+
+`conversation_favourites` is a row per `(user_id, conversation_id)` and not a
+boolean on `conversations`, because a conversation can be shared and a channel
+thread has participants rather than an owner: a column would let one person's
+star decide where the thread sits for everybody who can see it.
+
+Four consequences worth knowing:
+
+- **`POST`/`DELETE /conversations/{id}/favourite` are authorized as a *read*.**
+  A star says where a thread sits in the starrer's own sidebar and changes
+  nothing about the thread, so somebody a conversation was shared with may star
+  it exactly as its owner may. `for_write` there would refuse the reader the
+  feature exists for. Both routes carry `Auth` for the same reason every other
+  read of one does: without a context `_may_read_trigger_log` answers false, and
+  a trigger's run-log the caller may open through `runs:view` would be one they
+  could not star (#1254).
+- **`is_favourite` is the caller's, and it is stamped in `get_conversation`** —
+  the one read every reader-scoped one goes through, rather than at each route.
+  It reached two responses out of eight while each route had to remember, so a
+  `GET` or a PATCH told somebody who had starred a thread that they had not
+  (#1254). A read with no reader — the admin listing, the run path resolving a
+  thread — asks for nobody's stars and pays no query to say so, and a read that
+  only *authorizes* turns it off explicitly with `include_favourite=False`. Those
+  are the reads whose result is discarded or is not a conversation:
+  `GET /conversations/{id}/messages`, which resolves the thread once, through
+  `transcript`, for both the page and its cost; the three workspace routes; every turn
+  of an existing chat, through `agent._resolve_in_org`; and the writes —
+  `add_message`, `delete_conversation`, and `set_favourite`, which overwrites the
+  flag itself. On by default is what keeps a route that *does* serialize a
+  conversation from forgetting; off is a deliberate act at the call site.
+- **Starring is idempotent under contention**, because the insert is
+  `ON CONFLICT DO NOTHING` rather than a read followed by an insert. Two
+  overlapping POSTs for the same pair both saw no row and the second violated
+  the primary key; the client also serializes its own pending star per
+  conversation, so a double click cannot have the DELETE answered before the
+  POST it followed.
+- **The band is an `ORDER BY`, not a grouping of the page.** The sidebar is
+  paged, so a favourite sorted into page two by recency would sit under fifty
+  threads that are not one. Within each band the chosen sort still applies, and
+  the archived view is not banded at all: a star survives archiving, but a band
+  inside the archive would be a second place to look for what archiving just
+  moved.
+
 There is **no way to read a conversation across tenants any more.** The sentinel
 that used to spell that out (`UNSCOPED`) had exactly one caller,
 `/admin/conversations/{id}`, and both went with the deployment-wide conversation
@@ -536,9 +766,26 @@ and what the model was handed beside it, which is the question that screen was
 being used for. What is left of it is `GET /admin/conversations?user_id=`: one
 named account's threads, listed for the admin user drawer and never read.
 
+### What the admin user drawer asks for
+
+`GET /admin/users/{id}/detail` is its own route rather than fields on
+`GET /admin/users/{id}`, because it is a **view** assembled from three tables -
+memberships, sessions, and the user row - and a user is read in a dozen places
+that need none of it.
+
+It exists because the drawer answered none of the questions an admin opening a
+row actually has: it showed the id, the email already in the table, the display
+name and a join date (#942). What it answers now is where this person has
+access and with what authority, when they were last here, and whether anything
+of theirs is still signed in. `last_seen_at` is **null rather than absent** for
+an account that has never signed in, because "created and never used" and
+"dormant since March" are different decisions.
+
+The whole route is `CurrentAppAdmin`: every field on it is about somebody else.
+
 For full endpoint-level permissions, see `docs/permissions.md`.
 
-## File Processing in Chat
+## File processing in chat
 
 When a user uploads a file in the chat interface, the following pipeline executes:
 
@@ -552,7 +799,7 @@ Upload (POST /files/upload)
   -> Link (attach to message when sent)
 ```
 
-### Supported File Types
+### Supported file types
 
 | Category | Extensions | Processing |
 |----------|-----------|------------|
@@ -561,7 +808,7 @@ Upload (POST /files/upload)
 | Documents | .docx | Text extracted via python-docx |
 | Text | .txt, .md | UTF-8 decoded directly |
 
-### Parser Selection
+### Parser selection
 Chat attachments are read with PyMuPDF and are not configurable: an attachment
 belongs to no collection, so there is no stored configuration to read a parser
 choice from. Parser selection applies to knowledge collections, where it is a
@@ -573,7 +820,7 @@ Files are saved to `media/{user_id}/` via `FileStorageService`. The `ChatFile`
 model stores the `storage_path`, `filename`, `mime_type`, `size`, `file_type`,
 and `parsed_content` (extracted text). Only the file owner can access their files.
 
-### Size Limits
+### Size limits
 
 There are two, because there are two surfaces. `MAX_UPLOAD_SIZE_MB` (default
 50MB) is the knowledge-base document cap; `CHAT_MAX_UPLOAD_SIZE_MB` (default
@@ -582,9 +829,9 @@ one, because a document is chunked and read back through retrieval while an
 attachment to an agent with no workspace is pasted whole into the prompt — the
 same size fails differently on each. `GET /api/v1/health` publishes both.
 
-## RAG System
+## RAG system
 
-### Architecture Overview
+### Architecture overview
 
 The RAG (Retrieval Augmented Generation) system provides a knowledge base that
 the AI agent can search during conversations. It is composed of:
@@ -595,7 +842,7 @@ Documents -> Parse -> Chunk -> Embed -> Vector Store
 User Query -> Embed -> Search -> Rerank? -> Results -> Agent Prompt
 ```
 
-### Key Principle: RAG is Global
+### Key principle: RAG is global
 
 **Collections are shared across ALL users.** There is no per-user document
 isolation. This means:
@@ -616,14 +863,15 @@ isolation. This means:
 | `BaseVectorStore` | `rag/vectorstore.py` | Abstract interface for vector database operations |
 | `PgVectorStore` | `rag/vectorstore.py` | pgvector (PostgreSQL) implementation |
 
-### Ingestion Pipeline
+### Ingestion pipeline
 
 Documents can be ingested via:
 
 1. **CLI** -- `uv run agenticos cmd rag-ingest <path>`
 2. **API** -- `POST /api/v1/rag/collections/{name}/ingest` (admin only, file upload)
-3. **Sync Sources** -- Configured connectors (Google Drive, S3) that pull documents
-   on a schedule or on-demand.
+3. **Sync Sources** -- Configured connectors (Google Drive, S3, websites) that pull
+   documents on a schedule or on-demand, and remove what their source no longer
+   holds.
 
 Each ingested document gets:
 - Parsed into text (parser chosen per collection, overridable per upload)
@@ -632,7 +880,7 @@ Each ingested document gets:
 - Stored in the vector database
 - Tracked in SQL via `RAGDocument` model with status (`processing`, `done`, `error`)
 
-### Sync Modes
+### Sync modes
 
 | Mode | Behavior |
 |------|----------|
@@ -640,12 +888,31 @@ Each ingested document gets:
 | `new_only` | Add new files, re-ingest files whose content hash changed, skip unchanged |
 | `update_only` | Only re-ingest changed files, skip new files entirely |
 
-### Sync Connectors
+### Sync connectors
 
 Remote document sources use pluggable connectors in
 `app/services/rag/connectors/`. Each connector implements `BaseSyncConnector`
 with `list_files()` and `_fetch()`, declares a `SECRET_KIND` naming the vault
-secret that authenticates it, and declares a `CONFIG_SCHEMA` of
-`ConnectorConfigField`s saying how to find the documents. `download_file()` is
+secret that authenticates it, and declares a `CONFIG_MODEL` - a Pydantic model
+saying how to find the documents, published to the wizard as JSON Schema.
+`download_file()` is
 concrete and decides where a file may land. See `docs/patterns.md` for how to
 add one, and `docs/howto/add-sync-connector.md` for a worked example.
+
+## Recap
+
+- **Routes → services → repositories.** A route never imports a repository.
+- A repository uses `db.flush()` and `db.refresh()`, **never** `db.commit()`. The
+  request's session commits once, before the response is written.
+- The agent run path is the main sanctioned exception: it commits before the model
+  call and again in the terminal `finally`. `MLService._record_failure` is the other,
+  and for the mirror-image reason - a usage record of a *refusal* has to survive the
+  rollback that refusal causes.
+- Two sanctioned exceptions. The agent run path commits before the model call and
+  again in the terminal `finally`; `SessionService.detect_refresh_reuse` commits
+  the session it just revoked and the entry recording why, because its caller
+  raises a 401 immediately afterwards and the rollback would undo both.
+- Background work that reads a row this request wrote is handed over with
+  **`spawn_after_commit`**, never `spawn`.
+- A thin domain is a module; a thick one is a subpackage with a facade, and nothing
+  outside it imports its sub-modules.

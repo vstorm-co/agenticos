@@ -69,10 +69,10 @@ export function DashboardPresetMenu({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-1.5">
-          <LayoutTemplate className="size-3.5" aria-hidden />
+        <Button variant="outline" className="gap-1.5">
+          <LayoutTemplate className="size-4" aria-hidden />
           {t("presets.menu")}
-          <ChevronDown className="size-3.5" aria-hidden />
+          <ChevronDown className="size-3.5 opacity-60" aria-hidden />
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-72 p-1">

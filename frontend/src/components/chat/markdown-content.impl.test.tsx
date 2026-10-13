@@ -60,6 +60,78 @@ describe("rendering an answer", () => {
     expect(screen.getByRole("cell", { name: "Acme" })).toBeInTheDocument();
   });
 
+  it("keeps a figure on one line and a sentence free to wrap", () => {
+    // `148 420` broken after its thousands separator reads as two numbers.
+    markdown(
+      [
+        "| repo | downloads: yesterday / 7 days / 30 days, from PyPI |",
+        "| --- | --- |",
+        "| full-stack-ai-agent-template | 7 630 / 36 924 / 148 420 |",
+      ].join("\n"),
+    );
+
+    expect(screen.getByRole("cell", { name: "7 630 / 36 924 / 148 420" }).className).toContain(
+      "whitespace-nowrap",
+    );
+    expect(
+      screen.getByRole("cell", { name: "full-stack-ai-agent-template" }).className,
+    ).not.toContain("whitespace-nowrap");
+    expect(screen.getByRole("columnheader", { name: "repo" }).className).toContain(
+      "whitespace-nowrap",
+    );
+    expect(
+      screen.getByRole("columnheader", { name: /downloads: yesterday/ }).className,
+    ).not.toContain("whitespace-nowrap");
+  });
+
+  it("draws headers in sentence case rather than mono capitals", () => {
+    markdown(["| Stars |", "| --- |", "| 1 922 |"].join("\n"));
+
+    const header = screen.getByRole("columnheader", { name: "Stars" });
+    expect(header.className).not.toContain("uppercase");
+    expect(header.className).not.toContain("font-mono");
+  });
+
+  it("copies a table as a table and as markdown, for whichever the paste wants", async () => {
+    // A spreadsheet reads the HTML; a text field reads the markdown.
+    const write = vi.fn().mockResolvedValue(undefined);
+    const received: Record<string, Blob>[] = [];
+    class FakeClipboardItem {
+      constructor(items: Record<string, Blob>) {
+        received.push(items);
+      }
+    }
+    vi.stubGlobal("navigator", { clipboard: { write, writeText: vi.fn() } });
+    vi.stubGlobal("ClipboardItem", FakeClipboardItem);
+    markdown(["| name | note |", "| --- | --- |", "| Acme | a <b> \\| c |"].join("\n"));
+
+    await userEvent.click(screen.getByRole("button", { name: "Copy table" }));
+
+    expect(write).toHaveBeenCalledTimes(1);
+    const texts = await Promise.all(
+      received.flatMap((items) => [items["text/plain"]?.text(), items["text/html"]?.text()]),
+    );
+    expect(texts).toEqual([
+      ["| name | note |", "| --- | --- |", "| Acme | a <b> \\| c |"].join("\n"),
+      "<table><thead><tr><th>name</th><th>note</th></tr></thead>" +
+        "<tbody><tr><td>Acme</td><td>a &lt;b&gt; | c</td></tr></tbody></table>",
+    ]);
+    expect(screen.getByRole("button", { name: "Copied to clipboard" })).toBeInTheDocument();
+    vi.unstubAllGlobals();
+  });
+
+  it("copies the markdown alone where the browser has no rich clipboard", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    vi.stubGlobal("ClipboardItem", undefined);
+    markdown(["| name |", "| --- |", "| Acme |"].join("\n"));
+
+    await userEvent.click(screen.getByRole("button", { name: "Copy table" }));
+
+    expect(writeText).toHaveBeenCalledWith("| name |\n| --- |\n| Acme |");
+    vi.unstubAllGlobals();
+  });
+
   it("shows a fenced block's language, and offers it for copying", () => {
     // The one thing people take out of a chat answer.
     markdown("```python\nprint(1)\n```");
@@ -111,6 +183,42 @@ describe("rendering an answer", () => {
     markdown("Use `npm install` first.");
 
     expect(screen.getByText("npm install")).toHaveClass("bg-foreground/8");
+  });
+
+  it("indents a list with padding, never margin", () => {
+    // An outside marker is painted left of the content box, and the turn wrapper
+    // clips whatever leaves it - so a margin indent cut the numbers off.
+    const { container } = markdown(["- one", "", "1. one"].join("\n"));
+
+    const ul = container.querySelector("ul");
+    const ol = container.querySelector("ol");
+    expect(ul?.className).toContain("pl-5");
+    expect(`${ul?.className} ${ol?.className}`).not.toMatch(/\bml-/);
+  });
+
+  it("widens an ordered list's indent to fit the widest number it draws", () => {
+    // The 120-item list that found this: two digits fit 32px, three did not.
+    const short = markdown(["1. one", "2. two"].join("\n"));
+    expect(short.container.querySelector("ol")).toHaveClass("pl-6");
+    short.unmount();
+
+    // The two-digit band: covered here deterministically so it does not depend on
+    // some other suite happening to render a 10-99 item list (#1264).
+    const tens = markdown(Array.from({ length: 15 }, (_, i) => `${i + 1}. item`).join("\n"));
+    expect(tens.container.querySelector("ol")).toHaveClass("pl-8");
+    tens.unmount();
+
+    const long = markdown(Array.from({ length: 120 }, (_, i) => `${i + 1}. item`).join("\n"));
+    expect(long.container.querySelector("ol")).toHaveClass("pl-10");
+    long.unmount();
+
+    // A list that starts high is as wide as one that runs there.
+    const offset = markdown(["99. ninety-nine", "100. one hundred"].join("\n"));
+    expect(offset.container.querySelector("ol")).toHaveClass("pl-10");
+    offset.unmount();
+
+    const thousands = markdown("1000. item");
+    expect(thousands.container.querySelector("ol")).toHaveClass("pl-12");
   });
 
   it("opens an external link in a new tab that cannot reach back", () => {
@@ -228,5 +336,34 @@ describe("citations", () => {
 
     const cell = screen.getAllByRole("cell")[0]!;
     expect(within(cell).getByRole("button", { name: "1" })).toBeInTheDocument();
+  });
+});
+
+describe("images, and who is reading them", () => {
+  it("loads an image in a thread the reader wrote", () => {
+    const { container } = render(<MarkdownContent content="![a chart](https://cdn.test/c.png)" />);
+
+    const image = container.querySelector("img");
+    expect(image).toHaveAttribute("src", "https://cdn.test/c.png");
+  });
+
+  it("draws it as a link where the reader is not the author", () => {
+    // A remote image in somebody else's text is a tracking pixel: reviewing a
+    // colleague's run would otherwise hand its host the reviewer's address,
+    // their agent and the fact that the run was read.
+    const { container } = render(
+      <MarkdownContent content="![a chart](https://attacker.test/px.png)" inertImages />,
+    );
+
+    expect(container.querySelector("img")).toBeNull();
+    const link = screen.getByRole("link", { name: /a chart/ });
+    expect(link).toHaveAttribute("href", "https://attacker.test/px.png");
+    expect(link).toHaveAttribute("rel", expect.stringContaining("noopener"));
+  });
+
+  it("names an inert image that carries no alt text", () => {
+    render(<MarkdownContent content="![](https://attacker.test/px.png)" inertImages />);
+
+    expect(screen.getByRole("link", { name: /not loaded/i })).toBeInTheDocument();
   });
 });

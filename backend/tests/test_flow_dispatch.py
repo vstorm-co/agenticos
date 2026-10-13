@@ -24,7 +24,7 @@ import pytest
 
 from app.core import background
 from app.core.config import settings
-from app.core.exceptions import BadRequestError
+from app.core.exceptions import AlreadyExistsError, BadRequestError
 from app.core.permissions import AuthContext
 from app.repositories import rag_document_repo
 from app.repositories import sync_log as sync_log_repo
@@ -92,6 +92,29 @@ async def test_a_local_sync_starts_after_its_log_row_is_committed(session, monke
     assert dispatched == [str(sync_log.id)]
 
 
+async def test_a_local_sync_carries_the_authorized_knowledge_base_id(session, monkeypatch) -> None:
+    """The route resolves the base it authorized and passes its id, so the flow can
+    read that base's tenant and stamp the synced rows with it rather than writing
+    them untagged into an org-backed collection (#1684)."""
+    kb_id = uuid4()
+    captured: dict[str, Any] = {}
+    monkeypatch.setattr(
+        sync_log_repo, "create", AsyncMock(return_value=SimpleNamespace(id=uuid4()))
+    )
+
+    async def flow(*, knowledge_base_id: str | None = None, **_: Any) -> None:
+        captured["knowledge_base_id"] = knowledge_base_id
+
+    monkeypatch.setattr(rag_tasks, "sync_collection_flow", flow)
+
+    await RAGSyncService(session).start_local_sync(
+        collection_name="handbooks", mode="full", path="/srv/docs", knowledge_base_id=kb_id
+    )
+    await _run_deferred(session)
+
+    assert captured["knowledge_base_id"] == str(kb_id)
+
+
 async def test_a_triggered_source_sync_starts_after_its_log_row_is_committed(
     session, monkeypatch
 ) -> None:
@@ -137,6 +160,9 @@ async def test_an_uploaded_document_is_parsed_after_its_row_is_committed(
     monkeypatch.setattr(
         IngestionConfigService, "resolved_image_model", AsyncMock(return_value=None)
     )
+    monkeypatch.setattr(
+        "app.repositories.collection_teardown_repo.is_reserved", AsyncMock(return_value=False)
+    )
     storage = SimpleNamespace(save=AsyncMock(return_value="rag/handbooks/policy.txt"))
     monkeypatch.setattr("app.services.rag_document.get_file_storage", lambda: storage)
 
@@ -166,6 +192,38 @@ async def test_an_uploaded_document_is_parsed_after_its_row_is_committed(
     assert dispatched == [str(document.id)]
 
 
+async def test_an_upload_to_a_name_mid_teardown_is_refused(session, monkeypatch) -> None:
+    """A write to a reserved collection name is refused the way a claim of one is: the
+    durable drop frees the name only after the table is gone, and a write slipped into
+    that window would recreate the table the drop then destroys, orphaning this row and
+    losing its vectors (#1364). Refused before the file is stored, so nothing to unlink.
+    """
+    collection = SimpleNamespace(
+        collection_name="handbooks",
+        embedding_model="text-embedding-3-small",
+        ingestion_config=IngestionConfig().model_dump(mode="json"),
+    )
+    monkeypatch.setattr(
+        "app.repositories.collection_teardown_repo.is_reserved", AsyncMock(return_value=True)
+    )
+    save = AsyncMock()
+    monkeypatch.setattr(
+        "app.services.rag_document.get_file_storage", lambda: SimpleNamespace(save=save)
+    )
+
+    with pytest.raises(AlreadyExistsError):
+        await RAGDocumentService(session).dispatch_upload(
+            ctx=AuthContext(user_id=uuid4(), organization_id=uuid4(), role="owner"),
+            collection=collection,
+            file_data=b"a policy nobody reads",
+            filename="policy.txt",
+            replace=False,
+            vector_store=SimpleNamespace(create_collection=AsyncMock()),
+        )
+
+    save.assert_not_awaited()
+
+
 def _failed_document() -> SimpleNamespace:
     """A document whose ingestion failed, with the file the upload kept."""
     return SimpleNamespace(
@@ -174,6 +232,7 @@ def _failed_document() -> SimpleNamespace:
         storage_path="rag/handbooks/policy.txt",
         collection_name="handbooks",
         filename="policy.txt",
+        ingestion_attempt=1,
     )
 
 
@@ -211,6 +270,30 @@ async def test_retrying_a_failed_document_parses_it_again(
         "that half-succeeded is represented twice in the collection"
     )
     storage.load.assert_awaited_once_with("rag/handbooks/policy.txt")
+
+
+async def test_retrying_a_document_conditions_the_write_on_the_attempt_it_read(
+    session, monkeypatch, tmp_path: Path
+) -> None:
+    """Two concurrent retries reading the same `ingestion_attempt` must not
+    both win - the same "still current, not just read-then-write" guarantee
+    `complete_ingestion`/`fail_ingestion` already condition their own writes
+    on. An unconditional write here let two racing retries both compute
+    `new_attempt=2` and dispatch two parses under one occurrence id."""
+    document = _failed_document()
+    retried = SimpleNamespace(**{**vars(document), "status": "processing"})
+
+    monkeypatch.setattr(settings, "MEDIA_DIR", str(tmp_path))
+    monkeypatch.setattr(rag_document_repo, "get_by_id", AsyncMock(return_value=document))
+    update = AsyncMock(return_value=retried)
+    monkeypatch.setattr(rag_document_repo, "update_status", update)
+    storage = SimpleNamespace(load=AsyncMock(return_value=b"a policy nobody reads"))
+    monkeypatch.setattr("app.services.rag_document.get_file_storage", lambda: storage)
+    monkeypatch.setattr(rag_tasks, "ingest_document_flow", AsyncMock())
+
+    await RAGDocumentService(session).retry_ingestion(str(document.id))
+
+    assert update.call_args.kwargs["expected_attempt"] == document.ingestion_attempt
 
 
 async def test_retrying_a_document_with_no_stored_file_is_refused(session, monkeypatch) -> None:

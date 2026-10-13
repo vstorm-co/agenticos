@@ -7,6 +7,7 @@ worth testing here is that constraint holding.
 """
 
 import json
+import traceback
 import uuid
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -17,6 +18,7 @@ from pydantic import ValidationError
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.core.secret_kinds import (
+    MIN_CREDENTIAL_LENGTH,
     STORABLE_KINDS,
     ApiKeySecret,
     AwsCredentialsSecret,
@@ -31,10 +33,12 @@ from app.core.secret_kinds import (
     seal_secret,
     unseal_secret,
 )
-from app.core.vault import VaultScope
+from app.core.vault import VaultScope, seal
 from app.repositories import member_repo
 from app.services.organization_secret import OrganizationSecretService
 from tests.test_model_profiles import service_account_json
+
+pytestmark = pytest.mark.security
 
 
 def _ctx(org_id=None) -> AuthContext:
@@ -124,7 +128,7 @@ class TestSecretKinds:
 
     def test_an_unknown_field_is_refused_rather_than_ignored(self):
         with pytest.raises(ValidationError):
-            ApiKeySecret(api_key="sk", region_name="eu-west-1")
+            ApiKeySecret(api_key="sk-12345678", region_name="eu-west-1")
 
     @pytest.mark.parametrize(
         ("document", "message"),
@@ -164,6 +168,46 @@ class TestSecretKinds:
             == "7777"
         )
         assert NoSecret().hint == ""
+
+    @pytest.mark.parametrize(
+        "build",
+        [
+            lambda: ApiKeySecret(api_key="1234567"),
+            lambda: AzureOpenAISecret(
+                api_key="1234567",
+                azure_endpoint="https://demo.openai.azure.com",
+                api_version="2024-10-21",
+            ),
+            lambda: AwsCredentialsSecret(
+                aws_access_key_id="AKIAEXAMPLE7777",
+                aws_secret_access_key="1234567",
+                region_name="us-east-1",
+            ),
+            lambda: AwsCredentialsSecret(
+                aws_access_key_id="AKIAEXAMPLE7777",
+                aws_secret_access_key="long-enough-secret",
+                region_name="us-east-1",
+                aws_session_token="1234567",
+            ),
+            lambda: GithubOAuthAppSecret(client_id="Iv1.0123456789abcdef", client_secret="1234567"),
+            lambda: GoogleOAuthAppSecret(
+                client_id="1234-abc.apps.googleusercontent.com", client_secret="1234567"
+            ),
+        ],
+        ids=["api_key", "azure", "aws_secret", "aws_session_token", "github", "google"],
+    )
+    def test_a_secret_too_short_to_hint_safely_is_refused(self, build):
+        """`ApiKeySecret(api_key="1234").hint` used to be `"1234"` - the whole key,
+        shown to everyone with `secrets:view` and written into the audit entry
+        under a field described as "never the secret itself"."""
+        with pytest.raises(ValidationError, match=f"at least {MIN_CREDENTIAL_LENGTH} characters"):
+            build()
+
+    def test_the_floor_is_the_shortest_value_a_hint_cannot_give_away(self):
+        """Eight characters is accepted, and the form is told the floor up front."""
+        assert ApiKeySecret(api_key="12345678").hint == "5678"
+        properties = ApiKeySecret.model_json_schema()["properties"]
+        assert properties["api_key"]["minLength"] == MIN_CREDENTIAL_LENGTH
 
     def test_the_hint_is_taken_from_the_payload_not_from_the_envelope(self):
         """Sealing a JSON document makes the vault's own hint punctuation."""
@@ -206,12 +250,39 @@ class TestSealAndOpen:
     def test_an_envelope_whose_kind_disagrees_with_the_row_is_refused(self):
         """A swapped column would otherwise hand the wrong shape to a caller."""
         scope = VaultScope.organization(uuid.uuid4())
-        sealed = seal_secret(ApiKeySecret(api_key="sk-1234"), scope=scope)
+        sealed = seal_secret(ApiKeySecret(api_key="sk-live-1234"), scope=scope)
 
         with pytest.raises(BadRequestError) as refused:
             unseal_secret(sealed.ciphertext, kind=SecretKind.AWS_CREDENTIALS, scope=scope)
 
         assert refused.value.details == {"recorded": "aws_credentials", "sealed": "api_key"}
+
+    def test_a_payload_that_does_not_validate_is_refused_without_naming_the_value(self):
+        """A stored payload that no longer validates - a row edited underneath the
+        schema, a rollback to a build whose `SecretKind` lacks a kind a newer one
+        wrote - is refused without the decrypted credential reaching the message or
+        a chained traceback. `validate_json`'s own `ValidationError` embeds the
+        offending input, which here is the plaintext (#21)."""
+        scope = VaultScope.organization(uuid.uuid4())
+        sealed = seal(json.dumps({"kind": "bogus", "api_key": "sk-live-SUPERSECRET"}), scope=scope)
+
+        with pytest.raises(BadRequestError) as refused:
+            unseal_secret(sealed.ciphertext, kind=SecretKind.API_KEY, scope=scope)
+
+        assert refused.value.details == {"recorded": "api_key"}
+        assert "SUPERSECRET" not in str(refused.value)
+        # The leak surface is the *rendered* traceback - what `logger.exception`
+        # and an OTel span emit. `__cause__` is `None` with or without `from None`
+        # (implicit chaining never sets it), so it does not pin the fix; the
+        # property that keeps the chained `ValidationError` - which still holds the
+        # plaintext in `__context__` - out of the formatting is `__suppress_context__`.
+        assert refused.value.__suppress_context__ is True
+        rendered = "".join(
+            traceback.format_exception(
+                type(refused.value), refused.value, refused.value.__traceback__
+            )
+        )
+        assert "SUPERSECRET" not in rendered
 
 
 class TestStoringASecret:
@@ -254,7 +325,7 @@ class TestStoringASecret:
             pytest.raises(AlreadyExistsError) as refused,
         ):
             await OrganizationSecretService(_db()).create(
-                _ctx(), name="Weather API", value=ApiKeySecret(api_key="wx")
+                _ctx(), name="Weather API", value=ApiKeySecret(api_key="wx-12345678")
             )
 
         assert refused.value.status_code == 409
@@ -307,8 +378,8 @@ class TestStoringASecret:
                 new=AsyncMock(return_value={}),
             ),
             patch(
-                "app.services.organization_secret.organization_secret_repo.agents_using",
-                new=AsyncMock(return_value=[]),
+                "app.services.organization_secret.organization_secret_repo.agents_using_for_secrets",
+                new=AsyncMock(return_value={}),
             ),
         ):
             rows = await OrganizationSecretService(_db()).list_secrets(ctx)
@@ -369,7 +440,7 @@ class TestRotatingASecret:
                 row.id,
                 value=AwsCredentialsSecret(
                     aws_access_key_id="AKIA1",
-                    aws_secret_access_key="s",
+                    aws_secret_access_key="s-never-shown",
                     region_name="us-east-1",
                 ),
             )
@@ -380,7 +451,7 @@ class TestRotatingASecret:
     @pytest.mark.anyio
     async def test_a_rename_checks_the_new_name_is_free(self):
         ctx = _ctx()
-        row = _row(ctx, ApiKeySecret(api_key="wx-0000"))
+        row = _row(ctx, ApiKeySecret(api_key="wx-key-0000"))
 
         with (
             patch(
@@ -398,7 +469,7 @@ class TestRotatingASecret:
     @pytest.mark.anyio
     async def test_a_rename_and_a_description_are_written_without_touching_the_value(self):
         ctx = _ctx()
-        row = _row(ctx, ApiKeySecret(api_key="wx-0000"))
+        row = _row(ctx, ApiKeySecret(api_key="wx-key-0000"))
 
         with (
             patch(
@@ -426,7 +497,7 @@ class TestRotatingASecret:
     @pytest.mark.anyio
     async def test_an_update_with_nothing_in_it_writes_nothing(self):
         ctx = _ctx()
-        row = _row(ctx, ApiKeySecret(api_key="wx-0000"))
+        row = _row(ctx, ApiKeySecret(api_key="wx-key-0000"))
 
         with (
             patch(
@@ -464,7 +535,7 @@ class TestDeletingASecret:
     @pytest.mark.anyio
     async def test_a_deleted_secret_leaves_a_trail(self):
         ctx = _ctx()
-        row = _row(ctx, ApiKeySecret(api_key="wx-0000"))
+        row = _row(ctx, ApiKeySecret(api_key="wx-key-0000"))
 
         with (
             patch(
@@ -611,7 +682,7 @@ class TestTheKeyThatAsksAProviderForItsCatalog:
             ctx,
             AwsCredentialsSecret(
                 aws_access_key_id="AKIA4242",
-                aws_secret_access_key="s3cret",
+                aws_secret_access_key="s3cret-key",
                 region_name="us-east-1",
             ),
         )
@@ -699,7 +770,7 @@ class TestTheGithubOAuthAppReader:
         row = _row(
             ctx,
             GoogleOAuthAppSecret(
-                client_id="1234-abc.apps.googleusercontent.com", client_secret="gsec-42"
+                client_id="1234-abc.apps.googleusercontent.com", client_secret="gsec-4242"
             ),
             name="Google OAuth client",
         )
@@ -713,7 +784,7 @@ class TestTheGithubOAuthAppReader:
             )
 
         assert isinstance(value, GoogleOAuthAppSecret)
-        assert value.client_secret.get_secret_value() == "gsec-42"
+        assert value.client_secret.get_secret_value() == "gsec-4242"
         assert by_kind.await_args.kwargs["kind"] == SecretKind.GOOGLE_OAUTH_APP.value
 
     @pytest.mark.anyio
@@ -724,8 +795,12 @@ class TestTheGithubOAuthAppReader:
         and no secret value rides in it."""
         ctx = _ctx()
         rows = [
-            _row(ctx, GithubOAuthAppSecret(client_id="Iv1.a", client_secret="s1"), name="aaa"),
-            _row(ctx, GithubOAuthAppSecret(client_id="Iv1.b", client_secret="s2"), name="bbb"),
+            _row(
+                ctx, GithubOAuthAppSecret(client_id="Iv1.a", client_secret="secret-1"), name="aaa"
+            ),
+            _row(
+                ctx, GithubOAuthAppSecret(client_id="Iv1.b", client_secret="secret-2"), name="bbb"
+            ),
         ]
         with (
             patch(

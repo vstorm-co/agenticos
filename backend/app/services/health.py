@@ -60,6 +60,26 @@ truth in thirty seconds.
 
 _PGVECTOR_VERSION = text("SELECT extversion FROM pg_extension WHERE extname = 'vector'")
 
+# What the *image* ships and what this *role* may do with it - both different
+# questions from whether the extension has been created here, and between them
+# the ones that decide what the first ingestion does. `pg_extension` alone
+# cannot tell a fresh deployment apart from a stock-postgres one, and reporting
+# the second's consequence for the first is how a working deployment read as
+# broken (#1504).
+#
+# `CREATE EXTENSION` is a superuser action unless the extension is trusted, in
+# which case CREATE on the database is enough. Asked rather than assumed: an
+# application connecting as a restricted role sees `vector` listed here and
+# still cannot create it, so availability alone is one more consequence claimed
+# without evidence.
+_PGVECTOR_CAPABILITY = text(
+    "SELECT "
+    "(SELECT default_version FROM pg_available_extensions WHERE name = 'vector'), "
+    "(SELECT bool_or(trusted) FROM pg_available_extension_versions WHERE name = 'vector'), "
+    "current_setting('is_superuser') = 'on', "
+    "has_database_privilege(current_database(), 'CREATE')"
+)
+
 # Tables carrying an embedding column, which is what the RAG store creates per
 # collection. Counted, never named: the count answers "is anything ingested
 # here", the names are the organizations' business.
@@ -185,22 +205,72 @@ async def probe_vector_store(db: AsyncSession) -> SystemCheck:
     installed and how many collection tables exist. Both are catalog reads,
     which is what makes this cheap enough for a page that refreshes itself.
 
-    A missing extension is `unconfigured`, not `unhealthy`: a deployment
-    that never ingests a document is working exactly as installed. The detail
-    says what happens if it does, which is the part worth knowing before the
-    first upload rather than after.
+    A missing extension is usually `unconfigured`, not `unhealthy`: the RAG store
+    runs `CREATE EXTENSION IF NOT EXISTS vector` the first time a collection is
+    written to, so a deployment that never ingests a document is working exactly
+    as installed - and it will keep working when somebody uploads one.
+
+    Usually, because "absent" covers four situations with two different outcomes,
+    and the row in `pg_extension` distinguishes none of them. What decides is
+    whether the image ships pgvector and whether this role may create it, so both
+    are asked before any consequence is claimed - the whole defect here was
+    claiming one (#1504):
+
+    | Ships it | Created | This role may create it | |
+    |---|---|---|---|
+    | yes | yes | - | `healthy` |
+    | yes | no | yes | `unconfigured`, and the first ingestion creates it |
+    | yes | no | no | `unhealthy` - a restricted role, and it fails at the upload |
+    | no | no | - | `unhealthy` - stock Postgres, the gotcha CLAUDE.md opens with |
+    | no | yes | - | `unhealthy` - a volume that outlived its image |
+
+    That last row is why availability is read whether or not the extension exists.
+    A data directory carrying the `pg_extension` row, started on an image without
+    the library, keeps the row and loses `$libdir/vector`: the catalog says
+    installed, the collection tables are still countable, and every vector
+    operation fails.
     """
     start = perf_counter()
     try:
         async with asyncio.timeout(PROBE_TIMEOUT_SECONDS):
+            available, trusted, superuser, may_create = (
+                await db.execute(_PGVECTOR_CAPABILITY)
+            ).one()
             version = (await db.execute(_PGVECTOR_VERSION)).scalar_one_or_none()
+            if available is None:
+                return SystemCheck(
+                    key="vector_store",
+                    status="unhealthy",
+                    detail=(
+                        "this Postgres image does not ship pgvector, so vector "
+                        "operations fail loading $libdir/vector; the database must be "
+                        "pgvector/pgvector:pg16"
+                        if version is not None
+                        else "this Postgres image does not ship pgvector, so the first "
+                        "document ingestion will fail after accepting the upload; "
+                        "the database must be pgvector/pgvector:pg16"
+                    ),
+                    latency_ms=_elapsed_ms(start),
+                )
             if version is None:
+                if not (superuser or (trusted and may_create)):
+                    return SystemCheck(
+                        key="vector_store",
+                        status="unhealthy",
+                        detail=(
+                            f"pgvector {available} is available but this database role "
+                            "cannot create it, so the first document ingestion will fail "
+                            "after accepting the upload; create the extension as a "
+                            "superuser, once"
+                        ),
+                        latency_ms=_elapsed_ms(start),
+                    )
                 return SystemCheck(
                     key="vector_store",
                     status="unconfigured",
                     detail=(
-                        "the pgvector extension is not installed in this database; the "
-                        "first document ingestion will fail trying to create it"
+                        f"pgvector {available} is available and this role may create it; "
+                        "the first document ingestion does"
                     ),
                     latency_ms=_elapsed_ms(start),
                 )
@@ -280,6 +350,115 @@ async def probe_model_access(db: AsyncSession) -> SystemCheck:
     )
 
 
+_HEARTBEAT_DEPLOYMENT = "agent-triggers-check"
+"""The trigger heartbeat's deployment, as `app/worker/prefect_app.py` registers it.
+
+The heartbeat stands for every interval deployment there: one scheduler service
+creates all their runs and one runner executes them, so when this one stops
+completing, the others have stopped with it.
+"""
+
+_HEARTBEAT_SECONDS = 60
+"""The heartbeat's declared interval in `app/worker/prefect_app.py`."""
+
+_MISSED_HEARTBEATS = 5
+"""How many intervals may pass without a completed heartbeat before it is a failure.
+
+One missed tick is a slow run or a runner restart; five is a stopped scheduler.
+"""
+
+
+async def _last_heartbeat() -> datetime | None:
+    """When the trigger heartbeat last completed, according to Prefect - or never.
+
+    Imported here rather than at the top: the API process otherwise loads Prefect
+    only when it dispatches a run, and this module is imported at start-up.
+    """
+    from prefect.client.orchestration import get_client
+    from prefect.client.schemas.filters import (
+        DeploymentFilter,
+        DeploymentFilterName,
+        FlowRunFilter,
+        FlowRunFilterState,
+        FlowRunFilterStateType,
+    )
+    from prefect.client.schemas.objects import StateType
+    from prefect.client.schemas.sorting import FlowRunSort
+
+    async with get_client() as client:
+        runs = await client.read_flow_runs(
+            deployment_filter=DeploymentFilter(
+                name=DeploymentFilterName(any_=[_HEARTBEAT_DEPLOYMENT])
+            ),
+            flow_run_filter=FlowRunFilter(
+                state=FlowRunFilterState(type=FlowRunFilterStateType(any_=[StateType.COMPLETED]))
+            ),
+            sort=FlowRunSort.END_TIME_DESC,
+            limit=1,
+        )
+    return runs[0].end_time if runs else None
+
+
+async def probe_scheduler() -> SystemCheck:
+    """Whether scheduled work is actually running, judged by the trigger heartbeat.
+
+    The Prefect server's own health says nothing about this. From 2026-09-28 to
+    2026-10-09 its scheduler failed on every tick (PrefectHQ/prefect#23199) and
+    created no runs, while `/api/health` answered and every deployment read
+    `READY`; scheduled triggers, notification emails and the sweeps all stopped,
+    and nothing reported it. A completed heartbeat is the one fact that needs the
+    scheduler, the runner and the database all working, so its age is the check.
+
+    The threshold honours `WORKER_MIN_INTERVAL_SECONDS` the way the deployment
+    does, or a development machine that slows its ticks would always read failed.
+    """
+    interval = max(_HEARTBEAT_SECONDS, settings.WORKER_MIN_INTERVAL_SECONDS)
+    start = perf_counter()
+    try:
+        async with asyncio.timeout(PROBE_TIMEOUT_SECONDS):
+            completed_at = await _last_heartbeat()
+    except TimeoutError:
+        return _timed_out("scheduler", "the Prefect API")
+    except Exception as exc:
+        logger.warning("scheduler health probe failed", exc_info=True)
+        return SystemCheck(
+            key="scheduler",
+            status="unhealthy",
+            detail=f"reading flow runs from the Prefect API failed: {exc}",
+        )
+    latency = _elapsed_ms(start)
+    if completed_at is None:
+        return SystemCheck(
+            key="scheduler",
+            status="unhealthy",
+            detail=(
+                f"no {_HEARTBEAT_DEPLOYMENT} run has ever completed, so scheduled triggers, "
+                "notification emails and sweeps are not running; check the Prefect server "
+                "log for scheduler errors and that the worker is up"
+            ),
+            latency_ms=latency,
+        )
+    age = (datetime.now(UTC) - completed_at).total_seconds()
+    if age > interval * _MISSED_HEARTBEATS:
+        return SystemCheck(
+            key="scheduler",
+            status="unhealthy",
+            detail=(
+                f"the {_HEARTBEAT_DEPLOYMENT} heartbeat last completed {age / 60:.0f} min ago "
+                f"(expected every {interval}s), so scheduled triggers, notification emails "
+                "and sweeps are not running; check the Prefect server log for scheduler "
+                "errors and that the worker is up"
+            ),
+            latency_ms=latency,
+        )
+    return SystemCheck(
+        key="scheduler",
+        status="healthy",
+        detail=f"the {_HEARTBEAT_DEPLOYMENT} heartbeat completed {age:.0f}s ago",
+        latency_ms=latency,
+    )
+
+
 async def readiness(*, db: AsyncSession, redis: RedisClient) -> tuple[bool, dict[str, Any]]:
     """The Kubernetes answer: is this instance fit to serve traffic.
 
@@ -308,7 +487,9 @@ async def system_health(*, db: AsyncSession, redis: RedisClient) -> SystemHealth
     that follows reports three broken things when one is. `not_checked` names
     the reason instead.
     """
-    database, redis_check = await asyncio.gather(probe_database(db), probe_redis(redis))
+    database, redis_check, scheduler = await asyncio.gather(
+        probe_database(db), probe_redis(redis), probe_scheduler()
+    )
     if database.status == "healthy":
         vector_store = await probe_vector_store(db)
         model_access = await probe_model_access(db)
@@ -318,5 +499,5 @@ async def system_health(*, db: AsyncSession, redis: RedisClient) -> SystemHealth
 
     return SystemHealthResponse(
         checked_at=datetime.now(UTC),
-        checks=[database, redis_check, vector_store, model_access],
+        checks=[database, redis_check, vector_store, model_access, scheduler],
     )

@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from decimal import Decimal
 from pathlib import Path
@@ -95,13 +96,14 @@ class TestWhatMayBeStored:
         """
         ours = ConfigurationError(
             message="No embedding credential is configured for the collection's key",
-            details={"setting": "OPENROUTER_API_KEY"},
+            details={"key_origin": "collection 'handbook'"},
         )
 
         assert failure_summary(ours, stage=IngestionStage.INDEX) == (
             "No embedding credential is configured for the collection's key"
         )
 
+    @pytest.mark.security
     def test_a_budget_refusal_keeps_its_numbers(self):
         """`BudgetExceeded` is ours too, and the numbers are the organization's.
 
@@ -224,26 +226,30 @@ class TestWhatTheWorkerWritesToTheRow:
         documents = MagicMock()
         documents.return_value.get_document = AsyncMock(
             return_value=MagicMock(
-                organization_id=None, ingestion_config={}, status=DocumentStatus.PROCESSING
+                organization_id=None,
+                ingestion_config={},
+                status=DocumentStatus.PROCESSING,
+                knowledge_base_id=None,
             )
         )
         documents.return_value.fail_ingestion = AsyncMock()
         pipeline = MagicMock()
         pipeline.ingest_file = AsyncMock(side_effect=_vendor_failure())
-        # Disposed in the flow's `finally`, whether the ingest raised or not (#948).
-        pipeline.store = MagicMock(aclose=AsyncMock())
+
+        @asynccontextmanager
+        async def _pipeline(**_kwargs: object) -> AsyncIterator[MagicMock]:
+            yield pipeline
 
         with (
             patch("app.worker.tasks.rag_tasks.get_worker_db_context", self._db),
             patch("app.services.rag_document.RAGDocumentService", documents),
-            patch(
-                "app.worker.tasks.rag_tasks._ingestion_service_for",
-                new=AsyncMock(return_value=pipeline),
-            ),
+            patch("app.worker.tasks.rag_tasks._ingestion_service", new=_pipeline),
             patch("app.worker.tasks.rag_tasks._record_embedding_spend", new=AsyncMock()),
             pytest.raises(AuthenticationError),
         ):
-            await _run_ingestion(str(uuid.uuid4()), "kb_ops", "/srv/uploads/f.pdf", "f.pdf", False)
+            await _run_ingestion(
+                str(uuid.uuid4()), "kb_ops", "/srv/uploads/f.pdf", "f.pdf", False, 1
+            )
 
         stored = documents.return_value.fail_ingestion.await_args.kwargs["error_message"]
         _assert_leaks_nothing(stored)
@@ -268,7 +274,7 @@ class TestWhatTheWorkerWritesToTheRow:
             patch("app.worker.tasks.rag_tasks.get_worker_db_context", self._db),
             patch("app.services.rag_document.RAGDocumentService", documents),
         ):
-            await _fail_document(str(uuid.uuid4()), error_message="the vague one")
+            await _fail_document(str(uuid.uuid4()), error_message="the vague one", attempt=1)
 
         documents.return_value.fail_ingestion.assert_not_awaited()
 
@@ -284,7 +290,7 @@ class TestWhatTheWorkerWritesToTheRow:
             patch("app.worker.tasks.rag_tasks.get_worker_db_context", self._db),
             patch("app.services.rag_document.RAGDocumentService", documents),
         ):
-            await _fail_document(str(uuid.uuid4()), error_message="the specific one")
+            await _fail_document(str(uuid.uuid4()), error_message="the specific one", attempt=1)
 
         assert (
             documents.return_value.fail_ingestion.await_args.kwargs["error_message"]

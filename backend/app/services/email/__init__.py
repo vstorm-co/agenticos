@@ -24,6 +24,7 @@ def get_email_provider() -> EmailProvider:
                 username=settings.SMTP_USER,
                 password=settings.SMTP_PASSWORD,
                 use_tls=settings.SMTP_TLS,
+                tls_mode=settings.SMTP_TLS_MODE,
             )
         case "log":
             from app.services.email.providers.log import LogProvider

@@ -28,8 +28,9 @@ export function storedUsage(message: Measured): TurnUsage | null {
   return {
     input_tokens: message.input_tokens,
     output_tokens: message.output_tokens,
-    // A string from the API, because money is `Numeric` on the wire.
-    cost_usd: message.cost_usd == null ? 0 : Number(message.cost_usd),
+    // A Decimal string on every surface, because money is `Numeric` on the wire;
+    // the reader `Number()`s it where it draws.
+    cost_usd: message.cost_usd ?? "0",
     // Null is "not recorded", which is every message written before the column
     // existed. Drawn like an exact figure, because that is what it was drawn as
     // before and nobody can say otherwise about it now - the caveat is a claim

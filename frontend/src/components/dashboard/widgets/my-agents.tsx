@@ -10,6 +10,8 @@ import { agentTag, filterAgentRows, myAgentsPolicy } from "@/lib/dashboard/my-ag
 import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { WidgetFrame } from "../widget-frame";
+import { Bot } from "lucide-react";
+
 import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-states";
 import type { DashboardWidgetProps } from "./types";
 
@@ -41,9 +43,9 @@ export function MyAgentsWidget({ title, hint, period, seeAll, options }: Dashboa
       ) : error ? (
         <WidgetErrorBody onRetry={() => refetch()} />
       ) : rows.length === 0 ? (
-        <WidgetEmptyBody title={t("empty.title")} description={t("empty.description")} />
+        <WidgetEmptyBody icon={Bot} title={t("empty.title")} description={t("empty.description")} />
       ) : (
-        <ul className="grid gap-2 sm:grid-cols-2">
+        <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {rows.map((agent) => {
             const tag = agentTag(agent, userId);
             return (
@@ -57,7 +59,7 @@ export function MyAgentsWidget({ title, hint, period, seeAll, options }: Dashboa
                       apart by six lines of text is a list nobody scans. */}
                   <AgentAvatar
                     agentId={agent.id}
-                    name={agent.name}
+                    slug={agent.slug}
                     hasAvatar={agent.has_avatar ?? false}
                     size="sm"
                   />
@@ -72,7 +74,7 @@ export function MyAgentsWidget({ title, hint, period, seeAll, options }: Dashboa
                   </Link>
                   <span
                     className={cn(
-                      "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium",
+                      "shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium",
                       tag === "yours" ? "bg-chart/10 text-chart" : "bg-muted text-muted-foreground",
                     )}
                   >

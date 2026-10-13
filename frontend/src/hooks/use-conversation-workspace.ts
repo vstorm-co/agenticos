@@ -2,7 +2,9 @@
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
+import { useTranslations } from "next-intl";
 
+import { getErrorMessage } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
 import {
   readConversationWorkspace,
@@ -27,6 +29,7 @@ interface UseConversationWorkspaceResult {
 export function useConversationWorkspace(
   conversationId: string | null,
 ): UseConversationWorkspaceResult {
+  const tErrors = useTranslations("errors");
   const queryClient = useQueryClient();
   const {
     data: workspace = null,
@@ -49,7 +52,7 @@ export function useConversationWorkspace(
   return {
     workspace,
     isLoading: conversationId !== null && isLoading,
-    error: error === null ? null : error.message,
+    error: error ? getErrorMessage(error, tErrors) : null,
     refresh,
   };
 }

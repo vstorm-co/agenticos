@@ -13,6 +13,7 @@ const FILE: ContextFileSummary = {
   mode: "inject",
   enabled: true,
   size_bytes: 2048,
+  excerpt: "# Glossary\n\nARR - annual recurring revenue",
 };
 
 function renderCard(props: Partial<React.ComponentProps<typeof ContextCard>> = {}) {
@@ -80,5 +81,35 @@ describe("ContextCard", () => {
     await userEvent.click(screen.getByText("glossary"));
     expect(onOpen).toHaveBeenCalled();
     expect(onDelete).not.toHaveBeenCalled();
+  });
+
+  it("reads a markdown body's opening as a page", () => {
+    renderCard();
+
+    expect(screen.getByText("Glossary")).toBeInTheDocument();
+    expect(screen.getByText("ARR - annual recurring revenue")).toBeInTheDocument();
+  });
+
+  it("shows a non-markdown body as it is, and a blank page for an empty one", () => {
+    const { rerender } = render(
+      <ContextCard
+        file={{ ...FILE, format: "csv", excerpt: "term,meaning\nARR,revenue" }}
+        canEdit={false}
+        onOpen={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/term,meaning/)).toBeInTheDocument();
+
+    rerender(
+      <ContextCard
+        file={{ ...FILE, excerpt: "" }}
+        canEdit={false}
+        onOpen={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+    expect(screen.queryByText(/term,meaning/)).toBeNull();
+    expect(screen.queryByText("Glossary")).toBeNull();
   });
 });

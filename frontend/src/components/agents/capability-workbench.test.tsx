@@ -16,6 +16,12 @@ vi.mock("@/hooks/use-model-providers", () => ({
   useImageProviders: () => imageProviders(),
 }));
 
+// The memory panel's one action, which needs a query client this file does not
+// provide; `clear-agent-memory` covers the dialog and the call it makes.
+vi.mock("@/hooks/use-memory", () => ({
+  useClearAgentMemory: () => ({ mutateAsync: vi.fn(), isPending: false }),
+}));
+
 vi.mock("@/hooks", () => ({
   useSecrets: () => ({ secrets: [], isLoading: false, error: null }),
   // The workspace section reads both: where sandboxes may run, and what the
@@ -79,15 +85,33 @@ const CHARTS: CapabilityCatalogEntry = {
   requires_secret: null,
 };
 
-const SKILLS: CapabilityCatalogEntry = {
+const MEMORY_FILES: CapabilityCatalogEntry = {
   ...CHARTS,
-  id: "skills",
-  name: "Skills",
+  id: "memory_files",
+  name: "Memory files",
   category: "knowledge",
-  description: "Reusable know-how this organization has written down.",
+  description: "Notes the agent keeps of its own across conversations.",
+  tools: [{ id: "read_memory", name: "read_memory", description: "Read one note by name." }],
+  contracts: [],
+};
+
+const MEMORY_MEM0: CapabilityCatalogEntry = {
+  ...MEMORY_FILES,
+  id: "memory_mem0",
+  name: "Memory (mem0)",
+  description: "Semantic memory kept in a mem0 service rather than here.",
+  tools: [{ id: "recall", name: "recall", description: "Recall facts by meaning." }],
+};
+
+const CONTEXT: CapabilityCatalogEntry = {
+  ...CHARTS,
+  id: "context",
+  name: "Context",
+  category: "knowledge",
+  description: "Standing knowledge this organization has written down.",
   tools: [
-    { id: "list_skills", name: "list_skills", description: "Get an overview of all skills." },
-    { id: "load_skill", name: "load_skill", description: "Load one skill's instructions." },
+    { id: "list_context", name: "list_context", description: "Get an overview of all files." },
+    { id: "read_context", name: "read_context", description: "Read one context file." },
   ],
   contracts: [],
 };
@@ -137,7 +161,8 @@ async function openTools() {
 function renderWorkbench(props: Partial<Parameters<typeof CapabilityWorkbench>[0]> = {}) {
   return render(
     <CapabilityWorkbench
-      catalog={[CHARTS, SKILLS]}
+      agentId="agent-1"
+      catalog={[CHARTS, CONTEXT]}
       selected={[]}
       onToggle={vi.fn()}
       onChange={vi.fn()}
@@ -151,6 +176,52 @@ function renderWorkbench(props: Partial<Parameters<typeof CapabilityWorkbench>[0
 }
 
 describe("the capability workbench", () => {
+  it("offers to clear an agent's notes from inside the capability that keeps them", async () => {
+    // The only thing anybody does to memory from the console: there is no
+    // browsing surface, because what an agent wrote about a named colleague is
+    // not a screen an operator pages through (#1470). A store nobody can clear
+    // is a liability, though, so the action has to live somewhere.
+    renderWorkbench({
+      catalog: [MEMORY_FILES],
+      selected: [binding("memory_files")],
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: /^Memory files/ }));
+
+    expect(screen.getByText("Clear this agent's memory")).toBeInTheDocument();
+  });
+
+  it("says the clear does not reach mem0 when the agent also keeps memories there", async () => {
+    // mem0 addresses memories per person, so nothing can empty one agent's
+    // namespace wholesale - and somebody believing it did would stop looking.
+    renderWorkbench({
+      catalog: [MEMORY_FILES, MEMORY_MEM0],
+      selected: [binding("memory_files"), binding("memory_mem0")],
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: /^Memory files/ }));
+
+    expect(screen.getByText(/does not reach/)).toBeInTheDocument();
+  });
+
+  it("offers no clear for a capability that keeps nothing", async () => {
+    renderWorkbench({ selected: [binding("charts")] });
+
+    await userEvent.click(screen.getByRole("button", { name: /^Charts/ }));
+
+    expect(screen.queryByText("Clear this agent's memory")).not.toBeInTheDocument();
+  });
+
+  it("offers no clear until memory is actually granted", async () => {
+    // Reading a capability is not granting it, and an inert panel must not carry
+    // a live destructive button.
+    renderWorkbench({ catalog: [MEMORY_FILES], selected: [] });
+
+    await userEvent.click(screen.getByRole("button", { name: /^Memory files/ }));
+
+    expect(screen.queryByText("Clear this agent's memory")).not.toBeInTheDocument();
+  });
+
   it("says how many tools a capability contributes before you grant it", async () => {
     // The complaint this layout exists for: the old grid showed one sentence per
     // capability and never what it actually gives the model.
@@ -164,11 +235,11 @@ describe("the capability workbench", () => {
     // Otherwise the only way to learn what granting it does is to grant it.
     renderWorkbench();
 
-    await userEvent.click(screen.getByRole("button", { name: /^Skills/ }));
+    await userEvent.click(screen.getByRole("button", { name: /^Context/ }));
     await openTools();
 
-    expect(screen.getByText("list_skills")).toBeInTheDocument();
-    expect(screen.getByText("load_skill")).toBeInTheDocument();
+    expect(screen.getByText("list_context")).toBeInTheDocument();
+    expect(screen.getByText("read_context")).toBeInTheDocument();
   });
 
   it("shows an ungranted capability at full detail, not an abridgement", async () => {
@@ -240,7 +311,7 @@ describe("the capability workbench", () => {
     const onToggle = vi.fn();
     renderWorkbench({ onToggle });
 
-    await userEvent.click(screen.getByRole("button", { name: /^Skills/ }));
+    await userEvent.click(screen.getByRole("button", { name: /^Context/ }));
 
     expect(onToggle).not.toHaveBeenCalled();
   });
@@ -258,11 +329,11 @@ describe("the capability workbench", () => {
     // The pile of settings cards under the old grid is the thing being replaced:
     // five enabled capabilities produced five panels, none of them beside the
     // switch that created it.
-    renderWorkbench({ selected: [binding("charts"), binding("skills")] });
+    renderWorkbench({ selected: [binding("charts"), binding("context")] });
 
     const panel = screen.getByRole("group", { name: "Charts" });
     expect(within(panel).getByText("charts")).toBeInTheDocument();
-    expect(screen.queryByRole("group", { name: "Skills" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Context" })).not.toBeInTheDocument();
   });
 
   it("offers the whole description the model reads, not its first line", async () => {
@@ -331,7 +402,7 @@ describe("jsonSchemaType", () => {
     // Nobody knows which capability owns `create_chart`, and the search box only
     // appears once the list is long enough that scrolling it is worse.
     const filler = Array.from({ length: 8 }, (_, index) => ({
-      ...SKILLS,
+      ...CONTEXT,
       id: `filler-${index}`,
       name: `Filler ${index}`,
       category: "other",
@@ -347,7 +418,7 @@ describe("jsonSchemaType", () => {
 
   it("says nothing matched rather than showing an empty column", async () => {
     const filler = Array.from({ length: 8 }, (_, index) => ({
-      ...SKILLS,
+      ...CONTEXT,
       id: `filler-${index}`,
       name: `Filler ${index}`,
     }));

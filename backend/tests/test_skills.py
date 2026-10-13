@@ -10,6 +10,7 @@ import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 
 from app.agents.capabilities.skills import SAFE_SKILL_TOOLS, Skills
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
@@ -17,6 +18,7 @@ from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.resource_grant import GrantLevel, Visibility
 from app.db.models.skill import Skill
 from app.schemas.skill import SkillResourceUpdate, SkillUpdate
+from app.services import skill_library
 from app.services.skill_library import LibraryResource, LibrarySkill
 from app.services.skills import (
     MAX_RESOURCE_BYTES,
@@ -66,6 +68,7 @@ def _row(name: str) -> Skill:
         organization_id=uuid.uuid4(),
         name=name,
         description="How refunds are handled.",
+        content="---\nname: x\n---\n\n# Refunds\n\nCheck the order first.",
         category=None,
         enabled=True,
         resources=[],
@@ -103,35 +106,55 @@ def _db():
     db = MagicMock()
     db.flush = AsyncMock()
     db.refresh = AsyncMock()
+    # `record_audit` reads the chain head and takes the per-org lock, both via
+    # `execute`; the mock must await and answer the head read with an empty chain.
+    db.execute = AsyncMock()
+    db.execute.return_value.scalar_one_or_none.return_value = None
     return db
 
 
-class TestToolsetConstruction:
-    def test_no_skills_means_no_toolset(self):
-        """Three unusable tools would be context the model reads every turn."""
-        assert Skills(skills=[]).get_toolset() is None
+class TestCatalogConstruction:
+    """Each skill is a deferred capability; only its files are a tool."""
+
+    def test_each_skill_is_a_capability_of_its_own(self):
+        """The model reads the catalog in its own capability list, not in a tool."""
+        catalog = Skills(skills=[_skill(), _skill(name="tone-of-voice")])
+        assert catalog.skill_names == ["refunds", "tone-of-voice"]
+
+    def test_a_skill_carries_its_body_and_is_loaded_on_demand(self):
+        """Names and descriptions up front; the body only once it is asked for."""
+        leaves = []
+        Skills(skills=[_skill()]).apply(leaves.append)
+
+        (skill,) = [leaf for leaf in leaves if leaf.id == "refunds"]
+        assert skill.defer_loading is True
+        assert skill.get_description() == "How refunds are handled."
+        assert "Check the order first." in "".join(skill.get_instructions())
 
     def test_script_execution_is_not_exposed(self):
         """Without a sandbox, run_skill_script is remote code execution."""
-        toolset = Skills(skills=[_skill()]).get_toolset()
+        toolset = Skills(skills=[_skill(resources=[_resource()])]).get_toolset()
         assert toolset is not None
         assert "run_skill_script" not in toolset.tools
         assert set(SAFE_SKILL_TOOLS) == set(toolset.tools)
 
+    def test_skills_with_no_files_carry_no_tool(self):
+        """A tool that could only ever answer "nothing here" is context wasted."""
+        assert Skills(skills=[_skill()]).get_toolset() is None
+
     def test_skills_are_passed_in_memory(self):
         """No temp directory, so no cleanup, no race and no path surface."""
-        toolset = Skills(skills=[_skill(), _skill(name="tone-of-voice")]).get_toolset()
-        assert toolset is not None
-        assert set(toolset.skills) == {"refunds", "tone-of-voice"}
+        catalog = Skills(skills=[_skill(), _skill(name="tone-of-voice")])
+        assert catalog.directories == ()
+        assert catalog.registries == ()
 
     def test_resources_travel_with_their_skill(self):
         resource = MagicMock()
         resource.name = "template.md"
         resource.description = "Reply template"
         resource.content = "Dear {name},"
-        toolset = Skills(skills=[_skill(resources=[resource])]).get_toolset()
-        assert toolset is not None
-        assert toolset.skills["refunds"].resources[0].name == "template.md"
+        catalog = Skills(skills=[_skill(resources=[resource])])
+        assert [file.name for file in catalog.packages["refunds"].resources] == ["template.md"]
 
 
 class TestAgentBinding:
@@ -242,6 +265,22 @@ class TestSkillManagement:
         assert "edit it" in refused.value.message
 
     @pytest.mark.anyio
+    @pytest.mark.parametrize("name", ["Refund Policy", "planning"])
+    async def test_the_service_refuses_a_name_the_schema_would(self, name):
+        """An applied skill proposal creates a skill from an agent's directory
+        name with no `SkillCreate` in between, so the service checks it too."""
+        create = AsyncMock()
+        with (
+            patch("app.services.skills.skill_repo.get_by_name", new=AsyncMock(return_value=None)),
+            patch("app.services.skills.skill_repo.create", new=create),
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await SkillService(_db()).create(_ctx(), name=name, description="x", content="")
+
+        assert refused.value.details == {"name": name}
+        create.assert_not_awaited()
+
+    @pytest.mark.anyio
     async def test_creation_is_audited(self):
         with (
             patch("app.services.skills.skill_repo.get_by_name", new=AsyncMock(return_value=None)),
@@ -329,6 +368,9 @@ class TestSkillManagement:
             listing = await SkillService(_db()).list_readable(ctx)
 
         assert [item.built_in for item in listing.items] == [True, False]
+        # The card peeks at the body without the listing carrying it: front
+        # matter is dropped, because the card already shows the name.
+        assert listing.items[0].excerpt == "# Refunds\n\nCheck the order first."
 
     @pytest.mark.anyio
     async def test_the_listing_carries_the_filters_the_page_cannot(self):
@@ -486,6 +528,48 @@ class TestSkillManagement:
         assert list_visible.call_args.kwargs["categories"] == ["devops", "data"]
         assert list_visible.call_args.kwargs["sort"] == "updated"
 
+    def test_a_skill_cannot_take_the_name_of_a_capability(self):
+        """A skill is a deferred capability, filed under its name in the same
+        namespace as `planning` and the rest - so this name could be created and
+        then made any agent that also had that capability unrunnable, refused by
+        the library before the first token (#1704 review)."""
+        import pytest as _pytest
+        from pydantic import ValidationError
+
+        from app.schemas.skill import SkillCreate
+
+        with _pytest.raises(ValidationError):
+            SkillCreate(name="planning", description="d")
+
+        assert SkillCreate(name="refunds", description="d").name == "refunds"
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "Product description writer",
+            "Refund-Policy",
+            "refund_policy",
+            "refund policy",
+            "-refunds",
+            "refunds-",
+            "refund--policy",
+        ],
+    )
+    def test_a_skill_name_must_be_an_agent_skills_id(self, name):
+        """The name is the id a model loads the skill by, written the way models
+        write it: lowercase letters and digits joined by single hyphens (#1911)."""
+        from pydantic import ValidationError
+
+        from app.schemas.skill import SkillCreate
+
+        with pytest.raises(ValidationError, match="lowercase letters, digits and hyphens"):
+            SkillCreate(name=name, description="d")
+
+    def test_digits_and_single_hyphens_are_a_valid_skill_name(self):
+        from app.schemas.skill import SkillCreate
+
+        assert SkillCreate(name="iso-27001-audit", description="d").name == "iso-27001-audit"
+
     def test_every_suggested_category_is_storable(self):
         """The pickers offer these before an organization invents its own; a
         suggestion the create endpoint would then refuse is a trap, so each one
@@ -620,128 +704,30 @@ class TestSkillManagement:
         assert audit.call_args.kwargs["target_id"] == str(skill.id)
 
 
-class TestBundledTopUp:
-    """The listing closes the gap between the shipped catalog and an organization.
+class TestTheListingOnlyReads:
+    """A listing answers with what is there; it does not write while it reads.
 
-    Creation-time seeding copies whatever the deployment shipped *that day*; a
-    skill added to the catalog later would otherwise never reach an existing
-    organization, and its page would show one bundled skill where the
-    deployment ships three - which is exactly how the defect was found.
+    It used to top itself up, copying in any bundled skill the organization did
+    not have - so a deleted one came back on the next visit, and the only way to
+    retire a shipped skill was to disable it. The gallery is where a skill is
+    chosen now, and `seed-skills` is how a deployment pushes a new bundled one
+    out on purpose.
     """
 
-    def _bundled(self, key: str, name: str | None = None) -> MagicMock:
-        entry = MagicMock()
-        entry.key = key
-        entry.name = name or key
-        return entry
-
     @pytest.mark.anyio
-    async def test_a_skill_added_to_the_catalog_appears_on_the_next_listing(self):
-        ctx = _ctx()
-        owner_id = uuid.uuid4()
-
+    async def test_a_deleted_bundled_skill_stays_deleted(self, mock_db_session: AsyncMock) -> None:
+        # No skills at all, which is what an organization whose owner deleted
+        # the shipped three looks like. Nothing is written to fill the gap.
+        service = SkillService(mock_db_session)
         with (
             patch(f"{SKILLS_PATH}.skill_repo.list_visible", new=AsyncMock(return_value=([], 0))),
             patch(f"{SKILLS_PATH}.skill_repo.list_categories", new=AsyncMock(return_value=[])),
-            patch(
-                f"{SKILLS_PATH}.skill_repo.list_names",
-                new=AsyncMock(return_value={"refund-policy"}),
-            ),
-            patch(
-                f"{SKILLS_PATH}.skill_library.library",
-                return_value=[self._bundled("refund-policy"), self._bundled("incident-report")],
-            ),
-            patch(
-                f"{SKILLS_PATH}.member_repo.first_owner_id",
-                new=AsyncMock(return_value=owner_id),
-            ),
-            patch.object(SkillService, "install_from_library", new=AsyncMock()) as install,
+            patch.object(service, "install_from_library", new=AsyncMock()) as install,
         ):
-            await SkillService(_db()).list_readable(ctx)
+            page = await service.list_readable(_ctx())
 
-        # Only the gap, and as the organization's owner - the reader whose
-        # visit triggered this may be a viewer, and ownership widens access.
-        install.assert_awaited_once()
-        installer_ctx, key = install.await_args.args
-        assert key == "incident-report"
-        assert installer_ctx.user_id == owner_id
-        assert installer_ctx.organization_id == ctx.organization_id
-
-    @pytest.mark.anyio
-    async def test_a_complete_organization_installs_nothing_and_asks_for_no_owner(self):
-        ctx = _ctx()
-
-        with (
-            patch(f"{SKILLS_PATH}.skill_repo.list_visible", new=AsyncMock(return_value=([], 0))),
-            patch(f"{SKILLS_PATH}.skill_repo.list_categories", new=AsyncMock(return_value=[])),
-            patch(
-                f"{SKILLS_PATH}.skill_repo.list_names",
-                new=AsyncMock(return_value={"refund-policy"}),
-            ),
-            patch(
-                f"{SKILLS_PATH}.skill_library.library",
-                return_value=[self._bundled("refund-policy")],
-            ),
-            patch(f"{SKILLS_PATH}.member_repo.first_owner_id", new=AsyncMock()) as owner_lookup,
-            patch.object(SkillService, "install_from_library", new=AsyncMock()) as install,
-        ):
-            await SkillService(_db()).list_readable(ctx)
-
-        owner_lookup.assert_not_awaited()
+        assert page.items == []
         install.assert_not_awaited()
-
-    @pytest.mark.anyio
-    async def test_an_organization_with_no_owner_is_left_alone(self):
-        # A skill row records who owns it, and that column is a foreign key to
-        # a real person - with nobody to attribute to, the listing answers what
-        # is there rather than inventing an owner or failing the page.
-        ctx = _ctx()
-
-        with (
-            patch(f"{SKILLS_PATH}.skill_repo.list_visible", new=AsyncMock(return_value=([], 0))),
-            patch(f"{SKILLS_PATH}.skill_repo.list_categories", new=AsyncMock(return_value=[])),
-            patch(f"{SKILLS_PATH}.skill_repo.list_names", new=AsyncMock(return_value=set())),
-            patch(
-                f"{SKILLS_PATH}.skill_library.library",
-                return_value=[self._bundled("refund-policy")],
-            ),
-            patch(f"{SKILLS_PATH}.member_repo.first_owner_id", new=AsyncMock(return_value=None)),
-            patch.object(SkillService, "install_from_library", new=AsyncMock()) as install,
-        ):
-            listing = await SkillService(_db()).list_readable(ctx)
-
-        install.assert_not_awaited()
-        assert listing.total == 0
-
-    @pytest.mark.anyio
-    async def test_a_racing_twin_costs_that_row_and_never_the_readers_page(self):
-        # Two first listings can race to the same missing skill; the loser's
-        # collision is caught per-install, so the page still answers.
-        ctx = _ctx()
-
-        with (
-            patch(f"{SKILLS_PATH}.skill_repo.list_visible", new=AsyncMock(return_value=([], 0))),
-            patch(f"{SKILLS_PATH}.skill_repo.list_categories", new=AsyncMock(return_value=[])),
-            patch(f"{SKILLS_PATH}.skill_repo.list_names", new=AsyncMock(return_value=set())),
-            patch(
-                f"{SKILLS_PATH}.skill_library.library",
-                return_value=[self._bundled("refund-policy"), self._bundled("incident-report")],
-            ),
-            patch(
-                f"{SKILLS_PATH}.member_repo.first_owner_id",
-                new=AsyncMock(return_value=uuid.uuid4()),
-            ),
-            patch.object(
-                SkillService,
-                "install_from_library",
-                new=AsyncMock(side_effect=[AlreadyExistsError(message="taken"), MagicMock()]),
-            ) as install,
-        ):
-            listing = await SkillService(_db()).list_readable(ctx)
-
-        # The collision did not stop the second install, and the listing answered.
-        assert install.await_count == 2
-        assert listing.suggested_categories == list(SUGGESTED_CATEGORIES)
 
 
 class TestSkillLibrary:
@@ -860,6 +846,55 @@ class TestSkillLibrary:
         # The actor on a seeded install is the first owner as an attribution,
         # not as a person who acted - the marker is what keeps the entry honest.
         assert audit.await_args_list[-1].kwargs["details"]["seeded"] is True
+
+    def test_a_fingerprint_changes_with_what_a_skill_says_and_not_with_file_order(self):
+        from app.services.skill_library import fingerprint
+
+        base = {"description": "d", "category": None, "content": "Body."}
+        files = [("a.md", "one", None), ("b.md", "two", None)]
+
+        assert fingerprint(**base, resources=files) == fingerprint(
+            **base, resources=reversed(files)
+        )
+        assert fingerprint(**base, resources=files) != fingerprint(
+            **base, resources=[("a.md", "one", None), ("b.md", "changed", None)]
+        )
+        assert fingerprint(**base, resources=files) != fingerprint(
+            **{**base, "category": "design"}, resources=files
+        )
+        # Saving through the API trims a final newline; that is not an edit.
+        assert fingerprint(**base, resources=files) == fingerprint(
+            **{**base, "content": "Body.\n"},
+            resources=[("a.md", "one\n", None), ("b.md", "two", "")],
+        )
+        # A description written on a copy's file is an edit; the shipped files have none.
+        assert fingerprint(**base, resources=files) != fingerprint(
+            **base, resources=[("a.md", "one", "Ours"), ("b.md", "two", None)]
+        )
+
+    @pytest.mark.anyio
+    async def test_installing_stamps_the_copy_with_the_folder_it_came_from(self):
+        """So a later `seed-skills` can tell an untouched copy from an edited one."""
+        created = MagicMock(id=uuid.uuid4(), name="code-review")
+
+        with (
+            patch(f"{SKILLS_PATH}.skill_repo.get_by_name", new=AsyncMock(return_value=None)),
+            patch(
+                f"{SKILLS_PATH}.skill_repo.create", new=AsyncMock(return_value=created)
+            ) as create,
+            patch(f"{SKILLS_PATH}.skill_repo.create_resource", new=AsyncMock()),
+            patch(f"{SKILLS_PATH}.record_audit", new=AsyncMock()),
+        ):
+            await SkillService(_db()).install_from_library(_ctx(), "code-review")
+
+        bundled = skill_library.get("code-review")
+        assert bundled is not None
+        assert create.call_args.kwargs["library_fingerprint"] == bundled.fingerprint
+
+    @pytest.mark.anyio
+    async def test_refreshing_something_that_does_not_ship_is_refused(self):
+        with pytest.raises(NotFoundError, match="No such bundled skill"):
+            await SkillService(_db()).refresh_from_library(_ctx(), "not-a-skill")
 
     @pytest.mark.anyio
     async def test_installing_something_that_does_not_ship_is_refused(self):
@@ -1311,3 +1346,227 @@ class TestSkillFiles:
         repo.delete_resource.assert_not_awaited()
         repo.update.assert_not_awaited()
         audit.assert_not_awaited()
+
+
+class TestSkillGallery:
+    """The opt-in gallery - what it offers, and what installing one does.
+
+    The distinction the whole feature turns on: the bundled library is seeded
+    into every organization automatically, and the gallery is not. Seventy
+    industry skills arriving the way the three bundled ones do would be seventy
+    rows in every tenant on the next deploy.
+    """
+
+    @pytest.mark.anyio
+    async def test_the_gallery_marks_what_the_organization_already_has(self):
+        """`installed` is a name match, the same rule installing uses.
+
+        Keyed on name rather than on the folder, so a folder renamed in a later
+        release does not offer a second copy of a skill somebody is editing.
+        """
+        industry = MagicMock()
+        industry.id = "healthcare"
+        industry.skills = [_bundled("patient-enquiry-triage"), _bundled("consent-explainer")]
+
+        with (
+            patch(
+                f"{SKILLS_PATH}.skill_repo.list_names",
+                new=AsyncMock(return_value={"consent-explainer"}),
+            ),
+            patch(f"{SKILLS_PATH}.skill_library.gallery", return_value=[industry]),
+        ):
+            gallery = await SkillService(_db()).gallery(_ctx())
+
+        assert [i.id for i in gallery.industries] == ["healthcare"]
+        assert [(s.name, s.installed) for s in gallery.industries[0].skills] == [
+            ("patient-enquiry-triage", False),
+            ("consent-explainer", True),
+        ]
+
+    @pytest.mark.anyio
+    async def test_installing_a_shelf_skips_what_is_there_and_reports_the_rest(self):
+        """One present name must not cost the other nine their install.
+
+        A shelf is installed as one request, so an existing skill is skipped and
+        an unrecognised key is reported - never raised. A request that installs
+        nothing still answers with why.
+        """
+        present = _bundled("consent-explainer")
+        fresh = _bundled("patient-enquiry-triage")
+
+        def _get(key: str):
+            return {"healthcare/consent-explainer": present, "healthcare/intake": fresh}.get(key)
+
+        with (
+            patch(
+                f"{SKILLS_PATH}.skill_repo.list_names",
+                new=AsyncMock(return_value={"consent-explainer"}),
+            ),
+            patch(f"{SKILLS_PATH}.skill_library.gallery_get", side_effect=_get),
+            patch.object(SkillService, "_copy_library_skill", new=AsyncMock()) as copy,
+        ):
+            result = await SkillService(_db()).install_gallery(
+                _ctx(),
+                ["healthcare/consent-explainer", "healthcare/intake", "healthcare/nope"],
+            )
+
+        assert result.installed == ["patient-enquiry-triage"]
+        assert result.skipped == ["consent-explainer"]
+        assert result.unknown == ["healthcare/nope"]
+        assert copy.await_count == 1
+        assert copy.await_args.kwargs["seeded"] is False
+
+    @pytest.mark.anyio
+    async def test_a_shelf_survives_somebody_installing_the_same_skill_at_once(self):
+        """The name check is a read, so two members installing one shelf both
+        pass it. The loser's insert violated `uq_skill_org_name` unhandled,
+        rolling back every skill that request had already copied - where the
+        endpoint promises the shelf continues and the entry is `skipped`."""
+        first = _bundled("shift-handover")
+        clash = _bundled("consent-explainer")
+
+        def _get(key: str):
+            return {"healthcare/handover": first, "healthcare/consent": clash}.get(key)
+
+        async def _copy(_ctx, entry, *, seeded):
+            if entry.name == "consent-explainer":
+                raise IntegrityError("insert", {}, Exception("uq_skill_org_name"))
+
+        with (
+            patch(f"{SKILLS_PATH}.skill_repo.list_names", new=AsyncMock(return_value=set())),
+            patch(f"{SKILLS_PATH}.skill_library.gallery_get", side_effect=_get),
+            patch.object(SkillService, "_copy_library_skill", side_effect=_copy),
+        ):
+            result = await SkillService(_db()).install_gallery(
+                _ctx(), ["healthcare/handover", "healthcare/consent"]
+            )
+
+        assert result.installed == ["shift-handover"]
+        assert result.skipped == ["consent-explainer"]
+        assert result.unknown == []
+
+    @pytest.mark.anyio
+    async def test_a_key_repeated_in_one_request_installs_once(self):
+        """Deduplicated on the way in, so "install all" twice is not two copies.
+
+        The name is tracked as the loop runs rather than read once, because the
+        second occurrence would otherwise reach a unique-name violation halfway
+        through and take the rest of the shelf with it.
+        """
+        entry = _bundled("shift-handover")
+
+        with (
+            patch(f"{SKILLS_PATH}.skill_repo.list_names", new=AsyncMock(return_value=set())),
+            patch(f"{SKILLS_PATH}.skill_library.gallery_get", return_value=entry),
+            patch.object(SkillService, "_copy_library_skill", new=AsyncMock()) as copy,
+        ):
+            result = await SkillService(_db()).install_gallery(
+                _ctx(), ["manufacturing/shift-handover", "manufacturing/shift-handover"]
+            )
+
+        assert result.installed == ["shift-handover"]
+        assert copy.await_count == 1
+
+    @pytest.mark.anyio
+    async def test_a_gallery_install_is_recorded_as_a_persons_choice(self):
+        """`seeded: false`, because somebody clicked it.
+
+        The seeding paths write `seeded: true` as the organization's owner. A
+        reader tells the platform's own write from a member's by that flag, so
+        the gallery must not borrow it.
+        """
+        entry = _bundled("api-support", resources=("examples.md",))
+        service = SkillService(_db())
+        created = _skill("api-support")
+
+        with (
+            patch.object(SkillService, "create", new=AsyncMock(return_value=created)),
+            patch(f"{SKILLS_PATH}.skill_repo.create_resource", new=AsyncMock()),
+            patch(f"{SKILLS_PATH}.record_audit", new=AsyncMock()) as audit,
+        ):
+            await service._copy_library_skill(_ctx(), entry, seeded=False)
+
+        assert audit.await_args.kwargs["details"]["seeded"] is False
+        assert audit.await_args.kwargs["details"]["key"] == "api-support"
+
+
+class TestTheGalleryOnDisk:
+    """The shipped gallery folders, read by the real parser.
+
+    Not a mock anywhere: this is the guard on seventy files that no other test
+    opens. A manifest with no description, a category the console cannot filter
+    by, or a name colliding with the auto-seeded library are all silent until an
+    install produces the wrong thing in somebody's organization.
+    """
+
+    def test_every_shipped_gallery_skill_parses(self):
+        from app.services import skill_library
+
+        industries = skill_library.gallery()
+        assert industries, "the gallery directory ships with the image and must not be empty"
+        for industry in industries:
+            assert industry.skills, f"{industry.id} would render as an empty shelf"
+            for entry in industry.skills:
+                assert entry.description, f"{entry.key} has no description"
+                assert entry.content, f"{entry.key} has no body"
+                assert entry.key.startswith(f"{industry.id}/"), entry.key
+
+    def test_gallery_names_are_unique_and_do_not_shadow_the_bundled_library(self):
+        """Installing matches on name, so a collision would silently skip.
+
+        A gallery skill sharing a name with one of the auto-seeded three can
+        never be installed - the organization already has that name from the
+        moment it was created - and nothing would say so.
+        """
+        from app.services import skill_library
+
+        names = [s.name for i in skill_library.gallery() for s in i.skills]
+        assert len(names) == len(set(names)), "two gallery skills share a name"
+        bundled = {entry.name for entry in skill_library.library()}
+        assert not (set(names) & bundled), "a gallery skill is shadowed by a bundled one"
+
+    def test_every_shipped_skill_name_is_one_a_model_can_load(self):
+        """A skill's name is its `load_capability` id, and models write that id in
+        the Agent Skills form. Every gallery skill once had a title for a name,
+        and `Product description writer` was loaded as
+        `product-description-writer` until the turn ran out of retries (#1911).
+
+        Each name also has to be one `SkillCreate` would accept, so a shipped
+        skill is never something a person could not have created by hand.
+        """
+        from app.schemas.skill import SKILL_NAME_PATTERN, SkillCreate
+        from app.services import skill_library
+
+        names = [s.name for i in skill_library.gallery() for s in i.skills]
+        names += [entry.name for entry in skill_library.library()]
+        assert len(names) == 74
+        for name in names:
+            assert SKILL_NAME_PATTERN.fullmatch(name), name
+            SkillCreate(name=name, description="d")
+
+    def test_a_gallery_skill_is_named_after_its_folder(self):
+        """The folder is the install key's second half, so the two cannot drift
+        into naming one skill two ways."""
+        from app.services import skill_library
+
+        for industry in skill_library.gallery():
+            for entry in industry.skills:
+                assert entry.key == f"{industry.id}/{entry.name}", entry.key
+
+    def test_every_gallery_category_is_one_the_console_can_filter_by(self):
+        """A category outside the catalog is a shelf label nothing matches."""
+        import json
+
+        from app.services import skill_library
+
+        catalog = skill_library.GALLERY_ROOT.parent / "skill_categories.json"
+        allowed = set(json.loads(catalog.read_text(encoding="utf-8")))
+        used = {s.category for i in skill_library.gallery() for s in i.skills if s.category}
+        assert used <= allowed, f"unknown categories: {sorted(used - allowed)}"
+
+    def test_a_gallery_key_resolves_and_an_unknown_one_does_not(self):
+        from app.services import skill_library
+
+        first = skill_library.gallery()[0].skills[0]
+        assert skill_library.gallery_get(first.key) is first
+        assert skill_library.gallery_get("no-such-industry/no-such-skill") is None

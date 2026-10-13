@@ -30,6 +30,7 @@ def _as_item(log: SyncLog) -> RAGSyncLogItem:
         updated=log.updated,
         skipped=log.skipped,
         failed=log.failed,
+        removed=log.removed,
         error_message=log.error_message,
         started_at=log.started_at.isoformat(),
         completed_at=log.completed_at.isoformat() if log.completed_at else None,
@@ -92,9 +93,15 @@ class RAGSyncService:
         *,
         collection_name: str,
         mode: str,
-        path: str | None,
+        path: str,
+        knowledge_base_id: UUID | None = None,
     ) -> SyncLog:
-        """Persist a sync log and dispatch the local-sync task on the configured backend."""
+        """Persist a sync log and dispatch the local-sync task on the configured backend.
+
+        `knowledge_base_id` is the base the route resolved and authorized for this
+        collection; the flow reads its tenant so the synced rows are stamped and
+        scoped to it rather than written untagged into an org-backed table (#1684).
+        """
         sync_log = await self.create_sync_log(
             source="local",
             collection_name=collection_name,
@@ -118,6 +125,7 @@ class RAGSyncService:
                 collection_name=collection_name,
                 mode=mode,
                 path=path,
+                knowledge_base_id=None if knowledge_base_id is None else str(knowledge_base_id),
             ),
             name=f"sync-collection-{collection_name}",
         )
@@ -133,11 +141,22 @@ class RAGSyncService:
         updated: int = 0,
         skipped: int = 0,
         failed: int = 0,
+        removed: int = 0,
         error_message: str | None = None,
-    ) -> None:
-        """Mark a sync operation as completed (done or error)."""
+    ) -> SyncLog | None:
+        """Mark a sync operation as completed (done or error).
+
+        Returns the updated row rather than `None`, so a caller in
+        `rag_tasks.py` that needs `started_at` or `triggered_by_user_id` for
+        the whole-attempt notification write (#1598) reads them off what this
+        already computed, instead of a second fetch. `RAGSyncService` itself
+        stays what it always was - it writes no notification of its own; the
+        design doc's own rule is that hooking this service (and
+        `SyncSourceService`) as an independent producer double-fires, since
+        both are called for the same outcome at some call sites.
+        """
         log = await self.get_sync_log(sync_id)
-        await sync_log_repo.update_status(
+        return await sync_log_repo.update_status(
             self.db,
             log.id,
             status=status,
@@ -146,6 +165,7 @@ class RAGSyncService:
             updated=updated,
             skipped=skipped,
             failed=failed,
+            removed=removed,
             error_message=error_message,
             completed_at=datetime.now(UTC),
         )

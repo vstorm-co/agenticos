@@ -68,6 +68,46 @@ def test_a_module_logger_record_is_redacted_at_the_handler(root_stream):
     assert "a@b.com" not in emitted
 
 
+@pytest.mark.security
+def test_a_submitted_value_cannot_write_a_log_entry_of_its_own(root_stream):
+    """One entry is one line, so a value carrying a newline writes a second one -
+    with a timestamp, a level and a message of the sender's choosing. The clearest
+    way in is the rate limiter's `caller`, which can be the address somebody typed
+    into a sign-in form (`py/log-injection`)."""
+    setup_logging()
+
+    logging.getLogger("app.services.rate_limit").warning(
+        "Rate limiting not configured - %s reached unmetered by %s",
+        "auth",
+        "id:nobody\n2026-01-01 12:00:00 CRITICAL app.audit: admin promoted somebody",
+    )
+
+    emitted = root_stream.getvalue()
+    assert "CRITICAL app.audit" in emitted, "the attempt is still recorded, not swallowed"
+    assert emitted.count("\n") == 1, "and it is one entry, on one line"
+    assert "\\n2026-01-01" in emitted
+
+
+@pytest.mark.security
+def test_a_value_passed_through_extra_is_escaped_too(root_stream):
+    """The default formatter does not render `extra`, so this forges nothing
+    today - but a deployment that plugs in a JSON or key-value formatter, which is
+    the ordinary production choice, must not acquire the hole by doing so."""
+    setup_logging()
+    record = logging.LogRecord("app.x", logging.WARNING, "p", 1, "embed_origin_refused", None, None)
+    record.origin = "https://evil.example\r\n2026-01-01 FORGED"
+
+    PiiRedactionFilter().filter(record)
+
+    assert record.origin == "https://evil.example\\r\\n2026-01-01 FORGED"
+
+
+def test_a_tab_survives_because_it_breaks_no_line(root_stream):
+    """Escaping is about what ends a line, not about flattening a message
+    somebody wrote deliberately."""
+    assert PiiRedactionFilter()._redact("a\tb") == "a\tb"
+
+
 def test_a_credential_in_an_exception_traceback_is_redacted(root_stream):
     """The leak this filter is for: a provider error carries the failing request,
     key and all, and the formatter appends it from `exc_info` after the filter has

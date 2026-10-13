@@ -1,6 +1,14 @@
 import { expect, test } from "./fixtures";
 
-import { AUTH_STATE, SEEDED_AGENT_HANDLE, agentCard, pageHeading } from "./helpers";
+import {
+  AUTH_STATE,
+  SEEDED_AGENT_HANDLE,
+  agentCard,
+  nowListed,
+  nowMatching,
+  pageHeading,
+  pageStatus,
+} from "./helpers";
 
 test.use({ storageState: AUTH_STATE });
 
@@ -62,13 +70,16 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
 
   // 1. a key
   await page.goto("/vault");
-  await expect(pageHeading(page, "Vault")).toBeVisible();
+  await expect(pageHeading(page, "Vault"), "the vault page never drew its heading").toBeVisible();
 
   // Waited for before it is counted. `count()` does not retry, and the vault
   // draws a skeleton until the key list answers - so a page that had simply not
   // loaded yet read as a user who is not allowed to store keys, and this whole
   // journey skipped itself with the wrong reason.
-  await expect(page.getByText(/\d+ keys? stored|1 key stored/)).toBeVisible();
+  await expect(
+    page.getByText(/\d+ keys? stored|1 key stored/),
+    "the vault never said how many keys are stored, so it had not loaded",
+  ).toBeVisible();
   const addKey = page.getByRole("button", { name: "Add key" }).first();
   if (!(await addKey.isVisible())) {
     test.skip(true, "this user cannot store a key, so the journey cannot start");
@@ -92,15 +103,22 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
   // Asserted in the list rather than in the toast: a toast says the request was
   // accepted, the list says the key is actually there. Everything below depends
   // on the second.
-  await expect(page.getByRole("main").getByText(keyLabel)).toBeVisible();
+  await nowListed(page.request, "/api/secrets", "name", keyLabel);
+  await expect(
+    page.getByRole("main").getByText(keyLabel),
+    `the API lists the key ${keyLabel}, but the vault page does not show it`,
+  ).toBeVisible();
 
   // 2. an agent
   await page.goto("/agents");
-  await expect(pageHeading(page, "Agents")).toBeVisible();
+  await expect(pageHeading(page, "Agents"), "the agents page never drew its heading").toBeVisible();
 
   // Waited for, then counted - as at the vault above, and for the same reason:
   // an agent list that has not arrived yet is not a user who may not create one.
-  await expect(agentCard(page, SEEDED_AGENT_HANDLE)).toBeVisible();
+  await expect(
+    agentCard(page, SEEDED_AGENT_HANDLE),
+    `the seeded agent ${SEEDED_AGENT_HANDLE} is not on the page, so the list had not arrived`,
+  ).toBeVisible();
   const newAgent = page.getByRole("button", { name: "New agent" }).first();
   if (!(await newAgent.isVisible())) {
     test.skip(true, "this user cannot create agents");
@@ -113,7 +131,10 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
 
   // Creating navigates straight into the Builder for the new draft.
   await expect(page).toHaveURL(/\/agents\/[^/]+$/);
-  await expect(pageHeading(page, new RegExp(agentName))).toBeVisible();
+  await expect(
+    pageHeading(page, new RegExp(agentName)),
+    `creating ${agentName} navigated, but the Builder never drew its name`,
+  ).toBeVisible();
   const agentId = new URL(page.url()).pathname.split("/").pop() ?? "";
 
   // 3. instructions and a model
@@ -158,6 +179,8 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
   // on.
   await expect(
     page.getByRole("group", { name: "Current model" }).getByText(modelLabel),
+    `the model ${modelLabel} was added, but the Current model summary does not name it - ` +
+      "which means the id it was created with resolved to no profile of this organization",
   ).toBeVisible();
 
   // 4. a capability
@@ -204,7 +227,7 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
   // Publishing validates the draft first, so this is also the assertion that the
   // spec the Builder wrote is one the API accepts. The status badge lives in the
   // page title, and it is the only thing that unlocks the chat action below.
-  await expect(pageHeading(page)).toContainText("published", { timeout: 30_000 });
+  await expect(pageStatus(page)).toContainText("published", { timeout: 30_000 });
   await expect(page.getByText("This agent cannot be published yet")).toHaveCount(0);
 
   // 6. running it
@@ -258,7 +281,10 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
   // asserts nothing about the click having landed, and the submit below would
   // then find the picker's Public API card - whose name ends "Nothing to publish
   // here", which a substring match on `Publish` counts (#634).
-  await expect(availability.getByLabel("Name")).toBeVisible();
+  await expect(
+    availability.getByLabel("Name"),
+    "the hosted-page form never opened, so the Publish below would find the picker's card",
+  ).toBeVisible();
 
   // No allowed site, and that is the assertion rather than an omission: an
   // allow-list is a rule about other people's sites, and this page is ours. The
@@ -266,11 +292,46 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
   // shortest integration this product has - send somebody a link - impossible to
   // create without inventing a site.
   await expect(availability.getByLabel("Allowed sites")).toHaveCount(0);
-  await availability.getByRole("button", { name: "Publish", exact: true }).click();
 
-  // Reloaded before the link is read. The list's refetch after a write is
-  // sometimes answered with the pre-write list (#230), and this step needs the
-  // row itself - the link is what is under test, so a toast will not do.
+  // **Armed before the click, awaited after it.** `click()` returns when the
+  // click is dispatched, not when the request it starts is answered - and the
+  // `reload()` below navigates, which aborts whatever is still in flight. So the
+  // publish that this whole section is about was sometimes cancelled before the
+  // server saw it, and the 30-second wait for a link then expired on an embed
+  // that had never been created. That is #1474, four failures in nine runs on
+  // branches that touch none of this.
+  const published = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === "/api/agents/embeds" &&
+      response.request().method() === "POST" &&
+      // A 401 on this path is not the answer, for the reason `submitDialog` gives
+      // at length: `apiClient.send` recovers from an expired access token by
+      // refreshing and re-issuing the same write, so stopping at the first
+      // response would fail a publish that succeeded on the retry - a new flake
+      // in place of the one being removed.
+      response.status() !== 401,
+  );
+  await availability.getByRole("button", { name: "Publish", exact: true }).click();
+  expect((await published).ok(), "publishing the hosted page was refused").toBe(true);
+
+  // And the row is readable before the DOM is asked about it, by polling the API
+  // rather than by reloading and hoping - the shape every fixture step takes
+  // after #335. The refetch after a write is sometimes answered with the
+  // pre-write list (#230), which a reload narrows rather than closes.
+  await expect
+    .poll(
+      async () => {
+        const response = await page.request.get(`/api/agents/${agentId}/embeds`);
+        if (!response.ok()) return [];
+        const body = (await response.json()) as { items?: { public_key?: string }[] };
+        // `public_key` is what the hosted link is built from, so this polls for
+        // exactly the thing the assertion below reads off the page.
+        return (body.items ?? []).map((embed) => embed.public_key).filter(Boolean);
+      },
+      { message: "the publish was accepted, but the agent lists no embed" },
+    )
+    .not.toHaveLength(0);
+
   await page.reload();
   await page.getByRole("tab", { name: "Availability" }).click();
   const link = page.getByText(new RegExp(`^${origin}/e/`)).first();
@@ -296,15 +357,44 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
 
   // 8. the run in Activity
   await page.goto("/runs");
-  await expect(pageHeading(page, "Activity")).toBeVisible();
+  await expect(
+    pageHeading(page, "Activity"),
+    "the Activity page never drew its heading",
+  ).toBeVisible();
   await page.getByRole("tab", { name: "Runs", exact: true }).click();
 
   // A run records the named model it billed against, which is how the row is
   // found — and a cost, which is the proof that usage was metered rather than
   // merely executed.
+  //
+  // **The API says the run is priced before the page is asked to draw it, and
+  // #162 is why.** This step asserted straight on the row, and failed on `main`
+  // with `element(s) not found` — on a commit whose own pull request had passed
+  // and whose re-run passed again. It is the last step of the longest journey
+  // here and it crosses the most: the model provider answered, the run row was
+  // written, the usage was metered into a spend record, and the list refetched.
+  // A bare `toBeVisible()` on that says "one of those five did not happen" and
+  // nothing else. Polling the collection first splits it in two: a failure here
+  // is a run that was never priced, a failure below is a page that did not draw
+  // a row the API was serving.
+  const priced = await nowMatching(
+    page.request,
+    // Scoped to this journey's own agent rather than read off the first page of
+    // everything: CI's organization is shared with every other spec, and a run
+    // pushed past `limit` by a busy list would read as a run that never happened.
+    `/api/runs?agent_id=${agentId}`,
+    (run) => run["model_label"] === modelLabel && Number(run["cost_usd"] ?? 0) > 0,
+    `a run billed against ${modelLabel} carrying a cost`,
+  );
+
   const row = page.getByRole("row").filter({ hasText: modelLabel }).first();
-  await expect(row).toBeVisible();
-  await expect(row).toContainText(/\$\d+\.\d{4}/);
+  await expect(
+    row,
+    `run ${String(priced["id"])} is priced at ${String(priced["cost_usd"])}, but Activity draws no row for ${modelLabel}`,
+  ).toBeVisible();
+  await expect(row, "the run row is on screen without the cost the API reports").toContainText(
+    /\$\d+\.\d{4}/,
+  );
 
   // 8. cleaning up
   // This is the one spec that creates a whole agent, and it runs on every push -

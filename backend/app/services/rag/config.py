@@ -150,6 +150,13 @@ EMBEDDING_DIMENSIONS: dict[str, int] = {
     "bge-small-en-v1.5": 384,
     "bge-base-en-v1.5": 768,
     "bge-large-en-v1.5": 1024,
+    # Served by Ollama's OpenAI-compatible `/v1/embeddings`; the widths are the
+    # models' own and `tests/test_embedding_providers.py` holds the catalog to them.
+    "nomic-embed-text": 768,
+    "mxbai-embed-large": 1024,
+    "bge-m3": 1024,
+    "snowflake-arctic-embed": 1024,
+    "all-minilm": 384,
 }
 
 
@@ -214,11 +221,28 @@ class RAGSettings(BaseModel):
         default_factory=lambda: list(DocumentExtensions)
     )
 
-    chunk_size: int = 512
-    chunk_overlap: int = 50
+    chunk_size: int = 2500
+    chunk_overlap: int = 200
     chunking_strategy: str = "recursive"
     enable_hybrid_search: bool = False
     enable_ocr: bool = False
+
+    # HNSW filtered-ANN recall mitigation (FA-039). The tenant conjunct is now
+    # mandatory on every search and, on a shared physical table where one org is
+    # a fraction of the rows, is a highly selective filter - a plain HNSW scan
+    # walks the graph within `ef_search` and can return fewer than `k` in-scope
+    # rows even when more exist deeper. Iterative index scan keeps the scan
+    # expanding past `ef_search` until it has `k` rows that pass the filter,
+    # bounded by `max_scan_tuples`; the raised `ef_search` is the fallback.
+    #
+    # `iterative_scan` and `max_scan_tuples` require pgvector >= 0.8.0. On an
+    # older image set `hnsw_iterative_scan = false`: the store then tunes only
+    # `ef_search` (available on every pgvector), a stopgap that does not claim
+    # the same recall. The store applies these per search transaction, so
+    # unfiltered paths and other statements are unaffected.
+    hnsw_iterative_scan: bool = True
+    hnsw_max_scan_tuples: int = 20000
+    hnsw_ef_search: int = 100
 
     embeddings_config: EmbeddingsConfig = Field(default_factory=EmbeddingsConfig)
 

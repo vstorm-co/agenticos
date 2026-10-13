@@ -6,7 +6,7 @@ Notable changes to AgenticOS. The format follows
 
 Two things are versioned separately from this file and worth knowing about:
 
-- **`SPEC_VERSION`** — the agent spec format, currently **9**. A published agent
+- **`SPEC_VERSION`** — the agent spec format, currently **11**. A published agent
   and a client's exported YAML both carry it, so it only ever moves forward with a
   migration that keeps old documents loading. See
   [the spec reference](docs/reference/spec.md).
@@ -16,6 +16,6918 @@ Two things are versioned separately from this file and worth knowing about:
   that still exists. Schema changes are listed here by what they do.
 
 ## [Unreleased]
+
+## [0.0.535] - 2026-10-09
+
+### Fixed
+
+- **Scheduled triggers and every periodic job fire again.** The Prefect server
+  image was the floating `prefecthq/prefect:3-latest`, and a deploy on
+  2026-09-28 pulled 3.8.7, built against SQLAlchemy 2.1. Its scheduler fails on
+  every tick (PrefectHQ/prefect#23199) and creates no runs, while the API stays
+  healthy and every deployment reads ready. Agent triggers, notification emails,
+  portal polling, RAG sync checks and the hourly and daily sweeps stopped as a
+  result; manually run triggers kept working. All three compose files now pin
+  `3.8.8-python3.12`, whose image ships SQLAlchemy 2.0.
+- **Prefect's database survives a container recreate.** The `prefect_data`
+  volume was mounted on `/root/.local/share/prefect/`, but Prefect 3 keeps its
+  SQLite database in `/root/.prefect/`, so every recreate of `prefect-server`
+  dropped the deployments, the run history and every queued run until the
+  runner restarted. The volume now sits on `/root/.prefect/`.
+
+### Added
+
+- **A `scheduler` health check.** `/admin/system`, the dashboard's service
+  health widget and `agenticos cmd doctor` report when the trigger heartbeat
+  last completed, and fail once it has missed five intervals. The outage above
+  ran for eleven days with every health check green.
+
+## [0.0.534] - 2026-10-09
+
+### Changed
+
+- **`pydantic-monty` 1.1.0 and `aiohttp` 3.14.4.** Monty, the sandboxed Python
+  the code-mode tools run in, gains a `complex` type, treats `bool`s as `int`s in
+  arithmetic, and releases a failed dict literal's operands; `aiohttp` is a patch
+  release.
+
+## [0.0.533] - 2026-10-09
+
+### Security
+
+- **`mako` moves to 1.4.3.** 1.4.1, which Alembic pulls in, is affected by
+  CVE-2026-102991 (GHSA-5639-2j2p-m4mx): a `TemplateLookup` on Windows follows a
+  URI with a drive letter outside its directories. The backend runs on Linux and
+  renders no Mako template of its own beyond Alembic's migration skeleton, so
+  this is hygiene; only the lockfile and the third-party notices change.
+- **The desktop app's `glib` 0.18 advisory stays open upstream.**
+  GHSA-wrw7-89jp-8q8g (unsound `VariantStrIter` iterators) is fixed in `glib`
+  0.20, but Tauri 2.12, `wry` 0.57 and `webkit2gtk` 2.0.2 all still require
+  `gtk` 0.18 and with it `glib` 0.18, so no lockfile change can move it. It is
+  Linux-only, and nothing in the desktop shell iterates a `Variant` string
+  array. The alert is dismissed as tolerable until Tauri moves to a newer
+  gtk-rs.
+
+## [0.0.532] - 2026-10-09
+
+### Changed
+
+- **Backend dependencies move up.** SQLAlchemy 2.1.4, PyJWT 2.15.1 (accepts the
+  trailing `=` padding AWS ALB tokens carry), Prefect 3.8.8, the MCP SDK 2.3.0,
+  LiteParse 2.15.1, cryptography 50.0.2, boto3 1.43.110, google-auth 2.61.0,
+  google-api-python-client 2.201.0, slack-sdk 3.45.0, mem0ai 2.2.1 and ruff
+  0.16.10; the floors in `pyproject.toml` follow. Replaces Dependabot's #2021,
+  whose harness bump already shipped with #2011.
+
+## [0.0.531] - 2026-10-08
+
+### Documentation
+
+- **AgenticOS is described as a sovereign agentic AI layer.** The README, the
+  comparison page and both decks now give one name for the product where they
+  say what it is. The comparison page gains "How much stays yours": for each of
+  nine products, where it runs, which models it may use, what its licence lets
+  you do (including that the default PDF parser is AGPL-3.0, so a modified image
+  served to others owes them its source) and its sign-in, audit and spend
+  controls, taken from each product's guide.
+
+## [0.0.530] - 2026-10-08
+
+### Documentation
+
+- **What a triggered run cannot reach on its creator's behalf.** A scheduled or
+  event-triggered run uses its creator's role and grants but answers to no
+  identified person, so memory files, mem0, conversation search, personal MCP
+  bindings and `read_artifact` all refuse it. `docs/concepts.md` now says so,
+  names the exception (a `session_scope: user` sandbox opens the creator's own
+  workspace) and gives the workarounds; the capability reference marks each
+  refusal, and two tutorials no longer say a fire spends the creator's budget
+  (#1902).
+
+## [0.0.529] - 2026-10-08
+
+### Changed
+
+- **Agents work in Pydantic AI workspaces.** The sandbox, attachments, skills,
+  artifacts, generated images and spilled tool results all reach an agent's
+  files through the run's workspace, on Pydantic AI 2.54 and
+  `pydantic-ai-backend` 0.2.32. The runner hands the run the workspace it
+  opened, so a conversation that continues on another host, or in another
+  environment, works in the workspace it has now.
+- **A sandbox whose files were purged is reported, not replaced.** Once a
+  conversation's container or Daytona sandbox has been opened, later turns attach
+  to that session; if its files were swept on the host, the agent is told they are
+  gone instead of carrying on in an empty one, and the next turn starts afresh.
+- **The activity log names what reached the sandbox.** Operations are `read`,
+  `write`, `ls_info`, `mkdir`, `remove` and `execute`: an `edit_file` shows as a
+  `read` and a `write`, a `glob` or `grep` as the command it ran. Rows recorded
+  before keep their old names (`edit`, `glob_info`, `grep_raw`, `read_bytes`)
+  until retention removes them.
+- **A Daytona connection can open a sandbox.** The Daytona SDK was never
+  installed, so the old backend's lazy import failed on every open; the backend
+  image now carries it, and a Daytona sandbox found broken (`error`,
+  `build_failed`) is deleted so the next turn can open its name afresh.
+- **Budgets and reminders keep their place around compaction.** Pydantic AI 2.54
+  runs every `wrap_*` hook outside every `before_*` hook, so the budget is now
+  checked again after a compaction summary was paid for, and a system reminder is
+  appended after compaction rather than before it, where a summary dropped it.
+- **An Anthropic agent with no `max_tokens` can answer at length.** Pydantic AI
+  now defaults it to the model's maximum output rather than 4,096 tokens. Set
+  `max_tokens` on the agent or its model profile to keep a ceiling.
+
+## [0.0.528] - 2026-10-08
+
+### Fixed
+
+- **OpenAI's newest models run.** Every `openai` profile was built on Chat
+  Completions, so a model served on the Responses API only, such as
+  `gpt-6-luna`, failed at its first request with a 400. A profile on `openai`
+  or `azure` now stores which API it uses, chosen under **Agents → add a model
+  → API**. The form starts on Responses for OpenAI's own endpoint and on Chat
+  Completions for an endpoint of your own or for Azure; a regional OpenAI
+  endpoint can pick Responses. Migration `0104_model_profile_api` gives
+  existing `openai` profiles without an endpoint Responses, and the rest Chat
+  Completions. A Responses model sends `store: false`, so moving to Responses
+  does not start keeping conversations on OpenAI's side; a profile can set
+  `openai_store` to opt back in. A profile moved to Responses loses the
+  Chat-only settings in its `params` (`seed`, `stop_sequences`,
+  `presence_penalty`, `frequency_penalty`, `logit_bias`), which Pydantic AI does
+  not send there. Replaces #2033.
+
+## [0.0.527] - 2026-10-08
+
+### Fixed
+
+- **Local services work from the console.** Knowledge → Integrations and a
+  collection's embedding and OCR server pickers called `/api/local-services`,
+  which had no proxy route in the console, so listing, registering or removing
+  an Ollama or OCR server returned the console's 404 page and no collection
+  could be pointed at one. The route now forwards to `/api/v1/local-services`
+  like every other resource.
+
+## [0.0.526] - 2026-10-08
+
+### Fixed
+
+- **A capability's own model requests check the budget before each one, not
+  only the first.** Knowledge self-query, query expansion and both browser
+  capabilities run model requests through an agent of their own, which the
+  run's budget guard does not wrap. Self-query, query expansion and browser
+  choice checked the budget once before each nested run, and a browser-use
+  step did not check it at all. A corrected self-query attempt, an expansion
+  retry or the next browser-use step could therefore still be sent after an
+  earlier request took the run to its cap. Every such request is now refused
+  before it is sent once a cap is reached. Self-query still stops the run with
+  the budget refusal, and query expansion still falls back to the query as
+  written (#1808).
+
+## [0.0.525] - 2026-10-08
+
+### Fixed
+
+- **An output guardrail screens the answer before anyone sees it.** The web
+  chat, the embedded widget and the channel bots stream an answer as it is
+  written, and the output guardrail read only the finished one, so a key it
+  redacted, or a term it blocked, had already been shown and stored. With any
+  output check configured, each piece of text and reasoning is now held until
+  it is complete, run through the same detectors and only then sent. Text the
+  model writes before a tool call is screened too. A blocked keyword in the answer
+  ends the run before any of the blocked text is shown; one in the model's
+  reasoning withholds that reasoning instead of ending the run. Such an agent's
+  answer arrives a step at a time rather than word by word, and its model
+  requests stream even through the HTTP API. Turns stored before this change may still hold the
+  unredacted text in their parts.
+
+## [0.0.524] - 2026-10-08
+
+### Fixed
+
+- **A document's text is extracted only up to the limit.** A chat attachment and
+  a document `web_fetch` downloads were parsed to the last page and only then cut,
+  so a compressed PDF under the 10 MiB download limit could cost far more worker
+  time and memory than the text the model was shown. The readers now stop at the
+  limit: a PDF loads pages until one crosses it, and stops after 2,000 pages; an
+  `.xlsx` streams rows until one crosses it, and reads at most a million cells
+  whatever range the sheet declares, ending with a note when that count stopped
+  it. DOCX, PPTX, ODT and ODP stop extracting at the paragraph or slide, but are still decompressed and parsed whole, within the
+  archive size limits. `web_fetch` passes its `max_content_chars` as that limit;
+  attachments keep `CHAT_PARSED_TEXT_MAX_CHARS`. Text that goes past the limit ends
+  with a note that the rest of the document is left out (`web_fetch` keeps its
+  `[Content truncated]`), in place of a total length that is no longer counted.
+
+## [0.0.523] - 2026-10-08
+
+### Security
+
+- **`sharp` moves to 0.35.5.** 0.35.4, which `next` pulls in for image
+  optimization, bundles a `librsvg` affected by CVE-2026-96889
+  (GHSA-wq5f-xc86-pv6w), and `make audit-frontend` failed on it. 0.35.5 is
+  inside the range `next` already asks for, so only the lockfile and the
+  third-party notices change.
+
+## [0.0.522] - 2026-10-06
+
+### Fixed
+
+- **The Workspaces page no longer sits on its loading state before it draws.**
+  Its landing view, every file at once, read up to twenty-five container-backed
+  workspaces one after another and then fetched their image thumbnails one after
+  another, so the page waited for the sum of all those round trips. Workspaces
+  and thumbnails are now read side by side, on eight threads of their own shared
+  by the whole process, so several people opening the page against a host that
+  has stopped answering cannot hold up sign-in or anything else on the default
+  thread pool. A listing waits ten seconds for each call to a host instead of the
+  archive's sixty-second default, so a host that does not answer at all is
+  reported as unreadable after ten seconds; one that answers slowly can still
+  take longer over a deep walk. The "Count files" switch reads hosts the same way.
+
+## [0.0.521] - 2026-10-06
+
+### Fixed
+
+- A burst of refreshes on one cookie no longer signs the person out. The reuse
+  grace window rotated the session again on every grace refresh, so the third
+  request of a burst matched nothing, got a 401, and its response cleared the
+  cookie the other two had just set. Within `REFRESH_REUSE_GRACE_SECONDS` a spent
+  token is now answered with the successor the session already holds - the same
+  token for every request in the burst - so the cookie converges whichever
+  response lands last.
+- A session that has ended sends the person to sign in. A refused refresh left the
+  console signed in, with every request answering 401 and the chat socket
+  reconnecting on a dead token, until a full reload.
+
+## [0.0.520] - 2026-10-06
+
+### Fixed
+
+- **Knowledge self-query and query expansion run under the agent's model
+  settings.** Both make a model request of their own inside a search, and
+  both inherited the run's model without the `timeout`, `max_tokens` and
+  `temperature` the agent set, so a query rewrite or a filter inference could
+  outlive the agent's timeout or generate more than it permits. They now run
+  under the same settings as the run's own requests, as compaction summaries
+  and system reminders have since 0.0.507. The tool-output summary is
+  unchanged: the harness it builds on exposes no settings knob (#1810).
+
+## [0.0.519] - 2026-10-06
+
+### Fixed
+
+- **PII redaction covers phone numbers.** The `redact_pii_*` guardrails
+  scrubbed email, IBAN, card and US SSN, and a phone number in the same
+  message reached the model and the reader unchanged. They now also redact a
+  phone number as `[redacted:phone]` when it is valid in its country's
+  numbering plan and grouped the way that country writes it, so a date, an
+  amount or an order id such as `ORD-2026-000417` comes through. A number
+  written with `+` is caught for any country; a national one for the countries
+  in the new `phone_regions` field, `US, GB, DE, PL` by default. An unknown
+  code, or more than 16 of them, is refused at publish. A text longer than
+  200,000 characters or with more than 10,000 digits is not read: it ends the
+  run with `guardrail_blocked` rather than reach the model unredacted. Each
+  country past four shrinks both limits in proportion, since each is another
+  pass over the text. An agent with no PII toggle on is unchanged.
+  `POST /api/v1/ml/privacy/pii` finds the same numbers as a `phone`
+  category, against the default countries, where it returned them unchanged
+  and refused `categories: ["phone"]`; a scan that includes `phone` refuses
+  text with more than 10,000 digits.
+
+## [0.0.518] - 2026-10-06
+
+### Fixed
+
+- **An agent card no longer blinks out when the cursor leaves it.** The
+  gallery's entrance animation and the card's hover beam both set an
+  animation on the same element, so each time the beam went out the card
+  replayed its entrance from fully transparent. Firefox and browsers built on
+  it showed this as the card vanishing under the cursor. The beam now sits
+  inside its own wrapper.
+
+### Security
+
+- **`multidict` moves to 6.9.1 and `source-map-js` to 1.2.2.** 6.8.0, which
+  `aiohttp` and `yarl` pull in, is affected by CVE-2026-104874
+  (GHSA-54p9-h82j-f925), and `make audit` failed on it. 1.2.1, which `postcss`,
+  Tailwind and `css-tree` pull in at build and test time, is affected by
+  GHSA-68fv-2mgg-jv7q, and `make audit-frontend` failed on it. Only the
+  lockfiles change.
+
+## [0.0.517] - 2026-10-05
+
+### Changed
+
+- **A new README, in four languages.** It opens on what AgenticOS is for
+  ("AI agents your whole team can use and improve"), a 45-second intro film and
+  a product tour with current screenshots in light and dark, and keeps the list
+  of what AgenticOS does not do yet. The Polish, German and Spanish READMEs
+  follow it, and their links to the documentation site open the page in the
+  same language where a translation exists.
+- **Two presentations on the documentation site.** `/presentation/` is a
+  14-slide introduction to the open-source project and `/presentation/tour/`
+  the 44-slide product tour. Both use the new type (Instrument Serif, DM Sans,
+  DM Mono) on warm white, and show the marks of the stack and the model
+  providers. `make presentation` checks both decks and their assets.
+- **`make audit-frontend` skips one advisory with no fix.**
+  GHSA-vfj7-8cjw-p6xm (braces <= 3.0.3) has no patched release and reaches the
+  tree only through a lint-time dependency of `eslint-config-next` that the
+  built console does not ship. The exception is named in the `Makefile`, with
+  the condition for removing it.
+
+### Fixed
+
+- **The presentation's presenter view talks only to its own origin.** The deck
+  and the presenter window send their messages to the page's origin and ignore
+  messages from any other, so a presenter window navigated elsewhere no longer
+  receives slide state or speaker notes. Speaker notes and the slide list are
+  written as text, not HTML.
+
+## [0.0.516] - 2026-10-01
+
+### Changed
+
+- **A personal service is asked for when the agent needs it.** The dashboard
+  chat no longer puts a connect card under every answer for an agent bound to
+  each person's own account. A service the person has not connected, holds
+  several of, or must authorize again is offered to the model as
+  `connect_account`; when a question needs it the run pauses on a card with the
+  connect button, and once the account is connected the same run carries on
+  with that service's tools. Skipping it lets the run carry on without them.
+  Channels, the API and a turn with nobody signed in still brief the model that
+  the service is missing, as before.
+- **Tool output limits let an ordinary page through.** The default threshold
+  is 60,000 characters, up from 10,000 - clear of a full `web_fetch` with its
+  URL and title - and a truncation keeps 20,000, up from 4,000: a fetched page
+  or a file of 30,000 to 40,000 characters arrived as a preview to page
+  through, which read as the tool failing. Measured in tokens, the default is
+  15,000. A truncation left unset never keeps more than the threshold, so a
+  binding that lowers only the threshold still shortens what crosses it. An
+  agent that set its own values keeps them.
+- **Prompt caching is on by default for Anthropic and OpenRouter.** Each
+  request marks the instructions, the tool schemas and its last message as
+  cache breakpoints, so a long conversation reads its history from cache
+  instead of paying for it again on every request. A profile can switch any of
+  them off.
+- **Files open on their preview.** The file viewer and the workspace browser
+  open a page, a Markdown file or a table rendered; the source is one tab away,
+  and viewing one file's source no longer opens the next as source too.
+
+### Fixed
+
+- **A run resumed after an approval can read its own spilled tool results.**
+  Parking closed the workspace and deleted the spills its history named, so the
+  resumed run was handed handles to files that no longer existed.
+- **A spilled page pages by line.** A structured result such as a Notion page
+  was spilled as one line of JSON, so `read_tool_result` answered "1 matching
+  line" at every offset; its text field is now written out as text.
+- **Runs through OpenRouter are priced.** `anthropic/claude-sonnet-5.5` was not
+  in the price snapshot, so its requests were booked at $0 and no budget could
+  stop a run; an unlisted aggregator model is now priced as the vendor's own.
+- **An MCP tool error no longer ends the run.** The server's refusal reaches
+  the model as the call's result instead of spending the tool's only retry,
+  which ended the run with `UnexpectedModelBehavior` on the second refusal.
+- **Failures say what to do.** A provider out of credit (HTTP 402) and a run at
+  its step limit get their own advice instead of "retry it", and a run that
+  fails while resuming after an approval says why in the chat.
+- **The account menu's theme and language lists open.** The submenus were cut
+  off at the edge of the menu.
+- **A workspace no longer shows an empty `skills` folder.** The platform's
+  skill files were hidden and their folder was not.
+
+## [0.0.515] - 2026-09-30
+
+### Added
+
+- **Published pages look like the console.** The library set gains
+  `agenticos-2.css` - the console's proportions and the components a report is
+  made of (a header, stats with a delta, sections, tabs, callouts, key-value
+  lists) - `agenticos-2.js`, which gives Chart.js the console's fonts, grid,
+  tooltip and graphite palette, formats numbers in the page's language and wires
+  tabs, and Lucide 1.46.0, so a page draws the console's icons instead of emoji.
+  The `artifact-pages` skill and its two templates are rewritten on them, and
+  `publish_artifact` itself tells a model without the skill to keep to the look.
+  `agenticos-1.css` stays served for the pages published against it.
+- **An agent can change part of a page it published.** `read_artifact` returns
+  the current version's source, and `publish_artifact` takes `edits` - exact
+  replacements applied to that version - beside `path` and `content`. An edit
+  made against a version another run has since replaced is refused, so it never
+  overwrites the newer page (#1970).
+- **Pages load charts from the deployment instead of inlining them.** Chart.js
+  4.5.1, d3 7.9.0 and a stylesheet of the console's tokens are served beside every
+  page under `lib/`, the one remote source the page's policy allows. A bundled
+  `artifact-pages` skill carries two templates and the house style; the
+  Artifacts capability's **Page style** tab offers it, and an existing
+  organization gets it through `seed-skills` (#1971).
+- **Restore a kept version** from the artifact's page. It adds a new version
+  with the old one's bytes, so the history is never rewritten (#1966).
+- **The public link has settings**: a date after which it opens nothing, a
+  pinned version a new publication does not change, a password asked before the
+  page is shown, and how often the link was opened (#1972).
+- **A public page can be embedded** on the sites listed for it, through an
+  embed document whose policy lets only those sites frame it (#1973).
+- **The artifact list filters by the agent that published** (#1967).
+- **A "Claude Code like" agent template**, under a new *General purpose*
+  category: an agent for any task that reads before it acts, plans with a task
+  list, edits files and runs commands in its workspace, delegates to three
+  specialists sharing that workspace (`explore`, `research`, `review`), researches
+  the web, and publishes pages people open later. It switches on every
+  capability that works without a key or a vetted endpoint; attach a sandbox
+  connection for a real shell. A new check holds every shipped template to the
+  validation publish runs.
+
+### Changed
+
+- **`seed-skills` refreshes bundled skills nobody edited.** Every copy of a
+  bundled skill now records which version it was written from, so a copy left
+  as seeded is replaced with the version a release ships - files and all, with
+  a `skill.refreshed` audit entry - while a copy edited here is left alone.
+  `--replace` takes the bundled version over edits, and `--dry-run` prints the
+  plan for each skill instead of "would install" for every one. A copy made
+  before this release is reported as untracked unless it already matches.
+- **The chat composer is one row of actions.** The model picker is an icon
+  beside the microphone, naming the model in its tooltip, and what the
+  conversation is using - the context window, the cost, the budgets, the
+  workspace - is one icon that fills with the context share and turns amber or
+  red when any reading nears its limit; the numbers open on a click. The
+  disclaimer is a footnote, the connection shows only when it is lost, and on a
+  phone the composer no longer sits under the tab bar.
+- **Tables in an answer are easier to read and to take away.** Headers are in
+  sentence case, a figure stays on one line in tabular digits, a text column
+  keeps a readable width, and the rule under the last column is back. A copy
+  button on hover copies the table as HTML for a spreadsheet or a document and
+  as markdown for a text field.
+- **A published page's card in chat shows the page** - the version that run
+  published - instead of an icon and a title.
+- **Memory steps stay folded** even as the last step of a turn: what an agent
+  notes for itself is not what the person asked to see.
+- **A link inside a published page opens after a confirmation.** The page still
+  has no `allow-popups`; a platform script turns the click into a request, and
+  the console, the public page and the embed show the full address and open it in
+  a new tab only when the person agrees (#1969).
+- **An environment's release switch is now "Pinned".** It is on for an environment
+  that waits to be promoted onto and off for one that follows every publish; the
+  switch used to be "follows latest".
+- **A new agent's `production` follows publishes.** The environment the first
+  publish creates is the agent's only one, so there is nothing to promote between:
+  a publish is what answers next, with no promotion to remember. Pin it once a
+  `dev` or `staging` sits beside it. An environment added later still waits to be
+  promoted onto by default.
+- **The artifact list's thumbnails run the page's script**, so a chart a library
+  draws is on the card, and each one is unmounted when its card scrolls away
+  (#1968).
+
+### Fixed
+
+- **oauthlib 4.0.0**, for CVE-2026-49265 (GHSA-xpv3-w29h-x7cv). It arrives
+  through Prefect's notification library and nothing here calls it; the lock
+  is the only change. virtualenv 21.14.1 in the development tools, for four
+  advisories published against 21.7.9 (CVE-2026-102925, -102930, -102937,
+  -102938).
+- **Next.js 16.3.8**, for the remote code execution in `next/og` `ImageResponse`
+  (GHSA-vcvr-r3jv-pc5j, affecting 16.2.0 to 16.3.5). With it, jsdom 30.1.1 for
+  three undici advisories in the test environment and brace-expansion 1.1.21 and
+  5.0.12 for two advisories in the lint tooling.
+- **Review fixes on artifacts and environments.** A password-protected embed no
+  longer carries the page's title; a link confirmation keeps the address it is
+  asking about while the page posts another, in the console and in the embed; a
+  public link's expiry without a UTC offset is refused instead of failing as a
+  500; pinning a version takes the lock a publish prunes under; the platform
+  script goes after a leading doctype rather than before it; the Page style tab
+  no longer calls the agent's other skills missing; and an environment with a
+  run still working or parked on an approval cannot be removed, since its
+  pages would land on production's. From the second review: `seed-skills` counts a
+  file description written on a copy as an edit and decides under a row lock on
+  the row as it is now; a template no longer binds a bundled skill the installer
+  may not read; restoring a version whose bytes are gone is refused; and a
+  cross-tab refresh stamp from ahead of the clock no longer suppresses refreshes. From the
+  third: removing an environment locks its row first, so a run cannot start in
+  it between the check and the delete; the chat's socket recovery reads
+  `/auth/me` under the cross-tab lock; and an embed origin's port must be in
+  range. From the security review: `read_artifact` reads as the
+  person listening, so on a public widget or an embed, where the run stands in
+  for an anonymous visitor, it opens nothing. From the fourth: a refresh
+  rotation stamped in the future is outside the reuse grace window; a pin to a
+  version whose bytes are gone is refused; the platform script is placed right
+  after the document's lead, so a `<head>` inside a comment or a script cannot
+  move it where it never runs; and the first-run tour waits for the page's
+  session check, instead of greeting a person who finished onboarding since
+  they signed in.
+- **An artifact whose stored bytes are gone answers 404, not 500.** A version
+  row whose file storage no longer has - a restored database beside an older
+  volume - made the page, its thumbnail and `read_artifact` fail with a server
+  error; the page is now not found, the tool says to publish it again, and the
+  mismatch is logged.
+- **A sign-in that the network never answers no longer spins forever.** After
+  an idle laptop or a VPN reconnect the login request could go out on a dead
+  connection and hang until the page was reloaded; it now gives up after 20
+  seconds and says the server did not answer. A session check sent before the
+  sign-in and answered after it can no longer put the new account back on the
+  login page.
+- People are no longer signed out several times a day by their own refresh. Two
+  tabs refreshing on the shared cookie, or a refresh whose answer was lost to a VPN
+  reconnect or a closed lid, presented the token the rotation had just spent, and
+  reuse detection ended the session as if it were stolen. A spent token now
+  refreshes once more within `REFRESH_REUSE_GRACE_SECONDS` (60 by default) of its
+  rotation. The console also serializes refreshes across tabs. The `/api/auth/me`
+  and `/api/auth/refresh` proxies clear the cookies only when the backend refuses
+  the token: before, a 502 during a redeploy also cleared them, and so did a failed
+  read after a successful refresh. Adds `sessions.rotated_at`.
+- `web_fetch` returns a PDF or an office document as its extracted text instead of
+  its raw bytes. A model behind an OpenAI-compatible endpoint that takes no document
+  parts, such as a self-hosted vLLM, refused the whole next request (`Unsupported
+  chat content part type: 'file'`), and the agent then fetched the same document
+  again. Documents now go through the same parser as chat attachments and are cut
+  at `max_content_chars`. Images still come back as images, and a binary with no
+  readable text is a retry that names what came back.
+- Web chat no longer looks frozen while the model writes a large tool call. A
+  `write_file` carrying a whole report could stream its arguments for many minutes,
+  and the step only appeared once they were complete, so all that showed was a
+  blinking cursor. `part_start` now names the tool and its call id, and the chat
+  draws the step straight away with how much of the arguments has arrived
+  ("42.0 KB so far"). A call cut off mid-way by an error or a stop is marked
+  unfinished instead of spinning.
+- **The "Claude Code like" template binds the `artifact-pages` skill.** A
+  template can now name a skill bundled with every organization; installing
+  used to hand that name to the gallery, which did not know it, so the agent
+  built pages without the style written for them.
+- **A run in a named environment no longer republishes the default
+  environment's page.** The environment is part of an artifact's identity, read
+  from the run, so `staging` publishes a page of its own. Deleting an
+  environment leaves its pages readable with no publisher (#1965).
+
+## [0.0.514] - 2026-09-29
+
+### Changed
+
+- **Skill, context, artifact and file cards show what is inside them.** Each
+  card opens on a sheet of paper with the document's first lines on it: a
+  skill's body with one sheet stacked behind for each file it carries, a
+  context file's opening, an artifact's current page as a live sandboxed
+  thumbnail with its earlier versions stacked behind, and a file's first lines
+  or picture in Workspaces and in the chat's Files panel. Hovering a card lifts
+  the page and fans the stack. The skills and context listings return the
+  opening as `excerpt`, and the chat's and a workspace's file listings now
+  carry `preview` and `thumbnail`, as All files already did.
+- **A streaming answer flows onto the page.** Chat text is revealed at a steady
+  pace a whole word at a time, each word surfacing out of a soft blur, and each
+  new paragraph, list or table fades up as it arrives. The markdown renderer
+  rebuilt its element types on every render, which remounted the answer on
+  each streamed frame, and the bubble was replaced when the database id
+  arrived; both kept the text invisible until the turn ended. Anyone who asked
+  the system for less motion gets the text as it arrives.
+- **A turn's time and cost appear on hover**, with its copy, retry and rating
+  actions, instead of under every message. A stopped turn's marker stays.
+- **Dialogs, menus, selects and popovers animate.** Their enter and exit
+  classes compiled to nothing, so every overlay appeared and vanished in a
+  single frame. A dialog now rises onto a lighter, blurred veil. A wizard's
+  steps slide in, and its progress rail fills as it advances.
+- **The Activity table keeps one row to a line.** Agent and person names,
+  costs and durations no longer wrap, and token counts are grouped by digit.
+- **Easier to read, firmer to see.** Small and faded text was raised to a
+  readable size and contrast across the console (nothing under 11 px, no grey
+  under 4.5:1), borders and field edges are firmer, and status pills and
+  alerts keep their tone in the fill and edge while the words stay in text
+  colour - red words on a red badge are gone. The accent is neutral: toggles
+  are green when on, errors red, and each section keeps a small hue only on
+  its page tile and empty state. Dialogs are white with a rule above their
+  actions, and every field shares one height and edge.
+- **Sign-in is quieter.** Sign in, sign up and the password pages are a white
+  form beside a soft panel with the agent orb, without the badges and licence
+  line.
+- **Dialogs ask for less and explain more.** A custom MCP server's tool prefix
+  follows the name typed above it until it is edited, and its title reads
+  "Add an MCP server". A new knowledge base says who can search it and hides
+  the OCR settings while scanned pages are not read, a new skill's body shows
+  an example of what to write, and a Mattermost bot's server URL hint says
+  what address to paste instead of repeating an example of one.
+- **The agent builder says what is already true.** The model panel reads
+  "In use" while its fields show the agent's model, instead of offering a
+  "Use this model" button that selected it again. The monthly limit field
+  says what a blank one means, and when no bot is free to bind, the sentence
+  saying so links to Channels.
+- **Headers and lists hold together across the console.** A page's actions
+  sit level with its title instead of at the foot of a long description, and
+  an agent's status badges sit under its name. On a phone, a list card's title
+  no longer gets squeezed by its filters. Header buttons share one size.
+  Routines are started from the page header, and each row leads with the
+  routine's name. An organization card no longer reads "· admin" when it has
+  no tier. A workspace's empty preview shows a blank page, and the memory
+  settings tab stops drawing a second page title. The agent, knowledge base,
+  organization and MCP grids rise in like the others.
+- **The agents catalog filters by picking, not typing.** Category and tag are
+  now menus of the labels on the agents you can see - tick several to widen
+  the filter - rather than free-text boxes that matched nothing on a typo.
+  `GET /api/v1/agents` returns those choices as `categories` and `tags`,
+  drawn from the same visibility as the listing, so a private agent's labels
+  never appear in someone else's menu.
+
+## [0.0.513] - 2026-09-28
+
+### Changed
+
+- **An artifact's link opens the page itself.** `/artifacts/<id>` - the link
+  the chat card and the agent's reply point at - fills the window the way the
+  public link does, under one strip with the title, how far it reaches, the
+  version and **Share**, instead of a console page with the page in a card
+  beside two panels. It still opens only for a signed-in member the artifact's
+  rules let in, and names its organization (`?org=`) so a member of several
+  lands in the right one; a link without it offers the organization switcher
+  under "not available". **Share** holds the page's own address, the public
+  link, visibility and grants; delete moves into the strip's menu.
+- **Page headers wrap their actions instead of squeezing the title.** On the
+  agent page five buttons broke the name over two lines and every status pill
+  over two more; the name now stays on one line, the pills sit above the
+  actions, and the actions move under the title when both do not fit.
+
+### Fixed
+
+- The sharing panel on an artifact called it "this secret"; it names an
+  artifact now, in every language. The public link's copy button, hidden until
+  a hover that could never happen outside the chat, is visible. Changing a
+  resource's visibility refreshes the resource itself, not only the panel, so
+  a list or page showing its reach no longer shows the old one.
+
+## [0.0.512] - 2026-09-28
+
+### Changed
+
+- **The code-execution sandbox runs on `pydantic-monty` 1.0.** 1.0 splits the
+  single time limit into one per feed and one per host round trip; a
+  `run_python` call is one feed with no host calls, so its timeout is now the
+  per-feed limit. The old key is unknown to 1.0, which the weekly
+  newest-release check caught before a release did (#1919).
+
+## [0.0.511] - 2026-09-28
+
+### Changed
+
+- **SQLAlchemy 2.1.** The sync URL Alembic migrates with names its driver,
+  `postgresql+psycopg2://`, because 2.1 resolves a bare `postgresql://` to
+  psycopg 3, which the backend does not install. Queries move off what 2.1
+  deprecates (`Result.tuples()`, and `distinct(column)` for `DISTINCT ON`), and
+  its per-column row types are satisfied without casts (#1906).
+
+## [0.0.510] - 2026-09-28
+
+### Changed
+
+- **Backend dependencies moved forward:** `uvicorn` 0.54.0, `pyjwt` 2.15.0,
+  `pydantic-ai-harness` 0.35.0, `liteparse` 2.14.7, `google-auth` 2.58.1,
+  `boto3` 1.43.102, `httpx2` 2.13.1, `tavily-python` 0.8.4, `mem0ai` 2.2.0
+  (which brings in `json-repair`, MIT), and the `ruff` 0.16.9 and `ty` 0.0.84
+  toolchain. SQLAlchemy stays on 2.0 for now: 2.1 resolves a plain
+  `postgresql://` URL to psycopg 3 rather than psycopg2, which breaks the
+  migrations, and it is moving in its own change (#1906).
+
+## [0.0.509] - 2026-09-28
+
+### Fixed
+
+- **An agent loads a gallery skill on the first call.** All seventy gallery
+  skills were installed under a title, such as `Product description writer`,
+  and a skill's name is the id a model loads it by. Models write that id as
+  `product-description-writer`, so the call missed, and a second wrong guess
+  ended the turn with "the agent could not finish this turn." Gallery skills
+  are now named after their folder, and a new skill's name has to be
+  lowercase letters, digits and single hyphens; one with spaces or capitals
+  is refused when it is created. A skill installed earlier keeps its old
+  name — install it again from the gallery and bind the new one (#1911).
+- **The channels page names the widget's field as the console shows it:**
+  **Allowed sites**, not "Allowed origins" (#1912).
+
+## [0.0.508] - 2026-09-28
+
+### Added
+
+- **A library of 29 use-case tutorials.** The use-case index now groups
+  tutorials by documents and knowledge, customer support, research, automation
+  and teams of agents, personal productivity, content, and engineering and
+  safety: a document library with citations, an LLM wiki the agent maintains in
+  a sandbox, contract review, invoice extraction, meeting summaries, a website
+  support widget, ticket and email triage, onboarding, PII guardrails, research
+  with subagents, account briefs, page monitoring, database questions, Excel and
+  slide reports, GitHub issue triage, meeting action items to tasks, a team of
+  specialist agents, the HTTP API, a personal assistant, a Notion agent, content
+  repurposing, product descriptions, glossary-driven translation and code review.
+  Each has a synthetic fixture, the exact configuration and prompt, reference
+  checks including a refusal or edge case, and the usual failures. The index says
+  which ones the maintainers ran on v0.0.504; the rest need a third-party account
+  (#1909).
+
+## [0.0.507] - 2026-09-26
+
+### Fixed
+
+- **Auxiliary model calls obey the run's budget, trace policy and settings.**
+  A system reminder, a compaction summary and a tool-output summary now
+  re-check the organization and agent caps before they spend and fall back to
+  their model-free path at a cap. The runner opens the run's budget guard, which
+  also makes the existing checks in knowledge search and browser automation
+  take effect. Reminders and compaction summaries are traced the way the run
+  is, so `content: none` holds and a run routed to its own Logfire project keeps
+  them there, and they run under the run's model settings. Concurrent reminders
+  no longer double-count their spend. The tool-output summary gets the budget
+  check only; its trace policy and settings are tracked in #1809 and #1810
+  (#1818).
+
+## [0.0.506] - 2026-09-26
+
+### Added
+
+- **Three use-case tutorials you can repeat.** The docs now cover a handbook
+  question answered in Slack, a CSV turned into a chart you can reconcile with
+  its rows, and a weekly report published as an artifact on a schedule. Each
+  gives a synthetic fixture, the configuration, the exact prompt, reference
+  checks, the usual failures and what to record. The CSV and report tutorials
+  include a run recorded on v0.0.504. The use-case index says which tutorials
+  the maintainers have run (#1895).
+
+## [0.0.505] - 2026-09-26
+
+### Changed
+
+- **Comparisons cover eleven products in depth.** The comparison hub groups
+  assistant apps, cloud-suite builders, self-hosted builders, teammate
+  services, delivered platforms and coding agents, and states what AgenticOS
+  does not do yet. The Viktor, Dify and Wonderful guides now compare tenancy,
+  identity, budgets, approvals, audit, surfaces, knowledge and pricing, and new
+  guides cover Claude, Claude Code, ChatGPT, OpenAI Codex, OpenCode, n8n,
+  Microsoft Copilot Studio and Google Gemini Enterprise, each with vendor
+  sources checked on 25 September 2026 (#1894).
+- **Comparison guides are written for search.** Each has a search title, a
+  meta description and a frequently-asked-questions section, in all four
+  languages. The site adds Open Graph and Twitter card tags to every page and
+  publishes `FAQPage` structured data from a page's FAQ section, and `llms.txt`
+  lists every comparison (#1894).
+
+## [0.0.504] - 2026-09-25
+
+### Added
+
+- **A first document task and clearer platform comparisons.** The documentation
+  includes a synthetic handbook tutorial with answer checks, use-case entry
+  points, a help route and sourced comparisons with Viktor, Dify and Wonderful.
+  Comparisons distinguish documented options from untested behavior (#1893).
+
+### Changed
+
+- **README and docs start with the work an agent can do.** Navigation connects
+  the first task, platform selection and deployment responsibilities in English,
+  Polish, German and Spanish. The operating guide explains costs, ownership and
+  separately scoped Vstorm implementation help. Statements about approvals,
+  budgets, secrets, MCP compatibility and outbound data now describe their
+  configuration-dependent limits (#1893).
+
+## [0.0.503] - 2026-09-25
+
+### Added
+
+- **Knowledge search can infer its filters from the question.** With
+  `self_query_enabled` on an agent's knowledge binding, a search the model runs
+  without filters of its own asks the agent's model which source, document type,
+  organizational unit and date range the question implies ("PDFs from last month
+  about onboarding"). The result names the filters it applied, and the model can
+  search again without them. Filters the model names itself always win. An
+  inferred organizational unit is kept only when the bound collections carry it,
+  and a document id is never inferred. The inference can only narrow the search
+  within the agent's own organization and collections. Each such search makes
+  one extra model request, billed to the run, refused when the budget is spent
+  and traced under the agent's own observability settings. Off by default
+  (#1650).
+- **Knowledge search can expand a question before it searches.** The knowledge
+  capability's `query_analysis_mode` is off by default. `multi_query` has the
+  agent's own model write up to `query_analysis_max_variants` rephrasings, searches
+  each and fuses the results; `hyde` searches the embedding of a short
+  hypothetical answer instead of the bare question. Each mode costs one model
+  call, booked against the run's budget and traced under the agent's own
+  observability settings. An exhausted budget or a failed model call falls back
+  to the plain query. Every produced query is searched under the same tenant
+  scope and filters as the original, so expansion widens recall and never access
+  (#1649).
+- **Knowledge search can return each match with the text around it.** The
+  Knowledge capability's `parent_context` returns a matched chunk with its
+  neighbours (`window`) or with as much of its document as fits (`parent`).
+  Matching and ranking still run on the small chunks. The matched chunk is never
+  shortened, the added text is capped per result and per search, a passage never
+  joins text that was not adjacent, and the chunks are read by position rather
+  than by loading the whole document (#1651).
+
+## [0.0.502] - 2026-09-25
+
+### Added
+
+- **Groups.** An organization can gather its members into named groups and
+  share an agent, a skill, a collection, a context file, a vault secret or an
+  artifact with a whole group at once. A group grant reaches whoever is in the
+  group when access is checked, so people joining later get access and people
+  leaving lose it with nothing to revoke. When a person reaches a resource
+  through several grants, the highest one wins. A group carries no role of its
+  own (#1773).
+- **Directory groups decide who joins an organization, with which role.** A
+  directory group mapping says "everyone in this directory group is a *builder*
+  here, in the group *Platform*". It is applied at every directory sign-in, and at
+  every OIDC sign-in once `OIDC_GROUPS_CLAIM` names the provider's groups claim.
+  The sync joins, re-roles and removes only the memberships it made itself. It
+  never demotes or removes an owner, and it cannot map a role its author could not
+  assign. A matching mapping admits a first sign-in on an invite-only deployment,
+  the way an invitation does. An Entra ID group overage is refused rather than
+  read as "no groups" (#1773).
+- **Sign in with a directory account.** With `LDAP_URL` set, people sign in to
+  Active Directory, OpenLDAP or FreeIPA with the username and password they use
+  everywhere else. The check is the standard two-step bind, over verified TLS. An
+  empty password never reaches the directory, the username is escaped into the
+  search filter, and a username matching two accounts is refused. Plaintext
+  `ldap://` is refused at startup unless explicitly allowed (#1773).
+- **Integrated Windows sign-in.** With `KERBEROS_ENABLED` set, a browser on a
+  domain-joined machine signs its user in with its Kerberos ticket (SPNEGO), and
+  nobody types a password. The ticket resolves through the directory to the same
+  account a password sign-in reaches. It needs an image built with the new
+  `kerberos` extra (#1773).
+
+## [0.0.501] - 2026-09-25
+
+### Added
+
+- **A SharePoint site or a OneDrive can feed a knowledge base.** A
+  `sharepoint` sync source reads one document library, or one folder in it,
+  through Microsoft Graph. It reads PDF, Word, Markdown and plain text by
+  default, and a file deleted from the library is removed like any other the
+  source stops listing. The second sync asks Graph's change feed first and
+  stops there when nothing in the library changed. When something did, only
+  new and changed files are embedded. Throttling and outages are retried as
+  Graph's `Retry-After` asks, and a folder that still cannot be listed is
+  named on the sync log, and that run removes nothing. The setup guide tells an
+  administrator to grant the app `Sites.Selected` on one site rather than
+  `Files.Read.All` on the tenant, and says what happens otherwise (#985).
+- **A Microsoft Entra app is a vault secret kind of its own.** `entra_app`
+  holds a tenant id, a client id and a client secret, and a SharePoint source
+  takes only this kind.
+- `BaseSyncConnector.remote_version` is handed `previous`, the value the last
+  clean run stored under the same configuration, so a source that can only say
+  what changed since a point can answer that nothing did.
+
+## [0.0.500] - 2026-09-25
+
+### Fixed
+
+- **A document two sync sources list stays until both stop listing it.** A
+  synced document belonged only to the source that ingested it last. When two
+  sources on one collection listed the same page, the page was removed as soon
+  as that one source stopped listing it, although the other still listed it. A
+  source in `update_only` mode never ingested it again. Each source that lists a
+  document now claims it, in the new `rag_document_claims` table, which replaces
+  `rag_documents.sync_source_id` and is backfilled from it (migration
+  `0099_rag_document_claims.py`). A sync that stops listing a document drops its
+  own claim. It removes the document only when no other source feeding the
+  collection still claims it (#1879).
+
+## [0.0.499] - 2026-09-25
+
+### Changed
+
+- **Opening a conversation no longer ships an uncompressed transcript.** The API
+  gzips responses of 1 KiB or more, and the console's `/api/*` proxy
+  compresses again for the browser what the API compressed, since `fetch` hands
+  it the body decoded. `GET /conversations/{id}/messages` returns up to a
+  hundred turns with every tool call's arguments and result, and went out raw.
+  Event streams, partial responses and already-compressed media and office
+  formats are left alone, and the chat WebSocket is untouched.
+
+### Fixed
+
+- **A transcript read no longer loads the text of every attachment.** The thread
+  transcript, the run transcript and the whole-conversation read loaded whole
+  `chat_files` rows, `parsed_content` included, to serialize four fields. They
+  load those four now.
+- **`chat_files.message_id` is indexed** (`0098_chat_files_message_idx`). Every
+  index on the table led with `user_id`, so the join every transcript read makes
+  scanned it whole.
+- **A transcript read authorizes once, not twice.** The page and the thread's
+  cost each resolved the conversation, and on a channel thread each resolution
+  can ask Slack or Telegram whether the reader is still in the room.
+
+## [0.0.498] - 2026-09-25
+
+### Changed
+
+- **Context Tetris shows what the next task still needs.** The Tasks meter
+  now shows how many instruction, document and memory blocks are banked
+  towards the next answer (`Next task · I 2/4 · D 1/4 · M 3/4`), so a score
+  that climbs while Tasks stays at 0 no longer looks like a bug. The first row
+  a run clears also says what a task takes. Scoring and the task rule are
+  unchanged (#1848).
+
+## [0.0.497] - 2026-09-25
+
+### Added
+
+- **A Git repository can feed a knowledge base.** A `git` sync source reads a
+  repository's documentation over HTTPS from GitHub, GitLab or any host that
+  serves git, with an access token from the Vault. By default it reads
+  Markdown and plain text, not the source tree. It makes a shallow, sparse
+  clone of the documentation only, and a file deleted from the branch is
+  removed like any other the source stops listing. The repository's host is
+  checked and pinned like any other tenant-chosen address, and an internal host
+  is refused. What a clone would write is measured before it is written: a file
+  over the knowledge base's document cap, or more than 512 MB in all, fails the
+  sync with nothing written (#987).
+- **A Git access token is a vault secret kind of its own, bound to its host.**
+  A Git source takes only a `git_token`, and sends it only to the host it was
+  added with, so editing a source cannot aim the organization's token, or any
+  other key, at a server of the editor's choosing.
+- **An unchanged source is not read again.** A connector that can say cheaply
+  what its source is at - a Git branch's head commit - is asked first, and a
+  scheduled sync that finds the same answer under the same configuration as the
+  last clean run stops there, without listing or downloading anything. A run
+  with a failed file records nothing, so the next one reads everything again.
+  The answer is kept in the new `sync_sources.sync_state` (migration
+  `0097_sync_source_state.py`). `BaseSyncConnector` gains `remote_version` for
+  the answer and `aclose` for what a sync made, such as a clone.
+
+### Fixed
+
+- **A file a worker died halfway through syncing is put right by the next
+  sync.** A worker stopped after a file's vectors were stored and before its
+  row recorded them left vectors no row named: the next sync skipped the file
+  as unchanged, and removing it later had nothing to delete by. The next sync
+  of that source now clears what nothing tracks and ingests the file again. A
+  clean-up that fails counts as a failed file, so the run records no state and
+  the one after tries again.
+
+## [0.0.496] - 2026-09-25
+
+### Added
+
+- **A knowledge base can be fed from a website.** The new `web` sync source
+  takes a start URL and follows links to a depth, or reads a sitemap, and
+  imports each page as a Markdown document of its text. It needs no credential.
+  Every request, redirect included, goes through the SSRF-checked, pinned HTTP
+  client, and the crawl stays on the start URL's host and under one path. It
+  obeys robots.txt and its `Crawl-delay` for sitemaps and pages, it never leaves
+  an `https://` site for `http://`, and it stops at a page limit and after six
+  hours. A page is re-embedded only when its text changes, not when its markup
+  does, so a nightly sync of an unchanged site costs no embeddings. Its text
+  cites the page's URL without the query string. Transient failures are retried
+  three times, honouring `Retry-After` in seconds or as a date. A page that still
+  cannot be read counts as a failed file and is named on the sync log (#984).
+
+### Changed
+
+- **A sync now removes what its source no longer holds.** A page taken off a
+  site, a file deleted from a Drive folder or an object removed from a bucket
+  used to stay searchable for good. Each sync now removes the documents its own
+  source brought in earlier and no longer lists, and counts them in the sync
+  log's new `removed` column. It removes nothing after a listing that stopped
+  short, such as a crawl at its page limit or one that could not read a page: it
+  says so in the log, and the next complete sync catches up. Documents are
+  matched to the source that brought them in through the new
+  `rag_documents.sync_source_id` (migration `0096_sync_removal.py`). Uploads,
+  and documents another source brought into the same collection, are never
+  touched. A document that could not be removed counts as a failed file, and
+  the completion notification counts what was removed (#984).
+- **One sync of a source runs at a time.** A sync started while another run of
+  the same source is still going does not start, and its log says so: an older
+  run's listing would otherwise remove what the newer run had just ingested.
+- `BaseSyncConnector.list_files` returns a `RemoteListing` instead of a list:
+  the files, whether that is all of them, and what could not be read. A
+  connector's `_fetch` raises `WithdrawnFile` for a listed file the source turned
+  out not to hold, which the sync removes rather than counts as failed.
+
+## [0.0.495] - 2026-09-25
+
+### Added
+
+- **An agent can publish a report or a small dashboard under a link that stays
+  put.** The new `artifacts` capability adds one tool, `publish_artifact`, which
+  takes an HTML or Markdown page from the run's workspace - read through its own
+  pydantic-ai-backend, so every sandbox backend works - or inline. The agent and
+  the page's name are its identity, so the next run of the same agent, from a
+  chat, a schedule or the API, publishes a new version behind the same link
+  instead of making a second one - provided the run's person owns the page or
+  holds `artifacts:edit` on it, so a colleague's run cannot replace it. Identical
+  bytes add no version, and the newest `ARTIFACT_MAX_VERSIONS` are kept.
+  The chat links to the version its own run wrote. A new artifact is private
+  to the person the run was for, and a person shares it the way agents and
+  skills are shared - grants, the whole organization - or turns on an "anyone with the link" address that can be
+  replaced or turned off. `artifacts:view` and `artifacts:edit` join the
+  catalog, and an **Artifacts** page, a dashboard card and a retention class
+  measured from the last publication come with it. The page is agent-authored
+  script, so it is served from a cookieless route behind a short-lived signed
+  token under a `sandbox` policy - an opaque origin with no network and no
+  popups, each address loadable a few times a minute - and `ARTIFACT_ORIGIN`
+  can move it to a domain of its own.
+  ([#70](https://github.com/vstorm-co/agenticos/issues/70))
+
+## [0.0.494] - 2026-09-25
+
+### Fixed
+
+- **The `objectstore` compose profile could not start MinIO.** MinIO stopped
+  publishing images, and `quay.io/minio/minio` now answers 401 for every tag,
+  so `make docker-minio` failed on every machine and CI's backend job with it.
+  The profile runs `pgsty/minio`, the community-maintained build of the same
+  server, pinned to `RELEASE.2026-08-04T00-00-00Z`. Nothing changes for a
+  deployment that keeps the local file backend or points at another S3 store.
+
+## [0.0.493] - 2026-09-25
+
+### Fixed
+
+- **A notification opened its destination by reloading the whole console.**
+  `notifications.context_url` held `FRONTEND_URL` plus a path, and the bell and
+  the dashboard card rendered it as a plain anchor - so clicking a row fetched a
+  whole new document to reach a page the reader was usually already standing
+  inside, throwing away everything the query cache held and racing the
+  mark-read write against the unload. The column holds the path alone now and
+  both surfaces navigate it as a sub-route, with the origin put back on for the
+  one reader that has none: the email. Rows written before this keep their
+  absolute destination, keep working, and age out with the retention sweep -
+  no migration rewrites them.
+
+## [0.0.492] - 2026-09-22
+
+### Fixed
+
+- **The unread badge and "mark all read" no longer stop at five hundred rows
+  and say nothing.** Both fetched exactly one capped batch of candidates and
+  never looked further, so a recipient with six hundred gate-visible unread
+  notifications saw a badge of 500, and one "mark all read" left the hundred
+  oldest unread - with no error and nothing in the response saying the request
+  had been partial. Both now walk the inbox in batches to a bound of five
+  thousand, following a cursor rather than re-reading the same page, which is
+  also what reaches the visible rows sitting behind a backlog the read-time
+  gate hides. The bound is still a bound, and it is now stated:
+  `GET /notifications/unread-count` carries `approximate` and
+  `POST /notifications/mark-all-read` carries `remaining`, because a count of
+  exactly the bound and a genuine count of exactly the bound were otherwise the
+  same number, and a sweep's own batch ends full whether or not anything is
+  behind it - so one row past the bound is asked for before either is called
+  partial.
+
+  A repeated click always gets further, which is what makes `remaining` an
+  instruction rather than a description: a truncated sweep answers with a
+  `next_cursor`, and the next one resumes from there instead of re-reading the
+  window already covered. Rows the read-time gate hides are never marked to
+  force that progress - the gate reads *current* permissions, so a recipient
+  demoted for a week and restored would find that week's security notices
+  already read and out of their badge. `marked` is what the request changed
+  rather than what it looked at, so two overlapping sweeps cannot both claim the
+  same rows, and the console keeps `approximate`: a truncated count of zero
+  still has a sweep worth offering, which is exactly the case a demoted
+  recipient lands in. (#1761)
+
+## [0.0.491] - 2026-09-22
+
+### Changed
+
+- **One LibreOffice manager instead of two.** The RAG parser's office → PDF
+  converter and the chat attachment path's DOC → text converter each wrapped the
+  same `soffice` binary, arrived within a week of each other from opposite ends
+  of the product, and each carried a safety property the other lacked — so a
+  deployment running both paths had one converter that could be flooded and one
+  that could not, and a reader had to know which was which. There is one manager
+  now, with the union: a process group killed on timeout *and* on cancellation, a
+  per-call user profile, a concurrency semaphore, OS resource limits applied in a
+  fresh single-threaded launcher, and a bounded stderr drain. Both callers are
+  thin — the RAG one returns a PDF path, the chat one returns text. Nothing was
+  broken before this; it was duplication, and each path now gets the protections
+  only the other had.
+
+  One behaviour does change, because sharing a semaphore made it matter: the
+  conversion timeout now covers **the wait for a converter slot** as well as the
+  subprocess. It used to start after the semaphore, so with both slots held by
+  RAG conversions of up to 600s each, a chat conversion asking for 60s could sit
+  for ten minutes before its own timer began. A caller that cannot be served
+  inside its deadline is now refused inside it, and the budget covers the
+  caller's own staging as well: the chat path holds its converter slot before it
+  writes the upload's copy to disk, so a burst queued behind slow conversions
+  cannot fill the worker's temporary volume while the concurrency bound looks
+  like it is holding. The per-call user profile is also made and removed on the
+  file pool rather than on the event loop, the rule the chat path already
+  followed for its own temporary tree. (#1767)
+
+## [0.0.490] - 2026-09-22
+
+### Added
+
+- **Somewhere for `organizational_unit` to come from.** The dimension shipped
+  with a filter, an index and a facet endpoint, and nothing that wrote it - so
+  the filter matched nothing (a chunk with no value for a filtered dimension
+  fails closed, by design) and `GET /rag/collections/{name}/filter-values`
+  answered with an empty list for every collection in every deployment. Two
+  writers now: a per-source default on a sync source, inherited by every
+  document it brings in, and a per-upload value carried in the multipart body
+  and recorded on the document's own row - the same rule the resolved ingestion
+  configuration follows, so a run queued before the field existed still binds.
+  Free text, because the vocabulary is whatever a corpus turns out to use and
+  the facet already reports what a collection holds; a blank is recorded as no
+  unit rather than as a unit named `""`. The console offers a field on the sync
+  wizard's last step and one in *How the next uploads are read and filed*, and
+  shows what a document was filed under beside its parser. Nothing is
+  backfilled: no rule can decide which unit an already-ingested document
+  belonged to, and a re-ingest picks the value up.
+  ([#1777](https://github.com/vstorm-co/agenticos/issues/1777))
+
+## [0.0.489] - 2026-09-22
+
+### Fixed
+
+- **A changed email address is proved before mail follows it.**
+  `PATCH /users/me` accepted a new address and started using it immediately, and
+  nothing showed the person asking could read it. Every mail this deployment
+  sends goes to that column — an invitation, a magic link, a password reset, an
+  approval request, a budget alert, and every notification queued for the email
+  channel — so an account whose address had been changed to somewhere its owner
+  cannot read is an account whose password-reset link goes to somebody else, and
+  one changed to an address that never signed up here turns the deployment's own
+  sender into a relay for whoever set it. The request is now *staged*: the
+  account keeps its current address, a single-use hour-long link goes to the new
+  one, and the old one is told a change was asked for — which is what makes a
+  takeover visible to the person losing the account. Confirming the link moves
+  the address across and clears the staging, so a replayed link finds nothing to
+  move; a contested address is decided at confirmation by the unique constraint,
+  not at the request. Both the request and the confirmation are audited.
+  Migration `0093_pending_email` adds the column, nullable, with no backfill:
+  nobody has a change in flight when it runs.
+
+  Recovery revokes an outstanding link, which is what makes the notice to the
+  old address worth acting on: the link carries the account's credential
+  version, so changing or resetting the password stops it working, and an
+  administrator repairing the address clears the staging. Asking again for the
+  address already staged sends nothing — a profile saved twice, or saved for an
+  unrelated field, is not a second verification email — and the number of
+  distinct addresses one account may ask for is capped per hour, because this
+  route is unmetered and the destination is the caller's to name. The staged
+  address is included in a personal-data export, since it is an address the
+  deployment holds. (#1772)
+
+## [0.0.488] - 2026-09-22
+
+### Changed
+
+- **The MCP SDK is uncapped again, on `httpx2`.** `mcp` was held below 2.0
+  because 2.0 moved the whole SDK from `httpx` to `httpx2` — a different
+  distribution with its own `Request`, `Response`, `AsyncClient` and exception
+  hierarchy — and the one path where this platform's code and the SDK exchange
+  HTTP objects could not carry both: an SDK-built request handed to
+  `PinnedAsyncClient` was refused, and a malformed endpoint raised an exception
+  written for the other library, which is #889 in a form no catch could see.
+  `PinnedAsyncClient` and the MCP OAuth flow are `httpx2` now, so the check and
+  the request are made by the same library, and the streamable transport is
+  called the way 2.0 spells it — a client carrying the connection's headers
+  rather than a `headers` argument, and two yielded values rather than three. A
+  rename alone would have compiled and silently dropped every `Authorization` a
+  private MCP server is reached with. The other fourteen modules that speak HTTP
+  stay on `httpx` deliberately: the boundary is wherever an object crosses into
+  or out of a vendor SDK, and none of them does. (#1820)
+
+## [0.0.487] - 2026-09-22
+
+### Fixed
+
+- **An audited security write and an admin deletion can no longer deadlock each
+  other.** `record_audit` holds a transaction-scoped lock on the organization's
+  audit chain, and the mandatory security notification written straight after it
+  takes a key-share lock on every recipient's user row — while
+  `UserService.admin_delete` locks every app admin's row exclusively *first* and
+  reaches for the same chain lock second. Two transactions, the same two locks,
+  opposite orders: Postgres aborts one, and depending on which loses, either the
+  deletion has to be retried or the surviving transaction's mandatory
+  security-event notification is discarded inside its own savepoint while the
+  audit entry commits regardless. The twelve sites that audit and then notify now
+  take the audience's row locks immediately *before* the audit entry, so every
+  transaction takes user rows first and the chain last. The order is a convention
+  no type can express, so a static test holds the sites to it. (#1763)
+
+## [0.0.486] - 2026-09-22
+
+### Fixed
+
+- **A mandatory security event past its write budget is coalesced, not
+  dropped.** The per-actor limit on `security_event` and
+  `configuration_changed` exists so that an ordinary write access cannot turn
+  into an unmetered fan-out against every admin — but over the limit the write
+  returned nothing at all, and nothing took its place. An actor could exhaust
+  the shared bucket with twenty benign edits inside a minute and then rotate or
+  delete a real secret, and that event reached neither the inbox nor email. It
+  was still in the audit log, which is exactly what a mandatory,
+  un-optable-out-of notification exists because admins do not watch. The
+  overflow now writes one coalesced row per actor per window instead, saying the
+  minute was busier than the inbox lists and that every one of those events is
+  on the trail. Its `occurrence_id` is the window, so the second and every later
+  overflow inside it writes no row and no delivery — the bound the limit was
+  protecting, kept. It carries no running count, because counting would mean
+  rewriting that row on every further event, which is the write the limit is
+  there to stop. (#1762)
+
+## [0.0.485] - 2026-09-22
+
+### Fixed
+
+- **Three loose ends in the notice a dropped socket puts up.** It is drawn on
+  the drop now rather than on the way back up, so a reader who loses
+  connectivity outright is told the agent is finishing the turn and saving it
+  instead of watching a composer spin — the copy was always as true offline as
+  online. It belongs to the conversation the drop happened in: opening another
+  thread during a reconnect used to draw the notice over one that was never
+  interrupted, and re-read that one instead of the thread still being written.
+  And a reader who gives up waiting and asks something else keeps a notice, now
+  saying the earlier answer is still being written and will land below the
+  question they have just asked - which is what happens, and what nothing said.
+  (#1775)
+
+## [0.0.484] - 2026-09-22
+
+### Added
+
+- **A Deploy run left at the approval gate no longer stops the pipeline in
+  silence.** A run waiting for an approval counts as in flight and holds the
+  `deploy-production` concurrency group, so every later run sat `pending` with
+  no jobs and was cancelled by the next one. Thirteen days of merges went that
+  way: no failed run, no notification, and a production host a fortnight behind
+  `main`, because a pending run with nothing to click on reads as a broken
+  workflow and a `cancelled` run reads as somebody's decision. `deploy-queue.yml`
+  now runs every six hours, cancels a Deploy run that has waited more than
+  twelve, and opens an issue naming the run and how far `main` has drifted from
+  the last successful deploy. It approves nothing and deploys nothing — it
+  drains the queue so the next merge reaches the gate, and says that it did.
+  `docs/deploy.md` also now warns that approving from the environment's own
+  queue approves the *oldest* waiting run, which is how a fortnight-old commit
+  reached the server. (#1832)
+
+## [0.0.483] - 2026-09-22
+
+### Fixed
+
+- **A deploy no longer fails on the health status a container had before it was
+  restarted.** `depends_on: condition: service_healthy` reads that status the
+  instant the container starts, so the redeploy that repaired a crash-looping
+  cache failed half a second after starting it - with the same message the real
+  failure had printed, which makes a fix that worked read as a fix that did not.
+  The `db` and `redis` healthchecks now declare a `start_period`, which is what
+  `service_healthy` is meant to wait through, and `scripts/deploy.sh` retries
+  `up -d` once - and only for this failure - when compose gives up on a
+  dependency's health. Its own `wait_healthy` acts on `unhealthy` only once a
+  probe has run since the container started. (#1831)
+
+## [0.0.482] - 2026-09-22
+
+### Fixed
+
+- **The cache no longer persists, so a Valkey upgrade cannot take the stack
+  down.** Valkey 8 forks Redis 7.2 and refuses an RDB written by Redis 7.4, so
+  the first deploy onto a host that had run `redis:7-alpine` crash-looped on
+  `Can't handle RDB format version 12`; `app` and `prefect-runner` wait on the
+  cache being healthy, so they never started and the site answered 404 until the
+  volume was cleared by hand. Valkey now runs with `--save ''` and no
+  `redis_data` mount in all three compose files. Everything the platform keeps
+  there - rate-limit buckets, channel dedupe claims, membership answers -
+  carries a TTL and rebuilds itself, so there is nothing to lose and no format
+  to disagree about. A host that ran an earlier release still carries an
+  orphaned `agenticos_redis_data` volume; `docs/deploy.md` says how to remove
+  it. (#1830)
+
+## [0.0.481] - 2026-09-22
+
+### Added
+
+- **Figures that roll rather than blink, where somebody is watching one
+  change.** The spend headline on the dashboard, the summary strip's runs,
+  spend and people, and a chat thread's running cost are drawn by an odometer:
+  one wheel per digit, re-aimed when the value moves, so a number that changed
+  looks like a number that changed. Vendored from
+  [Rare UI](https://github.com/swamimalode07/rare-ui) (MIT) rather than
+  installed, because that project distributes components by copying a file into
+  the tree; the copy carries a header saying what was changed and why, and the
+  attribution is in both `NOTICE` files and `licenses/components.toml`. It is
+  deliberately not everywhere: a number that merely sits on a page gains
+  nothing from a wheel per digit and still goes through `formatUsd`. The
+  grouping and the decimal point come from the reader's locale, so a Polish
+  page shows `1 234,56`; the currency does not, because the ledger is in
+  dollars in every language. `prefers-reduced-motion` sets the wheels instead
+  of rolling them.
+- **The bell swings when the count goes up**, and the badge's digits roll with
+  it - the same MIT source, with its five literal hex colours replaced by the
+  accent, ink and destructive roles a deployment can retheme, and its English
+  label replaced by one the caller passes.
+- **A step completing in a plan is drawn as an event.** The dashed ring fades,
+  the disc scales up under it, the tick draws along its own path and the rule
+  sweeps across the text. Rebuilt from the same project's task list rather than
+  used as it stands: that one is an interactive checkbox with two states, and a
+  plan is neither - the agent owns these rows, nobody may click one, and
+  `blocked` and `cancelled` are outcomes a checkbox cannot say. Nothing
+  reorders, because the order *is* the plan.
+- **The sidebar collapses to a rail**, remembered across visits in
+  `localStorage` - a property of the browser rather than of the account, so
+  signing out leaves it alone. Every destination keeps its name in a `title`
+  and an `aria-label` rather than losing it, and the group headings become a
+  rule, which says "a different kind of thing starts here" without an
+  abbreviation claiming to say which.
+
+### Changed
+
+- **The inbox can be cleared.** A cross on a hovered row takes it out;
+  **Clear** in the header takes out everything listed, read and unread alike.
+  `DELETE /notifications/{id}` and `DELETE /notifications` are the two routes,
+  and neither deletes anything: `notifications` is its own dedup anchor, so a
+  deleted row is one a retried producer writes again - an alert somebody
+  dismissed would come back on the next budget check. `dismissed_at` is what
+  the three inbox read paths filter on, and a dismissed row is marked read with
+  it, because a row nothing on screen can reach must not go on counting towards
+  the badge. The sweep is capped at a thousand and reports what it took, the
+  same bargain `mark_all_read` makes with its own cap.
+  `0092_notification_dismissed` adds the column and re-cuts the two partial
+  indexes around it; nothing backfills, because the column is null for every
+  row already written.
+- **A document that indexes cleanly no longer notifies anybody.** It used to
+  write a row each, and the ordinary use of that feature is dropping thirty
+  files into a collection at once - so the ordinary result was thirty
+  interruptions saying nothing had gone wrong, burying the rows worth reading.
+  `ingestion_failed` still fires, and a connector run still reports its
+  whole-attempt figure through `sync_completed`, which is an answer to a
+  question somebody asked by starting the sync. The event type stays, since
+  the sync path still writes it, so no data moves.
+- **The console is flat, and its surfaces are one colour each.** Every layer
+  carried `0.003`-`0.008` of chroma at hue 250 - a blue cast on every panel,
+  faint on one and cumulative across a page of them. At `0.002 265` the
+  surfaces read as paper and the one blue thing on screen is the accent. The
+  frosted glass is gone with it: `.glass` was a translucent
+  `backdrop-filter: blur(24px)` pane, so the chat composer over a transcript,
+  the same composer over the empty state and a dropdown over a table were three
+  different greys and none of them was a token. It is `.panel` now - a name
+  that is what it is - and the four fixed radial washes behind everything went
+  too, having had nothing left to be for.
+- **The composer is one row of controls under the text**, where it was four
+  bands: a usage strip above the message, the text, a cluster of buttons
+  floating *beside* it, a rule, and a row of pickers under that. The buttons
+  beside the textarea meant the send button drifted to the vertical middle of a
+  tall message. Readings drop out on the composer's own width through a
+  container query rather than on the window's - at 900px with the conversation
+  list open the box is 360px, and a viewport breakpoint kept a reading there
+  that had nowhere to go.
+- **A red badge is tinted, not filled, and its text is `foreground`.** Measured
+  rather than judged: `text-destructive` on `bg-destructive/15` - red on red,
+  which is what it looks like it should be - is **2.70:1** on the dark card,
+  under every floor there is. The same tint with `text-foreground` is 12.18:1
+  dark and 16.45:1 light. A solid red pill also contradicted the rule written
+  two lines above it in `badge.tsx`: metadata set in a bold accent chip competes
+  with the content it annotates.
+- **A run's transcript renders its markdown**, through the same
+  `MarkdownContent` the chat uses. Activity is the page built for reading back
+  what an agent said and it was the one place saying it in source - `## Poland`,
+  `**Official name:**`, tables as pipes. Each block now carries a copy button
+  too, because half of reading a run back is taking something out of it.
+- **A file opens on its source.** The viewer and the editor both opened on the
+  rendered half; somebody who opens a file in a console is usually there to read
+  what it *says* - the front matter, the line that will not parse - and the
+  preview is what hides it. A kind with no source view (an image, a PDF) still
+  opens on its preview rather than on a tab that does not exist.
+- **A dashboard card that is waiting says so quietly.** On a young deployment
+  fourteen of them are on one page, each a full-height card reporting that
+  nothing has happened at the same contrast as the cards carrying numbers. They
+  are dimmed now, each with its own subject's glyph in a dashed plate, and they
+  brighten under the pointer so "waiting" does not read as "disabled".
+- **Recent failures groups runs that failed the same way.** Five rows of one
+  sentence, truncated at the same word, became one row per distinct failure with
+  a count - grouped on the message itself, because picking `(RuntimeError)` out
+  of the backend's prose is a guess about a format nothing guarantees.
+
+### Removed
+
+- **The "All runs" / "Slow runs" presets**, and the `took_over_ms` filter behind
+  them - route, repository, export audit and query key. Two buttons for one
+  question the Took column's own sort already answers, and "slow" was a fixed
+  thirty seconds, which is a definition rather than a question.
+- **The "Recent runs" card on an agent's page.** Its history is Activity, which
+  is where the card's own link pointed.
+
+- **The console's surfaces are neutral, and there are four of them.** Every
+  layer carried `0.003`-`0.008` of chroma at hue 250 - a blue cast on every
+  panel in the product, faint on one and cumulative across a page of them, and
+  visibly cold beside the accent it was meant to support. At `0.002 265` the
+  surfaces read as paper and the one blue thing on screen is the accent. The
+  sidebar is now a token of its own rather than a translucent card over a blur,
+  which had made its apparent depth depend on whatever was behind it and cost a
+  compositor layer the width of the window on every scroll. Measured, not
+  judged: muted text is 6.04:1 on a dark card where it was 5.71:1, and 6.60:1
+  on a light one; borders step back from 1.40:1 to 1.29:1, which is what a
+  separator that is never the only thing marking a control can afford.
+
+## [0.0.480] - 2026-09-22
+
+### Added
+
+- **Two more cabinets in Amigo's Arcade, both full-window.** *Just One More
+  Agent* is a management game: hire agents, survive the meetings and the chaos
+  they generate, and ship a one-comma change without running the fictional
+  budget out. *Context Tetris* drops instruction, document and memory blocks
+  that answer a task when a line clears, and tool, MCP and skill blocks that
+  arm a bonus instead. Both take keyboard and touch, pause and restart, go
+  fullscreen, make a noise, and hand back a line of text worth pasting
+  somewhere. Records persist, and the tools and MCP connections collected here
+  unlock the perks the existing cabinets already knew about - the harness
+  record in `localStorage` is shared, and a save from before this carries over.
+
+  Static HTML, CSS and JavaScript on GitHub Pages, like the three before them:
+  no backend, no model call, and every provider named in them is an invented
+  one. Rules are kept apart from rendering, so a budget ceiling, a block
+  collision, an equipment effect and a progression step are each checked
+  without a browser - `scripts/test_arcade.cjs` is that suite.
+
+## [0.0.479] - 2026-09-22
+
+### Added
+
+- **`browser_choice`, a browser capability that picks from the page instead of
+  writing its next move.** `browse_page` takes a goal and a URL, opens it in a
+  Chromium the operator runs, and repeats: read the page into a numbered table of
+  the elements a person could act on, ask a decision model which operation and
+  which element, do that. Only typing a field's value reaches a language model.
+  The premise is the security property - an engine that composes its action can
+  emit any string, so page text is an instruction channel into the model, while a
+  pick-one whose options are built server-side from the live DOM cannot be talked
+  into an action the page does not offer. It is still `side_effecting` and
+  gateable, because "Delete account" is an action a page genuinely offers. Four
+  outcomes and no fifth: finished, blocked by the page, stopped at the step limit,
+  browser unreachable - so a sign-in wall and a crashed browser are different
+  answers. `cdp_url` points at a browser service the operator runs and isolates,
+  SSRF-checked at publish; there is no local mode and no Chromium in the API image.
+  The engine arrives with the `browser` extra (`cdp-use` and the TypeSafe SDK),
+  which costs the lock two additions and no downgrade. Both model paths are
+  metered, and neither is priced - the bundled price snapshot does not know the
+  decision model, so `max_steps` is what bounds a browse rather than a dollar cap,
+  and the capability's README and `docs/reference/capabilities.md` say so. Page
+  content reaches the decision model on every step: the vault key requirement is
+  the operator's opt-in, `decision_base_url` moves the destination, and both are
+  named in `docs/data-protection.md`.
+- **`BROWSER_CDP_ALLOWED_HOSTS`, because the SSRF guard is the wrong control for a
+  CDP endpoint.** `cdp_url` first went through `validate_webhook_url`, copying
+  `browser_use` - and measured, the only endpoint that would publish was a
+  *public* IP address. That refuses the isolated browser service on the
+  deployment's own network that the reference page tells an operator to run
+  (`http://browser:9222` in the same compose project resolves privately and was
+  rejected) and accepts a CDP debugger exposed to the open internet, which is the
+  worse posture of the two. What decides the shape of the control is what
+  `cdp_url` is: it lives in a spec, which anyone holding `edit` on the agent
+  writes, so the address is tenant-controlled and the request is the
+  deployment's - the problem `MEM0_ALLOWED_HOSTS` already exists for. The operator
+  now names the hosts, matching is exact and case-folded, and an empty allowlist -
+  the default - refuses browser automation outright. The check no longer resolves
+  DNS, so publish validation does not need a thread for it.
+- **Ten defects in `browser_choice`, from a review of the unmerged branch.** Each
+  had a way of being invisible: `TYPE_TEXT` aimed at a link *clicked the link*
+  before failing, because typing begins by focusing and the operation and the
+  target are two independent answers from the model; a native `<select>` could
+  not be operated at all, because clicking one opens Chromium's own popup whose
+  options are not in the DOM, so a form needing one choice looped until the
+  repeat guard stopped it; an action used the coordinates its snapshot recorded,
+  and the decision model answers late enough for a re-rendered page to have moved
+  everything under them; the value the host model typed into a field was written
+  into the history that the separately configured decision endpoint reads on the
+  next step, so a password was disclosed to it; the decision prompt carried no
+  page text, so an engine that had already found the price could not tell it had
+  finished; `/json/version` was trusted to name the socket to open, so a
+  compromised or author-chosen endpoint could answer `ws://169.254.169.254/` and
+  have the deployment dial it; a browse that raised after opening left the chat
+  panel spinning for ever; the allowlist was checked only on the next snapshot,
+  so the final step could return an off-list page's content as the tool's answer;
+  the repeat guard read the URL alone, so a wizard clicking `Next` three times was
+  refused as a loop; and `preview_width` was declared in three places and read by
+  none. Every element now carries a selector, every action re-resolves it and
+  checks it still describes itself the way the candidate table said, a dropdown is
+  answered with a value, a typed value never leaves the run, and a finish frame is
+  sent on every path out.
+- **Eight more again, and this round changed the tool's shape.** A browse now
+  takes `private` beside `goal`: the value generator has no conversation history,
+  so a calling model asked to sign in had to put the credentials in the goal -
+  and the goal travels to the decision endpoint on every step, which is the one
+  place the field-value redaction could not reach. `private` is bound into what
+  the generator is told and never into the decision prompt.
+
+  The rest: the budget is asked *before* each of a browse's own model calls, not
+  only booked after, because `BudgetGuard` wraps the agent's requests and a
+  browse makes up to a hundred of its own inside one tool call (`guarded_by` is
+  the sibling of `metered_by`); the candidate cap, option lists, labels and page
+  text are cut inside the page rather than after the transfer, so a 594 KB page
+  with 3,000 controls now produces a 9.6 KB CDP response; `cdp_url` and
+  `decision_base_url` refuse an invalid port at publish instead of on the first
+  browse; `decision_model` is `x-suggestions` rather than `enum`, because an
+  `enum` made the console render a closed select and forbade the pinned build
+  the field exists to allow; the `cdp_url` hint is a placeholder rather than a
+  schema default, which the console shows without storing - so the form looked
+  filled in and publishing it was refused; and the frontend reducer creates a
+  browse only from its opening frame, so a late frame from the previous turn
+  cannot restore a browse, and its screenshot, under the new transcript.
+- **Eight more, from a third review, and one I found answering them.** A field's
+  contents left the browser: the history line stopped carrying a typed value and
+  the next snapshot copied `el.value` straight back out, so the password the host
+  model had just entered reached the decision endpoint one step after being
+  redacted. Closing that left two more routes, both found by the security pass
+  that followed: a pick-one's *options* are built separately from the table and
+  carried the value too, and `labelOf` had `el.value` at the end of its fallback
+  chain, so an unlabelled field's own value became its *name*. The table and the
+  options both say `[filled]` now, a value is a name only where it is a caption
+  (`submit`, `button`, `reset`), and only a dropdown reports its selection. `domain_allowed` let an agent with no `allowed_domains` browse
+  `file:///etc/passwd`, which `read()` would have returned as the answer; the
+  scheme is checked first and always. A click used coordinates without asking
+  what was *at* them, so an overlay took the press. `<div contenteditable>` was
+  reported as a `div`, which is not an editable role, so every rich-text editor
+  could be reached and never filled. A page's visible text was serialised whole
+  over CDP before Python bounded it. A `target="_blank"` link opened a tab the
+  loop never saw. A positive `min_confidence` was silently disabled by a decision
+  model that reported no confidence at all. And a hung CDP command had no
+  timeout, so it held the turn open for as long as the run could live.
+
+  The one found while fixing them: `type_text` cleared a field with `Ctrl+A`,
+  which is the wrong modifier on macOS and does nothing in a `contenteditable` -
+  so "replace" meant "append". The selection is made in the page now. And the
+  reason it took a live browser to find the others at all is that a page's own
+  exception was reported as "the collector did not run"; `exceptionDetails` is
+  read and quoted.
+- **Five more review findings, four of them real.** A form control's name was
+  read off the control alone, so `<label for="email">Email</label>` beside an
+  `<input id="email">` reached the decision model with an empty label and the
+  model could not tell which field to fill - `el.labels` and `aria-labelledby`
+  come first now, in the collector and in the identity check, because two answers
+  there would make every labelled control fail its own verification. Every browse
+  gets a browser context of its own, disposed with it: on the long-lived shared
+  browser this capability tells an operator to run, the default context kept the
+  cookie one person's agent signed in with and handed it to the next caller of
+  the same agent. `decision_base_url` has an allowlist -
+  `DECISION_MODEL_ALLOWED_HOSTS`, empty by default - because the field is in the
+  spec and the vault key is unsealed into a header to whatever it names, so an
+  author who may bind a shared TypeSafe key without being able to read it could
+  point it at a server of their own. And the frame sink now answers whether it
+  was delivered, so a browse whose reader closed the tab stops encoding a JPEG
+  per step for nobody while the browse itself carries on. The fifth - waiting for
+  the first navigation before the first snapshot - was already fixed, and is now
+  fixed properly: `about:blank` reports itself ready the instant it is asked, so
+  the wait has to be for the page it is *leaving*.
+- **The browse panel is a card first, and a window when you ask.** A full side
+  panel opening itself over the conversation says watching the browser matters
+  more than reading the answer, which is true for about four seconds. So a browse
+  appears as a glass card under the message - a thumbnail of the page, where it
+  is, how far along - and expands into a panel that drags to any width between
+  360 and 880 pixels, closes back to the card, and reopens. The resize handle is
+  a `slider` with arrow keys, because a width is a real setting and dragging is
+  not available to everyone.
+- **The browsing capability's form fills itself in.** `cdp_url` is prefilled from
+  `BROWSER_CDP_ALLOWED_HOSTS` when one host is allowed and hinted otherwise - an
+  author was already choosing from that list, and a field that refuses at publish
+  without saying what it would accept wastes an afternoon. `decision_model` is a
+  picker over a new `app/core/catalog/decision_models.json` while staying a
+  string, so a pinned build (`jev-1.13.0`) is still storable. `decision_base_url`
+  names the vendor endpoint it defaults to, because that default is the difference
+  between page content staying inside a deployment and leaving it.
+- **`agenticos cmd doctor` probes the browser hosts.** Reports rather than fails:
+  the allowlist holds hosts and not ports, so the probe assumes Chromium's 9222
+  and an operator running theirs elsewhere is not broken. What the line is for is
+  the other case - nothing listening anywhere, and an agent published against it.
+- **The decision-model key is a TypeSafe key.** It has its own entry in the
+  service catalog, so the Builder asks for "a TypeSafe key" rather than "a key for
+  Browser automation", the picker offers the TypeSafe secrets rather than every
+  `api_key` in the vault, and a key added from that picker is stored under that
+  purpose. Filed under `other` beside LlamaParse and mem0 - its actual peers - and
+  deliberately not `model_provider`, which is what the chat model picker reads to
+  offer a provider to run an agent on.
+- **A browse is no longer held for approval by default.** The capability stays
+  `side_effecting`, so the console badges it and an operator can still gate it with
+  `tool_approval`; the tool's own flag is now false. An approval on a browse
+  arrives before the first page is fetched, on a goal and a URL - it asks somebody
+  to approve actions nobody can see yet, and the answer is almost always yes. What
+  replaces it is that a browse is watchable, bounded by `allowed_domains`, and
+  refusable by `min_confidence`.
+- **`EXTRAS`, a build argument for the backend image.** The capability docs told an
+  operator to install `agenticos[browser]` and nothing in the build honoured it:
+  the image is `uv sync --frozen --no-dev` with no extras, so there was no
+  supported way to get the engine in and a bound agent failed its one tool with an
+  install line nobody could act on. `browser_use` has had the same gap since it
+  shipped. Empty by default, so a plain build is exactly what it was.
+- **A live browser panel in the chat.** A browse streams its steps, the
+  probability the engine chose each at, and the viewport as a picture per step -
+  narration and picture as separate frames, so encoding one never holds up the
+  other, and a finish frame on every outcome so nothing is left spinning. The
+  panel opens itself when a browse starts, stays up when it ends (*blocked by the
+  page* is the outcome most worth reading), and stays closed for a browse somebody
+  closed it on. `preview` off keeps the narration and drops the pictures.
+## [0.0.478] - 2026-09-21
+
+### Added
+
+- **Amigo's Arcade - three browser games that explain the platform by making
+  somebody play it.** Published beside the documentation at `/arcade/`: a desert
+  runner where the budget drains for as long as the agent runs, a side-scrolling
+  canyon whose publish flag refuses an agent missing any of its capabilities, and
+  a top-down control room where a shift is a retrieval, a tool behind a sealed
+  credential, a write that waits for an approval, a source to connect, a messy
+  customer export to clean, and a thirty-thousand-dollar invoice answered by
+  routing the cheap traffic to open weights. The three cabinets share one harness
+  record in `localStorage` - twenty-two parts across capabilities, skills, context
+  files, memory, knowledge, MCP servers, models and one Vstorm badge - and every
+  part changes how the other two play rather than only listing itself: browser
+  control is a second jump, a retry policy covers one hit, session memory keeps a
+  checkpoint, structured output slows the hallucinations down, the Linear server
+  puts a sixth ticket on the shift. The hub prints the collection as the YAML spec
+  the product exports, with everything uncollected left in as comments. Six static
+  files, copied verbatim by MkDocs the way `docs/presentation/index.html` already
+  is, so nothing enters the navigation and no page owes a translation. Amigo is
+  transcribed pixel for pixel from `docs/assets/amigo.svg` and the palette is the
+  sunset from `docs/assets/social-preview.html`, so the sprite on screen and the
+  mascot in the README cannot drift apart. Sound is synthesised through Web Audio
+  rather than shipped as files, and every cabinet plays from a keyboard, a mouse,
+  or an on-screen pad that appears only on a coarse pointer.
+
+## [0.0.477] - 2026-09-21
+
+### Changed
+
+- **The monthly backend group, with the MCP SDK deliberately left behind.**
+  uvicorn 0.53.0, SQLAlchemy 2.0.54, boto3 1.43.97, mem0ai 2.1.0, and ruff 0.16.8
+  with ty 0.0.82 for the tooling. `mcp` stays below 2.0: 2.0 moves the whole SDK
+  from `httpx` to `httpx2`, and `PinnedAsyncClient` - where this platform's SSRF
+  pin and its `Host`/SNI substitution live - is an `httpx` client. It cannot send
+  the `httpx2.Request` the OAuth discovery helpers now build, and the catch that
+  turns a malformed endpoint into a refusal cannot see an `httpx2.InvalidURL`, so
+  that endpoint answers 500 with an empty body again. The streamable transport
+  also renamed itself and dropped the `headers` argument every private server is
+  reached with. Dependabot widened the cap twice; the cap is back both times, and
+  the migration - moving the pin itself to `httpx2`, rather than carrying two HTTP
+  libraries through the one flow where a remote server picks the next address we
+  dial - is its own change.
+
+## [0.0.476] - 2026-09-21
+
+### Changed
+
+- **The agent runtime moved to Pydantic AI 2.45 and Logfire 5.1.** The weekly
+  group that carries the four frameworks this platform is built out of:
+  `pydantic-ai-slim` and `pydantic-graph` 2.43 to 2.45, and the `logfire` floor
+  to 5.1.0. No call site changed - the whole backend suite runs against it
+  unmodified.
+
+## [0.0.475] - 2026-09-21
+
+### Fixed
+
+- **The paperclip attaches the file again.** Picking a file through the
+  composer's file picker did nothing at all: no attachment card, no toast, no
+  request. `handleFileSelect` held the input's own live `FileList` and then
+  cleared the input, which empties that list in place in Blink and WebKit, so the
+  upload saw no files and returned before queueing anything. The files are copied
+  before the input is reset. Drag-and-drop and paste were never affected, because
+  neither goes through the input.
+
+## [0.0.474] - 2026-09-21
+
+### Added
+
+- **A generated face is the default avatar for people and agents.** Two initials
+  on a colour told a reader very little at 20px, and a run table is a column of
+  them. Every person and every agent who never uploaded a picture now wears a
+  deterministic face drawn from the row's id, so renaming an agent does not hand
+  it somebody else's. The stored `avatar_color` slot keeps its meaning: the ten
+  `--avatar-*` tokens' hues become the generator's hue, so the picker still
+  picks what the face wears. Organizations keep their initials — a company is
+  not somebody. Every face blinks and breathes, and `prefers-reduced-motion`
+  holds all of it still.
+- **Thought orbs where a turn is waiting.** The stretch between asking and the
+  first token, the reasoning line while pydantic-ai's thinking deltas arrive, a
+  tool call still in flight, and a delegation still out each carry a dotted orb
+  whose animation says what kind of work it is: a read scans, a write braids, a
+  delegation wires a constellation. `STEP_ORBS` maps every `StepKind` the way
+  `STEP_ICONS` maps it.
+- **A beam around the composer while the caret is in it.** Monochrome, and only
+  on focus: a border that glows permanently is decoration, one that lights when
+  the caret arrives is the box saying where the typing goes.
+- **A glow that rises with a voice.** The composer's edge answers the microphone
+  while it is open. It is a second capture, because the Web Speech API analyses
+  its own audio and exposes no stream, so stopping the glow stops no dictation.
+- **A rail down the edge of a conversation.** One tick per message, the tick for
+  what is on screen lit, a card on hover naming who spoke with the opening of
+  what they said, and chevrons that step a turn at a time. For the transcript
+  long enough that finding the message where a number was quoted means reading
+  every turn on the way.
+- **A mosaic that dissolves into an image.** The file viewer resolves a picture
+  out of a WebGL loader rather than swapping a spinner for it. Fetched on demand
+  and only where WebGL can run it, because it carries `three`.
+
+### Fixed
+
+- **The Getting Started agent answers in English unless it is asked not to.**
+  Nothing told it what language to use, so it guessed from the question - and a
+  mistyped Polish greeting came back in Czech. It now answers in English whatever
+  the question arrives in, and switches only when somebody asks it to in as many
+  words.
+
+### Changed
+
+- **A question in the chat is a panel rather than an inverted slab.** It was drawn
+  in the foreground colour, which made it the brightest object in the transcript -
+  louder than the answer under it, and backwards: the question is the part
+  somebody already knows they asked. It takes the secondary surface now, with a
+  hairline border so it keeps its shape in the light theme, where the fill is
+  three percent off the page.
+- **Amigo walks across the README.** He was standing still with a one-pixel bob,
+  which is an idle rather than a reason to look. The banner is a wider canvas he
+  crosses and comes back over, on two leg poses that alternate under him, all of
+  it in whole pixels - a sprite drawn on a 16-pixel grid and moved a third of a
+  pixel is a sprite with soft edges. `scripts/gen_amigo_assets.py` cuts it from
+  the same drawing as the mark, so there is still one Amigo.
+- **The social preview is a desert at sundown, and now has a source.** The card
+  it replaced was a finished PNG with nothing behind it: the mark changed, the
+  card kept showing the retired one, and nothing noticed.
+  `scripts/gen_social_bg.py` draws the scene 160 pixels by 80 - one per eight on
+  the finished card - with an ordered dither rather than a blend, because Amigo
+  is a 16-pixel sprite and a smooth gradient behind a sprite reads as a drawing
+  pasted onto somebody else's artwork. `docs/assets/social-preview.html` is the
+  card over it: Amigo walks the dunes, two birds cross the sky, the first stars
+  come out, and the verb in the tagline lights in the colour of the sun. The
+  name is set in a pixel face for the same reason the sky is dithered - a smooth
+  grotesque over a 16-pixel scene was the one element on the card that belonged
+  to a different drawing - while the sentence under it stays a proper sans. It
+  renders to a 323 KiB GIF for anywhere that animates and a PNG for anywhere
+  that does not.
+- **Amigo is the product's mark, everywhere one was drawn.** Five different marks
+  were in circulation: the pixel mascot in the README, a blue orbit in the docs
+  header and hero, a lucide sparkle in the console sidebar, a lime dot in the
+  browser tab and on the link-unfurl card, and a bare initial on the iOS home
+  screen. The mascot's head and hat, cropped square, is now the one mark the site
+  header, the tab, the sidebar and the social card show, and the whole character
+  heads the README and every documentation landing page. `scripts/gen_amigo_assets.py`
+  cuts that crop out of the drawing and writes both derived forms - an SVG for
+  MkDocs and a data URI for the two `next/og` images, which cannot load a path -
+  so nothing is drawn twice and `backend/tests/test_amigo_assets.py` fails if they
+  drift apart. The orbit is gone. The home-screen icon keeps its initial, which
+  is the deployment's name rather than this build's.
+- **Amigo blinks and breathes.** One pixel of bob and an occasional blink, added
+  to the drawing itself so the README, the docs hero and anything else that shows
+  the file all get it, and stopped by `prefers-reduced-motion`. Both are additive:
+  where CSS in an image does not run, the first frame is the drawing as it was.
+
+- **An agent's generated face is drawn from its handle, not its id.** So the
+  creation dialog can show the face while somebody is still typing their way to
+  a name - the handle is derived from the name on every keystroke and then
+  frozen, which keeps the old guarantee that renaming an agent does not hand it
+  somebody else's picture. Triggers, workspaces and the spend breakdown carry
+  the handle now, beside the name they already carried, so every surface draws
+  the same face. Existing agents change appearance once.
+- **Categories and tags can be set when an agent is created**, and read better
+  where they are edited: two half-width fields side by side instead of two
+  stacked empty boxes, each saying what it is for, with the cap visible before
+  somebody hits it. The creation preview shows them on the row they will appear
+  on.
+- **The Getting Started agent is a demonstration rather than a stub.** It had
+  one capability - a clock - and a prompt that described the platform in three
+  sentences. It now ships with fourteen: web search and fetch, Python, charts,
+  a sandbox with files and a shell, planning, memory that outlives a
+  conversation, conversation search, context, the shipped skills, delegation to
+  sub-agents it can invent on the spot, context management and output limits.
+  All of it runs on the one key bootstrap already asked for - the sandbox uses
+  the run's own store and search defaults to DuckDuckGo, so there is no second
+  credential and no service to stand up. Bootstrap also writes an `AGENTS.md`
+  context file the agent reads before explaining the platform, which is the
+  same shape a client's own standing knowledge takes.
+- **A new agent is visible to the organization, and the dialog says so.** It
+  was private, so every agent was made invisible and then shared by hand - and
+  the second person to go looking for one was told it did not exist. Creating an
+  agent now asks who can find it, with the organization as the answer, and shows
+  the row it is about to become: name, handle, description and that choice.
+  Private is still there for the one somebody is still working out. A draft
+  cannot run either way, so this decides who sees it, not what it does.
+- **The context editor opens on the text, and the text has syntax.** A pane
+  somebody came to write in opened on a rendering of what they had not written
+  yet, and its source half was a plain textarea - so a long `AGENTS.md` was a
+  wall of identical grey where the headings that give it structure looked like
+  the sentences under them. Source is what `/context` opens on now, highlighted,
+  with gutters wide enough for the three columns of form above it. A file
+  browser still opens on the preview, which is what a reader wants.
+- **`/context` and its documentation lead with `AGENTS.md`.** It is the same
+  idea in the same shape, and naming it is faster than describing it.
+- **A built-in skill can be deleted, and stays deleted.** The skills listing used
+  to top itself up, copying in any bundled name the organization did not have
+  every time anyone opened the page. A deleted built-in came back on the next
+  visit, disabling was the only way to retire one, and reading a page wrote rows.
+  Organizations are still seeded at creation, `agenticos cmd seed-skills` still
+  pushes a new bundled skill out on purpose, and the gallery is where a skill is
+  chosen. What is gone is the page that put one back.
+- **Chunking defaults are 2500 characters with 200 of overlap**, up from 512 and
+  50. 512 characters is roughly three sentences: it splits a paragraph across
+  two embeddings and hands a model an answer with its own context missing.
+  Existing collections keep whatever they stored; this is what a new one starts
+  from, in the form at `/rag`, in the pipeline, and on the standalone parse
+  endpoint alike.
+
+## [0.0.473] - 2026-09-21
+
+### Added
+
+- **The console speaks German.** `frontend/messages/de.json` translates all 4,486
+  keys of the English catalog, and `de` joins `locales` in `src/i18n.ts`, so the
+  language switcher offers it, `/de/...` serves it and every canonical, alternate
+  and Open Graph locale names it. The terminology is the one the documentation
+  already fixed in `docs/howto/translate.md`: the product's own nouns stay English
+  and keep the gender decided there — der Agent, die Capability, der Run, die
+  Sandbox — and everything around them is translated, formally (*Sie*), as the
+  German pages of the site are.
+
+  `/de/legal/*` is translated with the rest of the catalog and is a translation of
+  the placeholder template the deployment ships, not legal advice. A deployment
+  that relies on those pages points `admin.brandingTerms` and
+  `admin.brandingPrivacy` at its own. Its dates are German too: the formatter now
+  takes a tag per locale rather than falling back to `en-US`, so a fourth locale
+  is a type error instead of a page that reads `May 8, 2026` in German.
+
+  The compatibility redirects follow the locale list rather than naming it. They
+  matched `en|pl` literally, so every German bookmark to a moved page - the old
+  `/de/settings/providers`, say - answered 404 while every other surface had been
+  translated. `locales` now lives in `frontend/src/lib/locales.ts`, which the
+  build config can read and `src/i18n.ts`, which drags in next-intl and the whole
+  English catalog, cannot.
+
+## [0.0.472] - 2026-09-19
+
+### Fixed
+
+- **The security controls matrix reported four shipped controls as missing.**
+  `docs/security.md` and `docs/data-protection.md` are what a client's security
+  review is handed, and both still described work that had since landed: audit
+  tamper evidence read "Not yet" although every entry joins a per-organization
+  hash chain with a checkpoint and `agenticos cmd audit-verify` walks it; the
+  HIPAA profile's `sso` row said generic OIDC sign-in did not exist and the
+  control was "unmet on any deployment today", when `OIDC_ISSUER` configures it
+  by discovery; the erasure row described attachment bytes outliving their
+  owner's deletion, which the paths-collected-then-unlinked purge fixed; and the
+  at-rest row named the S3 backend with server-side encryption as an open issue
+  rather than a setting - and overstated it, since that backend's third mode
+  sends no encryption header at all. A matrix that under-reports is as unusable
+  to a reviewer as one that overstates. All of it, the erasure inventory it
+  contradicted, the governance page that still called the shipped hash chain
+  future work, and every translation, are corrected. (#1424)
+- **The HIPAA sheet's `sso` control passed on an issuer alone.** `OIDC_ISSUER`
+  set without `OIDC_CLIENT_ID` builds no client and the sign-in route answers
+  404, so the sheet attested a sign-in nobody could perform. It now reads the
+  same pair the sign-in path does. (#1424)
+
+## [0.0.471] - 2026-09-18
+
+### Added
+
+- **RAG metadata filters, and a server-derived tenant scope on retrieval
+  (FA-039).** `POST /rag/search` and the agent's knowledge tool take structured,
+  narrowing-only business filters — `source`, `document_type` (the stored
+  filetype/mime), `organizational_unit`, and an inclusive `date_from`/`date_to`
+  range — as a typed `filters` object. Semantics are OR within a multi-value
+  field and AND across fields; a missing dimension on a chunk fails closed under
+  a filter for it, and a supplied-but-empty list is rejected rather than read as
+  "match everything". The security-bearing tenant conjunct is built only from the
+  caller's context (never from the request body or a model parameter), so a
+  filter can only narrow, never widen, access — closing the latent cross-tenant
+  read on a collection name two organizations happen to share. An app-scoped,
+  deployment-wide base gets its own scope shape (`AppScope`, matching `tenant IS
+  NULL`) rather than being read through the same equality conjunct an org base
+  is, which previously left it always answering empty. Ingestion now stamps
+  `organization_id` (from trusted worker context) and the business metadata onto
+  every chunk, and `GET /rag/collections/{name}/filter-values` exposes the
+  distinct in-scope `organizational_unit` values so a caller can discover them. A
+  `rag_safe_to_date` SQL helper plus JSONB and partial-date indexes back the
+  filters; an HNSW iterative-scan tuning keeps a selective tenant filter
+  returning a full top-k (requires pgvector ≥ 0.8; a raised `ef_search` is the
+  fallback). Semantic document typing (`document_category`) is deferred, and the
+  shared-table write-path tenant fix shipped separately (#1684).
+
+### Changed
+
+- **BREAKING (deprecation window): a non-`parent_doc_id` `filter` string on
+  `POST /rag/search` is now rejected with 400 instead of being silently
+  ignored.** Only `parent_doc_id` was ever honoured out of the old scalar filter
+  grammar; every other clause was dropped without notice. The field is now
+  deprecated and accepts only a full-match `parent_doc_id == "<id>"` expression
+  (use the structured `filters.parent_doc_id` instead); supplying both the string
+  and `filters.parent_doc_id` is a 400 conflict. Programmatic callers sending any
+  other filter string — which did nothing before — must move to `filters`.
+
+## [0.0.470] - 2026-09-18
+
+### Fixed
+
+- **A token refresh no longer cancels the chat turn it was streaming.** The
+  console re-mints its access token on a timer nobody asked for, roughly every
+  twenty minutes per open tab, and each new value closed the socket an answer
+  was streaming on. The server read that close as the reader leaving and
+  cancelled the run, so a half-written reply was recorded `cancelled` and
+  labelled *stopped* in the transcript while the composer went on spinning -
+  the frame that would have ended the turn on screen had gone to the socket
+  that just went away. Three changes: the socket is identified by its address
+  rather than by the credential it shook hands with, so a refreshed token
+  reaches the next handshake without disturbing the live one; a socket that
+  goes away lets its turn reach its own end and write itself to the transcript,
+  bounded at ten minutes rather than cancelled on the spot, with a run parked
+  on a question answered as nothing rather than left holding that bound open;
+  and a client whose socket dropped mid-answer ends the turn on screen and
+  offers a re-read of the transcript, which is where a finished turn lands. A
+  turn somebody asked to stop still stops at once. (#1764)
+
+## [0.0.469] - 2026-09-18
+
+### Added
+
+- **A notification center: every unattended alert in one inbox, in the console
+  as well as in the mail.** A bell beside search carries the unread count and
+  the list itself, a dashboard card carries the five most recent, and both read
+  the same rows. Every alert writes two things now - the in-app row, which *is*
+  the delivery and needs nothing further to succeed, and an email queued as an
+  independently retried second channel off the same write, so a bounced address
+  or a down relay cannot take the console's own copy with it. Nine event types
+  produce one: a budget exceeded, an approval parked, a run finishing or failing
+  unattended, a document's ingestion completing or failing, a source sync's own
+  outcome, a security event, a configuration change, a usage report and an app
+  admin's broadcast. Four routes read it - a cursor-paged inbox, an unread
+  count, mark-one-read and mark-all-read - and every one of them rechecks, row
+  by row against the caller's *current* standing, what the audience check
+  decided when the row was written: a collection they can no longer see, an
+  approval they can no longer decide, an organization they have left. An
+  approval nobody may decide degrades to a sentence without its link rather
+  than vanishing. (#1598)
+- **Per-event, per-channel notification preferences, at Settings →
+  Notifications.** In-app and email switch independently for every event a
+  person may turn off, and the three legacy `notify_*` columns keep governing
+  the three events they already governed - exactly one authoritative lookup per
+  event type, never two vocabularies for one switch. A security event and a
+  configuration change cannot be turned off on either channel. (#1598)
+- **App-admin announcements.** `POST /admin/announcements` addresses every
+  organization or a named list, optionally narrowed to a role, and optionally
+  restricted to one channel. The audience resolves at send time from current
+  membership rather than a stored list, an `"admin"` audience includes owners at
+  both ends of the send, a send reaching nobody is refused rather than recorded,
+  and the audit entry keeps the count and the description - never the resolved
+  recipient list. (#1598)
+- **Notification retention, on its own schedule.** A daily sweep drops a *read*
+  row ninety days after it was written and any row after a year, both counted
+  from the write. `announcements` are excluded, so what was sent stays
+  answerable from the audit trail after its deliveries age out. Migrations
+  `0088_notification_center_schema`, `0089_run_publisher_fallback` and
+  `0090_notification_created_idx`. (#1598)
+- **Notifications and their preferences are part of a personal-data export.**
+  `GET /me/data/export` now returns every notification addressed to the person -
+  including a row a channel opt-out hid, which is still a row the deployment
+  holds about them - and their per-event channel choices, which
+  `docs/data-protection.md` classifies as personal data. (#1598)
+
+### Fixed
+
+- **A notification's audience and its read gate agreed about owners.** An
+  `"admin"` announcement resolved its recipients by exact role while the
+  read-time gate admitted owners too, so an owner could be shown nothing
+  because no row was ever written for them - and an audience of owners with no
+  admin was refused as empty. One rule now decides both ends. (#1598)
+- **A failed preference read can no longer poison its caller's transaction.**
+  The batched preference lookups ran before the per-recipient savepoints, so a
+  statement error there aborted the whole PostgreSQL transaction - including the
+  terminal run update the best-effort contract exists to protect. They get a
+  savepoint of their own, and the write is abandoned rather than sent on
+  preferences nobody read. (#1598)
+- **A failure to notify can no longer undo a failed ingestion.** `fail_ingestion`
+  is now best-effort past the status write, the way `complete_ingestion` already
+  was: a worker runs it inside its own session, so an exception escaping it
+  rolled back the `ERROR` transition and left the document in `PROCESSING` for
+  ever. A source sync's own outcome notification takes the same boundary. (#1598)
+- **A connector's own exception no longer reaches a stored failure whole.** The
+  sync loop's settlement after a raised ingest passed `str(e)` into
+  `rag_documents.error_message`, which is rendered to everyone who can see the
+  collection - endpoints, bucket names and query strings included. It goes
+  through `failure_summary` like every other stored ingestion failure. (#423,
+  #1598)
+- **An app admin can see the ingestion notifications they were sent.** An
+  outcome with no initiator is addressed to every app admin, who hold no
+  membership row - so the collection gate refused it on the organization
+  mismatch alone and hid a row they were deliberately written. (#1598)
+- **A settings change made under impersonation is metered on the real
+  administrator.** `configuration_changed` keyed its write limit on the
+  impersonated account, giving one person a fresh allowance per account they
+  can act as; it uses the same real-administrator key `security_event` already
+  did. (#1598)
+- **A notification past its retention window is no longer emailed on its way
+  out.** Nothing orders the delivery sweep against the retention sweep, so a
+  worker recovering from a long outage ran both and whichever went first
+  decided whether a row past its declared window was sent. The claim applies
+  the retention sweep's own cutoffs. (#1598)
+- **A sync of a source with no collection reaches the person who triggered
+  it.** The producer passed the source's name where the read gate expects an
+  empty marker, so an unassigned source read as a collection deleted
+  mid-sync - visible only to administrators. (#1598)
+- **A scheduled report's window end bounds its purged spend too.** Live runs
+  and ingestion honoured `until`; purged run spend did not, so a report
+  delayed into a later month reported spend its own breakdown never
+  described. (#1420, #1598)
+- **"Mark all read" no longer claims an inbox it only partly cleared.** Both the
+  count and the sweep cap at five hundred candidates, so subtracting one from
+  the other zeroed the badge while older rows were still unread. The count is
+  refetched instead. (#1598)
+
+## [0.0.468] - 2026-09-18
+
+### Added
+
+- **An agent carries categories and tags, and the catalog filters by them.**
+  Anyone who may edit an agent can add, change and remove both through
+  `PATCH /agents/{id}/metadata`, and `GET /agents` narrows by repeatable
+  `category` and `tag` parameters - values OR within a facet, AND across them,
+  matched case-insensitively. They are metadata on the agent record rather than
+  part of the versioned spec, which is how the avatar already works: YAML export
+  and import are unchanged, no `SPEC_VERSION` moves, and nobody has to publish a
+  version to retag. Values are normalized once on the way in - trimmed,
+  whitespace-collapsed, case-folded, de-duplicated - and bounded at ten
+  categories and twenty tags of thirty-two characters each, a longer one
+  answering 422. The filter can only narrow what the caller could already see: it
+  adds a predicate to the listing query that already enforces the tenant and the
+  grants, so it cannot surface another organization's agent. Migration
+  `0087_agent_categories_tags`. (#1592)
+
+## [0.0.467] - 2026-09-18
+
+### Fixed
+
+- **A value somebody submitted can no longer write a log entry of its own.** A
+  log entry is one line, so a value carrying a newline wrote a second one - with
+  a timestamp, a level and a message of the sender's choosing, indistinguishable
+  from a real entry in any text log. The clearest way in was the rate limiter's
+  `caller`, which can be the address typed into a sign-in form, or an
+  `X-Forwarded-For` header where a deployment trusts one. The filter that already
+  sits on every handler in every process escapes the control characters that end
+  a line, in the message, its arguments, the rendered traceback and anything
+  passed through `extra=` - so a call site cannot forget, and a deployment that
+  swaps in a JSON or key-value formatter does not acquire the hole by doing so.
+  Tab is left alone; the attempt is still recorded, as `\n`, rather than swallowed.
+  (CodeQL `py/log-injection`)
+
+## [0.0.466] - 2026-09-18
+
+### Added
+
+- **Eight more chat attachment formats, and `application/xml`.** DOC, XLS, PPTX,
+  MSG, TIFF, ODP, ODS and ODT upload and parse into text or images the model can
+  use, alongside the eleven that already worked - in chat, including for an agent
+  with no workspace (FA-013). Pure-Python parsers where one exists (xlrd, odfpy,
+  python-pptx, olefile) and a managed `soffice` subprocess only for DOC, killable
+  and resource-bounded; a TIFF is rendered to PNG for the vision path, page-capped
+  and never held whole. An `.msg` reports To, Cc and Bcc as the file records them
+  rather than calling every recipient a direct one. The ZIP- and OLE-backed
+  parsers are bomb-guarded, and one turn is bounded in both directions - the text
+  it pastes and the image bytes it carries - so several large attachments cannot
+  compound past what a worker can hold. A format that cannot be shown inline is
+  named in the prompt with its path, rather than silently absent. (#1591)
+
+### Fixed
+
+- **Chat attachments reach the model again.** A chat turn linked its uploaded
+  file to the new message and then re-validated it as *unlinked*, which failed
+  and dropped every attachment before the model call — the turn looked skipped,
+  with no reply. The run now reads its own turn's files directly, keeping the row
+  where it is linked to this message or still unlinked, so `list_attached_files`'
+  unlinked-guard still protects a fresh submission without rejecting the turn's
+  own files. (#1756)
+
+## [0.0.465] - 2026-09-18
+
+### Fixed
+
+- **RAG ingestion no longer crosses tenants on a shared collection name.** A
+  `rag_<collection>` runtime table is keyed by collection name only, and a name
+  is not unique across organizations - two that pick the same name share one
+  physical table. The ingestion replace/dedup path found and deleted a document
+  with no tenant predicate, so one organization could overwrite and delete
+  another's document, and a search could read another's chunk content. Every
+  chunk now records its ingesting organization, and the existence lookup, the
+  replace-delete, deletes, listings, counts, chunk reads and search all scope to
+  it. A schema change stamps existing rows for a collection owned by a single
+  organization; rows in a name shared by several are left untagged, since they
+  carry no evidence of which wrote which (#1684).
+- **The tenant scope now reaches the last three paths that could still cross it.**
+  A local-directory sync into an org- or personal-backed collection stamps its
+  rows with that collection's tenant instead of writing them untagged; a search
+  reads under the tenant of the knowledge base the caller was authorized for
+  rather than one re-resolved from the name; and the organization-purge re-stamp
+  resolves a surviving base's documents inside its own update, closing the window
+  in which a document deleted at that moment could be un-deleted, and fails the
+  cleanup so its retries re-run rather than stranding a base stamped with the
+  removed organization (#1684).
+
+## [0.0.464] - 2026-09-18
+
+### Fixed
+
+- **A LibreOffice conversion that runs past its deadline is killed rather than
+  left holding the worker.** The timeout cancelled the wait and not the process,
+  so an office document that made `soffice` hang kept a slot on the bounded file
+  pool for as long as it liked - and enough of them stopped every other
+  conversion in the deployment. The teardown is TERM, a grace period, then KILL
+  from a `finally` that survives being cancelled again; the conversion and the
+  parse share one deadline, so a file cannot spend the whole budget converting
+  and then start parsing; and the failure names the format rather than the
+  temporary path it was written to. (#1685)
+
+## [0.0.463] - 2026-09-16
+
+### Added
+
+- CodeQL runs on every pull request (`security-extended`, for Python,
+  JavaScript/TypeScript, Rust and the workflows) instead of weekly on `main`
+  through GitHub's default setup, so a finding is attached to the commit that
+  introduced it and is readable before the merge. The weekly full run is kept for
+  query packs that update between merges. Two repository settings go with it and
+  a workflow cannot make either — default setup has to be switched off, and
+  refusing the merge is code-scanning merge protection on `main`'s ruleset. Both
+  are named in `docs/branching.md`. (#1415)
+- `make audit-frontend` — `bun audit --audit-level=high` over `frontend/bun.lock`
+  — in the `Security Scan` job and in `make check`. Nothing read that lockfile
+  before. (#1415)
+- A CycloneDX SBOM per image, generated from the published manifest and attached
+  to each release as `sbom-api.cdx.json` and `sbom-frontend.cdx.json`; `make sbom`
+  writes the same documents locally from the source tree. (#1415)
+- `docs/reference/components.md`, the readable component inventory: what this
+  project writes, what it depends on, what ships in each image, and the models and
+  services a deployment adds that no image SBOM can see. (#1415)
+
+### Fixed
+
+- Frontend dependency advisories the new audit found: `next` raised past two
+  unauthenticated-RCE advisories, `postcss` past two source-map path-traversal
+  advisories, and `nanoid` and `js-yaml` pinned forward through `overrides`
+  because their parents have not moved. (#1415)
+
+## [0.0.462] - 2026-09-16
+
+### Added
+
+- **`agenticos cmd data-protection-report` prints the evidence a data-protection
+  review of one deployment asks for.** The verification checklist on the data
+  protection page was a page of SQL to paste into `psql` by hand plus a shell
+  pipeline for the one question SQL cannot answer, which is not something a
+  reviewer can reproduce or an operator can re-run on a schedule. The command
+  replaces both: the settings that decide what leaves, every provider and
+  endpoint an agent can reach, the credentials held by purpose, the collections
+  and who embeds them, the servers on the deployment's own network, the MCP
+  servers, trigger portals, sync sources and channel bots, the capabilities that
+  reach an address of their own with no row naming it, where runs are traced and
+  how much content a span carries, how much of each store a retention period
+  would reach, and the files under `MEDIA_DIR` that no row points at any more.
+  It prints configuration and counts only - no message text, no document, no
+  secret value and no hint of one, a setting holding a credential is reported as
+  set or unset, a URL's query string is redacted because it can be the
+  credential, and the unreferenced files are a directory and a count rather than
+  filenames a person uploaded - so the output is attachable to a review as it
+  stands. Tracing and the capability inventory are read off every version that
+  can run, the default one and each environment's pinned one, rather than off
+  the default alone. The unreferenced-file count is derived from a declared list
+  of every media-path column, and the capability inventory from a declared
+  classification of every registered capability, both of which a test holds
+  against the code so neither list can rot into a plausible wrong answer.
+  (#1596)
+
+### Documentation
+
+- **The data protection page stopped describing implemented controls as gaps.**
+  Three of the open conditions it listed have closed since it was written, and a
+  review reading it would have been told the platform lacks controls it has: the
+  audit trail's tamper evidence now exists as a per-organization hash chain with
+  a checkpoint at each chain's high-water mark and `agenticos cmd audit-verify`
+  to walk them (#1622, #1648), the HIPAA and SOC 2 controls matrix is on the
+  security page (#1412), and the filtered trace-content mode the page listed as
+  pending was decided against (#1616) rather than still coming - so `none` is
+  the answer for a deployment that may not export message text. The
+  verification section is now the command above rather than SQL nobody can
+  re-run identically. (#1596)
+
+## [0.0.461] - 2026-09-16
+
+### Added
+
+- An S3-compatible file-storage backend beside the local disk, selected by
+  `FILE_STORAGE_BACKEND=s3`. Every write asks the store for server-side
+  encryption — SSE-S3 by default, SSE-KMS under a key the deployment names — and
+  a `FILE_STORAGE_S3_PREFIX` keeps two deployments in one bucket apart. An
+  upload is cancellation-safe the way the local one is, and a download is
+  streamed in bounded chunks rather than held whole. Local stays the default and
+  nothing migrates between them; it is a deployment-time choice. `agenticos cmd doctor` prints which backend is running and whether
+  encryption is on, and `make docker-minio` starts a MinIO to develop against.
+  (#1423)
+
+### Changed
+
+- The seven routes that serve a stored file — both avatars, an agent's, a hosted
+  page's logo, the deployment's mark, a chat attachment and a knowledge-base
+  download — resolve it through the storage backend rather than through a path on
+  this host, so they answer on either backend. A local backend still streams from
+  disk. (#1423)
+- The deployment's logo and favicon are typed from the file's own bytes rather
+  than from the suffix its uploader chose, which is what the avatar routes
+  already did. The set of types served is unchanged. (#1423)
+
+## [0.0.460] - 2026-09-16
+
+### Added
+
+- A persisted `ask_user` question records which delegate asked it, and the
+  transcript says so — "Asked by researcher" rather than "Asked you" where a
+  specialist put the question. `ask_parent` hands the surface the question and
+  nothing else, so this needed `SubAgentState.name` upstream
+  (subagents-pydantic-ai 0.2.22, the new floor). A question the main agent asked
+  itself, and every question stored before this, names nobody. (#1042)
+
+## [0.0.459] - 2026-09-16
+
+### Fixed
+
+- The cost journey's last step waits for the API to report a priced run before
+  asking Activity to draw its row, so a failure says which of the five things it
+  crosses did not happen instead of `element(s) not found`. Every other wait in
+  that spec names what it was waiting for, `nowThere` moved out of
+  `seed.setup.ts` as `nowListed` / `nowMatching` so specs and fixtures share one
+  "the write has landed" step, and a failing `e2e` job now uploads
+  `test-results/` — the screenshot, the video, the trace and Playwright's
+  `error-context.md` — beside the HTML report. (#162)
+
+## [0.0.458] - 2026-09-16
+
+### Added
+
+- Refresh-token reuse detection. Rotation re-keys a session row in place, so a
+  stolen refresh token presented after the legitimate user has rotated failed
+  exactly like a typo — no signal, no audit entry, and the live session the thief
+  was racing went on running. The row now keeps the hash rotation replaced, a
+  refresh matching it is the reuse case in RFC 6819 §5.2.2.3, and the response is
+  to end that chain and record it. The caller still learns only "invalid or
+  expired". One hash, not a history: it catches the window the pattern is about
+  and says so. Migration `0085_refresh_reuse`. (#1519)
+
+## [0.0.457] - 2026-09-16
+
+### Added
+
+- A `media` capability that keeps a compacted conversation's pictures out of the
+  database. An attachment reaches the model once and the ordinary history is
+  rebuilt from text, so nothing piles up there — but a compacted conversation
+  stores the library's own dump of the run's messages and replays it base64 and
+  all until the next summary. Bound, the parts over a threshold are written to
+  the organization's own media store and replaced with a `media+sha256://…`
+  reference; re-inlining happens for every conversation whether or not it is
+  still bound. The objects live under the thread's own prefix, which is what
+  gives them a lifetime — deleting the thread or the organization removes them —
+  and a run with no thread offloads nothing. Built on `pydantic-ai-harness`'s
+  content-addressed stores and walkers. (#55)
+- `BaseFileStorage.save_at` and `.exists`, for the one caller whose key is the
+  digest of its own bytes rather than a name this codebase mints. (#55)
+
+## [0.0.456] - 2026-09-16
+
+### Changed
+
+- **A skill is now a capability of its own, and the model opens it with
+  `load_capability`.** `pydantic-ai-skills` 2.0 makes each skill a deferred
+  capability: its name and one-line description sit in the catalog the model reads
+  every turn, and pydantic-ai's own `load_capability` pulls the body in. The two
+  tools this platform published to do that by hand — `list_skills` and `load_skill`
+  — are gone, and `read_skill_resource` is the one tool the capability still
+  contributes, offered only when at least one bound skill ships a file to read.
+  `run_skill_script` stays switched off: a skill's files reach a run under
+  `/workspace/skills/`, where the sandbox's own `execute` runs them. The console
+  renders a loaded skill under the `load_capability` step, with the skill's name as
+  the step label. (#1658)
+
+  **`SPEC_VERSION` moves to 12.** A stored binding that renamed `list_skills` or
+  `load_skill` loads with that entry dropped and a warning in the log: a rename of
+  a tool that is gone is not a decision worth carrying forward. An *approval* on
+  `load_skill` is, and moves to `load_capability` — the decision was "ask a person
+  before a skill is opened", and that is the call that opens one now; dropping it
+  would have ungated an agent whose publisher gated it deliberately, on every
+  surface including a public embed. Anything the binding said about
+  `read_skill_resource` is left exactly as written.
+
+  **A skill cannot be named after a capability.** Each is filed under its own name
+  in the same namespace as the platform's own, so a skill called `planning` on an
+  agent that also has the planning capability is a duplicate the framework refuses
+  before the first token. Creating one is refused, publishing an agent bound to one
+  is refused, and a binding that renames a tool onto `load_capability` is refused
+  for the same reason.
+
+### Fixed
+
+- A tool returning a mapping with a key JSON cannot write - a tuple, say - no
+  longer ends the stream. `default=` is consulted for a value and never for a key,
+  so the `TypeError` escaped a fallback that caught `ValueError` only, and took a
+  live turn down over a tool call that had succeeded. (#1658)
+- Reopening a conversation recorded before this change shows its `list_skills` and
+  `load_skill` steps the way it always showed them, rather than raw XML: a stored
+  turn holds the tool name it called, so the renderers are kept in a legacy table
+  the drift check does not read. A completed `load_capability` whose result is not
+  a loaded skill - the framework's retry notice for an unknown capability - now
+  shows that notice instead of rendering nothing under a step that looks like a
+  success. (#1658)
+
+- **A tool that answers with a structure is recorded as JSON, not as a Python
+  repr.** `str({'instructions': ...})` reaches the browser quoted `'like this'`,
+  which no renderer on the other side can parse — so the step showing what the
+  agent loaded had nothing to open. Applies to the stored transcript and to the
+  live `tool_result` frame alike. (#1658)
+
+## [0.0.455] - 2026-09-16
+
+### Added
+
+- `GET /me/data/export` — everything this deployment holds about you as one JSON
+  document: your threads with every turn in them and what the agents did to
+  answer them, what you rated, where you signed in, which organizations you
+  belong to, what agents wrote down about you, the platform accounts you linked,
+  the runs you started and what they cost. Rate-limited per hour, bounded in size
+  (`PERSONAL_DATA_EXPORT_MAX_CHARS`, refused rather than silently partial) and
+  audited, including when you export yourself. `GET /admin/users/{id}/export` is
+  the administrator's half: the same limit, and a **reason that has to say
+  something** — three spaces used to satisfy it. (#1421)
+- `docs/security.md` gains the inventory both GDPR art. 15 and art. 17 are
+  answered from: every table holding something about a person, whether it
+  cascades, is purged explicitly or is retained, and why — with what erasure does
+  not reach (an external memory store, backups, a provider's own retention)
+  named rather than left to be discovered. (#1421)
+
+### Fixed
+
+- Deleting an account now removes what no cascade reached: the notes every agent
+  wrote about that person, in every organization (`agent_memory_files` is keyed
+  by a string with no foreign key, so every note survived the account), their
+  platform identities, which `SET NULL` left holding a Slack id and a display
+  name linked to nobody, their user-scoped agent workspaces, whose `owner_ref` is
+  a string no cascade follows, and the bytes of every file they attached to a
+  thread, which `chat_files` cascaded the rows away from and left on disk. A run
+  writing a note while the account is being deleted no longer recreates one: the
+  write and the purge take the same lock, and the write that loses finds no
+  account to write about. (#1421)
+- Deleting a conversation unlinks the bytes of the files attached to it. The rows
+  cascaded away with the thread and the files stayed on disk — data kept after
+  somebody asked for it to be deleted, and reachable by nothing. (#1421, FA-015)
+
+## [0.0.454] - 2026-09-16
+
+### Added
+
+- **The public API accepts attachments and answers a parked run.** The surface
+  whose whole purpose is running an agent from your own backend was the one that
+  could not send it a document: `AgentRunRequest` now takes `file_ids`, resolved
+  against the caller's own files the way `/chat` and the widget resolve them. The
+  same route filled the `AgentRunResult.parked` field, which existed and was
+  always empty - a caller whose run stopped for an approval got a status and
+  nothing to act on, and now gets the call that is waiting and the approval to
+  post the decision to. (#936)
+- **A raw WebSocket is told when the agent is compacting its own history.** A
+  summary takes tens of seconds, and only `/chat` passed a compaction sink into
+  the runner - so every other streaming surface simply went quiet for the length
+  of it with nothing said. `AgentRunnerService.prepare` and `.execute` take
+  `on_compaction`, the embed session forwards the three frames, and they are sent
+  whatever the operator's trace switches say: that the agent is tidying its notes
+  is a fact about the product, not about its reasoning. (#936)
+- **`docs/channels.md` says what each surface offers and why each difference is a
+  difference.** A parity table across `/chat`, the socket and the API, with a
+  reason beside every "no" - either "this would be wrong here" or "this is not
+  built yet". `environment_id` on the socket, `ask_user` on the socket and
+  widening approvals past a member are each declined in writing, with what they
+  would need. `backend/tests/test_surface_parity.py` asserts the table against
+  the code rather than trusting it. (#936)
+
+## [0.0.453] - 2026-09-16
+
+### Added
+
+- **Single sign-on against the deployment's own identity provider.** A generic
+  OpenID Connect provider configured by discovery - Entra ID, Okta, Keycloak,
+  anything that publishes a document: `OIDC_ISSUER` plus a client pair, and the
+  authorization, token, userinfo and JWKS endpoints come from the provider
+  rather than from four more settings to get subtly wrong. Authorization code
+  with PKCE. A company self-hosting this runs an identity provider already and
+  will not mint local passwords for its staff, so without this its MFA and its
+  offboarding were solved twice. The sign-in page shows it under the name the
+  deployment gives it (`OIDC_DISPLAY_NAME`) with a mark of its choosing
+  (`OIDC_ICON`), in English and Polish. (#1419)
+
+### Changed
+
+- **A provider sign-in now requires `email_verified`, and absent counts as
+  false.** Both providers, not only the new one: an unverified address means
+  anybody at that provider can claim anybody else's work address, and the
+  sign-up policy's domain allow-list is built on an address meaning something.
+  The account is keyed on `sub` rather than on the address, as it already was.
+- **A sign-in the sign-up policy refuses now says why.** `invite_only` and the
+  domain allow-list already gated `get_or_create_oauth_user`, but the refusal
+  was caught by the callback's catch-all and shown as "Sign-in failed. Please
+  try again." beside every timeout. The policy's own sentence - the one the
+  registration form shows - is carried to the sign-in page instead. (#1419)
+
+## [0.0.452] - 2026-09-16
+
+### Added
+
+- **Per-organization data retention, on a schedule that actually deletes.**
+  Nothing was ever swept before this: conversations and their files, run rows
+  and manifests, workspaces, agent memory, uploaded documents and audit entries
+  lived until somebody deleted the organization - a data-protection problem in
+  one direction and, for audit, a compliance problem in the other. A period per
+  class now, set under the organization and gated on `org:settings`, resolved
+  against a deployment-wide default and ceiling; `audit` takes a **floor**
+  instead, six years by default, which an organization may lengthen and never
+  shorten. A daily Prefect flow hard-deletes in batches and records one audit
+  entry per organization per sweep, naming the class and the count and never the
+  content. A ceiling below the audit floor is reported to the operator rather
+  than resolved. Audit's own period resolves and is reported but nothing sweeps
+  it: the hash chain and its append-only checkpoint are built on entries staying,
+  so retiring one verifiably is #1622. (#1420)
+- **A purged run still counts toward the month's bill.** A month's spend is a sum
+  over `agent_runs`, so removing them would drop an organization's month-to-date
+  figure to zero as the window passed and a cap metered on that figure would stop
+  enforcing. The sweep keeps a total per organization per month on
+  `purged_run_spend` - a number and a count, no agent, no model, no name - and
+  `app/services/spend.py` adds it to the live sum. (#1420)
+
+## [0.0.451] - 2026-09-16
+
+### Added
+
+- **A person can read what agents here have written down about them.** Settings
+  → Memory, across every agent, with which one wrote each note and when. No
+  permission gates it: the answer is the same for a Viewer and an Owner, because
+  it is their own store. The product offered erasure and nothing else before
+  this, on the reasoning that a listing is a surveillance affordance - which is
+  true of somebody *else's* store and the opposite of one's own. (#1594)
+- **A note can be stopped without being destroyed.** A suppressed note is no
+  longer listed, read or editable by any tool, so it stops reaching the model
+  while staying there to be looked at and restored - the middle answer for a note
+  that is wrong or too personal and that somebody is not yet sure they want gone.
+  An agent writing the same name again revives the row with the new content,
+  which is documented rather than left to be discovered. The index the capability
+  splices into every request follows: suppressing or deleting a note drops the
+  `MEMORY.md` lines that name it, because a note somebody stopped whose index
+  line still describes it is a note still reaching the model. (#1594)
+- **A deployment administrator can read one named person's store in one named
+  tenant.** `GET /memory/person/{id}`, refused to everybody else - not an Owner,
+  not an Admin, not an edit grant on the agent that wrote the note - because an
+  organization role is not the party a subject-access request reaches. The read
+  is audited with the actor, the tenant, the subject and a reason, and never the
+  content. An agent bound to mem0 keeps its memories elsewhere, so those agents
+  are **named** on the page rather than listed: a page of native notes presented
+  as a complete inventory would be worse than one that says what it misses.
+  (#1594)
+
+## [0.0.450] - 2026-09-16
+
+### Added
+
+- **A HIPAA deployment profile, and a command that proves a deployment matches
+  it.** A security review does not ask whether software is compliant - HHS
+  certifies none and OCR recognises no private certification - it asks whether
+  this can run inside a compliant environment and whether that can be shown.
+  `agenticos cmd doctor --profile hipaa` prints one row per control, naming the
+  setting that satisfies it or the one that does not, and exits non-zero on any
+  unmet control so a client's own CI can gate on it. `deploy/profiles/hipaa/`
+  holds a compose overlay that refuses to start without the settings it cannot
+  default, plus an annotated env file.
+
+  Eleven controls: TLS to Postgres, to Redis and to the browser, a vault key of
+  real length, local inference, no hosted tracing anywhere (the deployment's
+  token, an agent's own, or an environment's), SSO, closed registration, a
+  six-year audit floor and the audit hash chain - with volume encryption
+  **named** rather than quietly passed,
+  because a sheet that skipped what it cannot see would read as complete and
+  would not be. It answers §164.312 and says so: the administrative (§164.308)
+  and physical (§164.310) safeguards are the operator's, and `docs/security.md`
+  states that in the same breath, along with who the business associate is and
+  why a hosted model's agreement is narrower than people expect. (#1448)
+
+## [0.0.449] - 2026-09-16
+
+### Changed
+
+- **Every dependency upgraded to its newest release, with one deliberate cap.**
+  The scheduled freshness job had been red; it is green now. Notable moves:
+  Pydantic AI 2.35 -> 2.40, Starlette 1.3 -> 1.6, OpenTelemetry 1.39 -> 1.44,
+  `wrapt` 1 -> 2, `pytest-randomly` 4 -> 5, Next 16.2 -> 16.3, React 19.2 ->
+  19.3. The suite, both coverage gates, the licence inventory and the advisory
+  audit are all clean on it. (#1485)
+- **The MCP SDK is held below 2.0, and the reason is in `pyproject.toml`.** 2.0
+  migrates the whole SDK to `httpx2`, so `create_oauth_metadata_request` returns
+  an `httpx2.Request` that `PinnedAsyncClient` - an `httpx` client - refuses to
+  send. That client is where this platform's SSRF pinning and its `Host`/SNI
+  substitution live, and carrying a second HTTP library through the one path
+  where a remote server chooses the next address is how a check ends up applied
+  by one library and the request made by the other. Migrating the pinned client
+  to `httpx2` is its own change with its own tests; until then the cap is what
+  keeps the scheduled upgrade green rather than perpetually red. (#1485)
+
+## [0.0.448] - 2026-09-16
+
+### Added
+
+- **GitHub triggers can run on a GitHub App instead of an OAuth App.** The OAuth
+  path stays as the fallback and the two coexist; what it costs is the reason for
+  the second. A `repo` plus `admin:repo_hook` token is read-write on every
+  repository the *person* can administer, never expires, needs a hook created and
+  deleted per repository, and shares that account's rate limit. An App is
+  installed on the repositories somebody chose, its token is minted from a
+  private key in the vault and lives an hour, and it is already delivering - so
+  creating a trigger registers nothing.
+
+  The trade is that the URL stops naming the trigger: one App has one webhook URL
+  and one signing secret per installation. `POST /webhooks/github-app` takes the
+  installation id out of the payload to select candidate grants, verifies the
+  signature against that organization's own App secret, and fires **every** active
+  trigger pointing at that repository - which a per-trigger URL cannot do, and
+  which two triggers on one repository is exactly what the presets invite. A
+  delivery matching nothing answers 202 like one that fired everything.
+
+  Stored as a new `github_app` vault kind (app id, private key, webhook secret),
+  and `docs/triggers.md` has the comparison table plus how to tell which of the
+  two a given trigger is on. Connecting is the portal's own action rather than an
+  OAuth start - an App has no consent flow - and it proves the App id, the key
+  and the installation id together before writing the grant, which is the only
+  moment any of the three can be checked. (#1072)
+
+## [0.0.447] - 2026-09-16
+
+### Changed
+
+- **The desktop shell hands sign-in to the system browser.** Google's
+  authorization endpoint refuses an embedded user-agent
+  (`disallowed_useragent`), and the shell answered that by telling the console
+  window it was Safari - a workaround that worked and that Google's own policy
+  says not to rely on. It is gone. The window now refuses exactly one navigation:
+  a start at the deployment's own `/api/v1/oauth/<provider>/login`, which it opens
+  in your own browser with `client=desktop` and a per-attempt nonce appended.
+  Nothing in the console knows it is running in a shell, and nothing has to - and
+  because the console's same-origin hop is *followed* rather than intercepted, an
+  invitee signing in from the app still carries their staged invitation.
+
+  The callback reads that marker off the session it was recorded in at the
+  *start*, never off the return, and redirects to `agenticos://auth/callback`
+  with the single-use code the browser flow already mints. The shell sends the
+  console window to the page it already had, which swaps the code
+  server-to-server and sets the window's own cookies - so the browser's cookie
+  jar is left out of it, which is the point. A deep link can be fired by any
+  process on the machine, so what one may do is send the console to one path on
+  the server the user configured, with a code that redeems once - and only if it
+  carries the nonce this shell minted, so a local process holding a code cannot
+  move the window into somebody else's account. The marker is filed under each
+  attempt's own OAuth `state`, so two sign-ins in one browser cannot trade
+  destinations, and a single-instance lock stops a callback building a second
+  console beside the one waiting for it on Windows and Linux. (#1532)
+
+## [0.0.446] - 2026-09-16
+
+### Added
+
+- **The ML services answer on their own, without a conversation or an agent.**
+  Four of them: document analysis, OCR, speech to text and personal data
+  detection, under `/api/v1/ml/`. They are the implementations the agents
+  already use - the ingestion parsers, the guardrails' detectors, the
+  transcription client - reached directly, so another component with a key gets
+  the same answers an agent would rather than a second opinion. `GET
+  /ml/services` publishes the coverage matrix as data, including the two rows
+  that say no: personal names, postal addresses and telephone numbers need a
+  named-entity model this deployment does not ship, and image analysis is future
+  scope in the requirements themselves. One permission gates all four -
+  `ml:invoke`, deliberately not `agents:run`, so an integration that parses
+  documents cannot also spend the organization's model budget. Every call writes
+  a row to the new `ml_service_calls` table - the service, the tenant, byte and
+  unit counts, the duration, the outcome, and none of what was submitted or
+  returned. `deploy/profiles/ml-services/` runs the API image a second time as a
+  replica the ingress sends only these paths to, with its own workers, CPU and
+  memory. Parsing runs on the file-io pool rather than the request's event loop,
+  a worker holds at most `ML_MAX_CONCURRENT_PARSES` parses at once and refuses
+  rather than queues beyond that, uploads are read only up to the ceiling, and a
+  refused call's record is committed before the refusal rolls its transaction
+  back. Schema: `ml_service_calls`. #1595
+
+## [0.0.445] - 2026-09-16
+
+### Added
+
+- **A repeatable load and resilience suite, and two measured runs (NFA-004).**
+  `loadtest/` offers a stated workload mix at a stated arrival rate - reads,
+  streamed chat turns with a fifth of them cancelled, non-streaming runs,
+  retrieval, uploads and signed webhook deliveries - through ramp, sustain,
+  burst and recover phases, and prints a report naming what it measured, what it
+  could not, and each proposed threshold's verdict with the sample count beside
+  it. The model is a stub that is slow on purpose and can be told to fail, and it
+  serves the embeddings too, so a default run touches no paid provider and a
+  deployment with no provider key at all can still be measured. Arrival-rate
+  rather than worker-pool driving, because a closed loop slows its own offered
+  rate exactly when the server does. `make load-stub-model`, `make load-seed`,
+  `make load-test`; the workload, the thresholds and what the suite does not
+  claim are in `docs/load-testing.md`. Every offered request leaves a sample,
+  including one abandoned at the end of a run, so an overloaded run cannot
+  improve its own error rate by losing requests; the report shows the recovery
+  phase on its own, since that is what tells a deployment that absorbed a spike
+  from one that stayed on the floor. #1597
+
+## [0.0.444] - 2026-09-16
+
+### Added
+
+- **The connect dialog takes a client registered by hand, so HubSpot can be
+  connected from the UI.** #1620 taught the OAuth start to accept `client_id` and
+  `client_secret`, and left them reachable only through the API - so "Connect &
+  check" on HubSpot still ended at "This server rejected the client registration
+  request" with nowhere to type the credentials its MCP auth app hands out.
+  Choosing OAuth now shows *Your own client*: the two fields, and the redirect
+  URL the provider has to hold exactly. Left empty, nothing changes - the server
+  registers this app itself. A secret typed with no client ID is refused before
+  the request, which is what the backend would do one round trip later.
+
+## [0.0.443] - 2026-09-15
+
+### Fixed
+
+- **A scheduled or event-fired run now reaches the deployment's Logfire project.**
+  `setup_logfire()` and `instrument_pydantic_ai()` were called from the FastAPI
+  lifespan and nowhere else, and `serve()` gives every flow run a subprocess of
+  its own - so a deployment that set `LOGFIRE_TOKEN` saw its interactive runs and
+  none of the runs a trigger fired, with nothing saying which was missing. The
+  fired-run flow now configures both for itself, under a `-worker` service name so
+  one project can separate a slow scheduled run from a slow chat turn, and the
+  run's `logfire_trace_id` is no longer null for want of a tracer to read it from.
+  It sets the log redaction up in the same breath, which that flow had also never
+  done. An agent with an `observability` token of its own was never affected:
+  `instrument_agent` configures an instance per agent, wherever the run executes.
+  (#1700)
+
+## [0.0.442] - 2026-09-15
+
+### Fixed
+
+- **An inline specialist no longer exports the prompts its parent asked to keep
+  out of the traces.** `content="none"` was enforced on the agent that asked for
+  it and on nothing it delegated to: `SpecialistSpec.to_agent_spec` dropped the
+  observability block along with the budget and the connections, so the generated
+  spec asked for nothing, `_instrument` returned immediately, and the deployment's
+  global Pydantic AI instrumentation traced the specialist with content on. An
+  agent published over health, legal or HR data therefore kept the guarantee for
+  its own spans and broke it for every span its specialist produced, in the same
+  run. The mode now travels with the conversion while the project deliberately
+  does not - a specialist has no Logfire project of its own and is never handed
+  the parent's write token. A specialist the run's model **invents** is covered
+  by the same rule and was the wider half of the hole: it is assembled from a
+  bare spec rather than converted from one, so nothing carried the mode there
+  either, and a specialist nobody reviewed is the last place a run's prompts
+  should start leaving from. (#1699)
+
+- **The `redacted` trace-content mode is decided against, not pending.** Logfire
+  is opt-in and exists to record prompts and outputs; a partly-scrubbed export is
+  a guarantee nobody can audit, so the choice stays the whole content or none of
+  it. The pages that pointed at it as planned work say so. (#1616)
+
+## [0.0.441] - 2026-09-15
+
+### Documentation
+
+- **Logfire is documented as optional, and as a copy of the run when it is on.**
+  The configuration page listed six `LOGFIRE_*` variables and never said that
+  none of them has to be set, or what setting the token actually sends: a trace
+  is the user's message, the model's output and every tool argument and result,
+  because recording that is what an observability backend is for. The section now
+  says so, lists the three things that can point runs at a project - the
+  deployment-wide token, an environment's own token and an agent's `observability`
+  block - and points a deployment over health, legal or HR data at the `content`
+  mode before the token. The security page's Logfire row was also stale: it still
+  said run content leaves regardless of any per-agent setting, which stopped being
+  true when `suppress_content` pinned an agent asking for `none` to content-free
+  instrumentation on the deployment's own tracer too. Both pages now name the two
+  places that guarantee does not reach yet - an inline specialist, which carries
+  no observability block of its own (#1699), and a failed attach - and that the
+  deployment-wide path never reaches a run the Prefect worker executes (#1700).
+  (#1413)
+
+## [0.0.440] - 2026-09-15
+
+### Added
+
+- **A truncated audit chain, and a chain deleted whole, are detectable.** The hash
+  chain catches an entry that was edited, reordered, inserted or deleted from the
+  middle, because any of those diverges every hash after it. It cannot catch the
+  two deletions that leave the survivors internally consistent: the newest entries
+  dropped, and an organization's chain gone. Each chain now carries a checkpoint -
+  a high-water mark `record_audit` advances beside every entry, under the same
+  per-organization lock the append takes, so it never races the head. `audit-verify`
+  flags a chain whose head is behind its checkpoint, and surfaces a checkpoint whose
+  chain has vanished by unioning the checkpointed organizations into the walk.
+  Backfilled from existing chains, so a deployment with history starts at an
+  accurate mark rather than a floor of zero. (#1648)
+
+  Be precise about the database trigger that refuses a checkpoint moving backwards:
+  it closes the ordinary write path - an app admin acting through the product, and
+  a bug in this codebase - which is the threat model the trail is written against.
+  It is not a control against anybody holding the database's own credentials. The
+  application and its migrations connect as the same role, that role owns the
+  table, and a `TRUNCATE` empties it without firing a row-level delete trigger at
+  all. Closing that needs the mark kept where this database's roles cannot reach,
+  which remains a planned follow-up and is stated as such on the governance page.
+
+## [0.0.439] - 2026-09-15
+
+### Security
+
+- **`script-src` no longer allows `'unsafe-inline'`.** The console's policy shipped
+  with everything else locked down except its riskiest directive, because the app
+  router inlines its flight data. The middleware now mints a 128-bit nonce per
+  request, writes `'nonce-…' 'strict-dynamic'` into the directive and forwards it on
+  the request headers so Next stamps that nonce onto its own inline scripts; the
+  response carries the same policy. `'unsafe-eval'` stays for the development
+  runtime and `connect-src`, which governs the chat WebSocket, is untouched.
+  Verified against a running frontend: every script tag on the page carries the
+  request's nonce, none is unnonced, and the browser reports no policy violation.
+  There is no `dangerouslySetInnerHTML` carrying a script, no inline `<script>`, no
+  `next/script` and no third-party script anywhere in the console, so every surface
+  shares that profile and `'strict-dynamic'` extends the nonce's trust to the chunks
+  those scripts load. (#1624)
+
+## [0.0.438] - 2026-09-15
+
+### Added
+
+- **Skills under `.claude/skills/`, for the work around the code rather than in
+  it.** `vstorm-code-review` runs a staged pipeline of subagents - scope,
+  correctness, security, quality, verification, judge - all grading against one
+  finding taxonomy, so a candidate is raised, filed or refuted with proof and never
+  silently re-surfaced after a fix; findings are posted to the pull request with
+  stable ids and a reviewed-commit marker, which is what lets a re-review reconcile
+  instead of starting over. Executing anything the pull request itself defines is
+  treated as a boundary: an isolated environment with no ambient credentials, or
+  static verification and an `unverified` finding. `dev-agent` drives a resumable
+  loop that takes design and plan through a reviewed PR before any code exists,
+  then writes tests and implementation with review between. `pr-comments` works
+  through a PR's threads on that PR's own branch, `pr-description` writes a
+  description from the diff and the existing body, `review-map` projects a diff
+  onto the architecture for a reviewer, `resolve-changelog-conflict` resolves this
+  file from whichever git operation is actually in progress, and `ste-writing`
+  rewrites prose into Simplified Technical English. Repository only - nothing here
+  ships in an image. (#1639)
+
+## [0.0.437] - 2026-09-15
+
+### Fixed
+
+- **The audit hash-chain tests are part of the security set.** The `security`
+  marker and the hash chain landed within an hour of each other, each green against
+  a `main` that did not yet have the other, and the marker's own guard went red
+  where they met. The module is marked rather than the one test the keyword net
+  caught: tamper evidence over the audit trail is a control the security page
+  names, and the two tests beside it - an edited row, a deleted row - trip no
+  keyword at all, so exempting the flagged one would have left the set missing its
+  tamper-detection half.
+
+## [0.0.436] - 2026-09-15
+
+### Changed
+
+- **Logfire 5 and Pydantic AI 2.43.** The agent-frameworks group, with the
+  third-party notices regenerated for the three versions that moved.
+- **`pydantic-ai-skills` is held below 2.0 until #1658.** That release makes a
+  clean break with no compatibility shims and the backend does not import against
+  it: `SkillsToolset` is gone, replaced by `SkillsCapability`, and
+  `parse_skill_md` moved out of the package root, so test collection fails on the
+  second and every startup would abort on the first. It is not a rename - 2.0
+  turns each skill into a deferred capability reached through `load_capability`,
+  replacing the three tools this platform publishes, documents and lets a spec
+  grant, so migrating begins with deciding what a published spec granting a tool
+  that no longer exists does. The constraint carries that reason in the manifest.
+
+## [0.0.435] - 2026-09-15
+
+### Added
+
+- **A `security` marker naming every refusal test, and a report a client can
+  read.** Tenant isolation, permission and grant refusals, a budget checked before
+  the model call, an approval decided once, secret confidentiality, spec publish
+  validation - all already tested, but scattered with nothing naming them as a
+  set, so "does this meet the standard" was answered by showing tests rather than
+  by asserting it. `make test-security` runs the marked set and
+  `make security-report` writes the count and the list, which CI uploads as an
+  artifact on each backend run. `--strict-markers` means a misspelled marker fails
+  the run instead of silently dropping a test from the set. (#1417)
+- **A guard that keeps the set complete as the suite grows.** A test whose name or
+  module mentions a tenant, a permission, a budget, an approval, a secret or
+  plaintext must carry the marker or be exempted with a one-line reason. It caught
+  its first drift on the way in: three refusals written since the branch opened
+  carried no marker, and two exemptions named tests that had been renamed. The
+  marker is for the report, not a second gate - `make check` still runs
+  everything. (#1417)
+
+## [0.0.434] - 2026-09-15
+
+### Changed
+
+- **Fifteen backend dependencies moved to their current patch and minor
+  releases**, and the third-party notices with them. No component enters or leaves
+  the closure and no licence changes.
+
+## [0.0.433] - 2026-09-15
+
+### Added
+
+- **The audit trail is tamper-evident.** `app_admin_audit_logs` is the record of
+  every privileged action and the app-admin bypass story leans on it, but a row
+  was only a row: an operator with the database could rewrite or delete an entry
+  and leave nothing that said so. Each entry now joins a per-organization hash
+  chain - its own hash over its canonical fields with the previous entry's folded
+  in, plus a deployment-wide `seq` giving the chain a deterministic order even
+  when one transaction writes two entries on the same transaction-stable
+  timestamp. Editing, reordering, inserting or deleting an entry diverges every
+  hash after it. Two audited writes for one organization cannot fork the chain:
+  each appends under a per-organization lock. (#1622)
+- **`agenticos cmd audit-verify`** walks each chain, recomputes the hashes and
+  names the first entry that no longer matches; with no argument it checks every
+  chain, including the deployment-wide one holding tenant-less actions, and exits
+  non-zero if any fails. This is detection, not prevention - an operator who
+  rewrites a row can recompute every hash after it - and two deletions it cannot
+  see on its own are dropping a chain's newest entries and deleting a chain
+  outright, since the survivors stay internally consistent. Both are named in the
+  governance page rather than left for a reader to discover. (#1622)
+
+## [0.0.432] - 2026-09-15
+
+### Fixed
+
+- **A skill's files never reached the sandbox.** They were materialised at
+  `/skills`, and the container runtimes run as an unprivileged user for whom `/`
+  is root's - so `mkdir -p /skills` failed, every write was refused, and an agent
+  promised its scripts on disk found nothing there. They live under
+  `/workspace/skills` now, the one directory every backend guarantees writable.
+- **Materialised skills were listed, counted and postable as the agent's work.**
+  The file browser and the channel attachment filter both matched on `skills/`
+  after stripping the leading slash, which the new root does not begin with. Both
+  now read one shared tuple holding every spelling a skills path arrives in -
+  `workspace/skills/` from a state backend and from a container listing absolute
+  paths, `skills/` from one listing relative to its own root, and from any
+  workspace written before the move.
+- **A workspace from before the move kept a second copy of every skill.** Nothing
+  writes under the old root any more and nothing removed it, so the next run wrote
+  a complete second tree beside it and both were persisted and charged against the
+  workspace's storage cap. The legacy tree is dropped at flush, where spills are.
+
+### Changed
+
+- **The model is told where its skills are.** The path was only ever discoverable
+  from a skill's own body, which made every skill written against the old root the
+  sole authority for a location the platform had since changed. A run that
+  materialised anything now says the directory once, so a body naming the old one
+  is stale text rather than the answer.
+
+## [0.0.431] - 2026-09-15
+
+### Added
+
+- **An MCP server can be connected with a client the operator registered by
+  hand.** Most servers register this app dynamically, but HubSpot's remote server
+  publishes no registration endpoint and hands out client credentials only through
+  an auth app created in the account, so there was no way to tell the flow about
+  them. `client_id` and `client_secret` can now be supplied at OAuth start; the
+  secret is sealed into the pending payload with the rest of the flow state and
+  never read back over the API. (#1620)
+
+### Fixed
+
+- **Three ways a pre-registered client failed after consent rather than before
+  it.** A `client_secret` with no `client_id` was accepted and then discarded,
+  because the flow registers dynamically whenever the id is absent - so the caller
+  consented against a client they never named. A truncated secret passed the start
+  and failed the token exchange, since the secret is not used until the callback;
+  it now meets the same eight-character floor as every other credential. And a
+  client registered for `client_secret_basic` completed consent and could never
+  exchange or refresh, because this flow only ever puts the secret in the form
+  body - a server whose metadata allows no such method is refused at start
+  instead. A server that names no method is taken as accepting it, which is what
+  RFC 8414 leaves open and what the servers this exists for actually do. (#1620)
+
+## [0.0.430] - 2026-09-15
+
+### Added
+
+- **The security page a HIPAA- or SOC 2-shaped review asks for, in one copy.**
+  `docs/security.md` sets out the trust boundaries a request crosses on its way to
+  the data, what leaves the deployment and to whom, what is encrypted where - and
+  a controls matrix that names, for each control, the mechanism in this codebase
+  that satisfies it and the test that holds it true. It describes what is, not
+  what would be nice: a row with no mechanism says so and links the issue that
+  would build it, and the things the vault does not seal - short-lived bearer
+  tokens, uploaded files, message bodies, RAG rows and sandbox workspaces - are
+  stated rather than left to be discovered. Published in all four languages.
+  (#1412)
+
+### Changed
+
+- **`SECURITY.md` keeps only the two things a repository's `SECURITY.md` is read
+  for.** How to report a vulnerability, and the production hardening checklist.
+  The security model it used to restate now lives in one copy on the page above,
+  with pointers to it and to Data protection and Licences.
+
+## [0.0.429] - 2026-09-15
+
+### Fixed
+
+- **`make check` depended on whichever `python3` the host happened to have.**
+  One guard script had already been pinned to the backend interpreter after it
+  crashed outright on a machine whose system Python predates 3.10; the other four
+  and the dependency audit were still invoked as a bare `python3`, surviving only
+  because none of them happens to use 3.10-only syntax yet. All of them now run
+  under the interpreter `backend/.python-version` names, in the Makefile and in
+  pre-commit alike, and a test refuses the next target written the fragile way.
+
+## [0.0.428] - 2026-09-14
+
+### Fixed
+
+- **Two RAG commands were unconditionally broken.** `rag-sources` and
+  `rag-source-sync --all` iterated and counted `SyncSourceList` - a Pydantic model
+  wrapping `items` and `total` - as if it were the list itself. Both read the
+  fields now.
+- **A failed LlamaParse page was read as if it had succeeded.** The parse result
+  is a discriminated union whose failure branch has no `markdown`, so a bad page
+  risked an `AttributeError` mid-ingestion with nothing saying which page or why.
+  It now raises an error naming both.
+- **A sync that refused before its flow ran left the log running forever.** A
+  manual trigger creates the sync log and hands the flow its id; the unknown
+  connector and unassigned collection paths returned without completing it, so
+  nothing was ever going to finish it. Both complete the log as errored first.
+- **`make check` crashed on a machine whose system Python predates 3.10.** The
+  `check-routes` guard uses `X | Y` in an `isinstance` call and was running under
+  the host interpreter rather than the pinned backend one.
+- **A local e2e run made ESLint report hundreds of errors.** `playwright-report/`
+  and `test-results/` are gitignored but were still walked, and they hold a
+  vendored, minified trace-viewer bundle.
+
+### Changed
+
+- **`ty check` reports nothing against the template-inherited code.** It runs in
+  `make lint` but only warns there, so its 61 diagnostics across the RAG pipeline,
+  connectors, worker tasks and repositories had never been worked through. Most
+  were stub imprecision, corrected with the constructs SQLAlchemy ships for those
+  shapes rather than with suppressions; the two live bugs are above.
+
+## [0.0.427] - 2026-09-14
+
+### Added
+
+- **The admin drawer's organization rows are links now.** They were plain text
+  because there was nowhere for an app admin to go: the tenant-scoped page 404s
+  for anybody who is not a member. Each row opens `/admin/organizations/{id}`,
+  which reads the metadata endpoint - name, members and their roles, size, owner
+  and budget. The conversation rows stay text, deliberately: there is no
+  admin-readable destination for a single conversation, and adding one would relax
+  the tenant boundary the architecture page holds. Both drawer comments now record
+  that decision. (#1245)
+
+## [0.0.426] - 2026-09-14
+
+### Added
+
+- **The audit trail exports, as CSV or JSONL.** `GET /audit/export` takes the same
+  window the tab does, gated on `audit:read`. It is the one export that also
+  offers JSONL (`?fmt=jsonl`), one JSON object per line, because an audit trail is
+  as often ingested by a log pipeline as opened in a spreadsheet: the two describe
+  the same entries, with `details` flattened to a JSON string in the CSV cell and
+  kept as a nested object in the lines. It ships exactly the fields the read model
+  exposes - the stored `ip_address` is not on that tab, so it is not in the export
+  either - and records its own read in the trail, naming the window, the format
+  and the row count. Documented in all four languages. (#1422)
+
+## [0.0.425] - 2026-09-14
+
+### Added
+
+- **A deployment admin can read one organization's metadata.** An app admin could
+  see every tenant in the admin listing and open none of them: `/orgs/{id}`
+  resolves through membership, and the common case is the target's own personal
+  organization, which the admin belongs to none of.
+  `GET /admin/organizations/{id}` gates on app-admin and answers with the name,
+  members and their roles, size, owner and budget - metadata only, reaching no
+  agent, conversation or secret, and writing its own audit entry for the
+  cross-tenant read. The member list is bounded at 500; `member_count` still
+  carries the true total, so a larger tenant shows the count beside the first
+  names rather than an unbounded fetch on a page nobody pages. Deliberately a
+  separate endpoint rather than an `is_app_admin` bypass in `get_for_user`: an
+  app-admin context already carries every permission at the widest scope, so
+  widening the membership path would have granted full read *and write* of a
+  foreign tenant. (#1245)
+
+## [0.0.424] - 2026-09-14
+
+### Added
+
+- **A written plan for the notification center, before any of it is built.**
+  `docs/design/notification-center-plan.md` sets out ten decisions grounded in the
+  code that exists: a code-defined event catalog reusing the agent spec's
+  `AlertAudience` shape rather than stretching `NotificationSpec` to cover events
+  that are not about one agent; a per-recipient row plus a separate deliveries
+  table for the retryable side channels; why the announcement composer gates on
+  app-admin rather than on any permission. With a phased breakdown, an explicit
+  out-of-scope list and the open questions that do not block starting. Repository
+  only, like the rest of `docs/design/`. (#1598)
+
+## [0.0.423] - 2026-09-14
+
+### Added
+
+- **An agent can be traced without its prompts.** `observability.content` on the
+  agent spec takes `full` (the default, everything as before) or `none` - timing,
+  tokens, cost and tool names, with no message text and no tool arguments. Until
+  now an agent redirecting its traces to a Logfire project, often a client's own,
+  sent the user's message, the model's output and every tool argument and result
+  with no switch: for a deployment whose runs touch health, legal or HR data, a
+  copy of the protected content left the machine per run. The choice is enforced
+  where the agent is instrumented rather than in the Builder, so a spec that says
+  `none` produces content-free spans however the run is started, and it survives
+  the environment-tracing merge - an environment redirects where traces go, not
+  how much they carry. The Builder offers both modes beside the token, locked
+  until one is chosen. `content` is optional with a default, so stored specs load
+  unchanged and `SPEC_VERSION` stays 11. The `redacted` mode from the issue needs
+  a span processor of its own and is tracked in #1616. (#1413)
+
+## [0.0.422] - 2026-09-14
+
+### Fixed
+
+- **The exposure form described a channel lookup differently from the model.**
+  Its checklist still read each tool's short hand-typed blurb from the catalog
+  while the Toolbox panel served the real, docstring-derived description, so the
+  two disagreed about the same tool. Both now read `tool_contracts()`. Two things
+  had to come with it: the real description arrives wrapped in `<summary>` and
+  `<returns>` markup for the model's benefit, which would have rendered as literal
+  tags in a checkbox label, and the fallback tested whether a tool's id was in the
+  contracts rather than whether it had a description, so a tool without a
+  docstring would have rendered blank. (#1473)
+
+### Added
+
+- **A guard against the blurb and the description drifting again.** Every
+  capability's declared tool description is asserted to be a prefix of the one its
+  built toolset serves. `capability_contracts.py` had never been listed in the
+  platform layer's coverage and typing gates either, and now is. (#1473)
+
+## [0.0.421] - 2026-09-14
+
+### Fixed
+
+- **A capability that failed to build once stayed broken until the next
+  redeploy.** `tool_contracts()` cached its whole-catalog build in a bare module
+  global with no lock: a transient failure during one capability's build cached an
+  empty contract set for it and, because the global was then set, every later call
+  returned that empty result for the life of the process. Two requests arriving
+  before the cache warmed also both built the whole catalog. The build now runs
+  under a lock with a re-check inside it, and only a build that completed every
+  capability is cached - a failure still degrades that one answer, and is retried
+  on the next call. Reached routinely since the exposures endpoint became a second
+  caller. (#1621)
+
+## [0.0.420] - 2026-09-14
+
+### Fixed
+
+- **A registry entry with a namespaced key prefilled a tool prefix the form
+  refuses.** Connecting an MCP server from the catalog seeded the Tool prefix
+  field with the raw registry key, so `com.snitcher/snitcher` met a name pattern
+  of lowercase letters, digits and hyphens and could never be submitted. HubSpot
+  worked only because its key is already a valid name. The three places that
+  seeded from the key now slug it - the segment after the last slash, lower-cased
+  and hyphenated, bounded to 32 characters - and a key with nothing usable in it
+  leaves the field blank rather than prefilling a refusal. (#1628)
+
+## [0.0.419] - 2026-09-14
+
+### Security
+
+- **A malformed MCP OAuth token response wrote the token to the logs.**
+  `_token_request` parses the provider's answer with
+  `OAuthToken.model_validate_json`, and a Pydantic `ValidationError` echoes the
+  input it rejected - which, for a token response, is the token. The
+  `logger.exception` beside the raise then wrote a live credential, traceback and
+  all. The failure is now logged as field locations and error types only, through
+  `exc.errors(include_url=False, include_input=False)`, at `error` rather than
+  `exception` so no traceback carries the payload. The refusal shown to the caller
+  was already the class name alone. (#1626)
+
+## [0.0.418] - 2026-09-14
+
+### Fixed
+
+- **Deleting a skill resource answered 500 and rolled the delete back.**
+  `remove_resource` deletes the row and then bumps the skill's version, whose
+  `db.refresh(skill)` walks `skill.resources` - still holding the instance just
+  deleted, which SQLAlchemy refuses to refresh. The collection is expired after
+  the delete, so the refresh reloads it from the table and the route answers 204.
+
+## [0.0.417] - 2026-09-14
+
+### Fixed
+
+- **A Slack bot saved without a signing secret answered 500.** The three channel
+  webhook receivers had drifted: Telegram and Mattermost refuse an event they
+  cannot verify with 403, because a bot with no secret is an unauthenticated
+  endpoint that would run an agent on an organization's budget. Slack alone
+  raised, which sent Slack's retrier a bodiless error instead of a refusal. It
+  now logs which bot to configure and refuses with 403 like its siblings; a wrong
+  signature was already 403 on all three. (#555)
+
+## [0.0.416] - 2026-09-14
+
+### Fixed
+
+- **The knowledge-base howto still sent the reader to a deployment default that
+  no longer exists.** `EMBEDDING_MODEL` went with the rest of the deployment-wide
+  embedding settings, so "leave it at the deployment default" named nothing: the
+  form offers the models the chosen provider serves and preselects the first.
+  Corrected in English and in the three translations. (#1604)
+
+## [0.0.415] - 2026-09-14
+
+### Added
+
+- **The documentation site publishes in four languages.** All 54 published
+  pages and the four files GitHub renders - `README.md`, `CONTRIBUTING.md`,
+  `SECURITY.md`, `CODE_OF_CONDUCT.md` - are translated into Polish, German and
+  Spanish. `mkdocs-static-i18n` in `suffix` mode, so a translation is
+  `<page>.<locale>.md` beside its English source and the English URLs do not
+  move: `/install/` stays and `/pl/install/` appears next to it. One nav, four
+  builds, and a language switcher that keeps the reader on the same page.
+- **A gate that keeps the three translations honest.** `mkdocs build --strict`
+  validates a link's path and not its `#fragment`, so a translated heading
+  silently moves an anchor and every link into it lands at the top of the page,
+  in one language, with a green build. So a translated heading pins the English
+  anchor explicitly, each translation records the fingerprint of the English
+  revision it was made from, and `scripts/check_docs_i18n.py` runs in
+  `make lint`: it names a page with no translation, a translation older than
+  its source, headings that no longer line up and a repository file whose links
+  go somewhere the English one does not. A page rendered from a stale or
+  missing translation carries a notice in the reader's own language.
+  `docs/howto/translate.md` is the workflow, with the glossary and the
+  terminology that has to be exact.
+
+### Fixed
+
+- **A prose line in `docs/file-processing.md` rendered as a heading.** It
+  started at column zero with an issue reference, and Python-Markdown's ATX
+  rule does not require a space after the hashes, so the published page carried
+  an `<h1>` nobody wrote. The translation gate found it by counting anchors.
+
+## [0.0.414] - 2026-09-14
+
+### Added
+
+- **Local services: the servers on the deployment's own network a collection
+  may be pointed at.** A row per organization - or per deployment, registered
+  by its administrator and offered to every organization - of kind `embedding`
+  (an Ollama, reached through its OpenAI-compatible root) or `ocr` (a LiteParse
+  OCR server), with `base_url` validated the way a sandbox host's is. Managed
+  under Knowledge → Integrations behind `connections:manage`, on
+  `/local-services`; migration `0078_local_services`. (#1632)
+- **A self-hosted embedding provider.** `ollama` is in `embedding_providers.json`
+  as a keyless entry with no address of its own: a collection on it names a
+  local service (`embedding_endpoint_id`) where a keyed collection names the
+  vault key, so a knowledge base can stay on the deployment's own hardware. The
+  form asks for a server rather than a key, a key named for it is refused, and
+  five of Ollama's embedding models are catalogued with their widths. (#1632)
+- **An app-scoped collection embeds through a keyless provider, or not at all.**
+  It belongs to no organization and so has no vault to hold a key; it names a
+  deployment-wide local service instead, and choosing OpenRouter or OpenAI for
+  one is refused where the provider is chosen, at creation and on a move,
+  instead of producing a collection that fails on its first document. (#1631)
+- **An OCR server is a per-collection choice.** `ingestion_config.ocr_endpoint_id`
+  names a local service of kind `ocr`; nothing named runs the Tesseract bundled
+  with the worker.
+- **`docs/data-protection.md`** - where personal data lives, what leaves the
+  deployment and under which setting, the controls with their proof or their
+  open issue, what deletion reaches, and a reproducible verification checklist
+  for one deployment. Linked from the security-review table, `SECURITY.md` and
+  the topic map. (#1596)
+
+### Changed
+
+- **Embeddings are paid for with the collection's vault key, and nothing else.**
+  `OPENROUTER_API_KEY` is gone: it was a deployment-wide fallback for one
+  provider, left over from when `openrouter.ai` was hardcoded, and the only
+  reason the catalog carried a `deployment_key` flag, the resolver two fallback
+  states and the form a "Deployment key" row. A new personal or organization
+  collection names its provider from `embedding_providers.json` and the vault
+  key that pays, or is refused on that field; a collection whose key is missing,
+  unusable or never chosen refuses to index or search with a message naming the
+  collection and the reason, and the ingestion flow log says so. A key can be
+  replaced but no longer cleared (`clear_embedding_secret` is removed), because
+  there is nothing to fall back to. `scripts/server-init.sh` no longer asks for
+  the key and `docs/deploy.md` no longer lists it as a prerequisite. The
+  resolution says which of six situations it landed on - a key never chosen,
+  no vault to choose one from, the chosen secret missing, unusable or of the
+  wrong kind, or a provider this build no longer offers - each with its own
+  remedy. (#1596)
+
+### Removed
+
+- **`EMBEDDING_MODEL`, `LLAMAPARSE_API_KEY` and `LITEPARSE_OCR_SERVER_URL` are
+  gone.** Each was one value for every tenant, set where no tenant could see it.
+  The model is chosen from what the collection's provider serves; a LlamaParse
+  key is the vault entry the collection names, and a collection on LlamaParse
+  without one is refused at the form; an OCR server is a local service the
+  collection names. `GET /rag/embedding-models` no longer answers a `default`.
+
+## [0.0.413] - 2026-09-14
+
+### Changed
+
+- **The stack runs Valkey where it used to run Redis.** `redis:7-alpine`
+  resolves to Redis 7.4, and from 7.4.0 Redis is RSALv2 or SSPL-1.0 rather than
+  BSD-3-Clause - neither an OSI-approved licence. Nothing was broken by it: the
+  image is pulled by the operator rather than redistributed here, and RSALv2
+  permits running Redis inside your own application. But the default `docker
+  compose up` started a non-open component without saying so. Every compose file
+  and every CI service now uses `valkey/valkey:8-alpine`, the Linux Foundation
+  fork of Redis 7.2 under BSD-3-Clause. It speaks the same protocol on the same
+  port, so the service name, the `redis://` scheme, the `redis_data` volume and
+  every `REDIS_*` setting are unchanged, and so is the client - only the image,
+  the server binary and the CLI in the healthchecks differ. A deployment on a
+  managed Redis, Valkey or Elasticache is unaffected. The licence review drops
+  to one open finding. (#1603)
+
+## [0.0.412] - 2026-09-14
+
+### Added
+
+- **A licence review of everything the images ship, with generated notices and a
+  check.** `THIRD_PARTY_NOTICES.md` is generated from the two lockfiles by
+  `scripts/license_inventory.py` and lists every distribution in either image with
+  its SPDX licence, source and the evidence the licence was read from. Decisions
+  live in `licenses/policy.toml` (overrides with evidence, review entries for
+  copyleft and share-alike components) and `licenses/components.toml` (images,
+  Debian packages, fonts, glyphs, data files, compose services). `make
+  licenses-check` runs in the `security` job and `make check`: stale notices, a
+  component with no readable licence, a copyleft component with no decision, or a
+  decision about a licence that has since changed all fail it; tracked open
+  findings pass and are counted, and so does a package that ships no licence
+  file without an author to attribute or a text to place beside it. Both images
+  now carry their licence files: the backend image `LICENSE`, `NOTICE`, the
+  notices and the texts of the licences nine wheels declare but do not ship; the
+  frontend image every package's own licence file under `/app/licenses/`, which
+  the standalone build had been dropping, a `NOTICE` and the licence text for a
+  package that publishes none (`@img/sharp-libvips-linux-*` ships an LGPL
+  library with no copy of the LGPL), the fonts' OFL and the brand-mark
+  attributions. `docs/licenses.md` is the review: scope, obligations per licence
+  family and how each is met, hosted-provider terms and model-weight licences as
+  deployment-time decisions, the maintenance workflow and a release checklist.
+  One finding is open and tracked - `redis:7` resolves to Redis 7.4 under
+  RSALv2/SSPLv1 (#1603) - and one is a deployment-time review, the sandbox
+  runtime built at the deployment. The third is settled here: `pymupdf`, the
+  default PDF parser, is AGPL-3.0-only and is kept, so the backend image as a
+  whole is conveyed under AGPL-3.0 terms. Running an unmodified release owes
+  nothing, because this repository is public and Apache-2.0; a deployment that
+  modifies the platform and serves it over a network owes its users the modified
+  source under section 13, and `docs/licenses.md` gives the three exits for a
+  deployment that cannot take those terms. (#1600, #1602)
+
+### Fixed
+
+- **Three prose lines in `docs/code-review.md` rendered as headings.** Each
+  started at column zero with an issue reference, and Python-Markdown's ATX rule
+  does not require a space after the hashes, so the published page carried three
+  `<h1>`s nobody wrote - in the table of contents and in the search index. The
+  built page now has the 14 headings the file declares. (#1605)
+
+## [0.0.411] - 2026-09-13
+
+### Security
+
+- **A secret too short to hint safely is refused.** The listing shows the last
+  four characters of a credential as its hint, so `ApiKeySecret(api_key="1234")`
+  used to publish the whole key to everyone with `secrets:view` and into the
+  audit entry. Every field that authenticates - an API key, a secret access key,
+  a session token, an OAuth client secret - now needs at least eight characters,
+  `minLength` is on the schema the forms are generated from, and the refusal
+  says so while the form is open. A key shorter than that stored before this
+  release fails to open and has to be saved again. (#1608)
+- **An MCP OAuth payload masks its credentials.** `client_secret`,
+  `access_token` and `refresh_token` are `SecretStr`, so a payload that reaches
+  a log line or a traceback whole shows `**********`; only the sealed JSON on
+  its way into the vault carries the real values. The guarantee used to hold by
+  accident of one `except` clause. (#1608)
+
+### Removed
+
+- **`model_profiles.allow_byo`.** Written by the create route and read by
+  nothing - the resolver always spends the profile's own key - so the flag
+  looked like a security control and changed no behaviour. Migration
+  `0077_drop_allow_byo` drops the column. (#1608)
+
+## [0.0.410] - 2026-09-13
+
+### Changed
+
+- **The repository's agent guidance is a brief, not a history.** `CLAUDE.md`
+  now carries project-wide decisions and pointers: what the product is, the
+  quality bar, the hard boundaries, rule and skill routing, commands,
+  verification and the documentation topic map. Incident anecdotes and pinned
+  framework versions are gone; issue-board conventions moved to
+  `.claude/references/issue-triage.md`. The rule files under `.claude/rules/`
+  declare their scope with the `paths` frontmatter key Claude Code matches on,
+  so the code-style rule now covers `scripts/` and the testing rule covers the
+  Playwright layer. `scripts/docs_drift.py` is the one path-to-page trigger
+  map and gained the sandbox, agent-template, skill-gallery and Makefile
+  mappings that used to live only in `CLAUDE.md`. (#1601)
+
+## [0.0.409] - 2026-09-11
+
+### Security
+
+- **The console's security headers are complete, asserted and documented.**
+  `object-src 'none'` closes the plugin-content vector `default-src` does not
+  cover; `Permissions-Policy` allows the microphone on this origin alone so the
+  chat's dictation works, camera and geolocation still denied; every header
+  lives in `src/lib/security-headers.ts` with a test per header. `connect-src`
+  is built from the deployment's `PUBLIC_API_URL` and `PUBLIC_WS_URL` at
+  runtime, so a split-origin deployment's uploads and socket are allowed and
+  nothing else is, and the bundled nginx passes the application's headers
+  through instead of adding a conflicting set. `SECURITY.md` and
+  `docs/deployment.md` name the real policy. `script-src` still carries
+  `'unsafe-inline'`/`'unsafe-eval'` for Next's App Router; the nonce is #1416's
+  remaining item. (#1580)
+
+## [0.0.408] - 2026-09-11
+
+### Added
+
+- **Encrypted connections to Postgres and Redis, and a doctor line saying so.**
+  `POSTGRES_SSLMODE` builds the parameter each driver understands - `ssl=` for
+  asyncpg, `sslmode=` for Alembic's psycopg2 - and `REDIS_SSL` switches the
+  scheme to `rediss://` with hostname verification on. Both default off, so a
+  plaintext deployment is unchanged. `agenticos cmd doctor` reports
+  `postgres: tls=on/off` from `pg_stat_ssl`, the transport actually used, and
+  `redis: tls=on/off` from the URL. `docs/configuration.md` shows the managed-
+  store setup, every consumer included, and how a private CA is trusted. (#1578)
+
+## [0.0.407] - 2026-09-11
+
+### Fixed
+
+- **A tool-prefix collision is decided once, and the model is told about it.**
+  Publish refused two MCP bindings reducing to one prefix while the run
+  re-computed the same rule and dropped the loser with a log line, so a
+  connection renamed after publish, or an agent published before the check,
+  lost a server nobody was told about. One `prefix_collisions` serves both;
+  the run records each dropped binding on the toolsets' `unavailable` list, the
+  briefing says the server is not available this turn, and the connect card
+  leaves it out because renaming a connection is the author's job. (#1576)
+
+## [0.0.406] - 2026-09-11
+
+### Fixed
+
+- **Whether a personal MCP connection is usable is decided once, on the
+  server.** The console re-derived it and disagreed with the backend: a bearer
+  token whose sealing key had been rotated away read *Connected* in the chat
+  controls and unavailable in the next turn. `McpConnection.account_authorized`
+  is the single side-effect-free answer - an OAuth grant with a payload, a token
+  whose key version is still configured, or no token at all - the run path uses
+  it, and `McpConnectionRead` carries it to the client as `authorized`. (#1575)
+
+## [0.0.405] - 2026-09-11
+
+### Fixed
+
+- **Telegram rooms are `group`, like every other platform's.** The Telegram
+  parser emitted the raw `supergroup` and `channel` types while Slack and
+  Mattermost fold everything but a DM to `group`, so `channel_sessions.chat_type`
+  held a different vocabulary per platform and the first consumer to write
+  `chat_type == "group"` would have missed every Telegram room. The parser folds
+  them now, and migration `0076_normalize_channel_chat_type` folds the rows
+  already written. (#1574)
+
+## [0.0.404] - 2026-09-11
+
+### Fixed
+
+- **Removing a member is decided by the catalog, like changing a role.**
+  `MemberService.remove` refused Admin-removes-Admin with a literal role check
+  while `change_role` used `assignable_roles`, so a custom role holding
+  `members:manage` that does not outrank an Admin would be refused one action
+  and allowed the other. Both now use the same ceiling; the built-in roles
+  behave exactly as before. (#1573)
+
+## [0.0.403] - 2026-09-11
+
+### Fixed
+
+- **The connect-services card navigates in the app, and the runner no longer
+  builds console URLs.** `personal_service_gap` quoted `FRONTEND_URL/mcp-servers`
+  to both the model and the card, which 404s under a locale prefix. The frame
+  now carries the catalog key and the gap only: the card resolves the entry it
+  has and pushes the locale-aware route, a console reader is named the page in
+  words, and only a channel reader gets an absolute link, built beside the other
+  channel URLs. (#1572)
+
+## [0.0.402] - 2026-09-11
+
+### Fixed
+
+- **A signed-in API caller is no longer told that nobody is signed in.** A run
+  through `POST /agents/{id}/run` with a person's own token may not reach their
+  personal MCP bindings, which is right, but the briefing explained it with a
+  false sentence the model repeated back. The briefing now knows a person is
+  behind the run and says it does not act as their account; a run with genuinely
+  nobody - a schedule, an anonymous embed - reads as before. (#1571)
+
+## [0.0.401] - 2026-09-11
+
+### Fixed
+
+- **The sandbox connection dialog's store-failure test no longer flakes under
+  coverage.** The local-service path debounces a probe that clears the same
+  failure state a save reports through; on a loaded run the probe fired after
+  the save and erased the message the assertion waited for. The case now waits
+  for the probe before it submits. (#1570)
+
+## [0.0.400] - 2026-09-11
+
+### Fixed
+
+- **The stale-reference banner no longer flashes on every agent load.** Each
+  list it consults defaulted to empty while its query loaded, so on first paint
+  every referenced collection, context file, skill and MCP connection read as
+  deleted, the alarm-coloured banner rendered for a second, and its button would
+  have stripped live references from the draft on a fast click. It now computes
+  nothing until every list has answered. (#1569)
+
+## [0.0.399] - 2026-09-11
+
+### Fixed
+
+- **Two AgenticOS stacks can share a host, and the installer refuses to take
+  one over.** Compose names a project after its directory, so a clone at
+  `~/agenticos` and a quickstart install at `./agenticos` were one project to
+  Docker: the second `up` recreated the first's containers on the published
+  images, on the first's volumes, under a `VAULT_MASTER_KEY` generated a moment
+  before. The compose files fix no `container_name` any more, so each project
+  names its own containers, and `deploy.sh` and `quickstart.sh` wait for health
+  by service. Outside a clone the quickstart now checks the project before it
+  writes a key: containers of the same project from another directory, or
+  volumes of it with no `.env` here, stop it with a message naming the other
+  stack and the ways out. (#1577)
+- **One unreadable bot token no longer keeps the API from starting.** A bot
+  whose token the vault cannot unseal - a rotated master key, a database started
+  under another installation's key - raised out of the lifespan and the
+  container crash-looped. It is logged and skipped now; the other bots start.
+  (#1577)
+
+## [0.0.398] - 2026-09-10
+
+### Added
+
+- **Published images, and one compose file as the whole product.**
+  `ghcr.io/vstorm-co/agenticos-backend` and `agenticos-frontend` are built for
+  amd64 and arm64 on every push to `main` (`edge`, `sha-<short>`) and every
+  release (`<version>`, `latest`), scanned by Trivy after publishing, and only
+  ever from a commit on `main`. `docker-compose.yml` pulls them and runs the
+  API, worker, console, Postgres, Redis, Prefect and a `migrate` service the API
+  waits on, every variable defaulted; `docker-compose.override.yml` is what a
+  clone merges in for `make dev`. `scripts/quickstart.sh` needs Docker alone:
+  outside a clone it downloads that one file at the latest release into
+  `./agenticos`, writes a `.env` with generated keys, and pulls.
+  `scripts/deploy.sh` pins `AGENTICOS_VERSION=sha-<short>` and pulls rather than
+  building on the host. (#1546)
+
+### Changed
+
+- **The frontend reads its public URLs at runtime.** `NEXT_PUBLIC_*` were build
+  arguments, so one image carried one deployment's hostnames. The root layout
+  reads `PUBLIC_API_URL`, `PUBLIC_WS_URL`, `PUBLIC_SITE_URL`,
+  `CHAT_MAX_UPLOAD_SIZE_MB` and `OAUTH_PROVIDERS` per request and hands them
+  down through `PublicConfigProvider`; `robots` and `sitemap` render
+  dynamically. `NEXT_PUBLIC_RAG_ENABLED`, read by nothing, is gone. (#1546)
+- **The backend image is built from the repository root**, so
+  `emails/compiled/` ships inside it rather than bind-mounted from a checkout,
+  and the root `.dockerignore` is an allowlist that excludes `backend/.env`.
+  The `docker` job in `ci.yml` is replaced by the publishing workflow. (#1546)
+
+## [0.0.397] - 2026-09-10
+
+### Fixed
+
+- **The default SMTP configuration sends mail.** `SMTP_PORT` defaults to `587`,
+  the STARTTLS port, but `SMTP_TLS=true` opened implicit TLS from the first
+  byte, so a server configured exactly as documented refused every handshake
+  and passwordless sign-in, password resets, invitations and every notification
+  failed silently. The scheme now follows the port - `465` implicit TLS, `587`
+  and `25` STARTTLS, `SMTP_TLS=false` plaintext - and an empty `SMTP_USER` is an
+  unauthenticated relay rather than a refused login. A server that speaks
+  implicit TLS on a non-standard port sets `SMTP_TLS_MODE=implicit`
+  (`starttls` forces the other scheme; `auto`, the default, keeps the port
+  rule). (#1548)
+
+## [0.0.396] - 2026-09-10
+
+### Security
+
+- **An invitation token never reaches JavaScript storage.** A signed-out invitee
+  carried the raw token through the whole sign-in round trip - in `returnTo`,
+  in browser history and, on the OAuth path, in `sessionStorage`. The token is
+  now exchanged server-side before the redirect: `POST /invitations/stage`
+  stores it in Redis under an opaque single-use handle carried in an `httpOnly`
+  cookie, and `POST /invitations/staged/accept` redeems the handle after
+  sign-in through the same `accept` every check already guards. Registration and
+  OAuth sign-up carry the handle too, so an `invite_only` deployment still
+  admits the invitee. Both public routes are rate limited per IP and refuse a
+  dead token uniformly. Each staging is bound to its own flow - two invitation
+  links opened in two tabs redeem two different handles - a staging that fails
+  keeps the invitee on the link with a Retry rather than losing it, and a 429 or
+  a 5xx leaves the unspent handle in place. (#1547)
+
+## [0.0.395] - 2026-09-10
+
+### Changed
+
+- **A connector's config is described as JSON Schema, like a capability's.**
+  Each connector declares a Pydantic `CONFIG_MODEL` and the listing publishes
+  its `model_json_schema()`; the required-field check derives from the model,
+  and a placeholder default is marked on the model rather than by a frontend
+  adapter. `ConnectorConfigField`, `ConnectorFieldType` and the
+  `connectorConfigToJsonSchema` bridge are gone; the wizard hands the schema to
+  `SchemaForm` unadapted. Stored connector configs are untouched. (#1538)
+
+## [0.0.394] - 2026-09-10
+
+### Fixed
+
+- **The lifespan drain test no longer flakes on a shared event loop.** Shutdown
+  closes three module-global httpx clients; two were stubbed and the web
+  research client was not, so under xdist the test closed a client another
+  worker's loop had opened and raised `Event loop is closed`. All three are
+  stubbed now. (#1541)
+
+## [0.0.393] - 2026-09-10
+
+### Changed
+
+- **The `orgs/**`, `me/**` and `admin/**` forwarders are `platformProxy`
+  mounts.** Twenty-odd hand-rolled route files each repeated the cookie check,
+  the bearer, the error mapping and the JSON response, and silently dropped the
+  active-organization header, byte-accurate bodies and `no-store`. They are
+  one-line mounts now, about 1200 lines fewer. Admin routes drop a redundant
+  frontend pre-check the backend's `CurrentAppAdmin` already enforces, and the
+  whole query string is forwarded, which fixes the users table's dropped
+  `sort_by` and `sort_dir`. The avatar, integrations, OAuth callback and
+  impersonate routes stay hand-rolled because each does something a plain
+  forward cannot. (#1539)
+
+## [0.0.392] - 2026-09-10
+
+### Security
+
+- **Revoking a session closes its open chat.** A chat WebSocket authenticated
+  once, at the handshake, and was served for its whole life - an impersonation
+  ended or an account suspended mid-conversation kept answering until the
+  client hung up. The session re-validates the handshake credential before
+  every incoming frame and, on a refusal, cancels the in-flight turn and closes
+  the socket with `4001`. A turn already streaming finishes; the revocation
+  lands on the next frame. A merely expired access token is tolerated, so a
+  live socket outlives its thirty-minute token as before. (#1536)
+
+## [0.0.391] - 2026-09-10
+
+### Fixed
+
+- **A tracing token is validated at publish.** `observability.token_secret_id`
+  was the one credential reference publish validation never checked, so a
+  wrong-kind or cross-tenant id published fine and the agent ran untraced. It
+  now runs through the same existence, tenant and kind checks a capability's
+  secret gets. (#1535)
+- **`spec_version` is read, not only written.** An imported YAML whose
+  `spec_version` is newer than this deployment's is refused, and publish stamps
+  the deployment's `SPEC_VERSION` onto the frozen copy. A stored spec is
+  unaffected. (#1535)
+- **The Slack Socket Mode client is closed on every session exit.** A cancel or
+  a crash-reconnect orphaned the aiohttp session, the WSS connection and the
+  listener; `_run_socket_mode` now closes the client in a `finally`, as
+  Mattermost's stream already did. (#1535)
+
+## [0.0.390] - 2026-09-10
+
+### Security
+
+- **An unlinked channel guest can no longer borrow the owner's personal MCP
+  connections.** On the publisher-fallback admission an unidentified visitor
+  runs under the binding's publisher, and personal-MCP resolution fell back to
+  the owner - so an anonymous guest could reach a third-party MCP server with
+  the publisher's connected-account credentials. Resolution is now gated on the
+  subject being a real person, on a fresh run and on a resume, where the fact
+  is carried in the parked terms. `docs/mcp.md` already said so. (#1524)
+
+## [0.0.389] - 2026-09-10
+
+### Fixed
+
+- **The Agents "?" walk offers to create an agent again.** The offer at the end
+  of the first-run tour is suppressed for an organization that already has an
+  agent, and that suppression also swallowed the offer at the end of the Agents
+  help walk - the walk whose whole point is asking to build one. The count gate
+  now applies only to the tour; a "?" replay offers regardless. (#1515)
+
+## [0.0.388] - 2026-09-10
+
+### Performance
+
+- **The dashboard window's slices come from one scan, not five.** The day
+  buckets and the surface, status, model and provider splits were five aggregate
+  queries over the same rows; they are one `GROUPING SETS` query now, with a
+  `GROUPING` flag telling a genuine `NULL` model apart from a row that is not
+  that slice. The composed usage response issues four `agent_runs` queries
+  instead of eight, and a test counts them so the next dimension cannot become a
+  ninth. (#1514)
+
+## [0.0.387] - 2026-09-10
+
+### Fixed
+
+- **A thread backfill under a link-required policy quotes linked members
+  only.** Under `jwt_linked` and `require_link` the backfill filtered earlier
+  authors only in whitelist mode, so an unlinked participant's earlier posts
+  reached the prompt the first time a linked member spoke. Authors are now
+  resolved in one query to accounts linked to an active member of the bot's
+  organization; everyone else is dropped, as the whitelist branch already did.
+  (#1513)
+
+## [0.0.386] - 2026-09-10
+
+### Changed
+
+- **The 2026-08-10 backend duplication audit is closed.** `InvitationCreate.email`
+  carries the `max_length` its siblings do, `RAGCollectionList` and
+  `ConnectorList` carry `total`, `doctor` and the agent runner drop their `Any`
+  parameters, the owner-or-org-or-shared visibility predicate is one helper
+  shared by skills and knowledge bases, the MCP tool-prefix normaliser has a
+  parity fixture between backend and frontend, `get_agent` and `get_version`
+  validate the Read schema rather than hand-mapping fields, and
+  `parent_doc_id` reaches the vector store as a typed argument. The chat socket
+  now sends `cost_usd` as the same Decimal string every REST surface does.
+  (#1511)
+
+## [0.0.385] - 2026-09-10
+
+### Performance
+
+- **A spec's references resolve in one query, not one each.** Publish validation
+  of collections, MCP connections and delegates, the MCP toolset build and the
+  environment listing each read their list of ids a row at a time. Each now reads
+  the whole list in one query with the same tenant and scope filters, so the
+  refusals are unchanged and preparing a run with five bound collections awaits
+  the collection read once. (#1510)
+
+## [0.0.384] - 2026-09-10
+
+### Fixed
+
+- **A crash on a mention answers the same apology a crash on a direct message
+  does.** The mention path and the default path ran the same turn as two copies
+  that had drifted: a crash on a mention propagated, released the dedupe claim
+  and answered nothing while the platform redelivered it. Both paths now run
+  through one `_run_turn`, which apologises once and keeps the claim, posts a
+  refusal wherever the bot was addressed, and discards a crashed turn's files
+  instead of orphaning them. (#1508)
+
+## [0.0.383] - 2026-09-10
+
+### Fixed
+
+- **`/new` and `/unlink` honour the room's link requirement.** Commands ran
+  before identity resolution and the admission gate, so an unlinked participant
+  in a link-required room could reset the shared conversation. Both now take the
+  same admission the turn takes; `/start`, `/help` and `/link` stay open, and
+  `/new` attributes the new conversation to whoever issued it rather than to the
+  room's first speaker. (#1502)
+
+## [0.0.382] - 2026-09-10
+
+### Fixed
+
+- **A departed member's linked chat account no longer costs a transcription
+  before it is refused.** The router read the membership only at the run, after
+  the message's attachments had been fetched, stored and a voice note billed to
+  the organization's transcription credential. A direct message now reads the
+  membership first; a linked identity whose member is gone is treated as
+  unlinked from that point, and the invite-on-refusal path is rate limited.
+  (#1500)
+
+## [0.0.381] - 2026-09-10
+
+### Security
+
+- **A password change revokes the account's other sessions.** Changing a password
+  from Settings hashed the new one and stopped, so every other browser's refresh
+  token - and any impersonation of the account - stayed valid. Ordinary access
+  tokens now carry a `sid` naming their session, and a password change deactivates
+  every session but the one that made it; a change that names no session (an
+  admin resetting another account, a token minted before this) revokes all of
+  them. Ships the self-service password-change endpoint, and an explicit
+  `password: null` is a no-op rather than a 500. (#1498)
+
+## [0.0.380] - 2026-09-10
+
+### Documentation
+
+- **The SMTP settings are documented.** `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`,
+  `SMTP_PASSWORD`, `SMTP_TLS`, `EMAIL_FROM` and `EMAIL_FROM_NAME` appeared
+  nowhere in `docs/configuration.md`. A new section lists each with its default
+  and what depends on mail - invitations, password resets, notifications - all
+  of which go silently unsent without it, and the production checklist says why
+  email is deliberately not on it. (#1542)
+
+### Changed
+
+- **The frontend's `package.json` version literal is caught up.** The 0.0.379 cut
+  moved the backend's version and the lock but left `frontend/package.json` at
+  0.0.378; it reads 0.0.380 from this release on. (#1549)
+
+## [0.0.379] - 2026-09-10
+
+### Security
+
+- **Binding an identity while impersonating is refused.** Confirming a chat-link
+  code, starting a personal or organization MCP OAuth flow, the GitHub and portal
+  variants, and typing a bearer token into a member's MCP connection all fastened
+  the *administrator's own* identity or credential onto the impersonated account,
+  and the binding outlived the impersonation's hour. Every one of those seams now
+  answers 403 under an impersonation, before a token is read or a pending row is
+  written. (#1491)
+
+## [0.0.378] - 2026-09-08
+
+### Added
+
+- **A desktop app, as an add-on.** `desktop/` is a Tauri shell around the same
+  console the server serves — same sign-in, same permissions, nothing bundled —
+  for whoever wants it on the dock. The console stays a web app and that is how
+  it is used; the shell asks for the server's address once, probes it before
+  pointing the webview anywhere, and puts you back on the form with the reason
+  when nothing answers. `make desktop-dev`, `make desktop-build`,
+  `make desktop-check`; the page is `docs/desktop.md`. (#1531)
+- **A pet.** Five to choose from — Orbit, Boxy, Ghost, Sprout and Amigo, in a
+  sombrero — in a transparent always-on-top window, drawn from pixel data
+  composed at runtime. Drag it, click it to wave and hear a line, stroke it for a
+  heart, double-click for the console; it idles, looks at the cursor, strolls and
+  turns back at the screen's edge, dozes after dark. Its right-click menu, the
+  tray icon and the menu bar share one set of items. (#1531)
+- **A screenshot into a new chat.** `⌘⇧A` anywhere gives the Cmd+Shift+4
+  crosshair; the region lands attached to a fresh chat, handed to the composer's
+  own file input on the configured server's origin only, within two minutes.
+  Rebound under Settings (`⌘,`); a binding another application holds is named
+  there rather than shown as bound. macOS asks for Screen Recording the first
+  time, and the pet says so when it was refused. (#1531)
+
+### Fixed
+
+- **A production build served over plain HTTP set session cookies WebKit
+  discards.** `secure` followed `NODE_ENV`, so `make dev-frontend` at
+  `http://localhost:3000` marked both tokens `Secure` — which Safari, and every
+  WKWebView, drops on localhost. Login answered 200 and every request after it
+  was "Not authenticated", with nothing in any log. The flag now follows the
+  scheme the visitor is on, `X-Forwarded-Proto` first, in every route that sets
+  or clears a session cookie. (#1531)
+
+### Security
+
+- **httpx2 and httpcore2 to 2.12.0.** Five advisories against the locked 2.9.1
+  (CVE-2026-84378 through -84382), both transitive through `pydantic-ai-slim`;
+  the lock alone moves. (#1531)
+- **The desktop shell refuses cleartext `http://` to any host but this machine**,
+  and names the host in its title whenever the window shows a site other than the
+  server, since it has no address bar. Google sign-in works through Safari's
+  version tokens on the same engine; the system-browser handoff Google prefers is
+  #1532. (#1531)
+
+## [0.0.377] - 2026-09-07
+
+### Fixed
+
+- **Connecting an MCP server through OAuth authorized, then sent the browser
+  nowhere.** The provider returned somebody to
+  `http://0.0.0.0:3000/mcp-servers?mcp_oauth=success` — the connection made, the
+  person on a page nothing can reach. `NextResponse.redirect` requires an
+  absolute URL, and the only origin a standalone Next process knows is the
+  address it binds to, so behind any reverse proxy the `Location` header carried
+  it. The callback emits a relative one now, which the browser resolves against
+  the URL it actually asked for. Local development never showed it, because there
+  the bind address is the address the browser used.
+
+## [0.0.376] - 2026-09-07
+
+### Fixed
+
+- **The vector-store check predicted a failure it had never checked, and hid the
+  one that would really happen.** It read whether pgvector had been *created* in
+  this database and then reported what the first ingestion would do — but that
+  row cannot tell a fresh deployment from a stock-Postgres one, a restricted
+  role, or a data directory that outlived the image holding the library. A
+  healthy production said document ingestion would fail; a deployment where it
+  really will fail said the same thing. What the image ships and what the
+  connecting role may do with it are now both asked before any consequence is
+  claimed, and each of the four outcomes says which it is.
+- **The sandbox could not be turned on as documented, and a deploy stopped one
+  that was.** `install -d -o 10001` — in two compose files and the configuration
+  page — fails on Ubuntu, because `install` resolves the owner through the passwd
+  database and 10001 is the service's uid, not an account. And the service sits
+  behind a compose profile, which `up -d` without that profile does not ignore:
+  it stops it. So starting the sandbox by hand held until the next merge to
+  `main`, after which an agent's code execution failed for reasons nowhere near
+  the deploy that caused it — with the deploy green throughout. `scripts/deploy.sh`
+  now reads the host the way it already reads the proxy.
+- **The sandbox never had the group that owns the Docker socket.** Every compose
+  file interpolates `${DOCKER_GID:-0}` into its `group_add` and nothing set it, so
+  the service ran in group 0 — the socket's owner on almost no Linux distribution
+  — and could not open the socket at all. Read off the socket now, in the deploy
+  and in `make dev`.
+
+## [0.0.375] - 2026-09-07
+
+### Added
+
+- **`invite-members`, for onboarding a team rather than a person.**
+  `agenticos cmd invite-members <org-id> a@example.com b@example.com --role admin`
+  creates one invitation per address and prints them as `address  link`, one per
+  line and nothing between them, because that output is meant to be copied. It
+  exists for the same reason the fix below does: nothing is emailed on a
+  deployment with no `SMTP_*`, and the accept token is returned once and stored
+  nowhere a second read can reach. It goes through the same service the console
+  does, so the role ceiling, the seat cap and the duplicate checks apply exactly
+  as they do to somebody clicking the button - which is why it invites *as*
+  somebody, defaulting to the organization's first owner. One refused address is
+  reported and skipped rather than costing the rest.
+
+### Fixed
+
+- **An invitee with no account lost the invitation on the way to the sign-up
+  form.** They opened the link, were sent to sign in, clicked "create an
+  account", registered - and arrived in no organization at all, with the token
+  gone and nowhere to read it from again. The chain that carries it is built and
+  tested: the auth guard bounces them to `/login?returnTo=<the invitation>`, and
+  everything downstream reads the token back out of that one parameter. The
+  invitation page then overrode it with a redirect of its own writing
+  `?redirect=`, a name nothing reads - and since the page renders only once the
+  guard has decided, that push reliably replaced the guard's. On an `invite_only`
+  deployment the bare sign-up form it produced refuses them as well.
+
+## [0.0.374] - 2026-09-07
+
+### Fixed
+
+- **A deploy reported success having never built the frontend.** The workflow
+  piped `scripts/deploy.sh` into `bash -s` over ssh, so the script was the
+  shell's own standard input - and `docker compose exec` forwards stdin to the
+  container even with `-T`. The migration consumed every line below itself, bash
+  reached EOF, and the run exited 0 without building the frontend, waiting for a
+  container or pruning an image; the site answered the proxy's own 404 because no
+  frontend container existed, while the deployment history said the deploy had
+  worked. The script is now copied to the host under a name unique to the run and
+  executed from a file, and every `docker compose` call in it reads from
+  `/dev/null` - so it stays correct for anyone who pipes it anyway. Caught by the
+  one step that could catch it: the external `curl` at the URL a person visits.
+
+## [0.0.373] - 2026-09-07
+
+### Changed
+
+- Backend dependency floors: `authlib` 1.3.0 to 1.8.0, `anyio` 4.14.2 to 4.15.0,
+  `pydantic-ai-harness` 0.27.0 to 0.29.0, `prefect` 3.8.4 to 3.8.5, `liteparse`
+  2.14.2 to 2.14.3, `google-api-python-client` 2.199.0 to 2.200.0.
+
+## [0.0.372] - 2026-09-07
+
+### Fixed
+
+- **Inviting a teammate said "sent" on a deployment that emails nobody.** With no
+  `SMTP_*` configured - which is every deployment on its first day - the dialog
+  reported the invitation as sent and closed, and the accept link went with it:
+  the token comes back exactly once, is in no cache and is not refetchable, so
+  the invitation existed, pending, reachable by nobody. The backend had been
+  returning that link all along, and the hook discarded it on the way past.
+  Delivery is now reported rather than logged - `email_delivered` on the wire,
+  read beside a new `EmailProvider.delivers` so the development log provider
+  accepting a message is not mistaken for a message that left the deployment -
+  and the dialog stays open holding the link with a copy control, saying plainly
+  which of the two happened. Found on the first real deployment.
+
+## [0.0.371] - 2026-09-07
+
+### Fixed
+
+- **Bringing the frontend up called the backend an orphan, and offered to remove
+  it.** Docker Compose names a project after the directory it runs in, so the two
+  production stacks shared one - and starting the frontend reported the API, the
+  database, Redis and both Prefect services as orphans of it, with compose's own
+  suggestion to run the command again with `--remove-orphans`. Taking that advice
+  stops all five; the volumes survive and nothing else does. The frontend is its
+  own compose project now, in the `make` targets, in `scripts/deploy.sh` and in
+  the commands the compose files themselves advertise. Seen on the first real
+  deployment.
+
+
+## [0.0.370] - 2026-09-06
+
+### Added
+
+- **A deployment somebody else can repeat.** `docs/deploy.md` is rewritten around
+  the path that actually works, and the pieces it needs now exist:
+  `scripts/server-init.sh` writes `backend/.env` once - five generated secrets,
+  four answers it cannot invent, and the public URLs and CORS origin derived from
+  them - and `scripts/deploy.sh` fetches a named commit, rebuilds, migrates and
+  fails on a container that does not report healthy. The page it replaces could
+  not be followed to a running deployment: it ran compose without the production
+  file, migrated with a command the image does not have, and pointed at an Nginx
+  config that does not exist.
+- **Traefik, as two overlay files.** `make prod PROXY=traefik` puts the API and
+  the site on an existing Traefik's network with the labels it discovers them by.
+  Nothing else in the stack is labelled, so under `exposedByDefault: false`
+  Postgres, Redis, Prefect and the sandbox daemon are unreachable by construction
+  rather than by omission. For a host with no proxy at all,
+  `docker-compose-traefik.yml` and `traefik/` are a working one, with HSTS on the
+  secure entrypoint - the one header the application deliberately leaves to
+  whatever terminates TLS.
+- **Deploying from GitHub, behind an approval.** A merge to `main` offers itself
+  for deployment and waits for a reviewer on the `production` environment. The ref
+  is resolved in a job holding no secrets, which refuses anything that is not
+  already an ancestor of `main` - so what an approver approves is a commit that
+  has been through the pull-request gate, and moving a tag afterwards changes
+  nothing.
+
+### Fixed
+
+- **The production stack was sized to be killed.** `app` had a 1 GB memory limit
+  for four uvicorn workers, and a worker measures 460 MiB - spawned rather than
+  forked, so nothing is shared. Four of them are 1.9 GB before a request arrives,
+  so the shipped ceiling OOM-killed the API as soon as all four were warm. Worker
+  count is now `UVICORN_WORKERS` and the limit is sized for the default.
+- **Three more from the same measurement pass.** `prefect-server` had no limit at
+  all; Postgres ran on the 128 MB `shared_buffers` it ships with, and with the
+  64 MB of `/dev/shm` Docker gives a container, which a parallel scan over a
+  collection's vectors exhausts; and Redis had no `maxmemory`.
+- **The deployed frontend could not be built from the example.**
+  `docker-compose-prod.frontend.yml` requires `PUBLIC_API_URL`, `PUBLIC_WS_URL`
+  and `PUBLIC_SITE_URL` and refuses to start without them, and none of the three
+  was in `backend/.env.example`.
+- **The Nginx template pointed at names that resolve nowhere.** Its upstreams
+  were Docker network aliases while the compose file publishes on the loopback
+  and the documentation describes a proxy on the host - three sources, each
+  saying something different.
+- **An end-to-end spec reloaded over the write it was testing**, failing four
+  times in nine runs on branches that touched none of it. Clicking a button
+  returns when the click is dispatched, and the reload on the next line aborted
+  the request it started.
+
+
+## [0.0.369] - 2026-09-06
+
+### Added
+
+- **An agent keeps notes of its own, indexed by a `MEMORY.md` it maintains.** The
+  `memory_files` capability gives it five tools over named notes, and the index is
+  spliced into its instructions every request the way a bound context file is - so
+  it meets what it saved before it decides anything, rather than having to choose
+  to call a listing tool a lighter model rarely calls. A note belongs to a person
+  or to a group chat, and a run touches exactly the conversation's own: alone with
+  somebody it is theirs and nobody else reads it, in a channel it is the chat's.
+  No tool takes a scope, because there is nothing for the model to choose.
+- **Semantic memory in a mem0 service, as its own capability.** `memory_mem0`
+  remembers a fact and recalls it by meaning rather than by name, against mem0's
+  cloud or a self-hosted deployment, through the vendor SDK. The whole scope is
+  the mem0 `user_id` (`{org}:{agent}:{owner}`), so one mem0 account cannot mix two
+  organisations', two agents' or two people's memories. A self-hosted `base_url`
+  must be https and on `MEM0_ALLOWED_HOSTS`; an empty allowlist refuses
+  self-hosted mem0 outright, because the key travels in a request header and a
+  builder who may bind a shared key must not be able to aim it at their own
+  server.
+- **An agent can find a past conversation by what was said in it.**
+  `conversation_search` searches message bodies and opens a thread as a readable
+  transcript, split into `USER:` and `AI:` with the speaker named where a channel
+  has several people in it. Memory could only recall what some earlier turn
+  thought worth writing down; everything else was said, stored, and unreachable -
+  so "what did we decide about the pricing" answered "I have no record of that" in
+  a product holding the whole exchange. PostgreSQL full-text search rather than a
+  `LIKE`, which matches inside words and cannot rank, and rather than embeddings,
+  which is what knowledge search already is. Words are matched whole and
+  case-folded but not stemmed, and the tool says so, because the configuration is
+  fixed in the database and stemming one language would mangle every other.
+- **Erasing what agents remember about you.** A person clears it from their own
+  profile settings, and an administrator holding `members:manage` can do it for a
+  colleague. It spans every agent in the organisation, because "forget everything
+  you know about me" is a fact about a person rather than about one agent they
+  happened to talk to, and it reaches mem0 as well - raising rather than reporting
+  a success it did not achieve. One agent's notes are cleared from inside its
+  capability panel.
+
+### Security
+
+- **A personal corpus is never read out to a room.** Conversation search answers
+  only where the person asking is the only listener; in a group chat both of its
+  tools refuse and say why. What it can reach at all is that one person's - their
+  own conversations, ones shared with them, and channel threads the platform still
+  confirms them a member of. A trigger's run-log is outside it: that is a
+  transcript of runs made under somebody else's authority, and an agent searching
+  on a person's behalf holds no permission of theirs to check it with.
+- **A note is read back only where its writer could have influenced nobody else.**
+  An agent's `MEMORY.md` reaches the *instructions* in a one-to-one conversation
+  and never in a channel, where a sentence one colleague left behind would arrive
+  as another colleague's orders. It stays reachable there with `read_memory`,
+  which is a result the model weighs rather than an order it obeys.
+- **`conversations:read` is the deployment-wide off switch** for agents reading
+  past conversations, for somewhere that considers a transcript too sensitive to
+  be searchable however narrowly the corpus is scoped.
+
+### Changed
+
+- **There is no console for reading somebody's memory.** An operator paging
+  through what an agent wrote about a named colleague is a surveillance
+  affordance rather than a feature, and standing knowledge somebody *wants* an
+  agent to have belongs in context files. What is left on that surface is
+  erasure.
+
+## [0.0.368] - 2026-09-05
+
+### Fixed
+
+- **A handful of logins locked the whole deployment out.** Auth requests reach
+  the API server-side through the frontend's own `/api/auth/*` routes, so the
+  address the per-IP bucket counted was the frontend container's and everyone
+  shared one allowance. Those routes now forward the caller's
+  `X-Forwarded-For`, which the backend reads where
+  `RATE_LIMIT_TRUST_FORWARDED_FOR` is on. Production now publishes both
+  containers on `127.0.0.1` by default, because the frontend's port is the
+  API's port for this setting - anything that can reach past the reverse proxy
+  chooses the address its attempts are counted against. `BIND_HOST=0.0.0.0`
+  reopens them for a proxy that runs elsewhere.
+- **A rate limit read as an expired session and signed people out.** The BFF
+  flattened the backend's 429 to "login failed" or "session expired", clearing
+  both cookies and dropping the `Retry-After`. Worst on `GET /api/auth/me`,
+  which makes the refresh nobody asked for on every page load once the
+  15-minute access cookie is out: its 429 cleared the session outright, which
+  is the deployment-wide sign-out the change exists to prevent. The envelope
+  and its interval now reach the browser, and the cookies are left alone.
+- **Signing out under a rate limit no longer strands a live token.** Every
+  other backend failure means the refresh token is already worthless, so
+  clearing the jar loses nothing; a 429 means the backend never looked at it,
+  and dropping the browser's only copy left a token valid until expiry that
+  nobody could revoke and no way to retry.
+
+## [0.0.367] - 2026-09-05
+
+### Fixed
+
+- **A collection name shared by two organizations resolved the wrong tenant's
+  embedding configuration.** `knowledge_bases.collection_name` is indexed but not
+  unique, and resolution by name alone answered with whichever row the database
+  ordered first - so an embedding call for one organization could read another's
+  model and unseal *their* vault key, billing them and running this
+  organization's text through their credential. Resolution is now scoped to the
+  organization the embedding is for, falling back to an app-scoped collection
+  but never to a third tenant's.
+- **One collection name is one embedding space, and nothing used to enforce it.**
+  A name is one physical vector table, so several knowledge bases can index into
+  the same vectors - at different widths, where pgvector then refuses the
+  comparison outright, or at the same width with different models, where it ranks
+  one embedding space against another and answers with plausible nonsense. The
+  credential had the same shape of problem: whichever sibling was read is the key
+  that got billed. A row created against a name that already exists now adopts
+  that collection's model, width, provider and vault key, and a caller who named
+  a different one is refused rather than silently overridden.
+
+## [0.0.366] - 2026-09-05
+
+### Fixed
+
+- **The channel router's two module-level dicts grew without bound.** One held
+  an asyncio lock per chat, the other a rate-limit window per sender, and
+  neither ever dropped an entry - a long-running API worker kept one of each for
+  every chat and every chat account it had ever heard from. The lock map is now
+  reference-counted and drops a lock when the last waiter leaves it; the window
+  map drops what has expired on every write, so it is the size of the callers
+  seen in the last minute.
+- **The per-sender channel limit survives a Redis outage.** `rate_limit.consume`
+  fails open when Redis is unreachable, which is the documented trade for a
+  public widget - but for a channel bot `rate_limit_rpm` is a production
+  control, and a limiter that vanishes for the length of an outage lets a
+  permitted participant run the model as fast as they can type. `Decision` now
+  says whether it counted at all, and a turn it could not count is counted in a
+  bounded per-process window instead: wrong by the worker count, and still a
+  floor where there had been none.
+
+## [0.0.365] - 2026-09-05
+
+### Fixed
+
+- **Slack's attachment download sent the bot token to whatever host the event
+  named.** The payload is signed, so this is the second lock rather than the
+  first - but a token posted to a host somebody else chose is a token gone. The
+  host is checked against `slack.com` and `slack-files.com` over TLS before
+  anything is sent, and anything else is refused with the client untouched.
+- **Telegram's webhook secret is compared through `encode_untrusted`**, as Slack
+  and Mattermost already did. Safe today, because Starlette decodes headers as
+  latin-1; the same defence in depth regardless.
+
+### Changed
+
+- **`router.py` names its domain objects.** `db`, `bot`, `identity` and `session`
+  were `Any` forty-three times. The first thing the type checker found was a
+  `/start` branch reading a `welcome_message` field no model, schema, page or
+  test has ever had; `list_platforms()` went the same way, defined and exported
+  and called by nothing. The HTTP-client decision is written once on
+  `ChannelAdapter`, and a `prepare_connection` hook replaces `getattr`
+  duck-typing in the supervisor.
+
+## [0.0.364] - 2026-09-05
+
+### Fixed
+
+- **A quiet Telegram bot read `unknown` on the channels listing while polling
+  fine.** `record_up` fires once when the poll opens and the connection entry
+  expires on a fifteen-minute TTL, with nothing re-stamping it - the defect
+  #1351 fixed for Slack Socket Mode and the Mattermost event stream, whose own
+  body named Telegram polling as the same shape. It gets the same heartbeat.
+
+## [0.0.363] - 2026-09-05
+
+### Fixed
+
+- **A Telegram bot with a token Telegram rejects was retried for ever.** Each
+  adapter carried its own reconnect loop and the three disagreed - a fixed five
+  seconds against a 5s-to-60s backoff, the sleep inside the `except` in one and
+  outside it in the others, and a stop-on-misconfiguration branch in two of the
+  three. So that bot logged a traceback and wrote a fresh `down` record every
+  five seconds, where the same bot on Slack or Mattermost recorded `down` once
+  and stopped. One supervised loop serves all three, with the backoff, the stop
+  condition and the accounting written once.
+
+## [0.0.362] - 2026-09-05
+
+### Fixed
+
+- **A bot saved as `jwt_linked` admitted senders with no linked account.** The
+  mode decided nothing on its own: with `require_link` off, which is the default,
+  it admitted an unlinked room sender under the binding's creator exactly as
+  `open` did - the access check enforced only `whitelist` and `group_only`, and
+  the one place that read the mode required both switches. An operator who picks
+  a mode named for a linked account has asked for one, so the mode requires it.
+- **A collection teardown and a claim could deadlock each other.** Every path
+  that drops a collection takes its teardown lock before any row lock now, so a
+  claim - which takes the teardown lock and then the organization FK - cannot
+  cross a teardown into an ABBA deadlock.
+- **A purge could drop a collection without reserving its name, and another
+  organization could then inherit its vectors.** The purge locks the names its
+  snapshot saw, taken before the organization row is; one created between that
+  snapshot and the row lock is found only by the authoritative scan, and was
+  dropped unreserved - so a claim in the commit-to-drop window adopted the name,
+  and the deferred cleanup, finding the table newly referenced, preserved it with
+  the deleted organization's rows still in it. That lock is taken without waiting
+  now: free, and the name reserves like any other; held by a claim already in
+  flight, and the purge refuses rather than dropping unreserved.
+
+## [0.0.361] - 2026-09-05
+
+### Fixed
+
+- **A new chart type would have been drawn as a line chart, silently.** The
+  `charts` capability's `ChartType` and the channel renderer's dispatch are two
+  lists in two packages that have to agree, and nothing checked them against each
+  other: the renderer named three types and sent everything else to the line
+  drawer. There is one renderer per member now, and a test that fails when the
+  two lists drift.
+
+## [0.0.360] - 2026-09-05
+
+### Fixed
+
+- **A chart in a channel reply stalled every other channel turn while it drew.**
+  The PNG was rasterised and encoded by Pillow synchronously on the event loop
+  the worker's pollers and webhooks all share. It is handed to a thread now, like
+  the upload parse and the worker's file hash before it.
+
+## [0.0.359] - 2026-09-05
+
+### Changed
+
+- **Impersonation is a session an administrator can end, not a token on the
+  clipboard.** It was a bare one-hour bearer token, copied to the operating
+  system clipboard, that nothing could revoke. It is started from the console
+  with no token exposed, shown in a banner while it lasts, and ended by the
+  administrator, by the person's own sign-out-everywhere or password reset, by
+  the hour, or by the administrator's account being deleted - whichever comes
+  first. `sessions.impersonator_user_id` marks the row and the token carries
+  `sid` beside `act`, so every request binds the token to its row and refuses it
+  once the row is gone, deactivated, expired, held by another administrator or
+  for another account. A deployment can tell the impersonated person it
+  happened (`notify_impersonated_users`).
+
+## [0.0.358] - 2026-09-05
+
+### Fixed
+
+- **A member deactivated in the console kept answering through a channel.**
+  Their chat account is still linked and the bot still routes to it, so the turn
+  ran under a person the organization had switched off, with their role, their
+  grants and their budget. The channel path now asks for a membership that can
+  sign in - the same question `access.publisher_context` already asks of a
+  binding's creator, so the two answers cannot drift.
+
+## [0.0.357] - 2026-09-05
+
+### Fixed
+
+- **A teardown reservation nobody released blocked a collection name for
+  ever.** The reservation is committed with the delete and released when the
+  durable drop runs; a drop lost to a crash in the commit-to-dispatch gap, or
+  failing past the flow's retries, left the row behind and `claim` refused that
+  name from then on, with nothing to reattempt it. An hourly
+  `teardown-reservation-sweep` retries the drop for any reservation older than
+  its window, the way the other reap-sweeps do.
+- **An upload could repopulate a collection on its way out.** `dispatch_upload`
+  refuses a name under teardown, which `claim` already did.
+- **An organization whose default collection was dropped kept pointing at it.**
+
+## [0.0.356] - 2026-09-05
+
+### Changed
+
+- **An MCP binding says whose account it speaks through, and that is its
+  kind.** `SPEC_VERSION` 11: `mcp_servers` entries carry `account`, either
+  `organization` with a `connection_id` — everybody's, on every surface, as
+  before — or `personal` with a `catalog_key` and no connection at all: whoever
+  talks to the agent connects their own Notion and the agent speaks as them, in
+  the dashboard, in a direct message and in a channel alike. The account is
+  always the author of the message, never the thread's. Where nobody is talking
+  — an API key, the widget, a schedule, an unlinked chat sender — the server is
+  absent from that run and the agent is told why and where the person connects
+  one, rather than answering as though it never had the tool. The Builder asks
+  whose account on the card; `/mcp-servers?connect=<key>` opens the personal
+  connect flow the agent links to. `use_personal_when_available`, which
+  substituted a credential in private conversations only, is withdrawn: a stored
+  binding that had it loads as the organization's and says so in the log.
+- **The chat connects the account, not just the agent's sentence about it.** A
+  turn that finds a personal service this person cannot reach sends
+  `personal_services_unavailable` before the model answers, and the chat draws a
+  card with a connect button beside the refusal. The chat's controls list the
+  agent's personal services with each one's status - connected, not connected,
+  several with no default, needs authorizing - so a new member sees what to
+  connect before their first question. Personal connections made from the
+  console now carry their catalog key, without which no binding could have
+  matched them; `0071_mcp_connection_catalog_key` backfills the key on every
+  connection made from a catalog entry before the console sent it. A consent
+  started from the chat returns to the conversation, not to the servers page.
+- **The Builder clears stale references and probes a server's tools in place.**
+  A draft naming a deleted collection, context file, skill or connection is
+  refused at publish, and used to say so only there; a notice above the tabs
+  now names them and removes them in one click. The tool picker for a binding
+  probes a connection nobody has checked yet, for a caller who may, instead of
+  opening empty.
+
+## [0.0.355] - 2026-09-02
+
+### Added
+
+- **One command from nothing to a running agent.** `scripts/quickstart.sh`
+  checks what the machine is missing and says how to get it, asks four
+  questions, and hands back a console with a working agent in it. The plain
+  `make` route is unchanged and documented beside it, for anyone who would
+  rather read the steps than answer prompts.
+- **5,802 MCP servers in the picker, searchable by name.** 99 are curated —
+  connected and checked by hand, with their OAuth flows wired and 71 of them
+  connectable without a URL — and the rest are mirrored from the official public
+  registry, carrying `reviewed: false` because nobody here has looked at them.
+  The mirror lives in the database because a file cannot be paged, and
+  `agenticos cmd mcp-registry-sync` prunes only what it has seen a full listing
+  for.
+- **An agent can speak as whoever is running it**, per binding and off by
+  default: a member's own Notion in the chat they are having alone with it, the
+  organization's everywhere else. Only the credential is substituted — the tool
+  prefix stays the organization's, so the agent presents the same tools to
+  everyone. A member nominates which of their accounts an agent speaks as, and
+  a connection can carry a label a person reads rather than a slug.
+- **A voice message is transcribed into the turn that carried it**, on the
+  organization's own credential, with a catalog of the models that do it. The
+  transcript arrives as part of the message rather than as an attachment nobody
+  opens.
+- **A thread is the unit of conversation**, in a direct message as well as a
+  channel, and Mattermost is level with Slack on both threads and connection
+  state. A bot brought into a thread partway through reads what was said before
+  it arrived, with that thread's earlier files, and a row says when its
+  connection is not up.
+- **Twenty-eight agent templates, four per industry**, browsable from the agents
+  page, and an opt-in gallery of seventy skills across seven industries
+  browsable from the skills page.
+- **The documentation site, rebuilt**: seven tabs organised by what the reader
+  is doing, every module screenshotted in both themes, `docs/screens.md`,
+  `llms.txt` as the single copy of the pitch that models read, and a
+  twenty-slide client presentation at `/presentation/` — published as a page
+  because the PDF it renders is 6.4 MB.
+
+### Changed
+
+- **`AgentSpec.mcp_server_ids` is now `mcp_servers`**, a list of typed
+  references rather than bare ids, because the binding grew a policy and an id
+  had nowhere to carry it. **`SPEC_VERSION` 9 → 10**; a stored v9 spec migrates
+  on load, so nothing published before this stops loading, and an exported YAML
+  keeps working. Publish now refuses two questions that have no answer at run
+  time: a substituting binding whose connection has no `catalog_key`, and two
+  substituting bindings sharing one.
+- The README was rebuilt against what breakout repositories actually do, and
+  the site's headings are sentence case throughout, with a guard that fails a
+  documentation paragraph over 115 words.
+
+### Fixed
+
+- **Slack.** A bot answered messages nobody sent it; every message carrying a
+  file was dropped; the mention token reached the prompt; Socket Mode's payload
+  was parsed in halves; and the first chunk of an answer was not streamed, only
+  the rest.
+- **Channels.** The agent read the history of some other thread than the one it
+  was answering in; a thread was re-read once per new row instead of once per
+  session; a quiet connection reported itself down after fifteen minutes; and
+  the channel CLI acted without the organization it was acting for.
+- **MCP.** The Builder could widen an allowlist it was meant to narrow; a
+  personal account could leak into a room with other readers in it; two
+  concurrent nominations of a default account both succeeded and one 500'd on
+  the unique index; a repointed connection kept the previous host's cached tool
+  list; and organization-scoped OAuth posted to a path that does not exist.
+- **Approvals.** The queue is paged, so an alert can reach a request that is not
+  on the first page, and a resumed run is restored on what it was admitted on
+  rather than on whoever approved it.
+- **Users.** The heir choice is made inside the locks that ordered it, so a
+  self-delete cannot take a user row's lock outside the ascending sequence that
+  closed the deadlock in #1134. ([#1268](https://github.com/vstorm-co/agenticos/issues/1268))
+
+## [0.0.354] - 2026-09-01
+
+### Fixed
+
+- **An agent's knowledge search could be handed a database connection made on
+  another event loop.** The capability caches its retrieval store for the life of
+  the process, and since #948 took the store's private pool away that store rode
+  `vector_engine`, the process's shared vector pool. A pooled asyncpg connection
+  belongs to the loop that opened it, and an agent is the one vector caller that
+  does not know which loop it is on - it runs on the API's loop in one process and
+  on a Prefect flow's loop in another - so a worker running two flows in one
+  process handed the second loop a connection the first had opened and the search
+  failed with `InterfaceError: attached to a different loop`, intermittently and
+  invisibly to any test with one loop in it. (#1079)
+- **The rule is now stated once, in the layer that owns the engines.** The API's
+  lifespan claims the process pools with `claim_pooled_engines`: it serves every
+  request and disposes them at shutdown, so it is the one loop whose connections
+  they may cache. `get_db_context` is pooled on that loop and behaves like
+  `get_worker_db_context` anywhere else - a `NullPool` engine for the call,
+  disposed at the end - and `close_db` gives the claim up, so a second lifespan in
+  one process (a test, a reload) does not inherit a stamp naming a loop that has
+  gone. That half was found reviewing the first fix and reaches further than the
+  agent: `get_db_context` is also reached from five worker flows - the report, MCP
+  refresh, invitation and approval tasks and the channel loops - and from
+  `embeddings_for_collection`, which every search consults before querying
+  vectors. (#1079)
+- The knowledge capability follows the same rule for its vector store: the process
+  store on the owning loop, and a store on the new pool-less `agent_vector_engine`
+  anywhere else. Keeping the pooled store for the API is what bounds this -
+  `NullPool` opens a connection per checkout and caps nothing, where the pool
+  queues at `DB_POOL_SIZE + DB_MAX_OVERFLOW` - and off that loop the bound is the
+  worker's own flow concurrency. (#1079)
+
+### Changed
+
+- #1128 is closed rather than merged. It keyed the cached store on the running
+  loop, which was right for the store's pre-#948 private pool and buys nothing
+  once the store shares the process pool - two loops keyed separately still check
+  out of one pool. Its trade-off note is what pointed at the layer below. (#1079)
+
+## [0.0.353] - 2026-09-01
+
+### Changed
+
+- `knip` to 6.32.2 from 5.88.1. `bun run lint:deps` - the narrowed run that gates
+  `lint-frontend` on a declared dependency nothing imports - is clean on the major
+  with the existing `knip.jsonc`. The bump arrived with `frontend/package.json`
+  changed and `bun.lock` untouched, which is not a lockfile drift the frontend jobs
+  tolerate: `bun install --frozen-lockfile` refused it, so `test-frontend` and `e2e`
+  failed before either ran a test. The lockfile is refreshed in the same change.
+  (#1358)
+
+## [0.0.352] - 2026-09-01
+
+### Changed
+
+- GitHub Actions: `openai/codex-action` 1.12, `astral-sh/setup-uv` 10.0.1 and
+  `docker/setup-buildx-action` 4.3.0. (#1357)
+
+## [0.0.351] - 2026-09-01
+
+### Changed
+
+- Backend dependencies: `pydantic[email]` 2.13.5, `prefect` 3.8.4,
+  `pydantic-ai-harness` 0.27.0, `llama-cloud` 2.15.0, `liteparse` 2.14.2,
+  `google-auth` 2.57.0, `boto3` 1.43.83, `click` 8.5.0, `tavily-python` 0.8.0,
+  `cryptography` 50.0.1, `aiogram` 3.31.0, `slack-sdk` 3.44.0, and the dev pins
+  `ruff` 0.16.5 and `ty` 0.0.75. (#1367)
+
+## [0.0.350] - 2026-09-01
+
+### Changed
+
+- `pydantic-ai-slim` to 2.35.3, both extras sets - the runtime one
+  (`anthropic`, `cohere`, `duckduckgo`, `google`, `groq`, `huggingface`,
+  `mistral`, `openrouter`, `web-fetch`, `xai`) and `mcp` - from 2.33.0. The agent
+  runtime is the one dependency where a lag is felt in every run, so the group
+  moves on its own. (#1345)
+
+## [0.0.349] - 2026-09-01
+
+### Fixed
+
+- **A name freed by a deferred drop could adopt the table it was about to drop.**
+  The teardown removes a collection's `rag_<name>` table only after the request that
+  deleted its knowledge-base rows commits, so between the commit and the drop the
+  name is free of any row while the populated table lingers - and a concurrent `POST
+  /rag/collections/{name}` had `_ensure_collection`'s `CREATE TABLE IF NOT EXISTS`
+  adopt it and read another tenant's chunks. The #1355 advisory lock serializes
+  claim against drop; it does not stop the claim winning the race. A tombstone
+  committed with the delete does: the new `collection_teardowns` table (the name is
+  the key, deployment-global) with an idempotent `reserve` / `is_reserved` /
+  `release`, reserved in the delete's own transaction by every path that schedules a
+  drop - `KnowledgeBaseService.delete`, `delete_for_rag_collection`,
+  `OrganizationService.purge`, `UserService._purge_personal_collections`. `claim`
+  refuses a reserved name, and `cleanup_external_state` drops the table and then
+  releases the reservation, so the name is never free while the populated table
+  exists and a failed drop keeps it for the retry. The flow drops unconditionally
+  now, and the "is another base still on this name?" check runs inline in each
+  delete path instead of once in the flow. (#1362)
+- **Dropping a default collection clears its table** rather than leaving the deleted
+  chunks searchable; the default row is kept, so the table recreates empty on the
+  next write. The inline reference check excludes the base being torn down, which is
+  what the flow's own check could not do. (#1362)
+
+### Added
+
+- `collection_teardowns` - the drop reservation, one row per name, released by the
+  cleanup that finishes the drop. (#1362)
+
+## [0.0.348] - 2026-09-01
+
+### Fixed
+
+- **The last two collection drops that ran in the request now go through the
+  durable teardown.** `DELETE /rag/collections/{name}` dropped the table directly,
+  with no #913 reference re-check and no lock, so it could drop a table a second
+  knowledge base still referenced and could race a concurrent claim of the name;
+  `UserService._purge_personal_collections` (#1131) re-checked and then dropped with
+  nothing held in between. Both now delete their document and knowledge-base rows
+  in the request and hand the files and the table drop to
+  `dispatch_external_state_cleanup`, which takes the `COLLECTION_TEARDOWN` lock,
+  re-reads the reference check on its own session, and drops only what no base
+  still claims. `drop_collection`'s drop moves into
+  `KnowledgeBaseService.delete_for_rag_collection`, so the route loses its
+  `vector_store` dependency the way `delete_knowledge_base` did. (#1359)
+- The reserved-name refusal that gated `drop_collection` in-request is now the
+  store's, inside the flow: the route answers 204 and removes the records, and a
+  pre-rule collection whose name folds onto a model table keeps that table. The
+  same deferral tradeoff `delete_knowledge_base` already makes. (#1359)
+- The window every deferred drop leaves - a populated table with no row naming it,
+  which a concurrent claim can adopt - is closed by 0.0.349 (#1362), the tip of
+  this arc. (#1359)
+
+## [0.0.347] - 2026-09-01
+
+### Fixed
+
+- **A collection's name could be claimed while its vector table was being
+  dropped.** The teardown re-reads `list_by_collection_name` before dropping a
+  `rag_<name>` table (#913), but the re-check and the drop are two statements and
+  the claim path is two more: under READ COMMITTED a claim reading "this name is
+  free" and a drop reading "no base holds this name" both act, and the drop then
+  removes the table the claim just created and committed a row against. `POST
+  /rag/collections/{name}` creates the table before committing its row, so the
+  window was reachable. Both ends now take a transaction-scoped advisory lock keyed
+  on the collection name - `hold_name`, the string-subject sibling of
+  `hold_subject`, under a new `COLLECTION_TEARDOWN` scope in `app/db/locks.py`.
+  `CollectionAccessService.claim` takes it after the identifier rule and before the
+  taken-check, holding it past `create_collection` until the request commits;
+  `cleanup_external_state` takes it before each collection's re-check and holds it
+  through the drop. Either the claim commits first and the drop's re-check skips,
+  or the drop commits first and the claim recreates the table its row points at.
+  (#1355)
+- Two pre-existing in-request drops still bypass that teardown - `DELETE
+  /rag/collections/{name}` and `_purge_personal_collections` - so the invariant
+  stays reachable through them until #1359. (#1355)
+
+## [0.0.346] - 2026-09-01
+
+### Changed
+
+- **The bulk RAG teardown's cleanup is durable across a restart.** #1293 and #1347
+  moved the file unlinks and the vector-store work past the request commit with
+  `spawn_after_commit`, which fixed the ordering but not the durability: an
+  in-process task dies with the worker that queued it, orphaning the files and
+  tables it had left to clean. The durable Prefect deployment #1274 gave the org
+  purge now serves both callers - `org_purge_cleanup` becomes
+  `external_state_cleanup`, same `(storage_paths, collections)` signature, and its
+  #913 reference re-check runs on the worker's own session. `rag_document`'s
+  `_retire_superseded` and `delete_by_collection` dispatch it instead of an
+  in-process unlink, and `knowledge_base.delete` dispatches the files *and* the
+  collection drop in one durable run - so it no longer takes a `vector_store`, and
+  the `delete_knowledge_base` route drops the parameter with it. Sync-source
+  deactivation stays inline. (#1349)
+- `delete_document` - a single document - stays in-process on purpose: what a lost
+  task strands there is one file and one document's vectors, which a durable
+  Prefect run per delete is disproportionate to, and making it durable would undo
+  #992's structural guarantee. Its docstring says so. (#1349)
+- The commit-to-dispatch window #1274 documented stays open: a crash after the
+  commit but before `run_deployment` fires still loses the cleanup, which only an
+  outbox closes. (#1349)
+
+## [0.0.345] - 2026-09-01
+
+### Fixed
+
+- **The RAG delete paths did their vector-store work inside the request
+  transaction.** #1293 deferred the file unlinks; the store side effects stayed
+  where they were, so the same rollback left the vectors gone.
+  `RAGDocumentService.delete_document`'s `remove_document` and
+  `KnowledgeBaseService.delete`'s `delete_collection` `DROP TABLE` now go over with
+  `spawn_after_commit` too. The collection drop is the sharper of the two: a
+  rollback used to restore the knowledge-base and `rag_documents` rows pointing at
+  a table that no longer existed, which is a correctness fault rather than a
+  recoverable leak. The deferred drop re-reads its `list_by_collection_name`
+  reference check on a session of its own, because the name is not tenant-unique
+  and a second organization can reclaim it in the window between the commit and
+  the drop (#913) - the same re-check the org purge's durable cleanup makes. (#1347)
+- Still deferred in-process, so a crash between the commit and the dispatch loses
+  the cleanup; that durability gap is #1349. (#1347)
+
+## [0.0.344] - 2026-09-01
+
+### Fixed
+
+- **The RAG delete paths unlinked stored uploads inside the request transaction.**
+  `rag_document.delete_by_collection`, `delete_document`, `complete_ingestion`'s
+  `_retire_superseded` and `knowledge_base.delete` all removed the file before the
+  commit, so a commit that then failed rolled the `rag_documents` rows back and left
+  the files gone - a restored row pointing at a missing upload, its download and
+  re-ingestion broken, and the original that could have rebuilt the vectors lost. All
+  four now hand the unlink to `spawn_after_commit` after deleting the rows, through
+  one shared `delete_files_best_effort(paths)` in `app/services/file_storage.py`
+  which holds only ids, resolves the storage backend when it runs, and suppresses a
+  file already gone. The table drop and the sync-source deactivation stay in the
+  transaction. (#1293)
+- The vector-store half of those same paths - `delete_document`'s `remove_document`
+  and `knowledge_base.delete`'s `DROP TABLE` - still runs before the commit, which is
+  the same rollback class on the store's own engine and needs the #913 reference
+  re-check moved with it. Filed as #1347 rather than widened into this change. (#1293)
+
+## [0.0.343] - 2026-08-28
+
+### Changed
+
+- **The org teardown's external cleanup is a durable Prefect deployment.** It was
+  deferred to an in-process `spawn_after_commit` task (#1137), which closed the
+  commit-ordering window but left a durability gap: `spawn_after_commit` is not
+  durable, so a process that died after the commit but before or during the cleanup
+  lost it - orphaning a `rag_<collection>` table and its files with no record of what
+  to drop. `OrganizationService.purge` still hands the work over after the commit, but
+  hands over a `run_deployment` submission rather than the work: the run and its
+  parameters - the paths and collection names, all that is left of the deleted rows -
+  are recorded on the Prefect server, executed by a worker, and re-run by the flow's
+  `retries` if that worker dies. New `app/worker/tasks/teardown_tasks.py` holds the
+  idempotent cleanup, the durable flow wrapper and the submit-and-return dispatch; the
+  flow re-checks each collection name against the knowledge-base table before dropping
+  it, because the name is not tenant-unique (#913), so a name a second organization
+  claimed between the commit and the drop keeps its table. The inline
+  `_purge_external_state` and `_collection_still_referenced` go with it. (#1274)
+- The gap that remains is commit-to-dispatch: a crash before `spawn_after_commit`
+  fires still loses the cleanup, which only a record committed with the delete - an
+  outbox - would close. (#1274)
+
+## [0.0.342] - 2026-08-28
+
+### Fixed
+
+- **`LocalFileStorage.delete` was `async def` over three blocking syscalls with no
+  yield point** - `realpath` inside `_resolve_safe_path`, `Path.exists` and
+  `Path.unlink`. The RAG teardown loops (collection drop, knowledge-base delete) call it
+  once per file with no bound, so dropping a large collection unlinked every upload in a
+  single event-loop turn and stalled every other request the worker was serving. It
+  runs through `run_blocking` now - the dedicated file pool `load` already uses - so
+  every caller yields and the teardown loops interleave. This is the `delete` case #25
+  did not reach: it offloaded `save` and `load`, and `delete` only became a hot path
+  once the bulk teardown loops started calling it per file. Behaviour is unchanged; it
+  still removes the file and tolerates a missing one. (#1294)
+
+## [0.0.341] - 2026-08-28
+
+### Fixed
+
+- **The card grids clipped by 34px on a 390px viewport.**
+  `grid gap-3 md:grid-cols-2 xl:grid-cols-3` declares no column count *below* `md`, so
+  the single implicit track is `auto` and sizes to its items' content: the grid box
+  measured 324px while its own `grid-template-columns` computed **391.094px**.
+  `min-width: 0` injected at every level of the ancestor chain changes nothing - the
+  track is what is too wide, not the item - where `grid-cols-1`, that is
+  `repeat(1, minmax(0, 1fr))`, makes the track the container's 324px and the card's own
+  `truncate` finally has something to truncate against. Applied to fourteen grids
+  across nine files: the ones whose cards carry user-supplied unbreakable text - a
+  slug, an email, a URL, an id - because those are the ones whose min-content is
+  unbounded. The sweep found 71 grids with the same shape and deliberately leaves the
+  other 57: the pattern is only a defect when something inside cannot be broken, and a
+  no-op class on 57 files is a diff nobody can review. (#120)
+- **The chat control bar ran 27px past the composer at 390px.** Three controls, 358px
+  of them, in a `justify-between` row with the connection pill. The pill is `shrink-0`
+  now - two words, nothing to give - and the control group `min-w-0`, which
+  `AgentPicker`'s trigger needed too: its `max-w-[160px]` on the name is a cap, not
+  permission for a flex item to shrink. (#120)
+- **A dashboard widget's info button was a 14x14 tap target**, a third of the 44px both
+  mobile platforms ask for. A `before:absolute before:-inset-[15px]` pseudo-element
+  takes it to 44x44 without moving anything on screen. (#120)
+
+### Changed
+
+- #120 had "describe it later" in every field, so **the issue body is now the audit**:
+  measured at 390x780 and 768x1024 in Chromium against the running app, fourteen pages,
+  each scrolled to the end, recording overflow, tap-target size, text size and anything
+  intersecting the fixed tab bar. Good news up front - the document never scrolls
+  horizontally, at either width, on any of the fourteen pages. Three things are
+  deliberately left and scoped on the issue rather than fixed here: the three data
+  tables, which each sit in their own `overflow-x-auto` scroller so no column is lost
+  but which want to be cards below `md` (Activity is 1155px in a 364px column); 45
+  sub-40px tap targets, most of them the repository's own `icon-sm`, which want one
+  hit-area token below `md` rather than bigger buttons; and the 10-11px mono label
+  register, which is a design decision about a phone. (#120)
+
+## [0.0.340] - 2026-08-28
+
+### Added
+
+- **A README front page: hero, pitch, badges, nav, then the spec sample and what the
+  product looks like.** The content was already strong; what it lacked was the visual
+  first impression. The graphics are authored in this repository - no icon package, no
+  external asset host, no hand-copied path data:
+  `.github/assets/hero-{light,dark}.svg`, one per theme and served through a
+  `<picture>`, drawing the sentence the README opens with rather than decorating it -
+  one spec, one runner, the surfaces that reach it and the four refusals underneath,
+  in the app's own palette read out of `globals.css` and converted rather than
+  eyeballed; and `docs/assets/mark.svg`, the same mark alone, which is now the docs
+  site's logo and favicon, which the site did not have. One file, not two: an earlier
+  draft had a copy in `.github/assets/`, which is the second-source defect this
+  repository keeps citing. (#783)
+- **Release and stars badges** - the two the header lacked - plus a star-history image
+  before the footer. Image paths are relative, so they render in a pull request as
+  well as on `main`; absolute `raw.githubusercontent` URLs would show broken images to
+  whoever reviews a change about graphics. (#783)
+- Three screenshots - the builder, the catalog, the chat surface - at 1600px,
+  palette-reduced to 220 colours, 392KB for all three. Taken from a `make dev` run
+  against a **throwaway database** rather than a developer's own, which held eleven E2E
+  fixtures and four scratch agents; the fresh one was dropped afterwards and the
+  developer's eleven agents verified still there. No shot shows a live model answer,
+  deliberately: the alternatives were to spend somebody's tokens or to fake a
+  transcript, so the chat shot is the composer with a real question typed and the agent
+  picker showing which agent will answer. (#783)
+
+### Fixed
+
+- The docs table promised "Spec, version, exposure, run - the four nouns" where
+  `concepts.md` has five: the trigger was added and one of the two pages updated.
+  (#783)
+
+## [0.0.339] - 2026-08-28
+
+### Fixed
+
+- **`/runs` had 0px under its last run row where every other list page gets 64px.** It
+  was in `FULL_HEIGHT_ROUTES`, so `PageTransition` gave it `min-h-0` and withheld
+  `PAGE_CLEARANCE` - and it stopped being a full-height route in #914: the page's root
+  is an ordinary scrolling `flex flex-col` and the run detail is `sticky` inside the
+  page's own scroll rather than a pane with a scrollbar of its own. One regex was
+  answering two different questions on the page's behalf, so it is two now:
+  `OWN_SCROLL_PANE` (`/chat` alone, which needs the constrained chain so the transcript
+  scrolls instead of the page) and `OWN_BOTTOM_ROOM` (`/chat` and `/runs`, both having
+  something that must reach the bottom edge). Activity then declares `PAGE_CLEARANCE`
+  one level in, on its **list column** - and that placement is the whole point, because
+  padding on the box *around* the two-column row shortens the containing block the
+  sticky panel is clamped to. Measured at 1440x800 against a transcription of the
+  page's own chain: room on the outer box gives 64px of clearance and a panel top of
+  **-48px** with its header cut off by 56px, which is the figure in the issue; room on
+  the list column gives 64px and a panel pinned 8px from the window top, header
+  visible. (#1206)
+- **Below `lg`, the run detail panel's last 56px sat behind the mobile tab bar.** The
+  list column is `hidden` there and the panel is the only column, so its flat
+  `h-[calc(100dvh-1rem)]` ran under a bar that is `fixed bottom-0`, `min-h-[56px]` plus
+  the safe-area inset. Measured at 390x780: 56px hidden before, 8px clear after, which
+  matches the 8px it already keeps at the top. The full height stays above `lg`, where
+  the bar is hidden. Same element, two lines, so it is here rather than in a second
+  change. (#1206)
+- `page-transition.test.tsx` was asserting the old reason - "constrains Activity too,
+  where the list and the run detail scroll apart", true before the page was rebuilt and
+  false since. It asserts both halves of what is true now: no `min-h-0`, and no `pb-`
+  either, with the prefix-match case still checking that `/runsomething` *gets* the
+  room. (#1206)
+
+## [0.0.338] - 2026-08-28
+
+### Changed
+
+- **A presentation and correctness pass over every page of the site** - 25 concept and
+  reference pages, the 8 guides, the 3 reference stubs. The site was accurate and
+  almost unreadable: 27 pages of unbroken prose, one mermaid diagram between them, no
+  content tabs anywhere, ~20 pages with no callouts at all, and three flows drawn in
+  ASCII that only line up in a monospace font. The words are mostly unchanged; what
+  changes is what a reader sees before they start reading. **17 mermaid diagrams**
+  where prose or ASCII described a flow - the request path and the transaction's
+  ordering, both ingestion pipelines, the three permission layers, park -> decide ->
+  resume, the sandbox's three processes, envelope encryption, MCP's OAuth 2.1
+  handshake, a sync's six stages. **~130 callouts**, each promoting a rule the page
+  already stated and whose violation costs something: a 2xx means the write is
+  readable, a budget is checked before the request, an empty origin list allows
+  nothing, the sandbox token is root-equivalent. Content tabs where alternatives were
+  stacked vertically, and prose restructured where it was a table or a list in
+  disguise. (#784)
+
+### Fixed
+
+- **Four pages were teaching things that are not true here.** `patterns.md`'s three
+  worked examples had all drifted off the code - a DI example injecting
+  `Depends(get_db)` and `Depends(get_current_user)`, neither of which exists, where the
+  aliases do and `DBSession`'s `scope="function"` is load-bearing (#353); a repository
+  written as a `ConversationRepository` class, the one shape the architecture rule
+  rules out; and a service holding `self.repo`, which no service in the codebase does.
+  `howto/customize-agent-prompt.md` taught editing `app/agents/prompts.py` and
+  overriding `DEFAULT_SYSTEM_PROMPT`, with a `get_system_prompt_with_rag()` and an
+  `AI_TEMPERATURE` that do not exist - contradicting the sentence CLAUDE.md calls the
+  whole design; it is rewritten around the spec and `default_instructions.py`.
+  `howto/add-background-task.md` step 2 was `asyncio.create_task(...)`, which is
+  exactly the shape #417 was: the task starts before the request commits, so a flow
+  reading its own row finds nothing, and the exception is dropped too - now
+  `spawn_after_commit` / `spawn`. And `howto/add-api-endpoint.md` was a second,
+  already-diverging copy of `adding_features.md`'s walkthrough; it is the single copy
+  now, with `adding_features.md` pointing at it. (#784)
+- Smaller corrections: `configure-sync-sources.md` named `app/rag/connectors/` twice
+  for a package that is `app/services/rag/connectors/`, and had a sentence ending in a
+  colon with nothing after it; `ROADMAP.md` was dated 2026-07-27 and contradicted
+  itself about the 100% gate, with three items describing features that have shipped;
+  `index.md` promised "four nouns" where `concepts.md` has five; and a dead anchor in
+  `configuration.md`, which mkdocs reports at INFO so `--strict` never caught it.
+  (#784)
+
+## [0.0.337] - 2026-08-28
+
+### Added
+
+- **A per-conversation approval mode in the chat.** The spec decides which tools are
+  gated, at publish time, per tool - which is right for a statement about what the
+  agent *is*, and says nothing about the mood of one session. Somebody working through
+  twenty turns with an agent that gates three tools answered the same three questions
+  every turn, and their only way out was to republish the agent, changing it for
+  everybody, permanently, to fix an afternoon. Three modes ride the send frame beside
+  the model override: **Follow the agent** (the default, and exactly what existed
+  before), **Approve everything** (standing consent for this conversation - every gated
+  call granted without parking, each one still writing its row), and **Ask about
+  everything** (gate every tool the agent can reach, including the ones the spec left
+  ungated and the ones no capability owns). (#925)
+- Four things make it a session setting rather than a hole in the model. A caller who
+  may not waive is **refused, never downgraded** - quietly following the spec would
+  leave somebody believing they had turned the questions off, and the next parked run
+  says the opposite; the check is in `AgentRunnerService.prepare`, the one funnel a
+  fresh run and a resumed one share. Waiving needs `approvals:decide` **and** the
+  organization's leave: a standing consent *is* the decision the queue exists to
+  record, so `organizations.chat_may_waive_approvals` is the ceiling - **off by
+  default**, changed by somebody holding `approvals:decide` - and without it a
+  Builder's deliberate gate on `send_email` would be one click from nothing in every
+  conversation. **No channel still means no**: only the web chat may waive, because
+  `ApprovalGate` already refuses a run with nobody to ask. And **every waived call is
+  recorded** - the row is written `approved`, names the consenting account and carries
+  `decided_via = "standing"`, its own column rather than a sentence in `note`, because
+  a waived run indistinguishable from an agent that was never gated is
+  `docs/governance.md`'s trail quietly ceasing to be one. (#925)
+- "Ask about everything" gates **MCP tools too**. The spec-driven gate leaves them
+  alone because their approval is a property of the connection; a person who does not
+  trust an agent yet is asking about everything it can do. It only tightens, so it
+  takes no permission, no ceiling and no surface check -
+  `ApprovalRequest.capability_id` is nullable for exactly this case. (#925)
+- `docs/governance.md` gains **How much one conversation wants to be asked**; the tour
+  gains `chat-approval-mode`.
+
+### Changed
+
+- New column `organizations.chat_may_waive_approvals`, default off, with its own switch
+  beside the spending limit - so an upgrade changes nobody's behaviour and the waive
+  option does not render until an owner turns it on.
+
+## [0.0.336] - 2026-08-28
+
+### Added
+
+- **An Owner column on the workspaces table.** It said who *else* could see a
+  workspace and never who it belongs to: `access_label` describes the **scope** -
+  "everybody who talks to this agent", "one person" - which is a different fact, and on
+  an agent-scoped workspace shared by six people it is not the one an operator is
+  asking. `owner_label` was already on the row and already rendered by the chat panel,
+  used here only as a fallback heading. Plain text and never a link, because
+  `owner_ref` is a string and a Slack-sourced workspace's owner is a platform id
+  rather than an account (#131), so a linked cell would be broken on half the rows.
+  Sortable, because grouping a deployment by holder is what somebody opens this to do.
+  (#137)
+
+### Changed
+
+- **One folder tree, not two.** `/skills` and `/workspaces/{id}` had written the same
+  tree twice - the same recursion, the same expand-collapse set keyed on a folder's
+  path, the same chevron and two folder icons, the same `role="tree"` with
+  `aria-expanded` - over two node shapes and **two polarities of open state**, one
+  holding what was collapsed and the other what was open. `PathTree` in
+  `components/files` is now the mechanics and the semantics: indentation by depth, the
+  roles, one selected file, the open set. What a row *says* stays with the caller,
+  because a skill's file is a name and a workspace's is a name, a size and a download -
+  which is why there are two render props: `renderFile` inside the button that opens
+  the file, so that is all a screen reader announces, and `renderFileMeta` beside it,
+  because the workspace's download must not need the file opened first and a button
+  inside a button is invalid. `workspace-explorer.tsx` is 110 lines lighter,
+  `skill-files.tsx` 80, against one 203-line component. One deliberate visual change: a
+  skill's *file* rows were indented twelve pixels further than its folders and the
+  workspace's were not, so the two trees disagreed about the same question. They indent
+  alike now. (#137)
+
+## [0.0.335] - 2026-08-28
+
+### Changed
+
+- **The Share conversation dialog picks a person rather than asking for an email
+  address.** It had a text field and a hand-rolled suggestion list that appeared only
+  once something had been typed, so the control's default state was a blank box you
+  had to already know the answer to fill, and every mistyped address was a 404.
+  `MemberPicker` - a popover over a `cmdk` list - opens with the organization in it,
+  each row a face and a name over the address, and somebody who already has access is
+  not offered again. The API has always accepted `shared_with` beside
+  `shared_with_email`, so this is a client change rather than a contract change, and
+  sharing outside the organization becomes impossible by construction - #930's client
+  half. `matchingMembers` and its four tests go with the field. (#931)
+- **View and Edit carry icons and a sentence.** `Eye` and `Pencil`, in the select and
+  on every row, with one line saying what the level permits - because "edit" on a
+  conversation is not obvious: it is rename, archive, delete and append turns, which
+  `ConversationService._may_write` decides and nothing on the dialog used to say.
+  (#931)
+- **The access list reads as people.** `MemberIdentity`, the same row the members
+  table and the alerts picker draw, resolved against the organization's members - with
+  a fallback to whatever the share itself holds, because a share whose member is gone
+  still has to be revocable. The level is the catalog's word now: the badge printed the
+  API's raw `view`/`edit`, so that one row was English in every locale while the select
+  above it was translated, and the i18n guard could not see it because it is an
+  expression rather than a literal. (#931)
+- `DIALOG_FORM` instead of `DIALOG_CONFIRM`, and three separated sections - invite, who
+  has access, the link - rather than three controls on one row. A share token is not a
+  person, so it keeps its own row. (#931)
+
+## [0.0.334] - 2026-08-28
+
+### Fixed
+
+- **Every notification link was organization-agnostic, and the page it opens acts on
+  whichever organization the reader last used.** `apiClient` stamps
+  `X-Organization-Id` from a selection persisted per browser, so somebody in two
+  organizations who was last working in Globex opened the approval alert for a run in
+  Acme and read **Globex's** queue: very likely empty, and reading as *nothing is
+  waiting* about a run that is parked and ageing towards
+  `ApprovalService.expire_stale`. The agent links were wrong more quietly -
+  `/agents/{id}` under the wrong organization is a refusal for an agent the reader can
+  genuinely see, one switch away. `run.organization_id` and `agent.organization_id`
+  were in scope at all four call sites and discarded. Every link now carries
+  `org=<id>`, built in one place - `NotificationService._link`, which picks the
+  separator from the path because the approvals link already carries
+  `?tab=approvals`. (#1204)
+- **The console adopts it the way it adopts `/orgs/{id}`.** `organizationInQuery`
+  reads it under the same two rules as the path's reader and for the same reasons
+  #1032 gives: a UUID only, so a future `?org=new` is not adopted as a tenant id and
+  refused on every request, and lower-cased, because the value is stored and found by
+  `===` against ids the server serialises in canonical lower case. The adoption is the
+  existing layout effect in the recovery hook, before the tenant cache reset and
+  before the page's own queries, so the first request the page makes already carries
+  the right tenant. Two rules follow from what the parameter is: **the path outranks
+  it**, since `/orgs/{id}` *is* that organization while `?org=` only says which one an
+  alert was about; and adoption is keyed on the path and the adopted id together,
+  because two alerts about two organizations arrive at the same path and keying on the
+  path alone would read the first one's tenant. (#1204)
+- A reader who has since left that organization is told the link is the reason, rather
+  than being moved in silence and reading another organization's page as the answer to
+  the alert. It cannot name the organization: they are not a member, so it is not in
+  their list. (#1204)
+
+### Added
+
+- `docs/governance.md` gains **Every link says which organization it is about** under
+  Alerts.
+
+## [0.0.333] - 2026-08-28
+
+### Fixed
+
+- **An ingestion that had already read its file kept writing when the collection was
+  deleted underneath it.** `insert_document` reaches `_ensure_collection`, whose
+  `CREATE TABLE IF NOT EXISTS` recreated the just-dropped `rag_<collection>` table and
+  inserted the chunks - leaving an untracked table of stale vectors reachable by a
+  later same-named collection, and then failing to record completion because the
+  document row was gone. `IngestionService.ingest_file` takes an optional
+  `still_wanted` check, run **after the parse and before the write**: the upload flow
+  checks its own `rag_documents` row, which the delete removes, and the two sync flows
+  check that the collection still has a knowledge base. When it reports the collection
+  gone the write is skipped and a failure returned rather than the table resurrected.
+  (#1275)
+- Both checks are **fail-safe**: any error answers "still wanted", so the guard can
+  only ever skip a write it is certain is unwanted and never blocks a legitimate
+  ingestion. It closes the parse-duration window, which is the wide one - parsing a
+  large file is seconds where the insert is fast. Two residuals stay, both narrow and
+  pre-existing: a collection dropped in the instant between the check and the insert,
+  and the sync check being collection-level rather than tenant-precise while
+  collection names are not tenant-unique (#913). (#1275)
+
+## [0.0.332] - 2026-08-28
+
+### Fixed
+
+- **A new turn no longer starts from a checklist that is already finished.**
+  `keep_plan` records whatever the store held when the run ended, completed steps
+  included, and the next turn seeded from it - so a thread whose three steps were all
+  ticked off in August opened in November with the tail reminder calling them "your
+  current plan" and `read_plan` answering with them, and the agent worked to a
+  checklist about a task nobody is doing. The filter is at the **seed** rather than at
+  the moment the last step is ticked: within the turn that finishes a plan the store
+  still holds it, so `read_plan`, the reminder and the transcript agree and the agent
+  can summarise what it just did - and it is the *next* question that starts clean,
+  with the ticked checklist still in the messages above it where it reads as what was
+  done. Nothing is deleted; the row keeps the finished plan and `still_open` decides
+  only what a fresh turn is seeded with. **Finished** means at least one step and every
+  step `completed` or `cancelled` - `blocked` is work outstanding and keeps the plan.
+  (#1221)
+
+### Changed
+
+- The rule is written down in both places: the seeding rule's docstring in
+  `planning/_capability.py`, and `docs/reference/capabilities.md`, whose paragraph said
+  the opposite ("A finished checklist is kept rather than cleared").
+
+## [0.0.331] - 2026-08-28
+
+### Fixed
+
+- **`DELETE /kb/{id}` deleted only the `knowledge_bases` row.** Its `rag_documents`
+  rows, whose FK is `SET NULL`, survived detached and readable by a later same-named
+  collection; the uploaded files stayed on disk; and the physical `rag_<collection>`
+  table was left behind with the collection name still blocking reuse. The full
+  teardown existed only on the org purge path. `KnowledgeBaseService.delete` now takes
+  the vector store - **required, not optional**, the shape #992 used so a delete route
+  cannot silently skip the teardown again - and runs it: the base's document rows and
+  their stored files, then the row, then the `rag_<collection>` table, dropped only
+  when no other base still references the name, which is not tenant-unique (#913). The
+  route wires in the `VectorStoreSvc` it did not have. (#1266, #1290)
+
+## [0.0.330] - 2026-08-28
+
+### Fixed
+
+- **A magic link ignored where the visitor was headed.** `/auth/magic-link` called
+  `postSignInDestination()` with nothing, so somebody who arrived at
+  `?returnTo=/agents/a-1` landed on `/dashboard` - which door somebody came through
+  still deciding where they end up. #121 removed that drift on the roles axis and #135
+  on the provider axis; this was the last door with it. The path travels **in the
+  token**, as a signed `rt` claim: #135's `sessionStorage` is allowed because the OAuth
+  round trip starts and ends in the same tab, where a magic link is followed from an
+  email - another tab, often another application, sometimes another browser - and that
+  store is empty by construction. No schema change, and nothing between the mint and
+  the landing can edit it. (#1214)
+- **Refused before it is signed, and judged again at the landing.**
+  `MagicLinkRequest.return_to` accepts a path on this deployment and nothing with a
+  scheme, a second leading slash, a backslash or a control character - the same five
+  shapes `frontend/src/lib/auth-landing.ts` refuses - so a token holding an arbitrary
+  string never exists rather than existing and being filtered on read.
+  `postSignInDestination` judges it again anyway: a check that ran once, on the server,
+  on a value that then travelled through an email is not a check the client can rely
+  on having happened. (#1214)
+- `POST /auth/magic-link/verify` answers with `MagicLinkToken` - the pair plus
+  `return_to`, unapplied, because the client navigates and the landing owns that
+  judgement. Its own schema rather than a nullable field on `Token`: the login and
+  refresh responses have no return path to carry, and a field that is always null on
+  most responses is one a client learns to ignore. The page also goes through
+  `goToDestination` now, so a destination carrying a fragment is no longer
+  double-appended by `next@16.2`'s segment cache. (#1214)
+
+### Added
+
+- `docs/architecture.md` gains **Where a fresh session lands** - the one decision, and
+  the three transports that carry it.
+
+## [0.0.329] - 2026-08-28
+
+### Fixed
+
+- **Dropping a collection orphaned every file it held.**
+  `DELETE /rag/collections/{name}` dropped the vector table and deleted the
+  `rag_documents` rows, but `delete_by_collection` was a bulk delete returning only a
+  rowcount - so nothing unlinked the uploads and each one stayed on disk. The
+  repository deletes `RETURNING storage_path` now and answers with the non-null paths,
+  the shape `delete_by_knowledge_base` already used, and the service unlinks each one
+  best-effort: a file already gone is not a reason to fail the drop. Keyed on
+  `collection_name`, so it clears the files for every knowledge base backing that
+  physical collection - which is what the drop route means. (#1265)
+
+## [0.0.328] - 2026-08-28
+
+### Fixed
+
+- **`make test-frontend-cov` intermittently failed the 100% statement gate at 99.98%
+  on a clean tree.** The one miss was `markdown-content.impl.tsx:37`, the `pl-8`
+  return in `orderedIndent` - the indent band for a 10-99 item ordered list. Nothing
+  in the markdown-content suite renders a list that size, so the statement was covered
+  only when some *other* suite happened to render one, and under parallel scheduling
+  that render is not guaranteed. The indent test already pinned the 1-9, 100+ and
+  1000+ bands; the two-digit case is pinned now too, deterministically rather than by
+  accident. The branch is live - a 10-99 item list is reachable - so it is covered,
+  not removed. (#1264)
+
+## [0.0.327] - 2026-08-28
+
+### Changed
+
+- **One HTTP client per module for web search and model listings**, rather than one per
+  call. These are the two per-call `httpx.AsyncClient` sites the #952 audit left
+  outside its channel-adapter scope: the HTTP-based search providers (Brave, Exa) and
+  the model-catalog listing fetch. Each opened a fresh client per call, so a search
+  tool invoked several times in one run - or a catalog refresh asking provider after
+  provider - paid a new TCP and TLS handshake against a host it had just talked to.
+  Both are module-level functions with no adapter lifecycle to hang a client on, so
+  #1262's shape does not fit: the client is built lazily, rebuilt if it was closed,
+  and carries the timeout per request so one client serves every provider. The app
+  lifespan closes both at shutdown, after background work has drained, where it
+  already closes the channel adapters' clients. `ddgs` and Tavily go through their own
+  SDKs rather than httpx and are untouched. (#1263)
+
+## [0.0.326] - 2026-08-28
+
+### Fixed
+
+- **Two app admins deleting each other could leave the deployment with none.** The
+  not-self refusal in `admin_delete` states a lockout invariant - a deployment keeps
+  at least one administrator - and it held only against one request at a time. #1115's
+  `SELECT ... FOR UPDATE` covers the *target* row, so admin A deleting B and admin B
+  deleting A locked different rows, touched different personal organizations and never
+  contended: both committed, and `count(*) FROM users WHERE is_app_admin` was 0, with
+  a direct database write as the only recovery. New
+  `user_repo.app_admin_ids_for_update` locks the set the decision was always about,
+  and `admin_delete` takes it before deciding, so the later of two mutual deletes
+  waits, re-reads a set of one once the first commits, and is refused. (#1208)
+- Two choices worth naming. **`ORDER BY id` is load-bearing**: rows are locked in the
+  order they are returned, so two requests taking the same set take it in the same
+  order and one waits, where an unordered pair each holding half of it is #1134 in a
+  new place. And the lock is taken on **every** admin deletion, not only when the
+  target is an admin - reading the target's flag first to decide whether to lock puts
+  a window between the read and the lock, and deleting a user is an administrator's
+  action rather than a hot path. (#1208)
+
+### Changed
+
+- `docs/deployment.md` already argued this invariant from the set; it now says what
+  makes it true across two requests.
+
+## [0.0.325] - 2026-08-28
+
+### Fixed
+
+- **The parked-run alert routinely told somebody to approve a call the platform will
+  refuse them.** `approvals:decide` belongs to `owner`, `admin` and `operator`, and
+  the default audience for a parked tool call is the run's initiator plus the
+  administrators - a builder starting their own agent from the chat is the ordinary
+  initiator, not an edge case. They got "waiting on your approval", a **Review the
+  request** button, and then an Activity page with no Approvals tab at all: the
+  refusal arriving as an absent tab rather than a sentence. The audience is now split
+  by the permission rather than trimmed to it - a decider gets the request and its
+  link to the queue, and anybody else gets a new `approval_pending` mail saying the
+  run is held not failed, that approving it belongs to an owner, admin or operator,
+  and that nothing is asked of them. Trimming instead would have dropped the one
+  person definitely waiting on the run, which is the whole reason `initiator` is in
+  the default audience. (#1203)
+- The second mail carries **no link**, deliberately: `agents:view` being a role
+  permission does not make one agent reachable, since agent access is resolved per
+  resource, so a `chosen` recipient with no grant to a private agent would get a
+  second call to action the platform refuses. (#1203)
+- Which roles decide is read off `ROLE_PERMS` rather than listed beside it, so a role
+  gaining or losing `approvals:decide` cannot leave the routing behind - the same
+  defect one level up. App admins count as deciders: they hold no membership row and
+  `AuthContext.permissions` gives them everything. A test pins the derivation,
+  including that `builder` and `member` are not in it. (#1203)
+
+### Added
+
+- `docs/governance.md` gains **The approval alert is two emails** under Alerts.
+
+## [0.0.324] - 2026-08-28
+
+### Fixed
+
+- **The admin drawer said "Never signed in" for anybody who had signed out.** Both of
+  its session figures came off the same read - the user's *active* sessions - and a
+  user who signs out, or whose sessions were revoked, has no active row at all, so
+  `last_seen_at` came back null. That is most accounts most of the time, and it is the
+  opposite of the truth on the one field the drawer exists to answer. Where somebody
+  was last seen is a fact about every session they have ever had, so the read takes
+  the whole history (`open_only=False`) and the head of it, most-recently-used first,
+  is the answer. (#1256)
+- **An expired session counted as open.** Nothing sweeps a session that simply
+  lapses: the row stays `is_active` until the next refresh finds it past `expires_at`
+  and declines it, so a session nobody can use was reported as open. "Open" now means
+  `is_active AND expires_at > now()`, and it lives in `app/repositories/session.py`
+  rather than at one call site - which is why the flag is `open_only` and not
+  `active_only`: the old name described the column, not the question. The user's own
+  devices list goes through the same two functions, so it stops offering an expired
+  row to revoke. `newest_session_at` stays scoped to the open ones, because "newest
+  session August" under "0 open sessions" is a sentence about nothing. (#1256)
+
+### Changed
+
+- New index on `(user_id, last_used_at, id)` for the sessions table, so reading the
+  head of an unpruned history is bounded rather than a per-user scan and top-N sort.
+
+## [0.0.323] - 2026-08-28
+
+### Fixed
+
+- **`is_favourite` was false on six conversation responses out of eight.** Only
+  `list_conversations` and `set_favourite` passed rows through `_attach_favourites`,
+  so `GET /conversations/{id}`, the PATCH, the archive response and
+  `/shared-with-me` serialized ORM objects that never carried the flag - the schema
+  default answered `false` to a caller who really had starred the thread, and the
+  sidebar un-starred it on the next render. It is stamped in `get_conversation`
+  instead, the one read every reader-scoped route goes through, so a route cannot
+  forget; `list_shared_with_me` has its own repository call and its own stamp. A read
+  with no reader - the admin listing, the run path resolving a thread - still asks for
+  nobody's stars and pays no query to say so. (#1254)
+- **Starring the same thread twice at once raised.** `set_favourite` read the row and
+  inserted when it saw none, so two overlapping POSTs both saw nothing and the second
+  `flush()` violated the primary key: a 500 on an endpoint that promises idempotent
+  success, and a retried request did it too. Now `INSERT ... ON CONFLICT DO NOTHING`,
+  the shape `channel_identity_repo.get_or_create` already uses (#17), and the unstar
+  is an unconditional `DELETE`. (#1254)
+- **A double click could leave a thread starred with nothing on screen saying so.**
+  The POST and the DELETE were separate requests with nothing making the second wait,
+  so the DELETE could be answered first and the POST commit after it. One promise
+  chain per conversation now, so the requests land in click order; the optimistic
+  patch still happens at once, and a refusal rolls the row back only if its click is
+  still the newest. (#1254)
+
+## [0.0.322] - 2026-08-28
+
+### Added
+
+- **Azure, Bedrock and Vertex AI are inside the model-catalog drift guard.**
+  `_documented_rows` reads the two four-column tables, so the three providers with
+  the most involved credential shapes were in no assertion but the id one. Their
+  credential is prose and maps to no field - but *which of the three tables a
+  provider sits in* is itself a claim about its credential, since the heading says
+  "Credential is not an API key", and that is comparable. Two assertions follow: the
+  three tables partition `PROVIDERS`, so a provider documented twice or in none of
+  them fails; and which table a row is in matches `secret_kind`, so moving a row
+  without changing the spec, or the reverse, fails. (#1252)
+
+## [0.0.321] - 2026-08-28
+
+### Fixed
+
+- **A long maintenance message ended under the mobile tab bar.** `DeploymentGate`
+  returns `MaintenanceScreen` *instead of* rendering `PageTransition`, which is where
+  every other page takes its bottom clearance from, so the last 56px plus the
+  safe-area inset stayed covered even at maximum scroll - on the one screen a visitor
+  sees when nothing else is available. The clearance moves onto the gate's
+  no-wrapper branch and off `MaintenanceScreen`: the gate is what knows this is the
+  whole page, where the screen would inherit page padding anywhere else it were
+  rendered. Still the one `PAGE_CLEARANCE` token, so there is no second copy of the
+  calc to forget `env(safe-area-inset-bottom)` in. (#1241)
+- `page-clearance.test.ts` walks the *pages* and so cannot see that branch; the
+  assertion is a render instead - the gate in maintenance, as a non-admin, with the
+  token spread as classes on its root, so a token that loses the inset fails here too.
+  (#1241)
+
+## [0.0.320] - 2026-08-28
+
+### Fixed
+
+- **Deleting a user orphaned their personal organization's knowledge base.**
+  `UserService.delete` purged the personal organization through
+  `OrganizationService.purge`, but built that service **with no vector store** - and
+  `purge` only removes *org-scoped* collections. A personal-scoped base, whose
+  `owner_user_id` and `organization_id` are both `ON DELETE SET NULL`, was therefore
+  never touched: the row was orphaned and its `rag_documents` rows, uploaded files and
+  `rag_<collection>` table were retained and unreachable, while the collection name
+  went on blocking reuse through `CollectionAccessService.claim`. The same missing
+  store also left that organization's org-scoped collections without their physical
+  tables. (#1131)
+- `UserService` takes an optional `vector_store` and the account teardown uses it, or
+  builds one on the process's shared vector pool when none is injected - so route and
+  CLI paths both clean up and no other `UserService` route pays for a store it never
+  touches, mirroring `get_organization_teardown_service`. New
+  `_purge_personal_collections` deletes each personal base's document rows, unlinks
+  its stored files, deletes the row, and drops the `rag_<collection>` table **only
+  when no other base still references the name** - it is not tenant-unique (#913).
+  (#1131)
+
+### Added
+
+- `knowledge_base_repo.list_personal_by_owner`, the predicate that previously lived
+  inline in `get_accessible`.
+
+## [0.0.319] - 2026-08-28
+
+### Fixed
+
+- **An organization teardown dropped vector tables and unlinked stored uploads before
+  the transaction that deleted their rows had committed.**
+  `OrganizationService.purge` did both inside the request, on the vector store's own
+  session, so a final commit that failed rolled the organization, knowledge base and
+  document rows back into existence pointing at vectors and files that were already
+  gone - residual 1 of #1116's review. The relational deletes still run in the request
+  transaction; the storage paths and the collections whose tables are no longer
+  referenced are collected and handed to `spawn_after_commit`, so a failed commit
+  discards the cleanup unrun and leaves nothing dangling. #1116's ordering - document
+  rows before identifiers, a table dropped only once unreferenced - is unchanged.
+  (#1137)
+- The cleanup is a module function taking the paths, the collections and the vector
+  store rather than a method, so the queued coroutine holds primitives and the
+  process-lived store and never the request session, which is gone by the time it
+  runs. (#1137)
+
+### Changed
+
+- Residuals 2-4 of #1137 - a `NULL`-`knowledge_base_id` document sharing a collection
+  name, a deleted tenant's vectors kept in a shared table, and the TOCTOU on the
+  reference check - all depend on tenant-unique collection names (#913) and are
+  recorded on the `purge` docstring instead.
+
+## [0.0.318] - 2026-08-28
+
+### Fixed
+
+- **Two users who co-own each other's shared organizations could deadlock by
+  deleting their own accounts at the same moment.** `UserService.delete` took
+  `FOR UPDATE` on its own user row - the #1115 reconcile lock - and then, reassigning
+  a solely-created shared organization to an heir, took `FOR KEY SHARE` on the heir's
+  row through the foreign key. Each request held its own row and waited for the
+  other's, so Postgres broke the cycle by aborting one with `40P01`: a 500 rather
+  than a result. `UserService._lock_for_delete` now discovers the heirs a delete will
+  reassign to and locks every user row it needs - self and every heir - **in ascending
+  id order**, before the reconcile. Two concurrent self-deletes queue on the lower id,
+  so one completes and the other, now sole owner of its organization, gets the
+  existing clean domain refusal. (#1134)
+- The self `FOR UPDATE` still precedes the reconcile's authoritative reads and is held
+  through the `DELETE`, so #1115's guarantee is unchanged: a concurrent child insert
+  waits, and the reconcile sees every child. (#1134)
+
+## [0.0.317] - 2026-08-28
+
+### Fixed
+
+- **The email that says a run is parked now sends the reader to the queue.**
+  `approvals_url` was `{frontend}/agents/{agent.id}` - the Builder page, which holds
+  one sentence of prose about tool calls reaching a queue and no queue at all. So the
+  one alert whose whole purpose is *somebody has to decide, now* landed a search away
+  from the decision, behind a button reading "Review the request", while the run aged
+  towards `ApprovalService.expire_stale`. It addresses `/runs?tab=approvals` now -
+  Activity's Approvals tab, the only surface carrying Approve and Reject, and a
+  surface with no URL at all until #934. (#935)
+- It deliberately does **not** name the run with `?run=`, though the notification
+  holds it: the decide controls are on the queue *row*, and below `lg` a focused run
+  replaces the list - so naming the run would hide the buttons from the reader most
+  likely to be on a phone. Budget mail still opens the agent, which is correct: the
+  cap it reports is edited there. (#935)
+
+### Added
+
+- `docs/governance.md` gains **An alert links to where the decision is** - where
+  approvals mail points, why it does not name the run, and why budget mail differs.
+
+## [0.0.316] - 2026-08-28
+
+### Fixed
+
+- **Which of Activity's three tabs is open is now in the address bar.** `Tabs` was
+  uncontrolled, so there was no URL for the approvals queue at all - which is why the
+  dashboard card's "See all" opened the run history, where nothing can be decided.
+  `?tab=approvals` and `?tab=spend` are written; `runs` is the default and, like every
+  other unset narrowing on this page, writes nothing. `parseRunsTab` joins
+  `parseRunFilters`, and `runsHref` takes a `tab`. (#934)
+- **A tab named by a link is resolved against what the reader may open.**
+  `approvals` is gated on `approvals:decide`, so a link carrying it that reaches
+  somebody without the permission opens the run history rather than a strip whose
+  selected value has no trigger and no content - a blank page under a live set of
+  tabs. An unrecognised name falls back the same way. (#934)
+- **A focused run is cleared when the tab changes**, and `?run=` goes with it. It
+  already was, incidentally and untested, since #537; left behind, a reload reopened
+  a detail panel on a tab that never had one - and below `lg` the panel *replaces*
+  the list, so the strip was live while every tab's content stayed hidden and
+  clicking Approvals appeared to do nothing. (#934)
+- The approvals widget's `seeAll` points at the queue rather than the history - the
+  same wrong destination as the parked-run email, enabled by the same missing
+  parameter. (#934)
+
+## [0.0.315] - 2026-08-27
+
+### Fixed
+
+- **Every REST helper in the Mattermost adapter opened its own HTTP client**, and
+  Slack's attachment download did too, so each call paid a fresh TCP connection and
+  TLS handshake against a host it had just talked to. A streamed channel turn is not
+  one call - the live reply pushes an edit roughly every second, plus typing, the
+  opening, the final edit and a download per attachment - so a minute-long answer
+  spent seconds of wall clock re-establishing connections it already had, and the
+  bot host saw the socket churn of a client that never keeps one open. One client
+  per adapter now, built in `__init__` and closed at shutdown: Mattermost's ten
+  call sites borrow it through a `nullcontext` so none of them closes it and the
+  pool stays warm, and no call site changed. (#952)
+- `ChannelAdapter` grows a no-op close, and the lifespan calls it on every adapter
+  **after** polling has stopped and background work has drained - so a turn still
+  finishing an edit is never cut off from its client. The two non-channel per-call
+  clients the issue also lists have no adapter lifecycle to hang a reused client
+  on, and are filed separately. (#952)
+
+## [0.0.314] - 2026-08-27
+
+### Fixed
+
+- **The vault list kept the pre-write rows after a store or rotate**, roughly one
+  run in eight, so a new row never appeared and the spec timed out. The create
+  itself worked - the artifact showed the keys stored with an empty error alert, so
+  the write succeeded and the render was stale. Same dedup race as #154: the
+  mutation invalidated the list and relied on the refetch, and the vault page
+  issues its list read on load, so a read that began before the write committed
+  resolved with the pre-write body and marked the query fresh. The secrets hook's
+  one `invalidate` helper cancels the list query before invalidating. (#130, #154)
+- **Three `page.reload()` workarounds are retired with it** - the row appears on
+  its own now, which is the verification that it no longer flakes. On the issue's
+  two acceptance criteria: `submitDialog` already asserts the write's response
+  status and prints its body on a non-2xx, so a refused store fails at its source
+  before the row is awaited; and the create never failed - it answered 201, and the
+  list render was the stale half. (#130)
+
+## [0.0.313] - 2026-08-27
+
+### Fixed
+
+- **A mutation's invalidation could be answered with pre-write data**, which is
+  what made `sharing.spec.ts` and `skills.spec.ts` flake. A mutation's `onSuccess`
+  invalidated and relied on the refetch - but `invalidateQueries` **dedupes its
+  refetch onto a fetch already in flight**, and both the sharing panel and the
+  skills gallery fan out several reads on mount. A read that began before the
+  mutation committed resolved with the pre-write body, marked the query fresh, and
+  the panel kept the old value until a reload. It hit the *second* mutation in a
+  sequence and never the first, which is exactly the shape the issue describes.
+  Each hook's one `invalidate` helper cancels the query before invalidating now, so
+  the invalidation dispatches a genuinely new post-commit fetch rather than
+  awaiting the stale one it meant to replace. (#154)
+- Worth being clear about what this was not: the read is ordered after the commit
+  and reaches Postgres, and `no-store` has been in effect since #405 - the client
+  simply dropped the fresh answer. (#154, #405, #230)
+
+## [0.0.312] - 2026-08-27
+
+### Added
+
+- **The admin user drawer answers the question it is opened for.** It showed four
+  facts - the id, the email already in the table, the display name and a join date -
+  and offered four buttons, three of them rendered identically. **Where this person
+  has access was entirely absent**, though it is the answer the drawer exists to
+  give: an account with no membership anywhere is a different decision from one that
+  owns two organizations. It now carries the organizations and the role in each,
+  linked; when they were last here, with `last_seen_at` **null rather than blank**
+  for an account that has never signed in, because *created and never used* and
+  *dormant since March* are different decisions; and how many sessions are open with
+  when the newest began. All from one route rather than fields on the user, because
+  it is a view over three tables that a user is read in a dozen places without.
+  (#942)
+- **The actions are weighted by consequence.** All four used to be the same outline
+  button in one row - the two most consequential looking exactly like the least, and
+  two of them firing on a single click. Impersonate is the everyday one and stays
+  plain; suspend is confirmed, saying they are signed out immediately; promote and
+  demote are confirmed, naming what it grants - every permission in every
+  organization on the deployment, including ones they are not a member of; delete
+  stays last and apart. **Reactivate is deliberately not confirmed**: it is the
+  recoverable direction, and a question about undoing a refusal is a question about
+  nothing. (#942)
+- The conversations are links now - opening one is the thing an admin would do with
+  that list and the one thing it did not offer - and the two new blocks keep the
+  three states the conversations list already got right, with the failures saying
+  *different* sentences: a 502 on the memberships and an account in no organization
+  are not the same thing. Revoking a session is deliberately out of scope: it needs
+  a route with its own audit entry, which is a different thread. (#942, #941, #943)
+- The last-seen figure does not yet hold its own claim and is filed: both figures
+  are read with `active_only=True`, so a user who has signed out has no active
+  session rows and reads as "Never signed in" - the very case the field exists to
+  separate from *created and never used*. (#1256)
+
+## [0.0.311] - 2026-08-27
+
+### Added
+
+- **A conversation can be favourited, into a band at the top of the sidebar.** A
+  thread somebody returns to every day sat in the same list as the one-question
+  thread from three weeks ago, and the only way back was search or scrolling. The
+  favourite is **the reader's**: a row per user and conversation rather than a
+  boolean on the thread, because a thread can be shared and a channel thread has
+  participants rather than an owner - so a column would let one person's star
+  decide where it sits for everybody who can see it. Two people looking at the same
+  shared thread see two sidebars. (#929)
+- **Starring is authorized as a read**, deliberately: a star changes nothing about
+  the thread, it moves it in the starrer's own sidebar, so somebody a conversation
+  was shared with may star it exactly as its owner may - a write check there would
+  refuse the reader the feature exists for. And **the band is an `ORDER BY` rather
+  than a grouping of the page**: the sidebar is paged, so a favourite sorted into
+  page two by recency would sit under fifty threads that are not one, and grouping
+  after the page arrives cannot fix that. Archiving keeps the star and drops the
+  band, because a band inside the archive would be a second place to look for what
+  archiving just moved. (#929)
+- The one place the client patches rather than invalidating, with the boundary
+  stated: whether *this reader* starred it is a fact about the row the client just
+  decided, so patching makes the click instant while the reordering still comes
+  from the server - and a refusal puts the star back, or the row keeps a star the
+  server never recorded. (#929)
+- Five things the feature does not yet hold, filed rather than left implied: the
+  auth context is dropped on the way to the conversation read, so a caller who may
+  see an ownerless trigger run log is refused the star on one they can open;
+  `is_favourite` is emitted `false` on every read but the two that attach it; the
+  read-then-insert is not idempotent under a concurrent or retried POST; a
+  double-click can leave a thread starred; and the optimistic rollback crosses an
+  account change. (#1254)
+
+## [0.0.310] - 2026-08-27
+
+### Changed
+
+- **`PROVIDERS` is named as the source of truth**, for the one thing model
+  inference cannot know - the credential shape - with the other five lists derived
+  from it. Constructing the client stays Pydantic AI's, deliberately not restated.
+  `docs/models.md` gains a table saying which list answers which question, plus the
+  two crossings that are lookups able to answer nothing, and a drift test keeps it
+  true: every key in either catalog file must name a provider `PROVIDERS` has, so
+  must every image-catalog entry, and every provider must appear on the page.
+  (#923)
+- **`model_fallbacks.json` is `curated_models.json`.** It has nothing to do with a
+  profile's fallback chain - a different feature entirely - and the name was the
+  first thing a reader met. A curated list is still worth keeping: it is the answer
+  when the provider *cannot be asked*, not an answer for a provider that publishes
+  nothing. (#923)
+- **`source` is three answers rather than two.** Seven providers publish no listing
+  this platform can read *and* have no curated entry, so they answered `curated`
+  about a shortlist that does not exist. They answer `unlisted` now, end to end
+  through the schema and the picker's type. Nothing on screen changes - the dropdown
+  already said the right thing - the API contract was the part that was wrong.
+  (#923)
+- `ollama` and `litellm` both publish an OpenAI-shaped listing at the endpoint the
+  profile already stores and are the two worth wiring, but that needs a listing
+  which can be told a base URL rather than a fixed one - a real change, not a
+  catalog entry. Written into the page rather than guessed at, and no endpoint URLs
+  were invented for the others to make a table look complete. (#923)
+- The drift test that keeps this true compares less than the claim needs in four
+  ways - the page searched for a token rather than compared to a table, only the
+  id checked though the credential shape is what makes `PROVIDERS` authoritative,
+  one table excluded and unchecked anywhere else, and the image catalog checked on
+  its provider but not its prefix - so it is filed rather than left implied.
+  (#1252)
+
+## [0.0.309] - 2026-08-27
+
+### Fixed
+
+- **Twenty-seven toasts read `.message` off a caught error instead of resolving it
+  through the catalog.** Since #603 a refusal a BFF route mints carries a `{ code }`
+  and no sentence - the handler sits outside `[locale]` and has no translator - and
+  `getErrorMessage` is the only reader that resolves one against the `errors`
+  namespace. A site reading `.message` showed the code humanized into an English
+  sentence under every locale: `Backend unavailable` where the catalog says
+  `Backend service unavailable`, and the Polish copy never at all. Backend-envelope
+  refusals were unaffected, since their message passes through as written; what
+  mis-rendered was the proxy's own 401, a backend that is down, and the upload and
+  session failures. (#655, #603)
+- The guard reads every source file for the pattern rather than testing the sites
+  that were migrated, **because the failure is a missing call** and a test of the
+  migrated sites cannot fail when a twenty-eighth is added beside them. It
+  immediately found six the issue had not listed - the multi-line shape prettier
+  produces. One site keeps its shape on purpose: `use-onboarding` shows an
+  `ApiError`'s message and a fallback for anything else, because "Failed to fetch"
+  is not something to put in front of somebody. (#655)
+
+## [0.0.308] - 2026-08-27
+
+### Fixed
+
+- **A resumed run's own prior spend was counted twice, so it was refused with
+  headroom to spare.** A resumed run keeps its row, so by the time it continues
+  `finish_run` has committed what it spent - and two things then read that same
+  number: the budget baseline sums `agent_runs.cost_usd`, and the ledger is
+  re-seeded with it. Both are right on their own. The seeding has to happen, or
+  finishing the continuation overwrites the cost with only what the continuation
+  cost and the per-run budget resets every time somebody approves something -
+  exactly the run a budget is for. The baseline has to sum the column, because that
+  is where a month's spend is. Together, an agent capped at $10 that spent $6 and
+  parked came back to `6 + 6 = 12` on its first model request and was refused with
+  $4 left, while the alert told its owner it had reached a cap it was at 60% of.
+  The organization-wide cap double-counted identically. The baseline now excludes
+  the run asking. (#15)
+- **Not only on resume**, and deliberately so: a baseline is what *other* runs have
+  already spent, and what this one spends is the ledger's. On a fresh run the row
+  is there too, at zero, so the exclusion changes nothing there and needs no
+  branch - one rule instead of a resume-shaped exception. It is off by default,
+  because a figure a person reads is a different question and a report that hid the
+  run somebody was looking at would be wrong. (#15)
+
+## [0.0.307] - 2026-08-27
+
+### Fixed
+
+- **The docs claimed a per-binding spending limit that does not exist.**
+  `docs/channels.md` listed it among what an operator sets on a binding, "on top of
+  the agent's own and the organization's", and the runner's docstring said the
+  exposure's caps are enforced. `agent_exposures` has no cap column and
+  `BudgetScope` has exactly two members. The exposure supplies the prompt, the
+  channel tools, its environment and its session scope, and is stamped on the run
+  row - which is what the docstring says now. An operator reading that page
+  believed a public Slack bot was independently capped. (#29)
+- **The cited migration revisions do not dangle, they resolve to the wrong file.**
+  65 revisions were collapsed into `0001_baseline` and the numbering restarted, so
+  a citation lands on a real migration about something else: `0038` was cited eight
+  times for the vault and is the run manifest, `0066` nine times for `users.role`
+  and is nothing at all, and six more besides. Each is replaced by what the reader
+  needs - "before the chain was squashed", "inside `0001_baseline`" - or by a
+  revision that is still there. `CLAUDE.md` and the `alembic-migration` skill now
+  say the numbering restarted and that a citation names a full file name or
+  nothing. `docs/plans/` is deliberately untouched: a plan records what was true
+  when it was written. (#29)
+- The issue's other two claims have since become true and are left as they stand:
+  rate limiting exists on the public and auth surfaces, and the terminal commit is
+  explicit on every surface rather than only web chat. (#29, #39, #1025)
+- Also fixed with it: `main` had been red on `lint-frontend` since the admin
+  Overview was deleted. #921 added a caption for the organizations page and #922
+  removed the page that read it, each green before the other landed - so the key
+  reached `main` with no reader and the i18n guard failed the whole job on the
+  next branch to merge `main` in. Deleted rather than given a reader, because the
+  caption belonged to a page that no longer exists. (#921, #922)
+
+## [0.0.306] - 2026-08-27
+
+### Changed
+
+- **Three sections of `docs/testing.md` described the generator's suite rather than
+  this one**, and each told a reader to do something that cannot work here: a
+  `tests/unit/` that does not exist, a `db_session` fixture that is called
+  something else, a `client` returning Starlette's `TestClient` where the rules
+  single out that it is not, and `auth_client`/`test_user` fixtures the conftest
+  explains the absence of. The worst was a sync test calling an async client -
+  which returns a coroutine and asserts on it, so it **passes while testing
+  nothing**. The page taught the two patterns the rules exist to prevent, and
+  nothing noticed because no code is generated from it. (#212)
+- The sections now carry the four layers and the actual tree, a new "anyio, not
+  pytest-asyncio" section because a missing `pytestmark` is the failure that looks
+  like a pass, the five fixtures that exist, and three examples each taken from a
+  test in the repository. Every name was checked against the conftests, `deps.py`
+  and the repository it cites. Running Tests, Frontend Tests and Test Database were
+  written for this repository and are left alone. (#212)
+
+## [0.0.305] - 2026-08-27
+
+### Fixed
+
+- **Which sign-in button somebody clicked decided where they ended up.** A visitor
+  at `/login?returnTo=/agents/a-1` who used the password form resumed the deep
+  link; one who clicked a provider button landed on the dashboard - the drift #121
+  removed on the roles axis, still present on the provider axis. Nothing carried
+  the path: the browser leaves this origin for the provider and comes back to
+  `/auth/callback`, and neither hop had room for it, so the callback decided the
+  destination with nothing. It is carried in `sessionStorage` rather than the OAuth
+  `state`, because the whole trip starts and ends in the same tab on this origin -
+  a value written beside the provider link is there to be read when the browser
+  returns, and no server has to hold it. A flow that ends somewhere else finds
+  nothing and lands on the dashboard, which is where it landed before. (#135, #121)
+- The value is **consumed as it is read**, so a deep link somebody abandoned is not
+  resumed by the next sign-in from that tab, and a click with nothing to remember
+  clears rather than skips, for the same reason. Nothing in the carrier validates
+  the path: `postSignInDestination` stays the one place that decides whether a
+  return path is safe to honour, and a second copy of that rule would be a second
+  answer to it. `OAuthButtons` also loses a `next` prop nothing passed and the
+  backend never read. (#135)
+- `/auth/magic-link` has the same defect and cannot take the same fix - the link is
+  followed from an email, so a per-tab store is empty by construction - and is
+  filed rather than folded in. (#135)
+
+## [0.0.304] - 2026-08-27
+
+### Changed
+
+- **`/admin` lands on Users, and the Overview is gone.** The page held six figures
+  and three links, and every one of them was already on screen somewhere the reader
+  had been. The figures came from the same endpoint the `platform` dashboard widget
+  reads, on a dashboard that has been arrangeable since #213 - so the page was a
+  fixed second copy of a card the reader can already place where they want it, and
+  two copies of six numbers disagree the first time one is edited. The three links
+  were three of the five tabs the section's own strip renders directly above them,
+  so a third of the page was navigation to where the reader already was. `/admin`
+  is the section index and redirects, exactly as `/settings` redirects to Profile:
+  a bookmark still works, and the sidebar entry still lights up, because
+  `isRouteActive` matches the section rather than the page. (#922, #213)
+
+## [0.0.303] - 2026-08-27
+
+### Added
+
+- **The deployment's tenant list can be searched, sorted, filtered and paged.**
+  `/admin/organizations` is the only surface that answers *what tenants exist*, and
+  it offered no way to find one: fifty rows, one fixed order, no search, no filter,
+  and nothing said about the rest. The users tab beside it has had all four since
+  #284; this page came out of that sweep with the shell and none of the controls,
+  because the route behind it answered none. `search` covers name, slug and the
+  owner's address - through `contains_ci`, so `100%` finds the tenant called that
+  rather than all of them (#372) - alongside `sort_by`, `sort_dir` and a
+  `personal`/`team`/`all` filter. (#921)
+- All of it applies **before `OFFSET`/`LIMIT`**, with `total` counting what was
+  narrowed to rather than the deployment, and a value outside its type is a **422**
+  rather than a silent fallback: an empty page reads as "this deployment has no
+  tenants", and an `ORDER BY` assembled from a query string is an injection
+  surface. The order breaks ties on the id, so paging a column where rows share a
+  value lists each row once. The query moved out of the service into the
+  repository, where a service's queries belong. (#921)
+
+### Fixed
+
+- **The dashboard's top-organizations card and this page shared a query key** while
+  asking for different things - five rows against fifty of whatever the page is
+  narrowed to - so whichever mounted first filled the cache and the other rendered
+  its answer. The key carries the request now, and one hook serves both. And
+  `contains_ci` was typed to mapped columns only, while the owner's address is a
+  column of an outer-joined subquery: widening the alias is what keeps this search
+  going *through* the one helper that escapes `%` and `_` rather than around it.
+  (#921, #372)
+
+## [0.0.302] - 2026-08-27
+
+### Fixed
+
+- **No dashboard page had any room under it**, though `main` declared the padding.
+  The reason is `DeploymentGate`, which wraps every page in a flex box that does
+  not grow with its content - so a long page overflows it and `main`'s padding
+  edge stays where the shorter box ended, buried mid-content. Measured against the
+  app's own stylesheet on a transcription of the real chain: 0px with the gate
+  wrapper in place, 80px and 64px without it. The room moves onto
+  `PageTransition`'s unconstrained branch, which does grow with its content, and
+  lands after the last element in both engines. The constrained branch keeps none,
+  because chat's composer belongs on the bottom edge and room beneath a fixed
+  control is a gap under it. (#933)
+- **The mobile figure counts the safe-area inset** rather than assuming it away:
+  `viewportFit: "cover"` makes it 34px on a modern iPhone, and the tab bar is 56px
+  plus that, so a flat 80px left the last ten pixels of every page under the bar.
+  Four surfaces carried their own workaround at three different values - which is
+  why nobody noticed the layout's own declaration was inert - and all four are
+  gone. The regression test reads the *pages*, not the wrapper: asserting that
+  `PageTransition` carries the padding would not catch a fifth surface re-adding
+  its own, which is the regression that actually happened. (#933)
+- One screen is left behind and filed rather than folded in: `DeploymentGate`
+  returns the maintenance notice directly and never reaches `PageTransition`, so
+  it has no clearance - as it had none before, since the declaration it would have
+  inherited was the inert one. (#1241)
+
+## [0.0.301] - 2026-08-27
+
+### Fixed
+
+- **A frontend spec issued a real HTTP request, so its result depended on what was
+  listening on port 8000.** `RootLayout` awaits `readBranding()`, which fetches
+  against the backend, and `layout.test.tsx` mocked the translator, the font and
+  the stylesheet but not that read. With nothing listening the connection is
+  refused and the branding falls back, so the spec passed - which is CI, and why
+  the suite had been green. With a healthy backend it also passed. But against a
+  port that accepts and never answers, the fetch never settles and both cases die
+  on the 15-second deadline - and a crash-looping backend container does exactly
+  that, because Docker publishes the port and its proxy accepts the connection
+  while nothing inside is listening. One more mock, alongside the three already
+  there: 30.5s and two failures becomes 0.63s and two passes. (#1075)
+- Not fixed, and noted on the issue: `readBranding` swallows every failure into
+  the built-in branding plus a warning, so a page rendered with defaults because
+  the backend was unreachable is indistinguishable from one told to use defaults.
+  (#1075)
+
+## [0.0.300] - 2026-08-27
+
+### Fixed
+
+- **Six of a usage window's scalars were six serial round trips for numbers one
+  SELECT answers.** `StatsService.usage` ran fifteen aggregates one after another,
+  and six of them are scalars over one window with the same WHERE - the count and
+  cost of the window and of the window before it, the distinct-user count, and the
+  two latency percentiles. `window_aggregates` reads all five in one query and
+  `usage` calls it once per window, so six scalar round trips become two. The
+  percentiles need no `ended_at IS NOT NULL` of their own there: an unfinished
+  run's duration is null, and `percentile_cont` ignores a null exactly as the
+  standalone filter did. (#949)
+- The GROUP BY aggregates stay their own queries. Each groups differently, so they
+  cannot fold into one SELECT, and running them concurrently would need a
+  connection each - an `AsyncSession` is one connection and serialises. (#949)
+
+## [0.0.299] - 2026-08-27
+
+### Fixed
+
+- **The BFF proxy read every request and response body fully into memory before
+  forwarding either.** `MAX_UPLOAD_SIZE_MB` is 50 and the knowledge-base path
+  allows it, so a 50 MB document was held whole in the Node process before one
+  byte reached the backend - ten concurrent uploads is 500 MB of heap, and the
+  container's memory limit decides what happens next. In the other direction a
+  workspace file, a document or a run export gave the browser nothing until the
+  last byte had reached the proxy, so time-to-first-byte was the whole transfer
+  and a large export read as a hung page. Both directions stream now, with
+  `duplex: "half"` for the outbound body as undici requires. Bytes stay bytes, so
+  a multipart boundary and a PDF survive the hop, a 204 still carries a null body,
+  and an error body still reaches the client verbatim. (#951)
+
+## [0.0.298] - 2026-08-27
+
+### Fixed
+
+- **Every agent run began with one query per bound collection.**
+  `_collection_names` runs inside `prepare`, so an agent bound to five knowledge
+  bases added five serial round trips to the front of every turn - before the
+  model was called, to read rows very likely already in the session's identity
+  map. `get_by_ids` reads them in one `WHERE id IN (...)`, and the resolution
+  iterates the returned map. The tenant check and the degradation it exists for -
+  a collection gone or foreign narrows the agent's reach rather than failing the
+  run - are unchanged: they read from a dict instead of awaiting a query each, and
+  an id with no row is simply absent from the map. (#954)
+- The finding names six id-resolving loops as one habit; this is the only one on a
+  per-run path. The other five are publish-time or admin-path, where N is small
+  and the cost is invisible, and their line references predate a since-moved file,
+  so they want re-locating rather than a blind change. (#954)
+
+## [0.0.297] - 2026-08-27
+
+### Added
+
+- **The Builder speaks Polish.** `pl.json` held no `agents` namespace at all - 0 of
+  563 keys - so the whole Builder rendered in English under `/pl`, the largest
+  single gap in the catalog. All 563 are translated as one namespace rather than
+  piecemeal, because a namespace is the unit a person reads and seventy Polish
+  strings among four hundred English ones reads worse than a consistently English
+  panel. The product's own nouns stay English and are inflected into Polish
+  grammar - agent, spec, capability, skill, embed, budget, run, prompt, provider,
+  token, vault, workspace, sandbox, MCP - so a Polish reader meets the same words
+  the docs, the API and an exported YAML use; `secret` follows the convention
+  already in the file and becomes `sekret`. Counts are ICU `plural` with Polish's
+  `few` and `many` arms rather than ternaries, with any noun the number agrees
+  with inside the plural, and every interpolation and `t.rich` tag is preserved.
+  (#643)
+
+## [0.0.296] - 2026-08-27
+
+### Changed
+
+- **The two sessions BFF routes hand-rolled the forwarder block** - read the
+  cookie or 401, set the bearer, map the error, answer JSON - which is what
+  `platformProxy()` already does, *plus* the active-organization header, byte-
+  accurate bodies and the `no-store` those hand-rolled copies drop (#546, #553,
+  #106). Both are a `sessions/[[...path]]` mount now, the same shape `kb` and
+  `rag` use, and the query handling and id escaping they did by hand are the
+  proxy's passthrough. No endpoint behaviour changed. (#564)
+- The remaining clusters are deliberately left, each with a blocker on the issue
+  rather than a mechanical swap: `orgs/**` keeps a binary avatar route that cannot
+  coexist with an optional catch-all, and the header the proxy adds is a behaviour
+  change wanting an end-to-end check; `admin/**` carries a frontend admin gate
+  rather than a plain cookie read; and the MCP OAuth callback redirects rather than
+  forwards. (#564)
+
+## [0.0.295] - 2026-08-27
+
+### Changed
+
+- **Four transport blocks were copied across the three channel adapters**, so a
+  change to any had to be made at six to ten sites by hand and a fourth channel
+  would copy them all again. `split_thread` replaces the partition-and-unpack at
+  three Mattermost and three Slack sites, and `channel_key` calls it too, so "which
+  channel is this" has one implementation. `SlackAdapter._web` holds the lazy
+  client import and construction that nine sites repeated - including a dynamic
+  import in the Socket Mode path - with the import still deferred, so a deployment
+  running no Slack bot does not pay for the SDK. `TelegramAdapter._bot` is an async
+  context manager wrapping the bot and the `try/finally` close that **ten** methods
+  repeated, each of them a TLS session leaked if the close was forgotten. And the
+  Mattermost client and bearer header, repeated at ten sites each, now have one
+  definition apiece, so the timeout and the auth shape do too. (#565, #547)
+
+## [0.0.294] - 2026-08-27
+
+### Changed
+
+- **Both run surfaces turned a finished result into `(status, output, paused)`
+  with the same block, copied verbatim** - a `DeferredToolRequests` output builds
+  a `PausedRunState` and becomes `AWAITING_APPROVAL`, anything else is the
+  completed answer. That is the delicate half: a new `PausedRunState` field, or a
+  change to how a park is recorded, had to move in lockstep across two files. It
+  is `_classify_output` now, beside `_outcome`, which `agent_chat` already imports
+  from there. The **exception paths stay with each surface**, because they
+  genuinely differ - the chat runner re-raises `BudgetExceeded` and
+  `GuardrailBlocked` so the waiting visitor is told why, while the batch runner
+  records and moves on - so extracting those would have been a behaviour change.
+  (#567)
+
+## [0.0.293] - 2026-08-27
+
+### Fixed
+
+- **A unit word anywhere in a string exempted the whole sentence from the i18n
+  sweep.** `NOT_A_SENTENCE`'s unit alternative had `.*` on both sides, so
+  "Use rem instead of pixels for spacing", "Change the deg value before saving"
+  and "This px setting is wrong" all left the sweep untranslated - the same defect
+  as #656 and #678, and the widest of the three. It also never did its stated job:
+  a CSS measurement is written `12px`, and a word boundary before `px` needs one
+  between `2` and `p`, so `"Set the width to 12px"` was reported anyway. The
+  alternative caught the standalone token it was never written for and missed the
+  measurement it was. And it was dead in any case, because a phrase genuinely made
+  of units is already answered by `isFormatter`, which asks that *every* word be a
+  unit or an acronym rather than that one of them be. Deleted, with the docstring
+  now recording why there is no unit alternative so it is not re-added. (#741,
+  #656, #678)
+
+## [0.0.292] - 2026-08-27
+
+### Changed
+
+- **`parked_calls` compared statuses against raw strings** where every sibling in
+  the file uses `RunStatus` and `ApprovalStatus`. A raw literal is invisible to a
+  rename: change the enum member and the string silently stops matching, which on
+  this path means a parked run that no longer reads as parked. Both now go through
+  the enum, matching the resume path a few methods down; behaviour is identical,
+  since both are `StrEnum`. The skill repository's `update` and `update_resource`
+  take `dict[str, Any]` like every other repository's, rather than a bare `dict`.
+  (#545)
+- One item of the bag was **misdiagnosed and dropped rather than done**:
+  `InvitationCreate.email` was said to need the `max_length=255` its siblings
+  carry, against an over-length address reaching the column. It does not
+  reproduce - `EmailStr` enforces the RFC total length of 254, which is below the
+  column's 255, so a format-valid address can never exceed it and an over-length
+  one is refused with a clean 422 at the schema. Adding the constraint would have
+  been an untestable one, because no input reaches it. (#545)
+
+## [0.0.291] - 2026-08-27
+
+### Fixed
+
+- **The e2e job kept a screenshot of a flake and nothing else.**
+  `playwright.config.ts` set `trace` and `video` to `on-first-retry` while
+  `retries` is 0 - deliberately, so a real failure cannot go green on a second
+  attempt - and with no retry those never fire. The trace is the one artifact that
+  answers which locator it was waiting on and why, because it carries the DOM
+  timeline, the network log and the console, and it was missing from exactly the
+  runs that needed it. Both are `retain-on-failure` now, captured on the first and
+  only failure and kept for the failed test alone. The job already uploads the
+  report and the report embeds the trace, so no workflow change was needed. This
+  does not fix the flake - its cause is unknown until a failure is captured, which
+  is what this makes possible. (#162)
+
+## [0.0.290] - 2026-08-27
+
+### Added
+
+- **`make lint-precommit` reads the whole tree with the hooks that only ever read
+  a diff.** `yamlfmt`, `zizmor` and the `pre-commit-hooks` basics saw only the
+  files a commit touched, and no gate ever ran them over everything. That is fine
+  while the rules are fixed and stops being fine the moment Dependabot bumps a
+  `rev:`: a new `zizmor` rule makes every workflow in the tree violate it, nothing
+  notices because no commit has touched a workflow, and weeks later an unrelated
+  one-line edit is refused by a finding that has nothing to do with it - the shape
+  of #188, one tool over. `make lint-spelling` already solved exactly this for
+  codespell; this gives the rest the same treatment. (#203)
+- `SKIP` drops the hooks another target already gates over the tree, plus
+  `no-commit-to-branch`, which fails by design when CI checks out `main` - so
+  nothing is gated twice and no fixer rewrites a file mid-check. A fixer that does
+  run reports rather than commits, because pre-commit exits non-zero on a
+  modification, which is the failure CI needs. Wired into `lint` so `make check`
+  reaches it, and into CI's `lint` job, with `test_ci_parity.py` holding both
+  directions the way it already does for `lint-spelling`. (#203)
+
+## [0.0.289] - 2026-08-27
+
+### Fixed
+
+- **A rating cast in chat left the dashboard's summaries stale.** `rating-buttons`
+  hand-rolled two `fetch` calls with their own headers, `response.ok` handling and
+  error parsing - the shape `frontend.md` forbids - so the endpoints were invisible
+  to the query layer and nothing was invalidated until the next mount. Both go
+  through `src/lib/message-rating-api.ts` and `use-message-rating` now, whose
+  `onSuccess` invalidates the ratings and admin-ratings summary roots, and the two
+  duplicated error-parse blocks are one `getErrorMessage`. The chat's own thumb
+  counts still reconcile locally, because they live in the message store. Three
+  i18n keys the hand-rolled catches used are deleted with them. (#563)
+
+## [0.0.288] - 2026-08-27
+
+### Changed
+
+- **One `{date, likes, dislikes}` day-point instead of four declarations feeding
+  one chart.** `RatingsByDay`, an inline array inside the conversation summary and
+  the chart's own `RatingsPoint` all described the same shape, so adding a field to
+  one left the others silently unchanged. `RatingsByDay` is the single day-point
+  now - the chart prop, its wrapper and the admin summary all reference it - and
+  `RatingsPoint` is deleted. The admin summary response is renamed to
+  `AdminRatingsSummary`, so it no longer differs from `RatingsSummary` by a single
+  trailing `s`, which is trivially confused on import. Pure type consolidation, no
+  behaviour change. (#559)
+
+## [0.0.287] - 2026-08-27
+
+### Fixed
+
+- **A bot activated moments before shutdown reopened intake at exit.** It leaves a
+  committed, tracked `open_inbound_stream` task that may not have run yet: the
+  lifespan stops the adapter tasks that exist, then drains - and that task's final
+  step creates a new, *untracked* polling or socket task after the stop loops have
+  passed. The supervisor carries a shutting-down flag now; `open_inbound_stream`
+  declines to open when it is set, re-checked after `stop_polling` so a task
+  suspended there when shutdown begins cannot slip a reopen through either. The
+  lifespan sets it as the first shutdown statement, before the stop loops and the
+  drain, and clears it at startup so a following lifespan - a test, a reload -
+  serves again. The flag is the lifespan's alone, so the in-process drain the RAG
+  sync command issues while the server keeps serving never touches it and a
+  legitimate reopen still opens. (#1119, #1095)
+
+## [0.0.286] - 2026-08-27
+
+### Fixed
+
+- **`seed --clear` never worked on a seeded database.** It called a bulk
+  `DELETE FROM users WHERE is_app_admin = false`, and every seeded account has a
+  personal organization whose `created_by_user_id` is `ON DELETE RESTRICT` - so the
+  delete raised `ForeignKeyViolation` on the first row and the command 500'd. The
+  bulk path bypassed the reconciliation only the single-row delete runs.
+  `delete_non_admins` lists the non-admins and removes each through `delete` now, so
+  each personal organization is purged and each owned row reconciled first, on the
+  same path `DELETE /users/{id}` uses. One transaction, so a refusal - a non-admin
+  who solely owns a shared organization - rolls the whole clear back rather than
+  half-clearing. (#1124, #1117)
+
+## [0.0.285] - 2026-08-27
+
+### Fixed
+
+- **Deleting one organization dropped another tenant's vectors.**
+  `collection_name` is not tenant-unique (#913), so two organizations can back onto
+  one `rag_<name>` table, and the teardown dropped it unconditionally. The physical
+  table is dropped only when no other collection still references it, and last -
+  after the relational deletes flush, so a failure among them aborts before any
+  table is gone. (#1116, #9)
+- **Tracked documents outlived their collection and stayed reachable by name.**
+  `rag_documents` authorizes on `collection_name`, so a row outliving its knowledge
+  base was listable and downloadable by a later collection permitted the same name.
+  Each collection's document rows and their stored uploads are deleted before its
+  identifiers go, keyed on `knowledge_base_id` so a shared collection's co-tenant
+  rows are untouched. (#1116)
+- The residuals are documented on `purge` rather than left implied: the drop and
+  the file unlinks still commit outside the request transaction, and three
+  reachability residuals remain - a document with a null knowledge base sharing the
+  name, the deleted tenant's vectors inside a kept shared table, and a TOCTOU on the
+  reference check. All of them are rooted in the `collection_name` tenant-scoping of
+  #913. (#1137, #913)
+
+## [0.0.284] - 2026-08-27
+
+### Fixed
+
+- **Deleting a user could leave an organization with no owner at all.**
+  `UserService._release_owned_rows` reconciled only organizations the user
+  *created*, but ownership moves without the creator FK - after a transfer, or
+  after the creator is reassigned away - so a user can be the sole Owner of an
+  organization they did not create. The created-organizations listing never returns
+  it, so deleting that user cascaded their last owner membership away and left a
+  silent orphan nobody can manage through the owner-gated APIs. Not a 500 like the
+  #9 cases, which is what made it quiet. A second pass over the organizations where
+  the user holds an Owner membership refuses the delete when they are the sole
+  owner - the same refusal the created-organization path already raises - and does
+  nothing when another owner remains. (#1117, #9)
+
+## [0.0.283] - 2026-08-27
+
+### Fixed
+
+- **A concurrent insert reopened the exact 500 the delete reconciliation closed.**
+  Reconcile-then-delete is check-then-act, and with no row lock an org-scoped
+  collection inserted between the purge's collection list and its
+  `DELETE organizations` is SET NULL-ed into a
+  `ck_knowledge_bases_org_scope_has_org` violation - and a private secret or
+  personal organization inserted between a user delete's reconcile and its
+  `DELETE users` lands the same CHECK or RESTRICT blocker.
+  `OrganizationService.purge` and `UserService.delete` take
+  `SELECT ... FOR UPDATE` on the row they are about before enumerating: a
+  concurrent child insert takes `FOR KEY SHARE` on that parent through its FK,
+  which `FOR UPDATE` conflicts with, so the insert waits and the reconcile sees
+  every child on a fresh read under READ COMMITTED. (#1115, #9)
+- A rare deadlock when two users who co-own each other's shared organizations
+  self-delete simultaneously was found while reviewing this and filed rather than
+  folded in - Postgres aborts one with a 500. (#1134)
+
+## [0.0.282] - 2026-08-27
+
+### Fixed
+
+- **The BFF proxy-path guard did not see a composite segment.**
+  `unencodedSegments` matched a `${...}` only immediately after a `/`, so
+  `/api/v1/resources/prefix-${id}` slipped through - and an `id` such as
+  `x/../../admin/users` interpolated bare there normalises into another backend
+  path exactly as a segment-leading one does. So the invariant the sweep exists to
+  hold, that every interpolated path segment is encoded, was not enforced for
+  prefixed segments. No current route has that shape; this is hardening against the
+  next one. A small `pathInterpolations` parser replaces the inner regex: it scans
+  the path from `/api/v1`, skipping the host prefix, brace-matches each
+  interpolation so a query ternary's own inner `${...}` is consumed with it rather
+  than read as a bare segment, and stops at the query - the first literal `?`, or an
+  interpolation that attaches one. A query signal skips that interpolation and keeps
+  scanning rather than stopping, and optional chaining is excluded from the ternary
+  check, so a real segment after a query-looking or optional-chained one is still
+  checked. (#1118, #13, #30)
+- Four further holes in the same sweep, found by the reviewer on the branch and
+  closed before merge - each one a way for a security guard to report clean on a
+  route it had never actually read. **An apostrophe in a comment blinded it to a
+  whole file**: every `'` was treated as a string opener, so the scan ran from
+  the apostrophe in prose to the next one and swallowed what lay between, which
+  is why `admin/conversations/route.ts` - "drawer's", line 11 - had its template
+  skipped entirely. A **partly encoded** expression passed, so
+  `encodeURIComponent(id) + rawSuffix` and a look-alike
+  `encodeURIComponentAlias(rawId)` were both accepted. **Any `.search` access
+  ended the path**, so `/api/v1/x/${params.search}/${rawId}` reported neither
+  interpolation. And a template whose prefix carried no literal following slash -
+  `/api/v1${rawPath}` - was never read at all. (#1133)
+
+## [0.0.281] - 2026-08-27
+
+### Fixed
+
+- **`/link` confirm could 500 on a message arriving at the same moment.**
+  `ChannelLinkService.confirm` did an unguarded get-then-create on
+  `(platform, platform_user_id)` - the same check-then-act #17 closed in the
+  router's identity resolution - so a user who sends a message while clicking a
+  confirm could make the confirm's INSERT collide on
+  `uq_channel_identity_platform_user`. It resolves through
+  `channel_identity_repo.get_or_create` now: SELECT first,
+  `INSERT ... ON CONFLICT DO NOTHING`, re-SELECT. The upsert deliberately leaves an
+  existing row's `user_id` untouched, so linking it to the confirming user is an
+  explicit update after it, skipped on the miss path where the inserted row already
+  carries that user. (#1113, #17)
+
+## [0.0.280] - 2026-08-27
+
+### Fixed
+
+- **Two list endpoints ran a query per row** where the code beside them already
+  batched. The vault listing resolved emails and grant counts in one grouped query
+  each, then asked which agents bind each secret one secret at a time - a
+  thirty-secret vault loaded in thirty-one queries. `agents_using_for_secrets`
+  answers a whole page in one: it unnests each agent's draft-spec capabilities and
+  matches the bound `secret_id` against the requested set, grouped back per secret,
+  with a `CASE` guarding `jsonb_array_elements` off a spec whose `capabilities` is
+  not an array - the rows the old containment skipped - and keeping the tenant scope
+  and name ordering. (#953)
+- The organization listing ran two queries per organization: one to re-read the
+  caller's membership for its role, one to count members. The role rides the
+  membership join the listing already makes, and `member_counts_for` counts a whole
+  page in one grouped read. The per-row membership read was redundant anyway - the
+  organization came from that very join. `count_members` stays for the single
+  organization read. (#953)
+
+## [0.0.279] - 2026-08-27
+
+### Fixed
+
+- **A terminal write could mask the cancellation that ended the run.** Both run
+  surfaces end in a `finally` that records the run and commits it, and any of those
+  raising - a serialization failure, a constraint the delegation savepoints did not
+  catch, a connection dropped mid-turn - replaces the exception that ended the run.
+  When that exception is the `CancelledError` from a stop, the turn was recorded and
+  surfaced as FAILED and the cancellation never reached the task that asked for it.
+  The whole terminal-persistence sequence runs under one guard now: the in-flight
+  exception is captured before it, and a write or commit that raises while the run
+  is already unwinding is logged while the original exception propagates. A clean
+  run still surfaces a persistence failure, and the guard catches `Exception` rather
+  than `BaseException`, so a second cancellation raised by the commit itself still
+  propagates. (#235)
+- The issue names the commit, but `finish` and the record hit the same connection
+  first, so guarding only the commit left the same masking one line earlier - which
+  is why `finish` already wraps its notify call for exactly this reason. The guard
+  covers all of it. (#235)
+
+## [0.0.278] - 2026-08-26
+
+### Fixed
+
+- **The dev reload supervisor killed healthy workers.** `SupervisedReload` replaces
+  a worker whose event loop has stopped turning, and the worker reports liveness
+  through uvicorn's `Config.callback_notify` - which `Server.on_tick` calls only
+  once `time.time() - last_notified > timeout_notify`, so the beat's *cadence* is
+  gated on the wall clock. The beat stamped `time.monotonic()` and the supervisor
+  judged with `time.monotonic() - beat`: a different clock from the one the cadence
+  runs on. On Docker Desktop's VM the wall clock can stall for tens of seconds
+  relative to monotonic while the loop keeps serving, so the cadence froze while
+  the monotonic verdict climbed, and a healthy serving worker was read as wedged
+  and killed - the replacement beating once and being killed again on the next
+  poll, which is the "container Up, nothing serving" the issue also reports. Both
+  ends read `time.time()` now, so a stalled wall clock stalls the cadence and the
+  reading together. (#1080)
+- `app/core/watchdog.py`, the in-process watchdog on the other two stacks, is left
+  untouched: it beats via `loop.call_later` and judges with `time.monotonic()`,
+  both the event loop's own clock, so it is internally consistent and never used
+  uvicorn's notify hook. The trade is stated: a real wedge coinciding with a
+  backward NTP step reads negative and defers the verdict, bounded by
+  `POLLS_BEFORE_WEDGED`, self-healing, and local-dev only - and since uvicorn gates
+  the cadence on wall time, a wall-clock verdict is the only self-consistent
+  choice. (#1080)
+
+## [0.0.277] - 2026-08-26
+
+### Fixed
+
+- **A cancelled save orphaned its file.**
+  `asyncio.to_thread(path.write_bytes, data)` cannot interrupt the running write,
+  so a task cancelled mid-write unwound with the file created *after* `save()` had
+  raised - the caller never got `storage_path`, so it could neither record the file
+  nor delete it. `write_bytes_cancel_safe` shields the write and, on cancellation,
+  waits it out and removes the file before the cancellation propagates. (#1108,
+  #25)
+- **Parses shared the executor with `bcrypt` and DNS.** A burst of uploads could
+  occupy every worker on the loop's default pool and queue sign-in and outbound
+  requests behind them. Parsing and the storage byte operations run on a dedicated
+  `ThreadPoolExecutor` in `app/core/blocking.py` now, bounded by
+  `FILE_IO_MAX_WORKERS` (default 8), so a parse storm saturates its own pool and
+  nothing else. The new module is registered in the coverage `include`, the ty
+  override and `PLATFORM_MODULES` - new platform code held to the 100% gate rather
+  than the template's downgraded rules. (#1108, #25)
+- Two defects in the new pool, found by the reviewer on the branch and fixed
+  before merge, both defeating the guarantee it was added for. The gate released
+  its admission slot when the *caller* unwound, and an executor cannot interrupt a
+  running job - so a cancelled caller handed its permit on while its own worker
+  stayed occupied, and a wave of cancellations admitted arbitrarily many jobs into
+  the pool's unbounded pending queue. The release rides the future's own
+  completion now. And `await asyncio.shield(_discard(...))` shielded the cleanup
+  task but not the frame awaiting it, so a second cancellation raised straight out
+  and left the cleanup to be cancelled with everything else - leaving exactly the
+  orphaned file it exists to prevent. Cancellations arriving while it runs are
+  absorbed until it finishes. (#1108)
+
+## [0.0.276] - 2026-08-26
+
+### Fixed
+
+- **A user who had ever invited anybody could not be deleted.** Three foreign keys
+  into `users.id` - `OrganizationMember.invited_by_user_id`,
+  `Invitation.invited_by_user_id` and `Invitation.accepted_by_user_id` - carried no
+  `ondelete`, so PostgreSQL's NO ACTION made each an absolute bar on deleting the
+  referenced user: `DELETE /users/{id}` failed with a foreign-key violation
+  surfaced as a 500, which is common in any real deployment. All three are
+  `ON DELETE SET NULL` now - who invited a member and who accepted an invitation
+  are audit context that should outlive the user, the way the secret and collection
+  attribution FKs already null. `Invitation.invited_by_user_id` was NOT NULL, so
+  the migration makes it nullable in the same step: set on every create, null only
+  once the inviter is gone. (#1110, #9)
+- `seed --clear`'s bulk `delete_non_admins` still 500s on
+  `organizations.created_by_user_id` RESTRICT for a user who owns a personal
+  organization - that path bypasses the reconciliation and hits a different FK, so
+  it was filed rather than folded in. (#1124)
+
+## [0.0.275] - 2026-08-26
+
+### Fixed
+
+- **The ingestion existence check read the whole collection, once per document.**
+  `IngestionService.existing_document` answered "does this collection already hold
+  this file" by reading every row of the runtime `rag_<collection>` table through
+  `get_documents` and grouping in Python - a full read into worker memory for each
+  ingested document, which on a 200k-chunk collection dominates a nightly sync. The
+  lookup belongs to the store now as `find_existing_document`, which `PgVectorStore`
+  answers with one indexed statement per key in the same precedence - `source_path`,
+  then an unaddressed `filename`, then `content_hash` - stopping at the first hit.
+  `_ensure_collection` builds an expression index on each of the three metadata keys
+  alongside the table, so an established collection gains them on its next ingest
+  through the write path's existing call. (#1102, #27)
+- The invariants are preserved rather than re-derived: the #548 single-document rule
+  and the #990 unaddressed-filename rule move into a reference implementation on
+  `BaseVectorStore` that scans, so a store with no index still answers correctly and
+  `PgVectorStore` overrides it with the indexed path. Index suffixes are kept no
+  longer than the HNSW one, so `MAX_COLLECTION_NAME_LENGTH` stays 45 and no
+  identifier truncates, and `existing_document`'s signature is unchanged so
+  `rag_tasks` and the `rag-*` commands are untouched. The document *listing* is
+  still a full scan - that is the display path, not the ingest check. (#1102)
+
+- Two things this branch broke on `main`, fixed with it and each invisible to the
+  branch that caused it - both were green before the other merged. The
+  `_first_document` annotation referenced `AsyncSession` after #12 removed that
+  import, so `ruff` failed the whole `lint` job; and the index backfill claimed
+  `0055_sandbox_operations` as its parent while the conversation plan already had,
+  leaving the migration chain with **two heads** - `alembic upgrade head` cannot
+  choose between them, so a deployment could not migrate at all. The backfill is
+  re-parented onto the current head as `0058`. (#1102, #12)
+## [0.0.274] - 2026-08-26
+
+### Fixed
+
+- **The Prefect RAG sync flows did their filesystem work on the worker's event
+  loop** - the defect #25 fixed on the request path and left as a lower-severity
+  follow-up. A large tree or file has no suspension point: `rglob` over a
+  directory, `sha256(read_bytes())` per file, `stat()` and a per-file `resolve()`
+  each stall the loop. Every per-file blocking call goes through
+  `asyncio.to_thread` now: the tree walk is one hop over `_walk_files` rather than
+  a hop per file, the per-file hash is `_hash_file` shared by the local and
+  connector paths, and `stat` and `resolve` are offloaded per file. Values are
+  unchanged - identical walks, hashes, sizes and resolved paths - only the thread
+  moves. The one-off resolve of the sync *target* path is O(1) per flow and stays
+  on the loop. (#1100, #25)
+
+## [0.0.273] - 2026-08-26
+
+### Fixed
+
+- **The document listings had no stable order across pages.** `get_all` and
+  `get_for_kb` ordered by `created_at DESC` with no unique secondary key, and a
+  bulk import lands many `rag_documents` in one microsecond - so over tied
+  timestamps that is not a total order, and a client paging with `offset` and
+  `limit` could see a row twice or skip one across a page boundary, because each
+  page is a separate query whose sort of the tied rows is undefined. Both order by
+  `created_at DESC, id DESC` now, which is what the sibling
+  `vectorstore.get_documents` already did for this reason (#548). The change is
+  additive: a tiebreaker is consulted only when `created_at` ties, so rows with
+  distinct timestamps keep their exact prior order. (#1103)
+- **`main` was red between 0.0.270 and here**, and neither branch could have seen
+  it: #1112's integration tests built a `PgVectorStore` with no `engine` and closed
+  it with `aclose()`, while #12 had already made the engine a required keyword and
+  deleted the method when the store stopped owning a pool. Both were green on their
+  own - #1112's run predated #12's merge - so the break appeared only once both
+  were on `main`. The tests take the engine from the fixture that owns it now.
+  (#9, #12)
+
+## [0.0.272] - 2026-08-26
+
+### Fixed
+
+- **A malformed embed-token claim was a 500 rather than a refusal.**
+  `_verify_token` decoded a visitor token inside a `try/except jwt.PyJWTError`, but
+  a signed token whose `exp` or `iat` is `null`, `[]` or `{}` makes PyJWT's own
+  validation run `int()` on it - which raises a bare `TypeError`, not a
+  `PyJWTError`, so it escaped the handler and became an uncaught 500 with a logged
+  traceback. Not attacker-exploitable: claim validation runs after signature
+  verification, so minting such a token needs the customer's own signing secret,
+  and it fails closed. The catch covers `TypeError` now and raises `EmbedDenied`.
+  `ValueError` is left out deliberately - on the pinned PyJWT only these coercions
+  raise a bare `TypeError`, and every malformed-segment, base64, JSON or
+  non-numeric case is already a `PyJWTError` subclass, so catching it would be an
+  unreachable branch. (#1107)
+
+## [0.0.271] - 2026-08-26
+
+### Fixed
+
+- **Four check-then-act races**, each closed with the row-lock and atomic-write
+  pattern `claim_parked_run` already uses. (#17)
+- **An approval could be decided twice.** `decide` read pending, guarded, and wrote
+  with no lock, so a concurrent reject and approve both passed the guard and both
+  wrote - two contradictory audit entries for one decision. `get_approval` grows a
+  `for_update` variant, so the second decide blocks, re-reads a decided row and is
+  refused. (#17)
+- **One person messaging two chats at once got no reply to the second.**
+  `_resolve_identity` was a get-then-create on
+  `uq_channel_identity_platform_user`, so the second webhook 500'd on the unique
+  violation. `get_or_create` reads first - no lock and no write on the common path,
+  because the whole message runs in one transaction through the LLM call and an
+  unconditional upsert would serialise a user active in two chats - and only on a
+  miss inserts with `ON CONFLICT DO UPDATE` and reads back. (#17)
+- **Two accepts of a one-use invitation both created a member.** The read of
+  `used_count`, the guard against `max_uses` and the increment were unlocked.
+  `get_by_token` grows a `for_update` variant, so the second accept blocks,
+  re-reads the exhausted link and is refused. (#17)
+- **The budget cap bounds committed spend, not simultaneous runs** - a run's cost
+  lands on its row only when it finishes, so concurrent runs read the same baseline
+  and can overshoot. That is an aggregate with no single row to lock, so it is
+  documented in `docs/governance.md` rather than papered over. (#17)
+- The regression tests hold one transaction open with the row locked, or the insert
+  uncommitted, while the second runs - because racing through `asyncio.gather`
+  alone reproduces none of the four: the pair serialises and the first commits
+  before the second reads. (#17)
+- `ChannelLinkService.confirm` still get-then-creates on the same identity key, a
+  sibling of the race closed here, and was filed rather than folded in. (#1113)
+
+## [0.0.270] - 2026-08-26
+
+Three deletes that could only 500, because a cascade drove exactly the write a
+CHECK forbids.
+
+### Fixed
+
+- **A leaver's private secret.** `organization_secrets.owner_user_id` is
+  `ON DELETE SET NULL` under `ck_secret_private_needs_owner`, so the cascade wrote
+  the one row the constraint refuses and the delete raised inside Postgres.
+  `UserService.delete` promotes the leaver's private secrets to organization
+  visibility first, so the null is legal and the key stays reachable by the
+  organization. (#9)
+- **A creator's organizations.** `organizations.created_by_user_id` is RESTRICT and
+  every signup creates a personal organization, so a bare `DELETE users` never
+  worked for a real account. The personal organization is removed with its owner, a
+  shared one is handed to another owner, and the delete is refused - cleanly, as a
+  `BadRequestError` rather than a 500 - when there is no other owner. (#9)
+- **An organization-scoped collection.** `knowledge_bases.organization_id` is
+  SET NULL under `ck_knowledge_bases_org_scope_has_org`.
+  `OrganizationService.delete` removes organization-scoped collections explicitly,
+  vector table and all, before the organization row goes; a personal collection
+  merely carrying the organization's id is left to the SET NULL. Dropping the
+  vector table needs the request-scoped store, so the delete route wires it in
+  through a dedicated dependency and every other organization route builds none.
+  (#9)
+- Each pair is reconciled in the service, inside the request's own transaction,
+  before the row goes. Three `ondelete`-less FKs to `users.id` are deliberately out
+  of scope - they are NO ACTION, so deleting a user who invited somebody still
+  500s, and that needs a migration. (#9, #1110)
+
+## [0.0.269] - 2026-08-26
+
+### Fixed
+
+- **An embed token with no `iat` was accepted for ever.**
+  `AgentEmbedService._verify_token` checked max-age only
+  `if isinstance(iat, int | float)` - opportunistically - and PyJWT requires
+  neither `iat` nor `exp`, so a correctly signed `{"sub": "user-42"}` carried no
+  freshness claim at all. One token scraped from a browser's network tab kept the
+  widget answering on the organization's bill indefinitely, which is the exact
+  failure the surrounding code twice names as the dangerous one. A within-window
+  `iat` is required unconditionally now: no `iat`, or one older than the 12h
+  ceiling, is refused. (#23)
+- **`exp` is deliberately not an alternative freshness claim.** Treating it as one
+  would let a customer's ordinary far-future `exp` override the ceiling, so a copied
+  token could replay until it expired - a milder version of the same leak. `exp`,
+  when present, is still validated by PyJWT, so it can only shorten the window,
+  never extend it past 12h. Behaviour is unchanged for every token that carries an
+  `iat`. (#23)
+- A pre-existing robustness gap left out of scope and filed: a malformed `null` or
+  `[]` `exp`/`iat` raises a raw `TypeError` inside `jwt.decode` and 500s. Not
+  exploitable - it fails closed. (#1107)
+
+## [0.0.268] - 2026-08-26
+
+### Fixed
+
+- **A non-ASCII credential was a 500 with a traceback rather than a refusal.**
+  `secrets.compare_digest` raises `TypeError` on a non-ASCII `str` instead of
+  answering `False`, and three checks compared `str` with the left operand taken
+  from the caller: `deps.verify_api_key` on the API-key header, the Mattermost
+  webhook bearer check, and the Slack signature check. So `{"token": "é"}` to the
+  *unauthenticated* Mattermost webhook, or a non-ASCII `X-Slack-Signature`, was a
+  logged 500 - a free log-flooding primitive. Not an auth bypass, since the
+  comparison never matched anyway. All three compare encoded bytes now: still
+  constant-time, and non-ASCII refuses cleanly. (#33)
+
+## [0.0.267] - 2026-08-26
+
+### Changed
+
+- **`app/core/sanitize.py` is on the coverage gate and the type-checker overrides.**
+  It is the SSRF allow and deny every outbound URL a tenant chooses is checked
+  against - a webhook target, an MCP server address - and it was in neither list,
+  which is what #28 asks to extend to the modules implementing the refusals
+  CLAUDE.md names as must-cover. It sat at 95%: the two DNS-failure exits in
+  `resolve_pinned_url`, a lookup that raises `gaierror` and one that resolves to no
+  address, had no test. Both are covered now with a mocked `getaddrinfo`, and the
+  module is added to both lists verbatim and in the same position, beside
+  `pinned_http.py` - the validator paired with the client that dials what it
+  validated. (#28)
+- The rest of #28's tail stays open and is named on the issue: `agent_embed.py` at
+  85% needs substantial tests first, and the four channel modules hold open bugs
+  and need a real database to measure. The five-routes layering landed in #232, and
+  `audit.py` is gated by #20. (#28)
+
+## [0.0.266] - 2026-08-26
+
+### Fixed
+
+- **`GET /api/v1/rag/documents` returned every document a caller could read.** It
+  selected every `rag_documents` row across the caller's readable collections and
+  serialized the whole set in one response - unbounded, so a tenant with 50k
+  documents got a multi-second query and tens of MB held entirely in memory. The
+  sibling `get_for_kb` already paged; this path simply did not use the pattern.
+  `get_all` takes `skip` and `limit` and a `COUNT` for the total, returning
+  `(rows, total)` like its sibling; the service reports the repository's total
+  rather than the page length; and the route carries `skip` and `limit` per
+  `.claude/rules/api-conventions.md`. No frontend caller changes - the console pages
+  the already-paginated `get_for_kb`. (#27)
+- The issue's second half - making ingestion's `existing_document` O(1) instead of a
+  full `rag_<collection>` scan - rewrites a hot path with a documented
+  precedence history (#548, #566) and needs a JSONB predicate plus a supporting
+  expression index on the runtime-created vector tables, verified against a real
+  database. A `source_path` fast path alone is still a sequential scan without the
+  index, and two passes on the common miss, so it was split to #1102 rather than
+  shipped blind. (#27, #1102)
+
+## [0.0.265] - 2026-08-26
+
+### Fixed
+
+- **Upload parsing and local file storage were `async def` over pure blocking work,
+  with no suspension point at all.** `FileUploadService.parse_content` ran pymupdf
+  over every page and openpyxl over every cell, and `LocalFileStorage.save`/`load`
+  decoded and wrote or read up to `MAX_UPLOAD_SIZE` - so one user uploading a large
+  PDF, or an agent turn loading three attached images, froze every other request and
+  every in-flight agent WebSocket stream on that uvicorn worker until the work
+  landed. Every branch of the parse and both byte operations are offloaded with
+  `asyncio.to_thread`. The codebase already knew the pattern: `agents/mcp.py` routes
+  DNS through a thread, and `rag_document.py` switched a write to anyio for exactly
+  this reason - while writing the identical bytes twice, only one of which had been
+  fixed. (#25)
+- The now-dead `ASYNC230` per-file ruff ignore on `file_upload.py` is gone: the only
+  blocking open left is `pymupdf.open` inside a sync helper, so the rule no longer
+  fires. Three thread-identity regression tests assert the parse and the two byte
+  operations each run off the event loop's thread, and each fails if its
+  `to_thread` is reverted. (#25)
+- Scope is the two request-path functions. The worker-side blocking IO the issue
+  also lists is the worker rather than the request path, and is tracked separately.
+  (#25)
+
+## [0.0.264] - 2026-08-26
+
+### Fixed
+
+- **A malformed sealed payload put the decrypted credential in the log.**
+  `unseal_secret` promised `BadRequestError` for an envelope holding something that
+  is not a secret payload, but `_STORABLE_ADAPTER.validate_json(...)` raises
+  `pydantic_core.ValidationError`, which is not an `AppException` - so it reached
+  `unhandled_exception_handler` and `logger.exception`. A pydantic `ValidationError`
+  embeds the offending input in its message, and here that input is the decrypted
+  credential, so the plaintext landed in the log line and, under
+  `logfire.instrument_fastapi`, on the exception span - breaking the guarantee
+  `docs/secrets.md` states. It is caught and re-raised as
+  `BadRequestError(message="Stored secret is not a usable payload")` naming only the
+  recorded kind. (#21)
+- Two parts, both load-bearing. The **type change** is the primary guard: a 4xx
+  `AppException` is logged at warning with no `exc_info`, so no traceback is
+  formatted on the HTTP path and it never reaches the `logger.exception` handler.
+  And **`from None`** covers the non-HTTP readers whose traceback *is* rendered - a
+  Prefect task failure, `doctor.py`'s own formatting - by setting
+  `__suppress_context__` and keeping the chained `ValidationError`, which still
+  holds the plaintext in `__context__`, out of the formatted traceback. The
+  regression test pins `__suppress_context__` rather than `__cause__`, because
+  `__cause__` is `None` with or without `from None` and asserting on it would let a
+  future edit reintroduce the leak silently. (#21)
+- Reachable from `resolve_for_bindings`, `ModelProfileService` and the provider
+  listing key whenever a stored payload no longer validates: a hand-edited row, a
+  rollback to a build whose `SecretKind` enum lacks a kind a newer build wrote, or a
+  future field tightening. (#21)
+
+## [0.0.263] - 2026-08-26
+
+### Fixed
+
+- **`drain()` waited on one snapshot of `_running`**, so a task that handed off
+  more work while draining - a channel run finishing an agent turn spawns each of
+  its notifications - could leave the freshly spawned task in flight when `drain()`
+  returned. It waits until `_running` is quiescent under one overall deadline now,
+  re-snapshotting each pass, so work spawned mid-drain is awaited while a task that
+  keeps spawning work cannot postpone shutdown for ever. (#1095)
+- **After the timeout it called `task.cancel()` and returned immediately**, so a
+  caller that disposes shared resources next - the Redis client, the database
+  engine - raced a cancelled task still unwinding through its own `finally` on those
+  very resources. Whatever overran is cancelled and `gather`ed to a terminal state
+  before `drain()` returns. (#1095)
+- One edge is deliberately left: the post-deadline cancel and gather snapshots the
+  overrunning set once, so a cancelled task whose `finally` spawned fresh work while
+  unwinding would not be awaited. No `finally` in the codebase spawns background
+  work, and looping that phase would reintroduce the unbounded wait the single shot
+  avoids. (#1095)
+- The third gap in the issue - a bot created just before shutdown whose deferred
+  `open_inbound_stream` reopens intake during teardown - is a shutdown *ordering*
+  concern rather than a `drain()` one, and is #1119. (#1095, #1119)
+
+## [0.0.262] - 2026-08-26
+
+### Changed
+
+- **The RAG sync-source wizard kept a second schema-form renderer.**
+  `ConfigureStep` sat next to `SchemaForm`, the generator the agent Builder and the
+  vault secret forms already share, so field types, help text and secret masking
+  were maintained twice - and had already drifted: `SchemaForm` had no textarea,
+  `ConfigureStep` had no enum. The config step renders through `SchemaForm` now,
+  with a connector's `config_schema` adapted to the JSON Schema subset it reads;
+  `ConfigureStep` keeps only its wizard chrome and the wizard's props are unchanged.
+  The "no enum" half of the divergence closes for free, because the config step *is*
+  `SchemaForm`. (#568)
+- **`connectorConfigToJsonSchema()` in `frontend/src/lib/connector-schema.ts`** is
+  the single place the two field-type vocabularies meet, and its `switch` over
+  `ConnectorFieldType` is exhaustive - so a fifth connector field type is a compile
+  error until a JSON Schema mapping is chosen, rather than the silent fall-through
+  to a text box the typed `Literal` originally replaced. (#568)
+- A plain-textarea kind on `SchemaForm` (`x-textarea`), distinct from
+  `x-multiline`'s Markdown editor, which is for prose. No capability emits it, so
+  the secret and agent forms are untouched and the branch is inert without the
+  keyword. (#568)
+- Two visible changes on the wizard, both `SchemaForm`'s existing behaviour rather
+  than anything new: a field's default shows as its value rather than as grey
+  placeholder text, and a boolean whose default is on draws on. Neither changes what
+  the wizard sends - nothing is stored until a field is edited, so the sent `config`
+  is identical. (#568)
+- Scope is deliberately the renderer, not the backend wire shapes. Converging the
+  two so connectors emit JSON Schema natively, and the adapter and
+  `ConnectorConfigField` disappear, is the higher-risk half and is #1093. (#568,
+  #1093)
+
+## [0.0.261] - 2026-08-26
+
+An audit write that cannot be recorded now takes the action down with it.
+
+### Fixed
+
+- **`record_audit` swallowed every exception, which is fail-open on the audit
+  trail** - the trail `docs/governance.md` makes load-bearing for the app-admin
+  bypass story. The swallow did not even buy silence: `flush()` inside the `try`
+  left the session needing a rollback, so the request's `scope="function"` commit
+  raised `PendingRollbackError` and 500'd anyway, with an opaque error naming the
+  session rather than the audit. The write shares the caller's transaction now, so a
+  failure propagates and rolls the recorded action back rather than letting a
+  privileged mutation land unaudited. `db` is typed `AsyncSession`, which it never
+  was, and `app/core/audit.py` is in both the coverage `include` and the ty
+  overrides - every service that records an action was already gated; the trail they
+  write to was not. (#20)
+- **Three unit-test fixtures the swallow was hiding.** `sync_source`,
+  `sandbox_connection` and `skill_proposal` built a bare `MagicMock()` db, where
+  `await db.flush()` raised `TypeError` inside `record_audit` - so the audit write
+  was a silent no-op a green suite never noticed. They build the db the way every
+  other audit-calling test already does. (#20)
+
+### Changed
+
+- A failure specific to the audit row - a bad `details`, an FK on
+  `organization_id` - now rolls the *action* back rather than being dropped. That is
+  the atomicity `governance.md` describes, and the recorded `details` were reviewed
+  and are all serialisable. (#20)
+
+## [0.0.260] - 2026-08-26
+
+### Fixed
+
+- **`SecurityHeadersMiddleware` was fully written and never registered**, so no API
+  response carried a Content-Security-Policy, `X-Content-Type-Options`,
+  `X-Frame-Options`, `Referrer-Policy` or `Permissions-Policy`. The bundled nginx
+  sets a weaker subset and no CSP, so a self-hosted deployment not fronted by that
+  exact nginx got nothing at all. The sharpest sign it was an oversight: `files.py`
+  already opts its framed endpoint down to `SAMEORIGIN`, against a default that was
+  not there. Registered in `create_app` with `setdefault`, so the file download's
+  per-response `X-Frame-Options: SAMEORIGIN` still wins. (#18)
+- Two things the registration made live for the first time, fixed with it:
+  `X-XSS-Protection: 0` rather than the deprecated `1; mode=block`, per OWASP - the
+  CSP is the real defence - and the doc pages excluded by their *real* mounted
+  paths, since the schema is under the API prefix rather than at `/openapi.json`,
+  so the exclusion is not a dead entry and the CSP cannot break Swagger or ReDoc.
+  `docs/deploy.md` records the app-level headers for an operator running their own
+  proxy. (#18)
+
+## [0.0.259] - 2026-08-26
+
+### Fixed
+
+- **Every domain refusal was logged as an application error.** `_managed_session`
+  caught everything with `logger.exception(...)`, so a `NotFoundError` (404), an
+  `AuthorizationError` (403) and an `AlreadyExistsError` (409) each wrote a full
+  stack trace at ERROR - and on a platform whose value is mostly in what it
+  refuses, the refusals were the loudest lines in the log and a real 500 was buried
+  among them. A domain refusal rolls back and re-raises without a traceback now.
+  The ERROR line is kept for the unexpected and, deliberately, for a **5xx**
+  `AppException` such as `DatabaseError` or `ExternalServiceError`: that is a
+  server fault whose traceback the exception handler does not log, so suppressing
+  it here would lose it end to end. The gate is
+  `not isinstance(exc, AppException) or exc.status_code >= 500`, in a single branch
+  so the rollback stays wrapped on every path. The conftest mocks
+  `get_db_session`, which is why this lifecycle was off the tested path and the
+  noise went unseen. (#19)
+
+## [0.0.258] - 2026-08-26
+
+### Fixed
+
+- **Nothing called `background.drain()`, though its docstring said the lifespan
+  did.** So shutting down mid-flight cancelled an ingestion or a sync that
+  `background.spawn` had handed off, and left a document stuck in `processing`
+  forever. The lifespan now awaits the drain after intake stops and before the
+  vector store, Redis and the session are disposed - the draining task reads all
+  three, so it has to finish or be cancelled first. `tests/test_lifespan_drain.py`
+  drives the real `main.lifespan` with startup's heavy collaborators stubbed,
+  spawns a task inside the serving window and asserts it runs to completion on
+  shutdown. (#11)
+
+## [0.0.257] - 2026-08-26
+
+### Fixed
+
+- **Twelve specs mocked `next-intl` as a translator missing part of `t`** - eleven
+  as a bare `(key) => key`, and `kb-detail-sections` as a hand-rolled cache that
+  had grown `t.rich` but still lacked `t.markup` and `t.has`. `t` carries all three,
+  and a component reading a message with a tag calls `t.rich`. They were green only
+  because none of their components reads a rich message *yet*: the #395 guard steers
+  copy toward `t.rich`, so they will, and then one throws `t.rich is not a function`
+  inside a component several files from the assertion - which is exactly how #610
+  was found. A shared `keyTranslations(format)` in `src/test-utils/intl.ts` is now
+  the one definition of a key-returning translator, complete with `rich`, `markup`
+  and `has`, and each local mock uses it while keeping its own key shape and, for
+  kb-detail, its per-namespace cache, so no assertion moved. The mock factory is
+  `async` and imports the helper inside itself, because `vi.mock` is hoisted above
+  the static imports. `intl.test.ts` asserts the helper carries all three, so the
+  next mock added by copy-paste cannot lose them silently. (#612, #610)
+
+## [0.0.256] - 2026-08-26
+
+### Changed
+
+- Backend dependencies: `uvicorn` 0.52.4, `pydantic-ai-harness` 0.24.0,
+  `llama-cloud` 2.14.1, `google-api-python-client` 2.199.0, `boto3` 1.43.78,
+  `subagents-pydantic-ai` 0.2.21, `ruff` 0.16.4 and `ty` 0.0.74. Applied on a
+  branch off current `main` and re-locked rather than merged from Dependabot's,
+  whose branch predated the agent-frameworks group and would have reverted it.
+  (#1153)
+
+## [0.0.255] - 2026-08-26
+
+### Fixed
+
+- **The only pages an unauthenticated visitor loads shipped all 89 brand marks.**
+  The sign-in and register pages drew three - Google, GitHub, Microsoft - through
+  `BrandIcon`, which reads the `BRAND_GLYPHS` table by dynamic key, and a dynamic
+  record access cannot be tree-shaken. So about 104 KB of source, 25 to 30 KB
+  gzipped, sat on the critical path and grew with every connector nobody signs in
+  with. The generator emits a second module, `auth-glyphs.generated.ts`, holding
+  just the three identity-provider marks and derived from the same fetched data so
+  the generator stays the single source of glyph data; `oauth-buttons` draws
+  `AUTH_GLYPHS` through `GlyphIcon` directly. A test guards the regression: the
+  auth component must not import `BrandIcon` or `brand-glyphs.generated`, and
+  `AUTH_GLYPHS` must hold exactly the three. (#955)
+
+## [0.0.254] - 2026-08-26
+
+### Changed
+
+- Agent-framework dependencies: `logfire` 4.41.0, `pydantic-ai-slim` 2.33.0
+  (including its `mcp` extra), `genai-prices` 0.1.4 and `pydantic-ai-skills` 1.4.0.
+
+## [0.0.253] - 2026-08-26
+
+Nothing holds a pooled connection across a model call, so the sixteenth request is
+answered rather than queued.
+
+### Fixed
+
+- **Three paths held a pooled Postgres connection across work measured in seconds
+  to minutes**, so fifteen concurrent anything exhausted the pool
+  (`DB_POOL_SIZE=5` plus `DB_MAX_OVERFLOW=10`) and the sixteenth request of any
+  kind blocked for `DB_POOL_TIMEOUT` and then raised. (#12)
+- **The run's transaction spanned the model call.** `_run` and
+  `ChatAgentRunner.run` commit once *before* the model is asked anything, with the
+  terminal commit from #231 left in place. The run row is visible from every other
+  session mid-run, the connection goes back to the pool for the duration of the
+  call, and a resumed run's `mark_running` is durable before the approved call is
+  replayed - so a crash mid-replay can no longer hand the same approval out twice.
+  The budget capability's baseline read moved onto a session of its own; read on
+  the run's shared session it silently re-opened the idle transaction. (#3, #12)
+- **`PgVectorStore` built a private pool per instance.** The store borrows an
+  injected engine and `aclose()` is gone. The API, CLI and the knowledge capability
+  share the process engine through one `process_vector_store()` factory - the
+  #306-shaped four-site repetition collapsed into it - and the worker builds one
+  engine per flow in `_ingestion_service`, disposed on every path out. The embed
+  widget needed no change: `EmbedSession` already takes a session factory and opens
+  one per turn (#39). (#12)
+- **The agent-triggers scheduler reasoned from "an executing run's row is
+  invisible".** `claim_due`'s conversation guard blocks on `awaiting_approval`
+  alone, because a crash-orphaned `running` row would otherwise wedge the schedule
+  forever, and the fire-recovery branch corroborates a `running` tail against a
+  fresh session before settling it as its own orphan - a concurrent fire's live run
+  is left alone. (#537, #12)
+- **The crash-orphan remainder.** An hourly stale-run sweep ends anything still
+  `running` past `STALE_RUN_REAPED_AFTER_HOURS` (6h default, 0 disables) as
+  `failed`, with the sweep's own sentence on the row: one conditional UPDATE whose
+  status guard re-evaluates under the row lock, and a live run flipped anyway is
+  flipped back by its own terminal write. No spend is invented, nobody is mailed,
+  and `awaiting_approval` is never touched. (#1078)
+
+### Changed
+
+- The opening commit sits in `_run` and `ChatAgentRunner.run` rather than
+  centralized in `PreparedRun.execute`/`iterate`, because `PreparedRun` does not
+  carry the session; both sites are tested and documented. The per-flow worker
+  engine keeps SQLAlchemy's default pool knobs, as the in-store engine did - tying
+  it to `DB_POOL_SIZE` would couple worker sizing to API tuning silently. And
+  API-process vector work now shares the request pool: with connections no longer
+  held across model calls 15 is comfortable at the measured load, but a heavy-RAG
+  deployment may want a bigger `DB_POOL_SIZE`. (#12)
+
+## [0.0.252] - 2026-08-26
+
+A client-supplied path segment can no longer walk out of the route it was given to.
+
+### Fixed
+
+- **About a dozen route handlers under `src/app/api` interpolated a
+  client-supplied path segment straight into the backend URL with no
+  `encodeURIComponent`.** Next decodes `%2F` into the param and `fetch`
+  normalises `..`, so a segment escapes its intended route: an organization id of
+  `x%2F..%2F..%2Fadmin%2Fusers` reached the backend as `/api/v1/admin/users`. This
+  is defence in depth rather than live escalation - the backend re-gates admin on
+  `CurrentAppAdmin`, so nothing currently reachable would not be anyway - but the
+  BFF's own fence was decorative, and any future backend route assuming "only
+  reachable through a handler that checks X" would be exposed the day it lands.
+  (#13, #30)
+- **Every interpolated segment is `encodeURIComponent`-wrapped**, matching the
+  sibling routes that already did it, and a new sweep in `platform-proxy.test.ts`
+  fails any route interpolating a bare `${param}` into a `/api/v1` template - the
+  same reasoning the file already gives for its organization-header sweep, so the
+  next hand-rolled route cannot repeat the omission. The host prefix and query
+  interpolations are not path segments and are left alone; a `platformProxy` route
+  forwards its path verbatim and has nothing to encode. (#13, #30)
+
+## [0.0.251] - 2026-08-26
+
+The vault's master key is explicit everywhere, and rotating it no longer destroys
+every secret it protects.
+
+### Fixed
+
+- **The master key was validated only in production.** The config refused the
+  default `SECRET_KEY` only when `ENVIRONMENT == "production"`, while staging is
+  first-class here - so a staging vault booted with every credential sealed under a
+  string published in `config.py`. A model validator refuses an unset
+  `VAULT_MASTER_KEY` outside `local` and `development`, and the
+  `getattr(settings, "VAULT_MASTER_KEY", "")` typing escape is gone. (#8)
+- **Rotation destroyed every secret.** `_wrapping_key` derived every version from
+  the single current setting, so `key_version` recorded nothing and setting a new
+  master key made every envelope unreadable - `rewrap` included, because it derived
+  the *from*-key from the same new value. (#8)
+- **`McpConnectionService.update` and `update_for_org` sealed a replacement token
+  at the current version without re-sealing the row's OAuth envelopes** - the same
+  latent defect #552 fixed on channel bots, and destructive the moment versions
+  mean distinct keys. Both seal at the row's recorded version now. (#8, #552)
+
+### Added
+
+- **`VAULT_MASTER_KEYS: dict[int, str]`**, chosen over a
+  `VAULT_MASTER_KEY_PREVIOUS` because it generalizes the `key_version` column
+  rather than hardcoding a two-key window. The single `VAULT_MASTER_KEY` stays as
+  shorthand for version 1, and both set at once is refused as ambiguous. The
+  highest version seals new secrets; an envelope naming a version with no
+  configured key raises `ConfigurationError` naming the missing entry instead of a
+  generic decrypt error. (#8)
+- **HKDF-SHA256 replaces the bare `sha256(master|scope|v)`** - one hash over a
+  possibly passphrase-derived value is not a KDF. The switch is versioned by the
+  envelope format (`ENVELOPE_VERSION` 1 to 2): version-1 envelopes keep opening
+  under the old derivation, everything new is HKDF, and `rewrap` upgrades the
+  format in place. Without that, the KDF change alone would have been the rotation
+  defect under another name. (#8)
+- **`agenticos cmd vault-rotate [--dry-run]`** walks every table holding envelopes
+  - `organization_secrets`, `channel_bots` four times, `mcp_connections` three
+  times with per-row scope so a personal connection re-wraps under its member, plus
+  `agent_embeds` and `agent_triggers`. A row's ciphertexts move together with the
+  version column or not at all; failures are named, do not stop the sweep, and exit
+  non-zero so a script cannot drop the old key on a partial rotation. `--dry-run`
+  performs the full unwrap and rewrap without writing. (#8)
+
+### Changed
+
+- `seal`, `seal_fields` and `seal_secret` default to the current key version, so a
+  row created with no envelope records the current version instead of a hardcoded
+  1. `doctor`'s vault check accepts either configuration form. `secrets.md` carries
+  the rotation procedure now that it is real, and `configuration.md`,
+  `commands.md` and `backend/.env.example` carry the new setting. (#8)
+- **No key-length validation on a configured master, deliberately.** Refusing a
+  short existing key at boot would lock a deployment out of the very rotation it
+  needs to escape it, because the old key has to stay configured to rotate away
+  from it. HKDF also weakens the cost of a low-entropy master, and the docs steer
+  to `openssl rand -hex 32`. (#8)
+
+## [0.0.250] - 2026-08-26
+
+Every tool says what it returns, and one place decides whose mistake a failure was.
+
+### Added
+
+- **A `Returns:` on every tool.** Seven docstrings had none, so the model could not
+  know that `search_channels` answers `- name (id) - purpose`, that a history read
+  is capped at 200 messages with each cut to 500 characters, that `list_context` is
+  an index rather than bodies, or what `run_python` does with a final expression's
+  value. A tool whose answer can be a slice has to say so, or the model reasons
+  from the slice as though it were the whole set. `list_context` also answered an
+  empty string when nothing was attached, which reads to a model as a broken tool;
+  it says so in a sentence now. (#1075)
+- **One failure taxonomy, written down** in
+  `.claude/skills/agent-capability/references/tool-text-and-failures.md` and a new
+  section of `docs/reference/capabilities.md`, so the next capability is not a coin
+  flip.
+
+### Changed
+
+- **`steer` in `app/agents/capabilities/_failures.py` is the one place that
+  decides**, and it exists rather than a bare `raise ModelRetry` for a reason worth
+  stating: a retry raised past a tool's budget - one attempt by default, and
+  nothing raises it - does not fail the call, it ends the whole run with
+  `UnexpectedModelBehavior`. A model that sent the same malformed chart twice took
+  the conversation down with it. On the last attempt `steer` returns the message
+  instead, so the worst case is the string the tool would have returned anyway.
+  `charts`, `context`, `knowledge`, `image_generation` and `web_research` raised
+  unconditionally and now steer.
+- **`run_python` was on the wrong side of the taxonomy.** A `NameError` or a syntax
+  error in code the model itself wrote came back as `Execution failed: ...`, a
+  sentence indistinguishable from a result, when `code` is precisely the argument
+  it composed. It answers with a `RunOutcome` naming whose problem it is -
+  `MontySyntaxError`, `MontyRuntimeError`, `MontyTypingError` and
+  `MontyConversionError` are the program's, and the resource limits report as
+  `TimeoutError` and `MemoryError`, fixable the same way by writing something
+  cheaper - while a sandbox that died is not. A model error is no longer logged as
+  an exception: an error log full of `NameError`s hides the ones that are this
+  deployment's fault.
+- **What deliberately stays a returned string**: a command that exited non-zero, a
+  search with no hits, a channel the bot cannot see, and any refusal - a retry
+  prompt on a refusal invites the model to look for a way around it. The second row
+  of the taxonomy is the one that looks wrong and is not: a *transient* failure of
+  what is behind the tool is also a retry, because an error in the shape of a
+  result reads as "nothing found" and the model then answers from memory,
+  confidently, without saying it had to.
+- Consumes `pydantic-ai-backend` 0.2.28. The sandbox catalog shows
+  `TOOL_TEXT[id].summary` where the Builder used to render 2501 characters of
+  `execute` beside an approval checkbox, and `profile="agent"` drops the guidance
+  written for an agent working in a repository - about 240 tokens on every request,
+  for advice a scratch workspace deleted with its conversation cannot use.
+
+### Fixed
+
+- **A provider's own error text no longer reaches a tool return.** `web_search`
+  built its message with `str(exc)` from whatever the search SDK raised and
+  `generate_image` interpolated the provider exception. On the last attempt `steer`
+  *returns* that message rather than raising it, and a returned string is stored by
+  `app/services/transcript.py` and streamed verbatim - deliberately, because a
+  return is the tool's own answer, where a retry prompt is replaced with a notice
+  (#681, #695). So an httpx or SDK message naming the failing endpoint, and for
+  some providers a key in its query string, reached run history for every member
+  who could read the run. The message is now built from the provider name and the
+  exception's *class* - which still says whether the upstream timed out or refused
+  the credential - and the exception's own text goes to a `logger.exception` beside
+  the raise. Same rule, and the same reasoning, as `app/services/rag/failures.py`.
+
+## [0.0.249] - 2026-08-26
+
+A week of full account access no longer sits in an access log.
+
+### Fixed
+
+- **The Google OAuth callback put the access and refresh tokens in a query
+  string.** That URL reaches the address bar and session history, the frontend
+  server's access log and any reverse proxy in front of it, and the `Referer` of
+  the next same-origin request the callback page makes - `Referrer-Policy:
+  strict-origin-when-cross-origin` sends the full URL same-origin. The refresh
+  token is valid for a week, so anybody who could read an access log had a week of
+  full account access. (#14)
+- **The callback now hands out a single-use, one-minute code** and keeps the token
+  pair in Redis. `POST /api/v1/oauth/exchange` redeems it with `GETDEL`, so a
+  replayed, an expired and a forged code all redeem to nothing and answer 401. The
+  frontend BFF swaps the code for the pair, verifies the access token against
+  `/auth/me`, and moves both into HttpOnly cookies - the tokens never touch a URL.
+  That also closes the session-fixation shape, because the BFF no longer accepts a
+  client-supplied token pair. (#14)
+
+### Changed
+
+- `docs/configuration.md` records the token-delivery decision under its OAuth
+  section. (#14)
+
+## [0.0.248] - 2026-08-26
+
+The routines onboarding path no longer freezes the page it is teaching.
+
+### Fixed
+
+- **Accepting the routine creation offer could freeze `/routines` outright.** The
+  offer was gated on the scope-blind, role-level `agents:run`, while the flow's
+  first target — the page's create buttons — mounts only on the per-agent `can_run`
+  answer, and the coach waits on a flow target with no timeout. An Owner in an
+  organization with no agents accepted the offer into a page that never came back.
+  Both layers now read the one answer the buttons themselves gate on
+  (`qk.agents.anyRunnable()`): `CreationOffer` suppresses the offer from that
+  cache, and every `create-routine` step carries an `OrgState.hasRunnableAgent`
+  include fed by the same query, so any residual path yields an inert flow rather
+  than a frozen one. (#594)
+- **That offer rendered `offer.create-routine.title` literally.** The copy was
+  never written, and a key read through a template literal is invisible to the
+  static catalog checks that would otherwise have failed the build. Added in en and
+  pl. (#594)
+
+### Added
+
+- **The routines widget says what it is sorted by.** The card ordered by next fire
+  and never told anybody; the sub-line now carries `next <instant>` for a live
+  schedule — and deliberately not for an overdue `next_fire_at`, which is a fire
+  the heartbeat has yet to claim and is loudest exactly when the worker is down.
+  Polish copy for the whole card, which had been falling back to English. (#594)
+- **`.claude/rules/frontend.md` now holds the widget mechanics** CLAUDE.md's "ships
+  its seams" rule had been pointing at: the five edits a new dashboard card is,
+  each with the failure it prevents. `docs/concepts.md` names Routines and the
+  widget, delegating the detail to `docs/triggers.md`, and `docs/first-agent.md`
+  walks a reader through the routine flow's Run now ending and the dashboard
+  customize stop. (#594)
+
+### Changed
+
+- `routines.tsx` is inside the frontend coverage gate. The widget directory is
+  gated file-by-file, so the card was invisible to the 100% gate however green its
+  tests ran — which then found the error state's retry unexercised. (#594)
 
 ## [0.0.247] - 2026-08-22
 

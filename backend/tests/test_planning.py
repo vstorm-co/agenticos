@@ -23,9 +23,10 @@ from app.agents.capabilities.planning import (
     dump_plan,
     new_plan_store,
     open_plan_store,
+    still_open,
 )
 from app.agents.capabilities.planning._capability import (
-    _DESCRIPTIONS,
+    _TEXTS,
     PLANNING_TOOLS,
     SUBTASK_GUIDANCE,
     _guidance,
@@ -96,11 +97,14 @@ class TestTools:
 
 class TestDescriptions:
     def test_the_declaration_and_the_model_read_the_same_text(self):
-        """The person choosing what needs approval and the model deciding to call a
-        tool must see one string, not two paraphrases that drift apart."""
+        """One object, two lengths - never two paraphrases that drift apart.
+
+        The Builder shows the summary beside an approval checkbox; the model
+        reads that same sentence followed by the usage and the return shape.
+        """
         declared = {tool.id: tool.description for tool in PLANNING_TOOLS}
 
-        assert declared == _DESCRIPTIONS
+        assert declared == {name: text.summary for name, text in _TEXTS.items()}
 
     def test_the_model_reads_this_repositorys_text_not_the_librarys_default(self):
         built = build(
@@ -110,7 +114,18 @@ class TestDescriptions:
         assert toolset is not None
 
         offered = {name: tool.description for name, tool in toolset.tools.items()}
-        assert offered == _DESCRIPTIONS
+        assert offered == {name: text.render() for name, text in _TEXTS.items()}
+
+    def test_every_planning_tool_says_what_it_returns(self):
+        """The half a tool description usually leaves out, in the shape
+        pydantic-ai gives a docstring that has a `Returns:` section."""
+        built = build(
+            [CapabilityBinding(capability_id="planning", config={"enable_subtasks": True})]
+        )
+        toolset = built[0].get_toolset()
+        assert toolset is not None
+
+        assert all("<returns>" in tool.description for tool in toolset.tools.values())
 
 
 class TestGuidance:
@@ -257,3 +272,77 @@ class TestParkSurvival:
 
     def test_a_default_store_is_empty_and_in_memory(self):
         assert isinstance(new_plan_store(), InMemoryPlanStore)
+
+
+class TestAFinishedPlanIsHistory:
+    """What a *new* turn is seeded with (#1221).
+
+    `keep_plan` stores whatever the store held when the run ended, completed steps
+    included, and a fresh turn seeds from it - so a thread whose three steps were
+    all ticked off in August opened in November with the tail reminder calling them
+    "your current plan" and `read_plan` answering with them. The agent was working
+    to a checklist about a task nobody was doing.
+
+    Filtered at the seed rather than cleared when the last step is ticked: within
+    the turn that finishes a plan the store still holds it, so the agent can
+    summarise what it just did and nothing contradicts the transcript. It is the
+    next question that starts clean.
+    """
+
+    def test_a_plan_with_every_step_ticked_is_not_seeded(self):
+        items = [
+            PlanItem(content="Read the code", status=TaskStatus.completed).model_dump(mode="json"),
+            PlanItem(content="Write the fix", status=TaskStatus.completed).model_dump(mode="json"),
+        ]
+
+        assert still_open(items) is None
+
+    def test_cancelled_counts_as_finished(self):
+        """A step nobody is going to do is not work outstanding."""
+        items = [
+            PlanItem(content="Read the code", status=TaskStatus.completed).model_dump(mode="json"),
+            PlanItem(content="Ship it", status=TaskStatus.cancelled).model_dump(mode="json"),
+        ]
+
+        assert still_open(items) is None
+
+    def test_one_step_left_seeds_the_whole_plan(self):
+        """Including the finished steps: what is left only makes sense beside what
+        is done, and `write_plan` takes the whole list every time."""
+        items = [
+            PlanItem(content="Read the code", status=TaskStatus.completed).model_dump(mode="json"),
+            PlanItem(content="Write the fix", status=TaskStatus.pending).model_dump(mode="json"),
+        ]
+
+        assert still_open(items) == items
+
+    def test_a_blocked_step_is_work_outstanding(self):
+        """The one status that could read either way. Something still has to
+        unblock it, so the plan is not finished."""
+        items = [
+            PlanItem(id="a", content="Migration", status=TaskStatus.completed).model_dump(
+                mode="json"
+            ),
+            PlanItem(
+                id="b", content="Backfill", status=TaskStatus.blocked, depends_on=["a"]
+            ).model_dump(mode="json"),
+        ]
+
+        assert still_open(items) == items
+
+    def test_no_plan_is_left_alone_either_way(self):
+        """`None` and `[]` both mean no plan, and both have to survive as
+        themselves - `open_plan_store` reads them the same but `keep_plan` does
+        not, and turning one into the other would rewrite a row for nothing."""
+        assert still_open(None) is None
+        assert still_open([]) == []
+
+    async def test_the_seeded_store_holds_what_survived(self):
+        """End to end through the helper the runner actually calls."""
+        finished = [
+            PlanItem(content="Done", status=TaskStatus.completed).model_dump(mode="json"),
+        ]
+
+        store = await open_plan_store(still_open(finished))
+
+        assert await store.get_items() == []

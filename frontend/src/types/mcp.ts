@@ -29,13 +29,34 @@ export interface McpCatalogEntry {
   docs_url: string | null;
   /** What to tell the person pasting a credential. */
   token_hint: string | null;
+  /**
+   * Whether somebody here checked this entry.
+   *
+   * True for the curated catalog: the auth flow works, the description is
+   * honest, the token hint says what kind of credential to paste. False for a
+   * server mirrored from the public registry, where the description is the
+   * publisher's and there is no hint because the registry has no such field.
+   *
+   * Optional so a response from before this field renders as reviewed rather
+   * than as suspect - the curated catalog is what those responses held.
+   */
+  reviewed?: boolean;
   /** Brand mark to draw, by name. Null falls back to a monogram. */
   icon: string | null;
 }
 
 export interface McpCatalog {
   items: McpCatalogEntry[];
+  /** Matches across both sources, so a pager knows how many pages there are. */
   total: number;
+  /**
+   * How many servers the mirrored public registry holds.
+   *
+   * What the list *reaches*, as distinct from what this page matched. Zero until
+   * `agenticos cmd mcp-registry-sync` has run, which is what a fresh install
+   * shows a curated-only list for.
+   */
+  registry_total?: number;
 }
 
 /**

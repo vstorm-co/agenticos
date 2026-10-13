@@ -10,6 +10,9 @@
 
 import type { SecretKind } from "./secrets";
 
+/** Which of OpenAI's two APIs a profile's requests go to. */
+export type ModelApi = "chat" | "responses";
+
 /** One selectable provider, as the credential form reads it. */
 export interface ProviderInfo {
   id: string;
@@ -25,6 +28,17 @@ export interface ProviderInfo {
    * to authenticate it.
    */
   keyless: boolean;
+  /**
+   * The APIs a profile on this provider chooses between: both of OpenAI's for
+   * `openai` and `azure`, none for every other provider.
+   */
+  apis: ModelApi[];
+  /**
+   * What a profile gets on the provider's own endpoint when it names no API.
+   * With a `base_url` the default is `chat`, which every OpenAI-compatible server
+   * implements. Null where `apis` is empty.
+   */
+  native_api: ModelApi | null;
 }
 
 export interface ProviderCatalog {
@@ -56,8 +70,9 @@ export interface ModelProfile {
    * production one as two profiles.
    */
   base_url?: string | null;
+  /** Which API the requests go to. Null on every provider that serves one. */
+  api?: ModelApi | null;
   params: Record<string, unknown>;
-  allow_byo: boolean;
   fallback_profile_ids: string[];
   /**
    * Tokens this model accepts, as its provider's listing said when the profile
@@ -119,6 +134,8 @@ export interface SkillSummary {
   file_count: number;
   /** Whether this skill shipped with the deployment, matched by library name. */
   built_in: boolean;
+  /** The body's first lines, front matter dropped - what the card's page shows. */
+  excerpt: string;
 }
 
 export interface SkillList {
@@ -159,9 +176,72 @@ export interface ContextFileSummary {
   mode: ContextMode;
   enabled: boolean;
   size_bytes: number;
+  /** The body's first lines, front matter dropped - what the card's page shows. */
+  excerpt: string;
 }
 
 export interface ContextFileList {
   items: ContextFileSummary[];
   total: number;
+}
+
+/** One skill on a gallery shelf - the picker's row, never the body. */
+export interface GallerySkill {
+  /** `<industry>/<folder>` - what an install request names. */
+  key: string;
+  name: string;
+  description: string;
+  category: string | null;
+  /** Whether this organization already has a skill by this name. */
+  installed: boolean;
+}
+
+/** One industry shelf and what is on it. */
+export interface GalleryIndustry {
+  id: string;
+  skills: GallerySkill[];
+}
+
+export interface SkillGallery {
+  industries: GalleryIndustry[];
+}
+
+/** What an install did, per key, so a partial result is legible. */
+export interface GalleryInstallResult {
+  installed: string[];
+  skipped: string[];
+  unknown: string[];
+}
+
+/** One shipped agent template as the picker shows it. */
+export interface AgentTemplate {
+  key: string;
+  name: string;
+  description: string;
+  capabilities: string[];
+  skills: string[];
+  mcp: string[];
+  /** What a person still has to attach before publishing. */
+  attach: string[];
+  budget_usd: number | null;
+  installed: boolean;
+}
+
+export interface TemplateIndustry {
+  id: string;
+  templates: AgentTemplate[];
+}
+
+export interface AgentTemplateCatalog {
+  industries: TemplateIndustry[];
+}
+
+/** What installing a template created, and what is left to do. */
+export interface TemplateInstallResult {
+  agent_id: string;
+  slug: string;
+  name: string;
+  skills_installed: string[];
+  attach: string[];
+  suggested_mcp: string[];
 }

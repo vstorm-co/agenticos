@@ -10,6 +10,7 @@ import { CreateOrgDialog } from "@/components/teams";
 import { PageHeader } from "@/components/dashboard/page-header";
 import {
   Button,
+  Badge,
   Card,
   CardContent,
   CardDescription,
@@ -89,7 +90,7 @@ export default function OrgsPage() {
         {isLoading ? (
           // The same tiles the populated grid draws, as skeletons - a skeleton
           // that draws a different shape is a layout jump on every load.
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {[0, 1].map((tile) => (
               <div key={tile} className="border-border flex flex-col gap-4 rounded-xl border p-5">
                 <div className="flex items-start gap-3">
@@ -125,13 +126,13 @@ export default function OrgsPage() {
             </Button>
           </div>
         ) : (
-          <ul className="grid gap-3 sm:grid-cols-2">
+          <ul className="rise-in grid grid-cols-1 gap-3 sm:grid-cols-2">
             {orgs.map((org) => {
               const isActive = org.id === activeOrgId;
               return (
                 <li
                   key={org.id}
-                  className="border-border bg-card hover:border-foreground/30 relative flex flex-col gap-4 rounded-xl border p-5 transition-colors"
+                  className="peek-card border-border bg-card hover:border-foreground/30 relative flex flex-col gap-4 rounded-xl border p-5"
                 >
                   {/* Whole-row link, under the one real control. The link is an
                       absolute overlay at z-10, so static content beneath it
@@ -168,21 +169,24 @@ export default function OrgsPage() {
                         <h2 className="text-foreground truncate text-sm font-semibold">
                           {org.name}
                         </h2>
-                        {org.is_personal && (
-                          <span className="border-border text-muted-foreground rounded-full border px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
-                            {t("personal")}
-                          </span>
-                        )}
+                        {/* The same badges every other card uses, rather than a
+                            shouty uppercase pair of its own. */}
+                        {org.is_personal && <Badge variant="outline">{t("personal")}</Badge>}
                         {isActive && (
-                          <span className="border-border bg-muted text-foreground inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
-                            <Check className="h-2.5 w-2.5" />
+                          <Badge variant="secondary" className="gap-1">
+                            <Check className="h-3 w-3" />
                             {t("active")}
-                          </span>
+                          </Badge>
                         )}
                       </div>
+                      {/* Only the parts there are: an organization with no tier
+                          used to read "· admin", a separator in front of nothing. */}
                       <p className="text-muted-foreground mt-0.5 truncate text-xs">
-                        <span className="capitalize">{org.subscription_tier}</span>
-                        {org.slug && <> · {org.slug}</>}
+                        {org.subscription_tier && (
+                          <span className="capitalize">{org.subscription_tier}</span>
+                        )}
+                        {org.subscription_tier && org.slug && <span aria-hidden> · </span>}
+                        {org.slug && <span className="font-mono">{org.slug}</span>}
                       </p>
                     </div>
                   </div>

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ArrowUpRight, Database, Lock, Plus, Sparkles, Users } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-import { CreateKBDialog, ReusableIntegrations } from "@/components/kb";
+import { CreateKBDialog, LocalServices, ReusableIntegrations } from "@/components/kb";
 import { SearchTab } from "@/components/rag/search-tab";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ErrorState } from "@/components/states";
@@ -78,7 +78,7 @@ export default function RAGPage() {
         description={t("groupRelatedDocumentsInto")}
         actions={
           mayEdit ? (
-            <Button data-tour="knowledge-new" size="sm" onClick={() => setCreateOpen(true)}>
+            <Button data-tour="knowledge-new" onClick={() => setCreateOpen(true)}>
               <Plus className="h-4 w-4" />
               {t("newKnowledgeBase")}
             </Button>
@@ -131,7 +131,7 @@ export default function RAGPage() {
             {loading ? (
               // The same tiles the populated grid draws, as skeletons - a skeleton
               // that draws a different shape is a layout jump on every load.
-              <div className="grid auto-rows-fr gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid auto-rows-fr grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {[0, 1, 2].map((tile) => (
                   <div key={tile} className="border-border rounded-xl border p-5">
                     <Skeleton className="h-9 w-9 rounded-lg" />
@@ -169,7 +169,7 @@ export default function RAGPage() {
                 }
               />
             ) : (
-              <div className="grid auto-rows-fr gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="rise-in grid auto-rows-fr grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {sorted.map((kb) => (
                   <KBCard key={kb.id} kb={kb} />
                 ))}
@@ -182,9 +182,15 @@ export default function RAGPage() {
             and cloned into each base that needs it. `targets` is the base list,
             so this tab needs it loaded - which is why it is the same query
             rather than a second one. */}
-        <TabsContent value="integrations">
+        <TabsContent value="integrations" className="space-y-8">
           <div data-tour="knowledge-integrations">
             <ReusableIntegrations targets={kbs} />
+          </div>
+          {/* Servers on the deployment's own network, registered once and chosen
+              per collection - the same shape as the integrations above, and
+              hidden by the same permission. */}
+          <div data-tour="knowledge-local-services">
+            <LocalServices />
           </div>
         </TabsContent>
       </Tabs>
@@ -205,7 +211,7 @@ function KBCard({ kb }: { kb: KnowledgeBase }) {
   // only `group-hover` in this file was on the delete button #303 removed, so
   // it named a relationship nothing was on the other end of.
   return (
-    <div className="border-border bg-card hover:border-foreground/30 hover:bg-accent relative flex flex-col rounded-xl border transition-colors">
+    <div className="peek-card border-border bg-card hover:border-foreground/30 relative flex flex-col rounded-xl border">
       {/* The card is a link and nothing else, so the layering is a link over
           content that declines the click rather than the three-way z-index
           argument this used to be. Deleting a collection now lives on the

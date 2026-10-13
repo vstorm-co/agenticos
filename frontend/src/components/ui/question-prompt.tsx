@@ -60,7 +60,7 @@ export function QuestionPrompt({ questions, disabled = false, onComplete }: Ques
     <div className="bg-muted/40 border-foreground/10 overflow-hidden rounded-2xl border">
       <div className="flex items-center justify-between gap-3 px-4 pt-2.5 pb-0.5">
         {total > 1 ? (
-          <span className="text-muted-foreground font-mono text-[10px] tracking-wider uppercase">
+          <span className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
             {t("questionStep", { step: step + 1, total })}
           </span>
         ) : (

@@ -7,6 +7,8 @@ import { useSandboxConnections, useSandboxPolicy } from "@/hooks";
 import { holdsSessions, primaryConnection } from "@/lib/dashboard/sandbox";
 import type { SandboxPolicy } from "@/lib/sandbox-connections-api";
 import { WidgetFrame } from "../widget-frame";
+import { Boxes } from "lucide-react";
+
 import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-states";
 import type { DashboardWidgetProps } from "./types";
 
@@ -40,9 +42,17 @@ export function SandboxPolicyWidget({ title, hint, seeAll, options }: DashboardW
       ) : error !== null ? (
         <WidgetErrorBody onRetry={() => void refresh()} />
       ) : host === null ? (
-        <WidgetEmptyBody title={t("empty.title")} description={t("empty.description")} />
+        <WidgetEmptyBody
+          icon={Boxes}
+          title={t("empty.title")}
+          description={t("empty.description")}
+        />
       ) : asked === null ? (
-        <WidgetEmptyBody title={t("elsewhere.title")} description={t("elsewhere.description")} />
+        <WidgetEmptyBody
+          icon={Boxes}
+          title={t("elsewhere.title")}
+          description={t("elsewhere.description")}
+        />
       ) : policy.error !== null ? (
         <WidgetErrorBody onRetry={policy.refetch} />
       ) : policy.policy === null ? (

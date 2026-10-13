@@ -52,6 +52,7 @@ from app.schemas.deployment_settings import (
     SignupMode,
 )
 from app.services.file_storage import IMAGE_MIME_TYPES, MAX_AVATAR_SIZE, get_file_storage
+from app.services.notifications import NotificationService
 
 logger = logging.getLogger(__name__)
 
@@ -128,8 +129,18 @@ class DeploymentSettingsService:
             announcement_level=_notice_level(row.announcement_level) if row else "info",
             max_organizations_per_user=row.max_organizations_per_user if row else None,
             max_agents_per_organization=row.max_agents_per_organization if row else None,
+            notify_impersonated_users=row.notify_impersonated_users if row else False,
             updated_at=row.updated_at if row else None,
         )
+
+    async def notifies_impersonated_users(self) -> bool:
+        """Whether an impersonation emails its target, as whatever starts one reads it.
+
+        No row is the unconfigured deployment, and the unconfigured answer is no:
+        an upgrade must not start mailing people about a thing nobody turned on.
+        """
+        row = await deployment_settings_repo.get(self.db)
+        return bool(row and row.notify_impersonated_users)
 
     async def limits(self) -> DeploymentLimits:
         """The two ceilings, as whatever creates the thing they bound reads them.
@@ -180,13 +191,20 @@ class DeploymentSettingsService:
             publish_maintenance(on=row.maintenance_mode, message=row.maintenance_message),
             name="deployment_maintenance_publish",
         )
-        await record_audit(
+        notifications = NotificationService(self.db)
+        # Before the audit entry, never after it: `record_audit` holds the
+        # chain lock to the end of the transaction, and the notification
+        # below reaches for the app admins' rows - the set `admin_delete`
+        # takes first and the chain second (#1763).
+        audience = await notifications.hold_configuration_audience()
+        entry = await record_audit(
             self.db,
             actor_user_id=actor_user_id,
             action="deployment.settings_updated",
             target_type="deployment",
             details={"fields": sorted(update_data)},
         )
+        await notifications.configuration_changed(entry, recipients=audience)
         return await self.read()
 
     async def set_image(
@@ -225,13 +243,20 @@ class DeploymentSettingsService:
             # deployment pointing at a missing file. The replacement is left an
             # orphan on rollback instead, which is the harmless half of the trade.
             spawn_after_commit(self.db, _delete_quietly(previous), name="deployment_image_replaced")
-        await record_audit(
+        notifications = NotificationService(self.db)
+        # Before the audit entry, never after it: `record_audit` holds the
+        # chain lock to the end of the transaction, and the notification
+        # below reaches for the app admins' rows - the set `admin_delete`
+        # takes first and the chain second (#1763).
+        audience = await notifications.hold_configuration_audience()
+        entry = await record_audit(
             self.db,
             actor_user_id=actor_user_id,
             action="deployment.settings_updated",
             target_type="deployment",
             details={"fields": [column]},
         )
+        await notifications.configuration_changed(entry, recipients=audience)
         return await self.read()
 
     async def clear_image(self, *, actor_user_id: UUID, kind: ImageKind) -> DeploymentSettingsRead:
@@ -248,13 +273,20 @@ class DeploymentSettingsService:
             return await self.read()
         await deployment_settings_repo.upsert(self.db, update_data={column: None})
         spawn_after_commit(self.db, _delete_quietly(previous), name="deployment_image_cleared")
-        await record_audit(
+        notifications = NotificationService(self.db)
+        # Before the audit entry, never after it: `record_audit` holds the
+        # chain lock to the end of the transaction, and the notification
+        # below reaches for the app admins' rows - the set `admin_delete`
+        # takes first and the chain second (#1763).
+        audience = await notifications.hold_configuration_audience()
+        entry = await record_audit(
             self.db,
             actor_user_id=actor_user_id,
             action="deployment.settings_updated",
             target_type="deployment",
             details={"fields": [column]},
         )
+        await notifications.configuration_changed(entry, recipients=audience)
         return await self.read()
 
     async def image_path(self, kind: ImageKind) -> str | None:

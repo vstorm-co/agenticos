@@ -1,6 +1,8 @@
 "use client";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
+import { AvatarFace } from "@/components/ui/avatar-face";
+import { ThinkingOrb } from "@/components/ui/thinking-orb";
 import { cn } from "@/lib/utils";
 import type { ChatMessage, ChatMessageFile, TurnUsage } from "@/types";
 import type { Agent } from "@/types/agents";
@@ -18,6 +20,7 @@ import { useTranslations } from "next-intl";
 import Image from "next/image";
 import { useAuthStore } from "@/stores";
 import { getFileUrl } from "@/lib/file-api";
+import { isRenderSafeImage } from "@/lib/file-kinds";
 import { FileCard } from "@/components/files";
 import { extractSources } from "@/lib/chat-sources";
 import type { SourceItem } from "@/lib/chat-sources";
@@ -45,7 +48,7 @@ function SourcesButton({ sources, onClick }: { sources: SourceItem[]; onClick: (
           </span>
         )}
       </span>
-      <span className="text-foreground/60 text-[11px] font-medium">
+      <span className="text-foreground/60 text-xs font-medium">
         {t("sourceCount", { count: sources.length })}
       </span>
     </button>
@@ -133,6 +136,10 @@ export function MessageItem({
 
   return (
     <div
+      // The anchor the turn rail scrolls to. On the row rather than on a wrapper
+      // of its own, so the rail lands on the top of the turn and not on a box
+      // drawn around it.
+      data-message-id={message.id}
       className={cn(
         "group relative flex gap-2 overflow-visible sm:gap-4",
         // Each edge decided once, and never as `py-*` with a `pt-0` over it: two
@@ -186,14 +193,19 @@ export function MessageItem({
             className="h-full w-full object-cover"
             unoptimized
           />
+        ) : isUser && authUser ? (
+          <AvatarFace seed={authUser.id} colorSlot={authUser.avatar_color} />
         ) : isUser ? (
+          // A signed-out reader of a shared transcript: there is no id to draw a
+          // face from, and a face drawn from nothing would be somebody else's.
           <User className="h-4 w-4" />
         ) : agent ? (
           <AgentAvatar
             agentId={agent.id}
-            name={agent.name}
+            slug={agent.slug}
             hasAvatar={agent.has_avatar}
             size="md"
+            thinking={Boolean(message.isStreaming)}
             className="h-full w-full border-0"
           />
         ) : (
@@ -210,13 +222,13 @@ export function MessageItem({
             switched agents mid-way says so, instead of relabelling the whole
             thread with whatever is selected now. */}
         {!isUser && agent && !continuesTurn && (
-          <p className="text-foreground/55 font-mono text-[10px] tracking-wider uppercase">
+          <p className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
             {agent.name}
             {/* The version, where the transcript recorded one. An agent gets
                 rewritten; this turn was answered by one frozen spec, and that
                 is the thing "why did it say that" is a question about. */}
             {message.agentVersion !== undefined && (
-              <span className="text-foreground/40"> · v{message.agentVersion}</span>
+              <span className="text-muted-foreground"> · v{message.agentVersion}</span>
             )}
           </p>
         )}
@@ -287,9 +299,12 @@ export function MessageItem({
         )}
 
         {!message.isStreaming && hasBody && endsTurn && (
+          // The time and the cost surface on hover with the actions beside them:
+          // a column of receipts under every turn is noise while reading, and the
+          // numbers are one pointer move away when somebody wants them.
           <div className={cn("flex items-center gap-2", isUser && "flex-row-reverse")}>
             {message.timestamp && (
-              <span className="text-muted-foreground text-[10px]">
+              <span className="hover-reveal text-muted-foreground text-[11px]">
                 {new Date(message.timestamp).toLocaleTimeString([], {
                   hour: "2-digit",
                   minute: "2-digit",
@@ -302,12 +317,16 @@ export function MessageItem({
                  reader takes a truncated one as everything the agent had to say.
                  Beside the cost, because the two together are the whole account
                  of a turn that produced nothing usable and still spent money. */
-              <span className="text-muted-foreground flex items-center gap-1 text-[10px]">
+              <span className="text-muted-foreground flex items-center gap-1 text-[11px]">
                 <OctagonPause className="h-3 w-3" aria-hidden />
                 {t("turnWasStopped")}
               </span>
             )}
-            {!isUser && footerUsage && <MessageCost usage={footerUsage} />}
+            {!isUser && footerUsage && (
+              <span className="hover-reveal">
+                <MessageCost usage={footerUsage} />
+              </span>
+            )}
             {message.content && (
               <CopyButton
                 text={message.content}
@@ -387,14 +406,16 @@ function MessageBody({
 
   return (
     <>
+      {/* The stretch between asking and the first token, which is the one moment
+          in a turn with nothing else on screen to look at. A capsule rather than
+          a mark beside loose text: it is one object saying one thing, and it
+          holds its shape while the word inside it changes. */}
       {showPlaceholder && (
-        <div className="flex items-center gap-2 py-1" role="status" aria-live="polite">
-          <div className="flex gap-1" aria-hidden="true">
-            <span className="bg-muted-foreground/40 h-1.5 w-1.5 animate-bounce rounded-full [animation-delay:0ms]" />
-            <span className="bg-muted-foreground/40 h-1.5 w-1.5 animate-bounce rounded-full [animation-delay:150ms]" />
-            <span className="bg-muted-foreground/40 h-1.5 w-1.5 animate-bounce rounded-full [animation-delay:300ms]" />
-          </div>
-          <span className="text-muted-foreground text-xs">{t("thinking")}</span>
+        <div className="py-1" role="status" aria-live="polite">
+          <span className="bg-foreground/[0.04] inline-flex items-center gap-1.5 rounded-full py-1 pr-3.5 pl-1.5">
+            <ThinkingOrb state="breathing" size={20} className="h-7 w-7" />
+            <span className="text-muted-foreground text-xs">{t("thinking")}</span>
+          </span>
         </div>
       )}
 
@@ -455,8 +476,11 @@ type AttachmentDisplay =
   | { kind: "unknown"; id: string };
 
 function kindFor(file: ChatMessageFile): "image" | "file" {
-  if (file.file_type === "image") return "image";
-  if (file.mime_type.startsWith("image/")) return "image";
+  // A thumbnail only for a type the browser can draw inline. A TIFF has
+  // `file_type: "image"` and `mime_type: "image/tiff"` but neither draws inline, so
+  // it takes a file card, not a broken thumbnail whose src is the download URL
+  // (#1591).
+  if (isRenderSafeImage(file.mime_type)) return "image";
   return "file";
 }
 
@@ -484,7 +508,7 @@ function FileChip({ filename, href }: { filename: string; href: string }) {
       <span className="text-foreground min-w-0 flex-1 truncate text-sm font-medium">
         {filename}
       </span>
-      <Paperclip className="text-foreground/40 h-3.5 w-3.5 shrink-0" />
+      <Paperclip className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
     </a>
   );
 }

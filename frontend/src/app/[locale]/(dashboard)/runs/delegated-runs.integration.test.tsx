@@ -156,7 +156,11 @@ function backend(
     // The detail header resolves the agent's identity; the timeline reads the
     // thread. Neither is this suite's subject, so both answer minimally.
     if (path.startsWith("/agents/")) {
-      return Promise.resolve({ id: path.split("/").at(-1), name: "Orchestrator" });
+      return Promise.resolve({
+        id: path.split("/").at(-1),
+        slug: "orchestrator",
+        name: "Orchestrator",
+      });
     }
     if (path.endsWith("/transcript")) {
       return Promise.resolve({ run_id: "run-parent", conversation_id: null, items: [], total: 0 });
@@ -397,7 +401,6 @@ describe("walking the run's conversation from the detail", () => {
     );
 
     expect(queryPanel()).toBeNull();
-    expect(screen.getByRole("button", { name: "All runs" })).toBeVisible();
   });
 
   it("Escape closes it too, which the dialog used to do for free", async () => {

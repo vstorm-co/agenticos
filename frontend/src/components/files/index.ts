@@ -20,3 +20,4 @@ export { FileEditor } from "./file-editor";
 export { FileIcon } from "./file-icon";
 export { FileBytesView, FileTextView, FileUnavailable } from "./file-render";
 export { FileViewer, type ViewerFile, type ViewerTab } from "./file-viewer";
+export { PathTree, type PathTreeNode } from "./path-tree";

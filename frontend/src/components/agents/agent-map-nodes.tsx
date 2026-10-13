@@ -159,7 +159,7 @@ export function CapabilityNode({
         dimmed && "opacity-40",
       )}
     >
-      <p className="text-muted-foreground flex items-center gap-1.5 text-[11px] font-medium tracking-wide uppercase">
+      <p className="text-muted-foreground flex items-center gap-1.5 text-xs font-medium tracking-wide uppercase">
         <Icon className="h-3.5 w-3.5" />
         {node.title}
         {!isEmpty && <span className="ml-auto normal-case">{node.items.length}</span>}
@@ -255,7 +255,7 @@ export function DelegateNode({
       </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-medium">{delegate.name}</span>
-        <span className="text-muted-foreground flex flex-wrap items-center gap-1.5 text-[11px] tracking-wide uppercase">
+        <span className="text-muted-foreground flex flex-wrap items-center gap-1.5 text-xs tracking-wide uppercase">
           <span>{t(KIND_LABEL[delegate.kind])}</span>
           {delegate.mode && (
             <span className="bg-muted rounded px-1 py-0.5 normal-case">
@@ -263,7 +263,7 @@ export function DelegateNode({
             </span>
           )}
           {delegate.problem && (
-            <span className="bg-destructive/10 text-destructive rounded px-1 py-0.5 normal-case">
+            <span className="border-destructive/35 bg-destructive/[0.08] text-foreground rounded border px-1 py-0.5 normal-case">
               {t(PROBLEM_LABEL[delegate.problem])}
             </span>
           )}

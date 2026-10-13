@@ -91,7 +91,7 @@ export function RunPythonResult({
       )}
 
       {error && (
-        <div className="bg-destructive/8 text-destructive rounded-lg p-3 font-mono text-xs leading-relaxed whitespace-pre-wrap">
+        <div className="border-destructive/30 bg-destructive/[0.06] text-foreground rounded-lg border p-3 font-mono text-xs leading-relaxed whitespace-pre-wrap">
           {error}
         </div>
       )}

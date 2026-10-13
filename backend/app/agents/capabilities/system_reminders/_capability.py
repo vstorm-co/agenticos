@@ -16,13 +16,14 @@ rather than an object id.
 **A budget that can see an LLM reminder.** :class:`_LlmReminder` writes its text
 through an `Agent` it constructs itself, so that request never passes
 `BudgetGuard.wrap_model_request` - the guard is a capability on *our* agent, not
-on the one the reminder builds. The tokens land in `ctx.usage` and would land
-nowhere else, which is #16 in a different hat. It books the difference against the
-run's ledger through :func:`record_ambient_usage`, and it inherits the run's own
-model rather than a name from config: the run's model is the one whose credential
-was resolved from the vault, and a model named as a string would be looked up
-against process environment variables, which on this platform is either nothing or
-somebody else's key.
+on the one the reminder builds. So it goes through
+:func:`~app.agents.capabilities._ambient.run_ambient_agent`, the one path for a
+code-built auxiliary agent: the reminder inherits the run's own model (the one
+whose credential the vault resolved, never a name looked up against process
+environment variables), traces content-free when the run does, runs under the
+run's own model settings, has its spend booked against the run's ledger, and is
+refused before it spends past a cap - the four concerns #16's siblings
+(agenticos#1808 through #1811) each got wrong at a site like this.
 
 The injection itself is the harness's and its cache-safety is the whole point. A
 fired reminder is appended to the *tail* of the request as an ephemeral
@@ -40,29 +41,24 @@ from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any, Literal
 
-from pydantic_ai import Agent
 from pydantic_ai.capabilities import AbstractCapability
 from pydantic_ai.messages import (
     CachePoint,
     ModelMessage,
     ModelRequest,
     ModelRequestPart,
-    ModelResponse,
     RetryPromptPart,
     TextContent,
     TextPart,
     ToolReturnPart,
     UserPromptPart,
 )
-from pydantic_ai.models import Model
 from pydantic_ai.tools import AgentDepsT, RunContext
-from pydantic_ai.usage import UsageLimits
 from pydantic_ai_harness.system_reminders import GoalReanchor
 
-from app.agents.capabilities.budget import record_ambient_usage, usage_counts, usage_delta
+from app.agents.capabilities._ambient import AmbientCallSkipped, run_ambient_agent
 
 if TYPE_CHECKING:
-    from pydantic_ai.capabilities.abstract import WrapModelRequestHandler
     from pydantic_ai.models import ModelRequestContext
 
 logger = logging.getLogger(__name__)
@@ -165,18 +161,20 @@ class SystemReminders(AbstractCapability[AgentDepsT]):
     state: ReminderState
     cache_ttl: Literal["5m", "1h"] = "5m"
 
-    async def wrap_model_request(
+    async def before_model_request(
         self,
         ctx: RunContext[AgentDepsT],
-        *,
         request_context: ModelRequestContext,
-        handler: WrapModelRequestHandler,
-    ) -> ModelResponse:
-        """Append fired reminders to the request tail, then call the model.
+    ) -> ModelRequestContext:
+        """Return the request with fired reminders appended to its tail.
 
-        Runs after core persists the durable history; the per-request message list
-        mutated here is never written back, so the reminder and its `CachePoint`
-        reach the model but never enter the conversation's history.
+        A before hook, and last in the chain - the factory orders this capability
+        after every other configured one - because a compaction strategy rebuilds
+        the request from the run's history in its own before hook: run before it,
+        the reminder would be dropped while its fire was already counted. The tail
+        message is replaced in a new list rather than appended to, so pydantic-ai
+        writes nothing back to the history: the reminder and its `CachePoint` reach
+        the model but never enter the conversation's history.
         """
         messages = request_context.messages
         # A provider-resume turn hands back a message list whose tail is a
@@ -195,8 +193,9 @@ class SystemReminders(AbstractCapability[AgentDepsT]):
                 if _has_user_content(last.parts):
                     content.append(CachePoint(ttl=self.cache_ttl))
                 content.append("\n\n".join(texts))
-                messages[-1] = replace(last, parts=[*last.parts, UserPromptPart(content=content)])
-        return await handler(request_context)
+                tail = replace(last, parts=[*last.parts, UserPromptPart(content=content)])
+                return replace(request_context, messages=[*messages[:-1], tail])
+        return request_context
 
     async def _fire(self, ctx: RunContext[AgentDepsT]) -> list[str]:
         """The reminder texts to inject this request, committing their fire counts.
@@ -253,59 +252,46 @@ class _LlmReminder:
     """A producer whose text a model writes from a compact transcript.
 
     Constructed with the config it needs; the model is not among it, because the
-    reminder inherits the run's own model at call time (`ctx.model`) - the one
-    whose credential the vault resolved. Its spend is booked against the run's
-    ledger through :func:`record_ambient_usage`, the way a compaction summary is,
-    and it runs under the parent's usage limits minus one reserved request so it
-    can never push the run past its own `request_limit`. On any error, or when the
-    reserved budget is already spent, it falls back to the goal-reanchor line, so a
-    failed generation never blocks the run.
+    reminder inherits the run's own model at call time - the one whose credential
+    the vault resolved - through :func:`run_ambient_agent`. That runner books the
+    spend against the run's ledger, runs under the run's own model settings and
+    content mode, and re-checks the run's caps before spending. On any error, or
+    when the run has reached a cap, it falls back to the zero-cost goal-reanchor
+    line, so a failed or refused generation never blocks the run.
     """
 
     instructions: str
     max_context_messages: int
     fallback: str
-    _agent: Agent[None, str] | None = field(default=None, init=False, repr=False, compare=False)
 
     async def __call__(self, ctx: RunContext[Any]) -> str | None:
         try:
             text = (await self._generate(ctx)).strip()
+        except AmbientCallSkipped:
+            # At a cap: nothing failed - the run simply may not spend more - so
+            # fall back to the zero-cost reanchor without a warning.
+            logger.debug("LLM reminder skipped at a budget cap; using the goal reanchor")
+            return GoalReanchor[Any](fallback=self.fallback)(ctx)
         except Exception:
-            # Never blocks the run: a provider error or an exhausted reserved
-            # budget falls back to the zero-cost reanchor line.
+            # Never blocks the run: a provider error or a non-request-response
+            # model falls back to the zero-cost reanchor line.
             logger.warning("LLM reminder generation failed; using the goal reanchor", exc_info=True)
             return GoalReanchor[Any](fallback=self.fallback)(ctx)
         return text or None
 
     async def _generate(self, ctx: RunContext[Any]) -> str:
-        """The model-written reminder, with its spend booked against the run.
+        """The model-written reminder, metered and capped through the shared runner.
 
-        The metering is in a `finally` so a generation that raised after reaching
-        the model still books what it spent - the run that failed is exactly the
-        one whose cost is argued about later.
+        :func:`run_ambient_agent` books the spend against the run, holds one request
+        back so the reminder cannot push the run past its `request_limit`, traces
+        content-free when the run does, and raises when the run has reached a cap.
         """
-        agent = self._agent
-        if agent is None:
-            model = ctx.model
-            if not isinstance(model, Model):
-                # A realtime model is not a request-response one, so it cannot run
-                # the sub-agent. Raised, then caught above, so the run falls back
-                # to the zero-cost reanchor rather than failing.
-                raise TypeError(f"{type(model).__name__} cannot generate a reminder")
-            agent = Agent[None, str](model, instructions=self.instructions, output_type=str)
-            self._agent = agent
-        before = usage_counts(ctx.usage)
-        try:
-            result = await agent.run(
-                _compact_transcript(ctx.messages, self.max_context_messages),
-                usage=ctx.usage,
-                usage_limits=_reserved_limits(ctx.usage_limits),
-            )
-        finally:
-            spent = usage_delta(before, ctx.usage)
-            if spent is not None:
-                record_ambient_usage(ctx.model.model_name or "unknown", spent)
-        return result.output
+        return await run_ambient_agent(
+            ctx,
+            output_type=str,
+            user_prompt=_compact_transcript(ctx.messages, self.max_context_messages),
+            instructions=self.instructions,
+        )
 
 
 def llm_reminder_producer(
@@ -315,20 +301,6 @@ def llm_reminder_producer(
     return _LlmReminder(
         instructions=instructions, max_context_messages=max_context_messages, fallback=fallback
     )
-
-
-def _reserved_limits(limits: UsageLimits | None) -> UsageLimits | None:
-    """The run's limits with one request held back for the reminder's own call.
-
-    `wrap_model_request` runs after the parent request already cleared its own
-    limit check, so a nested run spending the last slot would let that approved
-    request push the run one past `request_limit`. Holding the slot back makes the
-    nested run raise first; the caller falls back to the reanchor, which costs no
-    request, and the budget holds.
-    """
-    if limits is None or limits.request_limit is None:
-        return limits
-    return replace(limits, request_limit=max(0, limits.request_limit - 1))
 
 
 def _should_fire(reminder: CompiledReminder, count: int) -> bool:

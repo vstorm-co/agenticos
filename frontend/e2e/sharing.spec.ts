@@ -55,8 +55,8 @@ test.describe("Sharing", () => {
   test("shares an agent, changes the level, then revokes it", async ({ page }) => {
     const panel = await openSharing(page, SEEDED_AGENT_NAME);
 
-    await panel.getByLabel("Add someone").click();
-    // The picker offers members of this organization and nobody else — the
+    await panel.getByLabel("Add a person or group").click();
+    // The picker offers members and groups of this organization and nobody else — the
     // owner is filtered out because they already have access, which leaves
     // exactly the colleague the setup invited.
     await page.getByRole("option", { name: COLLEAGUE_EMAIL }).click();
@@ -96,8 +96,11 @@ test.describe("Sharing", () => {
     ).toBeVisible();
 
     // Which one is selected is the agent's stored visibility, not a default the
-    // component picked: bootstrap publishes this agent private.
-    await expect(panel.getByRole("radio", { name: "Private" })).toBeChecked();
+    // component picked. Bootstrap publishes this one to the organization: it is
+    // the agent that explains the platform, and an explanation the second person
+    // to look cannot find is not one.
+    await expect(panel.getByRole("radio", { name: "Organization" })).toBeChecked();
+    await expect(panel.getByRole("radio", { name: "Private" })).not.toBeChecked();
   });
 
   test("a change of visibility is stored, not just shown", async ({ page }) => {

@@ -13,8 +13,10 @@ the sender, and then the one that mattered is filtered too.
 """
 
 import logging
+from datetime import UTC, datetime
 
 from prefect import flow
+from prefect.context import FlowRunContext
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.spec import AgentSpec
@@ -35,23 +37,54 @@ async def _run_reports(period: ReportPeriod) -> dict[str, int]:
     agent, the one wired into a channel. That one is opt-in per agent, off unless
     its spec asks, because a report per agent per week for forty agents is forty
     emails nobody reads.
+
+    `window_start` is captured once, here, rather than read fresh inside each
+    `NotificationService` call: the occurrence id a retried report is
+    deduplicated on is `(subject, period, window_start)` (Decision 1), so a
+    flow restarted after a partial failure must compute the *same* window on
+    its second attempt or the dedup constraint has nothing to catch - every
+    organization already notified once would be notified again. Rounded to
+    midnight UTC for exactly that reason: a plain `datetime.now(UTC)` differs
+    by however many seconds a retry took to fire, which is enough to change
+    the occurrence id and defeat the dedup it exists for. A weekly or monthly
+    digest loses nothing readers would notice from being dated to the day
+    rather than the second.
+
+    Rounding alone still misses one case: a retry that itself straddles
+    midnight (the first attempt at 23:59:58, the retry at 00:00:02) rounds to
+    two different days on wall-clock time alone. `FlowRunContext.flow_run
+    .expected_start_time` is Prefect's own scheduled time for this run, fixed
+    when the run was scheduled and identical across every attempt of it -
+    reading it instead closes that gap. Outside a real flow run (every test
+    here, which calls this directly) `FlowRunContext.get()` is `None`, and
+    wall-clock time is the only answer there is.
     """
+    flow_run_context = FlowRunContext.get()
+    expected_start_time = (
+        flow_run_context.flow_run.expected_start_time
+        if flow_run_context is not None and flow_run_context.flow_run is not None
+        else None
+    )
+    base_time = expected_start_time if expected_start_time is not None else datetime.now(UTC)
+    window_start = base_time.replace(hour=0, minute=0, second=0, microsecond=0)
     async with get_db_context() as db:
         organizations = await organization_repo.list_all(db)
         notifications = NotificationService(db)
         sent = 0
         for organization in organizations:
-            # One organization's mail server being unreachable must not stop the
-            # rest of the estate from being reported on.
+            # One organization's write failing must not stop the rest of the
+            # estate from being reported on.
             try:
-                if await notifications.usage_report(organization.id, period=period):
+                if await notifications.usage_report(
+                    organization.id, period=period, window_start=window_start
+                ):
                     sent += 1
             except Exception:
                 logger.exception(
                     "usage_report_failed", extra={"organization_id": str(organization.id)}
                 )
 
-        agents_reported = await _run_agent_reports(db, notifications, period)
+        agents_reported = await _run_agent_reports(db, notifications, period, window_start)
 
     counts = {
         "organizations": len(organizations),
@@ -63,7 +96,10 @@ async def _run_reports(period: ReportPeriod) -> dict[str, int]:
 
 
 async def _run_agent_reports(
-    db: AsyncSession, notifications: NotificationService, period: ReportPeriod
+    db: AsyncSession,
+    notifications: NotificationService,
+    period: ReportPeriod,
+    window_start: datetime,
 ) -> int:
     """Per-agent reports, for the published agents whose spec asks for one.
 
@@ -83,12 +119,14 @@ async def _run_agent_reports(
             if version is None:
                 continue
             spec = AgentSpec.model_validate(version.spec)
-            if await notifications.agent_usage_report(agent, spec, period=period):
+            if await notifications.agent_usage_report(
+                agent, spec, period=period, window_start=window_start
+            ):
                 reported += 1
         except Exception:
-            # One unreadable spec or unreachable mail server must not stop the
-            # rest. A spec that no longer validates is a real possibility here -
-            # it was written by an older version of this code.
+            # One unreadable spec or a failed write must not stop the rest. A
+            # spec that no longer validates is a real possibility here - it was
+            # written by an older version of this code.
             logger.exception("agent_usage_report_failed", extra={"agent_id": str(agent.id)})
     return reported
 

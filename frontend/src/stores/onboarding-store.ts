@@ -47,6 +47,15 @@ interface OnboardingState {
    */
   offer: FlowId | null;
   /**
+   * Whether the current `offer` was produced by the first-run tour rather than a
+   * section's "?" walk — snapshotted when the offer is made, because `mode` is
+   * mutable and a later `openPage()` would otherwise flip a tour offer's origin
+   * mid-flight. Only the tour's `create-agent` offer is gated on the agent count;
+   * the "?" walk's is not, and reading live `mode` at render let a suppressed
+   * tour offer resurface over the next walk. `false` when there is no offer.
+   */
+  offerFromTour: boolean;
+  /**
    * The forks the reader has answered in the running flow, keyed by the
    * question step's id. A detour step runs only when its `requires` question is
    * answered `"yes"` here, so recording an answer is what widens the step list
@@ -109,6 +118,7 @@ export const useOnboardingStore = create<OnboardingState>((set) => ({
   mode: "tour",
   flowId: null,
   offer: null,
+  offerFromTour: false,
   choices: {},
   flowAgentId: null,
   openTour: () => set({ isOpen: true, index: 0, mode: "tour", flowId: null }),
@@ -120,11 +130,15 @@ export const useOnboardingStore = create<OnboardingState>((set) => ({
       mode: "flow",
       flowId,
       offer: null,
+      offerFromTour: false,
       choices: {},
       flowAgentId: null,
     }),
-  openOffer: (flowId) => set({ offer: flowId }),
-  dismissOffer: () => set({ offer: null }),
+  // Snapshots the origin here, not at render: `mode` is mutable, and a walk the
+  // reader opens after a suppressed tour offer would otherwise flip that offer's
+  // origin and pop it over the new walk.
+  openOffer: (flowId) => set((state) => ({ offer: flowId, offerFromTour: state.mode === "tour" })),
+  dismissOffer: () => set({ offer: null, offerFromTour: false }),
   // One update, because the recorded answer is what widens the step list and the
   // index has to land inside the widened one. Where it lands is the caller's to
   // decide: this store cannot see the step list, and the answer's destination
@@ -138,7 +152,16 @@ export const useOnboardingStore = create<OnboardingState>((set) => ({
     })),
   setFlowAgentId: (agentId) => set({ flowAgentId: agentId }),
   resume: ({ flowId, index, choices, flowAgentId }) =>
-    set({ isOpen: true, mode: "flow", flowId, index, choices, flowAgentId, offer: null }),
+    set({
+      isOpen: true,
+      mode: "flow",
+      flowId,
+      index,
+      choices,
+      flowAgentId,
+      offer: null,
+      offerFromTour: false,
+    }),
   close: () => set({ isOpen: false }),
   setIndex: (index) => set({ index }),
 }));

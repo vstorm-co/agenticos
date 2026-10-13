@@ -32,7 +32,7 @@ export function SlashCommandPalette({
   if (commands.length === 0) {
     return (
       <div className="border-foreground/10 bg-popover absolute bottom-full left-0 mb-2 w-full max-w-sm rounded-xl border p-3 shadow-lg">
-        <p className="text-foreground/55 text-xs">
+        <p className="text-muted-foreground text-xs">
           {t.rich("noMatching", {
             key: (chunks) => <kbd className="font-mono">{chunks}</kbd>,
           })}
@@ -43,7 +43,7 @@ export function SlashCommandPalette({
 
   return (
     <div className="border-foreground/10 bg-popover absolute bottom-full left-0 mb-2 w-full max-w-md overflow-hidden rounded-xl border shadow-lg">
-      <div className="border-foreground/8 text-foreground/55 flex items-center justify-between border-b px-3 py-1.5 font-mono text-[10px] tracking-wider uppercase">
+      <div className="border-foreground/8 text-muted-foreground flex items-center justify-between border-b px-3 py-1.5 font-mono text-[11px] tracking-wider uppercase">
         <span>{t("commands")}</span>
         <span className="hidden sm:inline">{t("hint")}</span>
       </div>
@@ -63,10 +63,10 @@ export function SlashCommandPalette({
           >
             <div className="min-w-0 flex-1">
               <p className="text-foreground font-mono text-xs">/{cmd.name}</p>
-              <p className="text-foreground/55 truncate text-xs">{cmd.description}</p>
+              <p className="text-muted-foreground truncate text-xs">{cmd.description}</p>
             </div>
             {cmd.aliases && cmd.aliases.length > 0 && (
-              <span className="text-foreground/40 hidden font-mono text-[10px] sm:inline">
+              <span className="text-muted-foreground hidden font-mono text-[11px] sm:inline">
                 /{cmd.aliases[0]}
               </span>
             )}

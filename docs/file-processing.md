@@ -1,32 +1,25 @@
-# File Processing
+# File processing
 
 This document covers how files are handled in two contexts: chat file uploads,
 which belong to the person who made them, and RAG document ingestion, which
 belongs to a collection and is gated on
 [who may reach it](#who-may-reach-a-collection).
 
-## Chat File Uploads
+## Chat file uploads
 
 When a user uploads a file in the chat interface, the following pipeline runs:
 
 ### Flow
 
-```
-1. Upload     POST /api/v1/files/upload
-               |
-2. Validate    Check MIME type against allowed list + enforce size limit
-               |
-3. Classify    Determine file_type: "image", "pdf", "docx", "spreadsheet", "text"
-               |
-4. Parse       Extract text content (images skip this step)
-               |
-5. Store       Save file to media/{user_id}/ via FileStorageService
-               |
-6. Record      Create ChatFile row in database
-               |
-7. Link        When message is sent, ChatFile is attached via message_id FK
-               |
-8. Display     Composer shows a card per attachment: name, excerpt, type, size
+```mermaid
+flowchart TD
+    U["Upload<br/><code>POST /api/v1/files/upload</code>"] --> V["Validate<br/>MIME against the allowed list, size limit"]
+    V --> C["Classify<br/>image · pdf · docx · spreadsheet · document · presentation · email · text"]
+    C --> P["Parse<br/>extract text — images skip this"]
+    P --> S["Store<br/><code>media/{user_id}/</code>"]
+    S --> R["Record<br/>a <code>ChatFile</code> row"]
+    R --> L["Link<br/>attached to the message by <code>message_id</code>"]
+    L --> D["Display<br/>a card per attachment: name, excerpt, type, size"]
 ```
 
 The upload response carries a `preview` — the first three lines of the extracted
@@ -35,6 +28,25 @@ rather than only what it is called. The browser cannot derive it: a PDF is bytes
 until this service has parsed it, and the client holds an id and a filename once
 the upload has answered. It is `null` for an image and for a file no parser could
 read, and a card with no excerpt shows its thumbnail or its name alone.
+
+### The blocking work runs off the request loop, on its own pool
+
+Parsing an upload — PyMuPDF over every page, openpyxl over every cell, a decode of
+the whole file — and reading or writing its bytes are blocking with no suspension
+point. So they run on a thread rather than the request loop; one large upload would
+otherwise freeze every other request and agent stream on the worker.
+
+They run on a **dedicated, bounded** pool (`app/core/blocking.py`, sized by
+`FILE_IO_MAX_WORKERS`), not `asyncio`'s shared default executor. That executor also
+carries `bcrypt` password hashing and pinned-host DNS, and a burst of uploads must
+not occupy every worker there and leave sign-in and outbound requests queued behind
+an unbounded backlog of upload buffers
+([#1108](https://github.com/vstorm-co/agenticos/issues/1108)).
+
+The write is also **cancellation-safe**. An executor cannot interrupt a running
+`write_bytes`, so a cancelled upload waits the write out and deletes the file it
+created — the caller never receives a storage path, so it could otherwise neither
+record nor clean up the orphan.
 
 ### The whole page is the drop target
 
@@ -75,15 +87,20 @@ After that it is an ordinary `text/plain` attachment and everything below applie
 to it unchanged, which is the point: an agent with a workspace gets the paste as
 a file it can open, and one without gets the text in its prompt.
 
-### Supported File Types
+### Supported file types
 
 | Category | MIME Types | Extensions | Processing |
 |----------|-----------|------------|------------|
 | **Images** | image/jpeg, image/png, image/webp, image/gif | .jpg, .png, .webp, .gif | Stored as-is. Sent to LLM as `BinaryContent` for vision analysis. |
+| **TIFF** | image/tiff | .tiff, .tif | Stored as-is; converted to PNG page(s) at the point it is shown to the model, capped at `CHAT_TIFF_MAX_INLINE_PAGES`. Not shown inline in the browser — served as a download. |
 | **PDF** | application/pdf | .pdf | Text extracted via configured PDF parser. Appended to prompt as context. |
-| **DOCX** | application/vnd.openxmlformats-officedocument.wordprocessingml.document | .docx | Paragraphs extracted via `python-docx`. Appended to prompt as context. |
-| **Spreadsheet** | …spreadsheetml.sheet, …ms-excel.sheet.macroEnabled.12 | .xlsx, .xlsm | Every sheet read via `openpyxl`, named, rows tab-separated. Appended to prompt as context. `.xls` is refused — a different format needing a different reader. |
-| **Text** | text/plain, text/markdown | .txt, .md | UTF-8 decoded directly. Appended to prompt as context. |
+| **DOCX** | …wordprocessingml.document | .docx | Paragraphs extracted via `python-docx`. Appended to prompt as context. |
+| **DOC** | application/msword | .doc | Converted to text through a managed LibreOffice (`soffice`) subprocess. Needs LibreOffice in the image; absent, the text is reported as unavailable. |
+| **Spreadsheet** | …spreadsheetml.sheet, …ms-excel.sheet.macroEnabled.12, application/vnd.ms-excel, …opendocument.spreadsheet | .xlsx, .xlsm, .xls, .ods | Every sheet read, named, rows tab-separated — `openpyxl` for OOXML, `xlrd` for legacy `.xls`, `odfpy` for `.ods`. Appended to prompt as context. |
+| **Presentation** | …presentationml.presentation, …opendocument.presentation | .pptx, .odp | Shape text, table cells and slide notes via `python-pptx` (`.pptx`) or `odfpy` (`.odp`). Appended to prompt as context. |
+| **Document (OpenDocument)** | …opendocument.text | .odt | Paragraphs via `odfpy`. Appended to prompt as context. |
+| **Email** | application/vnd.ms-outlook | .msg | Headers and body read from the OLE/MAPI streams via `olefile` (BSD); embedded attachments listed by name, not recursed. Appended to prompt as context. |
+| **Text** | text/plain, text/markdown, text/csv, text/html, text/xml, application/xml, application/json | .txt, .md, .csv, .html, .xml, .json | UTF-8 decoded directly (XML by its declared BOM/encoding). Appended to prompt as context. |
 
 ### Where an attachment goes depends on the agent
 
@@ -97,9 +114,10 @@ gets the file instead of the text:
 
 | Attachment | No workspace | With a workspace |
 |---|---|---|
-| text, csv, md, json | parsed text pasted inline | written to `uploads/`, message carries a reference and a 20-line head |
-| pdf, docx, spreadsheet | parsed text pasted inline | written to `uploads/`, with the extracted text beside it unless the runtime can read it; reference and a 20-line head |
+| text, csv, md, json, xml | parsed text pasted inline | written to `uploads/`, message carries a reference and a 20-line head |
+| pdf, docx, spreadsheet, document, presentation, email | parsed text pasted inline | written to `uploads/`, with the extracted text beside it unless the runtime can read it (`email` always gets it — `lit` cannot read `.msg`); reference and a 20-line head |
 | image | `BinaryContent` | `BinaryContent` **and** written; reference names the path |
+| tiff | PNG page(s) as `BinaryContent`, page cap noted | original `.tiff` written; PNG page(s) shown, page cap noted |
 
 **The extracted text comes with it only where nothing can read the original.** A
 `.txt` of the parse used to be written next to every PDF, `.docx` and spreadsheet,
@@ -121,6 +139,26 @@ Parsing still happens server-side either way, because the *text* is what an agen
 with no workspace gets and what the 20-line head in the message comes from.
 Accepting the upload without parsing would reach an agent with a workspace as
 unreadable bytes and an agent without one as nothing at all.
+
+**Limitations.** A scanned PDF or TIFF yields an image, not OCR text — the chat
+path has no OCR (the knowledge base does, through LiteParse). Office and DOCX tables
+are flattened to tab-separated or newline text. DOC needs LibreOffice in the image;
+without it the text is reported as unavailable. A `.msg`'s embedded attachments are
+listed by name, not extracted. A multi-page TIFF shows up to
+`CHAT_TIFF_MAX_INLINE_PAGES` pages to the model; an agent with a workspace opens the
+rest from the original on disk. Extracted text is capped at
+`CHAT_PARSED_TEXT_MAX_CHARS`, and per-file and per-turn prompt budgets bound what a
+no-workspace agent is pasted.
+
+**The cap is a budget the readers spend, not a cut after the parse.** A PDF is
+loaded a page at a time and stops at the page that crosses the cap, or after 2,000
+pages. An `.xlsx` streams its rows, stops at the row and reads at most a million
+cells, so a sheet that declares a huge empty range costs nothing extra, and one
+stopped by that count ends with a note saying so. DOCX, PPTX,
+ODT and ODP stop extracting text at the paragraph or slide, but their libraries
+decompress and parse the whole file first, within the archive size limits. Plain
+text, `.msg` and `.doc` are read whole. Text that goes past the cap ends with a marker
+saying the rest of the document is left out.
 
 **A refused write is said once, about the workspace.** A run whose workspace will
 not take a file is a run whose shell and file tools will fail too, and a per-file
@@ -168,7 +206,7 @@ rather than from each surface. It has to be there: where a file goes depends on
 whether the agent has a workspace, and that is decided by `prepare`, which has
 not run when a surface is assembling its prompt.
 
-### PDF Parsing (Chat)
+### PDF parsing (chat)
 
 Chat attachments are read with **PyMuPDF**, and that is not configurable. An
 attachment belongs to no collection, so there is no stored configuration to read
@@ -181,7 +219,15 @@ self._parse_pdf_pymupdf(data)`, so a deployment setting it to `llamaparse` or
 could not have worked at all, calling a `parse_async` method the binding does
 not define.
 
-### Size Limits
+### Size limits
+
+!!! warning "Two ceilings, and the browser has its own copy of one"
+
+    A chat attachment is refused by `CHAT_MAX_UPLOAD_SIZE_MB` (10 MB); a
+    knowledge-base document by `MAX_UPLOAD_SIZE_MB` (50 MB). The frontend
+    container reads the same `CHAT_MAX_UPLOAD_SIZE_MB` at runtime, so give both
+    containers one value: too high on the browser's side and the composer accepts
+    a file the API refuses, too low and it refuses one the API would take.
 
 - Maximum attachment size: `CHAT_MAX_UPLOAD_SIZE_MB` (default: **10 MB**). This is
   the section's own limit — a chat attachment is refused by this number, not by the
@@ -193,23 +239,53 @@ not define.
 - The whole request body is capped above both, at the larger of them plus a multipart
   allowance, so raising either ceiling raises that with it.
 - The limit is enforced server-side after reading the file content. The browser's own
-  check is `NEXT_PUBLIC_CHAT_MAX_UPLOAD_SIZE_MB`, which should be set to match: too
-  high and the composer accepts a file the API refuses, too low and it refuses one the
-  API would take.
+  check reads the same `CHAT_MAX_UPLOAD_SIZE_MB` from the frontend container's
+  environment, so the two containers should be given one value: too high and the
+  composer accepts a file the API refuses, too low and it refuses one the API would
+  take.
 
 ### Storage
 
-Files are saved by `FileStorageService` to the `media/` directory:
+Every uploaded file — a chat attachment, an avatar, the deployment's mark, the
+original of a knowledge-base document — goes through one storage backend, chosen
+by `FILE_STORAGE_BACKEND` at deployment time and never per organization. Whatever
+the backend, a row records the same **storage path**: `{owner}/{uuid}_{filename}`.
+
+`local`, the default, writes them under `MEDIA_DIR`:
 
 ```
 media/
   {user_id}/
-    document.pdf
-    screenshot.png
+    a1b2c3d4e5f6_document.pdf
+    f6e5d4c3b2a1_screenshot.png
     ...
 ```
 
-### ChatFile Model
+`s3` writes the same paths as object keys in an S3-compatible bucket, under
+`FILE_STORAGE_S3_PREFIX`, and asks the store to encrypt every one of them —
+SSE-S3 by default, SSE-KMS with a key the deployment names. See
+[configuration](configuration.md#uploaded-files-at-rest) for the settings.
+
+!!! info "Which backend to run, and what each one asks of you"
+
+    Local is the honest answer for a single host: encrypt the volume, and the
+    files are as protected as the disk. It stops being one at the second API
+    replica — two containers, two disks, and a file uploaded to one is a 404 on
+    the other — and when a client wants their files under a key they control.
+
+    Switching backend does not move what the other one already holds, and
+    nothing here migrates it. It is a decision taken when the deployment is set
+    up; a later switch needs the files copied across by hand, and the paths are
+    the same on both sides so a copy is enough.
+
+    Agent workspaces are not in either backend. A `state` workspace lives in this
+    database and a `docker` one in the sandbox host's own storage, so an object
+    store does not change where they are — see [the sandbox](sandbox.md).
+
+`agenticos cmd doctor` prints which backend a running deployment uses and whether
+encryption is on.
+
+### ChatFile model
 
 The `ChatFile` database model tracks uploaded files:
 
@@ -218,15 +294,15 @@ The `ChatFile` database model tracks uploaded files:
 | `id` | UUID | Primary key |
 | `user_id` | UUID/FK | Owner (used for access control) |
 | `filename` | String | Original filename |
-| `mime_type` | String | MIME type (e.g. `application/pdf`) |
+| `mime_type` | String | Resolved (canonical) MIME type — an `application/octet-stream` `.tiff` is stored as `image/tiff`, so the download and inline-conversion paths read one trustworthy field. Rows uploaded before FA-013 keep their declared type; readers tolerate both. |
 | `size` | Integer | File size in bytes |
 | `storage_path` | String | Relative path in storage |
-| `file_type` | String | Classified type: `image`, `pdf`, `docx`, `spreadsheet`, `text` |
+| `file_type` | String | Classified type: `image`, `pdf`, `docx`, `spreadsheet`, `document`, `presentation`, `email`, `text` |
 | `parsed_content` | Text | Extracted text content (NULL for images) |
 | `message_id` | UUID/FK | Linked message (set when message is sent) |
 | `created_at` | DateTime | Upload timestamp |
 
-### Ownership & Access
+### Ownership & access
 
 - Only the file owner can download their files (`GET /files/{id}`).
 - The `FileUploadService.get_user_file()` method compares `chat_file.user_id`
@@ -241,60 +317,72 @@ The `ChatFile` database model tracks uploaded files:
   render a stranger's filename nor pull an attachment off the message it
   already hangs on.
 
-## RAG Document Ingestion
+## RAG document ingestion
 
 When documents are ingested into the RAG knowledge base (via CLI or API), a
 different pipeline handles parsing, chunking, and embedding.
 
-### Ingestion Flow
+### Ingestion flow
 
-```
-1. Input       File path (CLI) or uploaded file (API)
-                |
-2. Parse       DocumentProcessor selects parser by file type
-                |
-3. Chunk       Text split into segments (configurable size/overlap/strategy)
-                |
-4. Embed       Chunks embedded via configured provider
-                |
-5. Store       Vectors written to vector database
-                |
-6. Track       RAGDocument record created in SQL (status tracking)
+```mermaid
+flowchart TD
+    I["Input<br/>a path (CLI) or an upload (API)"] --> P["Parse<br/><code>DocumentProcessor</code> picks a parser by type"]
+    P --> C["Chunk<br/>size, overlap and strategy are configurable"]
+    C --> E["Embed<br/>through the collection's provider"]
+    E --> S["Store<br/>vectors in <code>rag_&lt;collection&gt;</code>"]
+    S --> T["Track<br/>a <code>RAGDocument</code> row carries the status"]
 ```
 
-Over the API the order is the other way round: the `RAGDocument` row is written
-first and steps 2–5 run in a background task against a session of their own,
-which is why an upload answers `{"status": "processing"}` rather than waiting.
-There are two addresses an upload can arrive at — `POST /rag/collections/{name}/ingest`
-and `POST /kb/{kb_id}/documents` — and both answer **202** with the same
-`RAGIngestResponse`, every field of it, `"document_id": null` included: the vector
-store's id for the document does not exist until the worker has indexed it. One of
-the two used to omit the key rather than send it null, so a client normalising the
-answer got a different shape from each
+!!! note "Over the API the order is the other way round"
+
+    The `RAGDocument` row is written **first** and the middle four steps run in a
+    background task with a session of their own - which is why an upload answers
+    `202 {"status": "processing"}` rather than waiting.
+
+There are two addresses an upload can arrive at —
+`POST /rag/collections/{name}/ingest` and `POST /kb/{kb_id}/documents` — and both
+answer **202** with the same `RAGIngestResponse`, every field of it,
+`"document_id": null` included. The vector store's id for the document does not
+exist until the worker has indexed it.
+
+One of the two used to omit the key rather than send it null, so a client
+normalising the answer got a different shape from each
 ([#560](https://github.com/vstorm-co/agenticos/issues/560)).
-That task is started **after the request's transaction commits** — it is handed
-over with `spawn_after_commit`, not `spawn`, and started by the session itself
-once the row is durable. Dispatched any earlier it would look for the document
-by id, find nothing, and stop, leaving the upload it had already acknowledged in
-`processing` forever ([#417](https://github.com/vstorm-co/agenticos/issues/417)).
+
+!!! danger "The task is started after the request's transaction commits"
+
+    It is handed over with `spawn_after_commit`, **not** `spawn`, and started by the
+    session itself once the row is durable.
+
+    Dispatched any earlier it would look for the document by id, find nothing, and
+    stop — leaving the upload it had already acknowledged in `processing` forever
+    ([#417](https://github.com/vstorm-co/agenticos/issues/417)).
+
 The same applies to a sync: the `SyncLog` row exists before its flow does. See
 [Dispatching background work from a request](architecture.md#dispatching-background-work-from-a-request).
 
-**Each flow builds its own vector store, and closes it.** The store owns a
-pooled SQLAlchemy engine, so one built per uploaded document and left behind
-keeps its connections until the worker process exits: two hundred uploads used to
-mean two hundred abandoned pools, and somewhere short of a hundred documents the
-worker reached the database's `max_connections` and every query after that failed
-— including the one that would have marked the document failed, so the upload sat
-at `processing` with the reason only in a log
-([#948](https://github.com/vstorm-co/agenticos/issues/948)). Pooling *within* one
-flow is worth having, because a document's chunks are written over that
-connection; across flows it is not shared, for the same cross-event-loop reason
-`get_worker_db_context` creates a `NullPool` engine per call. **If ingestion
-starts failing part-way through a large batch with a connection error, this is
-the shape to look for.**
+**Each flow builds its own engine for the vector store, and disposes it with the
+flow's work.**
 
-### Supported Formats
+**One loop owns the process's pools, and everything else builds its own
+engine.** The API's lifespan claims them at startup: it serves every request and
+disposes them at shutdown, so it is the one loop whose connections they may
+cache. Off that loop `get_db_context` behaves like `get_worker_db_context` — a
+`NullPool` engine for the call, disposed at the end — because it is reached from
+Prefect flows (the report, MCP refresh, invitation and approval tasks, the
+channel loops) and from an agent's embedding resolver, each on a loop of its own
+([#1079](https://github.com/vstorm-co/agenticos/issues/1079)).
+
+An agent's knowledge search follows the same rule for its vector store: the
+process store on the owning loop, and `agent_vector_engine` — pool-less —
+anywhere else. It is the one vector caller that cannot know which loop it is on,
+and its retrieval store is cached for the life of the process, so a pooled store
+shared between two loops in one worker hands the second a connection the first
+opened. Keeping the pool for the API is what bounds this: `NullPool` opens a
+connection per checkout and caps nothing, where the pool queues at
+`DB_POOL_SIZE + DB_MAX_OVERFLOW`.
+
+### Supported formats
 
 `.txt`, `.md` and `.docx` are read by the built-in Python parsers whatever the
 collection's parser is. Beyond those, the set follows the parser:
@@ -303,7 +391,7 @@ collection's parser is. Beyond those, the set follows the parser:
 |--------|-----------|-------|
 | PyMuPDF | `.pdf` | nothing |
 | LiteParse | `.pdf`; images (`.png`, `.jpg`, `.tiff`, `.svg`, …); office formats (`.xlsx`, `.pptx`, `.odt`, `.csv`, `.rtf`, …) | LibreOffice **for office formats only** — images are converted natively |
-| LlamaParse | `.pdf`, `.pptx`, `.xlsx`, `.csv`, `.rtf`, `.epub`, `.html`, images | `LLAMAPARSE_API_KEY` |
+| LlamaParse | `.pdf`, `.pptx`, `.xlsx`, `.csv`, `.rtf`, `.epub`, `.html`, images | A LlamaParse key in the organization's vault, named by the collection (`llamaparse_secret_id`). There is no deployment key |
 
 The backend Dockerfile installs LibreOffice and Tesseract, so office formats and
 OCR work out of the box in a container. Running the backend outside Docker, an
@@ -316,7 +404,7 @@ These sets are what `DocumentProcessor` can actually route — pinned by
 a `.xlsx` was accepted, stored, given a document row and dispatched, and then
 died in a worker as "Unsupported file type".
 
-### Parser Selection (RAG)
+### Parser selection (RAG)
 
 Per collection, on `/rag`, and overridable per upload — not an environment
 variable. Stored on `knowledge_bases.ingestion_config`.
@@ -337,14 +425,14 @@ variable. Stored on `knowledge_bases.ingestion_config`.
 | `liteparse_dpi` | `150` | Higher reads faint scans, slower. |
 | `max_pages` | `1000` | The setting that bounds the cost of one document; `parse_timeout_seconds` only bounds the wait. |
 
-### Chunking Configuration
+### Chunking configuration
 
 Per collection, alongside the parser:
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `chunk_size` | `512` | Maximum characters per chunk |
-| `chunk_overlap` | `50` | Characters of overlap; must be smaller than `chunk_size` |
+| `chunk_size` | `2500` | Maximum characters per chunk |
+| `chunk_overlap` | `200` | Characters of overlap; must be smaller than `chunk_size` |
 | `chunking_strategy` | `recursive` | Strategy: `recursive`, `markdown`, `fixed` |
 
 **Strategy comparison:**
@@ -380,28 +468,34 @@ before that change keeps the chunks it was ingested with. Re-upload a document,
 or re-run `uv run agenticos cmd rag-ingest`, to re-chunk it.
 
 **How many chunks a document has decides how long storing it takes, but no longer
-how many round trips.** `insert_document` writes them 200 rows to a statement
-(`executemany`, which asyncpg pipelines), where it used to issue one `INSERT` per
-chunk in a Python loop inside one open transaction — so a 200-page PDF at the
-default `chunk_size` was one to three thousand sequential round trips, five to
-fifteen seconds against a managed Postgres at 3-5ms before a single embedding was
-paid for ([#950](https://github.com/vstorm-co/agenticos/issues/950)). It is
-batched rather than one statement for the whole document because the parameter
-list is held in memory and each row carries its embedding rendered as text: at
-3072 dimensions that is tens of kilobytes a row.
+how many round trips.**
 
-**An override is checked against the merged pair, not against its own value.** A
-per-upload `ingestion` field carries only what it changes, so `chunk_overlap:
-4096` sent to a collection chunking at 512 is two individually legal numbers and
-one configuration that repeats almost everything it advances past. The merge
-re-validates, and the upload is refused with a **400** naming both settings in
-`details.fields` — before the file is stored and before a document row exists,
-so there is nothing to retry or clean up. It answered 500 with an empty
-`details` until [#874](https://github.com/vstorm-co/agenticos/issues/874): the
-merge raised a raw Pydantic error, which reaches no handler. The same pair sent
-as a collection's own configuration was always refused with a 422, because there
-it is a field of a JSON body and FastAPI validates it before the route is
-entered.
+`insert_document` writes them 200 rows to a statement (`executemany`, which asyncpg
+pipelines). It used to issue one `INSERT` per chunk in a Python loop inside one open
+transaction — so a 200-page PDF at the default `chunk_size` was one to three
+thousand sequential round trips: five to fifteen seconds against a managed Postgres
+at 3-5ms, before a single embedding was paid for
+([#950](https://github.com/vstorm-co/agenticos/issues/950)).
+
+It is batched rather than one statement for the whole document because the parameter
+list is held in memory and each row carries its embedding rendered as text — at 3072
+dimensions, tens of kilobytes a row.
+
+**An override is checked against the merged pair, not against its own value.**
+
+A per-upload `ingestion` field carries only what it changes, so `chunk_overlap: 4096`
+sent to a collection chunking at 2500 is two individually legal numbers and one
+configuration that repeats almost everything it advances past.
+
+The merge re-validates, and the upload is refused with a **400** naming both settings
+in `details.fields` — before the file is stored and before a document row exists, so
+there is nothing to retry or clean up.
+
+It answered 500 with an empty `details` until
+[#874](https://github.com/vstorm-co/agenticos/issues/874): the merge raised a raw
+Pydantic error, which reaches no handler. The same pair sent as a collection's own
+configuration was always refused with a 422, because there it is a field of a JSON
+body and FastAPI validates it before the route is entered.
 
 Both refusals name the same fields, `ingestion_config` for the pair rule and
 `ingestion_config.chunk_size` for a setting of its own — so the form marks one
@@ -412,56 +506,97 @@ fields it is about.) The 400 named its fields under `details.errors` until
 error format, which nothing on the frontend read: the sentence reached a toast
 and no input was ever highlighted.
 
-### Embeddings — the model, and whose key pays
+### Embeddings — the model, whose endpoint answers, and whose key pays
 
-Embeddings go out through OpenRouter to an OpenAI embedding model. Both halves
-of that call are decided **per collection**, not per deployment, by
-`app/services/embedding_resolution.py`:
+All three are decided **per collection**, not per deployment, by
+`app/services/embedding_resolution.py` over the catalog in
+`app/core/catalog/embedding_providers.json`:
 
 | | |
 |---|---|
-| **Model and width** | Recorded on the knowledge base at creation (`embedding_model`, `embedding_dim`) and never changed afterwards — `PgVectorStore` writes `embedding vector(N)` once, so a second model either cannot be written or is silently compared against vectors from another space. `EMBEDDING_MODEL` decides only what a *new* collection is built with. |
-| **Credential** | The vault key chosen on the collection (`embedding_secret_id`), which is what the organization is billed for. A collection that chose none embeds on the deployment's `OPENROUTER_API_KEY`. |
+| **Model and width** | Recorded on the knowledge base at creation (`embedding_model`, `embedding_dim`) and never changed afterwards — `PgVectorStore` writes `embedding vector(N)` once, so a second model either cannot be written or is silently compared against vectors from another space. A new collection chooses one of the models its provider serves; there is no deployment default. |
+| **Provider** | Which OpenAI-compatible endpoint serves that model (`embedding_provider`). **Changeable**, unlike the model: the same model at the same width produces vectors in the same space wherever it is served from, so `PATCH /kb/{id}` moves a collection between providers and leaves everything already indexed valid. |
+| **Credential** | The vault key chosen on the collection (`embedding_secret_id`), which is what the organization is billed for, and which must be a key **for that provider**. There is no deployment-wide embedding key: a new personal or organization collection has to name one, and a collection without a usable key refuses to index or search until it has one. The `ollama` provider is **keyless** - an Ollama on the deployment's own network - so a collection on it names no key and is refused if it tries to; it names a **local service** instead (`embedding_endpoint_id`), a row under Knowledge → Integrations that carries the address, the organization's own or a deployment-wide one the app admin registered. An **app-scoped** collection belongs to no organization and so has no vault to name a key from; it may embed only through a keyless provider at a deployment-wide service, and choosing a keyed one for it is refused where the provider was chosen. |
 
-The key is validated at creation — a key another organization holds, one of the
-wrong purpose, or one the chooser cannot themselves see is refused there, where
-the person choosing can fix it. That last one is why binding needs
-`secrets:view` on the key and not only `collections:edit` on the collection:
-binding a key is lending it, since the collection's embeddings bill it for
-everyone who can write the collection. The picker only ever offered keys the
-chooser can see, but the API takes an id and an id is guessable, so until
-[#912](https://github.com/vstorm-co/agenticos/issues/912) a Member could bind
-another member's **private** key by supplying its UUID. A key they cannot view is
-refused as one the vault does not hold, so the refusal cannot enumerate somebody
-else's private secrets.
+Which knowledge base a collection name resolves to is itself a tenant question.
+`collection_name` is indexed but **not unique** — two organizations can name a
+collection the same thing and share one vector table — so resolution is scoped
+to the organization the embedding is *for*: the ingesting flow's, the searching
+agent's. Picking whichever row the database ordered first would resolve another
+tenant's model and unseal *their* vault key for this request, billing them and
+running this organization's text through their credential
+([#913](https://github.com/vstorm-co/agenticos/issues/913)). A shared name
+therefore resolves each organization's own configuration, falling back to an
+app-scoped collection but never to a third tenant's.
 
-At embed time nothing is refused: a chosen key that has since been deleted,
-cannot be unsealed, or does not hold an API key falls back to the deployment's,
-because *whose key pays* must never decide *whether documents can be found*.
+!!! warning "One collection name is one embedding space"
 
-That fallback is announced rather than assumed. The resolution carries which of
-the five sources it landed on, ingestion writes the degraded ones into the
-Prefect run's log, and a deployment with no key of its own fails with a message
-naming the collection and which key it tried — not with advice to set a variable
-about a collection that already had a key. Before #306 the ingestion worker was
-the one caller that never asked the resolver at all, so every uploaded document
-was embedded with the deployment's model and key whatever its collection had
-chosen.
+    Resolving per organization is only safe because every row on one collection
+    name agrees on how it embeds. A knowledge base created against a name that
+    already exists **adopts** that collection's model, width, provider and vault
+    key, and an explicit choice that disagrees is refused rather than quietly
+    overridden. Without that, one physical table could hold two embedding
+    spaces: pgvector refuses the comparison outright where the widths differ,
+    and where they happen to match it ranks one model's vectors against
+    another's and answers with plausible nonsense.
 
-### Vector Storage
+The provider used to be hardcoded: every request went to `openrouter.ai`,
+so an organization holding an OpenAI key could not use it, a
+key moved to another account meant recreating the collection and re-ingesting
+every document into it, and nothing stopped a collection sending one vendor's
+credential to another vendor's address. The catalog is also what
+`GET /rag/embedding-models` answers with, so the create form offers the models a
+provider can actually serve — it used to offer every model this build knew a
+*width* for, three of them sentence-transformer weights nothing here can call.
+
+The key is validated at creation. A key another organization holds, one of the wrong
+purpose, or one the chooser cannot themselves see is refused there, where the person
+choosing can fix it.
+
+That last one is why binding needs `secrets:view` on the key and not only
+`collections:edit` on the collection: **binding a key is lending it**, since the
+collection's embeddings bill it for everyone who can write the collection.
+
+The picker only ever offered keys the chooser can see — but the API takes an id, and
+an id is guessable. Until [#912](https://github.com/vstorm-co/agenticos/issues/912)
+a Member could bind another member's **private** key by supplying its UUID.
+
+A key they cannot view is refused as one the vault does not hold, so the refusal
+cannot enumerate somebody else's private secrets.
+
+At embed time nothing is refused by the resolver: a chosen key that has since
+been deleted, cannot be unsealed, or does not hold an API key resolves to *no*
+key, because *whose key pays* must never decide *whether the collection's row can
+be read*. The embedding client then refuses the index or the search with a
+message naming the collection, its provider and which of those happened — there
+is no deployment-wide key to fall back to, so the refusal never advises a
+variable.
+
+That degradation is announced rather than assumed. The resolution carries which
+of the five sources it landed on, and ingestion writes every degraded one into
+the Prefect run's log, a collection that simply names no key included. Before
+issue #306 the ingestion worker was the one caller that never asked the resolver
+at all, so every uploaded document was embedded with the deployment's model and a
+deployment-wide key whatever its collection had chosen; that key is gone.
+
+### Vector storage
 Vectors are stored in **pgvector** using the existing PostgreSQL database.
 No additional services needed.
 
-**One table per collection, created at runtime.** The store issues `CREATE TABLE IF
-NOT EXISTS rag_<collection>` the first time a collection is written to, so those
-tables exist in the database and in nothing else — no model declares them and no
-migration creates them, because a deployment holds as many as somebody has made
-knowledge bases. Alembic does not own them, and `alembic/env.py` says so through
-`include_name`: without that, `make db-check` read every one as a table the models
-had dropped and failed on any database that had ever ingested a document. The
-predicate lives in `app/db/vector_tables.py`, and it is narrower than the prefix on
-purpose — `rag_documents` *is* a model table, and excluding it would have turned the
-gate off for the one table ingestion writes through.
+**One table per collection, created at runtime.**
+
+The store issues `CREATE TABLE IF NOT EXISTS rag_<collection>` the first time a
+collection is written to, so those tables exist in the database and in nothing else.
+No model declares them and no migration creates them, because a deployment holds as
+many as somebody has made knowledge bases.
+
+Alembic does not own them, and `alembic/env.py` says so through `include_name`.
+Without that, `make db-check` read every one as a table the models had dropped, and
+failed on any database that had ever ingested a document.
+
+The predicate lives in `app/db/vector_tables.py`, and it is narrower than the prefix
+on purpose: `rag_documents` *is* a model table, and excluding it would have turned
+the gate off for the one table ingestion writes through.
 
 The store answers the same question with the same predicate: `list_collections`,
 which is what `rag-collections` prints, reports a `rag_` table only when no model
@@ -484,20 +619,28 @@ out of, so **one function decides whether it is usable** —
 | A table the models own — `documents` | See below. |
 
 Two of these are the same failure reached differently, and both are worth a
-sentence. The length bound is the one that reads as pedantry and is not. Two collections
-agreeing up to the truncation point are **one object**: one table if the name was
-too long, so either organization's `DROP` destroys the other's vectors and every
-search crosses between them; and one index if only the index name was, which is
-quieter — `CREATE INDEX IF NOT EXISTS` finds the first collection's index already
-there and builds nothing, leaving the second unindexed at whatever width the first
-was built at. Nothing above the database can see either, because a collection name
-is compared as a whole string everywhere else — which is also why case matters: a
-spelling is a shorter road to the same shared table, and refusing upper case
-closes a second one with it. `_collection_exists` compared `rag_Handbook` against
-`information_schema.tables`, which stores the folded name, so it never matched and
-`search`, `get_documents` and `get_document_chunks` answered **empty** for any
-collection with a capital in it. That path is gone rather than fixed: such a name
-is now refused where the table name is built, before anything can ask.
+sentence. The **length bound** is the one that reads as pedantry and is not.
+
+Two collections agreeing up to the truncation point are **one object**:
+
+- **One table**, if the name was too long — so either organization's `DROP` destroys
+  the other's vectors, and every search crosses between them.
+- **One index**, if only the index name was, which is quieter:
+  `CREATE INDEX IF NOT EXISTS` finds the first collection's index already there and
+  builds nothing, leaving the second unindexed at whatever width the first was built
+  at.
+
+Nothing above the database can see either, because a collection name is compared as
+a whole string everywhere else.
+
+Which is also why **case** matters: a spelling is a shorter road to the same shared
+table, and refusing upper case closes a second one with it. `_collection_exists`
+compared `rag_Handbook` against `information_schema.tables`, which stores the folded
+name, so it never matched and `search`, `get_documents` and `get_document_chunks`
+answered **empty** for any collection with a capital in it.
+
+That path is gone rather than fixed: such a name is now refused where the table name
+is built, before anything can ask.
 
 **A collection may not be named after a table the models own**, which is the
 runtime-table predicate read a third way — asked of a name before its table exists.
@@ -509,17 +652,55 @@ is derived rather than listed, so a `rag_`-prefixed model table added later is
 covered, and a collection called `documents_archive` — which a literal exclusion
 would have taken with it — is not affected.
 
-**And the name has to be free.** The vector namespace is deployment-global: two
-knowledge bases holding one collection name share one table, so a name already held
-outside the caller's reach is refused with a 409 —
-`CollectionAccessService.claim`, which `POST /kb` and `POST /rag/collections/{name}`
-both call. Only one of them used to. `POST /kb` wrote whatever `collection_name` it
-was sent, so a member with `collections:edit` could aim a knowledge base at another
-organization's vector table and then read and write it through every gate
-afterwards, because a collection resolves through whichever knowledge base the
-caller *can* read — and now one of them is theirs. A name a caller does not supply
-is derived from the display name plus six random hex characters, and is claimed on
-the same path rather than trusted for being random.
+**And the name has to be free.**
+
+The vector namespace is deployment-global: two knowledge bases holding one collection
+name share one table. So a name already held outside the caller's reach is refused
+with a 409 — `CollectionAccessService.claim`, which `POST /kb` and
+`POST /rag/collections/{name}` both call.
+
+Only one of them used to. `POST /kb` wrote whatever `collection_name` it was sent, so
+a member with `collections:edit` could aim a knowledge base at another organization's
+vector table and then read and write it through every gate afterwards — because a
+collection resolves through whichever knowledge base the caller *can* read, and now
+one of them is theirs.
+
+A name a caller does not supply is derived from the display name plus six random hex
+characters, and is claimed on the same path rather than trusted for being random.
+
+**And a name mid-teardown is not free either.** Dropping a collection removes its
+knowledge-base rows in the request but drops the physical `rag_<name>` vector table
+only *after* the request commits, handed to a durable worker — so a rollback keeps
+the table beside the rows it restores, and a process that dies mid-cleanup does not
+orphan it. Between that commit and the drop the name has no row but its table still
+holds the old tenant's chunks, so `claim` also refuses a name reserved in
+`collection_teardowns` — a row committed *with* the delete and cleared once the table
+is gone. Without it, a claim in that window would have `CREATE TABLE IF NOT EXISTS`
+adopt the lingering table and read another tenant's data (#1362). An **upload** to a
+reserved name is refused on the same grounds: `RAGDocumentService.dispatch_upload`
+checks the reservation before it creates the collection, so an ingest slipped into the
+window cannot recreate the table the drop is about to destroy and lose its own chunks
+to it (#1364). The **worker** ingestion paths — a sync, a retry — check it too, at the
+`still_wanted` gate right before the vector write, so a sync into a cleared default
+(whose row the clear keeps) stops rather than repopulating a table being dropped
+(#1382). Both are best-effort reservation checks rather than lock-held serialisation:
+holding the teardown lock across a write would deadlock against an organization purge,
+which locks the `organizations` row first, so closing the last narrow window is left
+to #1382.
+
+A reservation whose drop never ran — lost to a crash between the commit and the
+dispatch, or to a drop that fails for good — would block its name forever, since
+nothing else reattempts it. An **hourly sweep** (`teardown-reservation-sweep`) reaps
+those: for any reservation older than an hour it retries the drop and releases the
+name, so a name is not lost for good because one worker run was (#1364).
+
+**A default base is cleared, not deleted.** Dropping a default collection keeps its
+knowledge-base row — the org keeps a usable default — but its vector table is dropped
+all the same, so the documents deleted with it stop being searchable rather than
+lingering in a table nothing lists (#1361). A search reads the absent table as empty
+and the next upload recreates it. The table is spared only when a sibling base still
+holds the same name, since the vector namespace is not tenant-unique and dropping it
+would take their chunks too (#913).
 
 `documents` was also the **default** collection, so the CLI quickstart used to aim
 at the tracking table; the default is now `default`. A knowledge base created with
@@ -576,7 +757,70 @@ are derived from what people call their knowledge bases, so confirming that
 collection, so reaching one reaches every document in it — which is the thing to weigh
 when deciding what to ingest where.
 
-### Document Tracking
+### Narrowing a search { #narrowing-a-search }
+
+`POST /rag/search` and the agent's retrieval tool take a `filters` object beside the
+query. Four dimensions, all stamped onto every chunk at ingest:
+
+| Field | Is |
+|---|---|
+| `source` | Where the document came from — the upload, a sync connector — from a fixed vocabulary |
+| `document_type` | The parsed filetype, derived at ingest rather than supplied |
+| `organizational_unit` | The one author-supplied, corpus-dependent dimension |
+| `date_from` / `date_to` | An inclusive range over the document's own date |
+
+**OR within a field, AND across them.** `source: ["upload", "google_drive"]` matches
+either; adding `document_type: ["pdf"]` narrows to PDFs among those two. A chunk that
+carries no value for a dimension being filtered on **fails closed** — it is excluded
+rather than admitted, so a filter never widens what the query already reached. An
+empty list is refused with 422 rather than read as "match everything", which is the
+same refusal-over-silence rule the rest of this page follows.
+
+**A filter cannot reach another tenant.** The tenant restriction is built from the
+caller's own resolved collection, never from the request body — there is no field in
+which to name one — and it is ANDed into the query before the top-k is computed, so a
+selective filter cannot surface a row from outside the scope. An app-scoped,
+deployment-wide collection is matched on *having no tenant stamped* rather than on an
+equality every organization would fail, which is what lets everybody read the shared
+base without anybody reading each other's.
+
+**`GET /rag/collections/{name}/filter-values`** answers with the `organizational_unit`
+values actually present in the collection, under that same scope. It exists because
+that dimension is whatever the authors wrote: guessing a value returns silently empty,
+which reads as "nothing on this subject" rather than "no such unit".
+
+### Where the organizational unit comes from { #where-the-organizational-unit-comes-from }
+
+Two writers, and nothing else sets it. A **sync source** carries a default that every
+document it brings in inherits — a shared folder is a department's, and nobody labels a
+thousand synced files one at a time. An **upload** names one for that file, in the
+multipart body beside `ingestion`, and it is recorded on the document's own row rather
+than passed to the worker, so a run queued before the field existed still binds. The
+console offers both: a field on the sync wizard's last step, and one in *How the next
+uploads are read and filed*, which applies to every file added until it is cleared.
+
+It is free text on purpose. The vocabulary is whatever a deployment's corpus turns out
+to use, and `filter-values` reports what a collection actually holds — a closed list
+would have to be maintained before the first document could be filed under anything. A
+blank is not a value: it is recorded as *no unit*, so the facet never offers one named
+`""`.
+
+**Nothing is backfilled.** A document ingested before its source or its uploader named
+a unit carries none, and no rule can decide which unit it should have belonged to. Such
+a document is excluded by any filter on the dimension — chunks fail closed — until it
+is re-ingested. Until [#1777](https://github.com/vstorm-co/agenticos/issues/1777)
+nothing wrote the field at all, so the filter matched nothing and `filter-values`
+answered with an empty list for every collection in every deployment.
+
+!!! warning "The old `filter` string is deprecated"
+
+    `POST /rag/search` used to take a `filter` string, of which only
+    `parent_doc_id == "<id>"` was ever honoured — every other clause was dropped
+    without a word. It now accepts that one expression and **refuses anything else
+    with 400** rather than ignoring it. Use `filters` instead; supplying both the
+    string and `filters.parent_doc_id` is a conflict, also 400.
+
+### Document tracking
 
 
 Ingested documents are tracked in the SQL database via the `RAGDocument` model:
@@ -592,6 +836,7 @@ Ingested documents are tracked in the SQL database via the `RAGDocument` model:
 | `vector_document_id` | ID in the vector store |
 | `chunk_count` | Number of chunks created. Recorded since [#147](https://github.com/vstorm-co/agenticos/issues/147); a document ingested before it holds `0` and its collection's card under-reports until it is re-ingested |
 | `storage_path` | Path to original file (for re-ingestion/download) |
+| `organizational_unit` | Which part of the organization this document belongs to — from the upload, or inherited from the sync source. `null` for a document nobody filed |
 | `created_at` | Ingestion start time |
 | `completed_at` | Ingestion completion time |
 
@@ -615,17 +860,20 @@ since [#990](https://github.com/vstorm-co/agenticos/issues/990) it skips
 everything unchanged and re-fetches exactly what has no document, so retrying
 four failures out of forty costs four transfers rather than forty.
 
-**Every path opens the row before the file is indexed.** Written afterwards, a
-row whose write failed — a database blip, a name longer than the column — left the
-vector document stored and untracked, and the next `new_only` run then matched
-its hash and *skipped* the file before reaching the write, so it stayed
-searchable, invisible and undeletable for good. This order's worst case is a row
-that says `processing` beside a document that finished, which is visible and can
-be deleted. The connector sync stopped writing afterwards in
-[#992](https://github.com/vstorm-co/agenticos/issues/992) and the
-local-directory one in
-[#997](https://github.com/vstorm-co/agenticos/issues/997), which also gave a
-locally-synced file that fails to parse a row and a reason — it had neither, so a
+**Every path opens the row before the file is indexed.**
+
+Written afterwards, a row whose write failed — a database blip, a name longer than
+the column — left the vector document stored and untracked. The next `new_only` run
+then matched its hash and *skipped* the file before reaching the write, so it stayed
+searchable, invisible and undeletable for good.
+
+This order's worst case is a row that says `processing` beside a document that
+finished, which is visible and can be deleted.
+
+The connector sync stopped writing afterwards in
+[#992](https://github.com/vstorm-co/agenticos/issues/992), and the local-directory
+one in [#997](https://github.com/vstorm-co/agenticos/issues/997) — which also gave a
+locally-synced file that fails to parse a row and a reason. It had neither, so a
 sync log saying four of forty failed named none of them.
 
 **A synced row says which file it tracks**, in `source_path`: `gdrive://<id>`,
@@ -725,27 +973,41 @@ filter this deployment ships does not currently scrub it.
 [#440]: https://github.com/vstorm-co/agenticos/issues/440
 
 
-### Sync Operations
+### Sync operations
 
 Sync operations are tracked via the `SyncLog` model, recording source, mode,
 total files, ingested/updated/skipped/failed counts, and timing. View sync
 history via `GET /rag/sync/logs`.
 
-**Which stored document a file corresponds to is one question, asked once.**
-`IngestionService.existing_document` reads the collection's document listing a
-single time and answers with both the document's id and its stored
-`content_hash`, in one precedence: a `source_path` match beats a `filename`
-match, and a `content_hash` match is the last resort. The two answers come back
-together on purpose — they are facts about *one* document, and while they were
-computed by separate lookups they could disagree, so a sync compared a live
-file's hash against a different document's and either re-embedded an unchanged
-file every night or skipped a changed one as current
-([#548](https://github.com/vstorm-co/agenticos/issues/548)). That also made
-ingesting one changed file read the whole collection up to four times; it is now
-once for the decision and once inside the ingest
-([#566](https://github.com/vstorm-co/agenticos/issues/566)). Reading it at all is
-still a full scan — [#27](https://github.com/vstorm-co/agenticos/issues/27) is the
-pagination that would fix that.
+**Which stored document a file corresponds to is one question, and an indexed one.**
+
+`IngestionService.existing_document` hands it to the store's
+`find_existing_document`, which looks the document up one metadata key at a time —
+`source_path`, then a `filename` the document has not addressed under a different
+path, then `content_hash` — in that precedence, stopping at the first hit.
+
+It answers with both the document's id **and** its stored `content_hash`, and the
+two come back together on purpose: they are facts about *one* document. Computed by
+separate lookups with different rules they could disagree, so a sync compared a live
+file's hash against a different document's and either re-embedded an unchanged file
+every night or skipped a changed one as current
+([#548](https://github.com/vstorm-co/agenticos/issues/548)).
+
+`PgVectorStore` serves each lookup from a **hash** index on that metadata key. Hash
+rather than btree, because the lookups are equality-only and a `source_path` is
+unbounded — a btree would fail its row-size limit and take ingestion down with it.
+
+The indexes are built with the runtime table and backfilled onto older collections by
+migration `0058_backfill_rag_lookup_indexes`. That makes the check a handful of
+indexed statements, rather than the read of the whole `rag_<collection>` table into
+worker memory it used to be — once per ingested document, on a collection that could
+hold hundreds of thousands of chunks
+([#1102](https://github.com/vstorm-co/agenticos/issues/1102), the ingest half of
+[#27](https://github.com/vstorm-co/agenticos/issues/27); its other half paginated the
+tracked-documents listing).
+
+A base-class fallback still answers by reading the listing, for a store that has no
+index to lean on.
 
 `new_only` skips a file whose stored hash matches, `update_only` skips one that
 is unchanged and ignores one that is new, and `full` replaces whatever it
@@ -753,16 +1015,20 @@ matches. A store that cannot answer the listing is treated as "no match" rather
 than as a match: a failed query is not evidence that a document is absent, but
 acting on it as though a document *were* present would delete one.
 
-**Both flows, and they have to agree** — one `sync_mode` column feeds a local
-directory and a connector alike, so a mode meaning one thing for each is the
-defect whatever either does alone. A connector sync implemented none of it until
-[#990](https://github.com/vstorm-co/agenticos/issues/990): `sync_mode` reached
-only `ingest_file`'s `replace` argument and `ingest_file` never skips, so on the
-default `new_only` the previous document was neither found nor deleted and a
-*second copy* was inserted every run — a week of nightly syncs was seven copies
-of every chunk, ranked against each other in every search and each one paid for
-in embeddings. The `skipped` counter beside it was initialised and never
-incremented, which is a sync log truthfully reporting `skipped=0` every night.
+**Both flows, and they have to agree.** One `sync_mode` column feeds a local
+directory and a connector alike, so a mode meaning one thing for each is the defect
+whatever either does alone.
+
+A connector sync implemented none of it until
+[#990](https://github.com/vstorm-co/agenticos/issues/990). `sync_mode` reached only
+`ingest_file`'s `replace` argument, and `ingest_file` never skips — so on the default
+`new_only` the previous document was neither found nor deleted and a **second copy**
+was inserted every run.
+
+A week of nightly syncs was seven copies of every chunk, ranked against each other in
+every search and each one paid for in embeddings. The `skipped` counter beside it was
+initialised and never incremented, which is a sync log truthfully reporting
+`skipped=0` every night.
 
 Where the decision is taken differs between them, because a remote file's bytes
 cost something to fetch. `update_only` needs no bytes to skip a file it has never
@@ -775,15 +1041,18 @@ rather than an ingestion, read off `replaced_document_id` rather than off the
 result's own sentence.
 
 **Two things about matching, both of which decide whether a document survives.**
-`existing_document`'s last-but-one resort is a *filename* match, and it exists so
-a file uploaded through the browser and later synced from the folder it came from
-is replaced rather than duplicated — an upload stores its filename as its
-`source_path`, so the two agree and it stays reachable by name. A document naming
-a **different** address is not a candidate for it: a bucket holding
-`a/readme.md` beside `b/readme.md` had the second key find the first's document
-by name, so equal contents skipped it and unequal contents replaced the first —
-either way a first sync could not keep both, and said nothing. The same
-collision applied to two local files of one name in different directories.
+
+`existing_document`'s last-but-one resort is a *filename* match, and it exists so a
+file uploaded through the browser and later synced from the folder it came from is
+replaced rather than duplicated — an upload stores its filename as its `source_path`,
+so the two agree and it stays reachable by name.
+
+A document naming a **different** address is not a candidate for it. A bucket holding
+`a/readme.md` beside `b/readme.md` had the second key find the first's document by
+name, so equal contents skipped it and unequal contents replaced the first — either
+way a first sync could not keep both, and said nothing.
+
+The same collision applied to two local files of one name in different directories.
 
 And a replacement **inserts before it deletes**. `insert_document` is where the
 embeddings are computed, so a provider that refused between the two statements
@@ -802,24 +1071,36 @@ the collection name it had then, and those used to be dropped from the page afte
 
 ### What a sync source is not allowed to decide
 
+!!! danger "Whoever can drop a file in a shared folder chooses the string the next sync handles"
+
+    Two of those strings used to be taken at face value: a file name that was a
+    path (`../../../../home/app/.ssh/authorized_keys` is a legal Drive name), and
+    a folder id that reached Drive's query language. `remote_names.py` refuses
+    both, and `BaseSyncConnector` - not a connector - decides where a byte lands,
+    so a connector added later inherits the refusal rather than having to
+    remember it.
+
 A source's contents are not the deployment's to trust, and on a Drive folder
 shared outside the organization they are not even the tenant's: sharing is what
-folder sharing is *for*, so whoever can drop a file in one chooses the string
-the next sync handles. Two of those strings used to be taken at face value, and
-`app/services/rag/remote_names.py` is where both are now refused.
+folder sharing is *for*.
 
-**A file name is a label, not a path component.** `../../../../home/app/.ssh/authorized_keys`
-is a legal Drive file name, and the connector wrote `dest_dir / file.name`
-verbatim — outside the temporary directory the worker had made, wherever its uid
-could write, and then ingested from there. The name is now reduced to its final
-component and the result *resolved and confirmed* to be a child of the sync
-directory, so `..`, its encodings, its lookalikes and a symlink already sitting
-in the directory are one question rather than a list of spellings to keep up
-with. A name that is no component at all — `..`, `.`, `/` — is refused; anything
-else lands inside as one file. **The destination is `BaseSyncConnector`'s
-answer, not a connector's**: an implementation is handed a path and writes to it
-(`_fetch`), which is what makes a connector added later inherit the refusal
-rather than have to remember it.
+!!! danger "A file name is a label, not a path component"
+
+    `../../../../home/app/.ssh/authorized_keys` is a legal Drive file name, and the
+    connector wrote `dest_dir / file.name` verbatim — outside the temporary directory
+    the worker had made, wherever its uid could write, and then ingested from there.
+
+The name is now reduced to its final component, and the result *resolved and
+confirmed* to be a child of the sync directory. So `..`, its encodings, its
+lookalikes, and a symlink already sitting in the directory are **one question**
+rather than a list of spellings to keep up with.
+
+A name that is no component at all — `..`, `.`, `/` — is refused. Anything else lands
+inside as one file.
+
+**The destination is `BaseSyncConnector`'s answer, not a connector's.** An
+implementation is handed a path and writes to it (`_fetch`), which is what makes a
+connector added later inherit the refusal rather than have to remember it.
 
 **A folder id reaches a query language.** The Drive query wraps a parent id in
 single quotes, so `x' in parents or name contains 'salary` is a well-formed,
@@ -838,11 +1119,17 @@ been shared. The fallback is gone; the setting now serves only the
 
 ### The credential is a vault secret, not a config field
 
-`sync_sources.config` says how to *find* the documents — a folder id, a bucket, a
-prefix — and holds nothing that has to be kept. What authenticates is a vault
-secret the source names in `secret_id`: a `gcp_service_account` for Drive, an
-`aws_credentials` pair for S3, declared by the connector as `SECRET_KIND` and
-offered to the wizard as `secret_kind` on the connector listing.
+!!! danger "A credential never goes in a connector's `CONFIG_MODEL`"
+
+    `sync_sources.config` says how to *find* the documents. What authenticates is
+    a vault secret the source names in `secret_id` - and there is no
+    deployment-wide fallback, because a fallback means one tenant's folder id
+    choosing what is read under the operator's identity.
+
+What the source names in `secret_id` is a `gcp_service_account` for Drive, an
+`aws_credentials` pair for S3 or a `git_token` for a Git repository, declared by
+the connector as `SECRET_KIND` and offered to the wizard as `secret_kind` on the
+connector listing.
 
 It used to be in `config`, encrypted by `app/core/crypto.py` — one
 deployment-wide Fernet key over every tenant's credential, which is the weakness
@@ -877,15 +1164,22 @@ per-document isolation inside one — so **everything that source reads becomes
 readable by everyone who can read that collection.**
 
 The two halves of that reach are not equally reliable, which is the part worth
-knowing. A Drive source is bounded by its `folder_id` and an S3 source by its
-`bucket` and `prefix`, so a broad credential pointed at one folder ingests one
-folder. But `config` is a field on the row, editable by anyone holding
-`collections:edit` on that collection — so **configuration narrows the reach and
-cannot be relied on to keep it narrow**, while the credential's own permissions
-are a ceiling nothing in this product can raise. A Confluence token good for the
-whole instance, on a source somebody later repoints at a wider space, publishes
-the whole instance to every member holding `collections:view`; the same token
-scoped to one space cannot, whatever the config says.
+knowing.
+
+A Drive source is bounded by its `folder_id` and an S3 source by its `bucket` and
+`prefix`, so a broad credential pointed at one folder ingests one folder.
+
+But `config` is a field on the row, editable by anyone holding `collections:edit` on
+that collection.
+
+!!! warning "Configuration narrows the reach and cannot be relied on to keep it narrow"
+
+    The credential's own permissions are a ceiling nothing in this product can raise.
+
+    A Confluence token good for the whole instance, on a source somebody later
+    repoints at a wider space, publishes the whole instance to every member holding
+    `collections:view`. The same token scoped to one space cannot, whatever the
+    config says.
 
 That is a decision somebody has to make, and the platform's answer is to make it
 **explicit rather than clever**. The alternative — mirroring each source's own
@@ -921,19 +1215,26 @@ naming the row it came from: it points a credential somebody already scoped at a
 different collection, so its audience changes while nothing about the credential
 does (#983).
 
-**And it is said before the fact, not only after it.** The wizard's last step -
-the one that decides the collection - names the credential and the audience
-together, because the pair is the decision: *"<credential> can read whatever it
-has been granted, and everything it ingests becomes searchable in <collection>
-by ..."*. A connector that authenticates with nothing has no credential to name
-and the sentence does not invent one; nor does it name one whose reader holds no
-`secrets:view`. Each scope ends that sentence differently - `personal` is its owner,
-`org` is everyone who can view the collection, `app` is anybody in the
-deployment - and an integration filed under no knowledge base says that nothing
-can search it yet. The sentence does not wait for the collection *picker*, which
-only appears where there is more than one collection to choose from: the case
-this was filed from is a knowledge base offering exactly one, where there is
-nothing to pick and the consequence is the same (#982).
+**And it is said before the fact, not only after it.**
+
+The wizard's last step — the one that decides the collection — names the credential
+and the audience *together*, because the pair is the decision:
+
+> *"&lt;credential&gt; can read whatever it has been granted, and everything it
+> ingests becomes searchable in &lt;collection&gt; by …"*
+
+A connector that authenticates with nothing has no credential to name, and the
+sentence does not invent one. Nor does it name one whose reader holds no
+`secrets:view`.
+
+Each scope ends that sentence differently — `personal` is its owner, `org` is
+everyone who can view the collection, `app` is anybody in the deployment — and an
+integration filed under no knowledge base says that nothing can search it yet.
+
+The sentence does not wait for the collection *picker*, which only appears where
+there is more than one collection to choose from. The case this was filed from is a
+knowledge base offering exactly one, where there is nothing to pick and the
+consequence is the same (#982).
 
 Cloning says it too, and for the reason above: it is the only way to change a
 source's audience from this product's own UI. Repointing an existing one is a
@@ -943,12 +1244,18 @@ above is what records it.
 
 ### What a new connector owes
 
-A connector is `list_files` + `_fetch` + a `CONFIG_SCHEMA`, and the API calls are
-the cheap part. **An object store is less than that**: S3, Azure Blob and GCS are
-one connector with three clients, so `ObjectStoreConnector` holds the listing
-loop, the `<scheme>://<container>/<key>` address and the directory-marker skip,
-and a subclass supplies a client, a `SCHEME`, and which `CONFIG_SCHEMA` field
-names the container - `bucket` for S3 and GCS, `container` for Azure. `S3Connector`
+A connector is `list_files` + `_fetch` + a `CONFIG_MODEL`, and the API calls are
+the cheap part. `CONFIG_MODEL` is a Pydantic model of the config fields; the
+listing publishes its `model_json_schema()` as `config_schema`, so the wizard
+draws the form with `SchemaForm` - the same shape a capability publishes
+([#1093](https://github.com/vstorm-co/agenticos/issues/1093)).
+
+**An object store
+is less than that**: S3, Azure Blob and GCS are one connector with three clients,
+so `ObjectStoreConnector` holds the listing loop, the `<scheme>://<container>/<key>`
+address and the directory-marker skip, and a subclass supplies a client, a
+`SCHEME`, and which `CONFIG_MODEL` field names the container - `bucket` for S3 and
+GCS, `container` for Azure. `S3Connector`
 is that subclass ([#988](https://github.com/vstorm-co/agenticos/issues/988)); its
 two hooks are deliberately blocking, because all three SDKs are, and the shared
 class runs them on a worker thread.
@@ -974,6 +1281,18 @@ rather than a feature:
   listing is still a full scan
   ([#27](https://github.com/vstorm-co/agenticos/issues/27)), so a connector that
   brings thousands of files makes that pagination urgent rather than tidy.
+- **A listing that knows whether it is whole.** A sync removes the documents its
+  source brought in earlier and no longer lists, so `list_files` answers a
+  `RemoteListing` whose `complete` says whether what it names is everything. A
+  listing that finishes or raises is complete by construction. One that can stop
+  part-way - the web crawler at its page ceiling, or past a page that timed out -
+  says `complete=False`, and that run removes nothing
+  ([#984](https://github.com/vstorm-co/agenticos/issues/984)). Removal is scoped
+  by `rag_document_claims`, not by `source_path`: two sources can feed one
+  collection and list the same document, so each source that lists a document
+  claims it. A source that stops listing it drops its claim, and the document is
+  removed only when no source feeding the collection still claims it
+  ([#1879](https://github.com/vstorm-co/agenticos/issues/1879)).
 
 **A sync connector is not an MCP server.** MCP is how an agent reaches a product
 *live*, mid-run; a sync source is a scheduled bulk pull with change detection
@@ -984,15 +1303,19 @@ question to answer before writing one is which half is being built — see
 
 Which connectors are being built, and in what order, is decided in
 [#938](https://github.com/vstorm-co/agenticos/issues/938): a web crawler
-([#984](https://github.com/vstorm-co/agenticos/issues/984)), SharePoint and
-OneDrive ([#985](https://github.com/vstorm-co/agenticos/issues/985)), Confluence
+([#984](https://github.com/vstorm-co/agenticos/issues/984), shipped as the `web`
+connector - see [website setup](howto/configure-sync-sources.md#website-setup)), SharePoint and
+OneDrive ([#985](https://github.com/vstorm-co/agenticos/issues/985), shipped as the
+`sharepoint` connector - see [SharePoint and OneDrive
+setup](howto/configure-sync-sources.md#sharepoint-and-onedrive-setup)), Confluence
 ([#986](https://github.com/vstorm-co/agenticos/issues/986)), a git repository's
 documentation ([#987](https://github.com/vstorm-co/agenticos/issues/987)), and
 then Azure Blob and GCS, whose condition is met: `S3Connector` is an
 `ObjectStoreConnector` subclass, so each of those is a client and a
 `CONNECTOR_TYPE` rather than a second copy of the listing loop
-([#988](https://github.com/vstorm-co/agenticos/issues/988)). Notion, Slack
-and email archives are decided **against** for now, each for a reason recorded
+([#988](https://github.com/vstorm-co/agenticos/issues/988)).
+
+Notion, Slack and email archives are decided **against** for now, each for a reason recorded
 there — the last two because a conversation retrieves badly and the channel
 integrations already put an agent *in* Slack.
 
@@ -1000,7 +1323,7 @@ integrations already put an agent *in* Slack.
 
 `validate_config` answers a `ConfigRefusal` — a sentence, and the field that
 sentence is about — or `None` when the config is acceptable. The connector names
-its own `CONFIG_SCHEMA` key; `SyncSourceService` roots that against the document
+its own `CONFIG_MODEL` field; `SyncSourceService` roots that against the document
 the wizard posted (`folder_id` → `config.folder_id`) and raises it with
 `refused_field`, so it reaches the browser as `details["fields"]` in the one
 shape a form reads (`app/core/field_errors.py`) and the configure step marks the
@@ -1017,7 +1340,7 @@ field is the honest answer there. Inventing a field name would send somebody to
 edit a value that was accepted. `checked_drive_folder_id` names none for the same
 reason: it answers three sinks and only one of them was sent a form to mark.
 
-### Image Description
+### Image description
 
 When processing documents that contain images, the system can optionally
 describe images using LLM vision capabilities. Image description is a
@@ -1040,3 +1363,17 @@ routing above applies unchanged and a channel cannot become the lenient path.
 What differs is only what a refusal looks like: there is no form to show an error
 in, so a file that was too large or of an unsupported type is named in the bot's
 reply. See [Channels](channels.md#files).
+
+## Recap
+
+- An upload answers **202** and is indexed in the worker, handed over with
+  `spawn_after_commit` so the row is durable before anything looks for it.
+- Parsing and byte I/O run on a **dedicated bounded pool**, never the shared
+  executor that also carries password hashing.
+- **One table per collection**, created at runtime, owned by nothing in Alembic —
+  and the name has to be free, because the vector namespace is deployment-global.
+- Each worker flow builds and **disposes its own engine**. A connection error
+  part-way through a large batch is this shape.
+- **A credential is a ceiling; configuration is not.** Binding a broad token to a
+  collection publishes whatever it can reach to everyone who can view the
+  collection.

@@ -26,7 +26,7 @@ from __future__ import annotations
 import logging
 from collections import Counter
 from enum import StrEnum
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 import yaml
@@ -39,7 +39,7 @@ from pydantic import (
     model_validator,
 )
 
-from app.agents.capabilities import CapabilityBinding, ToolOverride
+from app.agents.capabilities import LOAD_CAPABILITY, CapabilityBinding, ToolOverride
 
 logger = logging.getLogger(__name__)
 
@@ -52,13 +52,61 @@ logger = logging.getLogger(__name__)
 # 9 adds `context_ids` - context files the agent injects into its instructions or
 # exposes through the `context` capability's tool. Same free half of the table:
 # a list with an empty default, so every stored spec loads unchanged.
-SPEC_VERSION = 9
+#
+# 10 replaces `mcp_server_ids` with `mcp_servers`, a list of typed references,
+# because the binding grew a policy: whether a run may reach the same service
+# through the *runner's own* account instead of the organization's. A bare id
+# had nowhere to carry that, and a second parallel list of flagged ids is two
+# lists that drift.
+#
+# 11 makes that policy the binding's *kind* rather than a flag on it. A binding
+# is either the organization's connection, used by everybody, or a service each
+# person reaches through their own account - `account: "personal"` with a
+# `catalog_key` and no connection at all. The flag
+# `use_personal_when_available` is withdrawn: it substituted a credential in
+# private conversations only, which left a personal account working in a direct
+# message and silently absent from the channel next to it.
+#
+# 12 withdraws two of the `skills` capability's tools. `pydantic-ai-skills` 2.0
+# makes each skill a deferred capability, so the catalog the model reads is its
+# own and `load_capability` opens a skill - which leaves `list_skills` and
+# `load_skill` as names for a mechanism nobody calls. A binding that gated or
+# renamed either is migrated by dropping that entry.
+SPEC_VERSION = 12
 
 ApprovalMode = Literal["default", "required", "never"]
 
+# What a run's traces are allowed to carry. `full` is the default so nothing
+# stored changes behaviour; `none` keeps timing, tokens, cost and tool names but
+# no message text or tool arguments. There is deliberately no `redacted` middle
+# ground: an export a PII filter has been over is a guarantee nobody can audit,
+# because the identifier it missed has already left (#1616).
+TraceContent = Literal["full", "none"]
+
+
+def trace_content_block(content: TraceContent) -> ObservabilitySpec | None:
+    """An observability block that carries a content mode and nothing else.
+
+    What a specialist gets, whether its author wrote it inline or the run's model
+    invented it mid-run. A specialist has no Logfire project of its own and must
+    never be handed the parent's write token, but `content` is not a destination -
+    it is a rule about what may be recorded anywhere, and the run being recorded
+    is the parent's.
+
+    `full` is `None` rather than an empty block: it changes nothing at
+    instrumentation, so writing one into every specialist ever built would be a
+    field that exists to be read as "somebody configured this".
+    """
+    return None if content == "full" else ObservabilitySpec(content=content)
+
+
+_WITHDRAWN_MCP_FLAG = "use_personal_when_available"
 _LEGACY_RENAME_CAPABILITY = "knowledge"
 _LEGACY_RENAME_TOOL = "search_documents"
 _THINKING_CAPABILITY = "thinking"
+_SKILLS_CAPABILITY = "skills"
+_LOAD_SKILL = "load_skill"
+_WITHDRAWN_SKILL_TOOLS = frozenset({"list_skills", _LOAD_SKILL})
 _THINKING_SETTING = "thinking"
 _MODEL_SETTINGS_WITHDRAWN = frozenset(
     {
@@ -170,6 +218,55 @@ class CapabilityBindingSpec(BaseModel):
                 **(data.get("tool_overrides") or {}),
             },
         }
+
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_the_skills_tools_version_12_withdrew(cls, data: Any) -> Any:
+        """Let a version-11 skills binding load without its withdrawn tools.
+
+        `list_skills` and `load_skill` were this platform's names for a
+        mechanism pydantic-ai now owns: each skill is a deferred capability, and
+        the model reads the catalog in its own capability list and opens one
+        with `load_capability`. Neither name is a tool any more, so a binding
+        that gated or renamed one is refused at publish - which would make every
+        stored spec that did so unpublishable, and a rename of a tool that no
+        longer exists is not a decision worth preserving.
+
+        Dropped rather than refused, and said out loud, for the reason
+        `_MODEL_SETTINGS_WITHDRAWN` is: `extra="forbid"` does not apply to these
+        keys, but publish validation does, and an agent nobody touched should
+        not stop republishing. `read_skill_resource` survives the move and is
+        left exactly as the binding states it.
+        """
+        if not isinstance(data, dict) or data.get("id") != _SKILLS_CAPABILITY:
+            return data
+        migrated = dict(data)
+        for key in ("tool_approval", "tool_overrides"):
+            stated = data.get(key)
+            if not isinstance(stated, dict):
+                continue
+            withdrawn = _WITHDRAWN_SKILL_TOOLS & stated.keys()
+            if not withdrawn:
+                continue
+            kept = {tool_id: value for tool_id, value in stated.items() if tool_id not in withdrawn}
+            # `load_skill`'s *approval* is not a name for a withdrawn mechanism,
+            # it is a decision about whether a person sees a skill being opened
+            # before it is - and `load_capability` opens one now. Dropping it
+            # ungated an agent whose publisher had deliberately gated it, on
+            # every surface including a public embed (#1704 review). The
+            # override is a different matter: it renames a tool that is gone.
+            carried = stated.get(_LOAD_SKILL)
+            if key == "tool_approval" and carried is not None:
+                kept.setdefault(LOAD_CAPABILITY, carried)
+            logger.warning(
+                "Migrating `%s` for skills tools this spec version no longer exposes: %s. "
+                "A skill is opened with `load_capability` now, which is what its approval "
+                "moves to.",
+                key,
+                ", ".join(sorted(withdrawn)),
+            )
+            migrated[key] = kept
+        return migrated
 
     def to_binding(self) -> CapabilityBinding:
         return CapabilityBinding(
@@ -328,7 +425,11 @@ class ObservabilitySpec(BaseModel):
 
     The token is a reference, never a value - like every other credential a spec
     names. A spec is exported as YAML into somebody's repository, and a write
-    token in a checked-in file is a token that has to be rotated.
+    token in a checked-in file is a token that has to be rotated. The reference
+    is checked at publish for existence, tenant and the `logfire` purpose the
+    same way `_check_logfire_secret` gates the environment path: an unusable or
+    wrong-service token there runs the agent untraced, which is far too late to
+    learn it was never reachable.
 
     `organization` and `project` are the other half of that redirection, and they
     are here rather than in deployment settings for the same reason the token is:
@@ -371,6 +472,17 @@ class ObservabilitySpec(BaseModel):
         default=None,
         max_length=64,
         description="Logfire environment - production, staging, a client's name",
+    )
+    content: TraceContent = Field(
+        default="full",
+        description=(
+            "How much of a run each span carries. 'full' records the message, the "
+            "model's output and every tool argument and result; 'none' records "
+            "timing, tokens, cost and tool names only. Default 'full', so an agent "
+            "that says nothing traces as it always did. For a deployment whose runs "
+            "touch health, legal or HR data, 'none' is what keeps a copy of the "
+            "protected content from leaving the machine to the Logfire project."
+        ),
     )
 
 
@@ -466,6 +578,100 @@ class ModelSettingsSpec(BaseModel):
 DelegationMode = Literal["sync", "async", "auto"]
 
 
+class OrgMcpServerRef(BaseModel):
+    """One of the organization's MCP connections, used by every run of this agent.
+
+    The default kind of binding and the one an agent is reviewed against: the
+    account behind the tools is the organization's whoever is talking, on every
+    surface - the dashboard, a channel, the widget, an API key, a schedule.
+
+    `allowed_tools` is what a binding carries beyond the reference, and it is
+    the reason the same server can serve two agents differently. `allowed_tools`
+    on the *connection* is one administrator's decision for everybody bound to
+    it; this narrows within it, per agent. The two intersect at run time rather
+    than one overriding the other, so an agent cannot reach a tool the
+    connection excluded - not even one excluded after the agent was published.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    account: Literal["organization"] = "organization"
+    connection_id: UUID = Field(
+        description="The organization's MCP connection. A personal one is refused at publish."
+    )
+    allowed_tools: list[str] | None = Field(
+        default=None,
+        description=(
+            "Which of the server's tools this agent may call. Null is every tool "
+            "the connection allows, which is what a binding meant before this "
+            "field existed. Narrowing only: the connection's own allowlist is an "
+            "administrator's ceiling and this cannot reach past it."
+        ),
+    )
+
+
+class PersonalMcpServerRef(BaseModel):
+    """A service each person reaches through their own account.
+
+    Names a catalog entry rather than a connection, because the connection does
+    not exist when the agent is published: it is whichever of *their own* the
+    person talking to the agent holds for that service, found by `catalog_key`
+    when the turn runs. So the same agent speaks to Notion as Ania when Ania
+    asks and as Bartek when Bartek does - in the dashboard, in a direct message
+    and in a channel alike - and the audit trail at Notion says who did what.
+
+    The account is the sender of *this message*, never the thread's. A thread
+    is not a boundary anybody's credentials should cross: were the first person
+    to connect their account to answer for everybody after them, linking a
+    Notion in a channel would hand it to the channel.
+
+    Two things follow from there being no connection row:
+
+    - **Where nobody is talking, the tools are absent.** An API key, the
+      embedded widget, a schedule, a trigger and a channel sender who has not
+      linked their chat account have no account to speak through, so the run
+      proceeds without this server and is told so, in one line of its
+      instructions, with the link where the person connects one. Every other
+      binding of the agent is unaffected.
+    - **The tool prefix is the catalog key.** `notion` gives the model
+      `notion_search`, whichever of the person's own connections answers, so
+      the agent presents the same tools to everyone. Publish refuses a personal
+      binding whose key is also the name of an organization connection bound to
+      the same agent, because that would be two servers under one prefix.
+
+    `allowed_tools` here is the administrator's ceiling, and the only one: the
+    person's own connection may narrow further, and the two intersect.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    account: Literal["personal"]
+    catalog_key: str = Field(
+        min_length=1,
+        max_length=64,
+        pattern=r"^[a-z0-9][a-z0-9-]*$",
+        description=(
+            "Which service, as the MCP catalog names it. A person's own connection "
+            "to it is found by this key when the turn runs."
+        ),
+    )
+    allowed_tools: list[str] | None = Field(
+        default=None,
+        description=(
+            "Which of the server's tools this agent may call, whoever's account "
+            "answers. Null is every tool the person's own connection allows."
+        ),
+    )
+
+
+McpServerRef = Annotated[OrgMcpServerRef | PersonalMcpServerRef, Field(discriminator="account")]
+"""One MCP binding: the organization's connection, or each person's own account.
+
+Discriminated on `account`, so a stored document says which it is and a reader
+never has to infer it from which other fields are present.
+"""
+
+
 class SubagentRef(BaseModel):
     """One published agent this agent may delegate to, pinned to a version.
 
@@ -535,7 +741,7 @@ class SpecialistSpec(BaseModel):
       metering one shared ledger would double-count every request.
     - `notifications` and `observability` - a specialist is not the subject of an
       alert or a Logfire service; the run it happens inside is.
-    - `mcp_server_ids` - an MCP connection is organization-scoped configuration,
+    - `mcp_servers` - an MCP connection is organization-scoped configuration,
       and reaching one through a specialist nobody published is the wrong door.
       There is deliberately **no** route to one from here: `share_with_delegates`
       lends *capability bindings*, and an MCP connection is not a capability, so
@@ -649,7 +855,12 @@ class SpecialistSpec(BaseModel):
         """The specialist's capabilities as the registry consumes them."""
         return [capability.to_binding() for capability in self.capabilities]
 
-    def to_agent_spec(self, *, fallback_model_profile_id: UUID | None) -> AgentSpec:
+    def to_agent_spec(
+        self,
+        *,
+        fallback_model_profile_id: UUID | None,
+        trace_content: TraceContent = "full",
+    ) -> AgentSpec:
         """This specialist as the spec the factory already knows how to build.
 
         The one method that keeps "one spec type, one validator, one builder" true
@@ -669,6 +880,17 @@ class SpecialistSpec(BaseModel):
         subagents - so they arrive at their `AgentSpec` defaults: no cap of its
         own (the run's caps bind), no alerts of its own, no Logfire project of its
         own, no connections, and no delegating further.
+
+        `trace_content` is the one part of the parent's observability block that
+        has to come with it, and the caller passes the parent's. A project is a
+        destination and a specialist has none of its own; `content` is a rule
+        about what may be recorded *anywhere*, and the run it is recorded in
+        belongs to the parent. Dropping it left an agent published with
+        `content="none"` exporting its specialist's prompts, outputs and tool
+        arguments to the deployment's own project through the global
+        instrumentation - the guarantee held for the agent and not for the run
+        (#1699). `full` is the default, so a caller with no parent to speak for -
+        promoting a specialist into a draft agent - converts as it always did.
         """
         return AgentSpec(
             name=self.name,
@@ -681,6 +903,7 @@ class SpecialistSpec(BaseModel):
             skill_ids=self.skill_ids,
             context_ids=self.context_ids,
             max_steps=self.max_steps,
+            observability=trace_content_block(trace_content),
         )
 
 
@@ -722,7 +945,14 @@ class AgentSpec(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    spec_version: int = Field(default=SPEC_VERSION)
+    spec_version: int = Field(
+        default=SPEC_VERSION,
+        description=(
+            "Which spec format this document targets. Stamped to the "
+            "deployment's own version on publish, and refused by `from_yaml` "
+            "when it is newer than the deployment understands."
+        ),
+    )
 
     name: str = Field(min_length=1, max_length=128)
     description: str | None = Field(default=None, max_length=1000)
@@ -764,12 +994,14 @@ class AgentSpec(BaseModel):
             "publisher could read themselves."
         ),
     )
-    mcp_server_ids: list[UUID] = Field(
+    mcp_servers: list[McpServerRef] = Field(
         default_factory=list,
         description=(
-            "Organization-scoped MCP connections this agent may call. Personal "
-            "connections are refused at publish: a published agent's reach cannot "
-            "depend on whose session runs it."
+            "MCP services this agent may call, each bound either to one of the "
+            "organization's connections or to each person's own account on a "
+            "catalog service. A member's connection is never bound directly: a "
+            "published agent names the service, and whose account answers is the "
+            "binding's kind."
         ),
     )
 
@@ -778,7 +1010,7 @@ class AgentSpec(BaseModel):
         description=(
             "Published agents this agent may delegate to, each pinned to a "
             "version. Top level rather than inside the delegation capability's "
-            "config, for the same reason `collection_ids` and `mcp_server_ids` "
+            "config, for the same reason `collection_ids` and `mcp_servers` "
             "are: a reference to another row in this organization is a property "
             "of the agent, it is what publish validation walks, and it is what "
             "makes the `agents:run` check on each one a sibling of the collection "
@@ -814,6 +1046,90 @@ class AgentSpec(BaseModel):
         default=None,
         description="Send this agent's traces to a Logfire project of its own",
     )
+
+    @property
+    def trace_content(self) -> TraceContent:
+        """How much of a run this agent's spans may carry.
+
+        No block at all means `full`, which is what an agent published before the
+        mode existed asks for. Read here rather than at each call site because
+        every specialist this agent builds inherits it, and a caller that forgets
+        the `None` case silently hands the deployment's global instrumentation a
+        specialist with content on.
+        """
+        return self.observability.content if self.observability else "full"
+
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_version_9_mcp_server_ids(cls, data: Any) -> Any:
+        """Let a spec written against `mcp_server_ids` load as `mcp_servers`.
+
+        Version 10 turned a list of ids into a list of references so a binding
+        could carry policy of its own. Without this, `extra="forbid"` would
+        refuse every stored spec that names an MCP server - a 500 on every run
+        of something nobody touched - and the ids are the same ids, so there is
+        nothing to decide: each becomes an organization binding, which is the
+        behaviour those specs already have.
+
+        An explicit `mcp_servers` wins, so re-reading a migrated spec changes
+        nothing.
+
+        A legacy value that is not a list is **left in place** rather than
+        dropped. Removing it made the document valid with no MCP bindings at
+        all, so imported YAML saying `mcp_server_ids: <uuid>` published happily
+        having silently discarded the server its author was binding - where the
+        old schema had reported the field. Left where it is, `extra="forbid"`
+        refuses the document and names the field.
+        """
+        if not isinstance(data, dict) or "mcp_server_ids" not in data:
+            return data
+        legacy = data["mcp_server_ids"]
+        if not isinstance(legacy, list):
+            return data
+        migrated = {key: value for key, value in data.items() if key != "mcp_server_ids"}
+        if "mcp_servers" in data:
+            return migrated
+        migrated["mcp_servers"] = [
+            {"account": "organization", "connection_id": value} for value in legacy
+        ]
+        return migrated
+
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_version_10_mcp_bindings(cls, data: Any) -> Any:
+        """Let a version-10 binding load as an organization binding.
+
+        Version 11 discriminates a binding on `account`, and a discriminated
+        union needs the tag present - so a stored `{"connection_id": ...}` is
+        given `"organization"`, which is what every binding was.
+
+        The withdrawn flag is dropped rather than refused, for the same reason
+        `_MODEL_SETTINGS_WITHDRAWN` is: `extra="forbid"` on a stored spec is a
+        500 on every run of something nobody touched. A binding that had it on
+        loads as an organization binding and says so in the log, because the
+        behaviour it asked for - the runner's own account in private
+        conversations - is now a different kind of binding altogether, and
+        choosing it for somebody is not a migration's call. An item that is not
+        a mapping is left alone for the field's own validation to name.
+        """
+        if not isinstance(data, dict) or not isinstance(data.get("mcp_servers"), list):
+            return data
+        bindings: list[Any] = []
+        for item in data["mcp_servers"]:
+            if not isinstance(item, dict):
+                bindings.append(item)
+                continue
+            binding = {key: value for key, value in item.items() if key != _WITHDRAWN_MCP_FLAG}
+            if item.get(_WITHDRAWN_MCP_FLAG):
+                logger.warning(
+                    "Dropping withdrawn `%s` from an MCP binding to %s: it is an "
+                    "organization binding now. Bind the service as `account: personal` "
+                    "if each person should use their own account.",
+                    _WITHDRAWN_MCP_FLAG,
+                    item.get("connection_id"),
+                )
+            bindings.append({"account": "organization", **binding})
+        return {**data, "mcp_servers": bindings}
 
     @model_validator(mode="before")
     @classmethod
@@ -900,12 +1216,28 @@ class AgentSpec(BaseModel):
     def from_yaml(cls, text: str) -> AgentSpec:
         """Parse a spec written or edited by hand.
 
+        A `spec_version` newer than this deployment understands is refused here
+        rather than accepted because its fields happen to parse: a document from
+        a later deployment can carry constructs a `>`-guarded field cannot see
+        (a binding kind, a capability id) that this code would misread as an
+        older shape. Only imported text is checked - a stored spec is loaded
+        through `model_validate` and is never newer than the code that wrote it,
+        so this refusal cannot make an existing row unreadable.
+
         Raises:
-            ValueError: If the document is not a mapping. Pydantic reports field
+            ValueError: If the document is not a mapping, or targets a spec
+                version newer than `SPEC_VERSION`. Pydantic reports field
                 problems itself, but a list or a bare string reaches it as an
                 unhelpful type error.
         """
         loaded = yaml.safe_load(text)
         if not isinstance(loaded, dict):
             raise ValueError("An agent spec must be a YAML mapping")  # noqa: TRY004
-        return cls.model_validate(loaded)
+        spec = cls.model_validate(loaded)
+        if spec.spec_version > SPEC_VERSION:
+            raise ValueError(
+                f"This spec targets version {spec.spec_version}, newer than this "
+                f"deployment understands (spec version {SPEC_VERSION}). Export it "
+                "from a matching deployment, or upgrade this one."
+            )
+        return spec

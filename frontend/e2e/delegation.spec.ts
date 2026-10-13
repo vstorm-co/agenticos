@@ -2,7 +2,7 @@ import type { Page } from "@playwright/test";
 
 import { expect, test } from "./fixtures";
 
-import { AUTH_STATE, openBuilderTab, pageHeading } from "./helpers";
+import { AUTH_STATE, openBuilderTab, pageHeading, pageStatus } from "./helpers";
 
 test.use({ storageState: AUTH_STATE });
 
@@ -344,7 +344,7 @@ async function publish(page: Page): Promise<void> {
   // Publish says what it moves before it does it (#519) - the dialog's own
   // Publish is the one that actually publishes.
   await page.getByRole("dialog").getByRole("button", { name: "Publish" }).click();
-  await expect(pageHeading(page)).toContainText("published", { timeout: 30_000 });
+  await expect(pageStatus(page)).toContainText("published", { timeout: 30_000 });
 }
 
 /**

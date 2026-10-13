@@ -2,7 +2,15 @@ import type { APIRequestContext, Page } from "@playwright/test";
 
 import { expect, test } from "./fixtures";
 
-import { AUTH_STATE, SEEDED_KB_NAME, pageHeading } from "./helpers";
+import {
+  AUTH_STATE,
+  SEEDED_EMBEDDING_KEY_LABEL,
+  SEEDED_KB_NAME,
+  SEEDED_LLAMAPARSE_KEY_LABEL,
+  chooseEmbeddingKey,
+  chooseLlamaParseKey,
+  pageHeading,
+} from "./helpers";
 
 test.use({ storageState: AUTH_STATE });
 
@@ -83,6 +91,7 @@ test.describe("Ingestion settings", () => {
     await page.getByRole("button", { name: "New knowledge base" }).click();
     const dialog = page.getByRole("dialog");
     await dialog.getByLabel("Name").fill(KB_NAME);
+    await chooseEmbeddingKey(page, dialog, SEEDED_EMBEDDING_KEY_LABEL);
 
     // Folded away until asked for: creating a collection is a two-field job.
     await expect(dialog.getByLabel("PDF parser")).toBeHidden();
@@ -94,6 +103,9 @@ test.describe("Ingestion settings", () => {
     // The tier belongs to this parser alone, so its appearance is the form
     // saying it understood the choice rather than merely recording a click.
     await expect(dialog.getByLabel("LlamaParse tier")).toBeVisible();
+    // And a LlamaParse collection is billed to a vault key of the organization's
+    // own - there is no deployment key - so one is chosen before Create.
+    await chooseLlamaParseKey(page, dialog, SEEDED_LLAMAPARSE_KEY_LABEL);
 
     await dialog.getByLabel("Chunk size").fill(CHUNK_SIZE);
     await dialog.getByRole("button", { name: "Create", exact: true }).click();
@@ -172,8 +184,10 @@ test.describe("Ingestion settings", () => {
    * out of reach here ("RAG needs an embedding provider, which a test deployment
    * has no key for").
    *
-   * Unskip it once the compose file runs a pgvector image and the deployment has
-   * an embedding key. The assertions below are the ones that matter: a document
+   * Unskip it once the compose file runs a pgvector image and the seeded
+   * collection's vault key (`SEEDED_EMBEDDING_KEY_LABEL`) is one the provider
+   * accepts - there is no deployment-wide embedding key to set instead. The
+   * assertions below are the ones that matter: a document
    * records the parser that read it, and an overridden one is marked as such —
    * which is how "why did this one come out differently" gets answered months
    * later, when the collection's settings have moved on.

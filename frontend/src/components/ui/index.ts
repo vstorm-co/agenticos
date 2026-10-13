@@ -9,8 +9,13 @@ export { Textarea } from "./textarea";
 export { MarkdownEditor } from "./markdown-editor";
 export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent } from "./card";
 export { Figure, FigureCard, DeltaChip, type FigureProps } from "./figure";
+export { AnimatedCounter, type AnimatedCounterProps } from "./animated-counter";
+export { AnimatedAmount, AnimatedTally } from "./animated-number";
+export { BellGlyph, RingingBell, type BellGlyphProps } from "./bell-glyph";
 export { ListCard, ListCardControlsRow, ListCardEmpty, ListCardFootRow } from "./list-card";
 export { Badge, badgeVariants } from "./badge";
+export { DocPeek } from "./doc-peek";
+export { BlankPeek, TextPeek } from "./text-peek";
 export { SortButton } from "./sort-button";
 export type { SortDirection } from "./sort-button";
 export { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "./sheet";
@@ -37,6 +42,11 @@ export {
   AlertDialogCancel,
 } from "./alert-dialog";
 export { Avatar, AvatarImage, AvatarFallback } from "./avatar";
+export { AvatarFace, type AvatarFaceProps } from "./avatar-face";
+export { Beam, type BeamProps } from "./beam";
+export { GeneratedImage, type GeneratedImageProps } from "./generated-image";
+export { ThinkingOrb, type ThinkingOrbProps, type OrbState } from "./thinking-orb";
+export { VoiceGlow, useMicrophone, type VoiceGlowProps } from "./voice-glow";
 export { EntityAvatar, type EntityAvatarProps } from "./entity-avatar";
 export { AvatarColorPicker, type AvatarColorPickerProps } from "./avatar-color-picker";
 export { Skeleton } from "./skeleton";

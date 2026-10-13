@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
+from enum import StrEnum
 from typing import Annotated
 from uuid import UUID
 
@@ -20,17 +21,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core import catalog
 from app.core.audit import record_audit
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
-from app.core.permissions import AuthContext, OrgRoleName, Perm
+from app.core.excerpt import excerpt
+from app.core.permissions import AuthContext, Perm
 from app.db.models.resource_grant import Visibility
 from app.db.models.skill import Skill, SkillResource
 from app.db.updates import writable
-from app.repositories import member_repo, resource_grant_repo, skill_repo
+from app.repositories import resource_grant_repo, skill_repo
 from app.repositories.skill import SkillSort
 from app.schemas.skill import (
+    GalleryIndustryRead,
+    GalleryInstallResult,
+    GallerySkillRead,
+    SkillGallery,
     SkillList,
     SkillResourceUpdate,
     SkillSummary,
     SkillUpdate,
+    skill_name_refusal,
 )
 from app.services import skill_library
 from app.services.access import SKILL, resolve_access, visible_resource_ids
@@ -68,6 +75,7 @@ def _summary(skill: Skill, bundled_names: frozenset[str]) -> SkillSummary:
         enabled=skill.enabled,
         file_count=len(skill.resources),
         built_in=skill.name in bundled_names,
+        excerpt=excerpt(skill.content),
     )
 
 
@@ -120,6 +128,48 @@ def _decode_text(name: str, raw: bytes) -> str:
             ),
             details={"name": name},
         ) from exc
+
+
+class LibraryRefresh(StrEnum):
+    """What `seed-skills` does, or would do, with one bundled skill."""
+
+    INSTALL = "install"
+    """The organization has no skill by that name."""
+    CURRENT = "current"
+    """Its copy already says what the shipped folder says."""
+    UPDATE = "update"
+    """An unedited copy of an earlier version - or an edited one, when asked to."""
+    EDITED = "edited"
+    """Edited here since it was copied; left alone."""
+    UNTRACKED = "untracked"
+    """Copied before fingerprints were kept and different now; left alone."""
+
+
+def _fingerprint_of(skill: Skill) -> str:
+    """The fingerprint of what the organization's copy says now."""
+    return skill_library.fingerprint(
+        description=skill.description,
+        category=skill.category,
+        content=skill.content,
+        resources=(
+            (resource.name, resource.content, resource.description) for resource in skill.resources
+        ),
+    )
+
+
+def _refresh_plan(
+    existing: Skill | None, bundled: skill_library.LibrarySkill, *, replace_edited: bool
+) -> LibraryRefresh:
+    if existing is None:
+        return LibraryRefresh.INSTALL
+    here = _fingerprint_of(existing)
+    if here == bundled.fingerprint:
+        return LibraryRefresh.CURRENT
+    if here == existing.library_fingerprint or replace_edited:
+        return LibraryRefresh.UPDATE
+    if existing.library_fingerprint is None:
+        return LibraryRefresh.UNTRACKED
+    return LibraryRefresh.EDITED
 
 
 class SkillService:
@@ -214,8 +264,15 @@ class SkillService:
         `categories` stays the organization's under `shared_with_me` too: the
         chips describe what can be filtered to, and narrowing them to the
         shared subset would make the filter disappear as soon as it was used.
+
+        The listing used to top itself up, copying in any bundled skill the
+        organization did not have. That made a deleted one come back on the
+        next visit, so the only way to retire a shipped skill was to disable it
+        - which is a workaround for a listing that refused to let go. An
+        organization is seeded at creation and `agenticos cmd seed-skills`
+        re-runs that deliberately; the gallery is where a skill is chosen. None
+        of those needs a page that quietly writes rows while it reads.
         """
-        await self._ensure_bundled(ctx)
         items, total = await self.list_skills(
             ctx,
             shared_with_me=shared_with_me,
@@ -236,46 +293,6 @@ class SkillService:
     async def list_categories(self, ctx: AuthContext) -> list[str]:
         """Every distinct category in this organization, for the listing's filter."""
         return await skill_repo.list_categories(self.db, organization_id=ctx.organization_id)
-
-    async def _ensure_bundled(self, ctx: AuthContext) -> None:
-        """Materialize any bundled skill this organization does not have yet.
-
-        Organizations are seeded at creation (#281), but the catalog grows with
-        deploys, and a skill added later never reached an existing organization
-        - its page showed one bundled skill where the deployment ships three.
-        The listing is where that gap is visible, so it is where it closes.
-
-        Matched by name, so an edited copy is left exactly as it is. A deleted
-        one returns on the next listing - the catalog is always present, and
-        *disabling* is how a bundled skill is retired. Attributed to the
-        organization's first owner, the same shape creation-time seeding
-        writes: the reader whose visit triggers the top-up may be a viewer,
-        and ownership would widen what they could edit.
-
-        Each install under its own savepoint: two first listings can race, and
-        the loser's unique-name violation must cost that one row, never the
-        reader's whole page.
-        """
-        names = await skill_repo.list_names(self.db, organization_id=ctx.organization_id)
-        missing = [entry for entry in skill_library.library() if entry.name not in names]
-        if not missing:
-            return
-        owner_id = await member_repo.first_owner_id(self.db, organization_id=ctx.organization_id)
-        if owner_id is None:
-            return
-        owner_ctx = AuthContext(
-            user_id=owner_id,
-            organization_id=ctx.organization_id,
-            role=OrgRoleName.OWNER,
-        )
-        for entry in missing:
-            try:
-                async with self.db.begin_nested():
-                    await self.install_from_library(owner_ctx, entry.key)
-            except (AlreadyExistsError, IntegrityError):
-                logger.warning(
-                    "Bundled skill %r arrived while the listing topped up; skipped", entry.key
-                )
 
     async def resolve_for_agent(self, ctx: AuthContext, skill_ids: list[UUID]) -> list[Skill]:
         """The enabled skills an agent is bound to.
@@ -326,14 +343,21 @@ class SkillService:
         content: str,
         category: str | None = None,
         visibility: Visibility = Visibility.PRIVATE,
+        library_fingerprint: str | None = None,
     ) -> Skill:
         """Create a skill.
 
         Raises:
+            BadRequestError: If the name is not one a model can load the skill
+                by. `SkillCreate` refuses it too, but an applied skill proposal
+                arrives here with an agent's directory name and no schema.
             AlreadyExistsError: If the name is taken. Names are how the model
                 refers to a skill, so two with one name is an ambiguity the
                 agent cannot resolve.
         """
+        refusal = skill_name_refusal(name)
+        if refusal is not None:
+            raise BadRequestError(message=refusal, details={"name": name})
         if await skill_repo.get_by_name(self.db, name, organization_id=ctx.organization_id):
             raise AlreadyExistsError(
                 message=(
@@ -352,6 +376,7 @@ class SkillService:
             content=content,
             category=category,
             visibility=visibility.value,
+            library_fingerprint=library_fingerprint,
         )
         await record_audit(
             self.db,
@@ -397,10 +422,10 @@ class SkillService:
 
         Always organization-visible, set at creation rather than by a follow-up
         edit: a bundled skill is for everybody, and the only callers left are
-        the seeding paths - organization creation, the listing's top-up and
-        `seed-skills` - since the per-person Install button was dropped (#281).
+        the seeding paths - organization creation and `seed-skills` - since the
+        per-person Install button was dropped (#281).
 
-        All three seed as the organization's first owner, so the audit entry's
+        Both seed as the organization's first owner, so the audit entry's
         actor is an attribution rather than a person who acted. `seeded: true`
         in its details is what keeps that honest - it is how a reader tells
         "the platform seeded this as the owner" from a write the owner made.
@@ -414,7 +439,141 @@ class SkillService:
         bundled = skill_library.get(key)
         if bundled is None:
             raise NotFoundError(message="No such bundled skill", details={"key": key})
+        return await self._copy_library_skill(ctx, bundled, seeded=True)
 
+    async def plan_library_refresh(
+        self, ctx: AuthContext, key: str, *, replace_edited: bool = False
+    ) -> LibraryRefresh:
+        """What `refresh_from_library` would do with one bundled skill, writing nothing.
+
+        Raises:
+            NotFoundError: If no such skill ships with this deployment.
+        """
+        bundled, existing = await self._library_pair(ctx, key)
+        return _refresh_plan(existing, bundled, replace_edited=replace_edited)
+
+    async def refresh_from_library(
+        self, ctx: AuthContext, key: str, *, replace_edited: bool = False
+    ) -> LibraryRefresh:
+        """Bring the organization's copy of a bundled skill up to the shipped version.
+
+        Missing, it is installed. An unedited copy of an earlier version - one
+        that still matches the fingerprint it was written with - is replaced,
+        files and all, with its version bumped, because nobody chose what it
+        says: the platform did, and the platform now says something better. A
+        copy edited here is the organization's and is left alone unless
+        `replace_edited` says to take the bundled version over the edits, and so
+        is one copied before fingerprints were kept, since nothing can tell
+        whether it was edited.
+
+        Raises:
+            NotFoundError: If no such skill ships with this deployment.
+            AlreadyExistsError: If another writer installed it between the check
+                and the copy - the listing's top-up, racing a seed.
+        """
+        bundled, existing = await self._library_pair(ctx, key)
+        if existing is not None:
+            # Locked and re-read before deciding: an edit a member commits between
+            # the lookup and the overwrite would otherwise be judged on the copy as
+            # it was, found unedited, and replaced. Every edit writes the skill row
+            # (a file edit bumps its version), so the lock serializes with each.
+            existing = await skill_repo.lock(self.db, existing.id)
+        plan = _refresh_plan(existing, bundled, replace_edited=replace_edited)
+        if existing is None:
+            await self._copy_library_skill(ctx, bundled, seeded=True)
+        elif plan is LibraryRefresh.UPDATE:
+            await self._overwrite_from_library(
+                ctx,
+                existing,
+                bundled,
+                replaced_edits=_fingerprint_of(existing) != existing.library_fingerprint,
+            )
+        elif plan is LibraryRefresh.CURRENT and existing.library_fingerprint != bundled.fingerprint:
+            # Says what the folder says, but was never stamped as saying it -
+            # copied before fingerprints were kept. Stamp it, so the next release
+            # can tell an untouched copy from an edited one.
+            await skill_repo.update(
+                self.db, skill=existing, update_data={"library_fingerprint": bundled.fingerprint}
+            )
+        return plan
+
+    async def _library_pair(
+        self, ctx: AuthContext, key: str
+    ) -> tuple[skill_library.LibrarySkill, Skill | None]:
+        bundled = skill_library.get(key)
+        if bundled is None:
+            raise NotFoundError(message="No such bundled skill", details={"key": key})
+        existing = await skill_repo.get_by_name(
+            self.db, bundled.name, organization_id=ctx.organization_id
+        )
+        return bundled, existing
+
+    async def _overwrite_from_library(
+        self,
+        ctx: AuthContext,
+        skill: Skill,
+        bundled: skill_library.LibrarySkill,
+        *,
+        replaced_edits: bool,
+    ) -> None:
+        for resource in list(skill.resources):
+            await skill_repo.delete_resource(self.db, resource)
+        # The loaded collection still holds the rows just deleted, and the update
+        # below refreshes the skill - see `remove_resource` for what that did.
+        self.db.expire(skill, ["resources"])
+        for resource in bundled.resources:
+            await skill_repo.create_resource(
+                self.db,
+                skill_id=skill.id,
+                name=resource.name,
+                description=None,
+                content=resource.content,
+            )
+        updated = await skill_repo.update(
+            self.db,
+            skill=skill,
+            update_data={
+                "description": bundled.description,
+                "content": bundled.content,
+                "category": bundled.category,
+                "version": skill.version + 1,
+                "library_fingerprint": bundled.fingerprint,
+            },
+        )
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="skill.refreshed",
+            target_type="skill",
+            target_id=str(skill.id),
+            # What every bound agent executes changed, and `replaced_edits` is
+            # the part somebody may go looking for: whether an operator chose to
+            # take the bundled version over what the organization had written.
+            details={
+                "key": bundled.key,
+                "name": bundled.name,
+                "version": updated.version,
+                "resources": len(bundled.resources),
+                "seeded": True,
+                "replaced_edits": replaced_edits,
+            },
+        )
+
+    async def _copy_library_skill(
+        self,
+        ctx: AuthContext,
+        bundled: skill_library.LibrarySkill,
+        *,
+        seeded: bool,
+    ) -> Skill:
+        """Write one library or gallery folder in as an ordinary skill.
+
+        Shared by the seeding paths and by the gallery, because a copy is a copy
+        - what differs is who is recorded as having made it. `seeded` is that
+        difference and it is the audit entry's honesty: true means the platform
+        wrote this as the organization's owner, false means a person chose it.
+        """
         skill = await self.create(
             ctx,
             name=bundled.name,
@@ -422,6 +581,7 @@ class SkillService:
             content=bundled.content,
             category=bundled.category,
             visibility=Visibility.ORG,
+            library_fingerprint=bundled.fingerprint,
         )
         for resource in bundled.resources:
             await skill_repo.create_resource(
@@ -439,13 +599,92 @@ class SkillService:
             target_type="skill",
             target_id=str(skill.id),
             details={
-                "key": key,
+                "key": bundled.key,
                 "name": bundled.name,
                 "resources": len(bundled.resources),
-                "seeded": True,
+                "seeded": seeded,
             },
         )
         return skill
+
+    async def gallery(self, ctx: AuthContext) -> SkillGallery:
+        """The opt-in gallery, with what this organization already has marked.
+
+        `installed` is matched on *name* rather than on key, which is the same
+        rule installing uses: the organization owns its copy from the moment it
+        lands, so a renamed folder in a later release must not offer a second
+        copy of a skill somebody is already editing.
+        """
+        names = frozenset(await skill_repo.list_names(self.db, organization_id=ctx.organization_id))
+        return SkillGallery(
+            industries=[
+                GalleryIndustryRead(
+                    id=industry.id,
+                    skills=[
+                        GallerySkillRead(
+                            key=entry.key,
+                            name=entry.name,
+                            description=entry.description,
+                            category=entry.category,
+                            installed=entry.name in names,
+                        )
+                        for entry in industry.skills
+                    ],
+                )
+                for industry in skill_library.gallery()
+            ]
+        )
+
+    async def install_gallery(self, ctx: AuthContext, keys: Sequence[str]) -> GalleryInstallResult:
+        """Copy gallery skills into this organization, as the caller.
+
+        Not as the organization's owner, which is what the seeding paths do:
+        somebody clicked this, so the audit entry names them and the skill is
+        theirs to have chosen. There is no `seeded` flag on it for the same
+        reason.
+
+        Every outcome is reported rather than raised. A shelf of ten where one
+        is already present must install the other nine, so an existing name is
+        `skipped` and an unrecognised key is `unknown` - and a request that
+        installs nothing is still a 200 describing why.
+        """
+        names = set(await skill_repo.list_names(self.db, organization_id=ctx.organization_id))
+        installed: list[str] = []
+        skipped: list[str] = []
+        unknown: list[str] = []
+
+        for key in dict.fromkeys(keys):
+            entry = skill_library.gallery_get(key)
+            if entry is None:
+                unknown.append(key)
+                continue
+            if entry.name in names:
+                skipped.append(entry.name)
+                continue
+            # Inside a SAVEPOINT, because the name check above is a read and two
+            # members installing one shelf at the same time both pass it. The
+            # loser's insert then violated `uq_skill_org_name` as an unhandled
+            # IntegrityError, which rolled back every skill that request had
+            # already copied - where the endpoint promises the shelf continues
+            # and this entry is reported as `skipped`. The savepoint makes that
+            # promise true: the conflict undoes this copy and nothing else.
+            try:
+                async with self.db.begin_nested():
+                    await self._copy_library_skill(ctx, entry, seeded=False)
+            except IntegrityError:
+                logger.warning(
+                    "Gallery skill %r was installed concurrently; reported as skipped", entry.key
+                )
+                skipped.append(entry.name)
+                names.add(entry.name)
+                continue
+            # Two keys in one request can carry the same name only if the
+            # gallery ships a duplicate; tracking it here keeps that a skip
+            # rather than a unique-name violation mid-request.
+            names.add(entry.name)
+            installed.append(entry.name)
+
+        return GalleryInstallResult(installed=installed, skipped=skipped, unknown=unknown)
 
     async def add_resource(
         self,
@@ -601,6 +840,12 @@ class SkillService:
             raise NotFoundError(message="File not found", details={"resource_id": str(resource_id)})
         name = resource.name
         await skill_repo.delete_resource(self.db, resource)
+        # `skill.resources` was loaded with the skill and still holds the row just deleted;
+        # the version bump below refreshes the skill and SQLAlchemy refuses to refresh a
+        # collection carrying a deleted instance ("Instance ... has been deleted"), which
+        # answered every DELETE of a resource with a 500 and rolled the delete back
+        # (2026-09-14). Expiring the collection makes the refresh reload it from the table.
+        self.db.expire(skill, ["resources"])
         await self._bump_version(skill)
         await record_audit(
             self.db,

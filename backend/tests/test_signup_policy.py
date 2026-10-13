@@ -566,7 +566,12 @@ class TestBothPathsThatMintAnAccountAreGated:
             )
 
         assert checked == [
-            {"email": "new@acme.com", "is_first_user": False, "invitation_token": None}
+            {
+                "email": "new@acme.com",
+                "is_first_user": False,
+                "invitation_token": None,
+                "admitted_by_directory": False,
+            }
         ]
 
     async def test_an_invitation_survives_the_provider_round_trip(self, monkeypatch):
@@ -595,7 +600,12 @@ class TestBothPathsThatMintAnAccountAreGated:
             )
 
         assert checked == [
-            {"email": "new@acme.com", "is_first_user": False, "invitation_token": "tok"}
+            {
+                "email": "new@acme.com",
+                "is_first_user": False,
+                "invitation_token": "tok",
+                "admitted_by_directory": False,
+            }
         ]
 
     async def test_a_closed_deployment_refuses_a_new_oauth_account(self, monkeypatch):

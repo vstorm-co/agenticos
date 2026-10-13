@@ -61,15 +61,24 @@ class TurnTimeline:
         """
         self.parts.append(MessagePart(type="tool", tool_call_id=tool_call_id))
 
-    def add_ask_user(self, question: str, answer: str) -> None:
+    def add_ask_user(self, question: str, answer: str, asked_by: str | None = None) -> None:
         """Record a question put to the person and the answer it acted on.
 
         Its own entry, never coalesced, because it carries a payload with no other
         home: text lands in `content`, reasoning in `thinking`, a tool call in its
         `tool_calls` row, but a mid-turn question and its answer would vanish on
         reload without this (#502).
+
+        Args:
+            question: What was asked.
+            answer: What the person answered, as it was rendered back to the agent.
+            asked_by: The delegate that asked, or `None` where the main agent
+                asked it itself. A replayed transcript reads differently for the
+                two, and until #1042 there was no way to tell them apart (#1042).
         """
-        self.parts.append(MessagePart(type="ask_user", question=question, answer=answer))
+        self.parts.append(
+            MessagePart(type="ask_user", question=question, answer=answer, asked_by=asked_by)
+        )
 
     def _append(self, kind: str, delta: str) -> None:
         open_part = self.parts[-1] if self.parts else None

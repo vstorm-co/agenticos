@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 from sqlalchemy import (
     BigInteger,
     Boolean,
+    Computed,
     DateTime,
     ForeignKey,
     Identity,
@@ -17,7 +18,7 @@ from sqlalchemy import (
     String,
     Text,
 )
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin
@@ -104,6 +105,28 @@ class Conversation(Base, TimestampMixin):
     conversation whose agent has none is for ever.
     """
 
+    plan_items: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB, nullable=True)
+    """The checklist the planning capability is keeping for this conversation.
+
+    A plan's store is one run's, and in a chat every message is a run - so an
+    agent wrote three steps, was asked to work on the first, and answered that no
+    plan existed and it had never made one (#1077). Recorded here, the plan is the
+    conversation's: the run seeds a store from this and writes it back when it
+    ends, the way `reminder_state` above carries a cadence.
+
+    Each entry is a `PlanItem` dump - the same shape `PausedRunState.plan` holds,
+    which is what carries a plan across an approval park. The two are separate on
+    purpose: a parked run's copy is newer than the conversation's and wins on
+    resume.
+
+    A finished checklist is kept rather than cleared, because that is what the run
+    that finished it saw too: the tail reminder shows every step ticked until
+    `write_plan` replaces the plan wholesale, which is what starting new work does.
+
+    Null until an agent with the planning capability plans something, which for a
+    conversation whose agent has none is for ever.
+    """
+
     messages: Mapped[list["Message"]] = relationship(
         "Message",
         back_populates="conversation",
@@ -131,7 +154,10 @@ class Message(Base, TimestampMixin):
     """
 
     __tablename__ = "messages"
-    __table_args__ = (Index("messages_conversation_id_ordinal_idx", "conversation_id", "ordinal"),)
+    __table_args__ = (
+        Index("messages_conversation_id_ordinal_idx", "conversation_id", "ordinal"),
+        Index("messages_search_vector_idx", "search_vector", postgresql_using="gin"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     # What order the turns were written in, and the only column that can say.
@@ -224,6 +250,19 @@ class Message(Base, TimestampMixin):
     # this existed has no recorded order and never will, and a client that finds
     # null reconstructs one instead of rendering nothing.
     parts: Mapped[list[dict[str, object]] | None] = mapped_column(JSONB, nullable=True)
+
+    search_vector: Mapped[str | None] = mapped_column(
+        TSVECTOR,
+        Computed("to_tsvector('simple'::regconfig, coalesce(content, ''))", persisted=True),
+        nullable=True,
+        deferred=True,
+    )
+    """What `conversation_search` matches against, maintained by PostgreSQL itself.
+
+    Declared here so `alembic check` can see it, and `deferred` so no ordinary read
+    of a transcript drags a tokenised copy of every message body across the wire.
+    Nothing assigns it - the database generates it from `content` - and
+    `0074_message_search_vector` says why the configuration is `simple`."""
 
     tokens_used: Mapped[int | None] = mapped_column(Integer, nullable=True)
 

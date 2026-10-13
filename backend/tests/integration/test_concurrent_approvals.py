@@ -57,7 +57,7 @@ from app.services.agent_runner import (
     PreparedRun,
 )
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 GATED_CAPABILITY = "test_concurrent_gated_action"
 GATED_TOOL = "send_email"

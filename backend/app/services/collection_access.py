@@ -34,12 +34,14 @@ import app.db.models  # noqa: F401
 from app.core.exceptions import AlreadyExistsError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.db.base import Base
+from app.db.locks import LockScope, hold_name
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.rag_document import RAGDocument
 from app.db.models.sync_log import SyncLog
 from app.db.models.sync_source import SyncSource
 from app.db.vector_tables import validate_collection_name
 from app.repositories import (
+    collection_teardown_repo,
     knowledge_base_repo,
     rag_document_repo,
     sync_log_repo,
@@ -212,12 +214,29 @@ class CollectionAccessService:
         of letting callers choose the name. It says nothing about who holds it or
         what is in it.
 
+        The taken-check and the row this request goes on to write are serialized
+        against a concurrent teardown of the same name: the drop re-reads the same
+        reference check before dropping the table, and without the lock a claim that
+        reads "free" and a drop that reads "unreferenced" both act, leaving this
+        base's committed row pointing at a table the drop removed (#1355, #913). The
+        lock is transaction-scoped, so it is held until this request commits the
+        row - past `create_collection`, which builds the table this protects.
+
         Raises:
             BadRequestError: If the name could not safely become an identifier.
             AlreadyExistsError: If a knowledge base outside the caller's reach
                 already owns the name.
         """
         validate_collection_name(name, metadata=Base.metadata)
+        await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, name)
+        if await collection_teardown_repo.is_reserved(self.db, name):
+            # The name's last row is gone but its vector table has not been dropped
+            # yet, so claiming it now would adopt that lingering, populated table
+            # (#1362). The reservation lifts when the durable cleanup drops the table.
+            raise AlreadyExistsError(
+                message=f"A collection named '{name}' is being torn down; try again shortly",
+                details={"collection": name},
+            )
         for kb in await knowledge_base_repo.list_by_collection_name(self.db, name):
             if not await writable_kb(self.db, ctx, kb):
                 raise AlreadyExistsError(

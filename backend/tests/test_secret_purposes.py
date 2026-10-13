@@ -25,6 +25,8 @@ from app.core.secret_kinds import ApiKeySecret, AwsCredentialsSecret, SecretKind
 from app.db.models.resource_grant import Visibility
 from app.services.organization_secret import OrganizationSecretService
 
+pytestmark = pytest.mark.security
+
 MODULE = "app.services.organization_secret"
 
 
@@ -67,6 +69,27 @@ class TestTheCatalog:
 
         ids = {entry.id for entry in secret_purposes.all_purposes()}
         assert ids >= KEYED_METHODS
+
+    def test_the_browsing_decision_model_can_be_keyed(self):
+        """`browser_choice` names this id, and the Builder narrows on it.
+
+        A purpose missing here makes the picker offer every `api_key` in the
+        vault for a key that only TypeSafe will answer - and the capability's own
+        label, "Browser automation (choose)", is what the button would ask for a
+        key *for*, which tells nobody which account to open.
+        """
+        from app.agents.capabilities import get as capability
+
+        requirement = capability("browser_choice").secret
+        assert requirement is not None
+        entry = secret_purposes.get(requirement.purpose or "")
+        assert entry is not None
+        assert entry.label == "TypeSafe"
+        assert entry.kind is requirement.kind
+        # Not a model provider: that category is what the chat model picker
+        # reads to offer a provider to run an agent on, and this model answers
+        # typed questions rather than generating text.
+        assert entry.category is not secret_purposes.PurposeCategory.MODEL_PROVIDER
 
     def test_the_tracing_card_can_offer_a_logfire_token(self):
         """The Builder's Tracing card filters the vault on this id; renaming
@@ -111,6 +134,10 @@ class TestStoring:
                 new=AsyncMock(return_value=_secret(ctx)),
             ) as create,
             patch(f"{MODULE}.record_audit", new=AsyncMock()),
+            # This class is about ownership and visibility (#1598), not the
+            # `security_event` notification `create`/`update`/`delete` now
+            # also send - covered separately in `tests/test_notifications.py`.
+            patch(f"{MODULE}.NotificationService", new=MagicMock(return_value=AsyncMock())),
         ):
             await OrganizationSecretService(MagicMock()).create(
                 ctx,
@@ -135,6 +162,7 @@ class TestStoring:
                 new=AsyncMock(return_value=_secret(ctx)),
             ) as create,
             patch(f"{MODULE}.record_audit", new=AsyncMock()),
+            patch(f"{MODULE}.NotificationService", new=MagicMock(return_value=AsyncMock())),
         ):
             await OrganizationSecretService(MagicMock()).create(
                 ctx,
@@ -178,6 +206,7 @@ class TestWhoCanReachOne:
             patch(f"{MODULE}.resolve_access", new=AsyncMock(return_value=True)) as resolve,
             patch(f"{MODULE}.organization_secret_repo.delete", new=AsyncMock()),
             patch(f"{MODULE}.record_audit", new=AsyncMock()),
+            patch(f"{MODULE}.NotificationService", new=MagicMock(return_value=AsyncMock())),
         ):
             await OrganizationSecretService(MagicMock()).delete(ctx, secret.id)
 

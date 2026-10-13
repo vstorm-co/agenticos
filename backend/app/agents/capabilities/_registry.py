@@ -73,6 +73,16 @@ logger = logging.getLogger(__name__)
 # never be called.
 TOOL_NAME_PATTERN = re.compile(r"[a-zA-Z0-9_-]{1,64}")
 
+#: Tool names the framework puts in front of the model itself.
+#:
+#: `load_capability` is Pydantic AI's: a run carrying any deferred capability -
+#: which is every run with a skill bound - gets it whether this deployment
+#: declares it or not. Nothing here can rename or remove it, so a capability
+#: renaming one of its own tools onto that name offers the model two tools
+#: called the same thing, and the library aborts the turn on the duplicate.
+LOAD_CAPABILITY = "load_capability"
+FRAMEWORK_TOOL_NAMES = frozenset({LOAD_CAPABILITY})
+
 
 class ToolOverride(BaseModel):
     """How one binding presents one tool to its model.
@@ -636,6 +646,8 @@ def load_builtins() -> None:
         return
 
     from app.agents.capabilities import (  # noqa: F401 - imported for side effects
+        artifacts,
+        browser_choice,
         browser_use,
         channel_tools,
         charts,
@@ -643,9 +655,13 @@ def load_builtins() -> None:
         code_execution,
         compaction,
         context,
+        conversation_search,
         guardrails,
         image_generation,
         knowledge,
+        media,
+        memory_files,
+        memory_mem0,
         planning,
         sandbox,
         skills,

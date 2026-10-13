@@ -3,12 +3,14 @@
 import logging
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, Header, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 
 from app.api.deps import (
     CurrentUser,
     DeploymentSettingsSvc,
+    ImpersonationSvc,
+    InvitationStagingSvc,
     SessionSvc,
     UserSvc,
     enforce_auth_limit,
@@ -18,18 +20,23 @@ from app.core.exceptions import AuthenticationError
 from app.core.security import (
     create_access_token,
     create_refresh_token,
+    verify_token,
 )
 from app.schemas.password_reset import (
+    EmailChangeConfirm,
+    EmailChangeConfirmResponse,
     MagicLinkRequest,
     MagicLinkVerifyRequest,
+    PasswordChangeRequest,
     PasswordResetConfirm,
     PasswordResetConfirmResponse,
     PasswordResetRequest,
     PasswordResetResponse,
 )
-from app.schemas.token import RefreshTokenRequest, Token
-from app.schemas.user import UserCreate, UserRead
+from app.schemas.token import MagicLinkToken, RefreshTokenRequest, Token
+from app.schemas.user import MeRead, UserCreate, UserRead
 from app.services.email.service import get_email_service
+from app.services.session import refresh_expiry, successor_refresh_token
 
 logger = logging.getLogger(__name__)
 
@@ -46,16 +53,20 @@ async def login(
     """OAuth2 password login, returns access and refresh tokens."""
     await enforce_auth_limit(request, surface="auth_login", identifier=form_data.username)
     user = await user_service.authenticate(form_data.username, form_data.password)
-    access_token = create_access_token(subject=str(user.id))
-    refresh_token = create_refresh_token(subject=str(user.id))
+    refresh_token = create_refresh_token(
+        subject=str(user.id), credential_version=user.credential_version
+    )
 
-    # Track this login as a server-side session (enables remote logout).
-    await session_service.create_session(
+    # The session row is created before the access token is minted, so the token
+    # can name it in `sid` - which is what lets signing out everywhere revoke the
+    # access token, not only stop the next refresh (#1501).
+    session = await session_service.create_session(
         user_id=user.id,
         refresh_token=refresh_token,
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("User-Agent"),
     )
+    access_token = create_access_token(subject=str(user.id), sid=str(session.id))
     return Token(access_token=access_token, refresh_token=refresh_token)
 
 
@@ -64,9 +75,22 @@ async def register(
     request: Request,
     user_in: UserCreate,
     user_service: UserSvc,
+    staging: InvitationStagingSvc,
+    invitation_handle: Annotated[str | None, Header(alias="X-Invitation-Handle")] = None,
 ) -> Any:
-    """Register a new user."""
+    """Register a new user.
+
+    When the registration arrives through a staged invitation (#1414) the token
+    is not in the body - it was exchanged for an `httpOnly` handle before the
+    invitee ever reached this form. The handle is peeked, not redeemed, so the
+    same handle still closes the acceptance after sign-in; the token it resolves
+    to feeds the sign-up admission check and is never returned or logged.
+    """
     await enforce_auth_limit(request, surface="auth_register", identifier=user_in.email)
+    if invitation_handle and not user_in.invitation_token:
+        staged_token = await staging.peek(invitation_handle)
+        if staged_token is not None:
+            user_in = user_in.model_copy(update={"invitation_token": staged_token})
     return await user_service.register(user_in)
 
 
@@ -81,23 +105,67 @@ async def refresh_token(
     await enforce_auth_limit(request, surface="auth_refresh")
 
     session = await session_service.validate_refresh_token(body.refresh_token)
+    within_grace = False
     if not session:
+        session = await session_service.claim_refresh_grace(body.refresh_token)
+        within_grace = session is not None
+    if not session:
+        # Before the refusal, and only on the path where one is already certain:
+        # a token that validated no live session may be a typo, an expired one, a
+        # revoked one - or one this account rotated away a moment ago, now being
+        # presented by somebody else. Rotation re-keys the row in place, so all
+        # of those failed identically and the replay was the one nothing saw
+        # (#1519). The answer to the caller does not change; what changes is that
+        # the chain ends and the trail records it.
+        await session_service.detect_refresh_reuse(
+            body.refresh_token,
+            ip_address=request.client.host if request.client else None,
+        )
         raise AuthenticationError(message="Invalid or expired refresh token")
 
     user = await user_service.get_by_id(session.user_id)
     if not user.is_active:
         raise AuthenticationError(message="User account is disabled")
 
-    access_token = create_access_token(subject=str(user.id))
-    new_refresh_token = create_refresh_token(subject=str(user.id))
+    # The presented token must be at the account's current credential version. A
+    # password change bumps it, so a token minted before the change - even one
+    # whose session row a concurrent revocation had not yet closed - cannot rotate
+    # past it (#1517). A token minted before the claim existed carries no `cv` and
+    # reads as 0, which matches an account that has never changed its password.
+    payload = verify_token(body.refresh_token)
+    if payload is None or payload.get("cv", 0) != user.credential_version:
+        raise AuthenticationError(message="Invalid or expired refresh token")
 
-    await session_service.logout_by_refresh_token(body.refresh_token)
-    await session_service.create_session(
-        user_id=user.id,
-        refresh_token=new_refresh_token,
-        ip_address=request.client.host if request.client else None,
-        user_agent=request.headers.get("User-Agent"),
-    )
+    if within_grace:
+        # A token this row spent seconds ago - a lost response, or one request of
+        # a burst on the same cookie. Answered with the successor the row already
+        # holds, not a new rotation, so every request in the burst gets the same
+        # token and the cookie jar converges on it.
+        new_refresh_token = session_service.reissue_within_grace(
+            session, body.refresh_token, credential_version=user.credential_version
+        )
+    else:
+        # Rotate the refresh token in place, keeping the row's id: the new access
+        # token names the same `sid`, so a live socket or a second tab holding the
+        # old access token is not cut off by a routine refresh (#1437, #1501). The
+        # old refresh token's hash is replaced, which is what makes it unusable.
+        # The successor is derived from the spent token, so a grace-window reissue
+        # can rebuild it byte for byte.
+        expires_at = refresh_expiry()
+        new_refresh_token = successor_refresh_token(
+            body.refresh_token,
+            subject=str(user.id),
+            credential_version=user.credential_version,
+            expires_at=expires_at,
+        )
+        await session_service.rotate_session(
+            session,
+            new_refresh_token,
+            expires_at=expires_at,
+            ip_address=request.client.host if request.client else None,
+            user_agent=request.headers.get("User-Agent"),
+        )
+    access_token = create_access_token(subject=str(user.id), sid=str(session.id))
     return Token(access_token=access_token, refresh_token=new_refresh_token)
 
 
@@ -115,10 +183,67 @@ async def logout(
     await session_service.logout_by_refresh_token(body.refresh_token)
 
 
-@router.get("/me", response_model=UserRead)
-async def get_current_user_info(current_user: CurrentUser) -> Any:
-    """Get current authenticated user information."""
-    return current_user
+@router.post("/password/change", response_model=Token)
+async def change_password(
+    request: Request,
+    body: PasswordChangeRequest,
+    current_user: CurrentUser,
+    user_service: UserSvc,
+    session_service: SessionSvc,
+) -> Any:
+    """Change the signed-in user's password and open this device a fresh session.
+
+    The current password is proved here, which `PATCH /users/me` cannot ask for -
+    the flow the Settings form posts to (#1517). The change bumps the credential
+    version and revokes every session, the caller's own included - so its stale
+    refresh token cannot rotate past the change - and a fresh session is minted at
+    the new version and returned, keeping the one who made the change signed in
+    while every other device, an impersonation among them, is logged out (#1439).
+    """
+    # Identified by the account, not only the caller's address: a stolen access
+    # token spread across source IPs would otherwise get a fresh guess budget per
+    # address against the same account's current password (#1517).
+    await enforce_auth_limit(
+        request, surface="auth_password_change", identifier=str(current_user.id)
+    )
+    updated = await user_service.change_password(
+        current_user,
+        current_password=body.current_password,
+        new_password=body.new_password,
+    )
+    refresh_token = create_refresh_token(
+        subject=str(updated.id), credential_version=updated.credential_version
+    )
+    session = await session_service.create_session(
+        user_id=updated.id,
+        refresh_token=refresh_token,
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("User-Agent"),
+    )
+    access_token = create_access_token(subject=str(updated.id), sid=str(session.id))
+    return Token(access_token=access_token, refresh_token=refresh_token)
+
+
+@router.get("/me", response_model=MeRead)
+async def get_current_user_info(current_user: CurrentUser, impersonation: ImpersonationSvc) -> Any:
+    """The account this request acts as - and, when an administrator is acting as
+    it, who and until when, which is what the console's banner is drawn from."""
+    me = MeRead.model_validate(current_user)
+    return me.model_copy(update={"impersonation": await impersonation.describe()})
+
+
+@router.delete("/impersonation", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
+async def end_impersonation(
+    request: Request, _: CurrentUser, impersonation: ImpersonationSvc
+) -> None:
+    """End the impersonation this request runs under.
+
+    Authenticated with the impersonation's own token rather than the
+    administrator's, because that is the only credential the administrator's
+    browser holds while acting as somebody else. Refused for a request that is
+    nobody acting as anybody (#1044).
+    """
+    await impersonation.end(ip_address=request.client.host if request.client else None)
 
 
 @router.post("/password-reset/request", response_model=PasswordResetResponse)
@@ -162,6 +287,25 @@ async def confirm_password_reset(
     return PasswordResetConfirmResponse()
 
 
+@router.post("/email-change/confirm", response_model=EmailChangeConfirmResponse)
+async def confirm_email_change(
+    request: Request,
+    body: EmailChangeConfirm,
+    user_service: UserSvc,
+) -> Any:
+    """Move a staged address across, using the token mailed to it.
+
+    Unauthenticated for the reason the reset confirm beside it is: the link is
+    followed from the new address, routinely in a different browser from the one
+    that asked for the change. The token is the whole of the proof, and it is
+    refused unless the address it names is still the one staged on that account
+    (#1772).
+    """
+    await enforce_auth_limit(request, surface="auth_email_change_confirm")
+    await user_service.confirm_email_change(body.token)
+    return EmailChangeConfirmResponse()
+
+
 @router.post("/magic-link/request", response_model=PasswordResetResponse)
 async def request_magic_link(
     request: Request,
@@ -174,7 +318,7 @@ async def request_magic_link(
     Symmetric response to request_password_reset to avoid email enumeration.
     """
     await enforce_auth_limit(request, surface="auth_magic_link", identifier=body.email)
-    issued = await user_service.issue_magic_link_token(body.email)
+    issued = await user_service.issue_magic_link_token(body.email, return_to=body.return_to)
     if issued is not None:
         link_user, token = issued
         try:
@@ -190,22 +334,31 @@ async def request_magic_link(
     return PasswordResetResponse(message="Check your email for a sign-in link.")
 
 
-@router.post("/magic-link/verify", response_model=Token)
+@router.post("/magic-link/verify", response_model=MagicLinkToken)
 async def verify_magic_link(
     request: Request,
     body: MagicLinkVerifyRequest,
     user_service: UserSvc,
     session_service: SessionSvc,
 ) -> Any:
-    """Exchange a magic-link token for an access + refresh token pair."""
+    """Exchange a magic-link token for an access + refresh token pair.
+
+    Answers with the return path the link was minted for, unapplied: the client
+    navigates, and `postSignInDestination` there is the one place that decides
+    whether a path is safe to honour - the same judgement for every door in.
+    """
     await enforce_auth_limit(request, surface="auth_magic_link_verify")
-    user = await user_service.consume_magic_link_token(body.token)
-    access_token = create_access_token(subject=str(user.id))
-    refresh_token = create_refresh_token(subject=str(user.id))
-    await session_service.create_session(
+    user, return_to = await user_service.consume_magic_link_token(body.token)
+    refresh_token = create_refresh_token(
+        subject=str(user.id), credential_version=user.credential_version
+    )
+    session = await session_service.create_session(
         user_id=user.id,
         refresh_token=refresh_token,
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("User-Agent"),
     )
-    return Token(access_token=access_token, refresh_token=refresh_token)
+    access_token = create_access_token(subject=str(user.id), sid=str(session.id))
+    return MagicLinkToken(
+        access_token=access_token, refresh_token=refresh_token, return_to=return_to
+    )

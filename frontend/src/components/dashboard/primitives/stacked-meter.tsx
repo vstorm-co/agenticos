@@ -74,7 +74,7 @@ export function StackedMeter({
               aria-hidden
             />
             <span className="text-muted-foreground min-w-0 flex-1 truncate">{segment.label}</span>
-            <span className="text-muted-foreground/70 shrink-0 tabular-nums">
+            <span className="text-muted-foreground shrink-0 tabular-nums">
               {formatShare(total > 0 ? segment.value / total : 0, locale)}
             </span>
             <span className="text-foreground w-8 shrink-0 text-right font-medium tabular-nums">

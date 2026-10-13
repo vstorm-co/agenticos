@@ -9,11 +9,13 @@ put somebody's private token inside a published agent.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
 from sqlalchemy import func, or_, select
+from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import lazyload
 
@@ -45,7 +47,7 @@ async def get_by_id_for_update(db: AsyncSession, connection_id: UUID) -> McpConn
 
 
 async def get_org_scoped_by_id(
-    db: AsyncSession, *, connection_id: UUID, organization_id: UUID
+    db: AsyncSession, *, connection_id: UUID, organization_id: UUID, for_update: bool = False
 ) -> McpConnection | None:
     """One organization-scoped connection, looked up inside one organization.
 
@@ -53,16 +55,52 @@ async def get_org_scoped_by_id(
     another tenant reaching this row, and `scope` stops a member's personal
     connection being bound to a published agent even though it belongs to the
     same organization - a shared agent must not run on somebody's private token.
+
+    `for_update` locks the row, with the same options
+    :func:`get_by_id_for_update` needs. A writer about to seal a credential at
+    the row's recorded key version must hold the row from the read, or a
+    rotation committing in between leaves its envelope tagged with a version it
+    was not sealed under.
     """
+    stmt = select(McpConnection).where(
+        McpConnection.purpose == "mcp",
+        McpConnection.id == connection_id,
+        McpConnection.organization_id == organization_id,
+        McpConnection.scope == "org",
+    )
+    if for_update:
+        stmt = (
+            stmt.options(lazyload(McpConnection.user))
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    result = await db.execute(stmt)
+    return result.scalar_one_or_none()
+
+
+async def get_org_scoped_by_ids(
+    db: AsyncSession, *, connection_ids: Sequence[UUID], organization_id: UUID
+) -> dict[UUID, McpConnection]:
+    """Several organization-scoped connections at once, keyed by id.
+
+    The batch form of :func:`get_org_scoped_by_id`, for a caller resolving a
+    whole spec's bindings: one statement rather than a lookup per id. Carries the
+    same two filters - `organization_id` and `scope == "org"` - so a member's
+    personal connection or another tenant's row is absent from the map exactly as
+    it is absent from the single read. A missing or unreachable id is simply not a
+    key, and the caller validates each id against the map as it did per row.
+    """
+    if not connection_ids:
+        return {}
     result = await db.execute(
         select(McpConnection).where(
             McpConnection.purpose == "mcp",
-            McpConnection.id == connection_id,
+            McpConnection.id.in_(list(connection_ids)),
             McpConnection.organization_id == organization_id,
             McpConnection.scope == "org",
         )
     )
-    return result.scalar_one_or_none()
+    return {connection.id: connection for connection in result.scalars().all()}
 
 
 async def list_org_scoped(
@@ -145,6 +183,54 @@ async def get_org_scoped_by_catalog_key(
         .order_by(McpConnection.created_at.asc())
     )
     return result.scalars().first()
+
+
+async def list_user_scoped_by_catalog_key(
+    db: AsyncSession, *, user_id: UUID, catalog_key: str
+) -> list[McpConnection]:
+    """This person's own enabled connections to one catalog entry.
+
+    A list rather than one row: nothing stops somebody holding two Notion
+    accounts, and which of them an agent should speak through is a question only
+    they can answer. The caller substitutes when there is exactly one and
+    declines to guess otherwise (#1342).
+    """
+    result = await db.execute(
+        select(McpConnection)
+        .where(
+            McpConnection.purpose == "mcp",
+            McpConnection.user_id == user_id,
+            McpConnection.scope == "user",
+            McpConnection.catalog_key == catalog_key,
+            McpConnection.is_enabled.is_(True),
+        )
+        .order_by(McpConnection.created_at.asc())
+    )
+    return list(result.scalars())
+
+
+async def clear_default_for_catalog_key(
+    db: AsyncSession, *, user_id: UUID, catalog_key: str, except_id: UUID
+) -> None:
+    """Un-nominate this person's other accounts on one service.
+
+    Run before the row being nominated is written, so the partial unique index
+    on `(user_id, catalog_key) WHERE is_default` is never asked to hold two.
+    """
+    # `sql_update`, because this module defines its own `update` - the row-level
+    # one every repository here has.
+    await db.execute(
+        sql_update(McpConnection)
+        .where(
+            McpConnection.user_id == user_id,
+            McpConnection.scope == "user",
+            McpConnection.catalog_key == catalog_key,
+            McpConnection.id != except_id,
+            McpConnection.is_default.is_(True),
+        )
+        .values(is_default=False)
+    )
+    await db.flush()
 
 
 async def get_portal_grant(
@@ -285,15 +371,19 @@ async def create(
     oauth_state: str | None = None,
     oauth_payload: str | None = None,
     oauth_pending_payload: str | None = None,
+    label: str | None = None,
+    catalog_key: str | None = None,
 ) -> McpConnection:
     connection = McpConnection(
         user_id=user_id,
+        catalog_key=catalog_key,
         name=name,
         url=url,
         auth_token=auth_token,
         secret_key_version=secret_key_version,
         allowed_tools=allowed_tools,
         is_enabled=is_enabled,
+        label=label,
         auth_type=auth_type,
         oauth_state=oauth_state,
         oauth_payload=oauth_payload,
@@ -322,6 +412,7 @@ async def create_org_scoped(
     oauth_pending_payload: str | None = None,
     purpose: str = "mcp",
     portal_key: str | None = None,
+    label: str | None = None,
 ) -> McpConnection:
     """Store a connection the organization owns.
 
@@ -351,6 +442,7 @@ async def create_org_scoped(
         oauth_pending_payload=oauth_pending_payload,
         purpose=purpose,
         portal_key=portal_key,
+        label=label,
     )
     db.add(connection)
     await db.flush()
@@ -374,3 +466,36 @@ async def update(
 async def delete(db: AsyncSession, *, db_connection: McpConnection) -> None:
     await db.delete(db_connection)
     await db.flush()
+
+
+async def portal_grants_for_account(
+    db: AsyncSession, *, portal_key: str, portal_account_id: str
+) -> list[McpConnection]:
+    """Every grant of one portal on one provider-side account, across tenants.
+
+    Deliberately unscoped by organization, and the only read here that is: a
+    GitHub App delivery arrives at one shared URL carrying an installation id and
+    nothing else, so the grant has to be found before there is an organization to
+    scope to (#1072). What settles which grant a delivery belongs to is the HMAC
+    against that organization's own webhook secret, checked by the caller - this
+    only narrows the candidates.
+
+    A list rather than one row, because two organizations could in principle hold
+    grants the provider numbered the same, and answering the first would give one
+    of them the other's deliveries.
+
+    A disabled grant is not a candidate. Every other path that consumes one
+    filters on `is_enabled` - the polling claim and `webhook_access_token` both
+    do - and without it here, turning the integration off would leave deliveries
+    arriving, authenticating against the organization's own secret and firing its
+    triggers. The toggle has to be the kill switch it looks like.
+    """
+    result = await db.execute(
+        select(McpConnection).where(
+            McpConnection.purpose == "portal",
+            McpConnection.portal_key == portal_key,
+            McpConnection.portal_account_id == portal_account_id,
+            McpConnection.is_enabled.is_(True),
+        )
+    )
+    return list(result.scalars().all())

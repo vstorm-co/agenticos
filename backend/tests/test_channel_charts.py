@@ -9,16 +9,19 @@ for a chart on a channel answered "here is the chart" with no chart, which is th
 worst shape a bug can take: the sentence is confident and the evidence is absent.
 """
 
+import threading
 import uuid
-from typing import Any
+from io import BytesIO
+from typing import Any, get_args
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from PIL import Image, ImageChops
 
-from app.agents.capabilities.charts._spec import ChartSpec
+from app.agents.capabilities.charts._spec import ChartSpec, ChartType
 from app.core.permissions import OrgRoleName
 from app.services.channels.base import OutgoingAttachment
-from app.services.channels.chart_png import render_chart_png
+from app.services.channels.chart_png import RENDERERS, render_chart_png
 from app.services.channels.mentions import ChannelAgentRouter, drawn_chart
 from app.services.transcript import RecordedToolCall
 
@@ -41,13 +44,30 @@ def _call(result: str | None, name: str = "create_chart") -> RecordedToolCall:
 
 
 class TestDrawing:
-    @pytest.mark.parametrize("chart_type", ["bar", "line", "area", "scatter", "pie"])
+    @pytest.mark.parametrize("chart_type", get_args(ChartType))
     def test_every_chart_type_the_spec_allows_can_be_drawn(self, chart_type: str):
         """A type the tool accepts and the renderer cannot draw is an answer with
         a confident sentence and no picture, which is what this replaced."""
         png = render_chart_png(_spec(chart_type))
 
         assert png.startswith(b"\x89PNG")
+
+    def test_every_chart_type_has_its_own_channel_renderer(self):
+        """Two lists in two packages that have to agree: the types the `charts`
+        capability accepts and the renderers the channel raster knows. A type
+        the table lacked used to fall into an `else` and come out as a line
+        chart, no failure, no note - the #144 shape. Held equal both ways, so a
+        sixth `ChartType` fails here and a renderer for a type nobody can ask
+        for is noticed too."""
+        assert set(RENDERERS) == set(get_args(ChartType))
+
+    def test_an_area_chart_is_not_a_line_chart(self):
+        """The band under the line is what makes it one; the same rows drawn as
+        `line` must come out different."""
+        area = Image.open(BytesIO(render_chart_png(_spec("area")))).convert("RGB")
+        line = Image.open(BytesIO(render_chart_png(_spec("line")))).convert("RGB")
+
+        assert ImageChops.difference(area, line).getbbox() is not None
 
     def test_a_chart_with_no_series_plots_the_numbers_it_was_given(self):
         """A model that sends rows and names no series has still described a
@@ -227,7 +247,7 @@ class TestTheReplyAChannelTurnBuilds:
             patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
             patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
         ):
-            members.get = AsyncMock(return_value=MagicMock(role=OrgRoleName.MEMBER))
+            members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.MEMBER))
             agents.get_by_slug = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
             exposures.get_for_bot = AsyncMock(return_value=MagicMock(is_active=True))
             runner_cls.return_value.execute = _runner_that_draws()
@@ -254,7 +274,7 @@ class TestTheReplyAChannelTurnBuilds:
             patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
             patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
         ):
-            members.get = AsyncMock(return_value=MagicMock(role=OrgRoleName.MEMBER))
+            members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.MEMBER))
             exposures.list_active_for_bot = AsyncMock(
                 return_value=[(MagicMock(), MagicMock(id=uuid.uuid4(), slug="support"))]
             )
@@ -272,3 +292,49 @@ class TestTheReplyAChannelTurnBuilds:
         assert answered.image_png.startswith(b"\x89PNG")
         assert [a.filename for a in answered.attachments] == ["revenue.csv"]
         assert answered.refused == ["/too-big.csv"]
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("path", ["answer", "answer_default"])
+    async def test_a_channel_chart_is_rendered_off_the_event_loop(
+        self, path: str, monkeypatch: pytest.MonkeyPatch
+    ):
+        """Pillow rasterises and PNG-encodes the picture, and a channel turn runs
+        on the loop every poller and webhook task on the worker shares - so a
+        chart drawn inline stalled every other channel turn for its duration.
+        Asserted the way the upload offload is: the render lands on a thread
+        other than the loop's, which fails if the `to_thread` is removed."""
+        loop_thread = threading.get_ident()
+        ran_on: list[int] = []
+
+        def recording(spec: ChartSpec) -> bytes:
+            ran_on.append(threading.get_ident())
+            return render_chart_png(spec)
+
+        monkeypatch.setattr("app.services.channels.mentions.render_chart_png", recording)
+        membership = AsyncMock(return_value=MagicMock(role=OrgRoleName.MEMBER))
+
+        with (
+            patch("app.services.channels.mentions.member_repo") as members,
+            patch("app.services.channels.mentions.agent_repo") as agents,
+            patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
+            patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
+        ):
+            members.get = membership
+            members.get_active = membership
+            agents.get_by_slug = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
+            exposures.get_for_bot = AsyncMock(return_value=MagicMock(is_active=True))
+            exposures.list_active_for_bot = AsyncMock(
+                return_value=[(MagicMock(), MagicMock(id=uuid.uuid4(), slug="support"))]
+            )
+            runner_cls.return_value.execute = _runner_that_draws()
+
+            answered = await getattr(ChannelAgentRouter(MagicMock()), path)(
+                "@support chart my revenue" if path == "answer" else "chart my revenue",
+                platform="slack",
+                organization_id=uuid.uuid4(),
+                bot_id=uuid.uuid4(),
+                user_id=uuid.uuid4(),
+            )
+
+        assert answered.image_png is not None
+        assert ran_on and ran_on[0] != loop_thread

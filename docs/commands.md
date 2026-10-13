@@ -1,13 +1,13 @@
-# Commands Reference
+# Commands
 
 This project provides commands via two interfaces: **Make** targets for common
 workflows and a **project CLI** for fine-grained control.
 
-## Make Commands
+## Make commands
 
 Run these from the project root directory.
 
-### Quick Start
+### Quick start
 
 | Command | Description |
 |---------|-------------|
@@ -28,17 +28,25 @@ Run these from the project root directory.
 | `make lint-backend` / `make lint-frontend` | One half of the above. CI runs them in two different jobs, so either can be run on its own |
 | `make dead-code` | Unused functions and methods — vulture at a lower confidence than the `lint` gate, plus knip's full report on the frontend. A report to read, not a gate: on a registry-driven codebase it comes with false positives (a CLI command, a capability hook), so read each before deleting. The same role `dependency-freshness` plays for dependencies. Its one unambiguous half — a package in `package.json` that nothing imports — gates in `lint-frontend` instead (`bun run lint:deps`), because a dependency that survived being unused for months is what motivated it |
 | `make lint-spelling` | codespell over every tracked file. The pre-commit hook reads only the files a commit touches, so a misspelling that lands with its file waits there to refuse somebody else's unrelated commit |
+| `make lint-precommit` | yamlfmt, zizmor and the `pre-commit-hooks` basics over every tracked file. Same reason as `lint-spelling` — those hooks are per-file, so a `rev:` bump that brings a new rule breaks the tree with nothing noticing. `SKIP` drops the hooks `lint-backend`/`lint-frontend`/`lint-spelling` already gate, so it neither doubles their time nor lets a fixer rewrite a file mid-check |
 | `make build-frontend` | `next build`. Type-checks the route tree and fails on a server component that cannot render — which neither tsc nor vitest sees |
+| `make desktop-dev` / `make desktop-build` | Open, or package, the desktop shell - a Tauri window around a console you name by address. Needs Rust and the platform webview; `docs/desktop.md` has the rest |
+| `make desktop-check` | `bun test` over the pet, then rustfmt, clippy with warnings denied and the shell's Rust tests. Not in `lint` or `check`, because CI has no Rust toolchain yet |
 | `make audit` | Audit the locked dependency set for known vulnerabilities. Needs the network — one request per locked distribution — so its last line says which of four states it ended in rather than leaving a red run ambiguous. See below |
 | `make sandbox-token` | Generate the sandbox service's own `SANDBOXD_TOKEN` into `backend/.env`, once. `make dev` runs it for you; it never regenerates, because a new token orphans every workspace the service is holding. The connection form offers to store the same value in the vault, so it does not have to be pasted anywhere |
 | `make clean` | Remove cache files (__pycache__, .pytest_cache, etc.) |
 
 ### Before a pull request
 
-`make check` is every CI job except one, and the equality is deliberate rather
-than approximate: `.github/workflows/ci.yml` calls these same Make targets rather
-than repeating their commands, and `backend/tests/test_ci_parity.py` fails if a
-gating job grows a step `check` does not run — or the reverse.
+!!! success "`make check` is every CI job except `e2e`"
+
+    The equality is maintained rather than asserted, and
+    `backend/tests/test_ci_parity.py` is what keeps it true. It has drifted four
+    times.
+
+`.github/workflows/ci.yml` calls these same Make targets rather than repeating
+their commands, so a gating job that grows a step `check` does not run fails the
+parity test — as does the reverse.
 
 ```bash
 make check   # lint, test, db-check, test-frontend-cov, build-frontend, docs-build, audit
@@ -49,13 +57,15 @@ About five minutes, serial, on a warm cache. What it deliberately leaves out:
 | Not in `check` | Why, and what to run instead |
 |---|---|
 | `e2e` | Needs a migrated database, a seeded organization and a running backend: `make dev && make platform-bootstrap && make test-e2e` |
-| The image build and Trivy scan | CI runs those only on a push to `main` |
+| The image build, publish and Trivy scan | `.github/workflows/images.yml` runs those on a push to `main` and on a `v*` tag, and publishes to GHCR |
 | `make test-migrations` | CI cycles the chain against a throwaway `test_db`. On a laptop `alembic downgrade base` points at whatever `backend/.env` says, which is usually the database with your own work in it — `uv run pytest tests/test_migrations.py` asks the same question against a database of its own, and `make test` already runs it |
 
-One gap no command can close: CI's `test` job has a Postgres beside it, so
-`tests/integration/` runs there, and locally it skips itself when nothing answers
-on 5432. `make check` says so at the end when that happens — `make docker-db`
-first if the change is anywhere near the database.
+!!! warning "One gap no command can close"
+
+    CI's `test` job has a Postgres beside it, so `tests/integration/` runs there;
+    locally it skips itself when nothing answers on 5432. `make check` says so at
+    the end when that happens — run `make docker-db` first if the change is
+    anywhere near the database.
 
 ### What a red `make audit` means
 
@@ -98,17 +108,22 @@ Invoked directly, `scripts/audit_dependencies.py` does carry it: `0` for `CLEAN`
 audit that did not happen is never reported green, because an unaudited dependency
 set called clean is the same defect facing the other way.
 
-**Every incomplete run is retried, whatever it said.** `AUDIT_ATTEMPTS` (default
-3) with a 5s/10s backoff, and `AUDIT_TIMEOUT` (default 30s) as the per-request
-socket timeout, raised from pip-audit's own 15. Matching a phrase in the output
-decides only whether the verdict reads `NETWORK` or `FAILED` — never whether to
-try again. The two mistakes are not symmetric: re-running a deterministic failure
-costs seconds and the same answer, while not re-running a transient one is the
-false red on a required check that this exists to prevent. So a failure phrased in
-words the list does not hold still gets its retries; it just gets a vaguer name.
-Two vocabularies are in that list, because two programs reach for the network —
-`uv`, fetching `pip-audit` itself on a cold tool cache, and then `pip-audit`,
-fetching the advisories.
+**Every incomplete run is retried, whatever it said.**
+
+`AUDIT_ATTEMPTS` (default 3) with a 5s/10s backoff, and `AUDIT_TIMEOUT` (default 30s)
+as the per-request socket timeout, raised from pip-audit's own 15.
+
+Matching a phrase in the output decides only whether the verdict reads `NETWORK` or
+`FAILED` — never whether to try again. The two mistakes are not symmetric: re-running
+a deterministic failure costs seconds and the same answer, while *not* re-running a
+transient one is the false red on a required check that this exists to prevent.
+
+So a failure phrased in words the list does not hold still gets its retries. It just
+gets a vaguer name.
+
+Two vocabularies are in that list, because two programs reach for the network: `uv`,
+fetching `pip-audit` itself on a cold tool cache, and then `pip-audit`, fetching the
+advisories.
 
 ### Database
 
@@ -141,7 +156,7 @@ The runner is `python -m app.worker.prefect_app`; flows live in `app/worker/task
 Open the UI to watch flow runs, inspect logs, and trigger deployments manually.
 Self-hosted by default — set `PREFECT_API_KEY` (and a Cloud `PREFECT_API_URL`) to use Prefect Cloud instead.
 
-### Docker (Development)
+### Docker (development)
 
 | Command | Description |
 |---------|-------------|
@@ -150,7 +165,7 @@ Self-hosted by default — set `PREFECT_API_KEY` (and a Cloud `PREFECT_API_URL`)
 | `make docker-logs` | Follow backend logs |
 | `make docker-build` | Build backend images |
 | `make docker-shell` | Open shell in app container |
-| `make docker-frontend` | Start frontend (separate compose) |
+| `make docker-frontend` | Start the console (behind the `console` profile in a clone) |
 | `make docker-frontend-down` | Stop frontend |
 | `make docker-frontend-logs` | Follow frontend logs |
 | `make docker-frontend-build` | Build frontend image |
@@ -159,16 +174,15 @@ Self-hosted by default — set `PREFECT_API_KEY` (and a Cloud `PREFECT_API_URL`)
 | `make docker-redis` | Start only Redis |
 | `make docker-redis-stop` | Stop Redis |
 
-### Docker (Production with Traefik)
+### Docker (production with Traefik)
 
 | Command | Description |
 |---------|-------------|
 | `make docker-prod` | Start production stack |
 | `make docker-prod-down` | Stop production stack |
 | `make docker-prod-logs` | Follow production logs |
-| `make docker-prod-build` | Build production images |
 
-### Vercel (Frontend Deployment)
+### Vercel (frontend deployment)
 
 | Command | Description |
 |---------|-------------|
@@ -185,7 +199,7 @@ cd backend
 uv run agenticos <group> <command> [options]
 ```
 
-### Server Commands
+### Server commands
 
 ```bash
 uv run agenticos server run              # Start dev server
@@ -202,16 +216,20 @@ watching while no port is listening. Under the supervisor a worker killed by a
 signal is replaced within about five seconds, and one that exited on its own
 still waits for the edit that fixes it, which is what `--reload` is for.
 
-It also replaces a worker that is **wedged** — alive, but with an event loop
-that has stopped turning, which has no exit code and so looks healthy to every
-other recovery path. The worker reports its loop through uvicorn's
-`callback_notify` hook once a second, and a worker silent for fifteen seconds
-across two consecutive polls is killed and replaced — about twenty-five seconds
-from deadlock to serving again. Two polls rather than one because `docker pause`
-and a laptop waking from sleep stop the supervisor as well as the worker, and the
-first poll afterwards reads a stale beat that says nothing.
-That is liveness and not readiness on purpose: the beat is a timer callback, not
-a request, so a slow database cannot make a healthy server look wedged.
+It also replaces a worker that is **wedged** — alive, but with an event loop that has
+stopped turning, which has no exit code and so looks healthy to every other recovery
+path.
+
+The worker reports its loop through uvicorn's `callback_notify` hook once a second,
+and a worker silent for fifteen seconds across two consecutive polls is killed and
+replaced. About twenty-five seconds from deadlock to serving again.
+
+Two polls rather than one, because `docker pause` and a laptop waking from sleep stop
+the supervisor as well as the worker, and the first poll afterwards reads a stale beat
+that says nothing.
+
+That is **liveness and not readiness**, on purpose: the beat is a timer callback
+rather than a request, so a slow database cannot make a healthy server look wedged.
 
 | | |
 |---|---|
@@ -232,7 +250,7 @@ uvicorn's `auto` picks the legacy one, which fails the handshake against
 websockets >=14 with an HTTP 500 — and the dashboard chat is a WebSocket.
 
 
-### Database Commands
+### Database commands
 
 ```bash
 uv run agenticos db init                  # Run all migrations
@@ -245,7 +263,7 @@ uv run agenticos db current               # Show current revision
 uv run agenticos db history               # Show migration history
 ```
 
-### User Commands
+### User commands
 
 ```bash
 # Create user (interactive prompts for email/password)
@@ -267,7 +285,7 @@ uv run agenticos user list
 **There is no `--role` and no `set-role`.** A user's authority inside an
 organization is a membership row plus the [permission
 catalog](reference/permissions.md), granted from Users & Roles in the UI — the
-`users.role` column was dropped in migration `0066`. The only privilege this group
+`users.role` column was dropped before the migration chain was squashed. The only privilege this group
 can hand out is the global one, and `--superuser` is it. To grant or revoke it
 later:
 
@@ -276,7 +294,7 @@ uv run agenticos cmd create-app-admin user@example.com
 uv run agenticos cmd create-app-admin user@example.com --revoke
 ```
 
-### Custom Commands
+### Custom commands
 
 Custom commands are auto-discovered from `app/commands/`. Run them via:
 
@@ -286,7 +304,7 @@ uv run agenticos cmd <command-name> [options]
 
 `uv run agenticos cmd --help` lists everything the running deployment has.
 
-### Setup and Diagnostics
+### Setup and diagnostics
 
 ```bash
 # An organization, an owner, a model profile and a published agent. Idempotent.
@@ -300,8 +318,18 @@ uv run agenticos cmd bootstrap --org "Acme"
 # Can this deployment actually run an agent? Database, vault, a usable model,
 # and every registered sandbox connection - probed one by one, credential
 # included, because `/healthz` is unauthenticated and answers for a service
-# holding the wrong token.
+# holding the wrong token. Then whether scheduled jobs run: a trigger heartbeat
+# that has not completed for five intervals fails it, whatever Prefect's own
+# health endpoint says.
 uv run agenticos cmd doctor
+
+# The same, plus a second sheet: one row per control of a security profile,
+# naming the setting that satisfies it or the one that does not. `--` marks a
+# control that is genuinely the operator's - volume encryption - which is named
+# rather than quietly passed and does not fail the command. Exits non-zero on any
+# unmet control, so a client's own CI can gate on it. Evidence, not a
+# certification: the HIPAA profile answers §164.312 and nothing else.
+uv run agenticos cmd doctor --profile hipaa
 
 # Find published agents that lend a skill their publisher could not reach. The
 # publish-time check on skill_ids only guards new publishes; this is the offline
@@ -314,21 +342,128 @@ uv run agenticos cmd doctor
 # call. Exits non-zero when it finds one, so a cron can gate on it.
 uv run agenticos cmd audit-skill-bindings
 
-# Install the bundled skills (refund-policy, code-review, incident-report)
+# Recompute the app-admin audit trail's tamper-evidence hash chain and report any
+# break. Each entry links to the previous one's hash, so editing, reordering,
+# inserting or interior-deleting a row diverges every hash after it; a per-org
+# checkpoint catches the newest entries or a whole chain being dropped, which the
+# hash walk cannot see. With no --org it checks every chain, including the
+# deployment-wide one. Detection, not prevention - a Postgres superuser can drop the
+# checkpoint's guard and delete both entries and checkpoint - so a clean run is
+# evidence, not proof. Exits non-zero when any chain fails, so a cron can gate on it.
+uv run agenticos cmd audit-verify
+uv run agenticos cmd audit-verify --org <org-id>
+
+# Print the configuration a data-protection review of this deployment asks for:
+# the settings that decide what leaves, every provider and endpoint an agent can
+# reach, the credentials held by purpose, the collections and who embeds them,
+# the servers on your own network, the MCP servers, sync sources and channel
+# bots, where runs are traced and how much content a span carries, how much of
+# each store a retention period would reach, and the files under MEDIA_DIR no row
+# points at any more. Configuration and counts only - no message text, no
+# document, no secret value and no hint of one, so the output is attachable as it
+# stands. --older-than is the retention period under consideration, in days.
+uv run agenticos cmd data-protection-report
+uv run agenticos cmd data-protection-report --older-than 90
+
+# Re-wrap every stored secret under the current master key - the staged rotation
+# docs/secrets.md describes. Configure the old and new key side by side in
+# VAULT_MASTER_KEYS first; --dry-run fully unseals every stored envelope without
+# writing, so failures surface before anything moves. Exits non-zero when any row
+# could not move, so a script cannot drop the old key on a partial rotation.
+uv run agenticos cmd vault-rotate --dry-run
+uv run agenticos cmd vault-rotate
+
+# Install the bundled skills (refund-policy, code-review, incident-report, artifact-pages),
+# and refresh copies nobody edited to this release's version. An edited copy is left
+# alone unless --replace; --dry-run prints the plan for each skill.
 uv run agenticos cmd seed-skills
 uv run agenticos cmd seed-skills --org <org-id> --dry-run
+uv run agenticos cmd seed-skills --replace
 
 # Sample data for development
 uv run agenticos cmd seed --count 10 --clear
 ```
 
+### Inviting a team, and getting the links out
+
+```bash
+# Invitations for several addresses at once, printed as `address  link`.
+uv run agenticos cmd invite-members <org-id> ada@example.com grace@example.com
+
+# One role for the batch; `member` unless you say otherwise.
+uv run agenticos cmd invite-members <org-id> ada@example.com --role admin
+
+# Whose authority they are created under. Defaults to the organization's first
+# owner, and a role gate needs a role to weigh the offered one against.
+uv run agenticos cmd invite-members <org-id> ada@example.com --as owner@example.com
+```
+
+This exists because of the two halves of an invitation. **Nothing is emailed on a
+deployment with no `SMTP_*`**, and the accept token is returned once and stored
+nowhere a second read can reach — so the link has to be printed to be passed on at
+all. The command says which of the two happened, and one refused address (already
+a member, already invited) is reported and skipped rather than costing the rest.
+
+It goes through the same service the UI does, so the role ceiling, the seat cap
+and the duplicate checks apply exactly as they do to somebody clicking the button
+— including that nobody hands out a role their own does not strictly outrank.
+
 `make platform-bootstrap BOOTSTRAP_API_KEY=sk-...` wraps `bootstrap` with the
 migrations it needs. Run `doctor` first when something works locally and not on a
 fresh environment — it is faster than reading logs.
 
-### Channel Bots
+### Getting a deployment up
+
+```bash
+# Docker, one downloaded compose file, four questions, and a running agent.
+curl -fsSL https://raw.githubusercontent.com/vstorm-co/agenticos/main/scripts/quickstart.sh | bash
+# Only report what this machine is missing.
+./scripts/quickstart.sh --check
+# Print every command it would run, run none of them.
+./scripts/quickstart.sh --dry-run
+# Unattended.
+./scripts/quickstart.sh --yes --provider anthropic --api-key sk-ant-... --org Acme
+```
+
+It is a wrapper around `docker compose up` on the published images (`make dev` in
+a clone), `agenticos cmd bootstrap` and `agenticos cmd mcp-registry-sync` —
+nothing it does is unavailable by hand, and Docker is the only thing it needs.
+
+### The MCP registry mirror
+
+```bash
+# Fill or refresh `mcp_registry_servers` from the bundled snapshot.
+uv run agenticos cmd mcp-registry-sync
+
+# Or from the live registry, which is how the mirror moves between deploys.
+uv run agenticos cmd mcp-registry-sync --fetch
+
+# Keep rows the registry no longer lists, rather than pruning them.
+uv run agenticos cmd mcp-registry-sync --no-prune
+```
+
+**`make platform-bootstrap` already loads it**, from the bundled snapshot, so a
+first-time setup needs none of this. It is skipped when the table already holds
+rows: a re-run of bootstrap must not spend seconds rewriting five thousand
+unchanged rows, and refreshing the mirror is this command's job rather than
+bootstrap's.
+
+Run it by hand on a deployment that predates the table, or to pick up a newer
+snapshot. The sync is idempotent: a second run stamps `synced_at` and changes
+nothing else unless the registry did.
+
+Pruning is what removes a delisted server. Without it the mirror only grows and a
+dead endpoint stays offerable for ever, so it is on by default and keyed on
+`synced_at` rather than on a diff of five thousand ids.
+
+### Channel bots
 
 See [Channels](channels.md) for what each platform supports.
+
+Every command here acts for **one organization**, because a channel bot belongs
+to one. `--org <id>` names it, and a deployment with exactly one organization
+needs no flag. A deployment with several refuses rather than picking, and lists
+them with their ids — guessing would act on somebody else's bots.
 
 ```bash
 # Register a bot
@@ -360,15 +495,17 @@ uv run agenticos cmd channel-webhook-delete --bot-id <uuid>
 Registering a bot from the CLI is the only way on a deployment with no browser
 pointed at it, which is what a Mattermost server behind a VPN usually is.
 
-Access modes are `open`, `whitelist`, `jwt_linked` and `group_only`. A mention runs
-as the *sender*, never as the bot, and an unlinked identity is refused rather than
-run with no role — see [Channels](channels.md#what-every-channel-shares).
+Access modes are `open`, `whitelist`, `jwt_linked` and `group_only`; `jwt_linked`
+answers only chat accounts linked to a member, in a channel as much as in a direct
+message. A mention runs as the *sender*, never as the bot, and an unlinked identity
+is refused rather than run with no role — see
+[Channels](channels.md#what-every-channel-shares).
 
-### RAG Commands
+### RAG commands
 
 All RAG commands are custom commands invoked via `cmd`:
 
-#### Document Ingestion
+#### Document ingestion
 
 The default collection is `default`. A name whose vector table the models already
 declare — `documents`, which prefixed is the ingestion tracking table — is refused
@@ -406,7 +543,7 @@ uv run agenticos cmd rag-search "deployment guide" --collection docs
 uv run agenticos cmd rag-search "deployment" --top-k 10
 ```
 
-#### Collection Management
+#### Collection management
 
 ```bash
 # List all collections with stats
@@ -422,7 +559,7 @@ uv run agenticos cmd rag-drop my_collection
 uv run agenticos cmd rag-drop my_collection --yes
 ```
 
-#### Google Drive Sync
+#### Google Drive sync
 
 ```bash
 # Sync from Google Drive root
@@ -432,7 +569,7 @@ uv run agenticos cmd rag-sync-gdrive --collection docs
 uv run agenticos cmd rag-sync-gdrive --collection docs --folder-id abc123
 ```
 
-#### S3/MinIO Sync
+#### S3/MinIO sync
 
 ```bash
 # Sync from S3 bucket root
@@ -446,7 +583,7 @@ uv run agenticos cmd rag-sync-s3 --collection docs --bucket my-bucket
 ```
 
 
-#### Sync Source Management
+#### Sync source management
 
 ```bash
 # List configured sync sources
@@ -482,7 +619,7 @@ process ends when its coroutine returns — so a command that only triggered and
 exited was cancelling the work it had just reported as started. Over the API
 that task belongs to a long-lived worker and nothing has to wait for it.
 
-## Adding Custom Commands
+## Adding custom commands
 
 Commands are auto-discovered from `app/commands/`. Create a new file:
 

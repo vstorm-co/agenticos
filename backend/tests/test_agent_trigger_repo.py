@@ -254,12 +254,27 @@ class TestClaiming:
         assert "for update of agent_triggers skip locked" in sql
         # The no-overlap join: a fire is skipped while its previous run is unfinished.
         assert "left outer join agent_runs" in sql
-        # The reconcile that closes the unlinked-run window: an in-flight top-level run
-        # in the trigger's own conversation blocks a claim even when `last_run_id` was
-        # never stamped against it (a worker that died before linking the parked run).
+        # The reconcile that closes the unlinked-run window: a parked top-level run
+        # in the trigger's own conversation blocks a claim even when `last_run_id`
+        # was never stamped against it (a worker that died before linking it).
         assert "not (exists" in sql
         assert "parent_run_id is null" in sql
         assert now in _filters(session).values()
+
+    async def test_the_claim_blocks_on_every_non_terminal_run_in_the_conversation(self):
+        """A run's row is committed `running` before its model is called (#12),
+        so a concurrent `run_now` or event fire - which takes no lease - is
+        visible here for its whole life, and a schedule that ignored it would
+        run the same agent twice into one run log, paying for both. What keeps
+        a *crashed* run's durable `running` row from wedging the schedule for
+        ever is the stale-run sweep, not this predicate - it ends such a row
+        `failed` within its ceiling (#1078)."""
+        session = _RecordingSession(_scalars([]))
+        await agent_trigger_repo.claim_due(session, now=datetime(2026, 6, 1, tzinfo=UTC))
+
+        sql = _sql(session)
+        exists_clause = sql.split("not (exists", 1)[1].split("))", 1)[0]
+        assert "status in" in exists_clause
 
     async def test_a_claim_returns_the_rows_it_locked(self):
         rows = [MagicMock(), MagicMock()]

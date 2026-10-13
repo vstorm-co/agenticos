@@ -253,6 +253,7 @@ class TestTheSessions:
 
         assert response.json()["sessions"][0]["scope"] == "conversation"
 
+    @pytest.mark.security
     async def test_the_tenant_label_is_not_echoed_back(self, client) -> None:
         """Every row is this organization's by then, so the field would only be a
         second place for that to be believed."""

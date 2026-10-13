@@ -1,0 +1,43 @@
+# A replica of the API that serves the ML services and nothing else.
+#
+# Composed on top of `docker-compose.yml`, so it inherits that file's `app`
+# definition and departs from it in the three places that matter: its own
+# process, its own CPU and memory, and its own scaling. Nothing about the image
+# or the database changes - one implementation still serves the agents and the
+# direct callers, which is the point.
+#
+#   docker compose -f docker-compose.yml \
+#                  -f deploy/profiles/ml-services/docker-compose.ml.yml up -d
+#
+# The routing is the ingress's job and is not in here: send `/api/v1/ml/` to
+# `ml-services:8000` and everything else to `app:8000`. The README beside this
+# file has the two configurations.
+services:
+  ml-services:
+    # Relative to the *project* directory, which is the directory of the first
+    # `-f` file - the repository root, in the command above - and not to this
+    # file. Spelling it `../../../docker-compose.yml` resolves three levels above
+    # the root and fails with a path nobody recognises.
+    extends:
+      file: docker-compose.yml
+      service: app
+    # Not published on the host. The ingress reaches it over the compose
+    # network; exposing it directly would put a second unrouted copy of the
+    # whole API on a port, which is exactly what this overlay narrows.
+    ports: !reset []
+    # Recognising a scanned page is CPU-bound seconds inside one request, and
+    # the parsing pool is per process - so more workers here, and a ceiling that
+    # says what the host is expected to give them.
+    command: >-
+      uvicorn app.main:app --host 0.0.0.0 --port 8000
+      --workers ${ML_UVICORN_WORKERS:-4} --ws websockets-sansio
+    deploy:
+      resources:
+        limits:
+          cpus: "${ML_CPUS:-4}"
+          memory: ${ML_MEMORY:-4g}
+    environment:
+      # This replica answers nothing a browser reaches, so its own ceilings are
+      # the ML ones. Raise them here without raising them on the console.
+      - ML_MAX_UPLOAD_SIZE_MB=${ML_MAX_UPLOAD_SIZE_MB:-25}
+      - RATE_LIMIT_ML_PER_MINUTE=${RATE_LIMIT_ML_PER_MINUTE:-30}

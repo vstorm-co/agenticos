@@ -67,6 +67,11 @@ class Skill(Base, TimestampMixin):
 
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    # The fingerprint of the bundled folder this row was last written from, or
+    # null for a skill somebody wrote here. `seed-skills` compares it with the row
+    # as it stands: equal means nobody has edited the copy, so a newer bundled
+    # version may replace it; different means somebody did, and it is left alone.
+    library_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     resources: Mapped[list["SkillResource"]] = relationship(
         "SkillResource",

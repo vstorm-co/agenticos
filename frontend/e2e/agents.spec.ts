@@ -19,6 +19,7 @@ import {
   openAgent,
   openBuilderTab,
   pageHeading,
+  pageStatus,
   saveDraft,
   selectSavedModel,
   unsaved,
@@ -224,8 +225,12 @@ test.describe("Agents", () => {
     await name.fill(SEEDED_AGENT_NAME);
     // Before anything is sent: the handle the name will produce is on screen,
     // which is what makes the refusal below legible rather than a message about
-    // a value nobody entered.
-    await expect(dialog.getByText(SEEDED_AGENT_HANDLE, { exact: true })).toBeVisible();
+    // a value nobody entered. Scoped to the field's own description, because the
+    // dialog previews the row it is about to become and shows the handle there
+    // too - both are the point, and an unscoped query matches both.
+    await expect(
+      dialog.locator("#agent-name-desc").getByText(SEEDED_AGENT_HANDLE, { exact: true }),
+    ).toBeVisible();
 
     await dialog.getByLabel("Description").fill("A second one, which should not be created.");
     await dialog.getByRole("button", { name: "Create", exact: true }).click();
@@ -259,11 +264,11 @@ test.describe("Agents", () => {
     // model will actually be given, and the named model a run bills against. A
     // Builder that renders its shell while the agent fails to load shows the
     // same headings and none of this.
-    await expect(pageHeading(page)).toContainText("published");
+    await expect(pageStatus(page)).toContainText("published");
     await expect(page.getByText("Explains what this platform does")).toBeVisible();
 
     await expect(page.getByRole("textbox", { name: "Instructions" })).toHaveValue(
-      /You are a helpful assistant running on AgenticOS/,
+      /You are the Getting Started agent on AgenticOS/,
     );
 
     // The model section leads with the profile this agent actually runs on, and
@@ -286,7 +291,7 @@ test.describe("Agents", () => {
     // agent happens to be first would pass or fail on the seed rather than on
     // the behaviour. `seed.setup.ts` creates one, so this never has to skip.
     await openAgent(page, DRAFT_AGENT_NAME);
-    await expect(pageHeading(page)).toContainText("draft");
+    await expect(pageStatus(page)).toContainText("draft");
 
     // The chat runs the published version and its picker offers nothing else, so
     // a draft has nothing to open — and the control says what unlocks it rather
@@ -298,7 +303,7 @@ test.describe("Agents", () => {
 
   test("a published agent opens in a chat addressed to it", async ({ page }) => {
     await openAgent(page, SEEDED_AGENT_NAME);
-    await expect(pageHeading(page)).toContainText("published");
+    await expect(pageStatus(page)).toContainText("published");
 
     await page.getByRole("button", { name: "Open in chat" }).click();
     // Generous, because the client router commits the URL only once /chat has
@@ -582,7 +587,7 @@ test.describe("Agents", () => {
   });
 
   test("an MCP server can be bound to an agent, and it survives publishing", async ({ page }) => {
-    // The picker existed and was mounted nowhere, because `mcp_server_ids`
+    // The picker existed and was mounted nowhere, because `mcp_servers`
     // could only be filled with something publish refuses. This asserts the
     // whole of what changed: the Builder offers the organization's servers, the
     // choice reaches the stored draft, and the spec publishes with it — which

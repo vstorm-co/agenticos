@@ -20,9 +20,10 @@ the gate has to match.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 
-from pydantic_ai.capabilities import WrapperCapability
+from pydantic_ai.capabilities import AbstractCapability, WrapperCapability
 from pydantic_ai.tools import AgentDepsT, RunContext, ToolDefinition
 from pydantic_ai.toolsets import AbstractToolset, AgentToolset
 
@@ -41,6 +42,28 @@ class ToolOverrides(WrapperCapability[AgentDepsT]):
 
     descriptions: dict[str, str] = field(default_factory=dict)
     """Stable tool id -> what the model reads before calling it."""
+
+    def apply(self, visitor: Callable[[AbstractCapability[AgentDepsT]], None]) -> None:
+        """Register this wrapper in the wrapped capability's place, plus its children.
+
+        A wrapper adopts the id of what it wraps, so for a capability that also
+        registers *itself* alongside its children - `skills`, whose every skill
+        is a deferred capability of its own - the base implementation registers
+        two different classes under one id, which Pydantic AI refuses before the
+        first token.
+
+        Registering the wrapper and not the wrapped is what the adopted id
+        already means, and the wrapper is the one that has to be there: the run
+        resolves a tool's `capability_id` from the capability that *returned*
+        the toolset, and that is whatever the agent holds - this. Children keep
+        their own ids and are registered untouched.
+        """
+        visitor(self)
+        children: list[AbstractCapability[AgentDepsT]] = []
+        self.wrapped.apply(children.append)
+        for capability in children:
+            if capability is not self.wrapped:
+                visitor(capability)
 
     def get_toolset(self) -> AgentToolset[AgentDepsT] | None:
         toolset = super().get_toolset()

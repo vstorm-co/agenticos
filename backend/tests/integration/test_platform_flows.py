@@ -31,13 +31,20 @@ from sqlalchemy.exc import IntegrityError
 
 from app.agents.capabilities.approval import approval_required_tools
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope
-from app.agents.spec import AgentSpec, CapabilityBindingSpec, SpecialistSpec
+from app.agents.spec import (
+    AgentSpec,
+    CapabilityBindingSpec,
+    OrgMcpServerRef,
+    PersonalMcpServerRef,
+    SpecialistSpec,
+)
 from app.api import deps
 from app.core.config import settings
 from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
     BadRequestError,
+    ConcurrentChangeError,
     NotFoundError,
 )
 from app.core.permissions import AuthContext, OrgRoleName, Perm
@@ -53,6 +60,7 @@ from app.db.models.conversation import Conversation, Message
 from app.db.models.credential import ModelProfile
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.mcp_connection import McpConnection
+from app.db.models.notification import Notification, NotificationEventType
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.rag_document import DocumentStatus, RAGDocument
@@ -70,7 +78,6 @@ from app.repositories import (
     credential_repo,
     ingestion_spend_repo,
     mcp_connection_repo,
-    member_repo,
     organization_secret_repo,
     rag_document_repo,
 )
@@ -96,7 +103,11 @@ from app.services.ingestion_config import (
     deployment_defaults,
 )
 from app.services.knowledge_base import KnowledgeBaseService
-from app.services.mcp_connection import McpConnectionService, build_toolsets_for_agent
+from app.services.mcp_connection import (
+    McpConnectionService,
+    UnavailablePersonalService,
+    build_toolsets_for_agent,
+)
 from app.services.model_profile import ModelProfileService
 from app.services.organization_secret import OrganizationSecretService
 from app.services.rag.documents import LiteParseParser
@@ -283,12 +294,14 @@ async def _mcp_connection(
         organization_id=tenant.organization.id,
         scope=scope,
         name=name,
-        url="https://mcp.example.com/mcp",
-        auth_token=None,
-        allowed_tools=None,
-        is_enabled=True,
-        auth_type="bearer",
-        **overrides,
+        **{
+            "url": "https://mcp.example.com/mcp",
+            "auth_token": None,
+            "allowed_tools": None,
+            "is_enabled": True,
+            "auth_type": "bearer",
+            **overrides,
+        },
     )
     db.add(connection)
     await db.flush()
@@ -419,8 +432,8 @@ async def estate(db) -> TwoTenants:
             name="Handbook",
             collection_name=f"kb_{uuid.uuid4().hex[:8]}",
             ingestion_config=deployment_defaults().model_dump(mode="json"),
-            embedding_model=settings.EMBEDDING_MODEL,
-            embedding_dim=settings.rag.embeddings_config.dim,
+            embedding_model=_BUILT_WITH,
+            embedding_dim=_BUILT_WIDTH,
         )
         db.add(collection)
         collections.append(collection)
@@ -518,8 +531,8 @@ async def _kb_row(
         is_default=is_default,
         visibility=visibility,
         ingestion_config=(ingestion_config or deployment_defaults()).model_dump(mode="json"),
-        embedding_model=embedding_model or settings.EMBEDDING_MODEL,
-        embedding_dim=settings.rag.embeddings_config.dim,
+        embedding_model=embedding_model or _BUILT_WITH,
+        embedding_dim=_BUILT_WIDTH,
     )
     db.add(kb)
     await db.flush()
@@ -703,6 +716,7 @@ class TestTenantIsolation:
         assert [agent.id for agent in items] == [estate.home_agent.id]
         assert total == 1
 
+    @pytest.mark.security
     async def test_an_agent_in_another_tenant_is_not_found_by_its_own_owner(
         self, db, estate: TwoTenants
     ) -> None:
@@ -718,12 +732,14 @@ class TestTenantIsolation:
         # that counted another organization's rows offers a page that is empty.
         assert total == 1
 
+    @pytest.mark.security
     async def test_a_skill_in_another_tenant_is_not_found_by_its_own_owner(
         self, db, estate: TwoTenants
     ) -> None:
         with pytest.raises(NotFoundError):
             await SkillService(db).get(estate.home.ctx, estate.other_skill.id)
 
+    @pytest.mark.security
     async def test_a_collection_in_another_tenant_is_unreachable(
         self, db, estate: TwoTenants
     ) -> None:
@@ -787,6 +803,7 @@ class TestTenantIsolation:
         """The other tenant's run costs nine dollars; it must not appear on this bill."""
         assert await AgentRunnerService(db).monthly_spend(estate.home.ctx) == Decimal("1")
 
+    @pytest.mark.security
     async def test_an_approval_from_another_tenant_cannot_be_decided(
         self, db, estate: TwoTenants
     ) -> None:
@@ -871,6 +888,7 @@ class TestTenantIsolation:
         assert response.status_code == 200
         assert [item["filename"] for item in response.json()["items"]] == ["ours.txt"]
 
+    @pytest.mark.security
     async def test_a_tracked_document_in_another_tenant_cannot_be_deleted(
         self, db, rag_api: RagClient, rag_estate: RagEstate
     ) -> None:
@@ -916,6 +934,7 @@ class TestTenantIsolation:
 
         assert response.status_code == 404
 
+    @pytest.mark.security
     async def test_a_file_cannot_be_ingested_into_another_tenants_collection(
         self, rag_api: RagClient, rag_estate: RagEstate
     ) -> None:
@@ -927,6 +946,7 @@ class TestTenantIsolation:
 
         assert response.status_code == 404
 
+    @pytest.mark.security
     async def test_claiming_a_collection_name_another_tenant_owns_is_refused(
         self, db, rag_api: RagClient, rag_estate: RagEstate
     ) -> None:
@@ -944,6 +964,7 @@ class TestTenantIsolation:
         )
         assert [kb.organization_id for kb in rows.scalars()] == [rag_estate.other.organization.id]
 
+    @pytest.mark.security
     async def test_another_tenants_sync_source_cannot_be_deleted(
         self, db, rag_api: RagClient, rag_estate: RagEstate
     ) -> None:
@@ -955,6 +976,7 @@ class TestTenantIsolation:
         assert response.status_code == 404
         assert await db.get(SyncSource, rag_estate.other_source.id) is not None
 
+    @pytest.mark.security
     async def test_another_tenants_integration_cannot_be_cloned_for_its_credentials(
         self, rag_api: RagClient, rag_estate: RagEstate
     ) -> None:
@@ -966,6 +988,7 @@ class TestTenantIsolation:
 
         assert response.status_code == 404
 
+    @pytest.mark.security
     async def test_another_tenants_sync_run_cannot_be_cancelled(
         self, db, rag_api: RagClient, rag_estate: RagEstate
     ) -> None:
@@ -996,6 +1019,7 @@ class TestTenantIsolation:
     # The clone below is the exception, and goes through the app: what it checks
     # lives in the route.
 
+    @pytest.mark.security
     async def test_another_tenants_integration_cannot_be_cloned_into_a_knowledge_base(
         self, db, kb_api: KbClient, rag_estate: RagEstate
     ) -> None:
@@ -1046,6 +1070,7 @@ class TestTenantIsolation:
         assert theirs.value.message == invented.value.message
         assert set(theirs.value.details or {}) == set(invented.value.details or {})
 
+    @pytest.mark.security
     async def test_a_knowledge_base_in_another_tenant_cannot_be_deleted_by_its_own_owner(
         self, db, rag_estate: RagEstate
     ) -> None:
@@ -1057,6 +1082,7 @@ class TestTenantIsolation:
 
         assert await db.get(KnowledgeBase, rag_estate.other_collection.id) is not None
 
+    @pytest.mark.security
     async def test_another_tenants_default_base_is_not_reported_as_undeletable(
         self, db, rag_estate: RagEstate
     ) -> None:
@@ -1330,12 +1356,44 @@ def uploads(tmp_path, monkeypatch):
     return queued
 
 
+_BUILT_WITH = "text-embedding-3-large"
+_BUILT_WIDTH = 3072
+"""What every collection these flows create embeds with - a model OpenRouter serves."""
+
+
+async def _embedding_key(db, tenant: Tenant, *, collection: str) -> OrganizationSecret:
+    """An OpenRouter key in the tenant's vault, for one collection to pay with.
+
+    There is no deployment-wide embedding key, so `KnowledgeBaseService.create`
+    refuses an organization collection that names none - and checks that the
+    chooser can see the key it names, which is why this goes through the vault
+    service as the tenant's owner rather than being inserted as a row. Named
+    after the collection because a secret's name is unique per organization and
+    several tests give one tenant several collections.
+    """
+    return await OrganizationSecretService(db).create(
+        tenant.ctx,
+        name=f"Embeddings for {collection}",
+        value=ApiKeySecret(api_key="sk-test-embeddings-key"),
+        purpose="openrouter",
+    )
+
+
 async def _collection_with(
-    db, tenant: Tenant, *, name: str, config: IngestionConfig
+    db, tenant: Tenant, *, name: str, config: IngestionConfig | None = None
 ) -> KnowledgeBase:
     """A collection created through the service that guards its configuration."""
+    key = await _embedding_key(db, tenant, collection=name)
     return await KnowledgeBaseService(db).create(
-        KnowledgeBaseCreate(name=name, scope="org", collection_name=name, ingestion_config=config),
+        KnowledgeBaseCreate(
+            name=name,
+            scope="org",
+            collection_name=name,
+            ingestion_config=config,
+            embedding_model=_BUILT_WITH,
+            embedding_provider="openrouter",
+            embedding_secret_id=key.id,
+        ),
         ctx=tenant.ctx,
     )
 
@@ -1388,10 +1446,7 @@ class TestHowACollectionReadsItsDocuments:
     async def test_a_collection_with_no_opinion_gets_the_deployments(self, db) -> None:
         tenant = await _tenant(db, name="Casual")
 
-        collection = await KnowledgeBaseService(db).create(
-            KnowledgeBaseCreate(name="notes", scope="org", collection_name="notes"),
-            ctx=tenant.ctx,
-        )
+        collection = await _collection_with(db, tenant, name="notes")
 
         assert collection.ingestion_config == deployment_defaults().model_dump(mode="json")
 
@@ -1417,25 +1472,31 @@ class TestHowACollectionReadsItsDocuments:
         )
         assert isinstance(processor.pdf_parser, LiteParseParser)
 
-    async def test_a_parser_that_cannot_be_built_is_refused_not_quietly_swapped(
-        self, db, uploads, monkeypatch
+    async def test_a_parser_that_cannot_be_billed_is_refused_not_quietly_swapped(
+        self, db, uploads
     ) -> None:
         """LlamaParse without a key must not fall back to the local parser.
 
         A collection whose owner chose the cloud parser for scanned contracts
         and silently got PyMuPDF has an index full of blank pages and nothing
-        anywhere saying so.
+        anywhere saying so. There is no deployment key to fall back to either, so
+        the form refuses the collection, and a stored configuration that lost
+        its key refuses the parse.
         """
-        monkeypatch.setattr(settings, "LLAMAPARSE_API_KEY", "")
         tenant = await _tenant(db, name="Cloudless")
-        collection = await _collection_with(
-            db, tenant, name="cloud", config=IngestionConfig(pdf_parser=PdfParserName.LLAMAPARSE)
-        )
-        document = await _upload(db, tenant, collection)
 
-        with pytest.raises(ValueError, match="LLAMAPARSE_API_KEY"):
+        with pytest.raises(BadRequestError) as refusal:
+            await _collection_with(
+                db,
+                tenant,
+                name="cloud",
+                config=IngestionConfig(pdf_parser=PdfParserName.LLAMAPARSE),
+            )
+        assert refusal.value.details["fields"][0]["field"] == "llamaparse_secret_id"
+
+        with pytest.raises(BadRequestError, match="LlamaParse"):
             await IngestionConfigService(db).build_processor(
-                document.organization_id, IngestionConfig.model_validate(document.ingestion_config)
+                tenant.organization.id, IngestionConfig(pdf_parser=PdfParserName.LLAMAPARSE)
             )
 
     async def test_an_override_wins_for_that_document_and_no_other(self, db, uploads) -> None:
@@ -1626,28 +1687,23 @@ class TestTheEmbeddingModelACollectionWasBuiltWith:
 
         collection = await _collection_with(db, tenant, name="indexed", config=IngestionConfig())
 
-        assert collection.embedding_model == settings.EMBEDDING_MODEL
-        assert collection.embedding_dim == settings.rag.embeddings_config.dim
+        assert collection.embedding_model == _BUILT_WITH
+        assert collection.embedding_dim == _BUILT_WIDTH
 
-    async def test_a_changed_deployment_default_no_longer_strands_a_collection(
-        self, db, uploads, monkeypatch
-    ) -> None:
+    async def test_a_collection_keeps_the_model_it_was_built_with(self, db, uploads) -> None:
         """The store embeds each collection with its own recorded model.
 
-        Changing `EMBEDDING_MODEL` used to make every existing collection
-        refuse ingestion until the variable was restored. The default now only
-        decides what *new* collections are built with - this one keeps
-        indexing, and its documents keep recording the model that actually
-        produced their vectors.
+        There used to be a deployment-wide `EMBEDDING_MODEL`, and changing it
+        made every existing collection refuse ingestion until it was restored.
+        The model is the collection's own now, so its documents keep recording
+        the model that actually produced their vectors.
         """
         tenant = await _tenant(db, name="Switched")
         collection = await _collection_with(db, tenant, name="switched", config=IngestionConfig())
-        built_with = collection.embedding_model
-        monkeypatch.setattr(settings, "EMBEDDING_MODEL", "voyage-3")
 
         document = await _upload(db, tenant, collection)
 
-        assert document.embedding_model == built_with
+        assert document.embedding_model == collection.embedding_model == _BUILT_WITH
 
     async def test_a_document_records_the_model_its_vectors_came_from(self, db, uploads) -> None:
         tenant = await _tenant(db, name="Traceable")
@@ -1796,6 +1852,7 @@ class TestWhatACollectionReportsItHolds:
             vector_document_id=doc.vector_document_id,
             chunk_count=4,
             replaced_document_id=None,
+            attempt=1,
         )
 
         counts = await rag_document_repo.counts_by_collection(
@@ -1805,6 +1862,128 @@ class TestWhatACollectionReportsItHolds:
         assert counts[collection.collection_name].documents == 1
         assert counts[collection.collection_name].indexed == 1
         assert counts[collection.collection_name].chunks == 4
+
+    async def test_a_settlement_for_an_attempt_a_retry_already_superseded_is_ignored(
+        self, db
+    ) -> None:
+        """`complete_ingestion`'s attempt guard is a conditional `UPDATE`, not
+        a read-then-write (#1598): this proves the `WHERE` clause itself
+        rejects a stale settlement, the same way `send_and_settle`'s
+        `claimed_at` mismatch does for the delivery sweep."""
+        tenant = await _tenant(db, name="Superseded")
+        collection = await _collection_with(db, tenant, name="superseded", config=IngestionConfig())
+        doc = await _rag_document(
+            db, collection_name=collection.collection_name, filename="handbook.md"
+        )
+        doc.status = DocumentStatus.PROCESSING
+        doc.ingestion_attempt = 2
+        await db.flush()
+
+        await RAGDocumentService(db).complete_ingestion(
+            str(doc.id),
+            vector_document_id=doc.vector_document_id,
+            chunk_count=4,
+            replaced_document_id=None,
+            attempt=1,
+        )
+
+        refreshed = await rag_document_repo.get_by_id(db, doc.id)
+        assert refreshed is not None
+        assert refreshed.status == DocumentStatus.PROCESSING
+        assert refreshed.chunk_count != 4
+
+    async def test_a_document_that_indexed_cleanly_writes_no_notification(self, db) -> None:
+        """Success is not news, and this is the regression test for saying so.
+
+        There used to be one row per file - "'handbook.md' finished ingesting."
+        - which in the ordinary case (thirty files dropped into a collection at
+          once) was thirty interruptions that buried the rows worth reading. It
+        is gone. What reports an ordinary ingestion now is the document's own
+        status in the collection, and `sync_completed` for the whole-attempt
+        figure of a connector run; `ingestion_failed` still fires, which is the
+        half anybody actually needs told.
+        """
+        tenant = await _tenant(db, name="NotifyQuiet")
+        collection = await _collection_with(
+            db, tenant, name="notify_quiet", config=IngestionConfig()
+        )
+        doc = await _rag_document(
+            db, collection_name=collection.collection_name, filename="handbook.md"
+        )
+        doc.status = DocumentStatus.PROCESSING
+        await db.flush()
+
+        await RAGDocumentService(db).complete_ingestion(
+            str(doc.id),
+            vector_document_id=doc.vector_document_id,
+            chunk_count=4,
+            replaced_document_id=None,
+            attempt=1,
+        )
+
+        refreshed = await rag_document_repo.get_by_id(db, doc.id)
+        assert refreshed is not None
+        assert refreshed.status == DocumentStatus.DONE
+        assert refreshed.chunk_count == 4
+        # Scoped to the ingestion vocabulary rather than to every row: setting
+        # a tenant up writes a `security_event` of its own, and asserting on an
+        # empty table would be asserting on the fixture.
+        ingestion_rows = (
+            (
+                await db.execute(
+                    select(Notification).where(
+                        Notification.organization_id == tenant.organization.id,
+                        Notification.event_type.in_(
+                            [
+                                NotificationEventType.INGESTION_COMPLETED,
+                                NotificationEventType.INGESTION_FAILED,
+                            ]
+                        ),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert ingestion_rows == []
+
+    async def test_a_notification_failure_does_not_undo_a_failed_ingestion(
+        self, db, monkeypatch
+    ) -> None:
+        """The same boundary on the failure side, where it matters more.
+
+        A worker caller runs `fail_ingestion` inside `get_worker_db_context`,
+        so an exception escaping it rolls back the `ERROR` transition just
+        recorded - and `_fail_document` swallows that exception, leaving a
+        document that failed to ingest sitting in `PROCESSING` for ever
+        because its failure notification could not be addressed.
+        """
+        from app.services import notifications as notifications_module
+
+        tenant = await _tenant(db, name="NotifyFailsOnFailure")
+        collection = await _collection_with(
+            db, tenant, name="notify_fails_failure", config=IngestionConfig()
+        )
+        doc = await _rag_document(
+            db, collection_name=collection.collection_name, filename="handbook.md"
+        )
+        doc.status = DocumentStatus.PROCESSING
+        await db.flush()
+
+        async def _boom(self, *_args, **_kwargs) -> None:
+            raise RuntimeError("audience resolution blew up")
+
+        monkeypatch.setattr(notifications_module.NotificationService, "ingestion_failed", _boom)
+
+        await RAGDocumentService(db).fail_ingestion(
+            str(doc.id), "The file could not be read (ValueError)", attempt=1
+        )
+
+        refreshed = await rag_document_repo.get_by_id(db, doc.id)
+        assert refreshed is not None
+        await db.refresh(refreshed)
+        assert refreshed.status == DocumentStatus.ERROR
+        assert refreshed.error_message == "The file could not be read (ValueError)"
 
     async def test_re_ingesting_a_document_does_not_count_it_twice(self, db) -> None:
         """The vector store keeps one document; `rag_documents` gained a second row.
@@ -1832,6 +2011,7 @@ class TestWhatACollectionReportsItHolds:
             vector_document_id=second.vector_document_id,
             chunk_count=12,
             replaced_document_id=first.vector_document_id,
+            attempt=1,
         )
 
         counts = await rag_document_repo.counts_by_collection(
@@ -1842,6 +2022,7 @@ class TestWhatACollectionReportsItHolds:
         assert counts[collection.collection_name].chunks == 12
         assert await rag_document_repo.get_by_id(db, first.id) is None
 
+    @pytest.mark.security
     async def test_another_tenants_documents_are_not_counted(self, db) -> None:
         """The counts are keyed on `collection_name`, and `rag_documents` carries a
         nullable `organization_id` that a sync task never stamps - so the tenant
@@ -1952,11 +2133,11 @@ class TestPublishAndRollback:
         assert sorted(row.version for row in versions) == [1, 2, 3]
         assert total == 3
         assert third.id not in (first.id, second.id)
-        # And the pointer stays where the default environment is: a rollback is a
-        # publish of an older spec, so it lands the same way. Putting the old
-        # version back in front of people is a promotion, one click on its
-        # history row - not a side effect of restoring the draft.
-        assert agent.current_version_id == first.id
+        # And the pointer follows the default environment: a rollback is a
+        # publish of an older spec, so it lands the same way - on a lone
+        # production, which follows publishes, that is the rolled-back version.
+        # A pinned production would stay put (see TestPublishingIsNotDeploying).
+        assert agent.current_version_id == third.id
         restored = await db.get(AgentVersion, third.id)
         original = await db.get(AgentVersion, first.id)
         assert restored.spec == original.spec
@@ -2318,7 +2499,7 @@ class TestManagingTheOrganizationsMcpServers:
 
 
 class TestBindingAnMcpServerToAnAgent:
-    """`mcp_server_ids` against real rows - the only place the scope rule is real.
+    """`mcp_servers` against real rows - the only place the scope rule is real.
 
     A mock can be told that a connection is organization-scoped. Whether the
     query actually says so - and therefore whether a member's personal token can
@@ -2331,7 +2512,11 @@ class TestBindingAnMcpServerToAnAgent:
         model = await _default_model(db, tenant)
         return await AgentRegistryService(db).create(
             tenant.ctx,
-            AgentSpec(name="Support", model_profile_id=model.id, mcp_server_ids=connection_ids),
+            AgentSpec(
+                name="Support",
+                model_profile_id=model.id,
+                mcp_servers=[OrgMcpServerRef(connection_id=cid) for cid in connection_ids],
+            ),
         )
 
     async def test_an_organization_connection_publishes(self, db) -> None:
@@ -2341,7 +2526,15 @@ class TestBindingAnMcpServerToAnAgent:
 
         version = await AgentRegistryService(db).publish(tenant.ctx, agent.id)
 
-        assert version.spec["mcp_server_ids"] == [str(connection.id)]
+        assert version.spec["mcp_servers"] == [
+            {
+                "account": "organization",
+                "connection_id": str(connection.id),
+                # Null rather than a list: the binding narrows nothing, so it
+                # gets whatever the connection allows.
+                "allowed_tools": None,
+            }
+        ]
 
     async def test_a_personal_connection_cannot_be_bound_to_a_published_agent(self, db) -> None:
         """The row belongs to this organization and to the person publishing it.
@@ -2382,19 +2575,123 @@ class TestBindingAnMcpServerToAnAgent:
         personal = await _mcp_connection(db, tenant, name="notion", scope="user")
         seen: list[list[str]] = []
 
-        async def fake_build(specs) -> list[str]:
+        async def fake_build(specs) -> list[tuple[Any, None]]:
             seen.append([spec.name for spec in specs])
-            return []
+            return [(spec, None) for spec in specs]
 
-        monkeypatch.setattr("app.services.mcp_connection.build_mcp_toolsets", fake_build)
+        monkeypatch.setattr("app.services.mcp_connection.probe_toolsets", fake_build)
 
         await build_toolsets_for_agent(
             db,
             organization_id=tenant.organization.id,
-            connection_ids=[bound.id, personal.id],
+            refs=[
+                OrgMcpServerRef(connection_id=bound.id),
+                OrgMcpServerRef(connection_id=personal.id),
+            ],
         )
 
         assert seen == [["linear"]]
+
+    async def test_a_personal_binding_reaches_the_senders_own_connection(
+        self, db, monkeypatch
+    ) -> None:
+        """The join from the binding's catalog key to the member's row is a real query.
+
+        A mock can be told the two are the same service. Whether the lookup
+        actually scopes to *this* member and *this* catalog entry - rather than
+        handing one person's token to another's run - is a question only
+        Postgres answers.
+        """
+        tenant = await _tenant(db, name="Speaking")
+        await _mcp_connection(
+            db,
+            tenant,
+            name="my-notion",
+            scope="user",
+            catalog_key="notion",
+            url="https://mine.example.com/mcp",
+        )
+        seen: list[list[tuple[str, str]]] = []
+
+        async def fake_build(specs) -> list[tuple[Any, None]]:
+            seen.append([(spec.name, spec.url) for spec in specs])
+            return [(spec, None) for spec in specs]
+
+        monkeypatch.setattr("app.services.mcp_connection.probe_toolsets", fake_build)
+
+        resolved = await build_toolsets_for_agent(
+            db,
+            organization_id=tenant.organization.id,
+            refs=[PersonalMcpServerRef(account="personal", catalog_key="notion")],
+            sender_user_id=tenant.user.id,
+        )
+
+        # Their URL under the catalog's name: the prefix is the service, not
+        # whatever they called their connection.
+        assert seen == [[("notion", "https://mine.example.com/mcp")]]
+        assert resolved.unavailable == []
+
+    async def test_somebody_elses_connection_is_never_reached(self, db, monkeypatch) -> None:
+        """The lookup is scoped to the person the message came from."""
+        tenant = await _tenant(db, name="Not Mine")
+        stranger = await _tenant(db, name="Stranger")
+        await _mcp_connection(
+            db,
+            stranger,
+            name="their-notion",
+            scope="user",
+            catalog_key="notion",
+            url="https://theirs.example.com/mcp",
+        )
+        seen: list[list[str]] = []
+
+        async def fake_build(specs) -> list[tuple[Any, None]]:
+            seen.append([spec.url for spec in specs])
+            return [(spec, None) for spec in specs]
+
+        monkeypatch.setattr("app.services.mcp_connection.probe_toolsets", fake_build)
+
+        resolved = await build_toolsets_for_agent(
+            db,
+            organization_id=tenant.organization.id,
+            refs=[PersonalMcpServerRef(account="personal", catalog_key="notion")],
+            sender_user_id=tenant.user.id,
+        )
+
+        assert seen == [[]]
+        assert resolved.unavailable == [UnavailablePersonalService("notion", "not_connected")]
+
+    async def test_a_disabled_connection_of_their_own_is_not_reached_for(
+        self, db, monkeypatch
+    ) -> None:
+        """Switching one off is how somebody stops an agent using it."""
+        tenant = await _tenant(db, name="Switched Off")
+        await _mcp_connection(
+            db,
+            tenant,
+            name="my-notion",
+            scope="user",
+            catalog_key="notion",
+            url="https://mine.example.com/mcp",
+            is_enabled=False,
+        )
+        seen: list[list[str]] = []
+
+        async def fake_build(specs) -> list[tuple[Any, None]]:
+            seen.append([spec.url for spec in specs])
+            return [(spec, None) for spec in specs]
+
+        monkeypatch.setattr("app.services.mcp_connection.probe_toolsets", fake_build)
+
+        resolved = await build_toolsets_for_agent(
+            db,
+            organization_id=tenant.organization.id,
+            refs=[PersonalMcpServerRef(account="personal", catalog_key="notion")],
+            sender_user_id=tenant.user.id,
+        )
+
+        assert seen == [[]]
+        assert resolved.unavailable == [UnavailablePersonalService("notion", "not_connected")]
 
 
 class TestLockingAnMcpConnectionBeforeSpendingItsRefreshToken:
@@ -2682,7 +2979,12 @@ class TestTheOrganizationsMonthlyCap:
 
     @staticmethod
     async def _prepare(db, tenant: Tenant, *, spec: AgentSpec, spent: Decimal):
-        """A published agent under this tenant, with `spent` already booked."""
+        """A published agent under this tenant, with `spent` already booked.
+
+        Committed, not only flushed: the budget baseline is read on a session
+        of its own (#12), the way production reads it, and what it can see is
+        what the database has agreed to - which a terminal run row always is.
+        """
         await _keyed_model_profile(db, tenant)
         agent = await _published_agent(db, tenant, spec=spec)
         await _run_row(
@@ -2692,6 +2994,7 @@ class TestTheOrganizationsMonthlyCap:
             cost=spent,
             started_at=datetime.now(UTC),
         )
+        await db.commit()
         return await AgentRunnerService(db).prepare(tenant.ctx, agent.id)
 
     async def test_a_run_is_refused_once_the_organization_is_over_its_cap(self, db) -> None:
@@ -2804,7 +3107,10 @@ class TestAnAgentsOwnMonthlyCap:
 
     @staticmethod
     async def _published(db, tenant: Tenant, *, spec: AgentSpec, spent: Decimal) -> Agent:
-        """A published agent with `spent` already booked against *it*."""
+        """A published agent with `spent` already booked against *it*.
+
+        Committed, not only flushed - see `TestTheOrganizationsMonthlyCap._prepare`.
+        """
         # For the side effect: publishing needs a resolvable model profile.
         await _keyed_model_profile(db, tenant)
         agent = await _published_agent(db, tenant, spec=spec)
@@ -2816,6 +3122,7 @@ class TestAnAgentsOwnMonthlyCap:
                 cost=spent,
                 started_at=datetime.now(UTC),
             )
+        await db.commit()
         return agent
 
     @staticmethod
@@ -3563,6 +3870,7 @@ class TestTheOrganizationsSecrets:
         )
         return secret.id
 
+    @pytest.mark.security
     async def test_a_stored_secret_keeps_only_a_hint_in_the_clear(self, db) -> None:
         tenant = await _tenant(db, name="Secretive")
 
@@ -3582,6 +3890,7 @@ class TestTheOrganizationsSecrets:
         assert stored is not None
         assert "wx-live-abcd4242" not in stored.sealed_secret
 
+    @pytest.mark.security
     async def test_a_secret_from_another_organization_is_unreachable(self, db) -> None:
         """Both locks, in one test.
 
@@ -3640,16 +3949,16 @@ class TestTheOrganizationsSecrets:
     async def test_several_secrets_resolve_in_one_query(self, db) -> None:
         """A run reads every secret its bindings name; one query, not one each."""
         tenant = await _tenant(db, name="Batched")
-        first = await self._store(db, tenant, name="Weather", key="wx-1111")
-        second = await self._store(db, tenant, name="Maps", key="mp-2222")
+        first = await self._store(db, tenant, name="Weather", key="wx-key-1111")
+        second = await self._store(db, tenant, name="Maps", key="mp-key-2222")
 
         resolved = await OrganizationSecretService(db).resolve_for_bindings(
             tenant.ctx, [first, second]
         )
 
         assert {secret.api_key.get_secret_value() for secret in resolved.values()} == {
-            "wx-1111",
-            "mp-2222",
+            "wx-key-1111",
+            "mp-key-2222",
         }
 
     async def test_deleting_the_organization_takes_its_secrets_with_it(self, db) -> None:
@@ -3679,6 +3988,7 @@ class TestTheOrganizationsSecrets:
             is False
         )
 
+    @pytest.mark.security
     async def test_a_secret_is_found_by_name_inside_its_own_organization_only(self, db) -> None:
         theirs = await _tenant(db, name="NamedTheirs")
         mine = await _tenant(db, name="NamedMine")
@@ -3994,73 +4304,6 @@ class TestWhichSkillsAMemberSees:
         assert total == 1
 
 
-class TestWhoStillHearsAboutRuns:
-    """The notification opt-outs, against real rows.
-
-    `/settings/notifications` writes three booleans; the recipient query
-    filters on one of them in SQL. A unit test can only assert which column
-    was asked for - whether the WHERE clause actually drops the member who
-    switched it off is a question for the database.
-    """
-
-    @pytest.mark.anyio
-    async def test_a_member_who_opted_out_is_dropped_from_the_recipient_query(self, db) -> None:
-        tenant = await _tenant(db, name="Optout")
-        admin_ctx = await _join(db, tenant, OrgRoleName.ADMIN)
-        admin = await db.get(User, admin_ctx.user_id)
-        assert admin is not None
-        admin.notify_usage_reports = False
-        await db.flush()
-
-        recipients = await member_repo.list_emails_by_role(
-            db,
-            organization_id=tenant.organization.id,
-            roles=[OrgRoleName.OWNER.value, OrgRoleName.ADMIN.value],
-            preference="notify_usage_reports",
-        )
-
-        assert recipients == [tenant.user.email]
-
-    @pytest.mark.anyio
-    async def test_an_opt_out_silences_one_kind_of_email_not_the_others(self, db) -> None:
-        """The columns are independent: declining the usage report must not
-        also silence the budget alert that stops a runaway agent."""
-        tenant = await _tenant(db, name="OneKind")
-        tenant.user.notify_usage_reports = False
-        await db.flush()
-
-        reports = await member_repo.list_emails_by_role(
-            db,
-            organization_id=tenant.organization.id,
-            roles=[OrgRoleName.OWNER.value],
-            preference="notify_usage_reports",
-        )
-        budget = await member_repo.list_emails_by_role(
-            db,
-            organization_id=tenant.organization.id,
-            roles=[OrgRoleName.OWNER.value],
-            preference="notify_budget_alerts",
-        )
-
-        assert reports == []
-        assert budget == [tenant.user.email]
-
-    @pytest.mark.anyio
-    async def test_a_query_without_a_preference_still_lists_everyone(self, db) -> None:
-        """Callers that are not sending optional mail see the full roster."""
-        tenant = await _tenant(db, name="NoPref")
-        tenant.user.notify_usage_reports = False
-        await db.flush()
-
-        recipients = await member_repo.list_emails_by_role(
-            db,
-            organization_id=tenant.organization.id,
-            roles=[OrgRoleName.OWNER.value],
-        )
-
-        assert recipients == [tenant.user.email]
-
-
 class TestSharedWithMeIsWhatWasDeliberatelyShared:
     """The listings' shared_with_me filter: shared or org-visible, never mine.
 
@@ -4285,6 +4528,7 @@ class TestWhereAChatAccountHasBeenUsed:
 
         assert found == {}
 
+    @pytest.mark.security
     async def test_a_bot_from_another_tenant_is_never_reported_to_this_person(
         self, db, estate: TwoTenants
     ) -> None:
@@ -4401,6 +4645,12 @@ class TestPublishingIsNotDeploying:
             tenant.ctx, AgentSpec(name="Support", model_profile_id=model.id)
         )
         first = await registry.publish(tenant.ctx, agent.id)
+        # The production a first publish creates follows; pinning it is what
+        # somebody does once there is a second environment to promote from.
+        created = await AgentEnvironmentService(db).list_for_agent(tenant.ctx, agent.id)
+        await AgentEnvironmentService(db).update(
+            tenant.ctx, agent.id, created[0].id, EnvironmentUpdate(tracks_latest=False)
+        )
 
         second = await registry.publish(tenant.ctx, agent.id)
 
@@ -4412,6 +4662,45 @@ class TestPublishingIsNotDeploying:
         # version, not the newest publish.
         assert agent.current_version_id == first.id
         assert production.behind_by == 1
+
+    async def test_an_environment_is_not_removed_while_a_run_of_it_is_working(self, db) -> None:
+        """Deleting it nulls the run's environment, which reads as the default, so
+        a staging run still working would publish over production's pages."""
+        tenant = await _tenant(db, name="Staged")
+        model = await _default_model(db, tenant)
+        registry = AgentRegistryService(db)
+        environments = AgentEnvironmentService(db)
+        agent = await registry.create(
+            tenant.ctx, AgentSpec(name="Support", model_profile_id=model.id)
+        )
+        version = await registry.publish(tenant.ctx, agent.id)
+        staging = await environments.create(tenant.ctx, agent.id, EnvironmentCreate(name="staging"))
+        run = AgentRun(
+            id=uuid.uuid4(),
+            organization_id=tenant.organization.id,
+            agent_id=agent.id,
+            agent_version_id=version.id,
+            environment_id=staging.id,
+            status=RunStatus.RUNNING.value,
+        )
+        db.add(run)
+        await db.flush()
+
+        with pytest.raises(ConcurrentChangeError, match="staging"):
+            await environments.delete(tenant.ctx, agent.id, staging.id)
+
+        # Parked on an approval counts too: it resumes on the version it parked
+        # with, and a gated publish runs after the decision.
+        run.status = RunStatus.AWAITING_APPROVAL.value
+        await db.flush()
+        with pytest.raises(ConcurrentChangeError, match="waiting for an approval"):
+            await environments.delete(tenant.ctx, agent.id, staging.id)
+
+        run.status = RunStatus.COMPLETED.value
+        await db.flush()
+        await environments.delete(tenant.ctx, agent.id, staging.id)
+        listed = await environments.list_for_agent(tenant.ctx, agent.id)
+        assert [row.name for row in listed] == ["production"]
 
     async def test_an_environment_that_follows_latest_moves_with_every_publish(self, db) -> None:
         tenant = await _tenant(db, name="Iterating")
@@ -4446,10 +4735,27 @@ class TestPublishingIsNotDeploying:
         version = await registry.publish(tenant.ctx, agent.id)
 
         listed = await AgentEnvironmentService(db).list_for_agent(tenant.ctx, agent.id)
-        assert [(row.name, row.version_id, row.is_default) for row in listed] == [
-            ("production", version.id, True)
-        ]
+        assert [
+            (row.name, row.version_id, row.is_default, row.tracks_latest) for row in listed
+        ] == [("production", version.id, True, True)]
         assert agent.current_version_id == version.id
+
+    async def test_a_lone_production_serves_the_next_publish(self, db) -> None:
+        """With one environment there is nothing to promote between, so the
+        version somebody just published is the one that answers."""
+        tenant = await _tenant(db, name="Solo")
+        model = await _default_model(db, tenant)
+        registry = AgentRegistryService(db)
+        agent = await registry.create(
+            tenant.ctx, AgentSpec(name="Support", model_profile_id=model.id)
+        )
+        await registry.publish(tenant.ctx, agent.id)
+
+        second = await registry.publish(tenant.ctx, agent.id)
+
+        listed = await AgentEnvironmentService(db).list_for_agent(tenant.ctx, agent.id)
+        assert [(row.version_id, row.behind_by) for row in listed] == [(second.id, 0)]
+        assert agent.current_version_id == second.id
 
     async def test_switching_an_environment_to_follow_adopts_the_newest_now(self, db) -> None:
         """A mode that claims to follow and does not until something else
@@ -4462,9 +4768,12 @@ class TestPublishingIsNotDeploying:
             tenant.ctx, AgentSpec(name="Support", model_profile_id=model.id)
         )
         await registry.publish(tenant.ctx, agent.id)
-        newest = await registry.publish(tenant.ctx, agent.id)
         listed = await environments.list_for_agent(tenant.ctx, agent.id)
         production = next(row for row in listed if row.is_default)
+        await environments.update(
+            tenant.ctx, agent.id, production.id, EnvironmentUpdate(tracks_latest=False)
+        )
+        newest = await registry.publish(tenant.ctx, agent.id)
 
         await environments.update(
             tenant.ctx, agent.id, production.id, EnvironmentUpdate(tracks_latest=True)

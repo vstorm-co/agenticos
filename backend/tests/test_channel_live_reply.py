@@ -13,12 +13,30 @@ posts and edits is its adapter's business.
 
 import contextlib
 from collections.abc import AsyncIterator
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic_ai import Agent
+from pydantic_ai.messages import (
+    PartDeltaEvent,
+    PartStartEvent,
+    TextPart,
+    TextPartDelta,
+    ThinkingPart,
+    ToolCallPart,
+)
+from pydantic_ai.models.function import FunctionModel
 
+from app.agents.capabilities import CapabilityBinding, build
 from app.services.agent_runner import AgentRunnerService
-from app.services.channels.live_reply import EDIT_INTERVAL, WORKING, LiveReply, doing
+from app.services.channels.live_reply import (
+    EDIT_INTERVAL,
+    WORKING,
+    LiveReply,
+    channel_stream,
+    doing,
+)
 
 
 @contextlib.asynccontextmanager
@@ -341,3 +359,129 @@ class TestAnEmptyAnswerTellsItsReasonsApart:
             message = _empty_answer(self._answered(status=status))
             assert "approval" not in message
             assert "usage limit" not in message
+
+
+class TestTheEventsTheStreamActuallyReads:
+    """The consuming half, which had no test - and that is why the reply looked
+    broken in every channel for as long as it did.
+
+    Watching one, the answer appeared a sentence in, grew, and then jumped as the
+    beginning arrived with the finished text. The cause was `channel_stream`
+    listening to `PartDeltaEvent` alone: `PartStartEvent` carries the *first*
+    chunk of a text part's content and no delta repeats it, so the streamed
+    message was the answer minus its opening until the final send replaced the
+    whole thing.
+
+    Every test above this one drives `LiveReply` directly, which is correct and
+    was never the broken half.
+    """
+
+    @staticmethod
+    def _model_node(*events: object) -> Any:
+        """A model-request node whose stream yields these events."""
+
+        async def _events() -> Any:
+            for event in events:
+                yield event
+
+        stream = MagicMock()
+        stream.__aenter__ = AsyncMock(return_value=_events())
+        stream.__aexit__ = AsyncMock(return_value=False)
+        node = MagicMock()
+        node.stream = MagicMock(return_value=stream)
+        return node
+
+    async def _driven(self, *events: object) -> LiveReply:
+        reply, _push, _clock = _reply()
+        node = self._model_node(*events)
+
+        async def _nodes() -> AsyncIterator[object]:
+            yield node
+
+        agent_run = MagicMock()
+        agent_run.ctx = object()
+        agent_run.__aiter__ = lambda _self: _nodes()
+
+        with (
+            patch.object(Agent, "is_model_request_node", return_value=True),
+            patch.object(Agent, "is_call_tools_node", return_value=False),
+        ):
+            await channel_stream(reply)(agent_run)
+        return reply
+
+    async def test_the_first_chunk_arrives_with_the_part_that_starts(self):
+        """The defect, stated as the thing somebody saw: without this the reply
+        opens mid-sentence."""
+        reply = await self._driven(
+            PartStartEvent(index=0, part=TextPart(content="Dzień ")),
+            PartDeltaEvent(index=0, delta=TextPartDelta(content_delta="dobry, ")),
+            PartDeltaEvent(index=0, delta=TextPartDelta(content_delta="w czym pomóc?")),
+        )
+
+        assert reply.text == "Dzień dobry, w czym pomóc?"
+
+    async def test_a_second_text_part_contributes_its_own_first_chunk(self):
+        """A model that says something, calls a tool and speaks again emits two
+        text parts, and the second one opens the same way the first did."""
+        reply = await self._driven(
+            PartStartEvent(index=0, part=TextPart(content="Sprawdzam")),
+            PartStartEvent(index=1, part=TextPart(content=" - gotowe.")),
+        )
+
+        assert reply.text == "Sprawdzam - gotowe."
+
+    async def test_a_tool_call_starting_is_not_the_answer(self):
+        """The same event fires for a tool call, and its arguments are not text
+        somebody should read in a chat."""
+        reply = await self._driven(
+            PartStartEvent(index=0, part=ToolCallPart(tool_name="web_search", args="{}")),
+            PartDeltaEvent(index=1, delta=TextPartDelta(content_delta="Znalazłem.")),
+        )
+
+        assert reply.text == "Znalazłem."
+
+    async def test_thinking_is_not_the_answer_either(self):
+        """A model that exposes its reasoning emits it as its own part kind, and a
+        chat window is not where that belongs."""
+        reply = await self._driven(
+            PartStartEvent(index=0, part=ThinkingPart(content="the user wants...")),
+            PartStartEvent(index=1, part=TextPart(content="Tak.")),
+        )
+
+        assert reply.text == "Tak."
+
+
+class TestAScreenedAnswerInTheChat:
+    """An agent with an output check, edited into a channel reply (#1900).
+
+    The reply is rewritten about once a second while the answer arrives, and the
+    output guardrail only read the finished answer - so the unredacted text was
+    posted, and edited away a moment later. Every edit reads the stream screen's
+    release now.
+    """
+
+    @pytest.mark.security
+    async def test_no_edit_of_the_reply_shows_a_redacted_secret(self):
+        secret = "sk-ant-api03-ABCDEFGHIJKLMNOPQR"
+
+        async def stream(_messages: Any, _info: Any) -> AsyncIterator[str]:
+            yield "Here it is: sk-ant-api03-ABC"
+            yield "DEFGHIJKLMNOPQR."
+
+        agent = Agent(
+            FunctionModel(stream_function=stream),
+            capabilities=build(
+                [CapabilityBinding(capability_id="guardrails", config={"redact_secrets_out": True})]
+            ),
+        )
+        reply, push, clock = _reply()
+        # Every chunk a second apart, so the throttle would push each one.
+        push.side_effect = lambda _text: clock.tick(EDIT_INTERVAL)
+        clock.tick(EDIT_INTERVAL)
+
+        async with agent.iter("what is my key?") as agent_run:
+            await channel_stream(reply)(agent_run)
+
+        assert push.await_args_list
+        assert all(secret not in call.args[0] for call in push.await_args_list)
+        assert reply.text == "Here it is: [redacted:anthropic_key]."

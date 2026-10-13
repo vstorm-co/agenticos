@@ -1,12 +1,16 @@
 /**
- * The default face for anyone - a person, an organization, an agent - who never
- * uploaded one.
+ * The colour anyone - a person, an organization, an agent - wears when they
+ * never uploaded a picture.
  *
- * Two letters on a colour, both derived from what the client already holds, so a
- * fresh deployment looks designed rather than empty and no row costs a network
- * request to draw. The colour is a stable function of a seed (the row's id), so
- * one entity wears the same colour everywhere it appears; the letters come from
- * the name, so a member list stays readable at a glance.
+ * Derived from what the client already holds, so a fresh deployment looks
+ * designed rather than empty and no row costs a network request to draw. The
+ * colour is a stable function of a seed (the row's id), so one entity wears the
+ * same colour everywhere it appears.
+ *
+ * Two shapes read it. An organization draws two letters on the fill itself
+ * (`avatarInitials` + `avatarPalette`); a person and an agent draw a generated
+ * face, which takes the same choice as a hue (`avatarHue`) rather than as a
+ * class. One picker, one stored slot, two renderers.
  */
 
 /**
@@ -76,6 +80,33 @@ function hashedPalette(seed: string): AvatarPalette {
     hash = (hash * 33) ^ seed.charCodeAt(i);
   }
   return PALETTE[(hash >>> 0) % PALETTE.length] as AvatarPalette;
+}
+
+/**
+ * The hue of each `--avatar-*` fill, in degrees, in slot order.
+ *
+ * These are the `oklch(L C H)` hue channels from `globals.css` and nothing else:
+ * a face drawn for slot 7 has to be the green the swatch that chose it shows,
+ * or the picker is lying about what it picks. The two lists are written down in
+ * different languages and cannot import from each other, so
+ * `avatar-color.test.ts` reads the stylesheet back and fails when they drift.
+ */
+export const AVATAR_HUES: readonly number[] = [265, 300, 330, 20, 55, 95, 140, 175, 205, 240];
+
+/**
+ * The hue a generated face wears, or `undefined` when no slot is chosen.
+ *
+ * `undefined` is not a missing value here - it is what hands the colour back to
+ * the generator, which derives one from the name across the whole circle rather
+ * than from ten steps of it. That is what "auto" in the picker means, and it is
+ * why this does not fall back to `hashedPalette` the way the class side does:
+ * ten hues would be a worse default than the generator's own.
+ */
+export function avatarHue(colorSlot?: number | null): number | undefined {
+  if (colorSlot != null && colorSlot >= 1 && colorSlot <= AVATAR_COLOR_COUNT) {
+    return AVATAR_HUES[colorSlot - 1];
+  }
+  return undefined;
 }
 
 /**

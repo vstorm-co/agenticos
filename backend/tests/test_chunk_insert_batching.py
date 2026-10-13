@@ -169,10 +169,12 @@ class TestHowManyStatementsOneDocumentCosts:
         built = 0
         original = store._build_chunk_metadata
 
-        def counting(chunk: object, document: object) -> dict[str, object]:
+        def counting(
+            chunk: object, document: object, organization_id: object = None
+        ) -> dict[str, object]:
             nonlocal built
             built += 1
-            return original(chunk, document)  # ty: ignore[invalid-argument-type]
+            return original(chunk, document, organization_id)  # ty: ignore[invalid-argument-type]
 
         store._build_chunk_metadata = counting  # ty: ignore[invalid-assignment]
         seen: list[int] = []

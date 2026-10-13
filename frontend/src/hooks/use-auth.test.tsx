@@ -252,11 +252,39 @@ describe("signing in", () => {
       await result.current.login({ email: "kacper@example.com", password: "secret" });
     });
 
-    expect(apiClient.post).toHaveBeenCalledWith("/auth/login", {
-      email: "kacper@example.com",
-      password: "secret",
-    });
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/auth/login",
+      { email: "kacper@example.com", password: "secret" },
+      // Bounded, so a request a dead connection swallows ends in an error the
+      // form can show instead of a spinner nobody can stop.
+      { signal: expect.any(AbortSignal) },
+    );
     expect(useAuthStore.getState().accessToken).toBe("t-1");
+  });
+
+  it("keeps a sign-in that a slower, older session check answers after", async () => {
+    // After an idle tab is reloaded its /auth/me can still be on the wire, over a
+    // slow VPN, when the person signs in. Its "nobody is signed in" used to land
+    // afterwards and put the account that had just arrived back on the login page.
+    let answer!: (reason: unknown) => void;
+    vi.mocked(apiClient.get).mockReturnValue(
+      new Promise((_, reject) => {
+        answer = reject;
+      }),
+    );
+    vi.mocked(apiClient.post).mockResolvedValue({ user: user(), access_token: "t-new" });
+    const { result } = renderHook(() => useAuth(), { wrapper });
+
+    await act(async () => {
+      await result.current.login({ email: "kacper@example.com", password: "secret" });
+    });
+    await act(async () => {
+      answer(new ApiError(401, "Not authenticated"));
+    });
+
+    expect(useAuthStore.getState().isAuthenticated).toBe(true);
+    expect(useAuthStore.getState().user?.id).toBe("u-1");
+    expect(useAuthStore.getState().accessToken).toBe("t-new");
   });
 
   it("lands an app admin and an ordinary member on the same dashboard", async () => {
@@ -350,6 +378,42 @@ describe("signing in", () => {
     await waitFor(() => expect(useAuthStore.getState().isLoading).toBe(false));
   });
 
+  it("signs in through the directory the same way, with a username", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ user: user(), access_token: "t-d" });
+    const { result } = renderHook(() => useAuth(), { wrapper });
+
+    await act(async () => {
+      await result.current.loginWithDirectory({ username: "jdoe", password: "pw" }, "/agents");
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/auth/ldap/login",
+      { username: "jdoe", password: "pw" },
+      { signal: expect.any(AbortSignal) },
+    );
+    expect(useAuthStore.getState().accessToken).toBe("t-d");
+    expect(push).toHaveBeenLastCalledWith("/agents");
+  });
+
+  it("names the staged invitation's flow on a directory sign-in, which may create the account", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ user: user(), access_token: "t-d" });
+    const { result } = renderHook(() => useAuth(), { wrapper });
+
+    await act(async () => {
+      await result.current.loginWithDirectory(
+        { username: "jdoe", password: "pw" },
+        null,
+        "0123456789abcdef0123456789abcdef",
+      );
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/auth/ldap/login?flow=0123456789abcdef0123456789abcdef",
+      { username: "jdoe", password: "pw" },
+      { signal: expect.any(AbortSignal) },
+    );
+  });
+
   it("registers without signing anybody in", async () => {
     // Registration may need a verification step, so it does not touch the session.
     vi.mocked(apiClient.post).mockResolvedValue({ id: "u-2", email: "new@example.com" });
@@ -368,6 +432,23 @@ describe("signing in", () => {
     // Nobody was signed in as the new account: the session is still whoever
     // `/auth/me` answered with on mount.
     expect(useAuthStore.getState().user?.email).toBe("kacper@example.com");
+  });
+
+  it("names the staged invitation's flow on a registration reached through one (#1414)", async () => {
+    // The register proxy forwards that flow's httpOnly handle for the sign-up
+    // admission; the body itself carries no token and no handle.
+    vi.mocked(apiClient.post).mockResolvedValue({ id: "u-3", email: "invited@example.com" });
+    const { result } = renderHook(() => useAuth(), { wrapper });
+
+    await result.current.register(
+      { email: "invited@example.com", password: "secret123" },
+      "0123456789abcdef0123456789abcdef",
+    );
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/auth/register?flow=0123456789abcdef0123456789abcdef",
+      { email: "invited@example.com", password: "secret123" },
+    );
   });
 });
 
@@ -483,6 +564,72 @@ describe("refreshing the token by hand", () => {
     expect(refreshed).toBe(false);
     expect(useAuthStore.getState().isAuthenticated).toBe(true);
     expect(push).not.toHaveBeenCalledWith(ROUTES.LOGIN);
+  });
+});
+
+describe("a read the identity changed underneath", () => {
+  it("discards a poll read that a re-authentication overtook", async () => {
+    // The shared ten-minute read is in flight when the cookies are swapped for
+    // somebody else's - an impersonation starting. Landing last, it would put the
+    // administrator and their token back in the store while every request runs
+    // as the other account (#1044).
+    vi.useFakeTimers();
+    vi.mocked(apiClient.get).mockResolvedValue({ ...user(), access_token: "t-admin" });
+    renderHook(() => useAuth(), { wrapper });
+    await vi.waitFor(() => expect(useAuthStore.getState().accessToken).toBe("t-admin"));
+
+    let releasePoll: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.get).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          releasePoll = resolve;
+        }),
+    );
+    await act(async () => {
+      vi.advanceTimersByTime(10 * 60 * 1000);
+      await Promise.resolve();
+    });
+
+    vi.mocked(apiClient.get).mockResolvedValue({
+      ...user({ id: "u-2", email: "customer@example.com" }),
+      access_token: "t-target",
+    });
+    const { result } = renderHook(() => useReauthenticate(), { wrapper });
+    await act(() => result.current());
+    expect(useAuthStore.getState().user?.id).toBe("u-2");
+
+    await act(async () => {
+      releasePoll({ ...user(), access_token: "t-admin" });
+      await Promise.resolve();
+    });
+
+    expect(useAuthStore.getState().user?.id).toBe("u-2");
+    expect(useAuthStore.getState().accessToken).toBe("t-target");
+  });
+
+  it("discards a re-read that a later one overtook", async () => {
+    const { result } = renderHook(() => useReauthenticate(), { wrapper });
+    let releaseFirst: (value: unknown) => void = () => {};
+    vi.mocked(apiClient.get).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          releaseFirst = resolve;
+        }),
+    );
+    let first: Promise<void> = Promise.resolve();
+    act(() => {
+      first = result.current();
+    });
+
+    vi.mocked(apiClient.get).mockResolvedValue({ ...user({ id: "u-2" }), access_token: "t-2" });
+    await act(() => result.current());
+    await act(async () => {
+      releaseFirst({ ...user({ id: "u-1" }), access_token: "t-1" });
+      await first;
+    });
+
+    expect(useAuthStore.getState().user?.id).toBe("u-2");
+    expect(useAuthStore.getState().accessToken).toBe("t-2");
   });
 });
 

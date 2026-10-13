@@ -56,6 +56,26 @@ class ChannelBot(Base, TimestampMixin):
     slack_signing_secret_encrypted: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     slack_app_token_encrypted: Mapped[str | None] = mapped_column(String(1000), nullable=True)
 
+    speech_to_text_provider: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    speech_to_text_model: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    """Which model turns a voice note into text, or null for "do not transcribe".
+
+    A pair rather than one string, because the provider decides where the request
+    goes and the model decides what answers - the same split
+    `ImageGenerationConfig` settled on after carrying an SDK prefix in one
+    enumerated field and needing a migration to take it apart again.
+
+    Two columns rather than a key in `access_policy`: this is not a policy, and a
+    JSONB field is the place a value goes when nobody wants to write a migration -
+    which is how a rule ends up being narrowed on a column that already holds rows
+    that break it.
+
+    Null is the default and is off. Transcription spends somebody's provider
+    credit on every voice note, so it is opted into rather than out of - and a
+    deployment whose providers all want service accounts can offer nothing here,
+    which a nullable pair says and a non-null default could not.
+    """
+
     access_policy: Mapped[dict] = mapped_column(
         JSON,
         nullable=False,

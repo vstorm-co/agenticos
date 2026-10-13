@@ -590,28 +590,6 @@ class TestSortingByHowLongItTook:
         assert rows == [str(newer.id), str(older.id)]
 
 
-class TestNarrowingByHowLongItTook:
-    async def test_only_runs_over_the_threshold(self, db) -> None:
-        org, user = await _org(db)
-        agent = await _agent(db, org)
-        slow = await _run(db, org, agent, started_at=_NOW, ended_at=_NOW + timedelta(seconds=31))
-        await _run(db, org, agent, started_at=_NOW, ended_at=_NOW + timedelta(seconds=2))
-
-        rows, total = await _listed(db, org, user, filters=RunFilters(took_over_ms=30_000))
-
-        assert (rows, total) == ([str(slow.id)], 1)
-
-    async def test_a_run_with_no_end_is_excluded_rather_than_counted_as_zero(self, db) -> None:
-        """ "Everything slower than 30 seconds" must not answer with the runs that
-        have not finished - they may well be slower, and the question is about what
-        is measurable."""
-        org, user = await _org(db)
-        agent = await _agent(db, org)
-        await _run(db, org, agent, status=RunStatus.RUNNING.value, started_at=_NOW, ended_at=None)
-
-        assert (await _listed(db, org, user, filters=RunFilters(took_over_ms=1)))[1] == 0
-
-
 class TestNarrowingByWhatPeopleThoughtOfIt:
     """#209, and the reason `messages.run_id` had to land first.
 

@@ -53,7 +53,7 @@ route, **in both directions**. Widening a format set is what that test exists fo
 column, so a tighter rule does not only reject new input — it makes stored rows
 unreadable, and a Pydantic model refusing one field of one row takes the whole listing
 endpoint down with a 500. Adding a field is safe (missing keys take defaults);
-narrowing needs a data migration **in the same change**. `0046_ocr_tesseract` is the
+narrowing needs a data migration **in the same change**. the OCR language codes are the
 worked example. See the `alembic-migration` skill.
 
 **4. A document that parses to nothing.** Silently indexing an empty result is

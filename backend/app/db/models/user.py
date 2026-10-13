@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, Literal
 
-from sqlalchemy import Boolean, DateTime, SmallInteger, String, text
+from sqlalchemy import Boolean, DateTime, Integer, SmallInteger, String, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -30,7 +30,27 @@ class User(Base, TimestampMixin):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    # An address asked for and not yet proved. Every mail this deployment sends
+    # goes to `email` - a reset link, an invitation, a budget alert - so a
+    # self-service change that wrote straight to that column pointed all of it at
+    # an address nobody had shown they could read (#1772). The request stages here
+    # instead; confirming the link sent to it moves the value across and clears
+    # this, which is also what makes the link single-use.
+    #
+    # Deliberately not unique: two people may stage the same address, and only
+    # the first to confirm gets it - the unique constraint on `email` is where
+    # that is decided, at the moment it is decided. A constraint here would
+    # instead refuse the second *request*, which leaks that somebody else is
+    # mid-change to an address, and strands the winner behind the loser's
+    # abandoned staging.
+    pending_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     hashed_password: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Bumped on every password change; a refresh token carries the version it was
+    # minted with, and the refresh path refuses one that is behind. That is what
+    # invalidates a token racing the change's session revocation (#1517).
+    credential_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
     full_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     # The one global privilege. Authorization inside an organization is a
@@ -64,7 +84,10 @@ class User(Base, TimestampMixin):
     )
 
     sessions: Mapped[list["Session"]] = relationship(
-        "Session", back_populates="user", cascade="all, delete-orphan"
+        "Session",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        foreign_keys="Session.user_id",
     )
 
     def __repr__(self) -> str:

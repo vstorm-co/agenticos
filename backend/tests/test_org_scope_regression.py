@@ -46,6 +46,7 @@ CROSS_TENANT_BY_DESIGN = [
 class TestRepositorySignatures:
     """The audit, executable."""
 
+    @pytest.mark.security
     @pytest.mark.parametrize(("module", "func_name"), TENANT_REQUIRED)
     def test_tenant_argument_has_no_default(self, module, func_name):
         params = inspect.signature(getattr(module, func_name)).parameters

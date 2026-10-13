@@ -1,11 +1,14 @@
 # Permissions
 
-The rule the whole codebase follows: **permissions are defined in code, roles are
-composed from them.** Call sites check permissions, never role names, so adding
-or re-shaping a role never means editing an endpoint.
+One rule, which the whole codebase follows:
+
+!!! quote "Permissions are defined in code. Roles are composed from them."
+
+    Call sites check **permissions**, never role names — so adding or re-shaping a
+    role never means editing an endpoint.
 
 The catalog is [`app/core/permissions.py`](reference/permissions.md). It is the
-single source of truth; this page explains it.
+single source of truth, and this page explains it.
 
 !!! warning "There are three layers, and they are independent"
 
@@ -14,7 +17,7 @@ single source of truth; this page explains it.
 
     There used to be a fourth - a `users.role` column of `admin` | `user`,
     inherited from the project template, with `User.has_role()`, `RoleChecker`
-    and a `CurrentAdmin` alias behind it. It was removed in migration `0066`. It
+    and a `CurrentAdmin` alias behind it. It was removed before the migration chain was squashed. It
     was a third answer to a question the two below already answered, and it
     agreed with neither: an account called `admin@example.com` sat at
     `role = 'user'`, which reads as a broken installation and sent people to fix
@@ -27,13 +30,33 @@ single source of truth; this page explains it.
     favour of Activity, and `/admin/conversations?user_id=` lists one account's
     threads without opening any of them.
 
+```mermaid
+flowchart TD
+    subgraph L1["Layer 1 · the deployment"]
+        A["<code>users.is_app_admin</code><br/>a boolean outside every organization"]
+    end
+    subgraph L2["Layer 2 · the organization"]
+        B["a row in <code>organization_members</code><br/>carrying a name from <code>OrgRoleName</code>"]
+    end
+    subgraph L3["Layer 3 · one row"]
+        C["<code>resource_grants</code><br/>and a resource's own visibility"]
+    end
+    A -.->|"bypasses, and the audit log is what holds it"| B
+    B -->|"role scope"| E{{"effective access<br/><code>max(role scope, grant)</code>"}}
+    C -->|"grant on that row"| E
+```
+
 ## Layer 1: `users.is_app_admin` - the deployment superadmin
 
 A boolean on the user, entirely outside organizations. Two effects:
 
 1. **A gate on deployment routes.** `CurrentAppAdmin` guards `/admin/users`,
    `/admin/stats`, `/admin/conversations` (a listing, never a transcript),
-   `/admin/ratings` and the bulk `/rag` endpoints.
+   `/admin/ratings`, `/admin/announcements`, `/admin/notifications/deliveries`
+   and the bulk `/rag` endpoints. Announcements sit here rather than behind a
+   `Perm` because every entry in the permission catalog resolves against one
+   organization, and none of them can express "every organization"
+   ([Governance](governance.md#alerts)).
 2. **A bypass in `AuthContext.permissions`**, which returns every permission at
    `Scope.ALL` - in every organization, including ones where they hold no
    membership.
@@ -65,17 +88,31 @@ Two kinds of permission, and they behave differently.
 **Global** permissions are binary and org-wide: `members:manage`, `roles:manage`,
 `org:settings`, `org:delete`, `budgets:manage`, `approvals:decide`,
 `connections:view`, `connections:manage`, `mcp:manage`, `channels:manage`,
-`runs:view`, `audit:read`.
+`runs:view`, `audit:read`, `ml:invoke`.
 
-`connections:view` and `connections:manage` are deliberately two permissions,
-not one with an implied read. Watching a sandbox host - its session list, its
-activity log, the memory and CPU ceilings its service enforces - is what answers
-"why did that agent just get a 429", a question an operator is paged about.
-Registering a host, pointing it at an address and attaching the vault secret that
-can start containers there is a different authority. Folding both into
-`connections:manage` meant an operator could only get the read by being granted
-create, edit and delete as well. Nothing here implies one permission from
-another, so a role that manages connections holds both.
+!!! example "Why `ml:invoke` is not `agents:run`"
+
+    The [ML services](ml-services.md) are called by another component holding a
+    key, with no conversation and no agent. Folding them into `agents:run` would
+    hand every such integration the ability to spend the organization's model
+    budget as well, for no reason other than that both are "asking the platform
+    to do work".
+
+    Every role but `viewer` holds it, because reading a document's structure is
+    not a privileged act; spending money on a model is.
+
+!!! example "Why `connections:view` and `connections:manage` are two"
+
+    Watching a sandbox host — its session list, its activity log, the memory and
+    CPU ceilings its service enforces — is what answers "why did that agent just
+    get a 429", a question an operator is paged about.
+
+    Registering a host, pointing it at an address and attaching the vault secret
+    that can start containers there is a different authority.
+
+    Folded into one, an operator could only get the read by being granted create,
+    edit and delete as well. Nothing here implies one permission from another, so a
+    role that manages connections holds both.
 
 **Resource** permissions carry a `Scope`, because they answer the second question
 a role cannot: not "may this role touch agents?" but *which* agents.
@@ -107,9 +144,9 @@ Ordered `NONE < OWN < SHARED < TEAM < ALL`.
 |---|---|---|---|---|
 | `owner` | owns the organization | all `ALL` | `ALL` | everything, including `org:delete` |
 | `admin` | runs it day to day | all `ALL` | `ALL` | everything **except** `org:delete` |
-| `builder` | builds, and learns from the whole org | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp`, `connections:view`+`connections:manage`, `runs:view` |
-| `operator` | keeps the running system healthy | `view`/`run` `ALL`, no edit | `view` `SHARED` | `approvals:decide`, `connections:view`, `runs:view` |
-| `member` | the everyday user | `view`/`run` `SHARED`, `edit` `OWN` | `view` `SHARED`, `edit` `OWN` | none |
+| `builder` | builds, and learns from the whole org | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke` |
+| `operator` | keeps the running system healthy | `view`/`run` `ALL`, no edit | `view` `SHARED` | `approvals:decide`, `connections:view`, `runs:view`, `ml:invoke` |
+| `member` | the everyday user | `view`/`run` `SHARED`, `edit` `OWN` | `view` `SHARED`, `edit` `OWN` | `ml:invoke` |
 | `viewer` | reads | `view` `SHARED` | none | none |
 
 The `builder` / `admin` distinction is the interesting one: a builder sees the
@@ -147,24 +184,44 @@ Derived from the catalog rather than from a role name, so a custom role (Phase
 against the literal `"admin"` and could not see one at all - on the invitation
 paths as well as on `change_role`, which is what #696 closed.
 
-**A page's organization is the one in its URL.** `X-Organization-Id` travels on
-every request from the console and names the *active* organization, so a page
-that acts on an org from its path - `/orgs/{id}/members` - has two notions of
-"which tenant" and the organizations list opens that page without switching. They
-are one now: the dashboard's `ActiveOrgGuard` adopts the organization a path
+!!! warning "A page's organization is the one in its URL"
+
+    `X-Organization-Id` travels on every request from the *active* selection, so a
+    page acting on the organization in its path while reading permissions for the
+    active one decides Acme's members by the caller's role in Globex.
+
+The organizations list opens `/orgs/{id}/members` without switching, so that page
+used to hold two notions of "which tenant".
+
+They are one now. The dashboard's `ActiveOrgGuard` adopts the organization a path
 names, before the page asks anything, so what a caller may do there is what they
 may do *there* (#1032).
 
-**The console computes the same relation rather than being told it.** Every role
-picker - the two invite dialogs and the members table - offers what
-`assignableRoles` in `frontend/src/lib/assignable-roles.ts` answers, over the
-role catalog `GET /roles/catalog` already returns with each role's permissions.
+**An invitation is a link, and the sender always gets a copy of it.**
+
+The invite dialog shows the link once, after sending, with a copy button — and
+says whether the email carrying it actually left. Those are two facts rather than
+one: a deployment with no `SMTP_*` configured mails nobody, which is every
+deployment on its first day, and the dialog used to say "invitation sent" anyway.
+
+The link is shown once because it is a bearer credential: nothing caches it, no
+listing carries it, and no later request returns it. Closing the dialog is
+therefore the moment it is gone — the invitation stays pending and can be revoked,
+but a fresh link means a fresh invitation.
+
+**The console computes the same relation rather than being told it.**
+
+Every role picker — the two invite dialogs and the members table — offers what
+`assignableRoles` in `frontend/src/lib/assignable-roles.ts` answers, over the role
+catalog `GET /roles/catalog` already returns with each role's permissions.
+
 It is arithmetic on the client for the same reason it is on the server: a picker
-holding a *list* offered every role bar `owner` whoever was asking, so an Admin
-was offered Admin and refused after typing the email address (#1028). A role the
-caller cannot assign is also a role the members table will not draw a picker for,
-because the trigger shows the chosen item's text and a value absent from the list
-renders blank.
+holding a *list* offered every role bar `owner` whoever was asking, so an Admin was
+offered Admin and refused after typing the email address (#1028).
+
+A role the caller cannot assign is also a role the members table will not draw a
+picker for, because the trigger shows the chosen item's text and a value absent
+from the list renders blank.
 
 Custom roles are Phase 2 and may only ever recombine the permissions above;
 clients cannot invent new ones.
@@ -173,13 +230,28 @@ clients cannot invent new ones.
 
 Every shareable resource carries an `owner_user_id` and a `visibility`
 (`private` | `team` | `org`). On top of that, `resource_grants` holds one row per
-share: one resource, one person, one level.
+share: one resource, one person or one [group](directory.md#groups), one level.
+
+**A new agent is `org` unless its author says otherwise**, and the dialog that
+creates one asks. An agent is a thing a company builds, so the company can find
+it; private is the exception, for the one somebody is still working out. It used
+to be the rule, which meant every agent was made invisible and then shared by
+hand - and the second person to go looking for one was told it did not exist. A
+draft cannot run and no exposure reaches it either way, so what this decides is
+who can see it, not what it does.
 
 | Level | Allows |
 |---|---|
 | `read` | see the configuration |
 | `use` | also run or attach it |
 | `edit` | also change it |
+
+A grant to a group reaches whoever is in the group at the moment access is
+checked, so joining the group is gaining the access and leaving it is losing it.
+A person holding several grants on one row - their own and their groups' - gets
+the highest of them. The database holds a grant to exactly one subject, a person
+or a group, and a group from another organization reaches nobody here even if a
+row named one.
 
 The table is deliberately generic - `resource_type` + `resource_id`, with no
 foreign key to the target - because agents, collections, skills, context files
@@ -196,18 +268,30 @@ One formula, in `app/services/access.py`:
 effective access to one row = max(role scope, grant on that row)
 ```
 
-**A grant widens what a role allows; it never narrows it.** Sharing one agent
-with a Viewer works without promoting them, and a Builder's org-wide view is not
-taken away by the absence of a grant.
+"Grant on that row" is the best of the person's own grant and the grants to the
+groups they are in.
+
+!!! danger "A grant widens what a role allows; it never narrows it"
+
+    Sharing one agent with a Viewer works without promoting them, and a
+    Builder's org-wide view is not taken away by the absence of a grant.
 
 `resolve_access` in order:
 
-1. No subject in the context → refused. Always, whatever the role says.
-2. `resource.organization_id != ctx.organization_id` → refused. **Tenancy is
-   checked before anything else.**
-3. Does the role's scope alone reach this row? If yes, done - no query.
-4. Only now is `resource_grants` consulted, and the level compared against the
-   minimum the permission requires.
+```mermaid
+flowchart TD
+    S{"a subject in the context?"} -->|no| R1([refused])
+    S -->|yes| T{"same organization<br/>as the row?"}
+    T -->|no| R2([refused])
+    T -->|yes| Sc{"does the role's scope<br/>reach this row?"}
+    Sc -->|yes| Y([allowed — no query])
+    Sc -->|no| G{"a grant on the row,<br/>at or above the level<br/>the permission needs?"}
+    G -->|yes| Y2([allowed])
+    G -->|no| R3([refused])
+```
+
+Tenancy is checked before anything else, and a context with no subject is refused
+whatever its role says.
 
 ### A surface with nobody in front of it
 
@@ -278,27 +362,33 @@ also excludes personal rows (the caller's by construction) and app-scope rows
 
     `tests/api/test_platform_routes.py` enforces both halves.
 
-There is a third placement, for a route whose *parameter* decides the question.
-`GET /stats/usage` and `GET /ratings/summary` serve two askers behind one path:
-`scope=org` reads everybody's rows and demands `runs:view`, while `scope=own`
-reads only the caller's own and demands nothing beyond a signed-in membership. A
-route-level `require(runs:view)` would refuse a member's `scope=own` before the
-parameter was ever read, so the route carries no gate and `StatsService` makes
-the decision - the same principle as per-resource routes (the layer that can
-see the deciding fact decides), where the fact is the scope parameter rather
-than a grant on a row. The route sweep recognizes such a service the same way
-it recognizes the grant-aware ones, and
-`tests/api/test_platform_routes.py::TestStatsScopeIsDecidedInTheService` proves
-the refusals.
+There is a third placement, for a route whose **parameter** decides the question.
 
-The shape that makes this worth spelling out is `?group_by=user`, which answers
-with names, emails and what each person's runs cost. It is the same scope rule
-and no additional permission: `runs:view` is what reveals it, which means
-builder and operator see it as well as owner and admin. That is a deliberate
-call rather than an oversight - the dashboard card carrying these rows says so
-in its own copy, because a permission that is wider than its subjects expect is
-only defensible if they can find that out. A narrower answer would be a
-permission of its own, not a quieter route.
+`GET /stats/usage` and `GET /ratings/summary` serve two askers behind one path.
+`scope=org` reads everybody's rows and demands `runs:view`; `scope=own` reads only
+the caller's own and demands nothing beyond a signed-in membership.
+
+A route-level `require(runs:view)` would refuse a member's `scope=own` before the
+parameter was ever read. So the route carries no gate and `StatsService` makes the
+decision — the same principle as per-resource routes, that the layer which can see
+the deciding fact decides, where the fact is the scope parameter rather than a grant
+on a row.
+
+The route sweep recognizes such a service the same way it recognizes the grant-aware
+ones, and
+`tests/api/test_platform_routes.py::TestStatsScopeIsDecidedInTheService` proves the
+refusals.
+
+!!! warning "`?group_by=user` answers with names, emails and what each person's runs cost"
+
+    It is the same scope rule and no additional permission: `runs:view` is what
+    reveals it, which means **builder and operator see it** as well as owner and
+    admin.
+
+    That is a deliberate call rather than an oversight. The dashboard card carrying
+    these rows says so in its own copy, because a permission wider than its
+    subjects expect is only defensible if they can find that out. A narrower answer
+    would be a permission of its own, not a quieter route.
 
 ## Delegation is not a privilege boundary
 
@@ -369,6 +459,13 @@ their account has been deactivated, so neither can silently widen what a public
 surface reaches. The subject is therefore a real one, and it is not the person who
 typed the message.
 
+A channel sender who *has* linked a member account runs as that member — and the
+same joined read decides whether they still are one. Deactivation leaves both the
+membership row and the chat account's link in place, so a role read off the
+membership alone kept an offboarded Owner running turns from Slack at Owner. A
+deactivated or departed sender is treated as unlinked instead: refused in a direct
+message, run under the binding in a room.
+
 `AuthContext.channel_identity_id` is who typed it, when that is a chat account
 rather than a member. It carries no authority - no permission reads it - and
 exists so a channel turn is attributable: it is stamped on `agent_runs`, and
@@ -389,6 +486,19 @@ created by somebody who did have a role.
 Both are **a convenience for the UI and nothing more**. The server re-checks every
 permission on the endpoint that performs the action, so a client that ignores
 these APIs gains nothing.
+
+## Recap
+
+- **Three layers, independent.** A deployment superadmin flag, an organization
+  role, and a grant on one row. None implies another.
+- A role is a **string on a membership row**, and what it means is `ROLE_PERMS` in
+  code. Adding a role is an edit, not a migration.
+- Effective access to one row is `max(role scope, grant)`. **A grant widens; it
+  never narrows.**
+- `require(...)` goes on **collection** routes. Anything acting on one row hands
+  the decision to a service that calls `resolve_access`.
+- A surface with nobody in front of it runs as **whoever published it**, falling
+  back to `viewer` when that person left or was deactivated.
 
 ## Reference
 

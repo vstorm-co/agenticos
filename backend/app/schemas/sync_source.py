@@ -1,53 +1,34 @@
 """Sync source configuration schemas."""
 
-from typing import Any, Literal
+from typing import Any
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from app.schemas.base import BaseSchema
 
-ConnectorFieldType = Literal["string", "boolean", "integer", "textarea"]
-"""What the wizard draws for a field, and the whole vocabulary it can draw.
 
-A `Literal` because the four are the four cases `SyncSourceConfigureStep`
-renders: a switch, a textarea, a number input, and text for anything else. A
-connector inventing a fifth got the text input silently, which is a field the
-form cannot collect correctly and nothing anywhere reported.
-"""
+def blank_is_absent(value: str | None) -> str | None:
+    """An all-whitespace organizational unit means there is none.
 
-
-class ConnectorConfigField(BaseSchema):
-    """Describes a single configuration field for a connector.
-
-    **This is `CONFIG_SCHEMA`'s own type, not a copy of it.** A connector
-    declares its fields as these, so a key misspelled in a declaration is a type
-    error where it is written. It used to be `dict[str, dict[str, Any]]` there
-    and this model only at the edge, which meant `validate_config` read
-    `field_spec.get("required")` from an untyped mapping - a declaration that
-    said `require` disabled that field's check silently, and the wizard drew a
-    required field as optional (#562).
-
-    `label` is required, because it is what `SyncSourceConfigureStep` draws
-    above the input - it defaulted to `""`, and only `validate_config` fell back
-    to the key, so a connector omitting it got an unlabelled box on the form and
-    a refusal that read sensibly.
-
-    No `secret` flag any more. A connector's configuration says how to *find*
-    the documents; the credential is a vault secret the source references by id,
-    so there is no field here for a form to mask, encrypt or round-trip as
-    `••••••` (#937).
+    The values reach a chunk's metadata and the facet endpoint reports the
+    distinct ones a collection holds, so an empty string would be an
+    organizational unit named "" - offered in the filter, matching only the
+    documents whose field was left blank. Clearing the field in the form sends
+    `""` rather than omitting the key, and this is what makes that a clear
+    rather than a value. Shared with the upload routes, whose multipart field
+    is not a schema and so arrives untrimmed (#1777).
     """
-
-    type: ConnectorFieldType
-    label: str = Field(min_length=1)
-    required: bool = False
-    help: str | None = None
-    default: Any = None
+    return (value or "").strip() or None
 
 
 class ConnectorInfo(BaseSchema):
     """Metadata about an available connector type.
+
+    `config_schema` is the JSON Schema of the connector's `CONFIG_MODEL`, the
+    same shape `CapabilityCatalogEntry.config_schema` carries, so the wizard
+    renders it with `SchemaForm` - the component the agent Builder and the vault
+    secret forms already use - rather than a second renderer (#1093).
 
     `secret_kind` is what a credential for this connector has to be, so the
     wizard can offer the organization's matching vault secrets and nothing else -
@@ -56,7 +37,9 @@ class ConnectorInfo(BaseSchema):
 
     type: str
     name: str
-    config_schema: dict[str, ConnectorConfigField]
+    config_schema: dict[str, Any] = Field(
+        description="JSON Schema the configuration form is generated from"
+    )
     secret_kind: str
     enabled: bool
 
@@ -72,6 +55,12 @@ class SyncSourceCreate(BaseSchema):
     before its credential exists, and a sync then refuses rather than running on
     nothing. What it may *not* carry is the credential itself - see
     `SyncSourceService.create_source`, which refuses a config holding one (#937).
+
+    `organizational_unit` is a per-source default stamped on every chunk this
+    source ingests, so a retrieval can narrow on the part of the organization a
+    document belongs to (FA-039). Free text, trimmed; the facet endpoint reports
+    the distinct values a collection actually holds, which is the vocabulary
+    rather than a list somebody has to maintain first (#1777).
     """
 
     name: str
@@ -79,8 +68,11 @@ class SyncSourceCreate(BaseSchema):
     collection_name: str | None = None
     config: dict[str, object]
     secret_id: UUID | None = None
+    organizational_unit: str | None = Field(default=None, max_length=255)
     sync_mode: str = "new_only"
     schedule_minutes: int | None = None
+
+    _unit_blank_is_absent = field_validator("organizational_unit")(blank_is_absent)
 
 
 class SyncSourceClone(BaseSchema):
@@ -96,10 +88,13 @@ class SyncSourceUpdate(BaseSchema):
     name: str | None = None
     config: dict[str, object] | None = None
     secret_id: UUID | None = None
+    organizational_unit: str | None = Field(default=None, max_length=255)
     sync_mode: str | None = None
     schedule_minutes: int | None = None
     is_active: bool | None = None
     collection_name: str | None = None
+
+    _unit_blank_is_absent = field_validator("organizational_unit")(blank_is_absent)
 
 
 class SyncSourceRead(BaseSchema):
@@ -119,6 +114,7 @@ class SyncSourceRead(BaseSchema):
     config: dict[str, object]
     secret_id: str | None
     secret_hint: str | None = None
+    organizational_unit: str | None = None
     sync_mode: str
     schedule_minutes: int | None
     is_active: bool
@@ -139,3 +135,4 @@ class ConnectorList(BaseSchema):
     """List of available connectors."""
 
     items: list[ConnectorInfo]
+    total: int

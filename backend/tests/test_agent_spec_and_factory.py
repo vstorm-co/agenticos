@@ -7,26 +7,33 @@ it never carries a secret.
 """
 
 import uuid
+from dataclasses import replace
 from decimal import Decimal
+from importlib import import_module
+from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
 from pydantic import ValidationError
 from pydantic_ai._run_context import RunContext
-from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
+from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart, ToolCallPart
 from pydantic_ai.models import ModelRequestContext, ModelRequestParameters
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.toolsets import FunctionToolset
 from pydantic_ai.usage import RequestUsage, RunUsage
 
-from app.agents.capabilities import load_builtins
+from app.agents.audience import RunAudience
+from app.agents.capabilities import all_capabilities, load_builtins
+from app.agents.capabilities.approval._capability import ApprovalGate
 from app.agents.capabilities.budget import BudgetScope
 from app.agents.capabilities.compaction import ReportContextSize
-from app.agents.factory import DEFAULT_MAX_STEPS, BuiltAgent, build_agent
+from app.agents.connect_on_use import ConnectionRequest, ConnectOnUse, PendingService
+from app.agents.factory import _AUDIENCE_AWARE, DEFAULT_MAX_STEPS, BuiltAgent, build_agent
 from app.agents.model_resolver import ModelRequestSpec, ResolvedCredential
 from app.agents.spec import (
+    SPEC_VERSION,
     AgentSpec,
     AlertAudience,
     AlertSpec,
@@ -92,6 +99,21 @@ class TestSpecContract:
         with pytest.raises(ValueError, match="mapping"):
             AgentSpec.from_yaml("- just\n- a list\n")
 
+    def test_a_spec_from_a_newer_deployment_is_refused(self):
+        """A `spec_version` past this code's is refused, not accepted because its
+        fields happen to parse: the whole failure the number exists to catch is a
+        later deployment's constructs read as an older shape."""
+        with pytest.raises(ValueError, match="newer than this deployment"):
+            AgentSpec.from_yaml(f"name: x\nspec_version: {SPEC_VERSION + 1}\n")
+
+    def test_a_spec_at_or_below_this_version_loads(self):
+        """This deployment's own version, and an older one, both parse - the
+        refusal is one-sided."""
+        assert AgentSpec.from_yaml(f"name: x\nspec_version: {SPEC_VERSION}\n").spec_version == (
+            SPEC_VERSION
+        )
+        assert AgentSpec.from_yaml("name: x\nspec_version: 2\n").spec_version == 2
+
     def test_spec_carries_references_not_values(self):
         """What makes a spec safe to commit to a client's git repository."""
         spec = AgentSpec(name="x", model_profile_id=uuid.uuid4())
@@ -99,6 +121,7 @@ class TestSpecContract:
         assert "api_key" not in rendered
         assert "sk-" not in rendered
 
+    @pytest.mark.security
     def test_negative_budgets_are_refused(self):
         with pytest.raises(ValueError):
             AgentSpec(name="x", budget={"monthly_usd": 0})
@@ -128,6 +151,58 @@ class TestFactory:
         )
         assert built.model_label == "GPT-4.1 (prod)"
         assert [type(c).__name__ for c in built.capabilities] == ["Clock", "Knowledge"]
+
+    def _audience_agent(self, *, capability: str | None = "memory_files", **identity):
+        capabilities = (
+            [{"id": "clock"}] if capability is None else [{"id": capability, "config": {}}]
+        )
+        return build_agent(
+            AgentSpec(name="Support", instructions="Remember.", capabilities=capabilities),
+            _model_spec(),
+            organization_id=uuid.uuid4(),
+            **identity,
+        )
+
+    def test_an_audience_aware_agent_carries_the_audience_it_was_given(self):
+        """The factory no longer derives the audience - the runner does, because
+        only it knows whether this is a fresh request or a resume (#788). What the
+        factory owns is putting it on the deps the tools read."""
+        audience = RunAudience(user_id=uuid.uuid4(), room_key="room:slack:C1")
+        built = self._audience_agent(audience=audience)
+        assert built.deps.audience == audience
+
+    def test_every_capability_that_reads_the_audience_is_listed_as_needing_one(self):
+        """`_AUDIENCE_AWARE` is a hand-kept list and its failure is silent.
+
+        A capability whose toolset reads `deps.audience` and whose id is missing
+        from it is simply handed `None`, which every one of them reads as "nobody
+        is identified here" - so it refuses in a conversation that has a person in
+        it, with a sentence that sounds deliberate. Nothing raises, and no other
+        test sees it, because each capability's own suite constructs the deps it
+        wants.
+
+        So the check is over the source: whichever packages read the field are
+        exactly the ones the factory gives it to.
+        """
+        load_builtins()
+        readers = {
+            definition.id
+            for definition in all_capabilities()
+            if any(
+                "deps.audience" in module.read_text()
+                for module in Path(
+                    import_module(definition.builder.__module__).__file__ or ""
+                ).parent.glob("*.py")
+            )
+        }
+
+        assert readers == set(_AUDIENCE_AWARE)
+
+    def test_an_agent_that_reads_no_audience_carries_none(self):
+        """The binding is the gate: a spec that asked for none of them carries no
+        audience, whatever identity the request arrived with."""
+        built = self._audience_agent(capability=None, audience=RunAudience(user_id=uuid.uuid4()))
+        assert built.deps.audience is None
 
     @pytest.mark.anyio
     async def test_an_agent_that_binds_nothing_still_reports_its_context(self):
@@ -198,6 +273,37 @@ class TestFactory:
         assert settings is not None
         assert settings["temperature"] == 0.9
         assert settings["max_tokens"] == 100
+
+    @pytest.mark.parametrize(
+        ("provider", "setting"),
+        [("anthropic", "anthropic_cache_messages"), ("openrouter", "openrouter_cache_messages")],
+    )
+    def test_a_provider_that_caches_prompts_is_asked_to_by_default(
+        self, provider: str, setting: str
+    ):
+        """A long history re-sent uncached on every request is what drained an
+        OpenRouter account mid-run; a profile can still switch it off."""
+        on = build_agent(
+            AgentSpec(name="x"),
+            replace(_model_spec(), provider=provider),
+            organization_id=uuid.uuid4(),
+        )
+        off = build_agent(
+            AgentSpec(name="x"),
+            replace(_model_spec({setting: False}), provider=provider),
+            organization_id=uuid.uuid4(),
+        )
+
+        assert on.agent.model_settings is not None
+        assert on.agent.model_settings.get(setting) is True
+        assert off.agent.model_settings is not None
+        assert off.agent.model_settings.get(setting) is False
+
+    def test_a_provider_without_prompt_caching_is_sent_none_of_it(self):
+        built = build_agent(AgentSpec(name="x"), _model_spec(), organization_id=uuid.uuid4())
+
+        assert built.agent.model_settings is not None
+        assert not [key for key in built.agent.model_settings if "cache" in key]
 
     def test_ungranted_scope_stops_the_build(self):
         spec = AgentSpec(name="x", capabilities=[{"id": "knowledge"}])
@@ -323,6 +429,86 @@ class TestToolSearchDefersMcp:
         assert offered == ["search_tools"]
 
     @pytest.mark.anyio
+    async def test_a_surfaces_own_capability_stays_in_view_when_bound(self):
+        """`connect_account` is how a service the person has not connected gets
+        connected; hidden behind search it is a tool the model never knows to
+        look for, so an extra capability's tools are not deferred."""
+
+        async def unused() -> str:
+            return "unreachable"
+
+        on_use = ConnectOnUse(
+            services=[
+                PendingService(
+                    request=ConnectionRequest(
+                        catalog_key="notion", name="Notion", gap="not_connected"
+                    ),
+                    resolve=unused,
+                )
+            ],
+            request_connection=AsyncMock(return_value=False),
+        )
+        built = build_agent(
+            AgentSpec(
+                name="x", capabilities=[{"id": "tool_search", "config": {"strategy": "keywords"}}]
+            ),
+            _model_spec(),
+            organization_id=uuid.uuid4(),
+            extra_toolsets=[self._mcp_toolset()],
+            extra_capabilities=[on_use],
+        )
+
+        offered = await self._tools_the_model_sees(built)
+
+        assert sorted(offered) == ["connect_account", "search_tools"]
+
+    @pytest.mark.anyio
+    async def test_asking_about_everything_does_not_ask_about_connecting(self):
+        """`connect_account` is itself the question; under `ASK_ALL` it reaches
+        the person without first being put to them for approval."""
+        asked: list[str] = []
+
+        async def request_connection(request: ConnectionRequest) -> bool:
+            asked.append(request.catalog_key)
+            return False
+
+        async def unused() -> str:
+            return "unreachable"
+
+        approval = AsyncMock()
+        built = build_agent(
+            AgentSpec(name="x"),
+            _model_spec(),
+            organization_id=uuid.uuid4(),
+            gate_every_tool=True,
+            request_approval=approval,
+            extra_capabilities=[
+                ConnectOnUse(
+                    services=[
+                        PendingService(
+                            request=ConnectionRequest(
+                                catalog_key="notion", name="Notion", gap="not_connected"
+                            ),
+                            resolve=unused,
+                        )
+                    ],
+                    request_connection=request_connection,
+                )
+            ],
+        )
+
+        async def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            if len(messages) == 1:
+                return ModelResponse(parts=[ToolCallPart("connect_account", {"service": "notion"})])
+            return ModelResponse(parts=[TextPart("done")])
+
+        with built.agent.override(model=FunctionModel(respond)):
+            await built.agent.run("hello", deps=built.deps)
+
+        assert asked == ["notion"]
+        approval.assert_not_awaited()
+
+    @pytest.mark.anyio
     async def test_every_mcp_schema_is_visible_when_it_is_not_bound(self):
         """The other direction: with nothing to defer to, every MCP schema is in
         front of the model on the first request and there is no `search_tools`."""
@@ -442,6 +628,37 @@ class TestBudgetComposition:
         assert self._lookups(built)[BudgetScope.AGENT] is None
 
 
+class TestAskingAboutEveryTool:
+    """`gate_every_tool` reaching the gate the factory installs.
+
+    The middle link of the chain #1326 broke. The runner decides the flag from
+    the mode a run was admitted on and the gate refuses a rejected call; between
+    them is this, and an argument that stopped arriving here would silently undo
+    both ends while each kept its own tests green.
+    """
+
+    @staticmethod
+    def _gate(built: BuiltAgent) -> ApprovalGate:
+        attached: list[object] = []
+        built.agent.root_capability.apply(attached.append)
+        return next(one for one in attached if isinstance(one, ApprovalGate))
+
+    def test_the_flag_reaches_the_gate(self):
+        built = build_agent(
+            AgentSpec(name="Clerk"),
+            _model_spec(),
+            organization_id=uuid.uuid4(),
+            gate_every_tool=True,
+        )
+
+        assert self._gate(built).gate_every_tool is True
+
+    def test_it_is_off_unless_a_session_asked(self):
+        built = build_agent(AgentSpec(name="Clerk"), _model_spec(), organization_id=uuid.uuid4())
+
+        assert self._gate(built).gate_every_tool is False
+
+
 class TestAnApprovalTheGateCouldNotEnforce:
     """A stored version whose approval the provider's own execution walks past.
 
@@ -466,6 +683,7 @@ class TestAnApprovalTheGateCouldNotEnforce:
             granted_scopes=frozenset({scope}),
         )
 
+    @pytest.mark.security
     def test_a_stored_native_search_with_approval_does_not_assemble(self):
         with pytest.raises(BadRequestError) as refused:
             self._build(
@@ -475,6 +693,7 @@ class TestAnApprovalTheGateCouldNotEnforce:
 
         assert any("no call to hold" in problem for problem in refused.value.details["problems"])
 
+    @pytest.mark.security
     def test_a_stored_native_fetch_with_approval_does_not_assemble(self):
         """#839 refused this at publish and left every version published before it."""
         with pytest.raises(BadRequestError) as refused:
@@ -598,7 +817,7 @@ class TestWhoHearsAboutAnAgent:
         as YAML into a client's git repository would carry their staff's addresses
         with it, and a spec imported into another organization would mail people
         who have nothing to do with it. Ids at least resolve to nobody outside the
-        tenant, which is what `list_emails_for_members` enforces.
+        tenant, which is what the membership-scoped recipient resolver enforces.
         """
         fields = set(AlertSpec.model_fields)
 

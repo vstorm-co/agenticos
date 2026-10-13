@@ -23,6 +23,29 @@ export const ORG_MEMBERS = "org-members-detail";
 export const ORG_ROLES = "org-roles-detail";
 
 /**
+ * `/orgs/<id>/retention` — how long this organization keeps each class of data.
+ * Its own identity rather than a third stop on the members walk, because it is
+ * the one of the three an ordinary member never sees: the page is gated on
+ * `org:settings` and an ungated step would wait four seconds for a card the
+ * refusal never mounts.
+ */
+export const ORG_RETENTION = "org-retention-detail";
+
+/**
+ * `/orgs/<id>/groups` — the organization's groups, and who is in each. Its own
+ * walk rather than a stop on the members one: it ends on the offer to create a
+ * group, which the members walk leaves to creating an organization.
+ */
+export const ORG_GROUPS = "org-groups-detail";
+
+/**
+ * `/orgs/<id>/directory` — which directory groups make somebody what here. Its
+ * own identity for the retention page's reason: it is drawn only for a caller
+ * holding `members:manage`, which an ordinary member does not.
+ */
+export const ORG_DIRECTORY = "org-directory-detail";
+
+/**
  * The Settings section, `/settings/*`. Its four pages — profile, account,
  * notifications, slash-commands — share one tabbed layout, so one identity stands
  * in for all of them and a single "?" stop points at the tabs on whichever page
@@ -102,12 +125,46 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // "?"-only: arranging the dashboard is detail the exhaustive walk covers, not a
   // first-run essential. Ungated — the layout is the reader's own, not org-scoped.
   { id: "dashboard-customize", page: ROUTES.DASHBOARD, target: "dashboard-customize" },
+  // The bell itself sits in the sidebar, not this page, and is mounted on every
+  // page alike - but a `TourStep` needs a `page` to ever reach `stepsForPage`
+  // (see its own docstring), so it is anchored here the way `dashboard-customize`
+  // is: "?"-only, ungated, because every membership has its own inbox.
+  { id: "notification-bell", page: ROUTES.DASHBOARD, target: "notification-bell" },
 
   { id: "chat-start", page: ROUTES.CHAT, target: "chat-start", inTour: true },
   { id: "chat-agent-picker", page: ROUTES.CHAT, target: "chat-agent-picker", inTour: true },
   { id: "chat-composer", page: ROUTES.CHAT, target: "chat-composer" },
+  // Only there once an agent has planned something, so `optional` - an
+  // organization whose agents carry no planning capability would otherwise wait
+  // four seconds for a strip that never mounts.
+  { id: "chat-plan", page: ROUTES.CHAT, target: "chat-plan", optional: true },
   { id: "chat-model-picker", page: ROUTES.CHAT, target: "chat-model-picker" },
+  // Inside the same popover as the model, so the walk opens it once. `optional`
+  // because the control it names lives behind the trigger: the caption is
+  // pinned to nothing on a walk that never opened it.
+  {
+    id: "chat-approval-mode",
+    page: ROUTES.CHAT,
+    target: "chat-approval-mode",
+    optional: true,
+  },
+  // Same popover, and rendered only for an agent bound to each person's own
+  // account - an agent whose bindings are all the organization's has no section
+  // for the caption to pin to.
+  {
+    id: "chat-your-connections",
+    page: ROUTES.CHAT,
+    target: "chat-your-connections",
+    optional: true,
+  },
 
+  {
+    id: "agents-templates",
+    page: ROUTES.AGENTS,
+    target: "agents-templates",
+    permission: Perm.agentsEdit,
+    inTour: true,
+  },
   {
     id: "agents-new",
     page: ROUTES.AGENTS,
@@ -215,6 +272,15 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.skillsEdit,
     inTour: true,
   },
+  // The gallery is where a first skill actually comes from - an empty
+  // organization has three, and writing one from scratch is the harder path.
+  {
+    id: "skills-gallery",
+    page: ROUTES.SKILLS,
+    target: "skills-gallery",
+    permission: Perm.skillsEdit,
+    inTour: true,
+  },
   { id: "skills-list", page: ROUTES.SKILLS, target: "skills-list", permission: Perm.skillsView },
 
   // Standing context — the files an organization injects into every agent's
@@ -232,6 +298,15 @@ export const TOUR_STEPS: readonly TourStep[] = [
     page: ROUTES.CONTEXT,
     target: "context-list",
     permission: Perm.contextView,
+  },
+
+  // Published artifacts - pages agents wrote. Nothing to create here (a run
+  // publishes one), so a single describing stop on the list, view-gated.
+  {
+    id: "artifacts-list",
+    page: ROUTES.ARTIFACTS,
+    target: "artifacts-list",
+    permission: Perm.artifactsView,
   },
 
   {
@@ -316,6 +391,17 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.connectionsManage,
     optional: true,
   },
+  // The servers on the deployment's own network a collection may embed through
+  // or OCR with. Same tab and same gate as the integrations above: the section
+  // renders only for `connections:manage`, and its header always does once it
+  // renders, so the stop is not optional.
+  {
+    id: "knowledge-local-services",
+    page: ROUTES.RAG,
+    target: "knowledge-local-services",
+    activate: "knowledge-tab-integrations",
+    permission: Perm.connectionsManage,
+  },
 
   // The collection detail, entered from the Knowledge list. Three tabs since
   // #939, so each stop selects its own: the header and the stats strip are above
@@ -352,6 +438,39 @@ export const TOUR_STEPS: readonly TourStep[] = [
   { id: "org-profile", page: ORG_MEMBERS, target: "org-profile" },
   { id: "org-members", page: ORG_MEMBERS, target: "org-members" },
   { id: "org-roles", page: ORG_ROLES, target: "org-roles" },
+  {
+    id: "org-retention",
+    page: ORG_RETENTION,
+    target: "org-retention",
+    permission: Perm.orgSettings,
+  },
+  // Groups: what a group is for, then its create button. Reading them is
+  // ungated - anyone shares with a group - and creating one is `members:manage`.
+  { id: "org-groups", page: ORG_GROUPS, target: "org-groups" },
+  {
+    id: "org-groups-new",
+    page: ORG_GROUPS,
+    target: "org-groups-new",
+    permission: Perm.membersManage,
+  },
+  // Directory mappings: how the sync decides, then adding one. The page renders
+  // only for `members:manage`. Adding hands a role out, so its button also needs
+  // `roles:manage` - two permissions a step cannot both carry - and it is gated
+  // on the rarer of the two and optional, so a caller holding that one without
+  // the other skips it rather than waits on a button that never mounts.
+  {
+    id: "org-directory",
+    page: ORG_DIRECTORY,
+    target: "org-directory",
+    permission: Perm.membersManage,
+  },
+  {
+    id: "org-directory-new",
+    page: ORG_DIRECTORY,
+    target: "org-directory-new",
+    permission: Perm.rolesManage,
+    optional: true,
+  },
 
   {
     id: "vault-new",
@@ -447,6 +566,10 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // in the shared layout, so it lands on whichever of the four pages the reader
   // opened help from. Ungated: everyone has their own settings.
   { id: "settings-tabs", page: SETTINGS_DETAIL, target: "settings-tabs" },
+  // Optional, because the card it anchors on renders only where an agent has
+  // written something - and an unmarked step waits four seconds for an element
+  // an empty store never mounts (#1594).
+  { id: "my-memory", page: SETTINGS_DETAIL, target: "my-memory", optional: true },
 
   { id: "finish", inTour: true },
 ];
@@ -469,7 +592,13 @@ const SECTION_FLOWS: readonly (readonly string[])[] = [
 export function pageKey(path: string): string {
   if (path.startsWith(`${ROUTES.AGENTS}/`)) return AGENT_BUILDER;
   if (path.startsWith(`${ROUTES.RAG}/`)) return KB_DETAIL;
-  if (path.startsWith(`${ROUTES.ORGS}/`)) return path.endsWith("/roles") ? ORG_ROLES : ORG_MEMBERS;
+  if (path.startsWith(`${ROUTES.ORGS}/`)) {
+    if (path.endsWith("/roles")) return ORG_ROLES;
+    if (path.endsWith("/retention")) return ORG_RETENTION;
+    if (path.endsWith("/groups")) return ORG_GROUPS;
+    if (path.endsWith("/directory")) return ORG_DIRECTORY;
+    return ORG_MEMBERS;
+  }
   if (path.startsWith(`${ROUTES.SETTINGS}/`)) return SETTINGS_DETAIL;
   if (path.startsWith(`${ROUTES.WORKSPACES}/`)) return WORKSPACE_DETAIL;
   return path;

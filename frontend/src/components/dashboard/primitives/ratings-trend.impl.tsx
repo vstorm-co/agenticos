@@ -2,18 +2,15 @@
 
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
-export interface RatingsPoint {
-  date: string;
-  likes: number;
-  dislikes: number;
-}
+import type { RatingsByDay } from "@/types/stats";
 
 /**
  * Likes/dislikes per day. A dashboard-local copy of the admin ratings chart's
  * configuration rather than an import from that route's folder - a page must
- * not become a component library by accident.
+ * not become a component library by accident. The day-point is the shared
+ * `RatingsByDay`, the one shape the summaries and this chart agree on (#559).
  */
-export function RatingsTrendImpl({ data }: { data: RatingsPoint[] }) {
+export function RatingsTrendImpl({ data }: { data: RatingsByDay[] }) {
   return (
     <ResponsiveContainer width="100%" height="100%">
       <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 0 }} barGap={2}>

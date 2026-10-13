@@ -10,9 +10,10 @@ also covers things that are not tools at all: a budget guard, an approval gate,
 a compaction strategy. One concept covers the whole assembly instead of two that
 overlap awkwardly.
 
-Code defines what exists; configuration only composes it. Nothing an operator
-types can bring a new capability into being, which is what makes the set of
-things an agent can do reviewable.
+!!! abstract "Code defines what exists; configuration only composes it"
+
+    Nothing an operator types can bring a new capability into being, which is
+    what makes the set of things an agent can do reviewable.
 
 ## The shape
 
@@ -26,12 +27,16 @@ weather/
   README.md         why this exists and what it deliberately does not do
 ```
 
+!!! warning "The layout is enforced, and one rule of it is a silent failure"
+
+    `@register` appears in `__init__.py` and nowhere else. A registration in a
+    submodule only fires if something imports that module — which is how a
+    capability vanishes from the Builder with every test still green.
+    `tests/test_capability_layout.py` is what fails instead.
+
 This layout is not a suggestion — `tests/test_capability_layout.py` enforces it.
-Every package has a `_capability.py`, every package offering tools of its own
-has a `_toolset.py`, and `@register` appears in `__init__.py` and nowhere else
-(a registration in a submodule only fires if something imports that module,
-which is how a capability vanishes from the Builder with every test still
-green). A capability with no tools — `clock`, `thinking` — is listed in that
+Every package has a `_capability.py` and every package offering tools of its own
+has a `_toolset.py`. A capability with no tools — `clock`, `thinking` — is listed in that
 test with the reason why, rather than carrying an empty module.
 
 The tools live apart from the capability class because a tool's **name and
@@ -138,11 +143,7 @@ def _build(ctx: CapabilityBuildContext) -> Weather | None:
 
 - **`id`** goes into every published spec and is the one thing that must never
   change. Rename freely; re-id never.
-- **`tools`** has no default, on purpose. It is what the Builder offers per-tool
-  approval for and what the approval gate matches on, so a capability that declares
-  nothing is a capability whose tools cannot be gated — and the dangerous half of
-  that failure is silent: an author adds a second, side-effecting tool, forgets to
-  declare it, and it runs unattended forever. Omitting the argument is a
+- **`tools`** has no default, on purpose. Omitting the argument is a
   `TypeError`; a capability with genuinely no tools says `tools=()`. Each entry's
   `id` is what a spec's `tool_approval` and `tool_overrides` key on, and its
   `description` should be the tool's own docstring summary — the person choosing
@@ -162,6 +163,15 @@ def _build(ctx: CapabilityBuildContext) -> Weather | None:
   collection names, skills. A capability never queries for them itself; the
   model asks *what* to search, never *where*.
 
+!!! danger "An undeclared tool runs ungated, and nothing says so"
+
+    `tools=` is what the Builder offers per-tool approval for and what the
+    approval gate matches on. The dangerous half of the failure is silent: an
+    author adds a second, side-effecting tool, forgets to declare it, and it runs
+    unattended forever. `tests/test_capability_registry.py` compares the declared
+    list against the tools the model is actually offered — which is the only
+    thing that catches it.
+
 **The builder may return a capability we did not write.** Its signature is
 `CapabilityBuildContext -> AbstractCapability[Any] | None`, so anything Pydantic
 AI ships is a valid return — `thinking/` registers `pydantic_ai.capabilities.Thinking`
@@ -175,9 +185,10 @@ The `isinstance` narrowing rather than a cast is how every builtin does it:
 schema this capability declared, and a capability bound with no config at all
 gets its defaults instead of a crash.
 
-Then add the module to `load_builtins()` in `_registry.py`. A module nobody
-imports does not exist as far as the Builder is concerned, which is the intended
-coupling — registration is an import, not a scan.
+!!! important "Then add the module to `load_builtins()` in `_registry.py`"
+
+    A module nobody imports does not exist as far as the Builder is concerned.
+    That coupling is intended — registration is an import, not a scan.
 
 ## 3. Write the README
 
@@ -187,8 +198,14 @@ reasoning lives, not in the commit message.
 
 ## 4. Test it
 
-`app/agents/**` is held to **100% coverage and it is enforced in CI** — a new
-capability with an untested branch fails the build. See `## Testing` in
+!!! danger "`app/agents/**` is at 100% coverage, enforced in CI"
+
+    A new capability with an untested branch fails the build. You do **not** need
+    to widen the gate for it: both lists in `backend/pyproject.toml` already carry
+    the `app/agents/**` glob, and
+    `test_every_file_in_a_platform_package_is_gated` exists to keep that true.
+    Editing those lists is for a new platform *package*, outside the ones already
+    globbed. See `## Testing` in
 `CLAUDE.md`, and `tests/test_capability_registry.py` for the style.
 
 Worth covering specifically:
@@ -243,11 +260,12 @@ Three steps, and the second is the one that gets forgotten:
    capability's three come from `pydantic-ai-skills`, so their names are somebody
    else's to change.
 
-If the new tool has side effects and the existing ones do not, that is a signal the
-capability is now two decisions wearing one name. Prefer a second capability;
-`side_effecting` is per capability, and per-tool `approval` in a spec is a way for
-an *agent author* to be stricter than the default, not a substitute for declaring
-the truth.
+!!! tip "A side-effecting tool beside read-only ones is a signal"
+
+    `side_effecting` is per capability, so the capability is now two decisions
+    wearing one name. Prefer a second capability; per-tool `approval` in a spec
+    lets an *agent author* be stricter than the default, and is not a substitute
+    for declaring the truth.
 
 ## Adding a tool nobody here has to write
 

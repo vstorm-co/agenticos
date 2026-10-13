@@ -64,15 +64,18 @@ export function WidgetFrame({
   const t = useTranslations("dashboard");
   return (
     <Card
+      // `group` so a body can answer the pointer over the whole card rather
+      // than only over itself - `WidgetEmptyBody` brightens on it, which is how
+      // a card that is waiting reads as waiting rather than as disabled.
       className={cn(
         CARD_SURFACE,
-        "flex h-full min-w-0 flex-col overflow-hidden shadow-none",
+        "dash-widget group flex h-full min-w-0 flex-col overflow-hidden shadow-none",
         className,
       )}
     >
       {/* The rule under the heading is the card's own edge tone, not the page's
           border: on a translucent surface `border-border` is a hard grey line
-          drawn across frosted glass. */}
+          drawn across a panel. */}
       <div className="border-foreground/8 flex items-center justify-between gap-2 border-b px-5 py-3.5">
         <div className="flex min-w-0 items-center gap-1.5">
           <h3 className="text-foreground truncate text-sm font-semibold tracking-tight">{title}</h3>
@@ -107,7 +110,15 @@ function WidgetHint({ title, text }: { title: string; text: string }) {
           // this shows" is eleven identical stops to a screen reader, with
           // nothing saying which card each one belongs to.
           aria-label={t("whatThisShows", { title })}
-          className="text-muted-foreground/50 hover:text-foreground shrink-0 transition-colors"
+          // A bare button around a `size-3.5` icon is a 14x14 target - under a
+          // third of the 44px both mobile platforms ask for, once per card.
+          // The hit area is an absolutely positioned `::before` rather than
+          // padding: padding would have to be 15px a side to reach 44 and would
+          // then push the title, and a negative margin to claw that back leaves
+          // the *box* 44px, not the clickable area. The pseudo-element takes
+          // pointer events for the button and occupies no layout at all -
+          // 14 + 15 + 15 = 44.
+          className="text-muted-foreground hover:text-foreground relative shrink-0 transition-colors before:absolute before:-inset-[15px] before:content-['']"
         >
           <Info className="size-3.5" aria-hidden />
         </button>

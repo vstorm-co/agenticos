@@ -1,5 +1,13 @@
 import { NextRequest } from "next/server";
-import { BackendApiError, backendFetch, bffJson, bffRefusal } from "@/lib/server-api";
+import {
+  BackendApiError,
+  backendFetch,
+  bffJson,
+  bffRefusal,
+  forwardedFor,
+  forwardRateLimit,
+} from "@/lib/server-api";
+import { secureCookies } from "@/lib/session-cookie";
 import type { LoginResponse } from "@/types";
 
 export async function POST(request: NextRequest) {
@@ -15,6 +23,7 @@ export async function POST(request: NextRequest) {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
+        ...forwardedFor(request),
       },
       body: formData.toString(),
     });
@@ -32,7 +41,7 @@ export async function POST(request: NextRequest) {
 
     response.cookies.set("access_token", data.access_token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: secureCookies(request),
       sameSite: "lax",
       maxAge: 60 * 15, // 15 minutes
       path: "/",
@@ -40,7 +49,7 @@ export async function POST(request: NextRequest) {
 
     response.cookies.set("refresh_token", data.refresh_token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: secureCookies(request),
       sameSite: "lax",
       maxAge: 60 * 60 * 24 * 7, // 7 days
       path: "/",
@@ -49,6 +58,7 @@ export async function POST(request: NextRequest) {
     return response;
   } catch (error) {
     if (error instanceof BackendApiError) {
+      if (error.status === 429) return forwardRateLimit(error);
       const detail = (error.data as { detail?: string })?.detail;
       if (!detail) return bffRefusal("LOGIN_FAILED", error.status);
       return bffJson({ detail }, { status: error.status });

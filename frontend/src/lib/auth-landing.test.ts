@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { postSignInDestination } from "./auth-landing";
+import { goToDestination, postSignInDestination } from "./auth-landing";
 import { ROUTES } from "./constants";
 
 describe("postSignInDestination", () => {
@@ -32,5 +32,35 @@ describe("postSignInDestination", () => {
     "/\r/evil.example",
   ])("refuses %j and falls back to the dashboard", (path) => {
     expect(postSignInDestination(path)).toBe(ROUTES.DASHBOARD);
+  });
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+describe("getting to where a fresh session lands", () => {
+  it("navigates softly when the path carries no fragment", () => {
+    const navigate = vi.fn();
+
+    goToDestination("/agents/a-1", navigate);
+
+    expect(navigate).toHaveBeenCalledWith("/agents/a-1");
+  });
+
+  it("loads the document when it does", () => {
+    // next@16.2's segment cache appends the fragment a second time on a soft
+    // navigation, so `/path#x` arrives as `/path#x#x` in a production build.
+    const assign = vi.fn();
+    vi.spyOn(window, "location", "get").mockReturnValue({
+      ...window.location,
+      assign,
+    } as unknown as Location);
+    const navigate = vi.fn();
+
+    goToDestination("/agents/a-1#tools", navigate);
+
+    expect(assign).toHaveBeenCalledWith("/agents/a-1#tools");
+    expect(navigate).not.toHaveBeenCalled();
   });
 });

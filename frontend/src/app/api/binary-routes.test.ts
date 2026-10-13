@@ -614,7 +614,12 @@ describe("finishing an MCP OAuth flow", () => {
    * this address with the second.
    */
   function redirected(response: Response) {
-    const location = new URL(response.headers.get("location")!);
+    const raw = response.headers.get("location")!;
+    // Relative, deliberately - resolved here the way a browser resolves it,
+    // against the address the person actually asked for rather than the one this
+    // process binds to (#1528).
+    expect(raw.startsWith("/")).toBe(true);
+    const location = new URL(raw, "https://agenticos.example");
     return {
       path: location.pathname,
       status: location.searchParams.get("mcp_oauth"),
@@ -810,5 +815,60 @@ describe("a hosted page's logo", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     expect((await logo()).status).toBe(502);
+  });
+});
+
+describe("coming back from an MCP OAuth consent to where it started", () => {
+  function callbackWithReturn(returnTo: string | null) {
+    return new NextRequest(
+      "http://localhost:3000/api/me/mcp-connections/oauth/callback?code=abc&state=xyz",
+      returnTo === null
+        ? undefined
+        : { headers: { cookie: `mcp_oauth_return=${encodeURIComponent(returnTo)}` } },
+    );
+  }
+
+  it("returns to the page that remembered itself, keeping its own query", async () => {
+    // A chat that sent somebody to connect their Notion gets them back to the
+    // conversation, with the outcome beside the conversation's own `id`.
+    vi.mocked(backendFetch).mockResolvedValue({ ok: true, connection_name: "Notion", error: null });
+
+    const response = await callback(callbackWithReturn("/chat?id=conv-1"));
+
+    const raw = response.headers.get("location")!;
+    expect(raw.startsWith("/")).toBe(true);
+    const location = new URL(raw, "https://agenticos.example");
+    expect(location.pathname).toBe("/chat");
+    expect(location.searchParams.get("id")).toBe("conv-1");
+    expect(location.searchParams.get("mcp_oauth")).toBe("success");
+    // One consent, one return.
+    expect(response.headers.get("set-cookie")).toMatch(/mcp_oauth_return=;/);
+  });
+
+  it("sends the browser somewhere it can actually resolve, whatever this process binds to", async () => {
+    // The whole bug. `NextResponse.redirect` needs an absolute URL, and the only
+    // origin a standalone Next process knows is `HOSTNAME`:`PORT` - `0.0.0.0:3000`
+    // in the image - so behind a proxy a successful authorization sent people to
+    // an address no browser can reach (#1528). A relative `Location` is resolved
+    // against the URL the person asked for, which is the public one by
+    // construction.
+    vi.mocked(backendFetch).mockResolvedValue({ ok: true, connection_name: "Notion", error: null });
+
+    const response = await callback(callbackWithReturn(null));
+
+    const raw = response.headers.get("location")!;
+    expect(raw).not.toMatch(/^https?:\/\//);
+    expect(raw).not.toContain("0.0.0.0");
+    expect(raw.startsWith("/mcp-servers?")).toBe(true);
+  });
+
+  it("ignores a return target that is not this app's own", async () => {
+    vi.mocked(backendFetch).mockResolvedValue({ ok: true, connection_name: "Notion", error: null });
+
+    const response = await callback(callbackWithReturn("//evil.example/steal"));
+
+    expect(new URL(response.headers.get("location")!, "https://agenticos.example").pathname).toBe(
+      "/mcp-servers",
+    );
   });
 });

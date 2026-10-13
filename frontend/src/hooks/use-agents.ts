@@ -4,10 +4,12 @@ import { useCallback } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
+import { agentListParams, canonicalFacet } from "@/lib/agent-facets";
 import { apiClient } from "@/lib/api-client";
 import { fieldProblems, getErrorMessage, problemList } from "@/lib/api-error";
 import type { FieldProblem } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
+import type { Visibility } from "@/types/sharing";
 import type {
   Agent,
   AgentDetail,
@@ -39,18 +41,30 @@ export interface PromoteSpecialist {
 export function useAgents({
   includeArchived = false,
   enabled = true,
-}: { includeArchived?: boolean; enabled?: boolean } = {}) {
+  categories = [],
+  tags = [],
+}: {
+  includeArchived?: boolean;
+  enabled?: boolean;
+  categories?: string[];
+  tags?: string[];
+} = {}) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("agents");
   const queryClient = useQueryClient();
 
+  // One canonicalization feeds both the key and the request, so a selection
+  // keys the cache exactly as it is sent. `canonicalFacet` sorts a copy - the
+  // arrays here are the caller's React state and must not be mutated.
+  const facetCategories = canonicalFacet(categories);
+  const facetTags = canonicalFacet(tags);
+
   const { data, isLoading, isFetching, error, refetch } = useQuery({
-    queryKey: qk.agents.list(includeArchived),
-    queryFn: () =>
-      apiClient.get<AgentList>(
-        "/agents",
-        includeArchived ? { params: { include_archived: "true" } } : undefined,
-      ),
+    queryKey: qk.agents.list(includeArchived, facetCategories, facetTags),
+    queryFn: () => {
+      const params = agentListParams(includeArchived, facetCategories, facetTags);
+      return apiClient.get<AgentList>("/agents", params ? { params } : undefined);
+    },
     // How a surface without agents:view stays out of the network log - the
     // run table's agent column and the filter bar both read this gated.
     enabled,
@@ -68,7 +82,20 @@ export function useAgents({
   // here would put the same message somewhere it cannot be acted on, and then
   // take it away again.
   const create = useMutation({
-    mutationFn: (spec: AgentSpec) => apiClient.post<Agent>("/agents", { spec }),
+    // Visibility is not part of the spec and never has been: a spec is what the
+    // agent *is*, and who can find it is a fact about the row - the same reason
+    // its avatar and its colour live beside the spec rather than in it.
+    mutationFn: ({
+      spec,
+      visibility,
+      categories,
+      tags,
+    }: {
+      spec: AgentSpec;
+      visibility?: Visibility;
+      categories?: string[];
+      tags?: string[];
+    }) => apiClient.post<Agent>("/agents", { spec, visibility, categories, tags }),
     onSuccess: async (agent) => {
       await invalidate();
       toast.success(t("created", { name: agent.name }));
@@ -145,6 +172,10 @@ export function useAgents({
   return {
     agents: data?.items ?? [],
     total: data?.total ?? 0,
+    // The facet filter's choices - every label on an agent the caller may list,
+    // unnarrowed by the filter itself.
+    categoryOptions: data?.categories ?? [],
+    tagOptions: data?.tags ?? [],
     isLoading,
     error,
     refetch,
@@ -289,7 +320,33 @@ export function useAgent(agentId: string | null) {
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
-  return { agent: data, isLoading, saveDraft, validate, publish, rollback, setAvatar, setColor };
+  /**
+   * Set the agent's discovery categories and tags.
+   *
+   * A command, not a spec edit: both facets are always meant and an empty list
+   * clears one, so it patches the row directly like the avatar. The raw typed
+   * values are sent and the server answers with the folded, de-duplicated,
+   * clamped `AgentRead` - the editor re-renders from that, so what the reader
+   * sees is exactly what was stored.
+   */
+  const setMetadata = useMutation({
+    mutationFn: ({ categories, tags }: { categories: string[]; tags: string[] }) =>
+      apiClient.patch<Agent>(`/agents/${agentId}/metadata`, { categories, tags }),
+    onSuccess: invalidate,
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
+  });
+
+  return {
+    agent: data,
+    isLoading,
+    saveDraft,
+    validate,
+    publish,
+    rollback,
+    setAvatar,
+    setColor,
+    setMetadata,
+  };
 }
 
 /** What the history card shows at once - a page a reader can take in. */

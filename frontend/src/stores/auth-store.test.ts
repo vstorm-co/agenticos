@@ -150,6 +150,16 @@ describe("the rest of the session state", () => {
     // adoption reads the same account as a new one and empties the persisted
     // organization and agent selection on every refresh.
     expect(persisted).toHaveProperty("sessionOwnerId");
+    // Not the revoked-impersonation report: it is about this tab's cookies, now.
+    expect(persisted).not.toHaveProperty("impersonationRevoked");
+  });
+
+  it("holds a revoked-impersonation report until the exit is taken, and drops it on logout", () => {
+    useAuthStore.getState().setImpersonationRevoked(true);
+    expect(useAuthStore.getState().impersonationRevoked).toBe(true);
+
+    useAuthStore.getState().logout();
+    expect(useAuthStore.getState().impersonationRevoked).toBe(false);
   });
 
   it("stops loading as soon as it knows there is nobody signed in", () => {

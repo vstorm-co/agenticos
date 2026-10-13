@@ -18,6 +18,7 @@ import { Perm } from "@/types/permissions";
 import type { Delegation, DelegationStatus, SpecialistDefinition } from "@/types";
 import { AgentStep } from "./agent-step";
 import { MarkdownContent } from "./markdown-content";
+import { ThinkingOrb } from "@/components/ui/thinking-orb";
 
 /**
  * What the specialists are doing, one collapsible block per delegation.
@@ -55,9 +56,9 @@ export function DelegationPanels({ delegations }: { delegations: Delegation[] })
  */
 const TONE: Record<DelegationStatus, string> = {
   running: "text-brand animate-pulse",
-  completed: "text-muted-foreground/70",
+  completed: "text-muted-foreground",
   failed: "text-destructive",
-  cancelled: "text-muted-foreground/70",
+  cancelled: "text-muted-foreground",
   // The amber a parked tool call uses (`AgentStep`'s `parked` state): waiting for a
   // person, not working and not done - and never a spinner, which is a lie that
   // does not resolve until somebody decides.
@@ -117,7 +118,15 @@ function DelegationPanel({ delegation, all }: { delegation: Delegation; all: Del
         aria-expanded={open}
         className="hover:text-foreground flex max-w-full min-w-0 items-center gap-2 rounded-md py-1 text-left"
       >
-        <Users className={cn("h-3.5 w-3.5 shrink-0", TONE[delegation.status])} aria-hidden />
+        {/* A delegation that is still out wears the orb the step list gives a
+            delegate tool: a constellation wiring itself, which is what handing
+            work to another agent looks like. Once it lands the glyph comes
+            back, because the panel is then a record rather than a report. */}
+        {delegation.status === "running" ? (
+          <ThinkingOrb state="connecting" size={20} className="-my-2 -ml-1 h-7 w-7" />
+        ) : (
+          <Users className={cn("h-3.5 w-3.5 shrink-0", TONE[delegation.status])} aria-hidden />
+        )}
         <span className="text-foreground/80 min-w-0 truncate text-[13px] font-medium">
           {delegation.subagent}
         </span>
@@ -128,7 +137,7 @@ function DelegationPanel({ delegation, all }: { delegation: Delegation; all: Del
             saying which kind it is at the start is what stops the panel reading as
             an answer that never arrived. */}
         {delegation.mode === "async" && (
-          <span className="text-muted-foreground/60 shrink-0 font-mono text-[10px] tracking-wider uppercase">
+          <span className="text-muted-foreground shrink-0 font-mono text-[11px] tracking-wider uppercase">
             {t("background")}
           </span>
         )}
@@ -137,7 +146,7 @@ function DelegationPanel({ delegation, all }: { delegation: Delegation; all: Del
             specialist from a cheap one. */}
         {delegation.costUsd !== null && (
           <span
-            className="text-muted-foreground/60 shrink-0 font-mono text-[10px]"
+            className="text-muted-foreground shrink-0 font-mono text-[11px]"
             title={t("tokens", {
               input: delegation.inputTokens ?? 0,
               output: delegation.outputTokens ?? 0,
@@ -148,7 +157,7 @@ function DelegationPanel({ delegation, all }: { delegation: Delegation; all: Del
         )}
         <ChevronDown
           className={cn(
-            "text-muted-foreground/50 h-3 w-3 shrink-0 transition-transform",
+            "text-muted-foreground h-3 w-3 shrink-0 transition-transform",
             open && "rotate-180",
           )}
           aria-hidden
@@ -164,7 +173,7 @@ function DelegationPanel({ delegation, all }: { delegation: Delegation; all: Del
           </p>
 
           {delegation.thinking !== "" && (
-            <pre className="text-muted-foreground border-foreground/10 max-h-40 overflow-y-auto border-l pl-2.5 text-[11px] leading-relaxed whitespace-pre-wrap">
+            <pre className="text-muted-foreground border-foreground/10 max-h-40 overflow-y-auto border-l pl-2.5 text-xs leading-relaxed whitespace-pre-wrap">
               {delegation.thinking}
             </pre>
           )}

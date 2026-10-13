@@ -68,7 +68,11 @@ describe("useInvitations", () => {
     // The token comes back once so the inviter has the link when the email does
     // not arrive. Nothing on the members page reads it, and the cache backing
     // that page is the last place a live credential should sit.
-    const created: InvitationCreated = { ...invitation({ id: "inv-2" }), invitation_token: TOKEN };
+    const created: InvitationCreated = {
+      ...invitation({ id: "inv-2" }),
+      invitation_token: TOKEN,
+      email_delivered: true,
+    };
     vi.mocked(apiClient.post).mockResolvedValue(created);
     const { result } = await loaded();
 

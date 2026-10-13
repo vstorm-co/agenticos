@@ -38,7 +38,9 @@ class MessagePart(BaseSchema):
     question and the person's answer have no column of their own - unlike text
     (`content`), reasoning (`thinking`) or a tool call (its `tool_calls` row) - so
     without this entry a reopened conversation shows neither the question the agent
-    put nor the answer it acted on (#502).
+    put nor the answer it acted on (#502). `asked_by` names the delegate a question
+    came from, because a question from a specialist reads differently from one the
+    main agent put itself (#1042).
     """
 
     # The one schema in this module that must not strip its strings. `BaseSchema`
@@ -65,6 +67,14 @@ class MessagePart(BaseSchema):
     )
     answer: str | None = Field(
         default=None, description="What the person answered, for an `ask_user` entry."
+    )
+    asked_by: str | None = Field(
+        default=None,
+        description=(
+            "Which delegate asked, for an `ask_user` entry. `None` where the main "
+            "agent asked it itself, and on every question stored before this field "
+            "existed."
+        ),
     )
 
 
@@ -320,6 +330,15 @@ class ConversationRead(ConversationBase, TimestampSchema):
     user_id: UUID | None = None
     organization_id: UUID | None = None
     is_archived: bool = False
+    is_favourite: bool = Field(
+        default=False,
+        description=(
+            "Whether the **caller** has starred this thread. A property of the reader "
+            "rather than of the row: a conversation can be shared and a channel thread "
+            "has participants, so one person's star must not decide where it sits for "
+            "everybody who can see it."
+        ),
+    )
     agents: list[ConversationAgent] = Field(
         default_factory=list,
         description=(

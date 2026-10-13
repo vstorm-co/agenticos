@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Pause, Play, Plus, Trash2 } from "lucide-react";
 
 import { LoadingState } from "@/components/states";
@@ -255,7 +256,16 @@ export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPa
             // them serving somebody else. What all three have in common is the
             // fix, so that is what it says.
             <p className="text-muted-foreground border-t pt-3 text-sm">
-              {t("organizationHasNoChannel")}
+              {t.rich("organizationHasNoChannel", {
+                link: (chunks) => (
+                  <Link
+                    href="/channels"
+                    className="text-foreground font-medium underline underline-offset-4"
+                  >
+                    {chunks}
+                  </Link>
+                ),
+              })}
             </p>
           ))}
       </CardContent>

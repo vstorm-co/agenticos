@@ -117,14 +117,30 @@ describe("what the header says about a file", () => {
  * a table hides which delimiter a CSV used, so that counts too.
  */
 describe("the views a file offers", () => {
-  it("offers the characters as well, for a file whose preview transforms it", async () => {
+  it("opens on the rendered file, with the characters a tab away", async () => {
+    // What an agent made is usually for looking at; opening on its markup read
+    // as the file being broken.
     open({ name: "report.md" });
 
     expect(await screen.findByTestId("markdown")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Preview" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("shows the characters once the source is asked for", async () => {
+    open({ name: "report.md" });
+    await screen.findByTestId("markdown");
+
     await userEvent.click(screen.getByRole("tab", { name: "Source" }));
 
-    expect(screen.queryByTestId("markdown")).toBeNull();
-    expect(screen.getByText("# Report")).toBeInTheDocument();
+    expect(await screen.findByText("# Report")).toBeInTheDocument();
+  });
+
+  it("still opens on the preview where there is no source to open on", () => {
+    // An image has nothing to fall back from, so defaulting it to a tab that
+    // does not exist would leave the dialog on no tab at all.
+    open({ name: "handbook.pdf" });
+
+    expect(screen.queryByRole("tab", { name: "Source" })).toBeNull();
   });
 
   it("offers it for an HTML page too", () => {

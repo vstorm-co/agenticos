@@ -43,6 +43,15 @@ export function DocumentProvenance({ doc }: { doc: KBDocument }) {
         </span>
       )}
       {doc.was_overridden && <Badge variant="secondary">{t("overridden")}</Badge>}
+      {/* The unit this document is filed under, and so what a retrieval can
+          narrow to. A badge rather than a column of its own: most corpora file
+          nothing, and an empty column for all of them says less than a mark on
+          the documents that carry one (#1777). */}
+      {doc.organizational_unit !== null && (
+        <Badge variant="outline" title={t("filedUnder", { unit: doc.organizational_unit })}>
+          {doc.organizational_unit}
+        </Badge>
+      )}
     </div>
   );
 }

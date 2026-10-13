@@ -438,6 +438,42 @@ class TestTheBoundDirectory:
 
         assert adapter.search_channels.await_args.kwargs["query"] == "billing"
 
+    async def test_history_reads_the_thread_the_run_is_in(self):
+        """The conversation the agent was spoken to in, not the room around it.
+
+        Bound to `channel_key` alone, an agent answering inside a thread was
+        handed the *channel's* transcript - so "summarise what we decided above"
+        summarised whatever else the room had been saying (#1353).
+        """
+        adapter = self._adapter()
+        directory = BoundChannelDirectory(
+            adapter=adapter, bot_token="tok", channel_id="c1", thread_id="1699.0001"
+        )
+
+        await directory.history(limit=3)
+
+        assert adapter.channel_history.await_args.kwargs["thread_id"] == "1699.0001"
+
+    async def test_a_top_level_message_reads_the_channel(self):
+        """No thread to read, which is what a message at the top of one is in."""
+        adapter = self._adapter()
+        directory = BoundChannelDirectory(adapter=adapter, bot_token="tok", channel_id="c1")
+
+        await directory.history(limit=3)
+
+        assert adapter.channel_history.await_args.kwargs["thread_id"] is None
+
+    async def test_the_thread_is_not_something_the_model_may_name(self):
+        """Bound like the channel, and for the same reason: a model that could
+        name the thread could name another one."""
+        adapter = self._adapter()
+        directory = BoundChannelDirectory(
+            adapter=adapter, bot_token="tok", channel_id="c1", thread_id="1699.0001"
+        )
+
+        with pytest.raises(TypeError):
+            await directory.history(limit=3, thread_id="1699.9999")  # type: ignore[call-arg]
+
     async def test_an_adapter_that_does_not_implement_one_refuses_by_default(self):
         """A new adapter is correct on the day it is written, and says what it
         cannot do rather than answering an empty list."""
@@ -759,3 +795,94 @@ class TestIsChannelMember:
 
         with pytest.raises(ChannelDirectoryUnsupported, match="carrier-pigeon"):
             await Bare().is_channel_member("tok", "c1", "u1", api_base_url=None)
+
+
+class TestWhichTranscriptEachAdapterReads:
+    """A thread and its channel are two transcripts, and the agent is in the
+    thread. Both adapters used to read the channel whatever they were answering
+    in (#1353)."""
+
+    @staticmethod
+    def _mattermost_client(transcript: Any, authors: Any) -> Any:
+        """A client whose GET and POST answer from their own sequences.
+
+        `TestWhatAnAdapterActuallyBuilds._responses` hands both verbs the same
+        list, which suits a call that only GETs; `channel_history` GETs the
+        transcript and POSTs for the author names, so sharing one sequence feeds
+        the transcript back as the user list.
+        """
+        client = MagicMock()
+        client.get = AsyncMock(return_value=MagicMock(json=MagicMock(return_value=transcript)))
+        client.post = AsyncMock(return_value=MagicMock(json=MagicMock(return_value=authors)))
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=False)
+        return client
+
+    async def test_slack_reads_a_thread_with_conversations_replies(self):
+        client = MagicMock()
+        client.conversations_replies = AsyncMock(
+            return_value={
+                "messages": [
+                    {"user": "U1", "text": "co tu widzisz?", "ts": "1699.0001"},
+                    {"user": "U1", "text": "@Jarvis", "ts": "1699.0002"},
+                ]
+            }
+        )
+        client.conversations_history = AsyncMock(return_value={"messages": []})
+
+        with patch("slack_sdk.web.async_client.AsyncWebClient", return_value=client):
+            found = await SlackAdapter().channel_history(
+                "tok", "C1", api_base_url=None, limit=10, thread_id="1699.0001"
+            )
+
+        client.conversations_history.assert_not_awaited()
+        assert client.conversations_replies.await_args.kwargs["ts"] == "1699.0001"
+        # `replies` is already oldest-first with the parent at the top, which is
+        # the order a person reads - so it is not reversed the way `history` is.
+        assert [post.text for post in found] == ["co tu widzisz?", "@Jarvis"]
+
+    async def test_slack_reads_the_channel_when_there_is_no_thread(self):
+        client = MagicMock()
+        client.conversations_replies = AsyncMock(return_value={"messages": []})
+        client.conversations_history = AsyncMock(
+            return_value={"messages": [{"user": "U1", "text": "newest", "ts": "2.0"}]}
+        )
+
+        with patch("slack_sdk.web.async_client.AsyncWebClient", return_value=client):
+            found = await SlackAdapter().channel_history("tok", "C1", api_base_url=None, limit=10)
+
+        client.conversations_replies.assert_not_awaited()
+        assert [post.text for post in found] == ["newest"]
+
+    async def test_mattermost_reads_a_thread_by_its_root_post(self):
+        client = self._mattermost_client(
+            {
+                "order": ["p2", "p1"],
+                "posts": {
+                    "p1": {"user_id": "u1", "message": "co tu widzisz?", "create_at": 1},
+                    "p2": {"user_id": "u1", "message": "@Jarvis", "create_at": 2},
+                },
+            },
+            [{"id": "u1", "username": "kacper"}],
+        )
+
+        with patch("app.services.channels.mattermost.httpx.AsyncClient", return_value=client):
+            found = await MattermostAdapter().channel_history(
+                "tok", "c1", api_base_url="https://mm.acme.com", limit=10, thread_id="p1"
+            )
+
+        assert "/posts/p1/thread" in client.get.await_args.args[0]
+        assert [post.text for post in found] == ["co tu widzisz?", "@Jarvis"]
+
+    async def test_mattermost_reads_the_channel_when_there_is_no_thread(self):
+        client = self._mattermost_client(
+            {"order": ["p1"], "posts": {"p1": {"user_id": "u1", "message": "hi", "create_at": 1}}},
+            [{"id": "u1", "username": "kacper"}],
+        )
+
+        with patch("app.services.channels.mattermost.httpx.AsyncClient", return_value=client):
+            await MattermostAdapter().channel_history(
+                "tok", "c1", api_base_url="https://mm.acme.com", limit=10
+            )
+
+        assert "/channels/c1/posts" in client.get.await_args.args[0]

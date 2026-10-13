@@ -66,6 +66,7 @@ async def create(
     organization_id: UUID,
     collection_name: str | None = None,
     secret_id: UUID | None = None,
+    organizational_unit: str | None = None,
     sync_mode: str = "new_only",
     schedule_minutes: int | None = None,
 ) -> SyncSource:
@@ -77,6 +78,7 @@ async def create(
         collection_name=collection_name,
         config=config,
         secret_id=secret_id,
+        organizational_unit=organizational_unit,
         sync_mode=sync_mode,
         schedule_minutes=schedule_minutes,
     )
@@ -129,13 +131,20 @@ async def update_sync_status(
     last_sync_at: datetime,
     last_sync_status: str,
     last_error: str | None = None,
+    sync_state: dict[str, str] | None = None,
 ) -> SyncSource | None:
-    """Update the sync status fields after a sync operation."""
+    """Update the sync status fields after a sync operation.
+
+    `sync_state` is written when given and kept when not: only a clean run
+    records one, and a failed run must leave the last clean one in place.
+    """
     source = await db.get(SyncSource, source_id)
     if not source:
         return None
     source.last_sync_at = last_sync_at
     source.last_sync_status = last_sync_status
     source.last_error = last_error
+    if sync_state is not None:
+        source.sync_state = sync_state
     await db.flush()
     return source

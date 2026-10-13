@@ -29,16 +29,16 @@ from app.db.models.knowledge_base import KBScope
 from app.db.session import get_db_context
 from app.repositories import knowledge_base_repo, organization_repo
 from app.schemas.sync_source import SyncSourceCreate
-from app.services.embedding_resolution import embeddings_for_collection
 from app.services.rag.config import DEFAULT_COLLECTION_NAME, DocumentExtensions, RAGSettings
 from app.services.rag.documents import DocumentProcessor
 from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.failures import IngestionStage, failure_summary
+from app.services.rag.filters import UnscopedScope
 from app.services.rag.ingestion import IngestionService
 from app.services.rag.retrieval import RetrievalService
 from app.services.rag.sources.google_drive import GoogleDriveSource
 from app.services.rag.sources.s3 import S3Source
-from app.services.rag.vectorstore import BaseVectorStore, PgVectorStore
+from app.services.rag.vectorstore import BaseVectorStore, process_vector_store
 from app.services.rag_document import RAGDocumentService
 from app.services.rag_sync import RAGSyncService
 from app.services.sync_source import SyncSourceService
@@ -68,9 +68,9 @@ def get_rag_services() -> tuple[
     """
     settings = RAGSettings()
     embedder = EmbeddingService(settings=settings)
-    vector_store = PgVectorStore(
-        settings=settings, embedding_service=embedder, resolver=embeddings_for_collection
-    )
+    # On the process engine, like the API's stores: a CLI command is one
+    # process, one piece of work, and its pool goes down with it.
+    vector_store = process_vector_store(settings, embedder)
     processor = DocumentProcessor(settings=settings)
     retrieval = RetrievalService(vector_store=vector_store, settings=settings)
     ingestion = IngestionService(processor=processor, vector_store=vector_store)
@@ -230,19 +230,28 @@ async def ingest_path_async(
                     success_count += 1
                     if result.message and "replaced" in result.message:
                         replaced_count += 1
+                    # `ingest_file` only sets `document_id` on the branch that
+                    # returns `DONE` - the two travel together in `IngestionResult`.
+                    assert result.document_id is not None
                     async with get_db_context() as db:
+                        # A fresh row per file, every run, the same as the sync
+                        # worker flows - this command has no retry concept, so
+                        # `attempt` is always `1`, the column's own default.
                         await RAGDocumentService(db).complete_ingestion(
                             doc_id,
                             vector_document_id=result.document_id,
                             chunk_count=result.chunk_count,
                             replaced_document_id=result.replaced_document_id,
+                            attempt=1,
                         )
                 else:
                     error_count += 1
                     tqdm.write(f"  ✗ {filepath.name}: {result.error_message}")
                     async with get_db_context() as db:
                         await RAGDocumentService(db).fail_ingestion(
-                            doc_id, error_message=result.error_message or "Unknown error"
+                            doc_id,
+                            error_message=result.error_message or "Unknown error",
+                            attempt=1,
                         )
             except Exception as e:
                 error_count += 1
@@ -255,6 +264,7 @@ async def ingest_path_async(
                     await RAGDocumentService(db).fail_ingestion(
                         doc_id,
                         error_message=failure_summary(e, stage=IngestionStage.INGEST),
+                        attempt=1,
                     )
 
     async with get_db_context() as db:
@@ -340,9 +350,14 @@ async def search_async(
     info(f"Searching collection '{collection}' for: \"{query}\"")
     click.echo()
 
+    # The one path allowed the explicit unscoped marker: `rag-search` is
+    # cross-tenant maintenance, run by an operator against a named collection,
+    # not an ordinary tenant-scoped caller (FA-039 §2.2). No ordinary API or
+    # agent-tool caller can reach this variant.
     results = await retrieval.retrieve(
         query=query,
         collection_name=collection,
+        scope=UnscopedScope(),
         limit=top_k,
     )
 
@@ -542,12 +557,12 @@ def rag_sources() -> None:
             svc = SyncSourceService(db)
             sources = await svc.list_sources()
 
-            if not sources:
+            if not sources.items:
                 info("No sync sources configured.")
                 return
 
-            click.echo(f"\nFound {len(sources)} sync source(s):\n")
-            for s in sources:
+            click.echo(f"\nFound {sources.total} sync source(s):\n")
+            for s in sources.items:
                 status_str = s.last_sync_status or "never"
                 active_str = "active" if s.is_active else "inactive"
                 click.echo(f"  [{active_str}] {s.name} (id={s.id})")
@@ -768,11 +783,11 @@ def rag_source_sync(source_id: str | None, sync_all: bool) -> None:
 
             if sync_all:
                 sources = await svc.list_sources(is_active=True)
-                if not sources:
+                if not sources.items:
                     warning("No active sync sources found.")
                     return
-                info(f"Triggering sync for {len(sources)} active source(s)...")
-                for s in sources:
+                info(f"Triggering sync for {sources.total} active source(s)...")
+                for s in sources.items:
                     try:
                         log = await svc.trigger_sync(str(s.id))
                         triggered += 1

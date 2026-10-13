@@ -303,6 +303,9 @@ export function CreateSkillDialog({ open, onOpenChange }: CreateSkillDialogProps
                   name={BODY}
                   content={content}
                   canEdit
+                  // The shape a skill body takes - when it applies, then the
+                  // steps - instead of a blank page with no hint of either.
+                  placeholder={t("bodyPlaceholder")}
                   onChange={(next) => edit("content", next)}
                   footer={
                     <p

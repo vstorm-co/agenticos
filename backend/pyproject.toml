@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "0.0.247"
+version = "0.0.535"
 description = "OS for your agents."
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
@@ -21,52 +21,70 @@ dependencies = [
     # (#353), and an older FastAPI answers `TypeError` at import rather than
     # quietly reverting - but only 0.141.1 has been run against this suite.
     "fastapi>=0.141.1",
-    "uvicorn[standard]>=0.52.3",
-    "pydantic[email]>=2.13.4",
+    "uvicorn[standard]>=0.54.0",
+    "pydantic[email]>=2.13.5",
     "pydantic-settings>=2.15.0",
     "python-multipart>=0.0.20",
-    "logfire[fastapi,asyncpg,redis,httpx]>=4.40.0",
-    "sqlalchemy[asyncio]>=2.0.52",
+    "logfire[fastapi,asyncpg,redis,httpx]>=5.1.0",
+    "sqlalchemy[asyncio]>=2.1.3",
     "asyncpg>=0.31.0",
     # Alembic's, not the application's. Every application URL is
     # `postgresql+asyncpg`, so this reads as dead to a grep - but `alembic/env.py`
-    # builds a *sync* engine from `DATABASE_URL_SYNC`, which is bare
-    # `postgresql://`, and SQLAlchemy resolves that to psycopg2. Removing it
-    # breaks every migration (#155).
-    "psycopg2-binary>=2.9.0",
-    "alembic>=1.19.1",
+    # builds a *sync* engine from `DATABASE_URL_SYNC`, which is
+    # `postgresql+psycopg2://`. Removing it breaks every migration (#155).
+    "psycopg2-binary>=2.9.13",
+    "alembic>=1.19.2",
     "greenlet>=3.5.5",
-    "pyjwt>=2.9.0",
+    "pyjwt>=2.15.1",
     "bcrypt>=4.0.0",
-    "authlib>=1.3.0",
+    "authlib>=1.8.0",
     # Imported at module scope in `app/services/rag_document.py`, and until #155
     # declared only in the `dev` group - so `uv sync --no-dev`, which is what the
     # image builds with, was relying on Starlette to pull it in.
-    "anyio>=4.14.2",
+    "anyio>=4.15.1",
     "redis>=8.1.0",
-    "aiosmtplib>=3.0.0",
+    "aiosmtplib>=5.1.3",
     # Starlette's requirement for `SessionMiddleware`, which `main.py` adds for
     # the OAuth handshake. Declared here rather than left transitive because the
     # middleware is ours: Starlette itself installs without it (#155).
     "itsdangerous>=2.2.0",
-    "prefect>=3.8.3",
-    # The floor is `pydantic-ai-harness`'s, not ours - nothing here needs a
-    # feature of any particular release, and stating it is what keeps a resolver
-    # from picking a slim the harness cannot run on. Dependabot raises it to
+    "prefect>=3.8.7",
+    # The floor is ours as well as `pydantic-ai-harness`'s: the sandbox runs on
+    # `pydantic_ai.workspaces` and passes `workspace=` to a run, both from 2.52,
+    # and stating it keeps a resolver from picking a slim the harness cannot run
+    # on. Dependabot raises it to
     # whatever is current, which is fine as long as the lock resolves to at least
     # as new: this group's bump once locked 2.30.0 while `main` already held
     # 2.31.0, and the image installs the lock verbatim (`uv sync --frozen`).
-    "pydantic-ai-slim[openrouter,anthropic,google,duckduckgo,web-fetch,groq,mistral,cohere,huggingface,xai]>=2.30.0",
-    "genai-prices>=0.1.2",
-    "pydantic-ai-slim[mcp]>=2.30.0",
+    "pydantic-ai-slim[openrouter,anthropic,google,duckduckgo,web-fetch,groq,mistral,cohere,huggingface,xai]>=2.52.0",
+    "genai-prices>=0.1.4",
+    "pydantic-ai-slim[mcp]>=2.52.0",
+    # The MCP SDK. Uncapped since #1820 moved the one path where our code and
+    # the SDK exchange HTTP objects onto `httpx2`, which 2.0 migrated the whole
+    # SDK to: `PinnedAsyncClient` (`app/core/pinned_http.py`) and the MCP OAuth
+    # flow are `httpx2` now, so an SDK-built request reaches a client that can
+    # send it and a malformed endpoint raises an exception our refusals catch.
+    #
+    # **Floored at 2, not merely uncapped.** `app/agents/mcp.py` imports
+    # `create_mcp_http_client` and `streamable_http_client` unconditionally, and
+    # both are 2.x names - 1.x spelled the transport `streamablehttp_client` and
+    # had no client factory at all. A non-frozen install that resolved back to
+    # 1.x would fail every streamable probe at import time; the image installs
+    # the lock verbatim, but nothing else does.
+    #
+    # The rest of this codebase stays on `httpx` deliberately. The boundary is
+    # wherever an object crosses into or out of a vendor SDK, and nothing else
+    # here does: the portals, the channels, `model_catalog` and the web-research
+    # search all build and send their own requests.
+    "mcp>=2.3.0",
     # Wrapped by three capabilities: `guardrails` (the ready-made secret/PII
     # detectors and the input/output/tool guard edges), `planning` (the plan
     # store, tools and cache-safe tail reminder) and `compaction` (the
     # context-window handling and its strategies). Uncapped for the same reason
     # Pydantic AI is: this is where those are maintained, and pinning would
-    # freeze the detectors and the model registry they read. 0.21.0 is the floor
-    # all three were written against.
-    "pydantic-ai-harness>=0.21.0",
+    # freeze the detectors and the model registry they read. 0.52.0 is the
+    # floor: the first release on the slim that brought workspaces.
+    "pydantic-ai-harness>=0.52.0",
     "websockets>=15.0",
     # Required, not optional: hybrid retrieval fuses BM25 with the vector search
     # and a deployment cannot choose otherwise. It is also the only reason
@@ -79,27 +97,45 @@ dependencies = [
     "pillow>=10.0.0",
     "python-docx>=1.1.0",
     "openpyxl>=3.1.0",
-    "llama-cloud>=2.14.0",
-    "liteparse>=2.12.0",
-    "google-api-python-client>=2.0.0",
-    "google-auth>=2.56.3",
-    "boto3>=1.43.72",
+    "llama-cloud>=2.16.0",
+    "liteparse>=2.15.1",
+    "google-api-python-client>=2.201.0",
+    "google-auth>=2.59.1",
+    "boto3>=1.43.108",
+    # Two HTTP libraries, deliberately. `httpx` is what fourteen modules build
+    # and send their own requests with - the portals, the channels, the model
+    # catalog, the web-research search - and `httpx2` is what the MCP SDK is
+    # written against since 2.0. Declared rather than inherited through `mcp`
+    # because `app/core/pinned_http.py` imports it directly: the boundary is
+    # wherever an object crosses into or out of a vendor SDK, and a library our
+    # own code imports is one this manifest names (#1820).
     "httpx>=0.28.0",
-    "click>=8.1.0",
+    "httpx2>=2.13.1",
+    "click>=8.5.0",
     # `cli/commands.py` renders every list the CLI prints. It has no import site
     # under `app/`, which is how it was briefly deleted as dead (#155) - the
     # `deptry` step reads `cli/` as well for exactly that reason.
     "tabulate>=0.9.0",
-    "tqdm>=4.70.0",
-    "tavily-python>=0.7.27",
-    "pydantic-monty>=0.0.21",
-    "pydantic-ai-skills>=0.11.0",
-    # `console` for the toolset, `remote` for the sandboxd client. Deliberately
-    # not `docker`: this container never touches the socket, so the Docker SDK
-    # has no business in the image. The service runs beside us as `sandboxd`.
-    # Floors at 0.2.26 for `FileInfo.modified_at`, which the listings carry to
-    # the file viewer (#500).
-    "pydantic-ai-backend[console,remote]>=0.2.27",
+    # Renders a Markdown artifact into the page it is served as. Already here
+    # through `rich`; declared because `app/services/artifact.py` imports it.
+    "markdown-it-py>=4.0.0",
+    "tqdm>=4.70.1",
+    "tavily-python>=0.8.4",
+    "pydantic-monty>=1.1.0",
+    # Floors at 2.0, where each skill became its own deferred capability. The
+    # platform's three skills tools collapsed to one: the catalog is the model's
+    # own capability list, `load_capability` opens a skill, and only
+    # `read_skill_resource` survives as a tool (#1658).
+    "pydantic-ai-skills>=2.0.0",
+    # `console` for the tools, `workspaces` for the workspace capabilities,
+    # `remote` for the Files panel's archive client and `daytona` for Daytona
+    # connections (the `daytona` package; the old `daytona-sdk` never imported).
+    # Deliberately not `docker`: this container never touches the socket, so the
+    # Docker SDK has no business in the image. The service runs beside us as
+    # `sandboxd`. Floors at 0.2.32 for named sandboxd sessions and Daytona
+    # sandboxes, which a workspace keyed on its scope opens or attaches by name
+    # (#2003).
+    "pydantic-ai-backend[console,remote,workspaces,daytona]>=0.2.32",
     # Delegation. Floors at 0.2.16 for three fixes this integration depends on:
     # a suspended child no longer reported to the parent as completed (#64),
     # `event_stream_handler_factory` on the toolset so a fan-out's events can be
@@ -114,16 +150,50 @@ dependencies = [
     # `check_task` and `wait_tasks` themselves, so a status answer names the
     # exception's class rather than embedding the provider's message - the one
     # surface `tool_retry_notice` cannot reach, because a `ToolReturnPart` is
-    # stored whole (#819). The floor is 0.2.20.
-    "subagents-pydantic-ai>=0.2.20",
-    "cryptography>=50.0.0",
-    "aiogram>=3.17,<4.0",
-    "slack-sdk>=3.35.0",
+    # stored whole (#819). 0.2.22 puts the subagent's name on the delegation's
+    # bound state, which is the only way a persisted `ask_user` part can say
+    # which delegate asked - `ask_parent` hands the surface the question and
+    # nothing else (#1042). 0.2.25 runs a delegate in its parent's workspace,
+    # which is how a delegate sharing the parent's `sandbox` reaches the same
+    # files now that the files live in `ctx.workspace` (#2003). The floor is
+    # 0.2.25.
+    "subagents-pydantic-ai>=0.2.25",
+    "cryptography>=50.0.2",
+    "aiogram>=3.31.0,<4.0",
+    "slack-sdk>=3.45.0",
+    # What Slack Socket Mode actually needs. `app/services/channels/slack.py`
+    # imports `slack_sdk.socket_mode.aiohttp` - the transport a bot uses when the
+    # deployment exposes nothing - and slack-sdk keeps aiohttp behind an extra, so
+    # a plain `slack-sdk` does not pull it. It resolved anyway, because something
+    # else in the tree happened to bring aiohttp; the day that goes, the import
+    # raises inside a `try/except ImportError` that turns it into a bot which
+    # quietly never starts rather than a build that fails.
+    # Not `slack-sdk[optional]`, which is a grab bag: aiodns, boto3, SQLAlchemy,
+    # websockets and websocket-client for one transport's HTTP client. And not
+    # `slack-sdk[socket-mode]`, which does not exist - the only extra is
+    # `optional`, so the advice in that ImportError's message was unfollowable.
+    "aiohttp>=3.14.4",
     # Cron schedules: the next fire after a given instant for a crontab
     # expression. Interval schedules need no library, but "daily/weekly at HH:MM"
     # and any raw crontab do - and getting DST and month lengths right by hand is
     # the kind of arithmetic a dependency exists to own.
     "croniter>=3.0.0",
+    "mem0ai>=2.2.1",
+    "requests>=2.34.2",
+    "xlrd>=2.0.2",
+    "odfpy>=1.4.1",
+    "python-pptx>=1.0.2",
+    "olefile>=0.47",
+    # Signing in with a directory account (#1773): the two-step bind against
+    # Active Directory, OpenLDAP or FreeIPA. Pure Python, so the image needs no
+    # libldap and no compiler for it, which is why it and not `python-ldap` or
+    # `bonsai`. LGPL-3.0, used unmodified and replaceable by reinstalling - the
+    # decision is recorded in `licenses/policy.toml`.
+    "ldap3>=2.9.1",
+    # The `guardrails` phone detector, which the harness's PII patterns lack. The
+    # lite build: the same `phonenumbers` module and numbering-plan metadata,
+    # without the 20 MB of carrier, geocoding and time zone data nothing here reads.
+    "phonenumberslite>=9.0.40",
 ]
 
 # No `[project.optional-dependencies]` entry for the `browser_use` capability's
@@ -134,6 +204,57 @@ dependencies = [
 # into the venv would drag `pydantic` back a minor across the whole platform.
 # Until browser-use loosens that pin, the capability is wired and tested but its
 # engine is not co-installable - see the capability's README and docs/reference.
+#
+# The `browser` extra below is a different capability's engine (`browser_choice`,
+# #1829), and it exists because the same test comes out the other way.
+
+[project.optional-dependencies]
+# The `browser_choice` engine. Two packages, and the two that are *not* here are
+# the more interesting half (#1829).
+#
+# `cdp-use` is a typed, async client for the whole Chrome DevTools Protocol and
+# nothing else: `client.send.Accessibility.getFullAXTree(...)`,
+# `Page.captureScreenshot`, `Input.dispatchMouseEvent`. It ships `py.typed`, and
+# it carries `httpx`, `typing-extensions` and `websockets>=15.0.1` - floors, not
+# pins - so the extra costs this lock no downgrade at all.
+#
+# **Not `browser-harness`**, which #1829 proposed. Read at 0.1.13 it is not a
+# library: it is a CLI and a per-user daemon (`browser_harness/_ipc.py` - an
+# AF_UNIX socket, a PID file, `BH_RUNTIME_DIR`) whose helpers are *synchronous*
+# and whose job is to attach a coding agent to the developer's own Chrome. It
+# ships a `SKILL.md`, which is what it is for. Embedding it here would put
+# blocking socket I/O on the event loop and a singleton daemon under a
+# multi-tenant service, and it hard-pins `websockets==15.0.1`, which drags this
+# lock back from 16.x for every install - measured, not assumed. It also holds no
+# DOM snapshotter, so it would not have carried the element table the loop needs.
+# `cdp-use` is the dependency of its that we actually wanted.
+#
+# **Not `jev-ultrafast`**, which is not a published package - `jev` on PyPI is a
+# decorator for compiling functions into TypeSafe queries, requires Python >=3.14
+# and is not a browser agent. The loop is this repository's, and its decisions go
+# through `TypeSafeModel` rather than the raw `httpx` post `jev_ultrafast/model.py`
+# makes, so each one is an ordinary metered model request.
+#
+# `pydantic-ai-slim[typesafe]` brings `typesafe-sdk`, and with it `httpx2` - one
+# of several routes by which the image now carries both HTTP libraries, which is
+# a deliberate state rather than an accident (see `httpx2` above). What mattered
+# was never the second library: it was `PinnedAsyncClient`, whose SSRF pinning
+# guards a URL a *remote server* chooses, and which is `httpx2` itself since
+# #1820. TypeSafe's endpoint is a fixed vendor address the SDK holds itself, so
+# there is no path where one library checks and the other requests.
+browser = [
+    "cdp-use==1.4.5",
+    "pydantic-ai-slim[typesafe]>=2.52.0",
+]
+# Integrated Windows sign-in (SPNEGO), the `KERBEROS_ENABLED` half of #1773.
+# `gssapi` publishes no Linux wheel: it compiles against the system Kerberos
+# headers, which is why it is an extra rather than a dependency every install and
+# every CI job would have to build. The image takes it with
+# `--build-arg EXTRAS="--extra kerberos"`, and the Dockerfile installs
+# `libkrb5-dev` to build and `libgssapi-krb5-2` to run only for that build.
+kerberos = [
+    "gssapi>=1.9.0",
+]
 
 # PEP 735 dependency group — installed by `uv sync` / `uv sync --dev` and
 # excluded by `--no-dev`. (A `dev` extra under [project.optional-dependencies]
@@ -142,11 +263,11 @@ dependencies = [
 [dependency-groups]
 dev = [
     "pytest>=9.0.0",
-    "anyio[trio]>=4.14.2",
+    "anyio[trio]>=4.15.1",
     "pytest-cov>=6.1.0",
     "httpx>=0.28.0",
-    "ruff>=0.16.3",
-    "ty>=0.0.72",
+    "ruff>=0.16.10",
+    "ty>=0.0.84",
     "pre-commit>=4.6.2",
     "pytest-xdist>=3.8.0",
     # Shuffles the suite every run and prints the seed, so an order-dependent
@@ -154,21 +275,29 @@ dev = [
     # It carries its own xdist support (the controller's seed is handed to each
     # worker through `workerinput`), without which the workers would collect in
     # four different orders and `-n auto` would abort on the mismatch.
-    "pytest-randomly>=4.1.0",
+    "pytest-randomly>=5.0.0",
     "vulture>=2.14",
     # vulture reads the code and finds what is written but unused; deptry reads
     # the manifest and finds what is declared but unimported. Nothing noticed
     # `fastapi-cache2` or `jinja2` going dead, which is the half of #155 worth
     # more than the megabytes it recovered.
     "deptry>=0.23.0",
+    # `ldap3` ships no annotations; typeshed's stubs are what lets the adapter
+    # over it be held to the platform layer's type gate.
+    "types-ldap3>=2.9.13",
 ]
 # The documentation site. Its own group rather than part of `dev`, because the
 # reference pages import the application to read its docstrings - so this group
 # needs the runtime installed, and CI's lint job does not need mkdocs.
 docs = [
     "mkdocs>=1.6.0",
+    "mkdocs-glightbox>=0.5.2",
     "mkdocs-material>=9.5.0",
     "mkdocstrings[python]>=1.0.6",
+    # One build per locale from `<page>.<locale>.md` files sitting beside the
+    # English source, so `/install/` keeps its URL and `/pl/install/` is added
+    # rather than everything moving under `/en/`.
+    "mkdocs-static-i18n>=1.2.3",
 ]
 
 [project.scripts]
@@ -250,9 +379,14 @@ ignore = ["DEP001", "DEP003"]
 DEP002 = [
     "python-multipart", # Starlette parses uploads with it; FastAPI refuses `File(...)` without it
     "asyncpg",          # selected by the `postgresql+asyncpg://` URL
-    "psycopg2-binary",  # selected by Alembic's bare `postgresql://` URL
+    "psycopg2-binary",  # selected by Alembic's `postgresql+psycopg2://` URL
     "greenlet",         # SQLAlchemy's async bridge
     "itsdangerous",     # Starlette signs `SessionMiddleware` cookies with it
+    "aiohttp",          # `slack_sdk.socket_mode.aiohttp` imports it; nothing here does
+    # `mem0/client/main.py` imports `requests` and does not declare it, so the SDK
+    # works only while something else happens to pull it in. Declared here so that
+    # accident becomes a dependency (#1470).
+    "requests",
 ]
 
 [tool.ruff]
@@ -326,11 +460,21 @@ ignore = [
 # shells out to `git` by name with a literal argv it builds itself (S603, S607) -
 # the same partial-path invocation already accepted for `tests/test_migrations.py`.
 "../scripts/**" = ["T201", "S603", "S607"]
+# The load harness is a console tool with the same shape: it prints its progress
+# and its report to stdout (T201), because a load run is watched while it runs and
+# its output is redirected into a results file afterwards. It is not imported by
+# the application - nothing under `app/` may import it - and it carries no gate.
+"../loadtest/**" = ["T201"]
 # Postgres cannot parameterise an identifier, so a table name must be
 # interpolated. `_validate_collection_name` rejects anything but
 # [a-zA-Z0-9_] before it reaches a query, and every *value* is bound. This is
 # the correct pattern, not an exception to it.
 "app/services/rag/vectorstore.py" = ["S608"]
+# The memory facts recall is the same shape: the interpolated pieces are the
+# halfvec cast (built from an int dimension) and a fixed `IS NULL` / `= :scope`
+# choice, and every value is bound. The vector column has no SQLAlchemy type, so
+# this is the only way to run the KNN, not an exception to the bound-value rule.
+"app/repositories/memory.py" = ["S608"]
 # FastAPI exception handlers run while sys.exc_info() is still set, so
 # logger.exception() captures the traceback correctly here despite not being
 # lexically inside an `except` block.
@@ -367,8 +511,8 @@ ignore = [
 # as a cache key (not a security primitive) and two blocking reads inside
 # third-party SDK calls are its debt, tracked rather than silently accepted:
 # they move out of this list when that subsystem is rewritten.
-"app/services/rag/retrieval.py" = ["A002", "S324"]
-"app/services/file_upload.py" = ["ASYNC230", "TRY300", "PTH123", "PTH108"]
+"app/services/rag/retrieval.py" = ["S324"]
+"app/services/file_upload.py" = ["TRY300", "PTH123", "PTH108"]
 # Template-inherited subsystems. These are readability rules whose value is
 # real but whose cost right now is churn in code we did not design and are not
 # yet responsible for. They lift file by file as each subsystem is rewritten —
@@ -396,10 +540,16 @@ ignore = [
 known-first-party = ["app", "cli"]
 
 [tool.ty.terminal]
-# The "warn" rules below are informational — don't let them fail `ty check`.
-# The platform-layer override further down promotes them back to errors for our
-# own code, and those do fail the run.
-error-on-warning = false
+# The "warn" rules below are downgraded because the template's own, untyped-by-
+# design dependencies trip them - not because a finding there is safe to ignore.
+# `error-on-warning = true` means a warning gates the run exactly like an error
+# does; the platform-layer override further down still promotes the same rules
+# to `error` for our own code, so a violation there is the more severe
+# annotation (red, not yellow) even though both now fail the run the same way.
+# `false` here is what let 61 warning-level diagnostics exit 0 and look
+# identical to a clean run - green check, no annotation, nothing distinguishing
+# the two.
+error-on-warning = true
 
 [tool.ty.environment]
 python-version = "3.12"
@@ -462,15 +612,44 @@ include = [
     "app/agents/**",
     "app/commands/bootstrap.py",
     "app/commands/audit_skill_bindings.py",
+    "app/commands/audit_verify.py",
+    "app/commands/vault_rotate.py",
     "app/commands/sandbox_runtimes.py",
+    "app/commands/invite_members.py",
+    "app/commands/data_protection.py",
     "app/core/permissions.py",
     "app/core/catalog/**",
     "app/core/secret_kinds.py",
     "app/core/vault.py",
+    # The audit trail, fail-closed and part of the caller's transaction. Every
+    # service that records a privileged action is already in this list; the trail
+    # they write to was not (#20).
+    "app/core/audit.py",
     "app/core/background.py",
+    # The dedicated bounded pool for blocking file work, kept off the executor
+    # bcrypt and DNS share; its write is cancellation-safe (#1108).
+    "app/core/blocking.py",
+    # The LibreOffice conversion the RAG parser (and, later, chat) drives, owned
+    # here so a hung `soffice` is killed on timeout rather than orphaned (#1685).
+    "app/core/office_convert.py",
+    # The SSRF allow/deny every outbound URL a tenant chooses is checked against -
+    # a webhook, an MCP server address. A hole here is a request to an internal
+    # address the operator cannot see, which is the pair to pinned_http below (#28).
+    "app/core/sanitize.py",
+    # The bounded opening of a skill or context body that a listing card peeks at.
+    "app/core/excerpt.py",
     # The client that dials the address it validated, for a URL the party being
     # validated chose. A miss here is an SSRF the operator cannot see.
     "app/core/pinned_http.py",
+    # Its first sync connector caller: a crawl whose every link is chosen by the
+    # site it reads, and the page text that decides what a sync re-embeds (#984).
+    "app/services/rag/connectors/web.py",
+    "app/services/rag/connectors/web_page.py",
+    # Which host is sent the Entra app's secret, its Graph token or neither.
+    "app/services/rag/connectors/sharepoint.py",
+    # The query strings a knowledge search runs, and the one place an expansion
+    # failure is allowed to fall back to the plain query (#1649).
+    "app/services/rag/query_analysis.py",
     # The one size limit that runs before a body is read. Every other one in this
     # codebase measures bytes that have already arrived.
     "app/core/body_limit.py",
@@ -483,6 +662,11 @@ include = [
     # and nothing else, which is what keeps a caller's own submission out of a
     # response body a fifth call site would otherwise hand it (#882).
     "app/core/field_errors.py",
+    "app/core/phone.py",
+    # Whose memory a row is - the three owner-key shapes, and the one place they
+    # are built and read. A leaf module because everything from the models to the
+    # capability needs it and every other home is an import cycle (#788).
+    "app/core/memory_keys.py",
     # Which tables alembic owns and which the vector store makes at runtime. It is
     # two statements, and one of them decides whether `db-check` reports real drift.
     "app/db/vector_tables.py",
@@ -500,6 +684,10 @@ include = [
     "app/services/agent_chat.py",
     "app/services/agent_environment.py",
     "app/services/agent_exposure.py",
+    # What the model is actually told about each tool, read off the built
+    # toolset rather than the catalog's hand-typed one-liner - the Toolbox
+    # panel and the exposure form's channel-lookups list both read it (#1473).
+    "app/services/capability_contracts.py",
     "app/services/agent_trigger.py",
     "app/services/trigger_events.py",
     "app/services/trigger_dedupe.py",
@@ -507,17 +695,26 @@ include = [
     "app/schemas/trigger_template.py",
     "app/services/agent_registry.py",
     "app/services/agent_runner.py",
+    "app/services/agent_templates.py",
     "app/services/agent_session.py",
     # The turn loop itself, shared by the dashboard chat and the embedded
     # widget since #634. One frame vocabulary for both sockets, and the sink a
     # public surface filters at - so a toggle that fails open sends an agent's
     # reasoning to a stranger.
     "app/services/run_stream.py",
+    "app/services/run_reaper.py",
     "app/repositories/agent_workspace.py",
+    "app/repositories/local_service.py",
     "app/repositories/sandbox_connection.py",
     "app/repositories/skill_proposal.py",
     "app/services/attachments.py",
+    # The one subprocess in the chat attachment feature (#1591): a managed,
+    # killable `soffice` for DOC. Every branch is a refusal or a teardown - a
+    # timeout, a cancellation, a nonzero exit, an oversized output - so it is held
+    # to the same bar as the other security-sensitive services here.
+    "app/services/office_convert.py",
     "app/services/chat_timeline.py",
+    "app/services/local_service.py",
     "app/services/sandbox_connection.py",
     "app/services/sandbox_runtimes.py",
     "app/services/sandbox_workspace.py",
@@ -529,10 +726,13 @@ include = [
     "app/services/channels/membership.py",
     "app/services/channels/mentions.py",
     "app/services/collection_access.py",
+    "app/repositories/collection_teardown.py",
     "app/services/embed_session.py",
     "app/services/embedding_resolution.py",
     "app/services/approvals.py",
     "app/services/audit.py",
+    "app/services/impersonation.py",
+    "app/services/ws_auth.py",
     "app/services/health.py",
     "app/services/email/templates.py",
     "app/services/ingestion_config.py",
@@ -542,21 +742,40 @@ include = [
     # mention, a schedule — so a silent failure here is indistinguishable from
     # an agent that simply had nothing to say.
     "app/services/notifications.py",
+    "app/services/notification_catalog.py",
+    "app/services/notification_center.py",
+    "app/services/notification_delivery.py",
+    "app/repositories/notification.py",
+    "app/api/routes/v1/notifications.py",
+    # The one action in this feature no organization-scoped role can reach.
+    "app/services/announcement.py",
+    "app/repositories/announcement.py",
+    "app/api/routes/v1/admin_announcements.py",
     "app/services/mcp_catalog.py",
     "app/services/portal_catalog.py",
     "app/services/portals/__init__.py",
     "app/services/portals/base.py",
     "app/services/portals/exceptions.py",
     "app/services/portals/github.py",
+    "app/services/portals/github_app.py",
     "app/services/portals/github_oauth.py",
     "app/services/portals/registry.py",
     "app/services/mcp_connection.py",
     # Which providers can draw an image, derived from the SDK. What it decides is
     # what the Builder offers, and a probe that quietly starts answering "no"
     # would empty that picker without a single test failing.
+    "app/services/decision_models.py",
     "app/services/image_models.py",
     "app/services/model_profile.py",
     "app/services/organization_secret.py",
+    # Same shape and the same reason as `image_models`: what a picker offers is
+    # decided by filtering a data file against what the platform can actually
+    # reach, and an entry that quietly stops being offered - or starts being
+    # offered and fails on the first voice note - is invisible without a test.
+    "app/services/mcp_listing.py",
+    "app/services/mcp_registry.py",
+    "app/services/speech_to_text.py",
+    "app/services/transcription.py",
     # The rest of `app/services/rag/` came with the template and is reported
     # rather than gated. This module is ours and is only refusals - where a
     # remote file may be written, and what may reach a Drive query - so the
@@ -567,8 +786,15 @@ include = [
     # this module decided to store - so it is held to the bar the code it
     # replaced never was.
     "app/services/rag/_splitters.py",
+    # The retrieval filter contract (FA-039): the narrowing-only business
+    # filters, the server-trusted tenant/authorization scope, and their
+    # composition. Trust-boundary validation, gated where the rest of the RAG
+    # pipeline is only reported.
+    "app/services/rag/filters.py",
+    "app/services/rag/parent_context.py",
     "app/services/sharing.py",
     "app/services/skills.py",
+    "app/services/exporting.py",
     "app/services/run_export.py",
     "app/services/spend.py",
     "app/services/stats.py",
@@ -587,6 +813,7 @@ include = [
     "app/api/routes/v1/agent_exposures.py",
     "app/api/routes/v1/agent_triggers.py",
     "app/api/routes/v1/trigger_webhooks.py",
+    "app/api/routes/v1/local_services.py",
     "app/api/routes/v1/sandbox_connections.py",
     "app/api/routes/v1/skill_changes.py",
     "app/api/routes/v1/workspaces.py",
@@ -602,6 +829,22 @@ include = [
     "app/repositories/context.py",
     "app/services/context.py",
     "app/api/routes/v1/context.py",
+    "app/db/models/artifact.py",
+    "app/schemas/artifact.py",
+    "app/repositories/artifact.py",
+    "app/services/artifact.py",
+    "app/api/routes/v1/_artifact_bytes.py",
+    "app/api/routes/v1/artifacts.py",
+    "app/repositories/memory.py",
+    "app/services/memory/_native.py",
+    "app/services/memory/facade.py",
+    "app/api/routes/v1/memory.py",
+    # Which past conversations an agent may search, and the full-text query over
+    # them. The predicate is the whole of it - a way in added here is a way in for
+    # every agent at once - so it is held to the same bar as the permission code
+    # (#789).
+    "app/repositories/conversation_search.py",
+    "app/services/conversation_search.py",
     "app/services/generated_media.py",
     "app/api/routes/v1/generated_media.py",
     # What this deployment calls itself, who may register, and whether it is open
@@ -625,9 +868,50 @@ include = [
     # on every route. Gated because it is a refusal path nobody exercises on purpose
     # and because it goes away the moment upstream guards it.
     "app/core/otel_compat.py",
+    # Whether a running deployment matches a security profile. A control that
+    # passed on a deployment that does not satisfy it is a sheet somebody puts in
+    # front of an auditor, so every branch of every control is held to the gate
+    # (#1448).
+    "app/services/deployment_profile.py",
+    # How long each class of data lives here, who may say so, and the sweep that
+    # applies it. A number that resolves wrongly either deletes what a deployment
+    # is obliged to keep or keeps what it is obliged to delete, and the sweep is
+    # the one code path in the platform whose whole purpose is a hard delete - so
+    # every branch of the precedence, every class, and every refusal is held to
+    # the gate (#1420).
+    "app/core/retention.py",
+    "app/repositories/retention.py",
+    "app/services/retention.py",
     # Where `HTTPException` joins the one error envelope. It answers a 405, an
     # unmatched path, and twenty-two direct raises, none of which a happy path sees.
     "app/api/exception_handlers.py",
+    # The standalone ML services (FA-069). Held here because the surface is one
+    # another Urban Stack component calls with a key and no person watching: the
+    # refusals are the contract, the tenant scoping on a call record is what keeps
+    # one integrator's usage out of another's, and a branch nobody exercises on
+    # purpose is exactly the one an unattended caller finds.
+    "app/services/ml/catalog.py",
+    "app/services/ml/pii.py",
+    "app/services/ml/parsing.py",
+    "app/services/ml/facade.py",
+    "app/db/models/ml_service_call.py",
+    "app/repositories/ml_service_call.py",
+    "app/schemas/ml.py",
+    "app/api/routes/v1/ml.py",
+    # Groups, directory group mappings, and signing in with a directory (#1773).
+    # Authentication and membership: what they refuse is the feature.
+    "app/db/models/group.py",
+    "app/db/models/directory_mapping.py",
+    "app/repositories/group.py",
+    "app/repositories/directory_mapping.py",
+    "app/schemas/group.py",
+    "app/schemas/directory.py",
+    "app/services/group.py",
+    "app/services/directory/**",
+    "app/api/routes/v1/groups.py",
+    "app/api/routes/v1/directory_mappings.py",
+    "app/api/routes/v1/directory_auth.py",
+    "app/api/routes/v1/_directory_handoff.py",
 ]
 # Mirrors `[tool.coverage.run] omit` - one definition of "ours", asserted equal
 # by tests/test_coverage_gate.py.
@@ -659,6 +943,13 @@ unresolved-import = "error"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# `--strict-markers` turns a marker that is not registered below into an error
+# rather than a warning, so a misspelled marker name fails the run instead of
+# silently dropping the test from `-m security`.
+addopts = "--strict-markers"
+markers = [
+    "security: a refusal or security-boundary test. Collected as a set so the security report can show the refusals rather than assert them (#1417) — tenant isolation, permission and grant refusals, a budget checked before the model call, an approval decided once, secret confidentiality, spec publish validation, channel sender identity, constant-time credential compare, webhook HMAC and rate limits. It is a label for the report, not a second gate: `make check` still runs everything.",
+]
 
 
 
@@ -682,15 +973,44 @@ include = [
     "app/agents/**",
     "app/commands/bootstrap.py",
     "app/commands/audit_skill_bindings.py",
+    "app/commands/audit_verify.py",
+    "app/commands/vault_rotate.py",
     "app/commands/sandbox_runtimes.py",
+    "app/commands/invite_members.py",
+    "app/commands/data_protection.py",
     "app/core/permissions.py",
     "app/core/catalog/**",
     "app/core/secret_kinds.py",
     "app/core/vault.py",
+    # The audit trail, fail-closed and part of the caller's transaction. Every
+    # service that records a privileged action is already in this list; the trail
+    # they write to was not (#20).
+    "app/core/audit.py",
     "app/core/background.py",
+    # The dedicated bounded pool for blocking file work, kept off the executor
+    # bcrypt and DNS share; its write is cancellation-safe (#1108).
+    "app/core/blocking.py",
+    # The LibreOffice conversion the RAG parser (and, later, chat) drives, owned
+    # here so a hung `soffice` is killed on timeout rather than orphaned (#1685).
+    "app/core/office_convert.py",
+    # The SSRF allow/deny every outbound URL a tenant chooses is checked against -
+    # a webhook, an MCP server address. A hole here is a request to an internal
+    # address the operator cannot see, which is the pair to pinned_http below (#28).
+    "app/core/sanitize.py",
+    # The bounded opening of a skill or context body that a listing card peeks at.
+    "app/core/excerpt.py",
     # The client that dials the address it validated, for a URL the party being
     # validated chose. A miss here is an SSRF the operator cannot see.
     "app/core/pinned_http.py",
+    # Its first sync connector caller: a crawl whose every link is chosen by the
+    # site it reads, and the page text that decides what a sync re-embeds (#984).
+    "app/services/rag/connectors/web.py",
+    "app/services/rag/connectors/web_page.py",
+    # Which host is sent the Entra app's secret, its Graph token or neither.
+    "app/services/rag/connectors/sharepoint.py",
+    # The query strings a knowledge search runs, and the one place an expansion
+    # failure is allowed to fall back to the plain query (#1649).
+    "app/services/rag/query_analysis.py",
     # The one size limit that runs before a body is read. Every other one in this
     # codebase measures bytes that have already arrived.
     "app/core/body_limit.py",
@@ -703,6 +1023,11 @@ include = [
     # and nothing else, which is what keeps a caller's own submission out of a
     # response body a fifth call site would otherwise hand it (#882).
     "app/core/field_errors.py",
+    "app/core/phone.py",
+    # Whose memory a row is - the three owner-key shapes, and the one place they
+    # are built and read. A leaf module because everything from the models to the
+    # capability needs it and every other home is an import cycle (#788).
+    "app/core/memory_keys.py",
     # Which tables alembic owns and which the vector store makes at runtime. It is
     # two statements, and one of them decides whether `db-check` reports real drift.
     "app/db/vector_tables.py",
@@ -720,6 +1045,10 @@ include = [
     "app/services/agent_chat.py",
     "app/services/agent_environment.py",
     "app/services/agent_exposure.py",
+    # What the model is actually told about each tool, read off the built
+    # toolset rather than the catalog's hand-typed one-liner - the Toolbox
+    # panel and the exposure form's channel-lookups list both read it (#1473).
+    "app/services/capability_contracts.py",
     "app/services/agent_trigger.py",
     "app/services/trigger_events.py",
     "app/services/trigger_dedupe.py",
@@ -727,6 +1056,7 @@ include = [
     "app/schemas/trigger_template.py",
     "app/services/agent_registry.py",
     "app/services/agent_runner.py",
+    "app/services/agent_templates.py",
     # The whole dashboard chat wire format: every frame the WebSocket sends and
     # every frame it accepts. It sat outside both gates while `use-chat.ts`
     # switched on its names, which is the drift #144 describes.
@@ -736,11 +1066,19 @@ include = [
     # public surface filters at - so a toggle that fails open sends an agent's
     # reasoning to a stranger.
     "app/services/run_stream.py",
+    "app/services/run_reaper.py",
     "app/repositories/agent_workspace.py",
+    "app/repositories/local_service.py",
     "app/repositories/sandbox_connection.py",
     "app/repositories/skill_proposal.py",
     "app/services/attachments.py",
+    # The one subprocess in the chat attachment feature (#1591): a managed,
+    # killable `soffice` for DOC. Every branch is a refusal or a teardown - a
+    # timeout, a cancellation, a nonzero exit, an oversized output - so it is held
+    # to the same bar as the other security-sensitive services here.
+    "app/services/office_convert.py",
     "app/services/chat_timeline.py",
+    "app/services/local_service.py",
     "app/services/sandbox_connection.py",
     "app/services/sandbox_runtimes.py",
     "app/services/sandbox_workspace.py",
@@ -752,6 +1090,7 @@ include = [
     "app/services/channels/membership.py",
     "app/services/channels/mentions.py",
     "app/services/collection_access.py",
+    "app/repositories/collection_teardown.py",
     # One visitor's turn on a public widget: who it runs as, how often they may
     # ask, and what the page is allowed to put in front of the model. An
     # unreachable `except BudgetExceeded` sat here for as long as it was
@@ -763,6 +1102,13 @@ include = [
     # did what in an organization, and the scope is the whole point of the
     # service: one wrong argument here would show another tenant's actions.
     "app/services/audit.py",
+    # An administrator acting as somebody else. Every branch here is a refusal -
+    # an ended row, an expired one, a token carried onto another session - and a
+    # refusal nobody has watched fail is the credential #1044 replaced.
+    "app/services/impersonation.py",
+    # The one check the chat socket re-runs on every frame - shared with the
+    # handshake so an open socket is no more permissive than a new one (#1437).
+    "app/services/ws_auth.py",
     # The health probes are ours: the template's version reported a hardcoded
     # "unknown" for the vector store and read environment variables for a
     # provider check. A probe nobody has watched fail is not a probe, which is
@@ -790,21 +1136,40 @@ include = [
     # mention, a schedule — so a silent failure here is indistinguishable from
     # an agent that simply had nothing to say.
     "app/services/notifications.py",
+    "app/services/notification_catalog.py",
+    "app/services/notification_center.py",
+    "app/services/notification_delivery.py",
+    "app/repositories/notification.py",
+    "app/api/routes/v1/notifications.py",
+    # The one action in this feature no organization-scoped role can reach.
+    "app/services/announcement.py",
+    "app/repositories/announcement.py",
+    "app/api/routes/v1/admin_announcements.py",
     "app/services/mcp_catalog.py",
     "app/services/portal_catalog.py",
     "app/services/portals/__init__.py",
     "app/services/portals/base.py",
     "app/services/portals/exceptions.py",
     "app/services/portals/github.py",
+    "app/services/portals/github_app.py",
     "app/services/portals/github_oauth.py",
     "app/services/portals/registry.py",
     "app/services/mcp_connection.py",
     # Which providers can draw an image, derived from the SDK. What it decides is
     # what the Builder offers, and a probe that quietly starts answering "no"
     # would empty that picker without a single test failing.
+    "app/services/decision_models.py",
     "app/services/image_models.py",
     "app/services/model_profile.py",
     "app/services/organization_secret.py",
+    # Same shape and the same reason as `image_models`: what a picker offers is
+    # decided by filtering a data file against what the platform can actually
+    # reach, and an entry that quietly stops being offered - or starts being
+    # offered and fails on the first voice note - is invisible without a test.
+    "app/services/mcp_listing.py",
+    "app/services/mcp_registry.py",
+    "app/services/speech_to_text.py",
+    "app/services/transcription.py",
     # The rest of `app/services/rag/` came with the template and is reported
     # rather than gated. This module is ours and is only refusals - where a
     # remote file may be written, and what may reach a Drive query - so the
@@ -815,8 +1180,15 @@ include = [
     # this module decided to store - so it is held to the bar the code it
     # replaced never was.
     "app/services/rag/_splitters.py",
+    # The retrieval filter contract (FA-039): the narrowing-only business
+    # filters, the server-trusted tenant/authorization scope, and their
+    # composition. Trust-boundary validation, gated where the rest of the RAG
+    # pipeline is only reported.
+    "app/services/rag/filters.py",
+    "app/services/rag/parent_context.py",
     "app/services/sharing.py",
     "app/services/skills.py",
+    "app/services/exporting.py",
     "app/services/run_export.py",
     "app/services/spend.py",
     "app/services/stats.py",
@@ -835,6 +1207,7 @@ include = [
     "app/api/routes/v1/agent_exposures.py",
     "app/api/routes/v1/agent_triggers.py",
     "app/api/routes/v1/trigger_webhooks.py",
+    "app/api/routes/v1/local_services.py",
     "app/api/routes/v1/sandbox_connections.py",
     "app/api/routes/v1/skill_changes.py",
     "app/api/routes/v1/workspaces.py",
@@ -850,6 +1223,22 @@ include = [
     "app/repositories/context.py",
     "app/services/context.py",
     "app/api/routes/v1/context.py",
+    "app/db/models/artifact.py",
+    "app/schemas/artifact.py",
+    "app/repositories/artifact.py",
+    "app/services/artifact.py",
+    "app/api/routes/v1/_artifact_bytes.py",
+    "app/api/routes/v1/artifacts.py",
+    "app/repositories/memory.py",
+    "app/services/memory/_native.py",
+    "app/services/memory/facade.py",
+    "app/api/routes/v1/memory.py",
+    # Which past conversations an agent may search, and the full-text query over
+    # them. The predicate is the whole of it - a way in added here is a way in for
+    # every agent at once - so it is held to the same bar as the permission code
+    # (#789).
+    "app/repositories/conversation_search.py",
+    "app/services/conversation_search.py",
     "app/services/generated_media.py",
     "app/api/routes/v1/generated_media.py",
     # What this deployment calls itself, who may register, and whether it is open
@@ -873,9 +1262,50 @@ include = [
     # on every route. Gated because it is a refusal path nobody exercises on purpose
     # and because it goes away the moment upstream guards it.
     "app/core/otel_compat.py",
+    # Whether a running deployment matches a security profile. A control that
+    # passed on a deployment that does not satisfy it is a sheet somebody puts in
+    # front of an auditor, so every branch of every control is held to the gate
+    # (#1448).
+    "app/services/deployment_profile.py",
+    # How long each class of data lives here, who may say so, and the sweep that
+    # applies it. A number that resolves wrongly either deletes what a deployment
+    # is obliged to keep or keeps what it is obliged to delete, and the sweep is
+    # the one code path in the platform whose whole purpose is a hard delete - so
+    # every branch of the precedence, every class, and every refusal is held to
+    # the gate (#1420).
+    "app/core/retention.py",
+    "app/repositories/retention.py",
+    "app/services/retention.py",
     # Where `HTTPException` joins the one error envelope. It answers a 405, an
     # unmatched path, and twenty-two direct raises, none of which a happy path sees.
     "app/api/exception_handlers.py",
+    # The standalone ML services (FA-069). Held here because the surface is one
+    # another Urban Stack component calls with a key and no person watching: the
+    # refusals are the contract, the tenant scoping on a call record is what keeps
+    # one integrator's usage out of another's, and a branch nobody exercises on
+    # purpose is exactly the one an unattended caller finds.
+    "app/services/ml/catalog.py",
+    "app/services/ml/pii.py",
+    "app/services/ml/parsing.py",
+    "app/services/ml/facade.py",
+    "app/db/models/ml_service_call.py",
+    "app/repositories/ml_service_call.py",
+    "app/schemas/ml.py",
+    "app/api/routes/v1/ml.py",
+    # Groups, directory group mappings, and signing in with a directory (#1773).
+    # Authentication and membership: what they refuse is the feature.
+    "app/db/models/group.py",
+    "app/db/models/directory_mapping.py",
+    "app/repositories/group.py",
+    "app/repositories/directory_mapping.py",
+    "app/schemas/group.py",
+    "app/schemas/directory.py",
+    "app/services/group.py",
+    "app/services/directory/**",
+    "app/api/routes/v1/groups.py",
+    "app/api/routes/v1/directory_mappings.py",
+    "app/api/routes/v1/directory_auth.py",
+    "app/api/routes/v1/_directory_handoff.py",
 ]
 branch = true
 omit = [

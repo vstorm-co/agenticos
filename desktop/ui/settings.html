@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AgenticOS settings</title>
+    <link rel="stylesheet" href="connect.css" />
+    <link rel="stylesheet" href="settings.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Settings</h1>
+      <form id="server-form">
+        <label for="server">Server address</label>
+        <p class="hint">The address you open in a browser. A <code>make dev</code> stack answers on <code>http://localhost:3000</code>.</p>
+        <div class="row">
+          <input id="server" name="server" type="text" autocomplete="url" spellcheck="false" placeholder="http://localhost:3000" />
+          <button type="submit" id="connect">Connect</button>
+        </div>
+        <p id="server-error" role="alert" hidden></p>
+      </form>
+      <h2>Shortcuts</h2>
+      <p>Global: they work whichever application is in front.</p>
+      <form id="shortcuts">
+        <label for="screenshot">Screenshot to a new chat</label>
+        <p class="hint">
+          Pick a region of the screen; it lands attached to a fresh chat in the console. Click the field, then hold the
+          modifiers and press a key. Escape cancels; a combination needs at least one modifier.
+        </p>
+        <div class="row">
+          <input id="screenshot" name="screenshot" type="text" readonly spellcheck="false" placeholder="Not bound" />
+          <button type="submit" id="save" disabled>Save</button>
+          <button type="button" id="clear" class="secondary">Clear</button>
+        </div>
+        <p id="error" role="alert" hidden></p>
+      </form>
+      <p><a href="#" id="back">Back to the console</a></p>
+    </main>
+    <script type="module" src="settings.js"></script>
+  </body>
+</html>

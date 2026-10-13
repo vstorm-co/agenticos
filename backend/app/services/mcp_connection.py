@@ -32,35 +32,47 @@ from __future__ import annotations
 import logging
 import secrets
 from collections.abc import Awaitable, Callable, Sequence
+from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from mcp.shared.auth import OAuthToken
+from pydantic import SecretStr, TypeAdapter
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents import mcp_oauth
+from app.agents.connect_on_use import OwnAccountGap, ServiceOutcome
 from app.agents.mcp import (
     McpServerSpec,
     McpToolInfo,
-    build_mcp_toolsets,
+    prefix_collisions,
     probe_error_message,
     probe_mcp_server,
+    probe_toolsets,
     validate_mcp_url,
 )
 from app.agents.mcp_oauth import McpOAuthPayload, OAuthError
+from app.agents.spec import McpServerRef, PersonalMcpServerRef
 from app.core.audit import record_audit
 from app.core.config import settings
-from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    BadRequestError,
+    ExternalServiceError,
+    NotFoundError,
+)
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext
 from app.core.sanitize import UrlRefusedError
-from app.core.secret_kinds import SecretKind
-from app.core.vault import SealedSecret, VaultScope, seal, unseal
+from app.core.secret_kinds import GithubAppSecret, SecretKind
+from app.core.vault import SealedSecret, VaultScope, current_key_version, seal, unseal
+from app.db.locks import LockScope, hold_name
 from app.db.models.mcp_connection import McpConnection
+from app.db.session import get_db_context
 from app.db.updates import writable
-from app.repositories import mcp_connection_repo
+from app.repositories import mcp_connection_repo, mcp_registry_server_repo
 from app.schemas.mcp_connection import (
     McpConnectionCreate,
     McpConnectionUpdate,
@@ -68,9 +80,11 @@ from app.schemas.mcp_connection import (
     OrgMcpConnectionUpdate,
 )
 from app.services import portal_catalog, portals
+from app.services.impersonation import refuse_binding_while_impersonating
 from app.services.mcp_catalog import get_entry
 from app.services.organization_secret import OrganizationSecretService
-from app.services.portals import github_oauth, google_oauth
+from app.services.portals import github_app, github_oauth, google_oauth
+from app.services.portals.github_app import GitHubAppPortalAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -122,13 +136,45 @@ async def _checked_url(url: str) -> str:
         raise refused_field("url", f"This MCP server URL cannot be used: {exc}") from exc
 
 
+def _revealed(value: SecretStr | None) -> str | None:
+    """A stored credential as the provider wants it on the wire."""
+    return None if value is None else value.get_secret_value()
+
+
+def _refuse_a_client_this_server_will_not_authenticate(server: mcp_oauth.DiscoveredServer) -> None:
+    """Refuse a pre-registered confidential client this flow cannot authenticate.
+
+    Dynamic registration states `client_secret_post` in `client_metadata`, so the
+    server is told how the secret will arrive. A client registered by hand was
+    not, and `exchange_code` and `refresh_tokens` only ever put `client_secret`
+    in the form body - a client configured for `client_secret_basic` would pass
+    consent and then fail every token request, which is the worst moment to find
+    out. Refused here instead, while there is still a form to say it on.
+
+    Silence is taken as consent: RFC 8414 makes
+    `token_endpoint_auth_methods_supported` optional and defaults it to
+    `client_secret_basic`, but servers that omit it in practice accept the body
+    form, and refusing all of them would refuse the case this exists for.
+    """
+    methods = server.metadata.token_endpoint_auth_methods_supported
+    if methods is not None and "client_secret_post" not in methods:
+        raise OAuthError(
+            "This server does not accept a client secret in the token request body "
+            f"(it allows {', '.join(sorted(methods))}), and that is the only way this "
+            "flow sends one. Register the client for client_secret_post, or connect it "
+            "without a secret."
+        )
+
+
 def _apply_token(payload: McpOAuthPayload, token: OAuthToken) -> McpOAuthPayload:
     """Fold a fresh token grant/refresh into the stored payload."""
     return payload.model_copy(
         update={
-            "access_token": token.access_token,
+            "access_token": SecretStr(token.access_token),
             # A refresh response may omit refresh_token - keep the existing one.
-            "refresh_token": token.refresh_token or payload.refresh_token,
+            "refresh_token": (
+                SecretStr(token.refresh_token) if token.refresh_token else payload.refresh_token
+            ),
             "expires_at": (_now_epoch() + token.expires_in) if token.expires_in else None,
             "scope": token.scope or payload.scope,
             "code_verifier": None,
@@ -150,7 +196,7 @@ async def _complete_mcp_flow(
     token = await mcp_oauth.exchange_code(
         token_endpoint=payload.token_endpoint,
         client_id=payload.client_id,
-        client_secret=payload.client_secret,
+        client_secret=_revealed(payload.client_secret),
         code=code,
         code_verifier=payload.code_verifier,
         redirect_uri=payload.redirect_uri,
@@ -198,7 +244,7 @@ async def _complete_google_flow(
     try:
         token = await google_oauth.exchange_code(
             client_id=payload.client_id,
-            client_secret=payload.client_secret or "",
+            client_secret=_revealed(payload.client_secret) or "",
             code=code,
             redirect_uri=payload.redirect_uri,
         )
@@ -206,13 +252,13 @@ async def _complete_google_flow(
         raise OAuthError(str(exc)) from exc
     payload = payload.model_copy(
         update={
-            "access_token": token.access_token,
+            "access_token": SecretStr(token.access_token),
             # Kept where Google sent one. Without `access_type=offline` it does not,
             # and a grant with no refresh token stops working in an hour with
             # nothing to say why - which is why the consent URL asks for it. A
             # re-consent that omits one falls back to the live payload's, in the
             # callback, where that payload is in hand.
-            "refresh_token": token.refresh_token,
+            "refresh_token": SecretStr(token.refresh_token) if token.refresh_token else None,
             "expires_at": (
                 None if token.expires_in is None else _now_epoch() + float(token.expires_in)
             ),
@@ -236,7 +282,7 @@ async def _complete_github_flow(
     try:
         token = await github_oauth.exchange_code(
             client_id=payload.client_id,
-            client_secret=payload.client_secret or "",
+            client_secret=_revealed(payload.client_secret) or "",
             code=code,
             redirect_uri=payload.redirect_uri,
         )
@@ -244,7 +290,7 @@ async def _complete_github_flow(
         raise OAuthError(str(exc)) from exc
     payload = payload.model_copy(
         update={
-            "access_token": token.access_token,
+            "access_token": SecretStr(token.access_token),
             "refresh_token": None,
             "expires_at": None,
             "code_verifier": None,
@@ -308,6 +354,16 @@ def _decode_payload(connection: McpConnection, encrypted: str | None) -> McpOAut
 # anything, which is the loud failure a silent empty string would not be.
 _POLLED_PORTAL_URL = {"google": "https://gmail.googleapis.com"}
 
+_GITHUB_APP_GRANT_URL = "https://api.github.com"
+"""What a GitHub App grant records as its address.
+
+The column is not nullable and every other grant points at the server it talks
+to, so this points at the one an installation token is spent against. Nothing
+resolves a connection by it - the App grant is found by its portal key and its
+installation id - and inventing a per-installation URL would imply a lookup that
+does not exist.
+"""
+
 # How stale a grant's `polled_at` must be before a tick claims it again, and how
 # many one tick takes. The interval matches the heartbeat's own minute; the batch
 # bounds a tick's cost on a deployment with many connected mailboxes - the rest
@@ -344,15 +400,15 @@ async def _refresh_under_lock(db: AsyncSession, connection: McpConnection) -> st
     if payload is None or not payload.access_token:
         return None
     if _token_is_fresh(payload):
-        return payload.access_token  # another turn refreshed while we waited
+        return _revealed(payload.access_token)  # another turn refreshed while we waited
     if not payload.refresh_token:
         return None
     try:
         token = await mcp_oauth.refresh_tokens(
             token_endpoint=payload.token_endpoint,
             client_id=payload.client_id,
-            client_secret=payload.client_secret,
-            refresh_token=payload.refresh_token,
+            client_secret=_revealed(payload.client_secret),
+            refresh_token=payload.refresh_token.get_secret_value(),
             resource=payload.resource,
             scope=payload.scope,
         )
@@ -365,7 +421,7 @@ async def _refresh_under_lock(db: AsyncSession, connection: McpConnection) -> st
         db_connection=locked,
         update_data={"oauth_payload": _seal_for(locked, payload.model_dump_json()).ciphertext},
     )
-    return payload.access_token
+    return _revealed(payload.access_token)
 
 
 async def _oauth_access_token(db: AsyncSession, connection: McpConnection) -> str | None:
@@ -376,7 +432,7 @@ async def _oauth_access_token(db: AsyncSession, connection: McpConnection) -> st
     if payload is None or not payload.access_token:
         return None  # not authorized yet, or an unreadable payload
     if _token_is_fresh(payload):
-        return payload.access_token
+        return _revealed(payload.access_token)
     if not payload.refresh_token:
         return None  # expired, no refresh token → user must re-authorize
     return await _refresh_under_lock(db, connection)
@@ -441,6 +497,10 @@ async def _resolve_auth_headers(
         return {"Authorization": f"Bearer {token}"} if token else None
     if connection.auth_token is None:
         return {}
+    if not connection.account_authorized:
+        # The master key that sealed it is gone; `unseal` would fail below anyway,
+        # and `account_authorized` is the same answer the rendered list reads (#1443).
+        return None
     try:
         token = unseal(
             connection.auth_token,
@@ -461,6 +521,27 @@ class McpConnectionService:
         return await mcp_connection_repo.list_for_user(self.db, user_id=user_id)
 
     async def create(self, *, user_id: UUID, data: McpConnectionCreate) -> McpConnection:
+        """Store one member's own account on a server.
+
+        Raises:
+            BadRequestError: If `catalog_key` names neither a curated entry nor a
+                mirrored registry row. The key is what a binding matches on to
+                speak as this account, so a wrong one is a connection that
+                silently never substitutes rather than an obvious mistake.
+            AlreadyExistsError: If this member already has a connection by that
+                name.
+            AuthorizationError: When the request runs under an impersonation and a
+                non-empty `auth_token` is supplied. The token is the administrator's
+                own, sealed under the target's vault scope, and it would speak as
+                the administrator's account, outlive the hour the impersonation is
+                bounded to, and stand recorded against the target (#1492); refused,
+                not audited.
+        """
+        if data.catalog_key is not None and not await self._known_catalog_key(data.catalog_key):
+            raise BadRequestError(
+                message=f"Unknown catalog server: {data.catalog_key}",
+                details={"catalog_key": data.catalog_key},
+            )
         url = await _checked_url(data.url)
         existing = await mcp_connection_repo.get_by_name(self.db, user_id=user_id, name=data.name)
         if existing is not None:
@@ -469,6 +550,8 @@ class McpConnectionService:
                 details={"name": data.name},
             )
         token = data.auth_token.strip() if data.auth_token else None
+        if token:
+            refuse_binding_while_impersonating("Adding an integration token")
         sealed = seal(token, scope=VaultScope.user(user_id)) if token else None
         try:
             return await mcp_connection_repo.create(
@@ -477,9 +560,11 @@ class McpConnectionService:
                 name=data.name,
                 url=url,
                 auth_token=sealed.ciphertext if sealed else None,
-                secret_key_version=sealed.key_version if sealed else 1,
+                secret_key_version=sealed.key_version if sealed else current_key_version(),
                 allowed_tools=data.allowed_tools,
                 is_enabled=data.is_enabled,
+                label=_stored_label(data.label),
+                catalog_key=data.catalog_key,
             )
         except IntegrityError as exc:
             raise AlreadyExistsError(
@@ -490,7 +575,23 @@ class McpConnectionService:
     async def update(
         self, *, user_id: UUID, connection_id: UUID, data: McpConnectionUpdate
     ) -> McpConnection:
-        db_connection = await self._get_owned(user_id=user_id, connection_id=connection_id)
+        """Change one member's own connection.
+
+        Raises:
+            AlreadyExistsError: If the new name is taken by another of this
+                member's connections.
+            AuthorizationError: When the request runs under an impersonation and a
+                non-empty `auth_token` replacement is supplied - the same refusal
+                as `create`, for the same reason (#1492). Clearing the token is
+                left alone; it stores no credential.
+        """
+        # Locked from the read: the token below is sealed at the row's recorded
+        # key version, and a rotation committing between an unlocked read and
+        # this write would tag the new envelope with a version it was not
+        # sealed under.
+        db_connection = await self._get_owned(
+            user_id=user_id, connection_id=connection_id, for_update=True
+        )
         update_data: dict[str, Any] = writable(
             data, over=McpConnection, exclude={"clear_allowed_tools"}
         )
@@ -510,11 +611,13 @@ class McpConnectionService:
 
         if "auth_token" in update_data:
             token = (update_data["auth_token"] or "").strip()
-            # "" clears the stored token; a non-empty value replaces it.
-            sealed = seal(token, scope=VaultScope.user(user_id)) if token else None
+            # "" clears the stored token; a non-empty value replaces it, sealed at
+            # the row's version - one version column covers every envelope in the
+            # row, so bumping it would orphan the OAuth siblings (#552).
+            if token:
+                refuse_binding_while_impersonating("Adding an integration token")
+            sealed = _seal_for(db_connection, token) if token else None
             update_data["auth_token"] = sealed.ciphertext if sealed else None
-            if sealed is not None:
-                update_data["secret_key_version"] = sealed.key_version
 
         if data.clear_allowed_tools:
             update_data["allowed_tools"] = None
@@ -528,10 +631,55 @@ class McpConnectionService:
         # OAuth tokens are bound to the resource they were issued for - never
         # carry them over to a different host. The user re-authorizes instead.
         moved = "url" in update_data and update_data["url"] != db_connection.url
+
+        # A different server offers different tools, and the Builder reads this
+        # cache without probing - so leaving it presented the previous host's
+        # tools as the new one's, and an allowlist saved from that list hides
+        # every tool the replacement actually has. Cleared on a move only: a
+        # failed probe against the same host says nothing about what it offers,
+        # which is why `test` leaves the list alone on error.
+        if moved:
+            update_data.setdefault("last_tools", None)
         if moved and db_connection.auth_type == "oauth":
             update_data["oauth_payload"] = None
             update_data["oauth_pending_payload"] = None
             update_data["oauth_state"] = None
+
+        if "label" in update_data:
+            update_data["label"] = _stored_label(update_data["label"])
+
+        if update_data.get("is_default"):
+            if db_connection.catalog_key is None:
+                # Nothing to nominate it against: the key is what says this
+                # account and the organization's are the same service, so a
+                # default on a connection made from a bare URL would never be
+                # read (#1342).
+                raise refused_field(
+                    "is_default",
+                    "This connection was made from a URL rather than from the catalog, "
+                    "so nothing says which service it is. Reconnect it from the catalog "
+                    "to speak as it.",
+                )
+            # Serialized per member and service before the clear, because the
+            # clear is what makes room for the set. Two nominations racing on
+            # one service each locked only their own row, each found no sibling
+            # still marked, and both wrote `is_default` - so one hit
+            # `uq_mcp_connections_user_default` and answered 500. The lock is
+            # held for the rest of the transaction, which is exactly as long as
+            # the index cares about.
+            await hold_name(
+                self.db, LockScope.MCP_DEFAULT_ACCOUNT, f"{user_id}:{db_connection.catalog_key}"
+            )
+            # Cleared on the siblings first, so the partial unique index is
+            # never asked to hold two at once. One statement rather than a read
+            # and a loop: the index is the constraint, and this is what keeps
+            # the write inside it.
+            await mcp_connection_repo.clear_default_for_catalog_key(
+                self.db,
+                user_id=user_id,
+                catalog_key=db_connection.catalog_key,
+                except_id=db_connection.id,
+            )
 
         if not update_data:
             return db_connection
@@ -571,11 +719,25 @@ class McpConnectionService:
                 "last_status": "error" if error else "ok",
                 "last_error": error,
                 "last_checked_at": datetime.now(UTC),
+                # Only on a probe that answered. A failed one says nothing about
+                # what the server offers, and blanking the list would leave an
+                # agent author with nothing to choose from because the server
+                # was briefly unreachable.
+                **({"last_tools": [asdict(tool) for tool in tools]} if error is None else {}),
             },
         )
         return db_connection, tools, error
 
-    async def oauth_start_for_org(self, ctx: AuthContext, *, name: str, url: str) -> str:
+    async def oauth_start_for_org(
+        self,
+        ctx: AuthContext,
+        *,
+        name: str,
+        url: str,
+        catalog_key: str | None = None,
+        client_id: str | None = None,
+        client_secret: SecretStr | None = None,
+    ) -> str:
         """Begin the OAuth flow for a server the *organization* will own.
 
         The grant is still one person's - somebody clicks consent, and the
@@ -588,10 +750,19 @@ class McpConnectionService:
         connection stops working, and the fix is for somebody to authorize it
         again. An organization that wants this should consent with an account it
         controls, not with a member's personal one.
+
+        Raises:
+            AuthorizationError: When the request runs under an impersonation. The
+                grant that comes back is the administrator's own, and the org
+                connection would record it as the member's - the org half of the
+                refusal #1438 made for personal connections (#1490).
         """
+        refuse_binding_while_impersonating("Connecting an integration")
         return await self._oauth_start(
             name=name,
             url=url,
+            client_id=client_id,
+            client_secret=client_secret,
             existing=await mcp_connection_repo.get_org_scoped_by_name(
                 self.db, organization_id=ctx.organization_id, name=name
             ),
@@ -601,17 +772,46 @@ class McpConnectionService:
                 organization_id=ctx.organization_id,
                 created_by_user_id=ctx.subject_id,
                 allowed_tools=None,
-                catalog_key=None,
+                catalog_key=catalog_key,
                 sealed_token=None,
                 **kwargs,
             ),
         )
 
-    async def oauth_start(self, *, user_id: UUID, name: str, url: str) -> str:
-        """Begin the OAuth authorization-code flow for a server this person owns."""
+    async def oauth_start(
+        self,
+        *,
+        user_id: UUID,
+        name: str,
+        url: str,
+        catalog_key: str | None = None,
+        client_id: str | None = None,
+        client_secret: SecretStr | None = None,
+    ) -> str:
+        """Begin the OAuth authorization-code flow for a server this person owns.
+
+        `catalog_key` is stored on the row it creates, and that is the whole
+        reason it is a parameter: a personal connection without one can never be
+        substituted for the organization's, so an OAuth account authorised here
+        would be invisible to every binding that asked to speak as its owner.
+
+        Raises:
+            AuthorizationError: When the request runs under an impersonation. The
+                grant that comes back is the administrator's own, and it would be
+                stored as the target's personal connection (#1438); refused, not
+                audited.
+        """
+        refuse_binding_while_impersonating("Connecting an integration")
+        if catalog_key is not None and not await self._known_catalog_key(catalog_key):
+            raise BadRequestError(
+                message=f"Unknown catalog server: {catalog_key}",
+                details={"catalog_key": catalog_key},
+            )
         return await self._oauth_start(
             name=name,
             url=url,
+            client_id=client_id,
+            client_secret=client_secret,
             existing=await mcp_connection_repo.get_by_name(self.db, user_id=user_id, name=name),
             vault_scope=VaultScope.user(user_id),
             create=lambda **kwargs: mcp_connection_repo.create(
@@ -619,6 +819,7 @@ class McpConnectionService:
                 user_id=user_id,
                 auth_token=None,
                 allowed_tools=None,
+                catalog_key=catalog_key,
                 **kwargs,
             ),
         )
@@ -631,6 +832,8 @@ class McpConnectionService:
         existing: McpConnection | None,
         vault_scope: VaultScope,
         create: Callable[..., Awaitable[McpConnection]],
+        client_id: str | None = None,
+        client_secret: SecretStr | None = None,
     ) -> str:
         """The flow both scopes share: discover, register, stage, and hand back a URL.
 
@@ -651,7 +854,16 @@ class McpConnectionService:
         url = await _checked_url(url)
         server = await mcp_oauth.discover(url)  # raises OAuthError if unsupported
         redirect_uri = _oauth_redirect_uri()
-        client_id, client_secret = await mcp_oauth.register_client(server, redirect_uri)
+        if client_id is None:
+            # The common case: the server registers this app on the spot. A
+            # server with no registration endpoint (HubSpot) refuses here, and the
+            # only way past is a client the operator registered by hand and passed
+            # in - its redirect URL must be `redirect_uri` exactly.
+            registered_id, registered_secret = await mcp_oauth.register_client(server, redirect_uri)
+            client_id = registered_id
+            client_secret = SecretStr(registered_secret) if registered_secret else None
+        elif client_secret is not None:
+            _refuse_a_client_this_server_will_not_authenticate(server)
         pkce = mcp_oauth.new_pkce()
         state = secrets.token_urlsafe(32)
         payload = McpOAuthPayload(
@@ -766,7 +978,10 @@ class McpConnectionService:
                 connect through GitHub (no `mcp_catalog_key`).
             NotFoundError: If the organization has stored no `github_oauth_app`
                 secret - a 4xx the connect UI shows, never a 500.
+            AuthorizationError: When the request runs under an impersonation - the
+                administrator's own grant would be bound as the member's (#1490).
         """
+        refuse_binding_while_impersonating("Connecting an integration")
         portal = portal_catalog.get_portal(portal_key)
         if portal is None or portal.mcp_catalog_key is None:
             raise BadRequestError(
@@ -792,7 +1007,7 @@ class McpConnectionService:
             authorization_endpoint=github_oauth.AUTHORIZE_ENDPOINT,
             token_endpoint=github_oauth.TOKEN_ENDPOINT,
             client_id=creds.client_id,
-            client_secret=creds.client_secret.get_secret_value(),
+            client_secret=creds.client_secret,
             scope=" ".join(scopes),
             # GitHub uses no RFC 8707 resource indicator; the field is required, so
             # it carries the server the connection points at, like every payload.
@@ -959,7 +1174,10 @@ class McpConnectionService:
                 the same way a missing GitHub OAuth App is, never a 500.
             BadRequestError: If more than one is stored, or `portal_key` names no
                 polled portal.
+            AuthorizationError: When the request runs under an impersonation - the
+                administrator's own grant would be bound as the member's (#1490).
         """
+        refuse_binding_while_impersonating("Connecting an integration")
         portal = portal_catalog.get_portal(portal_key)
         if portal is None or portal.delivery is not portal_catalog.DeliveryMode.POLLING:
             raise BadRequestError(
@@ -981,7 +1199,7 @@ class McpConnectionService:
             authorization_endpoint=google_oauth.AUTHORIZE_ENDPOINT,
             token_endpoint=google_oauth.TOKEN_ENDPOINT,
             client_id=creds.client_id,
-            client_secret=creds.client_secret.get_secret_value(),
+            client_secret=creds.client_secret,
             scope=" ".join(scopes),
             resource=_POLLED_PORTAL_URL[portal_key],
             redirect_uri=redirect_uri,
@@ -1015,6 +1233,109 @@ class McpConnectionService:
             scopes=scopes,
             state=state,
         )
+
+    async def connect_github_app(self, ctx: AuthContext, *, installation_id: str) -> McpConnection:
+        """Record which GitHub App installation this organization's triggers belong to.
+
+        The one portal here with no OAuth dance, because an App has none: somebody
+        installs it on the repositories they chose, GitHub shows an installation
+        id, and that id plus the App's own key in the vault is the whole grant.
+        Without this the portal declared a Connect action nothing could complete -
+        the frontend sends every GitHub portal to `oauth_start_for_org_github`,
+        which wants a `github_oauth_app` secret and makes an ordinary OAuth
+        connection, so an organization that stored only the App secret could
+        install the App, receive its deliveries, and have none of them match a
+        grant (#1072).
+
+        **The installation is proved before the row is written.** Minting a token
+        exercises the App id, the private key and the installation id together, so
+        a mistyped id or a PEM that lost its line breaks is refused here rather
+        than discovered as deliveries that quietly match nothing. It is also the
+        only moment any of the three can be checked: the vault never shows a
+        stored secret again.
+
+        Re-running it moves an existing grant to the new installation rather than
+        adding a second - the partial unique index allows one grant per portal per
+        organization, and two would be two installations with nothing to say which
+        a trigger meant.
+
+        Raises:
+            NotFoundError: The organization has stored no `github_app` secret.
+            BadRequestError: More than one such secret, or the portal is missing
+                from the catalog.
+            ExternalServiceError: GitHub would not mint a token for this
+                installation, which means the three values do not agree.
+            AuthorizationError: Under an impersonation, for the reason every other
+                binding is refused there (#1490).
+        """
+        refuse_binding_while_impersonating("Connecting an integration")
+        portal = portal_catalog.get_portal(GitHubAppPortalAdapter.portal_key)
+        if portal is None:
+            raise BadRequestError(
+                message="This deployment does not offer the GitHub App portal",
+                details={"portal_key": GitHubAppPortalAdapter.portal_key},
+            )
+        secret = TypeAdapter(GithubAppSecret).validate_python(
+            await OrganizationSecretService(self.db).app_secret(
+                ctx.organization_id, kind=SecretKind.GITHUB_APP
+            )
+        )
+        try:
+            await github_app.installation_token(
+                app_id=secret.app_id,
+                private_key=secret.private_key.get_secret_value(),
+                installation_id=installation_id,
+            )
+        except portals.PortalError as failure:
+            raise ExternalServiceError(
+                message=(
+                    "GitHub would not mint a token for that installation. Check the "
+                    "installation id, and that the private key was pasted whole."
+                ),
+                details={"installation_id": installation_id},
+            ) from failure
+
+        existing = await mcp_connection_repo.get_portal_grant(
+            self.db, organization_id=ctx.organization_id, portal_key=portal.key
+        )
+        if existing is not None:
+            connection = await mcp_connection_repo.update(
+                self.db,
+                db_connection=existing,
+                update_data={"portal_account_id": installation_id, "is_enabled": True},
+            )
+        else:
+            connection = await mcp_connection_repo.create_org_scoped(
+                self.db,
+                organization_id=ctx.organization_id,
+                created_by_user_id=ctx.subject_id,
+                name=portal.name,
+                url=_GITHUB_APP_GRANT_URL,
+                sealed_token=None,
+                secret_key_version=0,
+                allowed_tools=None,
+                catalog_key=None,
+                auth_type="none",
+                purpose="portal",
+                portal_key=portal.key,
+            )
+            connection = await mcp_connection_repo.update(
+                self.db,
+                db_connection=connection,
+                update_data={"portal_account_id": installation_id},
+            )
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="portal.github_app.connected",
+            target_type="mcp_connection",
+            target_id=str(connection.id),
+            # The installation id is not a credential - it is in every delivery -
+            # and it is the one value an operator needs to recognise the grant.
+            details={"portal_key": portal.key, "installation_id": installation_id},
+        )
+        return connection
 
     async def oauth_callback(self, *, state: str, code: str) -> McpConnection:
         """Complete the flow: exchange the code for tokens and store them.
@@ -1055,14 +1376,15 @@ class McpConnectionService:
         # right now leaves the cursor to the first poll, which is the old window
         # rather than a broken flow.
         poll_cursor = connection.poll_cursor
+        access_token = _revealed(payload.access_token)
         if (
             connection.purpose == "portal"
             and connection.portal_key is not None
             and poll_cursor is None
-            and payload.access_token
+            and access_token
         ):
             poll_cursor = await _initial_poll_cursor(
-                portal_key=connection.portal_key, access_token=payload.access_token
+                portal_key=connection.portal_key, access_token=access_token
             )
         return await mcp_connection_repo.update(
             self.db,
@@ -1091,8 +1413,15 @@ class McpConnectionService:
             },
         )
 
-    async def _get_owned(self, *, user_id: UUID, connection_id: UUID) -> McpConnection:
-        db_connection = await mcp_connection_repo.get_by_id(self.db, connection_id)
+    async def _get_owned(
+        self, *, user_id: UUID, connection_id: UUID, for_update: bool = False
+    ) -> McpConnection:
+        fetch = (
+            mcp_connection_repo.get_by_id_for_update
+            if for_update
+            else mcp_connection_repo.get_by_id
+        )
+        db_connection = await fetch(self.db, connection_id)
         # The scope check is the load-bearing half. These routes authorize on
         # `user_id` alone and demand no organization permission, so without it
         # whoever created an organization connection could repoint a published
@@ -1113,19 +1442,34 @@ class McpConnectionService:
             self.db, organization_id=ctx.organization_id
         )
 
+    async def _known_catalog_key(self, catalog_key: str) -> bool:
+        """Whether a key names a server this deployment can identify.
+
+        Two catalogs answer to this, and the second is the reason the check is
+        not `get_entry` alone: the listing serves 99 curated entries beside
+        5,703 mirrored from the public registry, and it hands back the registry
+        row's own id as the key. Validating against the curated set alone
+        refused every unreviewed server with `Unknown catalog server` - so the
+        mirror was searchable and connectable personally, and unusable for the
+        organization connections agents actually bind to.
+        """
+        if get_entry(catalog_key) is not None:
+            return True
+        return await mcp_registry_server_repo.get(self.db, catalog_key) is not None
+
     async def create_for_org(self, ctx: AuthContext, data: OrgMcpConnectionCreate) -> McpConnection:
         """Seal a credential for this organization and store the connection.
 
         Raises:
-            BadRequestError: If `catalog_key` names no catalog entry. A key
-                nothing recognises would show up in the Builder as a server with
-                no name and no logo, which reads as a broken row rather than as
-                the typo it is.
+            BadRequestError: If `catalog_key` names neither a curated catalog
+                entry nor a mirrored registry row. A key nothing recognises
+                would show up in the Builder as a server with no name and no
+                logo, which reads as a broken row rather than as the typo it is.
             AlreadyExistsError: If the name is taken inside this organization.
                 The name becomes the agent's tool prefix, so two servers sharing
                 one is two sets of tools nobody can tell apart.
         """
-        if data.catalog_key is not None and get_entry(data.catalog_key) is None:
+        if data.catalog_key is not None and not await self._known_catalog_key(data.catalog_key):
             raise BadRequestError(
                 message=f"Unknown catalog server: {data.catalog_key}",
                 details={"catalog_key": data.catalog_key},
@@ -1140,6 +1484,8 @@ class McpConnectionService:
                 details={"name": data.name},
             )
         token = data.auth_token.strip() if data.auth_token else None
+        if token:
+            refuse_binding_while_impersonating("Adding an integration token")
         sealed = seal(token, scope=VaultScope.organization(ctx.organization_id)) if token else None
         try:
             connection = await mcp_connection_repo.create_org_scoped(
@@ -1149,10 +1495,11 @@ class McpConnectionService:
                 name=data.name,
                 url=url,
                 sealed_token=sealed.ciphertext if sealed else None,
-                secret_key_version=sealed.key_version if sealed else 1,
+                secret_key_version=sealed.key_version if sealed else current_key_version(),
                 allowed_tools=data.allowed_tools,
                 catalog_key=data.catalog_key,
                 is_enabled=data.is_enabled,
+                label=_stored_label(data.label),
             )
         except IntegrityError as exc:
             raise AlreadyExistsError(
@@ -1175,13 +1522,23 @@ class McpConnectionService:
     async def update_for_org(
         self, ctx: AuthContext, *, connection_id: UUID, data: OrgMcpConnectionUpdate
     ) -> McpConnection:
-        db_connection = await self._get_org(ctx, connection_id)
+        # Locked from the read - same reason as `update` above.
+        db_connection = await self._get_org(ctx, connection_id, for_update=True)
         update_data: dict[str, Any] = writable(
             data, over=McpConnection, exclude={"clear_allowed_tools"}
         )
+        # What the caller changed, snapshotted before the staleness resets below
+        # add their own keys - those are bookkeeping, not an edit the audit should
+        # report (#1521).
+        edited_fields = set(update_data)
+        if data.clear_allowed_tools:
+            edited_fields.add("allowed_tools")
 
         if "url" in update_data:
             update_data["url"] = await _checked_url(update_data["url"])
+
+        if "label" in update_data:
+            update_data["label"] = _stored_label(update_data["label"])
 
         if "name" in update_data and update_data["name"] != db_connection.name:
             collision = await mcp_connection_repo.get_org_scoped_by_name(
@@ -1195,13 +1552,13 @@ class McpConnectionService:
 
         if "auth_token" in update_data:
             token = (update_data["auth_token"] or "").strip()
-            # "" clears the stored token; a non-empty value replaces it.
-            sealed = (
-                seal(token, scope=VaultScope.organization(ctx.organization_id)) if token else None
-            )
+            if token:
+                refuse_binding_while_impersonating("Adding an integration token")
+            # "" clears the stored token; a non-empty value replaces it, sealed at
+            # the row's version - one version column covers every envelope in the
+            # row, so bumping it would orphan the OAuth siblings (#552).
+            sealed = _seal_for(db_connection, token) if token else None
             update_data["auth_token"] = sealed.ciphertext if sealed else None
-            if sealed is not None:
-                update_data["secret_key_version"] = sealed.key_version
 
         if data.clear_allowed_tools:
             update_data["allowed_tools"] = None
@@ -1225,11 +1582,34 @@ class McpConnectionService:
             update_data["oauth_state"] = None
             update_data["granted_scopes"] = None
 
+        # The same reason as on the personal path, and it matters more here:
+        # every agent bound to this connection reads the Builder's cached tool
+        # list, so a repointed URL would offer the old host's tools to all of
+        # them at once.
+        if moved:
+            update_data.setdefault("last_tools", None)
+
         if not update_data:
             return db_connection
-        return await mcp_connection_repo.update(
+        connection = await mcp_connection_repo.update(
             self.db, db_connection=db_connection, update_data=update_data
         )
+        # `create_for_org` records who created a shared credential; an update that
+        # repoints or re-keys one is the same authority and left no trail at all
+        # (#1521). Under an impersonation `record_audit` stamps the administrator
+        # behind it, so a change made while acting as somebody else is attributable
+        # to who really made it. The fields that changed, never their values: the
+        # token is sealed and must not reach the log, and the rest is on the row.
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="mcp_connection.updated",
+            target_type="mcp_connection",
+            target_id=str(connection.id),
+            details={"fields": sorted(edited_fields)},
+        )
+        return connection
 
     async def delete_for_org(self, ctx: AuthContext, *, connection_id: UUID) -> None:
         db_connection = await self._get_org(ctx, connection_id)
@@ -1333,7 +1713,9 @@ class McpConnectionService:
         """
         return await self._get_org(ctx, connection_id)
 
-    async def _get_org(self, ctx: AuthContext, connection_id: UUID) -> McpConnection:
+    async def _get_org(
+        self, ctx: AuthContext, connection_id: UUID, *, for_update: bool = False
+    ) -> McpConnection:
         """One organization connection, or a refusal that reveals nothing.
 
         Reported as "not found" rather than "forbidden" for the same reason as
@@ -1341,7 +1723,10 @@ class McpConnectionService:
         probe for what another tenant owns.
         """
         db_connection = await mcp_connection_repo.get_org_scoped_by_id(
-            self.db, connection_id=connection_id, organization_id=ctx.organization_id
+            self.db,
+            connection_id=connection_id,
+            organization_id=ctx.organization_id,
+            for_update=for_update,
         )
         if db_connection is None:
             raise NotFoundError(
@@ -1351,25 +1736,135 @@ class McpConnectionService:
         return db_connection
 
 
+def _stored_label(label: str | None) -> str | None:
+    """A label as the column holds it: trimmed, and empty means none.
+
+    `""` is how a PATCH says "clear this" - `None` is the sentinel for
+    "unchanged" everywhere in an update body, so it cannot also mean "remove".
+    Storing the empty string instead would make a connection whose label was
+    cleared render as a blank line rather than as its slug.
+    """
+    trimmed = (label or "").strip()
+    return trimmed or None
+
+
+PersonalServiceGapKind = Literal["nobody_to_speak_as"] | OwnAccountGap
+
+
+@dataclass(frozen=True)
+class UnavailablePersonalService:
+    """A personal binding this turn could not honour, and why.
+
+    Each gap is a different sentence to the person talking, which is why the
+    reason is a value rather than a log line: nobody at the keyboard, no
+    connection of their own to this service, several with none marked default
+    (#1342), or one whose credential no longer opens the server.
+    """
+
+    catalog_key: str
+    gap: PersonalServiceGapKind
+
+
+@dataclass(frozen=True)
+class UnavailablePrefixCollision:
+    """Two of the agent's reachable servers reduce to one tool prefix, so only the
+    first of them is attached this turn.
+
+    The other would emit the same tool names and pydantic-ai raises on the
+    duplicate, aborting the run. Refused at publish; reached at run time only for
+    an agent published before that check existed or a connection renamed to a
+    colliding name afterwards, where it used to vanish with a log line nobody
+    reads (#1442). Decided among the servers whose probe answered, so `kept` is
+    a server the turn really has. Not a personal gap - the person talking cannot
+    fix it, the agent's author renames one connection - so it briefs the model
+    but is kept off the chat's connect card.
+
+    `server` and `kept` are the names the two present their tools under; they
+    can be the same name (an organization connection and a personal binding
+    both called `notion`), which is why each also carries its *binding* - the
+    connection, or each person's own account - so the briefing can tell the model
+    which of two same-named servers it holds. One connection bound twice is a
+    duplicate, not a collision, and is dropped without a report.
+    """
+
+    server: str
+    prefix: str
+    kept: str
+    server_binding: str
+    kept_binding: str
+
+
+# A binding a turn could not honour: a personal one with nobody or nothing to
+# speak through, or a server dropped because its tool prefix collided.
+UnavailableBinding = UnavailablePersonalService | UnavailablePrefixCollision
+
+
+@dataclass(frozen=True)
+class ResolvedMcpToolsets:
+    """What a spec's MCP bindings amount to for one turn.
+
+    The toolsets that could be built, and the bindings that could not. Two lists
+    rather than one because the second is not a failure: a personal binding with
+    nobody to speak as is the designed outcome on an API key or a schedule, and a
+    prefix collision narrows the agent rather than aborting it - the run proceeds,
+    told in its instructions what is missing.
+    """
+
+    toolsets: list[Any]
+    unavailable: list[UnavailableBinding]
+
+
 async def build_toolsets_for_agent(
-    db: AsyncSession, *, organization_id: UUID, connection_ids: list[UUID]
-) -> list[Any]:
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    refs: Sequence[McpServerRef],
+    sender_user_id: UUID | None = None,
+) -> ResolvedMcpToolsets:
     """Agent toolsets for a published agent: exactly the servers its spec names.
 
     Deliberately never the servers the person running the turn has enabled:
     what an agent can reach is part of the agent, and one that answers
     differently depending on whose Slack account triggered it cannot be
-    reasoned about or reviewed. Only organization-scoped rows resolve here, so
-    a member's personal token can never end up inside a shared agent.
+    reasoned about or reviewed. An organization binding resolves only an
+    organization-scoped row, so a member's personal token never ends up behind
+    a shared agent by accident.
+
+    A **personal** binding is the one place a member's own connection is
+    reached, and it is reached on purpose: the spec says every person speaks to
+    this service as themselves. `sender_user_id` is who is talking - the author
+    of this message, never the thread's first speaker - and `None` where nobody
+    is: an API key, the widget, a schedule, a channel sender with no linked
+    account. The binding is then reported unavailable rather than quietly
+    skipped, so the run can say so and say where the person connects one.
+
+    A person holding two accounts to one service is left alone rather than
+    guessed at: they nominate one in their own connections, and until they do
+    the binding is unavailable to them (#1342).
 
     Runs in the caller's session rather than opening its own: an OAuth refresh
     spent here has to be persisted by the same transaction that recorded the run.
     """
     specs: list[McpServerSpec] = []
-    for connection_id in connection_ids:
-        connection = await mcp_connection_repo.get_org_scoped_by_id(
-            db, connection_id=connection_id, organization_id=organization_id
-        )
+    bindings: dict[int, str] = {}
+    unavailable: list[UnavailableBinding] = []
+    found = await mcp_connection_repo.get_org_scoped_by_ids(
+        db,
+        connection_ids=[
+            ref.connection_id for ref in refs if not isinstance(ref, PersonalMcpServerRef)
+        ],
+        organization_id=organization_id,
+    )
+    for ref in refs:
+        if isinstance(ref, PersonalMcpServerRef):
+            spec, gap = await _personal_spec(db, ref, sender_user_id=sender_user_id)
+            if spec is not None:
+                specs.append(spec)
+                bindings[id(spec)] = f"each person's own {ref.catalog_key}"
+            if gap is not None:
+                unavailable.append(UnavailablePersonalService(ref.catalog_key, gap))
+            continue
+        connection = found.get(ref.connection_id)
         if connection is None or not connection.is_enabled:
             # Deleted, disabled or moved out of the organization since publish.
             # A binding that was already broken is refused at publish, where
@@ -1377,7 +1872,7 @@ async def build_toolsets_for_agent(
             # agent instead of taking the conversation down with it.
             logger.warning(
                 "Agent references MCP connection %s, which this organization (%s) no longer offers",
-                connection_id,
+                ref.connection_id,
                 organization_id,
             )
             continue
@@ -1388,15 +1883,141 @@ async def build_toolsets_for_agent(
             # losing it is an operator's problem, not the routine attrition of
             # an ambient connection somebody enabled once in Settings.
             logger.warning(
-                "Skipping MCP connection %r for this run: no usable credentials", connection.name
+                "Skipping MCP connection %r for this run: no usable credentials",
+                connection.name,
             )
             continue
-        specs.append(
-            McpServerSpec(
-                name=connection.name,
-                url=connection.url,
-                headers=headers,
-                allowed_tools=connection.allowed_tools,
-            )
+        spec = McpServerSpec(
+            name=connection.name,
+            url=connection.url,
+            headers=headers,
+            allowed_tools=_narrowed_tools(connection.allowed_tools, ref.allowed_tools),
         )
-    return await build_mcp_toolsets(specs)
+        specs.append(spec)
+        bindings[id(spec)] = f"the connection {connection.name!r}"
+    # The same prefix arithmetic publish refuses a collision with, applied to the
+    # servers that answered their probe: a duplicate reaching pydantic-ai aborts
+    # the turn, so the loser is dropped - but reported on `unavailable`, not left
+    # to a log line, so the model can say the server is not available (#1442).
+    # Decided after the probe, not before it, so an unreachable first holder does
+    # not both lose the turn and be reported as the one attached; among those
+    # reachable, the first in binding order keeps the prefix. One connection
+    # bound twice is the same binding on both sides: dropped, nothing to report.
+    reachable = [
+        (spec, toolset) for spec, toolset in await probe_toolsets(specs) if toolset is not None
+    ]
+    dropped: set[int] = set()
+    for prefix, held in prefix_collisions((spec.name, spec) for spec, _ in reachable).items():
+        kept = held[0]
+        for loser in held[1:]:
+            dropped.add(id(loser))
+            if bindings[id(loser)] == bindings[id(kept)]:
+                continue
+            unavailable.append(
+                UnavailablePrefixCollision(
+                    server=loser.name,
+                    prefix=prefix,
+                    kept=kept.name,
+                    server_binding=bindings[id(loser)],
+                    kept_binding=bindings[id(kept)],
+                )
+            )
+    return ResolvedMcpToolsets(
+        toolsets=[toolset for spec, toolset in reachable if id(spec) not in dropped],
+        unavailable=unavailable,
+    )
+
+
+async def _personal_spec(
+    db: AsyncSession, ref: PersonalMcpServerRef, *, sender_user_id: UUID | None
+) -> tuple[McpServerSpec | None, PersonalServiceGapKind | None]:
+    """The sender's own connection to this service as a server spec, or why not."""
+    if sender_user_id is None:
+        return None, "nobody_to_speak_as"
+    own = await _own_spec(db, ref, user_id=sender_user_id)
+    return (own, None) if isinstance(own, McpServerSpec) else (None, own)
+
+
+async def _own_spec(
+    db: AsyncSession, ref: PersonalMcpServerRef, *, user_id: UUID
+) -> McpServerSpec | OwnAccountGap:
+    """One person's own connection to this service as a server spec, or why not.
+
+    The tool prefix is the catalog key rather than the connection's name: the
+    agent presents `notion_search` to everyone, whatever each person called
+    their own Notion. The allowlist is the binding's ceiling intersected with
+    the person's own - the same fold an organization binding makes, with the
+    administrator's side coming from the spec because there is no connection
+    row of the organization's to read it from.
+    """
+    owned = await mcp_connection_repo.list_user_scoped_by_catalog_key(
+        db, user_id=user_id, catalog_key=ref.catalog_key
+    )
+    connection = _nominated(owned)
+    if connection is None:
+        return "undecided" if owned else "not_connected"
+    headers = await _resolve_auth_headers(db, connection)
+    if headers is None:
+        logger.info(
+            "Skipping the sender's own %r connection for this run: no usable credentials",
+            ref.catalog_key,
+        )
+        return "unauthorized"
+    return McpServerSpec(
+        name=ref.catalog_key,
+        url=connection.url,
+        headers=headers,
+        allowed_tools=_narrowed_tools(ref.allowed_tools, connection.allowed_tools),
+    )
+
+
+async def connect_personal_toolset(ref: PersonalMcpServerRef, *, user_id: UUID) -> ServiceOutcome:
+    """A person's own connection to this service, read again once they say they made it.
+
+    What `connect_account` attaches mid-run (`app.agents.connect_on_use`). In a
+    session of its own rather than the run's: the call arrives in the middle of
+    a run whose session is busy with it, and the connection it looks for was
+    committed by another request after this run's transaction began. An OAuth
+    refresh spent on the way is committed with that session.
+    """
+    async with get_db_context() as db:
+        own = await _own_spec(db, ref, user_id=user_id)
+    if not isinstance(own, McpServerSpec):
+        return own
+    ((_, toolset),) = await probe_toolsets([own])
+    return "unreachable" if toolset is None else toolset
+
+
+def _narrowed_tools(connection: list[str] | None, binding: list[str] | None) -> list[str] | None:
+    """The tools this binding may call: both allowlists, intersected.
+
+    Null on either side means "no narrowing from here" - the connection's null is
+    every tool the server offers, and the binding's is every tool the connection
+    allows. So the answer is null only when neither narrows.
+
+    Intersected rather than overridden, and that is the whole rule: the
+    connection's list is an administrator's ceiling for everybody bound to it,
+    and an agent published before a tool was excluded must not keep reaching it.
+    A binding naming a tool the connection has since excluded loses that tool
+    rather than the agent losing the server (#1341).
+    """
+    if connection is None:
+        return binding
+    if binding is None:
+        return connection
+    within = set(binding)
+    return [tool for tool in connection if tool in within]
+
+
+def _nominated(owned: list[McpConnection]) -> McpConnection | None:
+    """Which of a member's accounts on one service to speak as, if any is clear.
+
+    One account needs no nomination - there is nothing to choose between - so it
+    answers whether or not it is marked. Several answer only the one marked
+    default, which a partial unique index keeps to at most one; several with none
+    marked answer nothing, because picking the older workspace silently is worse
+    than telling the person to pick (#1342).
+    """
+    if len(owned) == 1:
+        return owned[0]
+    return next((account for account in owned if account.is_default), None)

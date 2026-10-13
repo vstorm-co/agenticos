@@ -41,7 +41,17 @@ logger = logging.getLogger(__name__)
 CACHE_TTL_SECONDS = 60 * 60
 LISTING_TIMEOUT_SECONDS = 6.0
 
-CatalogSource = Literal["live", "curated"]
+CatalogSource = Literal["live", "curated", "unlisted"]
+"""Where a picker's suggestions came from, and it is three answers rather than two.
+
+`live` is the provider's own listing; `curated` is this deployment's short
+list, served when the provider cannot be asked. `unlisted` is neither, and it
+exists because the difference matters on screen: seven providers publish no
+listing this platform can read *and* have no curated entry, so they answered
+`([], "curated")` - a dropdown saying the provider offers nothing, about a
+provider that offers plenty. `unlisted` says the platform cannot enumerate
+this one and the id has to be typed, which is true (#923).
+"""
 
 
 @dataclass(frozen=True, slots=True)
@@ -128,7 +138,7 @@ class FallbackModel:
 # the snapshot has never heard of - which is how a typo or a retired model is
 # caught rather than shipped as a dropdown the provider refuses.
 CURATED: dict[str, tuple[FallbackModel, ...]] = catalog.load(
-    "model_fallbacks.json", TypeAdapter(dict[str, tuple[FallbackModel, ...]])
+    "curated_models.json", TypeAdapter(dict[str, tuple[FallbackModel, ...]])
 )
 
 
@@ -234,16 +244,76 @@ def _modalities(row: dict[str, Any], path: str | None) -> tuple[str, ...]:
     return tuple(entry for entry in node if isinstance(entry, str) and entry)
 
 
+_listing_client: httpx.AsyncClient | None = None
+_listing_loop: asyncio.AbstractEventLoop | None = None
+
+
+def _client() -> httpx.AsyncClient:
+    """The shared client for provider listing fetches, built once and reused.
+
+    A catalog refresh asks several providers in turn, and a client per call threw
+    the connection pool away before it was reused (#1263). Built lazily and
+    rebuilt if it was closed; `close_listing_client` closes it at shutdown. The
+    timeout rides each request, so one client serves every listing.
+
+    **Rebuilt when the event loop changes, and that is not tidiness.** An
+    `AsyncClient` holds connections bound to the loop that opened them, so one
+    built by a request and reused by a Prefect flow - or closed at shutdown from
+    a different loop - raises `RuntimeError: Event loop is closed` rather than
+    answering. It is the same hazard `rag_tasks._ingestion_service` builds
+    per-flow engines for (#948); one process here runs several loops, and this
+    is the one client shared across all of them.
+    """
+    global _listing_client, _listing_loop
+    loop = asyncio.get_running_loop()
+    if _listing_client is None or _listing_client.is_closed or _listing_loop is not loop:
+        _listing_client = httpx.AsyncClient()
+        _listing_loop = loop
+    return _listing_client
+
+
+async def close_listing_client() -> None:
+    """Close the shared listing client at shutdown.
+
+    A client whose loop has already gone has nothing left to release, and
+    `aclose` says so by raising. Dropping the reference is the whole of the
+    close in that case; raising would take the application's shutdown down with
+    it over a socket that is already unusable.
+    """
+    global _listing_client, _listing_loop
+    if _listing_client is not None and not _listing_client.is_closed:
+        try:
+            await _listing_client.aclose()
+        except RuntimeError:
+            logger.debug("listing client outlived its event loop; dropping it unclosed")
+    _listing_client = None
+    _listing_loop = None
+
+
 async def _fetch(spec: ListingSpec, api_key: str | None) -> list[CatalogModel]:
     headers = dict(spec.extra_headers)
     if spec.auth_header is not None:
         if api_key is None:
             raise ValueError("This provider's listing needs a key")
         headers[spec.auth_header] = spec.auth_template.format(key=api_key)
-    async with httpx.AsyncClient(timeout=LISTING_TIMEOUT_SECONDS) as client:
-        response = await client.get(spec.url, headers=headers)
-        response.raise_for_status()
-        return _read_listing(response.json(), spec)
+    response = await _client().get(spec.url, headers=headers, timeout=LISTING_TIMEOUT_SECONDS)
+    response.raise_for_status()
+    return _read_listing(response.json(), spec)
+
+
+def _fallback(curated: list[CatalogModel]) -> tuple[list[CatalogModel], CatalogSource]:
+    """What to answer when the provider could not be asked, or said nothing.
+
+    One function because there are four such paths - no listing, no key, a call
+    that failed, an empty response - and the interesting half is what they all
+    do when there is nothing curated either. Nothing to show and nothing to fall
+    back on is not "this provider has no models"; it is this platform not being
+    able to enumerate them, and `curated` about an empty list claims a shortlist
+    that does not exist. `mistral` is exactly this case: it publishes a listing
+    and has no curated entry, so a failed call used to answer `curated` with
+    nothing in it (#923).
+    """
+    return (curated, "curated") if curated else ([], "unlisted")
 
 
 async def models_for(
@@ -265,7 +335,7 @@ async def models_for(
     curated = list(curated_models(provider))
 
     if spec is None or (spec.auth_header is not None and api_key is None):
-        return curated, "curated"
+        return _fallback(curated)
 
     # Keyed on the provider alone, not on the key: two keys for one provider see
     # the same catalog, and keying on the key would put a secret in a cache key.
@@ -277,11 +347,18 @@ async def models_for(
     try:
         models = await _fetch(spec, api_key)
     except Exception:
-        logger.warning("Could not list models for %s; using the curated list", provider)
-        return curated, "curated"
+        # What is said has to match what is answered: for a provider with no
+        # curated entry there is no list to fall back to, and a log line during
+        # an outage claiming there was is the opposite account of the response.
+        logger.warning(
+            "Could not list models for %s; %s",
+            provider,
+            "using the curated list" if curated else "and there is no curated list to fall back to",
+        )
+        return _fallback(curated)
 
     if not models:
-        return curated, "curated"
+        return _fallback(curated)
 
     async with _lock:
         _cache[provider] = _Entry(models=tuple(models), fetched_at=time.monotonic())

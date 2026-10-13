@@ -14,6 +14,8 @@ recorded, and no longer able to sign in.
 from __future__ import annotations
 
 import uuid
+from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -70,6 +72,9 @@ class TestWhichRoleAnAnonymousTurnBorrows:
         )
 
         assert ctx.role == OrgRoleName.OWNER.value
+        # `user_id` is the publisher, not whoever is chatting, so a personal-memory write
+        # is refused rather than attributing a stranger's note to the owner (#788).
+        assert ctx.subject_is_publisher_fallback is True
 
     async def test_a_deactivated_publisher_lends_nothing(self, db) -> None:
         """The row that made this worth an integration test. Deactivating a user
@@ -107,3 +112,36 @@ class TestWhichRoleAnAnonymousTurnBorrows:
         ctx = await publisher_context(db, organization_id=ours.id, publisher_user_id=publisher.id)
 
         assert ctx.role == OrgRoleName.VIEWER.value
+
+
+async def test_a_publisher_context_is_always_flagged_a_fallback() -> None:
+    """The flag is unconditional: with no publisher recorded the DB is never
+    touched, and the context is still a fallback whose personal-memory writes must
+    be refused."""
+    ctx = await publisher_context(MagicMock(), organization_id=uuid.uuid4(), publisher_user_id=None)
+    assert ctx.subject_is_publisher_fallback is True
+    assert ctx.role == OrgRoleName.VIEWER.value
+
+
+def test_only_publisher_context_sets_the_fallback_flag() -> None:
+    """The N1 guarantee that per-user memory never leaks into the owner's store
+    rests on `subject_is_publisher_fallback` being set `True` only where the id in
+    hand is an authority rather than a person at the keyboard. A stand-in
+    constructor that forgot it would run a visitor's turn as the owner without the
+    flag, and per-user memory would attribute the visitor's notes to the owner.
+    This pins the assignment sites by grep - the same discipline that keeps
+    `AuthContext.anonymous` the sole subject-less constructor - so a new one has to
+    be argued for in a diff rather than added quietly.
+
+    Two sites are legitimate: `services/access.py` mints the publisher-standing
+    context for a hosted/widget run, and `services/agent_trigger.py` mints the
+    fired-run context whose `user_id` is the trigger *creator* (the authority an
+    unattended run executes under), which must not become a memory end-user (#788).
+    """
+    app_root = Path(__file__).resolve().parents[2] / "app"
+    setters = sorted(
+        path.relative_to(app_root).as_posix()
+        for path in app_root.rglob("*.py")
+        if "subject_is_publisher_fallback=True" in path.read_text(encoding="utf-8")
+    )
+    assert setters == ["services/access.py", "services/agent_trigger.py"], setters

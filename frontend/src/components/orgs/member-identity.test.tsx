@@ -42,16 +42,26 @@ describe("drawing a person", () => {
     expect(screen.getByText("(you)")).toBeVisible();
   });
 
-  it("falls back to initials when there is no picture, from a name or an address", () => {
+  it("falls back to a generated face when there is no picture", () => {
+    // Drawn from the id, so it is there for an account with no name at all and
+    // does not move when somebody sets one.
     const { container } = render(
       <MemberIdentity member={{ user_id: "u-2", full_name: null, email: "bob@acme.test" }} />,
     );
 
-    expect(container.textContent).toContain("BA");
+    expect(container.querySelector("g.mo-root")).not.toBeNull();
   });
 
   it("prefers the name somebody gave over their address", () => {
     expect(displayName({ user_id: "u", full_name: "Ada", email: "ada@acme.test" })).toBe("Ada");
-    expect(displayName({ user_id: "u", full_name: null, email: "bob@acme.test" })).toBe("bob");
+  });
+
+  it("falls back to the whole address, not its local part", () => {
+    // `alex@corp.example` and `alex@vendor.example` both drew as `alex`, and the
+    // row omits the address beneath a nameless account precisely because the
+    // line above it is supposed to be the address (#931).
+    expect(displayName({ user_id: "u", full_name: null, email: "bob@acme.test" })).toBe(
+      "bob@acme.test",
+    );
   });
 });

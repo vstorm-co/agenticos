@@ -78,6 +78,7 @@ const EMPTY_FORM: SyncSourceCreate = {
   collection_name: null,
   config: {},
   secret_id: null,
+  organizational_unit: null,
   sync_mode: "full",
   schedule_minutes: null,
 };
@@ -151,7 +152,7 @@ export function SyncSourceWizard({
   // a member of `config_schema`, and a refusal about a field nothing claims is a
   // refusal that becomes a toast (#937).
   const configFields = useMemo(
-    () => [...Object.keys(selectedConnector?.config_schema ?? {}), "secret_id"],
+    () => [...Object.keys(selectedConnector?.config_schema.properties ?? {}), "secret_id"],
     [selectedConnector],
   );
 
@@ -198,10 +199,8 @@ export function SyncSourceWizard({
     if (step === "source") return Boolean(form.connector_type) && Boolean(form.name.trim());
     if (step === "configure") {
       if (!selectedConnector) return false;
-      const required = Object.entries(selectedConnector.config_schema).filter(
-        ([, f]) => f.required,
-      );
-      return required.every(([key]) => {
+      const required = selectedConnector.config_schema.required ?? [];
+      return required.every((key) => {
         const v = form.config[key];
         return v !== undefined && v !== null && v !== "";
       });
@@ -331,7 +330,7 @@ export function SyncSourceWizard({
           )}
         </DialogHeader>
 
-        <div className="min-h-0 scrollbar-thin overflow-y-auto px-6 py-5">
+        <div key={step} className="wizard-step-in min-h-0 scrollbar-thin overflow-y-auto px-6 py-5">
           {mode === "clone" ? (
             <CloneStep
               integrations={orgIntegrations}

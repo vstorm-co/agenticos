@@ -1,22 +1,18 @@
-"""The worker embeds with the collection's key, not the deployment's (#306).
+"""The worker embeds with the collection's key, and only with it (#306).
 
 `app/worker/tasks/rag_tasks.py` built its vector store with no `resolver=`,
 the one construction of six that did not. `PgVectorStore._for_collection`
 short-circuited to the deployment embedder whenever the resolver was None, so
 a collection's `embedding_secret_id` and `embedding_model` were read by every
-path except the one every uploaded document actually takes.
+path except the one every uploaded document actually takes - and every upload
+died in the worker advising the operator to set a deployment variable, about a
+collection they had already given a key.
 
-Two failures, and the quiet one is the worse:
-
-- with no `OPENROUTER_API_KEY` set - the normal case when an organization pays
-  for its own embeddings - every upload died in the worker advising the
-  operator to set a variable, about a collection they had already given a key;
-- with both set, embeddings were billed to the deployment's account while the
-  product said the organization's key paid, and nothing said otherwise.
-
-So these tests run the real resolver against a knowledge-base row and assert
-what the outgoing client was actually built with, rather than that a resolver
-was passed.
+That variable is gone. There is no deployment-wide embedding credential, so
+the collection's vault key is the only key there is, and a collection without a
+usable one refuses with a message naming the collection and the reason. These
+tests run the real resolver against a knowledge-base row and assert what the
+outgoing client was actually built with, rather than that a resolver was passed.
 """
 
 from __future__ import annotations
@@ -33,17 +29,38 @@ from app.core.exceptions import ConfigurationError
 from app.core.secret_kinds import ApiKeySecret, SecretKind, seal_secret
 from app.core.vault import VaultScope
 from app.services.embedding_resolution import EmbeddingKeySource, ResolvedEmbeddings
-from app.services.ingestion_config import IngestionConfig
+from app.services.rag import embedding_providers
 from app.services.rag.config import RAGSettings
 from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.vectorstore import PgVectorStore
 from app.worker.tasks.rag_tasks import (
     _announcing_resolver,
-    _ingestion_service_for,
+    _ingestion_service,
     _say_in_flow_log,
 )
 
 pytestmark = pytest.mark.anyio
+
+_OPENROUTER = embedding_providers.get("openrouter")
+assert _OPENROUTER is not None
+
+
+def _resolved(key_source: EmbeddingKeySource, *, api_key: str = "") -> ResolvedEmbeddings:
+    """A resolution for `_MODEL`, differing only in which key it ended on.
+
+    Every case in this file is about the credential and what gets said about it,
+    so the address is OpenRouter's throughout - stated once here rather than in
+    nine constructions.
+    """
+    return ResolvedEmbeddings(
+        model=_MODEL,
+        dim=_DIM,
+        api_key=api_key,
+        key_source=key_source,
+        base_url=_OPENROUTER.base_url,
+        provider=_OPENROUTER.provider,
+    )
+
 
 _RESOLUTION = "app.services.embedding_resolution"
 _EMBEDDINGS = "app.services.rag.embeddings"
@@ -58,6 +75,7 @@ def _knowledge_base(*, secret_id: uuid.UUID | None):
         embedding_model=_MODEL,
         embedding_dim=_DIM,
         embedding_secret_id=secret_id,
+        embedding_provider="openrouter",
         organization_id=_ORG,
     )
 
@@ -78,17 +96,20 @@ def _vault_row(plaintext: str, *, organization_id: uuid.UUID = _ORG):
 async def _store() -> PgVectorStore:
     """The store the ingestion flow actually builds.
 
-    Built through `_ingestion_service_for` rather than constructed here: what
-    #306 was is that function passing no `resolver=`, so a test that wires one
-    itself would pass against the bug it exists to catch. Only the processor -
-    parsers, chunker, image model, all of which need a session - is stubbed.
+    Built through `_ingestion_service` rather than constructed here: what
+    #306 was is that helper passing no `resolver=`, so a test that wires one
+    itself would pass against the bug it exists to catch. The engine is a
+    stand-in so no test here can open a live connection; these tests exercise
+    `_for_collection`, which never touches it.
     """
-    with patch("app.worker.tasks.rag_tasks.IngestionConfigService") as config_service:
-        config_service.return_value.build_processor = AsyncMock(return_value=MagicMock())
-        service = await _ingestion_service_for(
-            MagicMock(), config=IngestionConfig(), organization_id=_ORG
-        )
-    store = service.store
+    with patch(
+        "app.worker.tasks.rag_tasks.create_async_engine",
+        return_value=MagicMock(dispose=AsyncMock()),
+    ):
+        async with _ingestion_service(
+            processor=MagicMock(), organization_id=None, tenant=None
+        ) as service:
+            store = service.store
     assert isinstance(store, PgVectorStore)
     return store
 
@@ -118,7 +139,6 @@ async def _the_flows_embedder(
     *,
     secret_id: uuid.UUID | None,
     vault_row: object,
-    deployment_key: str,
     unseals_to_something_else: bool = False,
 ) -> AsyncIterator[tuple[EmbeddingService, int, _CapturedOpenAI]]:
     """The embedder the flow's store hands out for `handbook`, and the SDK it uses.
@@ -134,8 +154,6 @@ async def _the_flows_embedder(
         db_ctx = patches.enter_context(patch(f"{_RESOLUTION}.get_db_context"))
         bases = patches.enter_context(patch(f"{_RESOLUTION}.knowledge_base_repo"))
         secrets = patches.enter_context(patch(f"{_RESOLUTION}.organization_secret_repo"))
-        resolution_env = patches.enter_context(patch(f"{_RESOLUTION}.settings"))
-        embedding_env = patches.enter_context(patch(f"{_EMBEDDINGS}.app_settings"))
         patches.enter_context(patch(f"{_EMBEDDINGS}.OpenAI", openai))
         if unseals_to_something_else:
             patches.enter_context(
@@ -144,28 +162,24 @@ async def _the_flows_embedder(
 
         db_ctx.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
         db_ctx.return_value.__aexit__ = AsyncMock(return_value=False)
-        bases.get_by_collection_name = AsyncMock(return_value=_knowledge_base(secret_id=secret_id))
+        bases.get_for_collection = AsyncMock(return_value=_knowledge_base(secret_id=secret_id))
         secrets.get = AsyncMock(return_value=vault_row)
-        resolution_env.OPENROUTER_API_KEY = deployment_key
-        embedding_env.OPENROUTER_API_KEY = deployment_key
 
         embedder, dim = await (await _store())._for_collection("handbook")
         yield embedder, dim, openai
 
 
 class TestTheCollectionsKeyPays:
-    async def test_a_collection_with_a_vault_key_indexes_with_no_deployment_key(self):
+    async def test_a_collection_with_a_vault_key_indexes_with_it(self):
         """The reported crash, and the assertion that fixes it.
 
-        `OPENROUTER_API_KEY` empty is the deployment the issue was filed from:
-        the organization pays for its own embeddings. Before the resolver was
+        The organization pays for its own embeddings. Before the resolver was
         wired here, this raised `ConfigurationError` telling the operator to
-        set the variable.
+        set a deployment variable.
         """
         async with _the_flows_embedder(
             secret_id=uuid.uuid4(),
             vault_row=_vault_row("sk-org-own-key"),
-            deployment_key="",
         ) as (embedder, dim, openai):
             vector = embedder.embed_query("what is the refund policy")
 
@@ -173,27 +187,84 @@ class TestTheCollectionsKeyPays:
         assert openai.embedded == [["what is the refund policy"]]
         assert (dim, len(vector)) == (_DIM, _DIM)
 
-    async def test_the_deployment_is_not_billed_when_the_collection_chose_a_key(self):
-        """The quiet half. With both keys set nothing failed - the deployment's
-        account simply paid for work the product attributed to the
-        organization's key."""
-        async with _the_flows_embedder(
-            secret_id=uuid.uuid4(),
-            vault_row=_vault_row("sk-org-own-key"),
-            deployment_key="sk-deployment",
-        ) as (embedder, _, openai):
-            embedder.embed_query("anything")
+    async def test_the_request_goes_to_the_collections_provider(self):
+        """The address travels with the key: a key stored for one provider is
+        never sent to another's endpoint."""
+        openai_row = _vault_row("sk-org-own-key")
+        openai_row.purpose = "openai"
+        with patch(f"{_RESOLUTION}.knowledge_base_repo") as bases:
+            bases.get_for_collection = AsyncMock(
+                return_value=MagicMock(
+                    collection_name="handbook",
+                    embedding_model=_MODEL,
+                    embedding_dim=_DIM,
+                    embedding_secret_id=uuid.uuid4(),
+                    embedding_provider="openai",
+                    organization_id=_ORG,
+                )
+            )
+            with (
+                patch(f"{_RESOLUTION}.get_db_context") as db_ctx,
+                patch(f"{_RESOLUTION}.organization_secret_repo") as secrets,
+            ):
+                db_ctx.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
+                db_ctx.return_value.__aexit__ = AsyncMock(return_value=False)
+                secrets.get = AsyncMock(return_value=openai_row)
+                embedder, _ = await (await _store())._for_collection("handbook")
 
-        assert openai.api_keys == ["sk-org-own-key"]
+        assert embedder.provider._base_url == "https://api.openai.com/v1"
 
-    async def test_a_collection_that_chose_no_key_still_embeds_on_the_deployments(self):
-        """The fallback is deliberate, and wiring the resolver must not end it."""
-        async with _the_flows_embedder(
-            secret_id=None, vault_row=None, deployment_key="sk-deployment"
-        ) as (embedder, _, openai):
-            embedder.embed_query("anything")
+    async def test_a_keyless_collection_gets_a_client_for_the_deployments_own_endpoint(self):
+        """An Ollama collection (#1632): the flow's embedder is built for the
+        address of the local service it names, with no vault opened and no refusal for
+        the key it does not have - and nothing said in the flow log, because a
+        keyless resolution is not a degraded one."""
+        with (
+            patch(f"{_RESOLUTION}.knowledge_base_repo") as bases,
+            patch(f"{_RESOLUTION}.local_service_repo") as services,
+            patch(f"{_RESOLUTION}.get_db_context") as db_ctx,
+            patch(f"{_RESOLUTION}.organization_secret_repo") as secrets,
+        ):
+            bases.get_for_collection = AsyncMock(
+                return_value=MagicMock(
+                    collection_name="handbook",
+                    embedding_model="nomic-embed-text",
+                    embedding_dim=768,
+                    embedding_secret_id=None,
+                    embedding_provider="ollama",
+                    embedding_endpoint_id=uuid.uuid4(),
+                    organization_id=None,
+                )
+            )
+            services.get_visible = AsyncMock(
+                return_value=MagicMock(base_url="http://ollama:11434/v1", is_active=True)
+            )
+            db_ctx.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
+            db_ctx.return_value.__aexit__ = AsyncMock(return_value=False)
+            secrets.get = AsyncMock()
+            embedder, dim = await (await _store())._for_collection("handbook")
 
-        assert openai.api_keys == ["sk-deployment"]
+        assert dim == 768
+        assert embedder.provider._base_url == "http://ollama:11434/v1"
+        assert embedder.provider._keyless is True
+        secrets.get.assert_not_called()
+
+    async def test_a_collection_that_chose_no_key_refuses_and_says_to_choose_one(self):
+        """There is no deployment key to fall back to. The refusal names the
+        collection and tells the reader what to do, instead of advising a
+        variable that does not exist."""
+        async with _the_flows_embedder(secret_id=None, vault_row=None) as (
+            embedder,
+            _,
+            openai,
+        ):
+            with pytest.raises(ConfigurationError) as refusal:
+                embedder.embed_query("anything")
+
+        assert "'handbook'" in refusal.value.message
+        assert "names no vault key" in refusal.value.message
+        assert "OPENROUTER_API_KEY" not in refusal.value.message
+        assert openai.api_keys == []
 
     def test_a_store_cannot_be_built_without_a_resolver(self):
         """The default is what made forgetting silent for five call sites.
@@ -217,14 +288,10 @@ class TestTheCollectionsKeyPays:
         """
         store = await _store()
         resolutions = {
-            "handbook": ResolvedEmbeddings(
-                model=_MODEL, dim=_DIM, api_key="", key_source=EmbeddingKeySource.SECRET_MISSING
-            ),
-            "policies": ResolvedEmbeddings(
-                model=_MODEL, dim=_DIM, api_key="", key_source=EmbeddingKeySource.DEPLOYMENT
-            ),
+            "handbook": _resolved(EmbeddingKeySource.SECRET_MISSING),
+            "policies": _resolved(EmbeddingKeySource.NONE_CHOSEN),
         }
-        store._resolver = AsyncMock(side_effect=lambda name: resolutions[name])
+        store._resolver = AsyncMock(side_effect=lambda name, org=None: resolutions[name])
 
         origins = []
         for collection in resolutions:
@@ -234,38 +301,45 @@ class TestTheCollectionsKeyPays:
             origins.append(refusal.value.details["key_origin"])
 
         assert "'handbook'" in origins[0] and "no longer in this organization's vault" in origins[0]
-        assert "'policies'" in origins[1] and "chose no key of its own" in origins[1]
+        assert "'policies'" in origins[1] and "names no vault key" in origins[1]
 
 
 class TestWhenTheChosenKeyCannotBeUsed:
     """Three refusals that must degrade, and say that they did.
 
-    The resolver deliberately falls back rather than raising - whose key pays
-    must not decide whether documents can be found - so the only thing that
-    can carry the failure to an operator is the message.
+    The resolver deliberately degrades rather than raising - whose key pays
+    must not decide whether the collection's row can be read - so the only
+    thing that can carry the failure to an operator is the message.
     """
 
+    @pytest.mark.security
     async def test_a_secret_from_another_organization_is_not_readable(self):
         """The repository scopes every read by `organization_id`, so a secret
         id belonging to another tenant simply is not found - the same answer as
         a deleted one, and never that tenant's key."""
-        async with _the_flows_embedder(
-            secret_id=uuid.uuid4(), vault_row=None, deployment_key="sk-deployment"
-        ) as (embedder, _, openai):
-            embedder.embed_query("anything")
+        async with _the_flows_embedder(secret_id=uuid.uuid4(), vault_row=None) as (
+            embedder,
+            _,
+            openai,
+        ):
+            with pytest.raises(ConfigurationError) as refusal:
+                embedder.embed_query("anything")
 
-        assert openai.api_keys == ["sk-deployment"]
+        assert "no longer in this organization's vault" in refusal.value.message
+        assert openai.api_keys == []
 
-    async def test_a_deleted_key_on_a_deployment_with_none_says_which_key_is_gone(self):
+    async def test_a_deleted_key_says_which_key_is_gone(self):
         """The reported error, on the collection that most deserves a better one.
 
         It used to read "Set OPENROUTER_API_KEY in the backend environment and
         restart" - true of the deployment, useless to the person who had
         already chosen a key that has since been removed from the vault.
         """
-        async with _the_flows_embedder(
-            secret_id=uuid.uuid4(), vault_row=None, deployment_key=""
-        ) as (embedder, _, openai):
+        async with _the_flows_embedder(secret_id=uuid.uuid4(), vault_row=None) as (
+            embedder,
+            _,
+            openai,
+        ):
             with pytest.raises(ConfigurationError) as refusal:
                 embedder.embed_query("anything")
 
@@ -278,9 +352,11 @@ class TestWhenTheChosenKeyCannotBeUsed:
             sealed_secret="not-a-ciphertext", kind=SecretKind.API_KEY.value, key_version=1
         )
 
-        async with _the_flows_embedder(
-            secret_id=uuid.uuid4(), vault_row=broken, deployment_key=""
-        ) as (embedder, _, openai):
+        async with _the_flows_embedder(secret_id=uuid.uuid4(), vault_row=broken) as (
+            embedder,
+            _,
+            openai,
+        ):
             with pytest.raises(ConfigurationError) as refusal:
                 embedder.embed_query("anything")
 
@@ -292,8 +368,7 @@ class TestWhenTheChosenKeyCannotBeUsed:
     async def test_a_secret_of_the_wrong_kind_says_which_collection_chose_it(self):
         async with _the_flows_embedder(
             secret_id=uuid.uuid4(),
-            vault_row=_vault_row("sk-org"),
-            deployment_key="",
+            vault_row=_vault_row("sk-org-key"),
             unseals_to_something_else=True,
         ) as (embedder, _, _openai):
             with pytest.raises(ConfigurationError) as refusal:
@@ -306,12 +381,10 @@ class TestWhenTheChosenKeyCannotBeUsed:
 class TestWhatTheFlowLogSays:
     """The `logger.warning` in the resolver reaches the worker's stdout and
     stops there, so a degraded credential was invisible to the run an operator
-    opens. These pin that a fallback is announced and a normal one is not."""
+    opens. These pin that a degradation is announced and a normal one is not."""
 
     async def _resolution(self, key_source: EmbeddingKeySource):
-        resolved = ResolvedEmbeddings(
-            model=_MODEL, dim=_DIM, api_key="sk-deployment", key_source=key_source
-        )
+        resolved = _resolved(key_source, api_key="sk-org")
         with (
             patch(
                 "app.worker.tasks.rag_tasks.embeddings_for_collection",
@@ -319,7 +392,7 @@ class TestWhatTheFlowLogSays:
             ),
             patch("app.worker.tasks.rag_tasks._say_in_flow_log") as said,
         ):
-            answer = await _announcing_resolver()("handbook")
+            answer = await _announcing_resolver(None)("handbook")
         return answer, said
 
     async def test_a_degraded_credential_is_announced_with_the_reason(self):
@@ -335,10 +408,13 @@ class TestWhatTheFlowLogSays:
 
         said.assert_not_called()
 
-    async def test_a_collection_that_chose_no_key_says_nothing_either(self):
-        _, said = await self._resolution(EmbeddingKeySource.DEPLOYMENT)
+    async def test_a_collection_that_chose_no_key_is_announced_too(self):
+        """With no deployment key to fall back to, a collection that names none
+        is a collection that cannot index, and the run says so."""
+        _, said = await self._resolution(EmbeddingKeySource.NONE_CHOSEN)
 
-        said.assert_not_called()
+        said.assert_called_once()
+        assert "names no vault key" in said.call_args.args[0]
 
     async def test_a_collection_no_knowledge_base_claims_says_nothing(self):
         with (
@@ -348,7 +424,7 @@ class TestWhatTheFlowLogSays:
             ),
             patch("app.worker.tasks.rag_tasks._say_in_flow_log") as said,
         ):
-            assert await _announcing_resolver()("unclaimed") is None
+            assert await _announcing_resolver(None)("unclaimed") is None
 
         said.assert_not_called()
 
@@ -358,19 +434,16 @@ class TestWhatTheFlowLogSays:
         four hundred copies of the line that exists to be noticed. Each
         collection still gets its own."""
         resolutions = {
-            name: ResolvedEmbeddings(
-                model=_MODEL, dim=_DIM, api_key="", key_source=EmbeddingKeySource.SECRET_MISSING
-            )
-            for name in ("handbook", "policies")
+            name: _resolved(EmbeddingKeySource.SECRET_MISSING) for name in ("handbook", "policies")
         }
         with (
             patch(
                 "app.worker.tasks.rag_tasks.embeddings_for_collection",
-                new=AsyncMock(side_effect=lambda name: resolutions[name]),
+                new=AsyncMock(side_effect=lambda name, org=None: resolutions[name]),
             ),
             patch("app.worker.tasks.rag_tasks._say_in_flow_log") as said,
         ):
-            resolve = _announcing_resolver()
+            resolve = _announcing_resolver(None)
             for name in ("handbook", "handbook", "policies", "handbook"):
                 await resolve(name)
 
@@ -383,9 +456,7 @@ class TestWhatTheFlowLogSays:
         """The set lives on the resolver, which lives on the ingestion service,
         which is built per flow run - so silence never outlasts the run that
         earned it."""
-        resolved = ResolvedEmbeddings(
-            model=_MODEL, dim=_DIM, api_key="", key_source=EmbeddingKeySource.SECRET_UNUSABLE
-        )
+        resolved = _resolved(EmbeddingKeySource.SECRET_UNUSABLE)
         with (
             patch(
                 "app.worker.tasks.rag_tasks.embeddings_for_collection",
@@ -393,8 +464,8 @@ class TestWhatTheFlowLogSays:
             ),
             patch("app.worker.tasks.rag_tasks._say_in_flow_log") as said,
         ):
-            await _announcing_resolver()("handbook")
-            await _announcing_resolver()("handbook")
+            await _announcing_resolver(None)("handbook")
+            await _announcing_resolver(None)("handbook")
 
         assert said.call_count == 2
 

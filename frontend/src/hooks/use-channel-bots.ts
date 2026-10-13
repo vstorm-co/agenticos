@@ -7,7 +7,12 @@ import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/api-error";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
-import type { ChannelBot, ChannelBotCreate, ChannelBotList } from "@/types/channels";
+import type {
+  ChannelBot,
+  ChannelBotCreate,
+  ChannelBotList,
+  ChannelBotUpdate,
+} from "@/types/channels";
 
 /**
  * The organization's channel bots - what the Builder's "where is this agent
@@ -48,6 +53,21 @@ export function useChannelBots(enabled: boolean) {
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
+  // What the create mutation cannot do: a credential added after registration.
+  // A Slack app hands out its `xapp-` token from a different screen than its
+  // bot token, so the transport a bot needs is routinely generated after the
+  // row exists - and without this the only way to supply it was to delete the
+  // bot, losing the binding with it.
+  const update = useMutation({
+    mutationFn: ({ botId, data }: { botId: string; data: ChannelBotUpdate }) =>
+      apiClient.patch<ChannelBot>(`/channels/bots/${botId}`, data),
+    onSuccess: async (bot) => {
+      await invalidate();
+      toast.success(t("botUpdated", { bot: bot.name }));
+    },
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
+  });
+
   const setActive = useMutation({
     mutationFn: ({ botId, isActive }: { botId: string; isActive: boolean }) =>
       apiClient.post<ChannelBot>(
@@ -74,5 +94,5 @@ export function useChannelBots(enabled: boolean) {
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
-  return { bots: data?.items ?? [], isLoading, error, refetch, create, setActive, remove };
+  return { bots: data?.items ?? [], isLoading, error, refetch, create, update, setActive, remove };
 }

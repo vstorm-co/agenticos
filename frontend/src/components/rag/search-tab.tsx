@@ -187,20 +187,20 @@ export function SearchTab({ kbs }: SearchTabProps) {
                     {String(result.metadata?.filename ?? "?")}
                   </span>
                   {result.metadata?.page_num != null && (
-                    <Badge variant="outline" className="font-mono text-[10px]">
+                    <Badge variant="outline" className="font-mono text-[11px]">
                       {t("page", { page: String(result.metadata.page_num) })}
                     </Badge>
                   )}
                   {source && (
                     <Link
                       href={ROUTES.RAG_DETAIL(source.id)}
-                      className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-[10px] font-medium"
+                      className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-[11px] font-medium"
                     >
                       <Database className="h-3 w-3" />
                       {source.name}
                     </Link>
                   )}
-                  <Badge variant="secondary" className="ml-auto font-mono text-[10px]">
+                  <Badge variant="secondary" className="ml-auto font-mono text-[11px]">
                     {result.score.toFixed(3)}
                   </Badge>
                 </div>

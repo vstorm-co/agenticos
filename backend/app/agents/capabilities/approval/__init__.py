@@ -9,6 +9,7 @@ capabilities have one import.
 from app.agents.approval import (
     ApprovalDecision,
     ApprovalGranted,
+    ApprovalMode,
     ApprovalPending,
     ApprovalRejected,
     ApprovalRequest,
@@ -26,6 +27,7 @@ __all__ = [
     "ApprovalDecision",
     "ApprovalGate",
     "ApprovalGranted",
+    "ApprovalMode",
     "ApprovalPending",
     "ApprovalRejected",
     "ApprovalRequest",

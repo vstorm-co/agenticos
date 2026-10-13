@@ -10,7 +10,7 @@ DNS would be testing the resolver's mood.
 import logging
 from collections.abc import Callable, Iterator
 
-import httpx
+import httpx2
 import pytest
 
 from app.core.pinned_http import PinnedAsyncClient, PinnedTransport
@@ -23,15 +23,15 @@ _SECOND_PUBLIC = "93.184.216.35"
 _METADATA = "169.254.169.254"
 
 
-class _Wire(httpx.AsyncBaseTransport):
+class _Wire(httpx2.AsyncBaseTransport):
     """The network, replaced: records what would actually have been sent."""
 
-    def __init__(self, responder: Callable[[httpx.Request], httpx.Response]) -> None:
+    def __init__(self, responder: Callable[[httpx2.Request], httpx2.Response]) -> None:
         self._responder = responder
-        self.sent: list[httpx.Request] = []
+        self.sent: list[httpx2.Request] = []
         self.closed = False
 
-    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+    async def handle_async_request(self, request: httpx2.Request) -> httpx2.Response:
         await request.aread()
         self.sent.append(request)
         return self._responder(request)
@@ -40,8 +40,8 @@ class _Wire(httpx.AsyncBaseTransport):
         self.closed = True
 
 
-def _ok(_request: httpx.Request) -> httpx.Response:
-    return httpx.Response(200, text="ok")
+def _ok(_request: httpx2.Request) -> httpx2.Response:
+    return httpx2.Response(200, text="ok")
 
 
 def _answers(monkeypatch: pytest.MonkeyPatch, *rounds: list[str]) -> list[str]:
@@ -63,7 +63,7 @@ class TestTheValidatedAddressIsTheOneDialled:
         _answers(monkeypatch, [_PUBLIC])
         wire = _Wire(_ok)
 
-        async with PinnedAsyncClient(timeout=httpx.Timeout(5.0), transport=wire) as client:
+        async with PinnedAsyncClient(timeout=httpx2.Timeout(5.0), transport=wire) as client:
             response = await client.get("https://mcp.example.com/.well-known/oauth")
 
         assert response.status_code == 200
@@ -83,7 +83,7 @@ class TestTheValidatedAddressIsTheOneDialled:
         asked = _answers(monkeypatch, [_PUBLIC], [_METADATA])
         wire = _Wire(_ok)
 
-        async with PinnedAsyncClient(timeout=httpx.Timeout(5.0), transport=wire) as client:
+        async with PinnedAsyncClient(timeout=httpx2.Timeout(5.0), transport=wire) as client:
             await client.get("https://rebind.example.com/token")
 
         assert asked == ["rebind.example.com"]
@@ -94,7 +94,7 @@ class TestTheValidatedAddressIsTheOneDialled:
         _answers(monkeypatch, [_PUBLIC])
         wire = _Wire(_ok)
 
-        async with PinnedAsyncClient(timeout=httpx.Timeout(5.0), transport=wire) as client:
+        async with PinnedAsyncClient(timeout=httpx2.Timeout(5.0), transport=wire) as client:
             await client.get("https://mcp.example.com:8443/authorize")
 
         (sent,) = wire.sent
@@ -105,7 +105,7 @@ class TestTheValidatedAddressIsTheOneDialled:
         _answers(monkeypatch, [_PUBLIC])
         wire = _Wire(_ok)
 
-        async with PinnedAsyncClient(timeout=httpx.Timeout(5.0), transport=wire) as client:
+        async with PinnedAsyncClient(timeout=httpx2.Timeout(5.0), transport=wire) as client:
             await client.get("http://mcp.example.com/probe")
 
         (sent,) = wire.sent
@@ -115,7 +115,7 @@ class TestTheValidatedAddressIsTheOneDialled:
         _answers(monkeypatch, ["2606:4700:4700::1111"])
         wire = _Wire(_ok)
 
-        async with PinnedAsyncClient(timeout=httpx.Timeout(5.0), transport=wire) as client:
+        async with PinnedAsyncClient(timeout=httpx2.Timeout(5.0), transport=wire) as client:
             await client.get("https://mcp.example.com/probe")
 
         (sent,) = wire.sent
@@ -127,7 +127,7 @@ class TestTheValidatedAddressIsTheOneDialled:
         _answers(monkeypatch, [_PUBLIC])
         wire = _Wire(_ok)
 
-        async with PinnedAsyncClient(timeout=httpx.Timeout(5.0), transport=wire) as client:
+        async with PinnedAsyncClient(timeout=httpx2.Timeout(5.0), transport=wire) as client:
             await client.post(
                 "https://auth.example.com/token",
                 data={"grant_type": "refresh_token", "refresh_token": "rt-1"},
@@ -144,7 +144,7 @@ class TestARefusalReachesNoSocket:
         _answers(monkeypatch, [_METADATA])
         wire = _Wire(_ok)
 
-        async with PinnedAsyncClient(timeout=httpx.Timeout(5.0), transport=wire) as client:
+        async with PinnedAsyncClient(timeout=httpx2.Timeout(5.0), transport=wire) as client:
             with pytest.raises(SSRFBlockedError):
                 await client.get("https://discovery.attacker.test/.well-known/oauth")
 
@@ -155,7 +155,7 @@ class TestARefusalReachesNoSocket:
         _answers(monkeypatch, [_PUBLIC, _METADATA])
         wire = _Wire(_ok)
 
-        async with PinnedAsyncClient(timeout=httpx.Timeout(5.0), transport=wire) as client:
+        async with PinnedAsyncClient(timeout=httpx2.Timeout(5.0), transport=wire) as client:
             with pytest.raises(SSRFBlockedError):
                 await client.get("https://mixed.attacker.test/token")
 
@@ -168,9 +168,9 @@ class TestRedirectsKeepTheLogicalUrl:
         dialled one instead, a relative redirect would lose the hostname and
         every hop after it would be addressed to a bare IP."""
         _answers(monkeypatch, [_PUBLIC])
-        wire = _Wire(lambda request: httpx.Response(302, headers={"Location": "/moved"}))
+        wire = _Wire(lambda request: httpx2.Response(302, headers={"Location": "/moved"}))
 
-        async with PinnedAsyncClient(timeout=httpx.Timeout(5.0), transport=wire) as client:
+        async with PinnedAsyncClient(timeout=httpx2.Timeout(5.0), transport=wire) as client:
             response = await client.get("https://mcp.example.com/start")
 
         assert response.next_request is not None
@@ -179,12 +179,12 @@ class TestRedirectsKeepTheLogicalUrl:
     async def test_a_redirect_is_not_followed_by_the_client_itself(self, monkeypatch):
         _answers(monkeypatch, [_PUBLIC])
         wire = _Wire(
-            lambda request: httpx.Response(
+            lambda request: httpx2.Response(
                 302, headers={"Location": f"https://{_SECOND_PUBLIC}/moved"}
             )
         )
 
-        async with PinnedAsyncClient(timeout=httpx.Timeout(5.0), transport=wire) as client:
+        async with PinnedAsyncClient(timeout=httpx2.Timeout(5.0), transport=wire) as client:
             response = await client.get("https://mcp.example.com/start")
 
         assert response.status_code == 302
@@ -202,13 +202,13 @@ class TestEveryValidatedAddressIsUsable:
     ):
         _answers(monkeypatch, ["2606:4700:4700::1111", _PUBLIC])
 
-        def responder(request: httpx.Request) -> httpx.Response:
+        def responder(request: httpx2.Request) -> httpx2.Response:
             if request.url.host != _PUBLIC:
-                raise httpx.ConnectError("network is unreachable", request=request)
-            return httpx.Response(200, text="ok")
+                raise httpx2.ConnectError("network is unreachable", request=request)
+            return httpx2.Response(200, text="ok")
 
         wire = _Wire(responder)
-        async with PinnedAsyncClient(timeout=httpx.Timeout(5.0), transport=wire) as client:
+        async with PinnedAsyncClient(timeout=httpx2.Timeout(5.0), transport=wire) as client:
             response = await client.get("https://mcp.example.com/probe")
 
         assert response.status_code == 200
@@ -219,13 +219,13 @@ class TestEveryValidatedAddressIsUsable:
         grant retried with an empty body is worse than a failed one."""
         _answers(monkeypatch, ["2606:4700:4700::1111", _PUBLIC])
 
-        def responder(request: httpx.Request) -> httpx.Response:
+        def responder(request: httpx2.Request) -> httpx2.Response:
             if request.url.host != _PUBLIC:
-                raise httpx.ConnectError("network is unreachable", request=request)
-            return httpx.Response(200, text="ok")
+                raise httpx2.ConnectError("network is unreachable", request=request)
+            return httpx2.Response(200, text="ok")
 
         wire = _Wire(responder)
-        async with PinnedAsyncClient(timeout=httpx.Timeout(5.0), transport=wire) as client:
+        async with PinnedAsyncClient(timeout=httpx2.Timeout(5.0), transport=wire) as client:
             await client.post("https://auth.example.com/token", data={"grant_type": "x"})
 
         assert [r.content for r in wire.sent] == [b"grant_type=x"] * 2
@@ -235,12 +235,12 @@ class TestEveryValidatedAddressIsUsable:
         have been acted on at the other end, so it is raised, not repeated."""
         _answers(monkeypatch, ["2606:4700:4700::1111", _PUBLIC])
 
-        def responder(request: httpx.Request) -> httpx.Response:
-            raise httpx.ReadError("connection reset", request=request)
+        def responder(request: httpx2.Request) -> httpx2.Response:
+            raise httpx2.ReadError("connection reset", request=request)
 
         wire = _Wire(responder)
-        async with PinnedAsyncClient(timeout=httpx.Timeout(5.0), transport=wire) as client:
-            with pytest.raises(httpx.ReadError):
+        async with PinnedAsyncClient(timeout=httpx2.Timeout(5.0), transport=wire) as client:
+            with pytest.raises(httpx2.ReadError):
                 await client.post("https://auth.example.com/token", data={"grant_type": "x"})
 
         assert len(wire.sent) == 1
@@ -248,21 +248,21 @@ class TestEveryValidatedAddressIsUsable:
     async def test_when_no_validated_address_answers_the_last_failure_is_raised(self, monkeypatch):
         _answers(monkeypatch, ["2606:4700:4700::1111", _PUBLIC])
 
-        def responder(request: httpx.Request) -> httpx.Response:
-            raise httpx.ConnectTimeout(f"timed out to {request.url.host}", request=request)
+        def responder(request: httpx2.Request) -> httpx2.Response:
+            raise httpx2.ConnectTimeout(f"timed out to {request.url.host}", request=request)
 
         wire = _Wire(responder)
-        async with PinnedAsyncClient(timeout=httpx.Timeout(5.0), transport=wire) as client:
-            with pytest.raises(httpx.ConnectTimeout, match=_PUBLIC):
+        async with PinnedAsyncClient(timeout=httpx2.Timeout(5.0), transport=wire) as client:
+            with pytest.raises(httpx2.ConnectTimeout, match=_PUBLIC):
                 await client.get("https://mcp.example.com/probe")
 
         assert len(wire.sent) == 2
 
 
 class TestAConfiguredProxyIsStillUsed:
-    """Naming a transport turns off `httpx`'s environment-proxy mounting, which
+    """Naming a transport turns off `httpx2`'s environment-proxy mounting, which
     would strand every deployment that requires an egress proxy. The mounts are
-    read back through a private attribute because that is where `httpx` keeps
+    read back through a private attribute because that is where `httpx2` keeps
     the decision this class exists to preserve.
     """
 
@@ -270,7 +270,7 @@ class TestAConfiguredProxyIsStillUsed:
         monkeypatch.setenv("HTTPS_PROXY", "http://proxy.internal:3128")
 
         with caplog.at_level(logging.INFO, logger="app.core.pinned_http"):
-            client = PinnedAsyncClient(timeout=httpx.Timeout(5.0))
+            client = PinnedAsyncClient(timeout=httpx2.Timeout(5.0))
         try:
             mounted = [t for t in client._mounts.values() if t is not None]
         finally:
@@ -283,10 +283,10 @@ class TestAConfiguredProxyIsStillUsed:
     async def test_nothing_is_said_about_a_proxy_when_there_is_none(self, monkeypatch, caplog):
         for name in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy"):
             monkeypatch.delenv(name, raising=False)
-        monkeypatch.setattr("httpx._utils.getproxies", dict)
+        monkeypatch.setattr("httpx2._utils.getproxies", dict)
 
         with caplog.at_level(logging.INFO, logger="app.core.pinned_http"):
-            client = PinnedAsyncClient(timeout=httpx.Timeout(5.0))
+            client = PinnedAsyncClient(timeout=httpx2.Timeout(5.0))
         await client.aclose()
 
         assert "proxied" not in caplog.text
@@ -298,7 +298,7 @@ class TestClosing:
         _answers(monkeypatch, [_PUBLIC])
         wire = _Wire(_ok)
 
-        async with PinnedAsyncClient(timeout=httpx.Timeout(5.0), transport=wire) as client:
+        async with PinnedAsyncClient(timeout=httpx2.Timeout(5.0), transport=wire) as client:
             await client.get("https://mcp.example.com/probe")
 
         assert wire.closed is True

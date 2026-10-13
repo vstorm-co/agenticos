@@ -16,9 +16,7 @@ from uuid import UUID, uuid4
 import pytest
 from pydantic import ValidationError
 from pydantic_ai import Agent as PydanticAgent
-from pydantic_ai._run_context import RunContext
 from pydantic_ai.models.test import TestModel
-from pydantic_ai.usage import RunUsage
 
 from app.agents.capabilities import (
     REGISTRY,
@@ -48,16 +46,12 @@ from app.agents.subagent_runtime import (
 )
 from app.core.exceptions import BadRequestError
 from app.core.secret_kinds import ApiKeySecret, SecretKind, StorableSecret
+from app.services.capability_contracts import probe_context, real_tool_definition
 
 
 @pytest.fixture(autouse=True)
 def _builtins_loaded():
     load_builtins()
-
-
-def _run_context() -> RunContext[None]:
-    """The least a wrapped toolset needs before it will list its tools."""
-    return RunContext(deps=None, model=TestModel(), usage=RunUsage())
 
 
 class TestSelfLoading:
@@ -149,12 +143,21 @@ class TestToolDeclarations:
         # and contributes nothing when it is not, and this test is about the
         # names it offers rather than what a platform answers.
         CHANNEL_DIRECTORY_RESOURCE: SimpleNamespace(),
+        # A skill that ships a file, which is the widest shape: `skills` offers
+        # `read_skill_resource` only when at least one skill has something to
+        # read, and a skill with no resources offers no tool at all.
         "skills": [
             SimpleNamespace(
                 name="refunds",
                 description="How refunds work.",
                 content="…",
-                resources=[],
+                resources=[
+                    SimpleNamespace(
+                        name="template.md",
+                        description="Reply template",
+                        content="Dear {name},",
+                    )
+                ],
             )
         ],
         # A linked file, so `context` offers both its tools - the widest shape,
@@ -205,6 +208,11 @@ class TestToolDeclarations:
 
     DECLARED_AND_NOT_OFFERED: dict[str, frozenset[str]] = {
         "subagents": frozenset({"answer_subagent"}),
+        # Pydantic AI contributes `load_capability` to any run carrying a
+        # deferred capability, and every skill is one. `skills` declares it
+        # because it is the call that opens a skill and therefore the only place
+        # an approval on loading one can sit - nothing here builds it (#1704).
+        "skills": frozenset({"load_capability"}),
     }
     """Tools a capability declares and deliberately offers no model.
 
@@ -265,11 +273,20 @@ class TestToolDeclarations:
     def _built(self, definition_id: str) -> Any:
         definition = get(definition_id)
         blob = self.CONFIGS.get(definition_id, {})
+        config = definition.validate_config(blob)
+        # A capability that cannot build without a credential gets one, the same
+        # way the override test below does. Without this a secret-requiring
+        # capability builds as `None` and falls out of the drift check entirely -
+        # which is the hole this class's first test exists to close.
+        secret_id, secrets = self._secret_binding(definition, blob)
         return definition.builder(
             CapabilityBuildContext(
-                binding=CapabilityBinding(capability_id=definition_id, config=blob),
-                config=definition.validate_config(blob),
+                binding=CapabilityBinding(
+                    capability_id=definition_id, config=blob, secret_id=secret_id
+                ),
+                config=config,
                 resources=self.RESOURCES,
+                secret=secrets.get(secret_id) if secret_id else None,
             )
         )
 
@@ -327,7 +344,27 @@ class TestToolDeclarations:
         toolset = built.get_toolset()
         if toolset is None:
             return frozenset()
-        return frozenset(await toolset.get_tools(_run_context()))
+        return frozenset(await toolset.get_tools(probe_context(built)))
+
+    @staticmethod
+    async def _offered_descriptions(built: Any) -> dict[str, str]:
+        """The real description behind each offered tool - what the model reads.
+
+        Same source `_offered` reads, one field wider: `get_tools` rather than a
+        `.tools` mapping, for the same reason - a wrapped or filtered toolset has
+        no such mapping. `real_tool_definition` is the one place that knows how
+        a `Tool` wraps its `ToolDefinition` - `capability_contracts.py` reads a
+        tool's description the same way, so a change to that shape fails in one
+        place rather than silently drifting between the two readers.
+        """
+        toolset = built.get_toolset()
+        if toolset is None:
+            return {}
+        offered = await toolset.get_tools(probe_context(built))
+        return {
+            name: getattr(real_tool_definition(tool), "description", "") or ""
+            for name, tool in offered.items()
+        }
 
     def test_the_exemption_table_names_tools_that_are_still_declared(self):
         """An exemption that outlived its tool would quietly widen the check.
@@ -360,6 +397,34 @@ class TestToolDeclarations:
             assert built is not None, definition.id
 
             assert await self._offered(built) == self._expected(definition.id), definition.id
+
+    @pytest.mark.anyio
+    async def test_every_declared_description_tracks_what_the_model_reads(self):
+        """The catalog's one-liner is a prefix of the real thing, not a paraphrase.
+
+        `CapabilityToolInfo.description` is what the Toolbox showed before it
+        learned to read the built toolset instead (#1473) - it is still what a
+        capability declares, and it still has to stay honest, or the person
+        editing a tool override sees a value the model was never actually sent.
+        The real description is the whole docstring, sometimes wrapped in
+        `<summary>` when the tool has a `Returns:` section - stripped from both
+        sides before comparing, because a declared description is sometimes the
+        whole wrapped string verbatim (`subagents`' library-sourced constants
+        copy it in full) and sometimes just the opening sentence (everything
+        else); stripping the wrapper from both reduces both cases to the same
+        prefix check.
+        """
+        for definition in all_capabilities():
+            built = self._built(definition.id)
+            assert built is not None, definition.id
+            descriptions = await self._offered_descriptions(built)
+
+            for tool in definition.tools:
+                if tool.id not in self._expected(definition.id):
+                    continue
+                real = descriptions[tool.name].removeprefix("<summary>")
+                declared = tool.description.removeprefix("<summary>")
+                assert real.startswith(declared), (definition.id, tool.id)
 
     @pytest.mark.anyio
     async def test_renaming_every_tool_cannot_hide_an_undeclared_one(self):
@@ -524,6 +589,34 @@ class TestConfigValidation:
         assert isinstance(config, KnowledgeConfig)
         assert config.default_top_k == 8
 
+    def test_a_valid_parent_context_mode_is_parsed(self):
+        config = get("knowledge").validate_config({"parent_context": "window"})
+        assert isinstance(config, KnowledgeConfig)
+        assert config.parent_context == "window"
+
+    def test_parent_context_defaults_to_off_when_omitted(self):
+        """An old spec whose config predates the field takes the default (#1651)."""
+        config = get("knowledge").validate_config({"default_top_k": 5})
+        assert isinstance(config, KnowledgeConfig)
+        assert config.parent_context == "off"
+
+    def test_the_builder_is_offered_the_parent_context_modes_as_a_choice(self):
+        """An inline `enum` is what the schema form renders as a select; an enum
+        class reaches the schema as a `$ref` and became a free-text box."""
+        field = KnowledgeConfig.model_json_schema()["properties"]["parent_context"]
+        assert field["enum"] == ["off", "window", "parent"]
+        assert set(field["x-enum-labels"]) == {"off", "window", "parent"}
+
+    def test_an_unknown_parent_context_mode_is_refused_at_publish(self):
+        """The Builder marks the field rather than a run failing later."""
+        with pytest.raises(BadRequestError) as exc:
+            get("knowledge").validate_config({"parent_context": "everything"})
+        assert exc.value.details is not None
+        assert exc.value.details["capability_id"] == "knowledge"
+        assert [problem["field"] for problem in exc.value.details["fields"]] == [
+            "config.parent_context"
+        ]
+
     def test_invalid_config_reports_field_errors(self):
         """The Builder needs field-level errors to point at the right input.
 
@@ -555,6 +648,34 @@ class TestConfigValidation:
             get("knowledge").validate_config({"default_top_k": 999})
         assert exc.value.details is not None
         assert all(set(problem) == {"field", "message"} for problem in exc.value.details["fields"])
+
+    def test_query_analysis_config_is_validated_and_bounded(self):
+        config = get("knowledge").validate_config(
+            {"query_analysis_mode": "multi_query", "query_analysis_max_variants": 4}
+        )
+        assert isinstance(config, KnowledgeConfig)
+        assert (config.query_analysis_mode, config.query_analysis_max_variants) == (
+            "multi_query",
+            4,
+        )
+        with pytest.raises(BadRequestError):
+            get("knowledge").validate_config({"query_analysis_mode": "translate"})
+        # Not spec format: with no lexical leg running it could only embed a
+        # different string, and a published mode can never be taken back.
+        with pytest.raises(BadRequestError):
+            get("knowledge").validate_config({"query_analysis_mode": "keywords"})
+        with pytest.raises(BadRequestError):
+            get("knowledge").validate_config({"query_analysis_max_variants": 99})
+
+    def test_query_analysis_defaults_off(self):
+        """A stored spec that predates the field loads with expansion off."""
+        assert get("knowledge").validate_config({}).query_analysis_mode == "off"
+
+    def test_query_analysis_fields_are_in_the_form_schema(self):
+        schema = get("knowledge").config_json_schema()
+        assert schema is not None
+        assert "query_analysis_mode" in schema["properties"]
+        assert "query_analysis_max_variants" in schema["properties"]
 
     def test_capabilities_without_a_schema_accept_nothing(self):
         assert get("charts").validate_config({}) is None
@@ -609,6 +730,23 @@ class TestBuilding:
             resources={"kb_collection_names": ["kb_1"]},
         )
         assert isinstance(built[0], Knowledge)
+
+    def test_knowledge_carries_its_query_analysis_config(self):
+        """The binding's mode and bound reach the built capability, so it is what
+        actually runs rather than the default."""
+        built = build(
+            [
+                CapabilityBinding(
+                    capability_id="knowledge",
+                    config={"query_analysis_mode": "hyde", "query_analysis_max_variants": 4},
+                )
+            ],
+            granted_scopes=frozenset({"knowledge:read"}),
+            resources={"kb_collection_names": ["kb_1"]},
+        )
+        assert isinstance(built[0], Knowledge)
+        assert built[0].query_analysis_mode == "hyde"
+        assert built[0].query_analysis_max_variants == 4
 
     def test_config_reaches_the_capability(self):
         built = build(
@@ -705,11 +843,16 @@ class TestToolsets:
     def test_skills_exclude_script_execution(self):
         """Without a sandbox, run_skill_script is remote code execution."""
 
+        class _Resource:
+            name = "template.md"
+            description = "Reply template"
+            content = "Dear {name},"
+
         class _Skill:
             name = "refunds"
             description = "How refunds work."
             content = "# Refunds"
-            resources: list[object] = []
+            resources: list[object] = [_Resource()]
 
         toolset = Skills(skills=[_Skill()]).get_toolset()
         assert toolset is not None
@@ -728,9 +871,16 @@ def _frontend_tool_ids() -> frozenset[str]:
     prettier keeps the object's own keys at two spaces of indentation.
     """
     source = CATALOG_PATH.read_text(encoding="utf-8")
-    start = source.index("export const TOOL_CATALOG")
-    body = source[source.index("{", start) : source.index("\n};", start)]
-    return frozenset(re.findall(r"^  ([a-z][a-z0-9_]*): \{", body, flags=re.MULTILINE))
+    ids: set[str] = set()
+    # `FRAMEWORK_TOOLS` is a table of its own because Pydantic AI, not a
+    # capability, contributes those tools - but `skills` declares
+    # `load_capability` so that an approval can sit on the call that opens a
+    # skill, so the two tables together are what the chat can draw.
+    for name in ("TOOL_CATALOG", "FRAMEWORK_TOOLS"):
+        start = source.index(f"export const {name}")
+        body = source[source.index("{", start) : source.index("\n};", start)]
+        ids |= set(re.findall(r"^  ([a-z][a-z0-9_]*): \{", body, flags=re.MULTILINE))
+    return frozenset(ids)
 
 
 class TestFrontendToolCatalog:

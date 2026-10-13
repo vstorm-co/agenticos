@@ -256,11 +256,11 @@ export function AgentMap({
               role="group"
               aria-label={t("theAgentItself", { name: agentName })}
             >
-              <p className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
+              <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
                 {t("agent")}
               </p>
               <p className="mt-1 text-base font-semibold">{agentName}</p>
-              <p className="text-muted-foreground mt-4 text-[11px] font-medium tracking-wide uppercase">
+              <p className="text-muted-foreground mt-4 text-xs font-medium tracking-wide uppercase">
                 {t("instructions")}
               </p>
               {instructions.trim() ? (

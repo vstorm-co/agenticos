@@ -860,6 +860,7 @@ describe("secretProblem", () => {
     kind: "api_key",
     description: "The weather API key.",
     required_when: null,
+    purpose: null,
   };
   const stored: Secret = {
     id: "sec-1",

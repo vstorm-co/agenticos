@@ -3,6 +3,17 @@
 // reaches the UI via /me/permissions, never hardcoded here.
 export type OrgRole = "owner" | "admin" | "builder" | "operator" | "member" | "viewer";
 
+/**
+ * Who made a membership - in an organization or in a group.
+ *
+ * `directory` is the sign-in sync: a directory group mapping placed the person
+ * when they signed in through LDAP, Kerberos or an OIDC groups claim, and the
+ * sync keeps that row in step with the directory, changing and removing it.
+ * `manual` is everything else, which the sync never touches. Changing a
+ * directory member's role by hand takes the membership over: it becomes `manual`.
+ */
+export type MembershipSource = "manual" | "directory";
+
 export interface Organization {
   id: string;
   name: string;
@@ -21,6 +32,16 @@ export interface Organization {
    * agent's own: an agent can tighten it, never loosen it.
    */
   monthly_budget_usd: number | null;
+  /**
+   * Whether a chat session here may grant standing consent to gated tool calls -
+   * `approve_all` in the composer's approval control. Off unless somebody who
+   * holds `approvals:decide` turned it on: without a ceiling a Builder's
+   * deliberate gate is one click from nothing in every conversation.
+   *
+   * The chat reads it to decide whether to offer the option at all. Who may then
+   * take it is `approvals:decide`, which is a different question.
+   */
+  chat_may_waive_approvals: boolean;
   created_at: string;
   updated_at: string | null;
 }
@@ -36,6 +57,7 @@ export interface OrganizationMember {
   /** Chosen default-avatar colour slot (1..10); null is auto from the id. */
   avatar_color: number | null;
   joined_at: string;
+  source: MembershipSource;
   /** Whether the caller may change this member's role - the server's own answer
    *  to its rule, so the row shows a selector only where a change is accepted.
    *  Optional because only the members list computes it; absent reads as "no",
@@ -87,6 +109,14 @@ export interface NewInviteLink {
 /** The reply to sending an invitation - the only one carrying the token. */
 export interface InvitationCreated extends Invitation {
   invitation_token: string;
+  /**
+   * Whether the email carrying it was accepted for delivery.
+   *
+   * `null` where none was attempted, which is what an invite link is. The
+   * inviter used to be told "invitation sent" in all three cases, including the
+   * one where no mail service is configured and nobody was mailed at all.
+   */
+  email_delivered: boolean | null;
 }
 
 export interface InvitationList {

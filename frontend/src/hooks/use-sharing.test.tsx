@@ -27,6 +27,8 @@ const SHARING: ResourceSharing = {
       id: "g1",
       subject_user_id: "u-sam",
       subject_email: "sam@example.com",
+      subject_group_id: null,
+      subject_group_name: null,
       resource_type: "agent",
       resource_id: "a1",
       level: "read",
@@ -86,12 +88,30 @@ describe("useSharing", () => {
     const { result } = renderHook(() => useSharing("agent", "a1"), { wrapper });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-    await result.current.revoke.mutateAsync("u-sam");
+    await result.current.revoke.mutateAsync({ kind: "user", id: "u-sam" });
 
     expect(apiClient.delete).toHaveBeenCalledWith("/agents/a1/sharing/grants/u-sam");
     // Visibility and the grant list move together on the server; refetching is
     // what keeps the panel from showing a share that no longer exists.
     await waitFor(() => expect(apiClient.get).toHaveBeenCalledTimes(2));
+  });
+
+  it("shares with a group by its own key, and revokes it at the group endpoint", async () => {
+    // A user id and a group id are both bare UUIDs, so the kind is in the key and
+    // the path - never guessed from the id.
+    vi.mocked(apiClient.put).mockResolvedValue({});
+    vi.mocked(apiClient.delete).mockResolvedValue(undefined);
+    const { result } = renderHook(() => useSharing("agent", "a1"), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await result.current.share.mutateAsync({ subject_group_id: "g-fin", level: "use" });
+    await result.current.revoke.mutateAsync({ kind: "group", id: "g-fin" });
+
+    expect(apiClient.put).toHaveBeenCalledWith("/agents/a1/sharing/grants", {
+      subject_group_id: "g-fin",
+      level: "use",
+    });
+    expect(apiClient.delete).toHaveBeenCalledWith("/agents/a1/sharing/group-grants/g-fin");
   });
 
   it("changes visibility and re-reads the sharing state it affects", async () => {
@@ -105,6 +125,25 @@ describe("useSharing", () => {
       visibility: "org",
     });
     await waitFor(() => expect(apiClient.get).toHaveBeenCalledTimes(2));
+  });
+
+  it("marks the resource's own queries stale, since they carry the visibility too", async () => {
+    // An artifact's page reads its reach from the artifact, not from the panel:
+    // re-reading only the sharing state left it naming the old one.
+    vi.mocked(apiClient.patch).mockResolvedValue({ ...SHARING, visibility: "org" });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(["artifacts", "r1"], { id: "r1", visibility: "private" });
+    client.setQueryData(["agents", "a1"], { id: "a1" });
+    const own = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(() => useSharing("artifact", "r1"), { wrapper: own });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await result.current.setVisibility.mutateAsync("org");
+
+    expect(client.getQueryState(["artifacts", "r1"])?.isInvalidated).toBe(true);
+    expect(client.getQueryState(["agents", "a1"])?.isInvalidated).toBe(false);
   });
 
   it("surfaces the server's refusal instead of leaving the panel silent", async () => {
@@ -129,10 +168,39 @@ describe("useSharing", () => {
     const { result } = renderHook(() => useSharing("agent", "a1"), { wrapper });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-    await expect(result.current.revoke.mutateAsync("u-sam")).rejects.toThrow(refused);
+    await expect(result.current.revoke.mutateAsync({ kind: "user", id: "u-sam" })).rejects.toThrow(
+      refused,
+    );
     await expect(result.current.setVisibility.mutateAsync("org")).rejects.toThrow(refused);
 
     expect(toast.error).toHaveBeenCalledTimes(2);
+  });
+
+  it("cancels the in-flight read before invalidating, so a stale refetch cannot win (#154)", async () => {
+    // invalidateQueries dedupes its refetch onto a fetch already running; a read
+    // that began before the mutation committed would otherwise resolve with the
+    // pre-write body and leave the panel stale. Cancelling first forces a new
+    // post-commit fetch.
+    vi.mocked(apiClient.put).mockResolvedValue({});
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const cancelSpy = vi.spyOn(client, "cancelQueries");
+    const invalidateSpy = vi.spyOn(client, "invalidateQueries");
+    const scoped = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+
+    const { result } = renderHook(() => useSharing("agent", "a1"), { wrapper: scoped });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await result.current.share.mutateAsync({ subject_user_id: "u-sam", level: "read" });
+
+    const key = ["sharing", "agent", "a1"];
+    expect(cancelSpy).toHaveBeenCalledWith({ queryKey: key });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: key });
+    const cancelOrder = cancelSpy.mock.invocationCallOrder[0] ?? 0;
+    const invalidateOrder = invalidateSpy.mock.invocationCallOrder[0] ?? 0;
+    expect(cancelOrder).toBeGreaterThan(0);
+    expect(cancelOrder).toBeLessThan(invalidateOrder);
   });
 
   it("addresses a collection at the plural of its own noun", async () => {

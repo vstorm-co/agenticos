@@ -44,7 +44,7 @@ from app.core.exceptions import (
     NotFoundError,
 )
 from app.core.permissions import AuthContext, Perm
-from app.core.vault import VaultScope, seal_fields, unseal
+from app.core.vault import VaultScope, current_key_version, seal_fields, unseal
 from app.db.models.agent_embed import AgentEmbed
 from app.db.models.chat_file import ChatFile
 from app.db.updates import cleared, writable
@@ -466,7 +466,7 @@ class AgentEmbedService:
         )
 
     async def page_logo_path(self, public_key: str) -> str | None:
-        """The file a hosted page's logo is served from, or `None` if there is none.
+        """The storage path a hosted page's logo is served from, or `None`.
 
         The image is the agent's avatar or the organization's, both already
         uploaded through the paths that exist for them - so publishing a page adds
@@ -480,7 +480,7 @@ class AgentEmbedService:
         return await self._logo_file(embed, PageConfig.model_validate(embed.config))
 
     async def _logo_file(self, embed: AgentEmbed, config: PageConfig) -> str | None:
-        """Where this page's logo actually is on disk, if it is anywhere.
+        """The storage path of this page's logo, if the backend still holds one.
 
         Takes the embed rather than a key so the two callers can share it without
         reading the row twice: the config route already holds it, and it has to ask
@@ -503,8 +503,7 @@ class AgentEmbedService:
         if not stored:
             return None
 
-        full = get_file_storage().get_full_path(stored)
-        return str(full) if full is not None and full.exists() else None
+        return stored if await get_file_storage().exists(stored) else None
 
     async def _logo_url(self, embed: AgentEmbed, config: PageConfig) -> str | None:
         """Where the page fetches its logo, or `None` when there is none to fetch.
@@ -608,14 +607,26 @@ class AgentEmbedService:
         )
         try:
             claims = jwt.decode(token, secret, algorithms=["HS256"])
-        except jwt.PyJWTError as exc:
+        except (jwt.PyJWTError, TypeError) as exc:
+            # `exp`/`iat` as null, [] or {} makes PyJWT's own validation run
+            # `int()` on it - a raw `TypeError`, not a `PyJWTError` - so without
+            # this a malformed-but-signed token escaped as a 500 rather than a
+            # clean refusal (#1107).
             raise EmbedDenied("token rejected") from exc
 
         issued_at = claims.get("iat")
-        if isinstance(issued_at, int | float):
-            age = datetime.now(UTC).timestamp() - float(issued_at)
-            if age > _MAX_TOKEN_AGE_SECONDS:
-                raise EmbedDenied("token too old")
+        if not isinstance(issued_at, int | float) or (
+            datetime.now(UTC).timestamp() - float(issued_at) > _MAX_TOKEN_AGE_SECONDS
+        ):
+            # A within-window `iat` is required, not checked opportunistically:
+            # PyJWT enforces neither `iat` nor a 12h ceiling, so a token with no
+            # `iat` - or a stale one hidden behind a far-future `exp` - would be
+            # fresh until it expired, if ever, and one scraped from a browser tab
+            # would answer on the organization's bill that whole time. `exp` is
+            # not an alternative: it lets a customer *shorten* the window (PyJWT
+            # rejects an expired token at decode), never extend it past the 12h
+            # platform ceiling (#23).
+            raise EmbedDenied("token too old")
 
         subject = claims.get("sub")
         if not subject:
@@ -732,10 +743,10 @@ class AgentEmbedService:
     def _seal(self, organization_id: UUID, secret: str | None) -> tuple[str | None, int]:
         """The sealed JWT secret and the key version that sealed it, to store as a
         pair - so a master-key rotation can `rewrap` the row and it stays readable
-        (#552). A public embed carries no secret and keeps the default version.
+        (#552). A public embed carries no secret and records the current version.
         """
         if secret is None:
-            return None, 1
+            return None, current_key_version()
         sealed, version = seal_fields(
             {"jwt_secret": secret}, scope=VaultScope.organization(organization_id)
         )

@@ -4,7 +4,6 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
-  useAdminOrganizations,
   useAdminRatingsSummary,
   useAdminStats,
   useRecentConversations,
@@ -150,17 +149,6 @@ describe("the deployment strip's hooks", () => {
     expect(result.current.health?.checks).toEqual([]);
   });
 
-  it("useAdminOrganizations reads the largest organizations", async () => {
-    vi.mocked(apiClient.get).mockResolvedValue({ items: [{ id: "o1" }] });
-    const { result } = renderHook(() => useAdminOrganizations(), { wrapper });
-
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-    expect(apiClient.get).toHaveBeenCalledWith("/admin/organizations", {
-      params: { limit: "5" },
-    });
-    expect(result.current.organizations).toHaveLength(1);
-  });
-
   it("useAdminRatingsSummary reads the deployment-wide split for the period", async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ total_ratings: 1204 });
     const { result } = renderHook(() => useAdminRatingsSummary(PERIOD), { wrapper });
@@ -196,7 +184,6 @@ describe("the deployment strip's hooks", () => {
       () => {
         useAdminStats({ enabled: false });
         useSystemHealth({ enabled: false });
-        useAdminOrganizations(5, { enabled: false });
         useAdminRatingsSummary(PERIOD, { enabled: false });
       },
       { wrapper },

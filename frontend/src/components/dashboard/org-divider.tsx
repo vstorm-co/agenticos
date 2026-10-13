@@ -12,7 +12,7 @@ export function OrgDivider({ name }: { name: string | null }) {
   const t = useTranslations("dashboard.orgDivider");
   return (
     <div className="border-border flex items-baseline gap-2 border-t pt-4">
-      <span className="text-muted-foreground font-mono text-[11px] font-medium tracking-[0.1em] uppercase">
+      <span className="text-muted-foreground font-mono text-xs font-medium tracking-[0.1em] uppercase">
         {t("label")}
       </span>
       {name ? (

@@ -92,16 +92,15 @@ export const TRACK_CLASS = "bg-track";
 export const TRACK_TOKEN = "var(--color-track)";
 
 /**
- * The surface a widget is drawn on: the app's frosted pane, at rest.
+ * The surface a widget is drawn on: the app's panel, at rest.
  *
- * The chat composer, every menu and every drawer are glass; the dashboard was
- * the one full page of flat white cards, which read as a different product on
- * the one screen that shows the most of them at once. `.glass-card` in
- * `globals.css` is the resting weight of the same material - the card keeps its
- * own luminance, the ambient wash tints its corners as the page scrolls under
- * it.
+ * The chat composer, every menu and every drawer take the same surface; the
+ * dashboard was the one full page of flat white cards, which read as a
+ * different product on the one screen that shows the most of them at once.
+ * `.panel-card` in `globals.css` is the resting weight of it - the same card
+ * colour, a quieter edge, and a shadow that lifts rather than throws.
  */
-export const CARD_SURFACE = "glass-card";
+export const CARD_SURFACE = "panel-card";
 
 /**
  * The categorical ramp, as CSS colours rather than classes - recharts renders

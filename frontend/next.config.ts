@@ -1,40 +1,19 @@
 import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
 
-// A relative import, not `@/lib/csp`: the path alias is resolved for the
-// application's own build and this file is read before it. The policy lives
-// there so a directive can be asserted - one that goes missing breaks a pane in
-// somebody's browser and nothing else (#1039).
-import { contentSecurityPolicy } from "./src/lib/csp";
+// A relative import, not `@/lib/...`: the path alias is resolved for the
+// application's own build and this file is read before it. The headers live
+// there so each can be asserted - one that goes missing breaks a pane in
+// somebody's browser and nothing else (#1039, #1416). Only the static ones are
+// set here: `headers()` runs at build, and the Content-Security-Policy names
+// the deployment's public origins, which exist at runtime, so
+// `src/middleware.ts` stamps that one.
+import { staticSecurityHeaders } from "./src/lib/security-headers";
+// The same relative-import bargain, and for a sharper reason: written out, the
+// list went stale the moment a third locale shipped and German bookmarks 404'd.
+import { locales } from "./src/lib/locales";
 
 const withNextIntl = createNextIntlPlugin("./src/i18n.ts");
-
-const securityHeaders = [
-  {
-    key: "Content-Security-Policy",
-    value: contentSecurityPolicy,
-  },
-  {
-    key: "X-Content-Type-Options",
-    value: "nosniff",
-  },
-  {
-    key: "X-Frame-Options",
-    value: "DENY",
-  },
-  {
-    key: "X-XSS-Protection",
-    value: "1; mode=block",
-  },
-  {
-    key: "Referrer-Policy",
-    value: "strict-origin-when-cross-origin",
-  },
-  {
-    key: "Permissions-Policy",
-    value: "camera=(), microphone=(), geolocation=()",
-  },
-];
 
 /**
  * Pages that have moved, and the URL that still has to work.
@@ -84,7 +63,11 @@ const nextConfig: NextConfig = {
     // locale on the destination.
     return MOVED_ROUTES.flatMap(({ from, to }) => [
       { source: from, destination: to, permanent: false },
-      { source: `/:locale(en|pl)${from}`, destination: `/:locale${to}`, permanent: false },
+      {
+        source: `/:locale(${locales.join("|")})${from}`,
+        destination: `/:locale${to}`,
+        permanent: false,
+      },
     ]);
   },
 
@@ -93,7 +76,7 @@ const nextConfig: NextConfig = {
     return [
       {
         source: "/(.*)",
-        headers: securityHeaders,
+        headers: [...staticSecurityHeaders],
       },
       // Relax framing for the file endpoint so the chat preview panel can
       // embed PDFs/HTML in an iframe from the same origin. Listed AFTER the

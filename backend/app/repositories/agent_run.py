@@ -2,18 +2,32 @@
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
-from typing import Any, Literal, cast
+from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, and_, case, func, or_, select, tuple_
+from sqlalchemy import (
+    ColumnElement,
+    DateTime,
+    and_,
+    case,
+    func,
+    literal,
+    or_,
+    select,
+    tuple_,
+    type_coerce,
+)
+from sqlalchemy import update as sql_update
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import (
     AgentRun,
+    ApprovalDecidedVia,
     ApprovalStatus,
     RunOrder,
     RunRating,
@@ -44,12 +58,14 @@ async def create_run(
     parent_run_id: UUID | None = None,
     subagent_task_id: str | None = None,
     channel_identity_id: UUID | None = None,
+    initiated_by_publisher_fallback: bool = False,
 ) -> AgentRun:
     run = AgentRun(
         organization_id=organization_id,
         agent_id=agent_id,
         agent_version_id=agent_version_id,
         user_id=user_id,
+        initiated_by_publisher_fallback=initiated_by_publisher_fallback,
         conversation_id=conversation_id,
         channel_identity_id=channel_identity_id,
         exposure_id=exposure_id,
@@ -234,7 +250,7 @@ async def neighbor_run_ids(db: AsyncSession, run: AgentRun) -> tuple[UUID | None
     if run.started_at is None or run.conversation_id is None:
         return None, None
     position = tuple_(AgentRun.started_at, AgentRun.id)
-    anchor = tuple_(run.started_at, run.id)
+    anchor = tuple_(literal(run.started_at), literal(run.id))
     same_level = (
         AgentRun.parent_run_id.is_(None)
         if run.parent_run_id is None
@@ -281,8 +297,17 @@ async def claim_parked_run(
 
 
 async def mark_running(db: AsyncSession, *, run: AgentRun) -> AgentRun:
-    """Take a parked run out of the queue before replaying it."""
+    """Take a parked run out of the queue before replaying it.
+
+    `ended_at` is cleared as part of the transition: the park wrote one, and
+    since the row is committed `running` before the replay's model call (#12),
+    leaving it in place would publish a run that is both running and ended -
+    duration queries count every non-null `ended_at`, and the UI would show the
+    pre-approval segment's span for the whole replay. The terminal write sets
+    it again.
+    """
     run.status = RunStatus.RUNNING.value
+    run.ended_at = None
     db.add(run)
     await db.flush()
     await db.refresh(run)
@@ -318,10 +343,6 @@ class RunFilters:
             playground and the API.
         agent_version_id: The frozen spec that answered. The version strip's
             "show me the runs behind this number".
-        took_over_ms: Only runs that took longer than this. A run with no
-            `ended_at` is excluded rather than treated as zero - it has no
-            duration yet, and calling that "fast" is the wrong answer to
-            "show me the slow ones".
         rated: Only runs somebody rated that way. `down` is the highest-signal
             queue this platform has - the answers real people said were wrong -
             and until `messages.run_id` existed there was no way to ask a run
@@ -349,7 +370,6 @@ class RunFilters:
     environment_id: UUID | None = None
     exposure_id: UUID | None = None
     agent_version_id: UUID | None = None
-    took_over_ms: int | None = None
     rated: RunRating | None = None
 
     def conditions(self) -> list[ColumnElement[bool]]:
@@ -379,8 +399,6 @@ class RunFilters:
             clauses.append(AgentRun.exposure_id == self.exposure_id)
         if self.agent_version_id is not None:
             clauses.append(AgentRun.agent_version_id == self.agent_version_id)
-        if self.took_over_ms is not None:
-            clauses.append(_duration_ms() > self.took_over_ms)
         if self.rated is not None:
             clauses.append(_was_rated(self.rated))
         return clauses
@@ -544,8 +562,10 @@ async def down_rated_run_ids(
     """
     if not run_ids:
         return set()
+    # `type_coerce` states what the join guarantees and the nullable column
+    # cannot: a message joined to its run has a run.
     result = await db.execute(
-        select(Message.run_id)
+        select(type_coerce(Message.run_id, PG_UUID(as_uuid=True)))
         .join(MessageRating, MessageRating.message_id == Message.id)
         .join(AgentRun, AgentRun.id == Message.run_id)
         .where(
@@ -563,8 +583,10 @@ async def sum_cost_since(
     *,
     organization_id: UUID,
     since: datetime,
+    until: datetime | None = None,
     agent_id: UUID | None = None,
     include_delegations: bool = False,
+    exclude_run_id: UUID | None = None,
 ) -> Decimal:
     """Total run spend in a window - what a monthly budget is checked against.
 
@@ -599,15 +621,30 @@ async def sum_cost_since(
     delegation the parent's caps bind, see `app/agents/factory.py` - but it is what
     makes "the researcher agent cost $40 this month" answerable and what a budget
     alert on that agent fires on.
+
+    `exclude_run_id` leaves one run's row out, and the budget guard is the only
+    caller that wants it: a baseline is what *other* runs have already spent, and
+    the asking run's own spend is its ledger's. It matters on a resume, where the
+    run keeps its row: a run that spent $6 and parked has `cost_usd = 6.00`
+    committed, and the ledger is re-seeded with the same $6 so that finishing
+    does not overwrite the cost with only what the continuation cost. Summed as
+    well, the first model request of the continuation saw $12 against a $10 cap
+    and refused a run with $4 of headroom (#15). A figure a person reads is not
+    this - a report that hid the run somebody is looking at would be wrong - so
+    it is off by default.
     """
     query = select(func.coalesce(func.sum(AgentRun.cost_usd), 0)).where(
         AgentRun.organization_id == organization_id,
         AgentRun.started_at >= since,
     )
+    if until is not None:
+        query = query.where(AgentRun.started_at < until)
     if agent_id is not None:
         query = query.where(AgentRun.agent_id == agent_id)
     if not include_delegations:
         query = query.where(AgentRun.parent_run_id.is_(None))
+    if exclude_run_id is not None:
+        query = query.where(AgentRun.id != exclude_run_id)
     result = await db.scalar(query)
     return Decimal(result or 0)
 
@@ -617,6 +654,7 @@ async def cost_breakdown(
     *,
     organization_id: UUID,
     since: datetime,
+    until: datetime | None = None,
     include_delegations: bool = False,
 ) -> list[tuple[UUID, str | None, Decimal, int]]:
     """Spend grouped by agent - the cost dashboard's main query.
@@ -647,6 +685,8 @@ async def cost_breakdown(
         .group_by(AgentRun.agent_id, AgentRun.model_label)
         .order_by(func.coalesce(func.sum(AgentRun.cost_usd), 0).desc())
     )
+    if until is not None:
+        query = query.where(AgentRun.started_at < until)
     if not include_delegations:
         query = query.where(AgentRun.parent_run_id.is_(None))
     result = await db.execute(query)
@@ -690,6 +730,9 @@ class AgentSpendRow:
 
     agent_id: UUID
     agent_name: str
+    agent_slug: str
+    """The handle, which is what the generated face beside this row is drawn
+    from - so the spend table draws the same picture every other surface does."""
     cost_usd: Decimal
     run_count: int
     partial_run_count: int
@@ -754,6 +797,7 @@ async def spend_by_agent(
         select(
             Agent.id,
             Agent.name,
+            Agent.slug,
             func.coalesce(func.sum(AgentRun.cost_usd).filter(top_level), 0),
             func.count(AgentRun.id).filter(top_level),
             func.count(AgentRun.id).filter(top_level, AgentRun.cost_is_partial)
@@ -778,20 +822,21 @@ async def spend_by_agent(
             # agent whose only runs predate the window leaks in as a $0.00 line.
             or_(and_(*window), AgentRun.started_at >= month_since),
         )
-        .group_by(Agent.id, Agent.name, cap.as_float())
+        .group_by(Agent.id, Agent.name, Agent.slug, cap.as_float())
         .order_by(func.coalesce(func.sum(AgentRun.cost_usd).filter(top_level), 0).desc())
     )
     return [
         AgentSpendRow(
             agent_id=agent_id,
             agent_name=name,
+            agent_slug=slug,
             cost_usd=Decimal(cost),
             run_count=runs,
             partial_run_count=unpriced,
             month_to_date_usd=Decimal(month),
             monthly_cap_usd=None if monthly_cap is None else Decimal(str(monthly_cap)),
         )
-        for agent_id, name, cost, runs, unpriced, month, monthly_cap in rows.all()
+        for agent_id, name, slug, cost, runs, unpriced, month, monthly_cap in rows.all()
     ]
 
 
@@ -1036,40 +1081,192 @@ async def latency_percentiles_ms(
     )
 
 
-async def runs_by_day(
+@dataclass(frozen=True)
+class WindowAggregates:
+    """Every scalar the dashboard reads over one window, from one query."""
+
+    total: int
+    cost_usd: Decimal
+    distinct_users: int
+    p50_ms: float | None
+    p95_ms: float | None
+
+
+async def window_aggregates(
     db: AsyncSession,
     *,
     organization_id: UUID,
     start: datetime,
     end: datetime,
     where: RunFilter | None = None,
-) -> list[tuple[date, int, int, Decimal]]:
-    """Sparse (day, runs, completed, cost) buckets; the caller zero-fills.
+) -> WindowAggregates:
+    """The five scalars over one window, in a single SELECT.
 
-    Three measures from the one scan rather than three scans: a day's runs, how
-    many of them completed, and what they cost. They are what the dashboard's
-    figures draw their sparklines from, and asking separately would be three
-    round trips for one set of rows.
+    `count_runs`, `sum_cost_window`, `count_distinct_users` and
+    `latency_percentiles_ms` all read this window's exact same rows and WHERE, so
+    the dashboard asks for them once rather than four round trips. The count, sum
+    and distinct see every row in the window; the percentiles need no
+    `ended_at IS NOT NULL` of their own, because an unfinished run's duration is
+    null and `percentile_cont` ignores a null the way the standalone function's
+    explicit filter did - the same distribution, one query.
+    """
+    conditions = _window_conditions(
+        organization_id=organization_id, start=start, end=end, where=where
+    )
+    duration_ms = func.extract("epoch", AgentRun.ended_at - AgentRun.started_at) * 1000
+    result = await db.execute(
+        select(
+            func.count(AgentRun.id),
+            func.coalesce(func.sum(AgentRun.cost_usd), 0),
+            func.count(func.distinct(AgentRun.user_id)),
+            func.percentile_cont(0.5).within_group(duration_ms),
+            func.percentile_cont(0.95).within_group(duration_ms),
+        ).where(*conditions)
+    )
+    total, cost, distinct_users, p50, p95 = result.one()
+    return WindowAggregates(
+        total=int(total or 0),
+        cost_usd=Decimal(cost or 0),
+        distinct_users=int(distinct_users or 0),
+        p50_ms=float(p50) if p50 is not None else None,
+        p95_ms=float(p95) if p95 is not None else None,
+    )
 
-    Bucketed in UTC explicitly rather than in the session's timezone, so the
-    same row lands on the same day whatever the connection is configured to.
+
+async def window_totals(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    start: datetime,
+    end: datetime,
+    where: RunFilter | None = None,
+) -> tuple[int, Decimal]:
+    """The count and cost of a window, in one SELECT and nothing more.
+
+    The previous window is a delta against the current one - it reports only how
+    many runs and how much they cost - so it does not pay for
+    `window_aggregates`' distinct-user count or its two ordered-set percentiles,
+    which make PostgreSQL sort the window's durations for numbers nobody reads.
+    """
+    conditions = _window_conditions(
+        organization_id=organization_id, start=start, end=end, where=where
+    )
+    result = await db.execute(
+        select(func.count(AgentRun.id), func.coalesce(func.sum(AgentRun.cost_usd), 0)).where(
+            *conditions
+        )
+    )
+    total, cost = result.one()
+    return int(total or 0), Decimal(cost or 0)
+
+
+@dataclass(frozen=True)
+class WindowBreakdown:
+    """The window's five keyed slices, read from one scan.
+
+    A day's runs, completed and cost; run counts by surface, status and model;
+    and spend by provider - the same window's same rows grouped five ways, which
+    used to be five scans for one dashboard. One `GROUPING SETS` scan computes
+    them together, and a `GROUPING` flag per set says which slice each row
+    belongs to, so a genuine `NULL` surface is told apart from a row that is not
+    a surface row at all.
+
+    Each slice keeps the order its own query gave it: the days ascending, so the
+    caller zero-fills straight through them; the dimension counts largest first;
+    the provider bill biggest first.
+    """
+
+    by_day: list[tuple[date, int, int, Decimal]]
+    by_surface: list[tuple[str | None, int]]
+    by_status: list[tuple[str | None, int]]
+    by_model: list[tuple[str | None, int]]
+    by_provider: list[tuple[str | None, Decimal]]
+
+
+async def window_breakdown(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    start: datetime,
+    end: datetime,
+    where: RunFilter | None = None,
+) -> WindowBreakdown:
+    """The window's day, surface, status, model and provider slices, in one query.
+
+    Every grouping set carries every measure - runs, completed and cost - and the
+    caller reads the ones its slice needs. Days are bucketed in UTC explicitly
+    rather than in the session's timezone, so the same row lands on the same day
+    whatever the connection is configured to.
     """
     day = func.date(func.timezone("UTC", AgentRun.started_at))
     conditions = _window_conditions(
         organization_id=organization_id, start=start, end=end, where=where
     )
+    runs = func.count(AgentRun.id)
+    completed = func.count(AgentRun.id).filter(AgentRun.status == RunStatus.COMPLETED.value)
+    cost = func.coalesce(func.sum(AgentRun.cost_usd), 0)
     result = await db.execute(
         select(
+            func.grouping(day),
+            func.grouping(AgentRun.surface),
+            func.grouping(AgentRun.status),
+            func.grouping(AgentRun.model_label),
+            func.grouping(AgentRun.provider),
             day,
-            func.count(AgentRun.id),
-            func.count(AgentRun.id).filter(AgentRun.status == RunStatus.COMPLETED.value),
-            func.coalesce(func.sum(AgentRun.cost_usd), 0),
+            AgentRun.surface,
+            AgentRun.status,
+            AgentRun.model_label,
+            AgentRun.provider,
+            runs,
+            completed,
+            cost,
         )
         .where(*conditions)
-        .group_by(day)
-        .order_by(day)
+        .group_by(
+            func.grouping_sets(
+                tuple_(day),
+                tuple_(AgentRun.surface),
+                tuple_(AgentRun.status),
+                tuple_(AgentRun.model_label),
+                tuple_(AgentRun.provider),
+            )
+        )
     )
-    return [(row[0], row[1], row[2], row[3]) for row in result.all()]
+    by_day: list[tuple[date, int, int, Decimal]] = []
+    by_surface: list[tuple[str | None, int]] = []
+    by_status: list[tuple[str | None, int]] = []
+    by_model: list[tuple[str | None, int]] = []
+    by_provider: list[tuple[str | None, Decimal]] = []
+    for row in result.all():
+        g_day, g_surface, g_status, g_model, g_provider = row[0], row[1], row[2], row[3], row[4]
+        day_value, surface, status, model_label, provider = row[5], row[6], row[7], row[8], row[9]
+        run_count, completed_count, cost_usd = row[10], row[11], row[12]
+        if g_day == 0:
+            by_day.append((day_value, run_count, completed_count, Decimal(cost_usd)))
+        elif g_surface == 0:
+            by_surface.append((surface, run_count))
+        elif g_status == 0:
+            by_status.append((status, run_count))
+        elif g_model == 0:
+            by_model.append((model_label, run_count))
+        elif g_provider == 0:
+            by_provider.append((provider, Decimal(cost_usd)))
+    # Largest group first, ties broken by the label so the order is the same
+    # every run: the old per-dimension ORDER BY had no tiebreaker and left tied
+    # rows in whatever order the scan produced, which a byte-identical caller
+    # cannot depend on.
+    by_day.sort(key=lambda entry: entry[0])
+    by_surface.sort(key=lambda entry: (-entry[1], entry[0] or ""))
+    by_status.sort(key=lambda entry: (-entry[1], entry[0] or ""))
+    by_model.sort(key=lambda entry: (-entry[1], entry[0] or ""))
+    by_provider.sort(key=lambda entry: (-entry[1], entry[0] or ""))
+    return WindowBreakdown(
+        by_day=by_day,
+        by_surface=by_surface,
+        by_status=by_status,
+        by_model=by_model,
+        by_provider=by_provider,
+    )
 
 
 async def runs_by_hour(
@@ -1103,33 +1300,6 @@ async def runs_by_hour(
         .order_by(weekday, hour)
     )
     return [(int(row[0]), int(row[1]), row[2]) for row in result.all()]
-
-
-async def runs_by_dimension(
-    db: AsyncSession,
-    *,
-    organization_id: UUID,
-    start: datetime,
-    end: datetime,
-    dimension: Literal["surface", "status", "model"],
-    where: RunFilter | None = None,
-) -> list[tuple[str | None, int]]:
-    """Run counts grouped by one whitelisted column, largest group first."""
-    column = {
-        "surface": AgentRun.surface,
-        "status": AgentRun.status,
-        "model": AgentRun.model_label,
-    }[dimension]
-    conditions = _window_conditions(
-        organization_id=organization_id, start=start, end=end, where=where
-    )
-    result = await db.execute(
-        select(column, func.count(AgentRun.id))
-        .where(*conditions)
-        .group_by(column)
-        .order_by(func.count(AgentRun.id).desc())
-    )
-    return [(row[0], row[1]) for row in result.all()]
 
 
 async def runs_by_agent(
@@ -1193,27 +1363,6 @@ async def sum_cost_window(
         select(func.coalesce(func.sum(AgentRun.cost_usd), 0)).where(*conditions)
     )
     return Decimal(result or 0)
-
-
-async def cost_by_provider_window(
-    db: AsyncSession,
-    *,
-    organization_id: UUID,
-    start: datetime,
-    end: datetime,
-    where: RunFilter | None = None,
-) -> list[tuple[str | None, Decimal]]:
-    """Window spend per provider, as recorded on each run, biggest bill first."""
-    conditions = _window_conditions(
-        organization_id=organization_id, start=start, end=end, where=where
-    )
-    result = await db.execute(
-        select(AgentRun.provider, func.coalesce(func.sum(AgentRun.cost_usd), 0))
-        .where(*conditions)
-        .group_by(AgentRun.provider)
-        .order_by(func.coalesce(func.sum(AgentRun.cost_usd), 0).desc())
-    )
-    return [(row[0], Decimal(row[1])) for row in result.all()]
 
 
 async def usage_by_version(
@@ -1301,6 +1450,8 @@ async def usage_by_user(
         organization_id=organization_id, start=start, end=end, where=where
     )
     runs = func.count(AgentRun.id)
+    # `started_at` is nullable, but the window bounds it, so every group's
+    # latest is a time - `type_coerce` says so to the type checker.
     result = await db.execute(
         select(
             User.id,
@@ -1308,7 +1459,7 @@ async def usage_by_user(
             User.full_name,
             runs,
             func.coalesce(func.sum(AgentRun.cost_usd), 0),
-            func.max(AgentRun.started_at),
+            type_coerce(func.max(AgentRun.started_at), DateTime(timezone=True)),
         )
         .join(User, User.id == AgentRun.user_id)
         .where(*conditions)
@@ -1317,6 +1468,24 @@ async def usage_by_user(
         .limit(limit)
     )
     return [(row[0], row[1], row[2], row[3], Decimal(row[4]), row[5]) for row in result.all()]
+
+
+async def count_unfinished_in_environment(
+    db: AsyncSession, *, environment_id: UUID, organization_id: UUID
+) -> int:
+    """How many runs this environment resolved are still running or parked on a decision.
+
+    Parked counts: a run waiting for approval resumes on the version it parked
+    with, and its gated tools - a publish among them - run after the decision.
+    """
+    result = await db.scalar(
+        select(func.count(AgentRun.id)).where(
+            AgentRun.organization_id == organization_id,
+            AgentRun.environment_id == environment_id,
+            AgentRun.status.in_([RunStatus.RUNNING.value, RunStatus.AWAITING_APPROVAL.value]),
+        )
+    )
+    return int(result or 0)
 
 
 async def count_pending_approval_runs(
@@ -1360,7 +1529,16 @@ async def create_approval(
     tool_args: dict,
     subagent_name: str | None = None,
     subagent_agent_id: UUID | None = None,
+    standing_consent_by: UUID | None = None,
 ) -> ToolApproval:
+    """Write one approval row: pending, or already approved by standing consent.
+
+    `standing_consent_by` is the account that waived this conversation's
+    approvals, and the row it writes is `approved` with `decided_via` saying it
+    was a standing consent rather than a click - so the queue never offers it and
+    the record still says who authorised what (#925).
+    """
+    standing = standing_consent_by is not None
     approval = ToolApproval(
         id=approval_id,
         organization_id=organization_id,
@@ -1370,6 +1548,12 @@ async def create_approval(
         tool_args=tool_args,
         subagent_name=subagent_name,
         subagent_agent_id=subagent_agent_id,
+        status=ApprovalStatus.APPROVED.value if standing else ApprovalStatus.PENDING.value,
+        decided_by_user_id=standing_consent_by,
+        decided_at=datetime.now(UTC) if standing else None,
+        decided_via=(
+            ApprovalDecidedVia.STANDING.value if standing else ApprovalDecidedVia.CLICK.value
+        ),
     )
     db.add(approval)
     await db.flush()
@@ -1378,14 +1562,24 @@ async def create_approval(
 
 
 async def get_approval(
-    db: AsyncSession, approval_id: UUID, *, organization_id: UUID
+    db: AsyncSession, approval_id: UUID, *, organization_id: UUID, for_update: bool = False
 ) -> ToolApproval | None:
-    result = await db.execute(
-        select(ToolApproval).where(
-            ToolApproval.id == approval_id,
-            ToolApproval.organization_id == organization_id,
-        )
+    """Read one approval; with `for_update`, hold its row for the transaction.
+
+    Deciding twice is a check-then-act race: two approvers open the queue, one
+    rejects and one approves within the same read-committed window, both read
+    `pending`, both pass the guard, and the audit trail ends with two
+    contradictory entries for one decision. `decide` takes the lock so the second
+    caller waits and then finds the row no longer pending - the same shape as
+    `claim_parked_run`.
+    """
+    query = select(ToolApproval).where(
+        ToolApproval.id == approval_id,
+        ToolApproval.organization_id == organization_id,
     )
+    if for_update:
+        query = query.with_for_update()
+    result = await db.execute(query)
     return result.scalar_one_or_none()
 
 
@@ -1416,6 +1610,9 @@ class ApprovalRow:
         decided_by_email: Who decided, for the record view. Null while the call is
             pending, and after a decider's account is deleted - the decision
             outlives the account, which is the point of an audit trail.
+        decided_via: Whether somebody read these arguments and pressed a button,
+            or the conversation had waived approvals in advance. Both are
+            `approved`, and the record is only a record if it says which (#925).
     """
 
     id: UUID
@@ -1432,6 +1629,7 @@ class ApprovalRow:
     decided_by_user_id: UUID | None
     decided_by_email: str | None
     decided_at: datetime | None
+    decided_via: str
     note: str | None
     created_at: datetime | None
 
@@ -1541,6 +1739,7 @@ async def list_approvals(
             decided_by_user_id=approval.decided_by_user_id,
             decided_by_email=decided_email,
             decided_at=approval.decided_at,
+            decided_via=approval.decided_via,
             note=approval.note,
             created_at=approval.created_at,
         )
@@ -1599,6 +1798,48 @@ async def list_stale_approvals(
         .limit(limit)
     )
     return list(result.scalars().all())
+
+
+async def fail_stale_runs(
+    db: AsyncSession, *, older_than: datetime, ended_at: datetime, error: str
+) -> list[UUID]:
+    """End every run still `running` from before `older_than`, and name which.
+
+    A run's row is committed `running` before its model is called (#12), so a
+    process that dies mid-run - SIGKILL, OOM, a deploy that does not drain -
+    leaves a row nothing will ever finish. This is the write that bounds that:
+    the sweep's, on a schedule, which is why it is unscoped like
+    :func:`list_stale_approvals` and takes the same do-not-copy warning.
+
+    One conditional UPDATE rather than a read-then-write per row. The guard on
+    `status` re-evaluates against the committed row under the row lock, so a
+    run that reached its own terminal write between the sweep's tick and this
+    statement keeps its outcome - and a *live* run older than the ceiling that
+    this does flip is flipped back by its own terminal write, which lands
+    later and wins. `awaiting_approval` is deliberately not here: a parked row
+    has a resolver, and the approvals sweep is its ceiling.
+
+    A run's age is its **last transition**, not its `started_at`. A resume
+    keeps the row's original start - the run's span covers both segments - and
+    flips it back to `running` with `mark_running`, whose UPDATE stamps
+    `updated_at`. Aged on `started_at` alone, a run approved more than the
+    ceiling after it first parked would be reaped the moment its replay began,
+    and a scheduled trigger could observe that false terminal status and fire
+    on top of the approved call still executing. `updated_at` is null until a
+    row's first UPDATE, so a never-touched orphan ages from its start.
+    """
+    last_transition = func.coalesce(AgentRun.updated_at, AgentRun.started_at)
+    result = await db.execute(
+        sql_update(AgentRun)
+        .where(
+            AgentRun.status == RunStatus.RUNNING.value,
+            last_transition < older_than,
+        )
+        .values(status=RunStatus.FAILED.value, ended_at=ended_at, error=error)
+        .returning(AgentRun.id)
+    )
+    await db.flush()
+    return [row[0] for row in result.all()]
 
 
 async def decide_approval(

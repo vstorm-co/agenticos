@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
 from app.core.exceptions import AlreadyExistsError, NotFoundError
+from app.core.excerpt import excerpt
 from app.core.permissions import AuthContext, Perm
 from app.db.models.context import ContextFile
 from app.db.models.resource_grant import Visibility
@@ -34,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 
 def _summary(file: ContextFile) -> ContextFileSummary:
-    """A context file as the listing shows it - the body is a byte count only."""
+    """A context file as the listing shows it - a byte count and an excerpt, never the body."""
     return ContextFileSummary(
         id=file.id,
         name=file.name,
@@ -43,6 +44,7 @@ def _summary(file: ContextFile) -> ContextFileSummary:
         mode=cast(ContextModeLiteral, file.mode),
         enabled=file.enabled,
         size_bytes=len(file.content.encode("utf-8")),
+        excerpt=excerpt(file.content),
     )
 
 

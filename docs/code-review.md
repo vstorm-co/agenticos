@@ -68,21 +68,26 @@ Deliberately **not** on `synchronize`. Two developers, a dozen pushes per pull
 request: a review on every one of them is a review nobody reads. Ask for a
 re-run when the fixes are in.
 
-"When the fixes are in" means **all of them**, not one at a time. Each run reads
-the whole diff and costs minutes and money, and the question it answers is "is
-this branch finished" — so ask it when you believe the branch is finished. It is
-fine to go round more than once: label, fix everything it found plus whatever
-reviewing your own work turns up, label again, until it comes back clean. What
-is not fine is a label per finding, which asks the same question of the same
-diff over and over.
+!!! important "Ask it when you believe the branch is finished"
 
-Re-running is the label, and there is no `/review` comment trigger — that is a
-security property, not an omission. `issue_comment` is a **privileged** event:
-it runs from the default branch *with secrets*, for a comment on any pull
-request including one from a fork. Checking out the pull request's own code in
-that context, inside the job holding `OPENAI_API_KEY`, is exactly the shape
-CodeQL flags as `actions/untrusted-checkout` — and it was right to. The label
-does the same job through `pull_request`, which hands a fork neither the secret
+    Each run reads the whole diff and costs minutes and money, and the question
+    it answers is "is this branch finished". A label per finding asks the same
+    question of the same diff over and over; the work between the labels is where
+    most defects are actually found.
+
+It is fine to go round more than once: label, fix everything it found plus
+whatever reviewing your own work turns up, label again, until it comes back
+clean.
+
+!!! danger "There is no `/review` comment trigger, and that is a security property"
+
+    `issue_comment` is a **privileged** event: it runs from the default branch
+    *with secrets*, for a comment on any pull request including one from a fork.
+    Checking out the pull request's own code in that context, inside the job
+    holding `OPENAI_API_KEY`, is exactly what CodeQL flags as
+    `actions/untrusted-checkout`.
+
+The label does the same job through `pull_request`, which hands a fork neither the secret
 nor a writable token, so the exposure is gone rather than argued about.
 
 Adding a label needs write access, which is the same bar the comment trigger
@@ -93,16 +98,30 @@ was checking with `author_association`.
 `.github/workflows/ai-review.yml` splits the work by privilege, because the
 middle job runs a model over code the pull request controls.
 
+```mermaid
+flowchart LR
+    C["context<br/><i>pull-requests: read</i><br/>refuses a fork head, before checkout"]
+    R["review<br/><i>contents: read</i><br/>checks out the head and<br/>assembles the diff itself<br/><b>holds OPENAI_API_KEY</b>"]
+    P["publish<br/><i>pull-requests: write</i><br/>no key"]
+    C -->|"title and body, as an artifact"| R
+    R -->|"findings.json, as an artifact"| P
+    P --> PR[a comment on the pull request]
+```
+
 | Job | Permissions | Holds the key |
 |---|---|---|
 | `context` | `pull-requests: read` | no |
 | `review` | `contents: read` | **yes** |
 | `publish` | `pull-requests: write`, `actions: read` | no |
 
-The job with `OPENAI_API_KEY` can write nothing back — no comment, no label, no
-ref — whatever the model is talked into. The job that writes has never seen the
-key. Findings travel between them as an artifact, because a split like this
-means job outputs can carry a summary string but not a file.
+!!! success "The job holding the key can write nothing back"
+
+    No comment, no label, no ref — whatever the model is talked into. The job
+    that writes has never seen the key. Findings travel to `publish` as an artifact, because a split like this means job
+outputs can carry a summary string but not a file. Note where the pull request's
+own code enters: `context` hands over only the title and body, and the **`review`**
+job checks out the head and assembles the diff itself — inside the job that holds
+the key, which is why that job can write nothing back.
 
 `context` also refuses a fork head, via the API and **before checkout**. Forks
 are disabled on this repository today; this is what keeps the guarantee true on
@@ -201,8 +220,8 @@ answer that looks reasonable:
 
 The `broken` comment carries what Codex printed, in a `<details>` block. That is
 read back out of the run's own job log by `publish`, which is why that job holds
-`actions: read` — a `uses:` step's stderr goes nowhere else, and for the whole of
-#311 the one line that mattered was sitting at the bottom of a green job:
+`actions: read` — a `uses:` step's stderr goes nowhere else, and for the whole
+of #311 the one line that mattered was sitting at the bottom of a green job:
 
 ```text
 ERROR: stream disconnected before completion: Your project has reached its
@@ -218,8 +237,8 @@ Three things about this worth knowing before changing it.
 
 **Red, not neutral.** The check is advisory and not required, so a red mark
 costs nobody a merge; it only makes an outage visible on the page somebody is
-already reading. A neutral conclusion renders as a grey tick, which is the thing
-#311 was about.
+already reading. A neutral conclusion renders as a grey tick, which is the
+thing #311 was about.
 
 **`Review the diff` still carries `continue-on-error`, and the job fails at its
 last step instead.** Failing at the Codex step would skip the two steps that
@@ -388,7 +407,7 @@ Python quality queries the suite runs, which is the wrong trade for a repository
 whose argument is that its value is in what it refuses. #220 holds the exclusion
 to apply on the day there is somewhere to apply it.
 
-### Five findings already adjudicated
+### Eight findings already adjudicated
 
 These have been read. The query is wrong about this codebase, and the reason does
 not change per occurrence — so **resolve the thread and point at this section.**
@@ -402,6 +421,9 @@ justification each time.
 | `py/mixed-returns` | a loop whose fall-through is `pytest.fail(...)` | `pytest.fail` is `NoReturn`, so the implicit return the query is describing cannot happen |
 | `py/unused-global-variable` | `revision`, `down_revision`, `branch_labels`, `depends_on` in a migration | Alembic reads them off the module by name. Nothing in the file uses them, which is what the query sees and what makes them look dead; deleting one breaks the chain. Every revision in `backend/alembic/versions/` has all four, so this recurs once per migration |
 | `py/unnecessary-lambda` | `lambda: service` in a `dependency_overrides` entry | The override has to be a *callable returning the value*. Passing the object directly is the bug the query is recommending: a `MagicMock` is itself callable, so FastAPI would call it and inject its return value instead of the mock |
+| `py/unused-global-variable` | a module global only ever written through `global` | The query reads assignment without a *read* in the same scope as dead. `model_catalog._listing_loop` is written in one function and compared in another, three lines apart, which is the whole mechanism for noticing the loop changed |
+| Wrong name for an argument | a call in a test that deliberately passes an unsupported keyword | The assertion *is* the `TypeError`. `test_channel_tools.py` calls `history(thread_id=...)` inside `pytest.raises(TypeError)` with a `# type: ignore[call-arg]` beside it, because a bound directory refusing to be re-pointed is the behaviour under test |
+| `__eq__` not overridden when adding attributes | a test double subclassing `dict` that stores state (`_AnyIdMap._value`) but keeps the inherited `__eq__` | The double is a stub return value read only through `.get()`; no two instances are ever compared, so the `__eq__` the query wants would be dead code about an equality this object never takes part in. It answers one value for any id because the batched `get_by_ids` reads it that way (#954) |
 
 The first is not a test-file quirk. Fifteen statements under `backend/` are that
 shape, and the five in production code — `agent_session.py` and the Slack, Telegram
@@ -436,8 +458,8 @@ len              # B018  Found useless expression
 await task       # not flagged, correctly
 ```
 
-Until #229 that came with a gap worth knowing, because it was what the exclusion in
-#220 would have cost: ruff was pointed at `app tests cli`, so `backend/alembic/`
+Until #229 that came with a gap worth knowing, because it was what the exclusion
+in #220 would have cost: ruff was pointed at `app tests cli`, so `backend/alembic/`
 (9 files) and the repository's `scripts/` (3) sat outside it, and for this class of
 mistake CodeQL was their only reader. #229 closed it — `make lint-backend` and the
 pre-commit hook now run `ruff check . ../scripts` from `backend/`, so every tracked

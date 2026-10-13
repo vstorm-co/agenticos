@@ -10,10 +10,12 @@ from __future__ import annotations
 import asyncio
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import uuid4
 
 import pytest
-from pydantic_ai import ModelRetry
-from pydantic_ai.usage import RequestUsage
+from pydantic_ai import ModelRetry, RunContext
+from pydantic_ai.models.test import TestModel
+from pydantic_ai.usage import RequestUsage, RunUsage
 
 from app.agents.capabilities import CapabilityBinding, build, load_builtins
 from app.agents.capabilities.budget import BudgetGuard, SpendLedger
@@ -33,9 +35,17 @@ from app.core.exceptions import ConfigurationError, ExternalServiceError
 from app.core.secret_kinds import ApiKeySecret
 from app.services.mcp_catalog import CatalogAuth, get_entry
 from app.services.rag.embeddings import EmbeddingService, OpenAIEmbeddingProvider
-from app.services.rag.models import SearchResult
+from app.services.rag.filters import RetrievalFilters, RetrievalQuery, TenantScope
+from app.services.rag.models import ParentContextMode, SearchResult
 from app.services.rag.retrieval import RetrievalService
 from app.services.rag.vectorstore import PgVectorStore
+
+
+def _tool_ctx(*, retry: int = 0, max_retries: int = 1) -> RunContext[None]:
+    """A context with a retry left, which is what a real call starts with."""
+    return RunContext(
+        deps=None, model=TestModel(), usage=RunUsage(), retry=retry, max_retries=max_retries
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -62,6 +72,7 @@ class TestSearchingSeveralCollections:
         held and nothing on any screen said so.
         """
         store = MagicMock()
+        store.resolve_tenant = AsyncMock(return_value=None)
         store.search = AsyncMock(
             side_effect=[
                 [SearchResult(content="from the healthy one", score=0.9)],
@@ -69,21 +80,28 @@ class TestSearchingSeveralCollections:
             ]
         )
 
+        scope = TenantScope(organization_id=uuid4())
         with pytest.raises(RuntimeError):
             await _retrieval_over(store).retrieve_multi(
-                query="anything", collection_names=["healthy", "broken"]
+                query="anything",
+                collection_names=["healthy", "broken"],
+                scopes={"healthy": scope, "broken": scope},
             )
 
     @pytest.mark.anyio
     async def test_an_empty_collection_is_not_a_failure(self):
         """The store reports an absent table as no results, so it merges as none."""
         store = MagicMock()
+        store.resolve_tenant = AsyncMock(return_value=None)
         store.search = AsyncMock(
             side_effect=[[SearchResult(content="found", score=0.9)], []],
         )
 
+        scope = TenantScope(organization_id=uuid4())
         results = await _retrieval_over(store).retrieve_multi(
-            query="anything", collection_names=["populated", "never_ingested"]
+            query="anything",
+            collection_names=["populated", "never_ingested"],
+            scopes={"populated": scope, "never_ingested": scope},
         )
 
         assert [r.content for r in results] == ["found"]
@@ -97,10 +115,13 @@ class TestSearchingSeveralCollections:
         silently dropped the attribution from every result.
         """
         store = MagicMock()
+        store.resolve_tenant = AsyncMock(return_value=None)
         store.search = AsyncMock(return_value=[SearchResult(content="chunk", score=0.5)])
 
         results = await _retrieval_over(store).retrieve(
-            query="anything", collection_name="handbook"
+            query="anything",
+            collection_name="handbook",
+            scope=TenantScope(organization_id=uuid4()),
         )
 
         assert [r.metadata["collection"] for r in results] == ["handbook"]
@@ -114,31 +135,88 @@ class TestKnowledgeSearchGuards:
         assert "No active knowledge bases" in result
 
     @pytest.mark.anyio
+    async def test_a_search_without_an_organization_is_refused(self):
+        """Fail-closed: no trusted tenant means no scope, so no search runs.
+
+        An unscoped search over a shared physical table could read another
+        tenant's chunks, so the tool refuses rather than widening.
+        """
+        result = await search_knowledge_base(
+            query="x", kb_collection_names=["kb_a"], organization_id=None
+        )
+        assert "No organization context" in result
+
+    @pytest.mark.anyio
     async def test_one_collection_uses_the_single_collection_path(self):
         service = MagicMock()
+        service.resolve_scope = AsyncMock(return_value=MagicMock())
         service.retrieve = AsyncMock(return_value=[])
         with patch(
             "app.agents.capabilities.knowledge._search.get_retrieval_service",
             return_value=service,
         ):
-            await search_knowledge_base(query="x", kb_collection_names=["kb_a"])
+            await search_knowledge_base(
+                query="x", kb_collection_names=["kb_a"], organization_id=uuid4()
+            )
         service.retrieve.assert_awaited_once()
 
     @pytest.mark.anyio
     async def test_several_collections_use_the_multi_path(self):
         service = MagicMock()
+        service.resolve_scope = AsyncMock(return_value=MagicMock())
         service.retrieve_multi = AsyncMock(return_value=[])
         with patch(
             "app.agents.capabilities.knowledge._search.get_retrieval_service",
             return_value=service,
         ):
-            await search_knowledge_base(query="x", kb_collection_names=["kb_a", "kb_b"])
+            await search_knowledge_base(
+                query="x", kb_collection_names=["kb_a", "kb_b"], organization_id=uuid4()
+            )
         service.retrieve_multi.assert_awaited_once()
+
+    @pytest.mark.anyio
+    async def test_parent_context_reaches_the_single_collection_retrieve(self):
+        """The agent's small-to-big mode is threaded through to the service (#1651)."""
+        service = MagicMock()
+        service.resolve_scope = AsyncMock(return_value=MagicMock())
+        service.retrieve = AsyncMock(return_value=[])
+        with patch(
+            "app.agents.capabilities.knowledge._search.get_retrieval_service",
+            return_value=service,
+        ):
+            await search_knowledge_base(
+                query="x",
+                kb_collection_names=["kb_a"],
+                organization_id=uuid4(),
+                parent_context=ParentContextMode.PARENT,
+            )
+        assert service.retrieve.await_args.kwargs["parent_context"] is ParentContextMode.PARENT
+        service.expand.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_parent_context_reaches_the_multi_collection_retrieve(self):
+        service = MagicMock()
+        service.resolve_scope = AsyncMock(return_value=MagicMock())
+        service.retrieve_multi = AsyncMock(return_value=[])
+        with patch(
+            "app.agents.capabilities.knowledge._search.get_retrieval_service",
+            return_value=service,
+        ):
+            await search_knowledge_base(
+                query="x",
+                kb_collection_names=["kb_a", "kb_b"],
+                organization_id=uuid4(),
+                parent_context=ParentContextMode.WINDOW,
+            )
+        assert (
+            service.retrieve_multi.await_args.kwargs["parent_context"] is ParentContextMode.WINDOW
+        )
 
     @pytest.mark.anyio
     async def test_a_retrieval_failure_surfaces_as_an_external_service_error(self):
         """Not a silent empty result: an agent must not answer as if it searched."""
         service = MagicMock()
+        service.resolve_scope = AsyncMock(return_value=MagicMock())
         service.retrieve = AsyncMock(side_effect=RuntimeError("pgvector down"))
         with (
             patch(
@@ -147,21 +225,24 @@ class TestKnowledgeSearchGuards:
             ),
             pytest.raises(ExternalServiceError),
         ):
-            await search_knowledge_base(query="x", kb_collection_names=["kb_a"])
+            await search_knowledge_base(
+                query="x", kb_collection_names=["kb_a"], organization_id=uuid4()
+            )
 
     @pytest.mark.anyio
     async def test_an_unconfigured_deployment_keeps_saying_what_to_configure(self):
         """The generic rewrap used to eat the one message that named the fix.
 
         A missing embedding credential reaches this tool as a ConfigurationError
-        carrying the setting to set; turning that into "Knowledge base search
-        failed" leaves an operator with a symptom and no next step.
+        naming the collection and the key it tried; turning that into "Knowledge
+        base search failed" leaves an operator with a symptom and no next step.
         """
         service = MagicMock()
+        service.resolve_scope = AsyncMock(return_value=MagicMock())
         service.retrieve = AsyncMock(
             side_effect=ConfigurationError(
                 message="No embedding credential is configured",
-                details={"setting": "OPENROUTER_API_KEY"},
+                details={"key_origin": "collection 'kb_a'"},
             )
         )
         with (
@@ -171,9 +252,105 @@ class TestKnowledgeSearchGuards:
             ),
             pytest.raises(ConfigurationError) as refusal,
         ):
-            await search_knowledge_base(query="x", kb_collection_names=["kb_a"])
+            await search_knowledge_base(
+                query="x", kb_collection_names=["kb_a"], organization_id=uuid4()
+            )
 
-        assert refusal.value.details == {"setting": "OPENROUTER_API_KEY"}
+        assert refusal.value.details == {"key_origin": "collection 'kb_a'"}
+
+    @pytest.mark.anyio
+    async def test_multi_query_fans_out_under_one_scope_and_fuses(self):
+        """Every expanded query is retrieved under the *same* resolved scope, so
+        expansion widens recall without ever widening access (#1649, FA-039)."""
+        scope = MagicMock()
+        service = MagicMock()
+        service.resolve_scope = AsyncMock(return_value=scope)
+        hit = SearchResult(content="c", score=0.5, parent_doc_id="d", metadata={"chunk_num": 1})
+        service.retrieve = AsyncMock(return_value=[hit])
+        service.expand = AsyncMock()
+        filters = RetrievalFilters(source=["upload"])
+
+        async def generate(_: str) -> str:
+            return "change my password\nrecover my account"
+
+        with patch(
+            "app.agents.capabilities.knowledge._search.get_retrieval_service",
+            return_value=service,
+        ):
+            await search_knowledge_base(
+                query="reset password",
+                kb_collection_names=["kb_a"],
+                organization_id=uuid4(),
+                filters=filters,
+                analysis_mode="multi_query",
+                analysis_max_variants=2,
+                generate=generate,
+                parent_context=ParentContextMode.WINDOW,
+            )
+        # The original plus two variants, each a separate retrieval, all bound to
+        # the one scope the tool resolved and the very filters object it was given.
+        calls = service.retrieve.await_args_list
+        assert len(calls) == 3
+        assert {call.kwargs["query"] for call in calls} == {
+            "reset password",
+            "change my password",
+            "recover my account",
+        }
+        assert all(call.kwargs["scope"] is scope for call in calls)
+        assert all(call.kwargs["filters"] is filters for call in calls)
+        # Each variant is retrieved bare and the fused list is expanded once, so
+        # the passage budget is spent on the final results rather than per query
+        # (#1651) - and under the same scope the variants were searched with.
+        assert all(call.kwargs["parent_context"] is ParentContextMode.OFF for call in calls)
+        service.expand.assert_awaited_once()
+        (fused,) = service.expand.await_args.args
+        assert [r.parent_doc_id for r in fused] == ["d"]
+        assert service.expand.await_args.kwargs == {
+            "parent_context": ParentContextMode.WINDOW,
+            "scopes": {"kb_a": scope},
+        }
+
+    @pytest.mark.anyio
+    async def test_expansion_fans_out_across_the_multi_collection_path_too(self):
+        scope_a, scope_b = MagicMock(), MagicMock()
+        service = MagicMock()
+        service.resolve_scope = AsyncMock(side_effect=[scope_a, scope_b])
+        service.retrieve_multi = AsyncMock(return_value=[])
+        service.expand = AsyncMock()
+        filters = RetrievalFilters(document_type=["pdf"])
+
+        async def generate(_: str) -> str:
+            return "a rephrasing"
+
+        with patch(
+            "app.agents.capabilities.knowledge._search.get_retrieval_service",
+            return_value=service,
+        ):
+            await search_knowledge_base(
+                query="q",
+                kb_collection_names=["kb_a", "kb_b"],
+                organization_id=uuid4(),
+                filters=filters,
+                analysis_mode="multi_query",
+                analysis_max_variants=3,
+                generate=generate,
+                parent_context=ParentContextMode.PARENT,
+            )
+        # Original + one variant, each spanning both collections - and every call
+        # handed the one scope mapping resolved up front, not a rebuilt one, with
+        # each name still mapped to its own scope, and the very filters given.
+        calls = service.retrieve_multi.await_args_list
+        assert [call.kwargs["query"] for call in calls] == ["q", "a rephrasing"]
+        first_scopes = calls[0].kwargs["scopes"]
+        assert first_scopes == {"kb_a": scope_a, "kb_b": scope_b}
+        assert all(call.kwargs["scopes"] is first_scopes for call in calls)
+        assert all(call.kwargs["filters"] is filters for call in calls)
+        assert service.resolve_scope.await_count == 2
+        assert all(call.kwargs["parent_context"] is ParentContextMode.OFF for call in calls)
+        assert service.expand.await_args.kwargs == {
+            "parent_context": ParentContextMode.PARENT,
+            "scopes": first_scopes,
+        }
 
 
 class TestEmbeddingCredential:
@@ -189,22 +366,66 @@ class TestEmbeddingCredential:
         """
         assert OpenAIEmbeddingProvider(model="text-embedding-3-small").model
 
-    def test_embedding_without_a_key_names_the_setting_to_set(self):
+    def test_embedding_without_a_collection_says_there_is_no_key_to_try(self):
+        """A caller with no collection - the warmup, a `rag-*` command embedding
+        outside any collection. There is no deployment-wide key it could have
+        used, and the refusal says so rather than advising a variable that does
+        not exist."""
         provider = OpenAIEmbeddingProvider(model="text-embedding-3-small")
 
         with pytest.raises(ConfigurationError) as refusal:
             provider.embed_queries(["hello"])
 
         assert refusal.value.status_code == 503
-        assert "OPENROUTER_API_KEY" in refusal.value.message
+        assert "OPENROUTER_API_KEY" not in refusal.value.message
+        assert "outside any collection" in refusal.value.message
         assert refusal.value.details == {
-            "setting": "OPENROUTER_API_KEY",
+            "key_origin": "none",
             "model": "text-embedding-3-small",
+            "endpoint": "the provider's default",
         }
+
+    def test_a_collections_refusal_advises_a_key_rather_than_the_deployments(self):
+        """A collection embedding through another provider cannot be fixed by
+        setting this deployment's key, and advising it would point one vendor's
+        credential at another vendor's endpoint."""
+        provider = OpenAIEmbeddingProvider(
+            model="text-embedding-3-small",
+            base_url="https://api.openai.com/v1",
+            key_origin="collection 'handbook', which embeds through openai on no key at all",
+        )
+
+        with pytest.raises(ConfigurationError) as refusal:
+            provider.embed_queries(["hello"])
+
+        assert "OPENROUTER_API_KEY" not in refusal.value.message
+        assert "handbook" in refusal.value.message
+        assert refusal.value.details["endpoint"] == "https://api.openai.com/v1"
 
     def test_the_client_is_built_once_and_reused(self):
         provider = OpenAIEmbeddingProvider(model="m", api_key="sk-test", base_url="https://x/v1")
         assert provider.client is provider.client
+
+    def test_a_keyless_endpoint_gets_a_client_with_no_key_and_no_refusal(self):
+        """An Ollama on the deployment's own network takes no credential, and
+        the SDK refuses to build on an empty one - so a placeholder goes on the
+        wire, and it is visibly not a secret (#1632)."""
+        provider = OpenAIEmbeddingProvider(
+            model="nomic-embed-text", base_url="http://ollama:11434/v1", keyless=True
+        )
+
+        client = provider.client
+
+        assert client.api_key == "keyless"
+        assert str(client.base_url).startswith("http://ollama:11434/v1")
+        assert provider.client is client
+
+    def test_the_service_passes_keyless_through_to_the_client(self):
+        service = EmbeddingService(
+            settings=app_settings.rag, base_url="http://ollama:11434/v1", keyless=True
+        )
+
+        assert service.provider.client.api_key == "keyless"
 
     def test_a_collection_nobody_has_uploaded_to_reports_as_empty(self):
         """The second half of the reported 500 on `/rag/collections/{name}/info`.
@@ -248,17 +469,18 @@ class TestEmbeddingCredential:
         store._for_collection = AsyncMock(side_effect=AssertionError("should not embed"))
         store.async_session = MagicMock(side_effect=AssertionError("should not query"))
 
-        assert asyncio.run(store.search("never_ingested", "anything")) == []
+        query_filter = RetrievalQuery(scope=TenantScope(organization_id=uuid4()))
+        assert asyncio.run(store.search("never_ingested", "anything", query_filter)) == []
 
-    def test_the_service_builds_on_a_deployment_with_no_key(self, monkeypatch):
+    def test_the_service_builds_with_no_key_and_refuses_only_when_asked_to_embed(self):
         """`get_embedding_service` is a FastAPI dependency of every RAG route.
 
         Raising here failed the request before any handler ran, which is why
         `GET /rag/collections/{name}/info` - a COUNT(*) that embeds nothing -
-        answered 500 with an OpenAI SDK traceback instead of its row count.
+        answered 500 with an OpenAI SDK traceback instead of its row count. A
+        service with no collection has no key by construction now, so building
+        one must stay free and embedding through one must refuse.
         """
-        monkeypatch.setattr(app_settings, "OPENROUTER_API_KEY", "")
-
         service = EmbeddingService(settings=app_settings.rag)
 
         with pytest.raises(ConfigurationError):
@@ -343,18 +565,24 @@ class TestFactoryHelpers:
 
 class TestModelFallbacks:
     def test_no_fallbacks_builds_a_plain_model(self):
-        credential = ResolvedCredential(provider="openai", secret=ApiKeySecret(api_key="sk-test"))
+        credential = ResolvedCredential(
+            provider="openai", secret=ApiKeySecret(api_key="sk-test-key")
+        )
         model = build_with_fallbacks((credential, "gpt-4.1"), [])
         assert type(model).__name__ != "FallbackModel"
 
     def test_fallbacks_wrap_the_primary(self):
         """A single provider outage should not take an organization's agents down."""
-        credential = ResolvedCredential(provider="openai", secret=ApiKeySecret(api_key="sk-test"))
+        credential = ResolvedCredential(
+            provider="openai", secret=ApiKeySecret(api_key="sk-test-key")
+        )
         model = build_with_fallbacks(
             (credential, "gpt-4.1"),
             [
                 (
-                    ResolvedCredential(provider="anthropic", secret=ApiKeySecret(api_key="sk-b")),
+                    ResolvedCredential(
+                        provider="anthropic", secret=ApiKeySecret(api_key="sk-b-12345")
+                    ),
                     "claude-sonnet-4-6",
                 )
             ],
@@ -396,12 +624,14 @@ class TestCapabilityBuilderBranches:
         assert build([CapabilityBinding(capability_id="skills")]) == []
 
     def test_skills_is_attached_when_resolved(self):
-        skill = MagicMock(name="refunds", description="d", content="c", resources=[])
+        skill = MagicMock(description="d", content="c", resources=[])
+        skill.name = "refunds"
         built = build([CapabilityBinding(capability_id="skills")], resources={"skills": [skill]})
         assert isinstance(built[0], Skills)
 
-    def test_an_empty_skill_set_yields_no_toolset(self):
-        assert Skills(skills=[]).get_toolset() is None
+    def test_an_empty_skill_set_is_not_attached_at_all(self):
+        """The builder answers `None` rather than a catalog with nothing in it."""
+        assert build([CapabilityBinding(capability_id="skills")], resources={"skills": []}) == []
 
 
 class TestChartFailureModes:
@@ -411,7 +641,9 @@ class TestChartFailureModes:
         from app.agents.capabilities.charts import ChartsToolset
 
         with pytest.raises(ModelRetry, match="`x_values` was empty"):
-            ChartsToolset().create_chart(chart_type="bar", title="t", x_values=[], series=[])
+            ChartsToolset().create_chart(
+                _tool_ctx(), chart_type="bar", title="t", x_values=[], series=[]
+            )
 
     def test_unplottable_data_says_how_to_fix_it(self):
         """The model can only recover if it is told what was missing."""
@@ -420,6 +652,7 @@ class TestChartFailureModes:
 
         with pytest.raises(ModelRetry, match=r"'revenue' has 0 value\(s\) for 1 x value\(s\)"):
             ChartsToolset().create_chart(
+                _tool_ctx(),
                 chart_type="bar",
                 title="t",
                 x_values=["only-a-label"],
@@ -432,6 +665,7 @@ class TestChartFailureModes:
 
         toolset = Charts().get_toolset()
         result = toolset.tools["create_chart"].function(
+            _tool_ctx(),
             chart_type="bar",
             title="Revenue",
             x_values=["Jan"],
@@ -461,7 +695,7 @@ class TestWebSearchFailureModes:
             "app.agents.capabilities.web_research._toolset.search",
             new=AsyncMock(return_value=WebSearchResults(query="x", provider="brave")),
         ) as backend:
-            await toolset.tools["web_search"].function(query="x")
+            await toolset.tools["web_search"].function(_tool_ctx(), query="x")
 
         assert backend.call_args.kwargs["max_results"] == 3
         assert backend.call_args.kwargs["provider"] == "brave"
@@ -496,7 +730,7 @@ class TestSandboxResultRendering:
         with patch(
             "app.agents.capabilities.code_execution._sandbox.AsyncMonty", return_value=client
         ):
-            assert "42" in await run_python("6*7")
+            assert "42" in (await run_python("6*7")).text
 
 
 class TestCapabilityToolsetCaching:
@@ -520,6 +754,7 @@ class TestLastMileBranches:
 
         spec = parse_chart_spec(
             ChartsToolset().create_chart(
+                _tool_ctx(),
                 chart_type="bar",
                 title="t",
                 x_values=["Jan"],
@@ -549,27 +784,27 @@ class TestLastMileBranches:
         import app.agents.capabilities.knowledge._search as search_module
 
         sentinel = object()
-        original = search_module._retrieval_service
-        search_module._retrieval_service = sentinel  # type: ignore[assignment]
+        original = search_module._unpooled_service
+        search_module._unpooled_service = sentinel  # type: ignore[assignment]
         try:
             assert search_module.get_retrieval_service() is sentinel
         finally:
-            search_module._retrieval_service = original
+            search_module._unpooled_service = original
 
     def test_the_retrieval_service_is_built_on_first_use(self):
         import app.agents.capabilities.knowledge._search as search_module
 
-        original = search_module._retrieval_service
-        search_module._retrieval_service = None
+        original = search_module._unpooled_service
+        search_module._unpooled_service = None
         try:
             with (
                 patch.object(search_module, "EmbeddingService"),
-                patch.object(search_module, "PgVectorStore"),
+                patch.object(search_module, "unpooled_vector_store"),
                 patch.object(search_module, "RetrievalService") as service_cls,
             ):
                 assert search_module.get_retrieval_service() is service_cls.return_value
         finally:
-            search_module._retrieval_service = original
+            search_module._unpooled_service = original
 
 
 class TestServerCatalog:
@@ -606,6 +841,9 @@ class TestFinalBranches:
         assert "result:" in _format_result("", circular)
 
     def test_a_skills_toolset_is_built_once(self):
-        skill = MagicMock(name="refunds", description="d", content="c", resources=[])
+        resource = MagicMock(description="rd", content="rc")
+        resource.name = "r.md"
+        skill = MagicMock(description="d", content="c", resources=[resource])
+        skill.name = "refunds"
         capability = Skills(skills=[skill])
         assert capability.get_toolset() is capability.get_toolset()

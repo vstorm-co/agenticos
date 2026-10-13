@@ -1,14 +1,19 @@
 # The deployment itself
 
 Most of this product is about agents. This page is about the thing they run
-inside: **one installation, with a name, a mark, a rule about who may join it, and
-a switch that closes it.** All of it lives in a single database row and is edited
-from `/admin/settings` by whoever holds `is_app_admin` — no redeploy, no
-environment variable, no rebuild.
+inside.
 
-That authority is deliberate and it is not a permission from the catalog. A
-permission is scoped to an organization; this row is not in one. It is the same
-authority that already administers users and tenants across the installation.
+**One installation, with a name, a mark, a rule about who may join it, and a switch
+that closes it.** All of it lives in a single database row and is edited from
+`/admin/settings` by whoever holds `is_app_admin` — no redeploy, no environment
+variable, no rebuild.
+
+!!! info "Why that authority, and not a permission"
+
+    A permission is scoped to an organization. This row is not in one.
+
+    It is the same authority that already administers users and tenants across the
+    installation.
 
 ## Identity
 
@@ -22,12 +27,15 @@ authority that already administers users and tenants across the installation.
 | Footer text | Under the sign-in form |
 | Terms URL, Privacy URL | Every link that otherwise offers the built-in `/legal/*` pages |
 
-**A null column means "the built-in", not "empty".** An operator who has never
-opened the page has no row at all, and one who clears a field is asking for the
-default back rather than for a sign-in header with no name on it. So the API
-answers *overrides* and each renderer resolves a null against its own built-in —
-the console against `APP_NAME` and `SITE` in `frontend/src/lib/`, the backend
-against `settings.PROJECT_NAME` for the mail it sends itself.
+!!! note "A null column means *the built-in*, not *empty*"
+
+    An operator who clears a field is asking for the default back, not for a
+    sign-in header with no name on it. The API answers *overrides* and each
+    renderer resolves a null against its own built-in.
+
+An operator who has never opened the page has no row at all. The console resolves
+a null against `APP_NAME` and `SITE` in `frontend/src/lib/`; the backend resolves
+it against `settings.PROJECT_NAME` for the mail it sends itself.
 
 Two constants for one product name can drift, so
 `backend/tests/test_deployment_settings.py` pins them equal. It reads the
@@ -46,8 +54,12 @@ are served from the origin the app's own pages run on and `logo.html` there is a
 script.
 
 JPEG, PNG, WebP and GIF, up to 2MB, which is the one definition of "an image this
-platform accepts". SVG is deliberately absent: it is a document that may carry
-script. ICO buys nothing a PNG favicon does not.
+platform accepts".
+
+!!! danger "SVG is deliberately absent"
+
+    It is a document that may carry script, and these files are served from the
+    origin the app's own pages run on. ICO buys nothing a PNG favicon does not.
 
 The branding response carries a **version**, not a URL. The address is constant
 (`GET /api/v1/branding/{logo,favicon}`) and the bytes are served `immutable` for a
@@ -56,10 +68,67 @@ last changed; the `?v=` built from that is the only reason a replacement ever
 appears. A URL would also be one every client had to rewrite, since in any real
 deployment the API is not on the same origin as the pages.
 
+## A deployment inside a compliant environment
+
+`deploy/profiles/hipaa/` is an opinionated configuration for running this where
+HIPAA's technical safeguards apply - a compose overlay that refuses to start
+without the settings it cannot default, and an annotated env file - plus
+`agenticos cmd doctor --profile hipaa`, which checks a running deployment against
+it and exits non-zero on any unmet control.
+
+It is evidence, not a certification, and it answers §164.312 only: the
+administrative and physical safeguards are the operator's. See
+[The HIPAA profile](security.md#the-hipaa-profile-and-what-it-does-not-claim)
+for the sheet and for the line about who the business associate is.
+
+## Security headers
+
+Every console page carries a Content-Security-Policy and the usual hardening
+headers, defined in `frontend/src/lib/csp.ts` and
+`frontend/src/lib/security-headers.ts`, both asserted by tests. The policy is
+`default-src 'self'` with a `connect-src` naming exactly this origin,
+`PUBLIC_API_URL` and `PUBLIC_WS_URL`, `img-src` allowing `data:` for the brand
+glyphs and avatars, `frame-src 'self' blob:` for document previews, `object-src
+'none'`, `base-uri 'self'` and `frame-ancestors 'none'`.
+
+`script-src` carries no `'unsafe-inline'`. The middleware mints a per-request
+nonce, writes `'nonce-…' 'strict-dynamic'` into the directive, and Next stamps
+that nonce onto its own inline scripts — so a script injected into the page has
+no nonce and does not run. `'unsafe-eval'` remains, because Next's development
+runtime needs it.
+
+The policy is stamped per request by the frontend's middleware, because the two
+public URLs are read from the server's environment at runtime and a header set
+at build could only name `localhost`. The other headers are constants and are
+set by Next's configuration. Change the public URLs and the policy follows on
+the next request; nothing is rebuilt.
+
+Alongside it sit `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
+`Referrer-Policy: strict-origin-when-cross-origin`, and a `Permissions-Policy`
+that denies camera and geolocation and allows the microphone only on this
+origin, for the chat's speech-to-text.
+
+!!! warning "A reverse proxy must not add its own copies of these"
+
+    Nginx, Traefik or an ALB in front of the app passes these through unchanged
+    rather than setting its own. Two `Content-Security-Policy` headers on one
+    response are combined by the browser into their intersection, so a proxy that
+    adds a second — even a laxer one — only tightens the policy into something
+    that blocks a pane nobody meant to block; and a second `X-Frame-Options` lets
+    the browser pick either value. The bundled `nginx/nginx.conf` sets only
+    `Strict-Transport-Security`, which belongs to whatever terminates TLS; an
+    existing proxy configuration that adds the others should drop them.
+
 ## Who may register
 
 `signup_mode`, applied in `app/services/signup_policy.py` — the one place, and it
-gates **both** paths that mint an account.
+gates **every** path that mints an account: the registration form, and a sign-in
+through an identity provider. Nothing about an OAuth or OIDC callback looks like
+a registration, and a deployment with single sign-on and a closed sign-up form
+would not be closed at all if that branch were ungated, so
+`get_or_create_oauth_user` asks the same policy before it creates the account.
+A refused SSO sign-in lands back on the sign-in page carrying the policy's own
+sentence, which is the same one the registration form shows.
 
 | Mode | Effect |
 |---|---|
@@ -72,6 +141,13 @@ all. **An invitation overrides that list** — somebody holding `members:invite`
 named the address on purpose, and a domain list is deployment policy for strangers
 rather than a veto over a deliberate act. `closed` is overridden by nothing,
 because "closed" that lets some registrations through is not closed.
+
+A **directory group mapping counts as an invitation.** A first sign-in through
+the directory (LDAP or Kerberos), or through OIDC with a groups claim, whose
+groups match some organization's mapping is admitted by `invite_only` and by the
+domain list: whoever wrote the mapping held `members:manage` and `roles:manage`
+and decided everyone in that group belongs. `closed` still refuses it. See
+[Directory group mappings](directory.md#directory-group-mappings).
 
 **`closed` means closed, and there is no administrator-creates-an-account path.**
 Deliberately: an account needs a password its owner chose, so adding somebody means
@@ -103,7 +179,7 @@ token**, and the two answers cover different shapes:
 
 | Arrives with | Recognised by | Which shapes it admits |
 |---|---|---|
-| A token (`invitation_token` on the sign-up body) | `invitation_admission.admits` | Any live invitation that admits the address — including a link constraining **no** address, which is the shape nothing else can see |
+| A token (resolved from the staged invitation, never on the sign-up body) | `invitation_admission.admits` | Any live invitation that admits the address — including a link constraining **no** address, which is the shape nothing else can see |
 | No token | `invitation_repo.first_pending_admitting` | An email invitation for that address, or a link scoped to its domain |
 
 The token is the only proof available for a shareable link with neither an address
@@ -121,32 +197,57 @@ and nothing else; joining the organization is still `InvitationService.accept`, 
 the client calls once it has a session. A token in an unauthenticated sign-up body
 that also granted membership would be a membership grant on a public route.
 
-The console carries it across the redirect that used to lose it. An invitee with no
-account opens `/invitations/<token>`, `AuthGuard` bounces them to
-`/login?returnTo=/invitations/<token>`, and `src/lib/invitation-links.ts` reads the
-token back out of that `returnTo` so "create an account" points at
-`/register?invitation=<token>`. Before that, the only route onward was a plain link
-to `/register`, and the form then refused somebody holding a valid invitation.
+The console never carries the token across the sign-in round trip. An invitee with
+no account opens `/invitations/<token>`; `AuthGuard` exchanges the token server-side
+for an opaque handle it keeps in an `httpOnly` cookie the browser cannot read, then
+sends them to `/login?returnTo=/invitations/pending?flow=…` — a landing with no
+credential in it, so the token is not in the `returnTo`, in browser history, or in
+session storage. If the exchange fails — the server unreachable, a rate limit — the
+guard stays on the invitation link and offers to try again rather than leaving with
+nothing staged, because the link is the only credential the invitee holds.
 
-**A link with a `max_uses` bounds accounts, not only joins.** `used_count` counts
-acceptances and acceptance needs a session, so a ceiling read off it alone bounded
-nothing a registration did: one one-use link posted in a channel admitted as many
-accounts as anybody cared to create, on the deployment that had just closed sign-up.
-So a use is **reserved** for the registering address first — `reserved_emails` on the
+The `flow` is a random id the exchange mints per staging, and the cookie is named
+for it. It is not a credential: without the cookie it names nothing. It is there
+because one fixed cookie name is one slot — two invitation links opened side by side
+while signed out overwrote each other, and both pending tabs then redeemed the second.
+Each tab now redeems exactly the cookie its own flow names.
+
+"Create an account" carries that credential-free landing on, and the register proxy
+forwards the named flow's staged handle as a header, so the sign-up admission still
+has the token it needs without the token ever being in a URL or the body. After
+sign-in the pending page redeems the handle and accepts — the same shape as the OAuth
+code exchange, an opaque single-use expiring stand-in for a credential so the
+credential never rides a URL. The cookie is cleared once the redeem has run; a 401, a
+429 or a server failure leaves it, because the handle may still be unspent and a
+retry needs it.
+
+**A link with a `max_uses` bounds accounts, not only joins.**
+
+`used_count` counts acceptances, and acceptance needs a session — so a ceiling read
+off it alone bounded nothing a registration did. One one-use link posted in a channel
+admitted as many accounts as anybody cared to create, on the deployment that had just
+closed sign-up.
+
+So a use is **reserved** for the registering address first: `reserved_emails` on the
 row, and `used_count + reserved_emails` is what "used up" means. The reservation is a
 single conditional `UPDATE`, because two registrations racing on the last use would
-both read the same count otherwise. Accepting moves the address out of the list as it
-increments the count, which conserves it: somebody who registered through a one-use
-link can still join. A reservation nobody accepts stays spent — `max_uses` is how
-many people a link admits, and an account created with it was admitted — and it dies
-with the invitation.
+both read the same count otherwise.
 
-**Signing in with a provider carries the invitation too.** The token is put on
-`/oauth/google/login?invitation=…` and held in the session across the round trip,
-because the provider redirect is not ours to add a parameter to. Without it,
-`invite_only` refused the Google button for exactly the links that need a token —
-one constraining neither an address nor a domain — while the password form beside it
-accepted the same person.
+Accepting moves the address out of the list as it increments the count, which
+conserves it — somebody who registered through a one-use link can still join.
+
+A reservation nobody accepts stays spent (`max_uses` is how many people a link
+admits, and an account created with it was admitted), and it dies with the
+invitation.
+
+**Signing in with a provider carries the invitation too, as its handle.** The
+provider login starts same-origin, at `/api/oauth/<provider>/login`, so the staged
+`httpOnly` handle can be attached to the cross-origin hop the browser then makes —
+`/oauth/google/login?invitation_handle=…`, which the backend peeks into the token it
+holds in the session across the round trip. The token is never in that URL. Without
+this, `invite_only` refused the Google button for exactly the links that need a
+token — one constraining neither an address nor a domain — while the password form
+beside it accepted the same person.
 
 **Signing in with a provider is a registration too.** `get_or_create_oauth_user`
 is the second path that creates an account, and nothing about a Google callback
@@ -162,16 +263,53 @@ know the rule exists and reads the refusal as the product being broken. That is
 also why the allowed domains are published: they are not a secret, and the
 deployment is on the company's own host.
 
+## Finding one tenant among all of them
+
+`GET /admin/organizations` is the only surface that answers *what tenants exist*,
+and it is app-admin only for the reason it is useful: it is cross-tenant by
+construction. It answers a page of organizations with each one's member and agent
+counts and its earliest owner — who to ask about it. Every owner field is null
+together, for an organization whose last owner left, which is a state only the
+deployment admin can fix and therefore one they have to be shown.
+
+| Parameter | |
+|---|---|
+| `search` | Name, slug, or the owner's address. The term is text, not a pattern — `100%` finds the tenant called that rather than all of them |
+| `sort_by` | `name`, `slug`, `members`, `agents`, `created_at`. Anything else is a 422 |
+| `sort_dir` | `asc` / `desc`, defaulting to newest first |
+| `kind` | `personal`, `team`, or `all`. Every account is given a personal organization at sign-up, so on most deployments they are most of the list |
+| `skip`, `limit` | One server page, up to 100 |
+
+**All of it happens in SQL, before `OFFSET`/`LIMIT`**, and `total` counts what was
+narrowed to rather than the deployment. That is the difference between a sort and
+the appearance of one: a page sorted after it arrives claims a whole-collection
+order that fifty rows cannot deliver, which is why the admin's tenant list carried
+no controls at all while the route answered none (#921). The order breaks ties on
+the id, so paging a column where rows share a value lists each of them once.
+
+A column outside the set is refused by name rather than matched against nothing,
+for the two reasons `GET /runs` refuses one: an empty page reads as *this
+deployment has no tenants*, and an `ORDER BY` assembled from a query string is an
+injection surface.
+
 ## An app admin cannot lock the deployment out through the console
+
+!!! warning "The self-inflicted lockout this prevents"
+
+    On the single-admin install `make platform-bootstrap` produces, a stray click
+    on your own row ended administration until somebody reached a terminal.
+    Recovery is `agenticos cmd create-app-admin <email>` from a shell — the
+    email is a required argument.
 
 `is_active` is enforced on the next request and `is_app_admin` is what the admin
 pages read, so an app admin acting on **their own** row from `/admin/users` could
-sign themselves out, drop `/admin`, or delete the account — and on the
-single-admin install `make platform-bootstrap` produces, a stray click ended
-administration until somebody reached a terminal. `UserService.admin_update` and
+sign themselves out, drop `/admin`, or delete the account.
+`UserService.admin_update` and
 `admin_delete` refuse the self-suspend and the self-delete, and the drawer does
 not offer Suspend, Demote or Impersonate on your own row (Delete stays, visible
 and refused, because "why can I not delete myself" has an answer worth showing).
+The API refuses acting as yourself too — nobody acting as anybody is not an
+impersonation.
 
 The deployment cannot be left with no app admin through the API at all: the one
 global privilege is granted only by CLI (`agenticos cmd create-app-admin`) and
@@ -180,6 +318,58 @@ deletion — and deleting the *last* one is deleting yourself, which is refused.
 Removing an admin genuinely leaving is another admin's action, which is also what
 keeps the audit trail readable. Recovery, if it is ever needed, is still
 `create-app-admin` from a shell on the deployment.
+
+That argument is about the *set*, and for a while the code was about one row.
+
+Two admins deleting each other were each not deleting themselves. They locked
+different target rows, never contended, and both committed — zero app admins,
+recoverable only by writing to the database (#1208).
+
+So an admin deletion takes `SELECT ... FOR UPDATE` over the app-admin set, ordered by
+id, before it decides. The second request waits, re-reads the set once the first has
+committed, and is refused for emptying it.
+
+Ordered, because two requests taking the same rows in different orders is a deadlock
+rather than a queue. And taken on every admin deletion rather than only on an
+admin's: deleting a user is an administrator's action, not a hot path, and a total
+order is worth more than the contention it costs.
+
+## Acting as another account
+
+**Impersonate** on `/admin/users` starts acting as that person from your own
+browser. Nothing is copied anywhere: the console swaps the session's access
+cookie for one that names the target, every page renders as they would see it,
+and a banner across the top says whose account this is and who is really acting,
+with the one button that ends it.
+
+An impersonation is a **session**, not a bare credential. The token names a row
+in `sessions` with `impersonator_user_id` set, and the API refuses it the moment
+that row is ended or has expired, or the administrator behind it is no longer an
+active app admin — so it stops when you press **End impersonation**, when the
+person signs out everywhere or changes their password, when the hour is
+up, or when the administrator is suspended, demoted or deleted, whichever is
+first. It cannot be refreshed: the window is the access token's own, and the hour
+is the ceiling rather than a renewable lease.
+
+!!! note "An open chat conversation ends with it"
+
+    A chat conversation runs over a WebSocket that authenticates once, at the
+    handshake. It now re-runs that check on every message, so ending an
+    impersonation — or suspending the account — closes an open chat too, rather
+    than only refusing the next HTTP request while the socket keeps answering.
+
+!!! note "The person's own devices list does not show it"
+
+    An impersonation is a row under their id that an administrator holds, not a
+    device they signed in from — so it is not in their devices list, not in the
+    drawer's open-session count, and not their "last seen". Whether they are told
+    at all is the setting below, and a row in that list would decide it for them.
+
+**Whether the person is told is a policy, set on this row.**
+`notify_impersonated_users` is off by default; on, the person is emailed once
+when the impersonation starts, naming the administrator. The audit trail records
+the impersonation either way — both the start and the end, with the session they
+belong to — which is what [Governance](governance.md#audit) describes.
 
 ## Notices, and closing the deployment
 
@@ -306,7 +496,19 @@ audit row outlives the request body it came from.
 
 Worth saying here because closing a deployment is the feature most likely to produce
 one a person has never seen. `app/api/exception_handlers.py` puts **every** refusal in
-`{"error": {"code", "message", "details"}}` — domain exceptions, schema validation,
+`{"error": {"code", "message", "details"}}`:
+
+```json
+{
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Agent not found",
+    "details": { "agent_id": "…" }
+  }
+}
+```
+
+That covers domain exceptions, schema validation,
 and since #917 `HTTPException` too, which covers a 405, an unmatched path and the
 twenty-two routes that raise one directly. Two shapes on the wire means every caller
 either handles both or silently mishandles one.
@@ -319,3 +521,16 @@ that list and they have none. `app/core/otel_compat.py` supplies, for that branc
 the same fallback upstream already uses in the branch it did guard. Still unfixed
 upstream as of 0.65b0, and `tests/test_otel_route_details.py` fails when it is fixed,
 which is when the module goes away.
+
+## Recap
+
+- The deployment's identity is **one row**, edited from `/admin/settings`, and a
+  null column means *the built-in* rather than *empty*.
+- `signup_mode` is applied in **one place** and gates both paths that mint an
+  account. An invitation overrides a domain list; nothing overrides `closed`.
+- An app admin **cannot lock themselves out** through the console.
+- **Impersonation is a session**: started from the console with no token on the
+  clipboard, named in a banner, ended by the administrator, by the person signing
+  out everywhere, or by the hour. Whether the person is told is
+  `notify_impersonated_users`, off by default.
+- Every refusal from this deployment looks the same, whichever layer produced it.

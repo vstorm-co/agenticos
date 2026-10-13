@@ -5,22 +5,53 @@
  */
 import { describe, expect, it } from "vitest";
 
+import * as adminConversations from "./admin/conversations/route";
+import * as adminOrganizations from "./admin/organizations/route";
+import * as adminOrganization from "./admin/organizations/[id]/route";
+import * as adminRatingsSummary from "./admin/ratings/summary/route";
 import * as adminSettings from "./admin/settings/[[...path]]/route";
+import * as adminStats from "./admin/stats/route";
+import * as adminSystem from "./admin/system/route";
+import * as adminUserDetail from "./admin/users/[userId]/detail/route";
+import * as adminUser from "./admin/users/[userId]/route";
+import * as adminUsers from "./admin/users/route";
 import * as agent from "./agent/[[...path]]/route";
 import * as agents from "./agents/[[...path]]/route";
 import * as approvals from "./approvals/[[...path]]/route";
+import * as artifacts from "./artifacts/[[...path]]/route";
 import * as audit from "./audit/[[...path]]/route";
 import * as catalog from "./catalog/[[...path]]/route";
 import * as channels from "./channels/[[...path]]/route";
 import * as context from "./context/[[...path]]/route";
 import * as conversations from "./conversations/[[...path]]/route";
 import * as kb from "./kb/[[...path]]/route";
+import * as localServices from "./local-services/[[...path]]/route";
 import * as mcpConnections from "./mcp-connections/[[...path]]/route";
+import * as memory from "./memory/[[...path]]/route";
+import * as channelLink from "./me/channel-link/[[...path]]/route";
+import * as notifications from "./notifications/[[...path]]/route";
 import * as permissions from "./me/permissions/route";
 import * as dashboardLayout from "./me/dashboard-layout/route";
 import * as dashboardPresets from "./me/dashboard-layout/presets/route";
 import * as dashboardPreset from "./me/dashboard-layout/presets/[presetId]/route";
-import * as builtinCommands from "./me/slash-commands/builtin/route";
+import * as myMcpConnections from "./me/mcp-connections/route";
+import * as myMcpConnection from "./me/mcp-connections/[id]/route";
+import * as myMcpConnectionTest from "./me/mcp-connections/[id]/test/route";
+import * as mcpOauthStart from "./me/mcp-connections/oauth/start/route";
+import * as slashCommands from "./me/slash-commands/[[...path]]/route";
+import * as orgs from "./orgs/route";
+import * as org from "./orgs/[id]/route";
+import * as orgInvitations from "./orgs/[id]/invitations/route";
+import * as orgInvitation from "./orgs/[id]/invitations/[invitationId]/route";
+import * as orgMembers from "./orgs/[id]/members/route";
+import * as orgMember from "./orgs/[id]/members/[userId]/route";
+import * as orgRetention from "./orgs/[id]/retention/route";
+import * as orgGroups from "./orgs/[id]/groups/route";
+import * as orgGroup from "./orgs/[id]/groups/[groupId]/route";
+import * as orgGroupMembers from "./orgs/[id]/groups/[groupId]/members/route";
+import * as orgGroupMember from "./orgs/[id]/groups/[groupId]/members/[userId]/route";
+import * as orgDirectoryMappings from "./orgs/[id]/directory-mappings/route";
+import * as orgDirectoryMapping from "./orgs/[id]/directory-mappings/[mappingId]/route";
 import * as providers from "./providers/[[...path]]/route";
 import * as rag from "./rag/[[...path]]/route";
 import * as ratings from "./ratings/[[...path]]/route";
@@ -30,6 +61,7 @@ import * as triggerTemplates from "./trigger-templates/[[...path]]/route";
 import * as sandboxConnections from "./sandbox-connections/[[...path]]/route";
 import * as sandboxWorkspaces from "./sandbox-workspaces/[[...path]]/route";
 import * as secrets from "./secrets/[[...path]]/route";
+import * as sessions from "./sessions/[[...path]]/route";
 import * as skillChanges from "./skill-changes/[[...path]]/route";
 import * as skills from "./skills/[[...path]]/route";
 import * as spend from "./spend/[[...path]]/route";
@@ -48,17 +80,49 @@ import * as users from "./users/[userId]/route";
  * nothing, on one page only.
  */
 const MOUNTED: [string, Record<string, unknown>][] = [
+  ["admin/conversations", adminConversations],
+  ["admin/organizations", adminOrganizations],
+  ["admin/organizations/[id]", adminOrganization],
+  ["admin/ratings/summary", adminRatingsSummary],
   ["admin/settings", adminSettings],
+  ["admin/stats", adminStats],
+  ["admin/system", adminSystem],
+  ["admin/users", adminUsers],
+  ["admin/users/[userId]", adminUser],
+  ["admin/users/[userId]/detail", adminUserDetail],
   ["agent", agent],
   ["agents", agents],
   ["approvals", approvals],
+  ["artifacts", artifacts],
   ["audit", audit],
   ["catalog", catalog],
   ["channels", channels],
   ["context", context],
   ["conversations", conversations],
   ["kb", kb],
+  ["local-services", localServices],
   ["mcp-connections", mcpConnections],
+  ["memory", memory],
+  ["me/channel-link", channelLink],
+  ["me/mcp-connections", myMcpConnections],
+  ["me/mcp-connections/[id]", myMcpConnection],
+  ["me/mcp-connections/[id]/test", myMcpConnectionTest],
+  ["me/mcp-connections/oauth/start", mcpOauthStart],
+  ["me/slash-commands", slashCommands],
+  ["notifications", notifications],
+  ["orgs", orgs],
+  ["orgs/[id]", org],
+  ["orgs/[id]/invitations", orgInvitations],
+  ["orgs/[id]/invitations/[invitationId]", orgInvitation],
+  ["orgs/[id]/members", orgMembers],
+  ["orgs/[id]/members/[userId]", orgMember],
+  ["orgs/[id]/retention", orgRetention],
+  ["orgs/[id]/groups", orgGroups],
+  ["orgs/[id]/groups/[groupId]", orgGroup],
+  ["orgs/[id]/groups/[groupId]/members", orgGroupMembers],
+  ["orgs/[id]/groups/[groupId]/members/[userId]", orgGroupMember],
+  ["orgs/[id]/directory-mappings", orgDirectoryMappings],
+  ["orgs/[id]/directory-mappings/[mappingId]", orgDirectoryMapping],
   ["providers", providers],
   ["rag", rag],
   ["ratings", ratings],
@@ -68,6 +132,7 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["sandbox-workspaces", sandboxWorkspaces],
   ["trigger-templates", triggerTemplates],
   ["secrets", secrets],
+  ["sessions", sessions],
   ["skill-changes", skillChanges],
   ["skills", skills],
   ["spend", spend],
@@ -108,11 +173,5 @@ describe("the proxied route mounts", () => {
 
       expect(response.status, name).toBe(401);
     }
-  });
-
-  it("mounts the one route that is not a catch-all with the same forwarder", async () => {
-    // `me/slash-commands/builtin` is hand-rolled because it needs a PUT the
-    // template's generator does not emit; it still has to answer one.
-    expect(typeof builtinCommands.PUT).toBe("function");
   });
 });

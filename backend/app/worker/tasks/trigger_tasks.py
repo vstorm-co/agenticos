@@ -25,6 +25,8 @@ from uuid import UUID
 from prefect import flow
 from prefect.deployments import run_deployment
 
+from app.core.logfire_setup import setup_worker_observability
+from app.core.logging import setup_logging
 from app.db.session import get_worker_db_context
 
 if TYPE_CHECKING:  # pragma: no cover - imported for typing only
@@ -130,6 +132,7 @@ async def _poll_one_grant(db: AsyncSession, grant: McpConnection, source: str) -
     read = await McpConnectionService(db).poll_grant(grant)
     if read is None:
         return 0
+    assert grant.organization_id is not None, "a portal grant is always created org-scoped"
     decisions = await AgentTriggerService(db).prepare_polled_fires(
         organization_id=grant.organization_id,
         event_source=source,
@@ -300,6 +303,13 @@ async def run_scheduled_trigger_flow(
     """
     from app.services.agent_trigger import AgentTriggerService
 
+    # This is an agent run in a process that ran none of the API's startup:
+    # `serve()` gives each flow run its own subprocess. Without the first line a
+    # run's own logs reach the aggregator unredacted (#440); without the second
+    # the deployment's `LOGFIRE_TOKEN` traces every interactive run and no fired
+    # one, and this run's `logfire_trace_id` is null (#1700).
+    setup_logging()
+    setup_worker_observability()
     parsed = None if claimed_at is None else datetime.fromisoformat(claimed_at)
     async with get_worker_db_context() as db:
         await AgentTriggerService(db).fire(

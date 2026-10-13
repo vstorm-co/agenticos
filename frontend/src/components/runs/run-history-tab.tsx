@@ -11,7 +11,6 @@ import { RunTable, type RunSort } from "@/components/runs/run-table";
 import { VersionStrip } from "@/components/runs/version-strip";
 import { ErrorState, LoadingState } from "@/components/states";
 import {
-  Button,
   Card,
   CardContent,
   CardDescription,
@@ -29,16 +28,6 @@ import { isNarrowed, type RunFilters } from "@/lib/runs/filter-params";
 import { setUrlParam } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
 import type { RunStatus } from "@/types/runs";
-
-/**
- * The "slow runs" preset's threshold, in milliseconds.
- *
- * Thirty seconds is the example the design gives for the query somebody actually
- * types - "everything slower than 30 seconds" - and the canned view is that query
- * as one click. The number is a starting point a reader narrows from, not a
- * definition of slow; the sort beside it is what finds the genuine outliers.
- */
-const SLOW_RUN_THRESHOLD_MS = 30_000;
 
 /** "What went wrong" as one choice - the query the two statuses exist apart for. */
 const PROBLEM_STATUSES: RunStatus[] = ["failed", "budget_exceeded"];
@@ -113,9 +102,6 @@ export function RunHistoryTab({
   const [sort, setSort] = useState<RunSort>(
     initialDurationSort ? { by: "duration", dir: "desc" } : { by: "started_at", dir: "desc" },
   );
-  // Independent of the sort: "slow runs" is a filter, and the reader can still
-  // re-sort the slow set by start time without it ceasing to be the slow set.
-  const [minDurationMs, setMinDurationMs] = useState<number | null>(null);
 
   // The version narrowing belongs to one agent's history: carried across a
   // change of agent it would silently empty the next agent's list.
@@ -149,7 +135,6 @@ export function RunHistoryTab({
     agentId,
     sort.by,
     sort.dir,
-    minDurationMs,
     JSON.stringify(filters),
   ].join("|");
   const [paging, setPaging] = useState({ key: narrowingKey, page: 0 });
@@ -163,7 +148,6 @@ export function RunHistoryTab({
     startedTo: periodEnd(period),
     orderBy: sort.by,
     descending: sort.dir === "desc",
-    tookOverMs: minDurationMs ?? undefined,
     rated: filters.rated === "all" ? undefined : filters.rated,
     statuses:
       filters.status === "all"
@@ -182,16 +166,6 @@ export function RunHistoryTab({
   });
   const narrowed = isNarrowed(filters);
 
-  const showSlow = () => {
-    changeSort({ by: "duration", dir: "desc" });
-    setMinDurationMs(SLOW_RUN_THRESHOLD_MS);
-  };
-  const showAll = () => {
-    changeSort({ by: "started_at", dir: "desc" });
-    setMinDurationMs(null);
-  };
-  const slowActive = minDurationMs !== null;
-
   // Exactly what the table was asked with, in the export route's own names -
   // the file is what is on screen, and a filter dropped here is the #763
   // defect: a CSV read as "the failed Slack runs" that is neither.
@@ -209,7 +183,6 @@ export function RunHistoryTab({
   if (filters.rated !== "all") exportParams.rated = filters.rated;
   if (filters.userId !== "all") exportParams.user_id = filters.userId;
   if (filters.versionId !== "all") exportParams.agent_version_id = filters.versionId;
-  if (minDurationMs !== null) exportParams.took_over_ms = String(minDurationMs);
 
   return (
     // A column that fills the height its caller gives it: the filters and the
@@ -271,22 +244,6 @@ export function RunHistoryTab({
                   control with nothing to do. */}
               {canView && (
                 <ListCardControlsRow className="shrink-0">
-                  <Button
-                    variant={slowActive ? "outline" : "secondary"}
-                    size="sm"
-                    aria-pressed={!slowActive}
-                    onClick={showAll}
-                  >
-                    {t("allRuns")}
-                  </Button>
-                  <Button
-                    variant={slowActive ? "secondary" : "outline"}
-                    size="sm"
-                    aria-pressed={slowActive}
-                    onClick={showSlow}
-                  >
-                    {t("slowRuns")}
-                  </Button>
                   <RunFilterBar
                     filters={filters}
                     period={period}

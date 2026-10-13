@@ -8,9 +8,10 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { resetSessionState, useAuthStore } from "@/stores";
 import { apiClient, ApiError } from "@/lib/api-client";
-import type { User, LoginRequest, RegisterRequest } from "@/types";
-import { postSignInDestination } from "@/lib/auth-landing";
+import type { DirectoryLoginRequest, User, LoginRequest, RegisterRequest } from "@/types";
+import { goToDestination, postSignInDestination } from "@/lib/auth-landing";
 import { ROUTES } from "@/lib/constants";
+import { INVITATION_FLOW_PARAM } from "@/lib/invitation-links";
 
 // Session-level singletons so /auth/me runs ONCE per page load no matter how
 // many components mount useAuth(). Concurrent mounts share the in-flight
@@ -27,15 +28,40 @@ let authChecked = false;
 let tokenRefreshTimer: ReturnType<typeof setInterval> | null = null;
 const TOKEN_REFRESH_INTERVAL_MS = 10 * 60 * 1000;
 
+// Which identity the reads in flight were started under. A deliberate re-read
+// moves it, and a read that began before the move is discarded when it lands:
+// the session was swapped underneath it - an impersonation started or ended -
+// and it would otherwise install the previous account and its token over the
+// one the cookies now hold, leaving the socket and the page as different people.
+let identityEpoch = 0;
+
+/**
+ * How long a sign-in request may take before the form says so.
+ *
+ * Without a bound a request that never answers - sent over a connection a VPN
+ * reconnect or a sleeping laptop left dead - spins the button until somebody
+ * reloads, and the reload then signs in at once on a fresh connection. Twenty
+ * seconds is far past a slow login and short enough to be told to try again.
+ */
+export const SIGN_IN_TIMEOUT_MS = 20_000;
+
+/** What a sign-in route answers: the account, and the token the chat socket needs. */
+interface SignInResponse {
+  user: User;
+  access_token: string;
+}
+
 function ensureTokenRefresh(adopt: (u: User) => void): void {
   if (tokenRefreshTimer) return;
   tokenRefreshTimer = setInterval(() => {
     if (!useAuthStore.getState().isAuthenticated) return;
+    const epoch = identityEpoch;
     void (async () => {
       try {
         const { access_token, ...userData } = await apiClient.get<User & { access_token?: string }>(
           "/auth/me",
         );
+        if (epoch !== identityEpoch) return;
         // The answer says who the cookie belongs to now, and cookies are shared
         // across tabs: signing in as somebody else in another tab used to leave
         // this one rendering the first account while installing the second
@@ -126,6 +152,7 @@ export function useReauthenticate(): () => Promise<void> {
   const queryClient = useQueryClient();
   const setUser = useAuthStore((state) => state.setUser);
   return useCallback(async () => {
+    identityEpoch += 1;
     authChecked = false;
     authCheckPromise = null;
     await runAuthCheck((u) => adoptUser(queryClient, setUser, u));
@@ -135,19 +162,25 @@ export function useReauthenticate(): () => Promise<void> {
 function runAuthCheck(setUser: (u: User | null) => void): Promise<void> {
   if (authChecked) return Promise.resolve();
   if (authCheckPromise) return authCheckPromise;
+  const epoch = identityEpoch;
   authCheckPromise = (async () => {
+    let answer: (User & { access_token?: string }) | null;
     try {
-      const data = await apiClient.get<User & { access_token?: string }>("/auth/me");
-      const { access_token, ...userData } = data;
+      answer = await apiClient.get<User & { access_token?: string }>("/auth/me");
+    } catch {
+      answer = null;
+    }
+    if (epoch !== identityEpoch) return;
+    if (answer) {
+      const { access_token, ...userData } = answer;
       setUser(userData as User);
       useAuthStore.getState().setAccessToken(access_token ?? null);
-    } catch {
+    } else {
       setUser(null);
       useAuthStore.getState().setAccessToken(null);
-    } finally {
-      authChecked = true;
-      authCheckPromise = null;
     }
+    authChecked = true;
+    authCheckPromise = null;
   })();
   return authCheckPromise;
 }
@@ -166,30 +199,22 @@ export function useAuth() {
     ensureTokenRefresh(adopt);
   }, [setUser, queryClient]);
 
-  const login = useCallback(
-    async (credentials: LoginRequest, returnTo?: string | null) => {
+  // Both sign-in forms end the same way - a user and a token in the answer - so
+  // they differ only in the request that gets them there.
+  const signIn = useCallback(
+    async (request: () => Promise<SignInResponse>, returnTo?: string | null) => {
       setLoading(true);
       try {
-        const response = await apiClient.post<{
-          user: User;
-          access_token: string;
-        }>("/auth/login", credentials);
+        const response = await request();
+        // A check that set out before this sign-in - the page's own /auth/me,
+        // answering late over a slow network - must not land afterwards and
+        // sign out the account that just arrived.
+        identityEpoch += 1;
+        authCheckPromise = null;
         adoptUser(queryClient, setUser, response.user);
         useAuthStore.getState().setAccessToken(response.access_token);
         authChecked = true; // login already populated user + token; skip /auth/me
-        const destination = postSignInDestination(returnTo);
-        if (destination.includes("#")) {
-          // next@16.2's segment cache appends the fragment a second time on a
-          // soft navigation (/path#x becomes /path#x#x in a production build),
-          // so a destination with a fragment must load the document instead.
-          // The branches are not equivalent: a document load drops the
-          // in-memory access token (re-adopted via /auth/me on arrival), and
-          // anything the caller runs after login() fires into an unloading
-          // page.
-          window.location.assign(destination);
-        } else {
-          router.push(destination);
-        }
+        goToDestination(postSignInDestination(returnTo), (href) => router.push(href));
         return response;
       } finally {
         setLoading(false);
@@ -198,8 +223,48 @@ export function useAuth() {
     [router, setUser, setLoading, queryClient],
   );
 
-  const register = useCallback(async (data: RegisterRequest) => {
-    const response = await apiClient.post<{ id: string; email: string }>("/auth/register", data);
+  const login = useCallback(
+    (credentials: LoginRequest, returnTo?: string | null) =>
+      signIn(
+        () =>
+          apiClient.post<SignInResponse>("/auth/login", credentials, {
+            signal: AbortSignal.timeout(SIGN_IN_TIMEOUT_MS),
+          }),
+        returnTo,
+      ),
+    [signIn],
+  );
+
+  // A directory account is created on its first sign-in, so the flow names which
+  // staged invitation's cookie the proxy forwards for the sign-up admission, the
+  // way `register` does (#1414).
+  const loginWithDirectory = useCallback(
+    (
+      credentials: DirectoryLoginRequest,
+      returnTo?: string | null,
+      invitationFlow?: string | null,
+    ) => {
+      const path = invitationFlow
+        ? `/auth/ldap/login?${INVITATION_FLOW_PARAM}=${invitationFlow}`
+        : "/auth/ldap/login";
+      return signIn(
+        () =>
+          apiClient.post<SignInResponse>(path, credentials, {
+            signal: AbortSignal.timeout(SIGN_IN_TIMEOUT_MS),
+          }),
+        returnTo,
+      );
+    },
+    [signIn],
+  );
+
+  // The flow names which staged invitation's cookie the register proxy forwards for
+  // the sign-up admission (#1414); a registration reached with none forwards none.
+  const register = useCallback(async (data: RegisterRequest, invitationFlow?: string | null) => {
+    const path = invitationFlow
+      ? `/auth/register?${INVITATION_FLOW_PARAM}=${invitationFlow}`
+      : "/auth/register";
+    const response = await apiClient.post<{ id: string; email: string }>(path, data);
     return response;
   }, []);
 
@@ -244,6 +309,7 @@ export function useAuth() {
     isAuthenticated,
     isLoading,
     login,
+    loginWithDirectory,
     register,
     logout: handleLogout,
     refreshToken,

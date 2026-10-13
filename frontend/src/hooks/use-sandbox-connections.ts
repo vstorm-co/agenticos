@@ -4,6 +4,7 @@ import { useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 
+import { getErrorMessage } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
 import {
   createSandboxConnection,
@@ -51,6 +52,7 @@ interface UseSandboxConnectionsResult {
  */
 export function useSandboxConnections(): UseSandboxConnectionsResult {
   const t = useTranslations("sandboxes");
+  const tErrors = useTranslations("errors");
   const queryClient = useQueryClient();
 
   const {
@@ -95,12 +97,7 @@ export function useSandboxConnections(): UseSandboxConnectionsResult {
   return {
     connections,
     isLoading,
-    error:
-      queryError instanceof Error
-        ? queryError.message
-        : queryError
-          ? t("failedLoadConnections")
-          : null,
+    error: queryError ? getErrorMessage(queryError, tErrors, t("failedLoadConnections")) : null,
     refresh: invalidate,
     create,
     update,
@@ -127,6 +124,7 @@ interface UseSandboxPolicyResult {
  */
 export function useSandboxPolicy(connectionId: string | null): UseSandboxPolicyResult {
   const t = useTranslations("sandboxes");
+  const tErrors = useTranslations("errors");
   const {
     data: policy = null,
     isLoading,
@@ -143,7 +141,7 @@ export function useSandboxPolicy(connectionId: string | null): UseSandboxPolicyR
   return {
     policy,
     isLoading: connectionId !== null && isLoading,
-    error: error instanceof Error ? error.message : error ? t("serviceSilent") : null,
+    error: error ? getErrorMessage(error, tErrors, t("serviceSilent")) : null,
     refetch: () => void refetch(),
   };
 }
@@ -224,6 +222,7 @@ export function useSandboxSessions(
   usage = false,
 ): UseSandboxSessionsResult {
   const t = useTranslations("sandboxes");
+  const tErrors = useTranslations("errors");
   const {
     data: listing = null,
     isLoading,
@@ -239,7 +238,7 @@ export function useSandboxSessions(
   return {
     listing,
     isLoading: connectionId !== null && isLoading,
-    error: error instanceof Error ? error.message : error ? t("serviceSilent") : null,
+    error: error ? getErrorMessage(error, tErrors, t("serviceSilent")) : null,
   };
 }
 
@@ -271,6 +270,7 @@ export function useSandboxOperations(query: SandboxOperationQuery): {
   error: string | null;
 } {
   const t = useTranslations("sandboxes");
+  const tErrors = useTranslations("errors");
   const {
     data = null,
     isLoading,
@@ -286,7 +286,7 @@ export function useSandboxOperations(query: SandboxOperationQuery): {
   return {
     log: data,
     isLoading,
-    error: error instanceof Error ? error.message : error ? t("activityLogUnreadable") : null,
+    error: error ? getErrorMessage(error, tErrors, t("activityLogUnreadable")) : null,
   };
 }
 
@@ -307,6 +307,7 @@ export function useSandboxEvents(
   sessionId: string | null,
 ): UseSandboxEventsResult {
   const t = useTranslations("sandboxes");
+  const tErrors = useTranslations("errors");
   const {
     data: log = null,
     isLoading,
@@ -321,6 +322,6 @@ export function useSandboxEvents(
   return {
     log,
     isLoading: connectionId !== null && sessionId !== null && isLoading,
-    error: error instanceof Error ? error.message : error ? t("activityLogUnreadable") : null,
+    error: error ? getErrorMessage(error, tErrors, t("activityLogUnreadable")) : null,
   };
 }

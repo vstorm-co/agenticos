@@ -77,7 +77,7 @@ describe("a run history row", () => {
   it("adds both halves of the token count, which is what a run cost in tokens", () => {
     render(<RunTable runs={[run({ input_tokens: 1000, output_tokens: 100 })]} />);
 
-    expect(within(row()).getByText("1100")).toBeVisible();
+    expect(within(row()).getByText("1,100")).toBeVisible();
   });
 
   it("draws the vendor's mark beside the model it ran", () => {
@@ -266,7 +266,7 @@ describe("who ran it, and which agent", () => {
     render(
       <RunTable
         runs={[run()]}
-        agentsById={new Map([["agent-1", { name: "Support agent" }]])}
+        agentsById={new Map([["agent-1", { name: "Support agent", slug: "support-agent" }]])}
         membersById={
           new Map([["user-1", { user_id: "user-1", email: "kim@acme.test", full_name: "Kim" }]])
         }

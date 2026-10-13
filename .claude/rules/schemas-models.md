@@ -1,6 +1,6 @@
 ---
 description: Pydantic schema patterns and SQLAlchemy model conventions
-globs: ["backend/app/schemas/**/*.py", "backend/app/db/models/**/*.py", "backend/app/db/base.py"]
+paths: ["backend/app/schemas/**/*.py", "backend/app/db/models/**/*.py", "backend/app/db/base.py"]
 ---
 
 # Schemas & Models

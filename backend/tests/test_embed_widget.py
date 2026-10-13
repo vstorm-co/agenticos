@@ -26,6 +26,7 @@ def test_every_placeholder_is_substituted():
     assert not re.search(r"__[A-Z_]+__", RENDERED)
 
 
+@pytest.mark.security
 def test_it_carries_no_secret():
     """The script is served to anyone who asks for it - that is the point of a
     script tag, and the reason admission happens on the socket instead."""

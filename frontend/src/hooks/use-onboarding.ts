@@ -12,6 +12,7 @@ import { ROUTES } from "@/lib/constants";
 import { stepsForPage, visibleTourSteps, type TourStep } from "@/lib/onboarding/tour";
 import { useAuthStore, useOnboardingStore } from "@/stores";
 import type { User } from "@/types";
+import { getErrorMessage } from "@/lib/api-error";
 
 export interface OnboardingTourState {
   isOpen: boolean;
@@ -56,9 +57,13 @@ export interface OnboardingTourState {
 export function useOnboardingTour(): OnboardingTourState {
   const pathname = usePathname();
   const user = useAuthStore((state) => state.user);
+  // Not persisted, so true on every page load until this load's session check
+  // has set the user - which is the user worth deciding on.
+  const sessionLoading = useAuthStore((state) => state.isLoading);
   const setUser = useAuthStore((state) => state.setUser);
   const { can, isLoading: permissionsLoading, error: permissionsError } = usePermissions();
   const t = useTranslations("onboarding");
+  const tErrors = useTranslations("errors");
   const { isOpen, index, mode, openTour, close, setIndex } = useOnboardingStore();
 
   const path = stripLocale(pathname);
@@ -114,10 +119,14 @@ export function useOnboardingTour(): OnboardingTourState {
         });
         setUser(updated);
       } catch (err) {
-        toast.error(err instanceof ApiError ? err.message : t("saveFailed"));
+        // Only a refusal's own words, never a raw `Error`'s: "Failed to
+        // fetch" is not something to put in front of somebody. Through
+        // `getErrorMessage` so a BFF code resolves against the catalog
+        // instead of arriving humanized into English (#655).
+        toast.error(err instanceof ApiError ? getErrorMessage(err, tErrors) : t("saveFailed"));
       }
     })();
-  }, [close, mode, user, setUser, t]);
+  }, [close, mode, user, setUser, t, tErrors]);
 
   const next = useCallback(
     () => setIndex(Math.min(clamped + 1, lastIndex)),
@@ -126,10 +135,14 @@ export function useOnboardingTour(): OnboardingTourState {
   const back = useCallback(() => setIndex(Math.max(clamped - 1, 0)), [clamped, setIndex]);
 
   // Auto-start fires at most once per page load, so a failed persist cannot loop
-  // the tour back open and a manual restart is never fought by the effect.
+  // the tour back open and a manual restart is never fought by the effect. Only
+  // on the user this load read: the stored one is whatever was signed in with,
+  // and a person who finished onboarding since - in another tab, on another
+  // device - was greeted by the first-run tour until the check answered.
   const hasAutoStarted = useRef(false);
   const shouldAutoStart =
     path === ROUTES.DASHBOARD &&
+    !sessionLoading &&
     !permissionsLoading &&
     !permissionsError &&
     !!user &&

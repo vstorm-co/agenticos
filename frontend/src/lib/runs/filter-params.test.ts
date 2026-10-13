@@ -4,6 +4,7 @@ import {
   DEFAULT_RUN_FILTERS,
   isNarrowed,
   parseRunFilters,
+  parseRunsTab,
   runFilterParams,
   runsHref,
   type RunFilters,
@@ -73,6 +74,16 @@ describe("a link to a slice", () => {
     expect(href).not.toContain("2026-05-18");
   });
 
+  it("names the tab where a card hands over to the queue rather than the history", () => {
+    // What the approvals card links to, and what the parked-run alert needs an
+    // address for (#935).
+    expect(runsHref({ tab: "approvals" })).toBe("/runs?tab=approvals");
+  });
+
+  it("leaves the default tab out, like every other unset narrowing", () => {
+    expect(runsHref({ tab: "runs" })).toBe("/runs");
+  });
+
   it("carries an agent and a sort where a card hands those over", () => {
     const href = runsHref({ period, agentId: "agent-1", sort: "duration" });
 
@@ -82,5 +93,29 @@ describe("a link to a slice", () => {
 
   it("is the plain runs page when nothing narrows it", () => {
     expect(runsHref({})).toBe("/runs");
+  });
+});
+
+describe("which tab a link opens", () => {
+  it("reads back the tab it names", () => {
+    expect(parseRunsTab("approvals", true)).toBe("approvals");
+    expect(parseRunsTab("spend", true)).toBe("spend");
+  });
+
+  it("opens the run history when nothing names a tab", () => {
+    expect(parseRunsTab(null, true)).toBe("runs");
+    expect(parseRunsTab("  ", true)).toBe("runs");
+  });
+
+  it("opens the run history for a tab this build does not have", () => {
+    expect(parseRunsTab("budgets", true)).toBe("runs");
+  });
+
+  it("opens the run history for a reader who may not decide", () => {
+    // The alternative is a strip whose selected value has no trigger and no
+    // content: a blank page under a live set of tabs.
+    expect(parseRunsTab("approvals", false)).toBe("runs");
+    // And only that tab is gated - spend is not.
+    expect(parseRunsTab("spend", false)).toBe("spend");
   });
 });

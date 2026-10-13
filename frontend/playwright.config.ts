@@ -91,14 +91,24 @@ export default defineConfig({
     /* Base URL to use in actions like `await page.goto('/')`. */
     baseURL: BASE_URL,
 
-    /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
-    trace: "on-first-retry",
+    // `retain-on-failure`, not `on-first-retry`, because `retries` above is 0: a
+    // test that flakes never gets a second attempt, so `on-first-retry` collected
+    // a trace on none of them and the one artifact that names which locator was
+    // waited on - the trace viewer's DOM timeline, network and console - was
+    // absent from exactly the runs that needed it (#162). A flake here fails once
+    // and the trace of that one failure is what turns "it flaked again" into a
+    // diagnosis. Traces are kept only for the failed test and the HTML report
+    // embeds them, so the `playwright-report` artifact the e2e job already uploads
+    // carries them with no change there.
+    trace: "retain-on-failure",
 
     /* Capture screenshot on failure */
     screenshot: "only-on-failure",
 
-    /* Video recording on failure */
-    video: "on-first-retry",
+    // Same as trace: `on-first-retry` recorded no video with `retries: 0`. A
+    // failing UI journey is worth a video, and it is kept only for the test that
+    // failed.
+    video: "retain-on-failure",
   },
 
   /* Configure projects for major browsers */

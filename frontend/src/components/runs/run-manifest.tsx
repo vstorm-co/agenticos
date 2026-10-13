@@ -161,7 +161,7 @@ function ToolRow({ tool }: { tool: ManifestTool }) {
         <Wrench className="text-muted-foreground h-3 w-3 shrink-0" aria-hidden />
         <span className="font-mono text-xs">{tool.name}</span>
         {tool.kind !== "function" && (
-          <Badge variant="outline" className="text-[10px]">
+          <Badge variant="outline" className="text-[11px]">
             {tool.kind}
           </Badge>
         )}
@@ -170,10 +170,10 @@ function ToolRow({ tool }: { tool: ManifestTool }) {
         <p className="text-muted-foreground mt-1 text-xs">{tool.description}</p>
       )}
       <details className="mt-1">
-        <summary className="text-muted-foreground cursor-pointer text-[11px] select-none">
+        <summary className="text-muted-foreground cursor-pointer text-xs select-none">
           {t("argumentSchema")}
         </summary>
-        <pre className="bg-muted/40 mt-1 max-h-60 overflow-auto rounded p-2 text-[11px]">
+        <pre className="bg-muted/40 mt-1 max-h-60 overflow-auto rounded p-2 text-xs">
           {JSON.stringify(tool.parameters_json_schema, null, 2)}
         </pre>
       </details>

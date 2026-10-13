@@ -98,12 +98,15 @@ class AgentWorkspace(Base, TimestampMixin):
     """
 
     session_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    """The service-side session, for a container-backed workspace.
+    """The host session this container-backed workspace is, once one was opened.
 
-    Stored so that deleting a conversation can purge the sandbox that belongs to
-    it. Equal to `scope_key` today; kept as its own column because what the
-    service was told is a fact about the past, and re-deriving it after the key
-    format changes would purge the wrong session or none.
+    Recorded at the close of the run that opened it, not when the row is created:
+    a set value means "a session exists on the host", which is what the next run
+    attaches to - so a purged session surfaces as unavailable rather than being
+    silently replaced by an empty one - and what deleting the conversation purges.
+    `None` before the first session, and again after one was found gone. Kept as
+    its own column because what the host was told is a fact about the past, and
+    re-deriving it after the key format changes would reach the wrong session.
     """
 
     files: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
@@ -112,6 +115,14 @@ class AgentWorkspace(Base, TimestampMixin):
     JSONB and not text: it is a JSON document by construction - the library
     stores content that is not valid UTF-8 as base64 for exactly this reason -
     and storing it as a blob would give up every query a dashboard might want.
+    """
+
+    directories: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
+    """The directories the `state` document created, beside `files`.
+
+    A directory holding a file exists anyway; this keeps one `make_dir` made, or
+    one the agent emptied - as the library persists a document. Null for a row
+    from before it was kept, which loads as none created.
     """
 
     bytes_total: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)

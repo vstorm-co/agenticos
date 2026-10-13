@@ -43,6 +43,31 @@ _TIMEOUT_SECONDS = 15.0
 # model's context spent on text it will quote two sentences of.
 _SNIPPET_CHARS = 1000
 
+_client: httpx.AsyncClient | None = None
+
+
+def _http() -> httpx.AsyncClient:
+    """The shared client for the HTTP-based providers, built once and reused.
+
+    A search tool called several times in one run hits the same provider each
+    time, and a client per call threw the connection pool away before it was
+    reused (#1263). Built lazily and rebuilt if it was closed; `close_http_client`
+    closes it at shutdown. The timeout rides each request, so one client serves
+    every provider.
+    """
+    global _client
+    if _client is None or _client.is_closed:
+        _client = httpx.AsyncClient()
+    return _client
+
+
+async def close_http_client() -> None:
+    """Close the shared search client at shutdown."""
+    global _client
+    if _client is not None and not _client.is_closed:
+        await _client.aclose()
+    _client = None
+
 
 class WebSearchResult(BaseModel):
     """A single web search hit, as every provider is normalised into."""
@@ -69,6 +94,24 @@ class SearchUnavailable(Exception):
     error in the same shape as a successful search is one the model reads as
     "nothing was found".
     """
+
+
+def _unavailable(provider: str, exc: Exception) -> str:
+    """What a failed provider call may tell the model, for an exception it may not.
+
+    A search SDK puts the failing request in its message, so `str(exc)` routinely
+    holds an endpoint and a query string with a key in it. On the model's last
+    attempt `steer` *returns* this text rather than raising it, and a returned
+    string is stored and streamed verbatim - the retry prompt is replaced with a
+    notice (#681, #695), a return is the tool's own answer and is not. So only the
+    class name travels, which still says whether the upstream timed out or refused
+    the credential; the exception's own text stays in the `logger.exception` beside
+    the raise. Same rule, and the same reason, as `app/services/rag/failures.py`.
+    """
+    return (
+        f"{provider} search is unavailable ({type(exc).__name__}). "
+        "The server log has the full error."
+    )
 
 
 async def search(
@@ -140,7 +183,8 @@ async def _duckduckgo(query: str, max_results: int) -> list[WebSearchResult]:
     try:
         rows = await to_thread.run_sync(_run)
     except Exception as exc:
-        raise SearchUnavailable(f"DuckDuckGo search failed: {exc}") from exc
+        logger.exception("DuckDuckGo search failed")
+        raise SearchUnavailable(_unavailable("DuckDuckGo", exc)) from exc
 
     return [
         _hit(row.get("title"), row.get("href") or row.get("url"), row.get("body")) for row in rows
@@ -161,7 +205,8 @@ async def _tavily(query: str, max_results: int, api_key: str) -> list[WebSearchR
             query=query, max_results=max_results
         )
     except Exception as exc:
-        raise SearchUnavailable(f"Tavily search failed: {exc}") from exc
+        logger.exception("Tavily search failed")
+        raise SearchUnavailable(_unavailable("Tavily", exc)) from exc
 
     return [
         _hit(row.get("title"), row.get("url"), row.get("content"), row.get("score"))
@@ -172,16 +217,17 @@ async def _tavily(query: str, max_results: int, api_key: str) -> list[WebSearchR
 async def _brave(query: str, max_results: int, api_key: str) -> list[WebSearchResult]:
     """Brave, reached over plain HTTP - the SDK adds nothing over one GET."""
     try:
-        async with httpx.AsyncClient(timeout=_TIMEOUT_SECONDS) as client:
-            response = await client.get(
-                "https://api.search.brave.com/res/v1/web/search",
-                params={"q": query, "count": max_results},
-                headers={"Accept": "application/json", "X-Subscription-Token": api_key},
-            )
-            response.raise_for_status()
-            payload = response.json()
+        response = await _http().get(
+            "https://api.search.brave.com/res/v1/web/search",
+            params={"q": query, "count": max_results},
+            headers={"Accept": "application/json", "X-Subscription-Token": api_key},
+            timeout=_TIMEOUT_SECONDS,
+        )
+        response.raise_for_status()
+        payload = response.json()
     except Exception as exc:
-        raise SearchUnavailable(f"Brave search failed: {exc}") from exc
+        logger.exception("Brave search failed")
+        raise SearchUnavailable(_unavailable("Brave", exc)) from exc
 
     return [
         _hit(row.get("title"), row.get("url"), row.get("description"))
@@ -192,20 +238,21 @@ async def _brave(query: str, max_results: int, api_key: str) -> list[WebSearchRe
 async def _exa(query: str, max_results: int, api_key: str) -> list[WebSearchResult]:
     """Exa, which searches by meaning. `text` is requested so there is a snippet."""
     try:
-        async with httpx.AsyncClient(timeout=_TIMEOUT_SECONDS) as client:
-            response = await client.post(
-                "https://api.exa.ai/search",
-                json={
-                    "query": query,
-                    "numResults": max_results,
-                    "contents": {"text": {"maxCharacters": _SNIPPET_CHARS}},
-                },
-                headers={"Content-Type": "application/json", "x-api-key": api_key},
-            )
-            response.raise_for_status()
-            payload = response.json()
+        response = await _http().post(
+            "https://api.exa.ai/search",
+            json={
+                "query": query,
+                "numResults": max_results,
+                "contents": {"text": {"maxCharacters": _SNIPPET_CHARS}},
+            },
+            headers={"Content-Type": "application/json", "x-api-key": api_key},
+            timeout=_TIMEOUT_SECONDS,
+        )
+        response.raise_for_status()
+        payload = response.json()
     except Exception as exc:
-        raise SearchUnavailable(f"Exa search failed: {exc}") from exc
+        logger.exception("Exa search failed")
+        raise SearchUnavailable(_unavailable("Exa", exc)) from exc
 
     return [
         _hit(row.get("title"), row.get("url"), row.get("text"), row.get("score"))

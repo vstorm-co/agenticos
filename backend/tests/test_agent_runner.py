@@ -12,22 +12,52 @@ import uuid
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from decimal import Decimal
+from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from pydantic_ai.exceptions import ModelHTTPError
-from pydantic_ai.messages import ModelRequest, ModelResponse, ToolCallPart, ToolReturnPart
+from pydantic_ai import Agent
+from pydantic_ai.exceptions import ModelHTTPError, UserError
+from pydantic_ai.messages import (
+    ModelMessage,
+    ModelRequest,
+    ModelResponse,
+    TextPart,
+    ToolCallPart,
+    ToolReturnPart,
+    UserPromptPart,
+)
+from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.tools import DeferredToolRequests
 from pydantic_ai.usage import RequestUsage
+from pydantic_ai.workspaces import LocalWorkspaceBackend, Workspace, WorkspaceRef
+from pydantic_ai_backends import StateBackend
 from pydantic_ai_harness.planning import PlanItem
 
+from app.agents.audience import RunAudience
 from app.agents.capabilities.approval import ApprovalGranted, ApprovalRejected
-from app.agents.capabilities.budget import BudgetExceeded, BudgetScope, SpendLedger
+from app.agents.capabilities.budget import (
+    BudgetExceeded,
+    BudgetScope,
+    SpendLedger,
+    assert_ambient_budget,
+    can_afford_ambient_call,
+)
 from app.agents.capabilities.channel_tools import CHANNEL_DIRECTORY_RESOURCE
 from app.agents.capabilities.compaction import ContextGauge
 from app.agents.capabilities.guardrails import GuardrailBlocked
-from app.agents.spec import AgentSpec, CapabilityBindingSpec, ObservabilitySpec
+from app.agents.capabilities.planning import PLANNING_STORE_RESOURCE
+from app.agents.capabilities.sandbox import WORKSPACE_RESOURCE
+from app.agents.capabilities.sandbox._capability import build_workspace
+from app.agents.connect_on_use import ConnectionRequest, ConnectOnUse
+from app.agents.spec import (
+    AgentSpec,
+    CapabilityBindingSpec,
+    ObservabilitySpec,
+    OrgMcpServerRef,
+    PersonalMcpServerRef,
+)
 from app.agents.subagent_runtime import DelegationSpend, DelegationStash, ParkedDelegation
 from app.core.exceptions import BadRequestError, NotFoundError, RunExecutionError
 from app.core.permissions import AuthContext, OrgRoleName
@@ -37,14 +67,26 @@ from app.services.agent_runner import (
     ApprovalChannel,
     ParkedApproval,
     PausedRunState,
+    PersonalServiceGap,
     PreparedRun,
     RecordedDelegation,
     RunSegment,
+    _connect_on_use,
+    _with_personal_service_gaps,
     month_start,
     run_failure_summary,
 )
 from app.services.approvals import ApprovalService
+from app.services.mcp_connection import (
+    ResolvedMcpToolsets,
+    UnavailablePersonalService,
+    UnavailablePrefixCollision,
+)
 from app.services.transcript import RecordedToolCall
+from tests.workspaces import document_workspace
+
+_THE_ASKER = uuid.uuid4()
+"""The person a parked run was answering, told apart from whoever approves it."""
 
 
 def _ctx() -> AuthContext:
@@ -195,6 +237,44 @@ class TestPrepare:
         assert prepared.deps is built.deps
 
     @pytest.mark.anyio
+    async def test_a_surface_that_can_show_a_compaction_notice_gets_its_sink_onto_the_deps(self):
+        """Whether the person can be told a summary is running is a property of
+        the *surface*, not of the run - so it is set on the built deps here
+        rather than threaded through the fourteen arguments of `_assemble`.
+
+        A surface that passes none is left as the agent was built: the field
+        defaults to `None` and the compaction capability sends nowhere (#936).
+        """
+        ctx = _ctx()
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        spec = AgentSpec(name="Support", model_profile_id=uuid.uuid4())
+        built = MagicMock()
+
+        async def sink(event: object) -> None:
+            raise AssertionError("prepare must not call the sink")
+
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch("app.services.agent_runner.build_agent", return_value=built),
+        ):
+            prepared = await service.prepare(ctx, agent.id, on_compaction=sink)
+
+        assert prepared.built.deps.on_compaction is sink
+
+    @pytest.mark.anyio
     async def test_a_collection_that_is_gone_or_foreign_narrows_the_agent_instead_of_failing_the_run(
         self,
     ):
@@ -215,8 +295,10 @@ class TestPrepare:
         agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
         spec = AgentSpec(name="Support", collection_ids=[live_id, deleted_id, foreign_id])
 
-        async def get_collection(_db, collection_id):
-            return collections[collection_id]
+        async def get_collections(_db, ids):
+            # A batched read: an id with no row is absent from the map, the way
+            # `deleted_id` is here, rather than returning a None value.
+            return {cid: collections[cid] for cid in ids if collections.get(cid) is not None}
 
         with (
             patch.object(
@@ -229,8 +311,8 @@ class TestPrepare:
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch(
-                "app.services.agent_runner.knowledge_base_repo.get_by_id",
-                new=AsyncMock(side_effect=get_collection),
+                "app.services.agent_runner.knowledge_base_repo.get_by_ids",
+                new=AsyncMock(side_effect=get_collections),
             ),
             patch(
                 "app.services.agent_runner.agent_run_repo.create_run",
@@ -243,8 +325,51 @@ class TestPrepare:
         assert build.call_args.kwargs["resources"]["kb_collection_names"] == ["kb_live"]
 
     @pytest.mark.anyio
+    async def test_preparing_a_run_resolves_every_collection_in_one_query(self):
+        """`_collection_names` runs on every turn, so five bound collections cost
+        one round trip rather than five serial reads at the front of it (#954)."""
+        ctx = _ctx()
+        service = AgentRunnerService(_db())
+        ids = [uuid.uuid4() for _ in range(5)]
+        collections = {
+            cid: MagicMock(organization_id=ctx.organization_id, collection_name=f"kb{n}")
+            for n, cid in enumerate(ids)
+        }
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        spec = AgentSpec(name="Support", collection_ids=ids)
+
+        async def get_collections(_db, given):
+            return {cid: collections[cid] for cid in given}
+
+        kb_read = AsyncMock(side_effect=get_collections)
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch("app.services.agent_runner.knowledge_base_repo.get_by_ids", new=kb_read),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch("app.services.agent_runner.build_agent") as build,
+        ):
+            await service.prepare(ctx, agent.id)
+
+        kb_read.assert_awaited_once()
+        assert list(kb_read.await_args.args[1]) == ids
+        assert build.call_args.kwargs["resources"]["kb_collection_names"] == [
+            f"kb{n}" for n in range(5)
+        ]
+
+    @pytest.mark.anyio
     async def test_the_mcp_servers_the_spec_binds_reach_the_agent_that_is_built(self):
-        """`mcp_server_ids` is part of the published contract, so it has to act.
+        """`mcp_servers` is part of the published contract, so it has to act.
 
         Resolved here, in the one place every surface goes through, and against
         the run's own organization - an agent's reach is a property of the agent,
@@ -253,8 +378,11 @@ class TestPrepare:
         ctx = _ctx()
         service = AgentRunnerService(_db())
         agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
-        connection_ids = [uuid.uuid4(), uuid.uuid4()]
-        spec = AgentSpec(name="Support", mcp_server_ids=connection_ids)
+        refs = [
+            OrgMcpServerRef(connection_id=uuid.uuid4()),
+            OrgMcpServerRef(connection_id=uuid.uuid4()),
+        ]
+        spec = AgentSpec(name="Support", mcp_servers=refs)
 
         with (
             patch.object(
@@ -272,7 +400,7 @@ class TestPrepare:
             ),
             patch(
                 "app.services.agent_runner.build_toolsets_for_agent",
-                new=AsyncMock(return_value=["linear-toolset"]),
+                new=AsyncMock(return_value=ResolvedMcpToolsets(["linear-toolset"], [])),
             ) as toolsets,
             patch("app.services.agent_runner.build_agent") as build,
         ):
@@ -280,12 +408,107 @@ class TestPrepare:
 
         assert toolsets.await_args.kwargs == {
             "organization_id": ctx.organization_id,
-            "connection_ids": connection_ids,
+            "refs": refs,
+            # An API run has no person at the keyboard - the context is the key
+            # holder's - so no personal binding may reach for anybody's account.
+            "sender_user_id": None,
         }
         # Alongside what the surface brought, not instead of it: the WebSocket
         # chat still attaches its own, and dropping either half would leave an
         # agent silently short of tools.
         assert build.call_args.kwargs["extra_toolsets"] == ["surface-toolset", "linear-toolset"]
+
+    @pytest.mark.anyio
+    async def test_a_publisher_fallback_guest_does_not_borrow_the_publishers_mcp(self):
+        """An unidentified channel visitor runs under the binding's publisher, and
+        `acts_for_sender` is set on that surface - but the publisher is a stand-in,
+        not a person whose own connected accounts may be reached for. Resolving one
+        would speak to a third-party MCP server with the publisher's credentials on
+        an anonymous guest's behalf (#1469), so no personal identity is passed, and
+        the parked terms record why - so a resume refuses it too, without the
+        request that carried the fact."""
+        ctx = AuthContext(
+            user_id=uuid.uuid4(),
+            organization_id=uuid.uuid4(),
+            role=OrgRoleName.OWNER,
+            subject_is_publisher_fallback=True,
+        )
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        spec = AgentSpec(name="Support", mcp_servers=[OrgMcpServerRef(connection_id=uuid.uuid4())])
+
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ) as create_run,
+            patch(
+                "app.services.agent_runner.build_toolsets_for_agent",
+                new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
+            ) as toolsets,
+            patch("app.services.agent_runner.build_agent"),
+        ):
+            prepared = await service.prepare(ctx, agent.id, acts_for_sender=True)
+
+        assert toolsets.await_args.kwargs["sender_user_id"] is None
+        assert prepared.admitted_as.subject_is_publisher_fallback is True
+        # The same fact, carried onto the row itself - a run-finished
+        # notification reading `user_id` back later has no other way to
+        # tell a real initiator from the publisher standing in for one
+        # (#1598's own run-flood regression).
+        assert create_run.call_args.kwargs["initiated_by_publisher_fallback"] is True
+
+    @pytest.mark.anyio
+    async def test_a_scheduled_runs_creator_is_notified_despite_the_mcp_gate(self):
+        """`AgentTriggerService._creator_context` sets `subject_is_publisher_fallback=True`
+        on a real, known creator - purely to keep an unattended fire from
+        reaching their personal MCP connections (#1469) - not a publisher
+        standing in for an anonymous visitor. `initiated_by_publisher_fallback`
+        must not inherit that flag verbatim on `RunSurface.SCHEDULE`, or the
+        creator's own `run_completed`/`run_failed` notification is silently
+        skipped despite `AgentRun.user_id` naming them, not a stand-in."""
+        ctx = AuthContext(
+            user_id=uuid.uuid4(),
+            organization_id=uuid.uuid4(),
+            role=OrgRoleName.OWNER,
+            subject_is_publisher_fallback=True,
+        )
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        spec = AgentSpec(name="Support")
+
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ) as create_run,
+            patch(
+                "app.services.agent_runner.build_toolsets_for_agent",
+                new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
+            ),
+            patch("app.services.agent_runner.build_agent"),
+        ):
+            await service.prepare(ctx, agent.id, surface=RunSurface.SCHEDULE)
+
+        assert create_run.call_args.kwargs["initiated_by_publisher_fallback"] is False
 
     @pytest.mark.anyio
     async def test_a_resumed_run_gets_its_servers_back(self):
@@ -298,7 +521,7 @@ class TestPrepare:
         service = AgentRunnerService(_db())
         run = _parked_run()
         agent = MagicMock(id=run.agent_id, current_version_id=run.agent_version_id)
-        spec = AgentSpec(name="Support", mcp_server_ids=[uuid.uuid4()])
+        spec = AgentSpec(name="Support", mcp_servers=[OrgMcpServerRef(connection_id=uuid.uuid4())])
 
         with (
             patch(
@@ -318,7 +541,7 @@ class TestPrepare:
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch(
                 "app.services.agent_runner.build_toolsets_for_agent",
-                new=AsyncMock(return_value=["linear-toolset"]),
+                new=AsyncMock(return_value=ResolvedMcpToolsets(["linear-toolset"], [])),
             ) as toolsets,
             patch("app.services.agent_runner.build_agent") as build,
         ):
@@ -326,7 +549,7 @@ class TestPrepare:
             build.return_value.ledger = SpendLedger()
             await service.resume(ctx, run.id)
 
-        assert toolsets.await_args.kwargs["connection_ids"] == spec.mcp_server_ids
+        assert toolsets.await_args.kwargs["refs"] == spec.mcp_servers
         assert build.call_args.kwargs["extra_toolsets"] == ["linear-toolset"]
 
     @pytest.mark.anyio
@@ -368,7 +591,7 @@ class TestPrepare:
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch(
                 "app.services.agent_runner.build_toolsets_for_agent",
-                new=AsyncMock(return_value=[]),
+                new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
             ),
             patch("app.services.agent_runner.build_agent") as build,
         ):
@@ -412,7 +635,7 @@ class TestPrepare:
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch(
                 "app.services.agent_runner.build_toolsets_for_agent",
-                new=AsyncMock(return_value=[]),
+                new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
             ),
             patch("app.services.agent_runner.build_agent") as build,
         ):
@@ -428,6 +651,7 @@ class TestPrepare:
         """The two spend lookups the runner hands the factory, by argument name."""
         service = AgentRunnerService(_db())
         agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        run = MagicMock(id=uuid.uuid4())
 
         with (
             patch.object(
@@ -443,14 +667,15 @@ class TestPrepare:
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch(
                 "app.services.agent_runner.agent_run_repo.create_run",
-                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+                new=AsyncMock(return_value=run),
             ),
             patch("app.services.agent_runner.build_agent") as build,
         ):
             await service.prepare(ctx, agent.id)
 
-        return {"agent_id": agent.id, **build.call_args.kwargs}
+        return {"agent_id": agent.id, "run_id": run.id, **build.call_args.kwargs}
 
+    @pytest.mark.security
     @pytest.mark.anyio
     async def test_the_spend_the_agent_checks_its_budget_against_is_this_calendar_month(self):
         """The monthly limit is checked mid-run, against a window that matches the invoice.
@@ -468,6 +693,12 @@ class TestPrepare:
             ) as total,
             patch(
                 "app.services.spend.ingestion_spend_repo.sum_cost_since",
+                new=AsyncMock(return_value=Decimal("0")),
+            ),
+            # Spend a retention sweep already removed the runs for. Nothing has
+            # been purged in these tests, so it contributes nothing (#1420).
+            patch(
+                "app.services.spend.retention_repo.sum_purged_cost_since",
                 new=AsyncMock(return_value=Decimal("0")),
             ),
         ):
@@ -504,6 +735,50 @@ class TestPrepare:
         assert total.call_args.kwargs["organization_id"] == ctx.organization_id
         assert total.call_args.kwargs["since"] == month_start()
 
+    @pytest.mark.anyio
+    async def test_a_resumed_runs_own_prior_spend_is_not_counted_twice(self):
+        """Both baselines leave this run's own row out, and the resume path is why.
+
+        A resumed run keeps its row. It spent $6 and parked, so `finish_run` has
+        committed `cost_usd = 6.00`, and `_spend_already_booked` re-seeds the
+        ledger with the same $6 - which it must, or finishing the continuation
+        would overwrite the cost with only what the continuation cost. Summed
+        into the baseline as well, the first model request after the approval
+        saw $12 against a $10 cap and refused a run with $4 of headroom (#15).
+
+        A baseline is what *other* runs have already spent; what this one spends
+        is the ledger's. On a fresh run the row is there too, at zero, so there
+        is no branch to get wrong.
+        """
+        ctx = _ctx()
+        built = await self._period_lookups(ctx)
+
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.sum_cost_since",
+                new=AsyncMock(return_value=Decimal("0")),
+            ) as total,
+            patch(
+                "app.services.spend.ingestion_spend_repo.sum_cost_since",
+                new=AsyncMock(return_value=Decimal("0")),
+            ),
+            # Spend a retention sweep already removed the runs for. Nothing has
+            # been purged in these tests, so it contributes nothing (#1420).
+            patch(
+                "app.services.spend.retention_repo.sum_purged_cost_since",
+                new=AsyncMock(return_value=Decimal("0")),
+            ),
+        ):
+            await built["agent_period_spend"]()
+            agent_scoped = total.call_args.kwargs
+            await built["org_period_spend"]()
+            organization_scoped = total.call_args.kwargs
+
+        assert agent_scoped["exclude_run_id"] == built["run_id"]
+        # The organization's cap double-counted identically, through
+        # `organization_monthly_spend`.
+        assert organization_scoped["exclude_run_id"] == built["run_id"]
+
 
 class TestSpendReporting:
     @pytest.mark.anyio
@@ -538,6 +813,12 @@ class TestSpendReporting:
                 "app.services.spend.ingestion_spend_repo.sum_cost_since",
                 new=AsyncMock(return_value=Decimal("2.5")),
             ) as ingested,
+            # Spend a retention sweep already removed the runs for. Nothing has
+            # been purged in these tests, so it contributes nothing (#1420).
+            patch(
+                "app.services.spend.retention_repo.sum_purged_cost_since",
+                new=AsyncMock(return_value=Decimal("0")),
+            ),
         ):
             spent = await AgentRunnerService(_db()).monthly_spend(ctx)
 
@@ -565,9 +846,154 @@ class TestSpendReporting:
         ingested.assert_not_called()
 
 
+class TestAPlanThatOutlivesTheTurn:
+    """A plan store is one pydantic-ai run's, and here a run is one turn - so the
+    checklist an agent wrote in one message was gone by the next, and the agent
+    answered that no plan existed and it had never created one (#1077)."""
+
+    @pytest.mark.anyio
+    async def test_a_fresh_turn_seeds_the_plan_its_conversation_left(self):
+        ctx = _ctx()
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        spec = AgentSpec(name="Support", model_profile_id=uuid.uuid4())
+        conversation = MagicMock(
+            overhead_tokens=None,
+            reminder_state=None,
+            plan_items=[{"id": "aa11", "content": "Write the fix", "status": "in_progress"}],
+        )
+
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch(
+                "app.services.agent_runner.conversation_repo.get_conversation_by_id",
+                new=AsyncMock(return_value=conversation),
+            ),
+            patch("app.services.agent_runner.build_agent"),
+        ):
+            prepared = await service.prepare(ctx, agent.id, conversation_id=uuid.uuid4())
+
+        items = await prepared.plan_store.get_items()
+        assert [(item.content, item.status.value) for item in items] == [
+            ("Write the fix", "in_progress")
+        ]
+
+    @pytest.mark.anyio
+    async def test_a_fresh_turn_does_not_seed_a_finished_one(self):
+        """The other half of #1077, filed as #1221: `keep_plan` stores completed
+        steps too, so a thread whose plan was finished in August opened in
+        November with the tail reminder calling it "your current plan"."""
+        ctx = _ctx()
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        spec = AgentSpec(name="Support", model_profile_id=uuid.uuid4())
+        conversation = MagicMock(
+            overhead_tokens=None,
+            reminder_state=None,
+            plan_items=[
+                {"id": "aa11", "content": "Write the fix", "status": "completed"},
+                {"id": "bb22", "content": "Ship it", "status": "cancelled"},
+            ],
+        )
+
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch(
+                "app.services.agent_runner.conversation_repo.get_conversation_by_id",
+                new=AsyncMock(return_value=conversation),
+            ),
+            patch("app.services.agent_runner.build_agent"),
+        ):
+            prepared = await service.prepare(ctx, agent.id, conversation_id=uuid.uuid4())
+
+        assert await prepared.plan_store.get_items() == []
+
+    @pytest.mark.anyio
+    async def test_a_resume_starts_from_the_plan_the_run_parked_with(self):
+        """Both copies exist on a resume, and the park's is the newer one: it was
+        seeded from the conversation when that run began and then worked on."""
+        ctx = _ctx()
+        service = AgentRunnerService(_db())
+        run = _parked_run(
+            conversation_id=uuid.uuid4(),
+            paused_state={
+                "messages": [],
+                "tool_call_ids": {},
+                "plan": [{"id": "bb22", "content": "Ship the fix", "status": "in_progress"}],
+            },
+        )
+        agent = MagicMock(id=run.agent_id, current_version_id=run.agent_version_id)
+        spec = AgentSpec(name="Support")
+        stale = MagicMock(
+            overhead_tokens=None,
+            reminder_state=None,
+            plan_items=[{"id": "aa11", "content": "Write the fix", "status": "pending"}],
+        )
+
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.claim_parked_run",
+                new=AsyncMock(return_value=run),
+            ),
+            patch(
+                "app.services.agent_runner.agent_run_repo.list_approvals_for_run",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch("app.services.agent_runner.agent_run_repo.mark_running", new=AsyncMock()),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch.object(service, "_parked_spec", new=AsyncMock(return_value=(agent, spec))),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.conversation_repo.get_conversation_by_id",
+                new=AsyncMock(return_value=stale),
+            ),
+            patch.object(service.transcript, "record", new=AsyncMock()),
+            patch("app.services.agent_runner.ConversationService") as conversations,
+            patch("app.services.agent_runner.build_agent") as build,
+        ):
+            conversations.return_value.keep_summary = AsyncMock()
+            conversations.return_value.keep_overhead = AsyncMock()
+            conversations.return_value.keep_reminder_state = AsyncMock()
+            conversations.return_value.keep_plan = AsyncMock()
+            build.return_value.agent.run = AsyncMock(return_value=MagicMock(output="done"))
+            build.return_value.ledger = SpendLedger()
+            await service.resume(ctx, run.id)
+
+        store = build.call_args.kwargs["resources"][PLANNING_STORE_RESOURCE]
+        assert [item.content for item in await store.get_items()] == ["Ship the fix"]
+
+
 class TestRecordedConversationState:
-    """The overhead and the reminder cadence a build seeds from - both off one
-    read of the conversation, so a thread with neither still costs one SELECT."""
+    """The overhead, the reminder cadence and the plan a build seeds from - all
+    off one read of the conversation, so a thread with none still costs one
+    SELECT."""
 
     @pytest.mark.anyio
     async def test_no_conversation_id_reads_nothing(self):
@@ -578,7 +1004,7 @@ class TestRecordedConversationState:
         ) as fetch:
             result = await AgentRunnerService(_db())._recorded_conversation_state(None)
 
-        assert result == (None, None)
+        assert (result.overhead, result.reminder_state, result.plan) == (None, None, None)
         fetch.assert_not_called()
 
     @pytest.mark.anyio
@@ -590,22 +1016,25 @@ class TestRecordedConversationState:
         ):
             result = await AgentRunnerService(_db())._recorded_conversation_state(uuid.uuid4())
 
-        assert result == (None, None)
+        assert (result.overhead, result.reminder_state, result.plan) == (None, None, None)
 
     @pytest.mark.anyio
-    async def test_both_recorded_values_come_from_one_read(self):
-        """Overhead and cadence are returned together from a single fetch."""
-        conversation = MagicMock(overhead_tokens=3_865, reminder_state={"request_count": 4})
+    async def test_every_recorded_value_comes_from_one_read(self):
+        """Overhead, cadence and the plan are returned together from a single fetch."""
+        conversation = MagicMock(
+            overhead_tokens=3_865,
+            reminder_state={"request_count": 4},
+            plan_items=[{"id": "aa11", "content": "Write the fix", "status": "in_progress"}],
+        )
         with patch(
             "app.services.agent_runner.conversation_repo.get_conversation_by_id",
             new=AsyncMock(return_value=conversation),
         ) as fetch:
-            overhead, reminder_state = await AgentRunnerService(_db())._recorded_conversation_state(
-                uuid.uuid4()
-            )
+            recorded = await AgentRunnerService(_db())._recorded_conversation_state(uuid.uuid4())
 
-        assert overhead == 3_865
-        assert reminder_state == {"request_count": 4}
+        assert recorded.overhead == 3_865
+        assert recorded.reminder_state == {"request_count": 4}
+        assert [item["content"] for item in recorded.plan or []] == ["Write the fix"]
         assert fetch.await_count == 1
 
 
@@ -720,6 +1149,118 @@ class TestWhatAParkedCallRecords:
         assert channel.requested == []
 
 
+def _writes_a_note(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+    """A model that writes `notes.txt` on every turn, then answers."""
+    last = messages[-1]
+    if isinstance(last, ModelRequest) and any(isinstance(p, UserPromptPart) for p in last.parts):
+        return ModelResponse(
+            parts=[ToolCallPart("write_file", {"path": "notes.txt", "content": "kept"})]
+        )
+    return ModelResponse(parts=[TextPart("done")])
+
+
+class TestTheRunWorksInTheWorkspaceItOpened:
+    """`execute` and `iterate` hand the run the workspace `prepare` opened.
+
+    Left to the capability, a run continuing a history that names another
+    workspace - the last turn's on a host the agent has since moved off, a
+    conversation restored from another environment - is refused outright by
+    Pydantic AI, and a run without one works in the capability's in-memory
+    fallback while the stored document goes untouched.
+    """
+
+    async def _a_history_from_elsewhere(
+        self, agent: Agent[None, str], root: Path
+    ) -> list[ModelMessage]:
+        earlier = await agent.run("first", workspace=Workspace(LocalWorkspaceBackend(root)))
+        return earlier.all_messages()
+
+    def _prepared_with(self, agent: Agent[None, str], document: StateBackend) -> PreparedRun:
+        prepared = _prepared()
+        prepared.built.agent = agent
+        prepared.built.deps = None
+        prepared.built.usage_limits = None
+        prepared.workspace = MagicMock(workspace=document_workspace(document))
+        return prepared
+
+    @pytest.mark.anyio
+    async def test_execute_writes_into_the_opened_workspace(self, tmp_path):
+        agent = Agent(
+            FunctionModel(_writes_a_note), capabilities=[build_workspace(include_execute=False)]
+        )
+        history = await self._a_history_from_elsewhere(agent, tmp_path)
+        document = StateBackend()
+
+        await self._prepared_with(agent, document).execute(
+            "next", message_history=history, deferred_tool_results=None
+        )
+
+        assert document.read_bytes("/notes.txt") == b"kept"
+
+    @pytest.mark.anyio
+    async def test_iterate_writes_into_the_opened_workspace(self, tmp_path):
+        agent = Agent(
+            FunctionModel(_writes_a_note), capabilities=[build_workspace(include_execute=False)]
+        )
+        history = await self._a_history_from_elsewhere(agent, tmp_path)
+        document = StateBackend()
+
+        async with self._prepared_with(agent, document).iterate(
+            "next", message_history=history
+        ) as run:
+            async for _ in run:
+                pass
+
+        assert document.read_bytes("/notes.txt") == b"kept"
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    @pytest.mark.parametrize("elsewhere", ["another-organization", "another-connection"])
+    async def test_a_history_naming_someone_else_s_workspace_never_reaches_it(
+        self, tmp_path, elsewhere
+    ):
+        """A transcript can carry any ref - copied, restored, or written while the
+        agent ran on another host - and the run must still work only where the
+        runner opened it: another organization's document and another
+        connection's session are left exactly as they were."""
+        theirs = StateBackend()
+        if elsewhere == "another-organization":
+            foreign: Workspace = document_workspace(theirs, key="dc-another-organization")
+        else:
+
+            class _OtherHost(LocalWorkspaceBackend):
+                @property
+                def ref(self) -> WorkspaceRef:
+                    return WorkspaceRef(provider=f"sandboxd:{uuid.uuid4()}", id="xc-theirs")
+
+            foreign = Workspace(_OtherHost(tmp_path))
+        agent = Agent(
+            FunctionModel(_writes_a_note), capabilities=[build_workspace(include_execute=False)]
+        )
+        history = (await agent.run("first", workspace=foreign)).all_messages()
+        before = (dict(theirs.files), sorted(p.name for p in tmp_path.iterdir()))
+        ours = StateBackend()
+
+        await self._prepared_with(agent, ours).execute(
+            "next", message_history=history, deferred_tool_results=None
+        )
+
+        assert ours.read_bytes("/notes.txt") == b"kept"
+        assert (dict(theirs.files), sorted(p.name for p in tmp_path.iterdir())) == before
+
+    @pytest.mark.anyio
+    async def test_without_one_the_history_is_refused_rather_than_silently_rehomed(self, tmp_path):
+        """What the explicit workspace prevents, pinned so a library change that
+        made it unnecessary - or made it silent - is noticed."""
+        agent = Agent(
+            FunctionModel(_writes_a_note), capabilities=[build_workspace(include_execute=False)]
+        )
+        history = await self._a_history_from_elsewhere(agent, tmp_path)
+
+        with pytest.raises(UserError, match="none of the agent's workspace capabilities"):
+            await agent.run("next", message_history=history)
+
+
 class TestFilesAcrossOneTurn:
     """What arrived with the message, and what the turn produced.
 
@@ -745,9 +1286,9 @@ class TestFilesAcrossOneTurn:
                 MagicMock(), uuid.uuid4(), "look at this", attachments=[MagicMock()]
             )
 
-        # The backend, not the conversation: the router writes the file where the
-        # agent can read it, and only `prepare` knows whether there is one.
-        assert router.call_args.args[0] is prepared.workspace.backend
+        # The workspace, not the conversation: the router writes the file where
+        # the agent can read it, and only `prepare` knows whether there is one.
+        assert router.call_args.args[0] is prepared.workspace.workspace
         assert service._run.await_args.kwargs["user_prompt"] == "a prompt with a reference"
 
     @pytest.mark.anyio
@@ -932,7 +1473,69 @@ class TestSkillChangesARunProposed:
         service.proposals.record.assert_not_called()
 
 
+class TestTheRunsBudgetReachesAmbientCalls:
+    """The runner opens the run's guard around the agent, so a capability's own
+    `Agent` - a reminder, a summary, a query rewrite - is refused at a cap too.
+
+    `guarded_by` existed before anything opened it, which left every ambient
+    budget check a silent no-op (agenticos#1808); these pin both entry points.
+    """
+
+    @staticmethod
+    def _exhausted(prepared: PreparedRun) -> None:
+        prepared.built.budget.can_afford_next_request = AsyncMock(return_value=False)
+        prepared.built.budget.assert_within_budget = AsyncMock(
+            side_effect=BudgetExceeded(
+                limit_usd=Decimal("1"), spent_usd=Decimal("1"), scope=BudgetScope.AGENT
+            )
+        )
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    async def test_execute_refuses_an_ambient_call_at_the_cap(self):
+        prepared = _prepared()
+        self._exhausted(prepared)
+        seen: dict[str, bool] = {}
+
+        async def run(*_args: Any, **_kwargs: Any) -> MagicMock:
+            seen["affordable"] = await can_afford_ambient_call()
+            with pytest.raises(BudgetExceeded):
+                await assert_ambient_budget()
+            return MagicMock()
+
+        prepared.built.agent.run = run
+        await prepared.execute("hi", message_history=None, deferred_tool_results=None)
+
+        assert seen == {"affordable": False}
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    async def test_iterate_refuses_an_ambient_call_at_the_cap(self):
+        prepared = _prepared()
+        self._exhausted(prepared)
+        seen: dict[str, bool] = {}
+
+        class _Iteration:
+            async def __aenter__(self) -> "_Iteration":
+                seen["affordable"] = await can_afford_ambient_call()
+                return self
+
+            async def __aexit__(self, *_exc: object) -> None:
+                return None
+
+        prepared.built.agent.iter = MagicMock(return_value=_Iteration())
+        async with prepared.iterate("hi", message_history=None):
+            pass
+
+        assert seen == {"affordable": False}
+
+    @pytest.mark.anyio
+    async def test_outside_a_run_an_ambient_call_is_not_refused(self):
+        assert await can_afford_ambient_call() is True
+
+
 class TestRunAccounting:
+    @pytest.mark.security
     @pytest.mark.anyio
     async def test_a_failed_run_still_records_its_cost(self):
         """A budget that ignores failures is not a budget."""
@@ -967,6 +1570,7 @@ class TestRunAccounting:
 
         assert finish.call_args.kwargs["cost_is_partial"] is True
 
+    @pytest.mark.security
     @pytest.mark.anyio
     async def test_budget_stop_is_not_recorded_as_a_failure(self):
         """It is the platform working; an operator filtering for problems should not see it."""
@@ -1096,6 +1700,26 @@ class TestWhatAFailedRunIsAllowedToSay:
             "The run did not finish (RuntimeError) - retry it, and check the agent's "
             "model profile if it keeps failing. The server log has the full error."
         )
+
+    def test_a_run_at_its_step_limit_is_told_where_the_limit_is(self):
+        from pydantic_ai.exceptions import UsageLimitExceeded
+
+        summary = run_failure_summary(UsageLimitExceeded("The next request would exceed 50"))
+
+        assert "max_steps" in summary
+        assert "retry it" not in summary
+
+    def test_a_provider_out_of_credit_is_not_told_to_retry(self):
+        """A 402 is refused again until somebody adds credit; the body, which
+        names the account, stays in the log."""
+        summary = run_failure_summary(
+            ModelHTTPError(402, "anthropic/claude-sonnet-5.5", body={"user_id": "org_31x"})
+        )
+
+        assert "HTTP 402" in summary
+        assert "Add credit to the provider account" in summary
+        assert "retry it" not in summary
+        assert "org_31x" not in summary
 
     def test_a_provider_status_survives_because_it_is_what_a_person_acts_on(self):
         """404 is a model the profile names and the provider does not have, 401 a
@@ -1287,9 +1911,11 @@ class TestStoppingANonStreamingRun:
         assert recorded["error"] is None
         assert recorded["cost_usd"] == Decimal("2.00")
         # And it survives. `get_db_session` commits on a clean exit, which a
-        # propagating `BaseException` is not, so without this the row above was
-        # written and then rolled straight back.
-        db.commit.assert_awaited_once()
+        # propagating `BaseException` is not, so without the terminal commit the
+        # row above was written and then rolled straight back. Two commits: the
+        # one that made the run row visible before the model was called, and the
+        # one that lands the terminal write.
+        assert db.commit.await_count == 2
 
     @pytest.mark.anyio
     async def test_a_cancelled_run_keeps_the_delegation_rows_underneath_it(self):
@@ -1349,11 +1975,68 @@ class TestStoppingANonStreamingRun:
         ):
             await service.execute(_ctx(), uuid.uuid4(), "hello")
 
-        assert order == ["parent", "delegation", "commit"]
+        # The first commit is the one that opened the run to other sessions
+        # before the model was called; the terminal one comes after both writes,
+        # because the delegation rows carry `parent_run_id`.
+        assert order == ["commit", "parent", "delegation", "commit"]
         written = write.await_args.kwargs
         assert written["run_id"] == delegation.id
         assert written["status"] == RunStatus.CANCELLED.value
         assert written["cost_usd"] == Decimal("2.00")
+
+
+class TestMarkRunning:
+    @pytest.mark.anyio
+    async def test_leaving_the_queue_clears_the_parks_end_time(self):
+        """The park's `finish_run` wrote `ended_at`, and the replay's opening
+        commit publishes the row mid-run (#12) - left in place, a running run
+        would read as finished to every duration query, wearing the
+        pre-approval segment's span."""
+        from app.repositories import agent_run as agent_run_module
+
+        db = _db()
+        run = MagicMock(status=RunStatus.AWAITING_APPROVAL.value, ended_at=datetime.now(UTC))
+
+        await agent_run_module.mark_running(db, run=run)
+
+        assert run.status == RunStatus.RUNNING.value
+        assert run.ended_at is None
+
+
+class TestTheTransactionEndsBeforeTheModelCall:
+    """The run row is committed before the model is asked anything (#12).
+
+    Two things hang on the order rather than on the commit merely happening:
+    the row is visible from another session for the whole life of the run, and
+    the pooled connection is returned instead of sitting `idle in transaction`
+    for the minutes a model call can take - fifteen concurrent runs used to be
+    the whole pool.
+    """
+
+    @pytest.mark.anyio
+    async def test_the_run_row_is_committed_before_the_model_is_called(self):
+        db = _db()
+        service = AgentRunnerService(db)
+        prepared = _prepared()
+        order: list[str] = []
+
+        async def commit() -> None:
+            order.append("commit")
+
+        async def model(*_args: Any, **_kwargs: Any) -> MagicMock:
+            order.append("model")
+            return MagicMock(output="hi")
+
+        db.commit = AsyncMock(side_effect=commit)
+        prepared.built.agent.run = AsyncMock(side_effect=model)
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+        ):
+            await service.execute(_ctx(), uuid.uuid4(), "hello")
+
+        assert order[:2] == ["commit", "model"]
 
 
 class TestApprovals:
@@ -1398,6 +2081,7 @@ class TestApprovals:
         ):
             await ApprovalService(_db()).decide(_ctx(), uuid.uuid4(), approved=False)
 
+    @pytest.mark.security
     @pytest.mark.anyio
     async def test_an_approval_from_another_org_is_not_found(self):
         with (
@@ -1471,6 +2155,15 @@ class TestParking:
             # And an empty checklist, which is a run that bound no planning
             # capability: the store the runner always opens held nothing to snapshot.
             "plan": [],
+            # What the request asked for, so the continuation is the same run rather
+            # than a default-mode one wearing its id (#1326, #1343, #788).
+            "admitted_as": {
+                "approval_mode": "follow_agent",
+                "acts_for_sender": False,
+                "audience_user_id": None,
+                "audience_room_key": None,
+                "subject_is_publisher_fallback": False,
+            },
         }
 
     @pytest.mark.anyio
@@ -1496,6 +2189,87 @@ class TestParking:
         assert [item["content"] for item in stored] == ["Write the fix"]
 
     @pytest.mark.anyio
+    async def test_the_plan_the_turn_ended_on_is_written_to_its_conversation(self):
+        """A plan store is one run's and a chat message is a run, so the checklist
+        an agent wrote was gone by the next message and the agent said it had never
+        made one (#1077). The turn writes it to the conversation on the way out."""
+        service = AgentRunnerService(_db())
+        prepared = _prepared(conversation_id=uuid.uuid4())
+        await prepared.plan_store.set_items([PlanItem(content="Write the fix")])
+        result = MagicMock(output="done")
+        result.all_messages = MagicMock(return_value=[])
+        result.new_messages = MagicMock(return_value=[])
+        prepared.built.agent.run = AsyncMock(return_value=result)
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch.object(service.transcript, "record", new=AsyncMock()),
+            patch("app.services.agent_runner.ConversationService") as conversations,
+        ):
+            conversations.return_value.keep_overhead = AsyncMock()
+            conversations.return_value.keep_reminder_state = AsyncMock()
+            conversations.return_value.keep_plan = AsyncMock()
+            await service.execute(_ctx(), uuid.uuid4(), "fix the bug")
+
+        kept = conversations.return_value.keep_plan
+        assert kept.await_args.args[0] == prepared.run.conversation_id
+        assert [item["content"] for item in kept.await_args.args[1]] == ["Write the fix"]
+
+    @pytest.mark.anyio
+    async def test_a_turn_that_was_not_seeded_a_finished_plan_does_not_delete_it(self):
+        """A finished checklist is not seeded, so the store is empty - and writing
+        an empty store back would delete the row #1221 promises to keep, on the
+        very next ordinary turn."""
+        service = AgentRunnerService(_db())
+        prepared = _prepared(conversation_id=uuid.uuid4())
+        prepared.finished_plan_withheld = True
+        result = MagicMock(output="done")
+        result.all_messages = MagicMock(return_value=[])
+        result.new_messages = MagicMock(return_value=[])
+        prepared.built.agent.run = AsyncMock(return_value=result)
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch.object(service.transcript, "record", new=AsyncMock()),
+            patch("app.services.agent_runner.ConversationService") as conversations,
+        ):
+            conversations.return_value.keep_overhead = AsyncMock()
+            conversations.return_value.keep_reminder_state = AsyncMock()
+            conversations.return_value.keep_plan = AsyncMock()
+            await service.execute(_ctx(), uuid.uuid4(), "something else entirely")
+
+        conversations.return_value.keep_plan.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_new_plan_written_over_a_withheld_one_still_replaces_the_row(self):
+        """The withholding is only about an empty store. An agent that starts new
+        work writes a plan, and that is what the conversation should hold."""
+        service = AgentRunnerService(_db())
+        prepared = _prepared(conversation_id=uuid.uuid4())
+        prepared.finished_plan_withheld = True
+        await prepared.plan_store.set_items([PlanItem(content="Write the next fix")])
+        result = MagicMock(output="done")
+        result.all_messages = MagicMock(return_value=[])
+        result.new_messages = MagicMock(return_value=[])
+        prepared.built.agent.run = AsyncMock(return_value=result)
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch.object(service.transcript, "record", new=AsyncMock()),
+            patch("app.services.agent_runner.ConversationService") as conversations,
+        ):
+            conversations.return_value.keep_overhead = AsyncMock()
+            conversations.return_value.keep_reminder_state = AsyncMock()
+            conversations.return_value.keep_plan = AsyncMock()
+            await service.execute(_ctx(), uuid.uuid4(), "start the next thing")
+
+        kept = conversations.return_value.keep_plan
+        assert [item["content"] for item in kept.await_args.args[1]] == ["Write the next fix"]
+
+    @pytest.mark.anyio
     async def test_a_parked_runs_transcript_marks_the_call_that_is_waiting(self):
         """The transcript rows are the only account of the turn a reload has, and
         they used to say `running` for the very call somebody has to decide about -
@@ -1517,6 +2291,29 @@ class TestParking:
             await service.execute(_ctx(), uuid.uuid4(), "email the customer")
 
         assert record.await_args.kwargs["parked"] == frozenset({"call-1"})
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        ("status", "kept"),
+        [(RunStatus.AWAITING_APPROVAL, True), (RunStatus.COMPLETED, False)],
+    )
+    async def test_only_a_parked_run_keeps_its_spills(self, status: RunStatus, kept: bool):
+        """The history a parked run resumes from names its spilled returns, so
+        they stay for it; a run that ended has nobody left to read them."""
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+
+        with (
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch.object(service.workspaces, "close", new=AsyncMock()) as close,
+        ):
+            await service.finish(
+                prepared,
+                status=status,
+                paused_state=PausedRunState(messages=[], tool_call_ids={}) if kept else None,
+            )
+
+        close.assert_awaited_once_with(prepared.workspace, keep_spills=kept)
 
     @pytest.mark.anyio
     async def test_the_delegation_tree_is_folded_in_without_the_surface_supplying_it(self):
@@ -1667,6 +2464,311 @@ class TestResume:
         assert channel.decided["call-1"] == ApprovalGranted(
             tool_args={"to": "customer@example.com"}
         )
+
+    async def _resumed(self, *, paused_state: dict) -> MagicMock:
+        """Resume a parked run and hand back the `build_agent` mock.
+
+        Everything the resume path reaches for is patched: what these tests ask
+        is what the *continuation* was built with, which is decided before any of
+        it matters.
+        """
+        service = AgentRunnerService(_db())
+        approval = self._approval(status=ApprovalStatus.REJECTED.value, tool_args={}, note="no")
+        run = _parked_run(paused_state=paused_state, user_id=uuid.uuid4())
+        run.paused_state["tool_call_ids"] = {str(approval.id): "call-1"}
+
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.claim_parked_run",
+                new=AsyncMock(return_value=run),
+            ),
+            patch(
+                "app.services.agent_runner.agent_run_repo.list_approvals_for_run",
+                new=AsyncMock(return_value=[approval]),
+            ),
+            patch(
+                "app.services.agent_runner.agent_repo.get_version",
+                new=AsyncMock(return_value=self._version()),
+            ),
+            patch("app.services.agent_runner.build_agent", return_value=self._built()) as build,
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch.object(service.registry, "get", new=AsyncMock(return_value=MagicMock())),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+        ):
+            resumer = _ctx()
+            # Kept for the tests that ask *whose* account the continuation spoke
+            # through: the approver releasing a parked run is not its owner.
+            self.resumed_run = run
+            self.resumer = resumer
+            await service.resume(resumer, run.id)
+
+        return build
+
+    @pytest.mark.anyio
+    async def test_a_run_parked_under_ask_all_is_rebuilt_with_the_gate_it_parked_behind(self):
+        """The strictest mode used to be the one that failed open (#1326).
+
+        `ASK_ALL` gates tools the spec leaves open. The resume took the default
+        mode, so the wrapper was absent on the continuation - and a call a
+        reviewer had *rejected* then ran, because nothing was left to consume the
+        rejection.
+        """
+        build = await self._resumed(
+            paused_state={
+                "messages": [],
+                "tool_call_ids": {},
+                "admitted_as": {"approval_mode": "ask_all", "acts_for_sender": False},
+            }
+        )
+
+        assert build.call_args.kwargs["gate_every_tool"] is True
+
+    @pytest.mark.anyio
+    async def test_a_run_parked_before_this_was_recorded_resumes_as_it_always_did(self):
+        """An older payload has no `admitted_as`, and loads as the default -
+        which is what those runs were, so nothing about them changes."""
+        build = await self._resumed(paused_state={"messages": [], "tool_call_ids": {}})
+
+        assert build.call_args.kwargs["gate_every_tool"] is False
+
+    @pytest.mark.anyio
+    async def test_a_run_parked_under_the_flags_old_name_still_speaks_as_its_owner(self):
+        """`private_to_user` became `acts_for_sender` with the personal binding kind.
+        A run parked for approval before that deploy carries the old key, and
+        `extra="forbid"` would refuse to resume it - an approval somebody is
+        waiting on, failing for a key nobody can edit."""
+        with patch(
+            "app.services.agent_runner.build_toolsets_for_agent",
+            new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
+        ) as toolsets:
+            await self._resumed(
+                paused_state={
+                    "messages": [],
+                    "tool_call_ids": {},
+                    "admitted_as": {"approval_mode": "follow_agent", "private_to_user": True},
+                }
+            )
+
+        assert toolsets.await_args.kwargs["sender_user_id"] == self.resumed_run.user_id
+
+    @pytest.mark.anyio
+    async def test_a_parked_run_still_speaks_as_the_person_who_started_it(self):
+        """Half a conversation through their own account and half without it is
+        worse than either, and the row alone cannot say whether a person was at
+        the keyboard: a channel run by an unlinked sender records the binding's
+        publisher as its user (#1343)."""
+        with patch(
+            "app.services.agent_runner.build_toolsets_for_agent",
+            new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
+        ) as toolsets:
+            run_user_id = await self._resumed(
+                paused_state={
+                    "messages": [],
+                    "tool_call_ids": {},
+                    "admitted_as": {
+                        "approval_mode": "follow_agent",
+                        "acts_for_sender": True,
+                    },
+                }
+            )
+
+        assert run_user_id is not None
+        assert toolsets.await_args.kwargs["sender_user_id"] is not None
+
+    @pytest.mark.anyio
+    async def test_the_continuation_speaks_as_the_runs_owner_and_not_the_approver(self):
+        """A parked run is released by whoever may approve it, which is often
+        somebody else. Deriving the personal MCP identity from the resuming
+        caller read *their* third-party account inside the owner's conversation -
+        and the previous test could not catch it, because it asserted only that
+        the identity was not None."""
+        with patch(
+            "app.services.agent_runner.build_toolsets_for_agent",
+            new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
+        ) as toolsets:
+            await self._resumed(
+                paused_state={
+                    "messages": [],
+                    "tool_call_ids": {},
+                    "admitted_as": {"approval_mode": "follow_agent", "acts_for_sender": True},
+                }
+            )
+
+        assert self.resumer.user_id != self.resumed_run.user_id, "the fixture must differ"
+        assert toolsets.await_args.kwargs["sender_user_id"] == self.resumed_run.user_id
+
+    @pytest.mark.anyio
+    async def test_the_audience_is_the_runs_own_not_the_approvers(self):
+        """Resuming used to re-derive the memory identity off the approver, so an
+        admin releasing a member's parked chat injected their own memory and wrote
+        the member's notes under their account (#788) - the same bug the
+        personal-MCP owner test guards, on the store next to it. The audience is
+        now restored verbatim from the parked state instead."""
+        build = await self._resumed(
+            paused_state={
+                "messages": [],
+                "tool_call_ids": {},
+                "admitted_as": {
+                    "approval_mode": "follow_agent",
+                    "acts_for_sender": True,
+                    "audience_user_id": str(_THE_ASKER),
+                    "audience_room_key": None,
+                },
+            }
+        )
+
+        assert self.resumer.user_id != self.resumed_run.user_id, "the fixture must differ"
+        assert build.call_args.kwargs["user_id"] == str(self.resumed_run.user_id)
+        assert build.call_args.kwargs["audience"] == RunAudience(user_id=_THE_ASKER, room_key=None)
+
+    @pytest.mark.anyio
+    async def test_a_parked_publisher_fallback_run_resumes_keying_on_nobody(self):
+        """A run that stood a publisher in for an anonymous visitor had no person
+        store. The parked state records that as an audience with no user, so the
+        resume keys on nobody rather than on whoever approved it."""
+        build = await self._resumed(
+            paused_state={
+                "messages": [],
+                "tool_call_ids": {},
+                "admitted_as": {
+                    "approval_mode": "follow_agent",
+                    "acts_for_sender": False,
+                    "audience_user_id": None,
+                    "audience_room_key": None,
+                },
+            }
+        )
+
+        assert build.call_args.kwargs["audience"] == RunAudience()
+
+    @pytest.mark.anyio
+    async def test_a_parked_publisher_fallback_run_does_not_borrow_the_publishers_mcp(self):
+        """The resume half of #1469. A publisher-fallback run parks with
+        `acts_for_sender` set and its user_id the publisher, so the naive resume
+        resolved personal MCP to the publisher and reached a third-party service
+        with their credentials on an anonymous guest's behalf. The parked terms
+        record that the subject was a stand-in - the approver's context cannot say
+        so - and the continuation keys personal MCP on nobody."""
+        with patch(
+            "app.services.agent_runner.build_toolsets_for_agent",
+            new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
+        ) as toolsets:
+            await self._resumed(
+                paused_state={
+                    "messages": [],
+                    "tool_call_ids": {},
+                    "admitted_as": {
+                        "approval_mode": "follow_agent",
+                        "acts_for_sender": True,
+                        "audience_user_id": None,
+                        "audience_room_key": None,
+                        "subject_is_publisher_fallback": True,
+                    },
+                }
+            )
+
+        assert self.resumed_run.user_id is not None, "the run still records the publisher"
+        assert toolsets.await_args.kwargs["sender_user_id"] is None
+
+    @pytest.mark.anyio
+    async def test_a_parked_room_run_resumes_still_in_its_room(self):
+        """The room is unrecoverable from the row - `agent_runs` records no chat
+        type - so without it on the parked state a resumed channel run would read
+        a group conversation as a private one and lose the room's memory (#788)."""
+        build = await self._resumed(
+            paused_state={
+                "messages": [],
+                "tool_call_ids": {},
+                "admitted_as": {
+                    "approval_mode": "follow_agent",
+                    "acts_for_sender": True,
+                    "audience_user_id": str(_THE_ASKER),
+                    "audience_room_key": "room:slack:C1",
+                },
+            }
+        )
+
+        audience = build.call_args.kwargs["audience"]
+        assert audience.room_key == "room:slack:C1"
+        assert not audience.private
+
+    @pytest.mark.anyio
+    async def test_a_run_parked_with_nobody_at_the_keyboard_resumes_the_same_way(self):
+        """The default, and what a run admitted through an API key or an
+        unlinked chat account was."""
+        with patch(
+            "app.services.agent_runner.build_toolsets_for_agent",
+            new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
+        ) as toolsets:
+            await self._resumed(paused_state={"messages": [], "tool_call_ids": {}})
+
+        assert toolsets.await_args.kwargs["sender_user_id"] is None
+
+    @pytest.mark.anyio
+    async def test_leaving_the_queue_is_committed_before_the_call_is_replayed(self):
+        """A crash mid-replay must find the run `running`, not parked.
+
+        `mark_running` only flushed, so a process that died between replaying an
+        approved call and the terminal write rolled the status back to
+        `awaiting_approval` with the approval still marked approved - and the
+        next resume replayed the call, re-sending whatever it had already sent
+        (#3). The commit in `_run` sits between the two, so the state transition
+        `claim_parked_run` guards is durable before anything side-effecting runs.
+        """
+        db = _db()
+        service = AgentRunnerService(db)
+        approval = self._approval(status=ApprovalStatus.APPROVED.value, tool_args={})
+        run = _parked_run(
+            paused_state={"messages": [], "tool_call_ids": {str(approval.id): "call-1"}}
+        )
+        built = self._built()
+        order: list[str] = []
+
+        async def note_commit() -> None:
+            order.append("commit")
+
+        async def note_mark(*_args: Any, **_kwargs: Any) -> MagicMock:
+            order.append("mark_running")
+            return run
+
+        async def note_model(*_args: Any, **_kwargs: Any) -> MagicMock:
+            order.append("model")
+            return MagicMock(output="sent")
+
+        db.commit = AsyncMock(side_effect=note_commit)
+        built.agent.run = AsyncMock(side_effect=note_model)
+
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.claim_parked_run",
+                new=AsyncMock(return_value=run),
+            ),
+            patch(
+                "app.services.agent_runner.agent_run_repo.list_approvals_for_run",
+                new=AsyncMock(return_value=[approval]),
+            ),
+            patch(
+                "app.services.agent_runner.agent_run_repo.mark_running",
+                new=AsyncMock(side_effect=note_mark),
+            ),
+            patch(
+                "app.services.agent_runner.agent_repo.get_version",
+                new=AsyncMock(return_value=self._version()),
+            ),
+            patch("app.services.agent_runner.build_agent", return_value=built),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch.object(service.registry, "get", new=AsyncMock(return_value=MagicMock())),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+        ):
+            await service.resume(_ctx(), run.id)
+
+        assert order[:3] == ["mark_running", "commit", "model"]
 
     @pytest.mark.anyio
     async def test_a_resumed_run_records_its_continuation_and_invents_no_question(self):
@@ -2150,6 +3252,7 @@ class TestResume:
         # makes `run.status` the recorded truth by the time `resume` reads it.
         async def record_terminal_status(*args: Any, **kwargs: Any) -> Any:
             run.status = kwargs["status"]
+            run.error = kwargs["error"]
             return run
 
         with (
@@ -2182,6 +3285,12 @@ class TestResume:
         # The run was recorded terminal, and the caller is told which status.
         assert run.status == RunStatus.FAILED.value
         assert raised.value.details == {"run_id": str(run.id), "status": RunStatus.FAILED.value}
+        # And why, in the sentence the run recorded - never the exception's own text.
+        assert raised.value.message == (
+            "The run failed while continuing after approval: The run did not finish "
+            "(RuntimeError) - retry it, and check the agent's model profile if it keeps "
+            "failing. The server log has the full error."
+        )
         # The failure is conveyed, not hidden: the original exception is chained.
         assert raised.value.__cause__ is blew_up
 
@@ -2505,6 +3614,49 @@ class TestEnvironmentObservability:
         assert merged.observability.environment == "dev"
 
     @pytest.mark.anyio
+    async def test_the_agents_content_choice_survives_the_environment_merge(self):
+        """An environment redirects where traces go, not how much they carry: a
+        client's `none` must not be undone by pinning the run to an environment."""
+        spec = AgentSpec(
+            name="Support",
+            observability=ObservabilitySpec(token_secret_id=uuid.uuid4(), content="none"),
+        )
+        environment = MagicMock(logfire_token_secret_id=uuid.uuid4(), service_name=None)
+        environment.name = "client-prod"
+        service = AgentRunnerService(_db())
+
+        with patch(
+            "app.services.agent_runner.agent_environment_repo.get",
+            new=AsyncMock(return_value=environment),
+        ):
+            merged = await service._with_environment_observability(
+                _ctx(), spec, environment_id=uuid.uuid4()
+            )
+
+        assert merged.observability is not None
+        assert merged.observability.content == "none"
+
+    @pytest.mark.anyio
+    async def test_an_agent_with_no_block_traced_by_the_environment_records_full(self):
+        """When only the environment supplies a token, the agent made no content
+        choice, so the default `full` applies."""
+        spec = AgentSpec(name="Support")
+        environment = MagicMock(logfire_token_secret_id=uuid.uuid4(), service_name=None)
+        environment.name = "dev"
+        service = AgentRunnerService(_db())
+
+        with patch(
+            "app.services.agent_runner.agent_environment_repo.get",
+            new=AsyncMock(return_value=environment),
+        ):
+            merged = await service._with_environment_observability(
+                _ctx(), spec, environment_id=uuid.uuid4()
+            )
+
+        assert merged.observability is not None
+        assert merged.observability.content == "full"
+
+    @pytest.mark.anyio
     async def test_no_token_from_either_source_stays_untraced(self):
         """A tag into nowhere is not observability - the spec is left alone."""
         spec = AgentSpec(name="Support")
@@ -2533,6 +3685,7 @@ class TestEnvironmentObservability:
 
 
 class TestTracingSecret:
+    @pytest.mark.security
     @pytest.mark.anyio
     async def test_the_tracing_token_is_unsealed_with_the_capability_secrets(self):
         """One pass over the vault, not two.
@@ -2586,7 +3739,7 @@ class TestTheWorkspaceReachesTheAgent:
     """
 
     @staticmethod
-    async def _prepare(spec):
+    async def _prepare(spec, skills=()):
         service = AgentRunnerService(_db())
         agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
         opened = MagicMock(id=uuid.uuid4(), exposure_id=None)
@@ -2600,7 +3753,9 @@ class TestTheWorkspaceReachesTheAgent:
             patch.object(
                 service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
             ),
-            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch.object(
+                service.skills, "resolve_for_agent", new=AsyncMock(return_value=list(skills))
+            ),
             patch(
                 "app.services.agent_runner.agent_run_repo.create_run",
                 new=AsyncMock(return_value=opened),
@@ -2619,25 +3774,60 @@ class TestTheWorkspaceReachesTheAgent:
         ):
             prepared = await service.prepare(_ctx(), agent.id, conversation_id=uuid.uuid4())
 
-        return prepared, build.call_args.kwargs["resources"]
+        return prepared, build.call_args
 
     @pytest.mark.anyio
-    async def test_a_workspace_backend_is_handed_to_the_capability(self):
+    async def test_the_opened_workspace_is_handed_to_the_capabilities(self):
         spec = AgentSpec(name="Analyst", capabilities=[{"id": "sandbox", "config": {}}])
 
-        prepared, resources = await self._prepare(spec)
+        prepared, built = await self._prepare(spec)
 
         assert prepared.workspace is not None
-        assert resources["workspace_backend"] is prepared.workspace.backend
+        assert built.kwargs["resources"][WORKSPACE_RESOURCE] is prepared.workspace.workspace
 
     @pytest.mark.anyio
     async def test_an_agent_without_one_is_handed_nothing(self):
         """A resource key present-but-empty would make the capability build a
         workspace it thinks is real."""
-        prepared, resources = await self._prepare(AgentSpec(name="Plain"))
+        prepared, built = await self._prepare(AgentSpec(name="Plain"))
 
         assert prepared.workspace is None
-        assert "workspace_backend" not in resources
+        assert WORKSPACE_RESOURCE not in built.kwargs["resources"]
+
+
+class TestTheModelIsToldWhereTheSkillFilesWent:
+    """Nothing else tells it. The only place the path ever appeared was inside a
+    skill's own body, so every skill written against the old root was the model's
+    sole authority for a directory the platform has since moved."""
+
+    @pytest.mark.anyio
+    async def test_a_run_that_wrote_skill_files_names_the_directory(self):
+        from app.services.skill_workspace import SKILLS_ROOT
+
+        spec = AgentSpec(name="Analyst", capabilities=[{"id": "sandbox", "config": {}}])
+        skill = MagicMock(
+            id=uuid.uuid4(),
+            name="refunds",
+            description="Handle refunds",
+            content="Ask.",
+            resources=[],
+        )
+
+        _, built = await TestTheWorkspaceReachesTheAgent._prepare(spec, skills=[skill])
+
+        assert SKILLS_ROOT in built.args[0].instructions
+
+    @pytest.mark.anyio
+    async def test_a_run_with_no_skills_is_told_nothing(self):
+        """There are no files to point at, and an instruction about a directory
+        that is empty is one more thing for the model to act on."""
+        from app.services.skill_workspace import SKILLS_ROOT
+
+        spec = AgentSpec(name="Analyst", capabilities=[{"id": "sandbox", "config": {}}])
+
+        _, built = await TestTheWorkspaceReachesTheAgent._prepare(spec)
+
+        assert SKILLS_ROOT not in built.args[0].instructions
 
 
 class TestWhatTheChannelLetsTheAgentLookUp:
@@ -2802,3 +3992,469 @@ class TestTranscriptRatings:
         assert result[message_id]["user_rating"] is None
         assert result[message_id]["rating_count"] == {"likes": 1, "dislikes": 0}
         user_ratings.assert_not_awaited()
+
+
+class TestACommitThatCannotLandRunner:
+    """The terminal commit must not replace the exception that ended the run (#235)."""
+
+    @pytest.mark.anyio
+    async def test_a_failing_commit_does_not_mask_the_cancellation(self):
+        """A stop cancels the run; a commit that then cannot land must not turn
+        that into a failed run by replacing the `CancelledError`."""
+        db = _db()
+        # Two commits reach the session now: the opening one before the model
+        # call (#12) and the terminal one. Only the terminal write is under
+        # test, so the first is allowed to land.
+        db.commit = AsyncMock(side_effect=[None, RuntimeError("could not serialize access")])
+        service = AgentRunnerService(db)
+        prepared = _prepared()
+        prepared.built.agent.run = AsyncMock(side_effect=asyncio.CancelledError)
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            pytest.raises(asyncio.CancelledError),
+        ):
+            await service.execute(_ctx(), uuid.uuid4(), "hello")
+
+        assert db.commit.await_count == 2
+
+    @pytest.mark.anyio
+    async def test_a_failing_commit_on_a_clean_run_still_surfaces(self):
+        """When nothing else ended the run, a commit that cannot land is the one
+        thing wrong and does surface."""
+        db = _db()
+        # Two commits reach the session now: the opening one before the model
+        # call (#12) and the terminal one. Only the terminal write is under
+        # test, so the first is allowed to land.
+        db.commit = AsyncMock(side_effect=[None, RuntimeError("could not commit")])
+        service = AgentRunnerService(db)
+        prepared = _prepared()
+        prepared.built.agent.run = AsyncMock(return_value=MagicMock(output="the answer"))
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            pytest.raises(RuntimeError, match="could not commit"),
+        ):
+            await service.execute(_ctx(), uuid.uuid4(), "hello")
+
+    @pytest.mark.anyio
+    async def test_a_failing_finish_does_not_mask_the_cancellation(self):
+        """The masking window is the whole terminal write, not only the commit:
+        `finish` and `transcript.record` hit the same connection first and must
+        not replace the `CancelledError` either (#235)."""
+        db = _db()
+        service = AgentRunnerService(db)
+        prepared = _prepared()
+        prepared.built.agent.run = AsyncMock(side_effect=asyncio.CancelledError)
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch.object(service, "finish", new=AsyncMock(side_effect=RuntimeError("dropped"))),
+            pytest.raises(asyncio.CancelledError),
+        ):
+            await service.execute(_ctx(), uuid.uuid4(), "hello")
+
+        # Only the opening commit; the terminal one is never reached.
+        db.commit.assert_awaited_once()
+
+    @pytest.mark.anyio
+    async def test_a_commit_failure_surfaces_even_inside_a_callers_except(self):
+        """#235 review: `sys.exc_info()` would report a *caller's* handled
+        exception and wrongly swallow a real commit failure on a run that itself
+        completed. The run's own terminal state is tracked instead, so the
+        failure surfaces."""
+        db = _db()
+        # Two commits reach the session now: the opening one before the model
+        # call (#12) and the terminal one. Only the terminal write is under
+        # test, so the first is allowed to land.
+        db.commit = AsyncMock(side_effect=[None, RuntimeError("could not commit")])
+        service = AgentRunnerService(db)
+        prepared = _prepared()
+        prepared.built.agent.run = AsyncMock(return_value=MagicMock(output="ok"))
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+        ):
+            try:
+                raise ValueError("boom")  # noqa: TRY301 - a caller already mid-except
+            except ValueError:
+                with pytest.raises(RuntimeError, match="could not commit"):
+                    await service.execute(_ctx(), uuid.uuid4(), "hello")
+
+
+class TestTellingTheAgentWhatItCannotReach:
+    """A personal binding nobody can speak through is a sentence, not a silence.
+
+    A skipped server is invisible to the model: it answers as though the agent
+    never had Notion, and the person asking concludes the agent is broken. The
+    briefing appended for each gap is what turns that into something they can
+    act on - and it has to name the right remedy, because "connect your account"
+    is wrong advice to somebody whose chat account is simply not linked.
+    """
+
+    _SERVERS = "http://localhost:3000/mcp-servers"
+    _CONNECT = "http://localhost:3000/mcp-servers?connect=notion"
+
+    @staticmethod
+    def _briefed(
+        gap: str, surface: RunSurface = RunSurface.WEB, *, sender_present: bool = False
+    ) -> str:
+        spec = _with_personal_service_gaps(
+            AgentSpec(name="Support", instructions="Be brief."),
+            [UnavailablePersonalService("notion", gap)],  # type: ignore[arg-type]  # each literal is exercised below
+            surface,
+            sender_present=sender_present,
+        )
+        return spec.instructions
+
+    def test_nothing_missing_leaves_the_instructions_alone(self):
+        spec = AgentSpec(name="Support", instructions="Be brief.")
+
+        assert _with_personal_service_gaps(spec, [], RunSurface.WEB) is spec
+
+    def test_the_published_instructions_come_first_and_are_kept(self):
+        assert self._briefed("not_connected").startswith("Be brief.\n\n")
+
+    def test_a_console_reader_is_named_the_page_rather_than_quoted_a_url(self):
+        """The console reader is already in the app, so the runner names the page
+        in words - a quoted `{FRONTEND_URL}/mcp-servers` 404s under a locale
+        prefix and the chat card navigates there itself anyway (#1444)."""
+        text = self._briefed("not_connected")
+
+        assert "has not connected their own Notion" in text
+        assert "the MCP servers page" in text
+        assert self._SERVERS not in text
+
+    def test_several_accounts_with_no_default_are_sent_to_pick_one(self):
+        text = self._briefed("undecided")
+
+        assert "none marked as the one agents use" in text
+        assert "the MCP servers page" in text
+        assert self._SERVERS not in text
+
+    def test_an_expired_grant_is_sent_to_authorize_again(self):
+        """Re-authorizing is done on the connection they have; the connect link
+        would mint a second one beside it, so the connect flow is never offered."""
+        text = self._briefed("unauthorized")
+
+        assert "no longer authorizes" in text
+        assert "the MCP servers page" in text
+        assert self._SERVERS not in text
+
+    @pytest.mark.parametrize(
+        "surface", [RunSurface.SLACK, RunSurface.TELEGRAM, RunSurface.MATTERMOST]
+    )
+    def test_a_channel_reader_gets_the_absolute_link_since_they_are_not_in_the_app(self, surface):
+        """A Slack reader has no session to navigate from, so the absolute link is
+        built beside the other channel URLs. A service nobody has connected takes
+        the connect flow; an account already held takes the bare page, because
+        `?connect=` would mint a second one."""
+        assert self._CONNECT in self._briefed("not_connected", surface)
+
+        for held in ("undecided", "unauthorized"):
+            text = self._briefed(held, surface)
+            assert self._SERVERS in text
+            assert self._CONNECT not in text
+
+    @pytest.mark.parametrize(
+        "surface", [RunSurface.SLACK, RunSurface.TELEGRAM, RunSurface.MATTERMOST]
+    )
+    def test_an_unlinked_chat_account_is_told_to_link_before_connecting(self, surface):
+        """Connecting a Notion needs an account here to hold it; the link comes
+        first, and a briefing pointing at the connect page would send them to a
+        sign-in wall."""
+        text = self._briefed("nobody_to_speak_as", surface)
+
+        assert "send /link to this bot" in text
+        assert self._CONNECT not in text
+
+    @pytest.mark.parametrize("surface", [RunSurface.API, RunSurface.EMBED, RunSurface.SCHEDULE])
+    def test_a_surface_with_nobody_signed_in_is_named_as_such(self, surface):
+        text = self._briefed("nobody_to_speak_as", surface)
+
+        assert "nobody is signed in on this surface" in text
+        assert "/link" not in text
+
+    @pytest.mark.parametrize("surface", [RunSurface.API, RunSurface.EMBED, RunSurface.SCHEDULE])
+    def test_a_signed_in_caller_is_told_the_run_will_not_act_as_them(self, surface):
+        """A run through `POST /agents/{id}/run` carries the caller's own token, so
+        `ctx.user_id` is that person even though the personal binding stays out of
+        reach - "nobody is signed in" was false, and the model repeated it (#1445)."""
+        text = self._briefed("nobody_to_speak_as", surface, sender_present=True)
+
+        assert "does not act as their account" in text
+        assert "nobody is signed in" not in text
+        assert "/link" not in text
+
+    def test_the_service_is_named_as_the_catalog_names_it(self):
+        """`notion` is a key; the person reads "Notion"."""
+        assert "Notion is bound to the account" in self._briefed("not_connected")
+
+    def test_a_key_the_catalog_no_longer_holds_is_named_as_itself(self):
+        spec = _with_personal_service_gaps(
+            AgentSpec(name="Support", instructions="x"),
+            [UnavailablePersonalService("gone-server", "not_connected")],
+            RunSurface.WEB,
+        )
+
+        assert "gone-server is bound to the account" in spec.instructions
+
+    def test_each_gap_gets_its_own_paragraph(self):
+        spec = _with_personal_service_gaps(
+            AgentSpec(name="Support", instructions="x"),
+            [
+                UnavailablePersonalService("notion", "not_connected"),
+                UnavailablePersonalService("linear", "undecided"),
+            ],
+            RunSurface.WEB,
+        )
+
+        assert spec.instructions.count("is bound to the account") == 2
+
+    def test_a_prefix_collision_tells_the_model_the_server_is_not_available(self):
+        """The dropped server used to vanish with a log line; now it briefs the
+        model so the answer says it is missing rather than pretending it never
+        existed (#1442). The winner it names is one the resolution already saw
+        answer its probe, so "only GitHub is attached" is a fact, not a hope. It
+        is not a personal gap - the author renames a connection - so it names no
+        link."""
+        spec = _with_personal_service_gaps(
+            AgentSpec(name="Support", instructions="x"),
+            [
+                UnavailablePrefixCollision(
+                    server="github",
+                    prefix="github",
+                    kept="GitHub",
+                    server_binding="the connection 'github'",
+                    kept_binding="the connection 'GitHub'",
+                )
+            ],
+            RunSurface.WEB,
+        )
+
+        assert "github server (the connection 'github') is not available this turn" in (
+            spec.instructions
+        )
+        assert "only GitHub is attached" in spec.instructions
+        assert "is bound to the account" not in spec.instructions
+
+    def test_same_named_bindings_are_told_apart_by_binding_not_by_name(self):
+        """An organization `notion` and each person's own `notion` collide under
+        one name. Briefed by name, the model would read that `notion` is both
+        attached and unavailable and refuse the tools it holds; briefed by
+        binding, it knows whose tools it has (#1442 review)."""
+        spec = _with_personal_service_gaps(
+            AgentSpec(name="Support", instructions="x"),
+            [
+                UnavailablePrefixCollision(
+                    server="notion",
+                    prefix="notion",
+                    kept="notion",
+                    server_binding="each person's own notion",
+                    kept_binding="the connection 'notion'",
+                )
+            ],
+            RunSurface.WEB,
+        )
+
+        assert "both called notion" in spec.instructions
+        assert "only the connection 'notion' is attached" in spec.instructions
+        assert "The notion tools you have are that one's" in spec.instructions
+        assert "notion server is not available" not in spec.instructions
+
+
+class TestWhichGapsAreAskedForOnUse:
+    """`_connect_on_use`: a gap the person talking could put right, on a surface
+    that can wait for them, is offered as `connect_account`; the rest are briefed."""
+
+    _NOTION = PersonalMcpServerRef(account="personal", catalog_key="notion")
+
+    def test_a_surface_that_cannot_wait_briefs_every_gap(self):
+        gaps = [UnavailablePersonalService("notion", "not_connected")]
+
+        on_use, briefed = _connect_on_use(
+            gaps, refs=[self._NOTION], user_id=uuid.uuid4(), request_connection=None
+        )
+
+        assert on_use is None
+        assert briefed == gaps
+
+    def test_nobody_to_speak_as_is_briefed_even_where_the_surface_could_wait(self):
+        gaps = [UnavailablePersonalService("notion", "nobody_to_speak_as")]
+
+        on_use, briefed = _connect_on_use(
+            gaps, refs=[self._NOTION], user_id=None, request_connection=AsyncMock()
+        )
+
+        assert on_use is None
+        assert briefed == gaps
+
+    def test_a_run_with_no_gaps_to_offer_adds_no_tool(self):
+        on_use, briefed = _connect_on_use(
+            [], refs=[self._NOTION], user_id=uuid.uuid4(), request_connection=AsyncMock()
+        )
+
+        assert on_use is None
+        assert briefed == []
+
+    @pytest.mark.anyio
+    async def test_the_service_is_read_again_as_the_person_talking(self):
+        person = uuid.uuid4()
+        with patch(
+            "app.services.agent_runner.connect_personal_toolset",
+            new=AsyncMock(return_value="unreachable"),
+        ) as reread:
+            on_use, _briefed = _connect_on_use(
+                [UnavailablePersonalService("notion", "unauthorized")],
+                refs=[self._NOTION],
+                user_id=person,
+                request_connection=AsyncMock(),
+            )
+            assert on_use is not None
+            assert await on_use.services[0].resolve() == "unreachable"
+
+        reread.assert_awaited_once_with(self._NOTION, user_id=person)
+
+
+class TestWhatAPreparedRunSaysThePersonCannotReach:
+    """The same gaps the model is briefed with, carried to the surface so a chat
+    can draw the button that connects the account beside the agent's sentence."""
+
+    @pytest.mark.anyio
+    async def test_the_gaps_are_named_with_the_link_that_fixes_each(self):
+        ctx = _ctx()
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        spec = AgentSpec(name="Support")
+
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch(
+                "app.services.agent_runner.build_toolsets_for_agent",
+                new=AsyncMock(
+                    return_value=ResolvedMcpToolsets(
+                        [],
+                        [
+                            UnavailablePersonalService("notion", "not_connected"),
+                            UnavailablePersonalService("linear", "undecided"),
+                        ],
+                    )
+                ),
+            ),
+            patch("app.services.agent_runner.build_agent"),
+        ):
+            prepared = await service.prepare(ctx, agent.id, acts_for_sender=True)
+
+        assert prepared.personal_service_gaps == [
+            PersonalServiceGap(catalog_key="notion", name="Notion", gap="not_connected"),
+            PersonalServiceGap(catalog_key="linear", name="Linear", gap="undecided"),
+        ]
+
+    @pytest.mark.anyio
+    async def test_a_surface_that_can_wait_is_asked_on_use_instead(self):
+        """Given a way to hold the run while somebody connects, the services they
+        could connect become `connect_account` - not a card before the answer,
+        nor a sentence telling the model they are missing. A collision is still
+        the author's to fix, so it is still briefed."""
+        ctx = _ctx()
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        spec = AgentSpec(
+            name="Support",
+            mcp_servers=[
+                PersonalMcpServerRef(account="personal", catalog_key="notion"),
+                PersonalMcpServerRef(account="personal", catalog_key="linear"),
+            ],
+        )
+        collision = UnavailablePrefixCollision(
+            server="gh", prefix="gh", kept="gh", server_binding="a", kept_binding="b"
+        )
+
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch(
+                "app.services.agent_runner.build_toolsets_for_agent",
+                new=AsyncMock(
+                    return_value=ResolvedMcpToolsets(
+                        [],
+                        [
+                            UnavailablePersonalService("notion", "not_connected"),
+                            UnavailablePersonalService("linear", "undecided"),
+                            collision,
+                        ],
+                    )
+                ),
+            ),
+            patch("app.services.agent_runner.build_agent") as build,
+        ):
+            prepared = await service.prepare(
+                ctx, agent.id, acts_for_sender=True, request_connection=AsyncMock()
+            )
+
+        assert prepared.personal_service_gaps == []
+        (on_use,) = build.call_args.kwargs["extra_capabilities"]
+        assert isinstance(on_use, ConnectOnUse)
+        assert [pending.request for pending in on_use.services] == [
+            ConnectionRequest(catalog_key="notion", name="Notion", gap="not_connected"),
+            ConnectionRequest(catalog_key="linear", name="Linear", gap="undecided"),
+        ]
+        briefed = build.call_args.args[0].instructions
+        assert "has not connected their own Notion" not in briefed
+        assert "both called gh" in briefed
+
+    @pytest.mark.anyio
+    async def test_a_run_whose_bindings_all_resolved_reports_nothing(self):
+        ctx = _ctx()
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, AgentSpec(name="Support"), uuid.uuid4())),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch(
+                "app.services.agent_runner.build_toolsets_for_agent",
+                new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
+            ),
+            patch("app.services.agent_runner.build_agent"),
+        ):
+            prepared = await service.prepare(ctx, agent.id)
+
+        assert prepared.personal_service_gaps == []

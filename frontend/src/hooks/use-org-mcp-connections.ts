@@ -15,6 +15,7 @@ import {
   type OrgMcpConnectionRecord,
 } from "@/lib/org-mcp-connections-api";
 import type { McpConnectionTestResult } from "@/lib/mcp-connections-api";
+import { getErrorMessage } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
 
 interface UseOrgMcpConnectionsResult {
@@ -48,6 +49,7 @@ interface UseOrgMcpConnectionsResult {
  */
 export function useOrgMcpConnections(): UseOrgMcpConnectionsResult {
   const t = useTranslations("mcp");
+  const tErrors = useTranslations("errors");
   const queryClient = useQueryClient();
 
   const {
@@ -61,12 +63,7 @@ export function useOrgMcpConnections(): UseOrgMcpConnectionsResult {
     queryFn: listOrgMcpConnections,
   });
 
-  const error =
-    queryError instanceof Error
-      ? queryError.message
-      : queryError
-        ? t("failedLoadOrgServers")
-        : null;
+  const error = queryError ? getErrorMessage(queryError, tErrors, t("failedLoadOrgServers")) : null;
 
   const writeCache = useCallback(
     (updater: (prev: OrgMcpConnectionRecord[]) => OrgMcpConnectionRecord[]) =>

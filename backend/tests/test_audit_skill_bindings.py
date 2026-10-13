@@ -438,6 +438,7 @@ class TestExecutableVersions:
         found = await self._run(current=[root], pairs=[child, grandchild])
         assert grandchild[1].id in found
 
+    @pytest.mark.security
     @pytest.mark.anyio
     async def test_a_delegates_own_ceiling_caps_the_budget_it_passes_down(self):
         """A caller cannot buy a delegate more nesting than its author allowed:

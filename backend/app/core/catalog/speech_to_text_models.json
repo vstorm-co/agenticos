@@ -1,0 +1,53 @@
+[
+  {
+    "provider": "openai",
+    "api": "transcriptions",
+    "base_url": "https://api.openai.com/v1",
+    "models": [
+      {
+        "id": "gpt-4o-transcribe",
+        "name": "GPT-4o Transcribe",
+        "description": "Most accurate of the OpenAI set, and the slowest. Good with accents and crosstalk."
+      },
+      {
+        "id": "gpt-4o-mini-transcribe",
+        "name": "GPT-4o mini Transcribe",
+        "description": "Cheaper and quicker, at some cost on hard audio. A sensible default for chat voice notes."
+      },
+      {
+        "id": "whisper-1",
+        "name": "Whisper",
+        "description": "The original endpoint. Widest language coverage, and the only one that returns segment timings."
+      }
+    ]
+  },
+  {
+    "provider": "groq",
+    "api": "transcriptions",
+    "base_url": "https://api.groq.com/openai/v1",
+    "models": [
+      {
+        "id": "whisper-large-v3-turbo",
+        "name": "Whisper large v3 turbo",
+        "description": "Fastest here by a wide margin, on Groq's hardware. Near large-v3 accuracy."
+      },
+      {
+        "id": "whisper-large-v3",
+        "name": "Whisper large v3",
+        "description": "The accurate one, for recordings worth a second longer."
+      }
+    ]
+  },
+  {
+    "provider": "mistral",
+    "api": "transcriptions",
+    "base_url": "https://api.mistral.ai/v1",
+    "models": [
+      {
+        "id": "voxtral-mini-latest",
+        "name": "Voxtral Mini",
+        "description": "Mistral's speech model. European hosting, which is sometimes the deciding factor."
+      }
+    ]
+  }
+]

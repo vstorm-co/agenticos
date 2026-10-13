@@ -1,8 +1,9 @@
 """How often one caller may reach a public surface.
 
-Six of this platform's surfaces are reachable without a session: the public run
-API, the widget's script, its config endpoint, its socket, a hosted page's config
-and that page's logo. Every one of them reads at least one row before it decides
+Eight of this platform's surfaces are reachable without a session: the public run
+API, the widget's script, its config endpoint, its socket, a hosted page's config,
+that page's logo, a public artifact link and the signed address an artifact's page
+is served from. Every one of them reads at least one row before it decides
 anything, and between them and somebody else's model budget there was, until #39,
 nothing at all - a limiter was constructed in `app/core/rate_limit.py`,
 registered on the app, and used by no route, while a second Redis-backed one sat
@@ -20,8 +21,8 @@ What replaced both is this module, and the shape is deliberately
 Production runs `uvicorn --workers 4`, so a per-process counter lets through
 four times what it says it does - and a limit that is wrong by the worker count
 is worse than no limit, because it reads as one that holds. The channel
-router's own `_rate_buckets` is per-process and is not a model to follow here,
-which that module already says.
+router's per-account allowance counts through here too, for the same reason:
+its own per-process dict was off by the worker count and never forgot a caller.
 
 *A fixed window, not a rolling one.* `INCR` plus an `EXPIRE … NX`, two
 commands, and a caller who arrives at the end of one window and again at the
@@ -33,7 +34,10 @@ somebody's money, not a traffic shaper.
 *It fails open, loudly.* A Redis nobody can reach means the limit is not
 applied and a warning is logged. Refusing a visitor their answer because a
 cache blipped is the worse failure of the two, and it is the same trade-off,
-for the same reason, as the deduplication claim.
+for the same reason, as the deduplication claim. The `Decision` says when that
+happened (`metered=False`), so a surface whose per-caller limit is a production
+control - a channel bot's `rate_limit_rpm` - can keep a per-process floor under
+the caller for as long as the outage lasts rather than none at all.
 """
 
 from __future__ import annotations
@@ -82,10 +86,18 @@ class Limit:
 
 @dataclass(frozen=True)
 class Decision:
-    """Whether this attempt is allowed, and when to try again if not."""
+    """Whether this attempt is allowed, and when to try again if not.
+
+    `metered` says whether the answer came from a count at all. It is `False`
+    on the two fail-open paths - no limiter configured, a Redis that could not
+    be reached - where `allowed` is a default rather than a decision, so a
+    surface that must keep a floor under a caller while Redis is down can tell
+    the two apart and count locally instead of reading "allowed" as "inside".
+    """
 
     allowed: bool
     retry_after_seconds: int
+    metered: bool = True
 
 
 def caller_ip(connection: HTTPConnection) -> str:
@@ -138,14 +150,14 @@ async def consume(*, surface: str, caller: str, limit: Limit) -> Decision:
     """
     if _redis is None:
         logger.warning("Rate limiting not configured - %s reached unmetered by %s", surface, caller)
-        return Decision(allowed=True, retry_after_seconds=0)
+        return Decision(allowed=True, retry_after_seconds=0, metered=False)
 
     key = f"ratelimit:{surface}:{_bounded(caller)}"
     try:
         used = await _redis.count_in_window(key, ttl=limit.window_seconds)
     except Exception:
         logger.warning("rate_limit_redis_unavailable", exc_info=True)
-        return Decision(allowed=True, retry_after_seconds=0)
+        return Decision(allowed=True, retry_after_seconds=0, metered=False)
 
     if used > limit.attempts:
         return Decision(allowed=False, retry_after_seconds=limit.window_seconds)
@@ -155,6 +167,23 @@ async def consume(*, surface: str, caller: str, limit: Limit) -> Decision:
 def run_limit() -> Limit:
     """What one caller may spend the public run API on, per minute."""
     return Limit(attempts=settings.RATE_LIMIT_RUN_PER_MINUTE)
+
+
+def ml_limit() -> Limit:
+    """What one caller may ask the standalone ML services for, per minute."""
+    return Limit(attempts=settings.RATE_LIMIT_ML_PER_MINUTE)
+
+
+def export_limit() -> Limit:
+    """What one caller may ask for a personal-data export, per hour.
+
+    Per hour rather than per minute, because the thing being rationed is not
+    load: assembling everything about a person into one document is cheap and is
+    the shape of a data breach when the caller is not who they claim to be. A
+    person exporting themselves does it once; a stolen session walking the
+    deployment's people does it repeatedly (#1421).
+    """
+    return Limit(attempts=settings.RATE_LIMIT_EXPORT_PER_HOUR, window_seconds=3_600)
 
 
 def auth_limit() -> Limit:
@@ -190,6 +219,51 @@ async def hosted_admission_allowed(public_key: str) -> Decision:
         surface="hosted_config",
         caller=f"key:{public_key}",
         limit=Limit(attempts=settings.RATE_LIMIT_HOSTED_PAGE_PER_MINUTE),
+    )
+
+
+async def public_artifact_allowed(public_key: str) -> Decision:
+    """Whether a public artifact link may be opened again right now.
+
+    Keyed on the link, for `hosted_admission_allowed`'s reason: the page asks for
+    it server-side, so the address is the frontend's own. What it bounds is one
+    link being hammered into database reads; the key's 192 bits are what make
+    finding one by guessing a non-strategy.
+    """
+    return await consume(
+        surface="public_artifact",
+        caller=f"key:{public_key}",
+        limit=Limit(attempts=settings.RATE_LIMIT_HOSTED_PAGE_PER_MINUTE),
+    )
+
+
+ARTIFACT_CONTENT_LOADS_PER_MINUTE = 10
+"""How often one signed artifact address may be loaded in a minute.
+
+A frame loads its address once and a reload or two after that; the console and
+the public page mint a fresh one each time they draw the frame. Ten is room for
+that and no more.
+"""
+
+
+async def artifact_content_allowed(token: str) -> Decision:
+    """Whether the page behind this signed address may be served again right now.
+
+    Keyed on the address, not the caller's. The token is minted by this server -
+    behind a grant, or behind the public link's own limit - so it cannot be
+    varied for free the way a visitor key can, and one leaked address replayed
+    from anywhere spends one allowance. Getting more means minting more, which
+    is metered where it happens. The address is also the one thing every viewer
+    has of their own: counting per network address would put a whole office
+    behind one proxy in one bucket.
+
+    The address is a bearer credential for minutes, so it is counted by its
+    digest and never written into a Redis key as it is.
+    """
+    return await consume(
+        surface="artifact_content",
+        caller=f"token:{hashlib.sha256(token.encode()).hexdigest()}",
+        limit=Limit(attempts=ARTIFACT_CONTENT_LOADS_PER_MINUTE),
     )
 
 

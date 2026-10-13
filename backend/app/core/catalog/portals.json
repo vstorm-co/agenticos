@@ -53,6 +53,55 @@
     "oauth_app_kind": "github_oauth_app"
   },
   {
+    "key": "github_app",
+    "name": "GitHub (App)",
+    "description": "The same repository events, through a GitHub App installed on the repositories you choose - scoped permissions, an hour-long token, and no per-repository hook.",
+    "category": "development",
+    "event_source": "github",
+    "delivery": "app_webhook",
+    "icon": "github",
+    "read_scopes": [],
+    "webhook_admin_scopes": [],
+    "mcp_catalog_key": "github",
+    "target_kind": "repo",
+    "presets": [
+      {
+        "key": "issue_opened",
+        "label": "New issue opened",
+        "description": "Fires when someone opens an issue in the repository you pick.",
+        "event_config": {
+          "actions": [
+            "opened"
+          ]
+        },
+        "target_required": true
+      },
+      {
+        "key": "issue_closed",
+        "label": "Issue closed",
+        "description": "Fires when an issue is closed.",
+        "event_config": {
+          "actions": [
+            "closed"
+          ]
+        },
+        "target_required": true
+      },
+      {
+        "key": "issue_reopened",
+        "label": "Issue reopened",
+        "description": "Fires when a closed issue is reopened.",
+        "event_config": {
+          "actions": [
+            "reopened"
+          ]
+        },
+        "target_required": true
+      }
+    ],
+    "oauth_app_kind": "github_app"
+  },
+  {
     "key": "google",
     "name": "Gmail",
     "description": "Run an agent when a message arrives in your mailbox - all of it, or a slice you filter.",

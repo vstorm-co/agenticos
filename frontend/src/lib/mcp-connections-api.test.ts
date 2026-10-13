@@ -67,9 +67,31 @@ describe("starting an OAuth flow", () => {
       "organization",
     );
 
-    expect(apiClient.post).toHaveBeenCalledWith("/orgs/mcp-connections/oauth/start", {
+    // `/mcp-connections`, not `/orgs/mcp-connections`: the organization's router
+    // is mounted beside the personal one, and `/orgs` is organizations, members
+    // and invitations. This assertion used to pin the 404 (#1340).
+    expect(apiClient.post).toHaveBeenCalledWith("/mcp-connections/oauth/start", {
       name: "Linear",
       url: "https://mcp.linear.app/sse",
+    });
+  });
+
+  it("carries a client registered by hand, for a server that registers none itself", async () => {
+    // HubSpot publishes no registration endpoint, so the only way past it is a
+    // client the operator created in the provider's portal - and those two
+    // values have to reach the backend under the names its schema reads.
+    await personal.startMcpOAuth({
+      name: "hubspot",
+      url: "https://mcp.hubspot.com",
+      client_id: "app-1",
+      client_secret: "shh",
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith("/me/mcp-connections/oauth/start", {
+      name: "hubspot",
+      url: "https://mcp.hubspot.com",
+      client_id: "app-1",
+      client_secret: "shh",
     });
   });
 

@@ -6,15 +6,17 @@ predicate pieces the access layer resolved rather than re-deriving them here.
 """
 
 from collections.abc import Sequence
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
-from sqlalchemy import and_, false, func, or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.db.models.resource_grant import Visibility
 from app.db.models.skill import Skill, SkillResource
 from app.repositories._search import contains_ci
+from app.repositories._visibility import shared_with_caller, visible_to_caller
 
 SkillSort = Literal["name", "updated"]
 
@@ -29,6 +31,18 @@ async def get(db: AsyncSession, skill_id: UUID, *, organization_id: UUID) -> Ski
 async def get_by_name(db: AsyncSession, name: str, *, organization_id: UUID) -> Skill | None:
     result = await db.execute(
         select(Skill).where(Skill.name == name, Skill.organization_id == organization_id)
+    )
+    return result.scalar_one_or_none()
+
+
+async def lock(db: AsyncSession, skill_id: UUID) -> Skill | None:
+    """The skill locked until the transaction ends, read afresh with its files."""
+    result = await db.execute(
+        select(Skill)
+        .where(Skill.id == skill_id)
+        .options(selectinload(Skill.resources))
+        .with_for_update()
+        .execution_options(populate_existing=True)
     )
     return result.scalar_one_or_none()
 
@@ -86,25 +100,22 @@ async def list_visible(
     where = [Skill.organization_id == organization_id]
     if shared_with_me:
         where.append(
-            and_(
-                or_(
-                    Skill.visibility == Visibility.ORG.value,
-                    Skill.id.in_(shared_ids) if shared_ids else false(),
-                ),
-                # IS DISTINCT FROM, not !=: an ownerless row is not the caller's.
-                Skill.owner_user_id.is_distinct_from(user_id),
+            shared_with_caller(
+                Skill.owner_user_id,
+                Skill.visibility,
+                Skill.id,
+                user_id=user_id,
+                shared_ids=shared_ids,
             )
         )
     elif not see_all:
-        # The same predicate every shared resource here uses: mine, the
-        # organization's, or one explicitly shared with me. A team-visible
-        # skill nobody granted is deliberately invisible - "team" means named
-        # members, not everybody.
         where.append(
-            or_(
-                Skill.owner_user_id == user_id,
-                Skill.visibility == Visibility.ORG.value,
-                Skill.id.in_(shared_ids) if shared_ids else false(),
+            visible_to_caller(
+                Skill.owner_user_id,
+                Skill.visibility,
+                Skill.id,
+                user_id=user_id,
+                shared_ids=shared_ids,
             )
         )
     if search:
@@ -161,6 +172,7 @@ async def create(
     content: str,
     category: str | None = None,
     visibility: str = Visibility.PRIVATE.value,
+    library_fingerprint: str | None = None,
 ) -> Skill:
     skill = Skill(
         organization_id=organization_id,
@@ -170,6 +182,7 @@ async def create(
         content=content,
         category=category,
         visibility=visibility,
+        library_fingerprint=library_fingerprint,
     )
     db.add(skill)
     await db.flush()
@@ -177,7 +190,7 @@ async def create(
     return skill
 
 
-async def update(db: AsyncSession, *, skill: Skill, update_data: dict) -> Skill:
+async def update(db: AsyncSession, *, skill: Skill, update_data: dict[str, Any]) -> Skill:
     for field, value in update_data.items():
         setattr(skill, field, value)
     db.add(skill)
@@ -233,7 +246,7 @@ async def create_resource(
 
 
 async def update_resource(
-    db: AsyncSession, *, resource: SkillResource, update_data: dict
+    db: AsyncSession, *, resource: SkillResource, update_data: dict[str, Any]
 ) -> SkillResource:
     for field, value in update_data.items():
         setattr(resource, field, value)

@@ -70,6 +70,7 @@ from fastapi import WebSocket
 from pydantic_ai.messages import ModelMessage
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.compaction_events import CompactionEvent
 from app.core.exceptions import AppException
 from app.core.permissions import AuthContext
 from app.db.models.agent_embed import AgentEmbed
@@ -206,6 +207,16 @@ _ALWAYS = frozenset(
         "error",
         "ready",
         "history",
+        # A summary takes tens of seconds and says nothing, so a surface that
+        # streams and does not send these simply stops for the length of it -
+        # the failure `CompactionSink` was written for, and the one this socket
+        # had (#936). Always, rather than behind a switch: what they carry is
+        # that the agent is tidying its own notes and how it went, which is a
+        # fact about the *product* rather than about the agent's reasoning or
+        # what it searched for.
+        "compaction_started",
+        "compaction_finished",
+        "compaction_impossible",
     }
 )
 """Frames a public surface sends whatever its operator decided.
@@ -528,8 +539,24 @@ class EmbedSession:
             message_history=await self._history(db),
             attachments=await self._files(db, attached),
             stream=frames.drive,
+            # So a conversation long enough to compact says so. Without it this
+            # surface simply stopped for the length of a summary with nothing
+            # said - the failure `CompactionSink` was written for, on a socket
+            # that streams and could have said it (#936). What the frame carries
+            # is still filtered by `_emit`, like every other frame here.
+            on_compaction=self._compaction_event,
         )
         return answer, run
+
+    async def _compaction_event(self, event: CompactionEvent) -> None:
+        """Say that a summary is running, under the frame's own name.
+
+        The same shape the dashboard's chat forwards, through this surface's own
+        `_emit` - so a page that shows no reasoning and no steps still learns
+        that the agent is tidying its own notes, which is a fact about the
+        product rather than about what the agent was thinking (#936).
+        """
+        await self._emit(event.kind, event.model_dump(mode="json"))
 
     async def _files(self, db: AsyncSession, attached: Sequence[UUID]) -> list[ChatFile]:
         """The rows behind the ids this frame named, narrowed to ones it may use.

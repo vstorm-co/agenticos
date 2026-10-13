@@ -3,15 +3,44 @@
 from collections.abc import Sequence
 from uuid import UUID
 
-from sqlalchemy import false, or_, select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
-from app.db.models.resource_grant import Visibility
+from app.repositories._visibility import shared_with_caller, visible_to_caller
 
 
 async def get_by_id(db: AsyncSession, kb_id: UUID) -> KnowledgeBase | None:
     return await db.get(KnowledgeBase, kb_id)
+
+
+async def lock(db: AsyncSession, kb_id: UUID) -> KnowledgeBase | None:
+    """The knowledge base row, locked `FOR UPDATE`.
+
+    A teardown enumerates a base's documents and then deletes the base. A
+    concurrent upload or sync inserting a `rag_documents` row takes `FOR KEY
+    SHARE` on this parent for its foreign-key check, and `FOR UPDATE` conflicts
+    with that - so locking the base first makes such an insert wait until the
+    deletion commits and then fail its check, rather than surviving detached
+    under the base's `ON DELETE SET NULL` (#1266).
+    """
+    result = await db.execute(
+        select(KnowledgeBase).where(KnowledgeBase.id == kb_id).with_for_update()
+    )
+    return result.scalars().first()
+
+
+async def get_by_ids(db: AsyncSession, ids: Sequence[UUID]) -> dict[UUID, KnowledgeBase]:
+    """The collections for a set of ids, keyed by id, in one query.
+
+    An id with no row is simply absent from the map, the same way `get_by_id`
+    answers `None`: the caller decides what a reference to a collection that is
+    gone means, and here it degrades an agent's reach rather than failing a run.
+    """
+    if not ids:
+        return {}
+    result = await db.execute(select(KnowledgeBase).where(KnowledgeBase.id.in_(ids)))
+    return {kb.id: kb for kb in result.scalars()}
 
 
 async def get_accessible(
@@ -46,12 +75,13 @@ async def get_accessible(
         shared_cond = (
             (KnowledgeBase.scope == KBScope.ORG.value)
             & (KnowledgeBase.organization_id == organization_id)
-            & or_(
-                KnowledgeBase.visibility == Visibility.ORG.value,
-                KnowledgeBase.id.in_(shared_org_ids) if shared_org_ids else false(),
+            & shared_with_caller(
+                KnowledgeBase.owner_user_id,
+                KnowledgeBase.visibility,
+                KnowledgeBase.id,
+                user_id=user_id,
+                shared_ids=shared_org_ids,
             )
-            # IS DISTINCT FROM, not !=: an ownerless row is not the caller's.
-            & KnowledgeBase.owner_user_id.is_distinct_from(user_id)
         )
         result = await db.execute(
             select(KnowledgeBase).where(shared_cond).order_by(KnowledgeBase.created_at)
@@ -67,10 +97,12 @@ async def get_accessible(
             KnowledgeBase.organization_id == organization_id
         )
         if not see_all_org:
-            org_cond = org_cond & or_(
-                KnowledgeBase.owner_user_id == user_id,
-                KnowledgeBase.visibility == Visibility.ORG.value,
-                KnowledgeBase.id.in_(shared_org_ids) if shared_org_ids else False,
+            org_cond = org_cond & visible_to_caller(
+                KnowledgeBase.owner_user_id,
+                KnowledgeBase.visibility,
+                KnowledgeBase.id,
+                user_id=user_id,
+                shared_ids=shared_org_ids,
             )
         conditions.append(org_cond)
     result = await db.execute(
@@ -88,20 +120,24 @@ async def create(
     ingestion_config: dict[str, object],
     embedding_model: str,
     embedding_dim: int,
+    embedding_provider: str,
     description: str | None = None,
     owner_user_id: UUID | None = None,
     organization_id: UUID | None = None,
     is_default: bool = False,
     embedding_secret_id: UUID | None = None,
+    embedding_endpoint_id: UUID | None = None,
     visibility: str | None = None,
 ) -> KnowledgeBase:
     """Create a knowledge base.
 
-    `embedding_model` and `embedding_dim` take no default on purpose. They
-    are what the collection's vector column was created at, there is no
-    interpretable value for "unknown", and a caller that forgets to record them
-    would produce a row nobody can later decide whether it is safe to index
-    into.
+    `embedding_model`, `embedding_dim` and `embedding_provider` take no default
+    on purpose. The first two are what the collection's vector column was
+    created at, there is no interpretable value for "unknown", and a caller that
+    forgets to record them would produce a row nobody can later decide whether
+    it is safe to index into. The third is where those vectors were produced,
+    and a row defaulting to whichever provider this module happened to name
+    would be a claim about somebody else's data.
     """
     kb = KnowledgeBase(
         name=name,
@@ -114,7 +150,9 @@ async def create(
         ingestion_config=ingestion_config,
         embedding_model=embedding_model,
         embedding_dim=embedding_dim,
+        embedding_provider=embedding_provider,
         embedding_secret_id=embedding_secret_id,
+        embedding_endpoint_id=embedding_endpoint_id,
         **({"visibility": visibility} if visibility is not None else {}),
     )
     db.add(kb)
@@ -130,13 +168,28 @@ async def update(
     name: str | None = None,
     description: str | None = None,
     ingestion_config: dict[str, object] | None = None,
+    embedding_provider: str | None = None,
+    embedding_secret_id: UUID | None = None,
+    embedding_endpoint_id: UUID | None = None,
 ) -> KnowledgeBase:
+    """Apply what an update named, leaving what it did not alone.
+
+    A null `embedding_secret_id` or `embedding_endpoint_id` means "leave it
+    alone": a collection is never left without the one its provider needs,
+    because there is nothing deployment-wide to fall back to.
+    """
     if name is not None:
         db_kb.name = name
     if description is not None:
         db_kb.description = description
     if ingestion_config is not None:
         db_kb.ingestion_config = ingestion_config
+    if embedding_provider is not None:
+        db_kb.embedding_provider = embedding_provider
+    if embedding_secret_id is not None:
+        db_kb.embedding_secret_id = embedding_secret_id
+    if embedding_endpoint_id is not None:
+        db_kb.embedding_endpoint_id = embedding_endpoint_id
     await db.flush()
     await db.refresh(db_kb)
     return db_kb
@@ -158,6 +211,68 @@ async def get_by_collection_name(db: AsyncSession, collection_name: str) -> Know
     return result.scalars().first()
 
 
+async def list_org_scoped(db: AsyncSession, organization_id: UUID) -> list[KnowledgeBase]:
+    """The org-scoped collections a tenant owns - the ones a deletion must remove.
+
+    `knowledge_bases.organization_id` is `ON DELETE SET NULL`, but
+    `ck_knowledge_bases_org_scope_has_org` forbids an org-scoped row with no org,
+    so nulling one on organization delete violates the check (#9). These rows are
+    deleted explicitly before the org row goes. Personal collections that merely
+    carry this org's id are left to the `SET NULL`, which their scope permits.
+    """
+    result = await db.execute(
+        select(KnowledgeBase).where(
+            KnowledgeBase.organization_id == organization_id,
+            KnowledgeBase.scope == KBScope.ORG.value,
+        )
+    )
+    return list(result.scalars().all())
+
+
+async def list_personal_carrying_org(
+    db: AsyncSession, organization_id: UUID
+) -> list[KnowledgeBase]:
+    """Personal-scoped bases that carry this org's id - the ones a purge orphans.
+
+    A personal base created while its owner was in an organization records that
+    organization, so its vector rows are stamped with it
+    (`KnowledgeBase.vector_tenant` is the organization for any non-app scope).
+    `list_org_scoped` deletes only the org-scoped bases; these personal ones are
+    left to the `organization_id` `ON DELETE SET NULL`, which flips their
+    `vector_tenant` to `None` while their rows stay stamped with the now-deleted
+    organization - stranding them behind the read side's `IS NULL` scope (#1684).
+    The purge re-stamps their rows to untagged so they match again; this is how it
+    finds them, read before the org row (and the `SET NULL`) goes.
+    """
+    result = await db.execute(
+        select(KnowledgeBase).where(
+            KnowledgeBase.organization_id == organization_id,
+            KnowledgeBase.scope == KBScope.PERSONAL.value,
+        )
+    )
+    return list(result.scalars().all())
+
+
+async def list_personal_by_owner(db: AsyncSession, owner_user_id: UUID) -> list[KnowledgeBase]:
+    """The personal-scoped knowledge bases a user owns - the ones their deletion
+    must remove.
+
+    `list_org_scoped` covers only the org-scoped rows an org teardown handles; a
+    personal collection's `owner_user_id` and `organization_id` are both
+    `ON DELETE SET NULL`, so deleting the user (and purging their personal org)
+    would otherwise leave the row, its documents, its files and its vector table
+    orphaned and unreachable, with the collection name still blocking reuse
+    (#1131). These are removed explicitly before the user row goes.
+    """
+    result = await db.execute(
+        select(KnowledgeBase).where(
+            KnowledgeBase.owner_user_id == owner_user_id,
+            KnowledgeBase.scope == KBScope.PERSONAL.value,
+        )
+    )
+    return list(result.scalars().all())
+
+
 async def list_by_collection_name(db: AsyncSession, collection_name: str) -> list[KnowledgeBase]:
     """Every knowledge base claiming this collection name, oldest first.
 
@@ -173,3 +288,33 @@ async def list_by_collection_name(db: AsyncSession, collection_name: str) -> lis
         .order_by(KnowledgeBase.created_at)
     )
     return list(result.scalars().all())
+
+
+async def get_for_collection(
+    db: AsyncSession, collection_name: str, organization_id: UUID | None
+) -> KnowledgeBase | None:
+    """The knowledge base behind a collection name, resolved within one organization.
+
+    The org-scoped counterpart to :func:`get_by_collection_name`, and the one any
+    per-collection resolution reaches for: the column is not unique, so picking
+    whichever row the database orders first resolves another tenant's embedding
+    config and unseals their vault key when two organizations share a name (#913).
+    This narrows to the caller's own organization first, then to an `app`-scoped row
+    (owned by no organization, deployment-wide by design), and never to a third
+    organization's row.
+
+    `organization_id=None` is a caller with no organization in hand - a
+    deployment-level operation, a local-directory sync - and keeps the first-match
+    behaviour it always had; a name shared across tenants stays ambiguous for it.
+
+    Within one organization the choice among siblings is immaterial by
+    construction: a row joining an occupied collection name adopts that name's
+    embedding configuration and credential, so every row on one vector table
+    answers the same way. `KnowledgeBaseService._shared_embedding` is what holds
+    that true.
+    """
+    candidates = await list_by_collection_name(db, collection_name)
+    for kb in candidates:
+        if organization_id is None or kb.organization_id == organization_id:
+            return kb
+    return next((kb for kb in candidates if kb.organization_id is None), None)

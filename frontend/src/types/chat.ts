@@ -63,6 +63,12 @@ export interface ChatMessage {
   wasStopped?: boolean;
   /** True if message ID is a temporary client-minted id, not yet replaced by server ID */
   isTemporaryId?: boolean;
+  /**
+   * The temporary id a streamed message was rendered under, kept when the database
+   * id replaces it. The transcript keys on this first: a new key is a new bubble,
+   * and a remount at the end of a turn cut the reveal off mid-sentence.
+   */
+  renderKey?: string;
   /** Current user's rating */
   user_rating?: UserRating;
   /** Aggregate rating counts */
@@ -90,6 +96,12 @@ export interface ToolCall {
   args: Record<string, unknown>;
   result?: unknown;
   status: "pending" | "running" | "completed" | "error" | "awaiting_approval" | "unfinished";
+  /**
+   * How much of the arguments has streamed, in characters, while the model is
+   * still writing them - the `pending` state. A large argument (a whole report
+   * handed to `write_file`) takes minutes, and this is what shows it is moving.
+   */
+  argsChars?: number;
   /**
    * `awaiting_approval` is its own state, not a kind of running. A parked call
    * produces no result *ever* until somebody decides, so a spinner is a lie that
@@ -119,6 +131,11 @@ export interface MessagePart {
   question?: string;
   /** What the person answered, for an "ask_user" part. */
   answer?: string;
+  /**
+   * Which delegate asked, for an "ask_user" part. Absent where the main agent
+   * asked it itself, and on every question stored before the field existed.
+   */
+  askedBy?: string;
 }
 
 export type ChartType = "line" | "bar" | "pie" | "area" | "scatter";
@@ -172,6 +189,8 @@ export type WSEventType =
   | "model_request_start"
   | "text_delta"
   | "thinking_delta"
+  | "part_start"
+  | "tool_call_delta"
   | "tool_call"
   | "tool_result"
   | "final_result"
@@ -179,21 +198,23 @@ export type WSEventType =
   | "error"
   | "tool_approval_required"
   | "ask_user"
+  | "connect_account"
   | "compaction_started"
   | "compaction_finished"
   | "compaction_impossible"
+  | "personal_services_unavailable"
   // Sent on every turn and deliberately unread, because each only announces a step
   // the frame after it already carries: `model_request_start` opens the assistant
-  // message, so `user_prompt`, `user_prompt_processed` and `part_start` have nothing
-  // left to do, and `text_delta`/`tool_call` carry the content that `tool_call_delta`,
-  // `call_tools_start` and `final_result_start` merely precede. Named anyway - they
-  // are on the wire, and a union that omitted them would be as misleading in the
-  // other direction. A run timeline is the surface that would read them.
+  // message, so `user_prompt` and `user_prompt_processed` have nothing left to do,
+  // and `text_delta`/`tool_call` carry the content that `call_tools_start` and
+  // `final_result_start` merely precede. Named anyway - they are on the wire, and a
+  // union that omitted them would be as misleading in the other direction. A run
+  // timeline is the surface that would read them. `part_start` and
+  // `tool_call_delta` left this group once a tool call whose arguments took minutes
+  // to stream showed that `tool_call` arrives too late to be the first sign of it.
   | "user_prompt"
   | "user_prompt_processed"
-  | "part_start"
   | "call_tools_start"
-  | "tool_call_delta"
   | "final_result_start"
   // One per literal in `app/agents/subagent_events.py`. They replace
   // `subagent_status` / `subagent_message`, which nothing ever emitted and
@@ -205,7 +226,58 @@ export type WSEventType =
   | "subagent_tool_call"
   | "subagent_tool_result"
   | "subagent_awaiting_approval"
-  | "subagent_complete";
+  | "subagent_complete"
+  // One per literal in `app/agents/browser_events.py`. The narration and the
+  // picture are separate frames on purpose: a screenshot is two orders of
+  // magnitude larger than the sentence describing the step, and encoding one
+  // must never hold up the other.
+  | "browser_opened"
+  | "browser_step"
+  | "browser_frame"
+  | "browser_finished";
+
+/**
+ * How a browse ended, and all four are ordinary.
+ *
+ * `blocked` is the one worth knowing about: it is the engine saying the page
+ * offers no action that serves the goal - a sign-in wall, a consent gate, a
+ * captcha - which is an answer about the page rather than a failure to retry.
+ */
+export type BrowseOutcome = "done" | "blocked" | "exhausted" | "failed";
+
+/**
+ * One frame from a browse in progress, mirroring `app/agents/browser_events.py`
+ * field for field.
+ *
+ * Everything but `kind`, `call_id` and `step` is optional because one shape
+ * carries four frames, and which fields are set is what `kind` says. `step` is on
+ * every one of them: frames share this socket with the turn's text, so a picture
+ * can arrive after the step that followed it, and a client ordering by arrival
+ * would caption the wrong page.
+ */
+export interface BrowserFrame {
+  kind: "browser_opened" | "browser_step" | "browser_frame" | "browser_finished";
+  /** Which `browse_page` call this belongs to; one turn can browse twice. */
+  call_id: string;
+  step: number;
+  url?: string | null;
+  title?: string | null;
+  /** On the opening frame: the ceiling, so progress reads as 3/25. */
+  max_steps?: number | null;
+  /** On the opening frame: the task the model handed over. */
+  goal?: string | null;
+  /** CLICK, TYPE_TEXT, SELECT, SCROLL, WAIT, DONE or BLOCKED. */
+  operation?: string | null;
+  /** The element as the page labelled it - never an index the client never saw. */
+  target?: string | null;
+  /** How likely the engine found this pick, when the decision model reports one. */
+  confidence?: number | null;
+  /** On `browser_frame`: the viewport as a `data:` URL. */
+  image?: string | null;
+  outcome?: BrowseOutcome | null;
+  /** Page-derived text, so it is rendered as data and never as markup. */
+  detail?: string | null;
+}
 
 /**
  * What one turn cost, and how full the workspace behind it is.
@@ -217,7 +289,8 @@ export type WSEventType =
 export interface TurnUsage {
   input_tokens: number;
   output_tokens: number;
-  cost_usd: number;
+  /** The turn's cost as a Decimal string, the shape every REST surface uses. */
+  cost_usd: string;
   /**
    * Whether `cost_usd` is a floor rather than the whole of it.
    *
@@ -462,8 +535,8 @@ export interface SubagentCompleteFrame extends SubagentFrameBase {
   status: "completed" | "failed" | "cancelled";
   /** Present for a delegation to a published agent, which gets a run row. */
   run_id: string | null;
-  /** What this delegation added to the parent run's ledger, as a number. */
-  cost_usd: number | null;
+  /** What this delegation added to the parent run's ledger, as a Decimal string. */
+  cost_usd: string | null;
   input_tokens: number | null;
   output_tokens: number | null;
   error: string | null;
@@ -573,4 +646,38 @@ export interface Delegation {
   inputTokens: number | null;
   outputTokens: number | null;
   error: string | null;
+}
+
+/** Why a personal MCP service could not be reached on this turn. */
+export type PersonalServiceGapKind =
+  "nobody_to_speak_as" | "not_connected" | "undecided" | "unauthorized";
+
+/**
+ * One of the agent's personal MCP services this person cannot reach yet.
+ *
+ * Sent once per turn, before the model answers, as `personal_services_unavailable`.
+ * The catalog key rather than a built URL: the card resolves the catalog entry
+ * itself and navigates in the app, so the link keeps the viewer's locale prefix
+ * instead of quoting a path a runner had no way to build. Not persisted: it is
+ * true of this person at this moment, not of the transcript.
+ */
+export interface PersonalServiceGap {
+  catalog_key: string;
+  /** As the catalog names it; the key where the catalog no longer holds it. */
+  name: string;
+  gap: PersonalServiceGapKind;
+}
+
+/**
+ * A run paused on `connect_account`: the agent needs one of the person's own
+ * services, and waits while they connect it.
+ *
+ * Sent as `connect_account` only when the agent reaches for the service, never
+ * up front; answered with `connect_account_response`. Never "nobody to speak
+ * as" - a run with nobody signed in cannot wait for anybody.
+ */
+export interface ConnectionRequest {
+  catalog_key: string;
+  name: string;
+  gap: Exclude<PersonalServiceGapKind, "nobody_to_speak_as">;
 }

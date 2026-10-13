@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -67,7 +67,75 @@ describe("CreateAgentDialog", () => {
     // from.
     open();
     await userEvent.type(name(), "Support Copilot");
-    expect(screen.getByText("@support-copilot")).toBeInTheDocument();
+
+    // Twice, and they have to agree: once under the field as the prediction the
+    // refusal will be about, once in the preview as the row it becomes.
+    expect(screen.getAllByText("@support-copilot")).toHaveLength(2);
+  });
+
+  it("previews the row this is about to become", async () => {
+    // Name, handle and description are easier to judge as a row than as three
+    // fields - a name that looked fine in an input is the one that truncates
+    // here.
+    open();
+    await userEvent.type(name(), "Support Copilot");
+
+    const preview = screen.getByText("Preview").parentElement!;
+    expect(within(preview).getByText("Support Copilot")).toBeInTheDocument();
+    expect(within(preview).getByText("@support-copilot")).toBeInTheDocument();
+  });
+
+  it("offers the agent to the organization unless somebody says otherwise", async () => {
+    // Private was the default, so every agent was made invisible and then shared
+    // by hand - and the second person to go looking was told it did not exist.
+    vi.mocked(apiClient.post).mockResolvedValue({ id: "a1", name: "Support Copilot" });
+    open();
+
+    await userEvent.type(name(), "Support Copilot");
+    await userEvent.click(create());
+
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/agents",
+        expect.objectContaining({ visibility: "org" }),
+      ),
+    );
+  });
+
+  it("sends private when private is asked for", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ id: "a1", name: "Support" });
+    open();
+
+    await userEvent.type(name(), "Support");
+    await userEvent.click(screen.getByRole("combobox"));
+    await userEvent.click(await screen.findByRole("option", { name: "Private" }));
+    await userEvent.click(create());
+
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/agents",
+        expect.objectContaining({ visibility: "private" }),
+      ),
+    );
+  });
+
+  it("sends the labels it was given, folded by the server afterwards", async () => {
+    // The catalog a new agent joins is the moment somebody knows what to call
+    // it; the detail page can still change these later without a publish.
+    vi.mocked(apiClient.post).mockResolvedValue({ id: "a1", name: "Support" });
+    open();
+
+    await userEvent.type(name(), "Support");
+    await userEvent.type(screen.getByLabelText("Add a category"), "support{Enter}");
+    await userEvent.type(screen.getByLabelText("Add a tag"), "billing{Enter}");
+    await userEvent.click(create());
+
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/agents",
+        expect.objectContaining({ categories: ["support"], tags: ["billing"] }),
+      ),
+    );
   });
 
   it("marks the name and keeps the form when the handle is taken", async () => {

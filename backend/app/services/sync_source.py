@@ -1,10 +1,12 @@
 # ruff: noqa: I001
 """Sync source service - org-scoped integration management."""
 
+import hashlib
 import json
 from datetime import UTC, datetime
 from uuid import UUID
 
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.updates import writable
@@ -13,6 +15,7 @@ from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
 from app.db.base import Base
+from app.db.models.sync_log import SyncLog
 from app.db.models.sync_source import SyncSource
 from app.db.vector_tables import validate_collection_name
 from app.services.access import SECRET, resolve_access
@@ -54,7 +57,7 @@ async def _refuse_a_credential_in_the_config(config: dict, connector_type: str) 
     cls = CONNECTOR_REGISTRY.get(connector_type)
     if cls is None:
         return
-    known = set(cls.CONFIG_SCHEMA)
+    known = set(cls.CONFIG_MODEL.model_fields)
     offending = sorted(name for name in _RETIRED_CREDENTIAL_FIELDS if name in config)
     unknown = sorted(name for name in offending if name not in known)
     if not unknown:
@@ -94,6 +97,30 @@ async def _refuse_an_invalid_config(config: dict, connector_type: str) -> None:
     raise refused_field(f"config.{refusal.field}", sentence, connector_type=connector_type)
 
 
+class SyncState(BaseModel):
+    """What a source's content was at when its last clean run finished.
+
+    `version` is the connector's `remote_version`; `fingerprint` is
+    `sync_fingerprint` of what the run was configured with. Both have to match
+    for a run to stop early, because the same commit read with a different
+    include pattern, into another collection or under another mode is not the
+    same sync (#987).
+    """
+
+    version: str
+    fingerprint: str
+
+
+def sync_fingerprint(config: dict, *, collection_name: str, sync_mode: str) -> str:
+    """A digest of everything that decides what a run of this source reads and writes."""
+    document = json.dumps(
+        {"config": config, "collection_name": collection_name, "sync_mode": sync_mode},
+        sort_keys=True,
+        default=str,
+    )
+    return hashlib.sha256(document.encode()).hexdigest()
+
+
 def _raw_config(source: SyncSource) -> dict:
     c = source.config
     if isinstance(c, dict):
@@ -121,6 +148,7 @@ class SyncSourceService:
             config=_raw_config(s),
             secret_id=str(s.secret_id) if s.secret_id else None,
             secret_hint=secret_hint,
+            organizational_unit=s.organizational_unit,
             sync_mode=s.sync_mode,
             schedule_minutes=s.schedule_minutes,
             is_active=s.is_active,
@@ -185,6 +213,7 @@ class SyncSourceService:
                 ingested=log.ingested,
                 updated=log.updated,
                 skipped=log.skipped,
+                removed=log.removed,
                 failed=log.failed,
                 error_message=log.error_message,
                 started_at=log.started_at,
@@ -241,6 +270,7 @@ class SyncSourceService:
             collection_name=data.collection_name,
             config=data.config,
             secret_id=data.secret_id,
+            organizational_unit=data.organizational_unit,
             sync_mode=data.sync_mode,
             schedule_minutes=data.schedule_minutes,
         )
@@ -379,6 +409,7 @@ class SyncSourceService:
             collection_name=data.collection_name,
             config=raw,
             secret_id=existing.secret_id,
+            organizational_unit=existing.organizational_unit,
             sync_mode=existing.sync_mode,
             schedule_minutes=existing.schedule_minutes,
         )
@@ -448,8 +479,13 @@ class SyncSourceService:
         await sync_source_repo.delete(self.db, UUID(source_id))
         await self._record(source, "deleted", ctx=ctx)
 
-    async def trigger_sync(self, source_id: str) -> object:
+    async def trigger_sync(self, source_id: str, *, user_id: UUID | None = None) -> SyncLog:
         """Trigger a manual sync - persists a SyncLog and dispatches the task.
+
+        `user_id` is who to notify about this sync's outcome (#1598) - every
+        HTTP route passes its caller's; `_run_source_sync`'s own scheduler
+        path calls this with none, because nobody personally asked for that
+        run, and its notification falls back to the organization's admins.
 
         Raises:
             NotFoundError: If sync source does not exist.
@@ -468,6 +504,7 @@ class SyncSourceService:
             collection_name=source.collection_name,
             mode=source.sync_mode,
             sync_source_id=source.id,
+            triggered_by_user_id=user_id,
         )
         from app.core.background import spawn_after_commit
         from app.worker.tasks.rag_tasks import sync_single_source_flow
@@ -486,19 +523,30 @@ class SyncSourceService:
         source_id: str,
         status: str,
         error: str | None = None,
+        *,
+        sync_state: SyncState | None = None,
     ) -> None:
-        """Update sync source status after a sync operation completes."""
+        """Update sync source status after a sync operation completes.
+
+        `sync_state` is what a clean run read; omitted, the source keeps the one
+        it had, so a failed run is retried in full rather than skipped as current.
+        """
         await sync_source_repo.update_sync_status(
             self.db,
             UUID(source_id),
             last_sync_at=datetime.now(UTC),
             last_sync_status=status,
             last_error=error,
+            sync_state=None if sync_state is None else sync_state.model_dump(),
         )
 
     @staticmethod
     def list_connectors() -> ConnectorList:
         """List available connector types, their config schemas and their credential.
+
+        `config_schema` is the JSON Schema of each connector's `CONFIG_MODEL`,
+        the same shape a capability publishes, so the wizard draws it with
+        `SchemaForm` unadapted (#1093).
 
         `secret_kind` is what the wizard needs to offer the organization's
         matching vault secrets and nothing else: a Drive source takes a service
@@ -506,15 +554,14 @@ class SyncSourceService:
         a `secret: true` field in `config_schema`, which is the whole of what
         #937 removed.
         """
-        return ConnectorList(
-            items=[
-                ConnectorInfo(
-                    type=connector_cls.CONNECTOR_TYPE,
-                    name=connector_cls.DISPLAY_NAME,
-                    config_schema=dict(connector_cls.CONFIG_SCHEMA),
-                    secret_kind=connector_cls.SECRET_KIND.value,
-                    enabled=True,
-                )
-                for connector_cls in CONNECTOR_REGISTRY.values()
-            ]
-        )
+        items = [
+            ConnectorInfo(
+                type=connector_cls.CONNECTOR_TYPE,
+                name=connector_cls.DISPLAY_NAME,
+                config_schema=connector_cls.CONFIG_MODEL.model_json_schema(),
+                secret_kind=connector_cls.SECRET_KIND.value,
+                enabled=True,
+            )
+            for connector_cls in CONNECTOR_REGISTRY.values()
+        ]
+        return ConnectorList(items=items, total=len(items))

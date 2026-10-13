@@ -20,9 +20,17 @@ interface AuthState {
    * adopted, and cleared only by a deliberate sign-out.
    */
   sessionOwnerId: string | null;
+  /**
+   * A refresh was refused because the browser's cookie was an impersonation
+   * that has ended. Set by the API client, which cannot end it itself; read by
+   * `useImpersonation`, which takes the exit and clears it. Never persisted -
+   * it is about this tab's cookies, right now.
+   */
+  impersonationRevoked: boolean;
 
   setUser: (user: User | null) => void;
   setSessionOwnerId: (id: string | null) => void;
+  setImpersonationRevoked: (revoked: boolean) => void;
   setLoading: (loading: boolean) => void;
   setAccessToken: (token: string | null) => void;
   checkAuth: () => Promise<void>;
@@ -39,6 +47,7 @@ export const useAuthStore = create<AuthState>()(
       accessToken: null,
       avatarVersion: 0,
       sessionOwnerId: null,
+      impersonationRevoked: false,
 
       setUser: (user) =>
         set({
@@ -48,6 +57,8 @@ export const useAuthStore = create<AuthState>()(
         }),
 
       setSessionOwnerId: (id) => set({ sessionOwnerId: id }),
+
+      setImpersonationRevoked: (revoked) => set({ impersonationRevoked: revoked }),
 
       setLoading: (loading) => set({ isLoading: loading }),
 
@@ -77,6 +88,7 @@ export const useAuthStore = create<AuthState>()(
           isLoading: false,
           accessToken: null,
           sessionOwnerId: null,
+          impersonationRevoked: false,
         }),
     }),
     {

@@ -25,7 +25,6 @@ from httpx import AsyncClient
 
 from app.api import deps
 from app.core.config import settings
-from app.core.exceptions import BadRequestError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.resource_grant import Visibility
@@ -139,37 +138,36 @@ class TestCreatingACollectionOnTheRagRoute:
 
 
 class TestDroppingACollection:
-    async def test_a_name_the_store_refuses_does_not_delete_the_row_around_it(
-        self, client: AsyncClient, store: MagicMock, monkeypatch: pytest.MonkeyPatch
+    async def test_it_deletes_the_rows_and_defers_the_teardown(
+        self, client: AsyncClient, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """The drop is best-effort against the database, not against a refusal.
-
-        `contextlib.suppress(Exception)` covered both, so a stored name the store
-        will not touch meant: skip the drop, delete the knowledge base and every
-        document record anyway, answer 204 - and leave the vector table behind
-        with nobody able to name it. Narrowed to `SQLAlchemyError`, which is the
-        "no table yet" case it was written for.
-
-        The row is reachable because it predates the rule; that is the only way
-        to have one, since creating it is refused.
+        """The document and KB rows go in the request; the files and the vector
+        table are handed to the durable, locked, re-checked cleanup after the commit
+        (#1347/#1349/#1355). The route no longer reaches the store - the reserved-name
+        refusal that used to gate this in-request is now the store's, inside the flow
+        (`tests/test_reserved_collection_names.py`), so this drops a `vector_store`
+        dependency it once needed.
         """
-        held = _held_by(_ORGANIZATION, "Handbook")
-
-        async def rows(_db: object, collection_name: str) -> list[KnowledgeBase]:
-            del collection_name
-            return [held]
-
-        monkeypatch.setattr(knowledge_base_repo, "list_by_collection_name", rows)
-        store.delete_collection.side_effect = BadRequestError(
-            message="refused", details={"collection": "Handbook"}
+        held = _held_by(_ORGANIZATION, "handbook")
+        # [held] resolves the writable KB; [] is the re-check after its row is gone,
+        # which is what lets the durable drop be dispatched.
+        monkeypatch.setattr(
+            knowledge_base_repo, "list_by_collection_name", AsyncMock(side_effect=[[held], []])
         )
         deleted = AsyncMock()
         monkeypatch.setattr(knowledge_base_repo, "delete", deleted)
+        monkeypatch.setattr(
+            "app.repositories.rag_document_repo.delete_by_collection", AsyncMock(return_value=[])
+        )
+        dispatch = AsyncMock()
+        monkeypatch.setattr(
+            "app.worker.tasks.teardown_tasks.dispatch_external_state_cleanup", dispatch
+        )
 
-        response = await client.delete(f"{settings.API_V1_STR}/rag/collections/Handbook")
+        response = await client.delete(f"{settings.API_V1_STR}/rag/collections/handbook")
 
-        assert response.status_code == 400
-        deleted.assert_not_awaited()
+        assert response.status_code == 204
+        deleted.assert_awaited_once()
 
 
 class TestCreatingAKnowledgeBase:

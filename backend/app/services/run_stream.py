@@ -36,11 +36,17 @@ from pydantic_ai import (
     PartStartEvent,
     TextPartDelta,
 )
-from pydantic_ai.messages import RetryPromptPart, TextPart, ThinkingPart, ThinkingPartDelta
+from pydantic_ai.messages import (
+    RetryPromptPart,
+    TextPart,
+    ThinkingPart,
+    ThinkingPartDelta,
+    ToolCallPart,
+)
 
 from app.services.agent_chat import display_output
 from app.services.chat_timeline import TurnTimeline
-from app.services.transcript import tool_retry_notice
+from app.services.transcript import tool_result_text, tool_retry_notice
 
 logger = logging.getLogger(__name__)
 
@@ -123,9 +129,17 @@ class RunFrames:
         """
         async for event in request_stream:
             if isinstance(event, PartStartEvent):
-                await self.emit(
-                    "part_start", {"index": event.index, "part_type": type(event.part).__name__}
-                )
+                start: dict[str, Any] = {
+                    "index": event.index,
+                    "part_type": type(event.part).__name__,
+                }
+                if isinstance(event.part, ToolCallPart):
+                    # The name and id let a client show the call while its
+                    # arguments stream - which, for a `write_file` carrying a
+                    # whole report, can take minutes before `tool_call` exists.
+                    start["tool_name"] = event.part.tool_name
+                    start["tool_call_id"] = event.part.tool_call_id
+                await self.emit("part_start", start)
                 if isinstance(event.part, TextPart) and event.part.content:
                     self.timeline.add_text(event.part.content)
                     await self.emit(
@@ -198,7 +212,7 @@ class RunFrames:
                     )
                     content = tool_retry_notice(tool_event.part)
                 else:
-                    content = str(tool_event.part.content)
+                    content = tool_result_text(tool_event.part.content)
                 call = pending.get(tool_event.tool_call_id)
                 if call is not None:
                     call["result"] = content

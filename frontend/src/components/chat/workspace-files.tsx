@@ -9,6 +9,7 @@ import { useConversationWorkspace } from "@/hooks";
 import { useFilePreviewStore } from "@/stores";
 import { getFileUrl } from "@/lib/file-api";
 import { formatBytes } from "@/lib/utils";
+import { isRenderSafeImage } from "@/lib/file-kinds";
 import { workspaceFileAccess, type FileSource } from "@/lib/workspace-files";
 import type { ConversationFile } from "@/lib/conversation-workspace-api";
 import type { ChatMessageFile } from "@/types";
@@ -189,12 +190,14 @@ export function WorkspaceFiles({ conversationId, revision, attachments }: Worksp
           says what kind of thing it is before the name is read, which a 288-pixel
           column of monospace paths did not. */}
       {files.length > 0 && (
-        <ul className="grid grid-cols-2 gap-2">
+        <ul className="rise-in grid grid-cols-2 gap-2">
           {files.map((file) => (
             <li key={file.path}>
               <FileCard
                 name={file.path.split("/").filter(Boolean).pop() ?? file.path}
                 size={file.size}
+                preview={file.preview}
+                imageUrl={file.thumbnail}
                 onOpen={() => setReading(file)}
                 className="w-full"
               />
@@ -212,7 +215,7 @@ export function WorkspaceFiles({ conversationId, revision, attachments }: Worksp
           have nothing to read. */}
       {unstored.length > 0 && (
         <div className="space-y-2">
-          <p className="text-muted-foreground text-[11px] font-medium">{t("attached")}</p>
+          <p className="text-muted-foreground text-xs font-medium">{t("attached")}</p>
           <ul className="grid grid-cols-2 gap-2">
             {unstored.map((file) => (
               <li key={file.id}>
@@ -223,8 +226,10 @@ export function WorkspaceFiles({ conversationId, revision, attachments }: Worksp
                   // viewer reads it from, so the card can draw the picture rather
                   // than a grey glyph standing in for one. Nothing is fetched here
                   // - the browser loads what an `img` points at, and a chat holds
-                  // a handful of attachments rather than a listing.
-                  imageUrl={getFileUrl(file.id)}
+                  // a handful of attachments rather than a listing. Only a
+                  // render-safe type: a TIFF is an `image` kind no browser draws, so
+                  // it gets its glyph rather than a broken thumbnail (#1591).
+                  imageUrl={isRenderSafeImage(file.mime_type) ? getFileUrl(file.id) : null}
                   onOpen={() => openAttachment(file)}
                   className="w-full"
                 />

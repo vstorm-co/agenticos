@@ -17,6 +17,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app.api import deps
+from app.core.config import settings
 from app.main import app
 from app.services.agent_embed import AgentEmbedService
 
@@ -68,6 +69,18 @@ class TestTheHostedConfig:
         assert response.json()["title"] == "Refunds"
 
 
+def _store(monkeypatch, root, storage_path: str, data: bytes) -> str:
+    """Write `data` where the local backend would have, and return its storage path.
+
+    The route takes a storage path rather than a path on this host since #1423.
+    """
+    monkeypatch.setattr(settings, "MEDIA_DIR", root)
+    target = root / storage_path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(data)
+    return storage_path
+
+
 class TestTheHostedLogo:
     async def test_a_page_with_no_logo_answers_404(self, client_and_service):
         """Not a 500, and not an empty 200: `<img>` handles a 404 and shows the
@@ -78,7 +91,7 @@ class TestTheHostedLogo:
 
     @pytest.mark.parametrize("name", ["logo.html", "logo.svg", "logo.xhtml", "logo"])
     async def test_a_stored_file_that_is_not_an_image_is_not_served(
-        self, client_and_service, tmp_path, name
+        self, client_and_service, tmp_path, monkeypatch, name
     ):
         """The one route on this surface that hands out a *file*, and the type it
         answers with decides what a browser does with it. Every upload path feeding
@@ -90,18 +103,23 @@ class TestTheHostedLogo:
         `script-src 'unsafe-inline'` - a stored XSS reachable by anyone with the
         link. Refused on the way out, so a file already on disk cannot be one.
         """
-        stored = tmp_path / name
-        stored.write_bytes(b"<script>fetch('/api/v1/users/me')</script>")
-        client_and_service.page_logo_path = AsyncMock(return_value=str(stored))
+        client_and_service.page_logo_path = AsyncMock(
+            return_value=_store(
+                monkeypatch,
+                tmp_path,
+                f"embeds/e/{name}",
+                b"<script>fetch('/api/v1/users/me')</script>",
+            )
+        )
 
         assert (await _get("/api/v1/embed/some-key/logo")).status_code == 404
 
     async def test_an_image_is_served_with_its_type_pinned_and_sniffing_off(
-        self, client_and_service, tmp_path
+        self, client_and_service, tmp_path, monkeypatch
     ):
-        stored = tmp_path / "logo.png"
-        stored.write_bytes(b"\x89PNG\r\n\x1a\n")
-        client_and_service.page_logo_path = AsyncMock(return_value=str(stored))
+        client_and_service.page_logo_path = AsyncMock(
+            return_value=_store(monkeypatch, tmp_path, "embeds/e/logo.png", b"\x89PNG\r\n\x1a\n")
+        )
 
         response = await _get("/api/v1/embed/some-key/logo")
 

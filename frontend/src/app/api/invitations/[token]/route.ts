@@ -10,7 +10,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const accessToken = request.cookies.get("access_token")?.value;
     if (!accessToken) return bffRefusal("NOT_AUTHENTICATED", 401);
     const { token } = await params;
-    const data = await backendFetch(`/api/v1/invitations/${token}/accept`, {
+    const data = await backendFetch(`/api/v1/invitations/${encodeURIComponent(token)}/accept`, {
       method: "POST",
       headers: { Authorization: `Bearer ${accessToken}` },
     });
@@ -27,7 +27,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     const accessToken = request.cookies.get("access_token")?.value;
     if (!accessToken) return bffRefusal("NOT_AUTHENTICATED", 401);
     const { token } = await params;
-    await backendFetch(`/api/v1/invitations/${token}`, {
+    await backendFetch(`/api/v1/invitations/${encodeURIComponent(token)}`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${accessToken}` },
     });

@@ -3,7 +3,7 @@
 The connectors decide what is wrong; what is asserted here is how the answer
 *arrives*. `validate_config` used to answer `tuple[bool, str | None]`, so a
 refusal that knew which field it was about lost that on the way out and the
-sync-source wizard - which draws one input per `CONFIG_SCHEMA` entry - marked
+sync-source wizard - which draws one input per `CONFIG_MODEL` field - marked
 none of them (#897).
 
 The sync-source service is the real one; only the session, Redis and the
@@ -25,8 +25,14 @@ from httpx import ASGITransport, AsyncClient
 from app.api import deps
 from app.core.config import settings
 from app.core.permissions import AuthContext, OrgRoleName
+from app.core.secret_kinds import StorableSecret
 from app.main import app
-from app.services.rag.connectors import CONNECTOR_REGISTRY, BaseSyncConnector, ConfigRefusal
+from app.services.rag.connectors import (
+    CONNECTOR_REGISTRY,
+    BaseSyncConnector,
+    ConfigRefusal,
+    RemoteListing,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -43,10 +49,14 @@ class _OpinionatedConnector(BaseSyncConnector):
     CONNECTOR_TYPE = "opinionated"
     DISPLAY_NAME = "Opinionated"
 
-    async def list_files(self, config: dict) -> list:  # pragma: no cover - never reached
-        return []
+    async def list_files(
+        self, config: dict, credential: StorableSecret | None
+    ) -> RemoteListing:  # pragma: no cover - never reached
+        return RemoteListing(files=[])
 
-    async def _fetch(self, file: Any, dest_path: Any, config: dict) -> None:
+    async def _fetch(
+        self, file: Any, dest_path: Any, config: dict, credential: StorableSecret | None
+    ) -> None:
         """Never reached: every request in this file is refused at validation."""
 
     async def validate_config(self, config: dict) -> ConfigRefusal | None:
@@ -59,10 +69,14 @@ class _PickyConnector(BaseSyncConnector):
     CONNECTOR_TYPE = "picky"
     DISPLAY_NAME = "Picky"
 
-    async def list_files(self, config: dict) -> list:  # pragma: no cover - never reached
-        return []
+    async def list_files(
+        self, config: dict, credential: StorableSecret | None
+    ) -> RemoteListing:  # pragma: no cover - never reached
+        return RemoteListing(files=[])
 
-    async def _fetch(self, file: Any, dest_path: Any, config: dict) -> None:
+    async def _fetch(
+        self, file: Any, dest_path: Any, config: dict, credential: StorableSecret | None
+    ) -> None:
         """Never reached: every request in this file is refused at validation."""
 
     async def validate_config(self, config: dict) -> ConfigRefusal | None:

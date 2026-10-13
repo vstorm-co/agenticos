@@ -62,8 +62,9 @@ class ApprovalService:
         tool_args: dict[str, Any],
         subagent_name: str | None = None,
         subagent_agent_id: UUID | None = None,
+        standing_consent_by: UUID | None = None,
     ) -> ToolApproval:
-        """Park a tool call until a human decides.
+        """Park a tool call until a human decides - or record one already decided.
 
         Called from the run's terminal write rather than from inside a tool call,
         so it takes ids rather than an auth context - the agent, not a member, is
@@ -83,6 +84,12 @@ class ApprovalService:
                 them is a reviewer approving blind.
             subagent_agent_id: That delegate's own agent, or `None` for an inline
                 specialist, which has no agent of its own to name.
+            standing_consent_by: Who granted this call in advance, for a chat
+                session running under `ApprovalMode.APPROVE_ALL`. The row is
+                written `approved` and names them, because a waived run has to be
+                distinguishable from an agent that was never gated - that
+                distinction is the audit trail (#925). `None` is every other
+                approval: pending, waiting for somebody.
         """
         approval = await agent_run_repo.create_approval(
             self.db,
@@ -94,6 +101,7 @@ class ApprovalService:
             tool_args=tool_args,
             subagent_name=subagent_name,
             subagent_agent_id=subagent_agent_id,
+            standing_consent_by=standing_consent_by,
         )
         logger.info(
             "Approval %s requested for tool %s on run %s (delegate: %s)",
@@ -149,7 +157,7 @@ class ApprovalService:
                 make the audit trail ambiguous about who authorised the action.
         """
         approval = await agent_run_repo.get_approval(
-            self.db, approval_id, organization_id=ctx.organization_id
+            self.db, approval_id, organization_id=ctx.organization_id, for_update=True
         )
         if approval is None:
             raise NotFoundError(
@@ -221,9 +229,6 @@ class ApprovalService:
                 decided_by_user_id=None,
                 decided_at=now,
             )
-            await self._record_decision(
-                approval, ApprovalStatus.EXPIRED, actor_user_id=None, note=None
-            )
 
         settled = 0
         for run_id, organization_id in {
@@ -231,6 +236,17 @@ class ApprovalService:
         }:
             settled += await self._settle_expired_run(
                 run_id, organization_id=organization_id, at=now
+            )
+
+        # Audited last, after every row this sweep touches is already locked. The
+        # per-organization chain lock `record_audit` takes must be the last lock
+        # the transaction acquires: were it held while the sweep went on to lock
+        # another approval or run row, a concurrent decision holding that row and
+        # reaching for the same chain lock would close an ABBA cycle Postgres has
+        # to abort. A single request audits at its end for the same reason (#1622).
+        for approval in stale:
+            await self._record_decision(
+                approval, ApprovalStatus.EXPIRED, actor_user_id=None, note=None
             )
 
         logger.info("Approval sweep: expired %d approval(s), ended %d run(s)", len(stale), settled)

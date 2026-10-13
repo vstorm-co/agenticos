@@ -253,6 +253,7 @@ class TestTheWindowAndTheTenant:
 
         assert "Ancient" not in rows
 
+    @pytest.mark.security
     async def test_another_tenants_agent_is_absent_entirely(self, db) -> None:
         mine, me = await _org(db)
         theirs, _them = await _org(db)

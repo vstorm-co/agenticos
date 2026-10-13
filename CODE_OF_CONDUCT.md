@@ -1,5 +1,7 @@
 # Code of Conduct
 
+**English** · [Polski](CODE_OF_CONDUCT.pl.md) · [Deutsch](CODE_OF_CONDUCT.de.md) · [Español](CODE_OF_CONDUCT.es.md)
+
 ## The short version
 
 Be someone others want to work with. Assume good faith, argue about the code

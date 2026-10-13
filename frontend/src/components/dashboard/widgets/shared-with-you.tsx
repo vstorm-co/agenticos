@@ -6,6 +6,8 @@ import { Figure } from "@/components/ui";
 
 import { useSharedWithMeCounts } from "@/hooks";
 import { WidgetFrame } from "../widget-frame";
+import { Share2 } from "lucide-react";
+
 import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-states";
 import type { DashboardWidgetProps } from "./types";
 
@@ -26,7 +28,11 @@ export function SharedWithYouWidget({ title, hint, seeAll, options }: DashboardW
       ) : error ? (
         <WidgetErrorBody onRetry={() => refetch()} />
       ) : counts === null || empty ? (
-        <WidgetEmptyBody title={t("empty.title")} description={t("empty.description")} />
+        <WidgetEmptyBody
+          icon={Share2}
+          title={t("empty.title")}
+          description={t("empty.description")}
+        />
       ) : (
         <div className="grid flex-1 grid-cols-3 content-center gap-4">
           {(

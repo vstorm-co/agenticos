@@ -11,7 +11,7 @@ import uuid
 from typing import Any
 
 from sqlalchemy import (
-    Boolean,
+    CheckConstraint,
     ForeignKey,
     Integer,
     String,
@@ -67,6 +67,13 @@ class ModelProfile(Base, TimestampMixin):
     # (`ProviderSpec.base_url_param`); the service refuses one for the rest
     # rather than accepting a value it would silently drop.
     base_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    # Which API the requests go to, for a provider that serves both of
+    # OpenAI's: `chat` or `responses` (`ProviderSpec.apis`). Stored rather than
+    # derived from `base_url` because the endpoint does not decide it - a
+    # regional OpenAI endpoint serves Responses, a vLLM serves Chat - and
+    # because a stored choice cannot move under a profile when the default does.
+    # Null for every provider that serves one API.
+    api: Mapped[str | None] = mapped_column(String(16), nullable=True)
     # How many tokens this model accepts, as the provider's own listing said when
     # the profile was created. Recorded rather than resolved at run time because
     # the request path may not call a provider, and the alternative source is
@@ -81,8 +88,6 @@ class ModelProfile(Base, TimestampMixin):
     context_length: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # Model settings (temperature, max_tokens...) applied on every run.
     params: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default="{}")
-    # Whether a user may substitute their own key when running with this profile.
-    allow_byo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     # Ordered profile ids tried when the primary fails - becomes a FallbackModel.
     fallback_profile_ids: Mapped[list[str]] = mapped_column(
         JSONB, nullable=False, server_default="[]"
@@ -90,6 +95,7 @@ class ModelProfile(Base, TimestampMixin):
 
     __table_args__ = (
         UniqueConstraint("organization_id", "label", name="uq_model_profile_org_label"),
+        CheckConstraint("api IN ('chat', 'responses')", name="ck_model_profile_api"),
     )
 
     def __repr__(self) -> str:

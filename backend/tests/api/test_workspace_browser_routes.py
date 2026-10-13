@@ -58,11 +58,13 @@ def _overview(**overrides: Any) -> SimpleNamespace:
     fields: dict[str, Any] = {
         "row": _row(),
         "agent_name": "Analyst",
+        "agent_slug": "analyst",
         "agent_has_avatar": True,
         "conversation_title": "Refund policy",
         "conversation_is_callers": True,
         "conversations": 1,
         "access_label": "Whoever is in that conversation",
+        "owner_name": None,
     }
     return SimpleNamespace(**{**fields, **overrides})
 
@@ -97,7 +99,8 @@ def service() -> MagicMock:
         return_value=(
             _row(),
             WorkspaceContents(
-                entries=[{"path": "/uploads/report.csv", "size": 128, "is_dir": False}]
+                entries=[{"path": "/uploads/report.csv", "size": 128, "is_dir": False}],
+                previews={"/uploads/report.csv": "month,total"},
             ),
         )
     )
@@ -388,6 +391,7 @@ class TestOpeningOne:
         assert response.status_code == 200
         body = response.json()
         assert body["items"][0]["path"] == "/uploads/report.csv"
+        assert body["items"][0]["preview"] == "month,total"
         assert body["owner_label"] == "This conversation"
 
     async def test_another_organizations_workspace_is_a_404(self, client, service) -> None:

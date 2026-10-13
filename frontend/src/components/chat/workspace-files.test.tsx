@@ -77,6 +77,28 @@ describe("the workspace panel", () => {
     expect(screen.getByText("CSV · 2.0 KB")).toBeVisible();
   });
 
+  it("draws each file's first lines on its tile, as All files does", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue(
+      workspace({
+        items: [
+          {
+            path: "/report.csv",
+            size: 2048,
+            is_dir: false,
+            modified_at: null,
+            preview: "month,total",
+            thumbnail: null,
+          },
+        ],
+        total: 1,
+      }),
+    );
+    draw(<WorkspaceFiles conversationId="c1" attachments={[]} revision={0} />);
+    await openPanel();
+
+    await waitFor(() => expect(screen.getByText("month,total")).toBeVisible());
+  });
+
   it("says whose files these are", async () => {
     draw(<WorkspaceFiles conversationId="c1" attachments={[]} revision={0} />);
     await openPanel();
@@ -207,10 +229,13 @@ describe("the workspace panel", () => {
     await openPanel();
 
     await userEvent.click(await screen.findByRole("button", { name: /report\.csv/ }));
-    // A table, which is what the panel could not do: a CSV an agent wrote used to
-    // render as a wall of commas here and as bytes-and-a-download for every other kind.
+    // The viewer opens on the source now, so the characters are what lands
+    // first - and the table, which is what the panel could never do, is one tab
+    // away. A CSV an agent wrote used to render as a wall of commas here and as
+    // bytes-and-a-download for every other kind.
+    expect(await screen.findByRole("dialog")).toBeVisible();
+    await userEvent.click(screen.getByRole("tab", { name: "Preview" }));
     await waitFor(() => expect(screen.getByRole("columnheader", { name: "month" })).toBeVisible());
-    expect(screen.getByRole("dialog")).toBeVisible();
 
     await userEvent.click(screen.getByRole("button", { name: "Close" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
@@ -419,6 +444,32 @@ describe("the workspace panel", () => {
 
       expect(screen.getByText("Attached to the chat")).toBeVisible();
       expect(screen.getByText("invoice.pdf")).toBeVisible();
+    });
+
+    it("draws a thumbnail for a render-safe image but not for a TIFF", async () => {
+      // A TIFF is an `image` kind no browser can draw inline, so it must get its
+      // glyph rather than a broken thumbnail; a PNG behind the same authenticated
+      // address is drawn (#1591).
+      vi.mocked(apiClient.get).mockResolvedValue(
+        workspace({ backend: "none", items: [], total: 0, bytes_total: 0 }),
+      );
+
+      draw(
+        <WorkspaceFiles
+          conversationId="c1"
+          attachments={[
+            attachment({ id: "p", filename: "shot.png", mime_type: "image/png" }),
+            attachment({ id: "t", filename: "scan.tiff", mime_type: "image/tiff" }),
+          ]}
+          revision={0}
+        />,
+      );
+      await openPanel();
+
+      // `hidden`: the thumbnail sits in the card's decorative peek, which is
+      // out of the accessibility tree - the card's own name is what is read.
+      expect(screen.getByRole("img", { name: "shot.png", hidden: true })).toBeVisible();
+      expect(screen.queryByRole("img", { name: "scan.tiff", hidden: true })).toBeNull();
     });
 
     it("counts them on the button beside the agent's own", async () => {

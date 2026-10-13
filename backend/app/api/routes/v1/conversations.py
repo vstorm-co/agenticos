@@ -213,6 +213,52 @@ async def archive_conversation(
     )
 
 
+@router.post("/{conversation_id}/favourite", response_model=ConversationRead)
+async def favourite_conversation(
+    conversation_id: UUID,
+    conversation_service: ConversationSvc,
+    current_user: CurrentUser,
+    active_org: ActiveOrg,
+    ctx: Auth,
+) -> Any:
+    """Star a conversation, for the caller.
+
+    A favourite belongs to the reader: it lifts the thread to the top of *their*
+    sidebar and changes nothing about the thread. So it is authorized as a read -
+    somebody a conversation was shared with may star it exactly as its owner may -
+    and starring what is already starred is not an error (#929).
+    """
+    return await conversation_service.set_favourite(
+        conversation_id,
+        organization_id=active_org.id,
+        user_id=current_user.id,
+        favourite=True,
+        ctx=ctx,
+    )
+
+
+@router.delete("/{conversation_id}/favourite", response_model=ConversationRead)
+async def unfavourite_conversation(
+    conversation_id: UUID,
+    conversation_service: ConversationSvc,
+    current_user: CurrentUser,
+    active_org: ActiveOrg,
+    ctx: Auth,
+) -> Any:
+    """Unstar a conversation, for the caller.
+
+    Answers with the row rather than 204, like its POST: the sidebar re-renders
+    one item and would otherwise have to guess what the rest of it now says.
+    """
+    return await conversation_service.set_favourite(
+        conversation_id,
+        organization_id=active_org.id,
+        user_id=current_user.id,
+        favourite=False,
+        ctx=ctx,
+    )
+
+
 @router.get("/{conversation_id}/messages", response_model=MessageList)
 async def list_messages(
     conversation_id: UUID,
@@ -233,17 +279,11 @@ async def list_messages(
     returned any conversation in the deployment, transcript and tool
     arguments included.
     """
-    items, total = await conversation_service.list_messages(
+    items, total, cost = await conversation_service.transcript(
         conversation_id,
         skip=skip,
         limit=limit,
         include_tool_calls=True,
-        organization_id=active_org.id,
-        user_id=current_user.id,
-        ctx=ctx,
-    )
-    cost = await conversation_service.conversation_cost(
-        conversation_id,
         organization_id=active_org.id,
         user_id=current_user.id,
         ctx=ctx,
@@ -391,6 +431,7 @@ async def list_workspace_files(
         organization_id=active_org.id,
         include_messages=False,
         user_id=current_user.id,
+        include_favourite=False,
     )
     found = await workspaces.listing(ctx, conversation_id=conversation_id)
     if found is None:
@@ -407,6 +448,8 @@ async def list_workspace_files(
             size=entry.get("size"),
             is_dir=bool(entry.get("is_dir")),
             modified_at=entry.get("modified_at"),
+            preview=contents.previews.get(str(entry.get("path"))),
+            thumbnail=contents.thumbnails.get(str(entry.get("path"))),
         )
         for entry in contents.entries
     ]
@@ -448,6 +491,7 @@ async def read_workspace_file(
         organization_id=active_org.id,
         include_messages=False,
         user_id=current_user.id,
+        include_favourite=False,
     )
     content = await workspaces.read_text(ctx, conversation_id=conversation_id, path=path)
     if content is None:
@@ -490,6 +534,7 @@ async def read_workspace_bytes(
         organization_id=active_org.id,
         include_messages=False,
         user_id=current_user.id,
+        include_favourite=False,
     )
     data = await workspaces.read_bytes(ctx, conversation_id=conversation_id, path=path)
     return file_response(data, path=path, download=download)

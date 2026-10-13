@@ -115,7 +115,9 @@ describe("the alerts panel", () => {
   it("names members by name and address, the way the rest of the app draws a person", async () => {
     // In a menu rather than as a pill each: an organization of forty rendered
     // forty of them inside a settings card. And with both lines, because a bare
-    // first name is not something two colleagues called Bob are told apart by.
+    // first name is not something two colleagues called Bob are told apart by -
+    // which is why an account with no name reads as its whole address rather
+    // than the part before the `@` (#931).
     mount(withChosen(["u-1"]));
 
     await userEvent.click(screen.getByRole("button", { name: /1 person/ }));
@@ -124,7 +126,7 @@ describe("the alerts panel", () => {
       screen.getByRole("option", { name: "Approval requests: Ada Lovelace (ada@acme.test)" }),
     ).toHaveAttribute("aria-selected", "true");
     expect(
-      screen.getByRole("option", { name: "Approval requests: bob (bob@acme.test)" }),
+      screen.getByRole("option", { name: "Approval requests: bob@acme.test (bob@acme.test)" }),
     ).toHaveAttribute("aria-selected", "false");
   });
 
@@ -172,7 +174,7 @@ describe("the alerts panel", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /1 person/ }));
     await userEvent.click(
-      screen.getByRole("option", { name: "Approval requests: bob (bob@acme.test)" }),
+      screen.getByRole("option", { name: "Approval requests: bob@acme.test (bob@acme.test)" }),
     );
 
     expect(saved(onChange).approvals.user_ids).toEqual(["u-1", "u-2"]);

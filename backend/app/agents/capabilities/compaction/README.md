@@ -167,9 +167,11 @@ It wraps the zero-LLM strategies too. An allowlist of "these can spend" is a lis
 somebody has to remember to add to, and the entry they forget is a model call
 nobody is billed for — the same omission the wrapper exists to close.
 
-What it cannot do is *stop* the spend. `BudgetGuard` refuses in
-`wrap_model_request`, which runs after this hook, so a compaction that crosses a
-cap is recorded here and refused on the request after it.
+What it cannot do is stop the summary itself once it has started. It checks the
+budget again after a summary was paid for: since pydantic-ai 2.54 `BudgetGuard`'s
+`wrap_model_request` encloses this hook rather than following it (pydantic-ai#7053),
+so its own check ran before the summary, and a summary that crossed a cap would
+otherwise let the request after it go out and be billed.
 
 ## The gauge
 

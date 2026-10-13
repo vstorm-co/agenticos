@@ -8,6 +8,7 @@ import { getErrorMessage } from "@/lib/api-error";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import type {
+  GrantSubject,
   ResourceGrant,
   ResourceSharing,
   ShareInput,
@@ -30,7 +31,24 @@ const SHARING_ROOT = {
   // only mounted on agents so far.
   collection: "/kb",
   secret: "/secrets",
+  artifact: "/artifacts",
 } as const satisfies Record<SharingResourceType, string>;
+
+/**
+ * The resource's own queries, which carry its visibility too.
+ *
+ * A list row and a detail page both read `visibility` from the resource, not
+ * from the sharing endpoint, so a change made in the panel left them showing
+ * the old reach until they happened to refetch - an artifact's page kept saying
+ * "only people with access" over a page the whole organization could open.
+ */
+const RESOURCE_KEYS = {
+  agent: qk.agents.all,
+  skill: qk.skills.all,
+  collection: qk.kb.all,
+  secret: qk.secrets.all,
+  artifact: qk.artifacts.all,
+} as const satisfies Record<SharingResourceType, () => readonly string[]>;
 
 /**
  * Who reaches one resource: its owner, its visibility, and its explicit grants.
@@ -52,13 +70,16 @@ export function useSharing(resourceType: SharingResourceType, resourceId: string
     enabled: !!resourceId,
   });
 
-  const invalidate = useCallback(
-    () =>
-      queryClient.invalidateQueries({
-        queryKey: qk.sharing.detail(resourceType, resourceId ?? ""),
-      }),
-    [queryClient, resourceType, resourceId],
-  );
+  const invalidate = useCallback(async () => {
+    const queryKey = qk.sharing.detail(resourceType, resourceId ?? "");
+    // Cancel an in-flight read before invalidating: invalidateQueries dedupes
+    // its refetch onto a fetch already running, so a read that began before this
+    // mutation committed resolves with the pre-write body, marks the query
+    // fresh, and the panel keeps the old value until a reload (#154). Cancelling
+    // first makes the invalidation dispatch a genuinely new, post-commit fetch.
+    await queryClient.cancelQueries({ queryKey });
+    await queryClient.invalidateQueries({ queryKey });
+  }, [queryClient, resourceType, resourceId]);
 
   const share = useMutation({
     mutationFn: (input: ShareInput) => apiClient.put<ResourceGrant>(`${base}/grants`, input),
@@ -69,9 +90,14 @@ export function useSharing(resourceType: SharingResourceType, resourceId: string
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
+  // Two endpoints rather than one keyed on a kind, because a user id and a group
+  // id are both bare UUIDs: one path taking either could not tell which it was
+  // handed.
   const revoke = useMutation({
-    mutationFn: (subjectUserId: string) =>
-      apiClient.delete<void>(`${base}/grants/${subjectUserId}`),
+    mutationFn: (subject: GrantSubject) =>
+      subject.kind === "group"
+        ? apiClient.delete<void>(`${base}/group-grants/${subject.id}`)
+        : apiClient.delete<void>(`${base}/grants/${subject.id}`),
     onSuccess: async () => {
       await invalidate();
       toast.success(t("accessRemoved"));
@@ -84,6 +110,7 @@ export function useSharing(resourceType: SharingResourceType, resourceId: string
       apiClient.patch<ResourceSharing>(`${base}/visibility`, { visibility }),
     onSuccess: async () => {
       await invalidate();
+      await queryClient.invalidateQueries({ queryKey: RESOURCE_KEYS[resourceType]() });
       toast.success(t("visibilityUpdated"));
     },
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),

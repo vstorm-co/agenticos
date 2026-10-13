@@ -61,12 +61,16 @@ export function ObservabilityCard({
   const tokens = secrets.filter((secret) => secret.purpose === TOKEN_PURPOSE);
   const selected = value?.token_secret_id ?? null;
 
-  // Clearing the token clears the block: a service name and environment with
-  // nowhere to send are three stored fields that do nothing, and they read on
-  // the next edit as though tracing were configured.
+  // Clearing the token clears the block - a service name and environment with
+  // nowhere to send are stored fields that do nothing - unless `content` is set
+  // to something other than the default. A `none` matters with no agent token of
+  // its own: an environment can carry the token, and it also suppresses content
+  // on the deployment's own instrumentation, so it is kept where a service name
+  // would be dropped.
   const update = (patch: Partial<ObservabilitySpec>) => {
     const next = { ...(value ?? {}), ...patch };
-    onChange(next.token_secret_id ? next : null);
+    const meaningful = Boolean(next.token_secret_id) || next.content === "none";
+    onChange(meaningful ? next : null);
   };
 
   return (
@@ -137,6 +141,27 @@ export function ObservabilityCard({
             onChange={(event) => update({ environment: event.target.value || null })}
           />
           <p className="text-muted-foreground text-xs">{t("separatesStagingTrafficFrom")}</p>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="logfire-content">{t("traceContent")}</Label>
+          {/* Not gated on a token: `none` is meaningful with no per-agent project,
+              suppressing content on the deployment's own traces and on an
+              environment-routed run. */}
+          <Select
+            value={value?.content ?? "full"}
+            disabled={disabled}
+            onValueChange={(content) => update({ content: content as "full" | "none" })}
+          >
+            <SelectTrigger id="logfire-content">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="full">{t("traceContentFull")}</SelectItem>
+              <SelectItem value="none">{t("traceContentNone")}</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-muted-foreground text-xs">{t("traceContentHint")}</p>
         </div>
       </CardContent>
     </Card>

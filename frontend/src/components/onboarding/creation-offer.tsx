@@ -1,6 +1,6 @@
 "use client";
 
-import { useQueryClient } from "@tanstack/react-query";
+import { skipToken, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 
 import { ConfirmDialog } from "@/components/ui";
@@ -32,10 +32,20 @@ import { useOnboardingStore } from "@/stores/onboarding-store";
 export function CreationOffer() {
   const t = useTranslations("onboarding");
   const offer = useOnboardingStore((state) => state.offer);
+  const offerFromTour = useOnboardingStore((state) => state.offerFromTour);
   const openFlow = useOnboardingStore((state) => state.openFlow);
   const dismissOffer = useOnboardingStore((state) => state.dismissOffer);
   const { can } = usePermissions();
   const queryClient = useQueryClient();
+  // Subscribed, never fetching (`skipToken`): the answer is produced by the
+  // Routines page's own gate (`useCanCreateTrigger`), and a subscription - where
+  // a one-time `getQueryData` snapshot missed it - re-renders this component
+  // when it lands, so a walk that finishes before the query settles shows the
+  // offer the moment the answer says it may, and never on a refusal.
+  const { data: anyRunnable } = useQuery({
+    queryKey: qk.agents.anyRunnable(),
+    queryFn: skipToken,
+  });
 
   if (offer === null || !canOfferFlow(FLOWS[offer], can)) return null;
   // The MCP catalog is compiled into the deployment; empty, there is nothing to
@@ -52,14 +62,27 @@ export function CreationOffer() {
   // "Shall we build your first agent?" to an organization that has six of them is
   // the offer answering a question nobody asked — and it is what the first-run
   // tour ends with, having just walked the reader through an existing agent's
-  // builder in detail. So the agent offer is for an organization with no agent
-  // yet; anyone else reaches the same flow from the Agents "?" walk, where asking
-  // for it is the whole point. Read from the cache the walk itself filled, not a
-  // fetch of this always-mounted component's own.
+  // builder in detail. So the *tour's* agent offer is for an organization with no
+  // agent yet. The Agents "?" walk ends on the same offer, but there asking to
+  // build one is the whole point of the walk, so it is not gated on the count —
+  // only the tour's is (#910). Read the origin the offer was made with rather than
+  // live `mode`, which a later walk mutates: a suppressed tour offer must stay
+  // suppressed, not resurface when the next "?" walk flips the mode. Read the
+  // count from the cache the walk itself filled, not a fetch of our own.
   if (
     offer === "create-agent" &&
+    offerFromTour &&
     (queryClient.getQueryData<AgentList>(qk.agents.list())?.total ?? 0) > 0
   ) {
+    return null;
+  }
+  // The routine flow's first target is the Routines page's create buttons, which
+  // mount on the per-agent `can_run` answer, not on the scope-blind `can` above -
+  // and the coach waits on a flow target with no timeout. So the offer needs the
+  // same answer to say yes: a caller it refused gets no offer, and one it has
+  // not answered yet gets it only once it does - the store holds the offer, so
+  // waiting loses nothing.
+  if (offer === "create-routine" && anyRunnable !== true) {
     return null;
   }
 

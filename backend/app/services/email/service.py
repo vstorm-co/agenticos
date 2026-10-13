@@ -15,13 +15,25 @@ logger = logging.getLogger(__name__)
 class EmailKey(enum.StrEnum):
     WELCOME = "welcome"
     EMAIL_VERIFICATION = "email_verification"
+    # Proving a *changed* address, and telling the old one it was asked for
+    # (#1772). Two keys rather than one: they go to two different addresses
+    # and say opposite things - "confirm this" and "somebody asked to move
+    # your account away from here".
+    EMAIL_CHANGE_VERIFICATION = "email_change_verification"
+    EMAIL_CHANGE_NOTICE = "email_change_notice"
     MAGIC_LINK = "magic_link"
     PASSWORD_RESET = "password_reset"
     INVITATION = "invitation"
     NEWSLETTER_WELCOME = "newsletter_welcome"
     BUDGET_EXCEEDED = "budget_exceeded"
     APPROVAL_REQUESTED = "approval_requested"
+    APPROVAL_PENDING = "approval_pending"
     USAGE_REPORT = "usage_report"
+    IMPERSONATION_NOTICE = "impersonation_notice"
+    # The notification center's fallback (#1598): every event type without a
+    # bespoke template renders through this one, off `summary`/`context_url`
+    # alone - a template per event type is not scope that feature takes on.
+    NOTIFICATION = "notification"
 
 
 class EmailCategory(enum.StrEnum):
@@ -33,6 +45,8 @@ class EmailCategory(enum.StrEnum):
 _CATEGORIES: dict[EmailKey, EmailCategory] = {
     EmailKey.WELCOME: EmailCategory.TRANSACTIONAL,
     EmailKey.EMAIL_VERIFICATION: EmailCategory.TRANSACTIONAL,
+    EmailKey.EMAIL_CHANGE_VERIFICATION: EmailCategory.TRANSACTIONAL,
+    EmailKey.EMAIL_CHANGE_NOTICE: EmailCategory.TRANSACTIONAL,
     EmailKey.MAGIC_LINK: EmailCategory.TRANSACTIONAL,
     EmailKey.PASSWORD_RESET: EmailCategory.TRANSACTIONAL,
     EmailKey.INVITATION: EmailCategory.TRANSACTIONAL,
@@ -42,7 +56,13 @@ _CATEGORIES: dict[EmailKey, EmailCategory] = {
     # columns), consulted where recipients are resolved, in NotificationService.
     EmailKey.BUDGET_EXCEEDED: EmailCategory.LIFECYCLE,
     EmailKey.APPROVAL_REQUESTED: EmailCategory.LIFECYCLE,
+    EmailKey.APPROVAL_PENDING: EmailCategory.LIFECYCLE,
     EmailKey.USAGE_REPORT: EmailCategory.LIFECYCLE,
+    EmailKey.NOTIFICATION: EmailCategory.LIFECYCLE,
+    # Transactional, not lifecycle: whether it is sent at all is the deployment's
+    # `notify_impersonated_users` policy, not a preference of the recipient - a
+    # person cannot opt out of being told an administrator acted as them.
+    EmailKey.IMPERSONATION_NOTICE: EmailCategory.TRANSACTIONAL,
 }
 
 
@@ -60,6 +80,16 @@ class EmailService:
 
     def __init__(self, provider: EmailProvider) -> None:
         self.provider = provider
+
+    @property
+    def delivers(self) -> bool:
+        """Whether an accepted message actually leaves this deployment.
+
+        Read beside `SendResult.accepted` rather than instead of it: the pair is
+        "the provider took it" and "the provider is one that sends", and only both
+        together mean an address was mailed. See `EmailProvider.delivers`.
+        """
+        return self.provider.delivers
 
     async def send(
         self,
@@ -119,6 +149,34 @@ class EmailService:
                 "expires_in": "1 hour",
                 "app_name": app_name,
             },
+        )
+
+    async def send_email_change_verification(
+        self, *, to: str, name: str, confirm_url: str, app_name: str
+    ) -> SendResult:
+        return await self.send(
+            key=EmailKey.EMAIL_CHANGE_VERIFICATION,
+            to=to,
+            context={
+                "name": name,
+                "confirm_url": confirm_url,
+                "expires_in": "1 hour",
+                "app_name": app_name,
+            },
+        )
+
+    async def send_email_change_notice(
+        self, *, to: str, name: str, new_email: str, app_name: str
+    ) -> SendResult:
+        """To the address being moved away from, never to the new one.
+
+        A takeover is only visible to the person losing the account if the
+        address that still receives their mail is told it was asked for (#1772).
+        """
+        return await self.send(
+            key=EmailKey.EMAIL_CHANGE_NOTICE,
+            to=to,
+            context={"name": name, "new_email": new_email, "app_name": app_name},
         )
 
     async def send_invitation(

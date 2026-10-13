@@ -9,10 +9,10 @@ from __future__ import annotations
 from typing import Any
 
 from pydantic import BaseModel, Field, ValidationError
-from pydantic_ai import ModelRetry
-from pydantic_ai.tools import AgentDepsT
+from pydantic_ai.tools import AgentDepsT, RunContext
 from pydantic_ai.toolsets import FunctionToolset
 
+from app.agents.capabilities._failures import steer
 from app.agents.capabilities.charts._spec import (
     ChartSeries,
     ChartSpec,
@@ -98,6 +98,7 @@ class ChartsToolset(FunctionToolset[AgentDepsT]):
 
     def create_chart(
         self,
+        ctx: RunContext[AgentDepsT],
         chart_type: ChartType,
         title: str,
         x_values: list[str | float],
@@ -153,22 +154,25 @@ class ChartsToolset(FunctionToolset[AgentDepsT]):
             The chart specification, already on its way to the user.
         """
         if not x_values:
-            raise ModelRetry(
+            return steer(
+                ctx,
                 "`x_values` was empty, so there is no axis to plot against and "
-                "nothing would be drawn. Send one x value per point."
+                "nothing would be drawn. Send one x value per point.",
             )
         if not series:
-            raise ModelRetry(
+            return steer(
+                ctx,
                 "`series` was empty, so there are no numbers to plot. Send one "
-                "series per line, bar set or set of points, each with its values."
+                "series per line, bar set or set of points, each with its values.",
             )
         for s in series:
             expected = s.x_values if s.x_values is not None else x_values
             if len(s.values) != len(expected):
-                raise ModelRetry(
+                return steer(
+                    ctx,
                     f"Series {s.key!r} has {len(s.values)} value(s) for "
                     f"{len(expected)} x value(s). Send one number per x value, "
-                    "in the same order."
+                    "in the same order.",
                 )
 
         try:
@@ -181,9 +185,10 @@ class ChartsToolset(FunctionToolset[AgentDepsT]):
                 style=style or ChartStyle(),
             )
         except ValidationError as exc:
-            raise ModelRetry(
+            return steer(
+                ctx,
                 f"That chart could not be built ({_explain(exc)}). "
-                "Correct the arguments and call the tool again."
-            ) from exc
+                "Correct the arguments and call the tool again.",
+            )
 
         return spec.model_dump_json()

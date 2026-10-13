@@ -13,6 +13,7 @@ accept any key. A published spec that used one must still load, and one that
 asked for thinking must still think.
 """
 
+import logging
 import uuid
 
 import pytest
@@ -25,6 +26,9 @@ from app.agents.factory import build_agent
 from app.agents.model_resolver import ModelRequestSpec, ResolvedCredential
 from app.agents.spec import SPEC_VERSION, AgentSpec, ModelSettingsSpec
 from app.core.secret_kinds import ApiKeySecret
+
+_ID = uuid.uuid4()
+_OTHER_ID = uuid.uuid4()
 
 
 @pytest.fixture(autouse=True)
@@ -205,8 +209,137 @@ class TestSpecsPublishedBeforeThisExisted:
         """A literal on purpose: this is the tripwire for a shape change nobody
         bumped, so it has to fail when the constant moves rather than follow it.
         8 added `observability.organization` and `observability.project` (#206);
-        9 added `context_ids` (#48)."""
-        assert AgentSpec(name="x").spec_version == SPEC_VERSION == 9
+        9 added `context_ids` (#48); 10 turned `mcp_server_ids` into
+        `mcp_servers` (#1341); 11 made whose account a binding speaks through
+        its kind, `account`, rather than a flag on it; 12 withdrew the `skills`
+        capability's `list_skills` and `load_skill` (#1658)."""
+        assert AgentSpec(name="x").spec_version == SPEC_VERSION == 12
+
+    def test_a_version_9_spec_loads_its_mcp_ids_as_bindings(self):
+        """`extra="forbid"` would otherwise refuse every stored spec that names
+        an MCP server - a 500 on every run of something nobody touched."""
+        spec = AgentSpec.model_validate({"name": "x", "mcp_server_ids": [str(_ID), str(_OTHER_ID)]})
+
+        assert [(ref.account, ref.connection_id) for ref in spec.mcp_servers] == [
+            ("organization", _ID),
+            ("organization", _OTHER_ID),
+        ]
+
+    def test_the_migrated_field_does_not_survive_into_the_spec(self):
+        """Left in place it would fail `extra="forbid"` on the way back in."""
+        spec = AgentSpec.model_validate({"name": "x", "mcp_server_ids": [str(_ID)]})
+
+        assert AgentSpec.from_yaml(spec.to_yaml()) == spec
+
+    def test_an_explicit_binding_wins_over_the_legacy_ids(self):
+        """Re-reading a spec this already migrated changes nothing."""
+        spec = AgentSpec.model_validate(
+            {
+                "name": "x",
+                "mcp_server_ids": [str(_OTHER_ID)],
+                "mcp_servers": [{"account": "organization", "connection_id": str(_ID)}],
+            }
+        )
+
+        assert [ref.connection_id for ref in spec.mcp_servers] == [_ID]
+
+    def test_a_version_10_binding_loads_as_an_organization_binding(self):
+        """Version 11 discriminates a binding on `account`, which a stored
+        version-10 document does not carry. The tag is supplied rather than the
+        document refused - a 500 on every run of something nobody touched."""
+        spec = AgentSpec.model_validate(
+            {"name": "x", "mcp_servers": [{"connection_id": str(_ID), "allowed_tools": ["search"]}]}
+        )
+
+        assert [
+            (ref.account, ref.connection_id, ref.allowed_tools) for ref in spec.mcp_servers
+        ] == [("organization", _ID, ["search"])]
+
+    def test_the_withdrawn_substitution_flag_is_dropped_and_said_so(self, caplog):
+        """`use_personal_when_available` substituted a credential in private
+        conversations. Its replacement is a different *kind* of binding, and
+        choosing that for somebody is not a migration's call - so the binding
+        loads as the organization's, and the log says what to bind instead."""
+        with caplog.at_level(logging.WARNING, logger="app.agents.spec"):
+            spec = AgentSpec.model_validate(
+                {
+                    "name": "x",
+                    "mcp_servers": [
+                        {"connection_id": str(_ID), "use_personal_when_available": True}
+                    ],
+                }
+            )
+
+        assert [(ref.account, ref.connection_id) for ref in spec.mcp_servers] == [
+            ("organization", _ID)
+        ]
+        assert "account: personal" in caplog.text
+        assert AgentSpec.from_yaml(spec.to_yaml()) == spec
+
+    def test_a_flag_that_was_off_is_dropped_quietly(self, caplog):
+        """Off was the default, so nothing about the binding changes."""
+        with caplog.at_level(logging.WARNING, logger="app.agents.spec"):
+            AgentSpec.model_validate(
+                {
+                    "name": "x",
+                    "mcp_servers": [
+                        {"connection_id": str(_ID), "use_personal_when_available": False}
+                    ],
+                }
+            )
+
+        assert "use_personal_when_available" not in caplog.text
+
+    def test_a_personal_binding_names_a_service_and_no_connection(self):
+        spec = AgentSpec.model_validate(
+            {"name": "x", "mcp_servers": [{"account": "personal", "catalog_key": "notion"}]}
+        )
+
+        assert [(ref.account, ref.catalog_key) for ref in spec.mcp_servers] == [
+            ("personal", "notion")
+        ]
+        assert AgentSpec.from_yaml(spec.to_yaml()) == spec
+
+    def test_a_personal_binding_carrying_a_connection_id_is_refused(self):
+        """The two kinds are `extra="forbid"` each, so a document that mixes
+        their fields is named rather than half-read."""
+        with pytest.raises(ValidationError):
+            AgentSpec.model_validate(
+                {
+                    "name": "x",
+                    "mcp_servers": [
+                        {"account": "personal", "catalog_key": "notion", "connection_id": str(_ID)}
+                    ],
+                }
+            )
+
+    def test_a_binding_that_is_not_a_mapping_is_named_by_validation(self):
+        with pytest.raises(ValidationError):
+            AgentSpec.model_validate({"name": "x", "mcp_servers": ["notion"]})
+
+    def test_legacy_ids_that_are_not_a_list_are_refused(self):
+        """Left in place rather than dropped, so validation names the field.
+
+        This test used to assert the opposite - that the field was removed and
+        the spec loaded with no bindings - which is what the code did and is a
+        silent discard of what the author was binding. Imported YAML saying
+        `mcp_server_ids: <uuid>` published happily having thrown the server
+        away, where the old schema had reported it.
+        """
+        with pytest.raises(ValidationError):
+            AgentSpec.model_validate({"name": "x", "mcp_server_ids": None})
+
+    def test_a_malformed_legacy_field_is_refused_even_beside_a_good_binding(self):
+        """A value this wrong is a mistake worth naming, not one to ignore
+        because another field happens to say something valid."""
+        with pytest.raises(ValidationError):
+            AgentSpec.model_validate(
+                {
+                    "name": "x",
+                    "mcp_server_ids": str(_ID),
+                    "mcp_servers": [{"connection_id": str(_ID)}],
+                }
+            )
 
     def test_a_spec_that_is_not_a_mapping_is_left_to_pydantic(self):
         """The migration must not swallow a malformed document."""

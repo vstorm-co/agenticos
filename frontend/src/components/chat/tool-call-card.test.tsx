@@ -5,6 +5,11 @@ import { describe, expect, it, vi } from "vitest";
 import { ToolCallCard } from "./tool-call-card";
 import type { ToolCall } from "@/types";
 
+// A live preview fetches a signed address; what is under test is the card around it.
+vi.mock("@/components/artifacts/artifact-thumbnail", () => ({
+  ArtifactThumbnail: () => null,
+}));
+
 vi.mock("./markdown-content", () => ({
   MarkdownContent: ({ content }: { content: string }) => (
     <div data-testid="markdown">{content}</div>
@@ -65,13 +70,27 @@ describe("a tool call in the transcript", () => {
     card({ name: "search_documents", status: "running", result: undefined });
 
     expect(screen.getByText("Searching the documents")).toBeInTheDocument();
-    expect(screen.getByLabelText("Running")).toBeInTheDocument();
+    expect(screen.getByText("Running")).toBeInTheDocument();
   });
 
   it("treats a call that has not started as one in flight", () => {
     card({ status: "pending", result: undefined });
 
-    expect(screen.getByLabelText("Running")).toBeInTheDocument();
+    expect(screen.getByText("Running")).toBeInTheDocument();
+  });
+
+  it("says how much of the arguments has arrived while the model is still writing them", () => {
+    // A report handed to `write_file` streams for minutes; the size is what moves.
+    card({ name: "write_file", status: "pending", result: undefined, argsChars: 43_008 });
+
+    expect(screen.getByText("42.0 KB so far")).toBeInTheDocument();
+    expect(screen.getByText("Running")).toBeInTheDocument();
+  });
+
+  it("says nothing about size once the call is running", () => {
+    card({ name: "write_file", status: "running", result: undefined, argsChars: 43_008 });
+
+    expect(screen.queryByText(/so far/)).toBeNull();
   });
 
   it("says what happened once the call has finished, rather than narrating it", () => {
@@ -87,7 +106,7 @@ describe("a tool call in the transcript", () => {
     card({ result: "done" });
 
     expect(screen.queryByLabelText("Failed")).toBeNull();
-    expect(screen.queryByLabelText("Running")).toBeNull();
+    expect(screen.queryByText("Running")).toBeNull();
   });
 
   it("marks a tool that failed", () => {
@@ -102,7 +121,7 @@ describe("a tool call in the transcript", () => {
     card({ status: "awaiting_approval", result: undefined });
 
     expect(screen.getByText("waiting for approval")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Running")).toBeNull();
+    expect(screen.queryByText("Running")).toBeNull();
   });
 
   it("says a replayed call that never finished in the past tense, without a spinner", () => {
@@ -113,7 +132,7 @@ describe("a tool call in the transcript", () => {
 
     expect(screen.queryByText("Searching the documents")).toBeNull();
     expect(screen.getByText("Knowledge Base Search")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Running")).toBeNull();
+    expect(screen.queryByText("Running")).toBeNull();
     expect(screen.queryByLabelText("Failed")).toBeNull();
   });
 
@@ -155,9 +174,8 @@ describe("a tool call in the transcript", () => {
       ],
       [{ name: "delegate", args: {} }, "Delegate"],
       [{ name: "run_python", args: { code: "x=1" }, result: "result: 1" }, "Run Python"],
-      [{ name: "list_skills", result: "[]" }, "Available Skills"],
-      [{ name: "load_skill", args: { skill_name: "refund_policy" } }, "Refund Policy"],
-      [{ name: "load_skill", args: {} }, "Load Skill"],
+      [{ name: "load_capability", args: { id: "refund_policy" } }, "Refund Policy"],
+      [{ name: "load_capability", args: {} }, "Load Skill"],
       [{ name: "ls", args: { path: "/workspace" } }, "Listed /workspace"],
       [
         { name: "grep", args: { pattern: "TODO", path: "/workspace/app.py" } },
@@ -246,13 +264,44 @@ describe("a tool call in the transcript", () => {
     expect(row()).toHaveAttribute("aria-expanded", "false");
   });
 
-  it("gives a step with nothing to open no toggle at all", () => {
-    // `list_skills` answers with a prompt fragment the model reads and a person does
-    // not, so the row is a statement rather than a control.
-    card({ name: "list_skills", result: JSON.stringify([{ name: "refunds" }]) });
+  it("opens the skill the agent loaded, which is what somebody asks that step", async () => {
+    // `load_capability` is the framework's own tool and has no row in the registry,
+    // so without `FRAMEWORK_TOOLS` this step would read "Load Capability" over the
+    // JSON the framework answered with.
+    card({
+      name: "load_capability",
+      args: { id: "refunds" },
+      result: JSON.stringify({ instructions: "# Skill: refunds\n\nCheck the order date." }),
+    });
 
-    expect(screen.queryAllByRole("button")).toHaveLength(0);
-    expect(screen.getByText("Available Skills")).toBeInTheDocument();
+    expect(screen.getByText("Refunds")).toBeInTheDocument();
+    await open();
+    expect(screen.getByText("Check the order date.")).toBeInTheDocument();
+  });
+
+  it("opens the context files the agent may read", async () => {
+    card({ name: "list_context", result: "- glossary: What the acronyms mean.\n- policy" });
+
+    await open();
+    expect(screen.getByText("glossary")).toBeInTheDocument();
+    expect(screen.getByText("What the acronyms mean.")).toBeInTheDocument();
+    expect(screen.getByText("policy")).toBeInTheDocument();
+  });
+
+  it("draws a planning call as its checklist rather than as its arguments", async () => {
+    // `write_plan` is called with the whole ordered list every time, so the generic
+    // renderer opened forty lines of pretty-printed JSON above a rendered copy of
+    // the same three steps.
+    card({
+      name: "write_plan",
+      args: { items: [{ content: "Ship it", status: "pending" }] },
+      result: "Plan updated: 2 step(s).\n\n1. [x] Read the diff\n2. [~] Ship it\n(1/2 completed)",
+    });
+
+    await open();
+    expect(screen.getByText("Read the diff")).toBeInTheDocument();
+    expect(screen.getByText("Ship it")).toBeInTheDocument();
+    expect(screen.queryByText("Arguments")).toBeNull();
   });
 
   it("opens the newest turn's last call, which is the result somebody came back for", () => {
@@ -275,6 +324,40 @@ describe("a tool call in the transcript", () => {
     );
 
     expect(screen.getByRole("button", { name: "Open" })).toBeInTheDocument();
+  });
+
+  it("keeps the agent's bookkeeping folded even as the turn's last step", () => {
+    // A note the agent wrote itself for next time opened over the answer it came
+    // after. The same generic step that is not bookkeeping opens as before.
+    const props = { mcpServers: servers.list, startOpen: true, conversationId: "c-1" };
+    const memory = render(
+      <ToolCallCard
+        {...props}
+        toolCall={{
+          id: "tc-1",
+          name: "write_memory",
+          args: { path: "preferences.md" },
+          status: "completed",
+          result: "Saved the note about preferences",
+        }}
+      />,
+    );
+    expect(screen.queryByText("Saved the note about preferences")).toBeNull();
+    memory.unmount();
+
+    render(
+      <ToolCallCard
+        {...props}
+        toolCall={{
+          id: "tc-2",
+          name: "read_artifact",
+          args: { name: "report" },
+          status: "completed",
+          result: "Read the page called report",
+        }}
+      />,
+    );
+    expect(screen.getByText(/Read the page called report/)).toBeInTheDocument();
   });
 
   it("leaves an older call read back from history folded", () => {
@@ -328,6 +411,27 @@ describe("a tool call in the transcript", () => {
     expect(screen.getByRole("img", { name: "a cat" })).toHaveAttribute(
       "src",
       "/api/generated/x_image.png",
+    );
+  });
+
+  it("opens a published page on sight, linked to the version this run wrote", () => {
+    // The version and not the artifact: after the agent republishes, this
+    // conversation still opens what was published in it.
+    card({
+      name: "publish_artifact",
+      result: JSON.stringify({
+        kind: "artifact",
+        artifact_id: "a1",
+        version_id: "v3",
+        version: 3,
+        title: "Weekly report",
+        unchanged: false,
+      }),
+    });
+
+    expect(screen.getByRole("link", { name: /Weekly report/ })).toHaveAttribute(
+      "href",
+      "/artifacts/a1?version=v3",
     );
   });
 
@@ -476,7 +580,11 @@ describe("a tool call in the transcript", () => {
         "Hit",
       ],
       [
-        { name: "load_skill", result: "<description>How refunds work.</description>" },
+        {
+          name: "load_capability",
+          args: { id: "refunds" },
+          result: JSON.stringify({ instructions: "How refunds work." }),
+        },
         "How refunds work.",
       ],
       [{ name: "post_invoice", result: "Posted." }, "Posted."],

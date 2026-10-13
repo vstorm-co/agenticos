@@ -7,6 +7,7 @@ approval replays through.
 """
 
 from dataclasses import dataclass
+from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, patch
@@ -25,6 +26,7 @@ from pydantic_ai.messages import (
     UserPromptPart,
 )
 from pydantic_ai.models import ModelRequestContext, ModelRequestParameters
+from pydantic_ai.models.instrumented import InstrumentedModel
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.usage import RequestUsage, RunUsage
 from pydantic_ai_harness.compaction import (
@@ -35,7 +37,15 @@ from pydantic_ai_harness.compaction import (
 )
 
 from app.agents.capabilities import CapabilityBinding, build, get
-from app.agents.capabilities.budget import SpendLedger, metered_by
+from app.agents.capabilities.budget import (
+    BudgetExceeded,
+    BudgetGuard,
+    BudgetScope,
+    SpendLedger,
+    SpendLimit,
+    guarded_by,
+    metered_by,
+)
 from app.agents.capabilities.compaction import (
     DEFAULT_SUMMARY_PROMPT,
     MODEL_CONTEXT_WINDOW_RESOURCE,
@@ -67,8 +77,14 @@ def _response(*, input_tokens: int) -> ModelResponse:
     )
 
 
-def _run_context(usage: RunUsage | None = None) -> RunContext[None]:
-    return RunContext(deps=None, model=TestModel(), usage=usage or RunUsage())
+def _run_context(
+    usage: RunUsage | None = None, messages: list[ModelMessage] | None = None
+) -> RunContext[None]:
+    """The run a request belongs to. `messages` is its history - the harness
+    measures what to compact from the run, not from the request it edits."""
+    return RunContext(
+        deps=None, model=TestModel(), usage=usage or RunUsage(), messages=list(messages or [])
+    )
 
 
 @dataclass
@@ -275,6 +291,32 @@ class TestMetering:
         assert len(ledger.entries) == 1
         assert (ledger.input_tokens, ledger.output_tokens) == (1_200, 300)
 
+    @pytest.mark.security
+    async def test_a_summary_that_reaches_a_cap_refuses_the_request_after_it(self):
+        """`BudgetGuard.wrap_model_request` encloses this hook since pydantic-ai 2.54,
+        so its check ran before the summary was bought. Without a second one, the
+        request the summary was made for would go out past the cap and be billed."""
+        ledger = SpendLedger()
+        exhausted = BudgetGuard(
+            ledger=ledger, limits=[SpendLimit(scope=BudgetScope.AGENT, limit_usd=Decimal(0))]
+        )
+        capability = MeteredCompaction(wrapped=_Spender(input_tokens=1_200, output_tokens=300))
+
+        with metered_by(ledger), guarded_by(exhausted), pytest.raises(BudgetExceeded):
+            await capability.before_model_request(_run_context(), _request_context([]))
+
+        assert ledger.input_tokens == 1_200
+
+    @pytest.mark.security
+    async def test_a_strategy_that_paid_nothing_does_not_ask_the_budget_again(self):
+        """A cap is the next request's to refuse, through `BudgetGuard`: a strategy
+        that spent nothing has changed nothing the guard already checked."""
+        exhausted = BudgetGuard(limits=[SpendLimit(scope=BudgetScope.AGENT, limit_usd=Decimal(0))])
+        capability = MeteredCompaction(wrapped=_Spender())
+
+        with guarded_by(exhausted):
+            await capability.before_model_request(_run_context(), _request_context([]))
+
     async def test_a_strategy_that_calls_no_model_books_nothing(self):
         """The zero-LLM strategies are wrapped too, and must stay free."""
         ledger = SpendLedger()
@@ -337,7 +379,7 @@ class TestMetering:
         messages = [_user(f"turn {index}: " + "words " * 20) for index in range(20)]
 
         request_context = await capability.before_model_request(
-            _run_context(), _request_context(list(messages))
+            _run_context(messages=messages), _request_context(list(messages))
         )
 
         assert len(request_context.messages) < len(messages)
@@ -365,10 +407,10 @@ class TestSwitchingToASmallerModel:
             )
 
         roomy = await on(1_000_000).before_model_request(
-            _run_context(), _request_context(list(history))
+            _run_context(messages=history), _request_context(list(history))
         )
         cramped = await on(128_000).before_model_request(
-            _run_context(), _request_context(list(history))
+            _run_context(messages=history), _request_context(list(history))
         )
 
         assert len(roomy.messages) == len(history)
@@ -419,7 +461,7 @@ class TestAWindowWithNoRoomForASummary:
         capability, history = self._wrapper(10_000, 3_865)
 
         compacted = await capability.before_model_request(
-            _run_context(), _request_context(list(history))
+            _run_context(messages=history), _request_context(list(history))
         )
 
         assert len(compacted.messages) < len(history)
@@ -430,7 +472,7 @@ class TestAWindowWithNoRoomForASummary:
         capability, history = self._wrapper(5_000, 3_865)
 
         compacted = await capability.before_model_request(
-            _run_context(), _request_context(list(history))
+            _run_context(messages=history), _request_context(list(history))
         )
 
         assert len(compacted.messages) == len(history)
@@ -445,7 +487,7 @@ class TestAWindowWithNoRoomForASummary:
         capability.gauge = ContextGauge(overhead=3_865)
 
         compacted = await capability.before_model_request(
-            _run_context(), _request_context(list(history))
+            _run_context(messages=history), _request_context(list(history))
         )
 
         assert len(compacted.messages) == len(history)
@@ -456,7 +498,7 @@ class TestAWindowWithNoRoomForASummary:
         capability, history = self._wrapper(5_000, None)
 
         compacted = await capability.before_model_request(
-            _run_context(), _request_context(list(history))
+            _run_context(messages=history), _request_context(list(history))
         )
 
         assert len(compacted.messages) < len(history)
@@ -530,7 +572,7 @@ class TestAWindowWithNoRoomForASummary:
         capability.wrapped.context_window = 5_000
 
         compacted = await capability.before_model_request(
-            _run_context(), _request_context(list(history))
+            _run_context(messages=history), _request_context(list(history))
         )
 
         assert len(compacted.messages) < len(history)
@@ -819,11 +861,83 @@ class TestToolPairingSurvives:
             wrapped=build_strategy(_triggers_immediately("sliding_window", keep_messages=3))
         )
         request_context = await capability.before_model_request(
-            _run_context(), _request_context(list(history))
+            _run_context(messages=history), _request_context(list(history))
         )
 
         assert len(request_context.messages) < len(history)
         assert _orphaned_returns(request_context.messages) == set()
+
+
+class TestTheSummaryInheritsTheRun:
+    """The summariser writes through an `Agent` no `BudgetGuard` wraps, so it
+    inherits the run's content mode and model settings and is refused at a cap
+    (agenticos#1808 through #1810)."""
+
+    @staticmethod
+    def _summariser(config: CompactionConfig) -> NotifyingSummarizingCompaction[Any]:
+        strategy = build_strategy(config)
+        assert isinstance(strategy, NotifyingSummarizingCompaction)
+        return strategy
+
+    @staticmethod
+    def _exhausted() -> BudgetGuard:
+        return BudgetGuard(
+            limits=[SpendLimit(scope=BudgetScope.ORGANIZATION, limit_usd=Decimal(0))]
+        )
+
+    async def test_content_off_pins_a_content_free_summary_model(self):
+        strategy = self._summariser(_triggers_immediately("summarize"))
+        ctx: RunContext[None] = RunContext(
+            deps=None, model=TestModel(), usage=RunUsage(), trace_include_content=False
+        )
+        with patch.object(SummarizingCompaction, "compact", AsyncMock(return_value=[])):
+            await strategy.compact([_user("x")], ctx)
+            first = strategy.model
+            # A second pass leaves the wrapped model in place rather than re-wrapping.
+            await strategy.compact([_user("x")], ctx)
+        assert strategy.model is first
+        assert isinstance(strategy.model, InstrumentedModel)
+        assert strategy.model.instrumentation_settings.include_content is False
+
+    async def test_the_summary_inherits_the_runs_model_settings(self):
+        strategy = self._summariser(_triggers_immediately("summarize"))
+        ctx: RunContext[None] = RunContext(
+            deps=None, model=TestModel(), usage=RunUsage(), model_settings={"temperature": 0.2}
+        )
+        with patch.object(SummarizingCompaction, "compact", AsyncMock(return_value=[])):
+            await strategy.compact([_user("x")], ctx)
+        assert strategy.model_settings == {"temperature": 0.2}
+
+    async def test_a_realtime_run_leaves_the_summary_model_unset(self):
+        """The `isinstance(ctx.model, Model)` guard: a non-request-response model is
+        left for the harness to reject, and `self.model` stays `None`."""
+        strategy = self._summariser(_triggers_immediately("summarize"))
+        ctx: RunContext[None] = RunContext(deps=None, model=object(), usage=RunUsage())
+        with patch.object(SummarizingCompaction, "compact", AsyncMock(return_value=[])):
+            await strategy.compact([_user("x")], ctx)
+        assert strategy.model is None
+
+    async def test_at_a_cap_the_summary_is_skipped_and_history_unchanged(self):
+        strategy = self._summariser(_triggers_immediately("summarize"))
+        history = [_user("x") for _ in range(5)]
+        ctx: RunContext[None] = RunContext(deps=None, model=TestModel(), usage=RunUsage())
+        with (
+            patch.object(SummarizingCompaction, "compact", AsyncMock(return_value=[])) as summary,
+            guarded_by(self._exhausted()),
+        ):
+            result = await strategy.compact(history, ctx)
+        assert result == history
+        assert summary.await_count == 0
+
+    async def test_a_zero_llm_strategy_still_runs_at_a_cap(self):
+        """Clearing and sliding call no model, so a cap does not reach them - only
+        the summary is skipped."""
+        strategy = build_strategy(_triggers_immediately("sliding_window", keep_messages=2))
+        history = [_user("x") for _ in range(5)]
+        ctx: RunContext[None] = RunContext(deps=None, model=TestModel(), usage=RunUsage())
+        with guarded_by(self._exhausted()):
+            compacted = await strategy.compact(history, ctx)
+        assert len(compacted) < len(history)
 
 
 def _ctx_with(sink: object) -> RunContext[Any]:

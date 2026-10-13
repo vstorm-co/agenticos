@@ -148,15 +148,10 @@ test.describe("Vault", () => {
       path: "/api/secrets",
     });
 
-    // Reloaded, and this is a concession to a live bug rather than a nicety.
-    // `submitDialog` has already proved the write was accepted and the dialog
-    // closed, so the list on screen *should* hold the row — and about once in
-    // eight runs it does not (#230: the row is committed, both server layers
-    // answer a list containing it, and the page keeps rendering the one without
-    // it). Asserting on it without a reload is asserting on that bug, which is
-    // how this spec came to flake as #130. What is under test here is rotation;
-    // the fresh load is how it gets a list it can trust to start from.
-    await page.reload();
+    // No reload: the store mutation cancels any in-flight secrets read before it
+    // invalidates, so the list refetch is a fresh post-write one rather than a
+    // pre-write fetch it deduped onto and rendered - the flake #130 was (once in
+    // eight runs the row was committed but the page kept the list without it).
     await expect(row(page, name)).toContainText("····AAAA");
     const before = await secretId(page, name);
 
@@ -176,7 +171,6 @@ test.describe("Vault", () => {
       method: "PATCH",
     });
 
-    await page.reload(); // #230, as above
     await expect(row(page, name)).toContainText("····BBBB");
     expect(await secretId(page, name), "rotation replaced the row instead of its value").toBe(
       before,
@@ -242,7 +236,8 @@ test.describe("Vault", () => {
     expect(refreshed, "the client never tried to refresh, so it never retried either").toBe(true);
     await page.unroute("**/api/secrets");
     await page.unroute("**/api/auth/refresh");
-    await page.reload(); // #230, as in the rotation spec above
+    // No reload here either: the mutation's cancel-then-invalidate refetch (#130)
+    // brings the row in on its own.
     await expect(row(page, name)).toContainText("····CCCC");
 
     // Through the UI, so the route interception is not what deletes it.

@@ -104,8 +104,27 @@ class ChannelPost:
     """One message already in the channel."""
 
     author: str
+    """What a reader sees - a username where the platform resolves one."""
+
     text: str
     posted_at: datetime | None = None
+
+    post_id: str | None = None
+    """The platform's own id for this message, where the adapter carries one.
+
+    What excludes the current turn from a thread backfill. Comparing text failed
+    silently: the adapter strips the bot's mention out of the live message, so the
+    same post came back from the history API looking different and the model was
+    handed the question twice - once as the prompt and once inside a block
+    labelled as other people's words.
+    """
+
+    author_id: str | None = None
+    """The author as the access policy names them, where the adapter has it.
+
+    `author` is for reading and may be a display name; a whitelist is keyed on
+    the platform's user id, so admitting a backfilled speaker needs this one.
+    """
 
 
 class ChannelDirectory(Protocol):

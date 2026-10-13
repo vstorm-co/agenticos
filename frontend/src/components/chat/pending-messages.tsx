@@ -24,7 +24,7 @@ export function PendingMessages({ messages, onCancel }: PendingMessagesProps) {
 
   return (
     <div className="border-border bg-card mb-2 rounded-2xl border px-3 py-2">
-      <div className="text-foreground/55 mb-1.5 flex items-center gap-1.5 font-mono text-[10px] tracking-wider uppercase">
+      <div className="text-muted-foreground mb-1.5 flex items-center gap-1.5 font-mono text-[11px] tracking-wider uppercase">
         <Clock className="h-3 w-3" />
         {t("queuedSendsAfterCurrent")}
       </div>
@@ -37,13 +37,13 @@ export function PendingMessages({ messages, onCancel }: PendingMessagesProps) {
               "bg-foreground/[0.03] hover:bg-foreground/[0.06] transition-colors",
             )}
           >
-            <span className="text-foreground/45 mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center font-mono text-[10px]">
+            <span className="text-muted-foreground mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center font-mono text-[11px]">
               {i + 1}
             </span>
             <div className="min-w-0 flex-1">
               <p className="text-foreground line-clamp-2 break-words">{m.content}</p>
               {m.files && m.files.length > 0 && (
-                <p className="text-foreground/55 mt-0.5 inline-flex items-center gap-1 font-mono text-[10px] tracking-wider uppercase">
+                <p className="text-muted-foreground mt-0.5 inline-flex items-center gap-1 font-mono text-[11px] tracking-wider uppercase">
                   <Paperclip className="h-3 w-3" />
                   {t("fileCount", { count: m.files.length })}
                 </p>
@@ -52,7 +52,7 @@ export function PendingMessages({ messages, onCancel }: PendingMessagesProps) {
             <button
               type="button"
               onClick={() => onCancel(m.id)}
-              className="text-foreground/45 hover:bg-foreground/10 hover:text-destructive inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors"
+              className="text-muted-foreground hover:bg-foreground/10 hover:text-destructive inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors"
               title={t("removeFromQueue")}
               aria-label={t("removeFromQueue")}
             >

@@ -62,6 +62,15 @@ class TestSummary:
         assert summary.mode == "inject"
         assert summary.name == "glossary"
 
+    def test_the_summary_carries_an_excerpt_rather_than_the_body(self):
+        file = _file()
+        file.content = "# Glossary\n\n" + "\n".join(f"term {n}" for n in range(50))
+
+        summary = _summary(file)
+
+        assert summary.excerpt.startswith("# Glossary\n\nterm 0")
+        assert "term 49" not in summary.excerpt
+
 
 class TestGet:
     async def test_a_missing_file_is_not_found(self):

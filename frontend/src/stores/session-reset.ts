@@ -1,6 +1,7 @@
 "use client";
 
 import { useAgentSelectionStore } from "./agent-selection-store";
+import { useBrowserPanelStore } from "./browser-panel-store";
 import { useChatStore } from "./chat-store";
 import { useConversationStore } from "./conversation-store";
 import { useFilePreviewStore } from "./file-preview-store";
@@ -11,10 +12,10 @@ import { useSourcesPanelStore } from "./sources-panel-store";
 /**
  * Empty every store holding something that belonged to one organization.
  *
- * Conversations, agents, the documents behind a retrieved answer and a running
- * onboarding flow all belong to a tenant, and none of them live in the query
- * cache: they are module-scope stores, so dropping the cache on a switch does not
- * touch them. Without this, selecting another organization left the previous one's
+ * Conversations, agents, the documents behind a retrieved answer, the page a
+ * browse was looking at and a running onboarding flow all belong to a tenant, and
+ * none of them live in the query cache: they are module-scope stores, so dropping
+ * the cache on a switch does not touch them. Without this, selecting another organization left the previous one's
  * open conversation, its streamed messages, the file being previewed and the
  * sources behind the last answer on screen underneath the new organization's name.
  *
@@ -30,6 +31,11 @@ export function resetTenantState(): void {
   // and those are the previous tenant's documents. Nothing renders them while
   // the panel is shut, which is the only reason it never showed.
   useSourcesPanelStore.setState({ isOpen: false, sources: [], highlightedIndex: null });
+  // And the browse panel, which is drawn over whatever transcript is on screen
+  // and would otherwise open the new tenant's conversation on the previous
+  // one's page. Its width is a property of the window rather than the tenant, so
+  // that is left where somebody dragged it.
+  useBrowserPanelStore.setState({ openCallId: null });
   useAgentSelectionStore.getState().select(null);
   useAgentSelectionStore.getState().setDefault(null);
   // The guided flow is tenant-coupled too: it holds the id of an agent built in

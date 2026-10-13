@@ -23,8 +23,9 @@ import { NAV_GROUPS } from "@/components/layout/app-sidebar";
 import type { PageTab } from "@/components/dashboard/page-tabs";
 import { useAuth } from "@/hooks";
 import { usePermissions } from "@/hooks/use-permissions";
+import { usePublicConfig } from "@/components/public-config/public-config-provider";
 import { apiClient } from "@/lib/api-client";
-import { BACKEND_URL, ROUTES } from "@/lib/constants";
+import { ROUTES } from "@/lib/constants";
 import { qk } from "@/lib/query-keys";
 import { isAppAdmin } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
@@ -65,6 +66,7 @@ export function CommandPalette() {
   const t = useTranslations("nav");
   const { user, logout } = useAuth();
   const { can } = usePermissions();
+  const { apiUrl } = usePublicConfig();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const admin = isAppAdmin(user);
@@ -146,24 +148,24 @@ export function CommandPalette() {
       label={t("commandPalette")}
       shouldFilter
       overlayClassName="bg-background/50 fixed inset-0 z-[60] backdrop-blur-sm"
-      contentClassName="glass text-foreground fixed left-1/2 top-[12vh] z-[61] w-[min(92vw,640px)] -translate-x-1/2 overflow-hidden rounded-2xl"
+      contentClassName="panel text-foreground fixed left-1/2 top-[12vh] z-[61] w-[min(92vw,640px)] -translate-x-1/2 overflow-hidden rounded-2xl"
     >
       <div className="border-foreground/10 flex items-center gap-3 border-b px-4 py-3">
-        <Search className="text-foreground/45 h-4 w-4" />
+        <Search className="text-muted-foreground h-4 w-4" />
         <Command.Input
           autoFocus
           value={search}
           onValueChange={setSearch}
           placeholder={t("searchJump")}
-          className="text-foreground placeholder:text-foreground/45 flex-1 bg-transparent text-sm outline-none"
+          className="text-foreground placeholder:text-muted-foreground flex-1 bg-transparent text-sm outline-none"
         />
-        <kbd className="border-foreground/15 text-foreground/55 hidden rounded-md border px-1.5 py-0.5 font-mono text-[10px] sm:inline-block">
+        <kbd className="border-foreground/15 text-muted-foreground hidden rounded-md border px-1.5 py-0.5 font-mono text-[11px] sm:inline-block">
           {t("esc")}
         </kbd>
       </div>
 
       <Command.List className="max-h-[60vh] scrollbar-thin overflow-y-auto px-2 py-2">
-        <Command.Empty className="text-foreground/55 px-4 py-10 text-center text-sm">
+        <Command.Empty className="text-muted-foreground px-4 py-10 text-center text-sm">
           {t("noMatches")}
         </Command.Empty>
 
@@ -176,7 +178,7 @@ export function CommandPalette() {
               setOpen(false);
               // The docs are FastAPI's, served by the backend. The frontend has
               // no /docs route, so the old link opened its 404 page.
-              window.open(`${BACKEND_URL}/docs`, "_blank", "noopener,noreferrer");
+              window.open(`${apiUrl}/docs`, "_blank", "noopener,noreferrer");
             }}
           />
         </Group>
@@ -253,7 +255,7 @@ export function CommandPalette() {
         </Group>
       </Command.List>
 
-      <div className="border-foreground/10 text-foreground/45 flex items-center justify-between border-t px-4 py-2 font-mono text-[10px] tracking-wider uppercase">
+      <div className="border-foreground/10 text-muted-foreground flex items-center justify-between border-t px-4 py-2 font-mono text-[11px] tracking-wider uppercase">
         <span className="inline-flex items-center gap-1.5">
           <kbd className="border-foreground/15 rounded border px-1 py-0.5">↑↓</kbd>
           {t("navigate")}
@@ -271,7 +273,7 @@ function Group({ heading, children }: { heading: string; children: React.ReactNo
   return (
     <Command.Group
       heading={heading}
-      className="[&_[cmdk-group-heading]]:text-foreground/45 [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:pt-3 [&_[cmdk-group-heading]]:pb-1.5 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:uppercase"
+      className="[&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:pt-3 [&_[cmdk-group-heading]]:pb-1.5 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:uppercase"
     >
       {children}
     </Command.Group>
@@ -294,7 +296,7 @@ function PaletteItem({
     >
       <Icon className="h-4 w-4 shrink-0 opacity-70" />
       <span className="flex-1 truncate">{label}</span>
-      <ArrowRight className="text-foreground/30 h-3.5 w-3.5 opacity-0 transition-opacity data-[selected=true]:opacity-100" />
+      <ArrowRight className="text-muted-foreground h-3.5 w-3.5 opacity-0 transition-opacity data-[selected=true]:opacity-100" />
     </Command.Item>
   );
 }

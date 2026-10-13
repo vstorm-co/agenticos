@@ -11,6 +11,18 @@ import { apiClient } from "./api-client";
 import { saveBlob, type FileAccess } from "./file-access";
 import { qk } from "./query-keys";
 import type { KBParsedContent } from "@/types";
+import type { JsonSchema } from "@/types/agents";
+
+/** Narrowing-only business filters (FA-039). None of these can widen access:
+ * the tenant conjunct is server-derived and not expressible here. */
+export interface RetrievalFilters {
+  source?: string[];
+  document_type?: string[];
+  organizational_unit?: string[];
+  date_from?: string; // YYYY-MM-DD
+  date_to?: string; // YYYY-MM-DD
+  parent_doc_id?: string;
+}
 
 export interface RAGSearchRequest {
   query: string;
@@ -18,7 +30,7 @@ export interface RAGSearchRequest {
   collection_names?: string[];
   limit?: number;
   min_score?: number;
-  filter?: string;
+  filters?: RetrievalFilters;
 }
 
 export interface RAGSearchResult {
@@ -83,6 +95,14 @@ export interface SyncSourceCreate {
    * field names this replaced (#937).
    */
   secret_id?: string | null;
+  /**
+   * Which part of the organization this source's documents belong to.
+   *
+   * A per-source default stamped on every chunk it ingests, so retrieval can
+   * narrow on it. Free text, and blank means none - nobody labels a thousand
+   * synced files one at a time (#1777).
+   */
+  organizational_unit?: string | null;
   sync_mode?: string;
   schedule_minutes?: number | null;
 }
@@ -99,6 +119,8 @@ export interface SyncSourceRead {
   secret_id: string | null;
   /** The vault's four-character hint, so a reader can tell which credential. */
   secret_hint?: string | null;
+  /** The per-source default stamped on every chunk this source ingests (#1777). */
+  organizational_unit: string | null;
   sync_mode: string;
   schedule_minutes: number | null;
   is_active: boolean;
@@ -125,28 +147,15 @@ export async function listSyncSources(collectionName?: string): Promise<SyncSour
   return apiClient.get<SyncSourceList>(`/rag/sync/sources${params}`);
 }
 
-/**
- * What the wizard draws for a field, and the whole vocabulary it can draw.
- *
- * Mirrors `ConnectorFieldType` in `app/schemas/sync_source.py`, where a
- * connector's declaration is typed rather than a bare mapping: the fall-through
- * below is a text input, so a connector inventing a fifth type got a field the
- * form collects wrongly and nothing reported it.
- */
-export type ConnectorFieldType = "string" | "boolean" | "integer" | "textarea";
-
-export interface ConnectorConfigField {
-  type: ConnectorFieldType;
-  required: boolean;
-  label: string;
-  help?: string;
-  default?: unknown;
-}
-
 export interface ConnectorInfo {
   type: string;
   name: string;
-  config_schema: Record<string, ConnectorConfigField>;
+  /**
+   * The JSON Schema of the connector's `CONFIG_MODEL`, the same shape a
+   * capability publishes - so the wizard draws it with `SchemaForm` unadapted
+   * (#1093).
+   */
+  config_schema: JsonSchema;
   /**
    * What kind of vault secret this connector authenticates with - so the wizard
    * offers the organization's matching credentials and nothing else. `none` for
@@ -171,6 +180,7 @@ export interface RAGSyncLog {
   updated: number;
   skipped: number;
   failed: number;
+  removed: number;
   error_message: string | null;
   started_at: string | null;
   completed_at: string | null;

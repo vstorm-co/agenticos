@@ -61,7 +61,14 @@ export default defineConfig({
         // cards #149 added are outside the gate, and pulling them in with a
         // directory glob would make this branch responsible for covering them.
         "src/components/dashboard/widgets/sandbox-*.tsx",
+        // The routines card, held to the gate by #594's own "done when".
+        "src/components/dashboard/widgets/routines.tsx",
+        // The notifications card (#1598).
+        "src/components/dashboard/widgets/notifications.tsx",
+        "src/components/dashboard/widgets/artifacts.tsx",
+        "src/components/artifacts/**/*.tsx",
         "src/components/orgs/**/*.tsx",
+        "src/components/public-config/**/*.tsx",
         "src/components/runs/**/*.tsx",
         "src/components/sandboxes/**/*.tsx",
         // One file viewer for every surface (#136). Held to the gate because what
@@ -70,11 +77,19 @@ export default defineConfig({
         // moving them out of the list would have been a coverage regression
         // dressed up as a refactor.
         "src/components/files/**/*.tsx",
+        "src/components/ui/doc-peek.tsx",
+        "src/components/ui/text-peek.tsx",
         "src/components/chat/usage-strip.tsx",
         "src/components/chat/attachment-card.tsx",
+        "src/components/chat/browser-card.tsx",
+        "src/components/chat/browser-panel.tsx",
+        "src/components/chat/browser-view.tsx",
         "src/components/chat/tool-results/**/*.tsx",
         "src/components/chat/chart-message.tsx",
         "src/components/chat/chat-controls.tsx",
+        "src/components/chat/connect-account-prompt.tsx",
+        "src/components/chat/connect-services-card.tsx",
+        "src/components/chat/your-connections.tsx",
         "src/components/chat/chat-empty-state.tsx",
         "src/components/chat/conversation-filters.tsx",
         "src/components/chat/copy-button.tsx",
@@ -86,6 +101,8 @@ export default defineConfig({
         "src/components/chat/message-item.tsx",
         "src/components/chat/message-list.tsx",
         "src/components/chat/pending-messages.tsx",
+        "src/components/chat/plan-checklist.tsx",
+        "src/components/chat/plan-strip.tsx",
         "src/components/chat/rating-buttons.tsx",
         "src/components/chat/slash-command-palette.tsx",
         "src/components/chat/share-dialog.tsx",
@@ -94,9 +111,14 @@ export default defineConfig({
         "src/components/chat/tool-call-card.tsx",
         "src/components/chat/tool-approval-dialog.tsx",
         "src/components/chat/workspace-files.tsx",
-        "src/components/sharing/**/*.tsx",
+        // `.ts` too: the grant-subject helpers the panel's rows share live beside it.
+        "src/components/sharing/**/*.{ts,tsx}",
+        // The directory (LDAP) sign-in form (#1773). The rest of `auth/` predates
+        // the gate and is not in it yet; this file is new, so it starts inside.
+        "src/components/auth/directory-login-form.tsx",
         "src/components/skills/**/*.tsx",
         "src/components/context/**/*.tsx",
+        "src/components/memory/**/*.tsx",
       ],
       exclude: [
         "node_modules",

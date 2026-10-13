@@ -30,11 +30,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.services.rag.connectors import RemoteFile
+from app.services.rag.connectors import RemoteFile, RemoteListing
 from app.services.rag.models import IngestionStatus
+from app.services.rag.vectorstore import BaseVectorStore
 from app.worker.tasks import rag_tasks
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("sole_source_run")]
 
 BODY = b"the handbook, unchanged since last night"
 BODY_HASH = hashlib.sha256(BODY).hexdigest()
@@ -49,6 +50,7 @@ def _stored(*, content_hash: str, source_path: str = SOURCE_PATH) -> MagicMock:
     """One row of a collection's document listing, as the store answers it."""
     return MagicMock(
         id="vector-doc-1",
+        document_id="vector-doc-1",
         filename="handbook.md",
         additional_info={"source_path": source_path, "content_hash": content_hash},
     )
@@ -84,11 +86,14 @@ def _connector(*, written: bytes = BODY) -> MagicMock:
 
     return MagicMock(
         list_files=AsyncMock(
-            return_value=[
-                RemoteFile(id="file-1", name="handbook.md", source_path=SOURCE_PATH),
-            ]
+            return_value=RemoteListing(
+                files=[RemoteFile(id="file-1", name="handbook.md", source_path=SOURCE_PATH)]
+            )
         ),
         download_file=AsyncMock(side_effect=download),
+        # What Drive inherits from the base: no version to stop early on.
+        remote_version=AsyncMock(return_value=None),
+        aclose=AsyncMock(),
     )
 
 
@@ -106,8 +111,8 @@ async def _syncing(
     file is skipped, so a stand-in service would be a test of the stand-in.
     """
     store = MagicMock()
-    store.aclose = AsyncMock()
     store.get_documents = AsyncMock(return_value=listing)
+    store.find_existing_document = BaseVectorStore.find_existing_document.__get__(store)
 
     source = MagicMock(
         connector_type="gdrive",
@@ -127,6 +132,9 @@ async def _syncing(
         create_document=AsyncMock(return_value=MagicMock(id=ROW_ID)),
         complete_ingestion=AsyncMock(),
         fail_ingestion=AsyncMock(),
+        unlisted_by_source=AsyncMock(return_value=[]),
+        stale_for_source=AsyncMock(return_value=[]),
+        claim_listed=AsyncMock(),
     )
 
     @asynccontextmanager
@@ -220,6 +228,7 @@ class TestWhichKnowledgeBaseOwnsTheCollection:
         with self._kbs(self._kb(organization_id=None), mine):
             assert await rag_tasks._knowledge_base_for(MagicMock(), "docs", org) is mine
 
+    @pytest.mark.security
     async def test_another_tenants_collection_is_not_borrowed(self):
         with self._kbs(self._kb(organization_id=uuid.uuid4())):
             found = await rag_tasks._knowledge_base_for(MagicMock(), "docs", uuid.uuid4())
@@ -256,15 +265,59 @@ class TestAnUnchangedFile:
     async def test_it_is_skipped_rather_than_embedded_again(self):
         """The cost this exists to avoid. Before the fix a nightly sync
         re-embedded every unchanged file and inserted a second copy of it."""
-        answer, ingest, _ = await _sync(
+        answer, ingest, documents = await _sync(
             mode="new_only",
             listing=[_stored(content_hash=BODY_HASH)],
             connector=_connector(),
         )
 
         ingest.assert_not_awaited()
-        assert answer["skipped"] == 1
-        assert answer["ingested"] == 0
+        assert (answer["skipped"], answer["ingested"], answer["failed"]) == (1, 0, 0)
+        # The source still lists it, so it claims the stored document whichever
+        # source ingested it, and another source dropping it cannot remove it
+        # from under this one (#1879).
+        assert documents.claim_listed.await_args.kwargs["documents"] == {
+            (SOURCE_PATH, "vector-doc-1")
+        }
+
+
+class TestWhatASourceClaims:
+    """Whatever is stored at an address the source lists is the source's too,
+    whichever source ingested it (#1879)."""
+
+    @pytest.mark.parametrize("mode", ["full", "new_only", "update_only"])
+    async def test_the_stored_document_is_claimed_in_every_mode(self, mode: str):
+        _answer, _ingest, documents = await _sync(
+            mode=mode,
+            listing=[_stored(content_hash="a-different-file-entirely")],
+            connector=_connector(),
+        )
+
+        assert documents.claim_listed.await_args.kwargs["documents"] == {
+            (SOURCE_PATH, "vector-doc-1")
+        }
+
+    async def test_a_failed_download_still_claims_it(self):
+        """The file is still listed, so it is still this source's: another source
+        dropping it before this one's next try must not remove it."""
+        connector = _connector()
+        connector.download_file = AsyncMock(side_effect=RuntimeError("the link timed out"))
+
+        answer, _ingest, documents = await _sync(
+            mode="new_only", listing=[_stored(content_hash=BODY_HASH)], connector=connector
+        )
+
+        assert answer["failed"] == 1
+        assert documents.claim_listed.await_args.kwargs["documents"] == {
+            (SOURCE_PATH, "vector-doc-1")
+        }
+
+    async def test_a_file_nothing_stores_claims_nothing(self):
+        _answer, _ingest, documents = await _sync(
+            mode="new_only", listing=[], connector=_connector()
+        )
+
+        documents.claim_listed.assert_not_awaited()
 
     async def test_update_only_skips_it_too(self):
         answer, ingest, _ = await _sync(
@@ -451,11 +504,58 @@ class TestWhatASyncedDocumentLeavesBehind:
                 str(uuid.uuid4()), sync_log_id=str(uuid.uuid4())
             )
 
-        assert answer["failed"] == 0 and answer["ingested"] == 1
+        assert answer["failed"] == 1 and answer["ingested"] == 0
         documents.create_document.assert_awaited_once()
         documents.fail_ingestion.assert_awaited_once()
         assert "page 4" in documents.fail_ingestion.await_args.args[1]
         documents.complete_ingestion.assert_not_awaited()
+
+    async def test_an_exception_after_opening_the_row_still_fails_it(self):
+        """`ingest_file` returning a failure and `ingest_file` *raising* are
+        different code paths, and only the first used to settle the row - an
+        exception (a connector timeout, an out-of-memory parse) left it
+        `PROCESSING` for ever, with no per-file `INGESTION_FAILED` and no
+        `fail_ingestion` call for the retry endpoint's own status check to
+        find."""
+        connector = _connector()
+        async with _syncing(mode="new_only", listing=[], connector=connector) as (
+            ingest,
+            documents,
+        ):
+            ingest.side_effect = RuntimeError("the connector timed out mid-transfer")
+            answer = await rag_tasks._run_source_sync(
+                str(uuid.uuid4()), sync_log_id=str(uuid.uuid4())
+            )
+
+        assert answer["failed"] == 1 and answer["ingested"] == 0
+        documents.create_document.assert_awaited_once()
+        documents.fail_ingestion.assert_awaited_once_with(
+            str(ROW_ID),
+            "The document could not be ingested (RuntimeError) - retry the upload. "
+            "The worker log has the full error.",
+            attempt=1,
+        )
+        documents.complete_ingestion.assert_not_awaited()
+
+    async def test_the_raised_reason_is_summarized_rather_than_stored_whole(self):
+        """`rag_documents.error_message` is rendered to everyone who can see
+        the collection, and a connector's own exception carries the endpoint
+        it was talking to - with whatever its query string holds (#423). This
+        settlement was the one stored failure still passing `str(e)`."""
+        connector = _connector()
+        async with _syncing(mode="new_only", listing=[], connector=connector) as (
+            ingest,
+            documents,
+        ):
+            ingest.side_effect = RuntimeError(
+                "GET https://files.example.com/v1/download?token=s3cr3t failed: 403"
+            )
+            await rag_tasks._run_source_sync(str(uuid.uuid4()), sync_log_id=str(uuid.uuid4()))
+
+        stored = documents.fail_ingestion.await_args.args[1]
+        assert "s3cr3t" not in stored
+        assert "files.example.com" not in stored
+        assert stored.startswith("The document could not be ingested (RuntimeError)")
 
 
 class TestAStoredDocumentWithNoHash:
@@ -481,8 +581,10 @@ class TestAListingTheStoreCannotAnswer:
         unchanged, and the sync that believed it would leave the collection
         stale with nothing said."""
         store_error = MagicMock()
-        store_error.aclose = AsyncMock()
         store_error.get_documents = AsyncMock(side_effect=RuntimeError("no such table"))
+        store_error.find_existing_document = BaseVectorStore.find_existing_document.__get__(
+            store_error
+        )
 
         connector = _connector()
         source = MagicMock(
@@ -526,6 +628,8 @@ class TestAListingTheStoreCannotAnswer:
                     create_document=AsyncMock(return_value=MagicMock(id=ROW_ID)),
                     complete_ingestion=AsyncMock(),
                     fail_ingestion=AsyncMock(),
+                    unlisted_by_source=AsyncMock(return_value=[]),
+                    stale_for_source=AsyncMock(return_value=[]),
                 ),
             ),
         ):
@@ -551,11 +655,13 @@ class TestTheLocalDirectorySync:
     @staticmethod
     @asynccontextmanager
     async def _syncing(*, result: MagicMock) -> Any:
-        store = MagicMock(aclose=AsyncMock(), get_documents=AsyncMock(return_value=[]))
+        store = MagicMock(get_documents=AsyncMock(return_value=[]))
         documents = MagicMock(
             create_document=AsyncMock(return_value=MagicMock(id=ROW_ID)),
             complete_ingestion=AsyncMock(),
             fail_ingestion=AsyncMock(),
+            unlisted_by_source=AsyncMock(return_value=[]),
+            stale_for_source=AsyncMock(return_value=[]),
         )
 
         @asynccontextmanager
@@ -567,7 +673,6 @@ class TestTheLocalDirectorySync:
             patch.object(rag_tasks, "EmbeddingService", new=MagicMock()),
             patch.object(rag_tasks, "get_worker_db_context", new=_db),
             patch.object(rag_tasks, "_record_embedding_spend", new=AsyncMock()),
-            patch.object(rag_tasks, "_config_for_collection", new=AsyncMock()),
             patch.object(rag_tasks, "IngestionConfigService") as config_service,
             patch.object(
                 rag_tasks.IngestionService, "ingest_file", new=AsyncMock(return_value=result)
@@ -582,9 +687,51 @@ class TestTheLocalDirectorySync:
                 ),
             ),
             patch("app.services.rag_document.RAGDocumentService", return_value=documents),
+            patch.object(rag_tasks, "assert_organization_within_budget", new=AsyncMock()),
         ):
             config_service.return_value.build_processor = AsyncMock(return_value=MagicMock())
+            config_service.return_value.resolved_image_model = AsyncMock(return_value=None)
             yield documents
+
+    @pytest.mark.security
+    async def test_it_stamps_the_rows_with_the_authorized_bases_tenant(self, tmp_path: Path):
+        """The route resolved and authorized a knowledge base and passes its id; the
+        flow loads it and stamps every row with that base's tenant and organization,
+        rather than writing them untagged into an org-backed collection where normal
+        reads would never see them (#1684)."""
+        org = uuid.uuid4()
+        kb = MagicMock(
+            id=uuid.uuid4(),
+            organization_id=org,
+            vector_tenant=org,
+            ingestion_config={},
+            embedding_model="text-embedding-3-small",
+        )
+        (tmp_path / "handbook.md").write_text("body")
+
+        captured: dict[str, Any] = {}
+
+        @asynccontextmanager
+        async def _ingestion(*, processor: Any, organization_id: Any, tenant: Any) -> Any:
+            captured["tenant"] = tenant
+            captured["organization_id"] = organization_id
+            yield MagicMock(ingest_file=AsyncMock(return_value=_result()))
+
+        async with self._syncing(result=_result()) as documents:
+            with (
+                patch.object(
+                    rag_tasks.knowledge_base_repo, "get_by_id", new=AsyncMock(return_value=kb)
+                ),
+                patch.object(rag_tasks, "_ingestion_service", new=_ingestion),
+            ):
+                await rag_tasks._run_sync(
+                    str(uuid.uuid4()), "local", "docs", "full", str(tmp_path), str(kb.id)
+                )
+
+        assert captured == {"tenant": org, "organization_id": org}
+        created = documents.create_document.await_args.kwargs
+        assert created["organization_id"] == org
+        assert created["knowledge_base_id"] == kb.id
 
     async def test_a_file_that_failed_to_parse_keeps_its_own_reason(self, tmp_path: Path):
         (tmp_path / "handbook.md").write_text("body")
@@ -615,3 +762,129 @@ class TestTheLocalDirectorySync:
             await rag_tasks._run_sync(str(uuid.uuid4()), "local", "docs", "full", str(tmp_path))
 
         assert documents.create_document.await_args.kwargs["ingestion_config"] is not None
+
+
+class TestBlockingWorkRunsOffTheLoop:
+    """The worker's file walk, hash and stat go through `asyncio.to_thread`, so a
+    large tree or file does not stall its event loop (#1100)."""
+
+    async def test_the_file_hash_is_computed_off_the_worker_loop(self):
+        """The skip path hashes the downloaded file; the probe records which
+        thread ran the hash. On the loop thread it would fail - which is what a
+        direct `_hash_file(...)` call, before the offload, did."""
+        import threading
+
+        loop_thread = threading.get_ident()
+        seen: dict[str, int] = {}
+        real = rag_tasks._hash_file
+
+        def _probe(path: Path) -> str:
+            seen["thread"] = threading.get_ident()
+            return real(path)
+
+        with patch.object(rag_tasks, "_hash_file", _probe):
+            answer, ingest, _ = await _sync(
+                mode="new_only",
+                listing=[_stored(content_hash=BODY_HASH)],
+                connector=_connector(),
+            )
+
+        assert answer["skipped"] == 1  # the hash path ran
+        ingest.assert_not_awaited()
+        assert seen["thread"] != loop_thread
+
+    def test_hash_file_is_the_files_sha256(self, tmp_path: Path):
+        path = tmp_path / "handbook.md"
+        path.write_bytes(BODY)
+        assert rag_tasks._hash_file(path) == BODY_HASH
+
+    def test_walk_files_lists_non_hidden_files_recursively(self, tmp_path: Path):
+        (tmp_path / "a.md").write_text("x")
+        (tmp_path / ".hidden.md").write_text("x")
+        nested = tmp_path / "sub"
+        nested.mkdir()
+        (nested / "b.md").write_text("x")
+
+        names = sorted(f.name for f in rag_tasks._walk_files(tmp_path))
+
+        assert names == ["a.md", "b.md"]  # recursive, no hidden files, no directories
+
+
+class TestASyncLogPassedInIsNotLeftRunning:
+    """`trigger_sync` creates the `SyncLog` before dispatching the flow and hands
+    it that log's id; a flow that refuses before the log is ever read again -
+    an unknown connector, or a source whose collection was cleared between
+    `trigger_sync`'s check and this flow actually running - must complete that
+    log as errored rather than leave it `running` forever with nothing left to
+    ever finish it."""
+
+    @staticmethod
+    def _source(**overrides: Any) -> MagicMock:
+        source = MagicMock(
+            connector_type="gdrive", collection_name="docs", config={}, organization_id=uuid.uuid4()
+        )
+        for key, value in overrides.items():
+            setattr(source, key, value)
+        return source
+
+    @staticmethod
+    @asynccontextmanager
+    async def _refusing(*, source: MagicMock) -> Any:
+        sources = MagicMock(
+            get_source=AsyncMock(return_value=source), update_after_sync=AsyncMock()
+        )
+        sync_svc = MagicMock(complete_sync=AsyncMock())
+
+        @asynccontextmanager
+        async def _db() -> Any:
+            yield MagicMock()
+
+        with (
+            patch.object(rag_tasks, "get_worker_db_context", new=_db),
+            patch.object(rag_tasks, "SyncSourceService", return_value=sources),
+            patch("app.services.rag_sync.RAGSyncService", return_value=sync_svc),
+            # This class is about `complete_sync`/`update_after_sync`, not the
+            # whole-attempt notification write the same branch also makes
+            # (#1598) - covered separately in `tests/test_notifications.py`
+            # and `tests/test_coverage_edges.py`. Left real, `sync_failed`
+            # would resolve `_knowledge_base_for` and an audience against this
+            # fixture's plain `MagicMock` database.
+            patch.object(rag_tasks, "_knowledge_base_for", new=AsyncMock(return_value=None)),
+            patch.object(rag_tasks, "NotificationService", return_value=AsyncMock()),
+        ):
+            yield sources, sync_svc
+
+    async def test_an_unknown_connector_completes_the_passed_in_log_as_errored(self):
+        log_id = str(uuid.uuid4())
+        source = self._source(connector_type="not_a_real_connector")
+        async with self._refusing(source=source) as (sources, sync_svc):
+            answer = await rag_tasks._run_source_sync(str(uuid.uuid4()), sync_log_id=log_id)
+
+        assert answer["status"] == "error"
+        sync_svc.complete_sync.assert_awaited_once()
+        assert sync_svc.complete_sync.await_args.args[0] == log_id
+        assert sync_svc.complete_sync.await_args.kwargs["status"] == "error"
+        sources.update_after_sync.assert_awaited_once()
+
+    async def test_a_source_with_no_collection_completes_the_passed_in_log_as_errored(self):
+        log_id = str(uuid.uuid4())
+        source = self._source(collection_name=None)
+        async with self._refusing(source=source) as (_sources, sync_svc):
+            answer = await rag_tasks._run_source_sync(str(uuid.uuid4()), sync_log_id=log_id)
+
+        assert answer["status"] == "error"
+        sync_svc.complete_sync.assert_awaited_once()
+        assert sync_svc.complete_sync.await_args.args[0] == log_id
+        assert sync_svc.complete_sync.await_args.kwargs["status"] == "error"
+
+    async def test_a_scheduler_dispatch_with_no_log_yet_tries_to_complete_none(self):
+        """No `sync_log_id` means no log was ever created for this attempt - the
+        source's own `last_sync_status` is still set, but there is nothing to
+        complete, and the call must not be made with a log id of `None`."""
+        source = self._source(collection_name=None)
+        async with self._refusing(source=source) as (sources, sync_svc):
+            answer = await rag_tasks._run_source_sync(str(uuid.uuid4()), sync_log_id=None)
+
+        assert answer["status"] == "error"
+        sync_svc.complete_sync.assert_not_awaited()
+        sources.update_after_sync.assert_awaited_once()

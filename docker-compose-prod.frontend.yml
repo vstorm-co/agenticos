@@ -1,6 +1,15 @@
 # The frontend in production. `make prod-frontend`.
 #
-#   docker compose --env-file backend/.env -f docker-compose-prod.frontend.yml up -d --build
+#   docker compose -p agenticos-frontend --env-file backend/.env \
+#     -f docker-compose-prod.frontend.yml pull
+#   docker compose -p agenticos-frontend --env-file backend/.env \
+#     -f docker-compose-prod.frontend.yml up -d
+#
+# `-p` is not optional and not tidiness. Compose names a project after the
+# directory, so without it this shares one with `docker-compose-prod.yml` - and
+# reports that stack's five containers as **orphans** of this one, suggesting the
+# `--remove-orphans` flag that would stop the API, the database, Redis and both
+# Prefect services.
 #
 # Start `docker-compose-prod.yml` first: this joins the `edge` network it creates
 # and declares it `external: true`, so bringing the frontend up without a backend
@@ -9,29 +18,30 @@
 # It joins `edge` rather than `data`: it talks to the app and to the browser, and
 # has no business reaching Postgres.
 #
-# `NEXT_PUBLIC_*` are **build** arguments — Next inlines them into the browser
-# bundle, so they must be the public URLs and a change means a rebuild. Getting
-# this wrong is the classic "works on the server, broken in the browser" bug:
-# SSR keeps working over the compose network while every client-side call goes to
-# whatever hostname was baked in.
+# `PUBLIC_*` are what the console tells the *browser* to call, so they must be
+# the public URLs, not container names. Getting one wrong is the classic "works
+# on the server, broken in the browser" bug: SSR keeps working over the compose
+# network while every client-side call goes to the wrong host. They are read
+# when the container starts (#1544), so the image is the published one and a
+# change is a restart rather than a rebuild.
 
 services:
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      args:
-        - NEXT_PUBLIC_API_URL=${PUBLIC_API_URL:?PUBLIC_API_URL is required, e.g. https://api.example.com}
-        - NEXT_PUBLIC_WS_URL=${PUBLIC_WS_URL:?PUBLIC_WS_URL is required, e.g. wss://api.example.com}
-        - NEXT_PUBLIC_SITE_URL=${PUBLIC_SITE_URL:?PUBLIC_SITE_URL is required, e.g. https://app.example.com}
-        - NEXT_PUBLIC_CHAT_MAX_UPLOAD_SIZE_MB=${CHAT_MAX_UPLOAD_SIZE_MB:-10}
-        - NEXT_PUBLIC_OAUTH_PROVIDERS=${OAUTH_PROVIDERS:-google}
-        - NEXT_PUBLIC_RAG_ENABLED=${RAG_ENABLED:-true}
-    image: agenticos_frontend:prod
-    container_name: agenticos_frontend
+    image: ghcr.io/vstorm-co/agenticos-frontend:${AGENTICOS_VERSION:-latest}
     environment:
       - NODE_ENV=production
       - BACKEND_URL=http://app:8000
+      - PUBLIC_API_URL=${PUBLIC_API_URL:?PUBLIC_API_URL is required, e.g. https://api.example.com}
+      - PUBLIC_WS_URL=${PUBLIC_WS_URL:?PUBLIC_WS_URL is required, e.g. wss://api.example.com}
+      - PUBLIC_SITE_URL=${PUBLIC_SITE_URL:?PUBLIC_SITE_URL is required, e.g. https://app.example.com}
+      # Where artifact pages are framed from, when not the API origin above.
+      - ARTIFACT_ORIGIN=${ARTIFACT_ORIGIN:-}
+      - CHAT_MAX_UPLOAD_SIZE_MB=${CHAT_MAX_UPLOAD_SIZE_MB:-10}
+      - OAUTH_PROVIDERS=${OAUTH_PROVIDERS:-google}
+      - OIDC_DISPLAY_NAME=${OIDC_DISPLAY_NAME:-}
+      - OIDC_ICON=${OIDC_ICON:-}
+      - LDAP_DISPLAY_NAME=${LDAP_DISPLAY_NAME:-}
+      - KERBEROS_DISPLAY_NAME=${KERBEROS_DISPLAY_NAME:-}
       # `instrumentation.ts` registers an OpenTelemetry SDK on every boot, and
       # `@vercel/otel` off Vercel takes its exporter from these two - so without
       # them the frontend's server-side spans are built and dropped in-process.
@@ -41,7 +51,14 @@ services:
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       - OTEL_EXPORTER_OTLP_HEADERS=${OTEL_EXPORTER_OTLP_HEADERS:-}
     ports:
-      - "3000:3000"
+      # Loopback by default. The reverse proxy in front of this stack runs on
+      # the host and reaches it here; nothing else on the network does. That
+      # matters beyond the usual: the BFF forwards the caller's
+      # `X-Forwarded-For` to the backend's auth rate limiter, and where
+      # `RATE_LIMIT_TRUST_FORWARDED_FOR` is on, anything that can reach this
+      # port directly chooses the address its login attempts are counted
+      # against. `BIND_HOST=0.0.0.0` for a proxy that is genuinely elsewhere.
+      - "${BIND_HOST:-127.0.0.1}:3000:3000"
     networks:
       edge:
         # `nginx/nginx.conf` proxies to `frontend:3000`.
@@ -63,5 +80,5 @@ services:
 
 networks:
   edge:
-    name: agenticos_edge
+    name: ${AGENTICOS_EDGE_NETWORK:-agenticos_edge}
     external: true

@@ -7,6 +7,8 @@ import {
   Link2,
   Loader2,
   MailPlus,
+  Network,
+  Archive,
   ShieldCheck,
   Trash2,
   UserPlus,
@@ -16,8 +18,15 @@ import { toast } from "sonner";
 
 import { ApiError, getErrorMessage, parseErrorMessage } from "@/lib/api-error";
 import { ErrorState } from "@/components/states";
-import { InviteLinkDialog, InviteMemberDialog, OrgSpendingLimit } from "@/components/teams";
+import {
+  InviteLinkDialog,
+  InviteMemberDialog,
+  OrgApprovalWaiver,
+  OrgSpendingLimit,
+} from "@/components/teams";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { ForgetMemberMemory } from "@/components/memory/forget-member-memory";
+import { DirectoryBadge } from "@/components/orgs/directory-badge";
 import {
   Badge,
   Button,
@@ -68,6 +77,8 @@ export default function OrgMembersPage({ params }: PageProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("pages.orgs");
   const tc = useTranslations("common");
+  const tGroups = useTranslations("groups");
+  const tDirectory = useTranslations("directory");
   const locale = useLocale();
   const { id } = use(params);
   const { user } = useAuth();
@@ -94,6 +105,7 @@ export default function OrgMembersPage({ params }: PageProps) {
   // Derived from the server's permission catalog rather than a role-name check,
   // so adding a role that may manage members needs no change here.
   const canManage = can(Perm.membersManage);
+  const canSettings = can(Perm.orgSettings);
   const pendingInvitations = invitations.filter((i) => i.status === "pending");
 
   // Workspace profile state - name edits stay local until "Save" lands the
@@ -166,7 +178,7 @@ export default function OrgMembersPage({ params }: PageProps) {
                 imageSrc={`/api/users/avatar/${m.user_id}`}
                 hasImage={!!m.avatar_url}
                 colorSlot={m.avatar_color}
-                className="h-8 w-8 shrink-0 text-[10px]"
+                className="h-8 w-8 shrink-0 text-[11px]"
                 ariaHidden
               />
               <div className="min-w-0">
@@ -192,41 +204,54 @@ export default function OrgMembersPage({ params }: PageProps) {
           // the server's answer about *this target*: whether the requester outranks
           // the role the member holds now, which is what stops a peer Admin getting a
           // selector whose only result is a 403 toast (#700).
+          //
+          // A membership the directory sync made says so beside the role, since
+          // changing that role here is also what takes the row off the sync.
+          const synced =
+            m.source === "directory" ? (
+              <DirectoryBadge explanation={tDirectory("memberHint")} />
+            ) : null;
           if (canManage && !isOwner && !isSelf && m.can_change_role && assignable.length > 0) {
             return (
-              <Select value={m.role} onValueChange={(v) => changeRole(m.user_id, v as OrgRole)}>
-                <SelectTrigger
-                  className="h-8 w-32 capitalize"
-                  aria-label={t("roleFor", { email: m.email })}
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {/* The row's own role, when this caller cannot assign it -
+              <div className="flex items-center gap-2">
+                <Select value={m.role} onValueChange={(v) => changeRole(m.user_id, v as OrgRole)}>
+                  <SelectTrigger
+                    className="h-8 w-32 capitalize"
+                    aria-label={t("roleFor", { email: m.email })}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {/* The row's own role, when this caller cannot assign it -
                       a peer Admin, to an Admin. Present because Radix draws the
                       chosen item's text in the trigger, so without it the
                       control renders blank; disabled because assigning it is
                       what they may not do. Demoting that peer still is:
                       `change_role` judges the role being handed out, not the
                       one being replaced (#1028). */}
-                  {!assignable.includes(m.role) && (
-                    <SelectItem value={m.role} disabled className="capitalize">
-                      {m.role}
-                    </SelectItem>
-                  )}
-                  {assignable.map((option) => (
-                    <SelectItem key={option} value={option} className="capitalize">
-                      {option}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                    {!assignable.includes(m.role) && (
+                      <SelectItem value={m.role} disabled className="capitalize">
+                        {m.role}
+                      </SelectItem>
+                    )}
+                    {assignable.map((option) => (
+                      <SelectItem key={option} value={option} className="capitalize">
+                        {option}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {synced}
+              </div>
             );
           }
           return (
-            <Badge variant={ROLE_VARIANT[m.role]} className="capitalize">
-              {m.role}
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Badge variant={ROLE_VARIANT[m.role]} className="capitalize">
+                {m.role}
+              </Badge>
+              {synced}
+            </div>
           );
         },
       },
@@ -248,24 +273,31 @@ export default function OrgMembersPage({ params }: PageProps) {
         cell: (m) => {
           const isSelf = m.user_id === user?.id;
           const isOwner = m.role === "owner";
-          if (isOwner || isSelf) return null;
           return (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-muted-foreground hover:text-destructive"
-              onClick={() => removeMember(m.user_id)}
-              aria-label={tc("removeNamed", { name: m.full_name || m.email })}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
+            <div className="flex items-center justify-end gap-1">
+              {/* Offered for the owner and for yourself too: erasing what agents
+                  wrote about somebody is not a change to their standing in the
+                  organization the way removing them is. */}
+              <ForgetMemberMemory userId={m.user_id} name={m.full_name || m.email} />
+              {!isOwner && !isSelf && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground hover:text-destructive"
+                  onClick={() => removeMember(m.user_id)}
+                  aria-label={tc("removeNamed", { name: m.full_name || m.email })}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
           );
         },
       });
     }
 
     return cols;
-  }, [canManage, user?.id, assignable, changeRole, removeMember]);
+  }, [canManage, user?.id, assignable, changeRole, removeMember, tDirectory]);
 
   return (
     <div className="space-y-6">
@@ -284,6 +316,35 @@ export default function OrgMembersPage({ params }: PageProps) {
                 {t("roles")}
               </Link>
             </Button>
+            {/* For everybody, like the roles: any member reads the groups, because a
+                group is what they pick when sharing something. */}
+            <Button variant="outline" asChild>
+              <Link href={ROUTES.ORG_GROUPS(id)}>
+                <Users className="h-4 w-4" />
+                {tGroups("title")}
+              </Link>
+            </Button>
+            {/* The mappings are readable only with `members:manage`, so the way
+                in is drawn only for those who hold it. */}
+            {canManage ? (
+              <Button variant="outline" asChild>
+                <Link href={ROUTES.ORG_DIRECTORY(id)}>
+                  <Network className="h-4 w-4" />
+                  {tDirectory("navLabel")}
+                </Link>
+              </Button>
+            ) : null}
+            {/* Only for the people who can change it - the page refuses anybody
+                else, and a button that leads to a refusal is a button that
+                teaches nothing (#1420). */}
+            {canSettings ? (
+              <Button variant="outline" asChild>
+                <Link href={ROUTES.ORG_RETENTION(id)}>
+                  <Archive className="h-4 w-4" />
+                  {t("retention")}
+                </Link>
+              </Button>
+            ) : null}
             {canManage ? (
               <>
                 {/* Two ways in, because onboarding a team and inviting one
@@ -358,7 +419,7 @@ export default function OrgMembersPage({ params }: PageProps) {
 
           <div className="min-w-0 flex-1 space-y-3">
             <div>
-              <p className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
+              <p className="text-muted-foreground font-mono text-xs tracking-wider uppercase">
                 {t("workspaceProfile")}
               </p>
               <p className="text-muted-foreground mt-0.5 text-xs">{t("nameAvatarShownAcross")}</p>
@@ -381,7 +442,7 @@ export default function OrgMembersPage({ params }: PageProps) {
               )}
             </div>
             {!canManage && (
-              <p className="text-muted-foreground text-[11px]">{t("onlyOwnersAdminsCan")}</p>
+              <p className="text-muted-foreground text-xs">{t("onlyOwnersAdminsCan")}</p>
             )}
             {canManage && (
               <div>
@@ -396,6 +457,11 @@ export default function OrgMembersPage({ params }: PageProps) {
       {/* The workspace's own spending ceiling sits with its other settings. It
           hides itself from anyone who may not change them. */}
       {org && <OrgSpendingLimit org={org} />}
+
+      {/* And whether a chat session here may waive them. Governance, like the
+          ceiling above it, and hidden from anybody who may not decide an
+          approval in the first place. */}
+      {org && <OrgApprovalWaiver org={org} />}
 
       {/* The table draws its own skeleton from the same column definitions, so
           the header and every column width are already right while it loads -
@@ -448,7 +514,7 @@ export default function OrgMembersPage({ params }: PageProps) {
       {pendingInvitations.length > 0 && (
         <section className="space-y-3">
           <div>
-            <p className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
+            <p className="text-muted-foreground font-mono text-xs tracking-wider uppercase">
               {t("pendingInvitations")}
             </p>
             <h2 className="text-foreground text-sm font-semibold">

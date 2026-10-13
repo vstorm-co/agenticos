@@ -24,7 +24,7 @@ from app.db.models.user import User
 from app.repositories import organization_secret as organization_secret_repo
 from app.services.organization_secret import OrganizationSecretService
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
 async def _member(db) -> User:

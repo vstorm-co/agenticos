@@ -48,6 +48,18 @@ if TYPE_CHECKING:
 
 VECTOR_TABLE_PREFIX = "rag_"
 
+RAG_SAFE_TO_DATE_FN = "rag_safe_to_date"
+"""The immutable SQL helper that converts a stored `doc_date` string to a real
+`date`, or NULL on any non-valid value.
+
+Created once, globally, by the FA-039 prerequisite migration (never by the
+application role at request time). The date filter predicate and the partial
+date index both use this identical expression, so a malformed or impossible
+legacy value (`2025-99-99`) fails closed - excluded from a date filter - rather
+than raising on a `::date` cast, and the index build cannot raise either.
+Requires the migration to have run before any code emits the date predicate.
+"""
+
 VECTOR_INDEX_SUFFIX = "_embedding_idx"
 """What the store appends to a table name for its HNSW index.
 
@@ -57,6 +69,46 @@ length, so a rename in one place without the other silently re-opens the
 truncation below.
 """
 
+VECTOR_SOURCE_PATH_INDEX_SUFFIX = "_srcpath_idx"
+VECTOR_FILENAME_INDEX_SUFFIX = "_fname_idx"
+VECTOR_CONTENT_HASH_INDEX_SUFFIX = "_chash_idx"
+VECTOR_ORG_INDEX_SUFFIX = "_org_idx"
+"""The expression indexes the store builds on the metadata keys the existence
+check looks a document up by (`source_path`, `filename`, `content_hash`) and the
+tenant key every row-level op scopes by (`organization_id`, #1684).
+
+Kept no longer than :data:`VECTOR_INDEX_SUFFIX`, so the HNSW index stays the
+binding constraint on :data:`MAX_COLLECTION_NAME_LENGTH` and every one of these
+survives the same names the embedding index does - the derivation below takes
+the longest of them all, so a suffix that outgrew it would tighten the bound
+rather than silently truncate into the collision below.
+"""
+
+VECTOR_ORG_INDEX_SUFFIX = "_org_idx"
+VECTOR_SOURCE_INDEX_SUFFIX = "_source_idx"
+VECTOR_DOCTYPE_INDEX_SUFFIX = "_doctype_idx"
+VECTOR_ORGUNIT_INDEX_SUFFIX = "_orgunit_idx"
+VECTOR_DOCDATE_INDEX_SUFFIX = "_docdate_idx"
+"""The expression indexes for the FA-039 metadata filter dimensions.
+
+Hash indexes on the equality dimensions (`organization_id`, `source`,
+`document_type`, `organizational_unit`) and a partial btree on the safe date
+expression. All kept no longer than :data:`VECTOR_INDEX_SUFFIX`, for the same
+truncation reason as the lookup-key indexes above.
+"""
+
+_INDEX_SUFFIXES = (
+    VECTOR_INDEX_SUFFIX,
+    VECTOR_SOURCE_PATH_INDEX_SUFFIX,
+    VECTOR_FILENAME_INDEX_SUFFIX,
+    VECTOR_CONTENT_HASH_INDEX_SUFFIX,
+    VECTOR_ORG_INDEX_SUFFIX,
+    VECTOR_SOURCE_INDEX_SUFFIX,
+    VECTOR_DOCTYPE_INDEX_SUFFIX,
+    VECTOR_ORGUNIT_INDEX_SUFFIX,
+    VECTOR_DOCDATE_INDEX_SUFFIX,
+)
+
 _MAX_IDENTIFIER_LENGTH = 63
 """What Postgres keeps of an identifier - `NAMEDATALEN - 1`, in bytes.
 
@@ -65,7 +117,7 @@ a name that got this far the two are the same number.
 """
 
 MAX_COLLECTION_NAME_LENGTH = (
-    _MAX_IDENTIFIER_LENGTH - len(VECTOR_TABLE_PREFIX) - len(VECTOR_INDEX_SUFFIX)
+    _MAX_IDENTIFIER_LENGTH - len(VECTOR_TABLE_PREFIX) - max(len(s) for s in _INDEX_SUFFIXES)
 )
 """The longest collection name every identifier built from it survives.
 

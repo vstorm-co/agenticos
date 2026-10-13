@@ -8,9 +8,11 @@ the organization would read another tenant's log.
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import delete, func, select
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.sandbox_operation import SandboxOperation
@@ -85,5 +87,8 @@ async def delete_older_than(db: AsyncSession, *, cutoff: datetime) -> int:
     and the sweep reads nothing - it counts what it deleted. Grep for this function
     when auditing cross-tenant writes.
     """
-    result = await db.execute(delete(SandboxOperation).where(SandboxOperation.created_at < cutoff))
+    result = cast(
+        CursorResult[Any],
+        await db.execute(delete(SandboxOperation).where(SandboxOperation.created_at < cutoff)),
+    )
     return result.rowcount or 0

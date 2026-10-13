@@ -11,7 +11,7 @@ import type { DashboardWidgetProps } from "./types";
 /** The largest organizations, by people and agents. */
 export function TopOrgsWidget({ title, hint, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.top-orgs");
-  const { organizations, isLoading, error, refetch } = useAdminOrganizations(5);
+  const { organizations, isLoading, error, refetch } = useAdminOrganizations({ limit: 5 });
 
   return (
     <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>

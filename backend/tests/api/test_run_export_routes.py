@@ -65,12 +65,14 @@ class TestGating:
             response = await client.get(f"/api/v1/spend/export?{_SPEND_RANGE}")
         assert response.status_code == 403
 
+    @pytest.mark.security
     async def test_approvals_export_refuses_a_caller_without_approvals_decide(self):
         # Member holds neither runs:view nor approvals:decide.
         async with _client(OrgRoleName.MEMBER.value, _service()) as client:
             response = await client.get(f"/api/v1/approvals/export?{_APPROVAL_RANGE}")
         assert response.status_code == 403
 
+    @pytest.mark.security
     async def test_operator_may_export_the_approvals_record(self):
         service = _service()
         async with _client(OrgRoleName.OPERATOR.value, service) as client:

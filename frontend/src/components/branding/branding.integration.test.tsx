@@ -11,6 +11,7 @@ import { DeploymentGate } from "./deployment-gate";
 import { MaintenanceScreen } from "./maintenance-screen";
 import { apiClient } from "@/lib/api-client";
 import { BUILT_IN_BRANDING, type Branding, type NoticeResponse } from "@/lib/branding";
+import { PAGE_CLEARANCE } from "@/lib/page-clearance";
 
 /**
  * What the deployment's own state does to the product.
@@ -98,6 +99,26 @@ describe("a maintenance window", () => {
     );
 
     expect(screen.queryByText("the dashboard")).not.toBeInTheDocument();
+  });
+
+  it("clears the mobile tab bar, on the one branch that renders no page wrapper", () => {
+    // `DeploymentGate` returns the maintenance screen *instead of*
+    // `PageTransition`, which is where every other page gets its bottom
+    // clearance - so a long custom message ended under the fixed tab bar with
+    // nothing below it to scroll to (#1241). The token rather than the literal,
+    // because a second copy of the calc is a second place to forget the inset.
+    const { container } = render(
+      <DeploymentGate>
+        <p>the dashboard</p>
+      </DeploymentGate>,
+      { wrapper: branded({ maintenanceMode: true }) },
+    );
+
+    expect(container.firstElementChild).toHaveClass(...PAGE_CLEARANCE.split(" "));
+    // And the box has to grow with the message for that padding to land after
+    // it. `min-h-0` here capped it at the viewport, which left `main` unable to
+    // scroll to the end of a long message at all (Codex, P1 on this branch).
+    expect(container.firstElementChild).not.toHaveClass("min-h-0");
   });
 
   it("leaves it open for the administrator who has to end it", () => {

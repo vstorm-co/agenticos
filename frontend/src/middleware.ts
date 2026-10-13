@@ -1,5 +1,5 @@
 import createMiddleware from "next-intl/middleware";
-import { NextResponse, type NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 import {
   LOCALE_COOKIE_MAX_AGE,
@@ -8,6 +8,8 @@ import {
   pickedLocale,
   routing,
 } from "./lib/locale-routing";
+import { readPublicConfig } from "./lib/public-config";
+import { contentSecurityPolicyHeader } from "./lib/security-headers";
 
 const handleI18nRouting = createMiddleware(routing);
 
@@ -64,13 +66,53 @@ function rememberPrefixedLocale(request: NextRequest, response: NextResponse): v
   });
 }
 
-export default function middleware(request: NextRequest): NextResponse {
-  const restored = restorePickedLocale(request);
-  if (restored) return restored;
+/**
+ * A single-use, unguessable value for this request's `script-src 'nonce-…'`.
+ *
+ * 128 random bits, base64. Regenerated per request: a nonce reused across
+ * responses is one an attacker can read from an earlier page and reuse, which is
+ * `'unsafe-inline'` with extra steps (#1624).
+ */
+function generateNonce(): string {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return btoa(String.fromCharCode(...bytes));
+}
 
-  const response = handleI18nRouting(request);
-  rememberPrefixedLocale(request, response);
+/**
+ * Stamp the Content-Security-Policy, which names this deployment's public origins
+ * and this request's script nonce.
+ *
+ * Here and not in `next.config.ts`, whose `headers()` runs at build: `connect-src`
+ * has to allow `PUBLIC_API_URL` and `PUBLIC_WS_URL`, read from the server's
+ * environment on every request (#1544), and the nonce cannot be a build constant.
+ * The rest of the security headers are constants and stay in the config.
+ */
+function withContentSecurityPolicy(response: NextResponse, csp: string): NextResponse {
+  response.headers.set("Content-Security-Policy", csp);
   return response;
+}
+
+export default function middleware(request: NextRequest): NextResponse {
+  const nonce = generateNonce();
+  const { value: csp } = contentSecurityPolicyHeader(readPublicConfig(process.env), nonce);
+
+  const restored = restorePickedLocale(request);
+  if (restored) return withContentSecurityPolicy(restored, csp);
+
+  // Next stamps the nonce onto its own inline flight scripts when it finds it on
+  // the *request's* Content-Security-Policy header, so it has to be forwarded to
+  // the render, not only set on the response. `x-nonce` rides along for a server
+  // component that renders a <script> of its own. next-intl forwards the headers
+  // of the request it is handed, so the render sees both.
+  const forwardedHeaders = new Headers(request.headers);
+  forwardedHeaders.set("x-nonce", nonce);
+  forwardedHeaders.set("Content-Security-Policy", csp);
+  const routedRequest = new NextRequest(request, { headers: forwardedHeaders });
+
+  const response = handleI18nRouting(routedRequest);
+  rememberPrefixedLocale(request, response);
+  return withContentSecurityPolicy(response, csp);
 }
 
 export const config = {

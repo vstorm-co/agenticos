@@ -28,8 +28,24 @@ class SyncLog(TimestampMixin, Base):
     updated: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     skipped: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     failed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Documents the source no longer lists and the sync took out of the
+    # collection. Only a connector sync removes anything, and only after a
+    # listing that vouched for being complete.
+    removed: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Who to notify about this sync's outcome (#1598) - set by
+    # SyncSourceService.trigger_sync from the caller who dispatched it. Null on
+    # a run the scheduler started (check_scheduled_syncs_flow): nobody
+    # personally asked for it, so its notification falls back to the
+    # organization's admins rather than resolving to nobody. SET NULL: deleting
+    # the triggering user must not delete the sync's history.
+    triggered_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )

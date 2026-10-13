@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import func, select, update
+from sqlalchemy import Select, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.session import Session
@@ -14,22 +14,94 @@ async def get_by_id(db: AsyncSession, session_id: UUID) -> Session | None:
     return await db.get(Session, session_id)
 
 
-async def get_by_refresh_token_hash(db: AsyncSession, token_hash: str) -> Session | None:
-    """Get session by refresh token hash."""
-    result = await db.execute(
-        select(Session).where(
-            Session.refresh_token_hash == token_hash,
-            Session.is_active.is_(True),
-        )
+async def get_by_refresh_token_hash(
+    db: AsyncSession, token_hash: str, *, for_update: bool = False
+) -> Session | None:
+    """Get session by refresh token hash.
+
+    `for_update` locks the row for the rest of the transaction, so a refresh
+    serializes against a concurrent one bearing the same token: the second blocks
+    until the first commits, then re-reads and finds the hash already rotated away,
+    so it refuses cleanly rather than both rotating the row and one client walking
+    off with a refresh token the row no longer holds (#1501 review).
+    """
+    query = select(Session).where(
+        Session.refresh_token_hash == token_hash,
+        Session.is_active.is_(True),
     )
+    if for_update:
+        query = query.with_for_update()
+    result = await db.execute(query)
     return result.scalar_one_or_none()
+
+
+async def get_by_previous_refresh_token_hash(
+    db: AsyncSession, token_hash: str, *, for_update: bool = False
+) -> Session | None:
+    """The live session whose *last rotation spent* this token, if any.
+
+    Read only when a refresh token matched no live session, which is the shape a
+    replay takes: rotation re-keys the row in place, so a token spent a moment
+    ago names no row by its current hash and looks exactly like a typo. Matching
+    the hash rotation replaced is what tells the two apart (#1519).
+
+    Restricted to an active row, because a chain already ended has nothing left
+    to revoke and re-reporting it on every retry would turn one breach signal
+    into a stream of them.
+    """
+    query = select(Session).where(
+        Session.previous_refresh_token_hash == token_hash,
+        Session.is_active.is_(True),
+    )
+    if for_update:
+        query = query.with_for_update()
+    result = await db.execute(query)
+    return result.scalar_one_or_none()
+
+
+def _own[*Ts](query: Select[*Ts]) -> Select[*Ts]:
+    """Narrow a user's sessions to the ones that are theirs.
+
+    An impersonation is a row under the user's id that an administrator holds,
+    not a device the person signed in from - so it is not in their devices list,
+    not in the count the admin drawer shows as "open sessions", and not the
+    "last seen" that would otherwise report somebody present who was not there.
+    Whether the person is told about it at all is the deployment's policy
+    (`notify_impersonated_users`), and a row in their devices list would decide
+    that policy for them (#1044).
+
+    Revocation is deliberately *not* narrowed: `deactivate_all_user_sessions`
+    ends every row under the id, impersonations included, so a password reset by
+    email and "sign out everywhere" end an administrator's access along with the
+    person's own sessions.
+    """
+    return query.where(Session.impersonator_user_id.is_(None))
+
+
+def _open[*Ts](query: Select[*Ts], *, now: datetime) -> Select[*Ts]:
+    """Narrow a session query to the ones actually still usable.
+
+    `is_active` alone is not that. A session is deactivated when somebody signs
+    out or an administrator revokes it, but nothing sweeps the ones that simply
+    ran out: the row stays `is_active` until the next refresh finds it expired
+    and declines it. So a query on `is_active` counts sessions that cannot be
+    used again, which is how the admin drawer reported open sessions for an
+    account whose every session had lapsed (#1256).
+
+    `now` is the caller's, not this function's, because a response can be built
+    from two statements: `SessionService.list_sessions` asks for a page and then
+    for the total, and a session lapsing between them would otherwise be in the
+    page and outside the count.
+    """
+    return query.where(Session.is_active.is_(True), Session.expires_at > now)
 
 
 async def get_user_sessions(
     db: AsyncSession,
     user_id: UUID,
     *,
-    active_only: bool = True,
+    open_only: bool = True,
+    now: datetime | None = None,
     skip: int = 0,
     limit: int | None = None,
 ) -> list[Session]:
@@ -37,10 +109,14 @@ async def get_user_sessions(
 
     `limit` of None returns every session, which is what the callers that
     revoke or validate one need. The listing route passes a page.
+
+    `open_only=False` is the whole history, which is what answers "when were
+    they last here": somebody who has signed out has no open session and has
+    very much been here.
     """
-    query = select(Session).where(Session.user_id == user_id)
-    if active_only:
-        query = query.where(Session.is_active.is_(True))
+    query = _own(select(Session).where(Session.user_id == user_id))
+    if open_only:
+        query = _open(query, now=now or datetime.now(UTC))
     # `last_used_at` alone is not a total order - a user who signs in twice in
     # the same request cycle gets two rows with the same timestamp, and an
     # unstable order means a row can appear on two pages or on neither. `id`
@@ -56,12 +132,13 @@ async def count_user_sessions(
     db: AsyncSession,
     user_id: UUID,
     *,
-    active_only: bool = True,
+    open_only: bool = True,
+    now: datetime | None = None,
 ) -> int:
     """How many sessions the user has, for the page count."""
-    query = select(func.count(Session.id)).where(Session.user_id == user_id)
-    if active_only:
-        query = query.where(Session.is_active.is_(True))
+    query = _own(select(func.count(Session.id)).where(Session.user_id == user_id))
+    if open_only:
+        query = _open(query, now=now or datetime.now(UTC))
     return (await db.execute(query)).scalar_one()
 
 
@@ -75,8 +152,15 @@ async def create(
     device_type: str | None = None,
     ip_address: str | None = None,
     user_agent: str | None = None,
+    impersonator_user_id: UUID | None = None,
+    session_id: UUID | None = None,
 ) -> Session:
-    """Create a new session."""
+    """Create a new session.
+
+    `session_id` lets the caller decide the id, for the one row whose credential
+    has to name it before it exists - an impersonation's access token carries the
+    row's id as a claim. Every other caller leaves it to the column default.
+    """
     session = Session(
         user_id=user_id,
         refresh_token_hash=refresh_token_hash,
@@ -85,7 +169,10 @@ async def create(
         device_type=device_type,
         ip_address=ip_address,
         user_agent=user_agent,
+        impersonator_user_id=impersonator_user_id,
     )
+    if session_id is not None:
+        session.id = session_id
     db.add(session)
     await db.flush()
     await db.refresh(session)
@@ -100,6 +187,44 @@ async def update_last_used(db: AsyncSession, session_id: UUID) -> None:
     await db.flush()
 
 
+async def rotate(
+    db: AsyncSession,
+    *,
+    session: Session,
+    refresh_token_hash: str,
+    expires_at: datetime,
+    device_name: str | None = None,
+    device_type: str | None = None,
+    ip_address: str | None = None,
+    user_agent: str | None = None,
+) -> Session:
+    """Re-key a session row to a rotated refresh token, keeping its id.
+
+    The id is what a live access token names in `sid`, so it has to survive a
+    refresh (#1501); the hash and the window move, `last_used_at` gets the same
+    touch a plain use gives it, and the device and address move to where the
+    refresh came from so the sessions list shows where the credential is used now.
+
+    The hash being replaced is kept in `previous_refresh_token_hash`, which is
+    what makes a later presentation of the spent token recognisable as a replay
+    rather than as any other invalid token (#1519).
+    """
+    now = datetime.now(UTC)
+    session.previous_refresh_token_hash = session.refresh_token_hash
+    session.rotated_at = now
+    session.refresh_token_hash = refresh_token_hash
+    session.expires_at = expires_at
+    session.last_used_at = now
+    session.device_name = device_name
+    session.device_type = device_type
+    session.ip_address = ip_address
+    session.user_agent = user_agent
+    db.add(session)
+    await db.flush()
+    await db.refresh(session)
+    return session
+
+
 async def deactivate(db: AsyncSession, session_id: UUID) -> Session | None:
     """Deactivate a session (logout)."""
     session = await get_by_id(db, session_id)
@@ -110,13 +235,19 @@ async def deactivate(db: AsyncSession, session_id: UUID) -> Session | None:
     return session
 
 
-async def deactivate_all_user_sessions(db: AsyncSession, user_id: UUID) -> int:
-    """Deactivate all sessions for a user. Returns count of deactivated sessions."""
-    result = await db.execute(
-        update(Session)
-        .where(Session.user_id == user_id, Session.is_active.is_(True))
-        .values(is_active=False)
-    )
+async def deactivate_all_user_sessions(
+    db: AsyncSession, user_id: UUID, *, except_session_id: UUID | None = None
+) -> int:
+    """Deactivate a user's sessions, optionally sparing one. Returns the count closed.
+
+    `except_session_id` keeps the caller's own session alive when a password change
+    revokes the account's others (#1439); with none given every session is closed,
+    which is the safe default for a reset the account holder did not make.
+    """
+    predicate = [Session.user_id == user_id, Session.is_active.is_(True)]
+    if except_session_id is not None:
+        predicate.append(Session.id != except_session_id)
+    result = await db.execute(update(Session).where(*predicate).values(is_active=False))
     await db.flush()
     return getattr(result, "rowcount", 0) or 0
 

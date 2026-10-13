@@ -30,7 +30,7 @@ _A_TRACKED_DOCUMENT = text(
 )
 
 
-async def _no_collection_of_its_own(name: str) -> None:
+async def _no_collection_of_its_own(name: str, organization_id: object = None) -> None:
     """A resolver that answers "nothing recorded for this one".
 
     Not `None` in place of the resolver: `resolver` is a required argument since

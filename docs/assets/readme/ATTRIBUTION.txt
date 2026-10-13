@@ -1,0 +1,15 @@
+Graphics in docs/assets/readme/, shown by README.md and its translations
+
+The diagrams and annotated overviews were rendered from the AgenticOS pre-sales
+deck (Vstorm). Product screens inside them are captures from a test deployment;
+figures are test records, not benchmarks.
+
+People avatars in company-architecture-diagram.webp:
+  "Notionists" by Zoish, remixed by DiceBear (https://www.dicebear.com/styles/notionists/),
+  licensed under CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/).
+  Seeds: Kenji, Priya, Aneka, Hanna, Nora, Amara, Mila, Leo. Illustrations, not real people.
+
+Brand marks in integrations-hub.webp:
+  Reused from frontend/src/lib/brand-glyphs.generated.ts (Simple Icons CC0 1.0,
+  Font Awesome Free CC BY 4.0, @lobehub/icons MIT). The marks belong to their owners
+  and identify connection options; they do not imply a partnership or endorsement.

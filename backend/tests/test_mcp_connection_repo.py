@@ -178,6 +178,56 @@ class TestGetOrgScopedById:
         )
 
         assert set(_filters(session).values()) == {connection_id, organization_id, "org", "mcp"}
+        assert "FOR UPDATE" not in _sql(session)
+
+    async def test_for_update_locks_drops_the_join_and_re_reads(self):
+        """The locked variant a credential writer uses: sealing at the row's
+        recorded key version is only safe while the row is held, or a rotation
+        committing in between tags the new envelope with a version it was not
+        sealed under. Same three options as `get_by_id_for_update`, for the
+        same Postgres reasons."""
+        session = _RecordingSession(_Result(scalar=None))
+
+        await mcp_connection_repo.get_org_scoped_by_id(
+            session, connection_id=uuid.uuid4(), organization_id=uuid.uuid4(), for_update=True
+        )
+
+        sql = _sql(session)
+        assert "FOR UPDATE" in sql
+        assert "JOIN" not in sql
+        assert session.statements[-1].get_execution_options()["populate_existing"] is True
+
+
+class TestGetOrgScopedByIds:
+    async def test_it_keys_the_rows_by_id_under_the_same_two_filters(self):
+        """The batch form of the single read, so a spec resolves its bindings in
+        one query - and carries the same organization and org-scope filters, so a
+        member's personal row or another tenant's is absent from the map (#954)."""
+        organization_id = uuid.uuid4()
+        first, second = _connection(), _connection()
+        session = _RecordingSession(_Result(rows=[first, second]))
+
+        found = await mcp_connection_repo.get_org_scoped_by_ids(
+            session, connection_ids=[first.id, second.id], organization_id=organization_id
+        )
+
+        assert found == {first.id: first, second.id: second}
+        params = list(_filters(session).values())
+        assert organization_id in params
+        assert "org" in params
+        assert "mcp" in params
+        sql = _sql(session).lower()
+        assert "mcp_connections.id in" in sql
+
+    async def test_an_empty_list_asks_the_database_nothing(self):
+        session = _RecordingSession()
+
+        found = await mcp_connection_repo.get_org_scoped_by_ids(
+            session, connection_ids=[], organization_id=uuid.uuid4()
+        )
+
+        assert found == {}
+        assert session.statements == []
 
 
 class TestGetByCatalogKey:

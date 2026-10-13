@@ -1,35 +1,10 @@
 # Secrets and the vault
 
-Every provider key, channel bot token, MCP credential and third-party API key in
-this platform passes through one module, and there is deliberately no second
-mechanism.
+!!! abstract "One module, and deliberately no second mechanism"
 
-That is a decision with history, and it took two rounds to become true. Three
-mechanisms used to hold secrets at rest and only one of them bound a ciphertext to
-its owner: provider keys went through the vault, channel bot tokens through a
-single deployment-wide Fernet key, MCP tokens through another. A Slack token could
-be copied out of one organization's row into another's and it decrypted. Migration
-`0038` removed those two.
-
-A fourth survived `0038` and outlived the sentence above it by some months:
-`app/core/crypto.py`, one deployment-wide Fernet key over the credential fields of
-`sync_sources.config` — the Google service account JSON and the AWS key pair a RAG
-sync connector authenticates with. It was honest about itself in its own docstring
-and it was still a second mechanism, so a reader who believed "there is no second
-mechanism" was wrong about one table. What kept it alive was an ordering problem
-rather than a disagreement: an envelope is derived from its owner's id, and
-`sync_sources.organization_id` was nullable because the CLI created rows without
-one. [#707](https://github.com/vstorm-co/agenticos/issues/707) gave
-`rag-source-add` an organization, `0042` made the column say so, and
-[#937](https://github.com/vstorm-co/agenticos/issues/937) deleted the module.
-
-**A sync source now references a vault secret by id**, the way
-`ModelProfile.secret_id` and `CapabilityBindingSpec.secret_id` do, and its `config`
-holds only what a connector needs to *find* the documents. Two consequences beyond
-the crypto, and they are the ones an operator notices: a credential is added once
-and reused by every source that needs it, rather than pasted per source and rotated
-in as many places; and it appears on the Vault page like everything else, so "does
-this organization hold a Google credential" has an answer.
+    Every provider key, channel bot token, MCP credential and third-party API key
+    in this platform passes through `app/core/vault.py`. Adding a second way to
+    hold a credential at rest is the defect two migrations removed.
 
 ## Envelope encryption
 
@@ -37,11 +12,21 @@ Each secret is sealed with its own random data key. That data key is sealed with
 key derived from the master key **and the scope that owns the secret** — an
 organization, or the member a personal connection belongs to.
 
+```mermaid
+flowchart LR
+    M["VAULT_MASTER_KEY<br/><i>version n</i>"] --> K
+    S["the owning scope<br/><i>org id, or member id</i>"] --> K
+    K["derived key"] -->|wraps| D["a random data key<br/><i>one per secret</i>"]
+    D -->|seals| C["the ciphertext<br/><i>+ key_version</i>"]
+```
+
 Two properties follow, and both are the reason for the shape:
 
-**A ciphertext cannot be moved between owners.** Even with full database access, a
-row copied from organization A into organization B fails to unwrap. Tenant
-isolation here is cryptographic, not a `WHERE` clause somebody might forget.
+!!! success "A ciphertext cannot be moved between owners"
+
+    Even with full database access, a row copied from organization A into
+    organization B fails to unwrap. Tenant isolation here is cryptographic, not a
+    `WHERE` clause somebody might forget.
 
 **The master key is rotatable.** It never encrypts a payload directly, only data
 keys, so rotating it re-wraps one small blob per secret instead of re-encrypting
@@ -52,6 +37,43 @@ The vault decides nothing about *who* may read a secret — that is the
 [permission layer](permissions.md). It guarantees only that a secret at rest is
 unreadable without the master key and unusable outside the scope it was sealed
 for.
+
+## How it became one mechanism
+
+That sentence at the top took two rounds to become true, and the story is worth a
+minute because it is the shape of the mistake.
+
+**Three mechanisms used to hold secrets at rest, and only one bound a ciphertext to
+its owner.** Provider keys went through the vault, channel bot tokens through a
+single deployment-wide Fernet key, MCP tokens through another. A Slack token could
+be copied out of one organization's row into another's and it decrypted. One
+migration removed those two, before the chain was squashed into `0001_baseline`.
+
+**A fourth survived it, and outlived the sentence above it by some months.**
+`app/core/crypto.py` held one deployment-wide Fernet key over the credential fields
+of `sync_sources.config` — the Google service account JSON and the AWS key pair a
+RAG sync connector authenticates with.
+
+It was honest about itself in its own docstring, and it was still a second
+mechanism, so a reader who believed "there is no second mechanism" was wrong about
+one table.
+
+What kept it alive was an ordering problem rather than a disagreement: an envelope
+is derived from its owner's id, and `sync_sources.organization_id` was nullable
+because the CLI created rows without one.
+[#707](https://github.com/vstorm-co/agenticos/issues/707) gave `rag-source-add` an
+organization, `0042_sync_source_secret_id` made the column say so, and
+[#937](https://github.com/vstorm-co/agenticos/issues/937) deleted the module.
+
+**A sync source now references a vault secret by id**, the way
+`ModelProfile.secret_id` and `CapabilityBindingSpec.secret_id` do, and its `config`
+holds only what a connector needs to *find* the documents.
+
+Two consequences beyond the crypto, and they are the ones an operator notices: a
+credential is added once and reused by every source that needs it, rather than
+pasted per source and rotated in as many places; and it appears on the Vault page
+like everything else, so "does this organization hold a Google credential" has an
+answer.
 
 ## Kinds
 
@@ -67,6 +89,8 @@ decides which fields exist.
 | `aws_credentials` | Access key id, secret access key, region, optional session token |
 | `gcp_service_account` | The service account JSON, validated on the way in |
 | `github_oauth_app` | A GitHub OAuth App's public client id and its secret |
+| `git_token` | An access token for git over HTTPS, and the one host it may be sent to |
+| `entra_app` | A Microsoft Entra app registration's tenant id, client id and client secret |
 | `none` | Not a secret — the marker for an endpoint needing no credential |
 
 `github_oauth_app` is spent by the platform rather than picked by a person — the
@@ -75,6 +99,19 @@ GitHub connect flow reads it server-side to run the token exchange — so it mus
 never silently used for the whole organization's connection, and with two org-visible
 apps stored the connect is refused (naming both) rather than keyed to whichever name
 sorts first.
+
+`git_token` carries its host because a Git sync source sends the token to a URL
+whoever edits the source chooses. Bound to the host the token was added with, the
+token cannot be aimed at another server by editing the source, and no other key
+can stand in for it.
+
+`entra_app` is what a SharePoint or OneDrive sync source signs in as. Its reach is
+set in Microsoft Entra, not here: the Graph permissions an administrator consented
+to decide which sites it can read, and a token does not say which those are. Grant
+it `Sites.Selected` on the one site the source reads — see [SharePoint and OneDrive
+setup](howto/configure-sync-sources.md#sharepoint-and-onedrive-setup). Its hint is
+the last four characters of the client id, which is public, rather than of the
+secret.
 
 `aws_credentials` is the clearest case for kinds existing at all: the access key id
 is not secret and the secret access key is, and a single field cannot express that.
@@ -86,6 +123,11 @@ the paste that caused it.
 string so the resolver can switch on a total set — and because the vault refuses to
 seal an empty value. Only the runtime can hold `none`; nobody can save one, which
 is what keeps "a secret with no value" out of the API schema.
+
+Every field that authenticates — an API key, a secret access key, a client secret —
+must be at least eight characters. The listing shows the last four characters of a
+credential as its hint, so a shorter value would be published whole by its own hint;
+the floor also catches a truncated paste while the form is still open.
 
 ## Where they are used
 
@@ -135,8 +177,15 @@ own key for:
 | Exa | `web_research` |
 | Logfire | Per-agent [observability](reference/spec.md#observability) — traces to a project of its own |
 | LlamaParse | PDF parsing, billed to the organization's own key |
+| TypeSafe | [`browser_choice`](reference/capabilities.md#browser-automation-choose) — the model that picks an operation and an element on each step of a browse. Not a model provider: it answers typed questions rather than generating text, so it is not offered as a model to run an agent on |
+| mem0 | [`memory_mem0`](reference/capabilities.md#memory-mem0) — the whole capability, which keeps an agent's semantic memories in a mem0 service (cloud or self-hosted) rather than here. Nothing is stored in this deployment, so mem0 bills its own embedding out of band and sending memories to mem0's cloud is a data-residency choice the Builder names. A self-hosted `base_url` must be https and on the `MEM0_ALLOWED_HOSTS` allowlist, so the vault key is never sent to an agent-controlled origin. There is no operator console for these memories: mem0 has its own store, its own listing and its own delete. |
 
 ## What never happens
+
+!!! success "Four guarantees, pinned by tests rather than by convention"
+
+    No plaintext in a response, in a log line, in an audit entry, or in an
+    exported spec - and a capability never learns where its credential came from.
 
 - **No API response returns a plaintext.** There is no endpoint for it. The service
   that owns organization secrets has two readers that yield one, and neither hands it
@@ -171,13 +220,44 @@ anybody. See [Permissions](permissions.md).
 ## Operations
 
 The master key is `VAULT_MASTER_KEY`. It falls back to `SECRET_KEY` so a fresh
-checkout runs with no extra setup, and an environment validator refuses the default
-`SECRET_KEY` outside development — but a production deployment should set it
-explicitly.
+checkout runs with no extra setup, and the config refuses an unset key anywhere
+except `local`/`development` — staging is a first-class deployment and routinely
+holds real provider keys, so it gets the same refusal production does.
 
-Losing it means every stored credential is unrecoverable and has to be re-entered.
-Rotating it is a staged operation, which the `key_version` column exists to make
-possible: `rewrap` moves an envelope to a new version without touching the payload.
+!!! danger "Losing every configured key means every stored credential is gone"
+
+    There is no recovery path and no escrow copy: every secret has to be
+    re-entered by hand. Back the key up somewhere the database backup is not.
+
+Rotating is a staged operation, and `VAULT_MASTER_KEYS` is the
+staged form: a JSON map of every version still in use. The highest version seals
+new secrets; the older ones keep existing rows readable until they are re-wrapped.
+`key_version` on each sealed row records which version wrapped it, and asking for a
+version with no configured key fails naming the missing entry rather than as a
+generic decrypt error.
+
+```bash
+# 1. Configure both keys — the old one as the version that sealed today's rows,
+#    the new one above it — and unset the single VAULT_MASTER_KEY.
+#    VAULT_MASTER_KEYS={"1": "<old>", "2": "<new>"}
+# 2. Prove every stored envelope opens before anything moves:
+uv run agenticos cmd vault-rotate --dry-run
+# 3. Re-wrap every sealed row to the new version:
+uv run agenticos cmd vault-rotate
+# 4. Once it reports zero failures, drop version 1 from VAULT_MASTER_KEYS.
+```
+
+!!! warning "Do not drop the old key until `vault-rotate` reports zero failures"
+
+    A row that fails is named and left as it was, and the command exits non-zero
+    - dropping version 1 on a partial rotation makes those rows unreadable.
+
+`vault-rotate` walks every table holding envelopes and moves each row's
+ciphertexts together with its version column, or not at all. A row holding no
+envelope but naming a version — a
+connection whose credentials were cleared — has that claim moved to the current
+version too, so the next secret sealed into it lands on a key that still exists. Only the wrapped data key is re-sealed — payloads
+are untouched, which is what makes rotation cheap.
 
 ```bash
 uv run agenticos cmd doctor    # reports whether a vault key is configured at all
@@ -187,3 +267,16 @@ uv run agenticos cmd doctor    # reports whether a vault key is configured at al
 for you. See [Configuration](configuration.md) for the environment, and
 the [production checklist](configuration.md#production-checklist) before going live
 with a generated default.
+
+## Recap
+
+- **One module**, `app/core/vault.py`. There is no second mechanism, and adding one
+  is the defect two migrations removed.
+- A secret is sealed with its own data key, wrapped by a key derived from the
+  master key **and the owning scope** — so a ciphertext cannot move between owners.
+- A secret has a **kind**, because `aws_credentials` is four fields and one of them
+  is not secret.
+- Four guarantees, pinned by tests: no plaintext in a response, a log, an audit
+  entry or an exported spec.
+- Rotation is **staged** — configure both versions, `vault-rotate --dry-run`,
+  rotate, then drop the old key once it reports zero failures.

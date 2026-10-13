@@ -19,6 +19,7 @@ import pytest
 
 from app.core.exceptions import AuthorizationError, ValidationError
 from app.core.permissions import AuthContext, OrgRoleName
+from app.repositories.agent_run import WindowAggregates, WindowBreakdown
 from app.services.stats import StatsService, resolve_window
 
 pytestmark = pytest.mark.anyio
@@ -37,12 +38,9 @@ def repos(monkeypatch: pytest.MonkeyPatch) -> dict[str, AsyncMock]:
     mocks: dict[str, AsyncMock] = {}
     for name, value in (
         ("count_runs", 0),
-        ("runs_by_day", []),
-        ("runs_by_dimension", []),
         ("runs_by_agent", []),
         ("latency_percentiles_ms", (None, None)),
         ("sum_cost_window", Decimal(0)),
-        ("cost_by_provider_window", []),
         ("count_distinct_users", 0),
         ("count_pending_approval_runs", 0),
         ("usage_by_version", []),
@@ -52,6 +50,63 @@ def repos(monkeypatch: pytest.MonkeyPatch) -> dict[str, AsyncMock]:
         mock = AsyncMock(return_value=value)
         monkeypatch.setattr(f"app.services.stats.agent_run_repo.{name}", mock)
         mocks[name] = mock
+
+    # The per-slice doubles the `window_breakdown` wrapper below composes from.
+    # They are the interface a test still sets - a day list, a dimension
+    # side-effect, a provider list - now that one query returns all five slices,
+    # so they are recorded and asserted like the others but drive no module call
+    # of their own.
+    for name, value in (
+        ("runs_by_day", []),
+        ("runs_by_dimension", []),
+        ("cost_by_provider_window", []),
+    ):
+        mocks[name] = AsyncMock(return_value=value)
+
+    # `usage` reads its window's scalars from one `window_aggregates` query now;
+    # this stub composes the answer from the four per-aggregate mocks above, so a
+    # test still sets `count_runs`, `sum_cost_window`, `latency_percentiles_ms` or
+    # `count_distinct_users` and controls the field it maps to - one call per
+    # window, the same order the standalone calls used to run in.
+    async def _window_aggregates(db: object = None, **kwargs: object) -> WindowAggregates:
+        total = await mocks["count_runs"](db, **kwargs)
+        cost = await mocks["sum_cost_window"](db, **kwargs)
+        distinct = await mocks["count_distinct_users"](db, **kwargs)
+        p50, p95 = await mocks["latency_percentiles_ms"](db, **kwargs)
+        return WindowAggregates(
+            total=total, cost_usd=cost, distinct_users=distinct, p50_ms=p50, p95_ms=p95
+        )
+
+    window_aggregates = AsyncMock(side_effect=_window_aggregates)
+    monkeypatch.setattr("app.services.stats.agent_run_repo.window_aggregates", window_aggregates)
+    mocks["window_aggregates"] = window_aggregates
+
+    # The previous window takes the lighter count+cost aggregate; delegate it to the
+    # same two mocks so a test still drives it through `count_runs`/`sum_cost_window`.
+    async def _window_totals(db: object = None, **kwargs: object) -> tuple[int, Decimal]:
+        return await mocks["count_runs"](db, **kwargs), await mocks["sum_cost_window"](db, **kwargs)
+
+    window_totals = AsyncMock(side_effect=_window_totals)
+    monkeypatch.setattr("app.services.stats.agent_run_repo.window_totals", window_totals)
+    mocks["window_totals"] = window_totals
+
+    # `usage` reads its keyed slices from one `window_breakdown` query now; this
+    # stub composes the answer from the per-slice mocks above, so a test still
+    # drives `runs_by_day`, `runs_by_dimension` (per dimension) and
+    # `cost_by_provider_window` and each still records the window it was asked.
+    async def _window_breakdown(db: object = None, **kwargs: object) -> WindowBreakdown:
+        return WindowBreakdown(
+            by_day=await mocks["runs_by_day"](db, **kwargs),
+            by_surface=await mocks["runs_by_dimension"](db, dimension="surface", **kwargs),
+            by_status=await mocks["runs_by_dimension"](db, dimension="status", **kwargs),
+            by_model=await mocks["runs_by_dimension"](db, dimension="model", **kwargs),
+            by_provider=await mocks["cost_by_provider_window"](db, **kwargs),
+        )
+
+    window_breakdown = AsyncMock(side_effect=_window_breakdown)
+    monkeypatch.setattr("app.services.stats.agent_run_repo.window_breakdown", window_breakdown)
+    mocks["window_breakdown"] = window_breakdown
+
     ingestion = AsyncMock(return_value=Decimal(0))
     monkeypatch.setattr("app.services.stats.ingestion_spend_repo.sum_cost_window", ingestion)
     mocks["ingestion_sum_cost_window"] = ingestion
@@ -264,8 +319,9 @@ class TestTheComposedAnswer:
         )
 
         assert result.pending_approvals == 2
+        # The distinct-user count rides in the one window query now, so it is
+        # computed either way; what a `user_id` scope drops is reporting it.
         assert result.active_users is None
-        repos["count_distinct_users"].assert_not_called()
 
     async def test_the_slices_map_through_with_their_names(self, repos) -> None:
         agent_id = uuid4()

@@ -1,23 +1,20 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
+import { useReauthenticate } from "@/hooks/use-auth";
 import { apiClient } from "@/lib/api-client";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
+import { ROUTES } from "@/lib/constants";
 import type { AdminUser, AdminUserListResponse } from "@/types";
-
-interface ImpersonateResponse {
-  access_token: string;
-  token_type: string;
-  impersonated_user_id: string;
-  impersonated_by: string;
-  expires_in: number;
-}
 
 export function useAdminUsers() {
   const t = useTranslations("admin");
   const tError = useTranslations("errors");
+  const router = useRouter();
+  const reauthenticate = useReauthenticate();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
@@ -92,22 +89,34 @@ export function useAdminUsers() {
     [t, tError],
   );
 
+  /**
+   * Start acting as a user, from here.
+   *
+   * The BFF swaps this browser's access cookie for the impersonation's, so the
+   * answer carries no token and nothing here touches one (#1044). What follows
+   * is a change of identity: the session is re-read and adopted, which empties
+   * the cache and the tenant state that were the administrator's, and the
+   * dashboard is opened as the account now being acted as. Answers whether it
+   * happened; a refusal is a toast and `false`.
+   */
   const impersonateUser = useCallback(
-    async (userId: string) => {
+    async (userId: string): Promise<boolean> => {
       setImpersonating(userId);
       try {
-        const { access_token } = await apiClient.post<ImpersonateResponse>(
-          `/admin/users/${userId}/impersonate`,
-        );
-        return access_token;
+        await apiClient.post(`/admin/users/${userId}/impersonate`);
       } catch {
         toast.error(t("failedImpersonateUser"));
-        return null;
+        return false;
       } finally {
         setImpersonating(null);
       }
+      await reauthenticate();
+      const target = users.find((candidate) => candidate.id === userId);
+      toast.success(t("nowActingAs", { email: target?.email ?? userId }));
+      router.push(ROUTES.DASHBOARD);
+      return true;
     },
-    [t],
+    [t, users, reauthenticate, router],
   );
 
   return {

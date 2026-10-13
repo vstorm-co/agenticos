@@ -34,7 +34,7 @@ export function WidgetOptionChips({ options }: { options?: WidgetOptions }) {
 
 function Chip({ children }: { children: React.ReactNode }) {
   return (
-    <span className="bg-muted text-muted-foreground max-w-32 truncate rounded-full px-2 py-0.5 text-[11px] font-medium whitespace-nowrap">
+    <span className="bg-muted text-muted-foreground max-w-32 truncate rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap">
       {children}
     </span>
   );

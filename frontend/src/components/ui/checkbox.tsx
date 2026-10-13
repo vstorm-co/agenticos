@@ -14,7 +14,7 @@ const Checkbox = React.forwardRef<
     className={cn(
       // Unchecked stays on the neutral input border; the accent marks the
       // checked state, which is the thing worth pointing at.
-      "peer border-input focus-visible:ring-ring data-[state=checked]:border-brand data-[state=checked]:bg-brand data-[state=checked]:text-brand-foreground h-4 w-4 shrink-0 rounded-sm border shadow focus-visible:ring-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50",
+      "peer border-input focus-visible:ring-ring data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground h-4 w-4 shrink-0 rounded-sm border-[1.5px] shadow focus-visible:ring-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50",
       className,
     )}
     {...props}

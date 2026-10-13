@@ -4,10 +4,11 @@ The [catalog](../mcp.md#the-catalog) is what makes the connection picker useful
 instead of a blank URL field. Adding an entry is data, not code: one object in
 `backend/app/core/catalog/mcp_servers.json`.
 
-**You do not need to do this to use a server.** Any MCP server reachable by URL
-connects through the *Custom server* entry and its tools are introspected on
-connect. The catalog saves somebody a URL lookup and a paragraph of setup
-guesswork; it is not a gate.
+!!! tip "You do not need to do this to use a server"
+
+    Any MCP server reachable by URL connects through the *Custom server* entry,
+    and its tools are introspected on connect. The catalog saves somebody a URL
+    lookup and a paragraph of setup guesswork; it is not a gate.
 
 ## The entry
 
@@ -37,13 +38,18 @@ guesswork; it is not a gate.
 | `token_hint` | Only for `token`. See below |
 | `icon` | A `BrandIcon` name, or empty |
 
-The file is validated against `CatalogEntry` at **import time**, so a malformed
-entry refuses to start the app rather than silently vanishing from the picker.
+!!! note "Validated at import time"
+
+    The file is checked against `CatalogEntry` when the module loads, so a
+    malformed entry refuses to start the app rather than silently vanishing from
+    the picker.
 
 ## Write the token hint
 
-This is the field that earns the entry. Generic instructions are the main reason
-token setup fails, and "an API token" tells nobody where to click.
+!!! important "This is the field that earns the entry"
+
+    Generic instructions are the main reason token setup fails, and "an API
+    token" tells nobody where to click.
 
 Say where the token comes from and what it needs to be able to do:
 
@@ -67,10 +73,11 @@ missing one: every icon set is finite and this catalog is not.
 
 ## Before you commit it
 
-An entry is a promise — that somebody looked at the server, that the auth flow
-works, that the description is honest. That is the whole reason this is a
-hand-maintained list rather than a mirror of the public registry, so make the
-promise true:
+!!! warning "An entry is a promise"
+
+    That somebody looked at the server, that the auth flow works, that the
+    description is honest. It is the whole reason this is a hand-maintained list
+    rather than a mirror of the public registry — so make the promise true:
 
 1. Connect it in a running deployment.
 2. Run `POST /api/v1/mcp-connections/{id}/test` (the **Test** button) and read the

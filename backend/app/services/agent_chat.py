@@ -35,8 +35,12 @@ from pydantic_ai.run import AgentRun
 from pydantic_ai.tools import DeferredToolRequests
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.browser_events import BrowserEventSink
+from app.agents.capabilities.approval import ApprovalMode
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope
 from app.agents.capabilities.guardrails import GuardrailBlocked
+from app.agents.capabilities.media import offloaded_history
+from app.agents.connect_on_use import ConnectionCallback
 from app.agents.deps import AgentDeps, AskUserCallback, CompactionSink
 from app.agents.failures import run_failure_summary
 from app.agents.subagent_events import SubagentEventSink
@@ -51,7 +55,9 @@ from app.services.agent_runner import (
     AgentRunnerService,
     ParkedApproval,
     PausedRunState,
+    PersonalServiceGap,
     PreparedRun,
+    _classify_output,
     _outcome,
 )
 from app.services.attachments import AttachmentRouter
@@ -63,6 +69,11 @@ logger = logging.getLogger(__name__)
 # iterator. Typed against the agent the factory builds, so a surface that
 # forwards events cannot quietly be given a different kind of run.
 type ChatStream = Callable[[AgentRun[AgentDeps, str | DeferredToolRequests]], Awaitable[None]]
+
+# Told once per turn, before the model answers, which of the agent's personal MCP
+# services this person cannot reach - so a surface can draw the button that
+# connects one beside the sentence the agent is about to say.
+type PersonalGapSink = Callable[[list[PersonalServiceGap]], Awaitable[None]]
 
 # Said to someone chatting in an organization they no longer belong to. Their
 # socket was authenticated against that organization at connect time, so this is
@@ -114,6 +125,35 @@ def requested_model_profile_id(frame: Mapping[str, Any]) -> UUID | None:
     except ValueError as exc:
         raise BadRequestError(
             message="That is not a valid model id", details={"model_profile_id": str(raw)}
+        ) from exc
+
+
+def requested_approval_mode(frame: Mapping[str, Any]) -> ApprovalMode:
+    """How much this session wants to be asked, if it said.
+
+    `FOLLOW_AGENT` is what a client that sends nothing gets, and it is exactly
+    the behaviour that existed before the control did: the spec decides.
+
+    Whether the caller may *have* the mode they asked for is not decided here -
+    `AgentRunnerService.prepare` checks the permission, the organization's
+    ceiling and the surface, because it is the one funnel every run goes through.
+    This only refuses a value that is not a mode at all.
+
+    Raises:
+        BadRequestError: If the frame names something that is not one of the three
+            modes. Falling back to `FOLLOW_AGENT` would leave somebody believing
+            they had turned the questions off, and the next gated call parks a run
+            they think is running.
+    """
+    raw = frame.get("approval_mode")
+    if raw is None or raw == "":
+        return ApprovalMode.FOLLOW_AGENT
+    try:
+        return ApprovalMode(str(raw))
+    except ValueError as exc:
+        raise BadRequestError(
+            message="That is not an approval mode",
+            details={"approval_mode": str(raw)},
         ) from exc
 
 
@@ -271,8 +311,12 @@ class ChatAgentRunner:
         on_run_open: Callable[[OpenedRun], None] | None = None,
         subagent_events: SubagentEventSink | None = None,
         on_compaction: CompactionSink | None = None,
+        browser_events: BrowserEventSink | None = None,
+        on_personal_gaps: PersonalGapSink | None = None,
+        request_connection: ConnectionCallback | None = None,
         model_profile_id: UUID | None = None,
         environment_id: UUID | None = None,
+        approval_mode: ApprovalMode = ApprovalMode.FOLLOW_AGENT,
     ) -> ChatTurn:
         """Run the named agent for this turn and record what it consumed.
 
@@ -311,6 +355,14 @@ class ChatAgentRunner:
                 a *streamed* request for every child, so a delegate whose provider
                 cannot stream works from the API and breaks the moment somebody
                 watches it. A surface passes this only if it can show the frames.
+            browser_events: Where a browse's frames go - its steps, its
+                confidences and, when the agent asked for them, the viewport. A
+                `browse_page` call is the longest tool call this platform makes;
+                without this it is a tool call that goes quiet for a minute.
+            request_connection: How to ask the person to connect one of their
+                own services while the run waits. Given, a personal service they
+                have not connected is asked for when the agent reaches for it,
+                and `on_personal_gaps` hears only the gaps nobody here can fix.
 
         Returns:
             The answer to show and persist, and the model that produced it. A
@@ -334,10 +386,21 @@ class ChatAgentRunner:
             surface=RunSurface.WEB,
             conversation_id=conversation_id,
             user_name=user.full_name,
+            # The dashboard always has a signed-in person at the keyboard, so a
+            # personal MCP binding speaks as them - in a shared conversation too,
+            # where the answer is read by others exactly as it would be in a
+            # channel. The binding is explicit in the spec, so that is the
+            # author's decision and the reader's, not a surprise.
+            acts_for_sender=True,
             model_profile_id=model_profile_id,
             # The version this environment pins runs instead of the default -
             # how a dev environment is exercised from the chat before promotion.
             environment_id=environment_id,
+            # Checked in `prepare`, not here: refused rather than downgraded, so a
+            # caller who may not waive approvals is told, and the turn does not
+            # run believing it has consent it was never given (#925).
+            approval_mode=approval_mode,
+            request_connection=request_connection,
         )
         # The approval channel was wired by `prepare`; these are the halves only a
         # live surface can provide. Without `ask_user`, an agent whose instructions
@@ -349,6 +412,15 @@ class ChatAgentRunner:
         # between two of this turn's own, where nothing streams. Without this the
         # chat stops dead for the length of it with nothing said.
         prepared.deps.on_compaction = on_compaction
+        # And the fourth: a browse is a minute of a real browser being driven, and
+        # the only tool call where watching it is how somebody notices it acting
+        # on a page they did not expect.
+        prepared.deps.browser_events = browser_events
+        # Before the model answers, not after: the model is about to say it cannot
+        # reach the person's Notion, and the card with the button that connects it
+        # belongs beside that sentence, not under it once the turn is over.
+        if on_personal_gaps is not None and prepared.personal_service_gaps:
+            await on_personal_gaps(prepared.personal_service_gaps)
 
         # Before the run, not after: this run may fail, park or be cancelled, and
         # a transcript that holds the answer but not the question is the one shape
@@ -371,7 +443,7 @@ class ChatAgentRunner:
 
         if attachments:
             router = AttachmentRouter(
-                prepared.workspace.backend if prepared.workspace is not None else None,
+                prepared.workspace.workspace if prepared.workspace is not None else None,
                 can_parse=prepared.workspace is not None and prepared.workspace.parses_documents,
             )
             user_input = await router.build_prompt(_as_text(user_input), attachments)
@@ -382,6 +454,17 @@ class ChatAgentRunner:
         budget_scope: BudgetScope | None = None
         output = ""
         summarized: list[dict[str, Any]] | None = None
+        # Set as the last statement of the `try`, so it is True only when this run
+        # completed or parked without raising. It is what the terminal write below
+        # reads to decide whether a persistence failure should surface or be
+        # logged under the exception already unwinding this run (#235).
+        # `sys.exc_info()` cannot answer that: it also reports a *caller's* handled
+        # exception when `run` is awaited from inside one, which would suppress a
+        # real persistence failure on a run that itself succeeded.
+        finished_cleanly = False
+        # The transaction ends before the model is asked anything - the same
+        # boundary `AgentRunnerService._run` sets, and for its reasons (#12).
+        await self.db.commit()
         try:
             async with prepared.iterate(
                 user_input,
@@ -394,20 +477,12 @@ class ChatAgentRunner:
             # summary too: the resume replays the parked state, but the *next*
             # turn reads the conversation and would otherwise summarise again.
             if prepared.built.context.summarized:
-                summarized = ModelMessagesTypeAdapter.dump_python(
-                    result.all_messages(), mode="json"
+                summarized = await offloaded_history(
+                    prepared.built.capabilities,
+                    ModelMessagesTypeAdapter.dump_python(result.all_messages(), mode="json"),
                 )
-            if isinstance(result.output, DeferredToolRequests):
-                paused = PausedRunState(
-                    messages=ModelMessagesTypeAdapter.dump_python(
-                        result.all_messages(), mode="json"
-                    ),
-                    tool_call_ids=prepared.approvals.parked,
-                )
-                status = RunStatus.AWAITING_APPROVAL
-            else:
-                output = result.output
-                status = RunStatus.COMPLETED
+            status, output, paused = _classify_output(result, parked=prepared.approvals.parked)
+            finished_cleanly = True
         except asyncio.CancelledError:
             # The user pressed stop, or the socket went away mid-run. Cancelled
             # is not failed, and the tokens spent up to here were still spent.
@@ -437,19 +512,29 @@ class ChatAgentRunner:
             logger.exception("Chat run %s failed", prepared.run.id)
             raise
         finally:
-            await self.runner.finish(
-                prepared,
-                status=status,
-                error=error,
-                paused_state=paused,
-                budget_scope=budget_scope,
-            )
-            # Committed here rather than left to the session context: that exit
-            # rolls back on any exception, and cancellation never reaches it at
-            # all, since `CancelledError` is not an `Exception`. A run that
-            # failed, was stopped or ran out of budget still spent money, and a
-            # run missing from history is a run nobody is accountable for.
-            await self.db.commit()
+            # Neither the terminal write nor its commit may replace the exception
+            # that ended the run. A `stop` cancels the turn, and `finish` or the
+            # commit raising here - a serialization failure, a constraint the
+            # delegation savepoints did not catch, a connection dropped mid-turn -
+            # would otherwise surface as a failed turn instead of a cancelled one
+            # (#235). If the run ended cleanly there is nothing else wrong, so a
+            # persistence failure does surface. Committed here rather than left to
+            # the session context: that exit rolls back on any exception and is
+            # skipped entirely by a cancellation, so a run that failed, was stopped
+            # or ran out of budget would otherwise vanish from history.
+            try:
+                await self.runner.finish(
+                    prepared,
+                    status=status,
+                    error=error,
+                    paused_state=paused,
+                    budget_scope=budget_scope,
+                )
+                await self.db.commit()
+            except Exception:
+                if finished_cleanly:
+                    raise
+                logger.exception("Could not persist the terminal state of run %s", prepared.run.id)
 
         return ChatTurn(
             output=output,

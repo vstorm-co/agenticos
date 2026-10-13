@@ -12,10 +12,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { POST as login } from "./login/route";
 import { POST as magicLinkRequest } from "./magic-link/request/route";
 import { POST as magicLinkVerify } from "./magic-link/verify/route";
+import { POST as emailChangeConfirm } from "./email-change/confirm/route";
 import { POST as oauthCallback } from "./oauth-callback/route";
 import { POST as passwordResetConfirm } from "./password-reset/confirm/route";
 import { POST as passwordResetRequest } from "./password-reset/request/route";
 import { POST as register } from "./register/route";
+import { DELETE as endImpersonation } from "./impersonation/route";
 import { POST as logout } from "./logout/route";
 import { GET as me } from "./me/route";
 import { POST as refresh } from "./refresh/route";
@@ -26,14 +28,19 @@ vi.mock("@/lib/server-api", async () => {
   return { ...actual, backendFetch: vi.fn() };
 });
 
-/** A request carrying whatever cookies the browser would have. */
-function request(cookies: Record<string, string> = {}, body?: unknown): NextRequest {
+/** A request carrying whatever cookies the browser would have, and optionally the
+ * `x-forwarded-for` a proxy in front of the frontend would add. */
+function request(
+  cookies: Record<string, string> = {},
+  body?: unknown,
+  extraHeaders: Record<string, string> = {},
+): NextRequest {
   const header = Object.entries(cookies)
     .map(([name, value]) => `${name}=${value}`)
     .join("; ");
   return new NextRequest("http://localhost:3000/api/auth", {
     method: "POST",
-    headers: header ? { cookie: header } : {},
+    headers: { ...(header ? { cookie: header } : {}), ...extraHeaders },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
 }
@@ -113,6 +120,25 @@ describe("signing in", () => {
     expect(cookie(response, "refresh_token")?.attributes).toContain("Max-Age=604800");
   });
 
+  it("marks the cookies Secure only where the visitor is on https", async () => {
+    vi.mocked(backendFetch)
+      .mockResolvedValue({ access_token: "at", refresh_token: "rt" })
+      .mockResolvedValueOnce({ access_token: "at", refresh_token: "rt" })
+      .mockResolvedValueOnce({ id: "u-1" });
+    const credentials = { email: "a@example.com", password: "s" };
+
+    const plain = await login(request({}, credentials));
+    expect(cookie(plain, "access_token")?.attributes).not.toContain("Secure");
+    expect(cookie(plain, "refresh_token")?.attributes).not.toContain("Secure");
+
+    vi.mocked(backendFetch)
+      .mockResolvedValueOnce({ access_token: "at", refresh_token: "rt" })
+      .mockResolvedValueOnce({ id: "u-1" });
+    const behindTls = await login(request({}, credentials, { "x-forwarded-proto": "https" }));
+    expect(cookie(behindTls, "access_token")?.attributes).toContain("Secure");
+    expect(cookie(behindTls, "refresh_token")?.attributes).toContain("Secure");
+  });
+
   it("passes the backend's refusal through, status and sentence", async () => {
     vi.mocked(backendFetch).mockRejectedValue(
       new BackendApiError(401, "Unauthorized", { detail: "Incorrect email or password" }),
@@ -152,6 +178,7 @@ describe("signing out", () => {
 
     expect(backendFetch).toHaveBeenCalledWith("/api/v1/auth/logout", {
       method: "POST",
+      headers: {},
       body: JSON.stringify({ refresh_token: "rt" }),
     });
     expect(cookie(response, "access_token")?.attributes).toContain("Max-Age=0");
@@ -198,6 +225,7 @@ describe("refreshing the token", () => {
 
     expect(backendFetch).toHaveBeenCalledWith("/api/v1/auth/refresh", {
       method: "POST",
+      headers: {},
       body: JSON.stringify({ refresh_token: "rt" }),
     });
     await expect(response.json()).resolves.toMatchObject({ access_token: "fresh" });
@@ -249,6 +277,46 @@ describe("refreshing the token", () => {
 
     expect(response.status).toBe(500);
     expect(cookie(response, "access_token")).toBeUndefined();
+  });
+
+  it("keeps the session when the backend answered with a failure of its own", async () => {
+    // A 502 while the API redeploys says nothing about the token - and the
+    // rotation may have gone through with the answer lost, which the backend's
+    // reuse grace forgives only while the browser still holds the cookie.
+    vi.mocked(backendFetch).mockRejectedValue(new BackendApiError(502, "Bad Gateway", null));
+
+    const response = await refresh(request({ refresh_token: "rt" }));
+
+    expect(response.status).toBe(502);
+    expect(cookie(response, "access_token")).toBeUndefined();
+    expect(cookie(response, "refresh_token")).toBeUndefined();
+  });
+
+  it("refuses to mint the administrator's token under an impersonation cookie", async () => {
+    // The refresh cookie is the administrator's own; the access cookie says the
+    // browser was acting as somebody else. Refreshing here would answer a request
+    // the page made as the target with the administrator's token, and the client
+    // would replay it as them (#1044). The impersonation is over instead: its
+    // cookie goes, the refresh cookie stays, and the client is told which it was.
+    const impersonation = `h.${Buffer.from(JSON.stringify({ sub: "u-1", act: "a-1" })).toString("base64url")}.s`;
+
+    const response = await refresh(request({ access_token: impersonation, refresh_token: "rt" }));
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({ code: "IMPERSONATION_ENDED" });
+    expect(cookie(response, "access_token")?.attributes).toContain("Max-Age=0");
+    expect(cookie(response, "refresh_token")).toBeUndefined();
+    expect(backendFetch).not.toHaveBeenCalled();
+  });
+
+  it("refreshes an ordinary expired access token as before", async () => {
+    const ordinary = `h.${Buffer.from(JSON.stringify({ sub: "u-1" })).toString("base64url")}.s`;
+    vi.mocked(backendFetch).mockResolvedValue({ access_token: "fresh" });
+
+    const response = await refresh(request({ access_token: ordinary, refresh_token: "rt" }));
+
+    expect(response.status).toBe(200);
+    expect(cookie(response, "access_token")).toMatchObject({ value: "fresh" });
   });
 });
 
@@ -336,6 +404,62 @@ describe("reading the session", () => {
     expect(backendFetch).not.toHaveBeenCalled();
   });
 
+  it("stores the rotated cookies even when the read after the refresh fails", async () => {
+    // The backend has already spent the old refresh token. Dropping the new one
+    // here left the browser holding the spent one, and signed it out next time.
+    vi.mocked(backendFetch)
+      .mockResolvedValueOnce({ access_token: "fresh", refresh_token: "rt-2" })
+      .mockRejectedValueOnce(new BackendApiError(503, "Unavailable", null));
+
+    const response = await get({ refresh_token: "rt-1" });
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({ code: "FAILED_TO_GET_USER" });
+    expect(cookie(response, "access_token")).toMatchObject({ value: "fresh" });
+    expect(cookie(response, "refresh_token")).toMatchObject({ value: "rt-2" });
+  });
+
+  it("stores the rotated cookies when the read after the refresh never answered", async () => {
+    vi.mocked(backendFetch)
+      .mockResolvedValueOnce({ access_token: "fresh" })
+      .mockRejectedValueOnce(new Error("ECONNRESET"));
+
+    const response = await get({ refresh_token: "rt-1" });
+
+    expect(response.status).toBe(500);
+    expect(cookie(response, "access_token")).toMatchObject({ value: "fresh" });
+    expect(cookie(response, "refresh_token")).toBeUndefined();
+  });
+
+  it("stores the rotated cookies when the read after the refresh is rate-limited", async () => {
+    vi.mocked(backendFetch)
+      .mockResolvedValueOnce({ access_token: "fresh", refresh_token: "rt-2" })
+      .mockRejectedValueOnce(new BackendApiError(429, "Too Many Requests", null));
+
+    const response = await get({ refresh_token: "rt-1" });
+
+    expect(response.status).toBe(429);
+    expect(cookie(response, "refresh_token")).toMatchObject({ value: "rt-2" });
+  });
+
+  it("keeps the cookies when the refresh failed for a reason that is not the token", async () => {
+    vi.mocked(backendFetch).mockRejectedValue(new BackendApiError(502, "Bad Gateway", null));
+
+    const response = await get({ refresh_token: "rt" });
+
+    expect(response.status).toBe(502);
+    expect(cookie(response, "refresh_token")).toBeUndefined();
+  });
+
+  it("keeps the cookies when the refresh could not reach the backend", async () => {
+    vi.mocked(backendFetch).mockRejectedValue(new Error("ECONNRESET"));
+
+    const response = await get({ refresh_token: "rt" });
+
+    expect(response.status).toBe(500);
+    expect(cookie(response, "refresh_token")).toBeUndefined();
+  });
+
   it("clears the cookies when the refresh fails, because the session is over", async () => {
     vi.mocked(backendFetch).mockRejectedValue(new BackendApiError(401, "Unauthorized", null));
 
@@ -344,6 +468,78 @@ describe("reading the session", () => {
     expect(response.status).toBe(401);
     expect(cookie(response, "access_token")?.attributes).toContain("Max-Age=0");
     expect(cookie(response, "refresh_token")?.attributes).toContain("Max-Age=0");
+  });
+});
+
+describe("ending an impersonation", () => {
+  function end(cookies: Record<string, string> = {}) {
+    const header = Object.entries(cookies)
+      .map(([name, value]) => `${name}=${value}`)
+      .join("; ");
+    return endImpersonation(
+      new NextRequest("http://localhost:3000/api/auth/impersonation", {
+        method: "DELETE",
+        headers: header ? { cookie: header } : {},
+      }),
+    );
+  }
+
+  it("tells the backend with the impersonation's own token, then drops the cookie", async () => {
+    // The order matters: the backend closes the session row and audits the end;
+    // the cookie is what the impersonation lives in on this side. The refresh
+    // cookie is the administrator's own and is not touched (#1044).
+    vi.mocked(backendFetch).mockResolvedValue(null);
+
+    const response = await end({ access_token: "imp", refresh_token: "admin-rt" });
+
+    expect(response.status).toBe(200);
+    expect(backendFetch).toHaveBeenCalledWith(
+      "/api/v1/auth/impersonation",
+      expect.objectContaining({
+        method: "DELETE",
+        headers: { Authorization: "Bearer imp" },
+      }),
+    );
+    expect(cookie(response, "access_token")?.attributes).toContain("Max-Age=0");
+    expect(cookie(response, "refresh_token")).toBeUndefined();
+  });
+
+  it.each([400, 401])(
+    "drops the cookie when the backend says it is over already (%i)",
+    async (status) => {
+      // 401: the row was ended from elsewhere, or expired. 400: the cookie was
+      // nobody acting as anybody. Either way keeping it would keep nothing.
+      vi.mocked(backendFetch).mockRejectedValue(new BackendApiError(status, "Refused", null));
+
+      const response = await end({ access_token: "stale" });
+
+      expect(response.status).toBe(200);
+      expect(cookie(response, "access_token")?.attributes).toContain("Max-Age=0");
+    },
+  );
+
+  it("passes any other refusal through, cookie kept", async () => {
+    vi.mocked(backendFetch).mockRejectedValue(new BackendApiError(503, "Unavailable", null));
+
+    const response = await end({ access_token: "imp" });
+
+    expect(response.status).toBe(503);
+    expect(cookie(response, "access_token")).toBeUndefined();
+  });
+
+  it("answers 500 when the backend could not be reached at all", async () => {
+    vi.mocked(backendFetch).mockRejectedValue(new Error("ECONNREFUSED"));
+
+    const response = await end({ access_token: "imp" });
+
+    expect(response.status).toBe(500);
+  });
+
+  it("has nothing to tell the backend for a browser holding no access cookie", async () => {
+    const response = await end({ refresh_token: "admin-rt" });
+
+    expect(response.status).toBe(200);
+    expect(backendFetch).not.toHaveBeenCalled();
   });
 });
 
@@ -357,6 +553,7 @@ describe("signing in without a password", () => {
 
     expect(backendFetch).toHaveBeenCalledWith("/api/v1/auth/magic-link/request", {
       method: "POST",
+      headers: {},
       body: JSON.stringify({ email: "kacper@example.com" }),
     });
     await expect(response.json()).resolves.toEqual({ message: "Check your email" });
@@ -368,6 +565,14 @@ describe("signing in without a password", () => {
     const response = await magicLinkRequest(request({}, { email: "a@example.com" }));
 
     expect(response.status).toBe(429);
+  });
+
+  it("passes a refusal that is not a rate limit through with its status", async () => {
+    vi.mocked(backendFetch).mockRejectedValue(new BackendApiError(400, "Bad Request", null));
+
+    const response = await magicLinkRequest(request({}, { email: "a@example.com" }));
+
+    expect(response.status).toBe(400);
   });
 
   it("answers 500 when the mail request could not be made", async () => {
@@ -388,9 +593,25 @@ describe("signing in without a password", () => {
     await expect(response.json()).resolves.toMatchObject({
       user: { id: "u-1" },
       access_token: "at",
+      // Null rather than absent: the landing reads this to decide where to go,
+      // and a link minted without a path says so (#1214).
+      return_to: null,
     });
     expect(cookie(response, "access_token")).toMatchObject({ value: "at" });
     expect(cookie(response, "refresh_token")).toMatchObject({ value: "rt" });
+  });
+
+  it("passes on the path the link was minted for", async () => {
+    // The path travels in the token because a magic link is followed from an
+    // email, where the tab-local store the OAuth round trip uses is empty. This
+    // route is the only thing between the token and the page that reads it.
+    vi.mocked(backendFetch)
+      .mockResolvedValueOnce({ access_token: "at", refresh_token: "rt", return_to: "/agents/a-1" })
+      .mockResolvedValueOnce({ id: "u-1" });
+
+    const response = await magicLinkVerify(request({}, { token: "one-time" }));
+
+    await expect(response.json()).resolves.toMatchObject({ return_to: "/agents/a-1" });
   });
 
   it("refuses a link that did not verify, without a session", async () => {
@@ -423,55 +644,58 @@ describe("signing in without a password", () => {
 });
 
 describe("finishing an OAuth sign-in", () => {
-  it("stores the tokens the provider flow handed back", async () => {
-    // The tokens arrive in the body from the callback page; this route is what
-    // moves them into HttpOnly cookies, which is the whole point of it.
-    vi.mocked(backendFetch).mockResolvedValue({ id: "u-1" });
+  it("swaps the single-use code for the token pair, and stores it", async () => {
+    // The redirect carries a code, not the tokens (#14): a token in a redirect
+    // URL reaches the address bar, the access log and the next Referer.
+    vi.mocked(backendFetch)
+      .mockResolvedValueOnce({ access_token: "at", refresh_token: "rt" })
+      .mockResolvedValueOnce({ id: "u-1" });
 
-    const response = await oauthCallback(request({}, { access_token: "at", refresh_token: "rt" }));
+    const response = await oauthCallback(request({}, { code: "one-time" }));
 
-    expect(backendFetch).toHaveBeenCalledWith("/api/v1/auth/me", {
+    expect(backendFetch).toHaveBeenNthCalledWith(1, "/api/v1/oauth/exchange", {
+      method: "POST",
+      body: JSON.stringify({ code: "one-time" }),
+    });
+    expect(backendFetch).toHaveBeenNthCalledWith(2, "/api/v1/auth/me", {
       headers: { Authorization: "Bearer at" },
     });
     expect(cookie(response, "access_token")).toMatchObject({ value: "at" });
     expect(cookie(response, "refresh_token")).toMatchObject({ value: "rt" });
   });
 
-  it("refuses a callback that is missing either token", async () => {
-    // Which is what a truncated or tampered redirect looks like; setting one
-    // cookie and not the other produces a session that half-works.
-    for (const body of [{ access_token: "at" }, { refresh_token: "rt" }, {}]) {
-      const response = await oauthCallback(request({}, body));
+  it("refuses a callback carrying no code", async () => {
+    const response = await oauthCallback(request({}, {}));
 
-      expect(response.status).toBe(400);
-      expect(cookie(response, "access_token")).toBeUndefined();
-    }
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ code: "MISSING_AUTHORIZATION_CODE" });
+    expect(cookie(response, "access_token")).toBeUndefined();
     expect(backendFetch).not.toHaveBeenCalled();
   });
 
-  it("passes the backend's refusal of the token through", async () => {
+  it("passes the backend's refusal of the code through", async () => {
     vi.mocked(backendFetch).mockRejectedValue(
-      new BackendApiError(401, "Unauthorized", { detail: "Token is not valid" }),
+      new BackendApiError(401, "Unauthorized", { detail: "Invalid or expired exchange code" }),
     );
 
-    const response = await oauthCallback(request({}, { access_token: "x", refresh_token: "y" }));
+    const response = await oauthCallback(request({}, { code: "stale" }));
 
     expect(response.status).toBe(401);
-    await expect(response.json()).resolves.toEqual({ detail: "Token is not valid" });
+    await expect(response.json()).resolves.toEqual({ detail: "Invalid or expired exchange code" });
   });
 
   it("says sign-in failed when the refusal named no reason", async () => {
     vi.mocked(backendFetch).mockRejectedValue(new BackendApiError(401, "Unauthorized", null));
 
-    const response = await oauthCallback(request({}, { access_token: "x", refresh_token: "y" }));
+    const response = await oauthCallback(request({}, { code: "stale" }));
 
     await expect(response.json()).resolves.toEqual({ code: "LOGIN_FAILED" });
   });
 
-  it("answers 500 when the check could not be made", async () => {
+  it("answers 500 when the exchange could not be made", async () => {
     vi.mocked(backendFetch).mockRejectedValue(new Error("ECONNREFUSED"));
 
-    const response = await oauthCallback(request({}, { access_token: "x", refresh_token: "y" }));
+    const response = await oauthCallback(request({}, { code: "x" }));
 
     expect(response.status).toBe(500);
   });
@@ -487,6 +711,49 @@ describe("registering, and resetting a password", () => {
     // No cookies: registration may need a verification step, so it does not sign
     // anybody in.
     expect(response.headers.getSetCookie()).toEqual([]);
+  });
+
+  it("forwards a staged invitation's handle so the sign-up admission can peek it", async () => {
+    // The invitee reached the form through a staged invitation (#1414): the token is
+    // in an httpOnly cookie, not the body, and the backend reads the handle from a
+    // header to admit an address the sign-up policy would otherwise refuse.
+    // Which staged invitation is the form's to say, through the flow its landing
+    // named: two staged side by side hold two cookies, and the other one's would
+    // admit the wrong address.
+    vi.mocked(backendFetch).mockResolvedValue({ id: "u-3", email: "invited@example.com" });
+    const flow = "0123456789abcdef0123456789abcdef";
+    const other = "fedcba9876543210fedcba9876543210";
+    const staged = new NextRequest(`http://localhost:3000/api/auth/register?flow=${flow}`, {
+      method: "POST",
+      headers: {
+        cookie: `invitation_stage_${flow}=an-opaque-handle; invitation_stage_${other}=another`,
+      },
+      body: JSON.stringify({ email: "invited@example.com", password: "secret" }),
+    });
+
+    await register(staged);
+
+    expect(backendFetch).toHaveBeenCalledWith(
+      "/api/v1/auth/register",
+      expect.objectContaining({
+        headers: expect.objectContaining({ "X-Invitation-Handle": "an-opaque-handle" }),
+      }),
+    );
+  });
+
+  it("forwards no handle for a registration that names no flow", async () => {
+    // A staging cookie left in the browser is not a claim this registration made.
+    vi.mocked(backendFetch).mockResolvedValue({ id: "u-4", email: "plain@example.com" });
+
+    await register(
+      request(
+        { ["invitation_stage_0123456789abcdef0123456789abcdef"]: "an-opaque-handle" },
+        { email: "plain@example.com", password: "secret" },
+      ),
+    );
+
+    const [, options] = vi.mocked(backendFetch).mock.calls.at(-1) ?? [];
+    expect(options?.headers).not.toHaveProperty("X-Invitation-Handle");
   });
 
   it("puts the backend's reason on a refused registration", async () => {
@@ -559,6 +826,7 @@ describe("registering, and resetting a password", () => {
     await passwordResetRequest(request({}, { email: "a@example.com" }));
     expect(backendFetch).toHaveBeenCalledWith("/api/v1/auth/password-reset/request", {
       method: "POST",
+      headers: {},
       body: JSON.stringify({ email: "a@example.com" }),
     });
 
@@ -568,6 +836,7 @@ describe("registering, and resetting a password", () => {
     );
     expect(backendFetch).toHaveBeenCalledWith("/api/v1/auth/password-reset/confirm", {
       method: "POST",
+      headers: {},
       body: JSON.stringify({ token: "one-time", new_password: "secret" }),
     });
     await expect(confirmed.json()).resolves.toEqual({ message: "Password updated" });
@@ -581,5 +850,207 @@ describe("registering, and resetting a password", () => {
     vi.mocked(backendFetch).mockRejectedValue(new Error("ECONNREFUSED"));
     expect((await passwordResetRequest(request({}, { email: "a@example.com" }))).status).toBe(500);
     expect((await passwordResetConfirm(request({}, { token: "x" }))).status).toBe(500);
+  });
+
+  it("forwards an email-change confirmation, which has no session to carry", async () => {
+    // Followed from the new address, routinely in a browser that has never
+    // signed in - so the token is the whole of the proof and the hop is
+    // unauthenticated, like the password-reset confirmation above it (#1772).
+    vi.mocked(backendFetch).mockResolvedValue({ message: "Email updated" });
+
+    const response = await emailChangeConfirm(request({}, { token: "one-time" }));
+
+    expect(backendFetch).toHaveBeenCalledWith("/api/v1/auth/email-change/confirm", {
+      method: "POST",
+      headers: {},
+      body: JSON.stringify({ token: "one-time" }),
+    });
+    await expect(response.json()).resolves.toEqual({ message: "Email updated" });
+  });
+
+  it("passes a refused email change through, and a broken one as a 500", async () => {
+    vi.mocked(backendFetch).mockRejectedValue(new BackendApiError(400, "Bad Request", null));
+    expect((await emailChangeConfirm(request({}, { token: "x" }))).status).toBe(400);
+
+    vi.mocked(backendFetch).mockRejectedValue(new Error("ECONNREFUSED"));
+    expect((await emailChangeConfirm(request({}, { token: "x" }))).status).toBe(500);
+  });
+});
+
+/**
+ * The rate limit only works if the caller's address survives the BFF and a 429
+ * reaches the browser as one (#1047). The backend keys the per-IP bucket on
+ * `X-Forwarded-For`, which is the frontend container's unless this hop forwards
+ * the client's; and a 429 flattened to "login failed" or a cleared session tells
+ * the caller the wrong thing and drops the `Retry-After`.
+ */
+describe("rate limiting through the BFF", () => {
+  function rateLimited() {
+    return new BackendApiError(
+      429,
+      "Too Many Requests",
+      {
+        error: {
+          code: "RATE_LIMIT_EXCEEDED",
+          message: "Too many attempts. Try again in a minute.",
+          details: { retry_after_seconds: 60 },
+        },
+      },
+      new Headers({ "Retry-After": "60" }),
+    );
+  }
+
+  it("forwards the caller's address so the limit keys on the client, not the container", async () => {
+    vi.mocked(backendFetch)
+      .mockResolvedValueOnce({ access_token: "at", refresh_token: "rt" })
+      .mockResolvedValueOnce({ id: "u-1" });
+
+    await login(
+      request({}, { email: "a@example.com", password: "s" }, { "x-forwarded-for": "203.0.113.7" }),
+    );
+
+    expect(backendFetch).toHaveBeenNthCalledWith(
+      1,
+      "/api/v1/auth/login",
+      expect.objectContaining({
+        headers: expect.objectContaining({ "x-forwarded-for": "203.0.113.7" }),
+      }),
+    );
+  });
+
+  it("reaches the browser as a rate-limit result with its Retry-After, not a login failure", async () => {
+    vi.mocked(backendFetch).mockRejectedValue(rateLimited());
+
+    const response = await login(request({}, { email: "a@example.com", password: "x" }));
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("60");
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: "RATE_LIMIT_EXCEEDED" },
+    });
+  });
+
+  it("does not end the session when the refresh bucket is exhausted", async () => {
+    vi.mocked(backendFetch).mockRejectedValue(rateLimited());
+
+    const response = await refresh(request({ refresh_token: "rt" }));
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("60");
+    // A wait, not an expired session: the cookies are left untouched rather than
+    // cleared, so the caller stays signed in and can retry.
+    expect(cookie(response, "access_token")).toBeUndefined();
+    expect(cookie(response, "refresh_token")).toBeUndefined();
+  });
+
+  it.each([
+    ["register", register],
+    ["magic-link/verify", magicLinkVerify],
+    ["password-reset/request", passwordResetRequest],
+    ["password-reset/confirm", passwordResetConfirm],
+    ["email-change/confirm", emailChangeConfirm],
+  ])("carries the rate limit and its Retry-After through %s too", async (_name, route) => {
+    vi.mocked(backendFetch).mockRejectedValue(rateLimited());
+
+    const response = await route(
+      request({}, { email: "a@example.com", token: "t", new_password: "p", password: "p" }),
+    );
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("60");
+  });
+
+  /**
+   * `POST /api/auth/refresh` is the refresh somebody asked for; this is the one
+   * every page load makes on its own once the 15-minute access cookie is out.
+   * It had neither half - no forwarded address, so it shared the container's
+   * bucket, and a catch that read any failure as "logged out" - which is the
+   * deployment-wide sign-out #1047 is about, reproduced by the route meant to
+   * prevent it.
+   */
+  describe("the refresh nobody asked for, behind GET /api/auth/me", () => {
+    it("forwards the caller's address on both hops", async () => {
+      vi.mocked(backendFetch)
+        .mockRejectedValueOnce(new BackendApiError(401, "Unauthorized", null))
+        .mockResolvedValueOnce({ access_token: "at2" })
+        .mockResolvedValueOnce({ id: "u-1" });
+
+      await me(
+        request({ access_token: "stale", refresh_token: "rt" }, undefined, {
+          "x-forwarded-for": "203.0.113.7",
+        }),
+      );
+
+      for (const call of [1, 2, 3]) {
+        expect(backendFetch).toHaveBeenNthCalledWith(
+          call,
+          expect.any(String),
+          expect.objectContaining({
+            headers: expect.objectContaining({ "x-forwarded-for": "203.0.113.7" }),
+          }),
+        );
+      }
+    });
+
+    it("does not sign the caller out when that refresh is rate-limited", async () => {
+      vi.mocked(backendFetch)
+        .mockRejectedValueOnce(new BackendApiError(401, "Unauthorized", null))
+        .mockRejectedValueOnce(rateLimited());
+
+      const response = await me(request({ access_token: "stale", refresh_token: "rt" }));
+
+      expect(response.status).toBe(429);
+      expect(response.headers.get("Retry-After")).toBe("60");
+      expect(cookie(response, "access_token")).toBeUndefined();
+      expect(cookie(response, "refresh_token")).toBeUndefined();
+    });
+
+    it("still clears the cookies when the refresh token is genuinely refused", async () => {
+      vi.mocked(backendFetch)
+        .mockRejectedValueOnce(new BackendApiError(401, "Unauthorized", null))
+        .mockRejectedValueOnce(new BackendApiError(401, "Unauthorized", null));
+
+      const response = await me(request({ access_token: "stale", refresh_token: "rt" }));
+
+      expect(response.status).toBe(401);
+      expect(cookie(response, "access_token")?.value).toBe("");
+      expect(cookie(response, "refresh_token")?.value).toBe("");
+    });
+
+    it("forwards a rate limit on the /auth/me hop rather than reporting it as a broken read", async () => {
+      vi.mocked(backendFetch).mockRejectedValueOnce(rateLimited());
+
+      const response = await me(request({ access_token: "at" }));
+
+      expect(response.status).toBe(429);
+      expect(response.headers.get("Retry-After")).toBe("60");
+    });
+  });
+
+  /**
+   * Signing out swallows every backend failure, because they all mean the same
+   * thing: the refresh token is already worthless. A 429 is the one that does
+   * not - the backend never looked at the token, so clearing the browser's only
+   * copy strands a live token nobody can revoke and leaves no way to retry.
+   */
+  describe("signing out under a rate limit", () => {
+    it("keeps the cookies and forwards the wait", async () => {
+      vi.mocked(backendFetch).mockRejectedValue(rateLimited());
+
+      const response = await logout(request({ refresh_token: "rt" }));
+
+      expect(response.status).toBe(429);
+      expect(response.headers.get("Retry-After")).toBe("60");
+      expect(cookie(response, "refresh_token")).toBeUndefined();
+    });
+
+    it("still clears them when the token was merely already expired", async () => {
+      vi.mocked(backendFetch).mockRejectedValue(new BackendApiError(401, "Unauthorized", null));
+
+      const response = await logout(request({ refresh_token: "rt" }));
+
+      expect(response.status).toBe(200);
+      expect(cookie(response, "refresh_token")?.value).toBe("");
+    });
   });
 });
