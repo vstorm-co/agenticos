@@ -394,6 +394,6 @@ describe("the Routines page", () => {
     const allowed = stepsForPage(ROUTES.ROUTINES, () => true).map((step) => step.id);
 
     expect(refused).toEqual(["routines-list"]);
-    expect(allowed).toEqual(["routines-list", "routines-create"]);
+    expect(allowed).toEqual(["routines-list", "routines-create", "routines-ideas"]);
   });
 });

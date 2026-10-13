@@ -125,6 +125,8 @@ interface TriggerFormDialogProps {
   trigger?: Trigger | null;
   /** Which concept a new trigger starts on. Ignored when editing. */
   initialType?: TriggerType;
+  /** A template the new trigger starts from - an idea picked on the Routines page. */
+  initialTemplate?: TriggerTemplate | null;
 }
 
 /**
@@ -147,6 +149,7 @@ export function TriggerFormDialog({
   onOpenChange,
   trigger = null,
   initialType = "schedule",
+  initialTemplate = null,
 }: TriggerFormDialogProps) {
   const t = useTranslations("triggers");
   const editing = trigger !== null;
@@ -305,6 +308,14 @@ export function TriggerFormDialog({
       setIntervalUnit(unit);
       setIntervalCount(String(count));
     }
+  }
+
+  // Seeded once, during render rather than in an effect, so the first frame
+  // already shows the picked idea instead of a blank form flashing to it.
+  const [seeded, setSeeded] = useState(false);
+  if (!seeded && initialTemplate !== null && trigger === null) {
+    setSeeded(true);
+    applyTemplate(initialTemplate);
   }
 
   /** Clear the template prefill and return to a blank message. */

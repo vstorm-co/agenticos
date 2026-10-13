@@ -631,6 +631,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "routines-create",
     permission: Perm.agentsRun,
   },
+  // Rendered only once the template catalog has answered, so optional.
+  {
+    id: "routines-ideas",
+    page: ROUTES.ROUTINES,
+    target: "routines-ideas",
+    permission: Perm.agentsRun,
+    optional: true,
+  },
 
   { id: "workspaces-browser", page: ROUTES.DOCUMENTS, target: "workspaces-browser" },
   // The detail a workspace opens onto — the file tree. "?"-only and shown in

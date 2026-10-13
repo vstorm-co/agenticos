@@ -108,6 +108,31 @@ describe("New-schedule template picker", () => {
     });
   });
 
+  it("opens already filled in from an idea picked before it", async () => {
+    // The Routines page's ideas open the form with one chosen: the first frame
+    // shows it, rather than a blank form somebody has to pick it in again.
+    const user = userEvent.setup();
+    vi.mocked(apiClient.post).mockResolvedValue({});
+    render(
+      <TriggerFormDialog agentId="a1" open onOpenChange={vi.fn()} initialTemplate={WEEKLY} />,
+      { wrapper },
+    );
+    const dialog = within(await screen.findByRole("dialog"));
+
+    await user.click(dialog.getByRole("button", { name: "Continue" }));
+    await user.click(dialog.getByRole("button", { name: "Continue" }));
+    await user.click(dialog.getByRole("button", { name: "Create" }));
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/agents/a1/triggers",
+      expect.objectContaining({
+        prompt: "Write this week's report.",
+        schedule_kind: "cron",
+        cron_expression: "0 9 * * 1",
+      }),
+    );
+  });
+
   it("clears the prefill when starting from scratch", async () => {
     const user = userEvent.setup();
     const dialog = await open();

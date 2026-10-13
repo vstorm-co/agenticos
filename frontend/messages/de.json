@@ -3535,6 +3535,10 @@
       "knowledge-groups": {
         "title": "Nach Abteilung",
         "body": "Schränken Sie die Liste auf das ein, was eine Gruppe bekommen hat. Eine Gruppe entscheidet, wen etwas erreicht, und gruppiert damit auch die Liste."
+      },
+      "routines-ideas": {
+        "title": "Oder mit einer Idee beginnen",
+        "body": "Fertige Routinen - ein Morgenüberblick, eine Wochenzusammenfassung, eine stündliche Prüfung - jeweils mit der Uhrzeit, zu der sie liefe. Wählen Sie eine, und der neue Zeitplan öffnet sich bereits ausgefüllt."
       }
     },
     "chooseLanguage": "Sprache"
@@ -4675,7 +4679,9 @@
     },
     "routines": {
       "title": "Routinen",
-      "description": "Alles, was Ihre Agents von allein tun - nach Zeitplan oder auf ein Ereignis."
+      "description": "Alles, was Ihre Agents von allein tun - nach Zeitplan oder auf ein Ereignis.",
+      "ideasTitle": "Ideen zum Starten",
+      "ideasHint": "Wählen Sie eine, und sie öffnet sich als neuer Zeitplan, schon ausgefüllt - Agent wählen, anpassen, speichern."
     }
   },
   "profile": {
@@ -5425,7 +5431,8 @@
       "cron": "Cron {expression} (UTC)",
       "cronDaily": "Täglich um {time} UTC",
       "cronWeekly": "Um {time} UTC an {days}",
-      "cronMonthly": "Monatlich am {day}. um {time} UTC"
+      "cronMonthly": "Monatlich am {day}. um {time} UTC",
+      "cronWeekdays": "Werktags um {time} UTC"
     },
     "event": {
       "github": "Bei neuen GitHub-Issues",

@@ -3653,6 +3653,10 @@
       "knowledge-groups": {
         "title": "By department",
         "body": "Narrow the list to what one group was given. A group is who something reaches, so it is also how the list is grouped."
+      },
+      "routines-ideas": {
+        "title": "Or start from an idea",
+        "body": "Ready-made routines - a morning digest, a weekly summary, an hourly check - each with the time it would run. Pick one and the new schedule opens already filled in."
       }
     },
     "chooseLanguage": "Language"
@@ -4793,7 +4797,9 @@
     },
     "routines": {
       "title": "Routines",
-      "description": "Everything your agents do on their own - on a schedule, or on an event."
+      "description": "Everything your agents do on their own - on a schedule, or on an event.",
+      "ideasTitle": "Ideas to start from",
+      "ideasHint": "Pick one and it opens as a new schedule, filled in - choose the agent, adjust anything, save."
     }
   },
   "profile": {
@@ -5542,7 +5548,8 @@
       "cron": "Cron {expression} (UTC)",
       "cronDaily": "Daily at {time} UTC",
       "cronWeekly": "At {time} UTC on {days}",
-      "cronMonthly": "Monthly on day {day} at {time} UTC"
+      "cronMonthly": "Monthly on day {day} at {time} UTC",
+      "cronWeekdays": "Weekdays at {time} UTC"
     },
     "event": {
       "github": "On new GitHub issues",
