@@ -1,5 +1,5 @@
 ---
-source_sha: "2a2ac51febed"
+source_sha: "d7c969352191"
 ---
 
 # Die Konsole { #the-console }
@@ -192,11 +192,15 @@ Anbieter und kein Modell, oder ist kein Agent ausgewählt, ist das Mikrofon
 durchgestrichen und sagt, warum; wer `org:settings` hält, bekommt einen Link zur
 Voice-Karte.
 
-Das Leuchten unter dem Eingabefeld, während Sie sprechen, folgt **Voice glow** im
-Kontomenü, neben Design und Sprache: **Vivid**, **Subtle** (der Standard) oder
-**Off**. Es wird pro Browser gespeichert. Ist im Betriebssystem reduzierte
-Bewegung eingeschaltet, gibt es gar kein Leuchten, der Streifen erscheint ohne
-Gleiten, und der Pegel ist eine fünfstufige Anzeige.
+Das Leuchten unter dem Eingabefeld, während Sie sprechen, folgt **Voice glow**
+unter **Settings → Profile → Appearance**, neben Design und **Motion**:
+**Vivid**, **Subtle** (der Standard) oder **Off**. Es wird pro Browser
+gespeichert. **Motion** bestimmt, wie viel Bewegung die ganze Konsole zeigt:
+**System** (der Standard) folgt der Einstellung für reduzierte Bewegung im
+Betriebssystem, **Reduce** reduziert die Bewegung auch ohne sie, und **Full**
+behält sie, was auch immer das Betriebssystem sagt. Solange die Bewegung
+reduziert ist, gibt es gar kein Leuchten, der Streifen erscheint ohne Gleiten,
+und der Pegel ist eine fünfstufige Anzeige.
 
 ### Die Voice-Karte { #the-voice-card }
 

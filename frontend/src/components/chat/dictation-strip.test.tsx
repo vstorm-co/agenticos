@@ -35,9 +35,9 @@ vi.mock("motion/react", () => {
   return {
     AnimatePresence: ({ children }: { children: ReactNode }) => <>{children}</>,
     motion: { div: MotionDiv },
-    useReducedMotion: () => motionState.reduced,
   };
 });
+vi.mock("@/hooks/use-reduced-motion", () => ({ useReducedMotion: () => motionState.reduced }));
 
 function dictationState(overrides: Partial<DictationState> = {}): DictationState {
   return {

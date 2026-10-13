@@ -202,10 +202,12 @@ describe("stepsForPage", () => {
 
   it("gives Settings and a workspace their own '?' stop, from any of their routes", () => {
     // Settings collapses its five tabs onto one identity, so help opened on any of
-    // them lands the same stops; a workspace detail has its own. The memory stop
-    // is optional - its card renders only where an agent has written something.
+    // them lands the same stops; a workspace detail has its own. The Appearance
+    // stop is optional - its card is on the profile tab only - and so is the
+    // memory stop, whose card renders only where an agent has written something.
     expect(stepsForPage(ROUTES.SETTINGS_NOTIFICATIONS, () => true).map((s) => s.id)).toEqual([
       "settings-tabs",
+      "settings-appearance",
       "my-memory",
     ]);
     expect(stepsForPage("/workspaces/some-id", () => true).map((s) => s.id)).toEqual([

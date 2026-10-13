@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useSyncExternalStore, type ReactNode } from "react";
-import { useReducedMotion } from "motion/react";
 import { getAudioContext, isAudioSupported, useMicrophone } from "voice-glow";
 
 import { useMounted } from "@/hooks/use-mounted";
+import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { cn } from "@/lib/utils";
 import { useVoiceGlowStore } from "@/stores/voice-glow-store";
 

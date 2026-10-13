@@ -17,6 +17,7 @@ export { useOrganizations, useOrganizationList, preferredOrg } from "./use-organ
 export { useActiveOrganizationRecovery } from "./use-active-organization";
 export { useMembers } from "./use-members";
 export { useMounted } from "./use-mounted";
+export { useReducedMotion } from "./use-reduced-motion";
 export { useUrlState } from "./use-url-state";
 export { useInvitations } from "./use-invitations";
 export { useKnowledgeBases, useKBDetail } from "./use-knowledge-bases";

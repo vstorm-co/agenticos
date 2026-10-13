@@ -1,5 +1,5 @@
 ---
-source_sha: "2a2ac51febed"
+source_sha: "d7c969352191"
 ---
 
 # Konsola { #the-console }
@@ -178,10 +178,13 @@ mikrofon jest przekreślony i mówi dlaczego; osoba z `org:settings` dostaje lin
 do karty Voice.
 
 Poświata pod kompozytorem, gdy mówisz, idzie za ustawieniem **Voice glow** w
-menu konta, obok motywu i języka: **Vivid**, **Subtle** (domyślnie) albo **Off**.
-Jest zapamiętywana dla każdej przeglądarki. Przy włączonym w systemie
-ograniczeniu ruchu nie ma żadnej poświaty, pasek pojawia się bez wysuwania, a
-poziom dźwięku to pięciostopniowy wskaźnik.
+**Settings → Profile → Appearance**, obok motywu i ustawienia **Motion**:
+**Vivid**, **Subtle** (domyślnie) albo **Off**. Jest zapamiętywana dla każdej
+przeglądarki. **Motion** decyduje, ile ruchu pokazuje cała konsola: **System**
+(domyślnie) idzie za ustawieniem ograniczenia ruchu w systemie operacyjnym,
+**Reduce** ogranicza ruch bez niego, a **Full** zachowuje ruch niezależnie od
+systemu operacyjnego. Gdy ruch jest ograniczony, nie ma żadnej poświaty, pasek
+pojawia się bez wysuwania, a poziom dźwięku to pięciostopniowy wskaźnik.
 
 ### Karta Voice { #the-voice-card }
 

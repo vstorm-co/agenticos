@@ -3187,6 +3187,10 @@
         "title": "Ihre Einstellungen",
         "body": "Ihr Profil, Anmeldung und Sicherheit, Benachrichtigungen und Slash-Befehle liegen alle hinter diesen Tabs — wechseln Sie hier zwischen ihnen."
       },
+      "settings-appearance": {
+        "title": "Darstellung",
+        "body": "Wählen Sie das Design, wie das Chatfeld beim Diktieren reagiert und wie viel Bewegung die Konsole zeigt. Jede Auswahl gilt sofort, in diesem Browser."
+      },
       "skills-list": {
         "title": "Ihre Skills",
         "body": "Die Skills, die Sie geschrieben oder installiert haben. Ein Agent wählt die, die er braucht, in seinem Tab Skills, und derselbe Skill kann mehreren Agents zugleich dienen."
@@ -5536,6 +5540,16 @@
     "vivid": "Kräftig",
     "subtle": "Dezent",
     "off": "Aus",
-    "reducedMotion": "Aus, solange das System Animationen reduziert"
+    "reducedMotion": "Aus, solange Bewegung reduziert ist"
+  },
+  "appearance": {
+    "description": "Wie die Konsole für Sie aussieht und sich bewegt. In diesem Browser gespeichert und sofort angewendet.",
+    "theme": "Design",
+    "voiceGlowHint": "Wie das Chatfeld beim Diktieren auf Ihre Stimme reagiert",
+    "motion": "Bewegung",
+    "system": "System",
+    "reduce": "Reduziert",
+    "full": "Voll",
+    "motionHint": "System folgt der Einstellung Ihres Betriebssystems. Reduziert schaltet die Diktieranimation und Gleitanimationen aus."
   }
 }

@@ -1,7 +1,6 @@
 "use client";
 
-import { AudioLines, Globe, Monitor, Moon, Sun } from "lucide-react";
-import { useReducedMotion } from "motion/react";
+import { Globe, Monitor, Moon, Sun } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import type { LucideIcon } from "lucide-react";
 
@@ -16,11 +15,11 @@ import { useMounted } from "@/hooks/use-mounted";
 import { getLocaleFlag, getLocaleLabel, locales, type Locale } from "@/i18n";
 import { usePathname, useRouter } from "@/lib/locale-navigation";
 import { getResolvedTheme, useThemeStore, type Theme } from "@/stores/theme-store";
-import { useVoiceGlowStore, type VoiceGlowStyle } from "@/stores/voice-glow-store";
 
 /**
  * The preferences that belong to the person rather than to the page: which
- * theme, which language, and how the composer glows while it listens.
+ * theme and which language. The rest of them - the voice glow and motion - live
+ * with the theme under Settings → Profile → Appearance.
  *
  * They used to be two icon buttons in a strip at the foot of the column,
  * beside search and the bell. That strip mixed two things a person does
@@ -34,9 +33,9 @@ import { useVoiceGlowStore, type VoiceGlowStyle } from "@/stores/voice-glow-stor
  * current value on the trigger, so the menu answers "what language is this in"
  * without a second click.
  *
- * Submenus rather than a flat list of seven rows: the account menu's own
- * entries are the organization, the profile and signing out, and burying those
- * under three themes, three languages and three glows inverts what it is for.
+ * Submenus rather than a flat list of rows: the account menu's own entries are
+ * the organization, the profile and signing out, and burying those under three
+ * themes and three languages inverts what it is for.
  *
  * Each choice is a Radix `RadioItem`, not a `<button role="menuitemradio">`.
  * The hand-rolled version looked identical and was unreachable: Radix builds a
@@ -141,50 +140,6 @@ export function LanguageMenu() {
             </DropdownMenuRadioItem>
           ))}
         </DropdownMenuRadioGroup>
-      </DropdownMenuSubContent>
-    </DropdownMenuSub>
-  );
-}
-
-const GLOW_STYLES: readonly VoiceGlowStyle[] = ["vivid", "subtle", "off"];
-
-/**
- * How the chat composer glows while it hears a voice: vivid, subtle or off.
- *
- * Kept in this browser like the theme, and for the same reason it gates on
- * `useMounted`: the stored choice is unknown on the server. Under reduced motion
- * the glow is not drawn at all, so the menu says Off, offers nothing to pick,
- * and says why - a choice that changes nothing on screen is not a choice.
- */
-export function VoiceGlowMenu() {
-  const t = useTranslations("voiceGlow");
-  const { style, setStyle } = useVoiceGlowStore();
-  const mounted = useMounted();
-  const prefersReduced = useReducedMotion();
-  const reduced = mounted && prefersReduced === true;
-  const current: VoiceGlowStyle = reduced ? "off" : style;
-
-  return (
-    <DropdownMenuSub>
-      <DropdownMenuSubTrigger className="gap-2">
-        <AudioLines className="h-4 w-4 shrink-0" aria-hidden />
-        <span className="flex-1">{t("title")}</span>
-        {mounted ? <span className="text-muted-foreground text-xs">{t(current)}</span> : null}
-      </DropdownMenuSubTrigger>
-      <DropdownMenuSubContent className="w-48">
-        <DropdownMenuRadioGroup
-          value={mounted ? current : undefined}
-          onValueChange={(next) => setStyle(next as VoiceGlowStyle)}
-        >
-          {GLOW_STYLES.map((option) => (
-            <DropdownMenuRadioItem key={option} value={option} disabled={reduced}>
-              {t(option)}
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-        {reduced && (
-          <p className="text-muted-foreground max-w-44 px-2 py-1.5 text-xs">{t("reducedMotion")}</p>
-        )}
       </DropdownMenuSubContent>
     </DropdownMenuSub>
   );

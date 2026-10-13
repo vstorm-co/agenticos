@@ -7,10 +7,7 @@ import type { DictationActions, DictationState } from "@/hooks/use-dictation";
 import { clock, DictationBar } from "./dictation-bar";
 
 const motionState = vi.hoisted(() => ({ reduced: false }));
-vi.mock("motion/react", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("motion/react")>()),
-  useReducedMotion: () => motionState.reduced,
-}));
+vi.mock("@/hooks/use-reduced-motion", () => ({ useReducedMotion: () => motionState.reduced }));
 
 function dictationState(overrides: Partial<DictationState> = {}): DictationState {
   return {

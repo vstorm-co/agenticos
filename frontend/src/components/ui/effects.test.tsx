@@ -31,10 +31,7 @@ vi.mock("voice-glow", async (importOriginal) => {
     getAudioContext: () => audioGraph.context,
   };
 });
-vi.mock("motion/react", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("motion/react")>()),
-  useReducedMotion: () => env.reduced,
-}));
+vi.mock("@/hooks/use-reduced-motion", () => ({ useReducedMotion: () => env.reduced }));
 vi.mock("@/hooks/use-mounted", () => ({ useMounted: () => env.mounted }));
 
 const STREAM = {} as MediaStream;

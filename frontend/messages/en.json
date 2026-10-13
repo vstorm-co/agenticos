@@ -3324,6 +3324,10 @@
         "title": "Your settings",
         "body": "Your profile, sign-in and security, notifications, and slash-commands all live behind these tabs — switch between them here."
       },
+      "settings-appearance": {
+        "title": "Appearance",
+        "body": "Pick the theme, how the chat box glows while you dictate, and how much the console moves. Each choice applies at once, in this browser."
+      },
       "skills-list": {
         "title": "Your skills",
         "body": "The skills you've written or installed. An agent picks the ones it needs from its Skills tab, and the same skill can serve several agents at once."
@@ -5679,5 +5683,15 @@
     "subtle": "Subtle",
     "off": "Off",
     "reducedMotion": "Off while reduced motion is on"
+  },
+  "appearance": {
+    "description": "How the console looks and moves for you. Kept in this browser and applied at once.",
+    "theme": "Theme",
+    "voiceGlowHint": "How the chat box reacts to your voice while dictating",
+    "motion": "Motion",
+    "system": "System",
+    "reduce": "Reduce",
+    "full": "Full",
+    "motionHint": "System follows your operating system's setting. Reduce turns off the voice glow and slide animations."
   }
 }

@@ -1,5 +1,5 @@
 ---
-source_sha: "2a2ac51febed"
+source_sha: "d7c969352191"
 ---
 
 # La consola { #the-console }
@@ -176,11 +176,14 @@ todavía no un proveedor y un modelo, o no hay ningún agent elegido, el micróf
 aparece tachado y dice por qué; quien tiene `org:settings` recibe un enlace a la
 tarjeta Voice.
 
-El brillo debajo del compositor mientras hablas sigue a **Voice glow** en el
-menú de la cuenta, junto al tema y el idioma: **Vivid**, **Subtle** (por defecto)
-u **Off**. Se recuerda por navegador. Con el movimiento reducido activado en el
-sistema operativo no hay brillo alguno, la franja aparece sin deslizarse y el
-nivel es un indicador de cinco pasos.
+El brillo debajo del compositor mientras hablas sigue a **Voice glow** en
+**Settings → Profile → Appearance**, junto al tema y a **Motion**: **Vivid**,
+**Subtle** (por defecto) u **Off**. Se recuerda por navegador. **Motion** decide
+cuánto se mueve toda la consola: **System** (por defecto) sigue el ajuste de
+movimiento reducido del sistema operativo, **Reduce** reduce el movimiento sin
+él y **Full** lo mantiene diga lo que diga el sistema operativo. Mientras el
+movimiento está reducido no hay brillo alguno, la franja aparece sin deslizarse
+y el nivel es un indicador de cinco pasos.
 
 ### La tarjeta Voice { #the-voice-card }
 

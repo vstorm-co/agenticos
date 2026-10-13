@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { prefersReducedMotion } from "@/lib/motion";
 import { useThemeStore, getResolvedTheme } from "@/stores/theme-store";
 
 interface ThemeProviderProps {
@@ -23,15 +24,15 @@ function applyTheme(resolved: "light" | "dark") {
  * Three cases go without the sweep, each for its own reason: the first paint
  * (there is no previous theme on the root to sweep away from - animating it
  * would wipe the page against itself on every load), a browser without the
- * View Transitions API, and a reader who asked for reduced motion.
+ * View Transitions API, and a reader who asked for reduced motion - at the
+ * operating system or in their Motion preference.
  */
 function applyThemeAnimated(resolved: "light" | "dark") {
   const root = document.documentElement;
   if (root.classList.contains(resolved)) return;
 
   const firstPaint = !root.classList.contains("light") && !root.classList.contains("dark");
-  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (firstPaint || reducedMotion || document.startViewTransition === undefined) {
+  if (firstPaint || prefersReducedMotion() || document.startViewTransition === undefined) {
     applyTheme(resolved);
     return;
   }

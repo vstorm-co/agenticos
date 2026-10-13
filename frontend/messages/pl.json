@@ -1909,6 +1909,10 @@
         "title": "Twoje ustawienia",
         "body": "Twój profil, logowanie i bezpieczeństwo, powiadomienia oraz polecenia ukośnika — wszystko kryje się za tymi zakładkami; przełączaj się między nimi tutaj."
       },
+      "settings-appearance": {
+        "title": "Wygląd",
+        "body": "Wybierz motyw, animację pola czatu podczas dyktowania i to, ile ruchu pokazuje konsola. Każdy wybór działa od razu, w tej przeglądarce."
+      },
       "skills-list": {
         "title": "Twoje umiejętności",
         "body": "Umiejętności, które napisano lub zainstalowano. Agent wybiera te, których potrzebuje, w swojej zakładce Skills, a ta sama umiejętność może służyć kilku agentom naraz."
@@ -3374,6 +3378,16 @@
     "vivid": "Wyrazista",
     "subtle": "Subtelna",
     "off": "Wyłączona",
-    "reducedMotion": "Wyłączona, gdy system ogranicza animacje"
+    "reducedMotion": "Wyłączona, gdy animacje są ograniczone"
+  },
+  "appearance": {
+    "description": "Jak konsola wygląda i porusza się dla ciebie. Zapisywane w tej przeglądarce i stosowane od razu.",
+    "theme": "Motyw",
+    "voiceGlowHint": "Jak pole czatu reaguje na twój głos podczas dyktowania",
+    "motion": "Animacje",
+    "system": "Systemowe",
+    "reduce": "Ograniczone",
+    "full": "Pełne",
+    "motionHint": "Systemowe stosuje ustawienie systemu operacyjnego. Ograniczone wyłącza animację dyktowania i animacje przesuwania."
   }
 }

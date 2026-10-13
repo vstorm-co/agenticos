@@ -33,8 +33,12 @@ Two things are versioned separately from this file and worth knowing about:
   holders: the dictation engine (Off, Browser or Server), the provider and model
   from the speech-to-text catalog, a language and the longest recording, stored
   in five new organization columns (`0106_org_speech_settings.py`).
-- **A Voice glow preference** beside the theme and the language: Vivid, Subtle
-  (the default) or Off, per browser, and no glow under reduced motion.
+- **A Voice glow preference**: Vivid, Subtle (the default) or Off, per
+  browser, and no glow under reduced motion.
+- **An Appearance card under Settings → Profile** with the theme, the Voice glow
+  (moved out of the account menu) and a new per-browser **Motion** preference:
+  System follows the operating system, Reduce turns motion down without it, and
+  Full keeps it whatever the operating system says.
 
 ### Changed
 

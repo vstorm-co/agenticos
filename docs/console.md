@@ -168,11 +168,14 @@ A recording that failed to transcribe is kept until you press **Retry** or
 yet, or no agent is picked, the microphone is crossed out and says why; somebody
 holding `org:settings` is offered a link to the Voice card.
 
-The glow beneath the composer while you speak follows **Voice glow** in the
-account menu, beside the theme and the language: **Vivid**, **Subtle** (the
-default) or **Off**. It is remembered per browser. With reduced motion on in the
-operating system there is no glow at all, the strip appears without sliding, and
-the level is a five-step indicator.
+The glow beneath the composer while you speak follows **Voice glow** under
+**Settings → Profile → Appearance**, beside the theme and **Motion**: **Vivid**,
+**Subtle** (the default) or **Off**. It is remembered per browser. **Motion**
+decides how much the whole console moves: **System** (the default) follows the
+operating system's reduced-motion setting, **Reduce** turns motion down without
+it, and **Full** keeps it whatever the operating system says. While motion is
+reduced there is no glow at all, the strip appears without sliding, and the level
+is a five-step indicator.
 
 ### The Voice card
 

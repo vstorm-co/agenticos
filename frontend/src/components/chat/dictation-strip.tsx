@@ -2,12 +2,13 @@
 
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import { CircleAlert, Info, Lock, Mic, MicOff, TriangleAlert, type LucideIcon } from "lucide-react";
 import type { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui";
 import type { DictationActions, DictationState } from "@/hooks/use-dictation";
+import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { cn } from "@/lib/utils";
 
 import { clock } from "./dictation-bar";

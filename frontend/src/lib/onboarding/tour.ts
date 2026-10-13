@@ -575,6 +575,15 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // in the shared layout, so it lands on whichever of the four pages the reader
   // opened help from. Ungated: everyone has their own settings.
   { id: "settings-tabs", page: SETTINGS_DETAIL, target: "settings-tabs" },
+  // The Appearance card - theme, voice glow, motion. On the profile tab only,
+  // so `optional`: help opened on another tab has no card to wait four seconds
+  // for. Ungated, like the tabs: these are every person's own preferences.
+  {
+    id: "settings-appearance",
+    page: SETTINGS_DETAIL,
+    target: "settings-appearance",
+    optional: true,
+  },
   // Optional, because the card it anchors on renders only where an agent has
   // written something - and an unmarked step waits four seconds for an element
   // an empty store never mounts (#1594).

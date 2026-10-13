@@ -15,11 +15,7 @@ import {
 import { useAuth } from "@/hooks";
 import { cn } from "@/lib/utils";
 import { ROUTES } from "@/lib/constants";
-import {
-  AppearanceMenu,
-  LanguageMenu,
-  VoiceGlowMenu,
-} from "@/components/layout/account-preferences";
+import { AppearanceMenu, LanguageMenu } from "@/components/layout/account-preferences";
 import { OrganizationMenuItems } from "@/components/teams";
 import { useAuthStore } from "@/stores";
 
@@ -106,14 +102,12 @@ export function SidebarUser({ compact = false }: { compact?: boolean }) {
             the column from the name it belongs to. */}
         <OrganizationMenuItems />
         <DropdownMenuSeparator />
-        {/* How this looks, what language it is in, and how the composer glows
-            while it listens. The first two were unlabelled glyphs in a strip at
-            the foot of the column; here they are named, each showing its current
-            value, in the menu that already answers "who am I and how do I want
-            this". */}
+        {/* How this looks and what language it is in. Both were unlabelled
+            glyphs in a strip at the foot of the column; here they are named,
+            each showing its current value, in the menu that already answers
+            "who am I and how do I want this". */}
         <AppearanceMenu />
         <LanguageMenu />
-        <VoiceGlowMenu />
         <DropdownMenuSeparator />
         {/* One entry, not two. `/profile` redirects to `/settings/profile` and
             `/settings` opens on the same tab, so the menu offered a choice
