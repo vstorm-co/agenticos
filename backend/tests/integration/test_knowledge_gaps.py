@@ -6,6 +6,8 @@ The claims a mocked session cannot make:
   with the run and with the conversation they came from;
 - a person's export carries the searches made while answering them, and their
   erasure removes them, a run with no conversation included;
+- several answers become dataset cases in one version, and an answer the
+  caller may not read is skipped rather than refusing the rest;
 - only misses are grouped, each once per knowledge base, into topics that keep
   their ids; a knowledge base is never paired with another organization's
   search, and a topic whose searches are gone is removed;
@@ -26,6 +28,7 @@ from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun
 from app.db.models.conversation import Conversation, Message
+from app.db.models.dataset import DatasetCase, DatasetVersion
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.knowledge_gap import (
     KnowledgeGapMember,
@@ -36,7 +39,9 @@ from app.db.models.knowledge_gap import (
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.repositories import knowledge_gap_repo
+from app.schemas.dataset import DatasetCreate
 from app.schemas.knowledge_gap import KnowledgeSearchRecord
+from app.services.dataset import DatasetService
 from app.services.knowledge_gaps import KnowledgeGapService
 from app.services.personal_data import PersonalDataService
 from app.services.user import UserService
@@ -471,3 +476,49 @@ async def test_a_topic_whose_searches_are_gone_is_removed(db) -> None:
 
     assert removed == 1
     assert (await db.execute(select(func.count()).select_from(KnowledgeGapTopic))).scalar_one() == 0
+
+
+async def test_several_answers_become_cases_in_one_version_and_foreign_ones_are_skipped(
+    db,
+) -> None:
+    ctx = await _owner(db)
+    stranger = await _owner(db)
+    agent = await _agent(db, ctx)
+    _, parking = await _turn(db, ctx, agent, question="Where do I park?")
+    _, wifi = await _turn(db, ctx, agent, question="What is the wifi password?")
+    _, theirs = await _turn(db, stranger, await _agent(db, stranger), question="Their question")
+    datasets = DatasetService(db)
+    dataset = await datasets.create(ctx, DatasetCreate(name="Office gaps"))
+
+    version, skipped = await datasets.add_from_messages(
+        ctx, dataset.id, [parking.id, theirs.id, wifi.id]
+    )
+
+    assert version is not None
+    assert (version.number, version.case_count, skipped) == (1, 2, 1)
+    cases = (
+        (await db.execute(select(DatasetCase).where(DatasetCase.dataset_id == dataset.id)))
+        .scalars()
+        .all()
+    )
+    assert sorted(c.input for c in cases) == ["What is the wifi password?", "Where do I park?"]
+    assert {c.counter_example for c in cases} == {"I could not find that."}
+    assert {c.source for c in cases} == {"conversation"}
+
+
+async def test_answers_none_of_which_can_be_read_add_no_version(db) -> None:
+    ctx = await _owner(db)
+    stranger = await _owner(db)
+    _, theirs = await _turn(db, stranger, await _agent(db, stranger))
+    datasets = DatasetService(db)
+    dataset = await datasets.create(ctx, DatasetCreate(name="Office gaps"))
+
+    version, skipped = await datasets.add_from_messages(ctx, dataset.id, [theirs.id])
+
+    assert (version, skipped) == (None, 1)
+    versions = await db.execute(
+        select(func.count())
+        .select_from(DatasetVersion)
+        .where(DatasetVersion.dataset_id == dataset.id)
+    )
+    assert versions.scalar_one() == 0
