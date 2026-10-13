@@ -25,7 +25,9 @@ function opensAKeyboard(target: EventTarget | null): boolean {
  * but Safari on iOS does not: the keyboard slides over the composer and Safari
  * scrolls the whole page up to reveal the field, header and all. The visual
  * viewport is the one measure every browser agrees on, so the shell's height
- * follows it, and the page that reveal scrolled is put back.
+ * follows it, and the page that reveal scrolled is put back. Zoom is not a
+ * keyboard: the height is measured in layout pixels, so pinching in leaves the
+ * shell as tall as the window.
  *
  * **The tab bar steps aside while typing.** Left up, it sits on top of the
  * keyboard and takes a fifth of what is left of the screen; `data-typing` on
@@ -37,8 +39,12 @@ export function useOnScreenKeyboard(): void {
     const viewport = window.visualViewport;
     const fit = () => {
       if (!viewport) return;
-      root.style.setProperty(APP_HEIGHT, `${viewport.height}px`);
-      if (window.scrollY !== 0) window.scrollTo(0, 0);
+      // In layout pixels: a pinch-zoom (a trackpad's on a Mac, two fingers on a
+      // phone) shrinks the visual viewport by its scale, and the shell followed
+      // it - the console cut off at the height of the zoomed-in fragment. A
+      // keyboard shrinks it at a scale of 1, so that still makes room.
+      root.style.setProperty(APP_HEIGHT, `${Math.round(viewport.height * viewport.scale)}px`);
+      if (viewport.scale === 1 && window.scrollY !== 0) window.scrollTo(0, 0);
     };
     const touch = window.matchMedia?.("(pointer: coarse)").matches === true;
     const focused = (event: FocusEvent) => {

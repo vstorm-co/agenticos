@@ -5,6 +5,7 @@ import { APP_HEIGHT, TYPING, useOnScreenKeyboard } from "./use-on-screen-keyboar
 
 class FakeViewport extends EventTarget {
   height = 800;
+  scale = 1;
 }
 
 let viewport: FakeViewport;
@@ -42,6 +43,21 @@ describe("useOnScreenKeyboard", () => {
 
     expect(root.style.getPropertyValue(APP_HEIGHT)).toBe("420px");
     expect(window.scrollTo).toHaveBeenCalledWith(0, 0);
+  });
+
+  it("keeps the shell as tall as the window while the page is pinch-zoomed", () => {
+    // A trackpad pinch on a Mac shrank the shell to the zoomed-in fragment, and
+    // the rest of the window stood empty under it.
+    renderHook(() => useOnScreenKeyboard());
+
+    viewport.height = 400;
+    viewport.scale = 2;
+    vi.stubGlobal("scrollY", 300);
+    viewport.dispatchEvent(new Event("resize"));
+
+    expect(root.style.getPropertyValue(APP_HEIGHT)).toBe("800px");
+    // Panning a zoomed page is the reader's, not a keyboard's reveal to undo.
+    expect(window.scrollTo).not.toHaveBeenCalled();
   });
 
   it("leaves a page that did not scroll alone", () => {
