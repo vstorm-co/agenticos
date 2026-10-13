@@ -92,30 +92,33 @@ describe("UsageMeter, closed", () => {
     expect(trigger()).toHaveTextContent("");
   });
 
-  it("fills its disc with the context window, past half on the long arc", () => {
+  it("closes its ring as the context window fills, and says the share beside it", () => {
     // The ceiling a turn hits without warning, so the one the icon itself draws.
+    const length = 2 * Math.PI * 6;
     const { unmount } = render(
       <UsageMeter usage={usage({ context: { used_tokens: 50_000 } })} contextWindow={200_000} />,
     );
-    expect(screen.getByTestId("context-fill").getAttribute("d")).toBe(
-      "M8 8 L8 1.5 A6.5 6.5 0 0 1 14.500 8.000 Z",
+    expect(screen.getByTestId("context-fill").getAttribute("stroke-dasharray")).toBe(
+      `${(length / 4).toFixed(3)} ${length.toFixed(3)}`,
     );
+    expect(trigger()).toHaveTextContent("25%");
     unmount();
 
     render(
       <UsageMeter usage={usage({ context: { used_tokens: 150_000 } })} contextWindow={200_000} />,
     );
-    expect(screen.getByTestId("context-fill").getAttribute("d")).toBe(
-      "M8 8 L8 1.5 A6.5 6.5 0 1 1 1.500 8.000 Z",
-    );
+    expect(trigger()).toHaveTextContent("75%");
   });
 
-  it("draws a full disc, not a wrapped one, past the window", () => {
+  it("closes the ring, not wraps it, past the window", () => {
+    const length = 2 * Math.PI * 6;
     render(
       <UsageMeter usage={usage({ context: { used_tokens: 150_000 } })} contextWindow={128_000} />,
     );
 
-    expect(screen.getByTestId("context-fill").tagName.toLowerCase()).toBe("circle");
+    expect(screen.getByTestId("context-fill").getAttribute("stroke-dasharray")).toBe(
+      `${length.toFixed(3)} ${length.toFixed(3)}`,
+    );
   });
 
   it("stays grey while every reading is calm", () => {

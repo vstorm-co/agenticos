@@ -60,7 +60,7 @@ type Translate = (key: string, values?: Record<string, string | number>) => stri
  * Four readings - the context share, the money, the budgets, the workspace -
  * used to be a line of their own under the composer, and a line of numbers is a
  * line everybody has to read past on every message to find out that nothing is
- * wrong. They are one control now: a disc that fills with the context window,
+ * wrong. They are one control now: a ring that closes with the context window,
  * because that is the ceiling a turn hits without warning, and turns amber or
  * red when *any* of the readings is near its limit. The numbers are one click
  * away, all of them, with the room to say what each one is a share of.
@@ -97,14 +97,20 @@ export function UsageMeter({
           aria-label={level === "calm" ? t("label") : t("labelNearLimit")}
           title={level === "calm" ? t("label") : t("labelNearLimit")}
           className={cn(
-            "hover:bg-foreground/[0.06] inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors",
+            "hover:bg-foreground/[0.06] inline-flex h-9 min-w-9 shrink-0 items-center justify-center gap-1.5 rounded-lg px-2 transition-colors",
             TONE[level],
           )}
         >
           {context === null ? (
             <Gauge className="h-4 w-4" aria-hidden />
           ) : (
-            <ContextPie percent={context.percent} />
+            <>
+              <ContextRing percent={context.percent} />
+              {/* The share at a glance; what it is a share of is in the popover. */}
+              <span className="text-xs tabular-nums">
+                {t("percent", { percent: share(context.percent) })}
+              </span>
+            </>
           )}
         </button>
       </PopoverTrigger>
@@ -182,31 +188,43 @@ function contextOf(
   return { percent: (used * 100) / window, used, window };
 }
 
+/** The ring's radius and its length, on a 16-unit box with a 2-unit stroke. */
+const RING_RADIUS = 6;
+const RING_LENGTH = 2 * Math.PI * RING_RADIUS;
+
 /**
- * A disc that fills with the context share, clockwise from twelve.
+ * How full the context window is, as a thin ring that closes as it fills.
  *
- * A pie rather than a ring: a thin arc a tenth of the way round, beside a send
- * button, is what a loading spinner looks like - and read as one, it said the
- * conversation was busy. Past the window it is simply full.
+ * A ring rather than the filled disc this was: a small grey disc read as a dot,
+ * and nobody took a dot for a gauge. A bare arc beside a send button looks like a
+ * loading spinner, which is why the disc came first - so this one runs on a full
+ * faint track and has its share written beside it, which no spinner does. Closed
+ * past the window, where the share says by how much.
  */
-function ContextPie({ percent }: { percent: number }) {
-  const radius = 6.5;
-  const filled = Math.min(100, percent) / 100;
-  const angle = filled * 2 * Math.PI;
-  const x = 8 + radius * Math.sin(angle);
-  const y = 8 - radius * Math.cos(angle);
+function ContextRing({ percent }: { percent: number }) {
+  const filled = (Math.min(100, percent) / 100) * RING_LENGTH;
   return (
-    <svg viewBox="0 0 16 16" className="h-4 w-4" aria-hidden>
-      <circle cx="8" cy="8" r={radius} fill="currentColor" fillOpacity={0.22} />
-      {filled >= 1 ? (
-        <circle data-testid="context-fill" cx="8" cy="8" r={radius} fill="currentColor" />
-      ) : (
-        <path
-          data-testid="context-fill"
-          fill="currentColor"
-          d={`M8 8 L8 ${8 - radius} A${radius} ${radius} 0 ${filled > 0.5 ? 1 : 0} 1 ${x.toFixed(3)} ${y.toFixed(3)} Z`}
-        />
-      )}
+    <svg viewBox="0 0 16 16" className="h-4 w-4 -rotate-90" aria-hidden>
+      <circle
+        cx="8"
+        cy="8"
+        r={RING_RADIUS}
+        fill="none"
+        stroke="currentColor"
+        strokeOpacity={0.2}
+        strokeWidth={2}
+      />
+      <circle
+        data-testid="context-fill"
+        cx="8"
+        cy="8"
+        r={RING_RADIUS}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeDasharray={`${filled.toFixed(3)} ${RING_LENGTH.toFixed(3)}`}
+      />
     </svg>
   );
 }
