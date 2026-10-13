@@ -5,6 +5,7 @@
  * the revision a version holds, `case_id` the case across its edits.
  */
 
+import type { DatasetScoring } from "./scoring";
 import type { Visibility } from "./sharing";
 
 export type CaseSource = "manual" | "import" | "conversation" | "synthetic";
@@ -26,7 +27,8 @@ export interface ExpectedToolCall {
 
 /**
  * One rule the answer is scored against, named by `type`, its parameters beside it.
- * Which types exist is scoring's to say; a dataset only keeps them.
+ * Which types exist is scoring's to say (`app/schemas/scoring.py`); the server
+ * refuses one it does not know.
  */
 export interface CaseCheck {
   type: string;
@@ -74,6 +76,8 @@ export interface Dataset {
   case_count: number;
   /** Whether the caller may change this dataset's cases. */
   can_edit: boolean;
+  /** How this dataset's cases are scored. */
+  scoring: DatasetScoring;
   created_at: string;
   updated_at: string | null;
 }

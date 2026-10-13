@@ -131,6 +131,13 @@ describe("useDataset and its versions", () => {
 });
 
 describe("useDatasetCases", () => {
+  it("asks for nothing until a dataset is chosen", () => {
+    const { result } = renderHook(() => useDatasetCases(""), { wrapper });
+
+    expect(apiClient.get).not.toHaveBeenCalled();
+    expect(result.current.cases).toEqual([]);
+  });
+
   it("reads the newest version unless one is named", async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ items: [{ id: "r1" }], total: 1, version: 3 });
     const { result } = renderHook(() => useDatasetCases("d1"), { wrapper });

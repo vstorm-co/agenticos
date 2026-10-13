@@ -95,6 +95,9 @@ function servePermissions(permissions: readonly string[]) {
         total: 1,
       });
     }
+    if (path.startsWith("/datasets?")) {
+      return Promise.resolve({ items: [{ id: "dataset-1", name: "Refunds" }], total: 1 });
+    }
     return Promise.resolve({
       organization_id: "org-1",
       role: "member",
@@ -256,6 +259,7 @@ describe("OnboardingTour", () => {
     expect(asked).not.toContain("/agents");
     expect(asked).not.toContain("/kb");
     expect(asked).not.toContain("/orgs");
+    expect(asked.some((path) => path.startsWith("/datasets?"))).toBe(false);
   });
 
   it("asks for them on a walk that does step into a detail view", async () => {

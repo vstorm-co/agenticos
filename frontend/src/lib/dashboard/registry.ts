@@ -58,7 +58,8 @@ export type WidgetId =
   | "routines"
   | "notifications"
   | "artifacts"
-  | "datasets";
+  | "datasets"
+  | "review-queue";
 
 /** The closed set of card widths the grid supports (12 columns). */
 export type Span = "s3" | "s4" | "s5" | "s6" | "s7" | "s8" | "s12";
@@ -531,6 +532,16 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
   // itself asks.
   datasets: {
     id: "datasets",
+    gate: holds(Perm.datasetsView),
+    defaultSpan: "s6",
+    defaultRows: "r4",
+    category: "workspace",
+    seeAll: ROUTES.DATASETS,
+  },
+  // Eval results waiting for a verdict, gated on what `GET /datasets/review-queue`
+  // asks; the queue itself only holds datasets the reader may see.
+  "review-queue": {
+    id: "review-queue",
     gate: holds(Perm.datasetsView),
     defaultSpan: "s6",
     defaultRows: "r4",
