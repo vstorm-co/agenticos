@@ -1,5 +1,5 @@
 ---
-source_sha: "6cd3215a642b"
+source_sha: "eafbd4c0f952"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -78,6 +78,31 @@ model.** Delegowanie jest jedynym miejscem, w którym jedno różni się od drug
 osobno dla każdego powiązanego bota, w sekcji *Where this agent is available*, a
 publikacja odrzuca spec, który próbuje ją nieść — zobacz
 [Podgląd kanału czatu](#chat-channel-lookup).
+
+## Co uruchamia eval { #what-an-eval-runs }
+
+Eval uruchamia agenta naprawdę, więc wykonuje narzędzie tylko wtedy, gdy nie
+zmienia ono niczego poza runem albo sięga do połączenia testowego
+[środowiska](../environments.md#in-an-eval). Każda capability deklaruje, które z
+jej narzędzi tylko czytają — `read_only`, obok `side_effecting` — a narzędzie,
+które niczego nie deklaruje, zapisuje. Oto narzędzia, które zapisują i które eval
+wstrzymuje i zapisuje, chyba że klucz z vault ich capability jest testowy:
+
+| id | Narzędzia, które zapisują |
+|---|---|
+| `artifacts` | `publish_artifact` |
+| `browser_choice` | `browse_page` |
+| `browser_use` | `browse_web` |
+| `image_generation` | `generate_image` |
+| `memory_files` | `write_memory`, `edit_memory`, `delete_memory` |
+| `memory_mem0` | `remember` |
+| `sandbox` | `write_file`, `edit_file`, `execute` |
+
+Każde inne narzędzie powyżej tylko czyta. Delegowanie liczy się jako czytanie:
+narzędzia delegata podlegają jego własnym deklaracjom. `side_effecting` i
+`read_only` odpowiadają na różne pytania: pierwsze mówi, o co domyślnie pyta
+zatwierdzanie, drugie — co może uruchomić eval, a niezadeklarowane narzędzie
+pierwsze przepuszcza bez bramki, a drugie blokuje.
 
 ## Wyszukiwanie w bazie wiedzy { #knowledge-search }
 

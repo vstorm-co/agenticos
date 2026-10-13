@@ -1,5 +1,5 @@
 ---
-source_sha: "6377722666ce"
+source_sha: "57629deb6049"
 ---
 
 # Entornos { #environments }
@@ -24,6 +24,7 @@ una superficie corriente cuando nadie ha dicho otra cosa.
 | **Versión** | Qué versión publicada responde aquí. No existe un estado sin fijar |
 | **Tracks latest** | Si publicar reapunta este entorno por su cuenta. Desactivado por defecto |
 | **Trazas** | Un write token de Logfire sacado del vault, para que los runs de este entorno aterricen en su propio proyecto |
+| **Conexiones de prueba** | Servidores MCP y claves del vault que este entorno sustituye por otros de prueba — un CRM sandbox, un buzón de prueba. Solo entornos con nombre |
 
 !!! info "No hay entorno sin versión"
 
@@ -86,6 +87,65 @@ los lectores de producción. Un entorno con un run todavía en marcha, o esperan
 una aprobación, no se puede eliminar hasta que el run termine: eliminarlo entregaría ese run al entorno por
 defecto, y sus páginas a las de producción.
 
+## Conexiones de prueba { #test-connections }
+
+Una versión es el mismo spec dondequiera que se ejecute, así que `staging`
+llegaría al mismo CRM y al mismo buzón que `production`. Un entorno con nombre
+puede responder a un binding con una **conexión de prueba**: un
+[servidor MCP](mcp.md) de la organización con uno sandbox, o la clave del vault de
+una capability con una clave de prueba. El spec no cambia, así que promover una
+versión no se lleva ninguna credencial de prueba.
+
+| Binding | Sustituido por | Lo que ve el modelo |
+|---|---|---|
+| Una conexión MCP de la organización | Otra conexión MCP de la organización | Los nombres de herramienta de la conexión de producción, para que staging y producción sean comparables |
+| La clave del vault de una capability | Otra clave del mismo tipo y propósito | Nada: la capability nunca sabe qué clave recibió |
+
+Las usa cada run del entorno: un bot de Slack ligado a `staging`, una llamada a
+la API que lo nombra, una programación y cada delegado al que esos runs llaman.
+Las herramientas que ofrece una conexión de prueba se reducen con la allowlist de
+la conexión de producción, la propia de la conexión de prueba y la del binding.
+
+!!! warning "Desactivado, nunca producción"
+
+    Un binding puede desactivarse en un entorno en lugar de sustituirse. Lo mismo
+    le pasa a uno cuya conexión de prueba se borró, se desactivó o perdió sus
+    credenciales: el binding queda apagado allí hasta que alguien elige otra
+    conexión de prueba. El lado de producción nunca es el respaldo. Una capability
+    cuya clave de prueba se borró rechaza el run en lugar de ejecutarse sin clave.
+
+El entorno por defecto no tiene conexiones de prueba — es lo que ejecuta una
+superficie que no nombra entorno, es decir, producción. Ambos lados de una
+sustitución deben ser de la organización, y una clave de prueba debe ser visible
+para quien la configura. Solo se guardan identificadores; una clave de prueba se
+queda en [el vault](secrets.md), y la entrada de auditoría registra cuántas
+sustituciones hay, no qué contienen.
+
+### En un eval { #in-an-eval }
+
+Un eval ejecuta el agent de verdad, así que sus herramientas actuarían de verdad:
+un agent que envía correos enviaría uno por caso. Un run iniciado **aislado** —
+que es como se ejecuta un eval — ejecuta una herramienta solo cuando es seguro:
+
+| La herramienta | Qué pasa |
+|---|---|
+| Llega a una conexión de prueba del entorno | Se ejecuta, contra el sistema de prueba |
+| Solo lee | Se ejecuta en la conexión normal |
+| Escribe, sin conexión de prueba | **No se ejecuta.** Se registra como llamada prevista, con sus argumentos |
+
+Una herramienta MCP solo lee cuando su servidor lo dice con `readOnlyHint`. Una
+herramienta de una capability lo declara en el registro, y el
+[catálogo](reference/capabilities.md#what-an-eval-runs) indica cuáles lo hacen.
+**Una herramienta que no declara nada escribe.** Al modelo se le dice que la
+llamada no se envió, y la llamada prevista se guarda con el run para puntuarla.
+
+Un run aislado también puede responderse desde la grabación del run del que se
+tomó un caso. Una llamada se empareja por su herramienta, sus argumentos y su
+orden entre llamadas idénticas, y recibe el resultado original; una llamada que
+la grabación no contiene no se ejecuta y se registra como divergente. Un run
+aislado no tiene a quién pedir una aprobación, así que una llamada con
+aprobación se rechaza en lugar de quedar en espera.
+
 ## Trazas por entorno { #tracing-per-environment }
 
 Un entorno puede llevar su propio write token de Logfire, sellado en
@@ -124,5 +184,8 @@ encuentra con una versión que nadie lanzó.
   widget público pueden servir versiones distintas de un mismo agent.
 - **Volver atrás es reapuntar**, porque las versiones antiguas siguen siendo
   legibles y ejecutables.
+- Un entorno con nombre puede sustituir bindings por **conexiones de prueba**; un
+  binding sin ella queda desactivado allí, nunca va a producción. En un eval, una
+  herramienta que escribe sin conexión de prueba **se registra, no se ejecuta**.
 - El entorno por defecto lo gestiona la publicación, y deliberadamente no se edita
   aquí.

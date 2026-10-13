@@ -1,5 +1,5 @@
 ---
-source_sha: "6cd3215a642b"
+source_sha: "eafbd4c0f952"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -76,6 +76,33 @@ ofrece a un modelo.** La delegación es el único sitio donde ambas difieren:
 bot vinculado en *Where this agent is available*, y la publicación rechaza un spec
 que intente llevarla — consulta
 [Consulta del canal de chat](#chat-channel-lookup).
+
+## Qué ejecuta un eval { #what-an-eval-runs }
+
+Un eval ejecuta el agent de verdad, así que ejecuta una herramienta solo cuando
+no cambia nada fuera del run, o llega a una conexión de prueba del
+[entorno](../environments.md#in-an-eval). Cada capability declara cuáles de sus
+herramientas solo leen — `read_only`, junto a `side_effecting` — y una
+herramienta que no declara nada escribe. Estas son las herramientas que escriben,
+y que un eval retiene y registra salvo que la clave del vault de su capability
+sea de prueba:
+
+| id | Herramientas que escriben |
+|---|---|
+| `artifacts` | `publish_artifact` |
+| `browser_choice` | `browse_page` |
+| `browser_use` | `browse_web` |
+| `image_generation` | `generate_image` |
+| `memory_files` | `write_memory`, `edit_memory`, `delete_memory` |
+| `memory_mem0` | `remember` |
+| `sandbox` | `write_file`, `edit_file`, `execute` |
+
+Todas las demás herramientas de arriba solo leen. Delegar cuenta como leer: las
+herramientas propias de un delegado se rigen por sus propias declaraciones.
+`side_effecting` y `read_only` responden a preguntas distintas: la primera es
+sobre qué pregunta la aprobación por defecto, la segunda qué puede ejecutar un
+eval, y una herramienta sin declarar queda sin aprobación con la primera y
+bloqueada con la segunda.
 
 ## Búsqueda de conocimiento { #knowledge-search }
 

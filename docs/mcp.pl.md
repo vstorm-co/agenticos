@@ -1,5 +1,5 @@
 ---
-source_sha: "0f382acc604e"
+source_sha: "342fa7b17aae"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -423,6 +423,21 @@ tura się zacznie, a odpytania biegną równolegle.
 To świadomy kompromis. Dowiadujesz się o tym przez endpoint `/test`
 i `last_status`, a [ślad audytowy](governance.md#audit) zapisuje, co faktycznie
 się wykonało.
+
+### W środowisku testowym i w evalu { #in-a-test-environment-and-in-an-eval }
+
+Nazwane [środowisko](environments.md#test-connections) może zastąpić
+organizacyjny binding połączeniem testowym — sandboxowym CRM w `staging`. Tura
+sięga wtedy do serwera testowego pod nazwą połączenia produkcyjnego, więc model
+widzi te same narzędzia; jeśli połączenie testowe zniknęło albo jest wyłączone,
+binding jest w tej turze wyłączony i zamiast niego nigdy nie trafia na
+produkcję.
+
+W evalu narzędzie MCP działa na połączeniu produkcyjnym tylko wtedy, gdy jego
+serwer oznacza je `readOnlyHint`. Każde inne wywołanie jest wstrzymywane i
+zapisywane z argumentami zamiast wykonywane. Ta wskazówka to deklaracja samego
+serwera, więc sprawdź, co serwer oznacza jako tylko do odczytu, zanim
+uruchomisz eval na połączeniu produkcyjnym.
 
 ### Podłączenie serwera z poziomu Buildera { #connecting-one-from-the-builder }
 
