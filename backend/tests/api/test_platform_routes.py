@@ -326,6 +326,20 @@ CALLS: tuple[Call, ...] = (
     ),
     Call("GET", "/datasets", Perm.DATASETS_VIEW),
     Call("POST", "/datasets", Perm.DATASETS_EDIT, body={"name": "refund questions"}),
+    # A knowledge gap is made of people's questions, so every route reads them
+    # only with runs:view; which collection, agent and dataset is the service's.
+    Call("GET", "/knowledge-gaps/collections/{knowledge_base_id}", Perm.RUNS_VIEW),
+    Call("POST", "/knowledge-gaps/collections/{knowledge_base_id}/regroup", Perm.RUNS_VIEW),
+    Call("GET", "/knowledge-gaps/agents/{agent_id}", Perm.RUNS_VIEW),
+    Call("GET", "/knowledge-gaps/{topic_id}", Perm.RUNS_VIEW),
+    Call("POST", "/knowledge-gaps/{topic_id}/dismiss", Perm.RUNS_VIEW),
+    Call("POST", "/knowledge-gaps/{topic_id}/reopen", Perm.RUNS_VIEW),
+    Call(
+        "POST",
+        "/knowledge-gaps/{topic_id}/dataset",
+        Perm.RUNS_VIEW,
+        body={"dataset_id": "00000000-0000-0000-0000-000000000001"},
+    ),
     # Which providers exist and what shape of credential each takes is read by
     # the Builder's model picker, so it is gated on seeing agents rather than on
     # managing connections. Knowing Bedrock wants a key pair is not a secret.
@@ -738,6 +752,7 @@ _PLATFORM_PREFIXES = (
     # Datasets, the same shape: collection routes gate on datasets:view/edit,
     # the per-dataset routes - cases, versions, import, export - in the service.
     "/datasets",
+    "/knowledge-gaps",
     # Memory routes carry no `require()`: every one acts on one agent's memory and the
     # service resolves access against that agent, so the sweep must reach them here.
     "/memory",
@@ -882,6 +897,9 @@ RESOURCE_AWARE_SERVICES = (
     # A dataset is a shared resource like a context file: who may read its cases,
     # change them, import or export them is its grants' answer, in the service.
     deps.get_dataset_service,
+    # A knowledge gap belongs to a collection: reading one resolves the caller's
+    # access to that knowledge base, and adding it to a dataset to that dataset.
+    deps.get_knowledge_gap_service,
     # A memory file rides on its parent agent: every `/memory` route resolves access
     # to the agent, per agent rather than per role.
     deps.get_memory_service,

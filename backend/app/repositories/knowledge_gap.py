@@ -7,25 +7,33 @@ made.
 """
 
 from collections.abc import Sequence
-from typing import Any
+from datetime import datetime
+from typing import Any, NamedTuple
 from uuid import UUID
 
 from sqlalchemy import (
     ColumnElement,
+    ScalarSelect,
     SQLColumnExpression,
+    Text,
     and_,
     any_,
     delete,
+    distinct,
     exists,
     func,
     insert,
     or_,
     select,
 )
+from sqlalchemy.dialects.postgresql import ARRAY, aggregate_order_by
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.models.conversation import Message
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.knowledge_gap import KnowledgeGapMember, KnowledgeGapTopic, KnowledgeSearch
+from app.db.models.message_rating import MessageRating
 from app.schemas.knowledge_gap import KnowledgeSearchRecord
 
 
@@ -202,3 +210,202 @@ async def delete_empty_topics(db: AsyncSession) -> int:
     )
     await db.flush()
     return result.rowcount or 0  # ty: ignore[unresolved-attribute]
+
+
+class TopicRow(NamedTuple):
+    """A topic and what its searches add up to under the filters it was read with."""
+
+    topic: KnowledgeGapTopic
+    question_count: int
+    last_asked_at: datetime
+    queries: list[str]
+    agent_ids: list[UUID]
+
+
+class QuestionRow(NamedTuple):
+    search: KnowledgeSearch
+    question: str | None
+    answer_message_id: UUID | None
+    down_rating_comment: str | None
+
+
+_EXAMPLE_POOL = 12
+"""How many of a topic's oldest queries are read to pick its examples from."""
+
+
+def _members(
+    *, organization_id: UUID, threshold: float, agent_id: UUID | None
+) -> list[ColumnElement[bool]]:
+    """The searches a topic is reported with: this organization's, still misses, by `agent_id`."""
+    conditions = [KnowledgeSearch.organization_id == organization_id, is_miss(threshold)]
+    if agent_id is not None:
+        conditions.append(KnowledgeSearch.agent_id == agent_id)
+    return conditions
+
+
+async def list_topics(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    knowledge_base_ids: Sequence[UUID],
+    threshold: float,
+    status: str | None,
+    agent_id: UUID | None,
+    skip: int,
+    limit: int,
+    topic_id: UUID | None = None,
+) -> tuple[list[TopicRow], int]:
+    """Topics of these knowledge bases, the most asked first, with how many there are."""
+    question_count = func.count(KnowledgeSearch.id)
+    last_asked_at = func.max(KnowledgeSearch.created_at)
+    grouped = (
+        select(
+            KnowledgeGapTopic,
+            question_count.label("question_count"),
+            last_asked_at.label("last_asked_at"),
+            func.array_agg(
+                aggregate_order_by(KnowledgeSearch.query, KnowledgeSearch.created_at),
+                type_=ARRAY(Text),
+            )[1:_EXAMPLE_POOL].label("queries"),
+            func.array_agg(distinct(KnowledgeSearch.agent_id), type_=ARRAY(PG_UUID())).label(
+                "agent_ids"
+            ),
+        )
+        .join(KnowledgeGapMember, KnowledgeGapMember.topic_id == KnowledgeGapTopic.id)
+        .join(KnowledgeSearch, KnowledgeSearch.id == KnowledgeGapMember.search_id)
+        .where(
+            KnowledgeGapTopic.organization_id == organization_id,
+            KnowledgeGapTopic.knowledge_base_id.in_(list(knowledge_base_ids)),
+            *_members(organization_id=organization_id, threshold=threshold, agent_id=agent_id),
+        )
+        .group_by(KnowledgeGapTopic.id)
+    )
+    if status is not None:
+        grouped = grouped.where(KnowledgeGapTopic.status == status)
+    if topic_id is not None:
+        grouped = grouped.where(KnowledgeGapTopic.id == topic_id)
+    total = (await db.execute(select(func.count()).select_from(grouped.subquery()))).scalar_one()
+    result = await db.execute(
+        grouped.order_by(question_count.desc(), last_asked_at.desc(), KnowledgeGapTopic.id)
+        .offset(skip)
+        .limit(limit)
+    )
+    return [
+        TopicRow(
+            topic=row[0],
+            question_count=row[1],
+            last_asked_at=row[2],
+            queries=list(row[3] or []),
+            agent_ids=[agent for agent in row[4] or [] if agent is not None],
+        )
+        for row in result.all()
+    ], total
+
+
+async def count_ungrouped(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    knowledge_base_ids: Sequence[UUID],
+    threshold: float,
+    agent_id: UUID | None,
+) -> int:
+    """Misses in these knowledge bases that the next grouping pass has still to place."""
+    if not knowledge_base_ids:
+        return 0
+    result = await db.execute(
+        select(func.count(KnowledgeSearch.id)).where(
+            *_members(organization_id=organization_id, threshold=threshold, agent_id=agent_id),
+            or_(*(_ungrouped_in(kb_id) for kb_id in knowledge_base_ids)),
+        )
+    )
+    return result.scalar_one()
+
+
+async def get_topic(
+    db: AsyncSession, topic_id: UUID, *, organization_id: UUID
+) -> KnowledgeGapTopic | None:
+    result = await db.execute(
+        select(KnowledgeGapTopic).where(
+            KnowledgeGapTopic.id == topic_id, KnowledgeGapTopic.organization_id == organization_id
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+def _answer_of(run_id: SQLColumnExpression[UUID]) -> ScalarSelect[UUID]:
+    return (
+        select(Message.id)
+        .where(Message.run_id == run_id, Message.role == "assistant")
+        .order_by(Message.ordinal.desc())
+        .limit(1)
+        .scalar_subquery()
+    )
+
+
+async def list_questions(
+    db: AsyncSession,
+    topic_id: UUID,
+    *,
+    organization_id: UUID,
+    threshold: float,
+    agent_id: UUID | None,
+    limit: int,
+) -> list[QuestionRow]:
+    """A topic's searches, newest first, each with what the person asked and the answer.
+
+    The question and the answer are read from the run's own turns, so a run
+    with no conversation - the HTTP API - has neither.
+    """
+    question = (
+        select(Message.content)
+        .where(Message.run_id == KnowledgeSearch.run_id, Message.role == "user")
+        .order_by(Message.ordinal)
+        .limit(1)
+        .scalar_subquery()
+    )
+    comment = (
+        select(MessageRating.comment)
+        .join(Message, Message.id == MessageRating.message_id)
+        .where(
+            Message.run_id == KnowledgeSearch.run_id,
+            Message.role == "assistant",
+            MessageRating.rating == -1,
+            MessageRating.comment.is_not(None),
+        )
+        .order_by(MessageRating.created_at.desc())
+        .limit(1)
+        .scalar_subquery()
+    )
+    result = await db.execute(
+        select(KnowledgeSearch, question, _answer_of(KnowledgeSearch.run_id), comment)
+        .join(KnowledgeGapMember, KnowledgeGapMember.search_id == KnowledgeSearch.id)
+        .where(
+            KnowledgeGapMember.topic_id == topic_id,
+            *_members(organization_id=organization_id, threshold=threshold, agent_id=agent_id),
+        )
+        .order_by(KnowledgeSearch.created_at.desc(), KnowledgeSearch.id)
+        .limit(limit)
+    )
+    return [
+        QuestionRow(
+            search=row[0], question=row[1], answer_message_id=row[2], down_rating_comment=row[3]
+        )
+        for row in result.all()
+    ]
+
+
+async def knowledge_bases_with_topics_by(
+    db: AsyncSession, agent_id: UUID, *, organization_id: UUID
+) -> list[UUID]:
+    """The knowledge bases holding a topic one of this agent's searches is in."""
+    result = await db.execute(
+        select(distinct(KnowledgeGapTopic.knowledge_base_id))
+        .join(KnowledgeGapMember, KnowledgeGapMember.topic_id == KnowledgeGapTopic.id)
+        .join(KnowledgeSearch, KnowledgeSearch.id == KnowledgeGapMember.search_id)
+        .where(
+            KnowledgeGapTopic.organization_id == organization_id,
+            KnowledgeSearch.agent_id == agent_id,
+        )
+    )
+    return list(result.scalars().all())

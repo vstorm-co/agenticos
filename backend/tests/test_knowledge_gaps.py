@@ -15,6 +15,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import numpy as np
 import pytest
 
+from app.db.models.knowledge_gap import KnowledgeGapMember, KnowledgeGapTopic, KnowledgeSearch
+from app.repositories import knowledge_gap_repo
 from app.services.knowledge_gaps import TOPIC_SIMILARITY, KnowledgeGapService, _assign, _Cluster
 from app.worker.tasks.knowledge_gap_tasks import group_knowledge_gaps_flow
 
@@ -164,6 +166,34 @@ class TestGroupPending:
         assert update.await_args.kwargs["update_data"]["centroid"][1] > 0
         assert [pair[0] for pair in add.await_args.args[1]] == [topic.id]
 
+    async def test_a_stored_topic_no_miss_joins_is_left_as_it_was(self):
+        topic = MagicMock(id=uuid.uuid4(), centroid=[1.0, 0.0])
+        embedder = MagicMock(embed_queries=MagicMock(return_value=[[0.0, 1.0]]))
+        fresh = MagicMock(id=uuid.uuid4())
+
+        with (
+            patch(
+                f"{_SERVICE}.knowledge_gap_repo.ungrouped_misses",
+                new=AsyncMock(return_value=[_search("guest wifi")]),
+            ),
+            patch(f"{_SERVICE}.knowledge_base_repo.get_by_id", new=AsyncMock(return_value=_kb())),
+            patch(f"{_SERVICE}.embeddings_for_collection", new=AsyncMock(return_value=MagicMock())),
+            patch(f"{_SERVICE}.embedder_for", return_value=embedder),
+            patch(
+                f"{_SERVICE}.knowledge_gap_repo.topics_in_space",
+                new=AsyncMock(return_value=[(topic, 4)]),
+            ),
+            patch(f"{_SERVICE}.knowledge_gap_repo.update_topic", new=AsyncMock()) as update,
+            patch(f"{_SERVICE}.knowledge_gap_repo.create_topic", new=AsyncMock(return_value=fresh)),
+            patch(f"{_SERVICE}.knowledge_gap_repo.add_members", new=AsyncMock()) as add,
+        ):
+            await KnowledgeGapService(MagicMock()).group_pending(
+                organization_id=ORG, knowledge_base_id=KB
+            )
+
+        update.assert_not_awaited()
+        assert [pair[0] for pair in add.await_args.args[1]] == [fresh.id]
+
     @pytest.mark.parametrize(
         "kb", [None, _kb(organization_id=uuid.uuid4())], ids=["gone", "another organization"]
     )
@@ -234,6 +264,19 @@ class TestTheFlow:
         assert [c.kwargs["knowledge_base_id"] for c in group.await_args_list] == [KB, other_kb]
         assert "knowledge_gaps_grouping_failed" in caplog.text
 
+    async def test_a_pass_with_nothing_waiting_groups_nothing(self, caplog):
+        with (
+            patch("app.worker.tasks.knowledge_gap_tasks.get_db_context", new=_Context),
+            patch.object(KnowledgeGapService, "forget_empty_topics", new=AsyncMock()),
+            patch.object(
+                KnowledgeGapService, "waiting_to_be_grouped", new=AsyncMock(return_value=[])
+            ),
+        ):
+            grouped = await group_knowledge_gaps_flow.fn()
+
+        assert grouped == 0
+        assert "grouped" not in caplog.text
+
     async def test_a_named_knowledge_base_is_grouped_without_looking_for_others(self):
         with (
             patch("app.worker.tasks.knowledge_gap_tasks.get_db_context", new=_Context),
@@ -247,3 +290,24 @@ class TestTheFlow:
 
         waiting.assert_not_awaited()
         assert group.await_args.kwargs == {"organization_id": ORG, "knowledge_base_id": KB}
+
+
+class TestTheRepository:
+    async def test_writing_no_searches_sends_no_statement(self):
+        db = MagicMock(execute=AsyncMock())
+
+        await knowledge_gap_repo.record_searches(
+            db, [], organization_id=ORG, run_id=uuid.uuid4(), conversation_id=None
+        )
+        await knowledge_gap_repo.add_members(db, [])
+
+        db.execute.assert_not_awaited()
+
+    def test_rows_name_themselves(self):
+        search = KnowledgeSearch(id=uuid.uuid4(), run_id=uuid.uuid4(), top_similarity=0.2)
+        topic = KnowledgeGapTopic(id=uuid.uuid4(), knowledge_base_id=KB, status="open")
+        member = KnowledgeGapMember(topic_id=topic.id, search_id=search.id)
+
+        assert "0.2" in repr(search)
+        assert "open" in repr(topic)
+        assert str(search.id) in repr(member)

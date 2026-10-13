@@ -17,15 +17,33 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from uuid import UUID
 
 import numpy as np
 import numpy.typing as npt
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.background import spawn_after_commit
 from app.core.config import settings
-from app.db.models.knowledge_gap import KnowledgeGapTopic, KnowledgeSearch
-from app.repositories import knowledge_base_repo, knowledge_gap_repo
+from app.core.exceptions import AuthorizationError, NotFoundError
+from app.core.permissions import AuthContext, Perm, Scope
+from app.db.models.knowledge_base import KnowledgeBase
+from app.db.models.knowledge_gap import KnowledgeGapTopic, KnowledgeSearch, TopicStatus
+from app.repositories import agent_repo, knowledge_base_repo, knowledge_gap_repo
+from app.repositories.knowledge_gap import TopicRow
+from app.schemas.knowledge_gap import (
+    KnowledgeGapAgent,
+    KnowledgeGapCasesAdded,
+    KnowledgeGapQuestion,
+    KnowledgeGapTopicDetail,
+    KnowledgeGapTopicList,
+    KnowledgeGapTopicRead,
+    TopicStatusLiteral,
+)
+from app.services.access import AGENT, resolve_access
+from app.services.collection_access import readable_kb, writable_kb
+from app.services.dataset import DatasetService
 from app.services.embedding_resolution import ResolvedEmbeddings, embeddings_for_collection
 from app.services.rag.vectorstore import embedder_for
 
@@ -36,6 +54,14 @@ TOPIC_SIMILARITY = 0.80
 
 GROUPING_BATCH = 500
 """The most misses one knowledge base embeds in one pass; the rest wait for the next."""
+
+TOPIC_QUESTIONS = 100
+"""The most recent questions a topic's page lists."""
+
+TOPIC_TO_DATASET = 200
+"""The most recent answers one "Add to dataset" turns into cases."""
+
+EXAMPLES = 3
 
 Vector = npt.NDArray[np.float64]
 
@@ -88,11 +114,303 @@ def _assign(
     return clusters
 
 
+def _require_runs_view(ctx: AuthContext) -> None:
+    """Refuse a caller who may not read every run: a topic is made of people's questions."""
+    if ctx.scope_for(Perm.RUNS_VIEW) < Scope.ALL:
+        raise AuthorizationError(
+            message="Knowledge gaps are read from people's questions, which takes runs:view",
+            details={"required": [Perm.RUNS_VIEW.value]},
+        )
+
+
+def _distinct(queries: list[str], *, keep: int) -> list[str]:
+    return list(dict.fromkeys(queries))[:keep]
+
+
 class KnowledgeGapService:
     """Finds, groups and reports what agents could not find in their knowledge bases."""
 
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
+
+    async def _knowledge_base(
+        self, ctx: AuthContext, knowledge_base_id: UUID, *, edit: bool = False
+    ) -> KnowledgeBase:
+        """The caller's organization's knowledge base, if they may read it - or change it."""
+        kb = await knowledge_base_repo.get_by_id(self.db, knowledge_base_id)
+        allowed = (
+            kb is not None
+            and kb.organization_id == ctx.organization_id
+            and await (writable_kb if edit else readable_kb)(self.db, ctx, kb)
+        )
+        if kb is None or not allowed:
+            raise NotFoundError(
+                message="Knowledge base not found",
+                details={"knowledge_base_id": knowledge_base_id},
+            )
+        return kb
+
+    async def _agents(self, ctx: AuthContext, ids: list[UUID]) -> dict[UUID, KnowledgeGapAgent]:
+        found = await agent_repo.get_many(self.db, ids, organization_id=ctx.organization_id)
+        return {
+            agent_id: KnowledgeGapAgent(id=agent_id, name=a.name) for agent_id, a in found.items()
+        }
+
+    async def _reads(self, ctx: AuthContext, rows: list[TopicRow]) -> list[KnowledgeGapTopicRead]:
+        agents = await self._agents(ctx, sorted({a for row in rows for a in row.agent_ids}))
+        return [
+            KnowledgeGapTopicRead(
+                id=row.topic.id,
+                knowledge_base_id=row.topic.knowledge_base_id,
+                status=TopicStatus(row.topic.status).value,
+                label=row.queries[0] if row.queries else "",
+                question_count=row.question_count,
+                last_asked_at=row.last_asked_at,
+                examples=_distinct(row.queries, keep=EXAMPLES),
+                agents=[agents[a] for a in row.agent_ids if a in agents],
+                dismissed_at=row.topic.dismissed_at,
+            )
+            for row in rows
+        ]
+
+    async def _list(
+        self,
+        ctx: AuthContext,
+        knowledge_base_ids: list[UUID],
+        *,
+        agent_id: UUID | None,
+        status: TopicStatusLiteral | None,
+        skip: int,
+        limit: int,
+    ) -> KnowledgeGapTopicList:
+        threshold = settings.KNOWLEDGE_GAP_MIN_SIMILARITY
+        rows, total = await knowledge_gap_repo.list_topics(
+            self.db,
+            organization_id=ctx.organization_id,
+            knowledge_base_ids=knowledge_base_ids,
+            threshold=threshold,
+            status=status,
+            agent_id=agent_id,
+            skip=skip,
+            limit=limit,
+        )
+        ungrouped = await knowledge_gap_repo.count_ungrouped(
+            self.db,
+            organization_id=ctx.organization_id,
+            knowledge_base_ids=knowledge_base_ids,
+            threshold=threshold,
+            agent_id=agent_id,
+        )
+        return KnowledgeGapTopicList(
+            items=await self._reads(ctx, rows), total=total, ungrouped=ungrouped
+        )
+
+    async def list_for_knowledge_base(
+        self,
+        ctx: AuthContext,
+        knowledge_base_id: UUID,
+        *,
+        status: TopicStatusLiteral | None = None,
+        skip: int = 0,
+        limit: int = 50,
+    ) -> KnowledgeGapTopicList:
+        """The questions one knowledge base could not answer, grouped, the most asked first.
+
+        Raises:
+            AuthorizationError: For a caller without `runs:view` across the organization.
+            NotFoundError: For a knowledge base the caller may not read.
+        """
+        _require_runs_view(ctx)
+        kb = await self._knowledge_base(ctx, knowledge_base_id)
+        return await self._list(ctx, [kb.id], agent_id=None, status=status, skip=skip, limit=limit)
+
+    async def list_for_agent(
+        self,
+        ctx: AuthContext,
+        agent_id: UUID,
+        *,
+        status: TopicStatusLiteral | None = None,
+        skip: int = 0,
+        limit: int = 50,
+    ) -> KnowledgeGapTopicList:
+        """What one agent searched for and did not find, in the knowledge bases the caller reads.
+
+        Raises:
+            AuthorizationError: For a caller without `runs:view` across the organization.
+            NotFoundError: For an agent the caller may not see.
+        """
+        _require_runs_view(ctx)
+        agent = await agent_repo.get(self.db, agent_id, organization_id=ctx.organization_id)
+        if agent is None or not await resolve_access(
+            self.db, ctx, agent, Perm.AGENTS_VIEW, resource_type=AGENT
+        ):
+            raise NotFoundError(message="Agent not found", details={"agent_id": agent_id})
+        candidates = await knowledge_gap_repo.knowledge_bases_with_topics_by(
+            self.db, agent.id, organization_id=ctx.organization_id
+        )
+        found = await knowledge_base_repo.get_by_ids(self.db, candidates)
+        readable = [
+            kb.id
+            for kb in found.values()
+            if kb.organization_id == ctx.organization_id and await readable_kb(self.db, ctx, kb)
+        ]
+        return await self._list(
+            ctx, readable, agent_id=agent.id, status=status, skip=skip, limit=limit
+        )
+
+    async def _topic(
+        self, ctx: AuthContext, topic_id: UUID, *, edit: bool = False
+    ) -> KnowledgeGapTopic:
+        topic = await knowledge_gap_repo.get_topic(
+            self.db, topic_id, organization_id=ctx.organization_id
+        )
+        if topic is None:
+            raise NotFoundError(message="Topic not found", details={"topic_id": topic_id})
+        try:
+            await self._knowledge_base(ctx, topic.knowledge_base_id, edit=edit)
+        except NotFoundError:
+            raise NotFoundError(message="Topic not found", details={"topic_id": topic_id}) from None
+        return topic
+
+    async def read(self, ctx: AuthContext, topic_id: UUID) -> KnowledgeGapTopicDetail:
+        """A topic with its most recent questions, each with the answer it got.
+
+        Raises:
+            AuthorizationError: For a caller without `runs:view` across the organization.
+            NotFoundError: For a topic in a knowledge base the caller may not read.
+        """
+        _require_runs_view(ctx)
+        topic = await self._topic(ctx, topic_id)
+        threshold = settings.KNOWLEDGE_GAP_MIN_SIMILARITY
+        rows, _ = await knowledge_gap_repo.list_topics(
+            self.db,
+            organization_id=ctx.organization_id,
+            knowledge_base_ids=[topic.knowledge_base_id],
+            threshold=threshold,
+            status=None,
+            agent_id=None,
+            topic_id=topic.id,
+            skip=0,
+            limit=1,
+        )
+        if not rows:
+            # Every question it held is gone, or no longer counts as a miss.
+            raise NotFoundError(message="Topic not found", details={"topic_id": topic_id})
+        questions = await knowledge_gap_repo.list_questions(
+            self.db,
+            topic.id,
+            organization_id=ctx.organization_id,
+            threshold=threshold,
+            agent_id=None,
+            limit=TOPIC_QUESTIONS,
+        )
+        agents = await self._agents(ctx, sorted({q.search.agent_id for q in questions}))
+        [summary] = await self._reads(ctx, rows)
+        return KnowledgeGapTopicDetail(
+            **summary.model_dump(),
+            questions=[
+                KnowledgeGapQuestion(
+                    search_id=q.search.id,
+                    query=q.search.query,
+                    question=q.question,
+                    top_similarity=q.search.top_similarity,
+                    result_count=q.search.result_count,
+                    agent=agents.get(q.search.agent_id),
+                    run_id=q.search.run_id,
+                    conversation_id=q.search.conversation_id,
+                    answer_message_id=q.answer_message_id,
+                    down_rating_comment=q.down_rating_comment,
+                    asked_at=q.search.created_at,
+                )
+                for q in questions
+            ],
+        )
+
+    async def set_status(
+        self, ctx: AuthContext, topic_id: UUID, status: TopicStatusLiteral
+    ) -> KnowledgeGapTopicDetail:
+        """Dismiss a topic that needs no content, or reopen one.
+
+        A dismissed topic keeps taking the questions that belong to it, so it
+        does not come back as a new topic the next time one is asked.
+
+        Raises:
+            AuthorizationError: For a caller without `runs:view` across the organization.
+            NotFoundError: For a topic in a knowledge base the caller may not change.
+        """
+        _require_runs_view(ctx)
+        topic = await self._topic(ctx, topic_id, edit=True)
+        dismissed = status == TopicStatus.DISMISSED.value
+        await knowledge_gap_repo.update_topic(
+            self.db,
+            topic=topic,
+            update_data={
+                "status": status,
+                "dismissed_by_user_id": ctx.user_id if dismissed else None,
+                "dismissed_at": datetime.now(UTC) if dismissed else None,
+            },
+        )
+        return await self.read(ctx, topic.id)
+
+    async def add_to_dataset(
+        self, ctx: AuthContext, topic_id: UUID, dataset_id: UUID
+    ) -> KnowledgeGapCasesAdded:
+        """Turn a topic's questions into dataset cases, in one new version.
+
+        Each case is the person's question and, as its counter-example, the
+        answer the agent gave without the missing content - so once a document
+        is added, an eval over the dataset shows whether the answers changed.
+        The :data:`TOPIC_TO_DATASET` most recent answers are taken; a question
+        asked over the HTTP API keeps no answer and is skipped.
+
+        Raises:
+            AuthorizationError: For a caller without `runs:view` across the organization.
+            NotFoundError: For a topic the caller may not read, or a dataset they
+                may not edit.
+        """
+        _require_runs_view(ctx)
+        topic = await self._topic(ctx, topic_id)
+        questions = await knowledge_gap_repo.list_questions(
+            self.db,
+            topic.id,
+            organization_id=ctx.organization_id,
+            threshold=settings.KNOWLEDGE_GAP_MIN_SIMILARITY,
+            agent_id=None,
+            limit=TOPIC_TO_DATASET,
+        )
+        message_ids = list(
+            dict.fromkeys(q.answer_message_id for q in questions if q.answer_message_id)
+        )
+        unanswered = sum(1 for q in questions if q.answer_message_id is None)
+        version, skipped = await DatasetService(self.db).add_from_messages(
+            ctx, dataset_id, message_ids
+        )
+        return KnowledgeGapCasesAdded(
+            dataset_id=dataset_id,
+            version=None if version is None else version.number,
+            added=len(message_ids) - skipped,
+            skipped=skipped + unanswered,
+        )
+
+    async def regroup(self, ctx: AuthContext, knowledge_base_id: UUID) -> None:
+        """Group a knowledge base's waiting misses now, rather than at the next scheduled pass.
+
+        Raises:
+            AuthorizationError: For a caller without `runs:view` across the organization.
+            NotFoundError: For a knowledge base the caller may not change.
+        """
+        _require_runs_view(ctx)
+        kb = await self._knowledge_base(ctx, knowledge_base_id, edit=True)
+        # Imported here: the flow module imports this service.
+        from app.worker.tasks.knowledge_gap_tasks import group_knowledge_gaps_flow
+
+        spawn_after_commit(
+            self.db,
+            group_knowledge_gaps_flow(
+                organization_id=str(ctx.organization_id), knowledge_base_id=str(kb.id)
+            ),
+            name=f"group-knowledge-gaps-{kb.id}",
+        )
 
     async def waiting_to_be_grouped(self) -> list[tuple[UUID, UUID]]:
         """Every `(organization, knowledge base)` with a miss no topic has taken yet."""

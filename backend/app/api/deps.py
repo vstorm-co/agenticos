@@ -637,6 +637,16 @@ def get_dataset_service(db: DBSession) -> DatasetService:
 
 DatasetSvc = Annotated[DatasetService, Depends(get_dataset_service)]
 
+from app.services.knowledge_gaps import KnowledgeGapService
+
+
+def get_knowledge_gap_service(db: DBSession) -> KnowledgeGapService:
+    """Create KnowledgeGapService instance with database session."""
+    return KnowledgeGapService(db)
+
+
+KnowledgeGapSvc = Annotated[KnowledgeGapService, Depends(get_knowledge_gap_service)]
+
 from app.services.artifact import ArtifactService
 
 

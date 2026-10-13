@@ -8,6 +8,11 @@ The claims a mocked session cannot make:
   erasure removes them, a run with no conversation included;
 - several answers become dataset cases in one version, and an answer the
   caller may not read is skipped rather than refusing the rest;
+- a topic is read with its count, examples, agents and questions - each with
+  what the person asked, the answer and the comment on it - and is refused as
+  missing to another organization, to a caller who cannot read its knowledge
+  base, and outright to a caller without `runs:view`;
+- a topic's questions become dataset cases in one action;
 - only misses are grouped, each once per knowledge base, into topics that keep
   their ids; a knowledge base is never paired with another organization's
   search, and a topic whose searches are gone is removed;
@@ -24,6 +29,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from sqlalchemy import delete, func, select
 
+from app.core.exceptions import AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun
@@ -36,6 +42,7 @@ from app.db.models.knowledge_gap import (
     KnowledgeSearch,
     TopicStatus,
 )
+from app.db.models.message_rating import MessageRating
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.repositories import knowledge_gap_repo
@@ -80,7 +87,9 @@ async def _owner(db) -> AuthContext:
     return AuthContext(user_id=person.id, organization_id=org.id, role=OrgRoleName.OWNER.value)
 
 
-async def _knowledge_base(db, ctx: AuthContext, name: str = "handbook") -> KnowledgeBase:
+async def _knowledge_base(
+    db, ctx: AuthContext, name: str = "handbook", *, scope: str = "org"
+) -> KnowledgeBase:
     kb = KnowledgeBase(
         id=uuid.uuid4(),
         organization_id=ctx.organization_id,
@@ -88,6 +97,9 @@ async def _knowledge_base(db, ctx: AuthContext, name: str = "handbook") -> Knowl
         collection_name=f"{name}_{uuid.uuid4().hex[:8]}",
         embedding_model="text-embedding-3-small",
         embedding_dim=1536,
+        scope=scope,
+        visibility="org",
+        owner_user_id=ctx.user_id,
     )
     db.add(kb)
     await db.flush()
@@ -522,3 +534,217 @@ async def test_answers_none_of_which_can_be_read_add_no_version(db) -> None:
         .where(DatasetVersion.dataset_id == dataset.id)
     )
     assert versions.scalar_one() == 0
+
+
+async def _member(db, ctx: AuthContext, role: OrgRoleName) -> AuthContext:
+    person = await _user(db)
+    db.add(
+        OrganizationMember(
+            id=uuid.uuid4(), organization_id=ctx.organization_id, user_id=person.id, role=role
+        )
+    )
+    await db.flush()
+    return AuthContext(user_id=person.id, organization_id=ctx.organization_id, role=role.value)
+
+
+async def _a_topic(db, ctx: AuthContext) -> tuple[KnowledgeBase, Agent, uuid.UUID]:
+    """A knowledge base with one topic of two parking questions, one rated down."""
+    kb = await _knowledge_base(db, ctx)
+    agent = await _agent(db, ctx)
+    first, first_answer = await _turn(db, ctx, agent, question="Where can visitors park?")
+    second, _ = await _turn(db, ctx, agent, question="Do I need a parking permit?")
+    await _searched(db, ctx, first, kb, query="visitor parking")
+    await _searched(db, ctx, second, kb, query="parking permit")
+    db.add(
+        MessageRating(
+            message_id=first_answer.id, user_id=ctx.user_id, rating=-1, comment="No parking info"
+        )
+    )
+    await db.flush()
+    with _embedding():
+        await _group(db, ctx, kb)
+    [topic_id] = await _topics(db, kb)
+    return kb, agent, topic_id
+
+
+async def test_a_topic_reads_with_its_questions_and_the_answers_they_got(db) -> None:
+    ctx = await _owner(db)
+    kb, agent, topic_id = await _a_topic(db, ctx)
+    service = KnowledgeGapService(db)
+
+    listed = await service.list_for_knowledge_base(ctx, kb.id)
+    detail = await service.read(ctx, topic_id)
+
+    [topic] = listed.items
+    assert (listed.total, listed.ungrouped) == (1, 0)
+    assert topic.label in {"visitor parking", "parking permit"}
+    assert topic.question_count == 2
+    assert sorted(topic.examples) == ["parking permit", "visitor parking"]
+    assert [a.name for a in topic.agents] == [agent.name]
+    by_query = {q.query: q for q in detail.questions}
+    assert by_query["visitor parking"].question == "Where can visitors park?"
+    assert by_query["visitor parking"].down_rating_comment == "No parking info"
+    assert by_query["visitor parking"].answer_message_id is not None
+    assert by_query["parking permit"].down_rating_comment is None
+
+
+async def test_an_agents_gaps_hold_only_its_own_questions(db) -> None:
+    ctx = await _owner(db)
+    kb, agent, _ = await _a_topic(db, ctx)
+    other = await _agent(db, ctx)
+    run, _ = await _turn(db, ctx, other)
+    await _searched(db, ctx, run, kb, query="parking garage")
+    with _embedding():
+        await _group(db, ctx, kb)
+
+    mine = await KnowledgeGapService(db).list_for_agent(ctx, agent.id)
+    theirs = await KnowledgeGapService(db).list_for_agent(ctx, other.id)
+
+    assert [t.question_count for t in mine.items] == [2]
+    assert [t.question_count for t in theirs.items] == [1]
+
+
+async def test_another_organizations_topic_and_knowledge_base_read_as_missing(db) -> None:
+    ours = await _owner(db)
+    theirs = await _owner(db)
+    kb, agent, topic_id = await _a_topic(db, theirs)
+    dataset = await DatasetService(db).create(ours, DatasetCreate(name="Ours"))
+    service = KnowledgeGapService(db)
+
+    for attempt in (
+        service.read(ours, topic_id),
+        service.list_for_knowledge_base(ours, kb.id),
+        service.list_for_agent(ours, agent.id),
+        service.set_status(ours, topic_id, "dismissed"),
+        service.add_to_dataset(ours, topic_id, dataset.id),
+        service.regroup(ours, kb.id),
+    ):
+        with pytest.raises(NotFoundError):
+            await attempt
+
+
+async def test_a_caller_without_runs_view_is_refused_even_on_a_collection_they_read(db) -> None:
+    ctx = await _owner(db)
+    kb, _, topic_id = await _a_topic(db, ctx)
+    member = await _member(db, ctx, OrgRoleName.MEMBER)
+
+    with pytest.raises(AuthorizationError):
+        await KnowledgeGapService(db).list_for_knowledge_base(member, kb.id)
+    with pytest.raises(AuthorizationError):
+        await KnowledgeGapService(db).read(member, topic_id)
+
+
+async def test_a_caller_who_cannot_read_the_knowledge_base_cannot_read_its_topics(db) -> None:
+    ctx = await _owner(db)
+    kb = await _knowledge_base(db, ctx, "private", scope="personal")
+    run, _ = await _turn(db, ctx, await _agent(db, ctx))
+    await _searched(db, ctx, run, kb, query="parking")
+    with _embedding():
+        await _group(db, ctx, kb)
+    [topic_id] = await _topics(db, kb)
+    operator = await _member(db, ctx, OrgRoleName.OPERATOR)
+
+    with pytest.raises(NotFoundError):
+        await KnowledgeGapService(db).list_for_knowledge_base(operator, kb.id)
+    with pytest.raises(NotFoundError):
+        await KnowledgeGapService(db).read(operator, topic_id)
+    assert (await KnowledgeGapService(db).list_for_agent(operator, run.agent_id)).items == []
+
+
+async def test_an_operator_reads_gaps_but_cannot_dismiss_them(db) -> None:
+    ctx = await _owner(db)
+    kb, _, topic_id = await _a_topic(db, ctx)
+    operator = await _member(db, ctx, OrgRoleName.OPERATOR)
+    service = KnowledgeGapService(db)
+
+    assert (await service.list_for_knowledge_base(operator, kb.id)).total == 1
+    with pytest.raises(NotFoundError):
+        await service.set_status(operator, topic_id, "dismissed")
+
+
+async def test_dismissing_a_topic_and_reopening_it(db) -> None:
+    ctx = await _owner(db)
+    kb, _, topic_id = await _a_topic(db, ctx)
+    service = KnowledgeGapService(db)
+
+    dismissed = await service.set_status(ctx, topic_id, "dismissed")
+    hidden = await service.list_for_knowledge_base(ctx, kb.id, status="open")
+    reopened = await service.set_status(ctx, topic_id, "open")
+
+    assert dismissed.status == "dismissed" and dismissed.dismissed_at is not None
+    assert hidden.items == []
+    assert reopened.status == "open" and reopened.dismissed_at is None
+
+
+async def test_a_topics_questions_become_cases_of_a_dataset_in_one_version(db) -> None:
+    ctx = await _owner(db)
+    _, _, topic_id = await _a_topic(db, ctx)
+    dataset = await DatasetService(db).create(ctx, DatasetCreate(name="Parking"))
+
+    added = await KnowledgeGapService(db).add_to_dataset(ctx, topic_id, dataset.id)
+
+    assert (added.version, added.added, added.skipped) == (1, 2, 0)
+    cases = (
+        (await db.execute(select(DatasetCase).where(DatasetCase.dataset_id == dataset.id)))
+        .scalars()
+        .all()
+    )
+    assert sorted(c.input for c in cases) == [
+        "Do I need a parking permit?",
+        "Where can visitors park?",
+    ]
+    assert {c.note for c in cases} == {"No parking info", None}
+
+
+async def test_a_question_asked_over_the_api_has_no_answer_to_keep_and_is_skipped(db) -> None:
+    ctx = await _owner(db)
+    kb = await _knowledge_base(db, ctx)
+    agent = await _agent(db, ctx)
+    await _searched(db, ctx, await _api_run(db, ctx, agent, ctx.user_id), kb, query="parking")
+    with _embedding():
+        await _group(db, ctx, kb)
+    [topic_id] = await _topics(db, kb)
+    dataset = await DatasetService(db).create(ctx, DatasetCreate(name="Parking"))
+
+    added = await KnowledgeGapService(db).add_to_dataset(ctx, topic_id, dataset.id)
+
+    assert (added.version, added.added, added.skipped) == (None, 0, 1)
+
+
+async def test_a_raised_threshold_counts_what_was_a_hit_and_waits_for_grouping(
+    db, monkeypatch
+) -> None:
+    ctx = await _owner(db)
+    kb = await _knowledge_base(db, ctx)
+    run, _ = await _turn(db, ctx, await _agent(db, ctx))
+    await _searched(db, ctx, run, kb, query="parking", top_similarity=0.45)
+
+    before = await KnowledgeGapService(db).list_for_knowledge_base(ctx, kb.id)
+    monkeypatch.setattr("app.core.config.settings.KNOWLEDGE_GAP_MIN_SIMILARITY", 0.5)
+    after = await KnowledgeGapService(db).list_for_knowledge_base(ctx, kb.id)
+
+    assert (before.total, before.ungrouped) == (0, 0)
+    assert (after.total, after.ungrouped) == (0, 1)
+
+
+async def test_a_topic_none_of_whose_questions_count_any_more_reads_as_missing(
+    db, monkeypatch
+) -> None:
+    ctx = await _owner(db)
+    _, _, topic_id = await _a_topic(db, ctx)
+    monkeypatch.setattr("app.core.config.settings.KNOWLEDGE_GAP_MIN_SIMILARITY", 0.0)
+
+    with pytest.raises(NotFoundError):
+        await KnowledgeGapService(db).read(ctx, topic_id)
+
+
+async def test_regrouping_a_knowledge_base_starts_its_pass_after_the_commit(db) -> None:
+    ctx = await _owner(db)
+    kb = await _knowledge_base(db, ctx)
+
+    with patch("app.services.knowledge_gaps.spawn_after_commit") as spawn:
+        await KnowledgeGapService(db).regroup(ctx, kb.id)
+
+    spawn.assert_called_once()
+    assert spawn.call_args.kwargs["name"] == f"group-knowledge-gaps-{kb.id}"
+    spawn.call_args.args[1].close()
