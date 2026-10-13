@@ -17,6 +17,7 @@ from app.db.models.resource_grant import Visibility
 from app.db.models.skill import Skill, SkillResource
 from app.repositories._search import contains_ci
 from app.repositories._visibility import shared_with_caller, visible_to_caller
+from app.repositories.folder import FolderScope, in_folder
 
 SkillSort = Literal["name", "updated"]
 
@@ -72,6 +73,7 @@ async def list_visible(
     sort: SkillSort = "name",
     skip: int = 0,
     limit: int = 50,
+    folder: FolderScope | None = None,
 ) -> tuple[list[Skill], int]:
     """The skills one member may see, filtered and paged, with the unpaged total.
 
@@ -127,6 +129,8 @@ async def list_visible(
         )
     if categories:
         where.append(Skill.category.in_(categories))
+    if folder is not None:
+        where.append(in_folder(Skill.folder_id, folder))
 
     order_by = (
         (func.coalesce(Skill.updated_at, Skill.created_at).desc(), Skill.name.asc())

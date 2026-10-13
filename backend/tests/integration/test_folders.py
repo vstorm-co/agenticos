@@ -424,3 +424,71 @@ class TestTheRestOfIt:
 
         with pytest.raises(BadRequestError):
             await FolderService(db).file(ctx=owner, kind="skill", resource=other, folder_id=gtm.id)
+
+
+class TestListingOneFolder:
+    async def _listed(self, db: AsyncSession, ctx: AuthContext, folder: str | None) -> list[str]:
+        scope = await FolderService(db).scope(ctx, kind="skill", folder=folder)
+        listing = await SkillService(db).list_readable(ctx, folder=scope)
+        return sorted(skill.name for skill in listing.items)
+
+    async def test_the_top_level_and_a_folder_list_what_each_holds(self, db: AsyncSession) -> None:
+        _, owner = await _org(db)
+        gtm = await _folder(db, owner, "GTM")
+        await _skill(db, owner, "loose")
+        filed = await _skill(db, owner, "filed")
+        await FolderService(db).file(ctx=owner, kind="skill", resource=filed, folder_id=gtm.id)
+
+        assert await self._listed(db, owner, "top") == ["loose"]
+        assert await self._listed(db, owner, str(gtm.id)) == ["filed"]
+        assert await self._listed(db, owner, None) == ["filed", "loose"]
+
+    async def test_something_shared_from_a_folder_one_cannot_see_is_at_the_top(
+        self, db: AsyncSession
+    ) -> None:
+        organization, owner = await _org(db)
+        outsider = await _member(db, organization)
+        assert outsider.user_id is not None
+        gtm = await _folder(db, owner, "GTM", visibility=Visibility.PRIVATE)
+        playbook = await _skill(db, owner, "playbook")
+        await FolderService(db).file(ctx=owner, kind="skill", resource=playbook, folder_id=gtm.id)
+        await SharingService(db).share(
+            owner,
+            playbook,
+            resource_type=SKILL,
+            subject_user_id=outsider.user_id,
+            level=GrantLevel.READ,
+        )
+
+        assert await self._listed(db, outsider, "top") == ["playbook"]
+
+    async def test_a_folder_named_wrongly_or_out_of_reach_is_refused(
+        self, db: AsyncSession
+    ) -> None:
+        organization, owner = await _org(db)
+        outsider = await _member(db, organization)
+        gtm = await _folder(db, owner, "GTM", visibility=Visibility.PRIVATE)
+        service = FolderService(db)
+
+        with pytest.raises(BadRequestError):
+            await service.scope(owner, kind="skill", folder="not-a-folder")
+        with pytest.raises(NotFoundError):
+            await service.scope(outsider, kind="skill", folder=str(gtm.id))
+
+    async def test_context_and_apps_filter_on_their_folder_too(self, db: AsyncSession) -> None:
+        from app.repositories import artifact_repo, context_repo
+        from app.repositories.folder import FolderScope
+
+        _, owner = await _org(db)
+        assert owner.user_id is not None
+        top = FolderScope(folder_id=None, visible=frozenset({uuid.uuid4()}))
+        for repo in (context_repo, artifact_repo):
+            items, total = await repo.list_visible(
+                db,
+                organization_id=owner.organization_id,
+                user_id=owner.user_id,
+                see_all=True,
+                shared_ids=[],
+                folder=top,
+            )
+            assert (items, total) == ([], 0)

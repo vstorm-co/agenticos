@@ -47,6 +47,7 @@ from app.db.models.context import ContextFile
 from app.db.models.conversation import Conversation
 from app.db.models.dashboard_layout import DashboardLayout
 from app.db.models.deployment_settings import DeploymentSettings
+from app.db.models.folder import Folder
 from app.db.models.group import Group, GroupMember
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.local_service import LocalService
@@ -73,6 +74,7 @@ from app.schemas.context import ContextFileUpdate
 from app.schemas.conversation import ConversationUpdate
 from app.schemas.dashboard_layout import DashboardLayoutUpdate
 from app.schemas.deployment_settings import DeploymentSettingsUpdate
+from app.schemas.folder import FolderUpdate
 from app.schemas.group import GroupLeadUpdate, GroupUpdate
 from app.schemas.knowledge_base import KnowledgeBaseUpdate
 from app.schemas.local_service import LocalServiceUpdate
@@ -113,6 +115,7 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     EmbedUpdate: AgentEmbed,
     EnvironmentUpdate: AgentEnvironment,
     ExposureUpdate: AgentExposure,
+    FolderUpdate: Folder,
     GroupUpdate: Group,
     GroupLeadUpdate: GroupMember,
     KnowledgeBaseUpdate: KnowledgeBase,

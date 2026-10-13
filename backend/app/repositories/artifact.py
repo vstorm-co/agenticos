@@ -20,6 +20,7 @@ from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.artifact import Artifact, ArtifactFollower, ArtifactVersion
 from app.db.models.resource_grant import Visibility
 from app.repositories._search import contains_ci
+from app.repositories.folder import FolderScope, in_folder
 
 
 async def get_many(
@@ -147,6 +148,7 @@ async def list_visible(
     agent_id: UUID | None = None,
     skip: int = 0,
     limit: int = 50,
+    folder: FolderScope | None = None,
 ) -> tuple[list[Artifact], int]:
     """The artifacts one member may see, newest publication first, with the total.
 
@@ -167,6 +169,8 @@ async def list_visible(
         where.append(or_(contains_ci(Artifact.title, search), contains_ci(Artifact.name, search)))
     if agent_id is not None:
         where.append(Artifact.agent_id == agent_id)
+    if folder is not None:
+        where.append(in_folder(Artifact.folder_id, folder))
     items = await db.execute(
         select(Artifact)
         .where(*where)

@@ -60,6 +60,7 @@ def _row(name: str, *, category: str | None = None, files: int = 0) -> MagicMock
     # Text, not a mock attribute: the listing reads the opening of the body.
     row.content = f"# {name}\n\nWhen to use it."
     row.resources = [MagicMock() for _ in range(files)]
+    row.folder_id = None
     return row
 
 

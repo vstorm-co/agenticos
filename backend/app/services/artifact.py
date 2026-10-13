@@ -65,6 +65,7 @@ from app.repositories import (
     member_repo,
     resource_grant_repo,
 )
+from app.repositories.folder import FolderScope
 from app.schemas.artifact import (
     ArtifactAgent,
     ArtifactAgentList,
@@ -1040,6 +1041,7 @@ class ArtifactService:
             name=artifact.name,
             title=artifact.title,
             visibility=artifact.visibility,
+            folder_id=artifact.folder_id,
             owner_user_id=artifact.owner_user_id,
             agent_id=artifact.agent_id,
             environment_id=artifact.environment_id,
@@ -1073,6 +1075,7 @@ class ArtifactService:
         agent_id: UUID | None = None,
         skip: int = 0,
         limit: int = 50,
+        folder: FolderScope | None = None,
     ) -> ArtifactList:
         """A page of the artifacts this caller may open, newest publication first."""
         see_all, grant_ids = await self._visibility(ctx)
@@ -1094,6 +1097,7 @@ class ArtifactService:
             agent_id=agent_id,
             skip=skip,
             limit=limit,
+            folder=folder,
         )
         current = await artifact_repo.latest_versions(self.db, [item.id for item in items])
         names = await artifact_repo.environment_names(

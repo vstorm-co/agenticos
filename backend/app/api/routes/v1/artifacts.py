@@ -24,6 +24,7 @@ from fastapi import APIRouter, Depends, Query, Response, status
 from app.api.deps import (
     ArtifactSvc,
     Auth,
+    FolderSvc,
     limit_artifact_content,
     limit_public_artifact,
     require,
@@ -57,6 +58,7 @@ embed_router = APIRouter()
 @router.get("", response_model=ArtifactList, dependencies=[Depends(require(Perm.ARTIFACTS_VIEW))])
 async def list_artifacts(
     service: ArtifactSvc,
+    folders: FolderSvc,
     ctx: Auth,
     q: str | None = Query(None, max_length=100, description="Match on title or name"),
     shared_with_me: bool = Query(
@@ -65,10 +67,23 @@ async def list_artifacts(
     agent_id: UUID | None = Query(None, description="Only the pages this agent published"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
+    folder: str | None = Query(
+        None,
+        description=(
+            "`top` for the top level, a folder's id for its contents, or omitted for "
+            "every app whatever its folder (#2124)"
+        ),
+    ),
 ) -> Any:
     """The artifacts the caller may open, most recently published first."""
     return await service.list_readable(
-        ctx, shared_with_me=shared_with_me, search=q, agent_id=agent_id, skip=skip, limit=limit
+        ctx,
+        shared_with_me=shared_with_me,
+        search=q,
+        agent_id=agent_id,
+        skip=skip,
+        limit=limit,
+        folder=await folders.scope(ctx, kind="artifact", folder=folder),
     )
 
 

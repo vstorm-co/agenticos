@@ -27,6 +27,7 @@ from app.db.models.resource_grant import Visibility
 from app.db.models.skill import Skill, SkillResource
 from app.db.updates import writable
 from app.repositories import resource_grant_repo, skill_repo
+from app.repositories.folder import FolderScope
 from app.repositories.skill import SkillSort
 from app.schemas.skill import (
     GalleryIndustryRead,
@@ -78,6 +79,7 @@ def _summary(skill: Skill, bundled_names: frozenset[str]) -> SkillSummary:
         file_count=len(skill.resources),
         built_in=skill.name in bundled_names,
         excerpt=excerpt(skill.content),
+        folder_id=skill.folder_id,
     )
 
 
@@ -200,6 +202,7 @@ class SkillService:
         sort: SkillSort = "name",
         skip: int = 0,
         limit: int = 50,
+        folder: FolderScope | None = None,
     ) -> tuple[list[Skill], int]:
         """A page of the skills this caller may see, and how many there are in all.
 
@@ -241,6 +244,7 @@ class SkillService:
             sort=sort,
             skip=skip,
             limit=limit,
+            folder=folder,
         )
 
     async def list_readable(
@@ -253,6 +257,7 @@ class SkillService:
         sort: SkillSort = "name",
         skip: int = 0,
         limit: int = 50,
+        folder: FolderScope | None = None,
     ) -> SkillList:
         """The listing: a page of skills, and everything the page around it needs.
 
@@ -283,6 +288,7 @@ class SkillService:
             sort=sort,
             skip=skip,
             limit=limit,
+            folder=folder,
         )
         bundled_names = frozenset(entry.name for entry in skill_library.library())
         used = await agents_using(

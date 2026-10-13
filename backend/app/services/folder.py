@@ -27,6 +27,7 @@ from app.core.permissions import AuthContext
 from app.db.models.folder import Folder
 from app.db.models.resource_grant import ResourceGrant, Visibility
 from app.repositories import folder_repo, resource_grant_repo
+from app.repositories.folder import FolderScope
 from app.schemas.folder import FolderCreate, FolderUpdate
 from app.schemas.resource_grant import AudienceChoice
 from app.services.access import (
@@ -120,6 +121,28 @@ class FolderService:
         ):
             raise NotFoundError(message="Folder not found", details={"folder_id": folder_id})
         return folder
+
+    async def scope(self, ctx: AuthContext, *, kind: str, folder: str | None) -> FolderScope | None:
+        """What a listing's `folder` parameter asks for: `top`, one folder, or every folder."""
+        if folder is None:
+            return None
+        folders = await folder_repo.list_for_kind(
+            self.db, organization_id=ctx.organization_id, kind=kind
+        )
+        visible = frozenset(
+            await accessible_ids(
+                self.db, ctx, folders, FOLDER_TYPES[kind].view, resource_type=FOLDER_TYPES[kind]
+            )
+        )
+        if folder == "top":
+            return FolderScope(folder_id=None, visible=visible)
+        try:
+            folder_id = UUID(folder)
+        except ValueError:
+            raise refused_field("folder", "Name a folder by its id, or `top`.") from None
+        if folder_id not in visible:
+            raise NotFoundError(message="Folder not found", details={"folder_id": folder_id})
+        return FolderScope(folder_id=folder_id, visible=visible)
 
     async def view(self, ctx: AuthContext, folder: Folder) -> FolderView:
         counts = await folder_repo.counts(

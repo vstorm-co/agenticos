@@ -1,15 +1,43 @@
 """Folder repository (PostgreSQL async) - #2124."""
 
+from dataclasses import dataclass
 from uuid import UUID
 
-from sqlalchemy import func, select, update
+from sqlalchemy import ColumnElement, func, or_, select, true, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import InstrumentedAttribute
 
 from app.db.models.artifact import Artifact
 from app.db.models.context import ContextFile
 from app.db.models.folder import Folder
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.skill import Skill
+
+
+@dataclass(frozen=True)
+class FolderScope:
+    """Which folder a listing shows (#2124).
+
+    `folder_id` None is the top level, which also holds whatever sits in a
+    folder the reader cannot see - something shared with them directly, filed
+    somewhere they are not in the audience of - so it is not lost.
+    """
+
+    folder_id: UUID | None
+    visible: frozenset[UUID]
+
+
+def in_folder(
+    column: InstrumentedAttribute[UUID | None], scope: FolderScope
+) -> ColumnElement[bool]:
+    """The predicate a listing adds to show one folder's contents."""
+    if scope.folder_id is not None:
+        return column == scope.folder_id
+    if not scope.visible:
+        # No folder in sight: everything the reader may see is at their top level.
+        return true()
+    return or_(column.is_(None), column.not_in(scope.visible))
+
 
 Filed = type[Artifact] | type[ContextFile] | type[KnowledgeBase] | type[Skill]
 
