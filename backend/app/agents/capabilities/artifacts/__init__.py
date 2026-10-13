@@ -36,6 +36,7 @@ ARTIFACTS_CAPABILITY_ID = "artifacts"
             description=(
                 "Read the current version of a page this agent published, as it was written."
             ),
+            read_only=True,
         ),
     ),
 )

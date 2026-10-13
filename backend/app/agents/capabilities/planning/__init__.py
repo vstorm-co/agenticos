@@ -78,6 +78,7 @@ class PlanningConfig(BaseModel):
 
 @register(
     id="planning",
+    read_only=True,
     name="Planning",
     category="reasoning",
     description="Let the agent keep a checklist of steps for a multi-step task.",
