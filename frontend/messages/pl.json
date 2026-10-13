@@ -1102,7 +1102,7 @@
       "statusCancelled": "Anulowany",
       "statusBlocked": "Zablokowany"
     },
-    "queuedSendsAfterCurrent": "W kolejce · wyśle się po bieżącej odpowiedzi",
+    "queuedSendsAfterCurrent": "Czeka na odpowiedź",
     "rating": {
       "unknownError": "Nieznany błąd"
     },
@@ -1402,9 +1402,8 @@
     "browserOpenFull": "Otwórz na pełnym ekranie",
     "conversationActions": "Akcje konwersacji",
     "imageNotLoaded": "Obraz (niezaładowany)",
-    "steerAdded": "Dodałeś:",
     "whileWorking": {
-      "steersWaiting": "Dołączone do bieżącego zadania - agent przeczyta to w następnym kroku"
+      "steersWaiting": "Wysłane do zadania - agent przeczyta to w następnym kroku"
     },
     "restricted": "Ograniczony",
     "restrictedHint": "Otworzyć ją mogą tylko osoby powyżej.",
@@ -1413,7 +1412,14 @@
       "today": "Dzisiaj",
       "yesterday": "Wczoraj"
     },
-    "exactCostPartial": "{cost} - dolna granica: któryś model w tej turze nie miał ceny"
+    "exactCostPartial": "{cost} - dolna granica: któryś model w tej turze nie miał ceny",
+    "sendNow": "Wyślij teraz",
+    "sendNowHint": "Wyślij do bieżącego zadania teraz, zamiast po odpowiedzi",
+    "sendNowNotWithFiles": "Wiadomość z plikami czeka na odpowiedź",
+    "queuedCount": "{count, plural, one {1 wiadomość w kolejce} few {# wiadomości w kolejce} many {# wiadomości w kolejce} other {# wiadomości w kolejce}}",
+    "sentIntoTask": "wysłane do zadania",
+    "moveUp": "Przesuń wyżej",
+    "moveDown": "Przesuń niżej"
   },
   "common": {
     "archiveNamedConfirm": "Zarchiwizować {name}?",

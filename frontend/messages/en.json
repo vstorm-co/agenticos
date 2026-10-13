@@ -1102,7 +1102,7 @@
       "statusCancelled": "Cancelled",
       "statusBlocked": "Blocked"
     },
-    "queuedSendsAfterCurrent": "Queued · sends after current reply",
+    "queuedSendsAfterCurrent": "Waiting for the answer",
     "rating": {
       "unknownError": "Unknown error"
     },
@@ -1402,9 +1402,8 @@
     "browserOpenFull": "Open full screen",
     "conversationActions": "Conversation actions",
     "imageNotLoaded": "Image (not loaded)",
-    "steerAdded": "You added:",
     "whileWorking": {
-      "steersWaiting": "Added to the current task - it reads this at its next step"
+      "steersWaiting": "Sent into the task - it reads it at its next step"
     },
     "restricted": "Restricted",
     "restrictedHint": "Only the people above can open it.",
@@ -1413,7 +1412,14 @@
       "today": "Today",
       "yesterday": "Yesterday"
     },
-    "exactCostPartial": "{cost} - a floor: some model in this turn had no price"
+    "exactCostPartial": "{cost} - a floor: some model in this turn had no price",
+    "sendNow": "Send now",
+    "sendNowHint": "Send it into the running task now, instead of after the answer",
+    "sendNowNotWithFiles": "A message with files waits for the answer",
+    "queuedCount": "{count, plural, =1 {1 message queued} other {# messages queued}}",
+    "sentIntoTask": "sent into the task",
+    "moveUp": "Move up",
+    "moveDown": "Move down"
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",

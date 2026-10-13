@@ -2272,7 +2272,7 @@ describe("useChat - a socket that went away mid-answer", () => {
     vi.useFakeTimers();
     const { result, rerender } = renderHook(() => useChat(), { wrapper });
     act(() => result.current.sendMessage("first"));
-    act(() => result.current.sendMessage("second", undefined, undefined, "after"));
+    act(() => result.current.sendMessage("second"));
     expect(result.current.queuedMessages).toHaveLength(1);
 
     socket.isConnected = false;
@@ -2339,7 +2339,7 @@ describe("useChat - a socket that went away mid-answer", () => {
     let conversationId = "c-interrupted";
     const { result, rerender } = renderHook(() => useChat({ conversationId }), { wrapper });
     act(() => result.current.sendMessage("first"));
-    act(() => result.current.sendMessage("second", undefined, undefined, "after"));
+    act(() => result.current.sendMessage("second"));
     socket.isConnected = false;
     rerender();
     socket.isConnected = true;
@@ -2437,7 +2437,7 @@ describe("useChat - the outbound queue", () => {
     act(() => result.current.sendMessage("first"));
     expect(result.current.isProcessing).toBe(true);
 
-    act(() => result.current.sendMessage("second", undefined, undefined, "after"));
+    act(() => result.current.sendMessage("second"));
     expect(result.current.queuedMessages.map((entry) => entry.content)).toEqual(["second"]);
     expect(sent).toHaveBeenCalledTimes(1);
 
@@ -2977,15 +2977,26 @@ describe("useChat - adding to a running turn (#2087)", () => {
     useChatStore.setState({ messages: [] });
   });
 
-  it("sends a message typed while the agent works into the task, and shows where it landed", () => {
+  it("waits for the answer, and Send now puts it into the task where it landed", () => {
     const { result } = renderHook(() => useChat(), { wrapper });
     act(() => result.current.sendMessage("draft the report"));
     receive("model_request_start", {});
 
     act(() => result.current.sendMessage("use the EU numbers"));
+    // As in any chat, it waits for the answer.
+    expect(result.current.queuedMessages.map((entry) => entry.content)).toEqual([
+      "use the EU numbers",
+    ]);
+    expect(result.current.steers).toEqual([]);
+
+    const id = result.current.queuedMessages[0]!.id;
+    act(() => result.current.sendQueuedNow(id));
     expect(frame(1)).toEqual({ type: "steer", text: "use the EU numbers" });
     expect(result.current.steers.map((steer) => steer.text)).toEqual(["use the EU numbers"]);
     expect(result.current.queuedMessages).toEqual([]);
+    // Gone from the queue, so a second press sends nothing.
+    act(() => result.current.sendQueuedNow(id));
+    expect(sent).toHaveBeenCalledTimes(2);
 
     receive("steer_applied", { text: "use the EU numbers" });
     expect(result.current.steers).toEqual([]);
@@ -3000,6 +3011,7 @@ describe("useChat - adding to a running turn (#2087)", () => {
     const { result } = renderHook(() => useChat(), { wrapper });
     act(() => result.current.sendMessage("draft the report"));
     act(() => result.current.sendMessage("and the totals"));
+    act(() => result.current.sendQueuedNow(result.current.queuedMessages[0]!.id));
 
     receive("steer_unapplied", { texts: ["and the totals"] });
 
@@ -3007,16 +3019,26 @@ describe("useChat - adding to a running turn (#2087)", () => {
     expect(result.current.queuedMessages.map((entry) => entry.content)).toEqual(["and the totals"]);
   });
 
-  it("queues it for after the turn for somebody who chose that", () => {
+  it("reorders the queue, which is the order the messages go in", () => {
     const { result } = renderHook(() => useChat(), { wrapper });
     act(() => result.current.sendMessage("draft the report"));
+    act(() => result.current.sendMessage("first"));
+    act(() => result.current.sendMessage("second"));
+    const [first, second] = result.current.queuedMessages;
 
-    act(() => result.current.sendMessage("and then the summary", undefined, undefined, "after"));
-
+    act(() => result.current.moveQueued(second!.id, 0));
     expect(result.current.queuedMessages.map((entry) => entry.content)).toEqual([
-      "and then the summary",
+      "second",
+      "first",
     ]);
-    expect(result.current.steers).toEqual([]);
+    // Out of range, to where it already is, or an unknown id: nothing moves.
+    act(() => result.current.moveQueued(first!.id, 5));
+    act(() => result.current.moveQueued(first!.id, 1));
+    act(() => result.current.moveQueued("gone", 0));
+    expect(result.current.queuedMessages.map((entry) => entry.content)).toEqual([
+      "second",
+      "first",
+    ]);
   });
 
   it("holds a message with a file for the answer - a correction carries no file", () => {
@@ -3024,6 +3046,7 @@ describe("useChat - adding to a running turn (#2087)", () => {
     act(() => result.current.sendMessage("draft the report"));
 
     act(() => result.current.sendMessage("this one", ["file-1"]));
+    act(() => result.current.sendQueuedNow(result.current.queuedMessages[0]!.id));
 
     expect(result.current.queuedMessages.map((entry) => entry.content)).toEqual(["this one"]);
     expect(result.current.steers).toEqual([]);

@@ -50,12 +50,6 @@ import { setUrlParam } from "@/lib/utils";
 import { useConversationStore } from "@/stores";
 /** A message the user typed while the agent was busy / socket offline.
  *  Held outside the chat history until the drainer ships it. */
-/**
- * How a message typed while the agent works is sent (#2087): into the running
- * turn, or into the queue for after it. The person's own setting decides.
- */
-export type SendMode = "steer" | "after";
-
 /** A correction sent to the running turn, shown until it reaches the model. */
 export interface SteerDraft {
   id: string;
@@ -1008,16 +1002,10 @@ export function useChat(options: UseChatOptions = {}) {
   );
 
   const sendChatMessage = useCallback(
-    (content: string, fileIds?: string[], files?: ChatMessageFile[], mode: SendMode = "steer") => {
-      // While the agent works, a message joins the task and reaches it at its
-      // next step, unless the person chose to queue instead (#2087). A file
-      // cannot ride along with a correction, so a message carrying one waits
-      // for the turn like a queued one does.
-      if (mode === "steer" && isProcessing && isConnected && !fileIds?.length) {
-        setSteers((waiting) => [...waiting, { id: clientId(), text: content }]);
-        sendMessage({ type: "steer", text: content });
-        return;
-      }
+    (content: string, fileIds?: string[], files?: ChatMessageFile[]) => {
+      // While the agent works a message waits for its answer, as in any chat;
+      // "Send now" on the queued message is how it joins the running task
+      // instead (#2087) - see `sendQueuedNow`.
       // Queue when the agent is busy OR the socket is offline. The queue is
       // surfaced above the input as pending entries the user can cancel; the
       // drainer effect below pops the head as soon as the agent is idle.
@@ -1029,8 +1017,37 @@ export function useChat(options: UseChatOptions = {}) {
       }
       doSend(content, fileIds, files);
     },
-    [isProcessing, isConnected, doSend, sendMessage],
+    [isProcessing, isConnected, doSend],
   );
+
+  /**
+   * Send one queued message now rather than after the answer: into the running
+   * task, where it reaches the model at its next step. A file cannot ride along
+   * with a correction, so a message carrying one keeps its place in the queue;
+   * with nothing running there is nothing to join, and the queue sends it anyway.
+   */
+  const sendQueuedNow = useCallback(
+    (id: string) => {
+      const queued = messageQueueRef.current.find((q) => q.id === id);
+      if (!queued || !isProcessing || !isConnected || queued.fileIds?.length) return;
+      messageQueueRef.current = messageQueueRef.current.filter((q) => q.id !== id);
+      setQueuedMessages([...messageQueueRef.current]);
+      setSteers((waiting) => [...waiting, { id: clientId(), text: queued.content }]);
+      sendMessage({ type: "steer", text: queued.content });
+    },
+    [isProcessing, isConnected, sendMessage],
+  );
+
+  /** Move one queued message to another place in the queue, which is the order it is sent in. */
+  const moveQueued = useCallback((id: string, to: number) => {
+    const queue = [...messageQueueRef.current];
+    const from = queue.findIndex((q) => q.id === id);
+    if (from < 0 || to < 0 || to >= queue.length || to === from) return;
+    const [moved] = queue.splice(from, 1);
+    queue.splice(to, 0, moved!);
+    messageQueueRef.current = queue;
+    setQueuedMessages([...queue]);
+  }, []);
 
   const cancelQueued = useCallback((id: string) => {
     messageQueueRef.current = messageQueueRef.current.filter((q) => q.id !== id);
@@ -1704,6 +1721,8 @@ export function useChat(options: UseChatOptions = {}) {
     clearMessages,
     queuedMessages,
     cancelQueued,
+    sendQueuedNow,
+    moveQueued,
     clearQueued,
     /** Corrections sent into the running turn that have not reached the model yet. */
     steers,

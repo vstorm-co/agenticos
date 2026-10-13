@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import type { ChatMessageFile } from "@/types";
 import type { PublishedModel } from "@/types/agents";
 import { useAgents, useChat, useConversationWorkspace, useModelProviders } from "@/hooks";
-import type { ChatTesting, SendMode, SteerDraft } from "@/hooks/use-chat";
+import type { ChatTesting, SteerDraft } from "@/hooks/use-chat";
 import { AgentPicker } from "./agent-picker";
 import { ChatControls } from "./chat-controls";
 import { ChatEmptyState } from "./chat-empty-state";
@@ -26,7 +26,6 @@ import { InterruptedNotice } from "./interrupted-notice";
 import { ConnectAccountPrompt } from "./connect-account-prompt";
 import { ConnectServicesCard } from "./connect-services-card";
 import { PendingMessages } from "./pending-messages";
-import { WaitingSteers } from "./while-working";
 import { PlanStrip } from "./plan-strip";
 import { ToolApprovalDialog } from "./tool-approval-dialog";
 import { QuestionPrompt } from "@/components/ui";
@@ -197,6 +196,8 @@ export function ChatContainer({
     clearMessages,
     queuedMessages,
     cancelQueued,
+    sendQueuedNow,
+    moveQueued,
     clearQueued,
     steers,
     setModelProfile,
@@ -330,14 +331,10 @@ export function ChatContainer({
   useFollowContent(scrollContainerRef, transcriptRef, holdFollow);
   const { commands: slashCommands } = useSlashCommands();
 
-  // What a message typed while the agent works does: it joins the running turn,
-  // unless this person chose in their settings to queue it for after (#2087).
-  const queueWhileWorking = useAuthStore((state) => state.user?.queue_while_working ?? false);
-  const sendMode: SendMode = queueWhileWorking ? "after" : "steer";
   const send = useCallback(
     (content: string, fileIds?: string[], files?: ChatMessageFile[]) =>
-      sendMessage(content, fileIds, files, sendMode),
-    [sendMessage, sendMode],
+      sendMessage(content, fileIds, files),
+    [sendMessage],
   );
 
   const handleRegenerate = useCallback(
@@ -432,6 +429,8 @@ export function ChatContainer({
       slashCommands={slashCommands}
       queuedMessages={queuedMessages}
       onCancelQueued={cancelQueued}
+      onSendQueuedNow={sendQueuedNow}
+      onMoveQueued={moveQueued}
       transcriptRef={transcriptRef}
       scrollContainerRef={scrollContainerRef}
       pendingApproval={pendingApproval}
@@ -512,6 +511,10 @@ interface ChatUIProps {
   slashCommands?: import("./slash-commands").SlashCommand[];
   queuedMessages?: import("@/hooks/use-chat").QueuedMessage[];
   onCancelQueued?: (id: string) => void;
+  /** Sends one queued message into the running task instead of after it. */
+  onSendQueuedNow?: (id: string) => void;
+  /** Moves one queued message to another place in the order they are sent. */
+  onMoveQueued?: (id: string, to: number) => void;
   /** What a message typed while the agent works does (#2087). */
   steers?: SteerDraft[];
   /** The transcript's content, whose growth the scroller follows. */
@@ -557,6 +560,8 @@ function ChatUI({
   slashCommands,
   queuedMessages,
   onCancelQueued,
+  onSendQueuedNow,
+  onMoveQueued,
   steers = [],
   transcriptRef,
   scrollContainerRef,
@@ -775,9 +780,14 @@ function ChatUI({
               onRecheck={onRecheck}
             />
             <CompactionNotice compacting={compacting} impossible={compactionImpossible} />
-            <WaitingSteers steers={steers} />
-            {queuedMessages && queuedMessages.length > 0 && onCancelQueued && (
-              <PendingMessages messages={queuedMessages} onCancel={onCancelQueued} />
+            {onCancelQueued && (
+              <PendingMessages
+                messages={queuedMessages ?? []}
+                steers={steers}
+                onCancel={onCancelQueued}
+                onSendNow={isProcessing && isConnected ? onSendQueuedNow : undefined}
+                onMove={onMoveQueued}
+              />
             )}
             {/* The checklist the agent is working to. Here rather than in the
                 transcript because a plan is written in one turn and worked through

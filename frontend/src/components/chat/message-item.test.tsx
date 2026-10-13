@@ -252,6 +252,24 @@ describe("a turn in the narrow chat beside a page (the Architect, the test panel
     );
   }
 
+  it("draws what the person sent into the task as their own message, at the narrow size", () => {
+    compact({
+      parts: [
+        { id: "p-1", type: "text", content: "Pulling the numbers." },
+        { id: "p-2", type: "steer", content: "use the EU numbers" },
+      ],
+    });
+
+    expect(screen.getByText("use the EU numbers")).toBeInTheDocument();
+    expect(screen.getByText("You").className).toContain("text-xs");
+  });
+
+  it("replays a stored question with nothing recorded as asked or answered", () => {
+    compact({ parts: [{ id: "p-1", type: "ask_user" }] });
+
+    expect(screen.getByText("Asked you")).toBeInTheDocument();
+  });
+
   it("puts the face and the name on one line above an answer, with its version", () => {
     compact({ agentVersion: 2 }, { agent: support, groupPosition: "first" });
 
@@ -368,7 +386,9 @@ describe("the ordered timeline", () => {
       ],
     });
 
-    expect(getByText("You added:")).toBeInTheDocument();
+    // As the person's own message, not an aside saying they "added" something.
+    expect(screen.queryByText("You added:")).toBeNull();
+    expect(getByText("You")).toBeInTheDocument();
     expect(getByText("use the EU numbers")).toBeInTheDocument();
   });
 

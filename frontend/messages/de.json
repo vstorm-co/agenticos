@@ -1102,7 +1102,7 @@
       "statusCancelled": "Abgebrochen",
       "statusBlocked": "Blockiert"
     },
-    "queuedSendsAfterCurrent": "In der Warteschlange · wird nach der aktuellen Antwort gesendet",
+    "queuedSendsAfterCurrent": "Wartet auf die Antwort",
     "rating": {
       "unknownError": "Unbekannter Fehler"
     },
@@ -1402,9 +1402,8 @@
     "browserOpenFull": "Im Vollbild öffnen",
     "conversationActions": "Aktionen der Konversation",
     "imageNotLoaded": "Bild (nicht geladen)",
-    "steerAdded": "Sie haben ergänzt:",
     "whileWorking": {
-      "steersWaiting": "Zur laufenden Aufgabe hinzugefügt - er liest es beim nächsten Schritt"
+      "steersWaiting": "In die Aufgabe gesendet - sie liest es beim nächsten Schritt"
     },
     "restricted": "Eingeschränkt",
     "restrictedHint": "Nur die Personen oben können sie öffnen.",
@@ -1413,7 +1412,14 @@
       "today": "Heute",
       "yesterday": "Gestern"
     },
-    "exactCostPartial": "{cost} - eine Untergrenze: ein Modell in dieser Runde hatte keinen Preis"
+    "exactCostPartial": "{cost} - eine Untergrenze: ein Modell in dieser Runde hatte keinen Preis",
+    "sendNow": "Jetzt senden",
+    "sendNowHint": "Jetzt in die laufende Aufgabe senden, statt nach der Antwort",
+    "sendNowNotWithFiles": "Eine Nachricht mit Dateien wartet auf die Antwort",
+    "queuedCount": "{count, plural, =1 {1 Nachricht in der Warteschlange} other {# Nachrichten in der Warteschlange}}",
+    "sentIntoTask": "in die Aufgabe gesendet",
+    "moveUp": "Nach oben",
+    "moveDown": "Nach unten"
   },
   "common": {
     "archiveNamedConfirm": "{name} archivieren?",

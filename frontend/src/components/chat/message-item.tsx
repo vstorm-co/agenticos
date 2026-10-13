@@ -1,7 +1,6 @@
 "use client";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
-import { AvatarFace } from "@/components/ui/avatar-face";
 import { ThinkingOrb } from "@/components/ui/thinking-orb";
 import { cn } from "@/lib/utils";
 import type { ChatMessage, ChatMessageFile, TurnUsage } from "@/types";
@@ -12,6 +11,7 @@ import { foldWork, runsOf, TextBubble, ThinkingBlock, TurnParts } from "./turn-p
 import type { PinnedPrompts } from "./chat-container";
 import { CopyButton } from "./copy-button";
 import { RoundedCost } from "./message-cost";
+import { YouFace } from "./you-face";
 import { TURN_ACTION } from "./turn-action";
 import { RatingButtons } from "./rating-buttons";
 import { useChatStore, useFilePreviewStore } from "@/stores";
@@ -27,7 +27,6 @@ import {
   Pin,
   PinOff,
   RefreshCw,
-  User,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Image from "next/image";
@@ -133,7 +132,7 @@ export function MessageItem({
   const updateMessage = useChatStore((state) => state.updateMessage);
   const openPreview = useFilePreviewStore((s) => s.open);
   const openSources = useSourcesPanelStore((s) => s.open);
-  const { user: authUser, avatarVersion } = useAuthStore();
+  const { user: authUser } = useAuthStore();
   // Read once per turn and handed to each step, so a public surface can render the
   // same step without a session - see `TurnParts`.
   const mcpServers = useMcpToolServers();
@@ -170,21 +169,8 @@ export function MessageItem({
         !isUser && !agent && "bg-muted text-foreground",
       )}
     >
-      {isUser && authUser?.avatar_url ? (
-        <Image
-          src={`/api/users/avatar/${authUser.id}?v=${avatarVersion}`}
-          alt=""
-          width={36}
-          height={36}
-          className="h-full w-full object-cover"
-          unoptimized
-        />
-      ) : isUser && authUser ? (
-        <AvatarFace seed={authUser.id} colorSlot={authUser.avatar_color} />
-      ) : isUser ? (
-        // A signed-out reader of a shared transcript: there is no id to draw a
-        // face from, and a face drawn from nothing would be somebody else's.
-        <User className="h-4 w-4" />
+      {isUser ? (
+        <YouFace />
       ) : agent ? (
         <AgentAvatar
           agentId={agent.id}

@@ -1,6 +1,6 @@
 "use client";
 
-import { CornerDownRight, MessageCircleQuestion } from "lucide-react";
+import { MessageCircleQuestion } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { useLinger, useSmoothText } from "@/hooks/use-smooth-text";
@@ -13,6 +13,7 @@ import { AgentSteps } from "./agent-step";
 import { ThinkingOrb } from "@/components/ui/thinking-orb";
 import { MarkdownContent } from "./markdown-content";
 import { ToolCallCard } from "./tool-call-card";
+import { YouFace } from "./you-face";
 import { useTurnElapsed, WorkFold, WorkingLine } from "./work-fold";
 
 /**
@@ -178,19 +179,38 @@ export function ThinkingBlock({
 }
 
 /**
- * What the person added while the agent was working, where it reached the model
- * (#2087). An aside in the turn, like a question asked mid-turn: it is the moment
- * the course changed, and the text after it is the agent acting on it.
+ * What the person sent into the running task (#2087), drawn as their every other
+ * message is - their face, "You", a filled bubble on the right - at the point in
+ * the turn where it reached the model; the text after it is the agent acting on
+ * it. An aside saying "You added:" made the person's own words read as a note
+ * the agent had taken.
  */
 export function SteerBlock({ text }: { text: string }) {
   const t = useTranslations("chat");
+  const compact = useInChatScope();
   return (
-    <div className="border-foreground/10 text-muted-foreground flex items-start gap-2 border-l pl-3.5 text-[13px]">
-      <CornerDownRight className="mt-0.5 h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden />
-      <span className="flex flex-wrap gap-x-1">
-        <span className="text-foreground/70 font-medium">{t("steerAdded")}</span>
-        <span className="text-foreground whitespace-pre-wrap">{text}</span>
-      </span>
+    <div className="flex flex-col items-end gap-2 py-2">
+      <div className="flex flex-row-reverse items-center gap-2">
+        <span
+          className={cn(
+            "flex shrink-0 items-center justify-center overflow-hidden rounded-full",
+            compact ? "h-6 w-6" : "h-7 w-7",
+          )}
+        >
+          <YouFace />
+        </span>
+        <span
+          className={cn(
+            "font-medium",
+            compact ? "text-muted-foreground text-xs" : "text-foreground text-sm",
+          )}
+        >
+          {t("rail.you")}
+        </span>
+      </div>
+      <div className="max-w-[85%]">
+        <TextBubble text={text} showCursor={false} isUser />
+      </div>
     </div>
   );
 }
