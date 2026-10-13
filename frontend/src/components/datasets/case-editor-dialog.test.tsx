@@ -11,6 +11,7 @@ import { toast } from "sonner";
 
 const input = () => screen.getByLabelText(/^Input/);
 const save = () => screen.getByRole("button", { name: "Save case" });
+const answer = () => screen.getByLabelText("Reference answer");
 
 function mount(onSave?: (content: unknown) => Promise<unknown>, onOpenChange = vi.fn()) {
   render(
@@ -33,7 +34,12 @@ describe("CaseEditorDialog", () => {
     const onOpenChange = mount(onSave);
     expect(save()).toBeDisabled();
 
+    expect(screen.getByRole("status")).toHaveTextContent("Write the input the agent answers.");
     await userEvent.type(input(), "How long?");
+    expect(screen.getByRole("status")).toHaveTextContent(/a case needs something to test/);
+    expect(save()).toBeDisabled();
+    await userEvent.type(answer(), "30 days");
+    expect(screen.queryByRole("status")).toBeNull();
     await userEvent.type(screen.getByLabelText("Tags"), "returns");
     expect(screen.getByText(/order and other calls do not matter/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("combobox", { name: "How expected calls are matched" }));
@@ -43,7 +49,12 @@ describe("CaseEditorDialog", () => {
 
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
     expect(onSave).toHaveBeenCalledWith(
-      expect.objectContaining({ input: "How long?", tags: ["returns"], order_mode: "in_order" }),
+      expect.objectContaining({
+        input: "How long?",
+        reference_answer: "30 days",
+        tags: ["returns"],
+        order_mode: "in_order",
+      }),
     );
   });
 
@@ -75,6 +86,7 @@ describe("CaseEditorDialog", () => {
     });
     const onOpenChange = mount(vi.fn().mockRejectedValue(refusal));
     await userEvent.type(input(), "q");
+    await userEvent.type(answer(), "a");
     await userEvent.click(save());
 
     expect(await screen.findByText("Too long")).toBeInTheDocument();
@@ -92,6 +104,7 @@ describe("CaseEditorDialog", () => {
     });
     mount(vi.fn().mockRejectedValue(refusal));
     await userEvent.type(input(), "q");
+    await userEvent.type(answer(), "a");
     await userEvent.click(save());
     expect(await screen.findByText("Too short")).toBeInTheDocument();
     expect(toast.error).not.toHaveBeenCalled();

@@ -25,7 +25,13 @@ import { submitFailure } from "@/lib/api-error";
 import { DIALOG_COLUMN, DIALOG_WIDE } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import type { DatasetCaseContent, ToolOrderMode } from "@/types/datasets";
-import { CASE_FIELDS, contentOf, type CaseDraft, type CaseField } from "./case-form";
+import {
+  CASE_FIELDS,
+  contentOf,
+  expectsSomething,
+  type CaseDraft,
+  type CaseField,
+} from "./case-form";
 
 interface CaseEditorDialogProps {
   open: boolean;
@@ -81,6 +87,8 @@ export function CaseEditorDialog({
   const [errors, setErrors] = useState<Partial<Record<CaseField, string>>>({});
   const [saving, setSaving] = useState(false);
   const readOnly = onSave === undefined;
+  const missing =
+    draft.input.trim() === "" ? "needsInput" : expectsSomething(draft) ? null : "needsExpectation";
 
   function edit<K extends keyof CaseDraft>(field: K, value: CaseDraft[K]) {
     setDraft((current) => ({ ...current, [field]: value }));
@@ -170,15 +178,17 @@ export function CaseEditorDialog({
             </Select>
           </FormField>
         </div>
-        <DialogFooter>
+        <DialogFooter className="items-center">
+          {!readOnly && missing !== null && (
+            <p className="text-muted-foreground mr-auto text-xs" role="status">
+              {t(missing)}
+            </p>
+          )}
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t(readOnly ? "close" : "cancel")}
           </Button>
           {!readOnly && (
-            <Button
-              onClick={() => void save(onSave)}
-              disabled={saving || draft.input.trim() === ""}
-            >
+            <Button onClick={() => void save(onSave)} disabled={saving || missing !== null}>
               {saveLabel ?? t("saveCase")}
             </Button>
           )}

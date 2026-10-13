@@ -14,9 +14,9 @@ const CASE: DatasetCase = {
   counter_example: "90 days",
   expected_tool_calls: [{ tool: "search", args: {} }],
   order_mode: "any",
-  checks: [],
+  checks: [{ type: "contains", value: "30 days" }],
   tags: ["returns"],
-  note: null,
+  note: "Wrong refund window",
   source: "conversation",
   source_run_id: "run",
   source_conversation_id: null,
@@ -36,6 +36,8 @@ describe("CaseRow", () => {
       "Reference answer",
       "Counter-example",
       "1 expected call",
+      "1 check",
+      "Note",
       "returns",
     ]) {
       expect(screen.getByText(text)).toBeInTheDocument();
@@ -56,6 +58,8 @@ describe("CaseRow", () => {
           counter_example: null,
           expected_tool_calls: [],
           tags: [],
+          checks: [],
+          note: null,
           source: "manual",
         }}
         onOpen={vi.fn()}
@@ -64,6 +68,8 @@ describe("CaseRow", () => {
     );
     expect(screen.queryByText("Reference answer")).toBeNull();
     expect(screen.queryByText(/earlier turn/)).toBeNull();
+    expect(screen.queryByText(/check/)).toBeNull();
+    expect(screen.queryByText("Note")).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Delete" }));
     expect(onRemove).toHaveBeenCalled();
   });
