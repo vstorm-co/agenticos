@@ -1,5 +1,5 @@
 ---
-source_sha: "a1ab81caf573"
+source_sha: "b76f508f210a"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -619,8 +619,8 @@ tres cosas: lee la página en una tabla numerada de los elementos sobre los que 
 persona podría actuar, pide al modelo del run un paso y lo ejecuta. Un paso juzga si la
 acción anterior funcionó, guarda una memoria breve para el resto de la tarea, dice para
 qué es la siguiente acción y nombra una sola acción: hacer clic, escribir, elegir,
-desplazarse, abrir una URL, volver, esperar, terminar con una respuesta o avisar de que
-la página lo bloquea.
+desplazarse, abrir una URL, volver, esperar, terminar con una respuesta, pedir a una
+persona o avisar de que la página lo bloquea.
 
 Úselo cuando una página haya que *manejarla* — un formulario, un filtro, un inicio de
 sesión con datos que tiene, una búsqueda cuyos resultados piden un clic, un recorrido
@@ -647,6 +647,25 @@ agente continúa llamando de nuevo a `browse_web` sin `start_url` — en la mism
 con la sesión iniciada y la misma memoria. Una llamada con `start_url` empieza una tarea
 nueva en la misma pestaña. Cuatro resultados, todos normales: terminada, bloqueada por la
 página, en pausa en el límite de pasos y el navegador no responde.
+
+**Una persona puede tomar el control del navegador.** Cada navegación de un run tiene
+una vista en directo en la consola, en `/browse/{run_id}/{call_id}`: la página tal como
+está ahora y los pasos hasta el momento. La tarjeta del chat enlaza a ella, y en Slack,
+Telegram y Mattermost el paso publica el enlace. La persona para la que actúa el run, o
+quien puede editar el agente, puede tomar el control: el agente se detiene tras su paso
+actual y la página es suya — clic, escribir, desplazarse — hasta que la devuelva, y el
+agente sigue desde la página tal como la dejó. Los miembros que pueden ver runs pueden
+mirar, pero no manejar. Lo que alguien escribe llega a la página y no se guarda en
+ningún sitio; el historial del run solo registra que alguien tomó el control.
+
+**Cuando solo una persona puede pasar de una página** — un inicio de sesión sin datos,
+un captcha, una decisión que le corresponde a otro —, el modelo pide una persona en
+lugar de rendirse. La tarjeta y el hilo del canal dicen que el agente necesita a una
+persona, y para qué. La
+navegación espera hasta diez minutos a que alguien tome el control y termina bloqueada
+si nadie llega; una persona tiene el navegador como mucho quince minutos. La vista en
+directo se guarda en Redis, así que lo necesita, y dura una hora desde la última acción
+de la navegación.
 
 | Configuración | Por defecto | Valores |
 |---|---|---|

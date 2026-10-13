@@ -576,7 +576,7 @@ three things: read the page into a numbered table of the elements a person could
 on, ask the run's own model for one step, carry the step out. A step judges whether
 the last action worked, keeps a short memory for the rest of the task, says what the
 next action is for, and names one action: click, type, select, scroll, open a URL, go
-back, wait, finish with an answer, or report being blocked.
+back, wait, finish with an answer, ask a person, or report being blocked.
 
 Reach for it when a page has to be *operated* — a form, a filter, a sign-in you have
 details for, a search whose results need a click, a flow across several pages. For a
@@ -602,6 +602,23 @@ continues by calling `browse_web` again without a `start_url` — on the same pa
 signed in, with the same memory. A call with a `start_url` starts a new task in the
 same tab. Four outcomes, all ordinary: finished, blocked by the page, paused at the
 step limit, and the browser could not be reached.
+
+**A person can take the browser over.** Every browse a run makes has a live view in
+the console at `/browse/{run_id}/{call_id}`: the page as it is now and the steps so
+far. The chat card links to it, and in Slack, Telegram and Mattermost the step posts
+the link. The person the run acts for, or someone who may edit the agent, can take
+over: the agent pauses after its current step and the page is theirs - click, type,
+scroll - until they hand it back, and the agent carries on from the page as they
+left it. Members who may view runs can watch but not drive. What a person types is
+passed to the page and never recorded; the run's history says only that somebody took
+over.
+
+**When only a person can get past a page** - a sign-in it has no details for, a
+captcha, a choice that is theirs - the model asks for one rather than giving up. The
+card and the channel thread say *Needs you* and what for. The browse waits up to ten
+minutes for somebody to take over and ends blocked if nobody does, and a person holds
+the browser for at most fifteen. The live view is kept in Redis, so it needs one, and
+it lasts an hour after the browse last did anything.
 
 | Config | Default | Values |
 |---|---|---|

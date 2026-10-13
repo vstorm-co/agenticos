@@ -20,9 +20,11 @@ import re
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from decimal import Decimal
-from typing import Any
+from typing import Any, get_args
 from unittest.mock import AsyncMock
+from uuid import uuid4
 
+import anyio
 import pytest
 from pydantic_ai import BinaryContent
 from pydantic_ai._run_context import RunContext
@@ -30,15 +32,17 @@ from pydantic_ai.messages import ModelMessage, ModelRequest, ModelResponse, Tool
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.usage import RunUsage
 
-from app.agents.browser_events import BrowserEvent
+from app.agents.browser_events import BrowserCommand, BrowserEvent, BrowserKey
 from app.agents.capabilities import CapabilityBinding, CapabilityBuildContext, get
 from app.agents.capabilities.browser_use import (
     WebBrowser,
     WebBrowserConfig,
+    _loop,
     validate_cdp_url,
 )
 from app.agents.capabilities.browser_use._decision import (
     INSTRUCTIONS,
+    AskPerson,
     Blocked,
     Click,
     Done,
@@ -82,6 +86,7 @@ from app.agents.capabilities.browser_use._loop import (
 )
 from app.agents.capabilities.browser_use._page import (
     _COLLECT_JS,
+    _KEY_CODES,
     _NAMING_JS,
     MISSING_EXTRA,
     READ_LIMIT,
@@ -104,6 +109,7 @@ from app.agents.deps import AgentDeps
 from app.agents.spec import AgentSpec, SpecialistSpec
 from app.core.config import settings
 from app.core.sanitize import UrlRefusedError
+from app.services import live_browse
 from app.services.agent_registry import DEFAULT_GRANTED_SCOPES
 
 pytestmark = pytest.mark.anyio
@@ -528,6 +534,10 @@ class TestOneStep:
             (Wait(action="wait"), "waited for the page"),
             (Done(action="done", answer="42"), "finished"),
             (Blocked(action="blocked", reason="a sign-in"), "stopped: a sign-in"),
+            (
+                AskPerson(action="ask_person", reason="sign in"),
+                "asked a person: sign in",
+            ),
         ],
     )
     def test_each_action_is_one_line_of_history(self, action: Any, line: str):
@@ -631,6 +641,18 @@ class _FakePage:
 
     async def read(self) -> str:
         return self._text
+
+    async def click_at(self, x: float, y: float) -> None:
+        self.done.append(f"click_at:{x:g},{y:g}")
+
+    async def insert_text(self, text: str) -> None:
+        self.done.append(f"insert:{text}")
+
+    async def press(self, key: str) -> None:
+        self.done.append(f"press:{key}")
+
+    async def wheel(self, dy: float) -> None:
+        self.done.append(f"wheel:{dy:g}")
 
 
 def _step(action: Any, *, memory: str = "", goal: str = "a step") -> Step:
@@ -745,6 +767,161 @@ class TestTheLoopStopsForAReason:
         page = _FakePage(*[_snapshot(scroll_y=float(i * 100)) for i in range(4)])
         result = await _browse(page, _decider(scroll, scroll, scroll, DONE))
         assert result.outcome == "done"
+
+
+class _Control:
+    """The people watching a browse: scripted commands for `poll` and for `wait`.
+
+    `wait` answers its script in order and then nothing, after a pause - a person
+    who stopped acting, which is what `HOLD_LIMIT` and `WAIT_FOR_PERSON` are for.
+    """
+
+    def __init__(
+        self, *waited: BrowserCommand | None, polled: BrowserCommand | None = None
+    ) -> None:
+        self._polled = polled
+        self._waited = list(waited)
+
+    async def poll(self) -> BrowserCommand | None:
+        polled, self._polled = self._polled, None
+        return polled
+
+    async def wait(self, timeout: float) -> BrowserCommand | None:
+        if self._waited:
+            return self._waited.pop(0)
+        await anyio.sleep(0.01)
+        return None
+
+
+TAKE = BrowserCommand(type="take_over", by="Ada")
+GIVE = BrowserCommand(type="give_back")
+ASK = _step(AskPerson(action="ask_person", reason="Sign in, then hand it back"))
+
+
+async def _watched(
+    page: _FakePage, decide: Any, control: _Control | None, sink: _Frames, **policy: Any
+) -> tuple[Any, BrowseSession]:
+    session = BrowseSession(page=page)
+    result = await run_browse(
+        task="find the price",
+        session=session,
+        decide=decide,
+        policy=_policy(**policy),
+        call_id="call-1",
+        sink=sink,
+        control=control,
+        run_id="run-7",
+    )
+    return result, session
+
+
+@pytest.fixture
+def quick(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A person who never comes, or never hands back, is waited for in milliseconds."""
+    monkeypatch.setattr(_loop, "HOLD_LIMIT", 0.05)
+    monkeypatch.setattr(_loop, "WAIT_FOR_PERSON", 0.05)
+
+
+class TestAPersonTakesTheBrowserOver:
+    """#2128: a person watching can take the tab between steps and hand it back."""
+
+    async def test_the_opening_frame_names_the_run_so_a_surface_can_link_to_it(self):
+        frames = _Frames()
+        await _watched(_FakePage(), _decider(DONE), None, frames)
+        assert frames.of("browser_opened")[0].run_id == "run-7"
+
+    async def test_a_take_over_between_steps_hands_the_person_the_tab_until_given_back(self):
+        frames = _Frames()
+        page = _FakePage()
+        control = _Control(
+            BrowserCommand(type="click", x=10, y=20),
+            BrowserCommand(type="type", text="hunter2"),
+            BrowserCommand(type="key", key="Enter"),
+            BrowserCommand(type="scroll", dy=-300),
+            GIVE,
+            polled=TAKE,
+        )
+        seen: list[Any] = []
+
+        result, session = await _watched(page, _decider(DONE, seen=seen), control, frames)
+
+        assert result.outcome == "done"
+        assert page.done == ["click_at:10,20", "insert:hunter2", "press:Enter", "wheel:-300"]
+        assert frames.of("browser_held")[0].by == "Ada"
+        assert len(frames.of("browser_released")) == 1
+        # A picture after each thing the person did, so they act on the page as it is.
+        assert len(frames.of("browser_frame")) >= 4
+        # The model is told somebody was in the tab, and never what they typed.
+        [(_, history, _, _)] = seen
+        assert "a person took the browser over" in history[-1]
+        assert "hunter2" not in " ".join(session.history)
+
+    async def test_input_that_says_nothing_is_dropped(self):
+        page = _FakePage()
+        control = _Control(
+            BrowserCommand(type="click", x=1),
+            BrowserCommand(type="type", text=""),
+            BrowserCommand(type="key"),
+            BrowserCommand(type="scroll"),
+            TAKE,
+            GIVE,
+            polled=TAKE,
+        )
+        await _watched(page, _decider(DONE), control, _Frames())
+        assert page.done == []
+
+    async def test_anything_but_a_take_over_between_steps_is_ignored(self):
+        frames = _Frames()
+        await _watched(_FakePage(), _decider(DONE), _Control(polled=GIVE), frames)
+        assert frames.of("browser_held") == []
+
+    async def test_a_person_who_walks_away_has_the_tab_taken_back(self, quick: None):
+        frames = _Frames()
+        page = _FakePage(image=None)
+
+        result, _ = await _watched(page, _decider(DONE), _Control(polled=TAKE), frames)
+
+        assert result.outcome == "done"
+        assert len(frames.of("browser_released")) == 1
+        assert frames.of("browser_frame") == []
+
+
+class TestTheAgentAsksForAPerson:
+    async def test_with_nobody_to_ask_it_ends_blocked_and_says_what_it_needed(self):
+        result, _ = await _watched(_FakePage(), _decider(ASK), None, _Frames())
+        assert result.outcome == "blocked"
+        assert "nobody took the browser over: Sign in, then hand it back" in result.text
+
+    async def test_it_asks_and_ends_blocked_when_nobody_comes(self, quick: None):
+        frames = _Frames()
+        # Input for a browser nobody holds yet is dropped, not saved for later.
+        control = _Control(BrowserCommand(type="type", text="early"))
+
+        result, _ = await _watched(_FakePage(), _decider(ASK), control, frames)
+
+        [asked] = frames.of("browser_needs_person")
+        assert asked.detail == "Sign in, then hand it back"
+        assert result.outcome == "blocked"
+        assert frames.of("browser_held") == []
+
+    async def test_a_person_who_answers_signs_in_and_the_agent_carries_on(self):
+        frames = _Frames()
+        page = _FakePage()
+        control = _Control(TAKE, BrowserCommand(type="type", text="agent"), GIVE)
+        seen: list[Any] = []
+
+        result, _ = await _watched(page, _decider(ASK, DONE, seen=seen), control, frames)
+
+        assert result.outcome == "done"
+        assert page.done == ["insert:agent"]
+        assert frames.of("browser_held")[0].by == "Ada"
+        [_, (_, history, _, _)] = seen
+        assert history[-2] == "step 1: a step - asked a person"
+        assert "handed it back" in history[-1]
+
+
+def test_every_key_a_person_may_press_has_a_code_the_page_reads():
+    assert set(_KEY_CODES) == set(get_args(BrowserKey))
 
 
 class TestTheLoopCarriesOutWhatWasChosen:
@@ -1024,6 +1201,73 @@ class TestTheToolEndToEnd:
     async def test_a_first_call_with_no_start_url_says_what_is_missing(self):
         answer = await _call(_toolset(_Opener()), {"task": "carry on"})
         assert "no browser tab open" in answer
+
+
+class TestEveryBrowseIsAlsoLive:
+    """#2128: a run's browse is published to its live view, beside the chat's own sink."""
+
+    @pytest.fixture
+    def published(self, monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+        kept: dict[str, Any] = {"frames": []}
+
+        async def open_view(run: str, call: str, meta: live_browse.BrowseMeta) -> None:
+            kept["meta"] = (run, call, meta)
+
+        async def publish(run: str, call: str, event: BrowserEvent) -> None:
+            kept["frames"].append(event)
+
+        monkeypatch.setattr(live_browse, "available", lambda: True)
+        monkeypatch.setattr(live_browse, "open_view", open_view)
+        monkeypatch.setattr(live_browse, "publish", publish)
+        return kept
+
+    async def _call_as(self, deps: AgentDeps) -> str:
+        toolset = _toolset(_Opener())
+        ctx = RunContext(
+            deps=deps, model=_browsing_model(DONE_ARGS), usage=RunUsage(), tool_call_id="call-42"
+        )
+        tools = await toolset.get_tools(ctx)
+        args = {"task": "find the price", "start_url": "https://example.test/"}
+        return str(await toolset.call_tool("browse_web", args, ctx, tools["browse_web"]))
+
+    async def test_a_run_s_browse_is_filed_under_it_and_reaches_the_chat_too(
+        self, published: dict[str, Any]
+    ):
+        frames = _Frames()
+        run, organization, agent = uuid4(), uuid4(), uuid4()
+        deps = AgentDeps(
+            organization_id=organization,
+            user_id="user-1",
+            agent_id=agent,
+            run_id=run,
+            browser_events=frames,
+        )
+
+        await self._call_as(deps)
+
+        filed_run, call, meta = published["meta"]
+        assert (filed_run, call) == (str(run), "call-42")
+        assert (meta.organization_id, meta.agent_id, meta.user_id) == (
+            organization,
+            agent,
+            "user-1",
+        )
+        assert meta.task == "find the price"
+        assert [f.kind for f in published["frames"]] == [f.kind for f in frames.frames]
+        assert frames.of("browser_opened")[0].run_id == str(run)
+
+    async def test_a_run_with_no_chat_in_front_of_it_is_still_published(
+        self, published: dict[str, Any]
+    ):
+        """A channel or a routine: nobody's socket, and the live view is the window."""
+        await self._call_as(AgentDeps(organization_id=uuid4(), run_id=uuid4()))
+        assert published["frames"][-1].kind == "browser_finished"
+
+    async def test_a_run_with_no_identity_is_not_published(self, published: dict[str, Any]):
+        frames = _Frames()
+        await self._call_as(AgentDeps(organization_id=uuid4(), browser_events=frames))
+        assert "meta" not in published
+        assert frames.of("browser_opened")[0].run_id is None
 
 
 class TestTheTabARunKeeps:

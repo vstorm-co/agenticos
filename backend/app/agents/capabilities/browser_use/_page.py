@@ -413,6 +413,24 @@ def parse_snapshot(raw: object, cap: int) -> Snapshot:
     )
 
 
+_KEY_CODES: dict[str, int] = {
+    "Enter": 13,
+    "Tab": 9,
+    "Backspace": 8,
+    "Delete": 46,
+    "Escape": 27,
+    "ArrowUp": 38,
+    "ArrowDown": 40,
+    "ArrowLeft": 37,
+    "ArrowRight": 39,
+    "Home": 36,
+    "End": 35,
+    "PageUp": 33,
+    "PageDown": 34,
+}
+"""The Windows virtual key code of each key a person may press - what pages read."""
+
+
 @dataclass(frozen=True, slots=True)
 class PagePolicy:
     """What the page layer was configured with, separate from what the loop was.
@@ -736,6 +754,58 @@ class CdpPage:
         )
         data = shot.get("data")
         return f"data:image/jpeg;base64,{data}" if data else None
+
+    async def click_at(  # pragma: no cover - needs a live browser
+        self, x: float, y: float
+    ) -> None:
+        """Press at viewport coordinates, as a person holding the tab clicks."""
+        for event in ("mousePressed", "mouseReleased"):
+            await self._client.send.Input.dispatchMouseEvent(
+                params={"type": event, "x": x, "y": y, "button": "left", "clickCount": 1},
+                session_id=self._session,
+            )
+
+    async def insert_text(self, text: str) -> None:  # pragma: no cover - needs a live browser
+        """Type into whatever has focus, firing the input events a page listens for."""
+        await self._client.send.Input.insertText(params={"text": text}, session_id=self._session)
+
+    async def press(self, key: str) -> None:  # pragma: no cover - needs a live browser
+        """Press one key that has no character, by its DOM name.
+
+        Down then up, with the key code a page reads - a key event carrying only a
+        name is one most pages ignore.
+        """
+        code = _KEY_CODES[key]
+        for event in ("rawKeyDown", "keyUp"):
+            await self._client.send.Input.dispatchKeyEvent(
+                params={
+                    "type": event,
+                    "key": key,
+                    "code": key,
+                    "windowsVirtualKeyCode": code,
+                    "nativeVirtualKeyCode": code,
+                },
+                session_id=self._session,
+            )
+        if key == "Enter":
+            # A form submits on the character, not on the key going down.
+            await self._client.send.Input.dispatchKeyEvent(
+                params={"type": "char", "text": "\r", "key": key},
+                session_id=self._session,
+            )
+
+    async def wheel(self, dy: float) -> None:  # pragma: no cover - needs a live browser
+        """Scroll by `dy` pixels from the middle of the viewport, as a mouse wheel does."""
+        await self._client.send.Input.dispatchMouseEvent(
+            params={
+                "type": "mouseWheel",
+                "x": self._policy.preview_width / 2,
+                "y": self._policy.preview_width * _VIEWPORT_RATIO / 2,
+                "deltaX": 0,
+                "deltaY": dy,
+            },
+            session_id=self._session,
+        )
 
     async def read(self) -> str:  # pragma: no cover - needs a live browser
         """The page's readable text, bounded, and only where the allowlist covers it.

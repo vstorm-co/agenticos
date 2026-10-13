@@ -1,5 +1,5 @@
 ---
-source_sha: "a1ab81caf573"
+source_sha: "b76f508f210a"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -649,8 +649,8 @@ Elemente lesen, auf die ein Mensch reagieren könnte, das Modell des Runs um ein
 Schritt bitten, den Schritt ausführen. Ein Schritt beurteilt, ob die letzte Aktion
 gewirkt hat, hält ein kurzes Gedächtnis für den Rest der Aufgabe, sagt, wozu die
 nächste Aktion dient, und nennt genau eine Aktion: klicken, tippen, auswählen, scrollen,
-eine URL öffnen, zurückgehen, warten, mit einer Antwort enden oder melden, dass die
-Seite blockiert.
+eine URL öffnen, zurückgehen, warten, mit einer Antwort enden, einen Menschen bitten
+oder melden, dass die Seite blockiert.
 
 Greifen Sie zu ihr, wenn eine Seite *bedient* werden muss — ein Formular, ein Filter,
 eine Anmeldung, für die Zugangsdaten vorliegen, eine Suche, deren Ergebnisse einen
@@ -678,6 +678,26 @@ hat, und der Agent macht weiter, indem er `browse_web` erneut ohne `start_url` a
 auf derselben Seite, angemeldet, mit demselben Gedächtnis. Ein Aufruf mit `start_url`
 beginnt eine neue Aufgabe im selben Tab. Vier Ergebnisse, alle gewöhnlich: erledigt, von
 der Seite blockiert, am Schrittlimit pausiert, und der Browser war nicht erreichbar.
+
+**Ein Mensch kann den Browser übernehmen.** Jedes Browsen eines Runs hat in der Konsole
+eine Live-Ansicht unter `/browse/{run_id}/{call_id}`: die Seite, wie sie gerade ist,
+und die bisherigen Schritte. Die Karte im Chat verlinkt sie, und in Slack, Telegram und
+Mattermost postet der Schritt den Link. Die Person, für die der Run handelt, oder wer
+den Agent bearbeiten darf, kann übernehmen: Der Agent pausiert nach seinem laufenden
+Schritt, und die Seite gehört dieser Person — klicken, tippen, scrollen —, bis sie sie
+zurückgibt; der Agent macht auf der Seite weiter, wie sie sie hinterlassen hat.
+Mitglieder, die Runs sehen dürfen, können zusehen, aber nicht steuern. Was jemand
+tippt, geht an die Seite und wird nirgends gespeichert; der Verlauf des Runs hält nur
+fest, dass jemand übernommen hat.
+
+**Wenn nur ein Mensch weiterkommt** — eine Anmeldung ohne Zugangsdaten, ein Captcha,
+eine Entscheidung, die jemand anderem gehört —, bittet das Modell um einen Menschen,
+statt aufzugeben. Karte und Kanal-Thread sagen, dass der Agent einen Menschen braucht,
+und wofür. Das Browsen
+wartet bis zu zehn Minuten auf eine Übernahme und endet blockiert, wenn niemand kommt;
+ein Mensch hält den Browser höchstens fünfzehn Minuten. Die Live-Ansicht liegt in
+Redis, braucht also eines, und bleibt eine Stunde nach der letzten Aktion des Browsens
+bestehen.
 
 | Konfiguration | Standard | Werte |
 |---|---|---|

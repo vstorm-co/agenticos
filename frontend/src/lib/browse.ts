@@ -18,6 +18,15 @@ export interface BrowseStep {
 /** One `browse_web` call, assembled from its frames. */
 export interface Browse {
   callId: string;
+  /** The run it belongs to, which addresses its live view; null before it is known. */
+  runId?: string | null;
+  /**
+   * What the browser asked a person to do, while it waits for one (#2128) -
+   * cleared once somebody takes it over.
+   */
+  needs?: string | null;
+  /** Who holds the browser right now, while a person does. */
+  heldBy?: string | null;
   goal: string;
   maxSteps: number | null;
   url: string | null;
@@ -46,6 +55,9 @@ export interface Browse {
 
 function opened(frame: BrowserFrame): Browse {
   return {
+    runId: frame.run_id ?? null,
+    needs: null,
+    heldBy: null,
     callId: frame.call_id,
     goal: frame.goal ?? "",
     maxSteps: frame.max_steps ?? null,
@@ -91,9 +103,17 @@ function applyTo(browse: Browse, frame: BrowserFrame): Browse {
         title: frame.title ?? browse.title,
       };
     }
+    case "browser_needs_person":
+      return { ...browse, needs: frame.detail ?? null };
+    case "browser_held":
+      return { ...browse, needs: null, heldBy: frame.by ?? null };
+    case "browser_released":
+      return { ...browse, heldBy: null };
     case "browser_finished":
       return {
         ...browse,
+        needs: null,
+        heldBy: null,
         outcome: frame.outcome ?? null,
         detail: frame.detail ?? null,
         url: frame.url ?? browse.url,

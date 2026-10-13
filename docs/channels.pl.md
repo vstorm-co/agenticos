@@ -1,5 +1,5 @@
 ---
-source_sha: "63611bd6d466"
+source_sha: "7bfdbfb408ca"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1191,6 +1191,14 @@ na odpowiedź `QUESTION_EXPIRY_HOURS`, a na decyzję `APPROVAL_EXPIRY_HOURS`, ja
 wszędzie indziej. Slack podpisuje naciśnięcia; Mattermost nie podpisuje niczego,
 więc każdy przycisk niesie podpis tego deploymentu nad swoją wartością, a
 naciśnięcie bez niego jest odrzucane.
+
+**Przeglądanie, które potrzebuje człowieka.** Agent z
+[przeglądarką](reference/capabilities.md#browser-automation) publikuje w swoim kroku
+link do podglądu przeglądania na żywo — *Watch or take over* — tak samo w Slacku,
+Telegramie i Mattermost. Gdy strona kogoś potrzebuje, logowania albo captchy, krok
+zmienia się na *Needs you* i mówi po co, a gdy człowiek trzyma przeglądarkę, podaje,
+kto. Link otwiera konsolę, więc przejęcie wymaga konta w konsoli: osoby, w imieniu
+której działa run, albo kogoś, kto może edytować agenta.
 
 ## Reakcje i oceny { #reactions-and-ratings }
 

@@ -301,7 +301,7 @@ async def run_scheduled_trigger_flow(
     scheduled path sets it; an event or manually triggered fire has none and leaves
     any marker for the lease.
     """
-    from app.services import change_feed
+    from app.services import change_feed, live_browse
     from app.services.agent_trigger import AgentTriggerService
 
     # This is an agent run in a process that ran none of the API's startup:
@@ -313,6 +313,8 @@ async def run_scheduled_trigger_flow(
     setup_worker_observability()
     # So the run this fires reaches an Activity page that is open (#2099).
     await change_feed.connect_in_worker()
+    # And a browse it starts can be watched and taken over from the console (#2128).
+    await live_browse.connect_in_worker()
     parsed = None if claimed_at is None else datetime.fromisoformat(claimed_at)
     async with get_worker_db_context() as db:
         await AgentTriggerService(db).fire(

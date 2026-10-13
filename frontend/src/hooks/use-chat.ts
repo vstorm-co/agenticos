@@ -586,7 +586,10 @@ export function useChat(options: UseChatOptions = {}) {
         case "browser_opened":
         case "browser_step":
         case "browser_frame":
-        case "browser_finished": {
+        case "browser_finished":
+        case "browser_held":
+        case "browser_released":
+        case "browser_needs_person": {
           // One branch for every frame: the envelope's `type` is the frame's own
           // `kind` (see `AgentSession._browser_event`), so the payload narrows
           // itself and the cases share one reducer.

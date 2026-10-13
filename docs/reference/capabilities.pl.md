@@ -1,5 +1,5 @@
 ---
-source_sha: "a1ab81caf573"
+source_sha: "b76f508f210a"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -613,7 +613,8 @@ trzy rzeczy: czyta stronę do ponumerowanej tabeli elementów, na których czło
 mógłby coś zrobić, prosi model tego runu o jeden krok, wykonuje ten krok. Krok ocenia,
 czy poprzednia akcja zadziałała, zapisuje krótką pamięć na resztę zadania, mówi, po co
 jest następna akcja, i wskazuje jedną akcję: kliknij, wpisz, wybierz, przewiń, otwórz
-adres, wróć, poczekaj, zakończ z odpowiedzią albo zgłoś, że strona blokuje.
+adres, wróć, poczekaj, zakończ z odpowiedzią, poproś człowieka albo zgłoś, że strona
+blokuje.
 
 Sięgnij po nią, gdy stronę trzeba *obsłużyć* — formularz, filtr, logowanie, do którego
 masz dane, wyszukiwanie, którego wyniki trzeba kliknąć, przejście przez kilka stron. Do
@@ -639,6 +640,24 @@ dowiedziało, a agent kontynuuje, wywołując `browse_web` ponownie bez `start_u
 tej samej stronie, zalogowany, z tą samą pamięcią. Wywołanie ze `start_url` zaczyna
 nowe zadanie w tej samej karcie. Cztery wyniki, wszystkie zwyczajne: skończone,
 zablokowane przez stronę, wstrzymane na limicie kroków i brak połączenia z przeglądarką.
+
+**Człowiek może przejąć przeglądarkę.** Każde przeglądanie runu ma podgląd na żywo w
+konsoli pod `/browse/{run_id}/{call_id}`: stronę taką, jaka jest teraz, i dotychczasowe
+kroki. Karta w czacie do niego linkuje, a w Slacku, Telegramie i Mattermost krok
+publikuje link. Osoba, w imieniu której działa run, albo ktoś, kto może edytować
+agenta, może przejąć przeglądarkę: agent zatrzymuje się po bieżącym kroku, a strona
+należy do tej osoby — klika, pisze, przewija — dopóki jej nie odda, a agent kontynuuje
+od strony w stanie, w jakim ją zostawiła. Członkowie, którzy mogą oglądać runy, mogą
+patrzeć, ale nie sterować. To, co ktoś wpisze, trafia do strony i nie jest nigdzie
+zapisywane; historia runu mówi tylko, że ktoś przejął przeglądarkę.
+
+**Gdy tylko człowiek przejdzie dalej** — logowanie, do którego agent nie ma danych,
+captcha, wybór należący do kogoś — model prosi o człowieka, zamiast się poddać. Karta
+i wątek w kanale mówią, że agent potrzebuje człowieka, i po co. Przeglądanie czeka do dziesięciu
+minut, aż ktoś przejmie przeglądarkę, i kończy się zablokowane, jeśli nikt nie
+przyjdzie; człowiek trzyma przeglądarkę najwyżej piętnaście minut. Podgląd na żywo
+jest trzymany w Redisie, więc go wymaga, i trwa godzinę od ostatniej akcji
+przeglądania.
 
 | Konfiguracja | Domyślnie | Wartości |
 |---|---|---|

@@ -5,6 +5,7 @@ import {
   CircleCheck,
   Clock,
   Globe,
+  Hand,
   Keyboard,
   ListChecks,
   Lock,
@@ -45,6 +46,7 @@ const OPERATION_ICON: Record<string, LucideIcon> = {
   WAIT: Clock,
   DONE: CircleCheck,
   BLOCKED: OctagonAlert,
+  ASK_PERSON: Hand,
 };
 
 /** The mark for one action, a generic page for one the table does not know. */
@@ -253,5 +255,52 @@ export function StepTimeline({ browse }: { browse: Browse }) {
         </li>
       ))}
     </ol>
+  );
+}
+
+/**
+ * The way into a browse's live view, and what it is waiting for (#2128).
+ *
+ * A link rather than a control here: the live view is its own page, with the
+ * socket that drives the browser, and it opens beside the chat so the
+ * conversation stays where it was. Shown while the browse runs and only for a
+ * browse that has a live view at all.
+ */
+export function TakeOver({ browse }: { browse: Browse }) {
+  const t = useTranslations("chat");
+  if (!browse.runId || !isRunning(browse)) return null;
+  const href = `/browse/${browse.runId}/${browse.callId}`;
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-3 rounded-xl px-3 py-2",
+        browse.needs ? "bg-amber-500/10" : "bg-foreground/[0.03]",
+      )}
+    >
+      <span className="min-w-0 flex-1 text-sm">
+        {browse.needs ? (
+          <>
+            <span className="block font-medium text-amber-700 dark:text-amber-300">
+              {t("browserNeedsYou")}
+            </span>
+            {/* Model-written - rendered as text. */}
+            <span className="text-foreground/80 block truncate">{browse.needs}</span>
+          </>
+        ) : browse.heldBy ? (
+          <span className="text-muted-foreground">
+            {t("browserHeldBy", { name: browse.heldBy })}
+          </span>
+        ) : null}
+      </span>
+      <a
+        href={href}
+        target="_blank"
+        rel="noreferrer"
+        className="bg-foreground text-background hover:bg-foreground/90 inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium"
+      >
+        <Hand className="size-3.5" aria-hidden />
+        {t("browserTakeOver")}
+      </a>
+    </div>
   );
 }

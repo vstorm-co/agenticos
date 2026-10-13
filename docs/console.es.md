@@ -1,5 +1,5 @@
 ---
-source_sha: "20c2650b5968"
+source_sha: "cfe73e5f0c5a"
 ---
 
 # La consola { #the-console }
@@ -262,6 +262,15 @@ que hizo y para qué. Esa frase es la razón de que exista el panel en lugar de 
 indicador de carga: un recorrido que va en mala dirección se ve mientras ocurre. Se
 queda cuando el recorrido termina, porque *bloqueado por la página* es
 una respuesta sobre la página. Ciérralo y seguirá cerrado para ese recorrido.
+
+**Tomar el control de un recorrido.** La tarjeta de un recorrido en curso tiene **Take
+over**, que abre su vista en directo en una pestaña nueva — la misma página que
+enlaza un canal. Allí, **Take over** detiene al agente tras su paso actual y te
+da la página: clic, escribir, desplazarse, pegar. **Hand it back** y el agente sigue desde
+donde lo dejaste. Cuando el agente no puede pasar solo de una página — un inicio de
+sesión, un captcha —, la tarjeta dice *The agent needs you* y para qué. Quien puede
+ver runs pero no editar el agente puede mirar, no manejar. Consulta el
+[navegador web](reference/capabilities.md#browser-automation).
 
 ## Para qué sirve cada área { #what-each-area-is-for }
 

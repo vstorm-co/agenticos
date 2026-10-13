@@ -3,7 +3,15 @@
 
 from fastapi import APIRouter
 
-from app.api.routes.v1 import api_keys, assistant, change_events, health, mcp_oauth, public_openapi
+from app.api.routes.v1 import (
+    api_keys,
+    assistant,
+    browse_live,
+    change_events,
+    health,
+    mcp_oauth,
+    public_openapi,
+)
 from app.api.routes.v1 import admin_users, auth, users
 from app.api.routes.v1 import admin_ratings
 from app.api.routes.v1 import oauth
@@ -154,6 +162,7 @@ v1_router.include_router(
 
 v1_router.include_router(agent.router, tags=["agent"])
 v1_router.include_router(change_events.router, tags=["change-events"])
+v1_router.include_router(browse_live.router, tags=["browse-live"])
 
 v1_router.include_router(rag.router, prefix="/rag", tags=["rag"])
 

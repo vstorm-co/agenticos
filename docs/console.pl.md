@@ -1,5 +1,5 @@
 ---
-source_sha: "20c2650b5968"
+source_sha: "cfe73e5f0c5a"
 ---
 
 # Konsola { #the-console }
@@ -257,6 +257,14 @@ zdanie jest powodem, dla którego panel istnieje zamiast spinnera — przegląda
 idzie w złą stronę, widać, zanim skończy. Panel zostaje po
 zakończeniu, bo *zablokowane przez stronę* to odpowiedź o stronie. Zamknij go, a
 zostanie zamknięty dla tego przeglądania.
+
+**Przejmowanie przeglądania.** Karta trwającego przeglądania ma **Przejmij**, które
+otwiera jego podgląd na żywo w nowej karcie — tę samą stronę, do której linkuje kanał.
+**Przejmij** zatrzymuje tam agenta po bieżącym kroku i oddaje ci stronę: klikaj, pisz,
+przewijaj, wklejaj. **Oddaj** i agent kontynuuje od miejsca, w którym skończyłeś. Gdy
+agent nie przejdzie strony sam — logowanie, captcha — karta mówi *Agent cię potrzebuje*
+i po co. Ktoś, kto może oglądać runy, ale nie edytować agenta, może patrzeć, ale nie
+sterować. Zobacz [Przeglądarka](reference/capabilities.md#browser-automation).
 
 ## Do czego służy każdy obszar { #what-each-area-is-for }
 

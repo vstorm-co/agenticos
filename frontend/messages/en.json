@@ -1446,9 +1446,12 @@
     "sentIntoTask": "sent into the task",
     "moveUp": "Move up",
     "moveDown": "Move down",
-    "browserAction": "{operation, select, CLICK {Clicked} TYPE_TEXT {Typed into} SELECT {Chose in} SCROLL {Scrolled the page} NAVIGATE {Opened} BACK {Went back} WAIT {Waited for the page} DONE {Finished} BLOCKED {Stopped} other {Worked on the page}}",
+    "browserAction": "{operation, select, CLICK {Clicked} TYPE_TEXT {Typed into} SELECT {Chose in} SCROLL {Scrolled the page} NAVIGATE {Opened} BACK {Went back} WAIT {Waited for the page} DONE {Finished} BLOCKED {Stopped} ASK_PERSON {Asked for help} other {Worked on the page}}",
     "browserLive": "Live",
-    "browserStarting": "Opening the page…"
+    "browserStarting": "Opening the page…",
+    "browserTakeOver": "Take over",
+    "browserNeedsYou": "The agent needs you",
+    "browserHeldBy": "{name} has the browser"
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",
@@ -6957,5 +6960,27 @@
     "auth": "Send the key in the <code>Authorization: Bearer aos_…</code> header.",
     "reference": "API reference: every endpoint",
     "guide": "How to call the API"
+  },
+  "browse": {
+    "title": "Live browser",
+    "waiting": "Waiting for the first view of the page…",
+    "pageAlt": "The agent's browser, as it is now",
+    "watchingLabel": "The agent's browser",
+    "holdingLabel": "The agent's browser - you have control: click, type and scroll here",
+    "holdingHint": "You have the browser. Click, type and scroll on the page, then hand it back - the agent carries on from where you leave it. What you type is not saved anywhere.",
+    "needsYou": "The agent needs you",
+    "takeOver": "Take over",
+    "takingOver": "Taking over after the current step…",
+    "takeOverHint": "The agent pauses after its current step and the page is yours until you hand it back.",
+    "giveBack": "Hand it back",
+    "heldBy": "{name} has the browser.",
+    "watchOnly": "You can watch. Only the person this run is for, or someone who can edit the agent, can take over.",
+    "steps": "Steps",
+    "goneTitle": "This browse is over",
+    "goneBody": "A live view lasts an hour after the browser last did anything. The run's own page keeps what it did.",
+    "forbiddenTitle": "You cannot watch this browse",
+    "forbiddenBody": "It belongs to a run you cannot view.",
+    "unavailableTitle": "Live view is unavailable",
+    "unavailableBody": "This deployment has no Redis for live views. Try again shortly."
   }
 }

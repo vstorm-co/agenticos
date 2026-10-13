@@ -2,18 +2,28 @@
 
 from __future__ import annotations
 
+import contextlib
+from collections.abc import AsyncIterator
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
+from uuid import uuid4
 
+import anyio
 import pytest
 from pydantic_ai.messages import (
     FunctionToolCallEvent,
     FunctionToolResultEvent,
+    OutputToolCallEvent,
     RetryPromptPart,
     ToolCallPart,
     ToolReturnPart,
 )
 
+from app.agents.browser_events import BrowserEvent
+from app.agents.deps import AgentDeps
+from app.core.config import settings
+from app.services import live_browse
 from app.services.channels.base import (
     AnswerStep,
     ChannelAdapter,
@@ -373,13 +383,15 @@ class TestStepsFromARun:
                 RetryPromptPart("bad args", tool_name="lookup", tool_call_id="b")
             ),
             FunctionToolResultEvent(ToolReturnPart("ghost", "ok", tool_call_id="c")),
+            # The structured answer is the reply itself, not a step towards it.
+            OutputToolCallEvent(ToolCallPart("final_result", {}, tool_call_id="o")),
         ]
         node = _ToolNode(events)
         monkeypatch.setattr(Agent, "is_model_request_node", staticmethod(lambda _n: False))
         monkeypatch.setattr(Agent, "is_call_tools_node", staticmethod(lambda _n: True))
 
         class _Run:
-            ctx = None
+            ctx = SimpleNamespace(deps=SimpleNamespace(user_deps=AgentDeps()))
 
             def __aiter__(self) -> Any:
                 async def nodes() -> Any:
@@ -400,6 +412,168 @@ class TestStepsFromARun:
         ]
         assert steps[0].title == "Searching the web…"
         assert steps[4].title == "Working on it…"
+
+
+class TestABrowseInAChannel:
+    """#2128: a channel has no live view, so it posts the link and says when it is needed."""
+
+    RUN = uuid4()
+    LINK = "https://agents.example.com/browse/{run}/web-1"
+
+    async def _drive(
+        self, monkeypatch: pytest.MonkeyPatch, heard: list[BrowserEvent], *, deps: AgentDeps
+    ) -> list[AnswerStep]:
+        from pydantic_ai import Agent
+
+        followed = anyio.Event()
+
+        async def watch(run_id: str, call_id: str) -> AsyncIterator[BrowserEvent]:
+            assert (run_id, call_id) == (str(self.RUN), "web-1")
+            for event in heard:
+                yield event
+            followed.set()
+            # A browse still going: the follower is ended by the tool's result.
+            await anyio.sleep_forever()
+
+        monkeypatch.setattr(live_browse, "available", lambda: True)
+        monkeypatch.setattr(live_browse, "watch", watch)
+        monkeypatch.setattr(settings, "FRONTEND_URL", "https://agents.example.com")
+        if deps.run_id is None:
+            followed.set()
+
+        class _Node:
+            def stream(self, _ctx: Any) -> Any:
+                @contextlib.asynccontextmanager
+                async def opened() -> AsyncIterator[Any]:
+                    async def events() -> AsyncIterator[Any]:
+                        yield FunctionToolCallEvent(
+                            ToolCallPart("browse_web", {}, tool_call_id="web-1")
+                        )
+                        with anyio.fail_after(5):
+                            await followed.wait()
+                        yield FunctionToolResultEvent(
+                            ToolReturnPart("browse_web", "ok", tool_call_id="web-1")
+                        )
+
+                    yield events()
+
+                return opened()
+
+        monkeypatch.setattr(Agent, "is_model_request_node", staticmethod(lambda _n: False))
+        monkeypatch.setattr(Agent, "is_call_tools_node", staticmethod(lambda _n: True))
+
+        class _Run:
+            ctx = SimpleNamespace(deps=SimpleNamespace(user_deps=deps))
+
+            def __aiter__(self) -> Any:
+                async def nodes() -> Any:
+                    yield _Node()
+
+                return nodes()
+
+        sink = MagicMock(step=AsyncMock(), add=AsyncMock())
+        await channel_stream(sink)(_Run())  # type: ignore[arg-type]
+        return [call.args[0] for call in sink.step.await_args_list]
+
+    async def test_the_link_is_posted_and_the_step_says_who_has_the_browser(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def frame(kind: str, **fields: Any) -> BrowserEvent:
+            return BrowserEvent(kind=kind, call_id="web-1", step=2, **fields)  # type: ignore[arg-type]
+
+        steps = await self._drive(
+            monkeypatch,
+            [
+                frame("browser_step", operation="CLICK"),
+                frame("browser_needs_person", detail="Sign in to the portal"),
+                frame("browser_held", by="Ada"),
+                frame("browser_held"),
+                frame("browser_released"),
+            ],
+            deps=AgentDeps(run_id=self.RUN),
+        )
+
+        link = StepSource(self.LINK.format(run=self.RUN), "Watch or take over")
+        assert [(step.title, step.status, step.sources) for step in steps] == [
+            ("Browsing the web…", "in_progress", (link,)),
+            ("Needs you: Sign in to the portal", "in_progress", (link,)),
+            ("Ada has the browser", "in_progress", (link,)),
+            ("Someone has the browser", "in_progress", (link,)),
+            ("Browsing the web…", "in_progress", (link,)),
+            ("Browsing the web…", "complete", ()),
+        ]
+
+    async def test_a_real_run_s_id_is_read_from_the_run_s_own_deps(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Through a real `Agent.iter`, not a stand-in for its context: the graph
+        wraps the run's deps, and a fake that skipped the wrapping hid that the
+        link was never posted."""
+        from pydantic_ai import Agent
+        from pydantic_ai.messages import ModelMessage
+        from pydantic_ai.models.function import AgentInfo, DeltaToolCall, FunctionModel
+
+        followed = anyio.Event()
+
+        async def watch(run_id: str, call_id: str) -> AsyncIterator[BrowserEvent]:
+            yield BrowserEvent(
+                kind="browser_needs_person", call_id=call_id, step=1, detail="Sign in"
+            )
+            followed.set()
+            await anyio.sleep_forever()
+
+        monkeypatch.setattr(live_browse, "available", lambda: True)
+        monkeypatch.setattr(live_browse, "watch", watch)
+
+        async def model(
+            messages: list[ModelMessage], _info: AgentInfo
+        ) -> AsyncIterator[str | dict[int, DeltaToolCall]]:
+            if len(messages) == 1:
+                yield {0: DeltaToolCall("browse_web", "{}", tool_call_id="web-1")}
+            else:
+                yield "Signed in."
+
+        agent = Agent(FunctionModel(stream_function=model), deps_type=AgentDeps)
+
+        @agent.tool_plain
+        async def browse_web() -> str:
+            with anyio.fail_after(5):
+                await followed.wait()
+            return "done"
+
+        sink = MagicMock(step=AsyncMock(), add=AsyncMock())
+        async with agent.iter("go", deps=AgentDeps(run_id=self.RUN)) as agent_run:
+            await channel_stream(sink)(agent_run)
+
+        titles = [call.args[0].title for call in sink.step.await_args_list]
+        assert titles[:2] == ["Browsing the web…", "Needs you: Sign in"]
+        assert (
+            sink.step.await_args_list[0]
+            .args[0]
+            .sources[0]
+            .url.endswith(f"/browse/{self.RUN}/web-1")
+        )
+
+    async def test_a_run_with_no_id_has_no_live_view_to_link(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        steps = await self._drive(monkeypatch, [], deps=AgentDeps())
+        assert [step.sources for step in steps] == [(), ()]
+
+    async def test_the_link_is_part_of_the_status_a_plain_chat_shows(self) -> None:
+        pushed: list[str] = []
+
+        async def push(text: str) -> None:
+            pushed.append(text)
+
+        source = StepSource("https://agents.example.com/browse/r/c", "Watch or take over")
+        await LiveReply(push).step(
+            AnswerStep("c", "Needs you: Sign in", "in_progress", sources=(source,))
+        )
+
+        assert pushed == [
+            "Needs you: Sign in\nWatch or take over: https://agents.example.com/browse/r/c"
+        ]
 
 
 class TestStepSources:

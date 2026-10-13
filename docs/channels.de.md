@@ -1,5 +1,5 @@
 ---
-source_sha: "63611bd6d466"
+source_sha: "7bfdbfb408ca"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1273,6 +1273,14 @@ wartet `QUESTION_EXPIRY_HOURS` auf eine Antwort und `APPROVAL_EXPIRY_HOURS` auf
 eine Entscheidung, wie überall. Slack signiert seine Drucke; Mattermost signiert
 nichts, daher trägt jede Schaltfläche die eigene Signatur dieser Bereitstellung
 über ihren Wert, und ein Druck ohne sie wird abgelehnt.
+
+**Ein Browsen, das einen Menschen braucht.** Ein Agent mit dem
+[Webbrowser](reference/capabilities.md#browser-automation) postet in seinem Schritt den
+Link zur Live-Ansicht des Browsens — *Watch or take over* — in Slack, Telegram und
+Mattermost gleichermaßen. Braucht die Seite jemanden, eine Anmeldung oder ein Captcha,
+wechselt der Schritt zu *Needs you* und sagt, wofür, und nennt, wer den Browser hat,
+solange ein Mensch ihn hält. Der Link öffnet die Konsole, Übernehmen braucht also ein
+Konsolenkonto: die Person, für die der Run handelt, oder wer den Agent bearbeiten darf.
 
 ## Reaktionen und Bewertungen { #reactions-and-ratings }
 

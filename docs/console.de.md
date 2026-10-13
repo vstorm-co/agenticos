@@ -1,5 +1,5 @@
 ---
-source_sha: "20c2650b5968"
+source_sha: "cfe73e5f0c5a"
 ---
 
 # Die Konsole { #the-console }
@@ -278,6 +278,15 @@ eines Spinners gibt — ein Durchlauf, der in die falsche Richtung läuft, ist s
 während er läuft. Es bleibt stehen, wenn der Durchlauf
 endet, denn *von der Seite blockiert* ist eine Antwort über die Seite. Schließen Sie
 es, bleibt es für diesen Durchlauf geschlossen.
+
+**Einen Durchlauf übernehmen.** Die Karte eines laufenden Durchlaufs hat **Übernehmen**,
+das seine Live-Ansicht in einem neuen Tab öffnet — dieselbe Seite, die ein Kanal
+verlinkt. **Übernehmen** pausiert dort den Agent nach seinem laufenden Schritt und gibt
+Ihnen die Seite: klicken, tippen, scrollen, einfügen. **Zurückgeben**, und der Agent
+macht dort weiter, wo Sie aufgehört haben. Kommt der Agent allein nicht über eine Seite
+hinweg — eine Anmeldung, ein Captcha —, sagt die Karte *Der Agent braucht Sie* und
+wofür. Wer Runs sehen, aber den Agent nicht bearbeiten darf, kann zusehen, nicht
+steuern. Siehe [Webbrowser](reference/capabilities.md#browser-automation).
 
 ## Wofür jeder Bereich da ist { #what-each-area-is-for }
 

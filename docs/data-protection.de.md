@@ -1,5 +1,5 @@
 ---
-source_sha: "d92bfb07344a"
+source_sha: "d3adf211e4ca"
 ---
 
 # Datenschutz { #data-protection }
@@ -107,7 +107,7 @@ davon. Beides sind Kopien des Chats und gehen mit ihm.
 |---|---|---|
 | `MEDIA_DIR` auf dem API-Host (Volume `media_data`) | Chat-Anhänge unter `<user_id>/`, Avatare, Embed-Logos, generierte Bilder unter `generated_<org>/` und eine temporäre Kopie jedes Dokuments unter `_rag_tmp`, solange es geparst wird | Ein Dokument über das Produkt gelöscht wird. **Nichts im Produkt entfernt die Bytes eines Chat-Anhangs** — weder das Löschen seiner Conversation noch das Löschen seines Besitzers. Siehe [Was das Löschen erreicht](#what-deletion-reaches) |
 | `SANDBOXD_WORKSPACE_ROOT` auf dem Sandbox-Host | Die Dateien jedes containergestützten Workspace | Die Conversation gelöscht wird oder `SANDBOXD_WORKSPACE_TTL` sie wegräumt; ungesetzt bleiben sie unbegrenzt. Siehe [Wie lange etwas überlebt](sandbox.md#how-long-anything-survives) |
-| Redis | Rate-Limit-Buckets, geschlüsselt auf den Aufrufer — bei einer öffentlichen Oberfläche ist das die **IP-Adresse im Klartext**, im Schlüssel, für die TTL des Fensters; Dedup-Schlüssel für Trigger und Kanäle; OAuth-Austauschzustand; vorgemerkte Einladungen | Beim Ablauf; nichts hier überlebt seine Minuten |
+| Redis | Rate-Limit-Buckets, geschlüsselt auf den Aufrufer — bei einer öffentlichen Oberfläche ist das die **IP-Adresse im Klartext**, im Schlüssel, für die TTL des Fensters; Dedup-Schlüssel für Trigger und Kanäle; OAuth-Austauschzustand; vorgemerkte Einladungen; die Live-Ansicht eines Browsens — sein letzter Screenshot, seine Schritte und was die Person, die den Browser hält, geklickt und getippt hat, bis das Browsen es liest | Beim Ablauf: eine Live-Ansicht eine Stunde nach dem letzten Frame des Browsens, alles andere binnen Minuten |
 | Prefect | Historie und Logs der Flow-Runs | Parameter sind Ids und Pfade, mit einer Ausnahme: der **`event_context` eines ereignisgesteuerten Runs** — Absender, Betreff und Text einer Gmail-Nachricht, eines GitHub-Issues, eines Webhook-Payloads — reist als Flow-Parameter und bleibt in der Run-Historie. Die Logs des Workers laufen durch denselben Redaktionsfilter wie die der API |
 | Logfire, wenn konfiguriert | Traces jedes Runs | Die Aufbewahrung des Providers. Heute trägt ein Trace den vollen Prompt, die Ausgabe und die Tool-Argumente — siehe [Traces](#traces) |
 | Ihr SMTP-Relay | Einladungen, Magic Links, Freigabeanfragen, Budget-Warnungen, Nutzungsberichte, und die eigene Mail des [Benachrichtigungs-Postfachs](governance.md#alerts) - ein Run, der unbeaufsichtigt fertig wird oder scheitert, die Ingestion eines Dokuments, die abschließt oder scheitert, ein Sicherheitsereignis oder eine Konfigurationsänderung, die eigene Ankündigung eines Admins | Was das Relay aufbewahrt. Eine Freigabe-Mail nennt den Agent, das Tool und einen Link, nicht die Argumente des Tools |

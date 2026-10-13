@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 import { isRunning, type Browse } from "@/lib/browse";
 import { cn } from "@/lib/utils";
 import { useBrowserPanelStore, type BrowserViewMode } from "@/stores/browser-panel-store";
-import { ActionLine, AddressBar, LiveBadge, useProgress, Viewport } from "./browser-view";
+import { ActionLine, AddressBar, LiveBadge, TakeOver, useProgress, Viewport } from "./browser-view";
 
 /**
  * Every browse of the turn, each as its own card, two across where there is room.
@@ -129,6 +129,11 @@ function BrowserCard({ browse }: { browse: Browse }) {
           </span>
         )}
       </div>
+      {browse.runId && running && (
+        <div className="px-3 pb-3">
+          <TakeOver browse={browse} />
+        </div>
+      )}
     </div>
   );
 }

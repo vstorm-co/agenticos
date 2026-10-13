@@ -199,3 +199,42 @@ describe("browseById - which browse a panel was opened on", () => {
     expect(browseById(browses, null)).toBeNull();
   });
 });
+
+describe("applyBrowserFrame - a person and the browser (#2128)", () => {
+  it("knows the run it belongs to, which addresses its live view", () => {
+    const [browse] = fold(frame({ kind: "browser_opened", step: 0, run_id: "run-7" }));
+    expect(browse?.runId).toBe("run-7");
+  });
+
+  it("says what it needs until somebody takes it over, then who has it", () => {
+    const asked = fold(
+      frame({ kind: "browser_opened", step: 0 }),
+      frame({ kind: "browser_needs_person", step: 2, detail: "Sign in" }),
+    );
+    expect(asked[0]).toMatchObject({ needs: "Sign in", heldBy: null });
+
+    const held = applyBrowserFrame(asked, frame({ kind: "browser_held", step: 2, by: "Ada" }));
+    expect(held[0]).toMatchObject({ needs: null, heldBy: "Ada" });
+
+    const back = applyBrowserFrame(held, frame({ kind: "browser_released", step: 2 }));
+    expect(back[0]?.heldBy).toBeNull();
+  });
+
+  it("reads a frame with nothing in it as nothing needed and nobody named", () => {
+    const [browse] = fold(
+      frame({ kind: "browser_opened", step: 0 }),
+      frame({ kind: "browser_needs_person", step: 1 }),
+      frame({ kind: "browser_held", step: 1 }),
+    );
+    expect(browse).toMatchObject({ runId: null, needs: null, heldBy: null });
+  });
+
+  it("forgets both once the browse has ended", () => {
+    const [browse] = fold(
+      frame({ kind: "browser_opened", step: 0 }),
+      frame({ kind: "browser_needs_person", step: 1, detail: "Sign in" }),
+      frame({ kind: "browser_finished", step: 1, outcome: "blocked" }),
+    );
+    expect(browse).toMatchObject({ needs: null, heldBy: null, outcome: "blocked" });
+  });
+});

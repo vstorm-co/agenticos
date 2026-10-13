@@ -19,6 +19,17 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Watch a browse from a link, and take it over (#2128).** Every browse a run
+  makes has a live view at `/browse/{run_id}/{call_id}` - the page as it is
+  now and the steps so far - linked from the chat card and posted in the step
+  in Slack, Telegram and Mattermost. The person the run acts for, or someone
+  who may edit the agent, can take the browser over: the agent pauses after
+  its step, they click, type and scroll on the page, and hand it back. When a
+  page needs a person - a sign-in, a captcha - the agent asks for one instead
+  of stopping, and the card and the channel say *Needs you*; it waits ten
+  minutes before ending blocked. Members who may view runs can watch. What a
+  person types is never recorded. The view lives in Redis for an hour
+  after the browse's last frame (`WS /api/v1/ws/browse/{run_id}/{call_id}`).
 - **Lists grouped by department.** Apps, Skills, Context and Knowledge bases
   each take a group filter that narrows the list to what one group was given,
   kept in the address; the Builder's pickers and the app cards name each

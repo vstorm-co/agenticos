@@ -1161,6 +1161,14 @@ anywhere else. Slack signs its presses; Mattermost signs nothing, so each button
 carries this deployment's own signature over its value and a press without it is
 refused.
 
+**A browse that needs a person.** An agent with the
+[web browser](reference/capabilities.md#browser-automation) posts the link to the
+browse's live view in its step - *Watch or take over* - in Slack, Telegram and
+Mattermost alike. When the page needs somebody, a sign-in or a captcha, the step
+changes to *Needs you* and says what for, and names who has the browser while a
+person holds it. The link opens the console, so taking over needs a console account:
+the person the run is for, or someone who may edit the agent.
+
 ## Reactions and ratings
 
 Two touches every chat platform here shares, both switched in the bot's

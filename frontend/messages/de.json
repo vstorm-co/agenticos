@@ -1446,9 +1446,12 @@
     "sentIntoTask": "in die Aufgabe gesendet",
     "moveUp": "Nach oben",
     "moveDown": "Nach unten",
-    "browserAction": "{operation, select, CLICK {Geklickt} TYPE_TEXT {Eingegeben in} SELECT {Gewählt in} SCROLL {Seite gescrollt} NAVIGATE {Geöffnet} BACK {Zurück} WAIT {Auf die Seite gewartet} DONE {Fertig} BLOCKED {Angehalten} other {Auf der Seite gearbeitet}}",
+    "browserAction": "{operation, select, CLICK {Geklickt} TYPE_TEXT {Eingegeben in} SELECT {Gewählt in} SCROLL {Seite gescrollt} NAVIGATE {Geöffnet} BACK {Zurück} WAIT {Auf die Seite gewartet} DONE {Fertig} BLOCKED {Angehalten} ASK_PERSON {Um Hilfe gebeten} other {Auf der Seite gearbeitet}}",
     "browserLive": "Live",
-    "browserStarting": "Seite wird geöffnet…"
+    "browserStarting": "Seite wird geöffnet…",
+    "browserTakeOver": "Übernehmen",
+    "browserNeedsYou": "Der Agent braucht Sie",
+    "browserHeldBy": "{name} hat den Browser"
   },
   "common": {
     "archiveNamedConfirm": "{name} archivieren?",
@@ -6840,5 +6843,27 @@
     "auth": "Senden Sie den Schlüssel im Header <code>Authorization: Bearer aos_…</code>.",
     "reference": "API-Referenz: jeder Endpunkt",
     "guide": "So rufen Sie die API auf"
+  },
+  "browse": {
+    "title": "Browser live",
+    "waiting": "Warte auf die erste Ansicht der Seite…",
+    "pageAlt": "Der Browser des Agenten, wie er gerade ist",
+    "watchingLabel": "Der Browser des Agenten",
+    "holdingLabel": "Der Browser des Agenten - Sie steuern: hier klicken, tippen und scrollen",
+    "holdingHint": "Der Browser gehört Ihnen. Klicken, tippen und scrollen Sie auf der Seite und geben Sie ihn dann zurück - der Agent macht dort weiter, wo Sie aufhören. Was Sie tippen, wird nirgends gespeichert.",
+    "needsYou": "Der Agent braucht Sie",
+    "takeOver": "Übernehmen",
+    "takingOver": "Übernahme nach dem aktuellen Schritt…",
+    "takeOverHint": "Der Agent hält nach seinem aktuellen Schritt an, und die Seite gehört Ihnen, bis Sie sie zurückgeben.",
+    "giveBack": "Zurückgeben",
+    "heldBy": "{name} hat den Browser.",
+    "watchOnly": "Sie können zusehen. Übernehmen kann nur die Person, für die dieser Run läuft, oder jemand, der den Agenten bearbeiten darf.",
+    "steps": "Schritte",
+    "goneTitle": "Dieses Browsen ist vorbei",
+    "goneBody": "Eine Live-Ansicht bleibt eine Stunde nach der letzten Aktion des Browsers. Die Seite des Runs behält, was er getan hat.",
+    "forbiddenTitle": "Sie können dieses Browsen nicht ansehen",
+    "forbiddenBody": "Es gehört zu einem Run, den Sie nicht sehen dürfen.",
+    "unavailableTitle": "Live-Ansicht nicht verfügbar",
+    "unavailableBody": "Dieses Deployment hat kein Redis für Live-Ansichten. Versuchen Sie es gleich noch einmal."
   }
 }

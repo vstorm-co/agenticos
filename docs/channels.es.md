@@ -1,5 +1,5 @@
 ---
-source_sha: "63611bd6d466"
+source_sha: "7bfdbfb408ca"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1206,6 +1206,15 @@ respuesta durante `QUESTION_EXPIRY_HOURS` y una decisión durante
 `APPROVAL_EXPIRY_HOURS`, como en cualquier otro sitio. Slack firma sus
 pulsaciones; Mattermost no firma nada, así que cada botón lleva la firma propia
 de este despliegue sobre su valor y una pulsación sin ella se rechaza.
+
+**Una navegación que necesita a una persona.** Un agente con el
+[navegador web](reference/capabilities.md#browser-automation) publica en su paso el
+enlace a la vista en directo de la navegación — *Watch or take over* — en Slack,
+Telegram y Mattermost por igual. Cuando la página necesita a alguien, un inicio de
+sesión o un captcha, el paso cambia a *Needs you* y dice para qué, y nombra quién tiene
+el navegador mientras una persona lo maneja. El enlace abre la consola, así que tomar
+el control necesita una cuenta en ella: la persona para la que actúa el run, o quien
+puede editar el agente.
 
 ## Reacciones y valoraciones { #reactions-and-ratings }
 

@@ -227,3 +227,52 @@ describe("BrowserCards - a browse in the transcript, with the page as the card",
     expect(screen.queryByRole("img")).not.toBeInTheDocument();
   });
 });
+
+describe("BrowserCards - a way into the live view (#2128)", () => {
+  it("links a running browse to its live view, beside the chat", () => {
+    render(<BrowserCards browses={[browse({ runId: "run-7" })]} />);
+
+    const link = screen.getByRole("link", { name: "Take over" });
+    expect(link).toHaveAttribute("href", "/browse/run-7/c1");
+    expect(link).toHaveAttribute("target", "_blank");
+  });
+
+  it("says when the agent needs a person, and what for", () => {
+    render(<BrowserCards browses={[browse({ runId: "run-7", needs: "Sign in to the portal" })]} />);
+
+    expect(screen.getByText("The agent needs you")).toBeInTheDocument();
+    expect(screen.getByText("Sign in to the portal")).toBeInTheDocument();
+  });
+
+  it("says who has the browser while a person does", () => {
+    render(<BrowserCards browses={[browse({ runId: "run-7", heldBy: "Ada" })]} />);
+    expect(screen.getByText("Ada has the browser")).toBeInTheDocument();
+  });
+
+  it("offers nothing for a browse with no live view, or one that has ended", () => {
+    render(
+      <BrowserCards
+        browses={[
+          browse({ callId: "c1" }),
+          browse({ callId: "c2", runId: "run-7", outcome: "done" }),
+        ]}
+      />,
+    );
+    expect(screen.queryByRole("link", { name: "Take over" })).not.toBeInTheDocument();
+  });
+
+  it("names the step where the agent asked for help", () => {
+    render(
+      <BrowserCards
+        browses={[
+          browse({
+            steps: [
+              { step: 1, operation: "ASK_PERSON", target: null, reason: "Sign in", url: null },
+            ],
+          }),
+        ]}
+      />,
+    );
+    expect(screen.getByText("Asked for help")).toBeInTheDocument();
+  });
+});

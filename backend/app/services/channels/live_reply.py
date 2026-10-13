@@ -25,6 +25,7 @@ import time
 from collections.abc import Awaitable, Callable, Mapping
 from typing import Any, Protocol
 
+import anyio
 from pydantic import BaseModel
 from pydantic_ai import Agent
 from pydantic_ai.messages import (
@@ -38,6 +39,9 @@ from pydantic_ai.messages import (
     ToolReturnPart,
 )
 
+from app.agents.browser_events import BrowserEvent
+from app.agents.deps import AgentDeps
+from app.services import live_browse
 from app.services.agent_runner import AgentIteration, RunStream
 from app.services.channels.base import AnswerStep, NativeAnswer, StepSource
 
@@ -184,9 +188,14 @@ class LiveReply:
             await self._flush()
 
     async def step(self, step: AnswerStep) -> None:
-        """A tool call starting is a status; how it ended is not worth an edit."""
+        """A tool call starting is a status; how it ended is not worth an edit.
+
+        A step that links somewhere - a browse's live view - carries the link in
+        the status, because a placeholder is text and the link is the point.
+        """
         if step.status == "in_progress":
-            await self.working_on(step.title)
+            links = "".join(f"\n{source.title}: {source.url}" for source in step.sources)
+            await self.working_on(step.title + links)
 
     async def _maybe_push(self) -> None:
         if self._now() - self._pushed_at >= EDIT_INTERVAL:
@@ -285,6 +294,42 @@ class AnswerSink(Protocol):
     async def step(self, step: AnswerStep) -> None: ...
 
 
+_BROWSE_TOOL = "browse_web"
+
+LIVE_VIEW = "Watch or take over"
+"""What a browse's live-view link is called in a channel (#2128)."""
+
+
+def _browse_title(event: BrowserEvent) -> str:
+    """What a browse's step says, from the last thing its live view heard."""
+    if event.kind == "browser_needs_person":
+        return f"Needs you: {event.detail}"
+    if event.kind == "browser_held":
+        return f"{event.by or 'Someone'} has the browser"
+    return doing(_BROWSE_TOOL)
+
+
+def _live_view(run_id: str | None, tool_name: str, call_id: str) -> StepSource | None:
+    """The link to a tool call's live view, for a browse a person can watch - else `None`."""
+    if tool_name != _BROWSE_TOOL or run_id is None or not live_browse.available():
+        return None
+    return StepSource(url=live_browse.link(run_id, call_id), title=LIVE_VIEW)
+
+
+async def _follow_browse(reply: AnswerSink, run_id: str, call_id: str, source: StepSource) -> None:
+    """Keep a browse's step saying what it needs, until the browse's step ends.
+
+    A channel has no live view of its own, so the one moment a person is needed -
+    a sign-in, a captcha - has to reach them as words in the thread, with the link
+    that lets them do it.
+    """
+    async for event in live_browse.watch(run_id, call_id):
+        if event.kind in ("browser_needs_person", "browser_held", "browser_released"):
+            await reply.step(
+                AnswerStep(call_id, _browse_title(event), "in_progress", sources=(source,))
+            )
+
+
 def channel_stream(reply: AnswerSink) -> RunStream:
     """Drive an agent run into `reply`.
 
@@ -309,8 +354,33 @@ def channel_stream(reply: AnswerSink) -> RunStream:
     rather than by its id; a result asking the model to retry is a failed step.
     """
     titles: dict[str, str] = {}
+    followers: dict[str, anyio.CancelScope] = {}
 
     async def stream(agent_run: AgentIteration[Any, Any]) -> None:
+        # `ctx.deps` is the graph's own; the run's `AgentDeps` are inside it.
+        deps = agent_run.ctx.deps.user_deps
+        run_id = deps.run_id if isinstance(deps, AgentDeps) else None
+        async with anyio.create_task_group() as followed:
+            try:
+                await walk(agent_run, followed, None if run_id is None else str(run_id))
+            finally:
+                followed.cancel_scope.cancel()
+
+    async def follow(
+        run_id: str,
+        call_id: str,
+        source: StepSource,
+        *,
+        task_status: anyio.abc.TaskStatus[None] = anyio.TASK_STATUS_IGNORED,
+    ) -> None:
+        with anyio.CancelScope() as scope:
+            followers[call_id] = scope
+            task_status.started()
+            await _follow_browse(reply, run_id, call_id, source)
+
+    async def walk(
+        agent_run: AgentIteration[Any, Any], followed: anyio.abc.TaskGroup, run_id: str | None
+    ) -> None:
         async for node in agent_run:
             if Agent.is_model_request_node(node):
                 async with node.stream(agent_run.ctx) as request_stream:
@@ -327,9 +397,21 @@ def channel_stream(reply: AnswerSink) -> RunStream:
                         if isinstance(event, FunctionToolCallEvent):
                             call_id = event.part.tool_call_id
                             titles[call_id] = doing(event.part.tool_name)
-                            await reply.step(AnswerStep(call_id, titles[call_id], "in_progress"))
+                            live = _live_view(run_id, event.part.tool_name, call_id)
+                            await reply.step(
+                                AnswerStep(
+                                    call_id,
+                                    titles[call_id],
+                                    "in_progress",
+                                    sources=() if live is None else (live,),
+                                )
+                            )
+                            if live is not None and run_id is not None:
+                                await followed.start(follow, run_id, call_id, live)
                         elif isinstance(event, FunctionToolResultEvent):
                             call_id = event.tool_call_id
+                            if call_id in followers:
+                                followers.pop(call_id).cancel()
                             failed = isinstance(event.part, RetryPromptPart)
                             await reply.step(
                                 AnswerStep(

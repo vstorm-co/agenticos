@@ -1446,9 +1446,12 @@
     "sentIntoTask": "wysłane do zadania",
     "moveUp": "Przesuń wyżej",
     "moveDown": "Przesuń niżej",
-    "browserAction": "{operation, select, CLICK {Kliknięto} TYPE_TEXT {Wpisano w} SELECT {Wybrano w} SCROLL {Przewinięto stronę} NAVIGATE {Otwarto} BACK {Cofnięto} WAIT {Czekano na stronę} DONE {Gotowe} BLOCKED {Zatrzymano} other {Praca na stronie}}",
+    "browserAction": "{operation, select, CLICK {Kliknięto} TYPE_TEXT {Wpisano w} SELECT {Wybrano w} SCROLL {Przewinięto stronę} NAVIGATE {Otwarto} BACK {Cofnięto} WAIT {Czekano na stronę} DONE {Gotowe} BLOCKED {Zatrzymano} ASK_PERSON {Poproszono o pomoc} other {Praca na stronie}}",
     "browserLive": "Na żywo",
-    "browserStarting": "Otwieranie strony…"
+    "browserStarting": "Otwieranie strony…",
+    "browserTakeOver": "Przejmij",
+    "browserNeedsYou": "Agent cię potrzebuje",
+    "browserHeldBy": "Przeglądarkę ma {name}"
   },
   "common": {
     "archiveNamedConfirm": "Zarchiwizować {name}?",
@@ -6741,5 +6744,27 @@
     "auth": "Wyślij klucz w nagłówku <code>Authorization: Bearer aos_…</code>.",
     "reference": "Dokumentacja API: wszystkie endpointy",
     "guide": "Jak korzystać z API"
+  },
+  "browse": {
+    "title": "Przeglądarka na żywo",
+    "waiting": "Czekam na pierwszy widok strony…",
+    "pageAlt": "Przeglądarka agenta w tej chwili",
+    "watchingLabel": "Przeglądarka agenta",
+    "holdingLabel": "Przeglądarka agenta - sterujesz: klikaj, pisz i przewijaj tutaj",
+    "holdingHint": "Przeglądarka jest twoja. Klikaj, pisz i przewijaj na stronie, a potem ją oddaj - agent będzie kontynuował od miejsca, w którym skończysz. To, co wpiszesz, nie jest nigdzie zapisywane.",
+    "needsYou": "Agent cię potrzebuje",
+    "takeOver": "Przejmij",
+    "takingOver": "Przejmowanie po bieżącym kroku…",
+    "takeOverHint": "Agent zatrzyma się po bieżącym kroku, a strona będzie twoja, dopóki jej nie oddasz.",
+    "giveBack": "Oddaj",
+    "heldBy": "Przeglądarkę ma teraz {name}.",
+    "watchOnly": "Możesz patrzeć. Przejąć może tylko osoba, dla której jest ten run, albo ktoś, kto może edytować agenta.",
+    "steps": "Kroki",
+    "goneTitle": "To przeglądanie się skończyło",
+    "goneBody": "Podgląd na żywo trwa godzinę od ostatniej akcji przeglądarki. Strona runu zachowuje, co zrobił.",
+    "forbiddenTitle": "Nie możesz oglądać tego przeglądania",
+    "forbiddenBody": "Należy do runu, którego nie możesz zobaczyć.",
+    "unavailableTitle": "Podgląd na żywo jest niedostępny",
+    "unavailableBody": "To wdrożenie nie ma Redisa do podglądów. Spróbuj za chwilę."
   }
 }

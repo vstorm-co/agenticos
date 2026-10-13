@@ -247,6 +247,14 @@ a browse heading the wrong way is visible while it happens. It stays up when the
 because *blocked by the page* is an answer about the page. Close it and it stays
 closed for that browse.
 
+**Taking a browse over.** A running browse's card has **Take over**, which opens its
+live view in a new tab - the same page a channel links to. **Take over** there pauses
+the agent after its current step and hands you the page: click, type, scroll, paste.
+**Hand it back** and the agent carries on from where you left it. When the agent
+cannot get past a page alone - a sign-in, a captcha - the card says *The agent needs
+you* and what for. Someone who may view runs but not edit the agent can watch, not
+drive. See [Web browser](reference/capabilities.md#browser-automation).
+
 ## What each area is for
 
 The sidebar groups them. **Build** holds Agents, Routines, Apps and Activity;

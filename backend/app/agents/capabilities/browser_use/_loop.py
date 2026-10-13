@@ -32,8 +32,17 @@ from dataclasses import dataclass
 from hashlib import sha256
 from typing import Protocol
 
-from app.agents.browser_events import BrowseOutcome, BrowserEvent, BrowserEventSink
+import anyio
+
+from app.agents.browser_events import (
+    BrowseOutcome,
+    BrowserCommand,
+    BrowserControl,
+    BrowserEvent,
+    BrowserEventSink,
+)
 from app.agents.capabilities.browser_use._decision import (
+    AskPerson,
     Blocked,
     Click,
     Done,
@@ -56,6 +65,20 @@ Two is too few - a page that genuinely needs the same button pressed twice exist
 and the cost of a third is one step. Beyond that it is a loop, not a retry.
 """
 
+
+HOLD_LIMIT = 900.0
+"""How long, in seconds, a person may hold the browser before it is handed back.
+
+Long enough to sign in with a second factor and find the right page; bounded,
+because a person who walked away would otherwise hold the run open for as long as
+it may live.
+"""
+
+WAIT_FOR_PERSON = 600.0
+"""How long, in seconds, a browse that asked for a person waits for one to take over."""
+
+FRAME_EVERY = 1.0
+"""Seconds between pictures while a person holds the browser and is not acting."""
 
 _DETAIL_LIMIT = 600
 """How much of a finished browse's answer the finish frame carries to the panel."""
@@ -114,6 +137,18 @@ class PageSession(Protocol):
     async def read(self) -> str:
         """The page's readable text, which is what a finished browse answers with."""
 
+    async def click_at(self, x: float, y: float) -> None:
+        """Press at viewport coordinates - a person's click while they hold the tab."""
+
+    async def insert_text(self, text: str) -> None:
+        """Type into whatever has focus, as a person holding the tab does."""
+
+    async def press(self, key: str) -> None:
+        """Press one key that has no character - Enter, Tab, an arrow."""
+
+    async def wheel(self, dy: float) -> None:
+        """Scroll by `dy` pixels where the page is, as a mouse wheel does."""
+
 
 @dataclass
 class BrowseSession:
@@ -166,6 +201,8 @@ async def run_browse(
     policy: LoopPolicy,
     call_id: str,
     sink: BrowserEventSink | None = None,
+    control: BrowserControl | None = None,
+    run_id: str | None = None,
 ) -> BrowseResult:
     """Drive `session.page` towards `task`, narrating as it goes, and stop for a reason.
 
@@ -177,6 +214,10 @@ async def run_browse(
         call_id: Which `browse_web` call this is, so a surface can keep two
             browses in one turn apart.
         sink: Where the frames go, or `None` on a surface that cannot show them.
+        control: Where the people watching ask to take the browser over, or `None`
+            where nobody can - then an `ask_person` step ends the browse blocked.
+        run_id: The run, carried on the opening frame so a surface can link to
+            the browse's live view.
 
     Returns:
         The outcome, the answer, the page and how many steps this call took. Never
@@ -205,6 +246,7 @@ async def run_browse(
             title=snapshot.title,
             goal=task,
             max_steps=session.steps + policy.max_steps,
+            run_id=run_id,
         )
     )
 
@@ -212,7 +254,15 @@ async def run_browse(
     for taken in range(1, policy.max_steps + 1):
         session.steps += 1
         step_no = session.steps
-        if taken > 1:
+        held = False
+        if control is not None:
+            # Between steps, never inside one: a person taking over waits for the
+            # action in flight to finish, so the tab is never driven by two at once.
+            waiting = await control.poll()
+            if waiting is not None and waiting.type == "take_over":
+                await _held(session, control, emit, call_id=call_id, by=waiting.by)
+                held = True
+        if taken > 1 or held:
             snapshot = await page.snapshot()
 
         image: str | None = None
@@ -264,6 +314,35 @@ async def run_browse(
                 detail=action.answer[:_DETAIL_LIMIT],
                 snapshot=snapshot,
             )
+        if isinstance(action, AskPerson):
+            arrived = None
+            if control is not None:
+                await emit(
+                    BrowserEvent(
+                        kind="browser_needs_person",
+                        call_id=call_id,
+                        step=step_no,
+                        url=snapshot.url,
+                        title=snapshot.title,
+                        detail=action.reason,
+                    )
+                )
+                arrived = await _await_person(control)
+            if arrived is None or control is None:
+                reason = f"It needed a person and nobody took the browser over: {action.reason}"
+                return await _finish(
+                    emit,
+                    session,
+                    call_id=call_id,
+                    outcome="blocked",
+                    taken=taken,
+                    text=_remembered(session, reason),
+                    detail=reason,
+                    snapshot=snapshot,
+                )
+            session.history += (f"step {step_no}: {step.next_goal} - asked a person",)
+            await _held(session, control, emit, call_id=call_id, by=arrived.by)
+            continue
         if isinstance(action, Blocked):
             return await _finish(
                 emit,
@@ -332,6 +411,7 @@ _OPERATION: dict[type, str] = {
     Wait: "WAIT",
     Done: "DONE",
     Blocked: "BLOCKED",
+    AskPerson: "ASK_PERSON",
 }
 """Each action as the frame names it - the vocabulary a surface already draws."""
 
@@ -407,6 +487,71 @@ async def _act(page: PageSession, step: Step, element: Element | None) -> str:
         else:
             await page.select(element, action.option)
     return describe(step)
+
+
+async def _await_person(control: BrowserControl) -> BrowserCommand | None:
+    """The `take_over` that answers an `ask_person`, or `None` once nobody came.
+
+    Anything else that arrives meanwhile is input for a browser nobody holds yet,
+    and is dropped rather than queued for later.
+    """
+    with anyio.move_on_after(WAIT_FOR_PERSON):
+        while True:
+            command = await control.wait(FRAME_EVERY)
+            if command is not None and command.type == "take_over":
+                return command
+    return None
+
+
+async def _held(
+    session: BrowseSession,
+    control: BrowserControl,
+    emit: Callable[[BrowserEvent], Awaitable[bool]],
+    *,
+    call_id: str,
+    by: str | None,
+) -> None:
+    """Hand the tab to a person until they give it back, or until `HOLD_LIMIT`.
+
+    The person's input reaches the page as it arrives, and a picture follows each
+    one - and one a second while they are reading - so the view they act on is
+    the page as it is. What they type is never recorded: the history says only
+    that somebody took over, which is also what the model is told to look again
+    because of.
+    """
+    page = session.page
+    await emit(BrowserEvent(kind="browser_held", call_id=call_id, step=session.steps, by=by))
+    with anyio.move_on_after(HOLD_LIMIT):
+        while True:
+            command = await control.wait(FRAME_EVERY)
+            if command is not None and command.type == "give_back":
+                break
+            if command is not None:
+                await _person_input(page, command)
+            image = await page.screenshot()
+            if image is not None:
+                await emit(
+                    BrowserEvent(
+                        kind="browser_frame", call_id=call_id, step=session.steps, image=image
+                    )
+                )
+    await emit(BrowserEvent(kind="browser_released", call_id=call_id, step=session.steps))
+    session.history += (
+        f"step {session.steps}: a person took the browser over and handed it back - "
+        f"look at the page again before acting",
+    )
+
+
+async def _person_input(page: PageSession, command: BrowserCommand) -> None:
+    """Carry out one thing a person did in the tab they hold; drop one that says nothing."""
+    if command.type == "click" and command.x is not None and command.y is not None:
+        await page.click_at(command.x, command.y)
+    elif command.type == "type" and command.text:
+        await page.insert_text(command.text)
+    elif command.type == "key" and command.key is not None:
+        await page.press(command.key)
+    elif command.type == "scroll" and command.dy is not None:
+        await page.wheel(command.dy)
 
 
 async def _finish(

@@ -33,7 +33,7 @@ a surface that cannot narrate one still runs; it is simply not narrated.
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from typing import Literal
+from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -58,7 +58,15 @@ class BrowserEvent(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    kind: Literal["browser_opened", "browser_step", "browser_frame", "browser_finished"]
+    kind: Literal[
+        "browser_opened",
+        "browser_step",
+        "browser_frame",
+        "browser_finished",
+        "browser_held",
+        "browser_released",
+        "browser_needs_person",
+    ]
 
     call_id: str = Field(
         description=(
@@ -118,6 +126,18 @@ class BrowserEvent(BaseModel):
             "Model-written text about a page, so a surface renders it as data."
         ),
     )
+    run_id: str | None = Field(
+        default=None,
+        description=(
+            "The run this browse belongs to, on the opening frame. With `call_id` "
+            "it is the address of the browse's live view, `/browse/{run_id}/{call_id}`, "
+            "which a person opens to watch or take over."
+        ),
+    )
+    by: str | None = Field(
+        default=None,
+        description="Who took the browser over, by name, on `browser_held`.",
+    )
     image: str | None = Field(
         default=None,
         repr=False,
@@ -154,3 +174,57 @@ without an answer the loop would go on capturing and base64-encoding a JPEG per
 step for somebody who left. `False` is what lets it stop taking pictures while
 the browse itself continues.
 """
+
+
+BrowserKey = Literal[
+    "Enter",
+    "Tab",
+    "Backspace",
+    "Delete",
+    "Escape",
+    "ArrowUp",
+    "ArrowDown",
+    "ArrowLeft",
+    "ArrowRight",
+    "Home",
+    "End",
+    "PageUp",
+    "PageDown",
+]
+"""The keys a person may press in a browser they took over, by their DOM names.
+
+Printable text arrives as `type` and is inserted rather than pressed; these are the
+keys with no character, and a closed list because each becomes a CDP key event
+whose fields have to be right for the page to see the key at all.
+"""
+
+
+class BrowserCommand(BaseModel):
+    """What a person watching a browse asks of it (#2128).
+
+    `take_over` pauses the agent between steps and hands the tab to the person;
+    the input commands act on it while they hold it, at viewport coordinates;
+    `give_back` returns it and the agent carries on from the page as it is. What a
+    person types is never written to the transcript or the run's history - the
+    history records only that somebody took over.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    type: Literal["take_over", "give_back", "click", "type", "key", "scroll"]
+    x: float | None = Field(default=None, ge=0, le=4000)
+    y: float | None = Field(default=None, ge=0, le=4000)
+    text: str | None = Field(default=None, max_length=2000)
+    key: BrowserKey | None = None
+    dy: float | None = Field(default=None, ge=-5000, le=5000)
+    by: str | None = Field(default=None, max_length=200)
+
+
+class BrowserControl(Protocol):
+    """Where a browse hears from the people watching it, between and during steps."""
+
+    async def poll(self) -> BrowserCommand | None:
+        """The next command waiting, or `None` - without waiting for one."""
+
+    async def wait(self, timeout: float) -> BrowserCommand | None:
+        """The next command, waiting up to `timeout` seconds for one to arrive."""

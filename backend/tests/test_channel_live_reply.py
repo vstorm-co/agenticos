@@ -13,6 +13,7 @@ posts and edits is its adapter's business.
 
 import contextlib
 from collections.abc import AsyncIterator
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -29,6 +30,7 @@ from pydantic_ai.messages import (
 from pydantic_ai.models.function import FunctionModel
 
 from app.agents.capabilities import CapabilityBinding, build
+from app.agents.deps import AgentDeps
 from app.services.agent_runner import AgentRunnerService
 from app.services.channels.live_reply import (
     EDIT_INTERVAL,
@@ -408,7 +410,7 @@ class TestTheEventsTheStreamActuallyReads:
             yield node
 
         agent_run = MagicMock()
-        agent_run.ctx = object()
+        agent_run.ctx = SimpleNamespace(deps=SimpleNamespace(user_deps=AgentDeps()))
         agent_run.__aiter__ = lambda _self: _nodes()
 
         with (

@@ -16,6 +16,7 @@ import {
   LiveBadge,
   Outcome,
   StepTimeline,
+  TakeOver,
   useProgress,
   Viewport,
 } from "./browser-view";
@@ -166,6 +167,7 @@ export function BrowserPanel({ browses }: { browses: Browse[] }) {
         )}
       >
         <Viewport browse={browse} />
+        <TakeOver browse={browse} />
 
         {browse.goal && (
           <section className="space-y-1">
