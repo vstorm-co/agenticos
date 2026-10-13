@@ -1452,7 +1452,8 @@
     "showMore": "Mehr",
     "showLess": "Weniger",
     "copy": "Kopieren",
-    "copied": "Kopiert"
+    "copied": "Kopiert",
+    "searchShortcut": "Strg K"
   },
   "dashboard": {
     "actions": {
