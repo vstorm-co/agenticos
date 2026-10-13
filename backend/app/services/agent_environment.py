@@ -465,7 +465,7 @@ class AgentEnvironmentService:
         if (test.kind, test.purpose) != (production.kind, production.purpose):
             raise BadRequestError(
                 message=(
-                    f"'{test.name}' cannot stand in for '{production.name}': a test key must "
+                    "That key cannot stand in for the one the agent binds: a test key must "
                     "be the same kind of key, for the same service"
                 ),
                 details={"production_id": entry.production_id, "test_id": entry.test_id},

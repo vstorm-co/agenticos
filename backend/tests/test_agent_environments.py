@@ -677,7 +677,7 @@ class TestConnectionOverrides:
         ):
             environments.get = AsyncMock(return_value=environment)
 
-            with pytest.raises(BadRequestError, match="cannot stand in"):
+            with pytest.raises(BadRequestError, match="cannot stand in") as refused:
                 await service.update(
                     _ctx(),
                     agent.id,
@@ -690,6 +690,9 @@ class TestConnectionOverrides:
                         ]
                     ),
                 )
+
+        # Neither name: the caller may hold no grant on the production key.
+        assert "CRM" not in refused.value.message and "Search" not in refused.value.message
 
     async def test_replacing_only_the_overrides_is_a_change_and_is_audited(self):
         agent = _agent()

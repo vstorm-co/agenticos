@@ -139,7 +139,7 @@ export function EnvironmentsPanel({ agentId, canManage }: { agentId: string; can
   return (
     <div className="space-y-3">
       <div className="space-y-2">
-        {environments.map((environment, index) => (
+        {environments.map((environment) => (
           <div key={environment.id} className="space-y-3 rounded-md border p-3">
             <div className="flex items-center gap-3">
               <div className="min-w-0 flex-1">
@@ -243,7 +243,11 @@ export function EnvironmentsPanel({ agentId, canManage }: { agentId: string; can
                 <Button
                   variant="ghost"
                   size="sm"
-                  data-tour={index === 1 ? "environment-connections" : undefined}
+                  data-tour={
+                    environment.id === environments.find((other) => !other.is_default)?.id
+                      ? "environment-connections"
+                      : undefined
+                  }
                   aria-expanded={testing === environment.id}
                   aria-label={t("testConnectionsFor", { name: environment.name })}
                   onClick={() => setTesting(testing === environment.id ? null : environment.id)}

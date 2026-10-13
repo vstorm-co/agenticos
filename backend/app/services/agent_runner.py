@@ -1218,10 +1218,6 @@ class PreparedRun:
     """
 
     admitted_as: AdmittedAs = field(default_factory=AdmittedAs)
-    isolation: RunIsolation | None = None
-    """How this run treats its tools when it is isolated - an eval - and what it
-    held back, for :meth:`AgentRunnerService.finish` to write. `None` is every
-    other run, whose tools act on the world."""
     """What the request that started this run said about it, for a resume to restore.
 
     A resumed run is rebuilt from the row, and the row records the surface and
@@ -1230,6 +1226,11 @@ class PreparedRun:
     from a default - which is how the strictest approval mode became the one that
     failed open on the path where somebody had said no (#1326).
     """
+
+    isolation: RunIsolation | None = None
+    """How this run treats its tools when it is isolated - an eval - and what it
+    held back, for :meth:`AgentRunnerService.finish` to write. `None` is every
+    other run, whose tools act on the world."""
 
     @property
     def deps(self) -> AgentDeps:
@@ -3433,9 +3434,13 @@ class AgentRunnerService:
         that renamed a tool still matches its own recorded calls. A call that
         never returned is left out: there is nothing to answer it with.
 
-        The manifest is the check that the rows are whole. Its request waterfall
+        The manifest is the check that no row is missing. Its request waterfall
         names every call the model asked for, and survives every trim; a call it
-        names that has no row means the transcript lost part of the run.
+        names that has no row means the transcript lost part of the run. A row
+        whose call never returned passes that check and answers nothing, so the
+        candidate's matching call is divergent - a fact about the original run.
+        Within a turn written without `parts` the order of identical calls is
+        not known; see :func:`conversation_repo.list_tool_calls_for_run`.
 
         Raises:
             NotFoundError: If the run is not this caller's to read.

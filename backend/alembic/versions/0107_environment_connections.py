@@ -51,11 +51,14 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
-        sa.CheckConstraint("kind IN ('mcp', 'secret')", name="ck_environment_connection_kind"),
+        sa.CheckConstraint(
+            "kind IN ('mcp', 'secret')",
+            name=op.f("agent_environment_connections_ck_kind_check"),
+        ),
         sa.CheckConstraint(
             "(kind = 'mcp' AND test_secret_id IS NULL) "
             "OR (kind = 'secret' AND test_connection_id IS NULL)",
-            name="ck_environment_connection_test_side",
+            name=op.f("agent_environment_connections_ck_test_side_check"),
         ),
         sa.ForeignKeyConstraint(["environment_id"], ["agent_environments.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["organization_id"], ["organizations.id"], ondelete="CASCADE"),
@@ -110,12 +113,12 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
         sa.CheckConstraint(
             "outcome IN ('blocked', 'replayed', 'divergent')",
-            name="ck_intercepted_tool_call_outcome",
+            name=op.f("intercepted_tool_calls_ck_intercepted_tool_call_outcome_check"),
         ),
         sa.CheckConstraint(
             "(outcome = 'blocked' AND reason IS NOT NULL AND reason IN ('writes', 'needs_approval')) "
             "OR (outcome <> 'blocked' AND reason IS NULL)",
-            name="ck_intercepted_tool_call_reason",
+            name=op.f("intercepted_tool_calls_ck_intercepted_tool_call_reason_check"),
         ),
         sa.ForeignKeyConstraint(["agent_id"], ["agents.id"], ondelete="SET NULL"),
         sa.ForeignKeyConstraint(["organization_id"], ["organizations.id"], ondelete="CASCADE"),

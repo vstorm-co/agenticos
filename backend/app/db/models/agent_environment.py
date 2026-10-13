@@ -193,13 +193,13 @@ class AgentEnvironmentConnection(Base, TimestampMixin):
         UniqueConstraint(
             "environment_id", "kind", "production_id", name="uq_environment_connection_target"
         ),
-        CheckConstraint("kind IN ('mcp', 'secret')", name="ck_environment_connection_kind"),
+        CheckConstraint("kind IN ('mcp', 'secret')", name="ck_kind"),
         # The test side matches the kind, so an MCP override can never be read as
         # a secret one. Both nulls are allowed: that is a test side deleted.
         CheckConstraint(
             "(kind = 'mcp' AND test_secret_id IS NULL) "
             "OR (kind = 'secret' AND test_connection_id IS NULL)",
-            name="ck_environment_connection_test_side",
+            name="ck_test_side",
         ),
     )
 

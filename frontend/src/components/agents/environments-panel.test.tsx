@@ -413,6 +413,11 @@ describe("the environments panel", () => {
       expect(screen.getAllByRole("button", { name: /^Test connections for/ })).toEqual([
         screen.getByRole("button", { name: "Test connections for staging" }),
       ]);
+      // The walkthrough points at the first named environment.
+      expect(screen.getByRole("button", { name: "Test connections for staging" })).toHaveAttribute(
+        "data-tour",
+        "environment-connections",
+      );
     });
 
     it("open on their environment's row and save through the mutation", async () => {

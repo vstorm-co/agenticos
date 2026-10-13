@@ -1035,8 +1035,9 @@ async def list_tool_calls_for_run(
 
     By start time, then turn. A turn writes every call it made with one
     `started_at`, so inside a turn the order is the call's position in the
-    turn's `parts`, which record it as it happened; a turn without `parts`
-    falls back to the provider's call id, which is stable if not meaningful.
+    turn's `parts`, which record it as it happened. Only the chat writes
+    `parts`; a turn written without them - the API, a channel - falls back to
+    the provider's call id, which is stable but not the order the calls ran in.
     """
     result = await db.execute(
         select(ToolCall, Message)
