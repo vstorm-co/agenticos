@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Literal, get_args
 from uuid import UUID
 
 from pydantic import ConfigDict, Field, JsonValue, ValidationError, field_validator, model_validator
@@ -212,6 +212,30 @@ class DatasetUpdate(BaseSchema):
     description: str | None = Field(default=None, max_length=500)
 
 
+class DatasetTagCount(BaseSchema):
+    tag: str
+    cases: int
+
+
+class DatasetStats(BaseSchema):
+    """What the newest version's cases test against, counted.
+
+    One case can count under several of the expectations - a reference answer
+    and a check, say - so those four do not sum to the case count; the sources do.
+    """
+
+    with_reference: int = Field(default=0, description="Cases with a reference answer")
+    with_counter_example: int = Field(default=0, description="Cases with a counter-example")
+    with_tool_calls: int = Field(default=0, description="Cases expecting at least one tool call")
+    with_checks: int = Field(default=0, description="Cases with at least one check")
+    by_source: dict[CaseSourceLiteral, int] = Field(
+        default_factory=lambda: dict.fromkeys(get_args(CaseSourceLiteral), 0)
+    )
+    top_tags: list[DatasetTagCount] = Field(
+        default_factory=list, description="The most used tags, most used first"
+    )
+
+
 class DatasetRead(BaseSchema):
     id: UUID
     name: str
@@ -223,6 +247,7 @@ class DatasetRead(BaseSchema):
     can_edit: bool = Field(
         default=False, description="Whether the caller may change this dataset's cases"
     )
+    stats: DatasetStats = Field(default_factory=DatasetStats)
     created_at: datetime
     updated_at: datetime | None = None
 

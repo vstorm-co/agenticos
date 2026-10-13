@@ -48,6 +48,7 @@ from app.schemas.dataset import (
     DatasetList,
     DatasetRead,
     DatasetSort,
+    DatasetStats,
     DatasetUpdate,
     DatasetVersionList,
     DatasetVersionRead,
@@ -149,8 +150,11 @@ def _version_read(version: DatasetVersion) -> DatasetVersionRead:
     return DatasetVersionRead.model_validate(version)
 
 
-def _dataset_read(dataset: Dataset, *, can_edit: bool) -> DatasetRead:
+def _dataset_read(
+    dataset: Dataset, *, can_edit: bool, stats: DatasetStats | None = None
+) -> DatasetRead:
     return DatasetRead(
+        stats=stats or DatasetStats(),
         id=dataset.id,
         name=dataset.name,
         description=dataset.description,
@@ -193,9 +197,17 @@ class DatasetService:
             self.db, ctx, dataset, Perm.DATASETS_EDIT, resource_type=DATASET
         )
 
+    async def _stats(self, ctx: AuthContext, datasets: list[Dataset]) -> dict[UUID, DatasetStats]:
+        return await dataset_repo.case_stats(
+            self.db, [dataset.id for dataset in datasets], organization_id=ctx.organization_id
+        )
+
     async def read(self, ctx: AuthContext, dataset_id: UUID) -> DatasetRead:
         dataset = await self.get(ctx, dataset_id)
-        return _dataset_read(dataset, can_edit=await self._can_edit(ctx, dataset))
+        stats = await self._stats(ctx, [dataset])
+        return _dataset_read(
+            dataset, can_edit=await self._can_edit(ctx, dataset), stats=stats.get(dataset.id)
+        )
 
     async def list_readable(
         self,
@@ -240,8 +252,12 @@ class DatasetService:
         editable = await accessible_ids(
             self.db, ctx, items, Perm.DATASETS_EDIT, resource_type=DATASET
         )
+        stats = await self._stats(ctx, items)
         return DatasetList(
-            items=[_dataset_read(item, can_edit=item.id in editable) for item in items],
+            items=[
+                _dataset_read(item, can_edit=item.id in editable, stats=stats.get(item.id))
+                for item in items
+            ],
             total=total,
         )
 
@@ -299,7 +315,8 @@ class DatasetService:
             target_id=str(dataset.id),
             details={"name": updated.name, "fields": sorted(update_data)},
         )
-        return _dataset_read(updated, can_edit=True)
+        stats = await self._stats(ctx, [updated])
+        return _dataset_read(updated, can_edit=True, stats=stats.get(updated.id))
 
     async def delete(self, ctx: AuthContext, dataset_id: UUID) -> None:
         """Delete a dataset with every version and case it held."""
