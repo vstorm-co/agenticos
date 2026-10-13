@@ -194,6 +194,8 @@ describe("AddSecretDialog", () => {
     await screen.findByDisplayValue("OpenAI");
     await userEvent.clear(screen.getByLabelText("Name"));
     await userEvent.type(screen.getByLabelText("Name"), "Zendesk");
+    // The note is folded under More options; nothing else a key needs is.
+    await userEvent.click(screen.getByRole("button", { name: "More options" }));
     await userEvent.type(screen.getByLabelText(/Note/), "Ticketing");
     await userEvent.type(screen.getByLabelText(/Api Key/, { selector: "input" }), "sk-x");
     await userEvent.click(store());

@@ -5085,7 +5085,6 @@
     "everyoneOrganization": "Wszyscy w tej organizacji",
     "for": "Dla",
     "hideKey": "Ukryj klucz",
-    "howYouWillRecognise": "Po czym go później poznasz. Unikalne w tej organizacji.",
     "key": "Klucz",
     "kind": "Rodzaj",
     "manageAccessTo": "Zarządzaj dostępem do {name}",
@@ -5134,7 +5133,8 @@
     "whichOne": "Który",
     "whoCanUse": "Kto może go używać",
     "yoursAloneYouCan": "Tylko Twój. Możesz go potem udostępnić wskazanym osobom.",
-    "zendeskApiToken": "Token API Zendesk"
+    "zendeskApiToken": "Token API Zendesk",
+    "moreOptions": "Więcej opcji"
   },
   "context": {
     "created": "Utworzono {name}",

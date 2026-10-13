@@ -5315,7 +5315,6 @@
     "everyoneOrganization": "Everyone in this organization",
     "for": "For",
     "hideKey": "Hide key",
-    "howYouWillRecognise": "How you will recognise it later. Unique in this organization.",
     "key": "Key",
     "kind": "Kind",
     "manageAccessTo": "Manage access to {name}",
@@ -5364,7 +5363,8 @@
     "whichOne": "Which one",
     "whoCanUse": "Who can use it",
     "yoursAloneYouCan": "Yours alone. You can share it with named people afterwards.",
-    "zendeskApiToken": "Zendesk API token"
+    "zendeskApiToken": "Zendesk API token",
+    "moreOptions": "More options"
   },
   "context": {
     "created": "Created {name}",

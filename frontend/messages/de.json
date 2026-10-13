@@ -5198,7 +5198,6 @@
     "everyoneOrganization": "Alle in dieser Organisation",
     "for": "Für",
     "hideKey": "Schlüssel verbergen",
-    "howYouWillRecognise": "Woran Sie es später erkennen. Eindeutig in dieser Organisation.",
     "key": "Schlüssel",
     "kind": "Art",
     "manageAccessTo": "Zugriff auf {name} verwalten",
@@ -5247,7 +5246,8 @@
     "whichOne": "Welches",
     "whoCanUse": "Wer es verwenden darf",
     "yoursAloneYouCan": "Nur Ihres. Sie können es danach mit namentlich genannten Personen teilen.",
-    "zendeskApiToken": "Zendesk-API-Token"
+    "zendeskApiToken": "Zendesk-API-Token",
+    "moreOptions": "Weitere Optionen"
   },
   "context": {
     "created": "{name} erstellt",
