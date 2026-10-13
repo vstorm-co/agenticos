@@ -2,9 +2,15 @@
 
 A system that helps people **write** agents, not only run them: instructions in
 the Builder, skill bodies, tool descriptions. Two modes — *describe → draft
-agent* and *improve an existing agent from evidence*. This is the plan the issue
-asks for, written for review by @DEENUU1 before any implementation. A companion
-demo of the review UI is beside it: `docs/design/authoring-assistant-demo.html`.
+agent* and *improve an existing agent from evidence*. This was the plan-first
+deliverable of #52. Since 2026-10-12, #52 is the "Self improving" milestone
+(#2110–#2119): it puts evals first and builds this assistant on top of them.
+This document is the design record for that work — the decisions, the
+alternatives they rejected and the contract the implementation keeps.
+[Where this plan stands](#where-this-plan-stands) says what #52 changed, which
+issue owns each decision, and what the code showed when the plan was checked
+against `main`. A companion demo of the review UI is beside it:
+`docs/design/authoring-assistant-demo.html`.
 
 The one-sentence design: **the assistant reads the org's own run record and
 ratings, proposes changes as evidence-backed diffs — or verifies changes a
@@ -13,6 +19,102 @@ decision: spec changes wait in the draft a person publishes, a skill change
 waits in a proposal a person applies (and applying it is live — skills have
 no draft stage); the assistant writes nothing on its own, and an organization
 can switch it off entirely.**
+
+## Where this plan stands
+
+### What #52 changed
+
+- **Evals come first.** Datasets (#2110), scoring (#2111), eval runs (#2113),
+  generated cases (#2114) and suites with triggers (#2115) are the core of the
+  milestone, so [Decision 6](#decision-6--synthetic-evaluation-is-out-replay-on-real-prompts-is-in)
+  is reversed. A proposal is checked by running the agent's suites on the
+  draft before anyone accepts it.
+- **Replay becomes an eval run.** [Decision 9](#decision-9--replay-test-a-draft-against-the-prompts-users-already-sent)'s
+  pairs come from a dataset made from real conversations; tool calls are
+  answered from the recordings by #2112; a draft runs through the
+  explicit-spec path and is compared with a baseline by #2113. Those runs are
+  stamped `eval`, so no `RunSurface.REPLAY` is added. Decision 9's rules —
+  matching, divergence, the frozen candidate, attribution, holding the model
+  and resources constant — stand, and are now owed by #2112 and #2113.
+- **More proposal targets.** Context files, the agent's and its delegates'
+  descriptions, the model and its settings, capabilities, knowledge bindings
+  and MCP allowed tools (#2118); missing knowledge-base content (#2119).
+- **The organization switch** ([Decision 10](#decision-10--an-organization-switch-off-means-off))
+  covers the judge and the case generator as well as the assistant.
+  Deterministic evals stay available while it is off.
+
+### Which issue owns each decision
+
+| Decision | Owned by |
+|---|---|
+| 1 — ratings and the run record lead | #2117; the same read path feeds #2110, #2114 and #2119 |
+| 2 — propose, never write | #2117 (spec, skills), #2118 (context proposals), #2114 (generated cases arrive as a proposal) |
+| 3 — the improver is an agent | #2117; the seeded-agent mechanism is built first, for the judge, in #2111 |
+| 4 — tenant scope and gates | every child |
+| 5 — mode 1 produces a draft | #2117 |
+| 6 — synthetic evaluation is out | reversed: #2110, #2111, #2114, #2115 |
+| 7 — one review grammar | #2117, #2118, #2114 |
+| 8 — the assistant also verifies | #2117 |
+| 9 — replay | #2112 (recordings), #2113 (draft runs, comparison) |
+| 10 — the organization switch | #2111, extended by #2114 and #2117 |
+
+### Considered after review, and rejected
+
+- **Apply modes: Manual, Canary, Auto.** The engine write-up on #52
+  (2026-08-28) proposed a toggle under which an accepted change ships to a
+  canary slice of traffic, or goes live on its own behind eval gates.
+  Rejected: nothing changes an agent without a person's decision — no
+  auto-accept, auto-publish or auto-apply — and a canary slice needs traffic
+  splitting, which environments do not do. The toggle is gone from the demo.
+- **An optimizer engine (GEPA/DSPy, "Mode B").** Generating candidate edits
+  and keeping the one that wins on held-out cases is future work, outside
+  this milestone. It would build on eval runs (#2113) and scoring (#2111), and
+  its output would still be a proposal a person accepts.
+
+### Adopted from the engine write-up
+
+- **Secret-scan on cases.** "Add to dataset", CSV/JSONL import (#2110) and
+  cases generated from conversations (#2114) copy transcript text into a new
+  table and its exports. A credential found in it is refused or redacted
+  before the case is stored.
+- **Never measure on the evidence.** When a proposal is checked with evals
+  (#2117), cases taken from the conversations the proposal was derived from
+  are left out of the comparison; otherwise the gain is measured on the data
+  it was fitted to.
+- **No separate growth cap.** A suite that wants one carries a length or cost
+  ceiling check (#2111).
+
+### What the code showed (`main` at 0.0.535, 2026-10-12)
+
+- **There is no workflow engine**, so #2111 cannot reuse `WorkflowStepEval`
+  (#1925). #2111 defines the check vocabulary; workflow step evals reuse it
+  later.
+- **`agent_runs.agent_id` is not nullable**, so a judge call recorded as a run
+  needs an agent. The judge (#2111), the case generator (#2114) and the
+  improver (#2117) are seeded system agents. Only skills are seeded today
+  (`OrganizationService._seed_bundled_skills`), so #2111 builds that mechanism
+  once.
+- **Conversations carry no `agent_id`; messages do.** The ratings-for-agent
+  read joins `message_ratings` to `messages.agent_id`, with the tenant
+  through `conversations.organization_id`.
+- **The tenancy audit sees only what it lists.** `TENANT_REQUIRED` in
+  `tests/test_org_scope_regression.py` is maintained by hand: a new org-scoped
+  repo function is audited once it is added there.
+- **`tool_calls` keeps one, effective `tool_name`** and orders calls by
+  `started_at`, with no occurrence index. The tool definitions the model was
+  handed are in `run_manifests.payload`; Decision 9's stable-id matching maps
+  through them.
+- **Knowledge search records no score**, and `min_score` defaults to 0.0, so a
+  search almost always returns something. The only miss visible in existing
+  data is the empty-result text. #2119 needs searches to record their top
+  score before there is anything to group.
+- **Environments, promotion and `tracks_latest` work as Decision 9 assumed.**
+  Per-environment connections (#2112) are new. `get_runnable_spec` refuses
+  drafts; the explicit-spec path is threaded through `prepare`.
+- **A Datasets resource fits the owned-resource machinery** — Skill's model,
+  `resolve_access`, the shared `resource_grants` table and the sharing
+  router. Immutable dataset versions follow `AgentVersion`, not the skill's
+  informational version counter.
 
 ## 0. What already exists — corrected
 
@@ -302,7 +404,8 @@ permissions).*
 Everything the improver reads arrives through resolvers that take
 `organization_id` explicitly — the executable audit in
 `tests/test_org_scope_regression.py` (`test_tenant_argument_has_no_default`)
-catches any new repo function that forgets. Evidence ids in a proposal resolve
+holds every function listed in its `TENANT_REQUIRED` to that, so each new
+repo function is added to the list. Evidence ids in a proposal resolve
 through the same org-scoped reads when rendered; a foreign id is absent, not an
 error, and cross-tenant reads answer 404 as everywhere else.
 
@@ -351,6 +454,11 @@ templates answer "give me the usual shape", the assistant answers "design this
 from my description". Neither replaces the other.
 
 ## Decision 6 — synthetic evaluation is out; replay on real prompts is in
+
+> **Reversed by #52.** Evals are the core of the milestone; see
+> [Where this plan stands](#where-this-plan-stands). The reasoning below is
+> kept as the record of the original scope. The rate-not-count rule still
+> holds wherever per-version ratings are cited.
 
 Synthetic datasets, a scoring function and result storage are a schema change
 and a ground-truth question this issue should not carry — scoped out exactly as
@@ -420,6 +528,12 @@ publish makes the assistant an authority over people, which inverts the
 platform's model. The critique informs; `validate_spec` and a person decide.*
 
 ## Decision 9 — replay: test a draft against the prompts users already sent
+
+> **Reframed by #52.** Replay is an eval run over a dataset made from real
+> conversations: tool calls answered from the recordings by #2112, the draft
+> run and the comparison by #2113, stamped `eval` rather than `REPLAY`. The
+> rules below are the contract those issues keep. Pairs come from a dataset a
+> person curates, so the relevance picker is not built in this milestone.
 
 After editing (either direction), a person can run the candidate spec against
 **real past prompts of this agent** and compare answers side by side: the
@@ -589,10 +703,16 @@ is question 7 — cheap to add later, expensive to guess now.
 
 ## Work breakdown (phase 1, in review order)
 
-1. **Read path** — org-scoped resolvers: ratings-for-agent (two-hop join via
-   `messages`→`conversations`, the `get_rating_summary_scoped` shape), runs,
-   manifests, transcripts. Repo functions take `organization_id`; the
-   executable audit holds them to it.
+> The schedule is now #52's children (see
+> [Which issue owns each decision](#which-issue-owns-each-decision)). The
+> slices are kept for the tests each one owes; slice 7 is owned by #2112 and
+> #2113.
+
+1. **Read path** — org-scoped resolvers: ratings-for-agent
+   (`message_ratings` → `messages.agent_id`, the tenant through
+   `conversations.organization_id`, the `get_rating_summary_scoped` shape),
+   runs, manifests, transcripts. Repo functions take `organization_id` and
+   are added to the executable audit's `TENANT_REQUIRED`.
 2. **`spec_proposals`** — model (one open batch per agent; per-hunk status +
    decision metadata; positional anchors with context; `rationale`,
    `evidence` JSONB; base snapshots for hunks *and* tool-override entries
@@ -678,9 +798,12 @@ the governance switch and the surface.
 
 ## Out of scope, deliberately
 
-- The synthetic-dataset harness (Decision 6 — phase 2, own milestone and
-  schema); replay covers the "did it get better" question with real prompts.
-- Auto-accept, auto-publish, or any write outside the draft/proposal path.
+The synthetic-dataset harness was listed here; #52 moved it into scope
+(#2110, #2111, #2114, #2115).
+
+- Auto-accept, auto-publish, or any write outside the draft/proposal path —
+  including apply modes that let a change go live without a person.
+- An optimizer engine (GEPA/DSPy) — future work, outside milestone #21.
 - A verdict that can block a publish (Decision 8's rejected alternative).
 - Trace ingestion or a Logfire dependency of any kind.
 - MCP tool descriptions — they come from the connected server, not the spec;
@@ -688,7 +811,9 @@ the governance switch and the surface.
 - Scheduled/triggered improver runs (the heartbeat could fire one later; v1 is
   manual so the cost is a person's decision).
 
-## Open product questions — for review, none blocking
+## Open product questions — answered
+
+All nine are answered in [Resolved](#resolved).
 
 1. **Is the seeded improver visible in the Agents list** (this plan: yes,
    editable, its prompt improvable by itself) or a hidden system row?
@@ -810,12 +935,41 @@ the implementation does not quietly lose it.
 
 The 2-second verify timer · results appearing without a spend-preview step ·
 the static findings template on re-run (contract items 4–5) · edited text
-surviving undo (item 6) · the judge always on (open question 8 decides the
-default) · no stale-hunk example (Decision 2 defines the rendering) · no
+surviving undo (item 6) · the judge always on (the scorers configured per
+dataset decide, #2111) · no stale-hunk example (Decision 2 defines the rendering) · no
 "needs a model first" refusal state on the improver buttons (the seeded
 improver may be an unpublished draft — feasibility note) · placeholder tabs.
 
-## Resolved in review — @DEENUU1
+## Resolved
 
-*(to be filled in during review; this section records the outcomes so the doc
-stands as the final design rather than a set of proposals)*
+Questions 6–9 were settled by #52 on 2026-10-12; 1–5 were decided on
+2026-10-13. The milestone is built end to end and verified as a whole when
+it is finished, so these answers are final for the implementation.
+
+1. **The seeded improver is visible** in the Agents list, editable, and
+   marked as a system agent; its prompt is improvable by itself. The judge
+   (#2111) and the case generator (#2114) follow the same rule.
+2. **No approval gate on Accept.** The draft is the review stage and publish
+   is the second gate; an organization that wants four eyes on a change
+   already has `agents:publish` and approvals.
+3. **Mode 1 lives in the create dialog**, as a "Describe it" panel that ends
+   in an ordinary draft.
+4. **The seeded improver ships with a modest `budget.monthly_usd`**, editable
+   like any agent's, so a new organization cannot spend its cap on
+   self-improvement by accident. The judge and the generator ship the same
+   way.
+5. **Decided proposals are kept.** They are the record of why an agent
+   changed. No sweeper in v1.
+6. **A draft runs through the explicit-spec path** in `prepare`, with
+   Decision 9's three obligations — #2113.
+7. **One organization switch**, covering the assistant, case generation and
+   the judge; deterministic evals stay available while it is off — #52.
+8. **The judge is a scorer configured per dataset** (and per suite); a
+   person's verdict is stored beside the judge's and never overwritten by
+   it — #2111.
+9. **No standing embedding index.** Pairs come from curated datasets (#2110,
+   #2114), so the relevance picker that would have needed it is not built in
+   this milestone.
+
+The apply-mode toggle (Manual / Canary / Auto) is rejected; see
+[Considered after review, and rejected](#considered-after-review-and-rejected).
