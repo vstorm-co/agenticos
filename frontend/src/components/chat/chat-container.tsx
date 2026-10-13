@@ -329,6 +329,12 @@ export function ChatContainer({
   // revealed over frames after its message has stopped changing.
   const holdFollow = useCallback(() => emptyRef.current || userScrolledUpRef.current, []);
   useFollowContent(scrollContainerRef, transcriptRef, holdFollow);
+  // A turn starting here is a thread at work in the list beside it; asked once as
+  // it starts, the row shows it at once, and the listing then polls until it ends.
+  useEffect(() => {
+    if (isProcessing) void refreshConversations();
+  }, [isProcessing, refreshConversations]);
+
   const { commands: slashCommands } = useSlashCommands();
 
   const send = useCallback(

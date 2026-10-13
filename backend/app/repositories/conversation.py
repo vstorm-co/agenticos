@@ -1,7 +1,7 @@
 """Conversation repository."""
 
 from collections.abc import Collection
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any, NamedTuple
 from uuid import UUID
@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.db.models.agent import Agent
-from app.db.models.agent_run import AgentRun
+from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.channel_session import ChannelSession
 from app.db.models.chat_file import ChatFile
@@ -400,6 +400,37 @@ def _favourited_by(user_id: UUID) -> ColumnElement[bool]:
         .correlate(Conversation)
         .exists()
     )
+
+
+# A run left "running" by a worker that died is not a run anybody is waiting on;
+# past this the conversation stops showing as at work rather than spinning forever.
+RUNNING_HORIZON = timedelta(hours=2)
+
+
+async def running_since(
+    db: AsyncSession, conversation_ids: Collection[UUID]
+) -> dict[UUID, datetime]:
+    """When the run still at work in each of these conversations began.
+
+    One query for a page, as `favourite_ids` is. Only top-level runs: a delegate's
+    row carries its parent's conversation, and the parent already says the thread is
+    at work. A run parked on an approval is waiting on a person, not working, so it
+    is not counted. The earliest start, where two are running at once.
+    """
+    if not conversation_ids:
+        return {}
+    result = await db.execute(
+        select(AgentRun.conversation_id, func.min(AgentRun.started_at))
+        .where(
+            AgentRun.conversation_id.in_(list(conversation_ids)),
+            AgentRun.parent_run_id.is_(None),
+            AgentRun.status == RunStatus.RUNNING,
+            AgentRun.ended_at.is_(None),
+            AgentRun.started_at >= datetime.now(UTC) - RUNNING_HORIZON,
+        )
+        .group_by(AgentRun.conversation_id)
+    )
+    return dict(result.all())
 
 
 async def favourite_ids(

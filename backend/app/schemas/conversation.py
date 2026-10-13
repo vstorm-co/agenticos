@@ -357,6 +357,14 @@ class ConversationRead(ConversationBase, TimestampSchema):
             "everybody who can see it."
         ),
     )
+    running_since: datetime | None = Field(
+        default=None,
+        description=(
+            "When the run still at work in this conversation began, or null when "
+            "none is. Set on a listing, so a sidebar can show which threads are busy; "
+            "a run parked on an approval is waiting, not working, and is not counted."
+        ),
+    )
     agents: list[ConversationAgent] = Field(
         default_factory=list,
         description=(

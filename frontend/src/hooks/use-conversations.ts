@@ -208,6 +208,13 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       rememberHasMore(response.items.length >= PAGE_SIZE);
       return response;
     },
+    // While a thread on the page is at work, ask again every few seconds, so its
+    // row stops saying so when the run ends - a routine's, or another tab's, as
+    // well as this one's.
+    refetchInterval: (query) =>
+      query.state.data?.items.some((conversation) => conversation.running_since)
+        ? RUNNING_POLL_MS
+        : false,
   });
   const conversations = data?.items ?? [];
   const total = data?.total ?? 0;
@@ -648,6 +655,9 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
  * Conversations whose title matches `term`, archived ones included - what the
  * chat's search window lists. Nothing is asked until something is typed.
  */
+/** How often a listing with a thread at work in it is read again. */
+const RUNNING_POLL_MS = 4000;
+
 export function useConversationSearch(term: string) {
   const params = listParams({ ...DEFAULT_QUERY, search: term });
   return useQuery({

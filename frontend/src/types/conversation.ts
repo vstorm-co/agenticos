@@ -32,6 +32,8 @@ export interface Conversation {
   agents?: ConversationAgent[];
   /** `api` for a conversation an organization key's run opened (#2122). */
   origin?: "api" | null;
+  /** When the run still at work in it began; null when none is. Listings only. */
+  running_since?: string | null;
 }
 
 export interface ConversationMessage {

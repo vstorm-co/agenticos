@@ -97,6 +97,24 @@ describe("the conversation list", () => {
     );
   });
 
+  it("reads the list again while a thread on it is at work, and stops once none is", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    serve({ items: [conversation("c-1", { running_since: "2026-10-13T12:00:00Z" })] });
+    await hook();
+    const lists = () =>
+      vi.mocked(apiClient.get).mock.calls.filter(([path]) => !String(path).includes("/messages"))
+        .length;
+    const first = lists();
+
+    serve({ items: [conversation("c-1", { running_since: null })] });
+    await act(async () => vi.advanceTimersByTimeAsync(4_000));
+    await waitFor(() => expect(lists()).toBe(first + 1));
+    // Nothing at work now, so no further read comes.
+    await act(async () => vi.advanceTimersByTimeAsync(8_000));
+    expect(lists()).toBe(first + 1);
+    vi.useRealTimers();
+  });
+
   it("counts what matches rather than what was fetched", async () => {
     // A page is thirty rows and the deployment holds more: `total` is the
     // server's count of the list, which is what the sidebar puts on screen.

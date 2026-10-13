@@ -500,7 +500,20 @@ class ConversationService:
         )
         await self._attach_agents(items)
         await self._attach_favourites(items, user_id=user_id)
+        await self._attach_running(items)
         return items, total
+
+    async def _attach_running(self, conversations: Sequence[Conversation]) -> None:
+        """Say, per row, since when a run has been at work in it, so a list can
+        show the thread is busy. Set on the ORM object for the reason
+        `_attach_agents` is, and one query for the page."""
+        if not conversations:
+            return
+        since = await conversation_repo.running_since(
+            self.db, [conversation.id for conversation in conversations]
+        )
+        for conversation in conversations:
+            conversation.running_since = since.get(conversation.id)  # ty: ignore[unresolved-attribute]
 
     async def _attach_agents(self, conversations: Sequence[Conversation]) -> None:
         """Name the agents that answered, on each row of a page.

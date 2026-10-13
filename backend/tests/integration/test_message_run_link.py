@@ -383,3 +383,56 @@ class TestHowEachRunEnded:
 
     async def test_no_runs_asks_nothing(self, db) -> None:
         assert await conversation_repo.run_outcomes(db, set()) == {}
+
+
+class TestWhichConversationsAreAtWork:
+    """What a conversation list reads to show a thread is busy."""
+
+    async def _run_in(
+        self, db, conversation: Conversation, agent: Agent, **fields: object
+    ) -> AgentRun:
+        run = AgentRun(
+            id=uuid.uuid4(),
+            organization_id=conversation.organization_id,
+            agent_id=agent.id,
+            conversation_id=conversation.id,
+            **fields,
+        )
+        db.add(run)
+        await db.flush()
+        return run
+
+    async def test_a_running_run_marks_its_conversation_and_nothing_else_does(self, db) -> None:
+        organization = await _org(db)
+        owner = await _user(db)
+        agent = await _agent(db, organization, owner)
+        now = datetime.now(UTC)
+        busy = await _conversation(db, organization, owner)
+        started = now - timedelta(seconds=12)
+        top = await self._run_in(db, busy, agent, status="running", started_at=started)
+        # A delegate carries its parent's conversation and is not counted twice.
+        await self._run_in(
+            db,
+            busy,
+            agent,
+            status="running",
+            started_at=now - timedelta(minutes=5),
+            parent_run_id=top.id,
+        )
+        finished = await _conversation(db, organization, owner)
+        await self._run_in(db, finished, agent, status="completed", started_at=now, ended_at=now)
+        parked = await _conversation(db, organization, owner)
+        await self._run_in(db, parked, agent, status="awaiting_approval", started_at=now)
+        abandoned = await _conversation(db, organization, owner)
+        await self._run_in(
+            db, abandoned, agent, status="running", started_at=now - timedelta(hours=3)
+        )
+
+        since = await conversation_repo.running_since(
+            db, [busy.id, finished.id, parked.id, abandoned.id]
+        )
+
+        assert since == {busy.id: started}
+
+    async def test_no_conversations_asks_nothing(self, db) -> None:
+        assert await conversation_repo.running_since(db, []) == {}

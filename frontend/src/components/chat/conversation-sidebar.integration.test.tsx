@@ -127,6 +127,23 @@ describe("the list the URL asks for", () => {
 });
 
 describe("what the sidebar says about the list", () => {
+  it("says a thread is at work, in place of when it last moved", async () => {
+    serve([
+      {
+        ...conversation("c-1", "Busy one"),
+        running_since: new Date(Date.now() - 12_000).toISOString(),
+      },
+      conversation("c-2", "Quiet one"),
+    ] as unknown as ReturnType<typeof conversation>[]);
+    mount();
+    await screen.findAllByText("Busy one");
+
+    const busy = within(list()).getByText("Busy one").closest("[class*='group']") as HTMLElement;
+    expect(within(busy).getByText(/Working/)).toBeInTheDocument();
+    const quiet = within(list()).getByText("Quiet one").closest("[class*='group']") as HTMLElement;
+    expect(within(quiet).queryByText(/Working/)).toBeNull();
+  });
+
   it("reads the plain list by day, with no count over it", async () => {
     serve(
       [

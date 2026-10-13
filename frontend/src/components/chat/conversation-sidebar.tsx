@@ -18,6 +18,7 @@ import {
   Star,
   ChevronLeft,
   ChevronRight,
+  Loader2,
   MessageSquare,
   MoreVertical,
   Pencil,
@@ -36,6 +37,8 @@ import {
   type ConversationSort,
 } from "./conversation-filters";
 import { ShareDialog } from "./share-dialog";
+import { useTurnElapsed } from "./work-fold";
+import { formatElapsed } from "@/lib/elapsed";
 
 interface ConversationItemProps {
   conversation: Conversation;
@@ -126,7 +129,11 @@ function ConversationItem({
         <div className="min-w-0 flex-1">
           <p className="text-muted-foreground truncate text-[11px] leading-4">
             {agentLabel && <>{agentLabel} · </>}
-            {timeAgo(conversation.updated_at || conversation.created_at, tTime, locale)}
+            {conversation.running_since ? (
+              <RunningFor since={conversation.running_since} />
+            ) : (
+              timeAgo(conversation.updated_at || conversation.created_at, tTime, locale)
+            )}
           </p>
           <div className="flex min-w-0 items-center gap-1.5">
             <span
@@ -317,6 +324,22 @@ interface ConversationListProps {
   onLoadMore?: () => void;
   /** Whether the list is newest-activity first, so it can be read by day. */
   datedOrder: boolean;
+}
+
+/**
+ * A thread at work, in place of when it last moved: a spinner and how long the
+ * run has been going, counted here between the listing's reads.
+ */
+function RunningFor({ since }: { since: string }) {
+  const t = useTranslations("chat.steps");
+  const started = useMemo(() => new Date(since), [since]);
+  const elapsed = useTurnElapsed(started, true);
+  return (
+    <span className="text-foreground/80 inline-flex items-center gap-1">
+      <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+      {elapsed === null ? t("working") : t("workingFor", { duration: formatElapsed(elapsed, t) })}
+    </span>
+  );
 }
 
 /** An icon in the list's header: square, quiet until pointed at. */
