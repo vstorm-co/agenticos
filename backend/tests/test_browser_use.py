@@ -27,6 +27,7 @@ from uuid import uuid4
 import anyio
 import httpx
 import pytest
+from pydantic import ValidationError
 from pydantic_ai import BinaryContent
 from pydantic_ai._run_context import RunContext
 from pydantic_ai.messages import ModelMessage, ModelRequest, ModelResponse, ToolCallPart
@@ -665,6 +666,9 @@ class _FakePage:
     async def wheel(self, dy: float) -> None:
         self.done.append(f"wheel:{dy:g}")
 
+    async def resize(self, width: int, height: int, scale: int) -> None:
+        self.done.append(f"resize:{width}x{height}@{scale}")
+
     async def capture_sign_in(self) -> SignIn | None:
         self.done.append("capture")
         return self.sign_in
@@ -792,14 +796,17 @@ class _Control:
     """
 
     def __init__(
-        self, *waited: BrowserCommand | None, polled: BrowserCommand | None = None
+        self,
+        *waited: BrowserCommand | None,
+        polled: BrowserCommand | list[BrowserCommand] | None = None,
     ) -> None:
-        self._polled = polled
+        self._polled = (
+            [] if polled is None else list(polled) if isinstance(polled, list) else [polled]
+        )
         self._waited = list(waited)
 
     async def poll(self) -> BrowserCommand | None:
-        polled, self._polled = self._polled, None
-        return polled
+        return self._polled.pop(0) if self._polled else None
 
     async def wait(self, timeout: float) -> BrowserCommand | None:
         if self._waited:
@@ -884,6 +891,7 @@ class TestAPersonTakesTheBrowserOver:
             BrowserCommand(type="type", text=""),
             BrowserCommand(type="key"),
             BrowserCommand(type="scroll"),
+            BrowserCommand(type="resize", width=800),
             TAKE,
             GIVE,
             polled=TAKE,
@@ -896,6 +904,12 @@ class TestAPersonTakesTheBrowserOver:
         await _watched(_FakePage(), _decider(DONE), _Control(polled=GIVE), frames)
         assert frames.of("browser_held") == []
 
+    async def test_a_held_tab_follows_the_window_it_is_watched_in(self):
+        page = _FakePage()
+        control = _Control(BrowserCommand(type="resize", width=640, height=900), GIVE, polled=TAKE)
+        await _watched(page, _decider(DONE), control, _Frames())
+        assert page.done == ["resize:640x900@1"]
+
     async def test_a_person_who_walks_away_has_the_tab_taken_back(self, quick: None):
         frames = _Frames()
         page = _FakePage(image=None)
@@ -905,6 +919,51 @@ class TestAPersonTakesTheBrowserOver:
         assert result.outcome == "done"
         assert len(frames.of("browser_released")) == 1
         assert frames.of("browser_frame") == []
+
+
+class TestThePageIsTheSizeOfTheWindowWatchingIt:
+    """A live view lays the page out for the panel showing it, not a laptop screen."""
+
+    async def test_every_resize_waiting_is_applied_before_the_step_and_the_page_read_again(self):
+        page = _FakePage(
+            _snapshot(url="https://example.test/before"),
+            _snapshot(url="https://example.test/after"),
+        )
+        frames = _Frames()
+        control = _Control(
+            polled=[
+                BrowserCommand(type="resize", width=800, height=1000),
+                BrowserCommand(type="click", x=1, y=1),
+                BrowserCommand(type="resize", width=640, height=900, scale=2),
+            ]
+        )
+
+        await _watched(page, _decider(DONE), control, frames, preview=True)
+
+        # Both, in order, so the page ends the size of the window as it is now;
+        # input for a tab nobody holds is dropped.
+        assert page.done == ["resize:800x1000@1", "resize:640x900@2"]
+        # The first snapshot was taken at the old size, so the step reads a new one.
+        assert frames.of("browser_frame")[0].url == "https://example.test/after"
+
+    async def test_a_take_over_behind_a_resize_still_hands_the_tab_over(self):
+        frames = _Frames()
+        page = _FakePage()
+        control = _Control(
+            GIVE, polled=[BrowserCommand(type="resize", width=700, height=700), TAKE]
+        )
+
+        await _watched(page, _decider(DONE), control, frames)
+
+        assert page.done == ["resize:700x700@1"]
+        assert frames.of("browser_held")[0].by == "Ada"
+
+    @pytest.mark.parametrize(
+        "bad", [{"width": 100, "height": 800}, {"width": 800, "height": 5000}, {"scale": 3}]
+    )
+    def test_a_size_no_window_has_is_refused(self, bad: dict[str, int]):
+        with pytest.raises(ValidationError):
+            BrowserCommand(type="resize", **bad)
 
 
 class TestAPersonKeepsTheirSignIn:

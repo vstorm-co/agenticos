@@ -205,20 +205,30 @@ class BrowserCommand(BaseModel):
     """What a person watching a browse asks of it (#2128).
 
     `take_over` pauses the agent between steps and hands the tab to the person;
-    the input commands act on it while they hold it, at viewport coordinates;
-    `give_back` returns it and the agent carries on from the page as it is. What a
-    person types is never written to the transcript or the run's history - the
-    history records only that somebody took over.
+    the input commands act on it while they hold it, at the coordinates of the
+    picture they see; `give_back` returns it and the agent carries on from the
+    page as it is. `resize` makes the page as large as the window showing it, so
+    the site lays itself out for that window instead of being a shrunk picture of
+    a laptop screen. What a person types is never written to the transcript or the
+    run's history - the history records only that somebody took over.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    type: Literal["take_over", "give_back", "click", "type", "key", "scroll"]
+    type: Literal["take_over", "give_back", "click", "type", "key", "scroll", "resize"]
     x: float | None = Field(default=None, ge=0, le=4000)
     y: float | None = Field(default=None, ge=0, le=4000)
     text: str | None = Field(default=None, max_length=2000)
     key: BrowserKey | None = None
     dy: float | None = Field(default=None, ge=-5000, le=5000)
+    width: int | None = Field(default=None, ge=320, le=1600, description="On `resize`, in CSS px.")
+    height: int | None = Field(default=None, ge=320, le=2000, description="On `resize`, in CSS px.")
+    scale: int | None = Field(
+        default=None,
+        ge=1,
+        le=2,
+        description="On `resize`: device pixels per CSS pixel, 2 for a high-density screen.",
+    )
     remember: bool = Field(
         default=False,
         description=(

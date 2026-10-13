@@ -613,6 +613,12 @@ left it. Members who may view runs can watch but not drive. What a person types 
 passed to the page and never recorded; the run's history says only that somebody took
 over.
 
+**The page takes the size of the window watching it.** While someone who may drive
+the browse has it open, the browser lays the page out for that window - the site's own
+layout for that width, at that screen's density - between steps, so the live view is
+the site rather than a laptop screen shrunk into a column. The model then sees the same
+page at that size.
+
 **When only a person can get past a page** - a sign-in it has no details for, a
 captcha, a choice that is theirs - the model asks for one rather than giving up. The
 card and the channel thread say *Needs you* and what for. The browse waits up to ten

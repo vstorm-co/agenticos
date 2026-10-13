@@ -494,6 +494,12 @@ class CdpPage:
         self._session = session_id
         self._policy = policy
         self._context = context_id
+        # The window the page is laid out for, in CSS px, and how many device
+        # pixels the picture has per CSS pixel - what `open_page` sets first and
+        # a watching window's `resize` changes.
+        self._width = policy.preview_width
+        self._height = round(policy.preview_width * _VIEWPORT_RATIO)
+        self._scale = 1
 
     async def _evaluate(  # pragma: no cover - needs a live browser
         self, expression: str, *, await_promise: bool = False
@@ -757,11 +763,11 @@ class CdpPage:
     async def screenshot(self) -> str | None:  # pragma: no cover - needs a live browser
         """The viewport as a JPEG `data:` URL, or `None` when the browser sent none.
 
-        Bounded by `preview_width` without resizing anything, because the
-        viewport *is* `preview_width` - set once on the session in `open_page` -
-        and `captureBeyondViewport` is off. One number decides how wide the page
-        renders and how wide the picture is, which is also what keeps the frame a
-        person watches identical to the page the model was shown.
+        Bounded by the viewport without resizing anything - `preview_width` from
+        `open_page`, or the watching window's size once it has sent one - with
+        `captureBeyondViewport` off. One size decides how wide the page renders
+        and how wide the picture is, which is also what keeps the frame a person
+        watches identical to the page the model was shown.
         """
         shot = await self._client.send.Page.captureScreenshot(
             params={
@@ -778,10 +784,21 @@ class CdpPage:
     async def click_at(  # pragma: no cover - needs a live browser
         self, x: float, y: float
     ) -> None:
-        """Press at viewport coordinates, as a person holding the tab clicks."""
+        """Press where a person clicked the picture, as a person holding the tab clicks.
+
+        The point arrives in the picture's own pixels, and a picture drawn for a
+        high-density screen has `scale` of them per CSS pixel the page is laid
+        out in.
+        """
         for event in ("mousePressed", "mouseReleased"):
             await self._client.send.Input.dispatchMouseEvent(
-                params={"type": event, "x": x, "y": y, "button": "left", "clickCount": 1},
+                params={
+                    "type": event,
+                    "x": x / self._scale,
+                    "y": y / self._scale,
+                    "button": "left",
+                    "clickCount": 1,
+                },
                 session_id=self._session,
             )
 
@@ -819,13 +836,28 @@ class CdpPage:
         await self._client.send.Input.dispatchMouseEvent(
             params={
                 "type": "mouseWheel",
-                "x": self._policy.preview_width / 2,
-                "y": self._policy.preview_width * _VIEWPORT_RATIO / 2,
+                "x": self._width / 2,
+                "y": self._height / 2,
                 "deltaX": 0,
                 "deltaY": dy,
             },
             session_id=self._session,
         )
+
+    async def resize(  # pragma: no cover - needs a live browser
+        self, width: int, height: int, scale: int
+    ) -> None:
+        """Lay the page out for a window of this size, and draw it at `scale`.
+
+        What makes the live view a browser rather than a thumbnail: the site's
+        own responsive layout runs for the window a person is watching in, and
+        the picture comes back at that window's size and density, shown 1:1.
+        """
+        await self._client.send.Emulation.setDeviceMetricsOverride(
+            params={"width": width, "height": height, "deviceScaleFactor": scale, "mobile": False},
+            session_id=self._session,
+        )
+        self._width, self._height, self._scale = width, height, scale
 
     async def capture_sign_in(self) -> SignIn | None:  # pragma: no cover - needs a live browser
         """The cookies and storage that make this tab signed in to the site it is on.

@@ -1,5 +1,5 @@
 ---
-source_sha: "748c698ed4d2"
+source_sha: "db0e093cc834"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -690,6 +690,12 @@ zurückgibt; der Agent macht auf der Seite weiter, wie sie sie hinterlassen hat.
 Mitglieder, die Runs sehen dürfen, können zusehen, aber nicht steuern. Was jemand
 tippt, geht an die Seite und wird nirgends gespeichert; der Verlauf des Runs hält nur
 fest, dass jemand übernommen hat.
+
+**Die Seite nimmt die Größe des Fensters an, das sie zeigt.** Hat jemand, der den
+Durchlauf steuern darf, ihn geöffnet, legt der Browser die Seite zwischen den Schritten
+für dieses Fenster an - das eigene Layout der Seite für diese Breite, in der Dichte
+dieses Bildschirms -, sodass die Live-Ansicht die Seite ist und kein in eine Spalte
+verkleinerter Laptop-Bildschirm. Das Modell sieht dann dieselbe Seite in dieser Größe.
 
 **Wenn nur ein Mensch weiterkommt** — eine Anmeldung ohne Zugangsdaten, ein Captcha,
 eine Entscheidung, die jemand anderem gehört —, bittet das Modell um einen Menschen,

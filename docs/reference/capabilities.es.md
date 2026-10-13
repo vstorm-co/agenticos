@@ -1,5 +1,5 @@
 ---
-source_sha: "748c698ed4d2"
+source_sha: "db0e093cc834"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -658,6 +658,12 @@ actual y la página es suya — clic, escribir, desplazarse — hasta que la dev
 agente sigue desde la página tal como la dejó. Los miembros que pueden ver runs pueden
 mirar, pero no manejar. Lo que alguien escribe llega a la página y no se guarda en
 ningún sitio; el historial del run solo registra que alguien tomó el control.
+
+**La página toma el tamaño de la ventana que la muestra.** Mientras alguien que puede
+manejar la navegación la tiene abierta, el navegador maqueta la página para esa ventana
+entre pasos - el diseño propio del sitio para ese ancho, con la densidad de esa
+pantalla -, así que la vista en directo es el sitio y no una pantalla de portátil
+encogida en una columna. El modelo ve entonces la misma página a ese tamaño.
 
 **Cuando solo una persona puede pasar de una página** — un inicio de sesión sin datos,
 un captcha, una decisión que le corresponde a otro —, el modelo pide una persona en

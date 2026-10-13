@@ -1,5 +1,5 @@
 ---
-source_sha: "748c698ed4d2"
+source_sha: "db0e093cc834"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -651,6 +651,12 @@ należy do tej osoby — klika, pisze, przewija — dopóki jej nie odda, a agen
 od strony w stanie, w jakim ją zostawiła. Członkowie, którzy mogą oglądać runy, mogą
 patrzeć, ale nie sterować. To, co ktoś wpisze, trafia do strony i nie jest nigdzie
 zapisywane; historia runu mówi tylko, że ktoś przejął przeglądarkę.
+
+**Strona przyjmuje rozmiar okna, które ją ogląda.** Gdy ktoś, kto może sterować
+przeglądaniem, ma je otwarte, przeglądarka między krokami układa stronę pod to okno -
+własny układ strony dla tej szerokości, w gęstości tego ekranu - więc podgląd na żywo to
+strona, a nie pomniejszony ekran laptopa w kolumnie. Model widzi wtedy tę samą stronę w
+tym rozmiarze.
 
 **Gdy tylko człowiek przejdzie dalej** — logowanie, do którego agent nie ma danych,
 captcha, wybór należący do kogoś — model prosi o człowieka, zamiast się poddać. Karta

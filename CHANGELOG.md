@@ -527,7 +527,14 @@ Two things are versioned separately from this file and worth knowing about:
   what the agent is doing now in one line under it. Take over and Hand it
   back sit in its toolbar and work in place; the step list is behind a
   button. The transcript keeps one line per browse instead of a card with
-  a thumbnail, and the page a channel links to is the same window.
+  a thumbnail, and the page a channel links to is the same window. The
+  page is laid out at the window's own size and screen density, so it
+  reads like the site in a browser rather than a shrunk laptop screen
+  (`resize` on the live view's socket, applied between steps).
+
+- **The chat list opens on Today and Yesterday,** with older bands folded,
+  and the third audience is called "Some people" instead of "Chosen groups
+  or people".
 
 - **No tool waits for a person until its author asks.** A capability's
   `default` approval now means no approval, whatever `side_effecting` says,

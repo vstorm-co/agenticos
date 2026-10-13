@@ -15,7 +15,8 @@ export type BrowserCommand =
   | { type: "click"; x: number; y: number }
   | { type: "type"; text: string }
   | { type: "key"; key: string }
-  | { type: "scroll"; dy: number };
+  | { type: "scroll"; dy: number }
+  | { type: "resize"; width: number; height: number; scale: 1 | 2 };
 
 /** Where the live view stands: still connecting, live, or refused and why. */
 export type LiveBrowseStatus = "connecting" | "live" | "gone" | "forbidden" | "unavailable";

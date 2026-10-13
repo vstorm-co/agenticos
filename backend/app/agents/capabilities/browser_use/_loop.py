@@ -150,6 +150,9 @@ class PageSession(Protocol):
     async def wheel(self, dy: float) -> None:
         """Scroll by `dy` pixels where the page is, as a mouse wheel does."""
 
+    async def resize(self, width: int, height: int, scale: int) -> None:
+        """Lay the page out for a window `width` by `height`, drawn at `scale`."""
+
     async def capture_sign_in(self) -> SignIn | None:
         """The sign-in to the site this tab is on, or `None` on a page off the web."""
 
@@ -269,16 +272,19 @@ async def run_browse(
         session.steps += 1
         step_no = session.steps
         held = False
+        resized = False
         if control is not None:
             # Between steps, never inside one: a person taking over waits for the
             # action in flight to finish, so the tab is never driven by two at once.
-            waiting = await control.poll()
-            if waiting is not None and waiting.type == "take_over":
+            waiting, resized = await _between_steps(page, control)
+            if waiting is not None:
                 await _held(
                     session, control, emit, call_id=call_id, by=waiting.by, remember=remember
                 )
                 held = True
-        if taken > 1 or held:
+        # A resized page has laid itself out again, so the first step's snapshot
+        # - taken before the loop - would offer elements where they no longer are.
+        if taken > 1 or held or resized:
             snapshot = await page.snapshot()
 
         image: str | None = None
@@ -565,6 +571,26 @@ async def _held(
     )
 
 
+async def _between_steps(
+    page: PageSession, control: BrowserControl
+) -> tuple[BrowserCommand | None, bool]:
+    """What arrived while the last step ran: the take-over, if any, and whether the page was resized.
+
+    Every waiting command is read, not one a step: a window resized a few times
+    while the model was thinking queues a resize for each, and handing them out
+    one per step would leave the page a size behind the window for as many steps.
+    Input for a tab nobody holds - a click before the take-over landed - is dropped.
+    """
+    resized = False
+    while (command := await control.poll()) is not None:
+        if command.type == "take_over":
+            return command, resized
+        if command.type == "resize":
+            await _person_input(page, command)
+            resized = True
+    return None, resized
+
+
 async def _person_input(page: PageSession, command: BrowserCommand) -> None:
     """Carry out one thing a person did in the tab they hold; drop one that says nothing."""
     if command.type == "click" and command.x is not None and command.y is not None:
@@ -575,6 +601,8 @@ async def _person_input(page: PageSession, command: BrowserCommand) -> None:
         await page.press(command.key)
     elif command.type == "scroll" and command.dy is not None:
         await page.wheel(command.dy)
+    elif command.type == "resize" and command.width is not None and command.height is not None:
+        await page.resize(command.width, command.height, command.scale or 1)
 
 
 async def _finish(

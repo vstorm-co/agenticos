@@ -1,6 +1,6 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { BrowserWindow, hostOf, type BrowseControl } from "./browser-window";
 import type { BrowserCommand } from "@/hooks/use-live-browse";
@@ -223,5 +223,89 @@ describe("BrowserWindow - the agent's browser, drawn as a browser", () => {
 
     rerender(<BrowserWindow browse={browse()} control={null} onMaximize={onMaximize} maximized />);
     expect(screen.getByRole("button", { name: "Back to the side panel" })).toBeInTheDocument();
+  });
+});
+
+describe("BrowserWindow - the page laid out for the window showing it", () => {
+  let resized: (() => void) | undefined;
+  let disconnected = false;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    resized = undefined;
+    disconnected = false;
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(callback: () => void) {
+          resized = callback;
+        }
+        observe() {}
+        disconnect() {
+          disconnected = true;
+        }
+      },
+    );
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  /** The page area's size, as the layout would give it. */
+  function sized(width: number, height: number) {
+    const page = screen.getByRole("img").closest(".relative.min-h-0") as HTMLElement;
+    Object.defineProperty(page, "clientWidth", { value: width, configurable: true });
+    Object.defineProperty(page, "clientHeight", { value: height, configurable: true });
+  }
+
+  it("asks for the window's size once, and again only after it settles on a new one", () => {
+    const live = control();
+    const { unmount } = render(<BrowserWindow browse={browse()} control={live} />);
+    // jsdom lays nothing out, so the first ask is the smallest window there is.
+    expect(live.send).toHaveBeenLastCalledWith({
+      type: "resize",
+      width: 320,
+      height: 320,
+      scale: 1,
+    });
+
+    sized(640.4, 900);
+    act(() => resized?.());
+    act(() => resized?.());
+    expect(live.send).toHaveBeenCalledTimes(1);
+    act(() => vi.advanceTimersByTime(250));
+    expect(live.send).toHaveBeenLastCalledWith({
+      type: "resize",
+      width: 640,
+      height: 900,
+      scale: 1,
+    });
+
+    // The same size again lays nothing out again.
+    act(() => resized?.());
+    act(() => vi.advanceTimersByTime(250));
+    expect(live.send).toHaveBeenCalledTimes(2);
+
+    unmount();
+    expect(disconnected).toBe(true);
+  });
+
+  it("asks for twice the pixels on a high-density screen", () => {
+    vi.stubGlobal("devicePixelRatio", 2);
+    const live = control();
+    render(<BrowserWindow browse={browse()} control={live} />);
+    expect(live.send).toHaveBeenLastCalledWith(expect.objectContaining({ scale: 2 }));
+  });
+
+  it("leaves the size alone for somebody who may only watch, or a browse that is over", () => {
+    const watching = control(false);
+    render(<BrowserWindow browse={browse()} control={watching} />);
+    const over = control();
+    render(<BrowserWindow browse={browse({ outcome: "done" })} control={over} />);
+
+    expect(watching.send).not.toHaveBeenCalled();
+    expect(over.send).not.toHaveBeenCalled();
   });
 });

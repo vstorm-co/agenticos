@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ExternalLink,
   Globe,
@@ -110,7 +110,7 @@ function StatusPill({ browse }: { browse: Browse }) {
     return (
       <span
         className={cn(
-          "bg-background ring-foreground/10 rounded-full px-3 py-1.5 text-xs font-medium ring-1",
+          "bg-background ring-foreground/10 rounded-full px-3 py-1.5 text-xs font-medium shadow-lg ring-1",
           OUTCOME_TONE[browse.outcome],
         )}
         data-testid="browse-outcome"
@@ -120,7 +120,7 @@ function StatusPill({ browse }: { browse: Browse }) {
     );
   }
   return (
-    <span className="bg-foreground text-background flex max-w-full min-w-0 items-center gap-2 rounded-full px-3 py-1.5 text-xs">
+    <span className="bg-foreground text-background flex max-w-full min-w-0 items-center gap-2 rounded-full px-3 py-1.5 text-xs shadow-lg">
       <span className="relative flex size-1.5 shrink-0" aria-hidden>
         <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-70" />
         <span className="relative inline-flex size-1.5 rounded-full bg-emerald-400" />
@@ -139,6 +139,50 @@ function StatusPill({ browse }: { browse: Browse }) {
       )}
     </span>
   );
+}
+
+/** How long the window must keep a size before the page is laid out again. */
+const FIT_SETTLE_MS = 250;
+
+/**
+ * Asks the browser to lay the page out at the size of the window showing it.
+ *
+ * What makes this a browser rather than a thumbnail: the site's own layout runs
+ * for this window, and the picture comes back at its size and density, drawn
+ * 1:1. Sent only by someone who may drive the browse - the size is the tab's,
+ * shared by everyone watching - and after the window has kept a size for a
+ * moment, so dragging the panel's edge does not lay the page out sixty times.
+ * The browser applies it between steps.
+ */
+function useFitPage(control: BrowseControl | null) {
+  const ref = useRef<HTMLDivElement>(null);
+  const send = control?.send;
+  useEffect(() => {
+    const element = ref.current;
+    if (!element || !send) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let last = "";
+    const fit = () => {
+      const width = Math.max(320, Math.round(element.clientWidth));
+      const height = Math.max(320, Math.round(element.clientHeight));
+      const scale: 1 | 2 = window.devicePixelRatio >= 1.5 ? 2 : 1;
+      const size = `${width}x${height}@${scale}`;
+      if (size === last) return;
+      last = size;
+      send({ type: "resize", width, height, scale });
+    };
+    const observer = new ResizeObserver(() => {
+      clearTimeout(timer);
+      timer = setTimeout(fit, FIT_SETTLE_MS);
+    });
+    observer.observe(element);
+    fit();
+    return () => {
+      clearTimeout(timer);
+      observer.disconnect();
+    };
+  }, [send]);
+  return ref;
 }
 
 /**
@@ -178,6 +222,7 @@ export function BrowserWindow({
   const host = hostOf(browse.url);
   const secure = browse.url?.startsWith("https:") ?? false;
   const canDrive = running && control !== null && control.canControl;
+  const pageRef = useFitPage(canDrive ? control : null);
 
   return (
     <section
@@ -288,28 +333,28 @@ export function BrowserWindow({
         </p>
       )}
 
-      {/* The page as a sheet on the window's ground, centred: a screenshot is
-          wider than it is tall, and pinned to the top it left the rest of the
-          column an empty white page. What the browser is doing sits right
-          under it, where the eye already is. */}
-      <div className="mx-2 mb-2 min-h-0 flex-1 scrollbar-thin overflow-y-auto">
-        <div className="flex min-h-full flex-col items-center justify-center gap-3 py-1">
-          <div className="bg-background ring-foreground/10 w-full overflow-hidden rounded-xl shadow-sm ring-1">
-            {browse.image ? (
-              <LiveViewport
-                browse={browse}
-                holding={hold.holding}
-                onCommand={(command) => control?.send(command)}
-                flush
-              />
-            ) : (
-              <div className="text-muted-foreground flex aspect-[16/10] items-center justify-center p-6 text-center text-sm">
-                {running ? t("browserWaitingForFrame") : t("browserNoPreview")}
-              </div>
-            )}
-          </div>
+      {/* The page, edge to edge, the way a browser draws one: the window has
+          asked for the page to be laid out at its own size (see `useFitPage`),
+          so the picture fills it 1:1 rather than being a laptop screen shrunk
+          into a column. What the browser is doing floats over the bottom. */}
+      <div ref={pageRef} className="bg-background relative min-h-0 flex-1 overflow-hidden">
+        <div className="h-full scrollbar-thin overflow-y-auto">
+          {browse.image ? (
+            <LiveViewport
+              browse={browse}
+              holding={hold.holding}
+              onCommand={(command) => control?.send(command)}
+              flush
+            />
+          ) : (
+            <div className="text-muted-foreground flex h-full items-center justify-center p-6 text-center text-sm">
+              {running ? t("browserWaitingForFrame") : t("browserNoPreview")}
+            </div>
+          )}
+        </div>
+        <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center px-4">
           {hold.holding ? (
-            <span className="rounded-full bg-sky-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm">
+            <span className="rounded-full bg-sky-600 px-3 py-1.5 text-xs font-medium text-white shadow-lg">
               {t("browserHolding")}
             </span>
           ) : (
@@ -319,7 +364,7 @@ export function BrowserWindow({
       </div>
 
       {showSteps && (
-        <div className="bg-background mx-2 mb-2 max-h-[40%] min-h-0 scrollbar-thin space-y-3 overflow-y-auto rounded-xl p-4">
+        <div className="bg-background border-border max-h-[40%] min-h-0 scrollbar-thin space-y-3 overflow-y-auto border-t p-4">
           {browse.goal && (
             <p className="text-foreground/80 text-sm leading-relaxed">
               <span className="text-muted-foreground font-medium">{t("browserGoal")} · </span>
