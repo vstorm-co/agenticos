@@ -523,6 +523,7 @@ class DatasetService:
             "source_run_id": current.source_run_id,
             "source_conversation_id": current.source_conversation_id,
             "source_message_id": current.source_message_id,
+            "source_document_id": current.source_document_id,
         }
         revision = self._revision(
             ctx,

@@ -83,6 +83,8 @@ class DatasetChange(StrEnum):
     EDIT = "edit"
     REMOVE = "remove"
     IMPORT = "import"
+    GENERATE = "generate"
+    """Generated cases a person accepted."""
 
 
 class Dataset(Base, TimestampMixin):
@@ -167,7 +169,8 @@ class DatasetVersion(Base):
         CheckConstraint("case_count >= 0", name="ck_dataset_version_case_count"),
         CheckConstraint("changed_cases >= 0", name="ck_dataset_version_changed_cases"),
         CheckConstraint(
-            "change IN ('add', 'edit', 'remove', 'import')", name="ck_dataset_version_change"
+            "change IN ('add', 'edit', 'remove', 'import', 'generate')",
+            name="ck_dataset_version_change",
         ),
     )
 
@@ -237,6 +240,13 @@ class DatasetCase(Base):
     source_message_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("messages.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    # The document a generated case's passage was taken from.
+    source_document_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("rag_documents.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )

@@ -12,7 +12,7 @@ from app.schemas.base import BaseSchema
 from app.schemas.resource_grant import VisibilityLiteral
 
 CaseSourceLiteral = Literal["manual", "import", "conversation", "synthetic"]
-DatasetChangeLiteral = Literal["add", "edit", "remove", "import"]
+DatasetChangeLiteral = Literal["add", "edit", "remove", "import", "generate"]
 DatasetSort = Literal["name", "updated"]
 DatasetFileFormat = Literal["csv", "jsonl"]
 ToolOrderModeLiteral = Literal["any", "in_order", "exact"]
@@ -152,6 +152,7 @@ class DatasetCaseRead(DatasetCaseContent):
     source_run_id: UUID | None = None
     source_conversation_id: UUID | None = None
     source_message_id: UUID | None = None
+    source_document_id: UUID | None = None
     created_by_user_id: UUID | None = None
     created_at: datetime
 
