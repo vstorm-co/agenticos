@@ -408,7 +408,7 @@ class ChatAgentRunner:
                 watches it. A surface passes this only if it can show the frames.
             browser_events: Where a browse's frames go - its steps, its
                 confidences and, when the agent asked for them, the viewport. A
-                `browse_page` call is the longest tool call this platform makes;
+                `browse_web` call is the longest tool call this platform makes;
                 without this it is a tool call that goes quiet for a minute.
             request_connection: How to ask the person to connect one of their
                 own services while the run waits. Given, a personal service they

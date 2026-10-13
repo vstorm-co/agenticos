@@ -58,7 +58,6 @@ in [Capabilities](capabilities.md).
 |---|---|
 | Apps | `artifacts` |
 | Ask the user | `ask_user` |
-| Web browser (step by step) | `browser_choice` |
 | Web browser | `browser_use` |
 | Chat channel lookup | `channel_tools` |
 | Charts | `charts` |

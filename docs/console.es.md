@@ -1,5 +1,5 @@
 ---
-source_sha: "e9cdb78d6372"
+source_sha: "20c2650b5968"
 ---
 
 # La consola { #the-console }
@@ -254,13 +254,13 @@ se abre, Enter empieza una
 línea nueva, y adjuntar un archivo o dictar están detrás de un único **+**. Los
 campos nunca son tan pequeños como para que iOS haga zoom en ellos.
 
-**Ver un recorrido.** Un agent con
-[automatización del navegador](reference/capabilities.md#browser-automation-choose)
-abre un panel junto a la transcripción cuando empieza a recorrer una página: la vista
-de la página según avanza, la página en la que está y cada paso con la probabilidad
-con la que el motor lo eligió. Ese número es la razón de que exista el panel en lugar
-de un indicador de carga: un recorrido que actuó sobre una elección de 0,31 merece
-una mirada. Se queda cuando el recorrido termina, porque *bloqueado por la página* es
+**Ver un recorrido.** Un agent con el
+[navegador web](reference/capabilities.md#browser-automation) muestra una tarjeta en
+la transcripción cuando empieza a recorrer una página, y al hacer clic abre un panel al
+lado: la vista de la página según avanza, la página en la que está y cada paso con lo
+que hizo y para qué. Esa frase es la razón de que exista el panel en lugar de un
+indicador de carga: un recorrido que va en mala dirección se ve mientras ocurre. Se
+queda cuando el recorrido termina, porque *bloqueado por la página* es
 una respuesta sobre la página. Ciérralo y seguirá cerrado para ese recorrido.
 
 ## Para qué sirve cada área { #what-each-area-is-for }

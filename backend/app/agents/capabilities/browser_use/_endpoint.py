@@ -78,6 +78,34 @@ def websocket_url(cdp_url: str, version: object) -> str:
     )
 
 
+def pin_host(cdp_url: str, address: str | None) -> str:
+    """The endpoint with its host name replaced by the address it resolved to.
+
+    Chromium refuses a DevTools request whose `Host` header is a name rather than
+    an IP or `localhost`, so a browser service reached by its compose name answers
+    nothing but 500s. Connecting to the resolved address sends the address as the
+    `Host`, and keeps the scheme, port, path and query as the operator wrote them.
+
+    Plain `http` and `ws` only. Over TLS the name is what the certificate is
+    checked against, and a hosted browser behind TLS answers to its own name
+    anyway - so an `https` or `wss` endpoint is returned as written.
+
+    Args:
+        cdp_url: The endpoint as configured, its host already on the allowlist.
+        address: What that host resolved to, or `None` to leave it as written -
+            an endpoint already given as an address, or a name that did not resolve.
+
+    Returns:
+        The endpoint to connect to.
+    """
+    parts = urlsplit(cdp_url)
+    if address is None or parts.scheme in ("https", "wss"):
+        return cdp_url
+    host = f"[{address}]" if ":" in address else address
+    netloc = f"{host}:{parts.port}" if parts.port is not None else host
+    return parts._replace(netloc=netloc).geturl()
+
+
 BROWSABLE_SCHEMES = frozenset({"http", "https"})
 """What a browse may be pointed at, allowlist or no allowlist.
 

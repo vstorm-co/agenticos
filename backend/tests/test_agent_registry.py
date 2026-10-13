@@ -3320,66 +3320,11 @@ class TestWorkspaceConfigurationsRefusedAtPublish:
             await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
 
 
-class TestBrowserUseRefusedAtPublish:
-    """A remote `cdp_url` this deployment must not connect to.
+class TestBrowserRefusedAtPublish:
+    """The endpoint the web browser drives, vetted by the operator's allowlist.
 
-    The SSRF check resolves DNS, which blocks, so it runs at publish off the event
-    loop rather than at build on it (agenticos#33). Every binding passes through
-    `_binding_problems`, so a specialist's endpoint is checked the same way.
-    """
-
-    @pytest.mark.anyio
-    async def test_a_loopback_cdp_url_is_refused(self):
-        """A debugger on the host, a metadata service - refused before it runs."""
-        spec = _spec(
-            capabilities=[
-                {
-                    "id": "browser_use",
-                    "config": {"mode": "remote", "cdp_url": "http://127.0.0.1:9222"},
-                }
-            ],
-            model_profile_id=uuid.uuid4(),
-        )
-
-        with (
-            patch(
-                f"{REGISTRY_PATH}.credential_repo.get_profile",
-                new=AsyncMock(return_value=MagicMock()),
-            ),
-            pytest.raises(BadRequestError) as refused,
-        ):
-            await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
-
-        assert any(
-            "remote endpoint cannot be reached" in problem
-            for problem in refused.value.details["problems"]
-        )
-
-    @pytest.mark.anyio
-    async def test_a_public_cdp_url_publishes(self):
-        """A reachable public browser service is fine - nothing to refuse."""
-        profile = MagicMock(id=uuid.uuid4())
-        spec = _spec(
-            capabilities=[
-                {
-                    "id": "browser_use",
-                    "config": {"mode": "remote", "cdp_url": "http://8.8.8.8:9222"},
-                }
-            ],
-            model_profile_id=profile.id,
-        )
-
-        with patch(
-            f"{REGISTRY_PATH}.credential_repo.get_profile", new=AsyncMock(return_value=profile)
-        ):
-            await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
-
-
-class TestBrowserChoiceRefusedAtPublish:
-    """The endpoint `browser_choice` drives, vetted by the operator's allowlist.
-
-    Not the SSRF guard `browser_use` uses: `cdp_url` is tenant-controlled - it
-    lives in a spec anyone with `edit` writes - and the guard admits only public
+    Not the SSRF guard: `cdp_url` is tenant-controlled - it lives in a spec anyone
+    with `edit` writes - and the guard admits only public
     addresses, which refuses the isolated browser service on the deployment's own
     network and accepts a debugger exposed to the internet. `BROWSER_CDP_ALLOWED_HOSTS`
     is the same control `MEM0_ALLOWED_HOSTS` is, for the same reason.
@@ -3395,7 +3340,7 @@ class TestBrowserChoiceRefusedAtPublish:
     @staticmethod
     async def _problems(config: dict) -> list[str]:
         spec = _spec(
-            capabilities=[{"id": "browser_choice", "config": config}],
+            capabilities=[{"id": "browser_use", "config": config}],
             model_profile_id=uuid.uuid4(),
         )
         with (
@@ -3421,11 +3366,12 @@ class TestBrowserChoiceRefusedAtPublish:
     @pytest.mark.anyio
     async def test_a_vetted_host_on_the_deployments_own_network_publishes(self):
         # The topology the reference page describes, and the one the SSRF guard
-        # refused. What is left is the vault key this spec does not bind.
-        problems = await self._problems({"cdp_url": "http://browser:9222"})
-        assert not any(
-            "cdp_url" in problem or "endpoint cannot be used" in problem for problem in problems
+        # refused. Nothing else in this binding needs refusing, so it publishes.
+        spec = _spec(
+            capabilities=[{"id": "browser_use", "config": {"cdp_url": "http://browser:9222"}}],
+            model_profile_id=uuid.uuid4(),
         )
+        await _publishes(spec)
 
 
 def _bound(capability_id: str, config: dict, **approval: object):

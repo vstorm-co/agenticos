@@ -238,12 +238,12 @@ the keyboard and the conversation stays on its last message while it opens,
 Enter starts a new line, and attaching a file or dictating sits behind one
 **+**. Fields are never small enough for iOS to zoom into them.
 
-**Watching a browse.** An agent with
-[browser automation](reference/capabilities.md#browser-automation-choose) opens a
-panel beside the transcript when it starts working through a page: the viewport as
-it goes, the page it is on, and each step with the probability the engine chose it
-at. That number is the reason the panel exists rather than a spinner - a browse that
-acted on a 0.31 pick is one worth looking into. It stays up when the browse ends,
+**Watching a browse.** An agent with the
+[web browser](reference/capabilities.md#browser-automation) shows a card in the
+transcript when it starts working through a page, and opens a panel beside it on a
+click: the viewport as it goes, the page it is on, and each step with what it did and
+what it was for. That sentence is the reason the panel exists rather than a spinner -
+a browse heading the wrong way is visible while it happens. It stays up when the browse ends,
 because *blocked by the page* is an answer about the page. Close it and it stays
 closed for that browse.
 

@@ -2761,7 +2761,7 @@ describe("useChat - watching a browse", () => {
       step: 1,
       operation: "CLICK",
       target: "Accept all",
-      confidence: 0.42,
+      reason: "Close the banner",
     });
     browserFrame("browser_finished", { step: 2, outcome: "blocked", detail: "Sign in first" });
 
@@ -2773,7 +2773,7 @@ describe("useChat - watching a browse", () => {
     });
     expect(result.current.browses[0]?.steps[0]).toMatchObject({
       operation: "CLICK",
-      confidence: 0.42,
+      reason: "Close the banner",
     });
   });
 

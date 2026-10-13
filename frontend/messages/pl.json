@@ -1354,8 +1354,6 @@
       "writing": "{named, select, no {Pisze…} other {Pisze {subject}}}",
       "writingPlan": "Pisze plan",
       "wrote": "{named, select, no {Napisał…} other {Napisał {subject}}}",
-      "workingThroughPage": "Przechodzę przez stronę",
-      "browsePage": "Przejdź przez stronę",
       "publishingArtifact": "Publikowanie aplikacji",
       "publishArtifact": "Opublikowana aplikacja",
       "readingArtifact": "Czytanie opublikowanej aplikacji",
@@ -1419,7 +1417,6 @@
     "browserWaitingForFrame": "Czekam na pierwszy widok strony…",
     "browserNoPreview": "Ten agent działa bez podglądu na żywo.",
     "browserViewportAlt": "Strona w kroku {step}",
-    "browserConfidenceHint": "Silnik wybrał tę opcję z prawdopodobieństwem {value}",
     "browserOutcome": {
       "done": "Zakończone",
       "blocked": "Strona zablokowała działanie",
@@ -6066,21 +6063,13 @@
       "needs": "Nic dodatkowego.",
       "never": "Nigdy nie odpowiada za osobę. W Slacku czy Telegramie czeka na jej odpowiedź."
     },
-    "browser_choice": {
-      "name": "Przeglądarka (krok po kroku)",
-      "does": "Agent przechodzi przez stronę, wybierając po kolei jedną z akcji, które strona naprawdę oferuje.",
-      "example1": "Znaleźć stronę produktu i odczytać cenę",
-      "example2": "Przejść krok po kroku przez wyszukiwarkę na stronie",
-      "needs": "Klucz API w vault dla modelu, który wybiera każdy krok.",
-      "never": "Nigdy nie działa bez zatwierdzenia przez człowieka, chyba że to zmienisz."
-    },
     "browser_use": {
       "name": "Przeglądarka",
-      "does": "Agent dostaje prawdziwą przeglądarkę i sam klika po stronach, żeby wykonać zadanie.",
-      "example1": "Sprawdzić nowe faktury w portalu dostawcy",
-      "example2": "Wypełnić długi formularz na stronie",
-      "needs": "Host przeglądarki skonfigurowany przez administratora. Zadanie trwa minuty i kosztuje więcej niż wyszukiwanie.",
-      "never": "Nigdy nie działa bez zatwierdzenia przez człowieka, chyba że to zmienisz."
+      "does": "Daje agentowi prawdziwą przeglądarkę, którą obsługuje krok po kroku - czyta strony, klika, wypełnia formularze i wyszukuje - żeby skończyć zadanie.",
+      "example1": "Sprawdź na portalu dostawcy nowe faktury",
+      "example2": "Wypełnij długi formularz na stronie",
+      "needs": "Hosta przeglądarki skonfigurowanego przez administratora. Długie zadanie trwa kilka minut i kosztuje jedno zapytanie do modelu na krok.",
+      "never": "Nigdy nie wychodzi poza dozwolone domeny i nie wykonuje poleceń zapisanych na stronie."
     },
     "channel_tools": {
       "name": "Informacje o kanale czatu",
@@ -6300,68 +6289,34 @@
     }
   },
   "capabilityConfig": {
-    "browser_choice": {
+    "browser_use": {
       "cdp_url": {
         "title": "Endpoint DevTools",
-        "description": "Endpoint Chromium DevTools, którym sterujemy - usługa przeglądarki uruchomiona przez operatora, nie proces w kontenerze API."
+        "description": "Endpoint DevTools Chromium, którym agent steruje - usługa przeglądarki uruchomiona przez operatora, nie proces w kontenerze API."
       },
       "allowed_domains": {
         "title": "Dozwolone domeny",
-        "description": "Hosty, na których może być przeglądarka; puste oznacza brak ograniczeń. Dozwolone wzorce typu *.example.com. Sprawdzane na każdym kroku, nie tylko na pierwszym."
-      },
-      "decision_model": {
-        "title": "Model decyzyjny",
-        "description": "Model, który w każdym kroku wybiera operację i element."
-      },
-      "decision_base_url": {
-        "title": "Endpoint modelu decyzyjnego",
-        "description": "Gdzie działa ten model. Puste to publiczny endpoint dostawcy (https://api.typesafe.ai), dokąd trafia treść stron, jeśli nie wskażesz innego - wdrożenie, które nie może wysyłać treści stron stronom trzecim, wpisuje tu własny endpoint."
+        "description": "Hosty, na których może być przeglądarka; puste oznacza brak ograniczeń. Wzorce typu *.example.com są dozwolone. Sprawdzane w każdym kroku, nie tylko w pierwszym."
       },
       "max_steps": {
         "title": "Maksymalnie kroków na wywołanie",
-        "description": "Twardy limit kroków na wywołanie; każdy krok to jedno zapytanie decyzyjne."
+        "description": "Ile kroków może zrobić jedno wywołanie; każdy krok to jedno zapytanie do modelu. Zadanie, które potrzebuje więcej, kontynuuje w tej samej karcie przy następnym wywołaniu."
+      },
+      "vision": {
+        "title": "Pokazuj modelowi zrzuty ekranu",
+        "description": "Wysyłaj modelowi zrzut ekranu z każdego kroku, oprócz elementów strony. Lepsze na stronach wizualnych, więcej tokenów, a model musi czytać obrazy."
       },
       "candidate_cap": {
-        "title": "Elementy do wyboru w kroku",
-        "description": "Ile elementów strony można zaproponować jako opcje w jednym kroku. Mniej to taniej, ale model widzi mniej; na stronę zbyt gęstą dla limitu pętla odpowiada przewinięciem."
-      },
-      "min_confidence": {
-        "title": "Minimalna pewność",
-        "description": "Nie wykonuj wyboru, który model decyzyjny ocenił poniżej tej wartości - przeglądanie kończy się wtedy jako zablokowane. 0 wykonuje każdy wybór i podaje jego ocenę."
+        "title": "Elementów na krok",
+        "description": "Ile elementów strony można zaproponować jako wybór w jednym kroku. Mniej to taniej i mniej widać; na zbyt gęstą stronę odpowiedzią jest przewijanie."
       },
       "preview": {
-        "title": "Podgląd na żywo",
-        "description": "Wysyłaj widok przeglądarki do czatu w trakcie przeglądania, żeby można było je obserwować. Kosztuje jeden JPEG na krok w gnieździe."
+        "title": "Pokazuj podgląd na żywo",
+        "description": "Wysyłaj widok przeglądarki do czatu w trakcie przeglądania, żeby można było patrzeć. Kosztuje jeden JPEG na krok."
       },
       "preview_width": {
         "title": "Szerokość widoku (piksele)",
-        "description": "Szerokość okna przeglądarki w pikselach, a zarazem szerokość klatek. Decyduje, co agent widzi bez przewijania."
-      }
-    },
-    "browser_use": {
-      "mode": {
-        "title": "Przeglądarka",
-        "description": "playwright: uruchom lokalnie przeglądarkę bez okna. remote: podłącz się do przeglądarki działającej gdzie indziej przez jej endpoint CDP."
-      },
-      "cdp_url": {
-        "title": "Endpoint DevTools",
-        "description": "Endpoint Chromium DevTools, do którego się podłączamy; wymagany w trybie remote i tylko w nim dozwolony."
-      },
-      "allowed_domains": {
-        "title": "Dozwolone domeny",
-        "description": "Domeny, na które agent może przejść; puste oznacza brak ograniczeń. Dozwolone wzorce typu *.example.com."
-      },
-      "max_steps": {
-        "title": "Maksymalnie kroków na wywołanie",
-        "description": "Twardy limit kroków agenta przeglądarki na wywołanie; każdy krok to jedno zapytanie do modelu."
-      },
-      "use_vision": {
-        "title": "Wysyłaj zrzuty ekranu do modelu",
-        "description": "Wysyłaj zrzuty strony do modelu agenta przeglądarki; lepiej na układach wizualnych, więcej tokenów."
-      },
-      "headless": {
-        "title": "Ukryj okno przeglądarki",
-        "description": "Uruchamiaj lokalną przeglądarkę bez widocznego okna (tylko w trybie playwright)."
+        "description": "Szerokość widoku przeglądarki w pikselach, a więc i klatek podglądu. Decyduje, co agent widzi bez przewijania."
       }
     },
     "channel_tools": {

@@ -28,10 +28,9 @@ word boundary where one is near, so the label stays a label.
 HARD_CANDIDATE_CAP = 200
 """The most elements that may ever be offered as choices in one step.
 
-The decision model's pick-one is capped at 255 options (pydantic/pydantic-ai#8484)
-and a request that exceeds it fails rather than degrading, so the ceiling is
-enforced here instead of discovered there. 200 leaves headroom for the format to
-grow an option without this becoming a second place to remember the cap.
+Each one is a row of the table the browsing model reads on every step, so this
+bounds the largest prompt a page can make this deployment send. A page denser
+than the cap is reached by scrolling, which offers a different set.
 """
 
 
@@ -79,9 +78,9 @@ class Element:
 
     Deliberately not a text field's value. The loop needs to tell a filled field
     from an empty one, which :attr:`filled` answers - and the *contents* would
-    reach the decision endpoint in the next step's element table, which is how a
-    password the host model had just typed would be disclosed to a third party
-    one step after being redacted from the history.
+    be repeated in every later step's element table, and so in the model's
+    prompt and the run's trace, which is how a password typed on step four would
+    still be travelling on step forty.
 
     A dropdown is the exception rather than an inconsistency: its selection is
     one of the options already listed beside it, and without it the loop cannot
@@ -108,8 +107,8 @@ class Element:
         return self.role in EDITABLE_ROLES
 
 
-MAX_PAGE_TEXT = 1_500
-"""How much of the page's own words reach the decision model.
+MAX_PAGE_TEXT = 4_000
+"""How much of the page's own words reach the browsing model each step.
 
 Without any, the model cannot tell that the goal has been reached: a price, a
 confirmation, "no results" are ordinary text, not interactive elements, so a
@@ -182,7 +181,7 @@ def candidates(elements: tuple[Element, ...], cap: int) -> tuple[Element, ...]:
 
 
 def render_table(elements: tuple[Element, ...]) -> str:
-    """The candidate set as the text a decision model reads.
+    """The candidate set as the text the browsing model reads.
 
     One element per line, index first, so a pick and a row are the same thing in
     two places. A field's current value is shown when it has one, because "the
@@ -230,7 +229,7 @@ def render_options(options: tuple[str, ...]) -> str:
 
 
 def page_text(raw: str) -> str:
-    """The page's visible words, collapsed and bounded, for the decision prompt.
+    """The page's visible words, collapsed and bounded, for the step prompt.
 
     Bounded from the front: what a page says first is what it is about, and a
     truncation from the end would keep a footer over a heading.

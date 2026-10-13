@@ -1,5 +1,5 @@
 ---
-source_sha: "e9cdb78d6372"
+source_sha: "20c2650b5968"
 ---
 
 # Die Konsole { #the-console }
@@ -269,13 +269,13 @@ Nachricht, wenn sie aufgeht, Enter
 beginnt eine neue Zeile, und Anhängen oder Diktieren liegen hinter einem **+**.
 Felder sind nie so klein, dass iOS hineinzoomt.
 
-**Einem Durchlauf zusehen.** Ein Agent mit
-[Webbrowser](reference/capabilities.md#browser-automation-choose) öffnet
-ein Panel neben dem Transkript, sobald er eine Seite durchzuarbeiten beginnt: das
-Sichtfenster im Verlauf, die Seite, auf der er ist, und jeden Schritt mit der
-Wahrscheinlichkeit, mit der die Engine ihn gewählt hat. Diese Zahl ist der Grund,
-warum es das Panel statt eines Spinners gibt — ein Durchlauf, der auf einer Auswahl
-von 0,31 gehandelt hat, ist einen Blick wert. Es bleibt stehen, wenn der Durchlauf
+**Einem Durchlauf zusehen.** Ein Agent mit dem
+[Webbrowser](reference/capabilities.md#browser-automation) zeigt im Transkript eine
+Karte, sobald er eine Seite durchzuarbeiten beginnt, und öffnet auf Klick ein Panel
+daneben: das Sichtfenster im Verlauf, die Seite, auf der er ist, und jeden Schritt mit
+dem, was er getan hat und wozu. Dieser Satz ist der Grund, warum es das Panel statt
+eines Spinners gibt — ein Durchlauf, der in die falsche Richtung läuft, ist sichtbar,
+während er läuft. Es bleibt stehen, wenn der Durchlauf
 endet, denn *von der Seite blockiert* ist eine Antwort über die Seite. Schließen Sie
 es, bleibt es für diesen Durchlauf geschlossen.
 

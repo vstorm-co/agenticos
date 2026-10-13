@@ -80,7 +80,6 @@ dependencies = [
 [package.optional-dependencies]
 browser = [
     { name = "cdp-use" },
-    { name = "pydantic-ai-slim", extra = ["typesafe"] },
 ]
 kerberos = [
     { name = "gssapi" },
@@ -155,7 +154,6 @@ requires-dist = [
     { name = "pydantic-ai-skills", specifier = ">=2.0.0" },
     { name = "pydantic-ai-slim", extras = ["mcp"], specifier = ">=2.52.0" },
     { name = "pydantic-ai-slim", extras = ["openrouter", "anthropic", "google", "duckduckgo", "web-fetch", "groq", "mistral", "cohere", "huggingface", "xai"], specifier = ">=2.52.0" },
-    { name = "pydantic-ai-slim", extras = ["typesafe"], marker = "extra == 'browser'", specifier = ">=2.52.0" },
     { name = "pydantic-monty", specifier = ">=1.1.0" },
     { name = "pydantic-settings", specifier = ">=2.15.0" },
     { name = "pyjwt", specifier = ">=2.15.1" },
@@ -4768,9 +4766,6 @@ mistral = [
 openrouter = [
     { name = "openai" },
 ]
-typesafe = [
-    { name = "typesafe-sdk" },
-]
 web-fetch = [
     { name = "markdownify" },
 ]
@@ -6395,24 +6390,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/57/15/9b7e2e2e7c87d01366185b198b3febc6bc0c973f2bf21a62da4ab7d3495e/types_requests-2.33.0.20261006.tar.gz", hash = "sha256:0652999e9306aea345f40732d58fa49a7f6cade6a0d74d92119c5c8d82eddaf0", size = 25316, upload-time = "2026-10-06T08:15:57.782Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/4d/72/b82789207b3d360ce9f5a4372c790c52cc3dd928aeb7d4faeec652b651b2/types_requests-2.33.0.20261006-py3-none-any.whl", hash = "sha256:26cc8146505cab33cda9737991929e4144c559bebe05078ccc6998f27c4ca2c1", size = 21445, upload-time = "2026-10-06T08:15:56.658Z" },
-]
-
-[[package]]
-name = "typesafe-sdk"
-version = "0.7.4"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "httpx2" },
-    { name = "packaging" },
-    { name = "pydantic" },
-    { name = "pydantic-core" },
-    { name = "tenacity" },
-    { name = "truststore", marker = "sys_platform != 'emscripten'" },
-    { name = "typing-extensions" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/94/12/3a897e9f424be6f4db0648a955f8fadbe62149d118a03614df897b5a2ec9/typesafe_sdk-0.7.4.tar.gz", hash = "sha256:a20dca217a746db1ac5534ac502de16e1f86a400b4ec09f8594e6221c2bc9558", size = 24388, upload-time = "2026-10-09T15:47:14.978Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/a2/49/6cd65684e41e25069f4d12c09cd7e1e3f81477f06acb29bf0d1815e27d1e/typesafe_sdk-0.7.4-py3-none-any.whl", hash = "sha256:61cf3f2fe9da20b68c3d3fe2fb76bbb2f35f8c4a9a65a6b81c43a535d2a53210", size = 37700, upload-time = "2026-10-09T15:47:12.418Z" },
 ]
 
 [[package]]

@@ -1,11 +1,10 @@
 """What a surface hears while an agent is driving a browser.
 
-A `browse_page` call is the longest-running tool this platform has and the one
+A `browse_web` call is the longest-running tool this platform has and the one
 whose progress matters most to watch. It is also the one where "the model chose
-something" is a sentence worth reading: the loop does not generate an action, it
-*picks* one from the elements the page actually offers, and the pick comes back
-with a probability. A transcript that records a tool call and, forty seconds
-later, a paragraph, throws all of that away.
+something" is a sentence worth reading: each step presses one of the elements the
+page actually offers, and says what for. A transcript that records a tool call
+and, forty seconds later, a paragraph, throws all of that away.
 
 So the browse streams, and these are the frames. Three decisions shape them:
 
@@ -63,7 +62,7 @@ class BrowserEvent(BaseModel):
 
     call_id: str = Field(
         description=(
-            "Which `browse_page` call this belongs to. One turn can browse twice, "
+            "Which `browse_web` call this belongs to. One turn can browse twice, "
             "and a surface that keyed on the run would draw the second browse's "
             "steps into the first one's panel."
         )
@@ -99,7 +98,10 @@ class BrowserEvent(BaseModel):
 
     operation: str | None = Field(
         default=None,
-        description="What the engine chose on this step: CLICK, TYPE_TEXT, SELECT, SCROLL, WAIT, DONE or BLOCKED.",
+        description=(
+            "What this step did: CLICK, TYPE_TEXT, SELECT, SCROLL, NAVIGATE, BACK, "
+            "WAIT, DONE or BLOCKED."
+        ),
     )
     target: str | None = Field(
         default=None,
@@ -109,18 +111,13 @@ class BrowserEvent(BaseModel):
             "never saw."
         ),
     )
-    confidence: float | None = Field(
+    reason: str | None = Field(
         default=None,
-        ge=0.0,
-        le=1.0,
         description=(
-            "How likely the engine found this pick, when the decision model reports "
-            "one. This is the capability's distinguishing property and the reason a "
-            "step is worth showing at all: a browse that acts on a 0.31 pick is one "
-            "somebody should look at."
+            "What the browsing model said this step is for, in its own sentence. "
+            "Model-written text about a page, so a surface renders it as data."
         ),
     )
-
     image: str | None = Field(
         default=None,
         repr=False,

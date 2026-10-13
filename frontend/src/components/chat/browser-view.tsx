@@ -23,46 +23,32 @@ export const OUTCOME_TONE: Record<BrowseOutcome, string> = {
   failed: "text-destructive",
 };
 
-/**
- * How sure the engine was, as something readable at a glance.
- *
- * The number is shown as well as the dot. This is the one property that
- * distinguishes this engine from one that writes its next action, and rounding it
- * away into three colours would throw away the reason it is on screen.
- */
-export function Confidence({ value }: { value: number }) {
-  const t = useTranslations("chat");
-  const tone = value >= 0.7 ? "bg-brand" : value >= 0.4 ? "bg-foreground/45" : "bg-amber-500";
-  return (
-    <span
-      className="text-muted-foreground ml-auto inline-flex shrink-0 items-center gap-1 font-mono text-xs tabular-nums"
-      title={t("browserConfidenceHint", { value: value.toFixed(2) })}
-    >
-      <span className={cn("h-1.5 w-1.5 rounded-full", tone)} aria-hidden />
-      {value.toFixed(2)}
-    </span>
-  );
-}
-
 export function StepRow({ step, last }: { step: BrowseStep; last: boolean }) {
   return (
     <li
       className={cn(
-        "flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs",
+        "flex items-start gap-2 rounded-lg px-2 py-1.5 text-xs",
         last && "bg-foreground/[0.06]",
       )}
     >
-      <span className="text-muted-foreground w-5 shrink-0 text-right font-mono text-xs tabular-nums">
+      <span className="text-muted-foreground mt-0.5 w-5 shrink-0 text-right font-mono text-xs tabular-nums">
         {step.step}
       </span>
-      <span className="bg-foreground/8 text-foreground/70 shrink-0 rounded px-1.5 py-0.5 font-mono text-xs">
-        {step.operation}
+      <span className="min-w-0 flex-1">
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="bg-foreground/8 text-foreground/70 shrink-0 rounded px-1.5 py-0.5 font-mono text-xs">
+            {step.operation}
+          </span>
+          {/* Page-derived text. Rendered as text, never as markup. */}
+          <span className="text-foreground/75 truncate" title={step.target ?? undefined}>
+            {step.target}
+          </span>
+        </span>
+        {/* Model-written, so text as well - what the step was for. */}
+        {step.reason && (
+          <span className="text-muted-foreground mt-0.5 line-clamp-2 block">{step.reason}</span>
+        )}
       </span>
-      {/* Page-derived text. Rendered as text, never as markup. */}
-      <span className="text-foreground/75 truncate" title={step.target ?? undefined}>
-        {step.target}
-      </span>
-      {step.confidence !== null && <Confidence value={step.confidence} />}
     </li>
   );
 }

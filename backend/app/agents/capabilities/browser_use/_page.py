@@ -16,13 +16,15 @@ line, rather than failing to start.
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import json
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlsplit
 
-from app.agents.capabilities.browser_choice._elements import (
+from app.agents.capabilities.browser_use._elements import (
     MAX_COLLECTED_OPTIONS,
     MAX_PAGE_TEXT,
     Element,
@@ -31,9 +33,10 @@ from app.agents.capabilities.browser_choice._elements import (
     clean_label,
     page_text,
 )
-from app.agents.capabilities.browser_choice._endpoint import (
+from app.agents.capabilities.browser_use._endpoint import (
     EndpointError,
     domain_allowed,
+    pin_host,
     version_url,
     websocket_url,
 )
@@ -49,7 +52,7 @@ READ_LIMIT = 20_000
 A page is not a document: a long article's text is the answer, and a search
 results page's text is mostly navigation. Bounded because the whole of it goes
 into the calling model's context, where an unbounded tool result is how one
-`browse_page` ends a conversation.
+`browse_web` ends a conversation.
 """
 
 _CONTEXT_GONE = "Execution context was destroyed"
@@ -71,7 +74,7 @@ _SETTLE_MS = 400
 _VIEWPORT_RATIO = 0.75
 """Viewport height as a fraction of its width - a 4:3 window, not a phone.
 
-Taller shows more of a page per step and costs more of the decision model's
+Taller shows more of a page per step and costs more of the browsing model's
 attention on each; this is the shape a laptop actually has.
 """
 """How long to wait, and how often, for a page that is still arriving.
@@ -138,7 +141,7 @@ _COLLECT_JS = r"""
       // anything does. The history line stopped carrying a typed value, and
       // that was half the fix: the next snapshot copied `el.value` straight back
       // out, `render_table` printed it, and the password the host model had just
-      // entered went to the decision endpoint one step later. A dropdown is the
+      // entered was in every later step's prompt. A dropdown is the
       // exception and not an inconsistency - its selected option is one of the
       // options already listed with it, and the loop cannot tell a chosen list
       // from an unchosen one without it.
@@ -243,8 +246,8 @@ _NAMING_JS = r"""
       // `el.value` is the caption of `<input type=submit value="Send">` and the
       // *contents* of `<input type=password>`. Only the first is a name, and
       // taking both made an unlabelled field's own value its label - which then
-      // travelled to the decision model as the element's name, through the
-      // table and through the pick-one's options, whatever the value rules
+      // travelled to the browsing model as the element's name, through the
+      // table, whatever the value rules
       // below did.
       (CAPTIONED.has((el.type || '').toLowerCase()) ? el.value : '') ||
       ''
@@ -355,7 +358,7 @@ VERIFY_JS = r"""
 """
 """Where an element is *now*, and whether it is still the one that was offered.
 
-The decision model answers after the snapshot was taken, which on a page that
+The browsing model answers after the snapshot was taken, which on a page that
 re-renders is long enough for everything to move. Acting on the centre the
 snapshot recorded is how a click lands on whatever slid into that position -
 which is an action on an element that was never in the candidate table, and the
@@ -422,7 +425,6 @@ class PagePolicy:
 
     allowed_domains: list[str] | None
     candidate_cap: int
-    preview: bool
     preview_width: int
 
 
@@ -538,7 +540,7 @@ class CdpPage:
     ) -> tuple[float, float]:
         """Where `element` is now, having checked it is still the same element.
 
-        The decision model answered against a snapshot, and a page that
+        The browsing model answered against a snapshot, and a page that
         re-rendered since has moved everything. Resolving the selector again and
         comparing what came back is what keeps an action on the element that was
         offered rather than on whatever took its place - and the coordinates
@@ -554,7 +556,7 @@ class CdpPage:
         """
         if not element.path:
             raise StaleElement(
-                f"The engine chose {element.role}: {element.label}, which this "
+                f"The step chose {element.role}: {element.label}, which this "
                 f"page offers no way to address."
             )
         # `%` formatting rather than an f-string: the selector is interpolated
@@ -659,9 +661,33 @@ class CdpPage:
                 f"are the ones listed with it."
             )
 
-    async def scroll(self) -> None:  # pragma: no cover - needs a live browser
-        """Move one viewport down."""
-        await self._evaluate("window.scrollBy(0, window.innerHeight * 0.9)")
+    async def scroll(self, direction: str) -> None:  # pragma: no cover - needs a live browser
+        """Move one viewport `down` or `up`."""
+        sign = "-" if direction == "up" else ""
+        await self._evaluate(f"window.scrollBy(0, {sign}window.innerHeight * 0.9)")
+
+    async def navigate(self, url: str) -> None:  # pragma: no cover - needs a live browser
+        """Open `url` in this tab, refused before the request when the allowlist says no.
+
+        Checked here rather than left to the next snapshot: a navigation is a
+        request, and a request to an address the agent may not visit has already
+        told that server something by the time a snapshot refuses to read it.
+
+        Raises:
+            StaleElement: The URL is not http(s) or is outside the allowed domains -
+                one step's refusal the model can read and route around.
+        """
+        if not domain_allowed(url, self._policy.allowed_domains):
+            raise StaleElement(f"{url} is outside the addresses this agent may open.")
+        here = (await self._evaluate("location.href")).get("value")
+        await self._client.send.Page.navigate(params={"url": url}, session_id=self._session)
+        await self.settle(leaving=str(here or ""))
+
+    async def back(self) -> None:  # pragma: no cover - needs a live browser
+        """Return to the previous page in this tab's history."""
+        here = (await self._evaluate("location.href")).get("value")
+        await self._evaluate("history.back()")
+        await self.settle(leaving=str(here or ""))
 
     async def settle(  # pragma: no cover - needs a live browser
         self, *, leaving: str | None = None
@@ -691,7 +717,7 @@ class CdpPage:
             await asyncio.sleep(_EVAL_BACKOFF)
 
     async def screenshot(self) -> str | None:  # pragma: no cover - needs a live browser
-        """The viewport as a JPEG `data:` URL, or `None` when previews are off.
+        """The viewport as a JPEG `data:` URL, or `None` when the browser sent none.
 
         Bounded by `preview_width` without resizing anything, because the
         viewport *is* `preview_width` - set once on the session in `open_page` -
@@ -699,8 +725,6 @@ class CdpPage:
         renders and how wide the picture is, which is also what keeps the frame a
         person watches identical to the page the model was shown.
         """
-        if not self._policy.preview:
-            return None
         shot = await self._client.send.Page.captureScreenshot(
             params={
                 "format": "jpeg",
@@ -741,6 +765,26 @@ class CdpPage:
         return str(result.get("value") or "")[:READ_LIMIT]
 
 
+async def _resolve(cdp_url: str) -> str | None:  # pragma: no cover - needs a resolver
+    """The first address the endpoint's host name resolves to, or `None` for an address.
+
+    A name that does not resolve is left to the connection to fail on, with the
+    error that names it.
+    """
+    host = urlsplit(cdp_url).hostname
+    if host is None:
+        return None
+    try:
+        ipaddress.ip_address(host)
+    except ValueError:
+        try:
+            found = await asyncio.get_running_loop().getaddrinfo(host, None)
+        except OSError:
+            return None
+        return str(found[0][4][0]) if found else None
+    return None
+
+
 @asynccontextmanager
 async def open_page(  # pragma: no cover - needs a live browser
     *, cdp_url: str, start_url: str, policy: PagePolicy
@@ -770,13 +814,20 @@ async def open_page(  # pragma: no cover - needs a live browser
     except ImportError as exc:
         raise RuntimeError(MISSING_EXTRA) from exc
 
-    if cdp_url.startswith(("ws://", "wss://")):
-        socket = cdp_url
+    # Spoken to by address rather than by name. Chromium answers its DevTools
+    # endpoint only to a Host header that is an IP or `localhost`, so a browser
+    # service reached as `http://browser:9222` refuses every request with a 500.
+    # Resolving the operator-vetted name once and connecting to the address
+    # satisfies that check without a forwarder, and it pins the connection to
+    # what the name meant when the browse began.
+    endpoint = pin_host(cdp_url, await _resolve(cdp_url))
+    if endpoint.startswith(("ws://", "wss://")):
+        socket = endpoint
     else:
         async with httpx.AsyncClient(timeout=10.0) as http:
-            response = await http.get(version_url(cdp_url))
+            response = await http.get(version_url(endpoint))
             response.raise_for_status()
-            socket = websocket_url(cdp_url, response.json())
+            socket = websocket_url(endpoint, response.json())
 
     client = CDPClient(socket)
     await client.start()

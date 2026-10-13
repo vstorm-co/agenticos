@@ -1,22 +1,21 @@
 import type { BrowseOutcome, BrowserFrame } from "@/types/chat";
 
 /**
- * One step the engine chose, as the panel lists it.
+ * One step the browser took, as the panel lists it.
  *
- * `confidence` is the reason a step is worth listing at all: the engine picks
- * from a table rather than composing an action, and it reports how likely it
- * found the pick. A step taken at 0.31 is one somebody should look at, and a list
- * without the number cannot say which one that was.
+ * `reason` is what makes a step worth reading rather than a log line: the model
+ * says what each action is for, so a person watching can tell a browse heading
+ * the wrong way from one taking the long way round.
  */
 export interface BrowseStep {
   step: number;
   operation: string;
   target: string | null;
-  confidence: number | null;
+  reason: string | null;
   url: string | null;
 }
 
-/** One `browse_page` call, assembled from its frames. */
+/** One `browse_web` call, assembled from its frames. */
 export interface Browse {
   callId: string;
   goal: string;
@@ -79,7 +78,7 @@ function applyTo(browse: Browse, frame: BrowserFrame): Browse {
         step: frame.step,
         operation: frame.operation ?? "",
         target: frame.target ?? null,
-        confidence: frame.confidence ?? null,
+        reason: frame.reason ?? null,
         url: frame.url ?? null,
       };
       // Replaced rather than appended when the step number repeats: a resumed or

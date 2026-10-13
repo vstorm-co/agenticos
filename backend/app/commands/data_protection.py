@@ -99,16 +99,11 @@ UNREFERENCED_BY_DESIGN = ("generated_", "_rag_tmp")
 # either named here or in `CAPABILITIES_STAYING_INSIDE`, so a new one fails a
 # test rather than quietly leaving the inventory short.
 OUTBOUND_CAPABILITIES: dict[str, str] = {
-    # Two destinations, and the second is the one a reviewer would miss: every
-    # step sends the page's URL, title and element labels to the decision model,
-    # which on the vendor's default endpoint is a third party. `decision_base_url`
-    # is what moves it.
-    "browser_choice": (
-        "a browser host on BROWSER_CDP_ALLOWED_HOSTS, and the decision model at "
-        "decision_base_url (the vendor's endpoint by default), which receives each "
-        "page's address, its element labels and a bounded excerpt of its visible text"
-    ),
-    "browser_use": "the browser service this deployment configures",
+    # The pages it opens are the destination a reviewer has to know about. What
+    # each step sends the model - the page's address, element labels and an
+    # excerpt of its text - goes to the agent's own model provider, which the
+    # inventory already names.
+    "browser_use": "a browser host on BROWSER_CDP_ALLOWED_HOSTS, and the sites it opens",
     "image_generation": "the image provider named in the binding",
     "knowledge": "the collection's embedding endpoint",
     "memory_mem0": "the mem0 host the binding names (MEM0_ALLOWED_HOSTS bounds it)",

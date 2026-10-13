@@ -198,21 +198,10 @@ dependencies = [
     "phonenumberslite>=9.0.40",
 ]
 
-# No `[project.optional-dependencies]` entry for the `browser_use` capability's
-# engine. `browser-use` (0.13.x) hard-pins `pydantic==2.12.5`, which is
-# irreconcilable with this project's `pydantic>=2.13.4`: uv's universal resolver
-# refuses to lock even an *optional* extra whose transitive pins conflict with the
-# base ones. So it cannot be a managed dependency here at all, and installing it
-# into the venv would drag `pydantic` back a minor across the whole platform.
-# Until browser-use loosens that pin, the capability is wired and tested but its
-# engine is not co-installable - see the capability's README and docs/reference.
-#
-# The `browser` extra below is a different capability's engine (`browser_choice`,
-# #1829), and it exists because the same test comes out the other way.
-
 [project.optional-dependencies]
-# The `browser_choice` engine. Two packages, and the two that are *not* here are
-# the more interesting half (#1829).
+# The web browser's one engine dependency (`browser_use`, #2127). The loop is this
+# repository's and the browsing model is the run's own, so all a library does is
+# speak CDP.
 #
 # `cdp-use` is a typed, async client for the whole Chrome DevTools Protocol and
 # nothing else: `client.send.Accessibility.getFullAXTree(...)`,
@@ -220,33 +209,17 @@ dependencies = [
 # it carries `httpx`, `typing-extensions` and `websockets>=15.0.1` - floors, not
 # pins - so the extra costs this lock no downgrade at all.
 #
-# **Not `browser-harness`**, which #1829 proposed. Read at 0.1.13 it is not a
-# library: it is a CLI and a per-user daemon (`browser_harness/_ipc.py` - an
-# AF_UNIX socket, a PID file, `BH_RUNTIME_DIR`) whose helpers are *synchronous*
-# and whose job is to attach a coding agent to the developer's own Chrome. It
-# ships a `SKILL.md`, which is what it is for. Embedding it here would put
-# blocking socket I/O on the event loop and a singleton daemon under a
-# multi-tenant service, and it hard-pins `websockets==15.0.1`, which drags this
-# lock back from 16.x for every install - measured, not assumed. It also holds no
-# DOM snapshotter, so it would not have carried the element table the loop needs.
-# `cdp-use` is the dependency of its that we actually wanted.
+# **Not `browser-use` itself.** 0.13.x hard-pins `openai`, `google-genai` and
+# `requests` below what Pydantic AI and this project need, and uv refuses to lock
+# even an optional extra whose pins conflict with the base ones. Its approach -
+# one structured step per model call over a numbered element table - is what
+# `_decision.py` does, on the run's model.
 #
-# **Not `jev-ultrafast`**, which is not a published package - `jev` on PyPI is a
-# decorator for compiling functions into TypeSafe queries, requires Python >=3.14
-# and is not a browser agent. The loop is this repository's, and its decisions go
-# through `TypeSafeModel` rather than the raw `httpx` post `jev_ultrafast/model.py`
-# makes, so each one is an ordinary metered model request.
-#
-# `pydantic-ai-slim[typesafe]` brings `typesafe-sdk`, and with it `httpx2` - one
-# of several routes by which the image now carries both HTTP libraries, which is
-# a deliberate state rather than an accident (see `httpx2` above). What mattered
-# was never the second library: it was `PinnedAsyncClient`, whose SSRF pinning
-# guards a URL a *remote server* chooses, and which is `httpx2` itself since
-# #1820. TypeSafe's endpoint is a fixed vendor address the SDK holds itself, so
-# there is no path where one library checks and the other requests.
+# **Not `browser-harness`**: a CLI and a per-user daemon with synchronous helpers,
+# built to attach a coding agent to a developer's own Chrome, not a library for a
+# multi-tenant service.
 browser = [
     "cdp-use==1.4.5",
-    "pydantic-ai-slim[typesafe]>=2.52.0",
 ]
 # Integrated Windows sign-in (SPNEGO), the `KERBEROS_ENABLED` half of #1773.
 # `gssapi` publishes no Linux wheel: it compiles against the system Kerberos
@@ -781,7 +754,6 @@ include = [
     # Which providers can draw an image, derived from the SDK. What it decides is
     # what the Builder offers, and a probe that quietly starts answering "no"
     # would empty that picker without a single test failing.
-    "app/services/decision_models.py",
     "app/services/image_models.py",
     "app/services/model_profile.py",
     "app/services/organization_secret.py",
@@ -1218,7 +1190,6 @@ include = [
     # Which providers can draw an image, derived from the SDK. What it decides is
     # what the Builder offers, and a probe that quietly starts answering "no"
     # would empty that picker without a single test failing.
-    "app/services/decision_models.py",
     "app/services/image_models.py",
     "app/services/model_profile.py",
     "app/services/organization_secret.py",

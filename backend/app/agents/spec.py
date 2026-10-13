@@ -72,7 +72,16 @@ logger = logging.getLogger(__name__)
 # own and `load_capability` opens a skill - which leaves `list_skills` and
 # `load_skill` as names for a mechanism nobody calls. A binding that gated or
 # renamed either is migrated by dropping that entry.
-SPEC_VERSION = 12
+#
+# 13 makes the web browser one capability (#2127). `browser_choice` - the
+# step-by-step browser, whose steps a TypeSafe model picked - folds into
+# `browser_use`, which now runs this repository's loop on the run's own model:
+# the id, its tool `browse_page` → `browse_web`, and its config, minus the
+# decision-model settings and the TypeSafe key. A `browser_use` binding drops the
+# settings of the engine it no longer runs (`mode`, `headless`) and keeps
+# `use_vision` as `vision`. A spec that bound both keeps the step-by-step one,
+# which was the one that could run.
+SPEC_VERSION = 13
 
 ApprovalMode = Literal["default", "required", "never"]
 
@@ -107,6 +116,42 @@ _THINKING_CAPABILITY = "thinking"
 _SKILLS_CAPABILITY = "skills"
 _LOAD_SKILL = "load_skill"
 _WITHDRAWN_SKILL_TOOLS = frozenset({"list_skills", _LOAD_SKILL})
+_BROWSER = "browser_use"
+_FOLDED_BROWSER = "browser_choice"
+_FOLDED_BROWSER_TOOL = ("browse_page", "browse_web")
+_WITHDRAWN_BROWSER_CONFIG = frozenset(
+    {"decision_model", "decision_base_url", "min_confidence", "mode", "headless", "use_vision"}
+)
+
+
+def _one_browser(data: Any) -> Any:
+    """Drop a version-12 `browser_use` binding that a `browser_choice` one replaces.
+
+    Version 13 folds `browser_choice` into `browser_use`, so a spec that bound both
+    would bind the same capability twice after the move - which `_ids_are_unique`
+    refuses, making a stored spec unreadable. The step-by-step binding is kept: it
+    is the one that could run, and its endpoint is the one that was configured.
+    """
+    if not isinstance(data, dict) or not isinstance(data.get("capabilities"), list):
+        return data
+    ids = {item.get("id") for item in data["capabilities"] if isinstance(item, dict)}
+    if not {_BROWSER, _FOLDED_BROWSER} <= ids:
+        return data
+    logger.warning(
+        "Dropping a `%s` binding: the `%s` binding beside it becomes the web browser.",
+        _BROWSER,
+        _FOLDED_BROWSER,
+    )
+    return {
+        **data,
+        "capabilities": [
+            item
+            for item in data["capabilities"]
+            if not (isinstance(item, dict) and item.get("id") == _BROWSER)
+        ],
+    }
+
+
 _THINKING_SETTING = "thinking"
 _MODEL_SETTINGS_WITHDRAWN = frozenset(
     {
@@ -266,6 +311,50 @@ class CapabilityBindingSpec(BaseModel):
                 ", ".join(sorted(withdrawn)),
             )
             migrated[key] = kept
+        return migrated
+
+    @model_validator(mode="before")
+    @classmethod
+    def _fold_the_browsers_version_13_merged(cls, data: Any) -> Any:
+        """Let a version-12 browser binding load as the one web browser.
+
+        `browser_choice` becomes `browser_use`: the id, its tool's approval and
+        override under the new tool name, and its config. The settings of the
+        engines that are gone are dropped and said out loud - a decision model, a
+        confidence floor, a playwright `mode` - and so is the TypeSafe key, which
+        nothing reads now. `use_vision` survives as `vision`. A value the binding
+        states under the new name wins, so a migrated binding reads the same twice.
+        """
+        if not isinstance(data, dict) or data.get("id") not in (_BROWSER, _FOLDED_BROWSER):
+            return data
+        migrated = dict(data)
+        config = data.get("config")
+        if isinstance(config, dict):
+            withdrawn = _WITHDRAWN_BROWSER_CONFIG & config.keys()
+            if withdrawn:
+                logger.warning(
+                    "Dropping web browser settings this spec version no longer has: %s",
+                    ", ".join(sorted(withdrawn)),
+                )
+                kept = {key: value for key, value in config.items() if key not in withdrawn}
+                if "use_vision" in config:
+                    kept.setdefault("vision", config["use_vision"])
+                if kept.get("cdp_url") is None:
+                    kept.pop("cdp_url", None)
+                migrated["config"] = kept
+        if data.get("id") != _FOLDED_BROWSER:
+            return migrated
+        old_tool, new_tool = _FOLDED_BROWSER_TOOL
+        migrated["id"] = _BROWSER
+        if migrated.get("secret_id") is not None:
+            logger.warning("Dropping the step-by-step browser's decision-model key.")
+            migrated["secret_id"] = None
+        for key in ("tool_approval", "tool_overrides"):
+            stated = data.get(key)
+            if isinstance(stated, dict) and old_tool in stated:
+                renamed = {k: v for k, v in stated.items() if k != old_tool}
+                renamed.setdefault(new_tool, stated[old_tool])
+                migrated[key] = renamed
         return migrated
 
     def to_binding(self) -> CapabilityBinding:
@@ -890,6 +979,12 @@ class SpecialistSpec(BaseModel):
         description="Override the capability's mode for this specialist alone",
     )
 
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_version_12_browsers(cls, data: Any) -> Any:
+        """A specialist that bound both browsers keeps one - see :func:`_one_browser`."""
+        return _one_browser(data)
+
     @field_validator("capabilities")
     @classmethod
     def _ids_are_unique(
@@ -1150,6 +1245,12 @@ class AgentSpec(BaseModel):
         specialist with content on.
         """
         return self.observability.content if self.observability else "full"
+
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_version_12_browsers(cls, data: Any) -> Any:
+        """A spec that bound both browsers keeps one - see :func:`_one_browser`."""
+        return _one_browser(data)
 
     @model_validator(mode="before")
     @classmethod

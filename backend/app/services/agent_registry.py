@@ -14,7 +14,6 @@ moving a pointer backwards - would make run history lie about what was live.
 
 from __future__ import annotations
 
-import asyncio
 import contextlib
 import logging
 import re
@@ -38,11 +37,7 @@ from app.agents.capabilities import (
 )
 from app.agents.capabilities import get as get_capability
 from app.agents.capabilities.approval import ungateable_tool_problems
-from app.agents.capabilities.browser_choice import BrowserChoiceConfig
-from app.agents.capabilities.browser_choice import (
-    validate_cdp_url as validate_browser_choice_cdp_url,
-)
-from app.agents.capabilities.browser_use import BrowserUseConfig, validate_cdp_url
+from app.agents.capabilities.browser_use import WebBrowserConfig, validate_cdp_url
 from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.default_instructions import DEFAULT_INSTRUCTIONS
 from app.agents.mcp import PLATFORM_MCP_PREFIX, prefix_collisions
@@ -248,46 +243,19 @@ async def _sandbox_problems(db: AsyncSession, ctx: AuthContext, spec: AgentSpec)
     return problems
 
 
-async def _browser_use_problems(config: BaseModel | None) -> list[str]:
-    """A remote `cdp_url` this deployment must not connect to.
-
-    The `browser_use` capability's remote mode attaches to a browser over a CDP
-    endpoint, which this deployment reaches server-side - so it is SSRF-checked,
-    here at publish rather than at build. The check resolves DNS (`getaddrinfo`),
-    which blocks, and the build path runs on the event loop inside a tool call; run
-    off the loop in a thread it is refused once, when the spec is published, rather
-    than on every run (agenticos#33). Every binding passes through here - a spec's
-    own and each inline specialist's - so a specialist cannot smuggle one past.
-    """
-    if not isinstance(config, BrowserUseConfig):
-        return []
-    try:
-        await asyncio.to_thread(validate_cdp_url, config)
-    except ValueError as exc:
-        return [
-            f"The web browser's remote endpoint cannot be reached from here: {exc} "
-            "Point it at a public browser service, not a loopback or internal address."
-        ]
-    return []
-
-
-def _browser_choice_problems(config: BaseModel | None) -> list[str]:
+def _browser_problems(config: BaseModel | None) -> list[str]:
     """A `cdp_url` this deployment's operator has not vetted, or none at all.
 
-    Sync, unlike `_browser_use_problems`: the check this calls is an exact match
-    against `BROWSER_CDP_ALLOWED_HOSTS` and resolves no DNS, so there is nothing
-    to keep off the event loop. `validate_cdp_url` says why the allowlist is the
-    control here rather than the SSRF guard.
-
-    Its own function rather than one shared with `browser_use`: two capabilities,
-    two endpoints, two controls now, and a helper taking `BaseModel | None` would
-    have to re-derive which it is looking at in order to say anything a person can
-    act on.
+    An exact match against `BROWSER_CDP_ALLOWED_HOSTS` that resolves no DNS, so
+    there is nothing to keep off the event loop. `validate_cdp_url` says why the
+    allowlist is the control here rather than the SSRF guard. Every binding passes
+    through here - a spec's own and each inline specialist's - so a specialist
+    cannot smuggle one past.
     """
-    if not isinstance(config, BrowserChoiceConfig):
+    if not isinstance(config, WebBrowserConfig):
         return []
     try:
-        validate_browser_choice_cdp_url(config)
+        validate_cdp_url(config)
     except ValueError as exc:
         return [f"The web browser's endpoint cannot be used: {exc}."]
     return []
@@ -1438,8 +1406,7 @@ class AgentRegistryService:
         except BadRequestError as exc:
             problems.merge(_config_problems(binding.id, exc))
         else:
-            problems.add(await _browser_use_problems(config))
-            problems.add(_browser_choice_problems(config))
+            problems.add(_browser_problems(config))
             problems.add(ungateable_tool_problems(binding, definition, config))
         # A tool_approval key that matches nothing is the dangerous kind of
         # typo: it is not an error at run time, it is silence - the tool the

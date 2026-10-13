@@ -497,6 +497,21 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **One web browser, on the agent's own model (#2127).** The step-by-step
+  browser and the browser-use one are now a single "Web browser"
+  (`browser_use`, tool `browse_web`) running this repository's loop: each step
+  the agent's model judges the last action, keeps a short memory and picks one
+  action on a numbered element of the live page - click, type, select, scroll,
+  open a URL, go back, finish or report being blocked - and the chat panel
+  shows what each step did and why. The tab stays open for the turn, so a
+  browse that reaches its step limit continues where it stopped on the next
+  call; the default limit is 50 steps per call. There is no TypeSafe decision
+  model and no second key any more, and `DECISION_MODEL_ALLOWED_HOSTS` is
+  gone. A `browser` service sits in the compose files behind the `browser`
+  profile, and a browser named in `cdp_url` is reached by its address, so
+  Chromium's DevTools host check no longer needs a forwarder.
+  **`SPEC_VERSION` moves to 13**: `browser_choice` bindings load as the web
+  browser, with `browse_page` approval and renames moved to `browse_web`.
 - **Brand marks in their own colours.** Every service, connector and model
   provider mark - in the vault, channels, MCP servers, the Builder and the
   sign-in buttons - is drawn in its brand's colour where that colour reads on

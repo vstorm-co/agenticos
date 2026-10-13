@@ -1354,8 +1354,6 @@
       "writing": "{named, select, no {Writing…} other {Writing {subject}}}",
       "writingPlan": "Writing the plan",
       "wrote": "{named, select, no {Wrote…} other {Wrote {subject}}}",
-      "workingThroughPage": "Working through a page",
-      "browsePage": "Work Through a Page",
       "publishingArtifact": "Publishing an app",
       "publishArtifact": "Published app",
       "readingArtifact": "Reading a published app",
@@ -1419,7 +1417,6 @@
     "browserWaitingForFrame": "Waiting for the first view of the page…",
     "browserNoPreview": "This agent runs without a live preview.",
     "browserViewportAlt": "The page as it looked at step {step}",
-    "browserConfidenceHint": "The engine found this pick with probability {value}",
     "browserOutcome": {
       "done": "Finished",
       "blocked": "Blocked by the page",
@@ -6292,21 +6289,13 @@
       "needs": "Nothing extra.",
       "never": "Never answers for the person. In Slack or Telegram it waits for their reply."
     },
-    "browser_choice": {
-      "name": "Web browser (step by step)",
-      "does": "Lets the agent work through a web page by choosing, one at a time, among the actions the page really offers.",
-      "example1": "Find a product page and read its price",
-      "example2": "Go through a site's search step by step",
-      "needs": "An API key in the vault for the model that picks each step.",
-      "never": "Never acts without a person's approval, unless you change that."
-    },
     "browser_use": {
       "name": "Web browser",
-      "does": "Gives the agent a real web browser that clicks through sites on its own to finish a task.",
+      "does": "Gives the agent a real web browser it works step by step - reading pages, clicking, filling forms and searching - to finish a task.",
       "example1": "Check a supplier's portal for new invoices",
       "example2": "Fill in a long web form",
-      "needs": "A browser host set up by an administrator. A task takes minutes and costs more than a web search.",
-      "never": "Never acts without a person's approval, unless you change that."
+      "needs": "A browser host set up by an administrator. A long task takes a few minutes and one model request per step.",
+      "never": "Never goes outside its allowed domains, and never follows instructions written on a page."
     },
     "channel_tools": {
       "name": "Chat channel lookup",
@@ -6516,7 +6505,7 @@
     "chipGroupsMore": "{names} +{count}"
   },
   "capabilityConfig": {
-    "browser_choice": {
+    "browser_use": {
       "cdp_url": {
         "title": "DevTools endpoint",
         "description": "Chromium DevTools endpoint to drive - a browser service the operator runs, not a process in the API container."
@@ -6525,25 +6514,17 @@
         "title": "Allowed domains",
         "description": "Hosts the browser may be on; empty means no restriction. Globs like *.example.com are allowed. Checked on every step, not only the first."
       },
-      "decision_model": {
-        "title": "Decision model",
-        "description": "The model that picks the operation and the element each step."
-      },
-      "decision_base_url": {
-        "title": "Decision model endpoint",
-        "description": "Where that model runs. Empty is the vendor's own public endpoint (https://api.typesafe.ai), which is where page content goes unless this says otherwise - so a deployment that may not send page content to a third party fills this in with an endpoint of its own."
-      },
       "max_steps": {
         "title": "Steps per call at most",
-        "description": "Hard cap on steps per call; each step is one decision request."
+        "description": "How many steps one call may take; each step is one model request. A task that needs more continues in the same tab on the next call."
+      },
+      "vision": {
+        "title": "Show the model screenshots",
+        "description": "Send each step's screenshot to the model as well as the page's elements. Better on visual pages, more tokens, and the model has to read images."
       },
       "candidate_cap": {
         "title": "Elements offered per step",
-        "description": "How many of the page's elements may be offered as choices in one step. Lower is cheaper and blinder; the loop's answer to a page too dense for the cap is to scroll."
-      },
-      "min_confidence": {
-        "title": "Minimum confidence",
-        "description": "Refuse to act on a pick the decision model scored below this, ending the browse as blocked. 0 acts on every pick and reports the score."
+        "description": "How many of the page's elements may be offered as choices in one step. Lower is cheaper and blinder; the answer to a page too dense for the cap is to scroll."
       },
       "preview": {
         "title": "Show a live preview",
@@ -6552,32 +6533,6 @@
       "preview_width": {
         "title": "Viewport width (pixels)",
         "description": "The browser's viewport width in pixels, which is also how wide the frames are. It decides what the agent can see without scrolling."
-      }
-    },
-    "browser_use": {
-      "mode": {
-        "title": "Browser",
-        "description": "playwright: launch a headless browser locally. remote: attach to a browser running elsewhere via its CDP endpoint."
-      },
-      "cdp_url": {
-        "title": "DevTools endpoint",
-        "description": "Chromium DevTools endpoint to attach to; required by (and only valid in) remote mode."
-      },
-      "allowed_domains": {
-        "title": "Allowed domains",
-        "description": "Domains the agent may navigate to; empty means no restriction. Globs like *.example.com are allowed."
-      },
-      "max_steps": {
-        "title": "Steps per call at most",
-        "description": "Hard cap on the browser agent's steps per call; each step is one model request."
-      },
-      "use_vision": {
-        "title": "Send screenshots to the model",
-        "description": "Send page screenshots to the browser agent's model; better on visual layouts, more tokens."
-      },
-      "headless": {
-        "title": "Hide the browser window",
-        "description": "Run a locally launched browser without a visible window (playwright mode only)."
       }
     },
     "channel_tools": {

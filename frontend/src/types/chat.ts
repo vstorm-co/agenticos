@@ -266,7 +266,7 @@ export type BrowseOutcome = "done" | "blocked" | "exhausted" | "failed";
  */
 export interface BrowserFrame {
   kind: "browser_opened" | "browser_step" | "browser_frame" | "browser_finished";
-  /** Which `browse_page` call this belongs to; one turn can browse twice. */
+  /** Which `browse_web` call this belongs to; one turn can browse twice. */
   call_id: string;
   step: number;
   url?: string | null;
@@ -275,12 +275,12 @@ export interface BrowserFrame {
   max_steps?: number | null;
   /** On the opening frame: the task the model handed over. */
   goal?: string | null;
-  /** CLICK, TYPE_TEXT, SELECT, SCROLL, WAIT, DONE or BLOCKED. */
+  /** CLICK, TYPE_TEXT, SELECT, SCROLL, NAVIGATE, BACK, WAIT, DONE or BLOCKED. */
   operation?: string | null;
-  /** The element as the page labelled it - never an index the client never saw. */
+  /** The element as the page labelled it, or the address opened - never an index. */
   target?: string | null;
-  /** How likely the engine found this pick, when the decision model reports one. */
-  confidence?: number | null;
+  /** What the browsing model said the step is for. Model-written, rendered as data. */
+  reason?: string | null;
   /** On `browser_frame`: the viewport as a `data:` URL. */
   image?: string | null;
   outcome?: BrowseOutcome | null;

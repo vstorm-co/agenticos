@@ -1,5 +1,5 @@
 ---
-source_sha: "e9cdb78d6372"
+source_sha: "20c2650b5968"
 ---
 
 # Konsola { #the-console }
@@ -250,11 +250,11 @@ dyktowanie są pod jednym **+**. Pola nigdy nie są na tyle małe, żeby iOS je
 przybliżał.
 
 **Obserwowanie przeglądania.** Agent z
-[automatyzacją przeglądarki](reference/capabilities.md#browser-automation-choose)
-otwiera panel obok transkryptu, gdy zaczyna przechodzić przez stronę: widok strony na
-bieżąco, adres, na którym jest, i każdy krok z prawdopodobieństwem, z jakim silnik go
-wybrał. Ta liczba jest powodem, dla którego panel istnieje zamiast spinnera —
-przeglądanie, które zadziałało na wyborze 0.31, warto sprawdzić. Panel zostaje po
+[przeglądarką](reference/capabilities.md#browser-automation) pokazuje w transkrypcie
+kartę, gdy zaczyna przechodzić przez stronę, a po kliknięciu otwiera panel obok: widok
+strony na bieżąco, adres, na którym jest, i każdy krok z tym, co zrobił i po co. To
+zdanie jest powodem, dla którego panel istnieje zamiast spinnera — przeglądanie, które
+idzie w złą stronę, widać, zanim skończy. Panel zostaje po
 zakończeniu, bo *zablokowane przez stronę* to odpowiedź o stronie. Zamknij go, a
 zostanie zamknięty dla tego przeglądania.
 

@@ -346,6 +346,22 @@ services:
       retries: 10
     restart: unless-stopped
 
+  # The browser the web browser capability drives (#2127). Behind a profile,
+  # because only an agent bound to `browser_use` needs one: `docker compose
+  # --profile browser up -d browser`. Never published - the API reaches it on the
+  # compose network as `http://browser:9222`, which `BROWSER_CDP_ALLOWED_HOSTS`
+  # has to name. A pinned Chromium build, so an upgrade is a decision; the
+  # headless shell listens on all interfaces and answers DevTools by address,
+  # which the capability resolves the name to (`pin_host`).
+  browser:
+    image: chromedp/headless-shell:156.0.8078.12
+    profiles: [browser]
+    # Room for pages that use shared memory; the default 64 MB crashes tabs.
+    shm_size: 1gb
+    networks:
+      - backend
+    restart: unless-stopped
+
   sandboxd:
     image: ghcr.io/vstorm-co/sandboxd:0.2
     profiles: [sandbox]

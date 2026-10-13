@@ -659,10 +659,10 @@ class TestConfigValidation:
 
     def test_a_rule_about_two_settings_is_attributed_to_the_config_itself(self):
         """A `model_validator(mode="after")` names no field, so the refusal
-        falls back to the blob it was about - `browser_use` refusing a
-        `cdp_url` in the mode that launches its own browser is about the pair."""
+        falls back to the blob it was about - `image_generation` refusing a
+        provider and a model that do not go together is about the pair."""
         with pytest.raises(BadRequestError) as exc:
-            get("browser_use").validate_config({"mode": "playwright", "cdp_url": "ws://host:9222"})
+            get("image_generation").validate_config({"provider": "openai", "model": "not-a-model"})
         assert exc.value.details is not None
         assert [problem["field"] for problem in exc.value.details["fields"]] == ["config"]
 

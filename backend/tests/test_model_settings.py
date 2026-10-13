@@ -213,7 +213,7 @@ class TestSpecsPublishedBeforeThisExisted:
         `mcp_servers` (#1341); 11 made whose account a binding speaks through
         its kind, `account`, rather than a flag on it; 12 withdrew the `skills`
         capability's `list_skills` and `load_skill` (#1658)."""
-        assert AgentSpec(name="x").spec_version == SPEC_VERSION == 12
+        assert AgentSpec(name="x").spec_version == SPEC_VERSION == 13
 
     def test_a_version_9_spec_loads_its_mcp_ids_as_bindings(self):
         """`extra="forbid"` would otherwise refuse every stored spec that names

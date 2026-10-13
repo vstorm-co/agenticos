@@ -1,5 +1,5 @@
 ---
-source_sha: "4ded689df78b"
+source_sha: "a1ab81caf573"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -47,8 +47,7 @@ die sich von selbst öffnen, wo eines davon gesetzt wurde.
 | `conversation_search` | Frühere Gespräche | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — |
 | `web_research` | Websuche | research | `web_search` | `web:read` | für kostenpflichtige Dienste |
 | `web_fetch` | Webseiten lesen | research | `web_fetch` | `web:fetch` | — |
-| `browser_choice` | Webbrowser (Schritt für Schritt) | research | `browse_page` | `web:browse` | über das Extra `browser` |
-| `browser_use` | Webbrowser | research | `browse_web` | `web:browse` | über das Extra `browser-use` |
+| `browser_use` | Webbrowser | research | `browse_web` | `web:browse` | über das Extra `browser` |
 | `code_execution` | Berechnungen | analysis | `run_python` | `code:execute` | — |
 | `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | für Daytona |
 | `charts` | Diagramme | analysis | `create_chart` | — | — |
@@ -640,164 +639,92 @@ oder ein Bild kommt als Binärinhalt an, den das Modell nativ liest. Nichts fass
 es zusammen — was mit einer Seite zu tun ist, gehört in die Instruktionen des
 Agents.
 
-## Webbrowser (Schritt für Schritt) { #browser-automation-choose }
-
-`browse_page` — *Arbeitet eine Webseite Schritt für Schritt auf ein Ziel hin durch, eine gewählte Aktion nach der anderen.*
-
-Ein Ziel und eine Start-URL. Die Capability öffnet die Seite in einem Chromium, das
-Sie selbst betreiben, und wiederholt drei Dinge: Sie liest die Seite in eine
-nummerierte Tabelle der Elemente ein, auf denen ein Mensch handeln könnte, fragt ein
-Entscheidungsmodell nach Operation und Element und führt das aus. Nur der Wert eines
-Eingabefelds erreicht ein Sprachmodell.
-
-Greifen Sie dazu, wenn eine Seite *bedient* werden muss — ein Formular, ein Filter,
-ein Cookie-Banner, ein mehrstufiger Ablauf, eine Suche, deren Ergebnis einen Klick
-braucht. Für eine Seite, die Sie nur lesen müssen, ist [Web-Fetch](#web-fetch)
-schneller und hat keine Seiteneffekte.
-
-**Sie wählt, sie formuliert nicht.** Ein Browser-Agent, der seine nächste Aktion
-schreibt, kann jede beliebige Zeichenkette ausgeben — der Text der Seite ist damit
-ein Anweisungskanal in das Modell hinein, und die einzige Verteidigung besteht darin,
-dem Modell zu sagen, es solle nicht zuhören. Diese hier beantwortet eine
-Einfachauswahl, deren Optionen serverseitig aus dem lebenden DOM gebaut werden — eine
-Seite kann eine Aktion also nicht anbieten, indem sie sie beschreibt.
-
-Das ist nicht dasselbe wie sicher. „Konto löschen" ist eine Aktion, die eine Seite
-tatsächlich anbietet, deshalb ist die Capability **`side_effecting`** und
-`browse_page` lässt sich hinter eine [Freigabe](../governance.md) stellen.
-
-**Standardmäßig wird es nicht zur Freigabe zurückgehalten** — die eine Stelle, an der
-das Flag des Tools dem der Capability widerspricht. Eine Freigabe für einen Durchlauf
-kommt *bevor* die erste Seite geholt ist, zu einem Ziel in natürlicher Sprache und
-einer URL — sie bittet also jemanden, Aktionen freizugeben, die noch niemand sehen
-kann, und das ist Einwilligung ohne Information. An ihre Stelle tritt das Zusehen: Die
-Konsole zeichnet den Durchlauf, während er läuft, jeder Schritt nennt die Wahl und
-ihre Wahrscheinlichkeit, und `allowed_domains` begrenzt, wohin er überhaupt darf. Ein
-Betreiber, der das Gate will, setzt `tool_approval` auf der Bindung, was hier gewinnt;
-`min_confidence` ist die automatische Fassung desselben Impulses.
-
-**Sie meldet, wenn sie blockiert ist.** Eine Anmeldewand, ein Einwilligungsdialog,
-ein Captcha, eine Seite, die das Gefragte nicht enthält: Die Engine sagt es, und der
-Durchlauf endet mit einem Ergebnis statt mit Schweigen an der Schrittgrenze. Vier
-Ergebnisse, und alle vier sind gewöhnlich — abgeschlossen, von der Seite blockiert,
-an der Schrittgrenze gestoppt und der Browser war nicht erreichbar.
-
-| Einstellung | Standard | Werte |
-|---|---|---|
-| `cdp_url` | der einzige erlaubte Host, wenn es einen gibt | ein Chromium-DevTools-Endpunkt; erforderlich, und sein Host muss auf `BROWSER_CDP_ALLOWED_HOSTS` stehen. Bei genau einem erlaubten Host kommt das Formular ausgefüllt |
-| `allowed_domains` | null | Hosts, auf denen der Browser sein darf; Globs wie `*.example.com` erlaubt; null bedeutet unbeschränkt |
-| `decision_model` | `jev-latest` | eine Auswahl über `app/core/catalog/decision_models.json`; ein fester Build wie `jev-1.13.0` lässt sich eintippen, weil ein Agent mit einer auf eine Version abgestimmten Konfidenzschwelle genau den braucht |
-| `decision_base_url` | null | wo dieses Modell läuft. Leer ist das eigene `https://api.typesafe.ai` des Anbieters, und dorthin geht der Seiteninhalt, solange dieses Feld nichts anderes sagt |
-| `max_steps` | 25 | 1–100; jeder Schritt ist eine Entscheidungsanfrage |
-| `candidate_cap` | 60 | 2–200; wie viele Elemente in einem Schritt zur Auswahl gestellt werden dürfen |
-| `min_confidence` | 0.0 | 0–1; auf eine Auswahl unterhalb dieses Werts nicht handeln und den Durchlauf als blockiert beenden |
-| `preview` | `true` | das Sichtfenster während des Durchlaufs an den Chat senden |
-| `preview_width` | 1024 | 320–1920; wie breit diese Bilder sind |
-
-**Der Browser ist Ihrer, und der Betreiber sagt welcher.** Es gibt keinen lokalen
-Modus und kein Chromium im API-Image: `cdp_url` zeigt auf einen Browser-Dienst, den
-ein Betreiber betreibt und isoliert. Der Host muss auf
-[`BROWSER_CDP_ALLOWED_HOSTS`](../configuration.md) stehen, und eine leere Allowlist
-— die Voreinstellung — lehnt Browser-Automatisierung vollständig ab. Geprüft **bei
-der Veröffentlichung**, beim Speichern des Spec, nicht bei jedem Run.
-
-Das ist eine Allowlist und nicht die SSRF-Prüfung, durch die jede andere
-mandantengelieferte URL geht, und der Grund ist, was `cdp_url` ist: Sie steht im
-Spec, den jeder mit `edit`-Recht schreibt, die Adresse ist also mandantenkontrolliert
-und die Anfrage gehört diesem Deployment. Der SSRF-Schutz ist hier in beide
-Richtungen falsch — er lässt nur *öffentliche* Adressen zu, lehnt damit den
-isolierten Dienst im eigenen Netz ab, den diese Seite zu betreiben verlangt, und
-akzeptiert einen ins Internet gestellten CDP-Debugger, die schlechtere der beiden
-Haltungen. Ein geprüfter Host braucht keine Adressprüfung; ein ungeprüfter wird
-abgelehnt, worauf er auch auflöst.
-
-**Jeder Schritt sendet die Seite an das Entscheidungsmodell.** Ihre URL, ihren
-Titel, die Beschriftungen der Elemente und einen begrenzten Auszug ihres sichtbaren
-Textes — was am öffentlichen Endpunkt des Anbieters ein Dritter ist und der Inhalt
-eines internen Systems sein kann. Der Text ist dabei, weil die Engine sonst nicht
-erkennen kann, dass sie *fertig* ist: Ein Preis, eine Bestätigung und „keine
-Ergebnisse“ sind gewöhnlicher Text und keine Bedienelemente, `DONE` wäre also
-geraten. Ein Wert, den der Agent eintippt, wird bewusst nicht gesendet — der Schritt
-wird ohne ihn als „gefüllt“ vermerkt, ein Passwort reist also nicht zu diesem
-Endpunkt. Zwei Dinge machen daraus
-eine Entscheidung statt eines Versehens: Die Capability verlangt einen API-Key aus dem
-Vault dieses Deployments, kann also erst laufen, wenn ein Betreiber einen hinterlegt,
-und `decision_base_url` lenkt das Entscheidungsmodell woandershin - auf einen Host
-auf [`DECISION_MODEL_ALLOWED_HOSTS`](../configuration.md), denn dieses Feld steht im
-Spec und der Key wird entsiegelt in einen Header an die genannte Adresse gelegt. Eine
-leere Allowlist, die Voreinstellung, lässt nur den Endpunkt des Anbieters zu. Siehe
-[was das Deployment verlässt](../data-protection.md#what-leaves-the-deployment).
-
-**Beide Modellpfade werden gezählt, keiner bepreist.** Das Entscheidungsmodell läuft
-einmal pro Schritt, das Modell des Runs einmal pro getipptem Feld; beide buchen Token
-auf das Budget des Runs. Ein Preis ist etwas anderes: Der mitgelieferte
-Preis-Snapshot kennt das Entscheidungsmodell nicht, ein Durchlauf zeigt also
-Verbrauch ohne Kosten, und ein in Dollar ausgedrücktes Budget begrenzt ihn nicht.
-`max_steps` ist es, was einen Durchlauf begrenzt.
-
-**`cdp-use` und das TypeSafe-SDK kommen mit dem Extra `browser`**, das eine
-Standardinstallation nicht hat. Ein Betreiber, der die Capability will, installiert
-`agenticos[browser]`; ein daran gebundener Agent auf einem Deployment ohne das Extra
-scheitert an diesem einen Tool laut und mit der Installationszeile.
-
-**Sie streamt, während sie läuft.** Die Konsole zeichnet das Sichtfenster, die Seite,
-auf der sie ist, und jeden Schritt mit der Wahrscheinlichkeit, mit der die Engine ihn
-gefunden hat — siehe [die Konsole](../console.md). `preview` aus behält die Erzählung
-und lässt die Bilder weg.
-
 ## Webbrowser { #browser-automation }
 
-`browse_web` — *Übergibt eine offene Webaufgabe an einen autonomen Browser-Agent.*
+`browse_web` — *Eine Aufgabe in einem echten Webbrowser erledigen, Schritt für Schritt.*
 
-Ein Ziel in natürlicher Sprache, übergeben an einen
-[browser-use](https://github.com/browser-use/browser-use)-Agent, der ein echtes
-Chromium steuert — navigieren, lesen, klicken, extrahieren — und ein Textergebnis
-zurückgibt. Greifen Sie dazu, wenn das Seitenlayout unbekannt ist oder die Aufgabe
-Urteilsvermögen braucht, nicht für einen skriptbaren Ablauf, den eine direkte
-Anfrage erledigen würde.
+Eine Aufgabe und eine Start-URL. Die Capability öffnet die Seite in einem Chromium, den
+Sie betreiben, und wiederholt drei Dinge: die Seite in eine nummerierte Tabelle der
+Elemente lesen, auf die ein Mensch reagieren könnte, das Modell des Runs um einen
+Schritt bitten, den Schritt ausführen. Ein Schritt beurteilt, ob die letzte Aktion
+gewirkt hat, hält ein kurzes Gedächtnis für den Rest der Aufgabe, sagt, wozu die
+nächste Aktion dient, und nennt genau eine Aktion: klicken, tippen, auswählen, scrollen,
+eine URL öffnen, zurückgehen, warten, mit einer Antwort enden oder melden, dass die
+Seite blockiert.
 
-Das ist die größte Angriffsfläche, die eine Capability öffnet: Ein Browser folgt
-dem, was eine Seite ihm sagt, die Seite ist nicht vertrauenswürdig, und deshalb
-macht `browse_web` aus Webinhalten ein Tool mit Seiteneffekten. Es ist aus diesem
-Grund **`side_effecting` und gateable** — stellen Sie es hinter eine
-[Genehmigung](../governance.md), und die eingeschleuste Seite erreicht eine Person
-und keine Aktion.
+Greifen Sie zu ihr, wenn eine Seite *bedient* werden muss — ein Formular, ein Filter,
+eine Anmeldung, für die Zugangsdaten vorliegen, eine Suche, deren Ergebnisse einen
+Klick brauchen, ein Ablauf über mehrere Seiten. Für eine Seite, die nur gelesen werden
+muss, ist [Web-Abruf](#web-fetch) schneller und ohne Nebenwirkungen.
+
+**Eine Aktion nennt eine Zeile, nie einen Selektor.** Jedes Element, auf das das Modell
+wirken kann, ist eine Zeile einer Tabelle, die auf dem Server aus dem lebenden DOM
+gebaut wird, also kann eine Seite keine Aktion anbieten, indem sie eine beschreibt. Das
+ist nicht dasselbe wie sicher: „Konto löschen“ ist eine Aktion, die eine Seite wirklich
+anbietet, deshalb ist die Capability **`side_effecting`**, und `browse_web` lässt sich
+hinter eine [Freigabe](../governance.md) stellen.
+
+**Standardmäßig wartet sie nicht auf eine Freigabe** — die eine Stelle, an der das Flag
+des Tools vom Flag der Capability abweicht. Eine Freigabe für ein Browsen kommt, bevor
+die erste Seite geladen ist, auf eine Aufgabe in natürlicher Sprache, und bittet damit
+um Zustimmung zu Aktionen, die noch niemand sehen kann. An ihre Stelle tritt das
+Zusehen: Die Konsole zeichnet das Browsen live, jeder Schritt nennt, was er gedrückt
+hat und wozu, und `allowed_domains` begrenzt, wohin es überhaupt darf. Wer die Sperre
+will, setzt `tool_approval` am Binding.
+
+**Ein Schrittlimit ist eine Pause, kein Ende.** Der Tab bleibt für den Rest des Turns
+offen. Ein Browsen, das `max_steps` erreicht, sagt das zusammen mit dem, was es gelernt
+hat, und der Agent macht weiter, indem er `browse_web` erneut ohne `start_url` aufruft —
+auf derselben Seite, angemeldet, mit demselben Gedächtnis. Ein Aufruf mit `start_url`
+beginnt eine neue Aufgabe im selben Tab. Vier Ergebnisse, alle gewöhnlich: erledigt, von
+der Seite blockiert, am Schrittlimit pausiert, und der Browser war nicht erreichbar.
 
 | Konfiguration | Standard | Werte |
 |---|---|---|
-| `mode` | `playwright` | `playwright`, `remote` |
-| `cdp_url` | null | ein Chromium-DevTools-Endpunkt; erforderlich bei (und nur gültig in) `remote` |
-| `allowed_domains` | null | Domains, die der Agent erreichen darf; Globs wie `*.example.com` erlaubt; null ist unbeschränkt |
-| `max_steps` | 25 | 1–100; jeder Schritt ist eine Modellanfrage |
-| `use_vision` | `true` | Screenshots der Seite an das Modell des Browser-Agents senden |
-| `headless` | `true` | einen lokal gestarteten Browser ohne Fenster ausführen (nur `playwright`) |
+| `cdp_url` | leer | ein Chromium-DevTools-Endpunkt; Pflicht, und sein Host muss auf `BROWSER_CDP_ALLOWED_HOSTS` stehen |
+| `allowed_domains` | null | Hosts, auf denen der Browser sein darf; Muster wie `*.example.com` erlaubt; null heißt keine Einschränkung |
+| `max_steps` | 50 | 1–200; Schritte pro Aufruf, jeder eine Modellanfrage |
+| `vision` | `false` | sendet dem Modell bei jedem Schritt auch einen Screenshot; das Modell muss Bilder lesen |
+| `candidate_cap` | 60 | 2–200; wie viele Elemente in einem Schritt angeboten werden dürfen |
+| `preview` | `true` | sendet die Ansicht in den Chat, während das Browsen läuft |
+| `preview_width` | 1024 | 320–1920; die Breite der Ansicht und damit der Vorschaubilder |
 
-**`mode` bestimmt, wo der Browser läuft.** `playwright` startet ein
-Headless-Chromium neben dem Agent; `remote` hängt sich über CDP an einen Browser,
-den ein Betreiber anderswo betreibt. Ein selbst gehostetes Deployment richtet
-`remote` auf einen gehärteten, isolierten Browser-Dienst, statt dem App-Container
-einen Browser-Prozess zu geben. Eine `remote`-`cdp_url` ist eine URL, zu der dieses
-Deployment serverseitig verbindet, also wird sie SSRF-geprüft — eine Loopback-,
-private, reservierte oder Metadaten-Adresse wird **beim Veröffentlichen** abgelehnt,
-wenn der Spec gespeichert wird, und nicht bei jedem Run (die Prüfung löst DNS auf,
-was die Event-Loop, auf der der Run zusammengebaut wird, nicht blockieren darf).
+**Den Browser betreiben Sie, und der Betreiber sagt welchen.** Im API-Image ist kein
+Chromium: `cdp_url` zeigt auf einen Browser-Dienst, den ein Betreiber betreibt und
+isoliert. Die Compose-Dateien enthalten einen hinter dem Profil `browser` — `docker
+compose --profile browser up -d browser`, erreichbar als `http://browser:9222`. Der Host
+muss auf [`BROWSER_CDP_ALLOWED_HOSTS`](../configuration.md) stehen, und eine leere
+Liste — der Standard — lehnt Browser-Automatisierung bei der Veröffentlichung ganz ab.
 
-**Die Modellausgaben des Browser-Agents werden erfasst.** Der Sub-Agent läuft auf
-dem Modell des übergeordneten Runs — dem, dessen Zugangsdaten aus dem Vault
-aufgelöst wurden —, und jeder seiner Schritte ist eine Modellanfrage, die über
-dasselbe Konto für Umgebungsverbrauch gegen das Budget des Runs gebucht wird, das
-auch eine Compaction-Zusammenfassung nutzt. Es ist nicht das eigene gehostete
-Modell von browser-use, und es sind keine Ausgaben, die der Budget-Guard nicht
-sehen kann. Jeder Schritt prüft das Budget, bevor er gesendet wird: Ist das Budget
-des Runs aufgebraucht, wird der nächste Schritt des Browser-Agents abgelehnt statt
-bezahlt.
+Das ist eine Allowlist und nicht die SSRF-Prüfung, durch die andere vom Mandanten
+gelieferte URLs gehen, denn `cdp_url` steht in einer Spec, die jeder mit `edit`
+schreibt, und die SSRF-Sperre ist hier in beide Richtungen falsch: Sie lehnt den
+isolierten Dienst im eigenen Netz ab und lässt einen ins Internet offenen Debugger zu.
+Chromium beantwortet DevTools nur unter einer Adresse, also wird ein einfacher
+`http`- oder `ws`-Endpunkt mit Namen einmal aufgelöst und über seine Adresse
+angesprochen; ein TLS-Endpunkt behält seinen Namen für das Zertifikat.
 
-**`browser-use` ist ein optionales Extra.** Es zieht einen schweren Baum nach sich
-(Chromium über Playwright) und pinnt Abhängigkeiten eine Minor-Version tiefer als
-der Rest der Plattform, deshalb ist es nicht standardmäßig installiert. Ein
-Betreiber, der die Capability will, installiert `agenticos[browser-use]` und stellt
-ein Chromium bereit; ein gebundener Agent, dessen Deployment es nicht hat, lässt
-dieses eine Tool laut scheitern, mit der Installationszeile.
+**Jedes Browsen bekommt einen eigenen Browser-Kontext**, der am Ende des Runs verworfen
+wird. Auf einem von vielen geteilten Browser würde der Standardkontext ein Cookie
+behalten, das der Agent einer Person gesetzt hat, und der nächste Aufrufer käme als
+diese Person angemeldet an.
+
+**Jeder Schritt geht an das eigene Modell des Agenten.** URL, Titel, die Beschriftungen
+der Elemente und bis zu 4.000 Zeichen sichtbarer Text der Seite, mit `vision` auch ein
+Screenshot — an denselben Anbieter wie das Gespräch und nirgendwo sonst. Ein vom Agenten
+getippter Wert wird nicht wiederholt: Der Verlauf hält fest, dass ein Feld gefüllt
+wurde, nicht womit. Jeder Schritt wird vor dem Senden gegen das Budget des Runs
+geprüft, also hält ein aufgebrauchtes Budget das Browsen an, statt den nächsten Schritt
+zu bezahlen.
+
+**`cdp-use` kommt mit dem Extra `browser`**, das eine Standardinstallation nicht hat.
+Wer die Capability will, installiert `agenticos[browser]`; ein Agent auf einem
+Deployment ohne es scheitert an diesem einen Tool laut, mit der Installationszeile.
+
+Specs vor Version 13, die den Browser Schritt für Schritt (`browser_choice`) gebunden
+haben, laden als diese Capability; Freigabe und Umbenennung von `browse_page` gehen auf
+`browse_web` über, die Einstellungen des Entscheidungsmodells und der TypeSafe-Schlüssel
+entfallen.
 
 ## Berechnungen { #run-python }
 
@@ -2129,7 +2056,7 @@ geprüft wird, wenn der Agent zusammengebaut wird:
 | `conversations:read` | `conversation_search` |
 | `web:read` | `web_research` |
 | `web:fetch` | `web_fetch` |
-| `web:browse` | `browser_choice`, `browser_use` |
+| `web:browse` | `browser_use` |
 | `code:execute` | `code_execution` |
 | `sandbox:execute` | `sandbox` |
 | `agents:delegate` | `subagents` |

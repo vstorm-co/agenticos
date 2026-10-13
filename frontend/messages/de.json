@@ -1354,8 +1354,6 @@
       "writing": "{named, select, no {Schreibt …} other {Schreibt {subject}}}",
       "writingPlan": "Schreibt den Plan",
       "wrote": "{named, select, no {Geschrieben …} other {{subject} geschrieben}}",
-      "workingThroughPage": "Arbeite eine Seite durch",
-      "browsePage": "Eine Seite durcharbeiten",
       "publishingArtifact": "App wird veröffentlicht",
       "publishArtifact": "Veröffentlichte App",
       "readingArtifact": "Veröffentlichte App wird gelesen",
@@ -1419,7 +1417,6 @@
     "browserWaitingForFrame": "Warte auf die erste Ansicht der Seite…",
     "browserNoPreview": "Dieser Agent läuft ohne Live-Vorschau.",
     "browserViewportAlt": "Die Seite in Schritt {step}",
-    "browserConfidenceHint": "Die Engine wählte diese Option mit Wahrscheinlichkeit {value}",
     "browserOutcome": {
       "done": "Abgeschlossen",
       "blocked": "Von der Seite blockiert",
@@ -6175,21 +6172,13 @@
       "needs": "Nichts weiter.",
       "never": "Antwortet nie für die Person. In Slack oder Telegram wartet er auf ihre Antwort."
     },
-    "browser_choice": {
-      "name": "Webbrowser (Schritt für Schritt)",
-      "does": "Der Agent arbeitet sich durch eine Webseite und wählt jeweils eine der Aktionen, die die Seite wirklich anbietet.",
-      "example1": "Eine Produktseite finden und den Preis lesen",
-      "example2": "Schritt für Schritt durch die Suche einer Website gehen",
-      "needs": "Ein API-Schlüssel im Vault für das Modell, das jeden Schritt wählt.",
-      "never": "Handelt nie ohne Freigabe durch einen Menschen, außer Sie ändern das."
-    },
     "browser_use": {
       "name": "Webbrowser",
-      "does": "Der Agent bekommt einen echten Webbrowser und klickt sich selbst durch Websites, um eine Aufgabe zu erledigen.",
-      "example1": "Im Portal eines Lieferanten nach neuen Rechnungen sehen",
+      "does": "Gibt dem Agenten einen echten Webbrowser, den er Schritt für Schritt bedient - Seiten lesen, klicken, Formulare ausfüllen, suchen -, um eine Aufgabe zu erledigen.",
+      "example1": "Im Lieferantenportal nach neuen Rechnungen sehen",
       "example2": "Ein langes Webformular ausfüllen",
-      "needs": "Ein Browser-Host, den ein Administrator einrichtet. Eine Aufgabe dauert Minuten und kostet mehr als eine Websuche.",
-      "never": "Handelt nie ohne Freigabe durch einen Menschen, außer Sie ändern das."
+      "needs": "Einen Browser-Host, den ein Administrator eingerichtet hat. Eine lange Aufgabe dauert ein paar Minuten und kostet eine Modellanfrage pro Schritt.",
+      "never": "Verlässt nie seine erlaubten Domains und befolgt keine Anweisungen, die auf einer Seite stehen."
     },
     "channel_tools": {
       "name": "Infos zum Chat-Kanal",
@@ -6399,68 +6388,34 @@
     "chipGroupsMore": "{names} +{count}"
   },
   "capabilityConfig": {
-    "browser_choice": {
+    "browser_use": {
       "cdp_url": {
-        "title": "DevTools-Endpoint",
-        "description": "Chromium-DevTools-Endpoint, der gesteuert wird - ein Browser-Dienst, den der Betreiber betreibt, kein Prozess im API-Container."
+        "title": "DevTools-Endpunkt",
+        "description": "Chromium-DevTools-Endpunkt, den der Agent steuert - ein Browser-Dienst des Betreibers, kein Prozess im API-Container."
       },
       "allowed_domains": {
         "title": "Erlaubte Domains",
-        "description": "Hosts, auf denen der Browser sein darf; leer bedeutet keine Einschränkung. Muster wie *.example.com sind erlaubt. Bei jedem Schritt geprüft, nicht nur beim ersten."
-      },
-      "decision_model": {
-        "title": "Entscheidungsmodell",
-        "description": "Das Modell, das in jedem Schritt die Operation und das Element wählt."
-      },
-      "decision_base_url": {
-        "title": "Endpoint des Entscheidungsmodells",
-        "description": "Wo dieses Modell läuft. Leer ist der öffentliche Endpoint des Anbieters (https://api.typesafe.ai), an den Seiteninhalte gehen, sofern hier nichts anderes steht - eine Installation, die Seiteninhalte nicht an Dritte senden darf, trägt hier einen eigenen Endpoint ein."
+        "description": "Hosts, auf denen der Browser sein darf; leer heißt keine Einschränkung. Muster wie *.example.com sind erlaubt. Bei jedem Schritt geprüft, nicht nur beim ersten."
       },
       "max_steps": {
         "title": "Höchstens Schritte pro Aufruf",
-        "description": "Harte Grenze für Schritte pro Aufruf; jeder Schritt ist eine Entscheidungsanfrage."
+        "description": "Wie viele Schritte ein Aufruf machen darf; jeder Schritt ist eine Modellanfrage. Eine Aufgabe, die mehr braucht, macht beim nächsten Aufruf im selben Tab weiter."
+      },
+      "vision": {
+        "title": "Dem Modell Screenshots zeigen",
+        "description": "Sendet dem Modell bei jedem Schritt einen Screenshot zusätzlich zu den Elementen der Seite. Besser bei visuellen Seiten, mehr Tokens, und das Modell muss Bilder lesen."
       },
       "candidate_cap": {
         "title": "Angebotene Elemente pro Schritt",
-        "description": "Wie viele Elemente der Seite in einem Schritt zur Wahl stehen. Weniger ist günstiger und blinder; auf eine Seite, die für die Grenze zu dicht ist, antwortet die Schleife mit Scrollen."
-      },
-      "min_confidence": {
-        "title": "Mindestsicherheit",
-        "description": "Keine Wahl ausführen, die das Entscheidungsmodell niedriger bewertet hat - das Browsen endet dann als blockiert. 0 führt jede Wahl aus und meldet die Bewertung."
+        "description": "Wie viele Elemente der Seite pro Schritt zur Wahl stehen. Weniger ist günstiger und blinder; die Antwort auf eine zu dichte Seite ist Scrollen."
       },
       "preview": {
-        "title": "Live-Vorschau",
-        "description": "Den Viewport während des Browsens an den Chat senden, damit jemand zusehen kann. Kostet ein JPEG pro Schritt auf dem Socket."
+        "title": "Live-Vorschau zeigen",
+        "description": "Sendet die Ansicht des Browsers in den Chat, während er arbeitet, damit man zusehen kann. Kostet ein JPEG pro Schritt."
       },
       "preview_width": {
-        "title": "Viewport-Breite (Pixel)",
-        "description": "Die Breite des Browserfensters in Pixeln, zugleich die Breite der Frames. Sie bestimmt, was der Agent ohne Scrollen sieht."
-      }
-    },
-    "browser_use": {
-      "mode": {
-        "title": "Browser",
-        "description": "playwright: lokal einen Browser ohne Fenster starten. remote: über seinen CDP-Endpoint an einen anderswo laufenden Browser anbinden."
-      },
-      "cdp_url": {
-        "title": "DevTools-Endpoint",
-        "description": "Chromium-DevTools-Endpoint zum Anbinden; im Modus remote erforderlich und nur dort gültig."
-      },
-      "allowed_domains": {
-        "title": "Erlaubte Domains",
-        "description": "Domains, die der Agent aufrufen darf; leer bedeutet keine Einschränkung. Muster wie *.example.com sind erlaubt."
-      },
-      "max_steps": {
-        "title": "Höchstens Schritte pro Aufruf",
-        "description": "Harte Grenze für die Schritte des Browser-Agents pro Aufruf; jeder Schritt ist eine Modellanfrage."
-      },
-      "use_vision": {
-        "title": "Screenshots an das Modell senden",
-        "description": "Seiten-Screenshots an das Modell des Browser-Agents senden; besser bei visuellen Layouts, mehr Tokens."
-      },
-      "headless": {
-        "title": "Browserfenster ausblenden",
-        "description": "Einen lokal gestarteten Browser ohne sichtbares Fenster ausführen (nur im Modus playwright)."
+        "title": "Breite der Ansicht (Pixel)",
+        "description": "Die Breite der Browser-Ansicht in Pixeln und damit der Vorschaubilder. Sie entscheidet, was der Agent ohne Scrollen sieht."
       }
     },
     "channel_tools": {

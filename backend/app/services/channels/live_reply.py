@@ -63,7 +63,6 @@ _DOING: dict[str, str] = {
     "search_documents": "Looking through the documents…",
     "web_fetch": "Reading a web page…",
     "browse_web": "Browsing the web…",
-    "browse_page": "Browsing the web…",
     "generate_image": "Drawing an image…",
     "publish_artifact": "Building a page…",
     "search_conversations": "Looking through earlier conversations…",

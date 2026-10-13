@@ -79,15 +79,21 @@ describe("BrowserPanel - what the browser is doing, while it is doing it", () =>
     expect(screen.queryByText("Step 3 of 25")).not.toBeInTheDocument();
   });
 
-  it("lists what was chosen and how sure the engine was", () => {
-    // The confidence is why a step is worth listing: a browse that acted on a
-    // 0.31 pick is one somebody should look at.
+  it("lists what each step did and what it was for", () => {
+    // The reason is what makes a step worth reading: a person watching can tell
+    // a browse heading the wrong way from one taking the long way round.
     render(
       <BrowserPanel
         browses={[
           browse({
             steps: [
-              { step: 1, operation: "CLICK", target: "Accept all", confidence: 0.31, url: null },
+              {
+                step: 1,
+                operation: "CLICK",
+                target: "Accept all",
+                reason: "Close the cookie banner",
+                url: null,
+              },
             ],
           }),
         ]}
@@ -96,37 +102,15 @@ describe("BrowserPanel - what the browser is doing, while it is doing it", () =>
 
     expect(screen.getByText("CLICK")).toBeInTheDocument();
     expect(screen.getByText("Accept all")).toBeInTheDocument();
-    expect(screen.getByText("0.31")).toBeInTheDocument();
+    expect(screen.getByText("Close the cookie banner")).toBeInTheDocument();
   });
 
-  it.each([
-    ["a confident pick", 0.91],
-    ["a middling one", 0.52],
-    ["one worth looking at", 0.19],
-  ])("shows the number for %s rather than only a colour", (_name, value) => {
-    // The confidence is why a step is worth listing. Three bands of colour and
-    // no number would throw away the reason it is on screen.
+  it("lists a step that gave no reason", () => {
     render(
       <BrowserPanel
         browses={[
           browse({
-            steps: [
-              { step: 1, operation: "CLICK", target: "Accept", confidence: value, url: null },
-            ],
-          }),
-        ]}
-      />,
-    );
-
-    expect(screen.getByText(value.toFixed(2))).toBeInTheDocument();
-  });
-
-  it("lists a step from a model that reports no confidence", () => {
-    render(
-      <BrowserPanel
-        browses={[
-          browse({
-            steps: [{ step: 1, operation: "SCROLL", target: null, confidence: null, url: null }],
+            steps: [{ step: 1, operation: "SCROLL", target: null, reason: null, url: null }],
           }),
         ]}
       />,

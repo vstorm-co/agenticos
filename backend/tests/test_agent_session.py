@@ -3036,10 +3036,10 @@ class TestTellingTheClientWhatThePersonCannotReach:
 class TestForwardingBrowserFrames:
     """What the client hears while the agent is driving a browser.
 
-    A `browse_page` call is the longest tool call this platform makes, and the
+    A `browse_web` call is the longest tool call this platform makes, and the
     only one where watching it is how somebody notices it acting on a page they
     did not expect. Without these frames the chat shows a tool call named
-    `browse_page` and then, a minute later, a paragraph.
+    `browse_web` and then, a minute later, a paragraph.
     """
 
     async def test_a_frame_is_sent_under_the_name_the_union_gave_it(self):
@@ -3054,7 +3054,7 @@ class TestForwardingBrowserFrames:
                 title="Pricing",
                 operation="CLICK",
                 target="Accept all",
-                confidence=0.42,
+                reason="Close the cookie banner",
             )
         )
 
@@ -3063,8 +3063,8 @@ class TestForwardingBrowserFrames:
         assert payload["kind"] == "browser_step"
         assert (payload["call_id"], payload["step"]) == ("call-1", 3)
         assert (payload["operation"], payload["target"]) == ("CLICK", "Accept all")
-        # The number a reviewer reads to decide whether to look at this step.
-        assert payload["confidence"] == 0.42
+        # What a person watching reads to tell where the browse is heading.
+        assert payload["reason"] == "Close the cookie banner"
 
     async def test_a_picture_travels_as_a_data_url_on_its_own_frame(self):
         """Separate from the narration so encoding one never holds up the other."""

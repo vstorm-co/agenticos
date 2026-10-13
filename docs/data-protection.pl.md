@@ -1,5 +1,5 @@
 ---
-source_sha: "a968586e60fa"
+source_sha: "d92bfb07344a"
 ---
 
 # Ochrona danych { #data-protection }
@@ -36,7 +36,7 @@ tak i oprogramowanie współpracuje:
 | Parsowanie dokumentów | `pymupdf`, wartość domyślna, działa w workerze. OCR LiteParse też działa w workerze albo na serwerze OCR zarejestrowanym jako usługa lokalna. LlamaParse to wybór per kolekcja, wymagający klucza w vault; bez niego nic nie jest parsowane poza wdrożeniem |
 | Embeddingi | Ollama, którą hostujesz, zarejestrowana jako usługa lokalna w Knowledge → Integrations i wybrana per kolekcja jako provider `ollama`. Bezkluczowa i jedyny provider, którego może użyć kolekcja app-scoped |
 | Trace'y | Zostaw `LOGFIRE_TOKEN` nieustawiony i nie wiąż żadnego tokenu `observability` ze specem ani ze środowiskiem. Runy dalej zapisują id trace'u lokalnie |
-| Wyszukiwanie, przeglądanie, pamięć, narzędzia | Nie wiąż sekretu `search`, żadnej capability `web_fetch`, `browser_use` ani `memory_mem0`, żadnego połączenia MCP. `browser_choice` może zostać, z `decision_base_url` wskazującym model decyzyjny, który sam hostujesz |
+| Wyszukiwanie, przeglądanie, pamięć, narzędzia | Nie wiąż sekretu `search`, żadnej capability `web_fetch`, `browser_use` ani `memory_mem0`, żadnego połączenia MCP. Przeglądarka może zostać, gdy każda strona, którą może otworzyć, jest na `allowed_domains`, a jej kroki idą do modelu, który sam hostujesz |
 | Poczta | Twój własny relay SMTP |
 | Mowa i obrazy | Profile u providera, którego hostujesz, albo brak takich profili |
 
@@ -121,8 +121,8 @@ lista celów, wraz z konfiguracją, która o każdym decyduje.
 | Serwer OCR | Wyrenderowane strony dokumentu | Kolekcja, której `pdf_parser` to `liteparse` **i** której `ocr_endpoint_id` wskazuje usługę lokalną; bez tego OCR działa w workerze | Twój własny host — usługa lokalna jest z definicji w sieci wdrożenia |
 | Model opisujący obrazy | Obrazy wewnątrz dokumentów | `image_description_model` kolekcji | Providera tego modelu |
 | Web research | Zapytanie wyszukiwania, które ułożył agent | `web_research.method` w specu: `duckduckgo` (bez klucza), `tavily`, `brave` albo `exa` (każde z sekretem `search`), albo `native`, gdzie szuka provider modelu czatowego | Dostawcy wyszukiwania albo providera modelu |
-| Web fetch i browser use | URL; dla browser use całe zadanie | Capability w specu; browser use potrzebuje też endpointu CDP, który wskażesz | Pobieranej strony; hosta przeglądarki |
-| Model decyzyjny przeglądania | Każdy krok przeglądania: adres strony, jej tytuł, etykiety widocznych elementów i do 1500 znaków jej widocznego tekstu — co może być zawartością systemu wewnętrznego. Wartość, którą agent wpisuje, **nie** jest wysyłana — ani to, co pole już zawiera: tabela elementów podaje wyłącznie, że pole jest wypełnione, więc hasło ani adres nie trafiają do tego endpointu | Capability `browser_choice`, która nie zadziała bez klucza z vault dodanego przez operatora; `decision_base_url` zmienia miejsce docelowe. To, jaką przeglądarkę prowadzi, ogranicza `BROWSER_CDP_ALLOWED_HOSTS`, domyślnie pusta | Dostawcy modelu decyzyjnego albo twojego własnego hosta |
+| Pobieranie stron i przeglądarka | URL; dla przeglądarki to, co wpisuje na otwieranych stronach | Capability w specu; przeglądarka potrzebuje też endpointu CDP na `BROWSER_CDP_ALLOWED_HOSTS`, domyślnie pustej | Pobieranej strony; hosta przeglądarki i stron, które otwiera |
+| Kroki przeglądarki | Każdy krok przeglądania idzie do modelu tego agenta: adres strony, jej tytuł, etykiety widocznych elementów i do 4000 znaków jej widocznego tekstu, plus zrzut ekranu przy włączonym `vision` — co może być zawartością systemu wewnętrznego. To, co zawiera pole, nie jest powtarzane: tabela elementów podaje tylko, że pole jest wypełnione | Capability `browser_use` w specu | Dostawcy modelu agenta, tak jak przy rozmowie |
 | Sandbox, ruch wychodzący | **Cokolwiek z workspace'u, do dowolnego hosta** — runtime `workbench` ma sieć, powłokę i `curl` | Capability `sandbox` i runtime z `needs_network`; zatwierdzanie komend bramkuje to, co się uruchamia, a nie to, dokąd się łączy | Dokądkolwiek poszła komenda. Kontrola ruchu wychodzącego to firewall hosta sandboksa, a nie ustawienie tutaj |
 | Serwer MCP | Argumenty i wyniki narzędzi | `mcp_connections.url`, per organizacja albo per osoba | Operatora serwera |
 | mem0 | Wspomnienia zapisane dla osoby albo czatu | `base_url` capability `memory_mem0`, który musi być w `MEM0_ALLOWED_HOSTS` | Hosta mem0, na który pozwalasz |

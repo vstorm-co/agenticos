@@ -51,14 +51,14 @@ describe("applyBrowserFrame - one browse per call_id", () => {
   it("records what was chosen and how sure the engine was", () => {
     const [browse] = fold(
       frame({ kind: "browser_opened", step: 0 }),
-      frame({ step: 1, operation: "CLICK", target: "Accept all", confidence: 0.42 }),
+      frame({ step: 1, operation: "CLICK", target: "Accept all", reason: "Close the banner" }),
     );
 
     expect(browse?.steps[0]).toMatchObject({
       step: 1,
       operation: "CLICK",
       target: "Accept all",
-      confidence: 0.42,
+      reason: "Close the banner",
     });
   });
 
