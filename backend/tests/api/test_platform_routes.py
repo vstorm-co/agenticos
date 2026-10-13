@@ -882,6 +882,9 @@ RESOURCE_AWARE_SERVICES = (
     # A dataset is a shared resource like a context file: who may read its cases,
     # change them, import or export them is its grants' answer, in the service.
     deps.get_dataset_service,
+    # Generated cases ride on their dataset: drafting and deciding them is
+    # `datasets:edit` on that dataset, resolved against its grants in the service.
+    deps.get_case_generation_service,
     # A memory file rides on its parent agent: every `/memory` route resolves access
     # to the agent, per agent rather than per role.
     deps.get_memory_service,

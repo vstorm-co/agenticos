@@ -637,6 +637,16 @@ def get_dataset_service(db: DBSession) -> DatasetService:
 
 DatasetSvc = Annotated[DatasetService, Depends(get_dataset_service)]
 
+from app.services.case_generation import CaseGenerationService
+
+
+def get_case_generation_service(db: DBSession) -> CaseGenerationService:
+    """Create CaseGenerationService instance with database session."""
+    return CaseGenerationService(db)
+
+
+CaseGenerationSvc = Annotated[CaseGenerationService, Depends(get_case_generation_service)]
+
 from app.services.artifact import ArtifactService
 
 
