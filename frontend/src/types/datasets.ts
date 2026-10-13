@@ -64,6 +64,17 @@ export interface DatasetCaseList {
   version: number;
 }
 
+/** What the newest version's cases test against. The four expectations overlap; the sources sum to the case count. */
+export interface DatasetStats {
+  with_reference: number;
+  with_counter_example: number;
+  with_tool_calls: number;
+  with_checks: number;
+  by_source: Record<CaseSource, number>;
+  /** The most used tags, most used first. */
+  top_tags: { tag: string; cases: number }[];
+}
+
 export interface Dataset {
   id: string;
   name: string;
@@ -74,6 +85,7 @@ export interface Dataset {
   case_count: number;
   /** Whether the caller may change this dataset's cases. */
   can_edit: boolean;
+  stats: DatasetStats;
   created_at: string;
   updated_at: string | null;
 }

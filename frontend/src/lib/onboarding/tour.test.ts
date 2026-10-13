@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   AGENT_BUILDER,
+  DATASET_DETAIL,
   KB_DETAIL,
   ORG_DIRECTORY,
   ORG_GROUPS,
@@ -64,6 +65,11 @@ describe("pageKey", () => {
   it("collapses every concrete collection route onto the one KB identity", () => {
     expect(pageKey("/rag/abc-123")).toBe(KB_DETAIL);
     expect(pageKey("/rag/abc-123/anything")).toBe(KB_DETAIL);
+  });
+
+  it("collapses every concrete dataset route onto the one dataset identity", () => {
+    expect(pageKey("/datasets/abc-123")).toBe(DATASET_DETAIL);
+    expect(pageKey("/datasets")).toBe("/datasets");
   });
 
   it("splits the three organization detail routes onto their own identities", () => {

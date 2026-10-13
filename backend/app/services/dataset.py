@@ -25,6 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
+from app.core.exceptions import ValidationError as InvalidCaseError
 from app.core.field_errors import field_problems, refused_field
 from app.core.permissions import AuthContext, Perm, Scope
 from app.db.models.dataset import CaseSource, Dataset, DatasetCase, DatasetChange, DatasetVersion
@@ -47,6 +48,7 @@ from app.schemas.dataset import (
     DatasetList,
     DatasetRead,
     DatasetSort,
+    DatasetStats,
     DatasetUpdate,
     DatasetVersionList,
     DatasetVersionRead,
@@ -148,8 +150,11 @@ def _version_read(version: DatasetVersion) -> DatasetVersionRead:
     return DatasetVersionRead.model_validate(version)
 
 
-def _dataset_read(dataset: Dataset, *, can_edit: bool) -> DatasetRead:
+def _dataset_read(
+    dataset: Dataset, *, can_edit: bool, stats: DatasetStats | None = None
+) -> DatasetRead:
     return DatasetRead(
+        stats=stats or DatasetStats(),
         id=dataset.id,
         name=dataset.name,
         description=dataset.description,
@@ -192,9 +197,17 @@ class DatasetService:
             self.db, ctx, dataset, Perm.DATASETS_EDIT, resource_type=DATASET
         )
 
+    async def _stats(self, ctx: AuthContext, datasets: list[Dataset]) -> dict[UUID, DatasetStats]:
+        return await dataset_repo.case_stats(
+            self.db, [dataset.id for dataset in datasets], organization_id=ctx.organization_id
+        )
+
     async def read(self, ctx: AuthContext, dataset_id: UUID) -> DatasetRead:
         dataset = await self.get(ctx, dataset_id)
-        return _dataset_read(dataset, can_edit=await self._can_edit(ctx, dataset))
+        stats = await self._stats(ctx, [dataset])
+        return _dataset_read(
+            dataset, can_edit=await self._can_edit(ctx, dataset), stats=stats.get(dataset.id)
+        )
 
     async def list_readable(
         self,
@@ -239,8 +252,12 @@ class DatasetService:
         editable = await accessible_ids(
             self.db, ctx, items, Perm.DATASETS_EDIT, resource_type=DATASET
         )
+        stats = await self._stats(ctx, items)
         return DatasetList(
-            items=[_dataset_read(item, can_edit=item.id in editable) for item in items],
+            items=[
+                _dataset_read(item, can_edit=item.id in editable, stats=stats.get(item.id))
+                for item in items
+            ],
             total=total,
         )
 
@@ -298,7 +315,8 @@ class DatasetService:
             target_id=str(dataset.id),
             details={"name": updated.name, "fields": sorted(update_data)},
         )
-        return _dataset_read(updated, can_edit=True)
+        stats = await self._stats(ctx, [updated])
+        return _dataset_read(updated, can_edit=True, stats=stats.get(updated.id))
 
     async def delete(self, ctx: AuthContext, dataset_id: UUID) -> None:
         """Delete a dataset with every version and case it held."""
@@ -549,10 +567,17 @@ class DatasetService:
             **DatasetCaseRead.model_validate(current).model_dump(),
             **writable(data, over=DatasetCase),
         }
-        # Both halves were validated on their way in, so their union is a valid case.
-        content = DatasetCaseContent.model_validate(
-            {key: merged[key] for key in DatasetCaseContent.model_fields}
-        )
+        # Each half is valid alone, but an edit clearing the only expectation the
+        # stored case had leaves a union that is not.
+        try:
+            content = DatasetCaseContent.model_validate(
+                {key: merged[key] for key in DatasetCaseContent.model_fields}
+            )
+        except ValidationError as exc:
+            raise InvalidCaseError(
+                message="This edit leaves a case that is not valid",
+                details={"fields": field_problems(exc.errors(), root="")},
+            ) from None
         fields, redacted = _redacted(content)
         provenance = {
             "source_run_id": current.source_run_id,
@@ -703,6 +728,8 @@ class DatasetService:
             raise missing from None
         if message.role != "assistant":
             raise refused_field("message_id", "Only an agent's answer can be added to a dataset")
+        if not message.content.strip():
+            raise refused_field("message_id", "This answer has no text to keep as a case")
 
         earlier = [
             turn
@@ -724,7 +751,7 @@ class DatasetService:
         comments = await message_rating_repo.get_down_rating_comments_for_messages(
             self.db, message_ids=[message.id]
         )
-        answer = message.content or None
+        answer = message.content
         try:
             content = DatasetCaseContent(
                 input=earlier[asked].content,

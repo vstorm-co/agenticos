@@ -1908,11 +1908,23 @@
       },
       "datasets": {
         "title": "Datasets",
-        "description": "The test case sets changed most recently.",
+        "description": "The datasets changed most recently, and what their cases test against.",
         "cases": "{count, plural, =1 {1 case} other {# cases}} · v{version}",
         "empty": {
           "title": "No datasets yet",
           "description": "Test cases you collect for evals appear here."
+        },
+        "stat": {
+          "reference": "{count, plural, =1 {1 reference} other {# references}}",
+          "counter": "{count, plural, =1 {1 counter-example} other {# counter-examples}}",
+          "toolCalls": "{count, plural, =1 {1 with tool calls} other {# with tool calls}}",
+          "checks": "{count, plural, =1 {1 with checks} other {# with checks}}"
+        },
+        "source": {
+          "conversation": "{count} from chat",
+          "import": "{count} imported",
+          "manual": "{count} by hand",
+          "synthetic": "{count} generated"
         }
       }
     },
@@ -2877,7 +2889,7 @@
       },
       "create-dataset": {
         "title": "Create a dataset?",
-        "body": "A dataset holds the questions your agents are tested on. Want to make your first one now? We'll walk you through it."
+        "body": "A dataset holds the questions your agents are tested on. Want to make your first one and write a first good case together? We'll walk you through it."
       }
     },
     "steps": {
@@ -3355,7 +3367,7 @@
       },
       "datasets-new": {
         "title": "Collect test cases",
-        "body": "A dataset holds the questions an agent is tested on. Create one here, then add cases by hand, from a file, or from a rated-down answer."
+        "body": "A dataset holds the questions an agent is tested on. Create one here, then add cases by hand, from a file, from an answer rated up or down in chat, or from a turn in Activity."
       },
       "datasets-list": {
         "title": "Your datasets",
@@ -3372,6 +3384,42 @@
       "flow-dataset-field-create": {
         "title": "Create it",
         "body": "Choose Create. We'll move on the moment it's saved."
+      },
+      "flow-dataset-open": {
+        "title": "Open your dataset",
+        "body": "It is the first card - the one changed last. Open it to add its first case."
+      },
+      "flow-dataset-add-case": {
+        "title": "Add your first case",
+        "body": "Choose Add case. A case is one question, and what a good answer to it looks like."
+      },
+      "flow-dataset-case-question": {
+        "title": "What the agent is asked",
+        "body": "The input is the message the agent answers. Add the conversation before it only when the question depends on earlier turns. Then choose Next."
+      },
+      "flow-dataset-case-answers": {
+        "title": "A good answer, and a bad one",
+        "body": "The reference answer says what a good answer contains; a judge compares the agent's answer with it. The counter-example is an answer known to be wrong - often the one somebody rated down. One of them is usually enough."
+      },
+      "flow-dataset-case-tools": {
+        "title": "The tools it should call",
+        "body": "List the tools the agent must call, with the arguments that have to match. Choose how they are matched: in any order, in this order with others allowed between, or exactly these and nothing else."
+      },
+      "flow-dataset-case-checks": {
+        "title": "Rules about the answer",
+        "body": "A check is a rule the answer is scored by, such as that it mentions 30 days. Each one names its type and carries that rule's parameters."
+      },
+      "flow-dataset-case-labels": {
+        "title": "Tags and a note",
+        "body": "Tags group results, such as billing or refusal. The note says why the case exists - what went wrong, or what it guards."
+      },
+      "flow-dataset-case-save": {
+        "title": "Save the case",
+        "body": "A case has to say what the answer is tested against: a reference answer, a counter-example, a tool call or a check. Until it has one, Save case stays off and says what is missing."
+      },
+      "flow-dataset-sources": {
+        "title": "Where the next cases come from",
+        "body": "Write them here, or import a CSV or JSONL file here. In chat, rate an answer up or down and add it - a thumbs-up keeps it as the reference, a thumbs-down as the counter-example. In Activity, add any agent turn of a run."
       }
     }
   },
@@ -5667,12 +5715,17 @@
     "notJson": "This is not valid JSON.",
     "notList": "This must be a JSON list.",
     "saveCase": "Save case",
+    "needsInput": "Write the input the agent answers.",
+    "needsExpectation": "Add a reference answer, a counter-example, an expected tool call or a check: a case needs something to test the answer against.",
     "addToDataset": "Add to dataset",
     "addToDatasetBody": "The question, the conversation before it and the comment left with a thumbs-down come with the answer.",
+    "addAsReferenceBody": "You rated this answer up, so it is kept as the reference answer. The question and the conversation before it come with it.",
     "noDatasetToAddTo": "There is no dataset you can add to. <link>Create one</link> first.",
     "dataset": "Dataset",
     "keepAnswerAs": "Keep the answer as",
     "addedTo": "Added to {name}",
+    "alsoAddToDataset": "Add this answer to a dataset",
+    "addAfterRatingFailed": "The rating was saved, but the answer was not added to a dataset: {reason}",
     "field": {
       "input": "Input",
       "reference_answer": "Reference answer",
@@ -5707,6 +5760,10 @@
       "in_orderHint": "The expected calls must happen in the listed order; other calls may come between them.",
       "exact": "Exactly these, in this order",
       "exactHint": "The agent must make exactly the expected calls, in the listed order, and no others."
-    }
+    },
+    "importRowProblem": "Row {row}: {message}",
+    "importRowFieldProblem": "Row {row}, {field}: {message}",
+    "checkCount": "{count, plural, =1 {1 check} other {# checks}}",
+    "hasNote": "Note"
   }
 }

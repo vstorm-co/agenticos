@@ -66,6 +66,26 @@ export function draftOf(content: DatasetCaseContent): CaseDraft {
   };
 }
 
+const EXPECTATION_FIELDS = [
+  "reference_answer",
+  "counter_example",
+  "expected_tool_calls",
+  "checks",
+] as const;
+
+/**
+ * Whether the draft says what its answer is tested against. The server refuses a
+ * case that does not, naming `reference_answer`; this is that rule, read early so
+ * the form can say what is missing before anything is sent. An empty JSON list
+ * counts as nothing, as it does on the server.
+ */
+export function expectsSomething(draft: CaseDraft): boolean {
+  return EXPECTATION_FIELDS.some((field) => {
+    const text = draft[field].trim();
+    return text !== "" && text.replace(/\s/g, "") !== "[]";
+  });
+}
+
 /** What went wrong reading a draft: the field, and the catalog key saying how. */
 export type DraftProblem = { field: CaseField; key: "notJson" | "notList" };
 

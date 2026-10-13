@@ -1,5 +1,5 @@
 ---
-source_sha: "f53465df8b7d"
+source_sha: "ccd82f221e92"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -32,6 +32,21 @@ zawiodła.
 | Notatka | Po co jest ten przypadek - co poszło źle albo czego pilnuje |
 | Źródło | `manual`, `import`, `conversation` albo `synthetic` - ustawia je platforma, nie wpisuje się go |
 
+Przypadek musi mówić, z czym porównuje się odpowiedź: odpowiedź wzorcowa,
+kontrprzykład, oczekiwane wywołanie narzędzia albo sprawdzenie - co najmniej
+jedno z czterech. Przypadek z samym wejściem nigdy nie mógłby nie przejść, więc
+jest odrzucany: formularz go nie zapisze, API odpowiada 422 ze wskazaniem
+`reference_answer`, a import podaje numer wiersza.
+
+Dobry przypadek jest mały: jedno pytanie i ta jedna rzecz, którą poprawna
+odpowiedź musi zrobić dobrze. Zwykle wystarczy odpowiedź wzorcowa albo
+kontrprzykład. Oczekiwane wywołania narzędzi dodaj, gdy agent ma działać, a nie
+tylko odpowiadać, sprawdzenia - gdy regułę da się podać dokładnie, a rozmowę
+przed wejściem - tylko gdy pytanie od niej zależy. Notatka jest dla następnego
+czytelnika: co poszło źle albo czego przypadek pilnuje. Przy tworzeniu
+pierwszego datasetu konsola proponuje przewodnik, który kończy się napisaniem
+pierwszego przypadku pole po polu.
+
 Przypadek wzięty z rozmowy zachowuje też odnośnik do runa, rozmowy i
 wiadomości, z których pochodzi. Pytanie i odpowiedź są kopiowane do przypadku,
 więc przypadek pozostaje kompletny także po tym, jak sam run usunie retencja.
@@ -57,8 +72,8 @@ zmienia przypadku.
 
 ### W konsoli { #in-the-console }
 
-Otwórz **Datasety**, utwórz dataset i wybierz **Dodaj przypadek**. Jedyne
-wymagane pole to wejście. Rozmowę, oczekiwane wywołania narzędzi i sprawdzenia
+Otwórz **Datasety**, utwórz dataset i wybierz **Dodaj przypadek**. Wpisz wejście
+i co najmniej jedno z czterech oczekiwań opisanych wyżej. Rozmowę, oczekiwane wywołania narzędzi i sprawdzenia
 wpisuje się jako listy JSON - ten sam tekst, w jakim trzyma je eksport CSV.
 
 ### Z pliku { #import-and-export }
@@ -99,8 +114,24 @@ usuwa ten jeden `'`. Eksport jest zapisywany w [dzienniku audytu](governance.md#
 
 ### Z rozmowy albo runa { #add-to-dataset }
 
-Każda odpowiedź agenta w czacie i każda tura agenta w **Aktywności** ma
-przycisk **Dodaj do datasetu**. Wybierz dataset, a przypadek powstanie z tej tury:
+Są dwie drogi i obie tworzą taki sam przypadek:
+
+- **W czacie** oceń odpowiedź, a ocena zdecyduje, jako co zostanie zachowana.
+  Po łapce w górę potwierdzenie proponuje **Dodaj do datasetu**: wybierz
+  dataset, a odpowiedź zostanie zachowana jako odpowiedź wzorcowa. Po łapce w
+  dół okno, które pyta, co poszło źle, proponuje też **Dodaj tę odpowiedź do
+  datasetu**: zaznacz to, wybierz dataset i wyślij, a odpowiedź zostanie
+  zachowana jako kontrprzykład. Najpierw zapisuje się ocena, a przypadek jest
+  dodawany po niej, więc twój komentarz staje się notatką przypadku. To dwa
+  osobne zapisy - jeśli dodanie zostanie odrzucone, ocena zostaje, a komunikat
+  mówi, która połowa się nie udała. Późniejsze cofnięcie oceny zostawia
+  przypadek na miejscu: to kopia, wersjonowana razem z datasetem. Konsola
+  pamięta ostatnio użyty dataset, więc kolejne dodanie to jedno kliknięcie.
+- **W Aktywności** każda tura agenta ma przycisk **Dodaj do datasetu**. To
+  miejsce kuracji, więc dobrą odpowiedź równie łatwo zachować jako wzorcową, jak
+  złą jako kontrprzykład.
+
+W obu przypadkach przypadek powstaje z tej tury:
 
 - pytanie staje się wejściem, a tury przed nim - rozmową przed wejściem;
 - odpowiedź staje się kontrprzykładem. Jeśli nikt nie ocenił jej łapką w dół,
@@ -108,7 +139,7 @@ przycisk **Dodaj do datasetu**. Wybierz dataset, a przypadek powstanie z tej tur
   dwóch;
 - najnowszy komentarz zostawiony z łapką w dół staje się notatką.
 
-Przycisk widzą członkowie, którzy mogą edytować jakiś dataset. Wiadomość musi
+Obie drogi widzą tylko członkowie, którzy mogą edytować jakiś dataset. Wiadomość musi
 należeć do twojej organizacji i musisz móc ją przeczytać: albo masz
 `runs:view`, które czyta każdy run w organizacji tak jak Aktywność, albo możesz
 otworzyć rozmowę. Wiadomość z innej organizacji jest odrzucana tak, jakby nie

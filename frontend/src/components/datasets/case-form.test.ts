@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { contentOf, draftOf, EMPTY_DRAFT } from "./case-form";
+import { contentOf, draftOf, EMPTY_DRAFT, expectsSomething } from "./case-form";
 
 const CASE = {
   input: "How long is the return window?",
@@ -48,5 +48,15 @@ describe("the case draft", () => {
       { field: "history", key: "notJson" },
       { field: "expected_tool_calls", key: "notList" },
     ]);
+  });
+
+  it("expects something once any one of the four says what the answer is tested against", () => {
+    const only = { ...EMPTY_DRAFT, input: "q", note: "why", tags: "a" };
+    expect(expectsSomething(only)).toBe(false);
+    expect(expectsSomething({ ...only, checks: " [ ] " })).toBe(false);
+    expect(expectsSomething({ ...only, reference_answer: "yes" })).toBe(true);
+    expect(expectsSomething({ ...only, counter_example: "no" })).toBe(true);
+    expect(expectsSomething({ ...only, expected_tool_calls: '[{"tool": "search"}]' })).toBe(true);
+    expect(expectsSomething({ ...only, checks: "not json yet" })).toBe(true);
   });
 });

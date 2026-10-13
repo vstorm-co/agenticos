@@ -1,7 +1,6 @@
 "use client";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
-import { AddToDatasetButton } from "@/components/datasets/add-to-dataset-button";
 import { AvatarFace } from "@/components/ui/avatar-face";
 import { ThinkingOrb } from "@/components/ui/thinking-orb";
 import { cn } from "@/lib/utils";
@@ -347,14 +346,6 @@ export function MessageItem({
               >
                 <RefreshCw className="h-3 w-3" />
               </button>
-            )}
-            {!isUser && (
-              <AddToDatasetButton
-                variant="icon"
-                messageId={message.id}
-                ratedDown={message.user_rating === -1}
-                className="bg-muted hover:bg-muted/80 rounded-md sm:opacity-0 sm:group-hover:opacity-100"
-              />
             )}
             {!isUser && (
               <RatingButtons

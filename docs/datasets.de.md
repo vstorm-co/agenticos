@@ -1,5 +1,5 @@
 ---
-source_sha: "f53465df8b7d"
+source_sha: "ccd82f221e92"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -32,6 +32,21 @@ gestellt hat, und eine Antwort, die ihn wirklich enttäuscht hat.
 | Notiz | Warum es den Fall gibt - was schiefging oder was er absichert |
 | Quelle | `manual`, `import`, `conversation` oder `synthetic` - von der Plattform gesetzt, nicht eingegeben |
 
+Ein Fall muss sagen, woran seine Antwort gemessen wird: eine Referenzantwort,
+ein Gegenbeispiel, ein erwarteter Tool-Aufruf oder eine Prüfung - mindestens
+eines davon. Ein Fall nur mit einer Eingabe könnte nie scheitern, deshalb wird er
+abgelehnt: Das Formular speichert ihn nicht, die API antwortet mit 422 und nennt
+`reference_answer`, und ein Import nennt die Zeile.
+
+Ein guter Fall ist klein: eine Frage und das eine, was eine richtige Antwort
+richtig machen muss. Meist genügt eine Referenzantwort oder ein Gegenbeispiel.
+Fügen Sie erwartete Tool-Aufrufe hinzu, wenn der Agent handeln statt nur
+antworten soll, Prüfungen, wenn sich eine Regel genau angeben lässt, und das
+Gespräch vor der Eingabe nur, wenn die Frage davon abhängt. Die Notiz ist für
+die nächste Person, die den Fall liest: was schiefging oder was er absichert.
+Beim Anlegen Ihres ersten Datasets bietet die Konsole eine geführte Tour an, die
+mit dem ersten Fall endet, Feld für Feld.
+
 Ein Fall aus einem Gespräch behält außerdem einen Verweis auf den Run, das
 Gespräch und die Nachricht, aus denen er stammt. Frage und Antwort werden in den
 Fall kopiert, sodass der Fall vollständig bleibt, nachdem die Aufbewahrung den
@@ -61,7 +76,7 @@ Version, weil keines von beiden einen Fall ändert.
 ### In der Konsole { #in-the-console }
 
 Öffnen Sie **Datasets**, legen Sie ein Dataset an und wählen Sie **Fall
-hinzufügen**. Das einzige Pflichtfeld ist die Eingabe. Gespräch, erwartete
+hinzufügen**. Schreiben Sie die Eingabe und mindestens eine der vier Erwartungen oben. Gespräch, erwartete
 Tool-Aufrufe und Prüfungen werden als JSON-Listen geschrieben - derselbe Text,
 in dem ein CSV-Export sie enthält.
 
@@ -104,9 +119,27 @@ Export wird im [Audit-Log](governance.md#audit) festgehalten.
 
 ### Aus einem Gespräch oder einem Run { #add-to-dataset }
 
-Jede Agent-Antwort im Chat und jeder Agent-Zug in **Aktivität** hat ein
-Bedienelement **Zum Dataset hinzufügen**. Wählen Sie ein Dataset, und der Fall
-entsteht aus diesem Zug:
+Es gibt zwei Wege, und beide erzeugen denselben Fall:
+
+- **Im Chat** bewerten Sie die Antwort, und die Bewertung entscheidet, als was
+  sie behalten wird. Nach einem Daumen nach oben bietet die Bestätigung **Zum
+  Dataset hinzufügen** an: Dataset wählen, und die Antwort wird als
+  Referenzantwort behalten. Nach einem Daumen nach unten bietet der Dialog, der
+  fragt, was schiefging, auch **Diese Antwort zu einem Dataset hinzufügen** an:
+  Haken setzen, Dataset wählen und absenden, und die Antwort wird als
+  Gegenbeispiel behalten. Zuerst wird die Bewertung gespeichert, danach der Fall
+  angelegt, sodass Ihr Kommentar zur Notiz des Falls wird. Es sind zwei
+  getrennte Schreibvorgänge - wird das Hinzufügen abgelehnt, bleibt die
+  Bewertung, und die Meldung sagt, welcher Teil fehlschlug. Wird die Bewertung
+  später entfernt, bleibt der Fall: Er ist eine Kopie, versioniert mit seinem
+  Dataset. Die Konsole merkt sich das zuletzt verwendete Dataset, sodass das
+  nächste Hinzufügen ein Klick ist.
+- **In Aktivität** hat jeder Agent-Zug ein Bedienelement **Zum Dataset
+  hinzufügen**. Hier werden Antworten kuratiert, daher lässt sich eine gute
+  Antwort ebenso leicht als Referenz behalten wie eine schlechte als
+  Gegenbeispiel.
+
+In beiden Fällen entsteht der Fall aus diesem Zug:
 
 - die Frage wird zur Eingabe, die Züge davor werden zum Gespräch vor der
   Eingabe;
@@ -115,7 +148,7 @@ entsteht aus diesem Zug:
   beiden;
 - der neueste Kommentar zu einem Daumen nach unten wird zur Notiz.
 
-Das Bedienelement sehen Mitglieder, die ein Dataset bearbeiten dürfen. Die
+Beide Wege sehen nur Mitglieder, die ein Dataset bearbeiten dürfen. Die
 Nachricht muss zu Ihrer Organisation gehören, und Sie müssen sie lesen dürfen:
 Entweder Sie haben `runs:view`, womit Sie wie in Aktivität jeden Run der
 Organisation lesen, oder Sie können das Gespräch öffnen. Eine Nachricht aus

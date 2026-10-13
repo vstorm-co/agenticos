@@ -54,6 +54,7 @@ TENANT_REQUIRED = [
     (dataset_repo, "list_versions"),
     (dataset_repo, "create_version"),
     (dataset_repo, "list_cases"),
+    (dataset_repo, "case_stats"),
     (dataset_repo, "find_case"),
     (dataset_repo, "last_position"),
     (dataset_repo, "copy_membership"),

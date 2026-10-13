@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Literal, get_args
 from uuid import UUID
 
-from pydantic import ConfigDict, Field, JsonValue, field_validator
+from pydantic import ConfigDict, Field, JsonValue, ValidationError, field_validator, model_validator
+from pydantic_core import InitErrorDetails, PydanticCustomError
 
 from app.schemas.base import BaseSchema
 from app.schemas.resource_grant import VisibilityLiteral
@@ -22,6 +23,11 @@ ToolOrderModeLiteral = Literal["any", "in_order", "exact"]
 MAX_CASE_TEXT = 32_000
 MAX_HISTORY_TURNS = 200
 MAX_TAGS = 20
+
+NO_EXPECTATION = (
+    "Say what the answer is tested against: a reference answer, a counter-example, "
+    "an expected tool call or a check"
+)
 
 
 class CaseMessage(BaseSchema):
@@ -115,6 +121,26 @@ class DatasetCaseContent(BaseSchema):
     def _tags(cls, tags: list[str]) -> list[str]:
         return _clean_tags(tags)
 
+    @model_validator(mode="after")
+    def _expects_something(self) -> DatasetCaseContent:
+        """Refuse a case with only an input: nothing could score the answer to it.
+
+        Reported against `reference_answer`, the first of the four, so a form
+        has an input to mark and an import names a field on the row.
+        """
+        if self.reference_answer or self.counter_example or self.expected_tool_calls or self.checks:
+            return self
+        raise ValidationError.from_exception_data(
+            type(self).__name__,
+            [
+                InitErrorDetails(
+                    type=PydanticCustomError("no_expectation", NO_EXPECTATION),
+                    loc=("reference_answer",),
+                    input=self.reference_answer,
+                )
+            ],
+        )
+
 
 class DatasetCaseCreate(DatasetCaseContent):
     """A case written by hand."""
@@ -162,6 +188,11 @@ class DatasetCaseRead(DatasetCaseContent):
         # would turn a later tightening of the rule into a listing that 500s.
         return tags
 
+    @model_validator(mode="after")
+    def _expects_something(self) -> DatasetCaseRead:
+        # Cases stored before a case had to expect something still list and export.
+        return self
+
 
 class DatasetCaseList(BaseSchema):
     items: list[DatasetCaseRead]
@@ -181,6 +212,30 @@ class DatasetUpdate(BaseSchema):
     description: str | None = Field(default=None, max_length=500)
 
 
+class DatasetTagCount(BaseSchema):
+    tag: str
+    cases: int
+
+
+class DatasetStats(BaseSchema):
+    """What the newest version's cases test against, counted.
+
+    One case can count under several of the expectations - a reference answer
+    and a check, say - so those four do not sum to the case count; the sources do.
+    """
+
+    with_reference: int = Field(default=0, description="Cases with a reference answer")
+    with_counter_example: int = Field(default=0, description="Cases with a counter-example")
+    with_tool_calls: int = Field(default=0, description="Cases expecting at least one tool call")
+    with_checks: int = Field(default=0, description="Cases with at least one check")
+    by_source: dict[CaseSourceLiteral, int] = Field(
+        default_factory=lambda: dict.fromkeys(get_args(CaseSourceLiteral), 0)
+    )
+    top_tags: list[DatasetTagCount] = Field(
+        default_factory=list, description="The most used tags, most used first"
+    )
+
+
 class DatasetRead(BaseSchema):
     id: UUID
     name: str
@@ -192,6 +247,7 @@ class DatasetRead(BaseSchema):
     can_edit: bool = Field(
         default=False, description="Whether the caller may change this dataset's cases"
     )
+    stats: DatasetStats = Field(default_factory=DatasetStats)
     created_at: datetime
     updated_at: datetime | None = None
 

@@ -62,7 +62,7 @@ describe("Add to dataset", () => {
 
   it("keeps an answer nobody rated down as the reference, into the dataset chosen", async () => {
     state.add.mockResolvedValue({});
-    render(<AddToDatasetButton messageId="m2" ratedDown={false} variant="icon" />);
+    render(<AddToDatasetButton messageId="m2" ratedDown={false} />);
     await open();
     await userEvent.click(screen.getByRole("combobox", { name: "Dataset" }));
     await userEvent.click(screen.getByRole("option", { name: "returns" }));

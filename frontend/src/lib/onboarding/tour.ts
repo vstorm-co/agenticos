@@ -14,6 +14,13 @@ export const AGENT_BUILDER = "agent-builder";
 export const KB_DETAIL = "kb-detail";
 
 /**
+ * A dataset's own page, `/datasets/<id>`, collapsed the same way. Only the guided
+ * creation reaches it - the reader opens the dataset they just made - so it has no
+ * example to resolve.
+ */
+export const DATASET_DETAIL = "dataset-detail";
+
+/**
  * The two organization detail routes, collapsed the same way. Unlike the builder
  * and the collection — one detail route each — an organization opens onto two,
  * `/orgs/<id>/members` and `/orgs/<id>/roles`, so it takes two identities chained
@@ -618,6 +625,7 @@ const SECTION_FLOWS: readonly (readonly string[])[] = [
 export function pageKey(path: string): string {
   if (path.startsWith(`${ROUTES.AGENTS}/`)) return AGENT_BUILDER;
   if (path.startsWith(`${ROUTES.RAG}/`)) return KB_DETAIL;
+  if (path.startsWith(`${ROUTES.DATASETS}/`)) return DATASET_DETAIL;
   if (path.startsWith(`${ROUTES.ORGS}/`)) {
     if (path.endsWith("/roles")) return ORG_ROLES;
     if (path.endsWith("/retention")) return ORG_RETENTION;
