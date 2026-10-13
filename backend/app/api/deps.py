@@ -637,16 +637,6 @@ def get_dataset_service(db: DBSession) -> DatasetService:
 
 DatasetSvc = Annotated[DatasetService, Depends(get_dataset_service)]
 
-from app.services.case_generation import CaseGenerationService
-
-
-def get_case_generation_service(db: DBSession) -> CaseGenerationService:
-    """Create CaseGenerationService instance with database session."""
-    return CaseGenerationService(db)
-
-
-CaseGenerationSvc = Annotated[CaseGenerationService, Depends(get_case_generation_service)]
-
 from app.services.artifact import ArtifactService
 
 
@@ -1157,6 +1147,18 @@ def get_vectorstore(request: Request, embedder: EmbeddingSvc) -> BaseVectorStore
 
 
 VectorStoreSvc = Annotated[BaseVectorStore, Depends(get_vectorstore)]
+
+from app.services.case_generation import CaseGenerationService
+
+
+def get_case_generation_service(
+    db: DBSession, vector_store: VectorStoreSvc
+) -> CaseGenerationService:
+    """Create CaseGenerationService instance with database session."""
+    return CaseGenerationService(db, vector_store=vector_store)
+
+
+CaseGenerationSvc = Annotated[CaseGenerationService, Depends(get_case_generation_service)]
 
 
 def get_organization_teardown_service(

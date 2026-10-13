@@ -8,7 +8,12 @@ import pytest
 from pydantic import ValidationError
 
 from app.db.models.case_generation import CaseGeneration, CaseProposal
-from app.schemas.case_generation import MAX_DECIDED, CaseProposalAccept, CaseProposalDismiss
+from app.schemas.case_generation import (
+    MAX_DECIDED,
+    CaseGenerationRequest,
+    CaseProposalAccept,
+    CaseProposalDismiss,
+)
 
 
 def test_a_decision_names_at_least_one_proposal_and_at_most_a_page() -> None:
@@ -32,3 +37,16 @@ def test_every_row_says_which_dataset_it_belongs_to() -> None:
 
     assert repr(generation) == f"<CaseGeneration(dataset={dataset_id}, status=running)>"
     assert repr(proposal) == f"<CaseProposal(dataset={dataset_id}, origin=red_team)>"
+
+
+def test_a_request_names_each_source_once_in_one_order() -> None:
+    agent = uuid.uuid4()
+    request = CaseGenerationRequest(
+        agent_id=agent, sources=["red_team", "agent", "red_team", "knowledge"]
+    )
+    assert request.sources == ["agent", "knowledge", "red_team"]
+    assert request.count == 20
+    with pytest.raises(ValidationError):
+        CaseGenerationRequest(agent_id=agent, sources=[])
+    with pytest.raises(ValidationError):
+        CaseGenerationRequest(agent_id=agent, sources=["web"])

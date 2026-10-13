@@ -15,7 +15,10 @@ from fastapi import APIRouter, Query, status
 
 from app.api.deps import Auth, CaseGenerationSvc
 from app.schemas.case_generation import (
+    CaseGenerationEstimate,
     CaseGenerationList,
+    CaseGenerationRead,
+    CaseGenerationRequest,
     CaseProposalAccept,
     CaseProposalDismiss,
     CaseProposalList,
@@ -23,6 +26,30 @@ from app.schemas.case_generation import (
 from app.schemas.dataset import DatasetVersionRead
 
 router = APIRouter()
+
+
+@router.post("/{dataset_id}/generations/estimate", response_model=CaseGenerationEstimate)
+async def estimate_case_generation(
+    dataset_id: UUID, data: CaseGenerationRequest, service: CaseGenerationSvc, ctx: Auth
+) -> Any:
+    """What a generation would draft from each source, and its estimated cost.
+
+    Reads the material under the same gates a generation does and calls no
+    model. A source the caller may not use is refused, naming `sources`.
+    """
+    return await service.estimate(ctx, dataset_id, data)
+
+
+@router.post(
+    "/{dataset_id}/generations",
+    response_model=CaseGenerationRead,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def start_case_generation(
+    dataset_id: UUID, data: CaseGenerationRequest, service: CaseGenerationSvc, ctx: Auth
+) -> Any:
+    """Start drafting cases. The generation runs after this answers; poll the list for it."""
+    return await service.start(ctx, dataset_id, data)
 
 
 @router.get("/{dataset_id}/generations", response_model=CaseGenerationList)

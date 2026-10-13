@@ -23,6 +23,7 @@ from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
 from app.schemas.case_generation import (
+    CaseGenerationEstimate,
     CaseGenerationList,
     CaseGenerationRead,
     CaseProposalList,
@@ -67,6 +68,12 @@ def service() -> MagicMock:
     stub.list_proposals = AsyncMock(return_value=CaseProposalList(items=[_PROPOSAL], total=1))
     stub.accept = AsyncMock(return_value=_VERSION)
     stub.dismiss = AsyncMock(return_value=None)
+    stub.estimate = AsyncMock(
+        return_value=CaseGenerationEstimate(
+            count=20, sources=[], excluded_collections=0, estimated_cost_usd=None
+        )
+    )
+    stub.start = AsyncMock(return_value=_GENERATION.model_copy(update={"status": "running"}))
     return stub
 
 
@@ -134,3 +141,29 @@ async def test_drafts_already_decided_are_a_404(client: OpenClient, service: Mag
     async with client() as http:
         response = await http.post(_url("/proposals/dismiss"), json={"ids": [str(uuid.uuid4())]})
     assert response.status_code == 404
+
+
+async def test_an_estimate_answers_200_and_a_start_202(
+    client: OpenClient, service: MagicMock
+) -> None:
+    body = {"agent_id": str(uuid.uuid4()), "sources": ["red_team", "agent"], "count": 20}
+    async with client() as http:
+        estimate = await http.post(_url("/generations/estimate"), json=body)
+        started = await http.post(_url("/generations"), json=body)
+
+    assert (estimate.status_code, estimate.json()["estimated_cost_usd"]) == (200, None)
+    assert (started.status_code, started.json()["status"]) == (202, "running")
+    request = service.start.await_args.args[2]
+    assert request.sources == ["agent", "red_team"]
+
+
+async def test_a_generation_past_the_ceiling_is_refused_before_the_service(
+    client: OpenClient, service: MagicMock
+) -> None:
+    async with client() as http:
+        response = await http.post(
+            _url("/generations"),
+            json={"agent_id": str(uuid.uuid4()), "sources": ["agent"], "count": 51},
+        )
+    assert response.status_code == 422
+    service.start.assert_not_awaited()

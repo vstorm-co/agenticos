@@ -11,25 +11,47 @@ from __future__ import annotations
 
 from collections import Counter
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.spec import AgentSpec
+from app.agents.system_agents import CASE_GENERATOR
 from app.core.audit import record_audit
-from app.core.exceptions import NotFoundError
+from app.core.background import spawn_after_commit
+from app.core.exceptions import NotFoundError, SystemAgentUnavailableError
 from app.core.permissions import AuthContext, Perm
-from app.db.models.case_generation import CaseGeneration, CaseProposal, GenerationStatus
-from app.repositories import case_generation_repo
+from app.db.models.agent import AgentStatus
+from app.db.models.case_generation import (
+    CaseGeneration,
+    CaseOrigin,
+    CaseProposal,
+    GenerationStatus,
+)
+from app.repositories import agent_repo, case_generation_repo, credential_repo
 from app.schemas.case_generation import (
+    CaseGenerationEstimate,
     CaseGenerationList,
     CaseGenerationRead,
+    CaseGenerationRequest,
     CaseProposalAccept,
     CaseProposalDismiss,
     CaseProposalList,
     CaseProposalRead,
+    SourcePlan,
 )
 from app.schemas.dataset import DatasetCaseContent, DatasetVersionRead
+from app.services.access import AGENT, resolve_access
+from app.services.ai_assistance import AiAssistanceService
+from app.services.case_generation.drafts import split
+from app.services.case_generation.estimate import estimate_cost
+from app.services.case_generation.generation import run_generation
+from app.services.case_generation.prompt import build_prompt
+from app.services.case_generation.sources import Material, SourceGatherer
 from app.services.dataset import DatasetService, GeneratedCase
+from app.services.rag.vectorstore import BaseVectorStore
+from app.services.system_agents import SystemAgentService
 
 # A generation runs in the process that answered the request, so a restart loses
 # it mid-run. Longer than any generator run takes, it is reported as interrupted
@@ -50,6 +72,16 @@ def _generation_read(generation: CaseGeneration, *, now: datetime) -> CaseGenera
     return read
 
 
+def _material(origin: CaseOrigin, material: Material) -> int:
+    if origin is CaseOrigin.KNOWLEDGE:
+        return len(material.passages)
+    if origin is CaseOrigin.CONVERSATION:
+        return len(material.questions)
+    if origin is CaseOrigin.AGENT:
+        return len(material.agent.tools)
+    return 0
+
+
 def _drafted(proposal: CaseProposal) -> DatasetCaseContent:
     return DatasetCaseContent.model_validate(
         {field: getattr(proposal, field) for field in DatasetCaseContent.model_fields}
@@ -59,9 +91,152 @@ def _drafted(proposal: CaseProposal) -> DatasetCaseContent:
 class CaseGenerationService:
     """Generate cases for a dataset and decide what was generated."""
 
-    def __init__(self, db: AsyncSession) -> None:
+    def __init__(self, db: AsyncSession, *, vector_store: BaseVectorStore) -> None:
         self.db = db
         self.datasets = DatasetService(db)
+        self.sources = SourceGatherer(db, vector_store)
+
+    async def _plan(
+        self, ctx: AuthContext, dataset_id: UUID, data: CaseGenerationRequest
+    ) -> tuple[UUID, Material, dict[CaseOrigin, int], str]:
+        """The dataset, the material, each source's quota and the prompt for one request.
+
+        Raises:
+            NotFoundError: For a dataset the caller may not edit, or an agent they
+                may not view.
+            AiAssistanceDisabledError: When the organization switched AI assistance off.
+            BadRequestError: Naming `sources` or `agent_id`, for a source the caller
+                may not use or that has nothing to draft from.
+        """
+        dataset = await self.datasets.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
+        await AiAssistanceService(self.db).require_enabled(organization_id=ctx.organization_id)
+        sources = [CaseOrigin(source) for source in data.sources]
+        quotas = split(data.count, sources)
+        material = await self.sources.gather(ctx, data.agent_id, sources)
+        return dataset.id, material, quotas, build_prompt(material, quotas)
+
+    async def _price(self, ctx: AuthContext, prompt: str, count: int) -> Decimal | None:
+        """The estimated cost on the generator's model, or `None` when it has no price.
+
+        Read without seeding: an organization whose generator is not created yet is
+        priced on the profile it would be published on, the oldest one.
+        """
+        agent = await agent_repo.get_system(
+            self.db, organization_id=ctx.organization_id, key=CASE_GENERATOR.key
+        )
+        profile_id: UUID | None = None
+        if agent is None:
+            oldest = await credential_repo.oldest_profile(
+                self.db, organization_id=ctx.organization_id
+            )
+            profile_id = oldest.id if oldest is not None else None
+        elif agent.current_version_id is not None:
+            version = await agent_repo.get_version(
+                self.db, agent.current_version_id, organization_id=ctx.organization_id
+            )
+            profile_id = (
+                AgentSpec.model_validate(version.spec).model_profile_id if version else None
+            )
+        profile = (
+            await credential_repo.get_profile(
+                self.db, profile_id, organization_id=ctx.organization_id
+            )
+            if profile_id is not None
+            else None
+        )
+        if profile is None:
+            return None
+        return estimate_cost(prompt, count, model_name=profile.model, provider=profile.provider)
+
+    async def estimate(
+        self, ctx: AuthContext, dataset_id: UUID, data: CaseGenerationRequest
+    ) -> CaseGenerationEstimate:
+        """What this request would draft from each source, and roughly cost.
+
+        Reads the same material a generation would, under the same gates, and
+        calls no model: the estimate is what a person decides with.
+        """
+        _, material, quotas, prompt = await self._plan(ctx, dataset_id, data)
+        return CaseGenerationEstimate(
+            count=data.count,
+            sources=[
+                SourcePlan(source=origin.value, cases=cases, material=_material(origin, material))
+                for origin, cases in quotas.items()
+            ],
+            excluded_collections=material.excluded_collections,
+            estimated_cost_usd=await self._price(ctx, prompt, data.count),
+        )
+
+    async def _may_run_generator(self, ctx: AuthContext) -> None:
+        """Refuse, before anything is queued, a generation its run would refuse.
+
+        The runner checks the same again when the generation runs; this answers
+        the request with the reason instead of a generation that fails at once.
+
+        Raises:
+            SystemAgentUnavailableError: When the generator cannot be set up, is
+                archived or unpublished, or the caller may not run it.
+        """
+        agent = await SystemAgentService(self.db).ensure(
+            organization_id=ctx.organization_id, key=CASE_GENERATOR.key
+        )
+        if agent.status == AgentStatus.ARCHIVED.value:
+            reason, message = "archived", f"'{agent.name}' is archived. Restore it to use it."
+        elif agent.current_version_id is None:
+            reason = "unpublished"
+            message = f"'{agent.name}' has no published version. Pick a model and publish it."
+        elif not await resolve_access(self.db, ctx, agent, Perm.AGENTS_RUN, resource_type=AGENT):
+            reason, message = "no_access", f"You may not run '{agent.name}'. Ask for access to it."
+        else:
+            return
+        raise SystemAgentUnavailableError(message=message, key=CASE_GENERATOR.key, reason=reason)
+
+    async def start(
+        self, ctx: AuthContext, dataset_id: UUID, data: CaseGenerationRequest
+    ) -> CaseGenerationRead:
+        """Start drafting cases. Answers at once; the generator runs after the commit.
+
+        Raises:
+            NotFoundError, AiAssistanceDisabledError, BadRequestError: As
+                :meth:`estimate` does.
+            SystemAgentUnavailableError: When the generator cannot run for this caller.
+        """
+        dataset_id, material, quotas, prompt = await self._plan(ctx, dataset_id, data)
+        await self._may_run_generator(ctx)
+        generation = await case_generation_repo.create_generation(
+            self.db,
+            organization_id=ctx.organization_id,
+            dataset_id=dataset_id,
+            agent_id=data.agent_id,
+            requested_by_user_id=ctx.subject_id,
+            sources=list(data.sources),
+            requested_count=data.count,
+        )
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="dataset.generation_started",
+            target_type="dataset",
+            target_id=str(dataset_id),
+            details={
+                "agent_id": str(data.agent_id),
+                "sources": list(data.sources),
+                "count": data.count,
+            },
+        )
+        spawn_after_commit(
+            self.db,
+            run_generation(
+                generation_id=generation.id,
+                ctx=ctx,
+                prompt=prompt,
+                material=material,
+                quotas=quotas,
+            ),
+            name=f"case-generation-{generation.id}",
+        )
+        return _generation_read(generation, now=datetime.now(UTC))
 
     async def list_generations(
         self, ctx: AuthContext, dataset_id: UUID, *, limit: int = 20

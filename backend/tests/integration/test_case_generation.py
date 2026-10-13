@@ -15,6 +15,7 @@ The claims a mocked session cannot make:
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from unittest.mock import MagicMock
 
 import pytest
 from sqlalchemy import func, select
@@ -96,7 +97,7 @@ async def test_one_accept_is_one_version_of_synthetic_cases_that_keep_their_sour
         source_message_id=asked.id,
     )
 
-    service = CaseGenerationService(db)
+    service = CaseGenerationService(db, vector_store=MagicMock())
     version = await service.accept(
         owner, dataset.id, _accept(from_docs[1].id, from_chat[0].id, from_docs[0].id)
     )
@@ -120,7 +121,7 @@ async def test_an_edited_draft_lands_as_edited_and_redacted(db) -> None:
     _, drafted = await world.proposals(db, org, dataset, agent, 1)
     key = "ghp_" + "a" * 36
 
-    await CaseGenerationService(db).accept(
+    await CaseGenerationService(db, vector_store=MagicMock()).accept(
         owner,
         dataset.id,
         _accept(drafted[0].id, content=DatasetCaseContent(input=f"Use {key} please", tags=["x"])),
@@ -144,7 +145,7 @@ async def test_an_edited_draft_lands_as_edited_and_redacted(db) -> None:
 async def test_a_dismissed_draft_leaves_no_trace(db) -> None:
     owner, org, agent, dataset = await _setup(db)
     generation, drafted = await world.proposals(db, org, dataset, agent, 2)
-    service = CaseGenerationService(db)
+    service = CaseGenerationService(db, vector_store=MagicMock())
 
     await service.dismiss(owner, dataset.id, CaseProposalDismiss(ids=[drafted[0].id]))
 
@@ -166,7 +167,7 @@ async def test_a_dismissed_draft_leaves_no_trace(db) -> None:
 async def test_a_draft_decided_twice_is_decided_once(db) -> None:
     owner, org, agent, dataset = await _setup(db)
     generation, drafted = await world.proposals(db, org, dataset, agent, 2)
-    service = CaseGenerationService(db)
+    service = CaseGenerationService(db, vector_store=MagicMock())
     await service.dismiss(owner, dataset.id, CaseProposalDismiss(ids=[drafted[0].id]))
 
     with pytest.raises(NotFoundError):
@@ -187,7 +188,9 @@ async def test_an_edit_keeps_the_document_a_generated_case_came_from(db) -> None
     _, drafted = await world.proposals(
         db, org, dataset, agent, 1, origin=CaseOrigin.KNOWLEDGE, source_document_id=document.id
     )
-    await CaseGenerationService(db).accept(owner, dataset.id, _accept(drafted[0].id))
+    await CaseGenerationService(db, vector_store=MagicMock()).accept(
+        owner, dataset.id, _accept(drafted[0].id)
+    )
     (case,) = (await DatasetService(db).list_cases(owner, dataset.id)).items
 
     edited = await DatasetService(db).update_case(
@@ -201,7 +204,7 @@ async def test_only_an_editor_of_the_dataset_sees_or_decides_its_drafts(db) -> N
     owner, org, agent, dataset = await _setup(db)
     _, drafted = await world.proposals(db, org, dataset, agent, 1)
     viewer = await world.member(db, org, OrgRoleName.VIEWER)
-    service = CaseGenerationService(db)
+    service = CaseGenerationService(db, vector_store=MagicMock())
     shared = ResourceGrant(
         organization_id=org.id,
         subject_user_id=viewer.user_id,
@@ -235,7 +238,7 @@ async def test_another_organization_s_drafts_are_not_found(db) -> None:
     _, drafted = await world.proposals(db, org, dataset, agent, 1)
     stranger_org = await world.org(db, await world.user(db))
     stranger = await world.member(db, stranger_org, OrgRoleName.OWNER)
-    service = CaseGenerationService(db)
+    service = CaseGenerationService(db, vector_store=MagicMock())
 
     for attempt in (
         service.list_proposals(stranger, dataset.id),
@@ -258,7 +261,12 @@ async def test_a_generation_left_running_too_long_reads_as_interrupted(db) -> No
     await db.flush()
 
     listed = {
-        g.id: g for g in (await CaseGenerationService(db).list_generations(owner, dataset.id)).items
+        g.id: g
+        for g in (
+            await CaseGenerationService(db, vector_store=MagicMock()).list_generations(
+                owner, dataset.id
+            )
+        ).items
     }
 
     assert (listed[stuck.id].status, listed[stuck.id].error) == ("failed", INTERRUPTED)
@@ -285,5 +293,7 @@ async def test_deleting_the_conversation_takes_its_drafts_and_erasure_takes_a_pe
     purged = await PersonalDataService(db).purge(person.id)
 
     assert purged.case_proposals == 1
-    remaining = (await CaseGenerationService(db).list_proposals(owner, dataset.id)).items
+    remaining = (
+        await CaseGenerationService(db, vector_store=MagicMock()).list_proposals(owner, dataset.id)
+    ).items
     assert [item.source_conversation_id for item in remaining] == [kept.id]
