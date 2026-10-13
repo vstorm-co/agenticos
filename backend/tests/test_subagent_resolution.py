@@ -38,6 +38,7 @@ from pydantic_ai.models.function import AgentInfo, FunctionModel
 from app.agents.capabilities.budget import SpendLedger
 from app.agents.capabilities.sandbox import WORKSPACE_RESOURCE
 from app.agents.capabilities.subagents import SubagentsConfig
+from app.agents.isolation import RunIsolation
 from app.agents.spec import (
     AgentSpec,
     ObservabilitySpec,
@@ -243,6 +244,7 @@ async def _prepare(
     agent_id: uuid.UUID | None = None,
     profiles: list[MagicMock] | None = None,
     environment_connections: list[AgentEnvironmentConnection] | None = None,
+    isolation: RunIsolation | None = None,
 ) -> _Prepared:
     """Prepare a run of `spec` with every database read answered from memory.
 
@@ -340,6 +342,7 @@ async def _prepare(
             ctx,
             agent.id,
             environment_id=None if environment_connections is None else uuid.uuid4(),
+            isolation=isolation,
         )
 
     return _Prepared(prepared, build, fetch_version, list_profiles)
@@ -801,6 +804,21 @@ class TestAPublishedDelegate:
         assert toolsets.await_args_list[-1].kwargs["test_connections"] == {crm: sandbox}
         (binding,) = built["spec"].capabilities
         assert binding.secret_id == test_key
+        assert built["test_secret_ids"] == frozenset({test_key})
+
+    async def test_an_isolated_runs_delegates_are_isolated_too(self):
+        """An eval holding the parent's writes and not its delegate's would send
+        the e-mail one level down."""
+        delegate_id = uuid.uuid4()
+        pinned = _version(delegate_id, AgentSpec(name="Mailer"))
+        spec = _delegating(
+            subagents=[SubagentRef(agent_id=delegate_id, agent_version_id=pinned.id)]
+        )
+        isolation = RunIsolation()
+
+        prepared = await _prepare(spec, versions={pinned.id: pinned}, isolation=isolation)
+
+        assert prepared.built("mailer")["isolation"] is isolation
 
     async def test_a_delegate_with_no_description_is_still_describable(self):
         """The description is what the parent's model reads before deciding to

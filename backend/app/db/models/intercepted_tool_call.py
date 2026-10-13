@@ -71,8 +71,9 @@ class InterceptedToolCall(Base, TimestampMixin):
     )
     sequence: Mapped[int] = mapped_column(Integer, nullable=False)
     tool_name: Mapped[str] = mapped_column(String(128), nullable=False)
-    # The tool's stable identity - `capability:<capability>.<tool>` or
-    # `mcp:<prefixed name>` - which survives a binding renaming the tool.
+    # The tool's stable identity - `capability:<capability>.<tool>`, which
+    # survives a binding renaming the tool, or `tool:<name>` for an MCP or
+    # framework tool.
     tool_id: Mapped[str] = mapped_column(String(256), nullable=False)
     args: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, server_default=text("'{}'::jsonb")

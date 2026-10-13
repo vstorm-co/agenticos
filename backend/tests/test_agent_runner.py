@@ -13,6 +13,7 @@ from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -21,6 +22,7 @@ from pydantic_ai import Agent
 from pydantic_ai.exceptions import ModelHTTPError, UserError
 from pydantic_ai.messages import (
     ModelMessage,
+    ModelMessagesTypeAdapter,
     ModelRequest,
     ModelResponse,
     TextPart,
@@ -51,6 +53,7 @@ from app.agents.capabilities.planning import PLANNING_STORE_RESOURCE
 from app.agents.capabilities.sandbox import WORKSPACE_RESOURCE
 from app.agents.capabilities.sandbox._capability import build_workspace
 from app.agents.connect_on_use import ConnectionRequest, ConnectOnUse
+from app.agents.isolation import InterceptedCall, RunIsolation
 from app.agents.spec import (
     AgentSpec,
     CapabilityBindingSpec,
@@ -63,6 +66,7 @@ from app.core.exceptions import BadRequestError, NotFoundError, RunExecutionErro
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_environment import AgentEnvironmentConnection
 from app.db.models.agent_run import ApprovalStatus, RunStatus, RunSurface
+from app.db.models.intercepted_tool_call import InterceptionOutcome
 from app.services.agent_runner import (
     AgentRunnerService,
     ApprovalChannel,
@@ -4560,3 +4564,166 @@ class TestWhatAPreparedRunSaysThePersonCannotReach:
             prepared = await service.prepare(ctx, agent.id)
 
         assert prepared.personal_service_gaps == []
+
+
+class TestAnIsolatedRun:
+    """An eval's run: the runner threads the isolation and writes what it held."""
+
+    @pytest.mark.anyio
+    async def test_the_isolation_reaches_the_agent_and_the_prepared_run(self):
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        isolation = RunIsolation()
+
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, AgentSpec(name="Support"), uuid.uuid4())),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch("app.services.agent_runner.build_agent") as build,
+        ):
+            prepared = await service.prepare(_ctx(), agent.id, isolation=isolation)
+
+        assert build.call_args.kwargs["isolation"] is isolation
+        assert build.call_args.kwargs["test_secret_ids"] == frozenset()
+        assert prepared.isolation is isolation
+
+    @pytest.mark.anyio
+    async def test_execute_runs_isolated_when_asked(self):
+        service = AgentRunnerService(_db())
+        isolation = RunIsolation()
+
+        prepare = AsyncMock(side_effect=RuntimeError("stop"))
+        with patch.object(service, "prepare", new=prepare), pytest.raises(RuntimeError):
+            await service.execute(_ctx(), uuid.uuid4(), "hi", isolation=isolation)
+
+        assert prepare.await_args.kwargs["isolation"] is isolation
+
+    @pytest.mark.anyio
+    async def test_finishing_writes_the_held_calls_once(self):
+        """A run finished twice must not write its calls twice."""
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        prepared.isolation = RunIsolation(
+            intercepted=[
+                InterceptedCall(
+                    agent_id=None,
+                    tool_name="crm_create",
+                    tool_id="tool:crm_create",
+                    args={"name": "Ada"},
+                    outcome=InterceptionOutcome.BLOCKED,
+                )
+            ]
+        )
+        written = AsyncMock()
+
+        with (
+            patch("app.services.agent_runner.intercepted_tool_call_repo.add_many", new=written),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+        ):
+            await service.finish(prepared, status=RunStatus.COMPLETED)
+            await service.finish(prepared, status=RunStatus.COMPLETED)
+
+        written.assert_awaited_once()
+        (row,) = written.await_args.kwargs["calls"]
+        assert (row.tool_name, row.args, row.outcome) == ("crm_create", {"name": "Ada"}, "blocked")
+        assert written.await_args.kwargs["run_id"] == prepared.run.id
+
+
+class TestARecordingOfAPastRun:
+    @staticmethod
+    def _run(**fields: Any) -> MagicMock:
+        return MagicMock(
+            id=uuid.uuid4(),
+            agent_version_id=fields.get("agent_version_id", uuid.uuid4()),
+            started_at=datetime(2026, 10, 1, tzinfo=UTC),
+        )
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        "manifest",
+        [
+            None,
+            MagicMock(truncated=True, payload={"messages": [{}]}),
+            MagicMock(truncated=False, payload={}),
+        ],
+    )
+    async def test_an_incomplete_record_is_refused(self, manifest):
+        """Half a recording would call the other half divergent, as if the agent had."""
+        service = AgentRunnerService(_db())
+
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.get_run",
+                new=AsyncMock(return_value=self._run()),
+            ),
+            patch(
+                "app.services.agent_runner.run_manifest_repo.get_by_run",
+                new=AsyncMock(return_value=manifest),
+            ),
+            pytest.raises(BadRequestError, match="no complete record"),
+        ):
+            await service.tool_recording(_ctx(), uuid.uuid4())
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("version", ["kept", "gone", "none"])
+    async def test_calls_resolve_through_the_version_that_answered(self, version):
+        """The original version's names: `look_up_note` was its rename of
+        `read_memory`, so a candidate calling it plain still matches."""
+        service = AgentRunnerService(_db())
+        run = self._run(agent_version_id=None if version == "none" else uuid.uuid4())
+        spec = AgentSpec(
+            name="Notes",
+            capabilities=[
+                {"id": "memory_files", "tool_overrides": {"read_memory": {"name": "look_up_note"}}}
+            ],
+        )
+        messages = ModelMessagesTypeAdapter.dump_python(
+            [
+                ModelResponse(
+                    parts=[
+                        ToolCallPart(tool_name="look_up_note", args={"name": "a"}, tool_call_id="1")
+                    ],
+                    timestamp=datetime(2026, 10, 1, 0, 1, tzinfo=UTC),
+                ),
+                ModelRequest(
+                    parts=[ToolReturnPart(tool_name="look_up_note", content="A", tool_call_id="1")]
+                ),
+            ],
+            mode="json",
+        )
+
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.get_run", new=AsyncMock(return_value=run)
+            ),
+            patch(
+                "app.services.agent_runner.run_manifest_repo.get_by_run",
+                new=AsyncMock(
+                    return_value=MagicMock(truncated=False, payload={"messages": messages})
+                ),
+            ),
+            patch(
+                "app.services.agent_runner.agent_repo.get_version",
+                new=AsyncMock(
+                    return_value=SimpleNamespace(spec=spec.model_dump())
+                    if version == "kept"
+                    else None
+                ),
+            ),
+        ):
+            recording = await service.tool_recording(_ctx(), uuid.uuid4())
+
+        expected = (
+            "capability:memory_files.read_memory" if version == "kept" else "tool:look_up_note"
+        )
+        assert recording.answer(expected, {"name": "a"}) is not None
