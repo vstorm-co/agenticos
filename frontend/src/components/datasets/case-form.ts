@@ -1,4 +1,4 @@
-import type { DatasetCaseContent } from "@/types/datasets";
+import type { DatasetCaseContent, ToolOrderMode } from "@/types/datasets";
 
 /**
  * A case as the editor holds it: every field a string a text box can show.
@@ -16,7 +16,7 @@ export interface CaseDraft {
   tags: string;
   history: string;
   expected_tool_calls: string;
-  tool_calls_ordered: boolean;
+  order_mode: ToolOrderMode;
   checks: string;
 }
 
@@ -48,7 +48,7 @@ export const EMPTY_DRAFT: CaseDraft = {
   tags: "",
   history: "",
   expected_tool_calls: "",
-  tool_calls_ordered: false,
+  order_mode: "any",
   checks: "",
 };
 
@@ -61,7 +61,7 @@ export function draftOf(content: DatasetCaseContent): CaseDraft {
     tags: content.tags.join(", "),
     history: asJson(content.history),
     expected_tool_calls: asJson(content.expected_tool_calls),
-    tool_calls_ordered: content.tool_calls_ordered,
+    order_mode: content.order_mode,
     checks: asJson(content.checks),
   };
 }
@@ -110,7 +110,7 @@ export function contentOf(
         .filter(Boolean),
       history: parsed.history as DatasetCaseContent["history"],
       expected_tool_calls: parsed.expected_tool_calls as DatasetCaseContent["expected_tool_calls"],
-      tool_calls_ordered: draft.tool_calls_ordered,
+      order_mode: draft.order_mode,
       checks: parsed.checks as DatasetCaseContent["checks"],
     },
   };

@@ -45,7 +45,7 @@ const CONTENT = {
   reference_answer: null,
   counter_example: null,
   expected_tool_calls: [],
-  tool_calls_ordered: false,
+  order_mode: "any" as const,
   checks: [],
   tags: [],
   note: null,

@@ -6,7 +6,6 @@ import { toast } from "sonner";
 
 import {
   Button,
-  Checkbox,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -15,13 +14,17 @@ import {
   DialogTitle,
   FormField,
   Input,
-  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Textarea,
 } from "@/components/ui";
 import { submitFailure } from "@/lib/api-error";
 import { DIALOG_COLUMN, DIALOG_WIDE } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
-import type { DatasetCaseContent } from "@/types/datasets";
+import type { DatasetCaseContent, ToolOrderMode } from "@/types/datasets";
 import { CASE_FIELDS, contentOf, type CaseDraft, type CaseField } from "./case-form";
 
 interface CaseEditorDialogProps {
@@ -33,6 +36,8 @@ interface CaseEditorDialogProps {
   onSave?: (content: DatasetCaseContent) => Promise<unknown>;
   title: string;
 }
+
+const ORDER_MODES: ToolOrderMode[] = ["any", "in_order", "exact"];
 
 /** A JSON field's shape, shown in the empty box. Code, not copy: it is what is typed. */
 const JSON_EXAMPLE: Partial<Record<CaseField, string>> = {
@@ -134,15 +139,28 @@ export function CaseEditorDialog({
               onChange={(event) => edit("tags", event.target.value)}
             />
           </FormField>
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="case-ordered"
+          <FormField
+            htmlFor="case-order-mode"
+            label={t("field.order_mode")}
+            description={t(`orderMode.${draft.order_mode}Hint`)}
+          >
+            <Select
               disabled={readOnly}
-              checked={draft.tool_calls_ordered}
-              onCheckedChange={(checked) => edit("tool_calls_ordered", checked === true)}
-            />
-            <Label htmlFor="case-ordered">{t("field.tool_calls_ordered")}</Label>
-          </div>
+              value={draft.order_mode}
+              onValueChange={(next) => edit("order_mode", next as ToolOrderMode)}
+            >
+              <SelectTrigger id="case-order-mode">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ORDER_MODES.map((mode) => (
+                  <SelectItem key={mode} value={mode}>
+                    {t(`orderMode.${mode}`)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FormField>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>

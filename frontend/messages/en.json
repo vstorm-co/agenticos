@@ -5666,7 +5666,7 @@
       "expected_tool_calls": "Expected tool calls",
       "checks": "Checks",
       "tags": "Tags",
-      "tool_calls_ordered": "The expected calls must happen in this order"
+      "order_mode": "How expected calls are matched"
     },
     "hint": {
       "input": "The message the agent answers.",
@@ -5683,6 +5683,14 @@
       "import": "Imported",
       "conversation": "From a conversation",
       "synthetic": "Generated"
+    },
+    "orderMode": {
+      "any": "Any order",
+      "anyHint": "Every expected call must happen; order and other calls do not matter.",
+      "in_order": "In this order",
+      "in_orderHint": "The expected calls must happen in the listed order; other calls may come between them.",
+      "exact": "Exactly these, in this order",
+      "exactHint": "The agent must make exactly the expected calls, in the listed order, and no others."
     }
   }
 }

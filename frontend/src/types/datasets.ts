@@ -11,6 +11,8 @@ export type CaseSource = "manual" | "import" | "conversation" | "synthetic";
 export type DatasetChange = "add" | "edit" | "remove" | "import";
 export type DatasetSort = "name" | "updated";
 export type DatasetFileFormat = "csv" | "jsonl";
+/** How an agent's calls are matched against the expected ones. */
+export type ToolOrderMode = "any" | "in_order" | "exact";
 
 export interface CaseMessage {
   role: "user" | "assistant";
@@ -22,11 +24,14 @@ export interface ExpectedToolCall {
   args: Record<string, unknown>;
 }
 
-/** The checks a case carries. Scoring reads them; the dataset only keeps them. */
-export type CaseCheck =
-  | { type: "contains" | "not_contains" | "equals" | "regex"; value: string; path: string | null }
-  | { type: "json_schema"; json_schema: Record<string, unknown> }
-  | { type: "max_cost_usd" | "max_latency_ms"; limit: number };
+/**
+ * One rule the answer is scored against, named by `type`, its parameters beside it.
+ * Which types exist is scoring's to say; a dataset only keeps them.
+ */
+export interface CaseCheck {
+  type: string;
+  [parameter: string]: unknown;
+}
 
 /** Everything a person writes about one case. */
 export interface DatasetCaseContent {
@@ -35,7 +40,7 @@ export interface DatasetCaseContent {
   reference_answer: string | null;
   counter_example: string | null;
   expected_tool_calls: ExpectedToolCall[];
-  tool_calls_ordered: boolean;
+  order_mode: ToolOrderMode;
   checks: CaseCheck[];
   tags: string[];
   note: string | null;

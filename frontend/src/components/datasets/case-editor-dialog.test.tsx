@@ -35,12 +35,15 @@ describe("CaseEditorDialog", () => {
 
     await userEvent.type(input(), "How long?");
     await userEvent.type(screen.getByLabelText("Tags"), "returns");
-    await userEvent.click(screen.getByLabelText(/must happen in this order/));
+    expect(screen.getByText(/order and other calls do not matter/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("combobox", { name: "How expected calls are matched" }));
+    await userEvent.click(screen.getByRole("option", { name: "In this order" }));
+    expect(screen.getByText(/other calls may come between them/)).toBeInTheDocument();
     await userEvent.click(save());
 
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
     expect(onSave).toHaveBeenCalledWith(
-      expect.objectContaining({ input: "How long?", tags: ["returns"], tool_calls_ordered: true }),
+      expect.objectContaining({ input: "How long?", tags: ["returns"], order_mode: "in_order" }),
     );
   });
 

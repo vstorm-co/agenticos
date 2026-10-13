@@ -8,7 +8,7 @@ const CASE = {
   reference_answer: "30 days",
   counter_example: null,
   expected_tool_calls: [{ tool: "search", args: { q: "refund" } }],
-  tool_calls_ordered: true,
+  order_mode: "in_order" as const,
   checks: [],
   tags: ["returns", "billing"],
   note: null,

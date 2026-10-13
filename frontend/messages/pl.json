@@ -3292,7 +3292,7 @@
       "expected_tool_calls": "Oczekiwane wywołania narzędzi",
       "checks": "Sprawdzenia",
       "tags": "Tagi",
-      "tool_calls_ordered": "Oczekiwane wywołania muszą nastąpić w tej kolejności"
+      "order_mode": "Jak dopasować oczekiwane wywołania"
     },
     "hint": {
       "input": "Wiadomość, na którą odpowiada agent.",
@@ -3309,6 +3309,14 @@
       "import": "Zaimportowany",
       "conversation": "Z rozmowy",
       "synthetic": "Wygenerowany"
+    },
+    "orderMode": {
+      "any": "Dowolna kolejność",
+      "anyHint": "Każde oczekiwane wywołanie musi nastąpić; kolejność i inne wywołania nie mają znaczenia.",
+      "in_order": "W tej kolejności",
+      "in_orderHint": "Oczekiwane wywołania muszą nastąpić w podanej kolejności; między nimi mogą być inne.",
+      "exact": "Dokładnie te, w tej kolejności",
+      "exactHint": "Agent musi wykonać dokładnie oczekiwane wywołania, w podanej kolejności, i żadnych innych."
     }
   }
 }

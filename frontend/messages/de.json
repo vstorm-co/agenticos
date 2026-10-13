@@ -5524,7 +5524,7 @@
       "expected_tool_calls": "Erwartete Tool-Aufrufe",
       "checks": "Prüfungen",
       "tags": "Tags",
-      "tool_calls_ordered": "Die erwarteten Aufrufe müssen in dieser Reihenfolge erfolgen"
+      "order_mode": "Wie erwartete Aufrufe abgeglichen werden"
     },
     "hint": {
       "input": "Die Nachricht, die der Agent beantwortet.",
@@ -5541,6 +5541,14 @@
       "import": "Importiert",
       "conversation": "Aus einem Gespräch",
       "synthetic": "Generiert"
+    },
+    "orderMode": {
+      "any": "Beliebige Reihenfolge",
+      "anyHint": "Jeder erwartete Aufruf muss erfolgen; Reihenfolge und andere Aufrufe spielen keine Rolle.",
+      "in_order": "In dieser Reihenfolge",
+      "in_orderHint": "Die erwarteten Aufrufe müssen in der angegebenen Reihenfolge erfolgen; andere Aufrufe dürfen dazwischen liegen.",
+      "exact": "Genau diese, in dieser Reihenfolge",
+      "exactHint": "Der Agent muss genau die erwarteten Aufrufe machen, in der angegebenen Reihenfolge, und keine anderen."
     }
   }
 }

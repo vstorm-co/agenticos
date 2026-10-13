@@ -13,7 +13,7 @@ const CASE: DatasetCase = {
   reference_answer: "30 days",
   counter_example: "90 days",
   expected_tool_calls: [{ tool: "search", args: {} }],
-  tool_calls_ordered: false,
+  order_mode: "any",
   checks: [],
   tags: ["returns"],
   note: null,
