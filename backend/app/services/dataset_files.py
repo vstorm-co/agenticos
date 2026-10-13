@@ -240,7 +240,10 @@ def parse(content: bytes, fmt: DatasetFileFormat) -> list[DatasetCaseContent]:
             problems.extend(field_problems(exc.errors(), root=f"rows.{number}"))
     if refused:
         raise BadRequestError(
-            message=f"{refused} rows could not be imported, so none were. Fix them and try again.",
+            message=(
+                f"{refused} {'row' if refused == 1 else 'rows'} could not be imported, "
+                "so none were. Fix them and try again."
+            ),
             details={"refused_rows": refused, "fields": problems[:_MAX_REPORTED_ROWS]},
         )
     if not cases:

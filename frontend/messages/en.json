@@ -5691,6 +5691,10 @@
       "in_orderHint": "The expected calls must happen in the listed order; other calls may come between them.",
       "exact": "Exactly these, in this order",
       "exactHint": "The agent must make exactly the expected calls, in the listed order, and no others."
-    }
+    },
+    "importRowProblem": "Row {row}: {message}",
+    "importRowFieldProblem": "Row {row}, {field}: {message}",
+    "checkCount": "{count, plural, =1 {1 check} other {# checks}}",
+    "hasNote": "Note"
   }
 }

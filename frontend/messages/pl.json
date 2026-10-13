@@ -3317,6 +3317,10 @@
       "in_orderHint": "Oczekiwane wywołania muszą nastąpić w podanej kolejności; między nimi mogą być inne.",
       "exact": "Dokładnie te, w tej kolejności",
       "exactHint": "Agent musi wykonać dokładnie oczekiwane wywołania, w podanej kolejności, i żadnych innych."
-    }
+    },
+    "importRowProblem": "Wiersz {row}: {message}",
+    "importRowFieldProblem": "Wiersz {row}, {field}: {message}",
+    "checkCount": "{count, plural, one {1 sprawdzenie} few {# sprawdzenia} many {# sprawdzeń} other {# sprawdzenia}}",
+    "hasNote": "Notatka"
   }
 }

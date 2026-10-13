@@ -35,6 +35,10 @@ export function CaseRow({ item, onOpen, onRemove }: CaseRowProps) {
               {t("expectedCalls", { count: item.expected_tool_calls.length })}
             </Badge>
           )}
+          {item.checks.length > 0 && (
+            <Badge variant="outline">{t("checkCount", { count: item.checks.length })}</Badge>
+          )}
+          {item.note !== null && <Badge variant="outline">{t("hasNote")}</Badge>}
           {item.tags.map((tag) => (
             <Badge key={tag} variant="outline" className="font-mono">
               {tag}

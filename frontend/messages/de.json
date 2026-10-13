@@ -5549,6 +5549,10 @@
       "in_orderHint": "Die erwarteten Aufrufe müssen in der angegebenen Reihenfolge erfolgen; andere Aufrufe dürfen dazwischen liegen.",
       "exact": "Genau diese, in dieser Reihenfolge",
       "exactHint": "Der Agent muss genau die erwarteten Aufrufe machen, in der angegebenen Reihenfolge, und keine anderen."
-    }
+    },
+    "importRowProblem": "Zeile {row}: {message}",
+    "importRowFieldProblem": "Zeile {row}, {field}: {message}",
+    "checkCount": "{count, plural, =1 {1 Prüfung} other {# Prüfungen}}",
+    "hasNote": "Notiz"
   }
 }

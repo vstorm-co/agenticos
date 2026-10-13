@@ -2,7 +2,8 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { DatasetFileActions } from "./dataset-file-actions";
+import { ApiError } from "@/lib/api-error";
+import { DatasetFileActions, refusedRows } from "./dataset-file-actions";
 
 const exportDataset = vi.fn();
 vi.mock("@/hooks/use-datasets", () => ({
@@ -50,5 +51,33 @@ describe("DatasetFileActions", () => {
     fireEvent.change(picker, { target: { files: [] } });
     fireEvent.change(picker, { target: { files: null } });
     expect(onImport).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("refusedRows", () => {
+  const t = (key: string, values: Record<string, string | number>) =>
+    `${key}|${Object.values(values).join("|")}`;
+
+  it("names each refused row and field, at most five of them", () => {
+    const fields = [
+      { field: "rows.2.order_mode", message: "Input should be any" },
+      { field: "rows.4", message: "Not a JSON object" },
+      { field: "file", message: "ignored" },
+      ...[5, 6, 7, 8].map((row) => ({ field: `rows.${row}`, message: "x" })),
+    ];
+    const refusal = new ApiError(400, "2 rows could not be imported", {
+      error: { code: "BAD_REQUEST", message: "refused", details: { fields } },
+    });
+    expect(refusedRows(refusal, t)?.split("\n")).toEqual([
+      "importRowFieldProblem|2|order_mode|Input should be any",
+      "importRowProblem|4|Not a JSON object",
+      "importRowProblem|5|x",
+      "importRowProblem|6|x",
+      "importRowProblem|7|x",
+    ]);
+  });
+
+  it("adds nothing when the refusal names no row", () => {
+    expect(refusedRows(new Error("down"), t)).toBeUndefined();
   });
 });

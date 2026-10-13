@@ -117,6 +117,10 @@ class TestRefusals:
         fields = {problem["field"] for problem in refusal.details["fields"]}
         assert fields == {"rows.2.input", "rows.3.order_mode", "rows.4", "rows.5"}
 
+    def test_one_refused_row_is_counted_in_the_singular(self) -> None:
+        refusal = _refusal("input,order_mode\nq,maybe\n")
+        assert refusal.message.startswith("1 row could not be imported, so none were.")
+
     def test_the_reported_rows_are_capped(self) -> None:
         refusal = _refusal("input,order_mode\n" + "q,maybe\n" * 30)
         assert refusal.details["refused_rows"] == 30
