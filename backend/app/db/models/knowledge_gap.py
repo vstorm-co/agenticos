@@ -146,8 +146,7 @@ class KnowledgeGapTopic(Base):
         nullable=True,
     )
     dismissed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    # The passage the knowledge base is missing, as a model drafted it for a person
-    # to check. Never added to a collection by the platform.
+    # Never added to a collection by the platform; a person checks it and adds a document.
     draft_title: Mapped[str | None] = mapped_column(Text, nullable=True)
     draft_content: Mapped[str | None] = mapped_column(Text, nullable=True)
     # The searches the draft says it answers; each was a member when it was recorded.

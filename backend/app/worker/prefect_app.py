@@ -141,9 +141,8 @@ async def main() -> None:
             schedules=[_every(900)],
         )
     )
-    # Every 15 minutes: a knowledge gap is read by a person deciding what to
-    # write, so a question asked this morning appearing in a topic by lunch is
-    # in time. A knowledge base with no new misses costs no embedding call.
+    # Every 15 minutes: a gap is read by a person deciding what to write, so a
+    # quarter-hour's delay costs nothing. A knowledge base with no new misses embeds nothing.
     deployments.append(
         await group_knowledge_gaps_flow.ato_deployment(
             name="group-knowledge-gaps",

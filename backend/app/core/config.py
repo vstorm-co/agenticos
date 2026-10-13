@@ -684,10 +684,8 @@ class Settings(BaseSettings):
     S3_RAG_SECRET_KEY: str = ""
     S3_RAG_BUCKET: str = "agenticos-rag"
     S3_RAG_REGION: str = "us-east-1"
-    # A knowledge search whose closest passage is less similar to the query than
-    # this is counted as a knowledge gap. Cosine similarity, so what "close"
-    # means depends on the embedding model; searches keep their similarity, and
-    # changing this reclassifies the ones already made.
+    # Cosine similarity, so what counts as close depends on the embedding model.
+    # Searches keep their similarity, so a change reclassifies the ones already made.
     KNOWLEDGE_GAP_MIN_SIMILARITY: float = Field(default=0.30, ge=0.0, le=1.0)
 
     EMAIL_PROVIDER: str = "smtp"
