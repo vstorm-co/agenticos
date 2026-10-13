@@ -179,6 +179,9 @@ export function McpServerPicker({
   const narrowed = connectedOnly ? rows.filter((row) => row.connections.length > 0) : rows;
   const list = useListControls({
     items: narrowed,
+    // More than the default fifty, and a multiple of four, three and two, so
+    // every width of the grid ends its page on a full row.
+    pageSize: 60,
     matches: (row, query) =>
       row.name.toLowerCase().includes(query) || row.description.toLowerCase().includes(query),
   });
@@ -200,7 +203,7 @@ export function McpServerPicker({
         </label>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {list.visible.map((row) => (
           <ServerCard
             key={row.key}
