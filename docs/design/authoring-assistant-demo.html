@@ -738,7 +738,7 @@ table.replay { width:100%; border-collapse:collapse; font-size:12.5px; min-width
       </table>
     </div>
     <div style="display:flex; align-items:center; gap:12px">
-      <p style="font-size:12px; color:var(--muted-foreground); flex:1">Replay runs are ordinary runs: metered against both budgets, recorded in Activity with their own surface. The judge's verdict is a suggestion — yours wins.</p>
+      <p style="font-size:12px; color:var(--muted-foreground); flex:1">Replay runs are ordinary runs: metered against both budgets, recorded in Activity as eval runs. The judge's verdict is a suggestion — yours wins.</p>
       <button class="btn btn-outline" onclick="closeReplay()">Close</button>
     </div>
   </div>
@@ -953,6 +953,7 @@ function refresh() {
   } else {
     bar.classList.remove("show");
   }
+  renderVerifyControls();
 }
 function setCount(id, n) {
   const el = document.getElementById(id);
@@ -965,6 +966,12 @@ let hasVerifyResults = false;
 let verifySeq = 7;
 const FINDINGS_TEMPLATE = document.getElementById("verify-findings").innerHTML;
 
+// Pending suggestions are a projection, not draft content: the draft differs from v7
+// only once something was accepted into it.
+function draftDiffers() {
+  return Object.values(state).includes("accepted");
+}
+
 function renderVerifyControls() {
   const el = document.getElementById("verify-controls");
   const seeResults = hasVerifyResults
@@ -973,12 +980,14 @@ function renderVerifyControls() {
     ? `<button class="btn btn-sm btn-outline" disabled>
          <svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
          Verifying…</button>`
-    : `<button class="btn btn-sm btn-outline" onclick="startVerify()">Verify my edits</button>`;
+    : draftDiffers()
+      ? `<button class="btn btn-sm btn-outline" onclick="startVerify()">Verify my edits</button>`
+      : "";
   el.innerHTML = seeResults + verifyBtn;
 }
 
 function startVerify() {
-  if (verifying) return;
+  if (verifying || !draftDiffers()) return;
   verifying = true;
   renderVerifyControls();
   setTimeout(finishVerify, 2000);
@@ -1058,7 +1067,6 @@ function toast(msg) {
 }
 
 refresh();
-renderVerifyControls();
 </script>
 </body>
 </html>
