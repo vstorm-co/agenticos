@@ -6023,7 +6023,9 @@
       "every": "Every group",
       "nothingShared": "Nothing here is shared with {name} yet",
       "nothingSharedHint": "Share something with the group from its Sharing panel, or add several at once from the group's page."
-    }
+    },
+    "addToGroupAll": "Select all",
+    "addToGroupNone": "Clear"
   },
   "directory": {
     "navLabel": "Directory",

@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { MessageSquareWarning, ThumbsUp } from "lucide-react";
+import { MessageSquareWarning } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { ErrorState, LoadingState } from "@/components/states";
-import { Figure, ListCard, ListCardEmpty } from "@/components/ui";
+import { Figure, ListCard } from "@/components/ui";
 import { useAgents, useGroupQuality } from "@/hooks";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
@@ -39,11 +39,15 @@ export function DepartmentQuality({ orgId, group }: { orgId: string; group: Grou
       ) : isLoading || !quality ? (
         <LoadingState variant="skeleton-panel" rows={2} />
       ) : total === 0 && quality.top_agents.length === 0 ? (
-        <ListCardEmpty
-          icon={ThumbsUp}
-          title={t("emptyTitle")}
-          description={t("emptyWhy", { name: group.name })}
-        />
+        // The same figure the budget card beside it opens on, not a full-height
+        // empty state: a page-sized "nothing yet" stretched both cards to its
+        // height and left the month's spend floating in white space.
+        <div className="space-y-2">
+          <Figure value="-" caption={t("emptyTitle")} />
+          <p className="text-muted-foreground max-w-md text-xs">
+            {t("emptyWhy", { name: group.name })}
+          </p>
+        </div>
       ) : (
         <div className="space-y-5">
           <Figure

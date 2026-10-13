@@ -5797,7 +5797,9 @@
       "every": "Wszystkie grupy",
       "nothingShared": "Nic tutaj nie jest jeszcze udostępnione grupie {name}",
       "nothingSharedHint": "Udostępnij coś grupie z panelu Udostępnianie albo dodaj kilka rzeczy naraz ze strony grupy."
-    }
+    },
+    "addToGroupAll": "Zaznacz wszystkie",
+    "addToGroupNone": "Wyczyść"
   },
   "directory": {
     "navLabel": "Katalog",

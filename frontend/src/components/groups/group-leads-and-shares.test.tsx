@@ -36,6 +36,9 @@ vi.mock("@/hooks", () => ({
     share: { mutate: hooks.share, isPending: false },
   }),
 }));
+vi.mock("@/components/dashboard/agent-face", () => ({
+  AgentFace: ({ agentId }: { agentId: string }) => <span>{`face ${agentId}`}</span>,
+}));
 vi.mock("@/stores", () => ({
   useAuthStore: (select: (state: { user: { id: string } }) => unknown) =>
     select({ user: { id: hooks.me } }),
@@ -116,9 +119,9 @@ describe("adding to a group from its page (#2072)", () => {
     hooks.shareable = items;
     render(<AddToGroupDialog orgId="o1" group={FINANCE} onClose={vi.fn()} />);
 
-    await userEvent.click(screen.getByLabelText("Month-end close"));
-    await userEvent.click(screen.getByLabelText("Payables"));
-    await userEvent.click(screen.getByLabelText("Payables"));
+    await userEvent.click(screen.getByRole("checkbox", { name: "Month-end close" }));
+    await userEvent.click(screen.getByRole("checkbox", { name: /Payables/ }));
+    await userEvent.click(screen.getByRole("checkbox", { name: /Payables/ }));
     await userEvent.click(screen.getByRole("combobox"));
     await userEvent.click(screen.getByRole("option", { name: "can view" }));
     await userEvent.click(screen.getByRole("button", { name: "Share 1" }));
@@ -129,11 +132,33 @@ describe("adding to a group from its page (#2072)", () => {
     );
   });
 
+  it("groups what can be shared by kind, and ticks a whole kind at once", async () => {
+    hooks.shareable = [
+      ...items,
+      { kind: "agent", id: "a2", name: "Ledger bot", level: "use" },
+    ] as GroupResource[];
+    render(<AddToGroupDialog orgId="o1" group={FINANCE} onClose={vi.fn()} />);
+
+    expect(screen.getByRole("heading", { name: "Agents" })).toBeInTheDocument();
+    expect(screen.getByText("face a2")).toBeInTheDocument();
+    const [selectAll] = screen.getAllByRole("button", { name: "Select all" });
+    await userEvent.click(selectAll!);
+    expect(screen.getByRole("checkbox", { name: /Ledger bot/ })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Clear" }));
+    expect(screen.getByRole("checkbox", { name: /Ledger bot/ })).toHaveAttribute(
+      "aria-checked",
+      "false",
+    );
+  });
+
   it("narrows by search, and says when nothing matches or nothing is left", async () => {
     hooks.shareable = items;
     const { unmount } = render(<AddToGroupDialog orgId="o1" group={FINANCE} onClose={vi.fn()} />);
     await userEvent.type(screen.getByRole("textbox"), "pay");
-    expect(screen.queryByLabelText("Month-end close")).not.toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: "Month-end close" })).not.toBeInTheDocument();
     await userEvent.type(screen.getByRole("textbox"), "zzz");
     expect(screen.getByText(/Nothing you can share matches/)).toBeInTheDocument();
     unmount();

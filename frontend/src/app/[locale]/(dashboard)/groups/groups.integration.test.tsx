@@ -231,11 +231,11 @@ describe("one group's page", () => {
     ];
     await mount(<GroupPage params={Promise.resolve({ id: "g-fin" })} />);
 
-    expect(await screen.findByRole("link", { name: "month-end-close" })).toHaveAttribute(
+    expect(await screen.findByRole("link", { name: /month-end-close/ })).toHaveAttribute(
       "href",
       "/skills",
     );
-    expect(screen.getByRole("link", { name: "Accounts payable" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /Accounts payable/ })).toHaveAttribute(
       "href",
       "/agents/a1",
     );

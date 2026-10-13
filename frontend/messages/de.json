@@ -5906,7 +5906,9 @@
       "every": "Alle Gruppen",
       "nothingShared": "Hier ist noch nichts mit {name} geteilt",
       "nothingSharedHint": "Teilen Sie etwas über das Freigabe-Panel mit der Gruppe oder fügen Sie auf der Seite der Gruppe mehreres auf einmal hinzu."
-    }
+    },
+    "addToGroupAll": "Alle auswählen",
+    "addToGroupNone": "Leeren"
   },
   "directory": {
     "navLabel": "Verzeichnis",

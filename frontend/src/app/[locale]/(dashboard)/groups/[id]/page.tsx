@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { AgentFace } from "@/components/dashboard/agent-face";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { AddToGroupDialog } from "@/components/groups/add-to-group-dialog";
 import { DepartmentBudget } from "@/components/groups/department-budget";
@@ -23,7 +24,7 @@ import { GroupIcon } from "@/components/groups/group-icon";
 import { GroupFormDialog } from "@/components/orgs/group-form-dialog";
 import { GroupMembersDialog } from "@/components/orgs/group-members-dialog";
 import { ErrorState, LoadingState } from "@/components/states";
-import { Badge, Button, ListCard, ListCardEmpty } from "@/components/ui";
+import { Button, ListCard, ListCardEmpty } from "@/components/ui";
 import { useGroupMembers, useGroupResources, useGroups, usePermissions } from "@/hooks";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
@@ -145,16 +146,30 @@ export default function GroupPage({ params }: PageProps) {
                     <Icon className="h-3.5 w-3.5" aria-hidden />
                     {t(`resource${heading}`)}
                   </h2>
-                  <ul className="space-y-1">
+                  <ul className="space-y-0.5">
                     {items.map((item) => (
-                      <li key={item.id} className="flex items-center justify-between gap-2">
+                      <li key={item.id}>
+                        {/* The thing's face where it has one - an agent - and its
+                            kind's mark otherwise, the way the dialog that added
+                            it drew it. */}
                         <Link
                           href={href(item.id)}
-                          className="truncate text-sm font-medium hover:underline"
+                          className="hover:bg-accent/50 flex items-center gap-2.5 rounded-lg px-2 py-1.5"
                         >
-                          {item.name}
+                          {item.kind === "agent" ? (
+                            <AgentFace agentId={item.id} className="size-6 shrink-0" />
+                          ) : (
+                            <span className="bg-muted grid size-6 shrink-0 place-items-center rounded-md">
+                              <Icon className="text-muted-foreground h-3.5 w-3.5" aria-hidden />
+                            </span>
+                          )}
+                          <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                            {item.name}
+                          </span>
+                          <span className="bg-muted text-muted-foreground shrink-0 rounded-full px-2 py-0.5 text-xs">
+                            {t(`level.${item.level}`)}
+                          </span>
                         </Link>
-                        <Badge variant="outline">{t(`level.${item.level}`)}</Badge>
                       </li>
                     ))}
                   </ul>
