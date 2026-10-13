@@ -1,5 +1,5 @@
 ---
-source_sha: "0bb69f0bf324"
+source_sha: "a1c5acaca78b"
 ---
 
 # Konsola { #the-console }
@@ -230,12 +230,13 @@ Wbudowane przychodzą razem z produktem; własne możesz napisać w
 **Settings → Slash commands**, a każdą wbudowaną, z której nie korzystasz,
 ukryć. Należą do ciebie, nie do organizacji.
 
-**Gdy agent pracuje**, to, co wysyłasz, dołącza do zadania: agent czyta to w
-następnym kroku i zmienia kurs bez zaczynania od nowa, a odpowiedź pokazuje, gdzie
-to dotarło. Jeśli wolisz skończyć jedną wymianę przed następną, włącz **Queue
-messages while the agent works** w **Settings → Profile**: wiadomość czeka wtedy w
-kolejce nad kompozytorem i zostaje wysłana po zakończeniu runu. To twój wybór i
-działa na każdym urządzeniu.
+**Gdy agent pracuje**, to, co wysyłasz, czeka na jego odpowiedź, jak w każdym
+czacie: stoi w kolejce nad kompozytorem i wychodzi, gdy run się skończy.
+Przeciągnij wiadomość w kolejce albo użyj jej strzałek, żeby zmienić kolejność.
+**Send now** wysyła ją zamiast tego do trwającego zadania - agent czyta ją w
+następnym kroku i zmienia kurs bez zaczynania od nowa, a w rozmowie pojawia się
+tam, gdzie dotarła. Wiadomość z plikami zawsze czeka na odpowiedź. Slack, Telegram
+i Mattermost działają po swojemu, jak opisuje [Kanały](channels.md).
 
 **Na telefonie** czat działa jak komunikator: pole wpisywania zostaje nad
 klawiaturą, a rozmowa przy ostatniej wiadomości, gdy klawiatura się otwiera,

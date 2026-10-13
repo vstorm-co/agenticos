@@ -1,5 +1,5 @@
 ---
-source_sha: "0bb69f0bf324"
+source_sha: "a1c5acaca78b"
 ---
 
 # Die Konsole { #the-console }
@@ -248,13 +248,14 @@ gesendet wird. Die eingebauten liefert das Produkt mit; eigene schreiben Sie
 unter **Settings → Slash commands**, und jeden eingebauten, den Sie nie nutzen,
 können Sie ausblenden. Sie gehören Ihnen, nicht der Organisation.
 
-**Während der Agent arbeitet**, ergänzt das, was Sie senden, die Aufgabe: Der
-Agent liest es beim nächsten Schritt und ändert den Kurs, ohne neu anzufangen, und
-die Antwort zeigt, wo es ankam. Wenn Sie lieber einen Austausch abschließen, bevor
-der nächste beginnt, schalten Sie unter **Settings → Profile** **Queue messages
-while the agent works** ein: Eine Nachricht wartet dann in der Warteschlange über
-dem Eingabefeld und wird gesendet, wenn der Run endet. Die Wahl gehört Ihnen und
-gilt auf jedem Gerät.
+**Während der Agent arbeitet**, wartet das, was Sie senden, auf seine Antwort, wie
+in jedem Chat: Es steht in einer Warteschlange über dem Eingabefeld und geht
+hinaus, wenn der Run endet. Ziehen Sie eine Nachricht in der Warteschlange oder
+nutzen Sie ihre Pfeile, um die Reihenfolge zu ändern. **Send now** gibt sie
+stattdessen in die laufende Aufgabe - der Agent liest sie beim nächsten Schritt und
+ändert den Kurs, ohne neu anzufangen, und sie erscheint im Gespräch dort, wo sie
+ankam. Eine Nachricht mit Dateien wartet immer auf die Antwort. Slack, Telegram und
+Mattermost behalten ihr eigenes Verhalten, beschrieben unter [Kanäle](channels.md).
 
 **Auf dem Telefon** verhält sich der Chat wie eine Messenger-App: Das
 Eingabefeld bleibt über der Tastatur und die Unterhaltung bei ihrer letzten

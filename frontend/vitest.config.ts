@@ -81,7 +81,6 @@ export default defineConfig({
         "src/components/settings/connected-apps.tsx",
         "src/components/settings/api-reference/**",
         "src/components/settings/api-usage.tsx",
-        "src/components/settings/chat-preferences.tsx",
         // What the MCP catalog check found, on a server's card (#2103).
         "src/components/mcp/catalog-check.tsx",
         "src/components/settings/copy-code.tsx",

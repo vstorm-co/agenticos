@@ -10,7 +10,6 @@ import { AvatarColorPicker, Button, FormField, Input } from "@/components/ui";
 import { AvatarFace } from "@/components/ui/avatar-face";
 import { ActiveSessions } from "@/components/dashboard/active-sessions";
 import { ChatAccounts } from "@/components/settings/chat-accounts";
-import { ChatPreferences } from "@/components/settings/chat-preferences";
 import { ForgetMe } from "@/components/memory/forget-me";
 import { SectionCard } from "@/components/settings/settings-section";
 import { useAuth } from "@/hooks";
@@ -226,8 +225,6 @@ export default function ProfileSettingsPage() {
           </FormField>
         </div>
       </SectionCard>
-
-      <ChatPreferences />
 
       <ChatAccounts />
 

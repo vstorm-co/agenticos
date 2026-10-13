@@ -4519,11 +4519,7 @@
       "prefMcpServerDown": "MCP-Server antwortet nicht",
       "prefMcpServerDownTrigger": "Ein MCP-Server der Organisation hat auf eine Prüfung oder in einem Run nicht mehr geantwortet. Einmal pro Ausfall an Administratoren und an die Eigentümer der daran gebundenen Agents.",
       "prefMcpServerRecovered": "MCP-Server antwortet wieder",
-      "prefMcpServerRecoveredTrigger": "Ein Server, der nicht mehr antwortete, ist zurück, und die daran gebundenen Agents haben seine Tools wieder.",
-      "chatPreferences": "Chat",
-      "chatPreferencesDescription": "Wie sich der Chat für Sie verhält, auf jedem Gerät.",
-      "queueWhileWorking": "Nachrichten einreihen, während der Agent arbeitet",
-      "queueWhileWorkingHint": "Aus: Eine Nachricht, die Sie während eines Runs senden, fließt in ihn ein, und der Agent liest sie im nächsten Schritt. An: Sie wartet in der Warteschlange und wird gesendet, wenn der Run endet. In Slack, Telegram und Mattermost fließt eine Nachricht immer in den Run ein."
+      "prefMcpServerRecoveredTrigger": "Ein Server, der nicht mehr antwortete, ist zurück, und die daran gebundenen Agents haben seine Tools wieder."
     },
     "skills": {
       "agentsBoundSkillWill": "An diesen Skill gebundene Agents laufen ab ihrem nächsten Run ohne ihn. Das lässt sich nicht rückgängig machen.",

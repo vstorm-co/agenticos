@@ -4637,11 +4637,7 @@
       "prefMcpServerDown": "MCP server not answering",
       "prefMcpServerDownTrigger": "An organization MCP server stopped answering its check or a run. Sent once per outage to administrators and to the owners of agents bound to it.",
       "prefMcpServerRecovered": "MCP server answering again",
-      "prefMcpServerRecoveredTrigger": "A server that stopped answering is back, and agents bound to it have its tools again.",
-      "chatPreferences": "Chat",
-      "chatPreferencesDescription": "How the chat behaves for you, on every device.",
-      "queueWhileWorking": "Queue messages while the agent works",
-      "queueWhileWorkingHint": "Off: a message you send during a run joins it, and the agent reads it at its next step. On: it waits in the queue and is sent when the run ends. In Slack, Telegram and Mattermost a message always joins the run."
+      "prefMcpServerRecoveredTrigger": "A server that stopped answering is back, and agents bound to it have its tools again."
     },
     "skills": {
       "agentsBoundSkillWill": "Agents bound to this skill will run without it from their next run. This cannot be undone.",

@@ -54,10 +54,10 @@ Two things are versioned separately from this file and worth knowing about:
   the server URL and the command or configuration for Claude Code, Codex, Claude
   Desktop, Cursor and VS Code, for signing in through the browser or with an API
   key, above the applications already connected.
-- **Steer a running turn.** In the chat, a message sent while the agent works now
-  joins the task - it reads it at its next step and the answer shows where it
-  landed. **Settings → Profile → Queue messages while the agent works** keeps the
-  old behaviour for whoever prefers it, on every device. In Slack, Telegram and
+- **Steer a running turn.** In the chat, a message sent while the agent works
+  waits for the answer on a queue panel above the composer, where it can be
+  reordered, dropped or sent now - into the running task, which reads it at its
+  next step; it then appears in the conversation where it landed. In Slack, Telegram and
   Mattermost a mid-turn message from the same person joins the turn, and
   `/btw ...` asks on the side, answered at once without tools (#2087).
 - **A trigger can run as the person who made it.** *Run as me* on a schedule or

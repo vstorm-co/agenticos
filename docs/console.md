@@ -219,12 +219,13 @@ ones ship with the product; you can write your own under
 **Settings → Slash commands**, and hide any built-in you never use. They are
 yours, not the organization's.
 
-**While the agent works**, what you send joins the task: the agent reads it at its
-next step and adjusts course without starting over, and the answer shows where it
-arrived. If you would rather finish one exchange before starting the next, turn on
-**Queue messages while the agent works** under **Settings → Profile**: a message
-then waits in the queue above the composer and is sent when the run ends. The
-choice is yours and follows you to every device.
+**While the agent works**, what you send waits for its answer, as in any chat:
+it sits in a queue above the composer and goes out when the run ends. Drag a
+queued message, or use its arrows, to change the order. **Send now** puts it into
+the running task instead - the agent reads it at its next step and adjusts course
+without starting over, and it appears in the conversation where it landed. A
+message carrying files always waits for the answer. Slack, Telegram and
+Mattermost keep their own behaviour, described in [Channels](channels.md).
 
 **On a phone** the chat behaves like a messaging app: the composer stays above
 the keyboard and the conversation stays on its last message while it opens,

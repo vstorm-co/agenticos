@@ -1,5 +1,5 @@
 ---
-source_sha: "0bb69f0bf324"
+source_sha: "a1c5acaca78b"
 ---
 
 # La consola { #the-console }
@@ -233,12 +233,14 @@ de serie vienen con el producto; puedes escribir los tuyos en
 **Settings → Slash commands**, y ocultar cualquiera de los de serie que no uses.
 Son tuyos, no de la organización.
 
-**Mientras el agent trabaja**, lo que envías se suma a la tarea: el agent lo lee
-en su siguiente paso y corrige el rumbo sin empezar de nuevo, y la respuesta
-muestra dónde llegó. Si prefieres terminar un intercambio antes de empezar el
-siguiente, activa **Queue messages while the agent works** en **Settings →
-Profile**: el mensaje espera entonces en la cola encima del cuadro de texto y se
-envía cuando termina el run. La elección es tuya y te sigue en cada dispositivo.
+**Mientras el agent trabaja**, lo que envías espera su respuesta, como en
+cualquier chat: queda en una cola encima del cuadro de texto y sale cuando termina
+el run. Arrastra un mensaje de la cola, o usa sus flechas, para cambiar el orden.
+**Send now** lo envía en cambio a la tarea en curso - el agent lo lee en su
+siguiente paso y corrige el rumbo sin empezar de nuevo, y aparece en la
+conversación donde llegó. Un mensaje con archivos siempre espera la respuesta.
+Slack, Telegram y Mattermost mantienen su propio comportamiento, descrito en
+[Canales](channels.md).
 
 **En el teléfono** el chat se comporta como una app de mensajería: el campo de
 escritura queda sobre el teclado y la conversación en su último mensaje mientras
