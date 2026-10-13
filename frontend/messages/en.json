@@ -659,7 +659,18 @@
     "whoCanFindIt": "Who can find it",
     "visibilityOrgHint": "Everyone in the organization. A draft still cannot run.",
     "visibilityPrivateHint": "You, and whoever you share it with afterwards.",
-    "preview": "Preview"
+    "preview": "Preview",
+    "testConnectionsFor": "Test connections for {name}",
+    "testConnectionsHint": "Runs in this environment, evals included, answer each binding below with its test system. A binding switched off here does nothing - it never falls back to production.",
+    "testConnectionKindLabel": "What to replace",
+    "testConnectionKindMcp": "MCP server",
+    "testConnectionKindSecret": "Vault key",
+    "productionSide": "Production",
+    "testSide": "Test replacement",
+    "testSideFor": "Test replacement for {name}",
+    "bindingOffHere": "Off in this environment",
+    "testConnectionsSaved": "Test connections saved",
+    "failedTestConnections": "The test connections could not be saved"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -2878,6 +2889,10 @@
       "agent-history": {
         "title": "Every version, kept",
         "body": "Each publish freezes the spec as a version you can promote to an environment, roll back to, or read the run history against."
+      },
+      "agent-test-connections": {
+        "title": "Test connections",
+        "body": "A named environment can answer the agent's MCP servers and vault keys with test ones - a sandbox CRM, a test mailbox. Evals run there, and a tool that writes with no test connection is held and recorded instead of run."
       },
       "agent-instructions": {
         "title": "Instructions are the behaviour",

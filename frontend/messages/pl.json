@@ -1482,6 +1482,10 @@
         "title": "Każda wersja zachowana",
         "body": "Każda publikacja zamraża specyfikację jako wersję, którą możesz wypromować do środowiska, cofnąć się do niej albo odczytać względem niej historię uruchomień."
       },
+      "agent-test-connections": {
+        "title": "Połączenia testowe",
+        "body": "Nazwane środowisko może zastąpić serwery MCP i klucze z vault agenta testowymi - sandboxowym CRM, testową skrzynką. Tam działają evale, a narzędzie, które zapisuje i nie ma połączenia testowego, jest wstrzymywane i zapisywane zamiast uruchamiane."
+      },
       "agent-instructions": {
         "title": "Instrukcje to zachowanie",
         "body": "Otwórz agenta, a trafisz do kreatora, gdzie składa się go zakładka po zakładce. Build jest pierwsza: instrukcje to jego zachowanie, pisane zwykłym Markdown, nie kodem."
@@ -2991,7 +2995,18 @@
     "youNotVisitorsWhich": "Dla Ciebie, nie dla odwiedzających - które to umiejscowienie.",
     "yourBackendSignsToken": "Twój backend podpisuje token, który weryfikujemy",
     "zoom": "Powiększ",
-    "zoomOut": "Pomniejsz"
+    "zoomOut": "Pomniejsz",
+    "testConnectionsFor": "Połączenia testowe dla {name}",
+    "testConnectionsHint": "Runy w tym środowisku, łącznie z evalami, odpowiadają na każdy binding poniżej jego systemem testowym. Binding wyłączony tutaj nic nie robi - nigdy nie wraca do produkcji.",
+    "testConnectionKindLabel": "Co zastąpić",
+    "testConnectionKindMcp": "Serwer MCP",
+    "testConnectionKindSecret": "Klucz z vault",
+    "productionSide": "Produkcja",
+    "testSide": "Zamiennik testowy",
+    "testSideFor": "Zamiennik testowy dla {name}",
+    "bindingOffHere": "Wyłączone w tym środowisku",
+    "testConnectionsSaved": "Połączenia testowe zapisane",
+    "failedTestConnections": "Nie udało się zapisać połączeń testowych"
   },
   "steps": {
     "skills-gallery": {

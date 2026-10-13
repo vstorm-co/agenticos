@@ -257,6 +257,16 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.agentsView,
     inTour: true,
   },
+  // On the first named environment's test-connections toggle, which only an
+  // agent with one renders and only a publisher sees.
+  {
+    id: "agent-test-connections",
+    page: AGENT_BUILDER,
+    target: "environment-connections",
+    activate: "agent-tab-history",
+    permission: Perm.agentsPublish,
+    optional: true,
+  },
   {
     id: "agent-publish",
     page: AGENT_BUILDER,
