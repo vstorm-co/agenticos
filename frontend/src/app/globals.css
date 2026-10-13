@@ -1731,6 +1731,20 @@
      both solid the only difference left is the surface it sits on, and a
      sheet sits on `card` so its own contents are on the card colour they
      would be anywhere else. */
+  /* The chat's composer over the transcript: the panel's own colour, partly
+     clear and blurred, so what scrolls behind it reads as depth rather than as
+     text cut off at an opaque edge. Declared after .panel so it wins. */
+  .composer-glass {
+    /* Clearer at the top, where the text is typed, and nearly solid by the row
+       of controls, which have to read whatever has scrolled behind them. */
+    background: linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--color-popover) 66%, transparent),
+      color-mix(in oklab, var(--color-popover) 94%, transparent)
+    );
+    -webkit-backdrop-filter: blur(18px) saturate(1.4);
+    backdrop-filter: blur(18px) saturate(1.4);
+  }
   .panel-strong {
     border: 1px solid var(--color-border);
     background: var(--color-card);

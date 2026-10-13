@@ -749,7 +749,12 @@ function ChatUI({
           <div
             className={cn(
               "pointer-events-auto mx-auto w-full",
-              compact ? "px-3 pt-1 pb-1.5" : "bg-background max-w-5xl px-2 pb-2 sm:px-4 sm:pb-4",
+              // Glass in the page: the answer scrolls on behind the composer,
+              // blurred, and the strip fades to the page by the caption under it
+              // so no line of text is ever cut in half behind the words.
+              compact
+                ? "px-3 pt-1 pb-1.5"
+                : "max-w-5xl bg-[linear-gradient(to_bottom,transparent_30%,var(--color-background)_62%)] px-2 pb-2 sm:px-4 sm:pb-4",
             )}
           >
             <InterruptedNotice
@@ -800,7 +805,10 @@ function ChatUI({
                 >
                   <div
                     data-tour="chat-composer"
-                    className="panel focus-within:border-foreground/30 rounded-2xl transition-colors"
+                    className={cn(
+                      "panel focus-within:border-foreground/30 rounded-2xl transition-colors",
+                      !compact && "composer-glass",
+                    )}
                   >
                     <div className={cn("px-3 pt-3 pb-1", !compact && "sm:px-4 sm:pt-4")}>
                       {isArchived && (
