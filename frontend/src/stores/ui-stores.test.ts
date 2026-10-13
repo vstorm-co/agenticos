@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useChatBandsStore, useChatSidebarStore } from "./chat-sidebar-store";
+import {
+  DEFAULT_COLLAPSED_BANDS,
+  useChatBandsStore,
+  useChatSidebarStore,
+} from "./chat-sidebar-store";
 import { useConversationStore } from "./conversation-store";
 import { useFilePreviewStore } from "./file-preview-store";
 import { useOrgStore } from "./org-store";
@@ -302,6 +306,20 @@ describe("the theme", () => {
 });
 
 describe("useChatBandsStore", () => {
+  it("starts with today and yesterday open and older bands folded", () => {
+    expect(DEFAULT_COLLAPSED_BANDS).toEqual(["week", "month", "older"]);
+    expect(useChatBandsStore.getInitialState().collapsed).toEqual(DEFAULT_COLLAPSED_BANDS);
+  });
+
+  it("resets a layout saved before the default existed", async () => {
+    localStorage.setItem(
+      "chat-collapsed-bands",
+      JSON.stringify({ state: { collapsed: ["yesterday"] }, version: 0 }),
+    );
+    await useChatBandsStore.persist.rehydrate();
+    expect(useChatBandsStore.getState().collapsed).toEqual(DEFAULT_COLLAPSED_BANDS);
+  });
+
   it("folds a band and opens it again, one band at a time", () => {
     useChatBandsStore.setState({ collapsed: [] });
     useChatBandsStore.getState().toggle("favourites");
