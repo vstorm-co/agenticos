@@ -82,6 +82,8 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuItemText,
+  DESCRIBED_ITEM,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -180,6 +182,7 @@ function toolChoice(
 
 export default function AgentBuilderPage({ params }: PageProps) {
   const t = useTranslations("pages.agents");
+  const tMenu = useTranslations("agents");
   const tc = useTranslations("common");
   const tSharing = useTranslations("sharing");
   const tAgents = useTranslations("agents");
@@ -929,14 +932,18 @@ export default function AgentBuilderPage({ params }: PageProps) {
                       <MoreHorizontal className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem asChild>
+                  <DropdownMenuContent align="end" className="w-64">
+                    <DropdownMenuItem asChild className={DESCRIBED_ITEM}>
                       <a href={`/api/agents/${id}/spec.yaml`} download>
                         <Download className="h-4 w-4" />
-                        {t("exportYaml")}
+                        <DropdownMenuItemText
+                          label={t("exportYaml")}
+                          description={tMenu("menuExportHint")}
+                        />
                       </a>
                     </DropdownMenuItem>
                     <DropdownMenuItem
+                      className={DESCRIBED_ITEM}
                       onSelect={() =>
                         clone.mutate(id, {
                           onSuccess: (created) => router.push(ROUTES.AGENT_DETAIL(created.id)),
@@ -944,11 +951,20 @@ export default function AgentBuilderPage({ params }: PageProps) {
                       }
                     >
                       <Copy className="h-4 w-4" />
-                      {t("duplicate")}
+                      <DropdownMenuItemText
+                        label={t("duplicate")}
+                        description={tMenu("menuDuplicateHint")}
+                      />
                     </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => avatarInput.current?.click()}>
+                    <DropdownMenuItem
+                      className={DESCRIBED_ITEM}
+                      onSelect={() => avatarInput.current?.click()}
+                    >
                       <ImagePlus className="h-4 w-4" />
-                      {agent.has_avatar ? t("replaceAvatar2") : t("uploadAvatar2")}
+                      <DropdownMenuItemText
+                        label={agent.has_avatar ? t("replaceAvatar2") : t("uploadAvatar2")}
+                        description={tMenu("menuAvatarHint")}
+                      />
                     </DropdownMenuItem>
                     <DropdownMenuLabel className="text-muted-foreground text-xs font-normal">
                       {t("avatarColour")}
@@ -964,23 +980,38 @@ export default function AgentBuilderPage({ params }: PageProps) {
                     </div>
                     <DropdownMenuSeparator />
                     {agent.status === "archived" ? (
-                      <DropdownMenuItem onSelect={() => unarchive.mutate(id)}>
+                      <DropdownMenuItem
+                        className={DESCRIBED_ITEM}
+                        onSelect={() => unarchive.mutate(id)}
+                      >
                         <ArchiveRestore className="h-4 w-4" />
-                        {t("restore")}
+                        <DropdownMenuItemText
+                          label={t("restore")}
+                          description={tMenu("menuRestoreHint")}
+                        />
                       </DropdownMenuItem>
                     ) : (
-                      <DropdownMenuItem onSelect={() => setConfirming("archive")}>
+                      <DropdownMenuItem
+                        className={DESCRIBED_ITEM}
+                        onSelect={() => setConfirming("archive")}
+                      >
                         <Archive className="h-4 w-4" />
-                        {t("archive")}
+                        <DropdownMenuItemText
+                          label={t("archive")}
+                          description={tMenu("menuArchiveHint")}
+                        />
                       </DropdownMenuItem>
                     )}
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
-                      className="text-destructive focus:text-destructive"
+                      className={cn(DESCRIBED_ITEM, "text-destructive focus:text-destructive")}
                       onSelect={() => setConfirming("delete")}
                     >
                       <Trash2 className="h-4 w-4" />
-                      {t("deletePermanently")}
+                      <DropdownMenuItemText
+                        label={t("deletePermanently")}
+                        description={tMenu("menuDeleteHint")}
+                      />
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>

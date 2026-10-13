@@ -23,6 +23,8 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuItemText,
+  DESCRIBED_ITEM,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui";
@@ -206,29 +208,41 @@ export function AgentCard({
                       <MoreHorizontal className="h-4 w-4" />
                     </button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onSelect={actions.onDuplicate}>
+                  <DropdownMenuContent align="end" className="w-64">
+                    <DropdownMenuItem className={DESCRIBED_ITEM} onSelect={actions.onDuplicate}>
                       <Copy className="h-4 w-4" />
-                      {t("duplicate")}
+                      <DropdownMenuItemText
+                        label={t("duplicate")}
+                        description={t("menuDuplicateHint")}
+                      />
                     </DropdownMenuItem>
                     {archived ? (
-                      <DropdownMenuItem onSelect={actions.onRestore}>
+                      <DropdownMenuItem className={DESCRIBED_ITEM} onSelect={actions.onRestore}>
                         <ArchiveRestore className="h-4 w-4" />
-                        {t("restore")}
+                        <DropdownMenuItemText
+                          label={t("restore")}
+                          description={t("menuRestoreHint")}
+                        />
                       </DropdownMenuItem>
                     ) : (
-                      <DropdownMenuItem onSelect={actions.onArchive}>
+                      <DropdownMenuItem className={DESCRIBED_ITEM} onSelect={actions.onArchive}>
                         <Archive className="h-4 w-4" />
-                        {t("archive")}
+                        <DropdownMenuItemText
+                          label={t("archive")}
+                          description={t("menuArchiveHint")}
+                        />
                       </DropdownMenuItem>
                     )}
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
-                      className="text-destructive focus:text-destructive"
+                      className={cn(DESCRIBED_ITEM, "text-destructive focus:text-destructive")}
                       onSelect={actions.onDelete}
                     >
                       <Trash2 className="h-4 w-4" />
-                      {t("deletePermanently")}
+                      <DropdownMenuItemText
+                        label={t("deletePermanently")}
+                        description={t("menuDeleteHint")}
+                      />
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>

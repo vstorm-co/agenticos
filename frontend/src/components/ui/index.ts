@@ -75,6 +75,8 @@ export {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuShortcut,
+  DropdownMenuItemText,
+  DESCRIBED_ITEM,
   DropdownMenuGroup,
   DropdownMenuSub,
   DropdownMenuSubContent,

@@ -146,7 +146,7 @@ describe("AgentCard", () => {
     const actions = mount();
 
     await userEvent.click(screen.getByRole("button", { name: "More actions for Support" }));
-    await userEvent.click(screen.getByRole("menuitem", { name: "Duplicate" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: /^Duplicate/ }));
 
     expect(actions.onDuplicate).toHaveBeenCalled();
   });
@@ -155,8 +155,8 @@ describe("AgentCard", () => {
     const actions = mount({ status: "archived" });
 
     await userEvent.click(screen.getByRole("button", { name: "More actions for Support" }));
-    expect(screen.queryByRole("menuitem", { name: "Archive" })).toBeNull();
-    await userEvent.click(screen.getByRole("menuitem", { name: "Restore" }));
+    expect(screen.queryByRole("menuitem", { name: /^Archive/ })).toBeNull();
+    await userEvent.click(screen.getByRole("menuitem", { name: /^Restore/ }));
 
     expect(actions.onRestore).toHaveBeenCalled();
   });
@@ -165,7 +165,7 @@ describe("AgentCard", () => {
     const actions = mount();
 
     await userEvent.click(screen.getByRole("button", { name: "More actions for Support" }));
-    await userEvent.click(screen.getByRole("menuitem", { name: "Archive" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: /^Archive/ }));
 
     expect(actions.onArchive).toHaveBeenCalled();
   });
@@ -174,9 +174,18 @@ describe("AgentCard", () => {
     const actions = mount();
 
     await userEvent.click(screen.getByRole("button", { name: "More actions for Support" }));
-    await userEvent.click(screen.getByRole("menuitem", { name: "Delete permanently" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: /^Delete permanently/ }));
 
     expect(actions.onDelete).toHaveBeenCalled();
+  });
+
+  it("says under each action what it does", async () => {
+    mount();
+    await userEvent.click(screen.getByRole("button", { name: "More actions for Support" }));
+
+    expect(screen.getByRole("menuitem", { name: /^Archive/ })).toHaveTextContent(
+      "Out of the pickers; its history stays",
+    );
   });
 
   it("shows the agent's categories and tags as chips", () => {

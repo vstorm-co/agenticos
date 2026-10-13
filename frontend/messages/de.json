@@ -749,7 +749,13 @@
     "noBotAskAdmin": "Noch kein Bot - ein Admin fügt ihn hinzu",
     "registerPlatformBot": "{platform}-Bot verbinden",
     "addOnPlatform": "Auf {platform} hinzufügen",
-    "registerAnotherBot": "Weiteren Bot verbinden"
+    "registerAnotherBot": "Weiteren Bot verbinden",
+    "menuExportHint": "Die Spec als YAML, für ein Repository",
+    "menuDuplicateHint": "Eine Entwurfskopie zum Ändern",
+    "menuAvatarHint": "Das Bild, an dem man ihn erkennt",
+    "menuArchiveHint": "Aus den Auswahllisten; der Verlauf bleibt",
+    "menuRestoreHint": "Zurück in den Auswahllisten, wie er war",
+    "menuDeleteHint": "Endgültig weg, mit jeder Version"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",

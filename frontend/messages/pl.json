@@ -749,7 +749,13 @@
     "noBotAskAdmin": "Brak bota - doda go administrator",
     "registerPlatformBot": "Podłącz bota {platform}",
     "addOnPlatform": "Dodaj w {platform}",
-    "registerAnotherBot": "Podłącz kolejnego bota"
+    "registerAnotherBot": "Podłącz kolejnego bota",
+    "menuExportHint": "Spec jako YAML, do trzymania w repozytorium",
+    "menuDuplicateHint": "Kopia robocza do swobodnych zmian",
+    "menuAvatarHint": "Obrazek, po którym ludzie go rozpoznają",
+    "menuArchiveHint": "Znika z wyborów; historia zostaje",
+    "menuRestoreHint": "Wraca do wyborów, jak był",
+    "menuDeleteHint": "Na zawsze, z każdą wersją"
   },
   "auth": {
     "agreeToTerms": "Tworząc konto, akceptujesz nasz <terms>Regulamin</terms> i <privacy>Politykę prywatności</privacy>.",

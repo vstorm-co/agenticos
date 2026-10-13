@@ -165,7 +165,27 @@ const DropdownMenuShortcut = ({ className, ...props }: React.HTMLAttributes<HTML
 };
 DropdownMenuShortcut.displayName = "DropdownMenuShortcut";
 
+/**
+ * An item's name with a grey line under it saying what it does - for the menus
+ * whose actions are consequential enough that a word alone leaves somebody
+ * guessing (archive or delete?). Its item takes `DESCRIBED_ITEM`, which tops the
+ * icon to the name rather than centring it on two lines.
+ */
+const DropdownMenuItemText = ({ label, description }: { label: string; description: string }) => (
+  <span className="min-w-0">
+    <span className="block">{label}</span>
+    <span className="text-muted-foreground block text-xs leading-snug font-normal">
+      {description}
+    </span>
+  </span>
+);
+
+/** The item class that goes with `DropdownMenuItemText`. */
+const DESCRIBED_ITEM = "items-start py-2 [&>svg]:mt-0.5";
+
 export {
+  DESCRIBED_ITEM,
+  DropdownMenuItemText,
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
