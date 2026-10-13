@@ -281,6 +281,7 @@ class TestForABot:
 
         assert settings.exposed is True
         assert settings.agent_name == "Support"
+        assert settings.agent_id == agent.id
         assert settings.resolved is not None
         assert (settings.resolved.provider, settings.resolved.pair_source) == ("groq", "agent")
 

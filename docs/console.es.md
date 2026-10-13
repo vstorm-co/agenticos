@@ -1,5 +1,5 @@
 ---
-source_sha: "1085e8113234"
+source_sha: "5624cf36a7ed"
 ---
 
 # La consola { #the-console }
@@ -211,6 +211,14 @@ tarjeta lo dice, porque entonces todos los miembros ven un micrófono tachado.
 
 Server sin proveedor predeterminado es una configuración, no un fallo: la tarjeta indica que solo dictan los agents con su propio proveedor.
 **Voice conversations**, debajo, todavía no está construido.
+
+Para quien además tiene `runs:view`, la tarjeta empieza con una línea sobre lo que
+la organización transcribió en los últimos 30 días — «42 min · 118 grabaciones
+(30 sin duración)» — sumando el dictado, los mensajes de voz de los canales y la
+API. **Show breakdown** lo desglosa por agent y por bot de canal. Los minutos
+cuentan solo las grabaciones cuya duración se informó, así que la línea dice
+cuántas no la tienen; queda oculta mientras no se haya transcrito nada. Las
+cifras salen de [`GET /ml/calls/summary`](ml-services.md#what-is-recorded).
 
 ### El motor propio de un agent { #an-agents-own-engine }
 

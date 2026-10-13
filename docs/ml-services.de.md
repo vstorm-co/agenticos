@@ -1,5 +1,5 @@
 ---
-source_sha: "1bdc3302c200"
+source_sha: "e9bf1439df36"
 ---
 
 # Die ML-Dienste { #the-ml-services }
@@ -227,8 +227,9 @@ bekommt 413 ohne `reason`, was das Eingabefeld als `too_large` liest.
 Jede Person darf `RATE_LIMIT_DICTATION_PER_MINUTE`-mal pro Minute diktieren,
 standardmäßig 10, auf einem eigenen Zähler, sodass Diktieren nicht das
 ML-Kontingent einer Integration verbraucht. Jedes Diktat hinterlässt einen
-[Aufrufdatensatz](#what-is-recorded), unter `speech_to_text` und in Zeichen
-gezählt. **Das Audio wird nie gespeichert**: Es wird verworfen, wenn der Aufruf
+[Aufrufdatensatz](#what-is-recorded), unter `speech_to_text` und in Sekunden
+Audio gezählt. Das Eingabefeld schickt die aufgenommene Länge als Formularfeld
+`duration` neben `file`. **Das Audio wird nie gespeichert**: Es wird verworfen, wenn der Aufruf
 zurückkehrt, und der Text existiert nur in der Antwort. Abbrechen im Browser
 bricht eine bereits gesendete Aufnahme nicht ab — der Anbieter transkribiert sie
 trotzdem, stellt sie dem Konto der Organisation in Rechnung, und der Aufruf wird
@@ -338,11 +339,52 @@ Dokumentenspeicher gedacht hat. Ein Aufrufdatensatz einer anderen Organisation
 ist nicht auffindbar, genau wie jede andere Zeile auf dieser API.
 
 Nutzung wird in der Einheit gezählt, in der der Dienst arbeitet — Seiten bei
-einem Parse, Zeichen bei einem Scan — und nicht in Geld. Die gelieferten Dienste
-laufen entweder auf den eigenen Maschinen des Betreibers, wo es keinen
-Anbieterpreis gibt, oder auf dem eigenen Anbieterkonto der Organisation, das ihr
-direkt in Rechnung stellt. Eine Zahl, die niemand mit einer Rechnung abgleichen
-kann, ist schlimmer als eine ehrliche Einheitenzählung.
+einem Parse, Zeichen bei einem Scan, Sekunden Audio bei einer Transkription — und
+nicht in Geld. Die gelieferten Dienste laufen entweder auf den eigenen Maschinen
+des Betreibers, wo es keinen Anbieterpreis gibt, oder auf dem eigenen
+Anbieterkonto der Organisation, das ihr direkt in Rechnung stellt. Eine Zahl, die
+niemand mit einer Rechnung abgleichen kann, ist schlimmer als eine ehrliche
+Einheitenzählung. Auf das [Budget](governance.md#budgets) eines Agents wird
+Transkription ebenfalls nicht angerechnet.
+
+### Transkriptionen { #transcriptions }
+
+Sprache zu Text wird auf drei Wegen erreicht, und jeder hinterlässt dieselbe
+Zeile: die API (`surface: api`), [Diktat](#dictation-in-chat) (`chat`) und die
+[Sprachnachrichten eines Kanal-Bots](channels.md#what-every-channel-shares)
+(`channel`). Die Zeile ergänzt `provider` und `model`, die `agent_id`, für die sie
+war - der Agent, in den diktiert wurde, oder der Agent, den der Bot bedient -,
+die `channel_bot_id` und `audio_ms`, die Länge der Aufnahme. Das `requested_by`
+einer Sprachnachricht ist die Person, mit der der Absender verknüpft ist, oder
+niemand. Erfasst wird nur eine Aufnahme, die dem Provider übergeben wurde; ein
+ausgeschalteter Bot oder einer ohne Engine zum Erben hat niemanden gefragt.
+
+Die Länge ist die erste bekannte von diesen:
+
+| Quelle | Wer sie liefert |
+|---|---|
+| Die Antwort des Providers | OpenAI `whisper-1` (`usage.seconds`), Groq (`duration`, angefordert mit `response_format=verbose_json`), Mistral (`usage.prompt_audio_seconds`) |
+| Die Metadaten der Plattform | Eine Telegram-Sprachnachricht oder Audiodatei, ein Slack-Clip |
+| Der Browser | Nur Diktat: die `duration`, die das Eingabefeld schickt, begrenzt auf das längste Diktat der Organisation, weil es das Wort des Clients ist |
+
+OpenAIs `gpt-4o-transcribe` und `gpt-4o-mini-transcribe` melden Tokens, keine
+Sekunden, und Mattermost gibt keine Länge an, sodass eine Sprachnachricht dort
+mit diesen Modellen keine hat. Eine erfolgreiche Zeile zählt dann `0` Sekunden
+mit leerem `audio_ms` - ungemessen, nicht still.
+
+`GET /api/v1/ml/calls` filtert außer nach `ml_service` auch nach `agent_id`,
+`channel_bot_id`, `surface`, `since` und `until`, immer innerhalb der
+Organisation des Aufrufers: Die Agent-ID eines anderen Mandanten passt auf
+nichts.
+
+`GET /api/v1/ml/calls/summary?days=30` summiert die erfolgreichen
+Transkriptionen über ein Zeitfenster: `seconds` und `count`,
+`count_unknown_length` für die Aufnahmen, die die Sekunden auslassen, und
+dasselbe nach Agent, nach Kanal-Bot und nach Weg (`surface`). Es verlangt
+`runs:view`, wie [`GET /spend`](governance.md#what-the-cost-screen-shows), statt
+`ml:invoke`: Die Aufschlüsselung nennt Agents und Bots, die ein Member
+möglicherweise nicht sehen darf. Die [Voice-Karte](console.md#the-voice-card) der
+Organisation zeigt es in einer Zeile.
 
 ## Grenzen { #limits }
 

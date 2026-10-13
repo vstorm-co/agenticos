@@ -1,5 +1,5 @@
 ---
-source_sha: "dea3bb35047f"
+source_sha: "7dbe463cd92e"
 ---
 
 # Datenschutz { #data-protection }
@@ -93,7 +93,7 @@ des Elternteils.
 | `notification_preferences`, `announcements` | Kanal-Umschalter je Ereignis, und die eigenen Ankündigungen eines App-Administrators | Eine Benutzer-Id je Umschalter; der Absender einer Ankündigung, ihr Text sowie die Organisationen und die Rolle, an die sie adressiert war — nie die aufgelöste Empfängerliste, die aus `notifications` nur rekonstruierbar ist, solange diese Zeile nicht durch [den Retention-Sweep für Benachrichtigungen](governance.md#alerts) verfällt — danach hält der Audit-Eintrag dahinter nur noch eine Zahl, nie die Empfänger | Opt-out, und der eigene Nachweis des Verfassers |
 | `embed_visitors`, `channel_identities`, `channel_sessions` | Fremde auf einer gehosteten Seite und Menschen auf Slack, Telegram oder Mattermost | Ein zufälliger Besucherschlüssel; eine Plattform-Benutzer-Id, ein Benutzername und ein Anzeigename; die Chat-Id | Den richtigen Thread fortsetzen |
 | `message_ratings` | Daumen und Kommentare zu Antworten | Der Bewertende und sein Kommentar | Qualitätsprüfung |
-| `ml_service_calls` | Jeder Aufruf der [ML-Dienste](ml-services.md) | Die Organisation, wer gefragt hat, welcher Dienst, Byte- und Einheitenzahlen, die Dauer und wie es endete - **nichts von dem, was eingereicht wurde, und nichts von dem, was zurückkam** | Nutzungsberichte und der Blick eines Betreibers auf eine Integration, die scheitert |
+| `ml_service_calls` | Jeder Aufruf der [ML-Dienste](ml-services.md) und jede Transkription: Diktat, eine Sprachnachricht in einem Kanal, die API | Die Organisation, wer gefragt hat, welcher Dienst, Byte- und Einheitenzahlen, die Dauer und wie es endete; bei einer Transkription außerdem Provider und Modell, woher sie kam, der Agent und der Kanal-Bot, für die sie war, und die Länge der Aufnahme. Die Zeile einer Sprachnachricht in einem Kanal nennt die Person, mit der das Konto des Absenders verknüpft ist, und bei einem nicht verknüpften Absender niemanden. Das Löschen der Person, des Agents oder des Bots entfernt die Verknüpfung und behält die Zeile - **nichts von dem, was eingereicht wurde, und nichts von dem, was zurückkam** | Nutzungsberichte und der Blick eines Betreibers auf eine Integration, die scheitert |
 | `agent_workspaces`, `sandbox_operations` | Dateien, an denen ein Agent gearbeitet hat, und das Log dessen, was er ausgeführt hat | Beim `state`-Backend die Dateien selbst, als JSON; bei einem Container die Session-Id und jedes Kommando, Ziel und Ergebnis-Resümee | Die Sandbox. Siehe [Die Sandbox](sandbox.md#what-was-done-in-one-and-where-that-record-lives) |
 | `organization_secrets`, `model_profiles`, `mcp_connections`, `channel_bots` | Zugangsdaten und wohin sie zeigen | Nur versiegelter Chiffretext, mit einem Hinweis; Provider, Model und `base_url` im Klartext | Provider erreichen. Siehe [Secrets](secrets.md) |
 

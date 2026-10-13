@@ -1,5 +1,5 @@
 ---
-source_sha: "9a77c2202987"
+source_sha: "693e6e8005c9"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1211,6 +1211,11 @@ może się między nimi rozjechać.
     zepsutego bota — i mówi, z jakiego powodu, bo naprawiają to różne osoby: bot
     jest wyłączony albo nikt nie skonfigurował providera. Bot bez powiązanego
     agenta nie transkrybuje niczego, bo wiadomość i tak zostaje odrzucona.
+
+    Każde nagranie wysłane do providera zostawia
+    [zapis zużycia](ml-services.md#what-is-recorded) wskazujący bota, jego agenta
+    i osobę, z którą powiązane jest konto nadawcy, z długością nagrania tam, gdzie
+    podaje ją Telegram, Slack albo provider.
 
     !!! note "Aktualizacja: bot, który nie transkrybował, nadal nie transkrybuje"
 

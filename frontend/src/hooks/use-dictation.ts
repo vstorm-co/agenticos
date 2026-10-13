@@ -262,6 +262,8 @@ export function useDictation({ mic, agentId, maxSeconds, provider }: UseDictatio
   const agentRef = useRef<string | null>(null);
   const recorderRef = useRef<Recorder | null>(null);
   const blobRef = useRef<Blob | null>(null);
+  /** How long the kept recording is, by the browser's clock - sent with it, and again on a retry. */
+  const secondsRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
   const transcriptIdRef = useRef(0);
   const retryAfterRef = useRef<number | null>(null);
@@ -308,7 +310,7 @@ export function useDictation({ mic, agentId, maxSeconds, provider }: UseDictatio
       clearCountdown();
       moveTo("transcribing");
       try {
-        const text = await dictate(agentRef.current!, blob, controller.signal);
+        const text = await dictate(agentRef.current!, blob, secondsRef.current, controller.signal);
         if (session !== sessionRef.current) return;
         blobRef.current = null;
         transcriptIdRef.current += 1;
@@ -405,6 +407,7 @@ export function useDictation({ mic, agentId, maxSeconds, provider }: UseDictatio
           return;
         }
         blobRef.current = blob;
+        secondsRef.current = (Date.now() - startedAt) / 1000;
         void send(blob);
       };
       const open =

@@ -1,5 +1,5 @@
 ---
-source_sha: "1085e8113234"
+source_sha: "5624cf36a7ed"
 ---
 
 # Die Konsole { #the-console }
@@ -230,6 +230,15 @@ Mitglied ein durchgestrichenes Mikrofon.
 
 Server ohne Standard-Provider ist eine Einstellung, kein Fehler: Die Karte weist darauf hin, dass nur Agents mit eigenem Provider diktieren. **Voice conversations** darunter ist
 noch nicht gebaut.
+
+Wer zusätzlich `runs:view` hat, sieht oben auf der Karte eine Zeile dazu, wie viel
+die Organisation in den letzten 30 Tagen transkribiert hat — „42 Min. · 118
+Aufnahmen (30 ohne Länge)“ — aus Diktat, Sprachnachrichten in Kanälen und der
+API zusammen. **Aufschlüsselung anzeigen** listet es nach Agent und nach
+Kanal-Bot auf. Die Minuten zählen nur Aufnahmen, deren Länge gemeldet wurde,
+daher sagt die Zeile, wie viele ohne sind; solange nichts transkribiert wurde,
+ist sie ausgeblendet. Die Zahlen stammen aus
+[`GET /ml/calls/summary`](ml-services.md#what-is-recorded).
 
 ### Die eigene Engine eines Agents { #an-agents-own-engine }
 

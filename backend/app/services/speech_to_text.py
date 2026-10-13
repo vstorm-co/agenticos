@@ -64,6 +64,16 @@ class SpeechToTextEntry:
     client can branch on it - instead of the caller growing a name check.
     """
 
+    response_format: str | None = None
+    """The `response_format` to ask for, or `None` to send none (plain JSON).
+
+    Only for the length of the recording (#1797). Groq states a recording's
+    `duration` in `verbose_json` and nowhere else, while OpenAI's `gpt-4o-*`
+    models refuse that format outright - so it is the provider's entry that says,
+    and a provider whose plain answer already carries the length (OpenAI's
+    `usage`, Mistral's) is sent nothing it might not accept.
+    """
+
 
 CATALOG: tuple[SpeechToTextEntry, ...] = catalog.load(
     "speech_to_text_models.json", TypeAdapter(tuple[SpeechToTextEntry, ...])
@@ -82,6 +92,7 @@ class SpeechToTextProvider:
     api: str
     base_url: str
     models: tuple[SpeechToTextModel, ...]
+    response_format: str | None = None
 
 
 def providers() -> tuple[SpeechToTextProvider, ...]:
@@ -108,6 +119,7 @@ def providers() -> tuple[SpeechToTextProvider, ...]:
                 api=entry.api,
                 base_url=entry.base_url,
                 models=entry.models,
+                response_format=entry.response_format,
             )
         )
     return tuple(found)

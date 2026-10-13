@@ -20,6 +20,33 @@ export interface DictationStatus {
   provider: string | null;
 }
 
+/** One agent's or one channel bot's share of the organization's transcription. */
+export interface TranscriptionUsageGroup {
+  name: string;
+  /** Audio seconds across the recordings whose length is known. */
+  seconds: number;
+  count: number;
+}
+
+/** `GET /ml/calls/summary`: successful transcriptions over a window, added up. */
+export interface TranscriptionUsage {
+  days: number;
+  /** An under-count whenever `count_unknown_length` is not 0. */
+  seconds: number;
+  count: number;
+  /** Recordings no provider or platform stated a length for. */
+  count_unknown_length: number;
+  by_agent: (TranscriptionUsageGroup & { agent_id: string })[];
+  by_channel: (TranscriptionUsageGroup & { channel_bot_id: string })[];
+}
+
+/** Read how much this organization transcribed over the last `days`. Needs `runs:view`. */
+export function transcriptionUsage(days: number): Promise<TranscriptionUsage> {
+  return apiClient.get<TranscriptionUsage>("/ml/calls/summary", {
+    params: { ml_service: "speech_to_text", days: String(days) },
+  });
+}
+
 /** Read whether dictation to this agent would reach an engine. */
 export function dictationStatus(agentId: string): Promise<DictationStatus> {
   return apiClient.get<DictationStatus>(`/agents/${agentId}/dictation`);
@@ -73,17 +100,29 @@ const EXTENSION: Record<string, string> = {
   "audio/mp4": "mp4",
 };
 
-/** Send one composer recording for transcription; the audio is not kept. */
+/**
+ * Send one composer recording for transcription; the audio is not kept.
+ *
+ * `seconds` is how long the browser recorded, sent as `duration` beside the
+ * file. The server records it with the call's usage only where the provider
+ * states no length of its own, and clamps it to the organization's longest
+ * dictation - it is the browser's word, not a measurement. The form is built
+ * here rather than through `apiClient.upload`, which sends the file alone.
+ */
 export async function dictate(
   agentId: string,
   recording: Blob,
+  seconds: number,
   signal: AbortSignal,
 ): Promise<string> {
   const base = recording.type.split(";")[0]!.trim();
   const file = new File([recording], `recording.${EXTENSION[base] ?? "webm"}`, {
     type: recording.type,
   });
-  const { text } = await apiClient.upload<{ text: string }>(`/agents/${agentId}/dictation`, file, {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("duration", String(Math.max(0, seconds)));
+  const { text } = await apiClient.post<{ text: string }>(`/agents/${agentId}/dictation`, form, {
     signal,
   });
   return text;

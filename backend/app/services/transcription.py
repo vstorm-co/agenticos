@@ -113,6 +113,46 @@ class Recording:
     mime_type: str
 
 
+@dataclass(frozen=True)
+class TranscriptionResult:
+    """What was said, and how long the recording was where the provider says."""
+
+    text: str
+    audio_seconds: float | None
+    """The provider's own figure (`audio_seconds_of`), or `None` where its answer
+    carries none - `gpt-4o(-mini)-transcribe` reports tokens, not seconds. A
+    caller with a figure of its own (platform metadata, the browser's clock)
+    falls back to it; nothing here decodes the audio to measure it."""
+
+
+def audio_seconds_of(payload: dict[str, object]) -> float | None:
+    """The recording's length in an `/audio/transcriptions` answer, if it states one.
+
+    Three shapes, in the order they are trusted:
+
+    - OpenAI bills `whisper-1` by duration and says so: `usage.type ==
+      "duration"` with `usage.seconds`. Its `gpt-4o-*` models answer
+      `usage.type == "tokens"`, which is not a length and is not read as one.
+    - Mistral answers `usage.prompt_audio_seconds`.
+    - Groq answers a top-level `duration`, in `verbose_json` only - which is why
+      its catalog entry asks for that format (`SpeechToTextEntry.response_format`).
+
+    A value that is not a positive number - absent, a string, a boolean, zero -
+    is no figure at all rather than a recording of no length.
+    """
+    usage = payload.get("usage")
+    candidates: list[object] = []
+    if isinstance(usage, dict):
+        if usage.get("type") == "duration":
+            candidates.append(usage.get("seconds"))
+        candidates.append(usage.get("prompt_audio_seconds"))
+    candidates.append(payload.get("duration"))
+    for value in candidates:
+        if isinstance(value, int | float) and not isinstance(value, bool) and value > 0:
+            return float(value)
+    return None
+
+
 class TranscriptionService:
     """Transcribes a recording with the model a bot was configured with."""
 
@@ -127,8 +167,8 @@ class TranscriptionService:
         provider: str,
         model: str,
         language: str | None = None,
-    ) -> str:
-        """The words in this recording.
+    ) -> TranscriptionResult:
+        """The words in this recording, and its length where the provider states it.
 
         `language` is an ISO-639-1 code to pin the recording to; `None` leaves the
         engine to detect it.
@@ -176,6 +216,7 @@ class TranscriptionService:
             api_key=api_key,
             model=model,
             language=language,
+            response_format=entry.response_format,
             context=context,
         )
 
@@ -267,8 +308,9 @@ class TranscriptionService:
         api_key: str | None,
         model: str,
         language: str | None,
+        response_format: str | None,
         context: dict[str, str],
-    ) -> str:
+    ) -> TranscriptionResult:
         """`POST /audio/transcriptions`, as OpenAI defined it.
 
         The provider's own error text is logged and never raised: it reaches a
@@ -276,7 +318,11 @@ class TranscriptionService:
         failing request URL - key in the query string - in its message.
         """
         headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
-        data = {"model": model} if language is None else {"model": model, "language": language}
+        data = {"model": model}
+        if language is not None:
+            data["language"] = language
+        if response_format is not None:
+            data["response_format"] = response_format
         try:
             async with httpx.AsyncClient(timeout=TIMEOUT_SECONDS) as client:
                 response = await client.post(
@@ -307,4 +353,5 @@ class TranscriptionService:
                 message="No speech was heard in the recording.",
                 details={"reason": "empty", "stage": "engine", **context},
             )
-        return text
+        # A dict, or `text` above would have been empty and refused.
+        return TranscriptionResult(text=text, audio_seconds=audio_seconds_of(payload))

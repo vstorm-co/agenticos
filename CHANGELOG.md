@@ -55,6 +55,17 @@ Two things are versioned separately from this file and worth knowing about:
   type, and a voice note posted in a thread before the bot joined is named in
   the reply rather than transcribed. See
   [the voice message notes](docs/channels.md#what-every-channel-shares).
+- **Every transcription is recorded with its length and attribution (#1797).**
+  `ml_service_calls` gains the provider and model, the surface (`chat`,
+  `channel`, `api`), the agent and channel bot, and `audio_ms`
+  (`0108_ml_call_attribution.py`); a transcription now counts seconds of audio,
+  not characters. Channel voice notes write a row too, naming the linked
+  sender. The length comes from the provider (`whisper-1`, Groq, Mistral), the
+  platform (Telegram, Slack) or, for dictation, the browser's clamped figure.
+  `GET /api/v1/ml/calls` filters by agent, bot, surface and window, and
+  `GET /api/v1/ml/calls/summary` (`runs:view`) adds it up; the organization's
+  Voice card shows it in one line. See
+  [Transcriptions](docs/ml-services.md#transcriptions).
 - **A Voice glow preference**: Vivid, Subtle (the default) or Off, per
   browser, and no glow under reduced motion.
 - **An Appearance card under Settings → Profile** with the theme, the Voice glow

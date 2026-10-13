@@ -68,12 +68,15 @@ vi.mock("voice-glow", () => ({
 }));
 
 const api = vi.hoisted(() => ({
-  dictate: vi.fn<(agentId: string, recording: Blob, signal: AbortSignal) => Promise<string>>(),
+  dictate:
+    vi.fn<
+      (agentId: string, recording: Blob, seconds: number, signal: AbortSignal) => Promise<string>
+    >(),
 }));
 vi.mock("@/lib/dictation-api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/dictation-api")>()),
-  dictate: (agentId: string, recording: Blob, signal: AbortSignal) =>
-    api.dictate(agentId, recording, signal),
+  dictate: (agentId: string, recording: Blob, seconds: number, signal: AbortSignal) =>
+    api.dictate(agentId, recording, seconds, signal),
 }));
 
 /** A `MediaRecorder` whose stop hands over one chunk and then says it stopped. */
@@ -255,10 +258,12 @@ describe("useDictation", () => {
     expect(view.result.current.state.phase).toBe("transcribing");
     expect(view.mic.stop).toHaveBeenCalled();
     expect(api.dictate).toHaveBeenCalledOnce();
-    const [agentId, recording] = api.dictate.mock.calls[0]!;
+    const [agentId, recording, seconds] = api.dictate.mock.calls[0]!;
     expect(agentId).toBe("a1");
     expect(recording.type).toBe("audio/webm;codecs=opus");
     expect(recording.size).toBeGreaterThan(0);
+    // The browser's own clock, sent so a provider that states no length is not counted as silence.
+    expect(seconds).toBeCloseTo(2, 0);
 
     await act(async () => answered.resolve("hello"));
     expect(view.result.current.state.transcript).toEqual({ id: 1, text: "hello" });
@@ -290,7 +295,7 @@ describe("useDictation", () => {
   it("cancelling while transcribing aborts the request and ends idle, not failed", async () => {
     let signal!: AbortSignal;
     api.dictate.mockImplementation(
-      (_agent, _blob, given) =>
+      (_agent, _blob, _seconds, given) =>
         new Promise((_resolve, reject) => {
           signal = given;
           given.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
@@ -416,6 +421,7 @@ describe("useDictation", () => {
     await act(async () => view.result.current.actions.retry());
     expect(api.dictate).toHaveBeenCalledTimes(2);
     expect(api.dictate.mock.calls[1]![1]).toBe(api.dictate.mock.calls[0]![1]);
+    expect(api.dictate.mock.calls[1]![2]).toBe(api.dictate.mock.calls[0]![2]);
     expect(view.result.current.state.reason).toBe("timeout");
 
     act(() => view.result.current.actions.dismiss());
@@ -730,7 +736,7 @@ describe("useDictation", () => {
 
   it("aborts a request in flight on unmount", async () => {
     let signal!: AbortSignal;
-    api.dictate.mockImplementation((_agent, _blob, given) => {
+    api.dictate.mockImplementation((_agent, _blob, _seconds, given) => {
       signal = given;
       return new Promise(() => {});
     });

@@ -1,5 +1,5 @@
 ---
-source_sha: "9a77c2202987"
+source_sha: "693e6e8005c9"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1220,6 +1220,11 @@ así que la política no puede desviarse entre ellas.
     — y dice por qué motivo, porque cada uno lo arregla otra persona: el bot está
     desactivado, o nadie ha configurado un provider. Un bot sin agent vinculado
     no transcribe nada en absoluto, porque el mensaje se rechaza de todos modos.
+
+    Cada grabación enviada al provider deja un
+    [registro de uso](ml-services.md#what-is-recorded) que nombra el bot, su agent
+    y la persona con la que está vinculada la cuenta del remitente, con la
+    duración de la grabación donde Telegram, Slack o el provider la indican.
 
     !!! note "Al actualizar: un bot que no transcribía sigue sin transcribir"
 

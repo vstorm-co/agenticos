@@ -1,5 +1,5 @@
 ---
-source_sha: "1085e8113234"
+source_sha: "5624cf36a7ed"
 ---
 
 # Konsola { #the-console }
@@ -211,6 +211,14 @@ przekreślony mikrofon.
 
 Server bez domyślnego providera to ustawienie, a nie usterka: karta zaznacza, że dyktować mogą tylko agenty z własnym providerem. **Voice conversations**, pod nią, nie jest jeszcze
 zbudowane.
+
+Komuś, kto ma także `runs:view`, karta zaczyna się jedną linijką o tym, ile
+organizacja przetranskrybowała w ostatnich 30 dniach — „42 min · 118 nagrań (30
+bez długości)” — łącznie z dyktowania, wiadomości głosowych z kanałów i API.
+**Pokaż podział** rozpisuje to według agenta i według bota kanału. Minuty liczą
+tylko nagrania, których długość została podana, więc linijka mówi, ilu jej
+brakuje; jest ukryta, dopóki niczego nie przetranskrybowano. Liczby pochodzą z
+[`GET /ml/calls/summary`](ml-services.md#what-is-recorded).
 
 ### Własny silnik agenta { #an-agents-own-engine }
 

@@ -74,6 +74,37 @@ async def test_a_caller_who_may_run_the_agent_gets_the_text(client: AsyncClient)
     assert dictate.await_args.kwargs["agent"] is get.return_value
     assert dictate.await_args.kwargs["content"] == b"audio"
     assert dictate.await_args.kwargs["mime_type"] == "audio/webm;codecs=opus"
+    assert dictate.await_args.kwargs["reported_seconds"] is None
+
+
+async def test_the_browsers_recorded_length_is_passed_on(client: AsyncClient) -> None:
+    """Client-reported: the facade clamps it and prefers the provider's own figure."""
+    with (
+        patch(_REGISTRY, new=AsyncMock(return_value=MagicMock())),
+        patch(_DICTATE, new=AsyncMock(return_value="hello")) as dictate,
+    ):
+        response = await client.post(
+            f"{_V1}/agents/{uuid.uuid4()}/dictation",
+            files={"file": ("blob", b"audio", "audio/webm")},
+            data={"duration": "12.5"},
+        )
+
+    assert response.status_code == 200
+    assert dictate.await_args.kwargs["reported_seconds"] == 12.5
+
+
+async def test_a_negative_length_is_refused_before_anything_is_transcribed(
+    client: AsyncClient,
+) -> None:
+    with patch(_DICTATE, new=AsyncMock()) as dictate:
+        response = await client.post(
+            f"{_V1}/agents/{uuid.uuid4()}/dictation",
+            files={"file": ("blob", b"audio", "audio/webm")},
+            data={"duration": "-1"},
+        )
+
+    assert response.status_code == 422
+    dictate.assert_not_awaited()
 
 
 @pytest.mark.security

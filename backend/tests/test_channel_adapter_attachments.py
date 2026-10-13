@@ -111,6 +111,34 @@ class TestTelegramReceiving:
         assert parsed is not None
         assert parsed.text == "what is in here?"
 
+    @pytest.mark.parametrize(
+        ("field", "media", "seconds"),
+        [
+            ("voice", {"file_id": "v", "duration": 7}, 7.0),
+            ("audio", {"file_id": "a", "duration": 184, "mime_type": "audio/mpeg"}, 184.0),
+            ("voice", {"file_id": "v"}, None),
+            ("voice", {"file_id": "v", "duration": "7"}, None),
+        ],
+        ids=["voice", "audio", "no-duration", "not-a-number"],
+    )
+    def test_a_recordings_stated_length_is_kept_for_the_usage_record(
+        self, field: str, media: dict[str, object], seconds: float | None
+    ):
+        """Telegram states a voice note's `duration` in whole seconds (#1797)."""
+        parsed = TelegramAdapter().parse_incoming(
+            {
+                "message": {
+                    "chat": {"id": 1, "type": "private"},
+                    "from": {"id": 2},
+                    field: media,
+                }
+            },
+            "bot-1",
+        )
+
+        assert parsed is not None
+        assert parsed.attachments[0].duration_seconds == seconds
+
     def test_the_largest_photo_is_the_one_worth_having(self):
         """Telegram sends the same image in several sizes; the rest are thumbnails
         it generated."""

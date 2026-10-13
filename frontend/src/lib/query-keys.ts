@@ -83,6 +83,10 @@ export const qk = {
     all: () => ["dictation"] as const,
     agent: (agentId: string) => ["dictation", agentId] as const,
   },
+  ml: {
+    // How much the organization transcribed over a window, by agent and bot.
+    transcriptionUsage: (days: number) => ["ml", "transcription-usage", days] as const,
+  },
   catalog: {
     icons: () => ["catalog", "icons"] as const,
   },

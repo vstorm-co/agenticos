@@ -3415,6 +3415,19 @@
       "description": "Jak osoby w tej organizacji rozmawiają z agentami.",
       "sttTitle": "Mowa na tekst",
       "sttDescription": "Dyktowanie w polu wiadomości czatu. Tekst trafia do pola, gdzie można go poprawić; nic nie zostaje wysłane, dopóki osoba nie naciśnie Wyślij.",
+      "usage": {
+        "label": "Wykorzystanie transkrypcji",
+        "summary": "{days, plural, one {Ostatni dzień} few {Ostatnie # dni} many {Ostatnie # dni} other {Ostatnie # dnia}}: {duration} · {count, plural, one {# nagranie} few {# nagrania} many {# nagrań} other {# nagrania}}",
+        "unknown": "({count, plural, one {# bez długości} few {# bez długości} many {# bez długości} other {# bez długości}})",
+        "minutes": "{minutes} min",
+        "underMinute": "poniżej 1 min",
+        "show": "Pokaż podział",
+        "hide": "Ukryj podział",
+        "byAgent": "Według agenta",
+        "byChannel": "Według bota kanału",
+        "rowStats": "{duration} · {count, plural, one {# nagranie} few {# nagrania} many {# nagrań} other {# nagrania}}",
+        "unknownNote": "Minuty liczą tylko nagrania o znanej długości. Modele transkrypcji GPT-4o i notatki głosowe z Mattermost jej nie podają."
+      },
       "engineLabel": "Silnik dyktowania",
       "engines": {
         "off": {

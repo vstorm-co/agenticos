@@ -1,5 +1,5 @@
 ---
-source_sha: "1bdc3302c200"
+source_sha: "e9bf1439df36"
 ---
 
 # Usługi ML { #the-ml-services }
@@ -217,7 +217,8 @@ którą limit żądań wdrożenia odrzuca, zanim trasa ruszy, dostaje 413 bez
 Każda osoba może dyktować `RATE_LIMIT_DICTATION_PER_MINUTE` razy na minutę,
 domyślnie 10, na osobnym liczniku, więc dyktowanie nie zużywa limitu usług ML
 integracji. Każde dyktowanie zostawia jeden [zapis wywołania](#what-is-recorded),
-pod `speech_to_text`, liczony w znakach. **Dźwięk nigdy nie jest
+pod `speech_to_text`, liczony w sekundach dźwięku. Pole wiadomości wysyła długość,
+którą nagrało, jako pole formularza `duration` obok `file`. **Dźwięk nigdy nie jest
 przechowywany**: zostaje odrzucony, gdy wywołanie się kończy, a tekst istnieje
 tylko w odpowiedzi. Anulowanie w przeglądarce nie anuluje nagrania już
 wysłanego — dostawca i tak je transkrybuje, obciąża za nie konto organizacji, a
@@ -321,10 +322,49 @@ wywołania innej organizacji jest nie do znalezienia, tak samo jak każdy inny
 wiersz na tym API.
 
 Zużycie liczy się w jednostce, w której pracuje usługa — strony przy parsowaniu,
-znaki przy skanowaniu — a nie w pieniądzu. Dostarczone usługi działają albo na
-maszynach samego operatora, gdzie nie ma ceny dostawcy, albo na własnym koncie
-dostawcy organizacji, które rozlicza ją wprost. Liczba, której nikt nie pogodzi z
-fakturą, jest gorsza niż uczciwe zliczenie jednostek.
+znaki przy skanowaniu, sekundy dźwięku przy transkrypcji — a nie w pieniądzu.
+Dostarczone usługi działają albo na maszynach samego operatora, gdzie nie ma ceny
+dostawcy, albo na własnym koncie dostawcy organizacji, które rozlicza ją wprost.
+Liczba, której nikt nie pogodzi z fakturą, jest gorsza niż uczciwe zliczenie
+jednostek. Transkrypcja nie wlicza się też do [budgetu](governance.md#budgets)
+agenta.
+
+### Transkrypcje { #transcriptions }
+
+Do zamiany mowy na tekst prowadzą trzy drogi i każda zostawia ten sam wiersz: API
+(`surface: api`), [dyktowanie](#dictation-in-chat) (`chat`) i
+[wiadomości głosowe bota kanału](channels.md#what-every-channel-shares)
+(`channel`). Wiersz dodaje `provider` i `model`, `agent_id`, dla którego było
+nagranie - agenta, do którego dyktowano, albo agenta obsługiwanego przez bota -
+`channel_bot_id` oraz `audio_ms`, długość nagrania. `requested_by` wiadomości
+głosowej to osoba, z którą powiązany jest nadawca, albo nikt. Zapisywane jest
+tylko nagranie przekazane providerowi; bot wyłączony albo bez silnika do
+odziedziczenia nikogo nie pytał.
+
+Długość to pierwsze znane z poniższych:
+
+| Źródło | Kto ją podaje |
+|---|---|
+| Odpowiedź providera | OpenAI `whisper-1` (`usage.seconds`), Groq (`duration`, o które prosi `response_format=verbose_json`), Mistral (`usage.prompt_audio_seconds`) |
+| Metadane platformy | Notatka głosowa albo plik audio z Telegrama, klip ze Slacka |
+| Przeglądarka | Tylko dyktowanie: `duration` wysłane przez pole wiadomości, przycięte do najdłuższego dyktowania organizacji, bo to słowo klienta |
+
+`gpt-4o-transcribe` i `gpt-4o-mini-transcribe` od OpenAI podają tokeny, nie
+sekundy, a Mattermost nie podaje długości, więc wiadomość głosowa tam na tych
+modelach jej nie ma. Udany wiersz liczy wtedy `0` sekund przy pustym `audio_ms` -
+niezmierzone, a nie ciche.
+
+`GET /api/v1/ml/calls` zawęża też po `agent_id`, `channel_bot_id`, `surface`,
+`since` i `until`, a nie tylko po `ml_service`, zawsze w organizacji
+wywołującego: id agenta innej organizacji nie pasuje do niczego.
+
+`GET /api/v1/ml/calls/summary?days=30` sumuje udane transkrypcje w oknie
+czasu: `seconds` i `count`, `count_unknown_length` dla nagrań, których sekundy
+nie obejmują, oraz to samo według agenta, bota kanału i drogi (`surface`).
+Wymaga `runs:view`, jak [`GET /spend`](governance.md#what-the-cost-screen-shows),
+a nie `ml:invoke`: podział wymienia agentów i boty, których Member może nie
+widzieć. [Karta Voice](console.md#the-voice-card) organizacji pokazuje to w
+jednej linijce.
 
 ## Limity { #limits }
 

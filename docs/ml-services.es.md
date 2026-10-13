@@ -1,5 +1,5 @@
 ---
-source_sha: "1bdc3302c200"
+source_sha: "e9bf1439df36"
 ---
 
 # Los servicios de ML { #the-ml-services }
@@ -223,7 +223,8 @@ de peticiones del despliegue rechaza antes de que la ruta se ejecute recibe un
 Cada persona puede dictar `RATE_LIMIT_DICTATION_PER_MINUTE` veces por minuto, 10
 por defecto, en un contador propio, así que dictar no gasta la cuota de ML de una
 integración. Cada dictado deja un [registro de llamada](#what-is-recorded), bajo
-`speech_to_text` y contado en caracteres. **El audio nunca se guarda**: se
+`speech_to_text` y contado en segundos de audio. El compositor envía la duración
+que grabó como campo de formulario `duration` junto a `file`. **El audio nunca se guarda**: se
 descarta cuando la llamada vuelve, y el texto solo existe en la respuesta.
 Cancelar en el navegador no cancela una grabación ya enviada: el proveedor la
 transcribe igualmente, la cobra a la cuenta de la organización, y la llamada
@@ -330,11 +331,51 @@ una llamada hecha por otra organización no se encuentra, igual que cualquier ot
 fila de esta API.
 
 El uso se cuenta en la unidad en la que trabaja el servicio — páginas en un
-parseo, caracteres en un escaneo — y no en dinero. Los servicios entregados
-corren o bien en las máquinas del propio operador, donde no hay precio de
-proveedor, o bien en la cuenta de proveedor propia de la organización, que le
-factura directamente. Una cifra que nadie puede conciliar con una factura es peor
-que un recuento honesto de unidades.
+parseo, caracteres en un escaneo, segundos de audio en una transcripción — y no
+en dinero. Los servicios entregados corren o bien en las máquinas del propio
+operador, donde no hay precio de proveedor, o bien en la cuenta de proveedor
+propia de la organización, que le factura directamente. Una cifra que nadie
+puede conciliar con una factura es peor que un recuento honesto de unidades. La
+transcripción tampoco cuenta contra el [budget](governance.md#budgets) de un
+agent.
+
+### Transcripciones { #transcriptions }
+
+A la voz a texto se llega por tres caminos, y cada uno deja la misma fila: la API (`surface: api`), el [dictado](#dictation-in-chat) (`chat`) y
+los [mensajes de voz de un bot de canal](channels.md#what-every-channel-shares)
+(`channel`). La fila añade el `provider` y el `model`, el `agent_id` para el que
+fue - el agent al que se dictó, o el agent al que sirve el bot -, el
+`channel_bot_id` y `audio_ms`, la duración de la grabación. El `requested_by` de
+un mensaje de voz es la persona con la que está vinculado el remitente, o nadie.
+Solo se registra una grabación entregada al proveedor; un bot desactivado o sin
+motor que heredar no preguntó a nadie.
+
+La duración es la primera de estas que se conoce:
+
+| Fuente | Quién la da |
+|---|---|
+| La respuesta del proveedor | OpenAI `whisper-1` (`usage.seconds`), Groq (`duration`, pedida con `response_format=verbose_json`), Mistral (`usage.prompt_audio_seconds`) |
+| Los metadatos de la plataforma | Una nota de voz o un archivo de audio de Telegram, un clip de Slack |
+| El navegador | Solo el dictado: la `duration` que envía el compositor, recortada al dictado más largo de la organización, porque es la palabra del cliente |
+
+`gpt-4o-transcribe` y `gpt-4o-mini-transcribe` de OpenAI informan tokens, no
+segundos, y Mattermost no indica duración, así que un mensaje de voz allí con
+esos modelos no la tiene. Una fila con éxito cuenta entonces `0` segundos con
+`audio_ms` nulo - sin medir, no en silencio.
+
+`GET /api/v1/ml/calls` filtra también por `agent_id`, `channel_bot_id`,
+`surface`, `since` y `until`, además de `ml_service`, siempre dentro de la
+organización de quien llama: el id de un agent de otro tenant no coincide con
+nada.
+
+`GET /api/v1/ml/calls/summary?days=30` suma las transcripciones con éxito en
+una ventana: `seconds` y `count`, `count_unknown_length` para las grabaciones que
+los segundos dejan fuera, y lo mismo por agent, por bot de canal y por camino
+(`surface`). Pide `runs:view`, como
+[`GET /spend`](governance.md#what-the-cost-screen-shows), en lugar de
+`ml:invoke`: el desglose nombra agents y bots que un Member puede no ver. La
+[tarjeta Voice](console.md#the-voice-card) de la organización lo muestra en una
+línea.
 
 ## Límites { #limits }
 

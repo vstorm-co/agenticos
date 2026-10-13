@@ -102,8 +102,24 @@ function profile(overrides: Partial<ModelProfile> = {}): ModelProfile {
 
 const KEYED = [profile(), profile({ id: "p-groq", label: "groq", provider: "groq" })];
 
+/** `GET /ml/calls/summary` for an organization that has transcribed. */
+const USAGE = {
+  service: "speech_to_text",
+  days: 30,
+  seconds: 2520,
+  count: 118,
+  count_unknown_length: 30,
+  by_agent: [{ agent_id: "a-1", name: "Support", seconds: 1800, count: 80 }],
+  by_channel: [{ channel_bot_id: "b-1", name: "Front desk", seconds: 20, count: 38 }],
+  by_surface: [],
+};
+
 interface Served {
   settings?: boolean;
+  /** `runs:view` as well, which the usage line needs. */
+  runsView?: boolean;
+  /** What `GET /ml/calls/summary` answers. */
+  usage?: Record<string, unknown> | "forbidden";
   profiles?: ModelProfile[] | "fail";
   catalog?: "fail";
   /** Providers with an organization-visible key in the vault. */
@@ -126,15 +142,27 @@ function catalogFor(profiles: ModelProfile[] | "fail", vault: string[]) {
   };
 }
 
-function serve({ settings = true, profiles = KEYED, catalog, vault = [] }: Served = {}) {
+function serve({
+  settings = true,
+  runsView = false,
+  usage = USAGE,
+  profiles = KEYED,
+  catalog,
+  vault = [],
+}: Served = {}) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
     if (path === "/me/permissions") {
+      const granted = [...(settings ? ["org:settings"] : []), ...(runsView ? ["runs:view"] : [])];
       return {
         organization_id: ORG_ID,
         role: settings ? "owner" : "member",
         is_app_admin: false,
-        permissions: settings ? [{ permission: "org:settings", scope: "all" }] : [],
+        permissions: granted.map((permission) => ({ permission, scope: "all" })),
       };
+    }
+    if (path === "/ml/calls/summary") {
+      if (usage === "forbidden") throw new ApiError(403, "Forbidden", null);
+      return usage;
     }
     if (path === "/providers/speech-to-text-models") {
       if (catalog === "fail") throw new Error("403");
@@ -672,5 +700,85 @@ describe("OrgVoiceSettings", () => {
     const section = heading.closest("[aria-disabled]");
     expect(section).toHaveAttribute("aria-disabled", "true");
     expect(section?.querySelector("input, select, button")).toBeNull();
+  });
+
+  describe("transcription usage", () => {
+    it("says how much was transcribed and how much of it has no length", async () => {
+      await mount({}, { runsView: true });
+
+      const usage = await screen.findByRole("region", { name: "Transcription usage" });
+      expect(usage).toHaveTextContent(
+        "Last 30 days: 42 min · 118 recordings (30 without a length)",
+      );
+      expect(apiClient.get).toHaveBeenCalledWith("/ml/calls/summary", {
+        params: { ml_service: "speech_to_text", days: "30" },
+      });
+      // The breakdown waits for a click.
+      expect(within(usage).queryByText("Support")).not.toBeInTheDocument();
+    });
+
+    it("opens a breakdown by agent and by channel bot, and closes it again", async () => {
+      await mount({}, { runsView: true });
+      const usage = await screen.findByRole("region", { name: "Transcription usage" });
+
+      await userEvent.click(within(usage).getByRole("button", { name: "Show breakdown" }));
+
+      const agents = within(usage).getByRole("heading", { name: "By agent" }).parentElement!;
+      expect(within(agents).getByText("Support")).toBeInTheDocument();
+      expect(within(agents).getByText("30 min · 80 recordings")).toBeInTheDocument();
+      const bots = within(usage).getByRole("heading", { name: "By channel bot" }).parentElement!;
+      expect(within(bots).getByText("Front desk")).toBeInTheDocument();
+      // A few seconds is "under 1 min", never "0 min".
+      expect(within(bots).getByText("under 1 min · 38 recordings")).toBeInTheDocument();
+      expect(usage).toHaveTextContent("Minutes count only recordings with a known length.");
+
+      await userEvent.click(within(usage).getByRole("button", { name: "Hide breakdown" }));
+      expect(within(usage).queryByText("Support")).not.toBeInTheDocument();
+    });
+
+    it("leaves out what it has nothing for: no unmeasured note, no empty list", async () => {
+      await mount(
+        {},
+        {
+          runsView: true,
+          usage: { ...USAGE, seconds: 0, count: 1, count_unknown_length: 0, by_channel: [] },
+        },
+      );
+      const usage = await screen.findByRole("region", { name: "Transcription usage" });
+      expect(usage).toHaveTextContent("Last 30 days: 0 min · 1 recording");
+      expect(usage).not.toHaveTextContent("without a length");
+
+      await userEvent.click(within(usage).getByRole("button", { name: "Show breakdown" }));
+
+      expect(within(usage).getByRole("heading", { name: "By agent" })).toBeInTheDocument();
+      expect(within(usage).queryByRole("heading", { name: "By channel bot" })).toBeNull();
+      expect(usage).not.toHaveTextContent("Minutes count only");
+    });
+
+    it("is hidden when nothing was transcribed", async () => {
+      await mount({}, { runsView: true, usage: { ...USAGE, count: 0 } });
+
+      await waitFor(() =>
+        expect(apiClient.get).toHaveBeenCalledWith("/ml/calls/summary", expect.anything()),
+      );
+      expect(screen.queryByRole("region", { name: "Transcription usage" })).toBeNull();
+    });
+
+    it("is hidden, not an error, when the summary is refused", async () => {
+      await mount({}, { runsView: true, usage: "forbidden" });
+
+      await waitFor(() =>
+        expect(apiClient.get).toHaveBeenCalledWith("/ml/calls/summary", expect.anything()),
+      );
+      expect(screen.queryByRole("region", { name: "Transcription usage" })).toBeNull();
+      expect(screen.getByRole("heading", { name: "Voice" })).toBeInTheDocument();
+    });
+
+    it("is never asked for without runs:view, because it names agents and bots", async () => {
+      await mount();
+
+      expect(apiClient.get).not.toHaveBeenCalledWith("/ml/calls/summary", expect.anything());
+      expect(screen.queryByRole("region", { name: "Transcription usage" })).toBeNull();
+    });
   });
 });

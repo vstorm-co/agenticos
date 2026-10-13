@@ -15,7 +15,8 @@ Results are returned and not retained. What is written is the record of the
 call, which holds no content and which `GET /ml/calls` reads back.
 """
 
-from typing import Any
+from datetime import datetime
+from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
@@ -35,6 +36,8 @@ from app.schemas.ml import (
     PiiScanRead,
     PiiScanRequest,
     TranscriptionRead,
+    TranscriptionSurface,
+    TranscriptionUsageSummary,
 )
 
 router = APIRouter()
@@ -209,14 +212,69 @@ async def list_ml_calls(
     service: MLSvc,
     ctx: Auth,
     ml_service: str | None = Query(default=None, description="Restrict to one service id"),
+    agent_id: UUID | None = Query(
+        default=None, description="Transcriptions for this agent: dictation, or its channel bot"
+    ),
+    channel_bot_id: UUID | None = Query(
+        default=None, description="Voice notes that arrived on this channel bot"
+    ),
+    surface: TranscriptionSurface | None = Query(
+        default=None, description="Transcriptions from `chat`, `channel` or `api`"
+    ),
+    since: datetime | None = Query(default=None, description="Calls at or after this moment"),
+    until: datetime | None = Query(default=None, description="Calls before this moment"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
-    """This organization's ML service calls, newest first."""
-    rows, total = await service.call_records(ctx, service=ml_service, skip=skip, limit=limit)
+    """This organization's ML service calls, newest first.
+
+    Every filter narrows inside the caller's organization: an agent or bot id
+    from another tenant matches nothing, exactly as an id that does not exist.
+    """
+    rows, total = await service.call_records(
+        ctx,
+        service=ml_service,
+        agent_id=agent_id,
+        channel_bot_id=channel_bot_id,
+        surface=surface,
+        since=since,
+        until=until,
+        skip=skip,
+        limit=limit,
+    )
     return MLServiceCallList(
         items=[MLServiceCallRead.model_validate(row) for row in rows], total=total
     )
+
+
+# Declared before `/calls/{call_id}`, which would otherwise read "summary" as an
+# id and answer 422.
+@router.get(
+    "/calls/summary",
+    response_model=TranscriptionUsageSummary,
+    dependencies=[Depends(require(Perm.RUNS_VIEW))],
+)
+async def summarise_ml_calls(
+    service: MLSvc,
+    ctx: Auth,
+    ml_service: Literal["speech_to_text"] = Query(
+        default="speech_to_text",
+        description="The service to add up. Only transcription has a length to add",
+    ),
+    days: int = Query(30, ge=1, le=365, description="A rolling window, ending now"),
+) -> Any:
+    """How much this organization transcribed, by agent, channel bot and surface (#1797).
+
+    Successful transcriptions only. `seconds` adds up the recordings whose length
+    is known and `count_unknown_length` says how many it could not include, so a
+    reader can tell an under-count from silence.
+
+    Gated on `runs:view` rather than `ml:invoke`, like `GET /spend`: the
+    breakdown names agents and bots, and a Member who may transcribe is not
+    thereby entitled to the names of every agent the organization runs.
+    """
+    summary = await service.usage_summary(ctx, service=ml_service, days=days)
+    return TranscriptionUsageSummary.of(summary, days=days)
 
 
 @router.get(

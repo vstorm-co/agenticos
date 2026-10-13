@@ -28,8 +28,13 @@ from app.services.channels.base import IncomingAttachment, IncomingMessage
 from app.services.channels.mattermost import MattermostAdapter
 from app.services.channels.router import TRANSCRIPTION_MAX_BYTES, ChannelMessageRouter
 from app.services.channels.slack import SlackAdapter
+from app.services.transcription import TranscriptionResult
 
 pytestmark = pytest.mark.anyio
+
+
+def _heard(text: str, seconds: float | None = None) -> TranscriptionResult:
+    return TranscriptionResult(text=text, audio_seconds=seconds)
 
 
 def _voice(name: str = "voice.ogg") -> IncomingAttachment:
@@ -72,6 +77,13 @@ def _bot(
 
 
 _SETTINGS = "app.services.speech_to_text_settings"
+
+
+@pytest.fixture(autouse=True)
+def usage() -> Iterator[AsyncMock]:
+    """The usage rows a voice note writes, captured instead of flushed."""
+    with patch("app.services.transcription_usage.record", new=AsyncMock()) as record:
+        yield record
 
 
 @pytest.fixture(autouse=True)
@@ -214,7 +226,7 @@ class TestWhenItCannotListen:
         """Silence is indistinguishable from a broken bot, and the sender has no
         other way to learn that this deployment does not listen."""
         transcripts, refusals = await ChannelMessageRouter()._transcribe(
-            MagicMock(), _bot(provider=None, model=None), [_voice()]
+            MagicMock(), _bot(provider=None, model=None), [_voice()], requested_by=None
         )
 
         assert transcripts == []
@@ -231,7 +243,10 @@ class TestWhenItCannotListen:
 
         with patch("app.services.channels.router.TranscriptionService.transcribe", transcribe):
             transcripts, refusals = await ChannelMessageRouter()._transcribe(
-                MagicMock(), _bot(provider=None, model=None, transcribe=False), [_voice()]
+                MagicMock(),
+                _bot(provider=None, model=None, transcribe=False),
+                [_voice()],
+                requested_by=None,
             )
 
         assert transcripts == []
@@ -247,13 +262,17 @@ class TestWhenItCannotListen:
         adapter.download_attachment = AsyncMock(return_value=b"ogg")
 
         with patch("app.services.channels.router.get_adapter", return_value=adapter):
-            result = await ChannelMessageRouter()._transcribe(MagicMock(), _bot(), [_voice()])
+            result = await ChannelMessageRouter()._transcribe(
+                MagicMock(), _bot(), [_voice()], requested_by=None
+            )
 
         assert result == ([], [])
         adapter.download_attachment.assert_not_awaited()
 
     async def test_a_message_with_no_recording_asks_nothing(self):
-        transcripts, refusals = await ChannelMessageRouter()._transcribe(MagicMock(), _bot(), [])
+        transcripts, refusals = await ChannelMessageRouter()._transcribe(
+            MagicMock(), _bot(), [], requested_by=None
+        )
 
         assert (transcripts, refusals) == ([], [])
 
@@ -268,11 +287,11 @@ class TestWhenItCannotListen:
             patch("app.services.channels.router.unseal_bot_token", return_value="tok"),
             patch(
                 "app.services.channels.router.TranscriptionService.transcribe",
-                AsyncMock(return_value="the second one"),
+                AsyncMock(return_value=_heard("the second one")),
             ),
         ):
             transcripts, refusals = await ChannelMessageRouter()._transcribe(
-                MagicMock(), _bot(), [_voice("a.ogg"), _voice("b.ogg")]
+                MagicMock(), _bot(), [_voice("a.ogg"), _voice("b.ogg")], requested_by=None
             )
 
         assert transcripts == ["the second one"]
@@ -297,7 +316,7 @@ class TestWhenItCannotListen:
             patch("app.services.channels.router.unseal_bot_token", return_value="tok"),
         ):
             transcripts, refusals = await ChannelMessageRouter()._transcribe(
-                MagicMock(), _bot(), [huge]
+                MagicMock(), _bot(), [huge], requested_by=None
             )
 
         adapter.download_attachment.assert_not_awaited()
@@ -317,10 +336,12 @@ class TestWhenItCannotListen:
             patch("app.services.channels.router.unseal_bot_token", return_value="tok"),
             patch(
                 "app.services.channels.router.TranscriptionService.transcribe",
-                AsyncMock(return_value="just fits"),
+                AsyncMock(return_value=_heard("just fits")),
             ),
         ):
-            transcripts, _ = await ChannelMessageRouter()._transcribe(MagicMock(), _bot(), [edge])
+            transcripts, _ = await ChannelMessageRouter()._transcribe(
+                MagicMock(), _bot(), [edge], requested_by=None
+            )
 
         assert transcripts == ["just fits"]
 
@@ -341,7 +362,7 @@ class TestWhenItCannotListen:
             ),
         ):
             transcripts, refusals = await ChannelMessageRouter()._transcribe(
-                MagicMock(), _bot(), [_voice()]
+                MagicMock(), _bot(), [_voice()], requested_by=None
             )
 
         assert transcripts == []
@@ -350,7 +371,7 @@ class TestWhenItCannotListen:
     async def test_the_configured_model_is_the_one_asked(self):
         adapter = MagicMock()
         adapter.download_attachment = AsyncMock(return_value=b"ogg")
-        transcribe = AsyncMock(return_value="words")
+        transcribe = AsyncMock(return_value=_heard("words"))
         bot = _bot(provider="groq", model="whisper-large-v3-turbo")
 
         with (
@@ -358,11 +379,124 @@ class TestWhenItCannotListen:
             patch("app.services.channels.router.unseal_bot_token", return_value="tok"),
             patch("app.services.channels.router.TranscriptionService.transcribe", transcribe),
         ):
-            await ChannelMessageRouter()._transcribe(MagicMock(), bot, [_voice()])
+            await ChannelMessageRouter()._transcribe(
+                MagicMock(), bot, [_voice()], requested_by=None
+            )
 
         assert transcribe.await_args.kwargs["provider"] == "groq"
         assert transcribe.await_args.kwargs["model"] == "whisper-large-v3-turbo"
         assert transcribe.await_args.kwargs["organization_id"] == bot.organization_id
+
+
+class TestTheUsageRowAVoiceNoteLeaves:
+    """Every recording handed to the provider is recorded against the bot (#1797)."""
+
+    async def _send(
+        self,
+        world: SimpleNamespace,
+        recording: IncomingAttachment,
+        transcribe: AsyncMock,
+        *,
+        requested_by: object = None,
+    ) -> tuple[SimpleNamespace, list[str], list[str]]:
+        bot = _bot(provider="groq", model="whisper-large-v3-turbo")
+        adapter = MagicMock()
+        adapter.download_attachment = AsyncMock(return_value=b"ogg-bytes")
+        db = MagicMock()
+        with (
+            patch("app.services.channels.router.get_adapter", return_value=adapter),
+            patch("app.services.channels.router.unseal_bot_token", return_value="tok"),
+            patch("app.services.channels.router.TranscriptionService.transcribe", transcribe),
+        ):
+            transcripts, refusals = await ChannelMessageRouter()._transcribe(
+                db, bot, [recording], requested_by=requested_by
+            )
+        return bot, transcripts, refusals
+
+    async def test_a_heard_note_is_recorded_with_its_bot_agent_and_linked_person(
+        self, world: SimpleNamespace, usage: AsyncMock
+    ):
+        person = uuid4()
+        bot, transcripts, _ = await self._send(
+            world, _voice(), AsyncMock(return_value=_heard("hi", 2.5)), requested_by=person
+        )
+
+        assert transcripts == ["hi"]
+        call = usage.await_args.args[1]
+        agent = world.exposed[0][1]
+        assert (call.surface, call.channel_bot_id, call.agent_id) == ("channel", bot.id, agent.id)
+        assert call.requested_by_user_id == person
+        assert call.organization_id == bot.organization_id
+        assert (call.provider, call.model) == ("groq", "whisper-large-v3-turbo")
+        kwargs = usage.await_args.kwargs
+        assert kwargs["audio_seconds"] == 2.5
+        assert kwargs["input_bytes"] == len(b"ogg-bytes")
+        assert "failure" not in kwargs
+
+    async def test_the_platforms_length_stands_in_where_the_provider_gives_none(
+        self, world: SimpleNamespace, usage: AsyncMock
+    ):
+        """Telegram and Slack state a voice note's length; `gpt-4o-transcribe` does not."""
+        timed = IncomingAttachment(
+            filename="voice.ogg", mime_type="audio/ogg", size=2048, handle="h", duration_seconds=7
+        )
+        await self._send(world, timed, AsyncMock(return_value=_heard("hi")))
+
+        assert usage.await_args.kwargs["audio_seconds"] == 7
+
+    async def test_the_providers_length_wins_over_the_platforms(
+        self, world: SimpleNamespace, usage: AsyncMock
+    ):
+        timed = IncomingAttachment(
+            filename="voice.ogg", mime_type="audio/ogg", size=2048, handle="h", duration_seconds=7
+        )
+        await self._send(world, timed, AsyncMock(return_value=_heard("hi", 6.8)))
+
+        assert usage.await_args.kwargs["audio_seconds"] == 6.8
+
+    async def test_a_failed_note_is_recorded_as_failed_with_the_platforms_length(
+        self, world: SimpleNamespace, usage: AsyncMock
+    ):
+        failure = ExternalServiceError(message="x", details={"reason": "timeout"})
+        timed = IncomingAttachment(
+            filename="voice.ogg", mime_type="audio/ogg", size=2048, handle="h", duration_seconds=4
+        )
+        _, transcripts, refusals = await self._send(
+            world, timed, AsyncMock(side_effect=failure), requested_by=None
+        )
+
+        assert (transcripts, refusals) == ([], ["voice.ogg: could not be transcribed."])
+        assert usage.await_args.kwargs["failure"] is failure
+        assert usage.await_args.kwargs["audio_seconds"] == 4
+        assert usage.await_args.args[1].requested_by_user_id is None
+
+    async def test_nothing_is_recorded_when_nothing_was_attempted(
+        self, world: SimpleNamespace, usage: AsyncMock
+    ):
+        """Off, nothing resolving, too large or not downloaded: no provider was asked."""
+        await ChannelMessageRouter()._transcribe(
+            MagicMock(), _bot(transcribe=False), [_voice()], requested_by=None
+        )
+        await ChannelMessageRouter()._transcribe(
+            MagicMock(), _bot(provider=None, model=None), [_voice()], requested_by=None
+        )
+        huge = IncomingAttachment(
+            filename="huge.ogg",
+            mime_type="audio/ogg",
+            size=TRANSCRIPTION_MAX_BYTES + 1,
+            handle="h",
+        )
+        adapter = MagicMock()
+        adapter.download_attachment = AsyncMock(side_effect=RuntimeError("gone"))
+        with (
+            patch("app.services.channels.router.get_adapter", return_value=adapter),
+            patch("app.services.channels.router.unseal_bot_token", return_value="tok"),
+        ):
+            await ChannelMessageRouter()._transcribe(
+                MagicMock(), _bot(), [huge, _voice()], requested_by=None
+            )
+
+        usage.assert_not_awaited()
 
 
 class TestWhichEngineAVoiceNoteReaches:
@@ -371,13 +505,15 @@ class TestWhichEngineAVoiceNoteReaches:
     async def _asked(self, bot: SimpleNamespace) -> dict[str, object]:
         adapter = MagicMock()
         adapter.download_attachment = AsyncMock(return_value=b"ogg")
-        transcribe = AsyncMock(return_value="words")
+        transcribe = AsyncMock(return_value=_heard("words"))
         with (
             patch("app.services.channels.router.get_adapter", return_value=adapter),
             patch("app.services.channels.router.unseal_bot_token", return_value="tok"),
             patch("app.services.channels.router.TranscriptionService.transcribe", transcribe),
         ):
-            await ChannelMessageRouter()._transcribe(MagicMock(), bot, [_voice()])
+            await ChannelMessageRouter()._transcribe(
+                MagicMock(), bot, [_voice()], requested_by=None
+            )
         return transcribe.await_args.kwargs
 
     async def test_a_bot_with_no_pair_inherits_its_agents_override(self, world: SimpleNamespace):
@@ -506,7 +642,7 @@ class TestAVoiceNoteFromSlackOrMattermost:
         bot.platform = platform
         adapter = MagicMock()
         adapter.download_attachment = AsyncMock(return_value=b"audio")
-        transcribe = AsyncMock(return_value="the invoice is late")
+        transcribe = AsyncMock(return_value=_heard("the invoice is late"))
 
         with (
             patch("app.services.channels.router.get_adapter", return_value=adapter),
@@ -515,7 +651,9 @@ class TestAVoiceNoteFromSlackOrMattermost:
         ):
             router = ChannelMessageRouter()
             recordings, rest = router._split_recordings(message)
-            transcripts, refusals = await router._transcribe(MagicMock(), bot, recordings)
+            transcripts, refusals = await router._transcribe(
+                MagicMock(), bot, recordings, requested_by=None
+            )
 
         assert rest == []
         assert refusals == []

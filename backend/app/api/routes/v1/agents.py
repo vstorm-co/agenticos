@@ -21,7 +21,7 @@ private variant, which is what keeps "the Builder is just another client" true.
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Query, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile, status
 
 from app.agents.capabilities import all_capabilities
 from app.agents.spec import AgentSpec
@@ -580,6 +580,15 @@ async def dictate_into_composer(
             "The recording: WebM, Ogg or MP4 audio as the browser's MediaRecorder made it, or WAV"
         ),
     ),
+    duration: float | None = Form(
+        default=None,
+        ge=0,
+        description=(
+            "How many seconds the browser recorded. Client-reported: used for the usage "
+            "record only where the provider states no length, and clamped to the "
+            "organization's longest dictation"
+        ),
+    ),
 ) -> Any:
     """Turn a composer recording into text on the organization's own engine (#1797).
 
@@ -603,6 +612,7 @@ async def dictate_into_composer(
         # and the service can still name the limit it is over.
         content=await file.read(transcription.MAX_BYTES + 1),
         mime_type=file.content_type or "application/octet-stream",
+        reported_seconds=duration,
     )
     return DictationRead(text=text)
 

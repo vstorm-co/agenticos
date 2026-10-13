@@ -26,7 +26,7 @@ from app.repositories import (
     conversation_repo,
     member_repo,
 )
-from app.services import rate_limit
+from app.services import rate_limit, transcription_usage
 from app.services.channel_bot import unseal_bot_token
 from app.services.channel_link import ChannelLinkService
 from app.services.channels import get_adapter
@@ -61,6 +61,7 @@ from app.services.transcription import (
     TranscriptionService,
     recording_type,
 )
+from app.services.transcription_usage import TranscriptionCall
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -400,7 +401,9 @@ class ChannelMessageRouter:
         recordings, rest = self._split_recordings(incoming)
         incoming.attachments = rest
         files, file_refusals = await self._receive_files(db, bot, incoming, identity)
-        transcripts, voice_refusals = await self._transcribe(db, bot, recordings)
+        transcripts, voice_refusals = await self._transcribe(
+            db, bot, recordings, requested_by=identity.user_id
+        )
         file_refusals += voice_refusals
         incoming.text = self._with_transcripts(incoming.text, transcripts)
 
@@ -837,7 +840,12 @@ class ChannelMessageRouter:
         return recordings, rest
 
     async def _transcribe(
-        self, db: AsyncSession, bot: ChannelBot, recordings: list[IncomingAttachment]
+        self,
+        db: AsyncSession,
+        bot: ChannelBot,
+        recordings: list[IncomingAttachment],
+        *,
+        requested_by: UUID | None,
     ) -> tuple[list[str], list[str]]:
         """What the voice notes on this message said, and what could not be read.
 
@@ -858,6 +866,15 @@ class ChannelMessageRouter:
         transcription off, or nobody has set up a provider at all. A bot with no
         agent bound says nothing here: the message is refused anyway, and
         transcribing it first would be a paid call for nothing.
+
+        Every recording handed to the provider leaves a usage row
+        (`transcription_usage`), succeeded or failed, attributed to this bot,
+        the agent it serves and `requested_by` - the person the sender's
+        account is linked to, or nobody. Its length is the provider's figure,
+        else the platform's (`IncomingAttachment.duration_seconds`). The row is
+        flushed into this turn's transaction and committed with it; a
+        recording refused before the provider (too large, not downloaded) or
+        never attempted (off, nothing resolves) writes none.
         """
         if not recordings:
             return [], []
@@ -900,20 +917,49 @@ class ChannelMessageRouter:
                 logger.warning("Could not fetch a voice message: bot=%s", bot.id, exc_info=True)
                 refusals.append(f"{recording.filename}: could not be downloaded.")
                 continue
+            call = TranscriptionCall(
+                organization_id=bot.organization_id,
+                surface="channel",
+                provider=resolved.provider,
+                model=resolved.model,
+                requested_by_user_id=requested_by,
+                agent_id=settings.agent_id,
+                channel_bot_id=bot.id,
+            )
+            started = time.monotonic()
             try:
-                text = await service.transcribe(
+                result = await service.transcribe(
                     self._as_sent(recording, content),
                     organization_id=bot.organization_id,
                     provider=resolved.provider,
                     model=resolved.model,
                     language=resolved.language,
                 )
-            except AppException:
+            except AppException as exc:
+                await transcription_usage.record(
+                    db,
+                    call,
+                    input_bytes=len(content),
+                    audio_seconds=recording.duration_seconds,
+                    duration_ms=int((time.monotonic() - started) * 1000),
+                    failure=exc,
+                )
                 # Logged by the service with what actually happened; the sender is
                 # owed the same one line whatever the reason.
                 refusals.append(f"{recording.filename}: could not be transcribed.")
                 continue
-            transcripts.append(text)
+            await transcription_usage.record(
+                db,
+                call,
+                input_bytes=len(content),
+                audio_seconds=(
+                    result.audio_seconds
+                    if result.audio_seconds is not None
+                    else recording.duration_seconds
+                ),
+                duration_ms=int((time.monotonic() - started) * 1000),
+            )
+            transcripts.append(result.text)
         return transcripts, refusals
 
     @staticmethod

@@ -482,6 +482,9 @@ CALLS: tuple[Call, ...] = (
     Call("POST", "/ml/audio/transcriptions", Perm.ML_INVOKE, upload=True),
     Call("POST", "/ml/privacy/pii", Perm.ML_INVOKE, body={"text": "hello"}),
     Call("GET", "/ml/calls", Perm.ML_INVOKE),
+    # The transcription summary names agents and bots, so it reads like `/spend`:
+    # `ml:invoke` alone (every Member) is not enough (#1797).
+    Call("GET", "/ml/calls/summary", Perm.RUNS_VIEW),
     Call("GET", "/ml/calls/{call_id}", Perm.ML_INVOKE),
     Call("DELETE", "/local-services/{service_id}", Perm.CONNECTIONS_MANAGE),
     Call("GET", "/sandbox-connections", Perm.CONNECTIONS_VIEW),

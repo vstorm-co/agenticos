@@ -12,8 +12,8 @@ import {
   retryAfterSeconds,
 } from "./dictation-api";
 
-const { upload, get } = vi.hoisted(() => ({ upload: vi.fn(), get: vi.fn() }));
-vi.mock("@/lib/api-client", () => ({ apiClient: { upload, get } }));
+const { post, get } = vi.hoisted(() => ({ post: vi.fn(), get: vi.fn() }));
+vi.mock("@/lib/api-client", () => ({ apiClient: { post, get } }));
 
 /** A refusal the way the backend writes one: the envelope, with `details`. */
 function refusal(status: number, details: Record<string, unknown> | null = null): ApiError {
@@ -23,8 +23,8 @@ function refusal(status: number, details: Record<string, unknown> | null = null)
 }
 
 beforeEach(() => {
-  upload.mockReset();
-  upload.mockResolvedValue({ text: "hello there" });
+  post.mockReset();
+  post.mockResolvedValue({ text: "hello there" });
 });
 
 describe("dictate", () => {
@@ -36,16 +36,27 @@ describe("dictate", () => {
   ])("sends a %s recording as %s to the agent's dictation route", async (type, name) => {
     const signal = new AbortController().signal;
 
-    const text = await dictate("a1", new Blob(["audio"], { type }), signal);
+    const text = await dictate("a1", new Blob(["audio"], { type }), 4.2, signal);
 
     expect(text).toBe("hello there");
-    expect(upload).toHaveBeenCalledOnce();
-    const [endpoint, file, options] = upload.mock.calls[0]!;
+    expect(post).toHaveBeenCalledOnce();
+    const [endpoint, form, options] = post.mock.calls[0]!;
     expect(endpoint).toBe("/agents/a1/dictation");
+    const file = (form as FormData).get("file");
     expect(file).toBeInstanceOf(File);
     expect((file as File).name).toBe(name);
     expect((file as File).type).toBe(type);
     expect(options).toEqual({ signal });
+  });
+
+  it("sends the recorded length beside the file, never below zero", async () => {
+    const signal = new AbortController().signal;
+
+    await dictate("a1", new Blob(["audio"], { type: "audio/webm" }), 12.5, signal);
+    await dictate("a1", new Blob(["audio"], { type: "audio/webm" }), -3, signal);
+
+    expect((post.mock.calls[0]![1] as FormData).get("duration")).toBe("12.5");
+    expect((post.mock.calls[1]![1] as FormData).get("duration")).toBe("0");
   });
 });
 

@@ -7,6 +7,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { SettingsSection } from "@/components/settings/settings-section";
+import { OrgVoiceUsage } from "@/components/teams/org-voice-usage";
 import {
   Alert,
   AlertDescription,
@@ -230,6 +231,7 @@ function VoiceForm({ org }: { org: Organization }) {
       <SettingsSection title={t("voice.title")} description={t("voice.description")}>
         <h3 className="text-sm font-semibold">{t("voice.sttTitle")}</h3>
         <p className="text-muted-foreground mt-0.5 mb-4 text-sm">{t("voice.sttDescription")}</p>
+        <OrgVoiceUsage />
         <NotReady org={org} credentialed={credentialed} providers={providers} />
         <EngineChoice
           value={draft.engine}

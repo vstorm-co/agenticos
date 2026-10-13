@@ -184,7 +184,8 @@ class IncomingAttachment:
     """Opaque to everything but the adapter that made it."""
 
     duration_seconds: float | None = None
-    """How long a recording is, where the platform says (Slack's `duration_ms`).
+    """How long a recording is, where the platform says (Slack's `duration_ms`,
+    Telegram's `duration`; Mattermost states none).
 
     Metadata, not a measurement, and absent on most files. Read so that a
     voice note's length can be recorded with its transcription without

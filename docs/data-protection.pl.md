@@ -1,5 +1,5 @@
 ---
-source_sha: "dea3bb35047f"
+source_sha: "7dbe463cd92e"
 ---
 
 # Ochrona danych { #data-protection }
@@ -88,7 +88,7 @@ przez sprawdzenie rodzica.
 | `notification_preferences`, `announcements` | Przełączniki kanału per zdarzenie oraz własne ogłoszenia administratora aplikacji | Id użytkownika na przełącznik; nadawca ogłoszenia, jego treść oraz organizacje i rola, do których było zaadresowane — nigdy rozwiązana lista odbiorców, którą można odtworzyć z `notifications` tylko dopóki ten wiersz nie wypadnie w ramach [zamiatania retencji powiadomień](governance.md#alerts) — po czym wpis audytowy zachowuje tylko liczbę, nigdy odbiorców | Rezygnacja z powiadomień i własny zapis autora |
 | `embed_visitors`, `channel_identities`, `channel_sessions` | Obcy na hostowanej stronie oraz ludzie na Slacku, Telegramie albo Mattermoście | Losowy klucz odwiedzającego; id użytkownika platformy, nazwa użytkownika i nazwa wyświetlana; id czatu | Wznowienie właściwego wątku |
 | `message_ratings` | Kciuki i komentarze pod odpowiedziami | Oceniający i jego komentarz | Przegląd jakości |
-| `ml_service_calls` | Każde wywołanie [usług ML](ml-services.md) | Organizacja, kto poprosił, która usługa, liczby bajtów i jednostek, czas trwania i sposób zakończenia - **nic z tego, co wysłano, i nic z tego, co wróciło** | Raportowanie zużycia i wgląd operatora w integrację, która się psuje |
+| `ml_service_calls` | Każde wywołanie [usług ML](ml-services.md) i każda transkrypcja: dyktowanie, wiadomość głosowa z kanału, API | Organizacja, kto poprosił, która usługa, liczby bajtów i jednostek, czas trwania i sposób zakończenia; przy transkrypcji także provider i model, skąd przyszła, agent i bot kanału, dla których była, oraz długość nagrania. Wiersz wiadomości głosowej z kanału wskazuje osobę, z którą powiązane jest konto nadawcy, a przy niepowiązanym nadawcy nikogo. Usunięcie osoby, agenta albo bota czyści powiązanie i zostawia wiersz - **nic z tego, co wysłano, i nic z tego, co wróciło** | Raportowanie zużycia i wgląd operatora w integrację, która się psuje |
 | `agent_workspaces`, `sandbox_operations` | Pliki, na których pracował agent, i log tego, co uruchomił | Dla backendu `state` same pliki, jako JSON; dla kontenera id sesji oraz każda komenda, cel i podsumowanie wyniku | Sandbox. Zobacz [Sandbox](sandbox.md#what-was-done-in-one-and-where-that-record-lives) |
 | `organization_secrets`, `model_profiles`, `mcp_connections`, `channel_bots` | Poświadczenia i to, gdzie wskazują | Wyłącznie zapieczętowany szyfrogram, z podpowiedzią; provider, model i `base_url` jawnie | Sięganie do providerów. Zobacz [Sekrety](secrets.md) |
 

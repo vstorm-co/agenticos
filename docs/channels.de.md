@@ -1,5 +1,5 @@
 ---
-source_sha: "9a77c2202987"
+source_sha: "693e6e8005c9"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1296,6 +1296,11 @@ auseinanderlaufen kann.
     jeweils jemand anderes ihn behebt: der Bot ist ausgeschaltet, oder niemand hat
     einen Provider eingerichtet. Ein Bot ohne gebundenen Agent transkribiert gar
     nichts, da die Nachricht ohnehin abgelehnt wird.
+
+    Jede an den Provider geschickte Aufnahme hinterlässt einen
+    [Nutzungsdatensatz](ml-services.md#what-is-recorded), der den Bot, seinen
+    Agent und die Person nennt, mit der das Konto des Absenders verknüpft ist, mit
+    der Länge der Aufnahme, wo Telegram, Slack oder der Provider sie angibt.
 
     !!! note "Upgrade: ein Bot, der nicht transkribiert hat, tut es weiterhin nicht"
 

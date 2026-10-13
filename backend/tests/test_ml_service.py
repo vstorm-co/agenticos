@@ -11,6 +11,7 @@ record) are scoped so that another tenant's is simply absent.
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -19,14 +20,21 @@ import pytest
 
 from app.core.exceptions import AppException, BadRequestError, ExternalServiceError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
+from app.repositories.ml_service_call import CallFilters
 from app.services.ml import parsing
 from app.services.ml.facade import MLService
+from app.services.transcription import TranscriptionResult
 
 pytestmark = pytest.mark.anyio
 
 _ORG = uuid.uuid4()
 _CALLER = uuid.uuid4()
 _REPO = "app.services.ml.facade.ml_service_call_repo"
+
+
+def _heard(text: str, seconds: float | None = None) -> TranscriptionResult:
+    """What the transcription client answers: the words, and a length if the provider gave one."""
+    return TranscriptionResult(text=text, audio_seconds=seconds)
 
 
 def _ctx() -> AuthContext:
@@ -344,7 +352,7 @@ async def test_a_recording_is_transcribed_and_recorded(recorded: Any) -> None:
         ),
         patch(
             "app.services.ml.facade.TranscriptionService.transcribe",
-            new=AsyncMock(return_value="hello there"),
+            new=AsyncMock(return_value=_heard("hello there", 2.2)),
         ),
     ):
         transcript = await service.transcribe(
@@ -360,7 +368,43 @@ async def test_a_recording_is_transcribed_and_recorded(recorded: Any) -> None:
     assert (transcript.provider, transcript.model) == ("openai", "whisper-1")
     written = recorded.await_args.kwargs
     assert written["service"] == "speech_to_text"
-    assert (written["units"], written["unit"]) == (11, "characters")
+    assert written["requested_by_user_id"] == _CALLER
+    # Seconds of audio, rounded up: a 2.2-second recording is never one of 2.
+    assert (written["units"], written["unit"], written["audio_ms"]) == (3, "seconds", 2200)
+    assert (written["surface"], written["provider"], written["model"]) == (
+        "api",
+        "openai",
+        "whisper-1",
+    )
+    assert written["agent_id"] is None
+    assert written["channel_bot_id"] is None
+
+
+async def test_a_recording_with_no_stated_length_counts_zero_seconds(recorded: Any) -> None:
+    """`gpt-4o-transcribe` gives no length: the row says seconds and leaves the
+    length null, so a summary counts it as unmeasured rather than as silence."""
+    service = MLService(_db())
+    with (
+        patch(
+            "app.services.ml.facade.speech_to_text.default_choice",
+            return_value=("openai", "gpt-4o-transcribe"),
+        ),
+        patch(
+            "app.services.ml.facade.TranscriptionService.transcribe",
+            new=AsyncMock(return_value=_heard("hello there")),
+        ),
+    ):
+        await service.transcribe(
+            _ctx(),
+            content=b"audio",
+            filename="voice.ogg",
+            mime_type="audio/ogg",
+            provider=None,
+            model=None,
+        )
+
+    written = recorded.await_args.kwargs
+    assert (written["units"], written["unit"], written["audio_ms"]) == (0, "seconds", None)
 
 
 async def test_a_pair_named_by_the_caller_is_checked_against_the_catalog(
@@ -375,7 +419,7 @@ async def test_a_pair_named_by_the_caller_is_checked_against_the_catalog(
         patch("app.services.ml.facade.speech_to_text.is_offered", return_value=True),
         patch(
             "app.services.ml.facade.TranscriptionService.transcribe",
-            new=AsyncMock(return_value="hello"),
+            new=AsyncMock(return_value=_heard("hello")),
         ),
         patch(f"{_REPO}.record", new=AsyncMock()),
     ):
@@ -408,7 +452,7 @@ async def test_naming_only_a_provider_uses_that_providers_first_model() -> None:
         ),
         patch(
             "app.services.ml.facade.TranscriptionService.transcribe",
-            new=AsyncMock(return_value="hello"),
+            new=AsyncMock(return_value=_heard("hello")),
         ),
         patch(f"{_REPO}.record", new=AsyncMock()),
     ):
@@ -606,7 +650,7 @@ async def test_a_dictation_is_transcribed_with_the_org_settings_and_recorded(
         ) as get,
         patch(
             "app.services.ml.facade.TranscriptionService.transcribe",
-            new=AsyncMock(return_value="dzień dobry"),
+            new=AsyncMock(return_value=_heard("dzień dobry")),
         ) as transcribe,
     ):
         text = await service.dictate(
@@ -621,9 +665,12 @@ async def test_a_dictation_is_transcribed_with_the_org_settings_and_recorded(
     assert sent.kwargs["organization_id"] == _ORG
     assert (sent.kwargs["provider"], sent.kwargs["model"]) == ("openai", "gpt-4o-transcribe")
     assert sent.kwargs["language"] == "pl"
-    assert recorded.await_args.kwargs["service"] == "speech_to_text"
-    assert recorded.await_args.kwargs["unit"] == "characters"
-    assert recorded.await_args.kwargs["units"] == len("dzień dobry")
+    written = recorded.await_args.kwargs
+    assert written["service"] == "speech_to_text"
+    assert (written["surface"], written["agent_id"]) == ("chat", _AGENT.id)
+    assert (written["provider"], written["model"]) == ("openai", "gpt-4o-transcribe")
+    assert written["requested_by_user_id"] == _CALLER
+    assert (written["units"], written["unit"], written["audio_ms"]) == (0, "seconds", None)
 
 
 async def test_a_dictation_uses_the_agents_published_override(recorded: Any) -> None:
@@ -641,7 +688,7 @@ async def test_a_dictation_uses_the_agents_published_override(recorded: Any) -> 
         patch(f"{_SETTINGS}.agent_repo.get_version", new=get_version),
         patch(
             "app.services.ml.facade.TranscriptionService.transcribe",
-            new=AsyncMock(return_value="ok"),
+            new=AsyncMock(return_value=_heard("ok")),
         ) as transcribe,
     ):
         await MLService(_db()).dictate(_ctx(), agent=agent, content=b"a", mime_type="audio/webm")
@@ -667,7 +714,7 @@ async def test_an_agent_override_makes_dictation_work_where_the_org_has_no_pair(
         patch(f"{_SETTINGS}.agent_repo.get_version", new=get_version),
         patch(
             "app.services.ml.facade.TranscriptionService.transcribe",
-            new=AsyncMock(return_value="ok"),
+            new=AsyncMock(return_value=_heard("ok")),
         ) as transcribe,
     ):
         await MLService(_db()).dictate(_ctx(), agent=agent, content=b"a", mime_type="audio/webm")
@@ -832,7 +879,7 @@ async def test_a_recording_exactly_at_the_limit_is_transcribed(recorded: Any) ->
         ),
         patch(
             "app.services.ml.facade.TranscriptionService.transcribe",
-            new=AsyncMock(return_value="ok"),
+            new=AsyncMock(return_value=_heard("ok")),
         ),
     ):
         text = await MLService(_db()).dictate(
@@ -867,7 +914,7 @@ async def test_a_dictation_is_named_for_the_format_the_provider_reads(
         ),
         patch(
             "app.services.ml.facade.TranscriptionService.transcribe",
-            new=AsyncMock(return_value="ok"),
+            new=AsyncMock(return_value=_heard("ok")),
         ) as transcribe,
     ):
         await MLService(_db()).dictate(_ctx(), agent=_AGENT, content=b"a", mime_type=mime)
@@ -889,7 +936,7 @@ async def test_a_wav_recording_of_the_longest_dictation_fits_under_the_cap(
         ),
         patch(
             "app.services.ml.facade.TranscriptionService.transcribe",
-            new=AsyncMock(return_value="ok"),
+            new=AsyncMock(return_value=_heard("ok")),
         ) as transcribe,
     ):
         text = await MLService(_db()).dictate(
@@ -920,7 +967,86 @@ async def test_an_engine_refusal_during_dictation_is_recorded_and_re_raised(
         )
 
     assert caught.value is failure
-    assert recorded.await_args.kwargs["failure_stage"] == "engine"
+    written = recorded.await_args.kwargs
+    assert written["failure_stage"] == "engine"
+    assert (written["surface"], written["agent_id"]) == ("chat", _AGENT.id)
+    assert (written["provider"], written["model"]) == ("openai", "gpt-4o-transcribe")
+    assert (written["units"], written["unit"]) == (0, "")
+
+
+@pytest.mark.parametrize(
+    ("provider_seconds", "reported", "audio_ms"),
+    [
+        (4.5, 9.0, 4500),
+        (None, 9.25, 9250),
+        (None, 10_000.0, 300_000),
+        (None, None, None),
+    ],
+    ids=["provider-wins", "browser-fallback", "clamped-to-the-cap", "nobody-says"],
+)
+async def test_a_dictations_length_is_the_providers_else_the_browsers_clamped(
+    recorded: Any, provider_seconds: float | None, reported: float | None, audio_ms: int | None
+) -> None:
+    """The browser's figure is client-reported: second to the provider's, and
+    never longer than the organization's longest dictation."""
+    with (
+        patch(
+            "app.services.ml.facade.organization_repo.get_by_id",
+            new=AsyncMock(return_value=_speech_org()),
+        ),
+        patch(
+            "app.services.ml.facade.TranscriptionService.transcribe",
+            new=AsyncMock(return_value=_heard("ok", provider_seconds)),
+        ),
+    ):
+        await MLService(_db()).dictate(
+            _ctx(), agent=_AGENT, content=b"a", mime_type="audio/webm", reported_seconds=reported
+        )
+
+    assert recorded.await_args.kwargs["audio_ms"] == audio_ms
+
+
+async def test_a_refused_dictation_keeps_the_length_the_browser_reported(recorded: Any) -> None:
+    failure = ExternalServiceError(message="m", details={"reason": "timeout", "stage": "engine"})
+    with (
+        patch(
+            "app.services.ml.facade.organization_repo.get_by_id",
+            new=AsyncMock(return_value=_speech_org()),
+        ),
+        patch(
+            "app.services.ml.facade.TranscriptionService.transcribe",
+            new=AsyncMock(side_effect=failure),
+        ),
+        pytest.raises(ExternalServiceError),
+    ):
+        await MLService(_db()).dictate(
+            _ctx(), agent=_AGENT, content=b"a", mime_type="audio/webm", reported_seconds=12.0
+        )
+
+    assert recorded.await_args.kwargs["audio_ms"] == 12_000
+
+
+async def test_a_transcription_refusal_that_cannot_be_committed_still_reaches_the_caller(
+    recorded: Any,
+) -> None:
+    """The bookkeeping fails on its own: rolled back and logged, the refusal unchanged."""
+    db = _db()
+    db.commit = AsyncMock(side_effect=RuntimeError("no database"))
+    with (
+        patch("app.services.ml.facade.speech_to_text.default_choice", return_value=None),
+        pytest.raises(BadRequestError),
+    ):
+        await MLService(db).transcribe(
+            _ctx(),
+            content=b"audio",
+            filename="voice.ogg",
+            mime_type="audio/ogg",
+            provider=None,
+            model=None,
+        )
+
+    db.rollback.assert_awaited_once()
+    assert recorded.await_args.kwargs["provider"] is None
 
 
 # -- reading the log back ------------------------------------------------------
@@ -948,21 +1074,51 @@ async def test_a_call_record_is_looked_up_inside_the_callers_organization() -> N
 
 async def test_the_listing_pages_and_counts_inside_the_organization() -> None:
     rows = [SimpleNamespace(id=uuid.uuid4())]
+    agent_id, bot_id = uuid.uuid4(), uuid.uuid4()
+    since = datetime(2026, 10, 1, tzinfo=UTC)
     service = MLService(_db())
     with (
         patch(f"{_REPO}.list_for", new=AsyncMock(return_value=rows)) as listed,
         patch(f"{_REPO}.count_for", new=AsyncMock(return_value=7)) as counted,
     ):
-        found, total = await service.call_records(_ctx(), service="ocr", skip=10, limit=5)
+        found, total = await service.call_records(
+            _ctx(),
+            service="speech_to_text",
+            agent_id=agent_id,
+            channel_bot_id=bot_id,
+            surface="channel",
+            since=since,
+            skip=10,
+            limit=5,
+        )
 
     assert (found, total) == (rows, 7)
+    filters = CallFilters(
+        service="speech_to_text",
+        agent_id=agent_id,
+        channel_bot_id=bot_id,
+        surface="channel",
+        since=since,
+        until=None,
+    )
     assert listed.await_args.kwargs == {
         "organization_id": _ORG,
-        "service": "ocr",
+        "filters": filters,
         "skip": 10,
         "limit": 5,
     }
-    assert counted.await_args.kwargs == {"organization_id": _ORG, "service": "ocr"}
+    assert counted.await_args.kwargs == {"organization_id": _ORG, "filters": filters}
+
+
+async def test_the_summary_reads_the_callers_organization_over_the_window() -> None:
+    summary = SimpleNamespace(audio_ms=0)
+    with patch(f"{_REPO}.summarise", new=AsyncMock(return_value=summary)) as summarise:
+        found = await MLService(_db()).usage_summary(_ctx(), service="speech_to_text", days=7)
+
+    assert found is summary
+    sent = summarise.await_args.kwargs
+    assert (sent["organization_id"], sent["service"]) == (_ORG, "speech_to_text")
+    assert abs(datetime.now(UTC) - timedelta(days=7) - sent["since"]) < timedelta(minutes=1)
 
 
 def test_the_catalog_is_reachable_without_a_database() -> None:

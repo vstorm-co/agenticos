@@ -4918,6 +4918,19 @@
       "description": "Wie Personen in dieser Organisation mit Agents sprechen.",
       "sttTitle": "Sprache zu Text",
       "sttDescription": "Diktieren im Eingabefeld des Chats. Der Text landet zum Bearbeiten im Feld; gesendet wird erst, wenn die Person auf Senden drückt.",
+      "usage": {
+        "label": "Transkriptionsnutzung",
+        "summary": "{days, plural, one {Letzter Tag} other {Letzte # Tage}}: {duration} · {count, plural, one {# Aufnahme} other {# Aufnahmen}}",
+        "unknown": "({count, plural, one {# ohne Länge} other {# ohne Länge}})",
+        "minutes": "{minutes} Min.",
+        "underMinute": "unter 1 Min.",
+        "show": "Aufschlüsselung anzeigen",
+        "hide": "Aufschlüsselung ausblenden",
+        "byAgent": "Nach Agent",
+        "byChannel": "Nach Kanal-Bot",
+        "rowStats": "{duration} · {count, plural, one {# Aufnahme} other {# Aufnahmen}}",
+        "unknownNote": "Die Minuten zählen nur Aufnahmen mit bekannter Länge. Die GPT-4o-Transkriptionsmodelle und Mattermost-Sprachnachrichten geben keine an."
+      },
       "engineLabel": "Diktier-Engine",
       "engines": {
         "off": {

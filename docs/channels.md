@@ -1176,6 +1176,11 @@ serves all three platforms, so the policy cannot drift between them.
     is switched off, or nobody has set up a provider. A bot with no agent bound
     transcribes nothing at all, since the message is refused anyway.
 
+    Every recording sent to the provider leaves a
+    [usage record](ml-services.md#what-is-recorded) naming the bot, its agent and
+    the person the sender is linked to, with the recording's length where
+    Telegram, Slack or the provider states it.
+
     !!! note "Upgrading: a bot that did not transcribe still does not"
 
         Before this switch existed, a bot with no pair was a bot that did not

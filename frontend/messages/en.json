@@ -5059,6 +5059,19 @@
       "description": "How people in this organization talk to agents.",
       "sttTitle": "Speech to text",
       "sttDescription": "Dictation in the chat composer. Text lands in the box for editing; nothing is sent until the person presses Send.",
+      "usage": {
+        "label": "Transcription usage",
+        "summary": "{days, plural, one {Last day} other {Last # days}}: {duration} · {count, plural, one {# recording} other {# recordings}}",
+        "unknown": "({count, plural, one {# without a length} other {# without a length}})",
+        "minutes": "{minutes} min",
+        "underMinute": "under 1 min",
+        "show": "Show breakdown",
+        "hide": "Hide breakdown",
+        "byAgent": "By agent",
+        "byChannel": "By channel bot",
+        "rowStats": "{duration} · {count, plural, one {# recording} other {# recordings}}",
+        "unknownNote": "Minutes count only recordings with a known length. GPT-4o transcription models and Mattermost voice notes report none."
+      },
       "engineLabel": "Dictation engine",
       "engines": {
         "off": {

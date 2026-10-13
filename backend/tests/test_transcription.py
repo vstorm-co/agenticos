@@ -37,6 +37,7 @@ from app.services.transcription import (
     RECORDING_TYPE_ALIASES,
     Recording,
     TranscriptionService,
+    audio_seconds_of,
     recording_type,
 )
 
@@ -109,7 +110,7 @@ class TestATranscriptionThatWorks:
                 _recording(), organization_id=ORG, provider=provider, model=model
             )
 
-        assert found == "co tu widzisz"
+        assert found.text == "co tu widzisz"
 
     async def test_it_posts_the_recording_as_multipart_to_the_right_endpoint(self, monkeypatch):
         provider, model = _offered()
@@ -223,7 +224,7 @@ class TestEveryFailureIsNamed:
                 _recording(), organization_id=ORG, provider=provider, model=model
             )
 
-        assert found == "hello"
+        assert found.text == "hello"
         assert client.post.await_args.kwargs["headers"]["Authorization"] == "Bearer sk-second"
 
     @pytest.mark.parametrize("secret", [SimpleNamespace(), NoSecret()])
@@ -362,7 +363,7 @@ class TestWhichCredentialTranscribes:
                 _recording(), organization_id=ORG, provider=provider, model=model
             )
 
-        assert text == "hi"
+        assert text.text == "hi"
         sent = client.post.await_args
         assert sent.args[0] == "http://whisper.local:8000/v1/audio/transcriptions"
         assert "Authorization" not in sent.kwargs["headers"]
@@ -484,6 +485,76 @@ class TestTheLanguage:
             )
 
         assert client.post.await_args.kwargs["data"] == {"model": model}
+
+
+@pytest.mark.parametrize(
+    ("payload", "seconds"),
+    [
+        ({"text": "a", "usage": {"type": "duration", "seconds": 3}}, 3.0),
+        ({"text": "a", "usage": {"type": "tokens", "input_tokens": 40}}, None),
+        ({"text": "a", "usage": {"prompt_audio_seconds": 7, "prompt_tokens": 9}}, 7.0),
+        ({"text": "a", "duration": 2.48, "x_groq": {"id": "req_1"}}, 2.48),
+        ({"text": "a"}, None),
+        ({"text": "a", "duration": "12"}, None),
+        ({"text": "a", "duration": True}, None),
+        ({"text": "a", "duration": 0}, None),
+        ({"text": "a", "usage": "duration"}, None),
+    ],
+    ids=[
+        "openai-whisper",
+        "openai-gpt-4o-tokens",
+        "mistral",
+        "groq-verbose",
+        "nothing",
+        "a-string",
+        "a-boolean",
+        "zero",
+        "usage-not-an-object",
+    ],
+)
+def test_a_providers_length_is_read_in_its_own_shape(
+    payload: dict[str, object], seconds: float | None
+) -> None:
+    """`gpt-4o-transcribe` bills tokens, and a token count is not a length."""
+    assert audio_seconds_of(payload) == seconds
+
+
+async def test_the_length_comes_back_with_the_words(monkeypatch) -> None:
+    provider, model = _offered()
+    _with_key(monkeypatch, provider)
+    client = _responds({"text": "hi", "usage": {"type": "duration", "seconds": 4}})
+
+    with patch("app.services.transcription.httpx.AsyncClient", return_value=client):
+        found = await TranscriptionService(MagicMock()).transcribe(
+            _recording(), organization_id=ORG, provider=provider, model=model
+        )
+
+    assert (found.text, found.audio_seconds) == ("hi", 4.0)
+
+
+async def test_groq_is_asked_for_the_verbose_answer_that_carries_a_length(monkeypatch) -> None:
+    """Groq states `duration` only in `verbose_json`; its catalog entry says so."""
+    entry = speech_to_text.by_provider("groq")
+    assert entry is not None
+    assert entry.response_format == "verbose_json"
+    _with_key(monkeypatch, "groq")
+    client = _responds({"text": "hi", "duration": 1.5})
+
+    with patch("app.services.transcription.httpx.AsyncClient", return_value=client):
+        found = await TranscriptionService(MagicMock()).transcribe(
+            _recording(), organization_id=ORG, provider="groq", model=entry.models[0].id
+        )
+
+    assert client.post.await_args.kwargs["data"]["response_format"] == "verbose_json"
+    assert found.audio_seconds == 1.5
+
+
+@pytest.mark.parametrize("provider", ["openai", "mistral"])
+def test_providers_whose_plain_answer_has_a_length_are_sent_no_format(provider: str) -> None:
+    """OpenAI's `gpt-4o-*` refuse `verbose_json`; plain JSON is what they all accept."""
+    entry = speech_to_text.by_provider(provider)
+    assert entry is not None
+    assert entry.response_format is None
 
 
 @pytest.mark.parametrize(

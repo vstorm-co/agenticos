@@ -25,7 +25,8 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -36,16 +37,18 @@ from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext
 from app.db.models.agent import Agent
 from app.db.models.local_service import LocalServiceKind
-from app.db.models.ml_service_call import MLCallStatus, MLServiceCall
+from app.db.models.ml_service_call import MLCallStatus, MLServiceCall, TranscriptionSurface
 from app.db.models.organization import DictationEngine
 from app.repositories import ml_service_call_repo
 from app.repositories import organization as organization_repo
-from app.services import speech_to_text, transcription
+from app.repositories.ml_service_call import CallFilters, UsageSummary
+from app.services import speech_to_text, transcription, transcription_usage
 from app.services.local_service import LocalServiceService
 from app.services.ml import parsing, pii
 from app.services.ml.catalog import SERVICE_CATALOG, MLServiceEntry
 from app.services.speech_to_text_settings import SpeechToTextSettingsService
 from app.services.transcription import Recording, TranscriptionService
+from app.services.transcription_usage import TranscriptionCall
 
 logger = logging.getLogger(__name__)
 
@@ -198,32 +201,45 @@ class MLService:
                 The client's own text stays in the log, where it cannot carry a key.
         """
         started = time.monotonic()
+        call = TranscriptionCall(
+            organization_id=ctx.organization_id,
+            requested_by_user_id=ctx.subject_id,
+            surface="api",
+            provider=None,
+            model=None,
+        )
         try:
             _refuse_oversized(content, ceiling=transcription.MAX_BYTES)
             chosen = self._transcription_choice(provider, model)
-            text = await TranscriptionService(self.db).transcribe(
+            call = replace(call, provider=chosen[0], model=chosen[1])
+            result = await TranscriptionService(self.db).transcribe(
                 Recording(content=content, filename=filename, mime_type=mime_type),
                 organization_id=ctx.organization_id,
                 provider=chosen[0],
                 model=chosen[1],
             )
         except AppException as exc:
-            await self._record_failure(
-                ctx, "speech_to_text", exc=exc, input_bytes=len(content), started=started
+            await self._record_transcription_failure(
+                call, exc=exc, input_bytes=len(content), audio_seconds=None, started=started
             )
             raise
-        await self._record(
-            ctx,
-            "speech_to_text",
+        await transcription_usage.record(
+            self.db,
+            call,
             input_bytes=len(content),
-            units=len(text),
-            unit="characters",
-            started=started,
+            audio_seconds=result.audio_seconds,
+            duration_ms=_elapsed_ms(started),
         )
-        return Transcript(text=text, provider=chosen[0], model=chosen[1])
+        return Transcript(text=result.text, provider=chosen[0], model=chosen[1])
 
     async def dictate(
-        self, ctx: AuthContext, *, agent: Agent, content: bytes, mime_type: str
+        self,
+        ctx: AuthContext,
+        *,
+        agent: Agent,
+        content: bytes,
+        mime_type: str,
+        reported_seconds: float | None = None,
     ) -> str:
         """Transcribe a composer recording for one agent (#1797).
 
@@ -237,6 +253,13 @@ class MLService:
         The byte cap is the organization's longest dictation at
         `DICTATION_BYTES_PER_SECOND`, never above what transcription accepts.
 
+        `reported_seconds` is the length the browser says it recorded. It is
+        **client-reported** and used only where the provider states no length
+        of its own (`gpt-4o-transcribe` does not), and only after clamping to
+        what the byte cap stands for - so a caller posting straight to the
+        endpoint can inflate its own usage figure by at most the organization's
+        longest dictation, never by an hour.
+
         Raises:
             ConfigurationError: `reason="not_configured"` - the engine is not
                 `server`, no pair resolves, or the provider has no credential here.
@@ -244,6 +267,15 @@ class MLService:
             ExternalServiceError: `reason` `provider_error` or `timeout`.
         """
         started = time.monotonic()
+        call = TranscriptionCall(
+            organization_id=ctx.organization_id,
+            requested_by_user_id=ctx.subject_id,
+            surface="chat",
+            provider=None,
+            model=None,
+            agent_id=agent.id,
+        )
+        reported: float | None = None
         try:
             org = await organization_repo.get_by_id(self.db, ctx.organization_id)
             resolved = (
@@ -256,6 +288,7 @@ class MLService:
                     message="Server dictation is not set up for this agent.",
                     details={"reason": "not_configured"},
                 )
+            call = replace(call, provider=resolved.provider, model=resolved.model)
             if not content:
                 raise BadRequestError(
                     message="The recording is empty.", details={"reason": "empty"}
@@ -270,6 +303,8 @@ class MLService:
             cap = min(
                 org.dictation_max_seconds * DICTATION_BYTES_PER_SECOND, transcription.MAX_BYTES
             )
+            if reported_seconds is not None:
+                reported = min(max(reported_seconds, 0.0), cap / DICTATION_BYTES_PER_SECOND)
             if len(content) > cap:
                 raise refused_field(
                     "file",
@@ -277,7 +312,7 @@ class MLService:
                     f"{org.dictation_max_seconds}-second limit.",
                     reason="too_large",
                 )
-            text = await TranscriptionService(self.db).transcribe(
+            result = await TranscriptionService(self.db).transcribe(
                 Recording(
                     content=content,
                     filename=f"recording.{transcription.RECORDING_EXTENSIONS[base_type]}",
@@ -289,19 +324,22 @@ class MLService:
                 language=resolved.language,
             )
         except AppException as exc:
-            await self._record_failure(
-                ctx, "speech_to_text", exc=exc, input_bytes=len(content), started=started
+            await self._record_transcription_failure(
+                call,
+                exc=exc,
+                input_bytes=len(content),
+                audio_seconds=reported,
+                started=started,
             )
             raise
-        await self._record(
-            ctx,
-            "speech_to_text",
+        await transcription_usage.record(
+            self.db,
+            call,
             input_bytes=len(content),
-            units=len(text),
-            unit="characters",
-            started=started,
+            audio_seconds=(result.audio_seconds if result.audio_seconds is not None else reported),
+            duration_ms=_elapsed_ms(started),
         )
-        return text
+        return result.text
 
     async def dictation_status(self, ctx: AuthContext, *, agent: Agent) -> DictationStatus:
         """Whether the composer can dictate to this agent, and on which provider.
@@ -374,20 +412,57 @@ class MLService:
         return row
 
     async def call_records(
-        self, ctx: AuthContext, *, service: str | None, skip: int, limit: int
+        self,
+        ctx: AuthContext,
+        *,
+        service: str | None,
+        skip: int,
+        limit: int,
+        agent_id: UUID | None = None,
+        channel_bot_id: UUID | None = None,
+        surface: TranscriptionSurface | None = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
     ) -> tuple[list[MLServiceCall], int]:
-        """A page of this organization's calls, and how many there are."""
+        """A page of this organization's calls, and how many there are.
+
+        The filters narrow inside the caller's organization and never widen it:
+        another tenant's agent or bot id matches nothing, the same as an id that
+        does not exist. `since` is inclusive and `until` exclusive.
+        """
+        filters = CallFilters(
+            service=service,
+            agent_id=agent_id,
+            channel_bot_id=channel_bot_id,
+            surface=surface,
+            since=since,
+            until=until,
+        )
         rows = await ml_service_call_repo.list_for(
             self.db,
             organization_id=ctx.organization_id,
-            service=service,
+            filters=filters,
             skip=skip,
             limit=limit,
         )
         total = await ml_service_call_repo.count_for(
-            self.db, organization_id=ctx.organization_id, service=service
+            self.db, organization_id=ctx.organization_id, filters=filters
         )
         return rows, total
+
+    async def usage_summary(self, ctx: AuthContext, *, service: str, days: int) -> UsageSummary:
+        """This organization's successful `service` calls over the last `days`, added up.
+
+        By agent and by channel bot with their names, which is why the route
+        asks for `runs:view` rather than `ml:invoke`: a Member may transcribe,
+        but the names of agents and bots they cannot see are not theirs to read.
+        """
+        return await ml_service_call_repo.summarise(
+            self.db,
+            organization_id=ctx.organization_id,
+            service=service,
+            since=datetime.now(UTC) - timedelta(days=days),
+        )
 
     async def _ocr_server(self, ctx: AuthContext, ocr_service_id: UUID | None) -> str | None:
         """The address of the OCR server the caller named, or None for the bundled one.
@@ -501,8 +576,7 @@ class MLService:
         A failure to write it is logged and swallowed: the caller is owed the
         refusal that actually happened, not a 500 from the bookkeeping.
         """
-        reason = exc.message[:512]
-        stage = str(exc.details.get("stage", "input")) if exc.details else "input"
+        stage, reason = transcription_usage.failure_of(exc)
         try:
             await ml_service_call_repo.record(
                 self.db,
@@ -514,7 +588,7 @@ class MLService:
                 units=0,
                 unit="",
                 duration_ms=_elapsed_ms(started),
-                failure_stage=stage[:32],
+                failure_stage=stage,
                 failure_reason=reason,
             )
             await self.db.commit()
@@ -523,6 +597,40 @@ class MLService:
                 "Could not record the failure of an %s call for organization %s",
                 service,
                 ctx.organization_id,
+                exc_info=True,
+            )
+            await self.db.rollback()
+
+    async def _record_transcription_failure(
+        self,
+        call: TranscriptionCall,
+        *,
+        exc: AppException,
+        input_bytes: int,
+        audio_seconds: float | None,
+        started: float,
+    ) -> None:
+        """A refused transcription's row, with its attribution, committed like any refusal.
+
+        The same bargain as `_record_failure`, and the same session: the row is
+        flushed by `transcription_usage.record` and committed here, before the
+        refusal rolls the request back. A commit that fails is logged and the
+        refusal still reaches the caller.
+        """
+        await transcription_usage.record(
+            self.db,
+            call,
+            input_bytes=input_bytes,
+            audio_seconds=audio_seconds,
+            duration_ms=_elapsed_ms(started),
+            failure=exc,
+        )
+        try:
+            await self.db.commit()
+        except Exception:
+            logger.warning(
+                "Could not commit the failure of a transcription for organization %s",
+                call.organization_id,
                 exc_info=True,
             )
             await self.db.rollback()

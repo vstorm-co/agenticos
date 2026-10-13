@@ -215,7 +215,8 @@ deployment's request limit refuses before the route runs answers 413 without a
 Each person may dictate `RATE_LIMIT_DICTATION_PER_MINUTE` times a minute, 10 by
 default, on a counter of its own, so dictating does not spend an integration's
 ML quota. Every dictation leaves one [call record](#what-is-recorded), under
-`speech_to_text` and counted in characters. **The audio is never stored**: it is
+`speech_to_text` and counted in seconds of audio. The composer sends the length
+it recorded as a `duration` form field beside `file`. **The audio is never stored**: it is
 discarded when the call returns, and the text exists only in the response.
 Cancelling in the browser does not cancel a recording already sent — the
 provider still transcribes it, bills the organization's account for it, and the
@@ -317,10 +318,48 @@ thought of as a document store. A call record another organization made is not
 found, the same way every other row on this API is scoped.
 
 Usage is counted in the unit the service works in — pages for a parse,
-characters for a scan — and not in money. The delivered services either run on
-the operator's own machines, where there is no vendor price, or on the
-organization's own provider account, which bills it directly. A figure nobody
-can reconcile against an invoice is worse than an honest unit count.
+characters for a scan, seconds of audio for a transcription — and not in money.
+The delivered services either run on the operator's own machines, where there is
+no vendor price, or on the organization's own provider account, which bills it
+directly. A figure nobody can reconcile against an invoice is worse than an
+honest unit count. Transcription is not counted against an agent's
+[budget](governance.md#budgets) either.
+
+### Transcriptions
+
+Speech to text is reached three ways, and each leaves the same row: the API
+(`surface: api`), [dictation](#dictation-in-chat) (`chat`) and a
+[channel bot's voice messages](channels.md#what-every-channel-shares)
+(`channel`). The row adds the `provider` and `model`, the `agent_id` it was for -
+the dictated-to agent, or the agent the bot serves - the `channel_bot_id`, and
+`audio_ms`, the recording's length. A voice message's `requested_by` is the
+person the sender is linked to, or nobody. Only a recording handed to the
+provider is recorded; a bot switched off, or one with no engine to inherit,
+asked nobody.
+
+The length is the first of these that is known:
+
+| Source | Who gives it |
+|---|---|
+| The provider's answer | OpenAI `whisper-1` (`usage.seconds`), Groq (`duration`, asked for with `response_format=verbose_json`), Mistral (`usage.prompt_audio_seconds`) |
+| The platform's metadata | A Telegram voice note or audio file, a Slack clip |
+| The browser | Dictation only: the `duration` the composer sends, clamped to the organization's longest dictation, because it is the client's word |
+
+OpenAI's `gpt-4o-transcribe` and `gpt-4o-mini-transcribe` report tokens, not
+seconds, and Mattermost states no length, so a voice message there on those
+models has none. A successful row then counts `0` seconds with a null
+`audio_ms` - unmeasured, not silent.
+
+`GET /api/v1/ml/calls` narrows by `agent_id`, `channel_bot_id`, `surface`,
+`since` and `until` as well as `ml_service`, always inside the caller's
+organization: another tenant's agent id matches nothing.
+
+`GET /api/v1/ml/calls/summary?days=30` adds up the successful transcriptions
+over a window: `seconds` and `count`, `count_unknown_length` for the recordings
+the seconds leave out, and the same by agent, by channel bot and by surface. It
+needs `runs:view`, as [`GET /spend`](governance.md#what-the-cost-screen-shows) does, rather than
+`ml:invoke`: the breakdown names agents and bots a Member may not see. The
+organization's [Voice card](console.md#the-voice-card) shows it in one line.
 
 ## Limits
 

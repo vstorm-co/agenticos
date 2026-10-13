@@ -203,6 +203,14 @@ crossed-out microphone.
 
 Server with no default provider is a setup rather than a fault: the card notes that only agents with their own provider dictate. **Voice conversations**, below it, is not built yet.
 
+For somebody who also holds `runs:view`, the card opens with one line on what
+the organization transcribed in the last 30 days — "42 min · 118 recordings (30
+without a length)" — across dictation, channel voice messages and the API.
+**Show breakdown** lists it by agent and by channel bot. The minutes count only
+recordings whose length was reported, so the line says how many were not; it is
+hidden while nothing has been transcribed. The figures come from
+[`GET /ml/calls/summary`](ml-services.md#what-is-recorded).
+
 ### An agent's own engine
 
 An agent's **Build** tab has a **Voice** card after its model settings, for an

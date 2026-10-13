@@ -65,6 +65,8 @@ class BotSpeechToText:
     refused, so a voice note is not worth a paid transcription."""
     agent_name: str | None
     resolved: ResolvedSpeechToText | None
+    agent_id: UUID | None = None
+    """The agent the bot serves, which a voice note's usage row is attributed to."""
 
 
 def resolve(
@@ -163,7 +165,9 @@ class SpeechToTextSettingsService:
             agent=override,
             bot=None if inherited else bot,
         )
-        return BotSpeechToText(exposed=True, agent_name=agent.name, resolved=resolved)
+        return BotSpeechToText(
+            exposed=True, agent_name=agent.name, agent_id=agent.id, resolved=resolved
+        )
 
     async def _organization(self, organization_id: UUID) -> Organization | None:
         return await organization_repo.get_by_id(self.db, organization_id)

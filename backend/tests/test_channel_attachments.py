@@ -971,3 +971,6 @@ class TestADeactivatedLinkedSenderIsRefusedEarly:
 
         router._receive_files.assert_awaited_once()
         router._transcribe.assert_awaited_once()
+        # The voice note's usage row names the person the sender is linked to.
+        identity = router._receive_files.await_args.args[3]
+        assert router._transcribe.await_args.kwargs["requested_by"] == identity.user_id
