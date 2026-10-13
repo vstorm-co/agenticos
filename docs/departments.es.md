@@ -1,5 +1,5 @@
 ---
-source_sha: "8335052d5705"
+source_sha: "5f28c27a069e"
 ---
 
 # Departamentos y grupos { #departments-and-groups }
@@ -42,7 +42,7 @@ it* en la consola).
 |---|---|---|
 | **Everyone** - por defecto | A todos los miembros de la organización | Visibilidad `org` |
 | **Only me** | A ti y a quien se lo compartas después | Visibilidad `private` (una base de conocimiento pasa a ser personal) |
-| **Chosen groups or people** | A los miembros de los grupos que elijas y a las personas que nombres | Visibilidad `private`, compartida con cada uno a nivel `use` |
+| **Some people** | A los miembros de los grupos que elijas y a las personas que nombres | Visibilidad `private`, compartida con cada uno a nivel `use` |
 
 Los grupos aparecen en cuanto eliges la tercera opción; a las personas se las
 encuentra escribiendo un nombre o una dirección de correo. Cada elección queda

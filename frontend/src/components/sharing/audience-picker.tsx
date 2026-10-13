@@ -90,8 +90,8 @@ export function AudiencePicker({
               value.mode === option.mode ? "border-foreground/40 bg-accent" : "hover:bg-accent/50",
             )}
           >
-            <span className="flex items-center gap-1.5 text-sm font-medium">
-              <option.icon className="h-4 w-4 shrink-0" aria-hidden />
+            <span className="flex items-start gap-1.5 text-sm font-medium">
+              <option.icon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
               {option.label}
             </span>
             <span className="text-muted-foreground text-xs">{option.hint}</span>

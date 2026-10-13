@@ -36,7 +36,7 @@ server asks one question: **who can use it**.
 |---|---|---|
 | **Everyone** - the default | Every member of the organization | Visibility `org` |
 | **Only me** | You, and whoever you share it with later | Visibility `private` (a knowledge base becomes a personal one) |
-| **Chosen groups or people** | The members of the groups you pick, and the people you name | Visibility `private`, shared with each at `use` |
+| **Some people** | The members of the groups you pick, and the people you name | Visibility `private`, shared with each at `use` |
 
 Groups are offered as soon as you choose the third option; people are found by
 typing a name or an email address. Each one picked stays as a chip until you

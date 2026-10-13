@@ -1,5 +1,5 @@
 ---
-source_sha: "9a1944b963c0"
+source_sha: "83b5148aaf63"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -83,8 +83,8 @@ ist die einzige Art, die der Spec eines veröffentlichten Agents *per id* benenn
 darf.
 
 Ein Server der Organisation kann einer Abteilung gehören. Unter **Wer es nutzen
-darf** bietet der Verbindungsdialog **Alle** - der Standard - oder **Ausgewählte
-Gruppen oder Personen**, die man durch Eintippen findet; der Server wird dann
+darf** bietet der Verbindungsdialog **Alle** - der Standard - oder **Bestimmte
+Personen**, die man durch Eintippen findet; der Server wird dann
 privat und mit jeder davon auf `use` geteilt. Sie und wer ihn verbunden hat sehen
 ihn und binden ihn; Owner und Admins sehen jeden Server. Der Button **Wer ihn
 nutzen darf** am Server ändert das später. Ein Agent, der ihn bereits nutzt,

@@ -1,5 +1,5 @@
 ---
-source_sha: "8335052d5705"
+source_sha: "5f28c27a069e"
 ---
 
 # Działy i grupy { #departments-and-groups }
@@ -39,7 +39,7 @@ zadaje jedno pytanie: **kto może z tego korzystać**.
 |---|---|---|
 | **Wszyscy** - domyślnie | Każdy członek organizacji | Widoczność `org` |
 | **Tylko ja** | Ty i osoby, którym udostępnisz to później | Widoczność `private` (baza wiedzy staje się osobista) |
-| **Wybrane grupy lub osoby** | Członkowie wybranych grup i osoby, które wskażesz | Widoczność `private`, udostępnione każdej z nich na poziomie `use` |
+| **Wybrane osoby** | Członkowie wybranych grup i osoby, które wskażesz | Widoczność `private`, udostępnione każdej z nich na poziomie `use` |
 
 Grupy pojawiają się od razu po wybraniu trzeciej opcji; osoby znajduje się,
 wpisując imię albo adres e-mail. Każda wybrana zostaje jako chip, dopóki jej nie

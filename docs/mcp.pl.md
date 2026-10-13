@@ -1,5 +1,5 @@
 ---
-source_sha: "9a1944b963c0"
+source_sha: "83b5148aaf63"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -80,7 +80,7 @@ token stałby się nieczytelny w momencie przełączenia.
 jedynym rodzajem, który spec opublikowanego agenta może wskazać *po id*.
 
 Serwer organizacji może należeć do działu. W sekcji **Kto może z tego korzystać**
-dialog podłączania proponuje **Wszyscy** - domyślnie - albo **Wybrane grupy lub
+dialog podłączania proponuje **Wszyscy** - domyślnie - albo **Wybrane
 osoby**, znajdowane przez wpisywanie; serwer staje się wtedy prywatny i
 udostępniony każdej z nich na poziomie `use`. Oni i osoba, która go podłączyła,
 widzą go i mogą go podpiąć; właściciele i administratorzy widzą każdy serwer.

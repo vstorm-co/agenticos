@@ -83,7 +83,7 @@ describe("who an organization server is for (#2072)", () => {
     const onSubmit = open({ scope: "organization", row: github(), existing: null });
 
     expect(screen.queryByRole("radio", { name: /Only me/ })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("radio", { name: /Chosen groups or people/ }));
+    await userEvent.click(screen.getByRole("radio", { name: /Some people/ }));
     await userEvent.click(screen.getByRole("button", { name: "Finance" }));
     await userEvent.click(screen.getByRole("button", { name: /Connect/ }));
 

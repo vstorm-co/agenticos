@@ -1,5 +1,5 @@
 ---
-source_sha: "9a1944b963c0"
+source_sha: "83b5148aaf63"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -81,8 +81,8 @@ que cambiara de una a otra.
 es el único tipo que el spec de un agent publicado puede nombrar *por id*.
 
 Un servidor de la organización puede pertenecer a un departamento. En **Who can
-use it** el diálogo de conexión ofrece **Everyone**, por defecto, o **Chosen
-groups or people**, que se encuentran escribiendo; el servidor pasa entonces a ser
+use it** el diálogo de conexión ofrece **Everyone**, por defecto, o **Some
+people**, que se encuentran escribiendo; el servidor pasa entonces a ser
 privado y compartido con cada uno a nivel `use`. Ellos y quien lo conectó lo ven y
 lo vinculan; owners y admins ven todos los servidores. Su botón **Who can use it**
 lo cambia después.

@@ -1,5 +1,5 @@
 ---
-source_sha: "8335052d5705"
+source_sha: "5f28c27a069e"
 ---
 
 # Abteilungen und Gruppen { #departments-and-groups }
@@ -42,7 +42,7 @@ gemeinsamen MCP-Server anlegt, beantwortet eine Frage: **wer es nutzen darf**.
 |---|---|---|
 | **Alle** - der Standard | Jedes Mitglied der Organisation | Sichtbarkeit `org` |
 | **Nur ich** | Sie und alle, mit denen Sie es später teilen | Sichtbarkeit `private` (eine Wissensdatenbank wird persönlich) |
-| **Ausgewählte Gruppen oder Personen** | Die Mitglieder der gewählten Gruppen und die Personen, die Sie nennen | Sichtbarkeit `private`, mit jeder davon auf `use` geteilt |
+| **Bestimmte Personen** | Die Mitglieder der gewählten Gruppen und die Personen, die Sie nennen | Sichtbarkeit `private`, mit jeder davon auf `use` geteilt |
 
 Gruppen werden angeboten, sobald Sie die dritte Option wählen; Personen findet
 man, indem man einen Namen oder eine E-Mail-Adresse eintippt. Jede Auswahl bleibt

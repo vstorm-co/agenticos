@@ -54,7 +54,7 @@ describe("AudiencePicker", () => {
     const onChange = vi.fn();
     render(<Harness onChange={onChange} />);
 
-    await userEvent.click(screen.getByRole("radio", { name: /Chosen groups or people/ }));
+    await userEvent.click(screen.getByRole("radio", { name: /Some people/ }));
     await userEvent.click(screen.getByRole("button", { name: "Finance" }));
     await userEvent.click(screen.getByRole("button", { name: "Sales" }));
     await userEvent.click(screen.getByRole("button", { name: "Remove Sales" }));
@@ -72,7 +72,7 @@ describe("AudiencePicker", () => {
     const onChange = vi.fn();
     render(<Harness onChange={onChange} />);
 
-    await userEvent.click(screen.getByRole("radio", { name: /Chosen groups or people/ }));
+    await userEvent.click(screen.getByRole("radio", { name: /Some people/ }));
     expect(screen.queryByRole("button", { name: "Anna Nowak" })).not.toBeInTheDocument();
 
     await userEvent.type(screen.getByRole("textbox", { name: "Search groups and people" }), "anna");
@@ -98,7 +98,7 @@ describe("AudiencePicker", () => {
     given([], [ANNA]);
     render(<Harness onChange={vi.fn()} />);
 
-    await userEvent.click(screen.getByRole("radio", { name: /Chosen groups or people/ }));
+    await userEvent.click(screen.getByRole("radio", { name: /Some people/ }));
     expect(screen.getByText(/No groups yet/)).toBeInTheDocument();
 
     await userEvent.type(screen.getByRole("textbox", { name: "Search groups and people" }), "zed");
@@ -109,7 +109,7 @@ describe("AudiencePicker", () => {
     given([FINANCE]);
     render(<Harness onChange={vi.fn()} />);
 
-    await userEvent.click(screen.getByRole("radio", { name: /Chosen groups or people/ }));
+    await userEvent.click(screen.getByRole("radio", { name: /Some people/ }));
     await userEvent.click(screen.getByRole("button", { name: "Finance" }));
 
     expect(screen.getByText(/Type a name or an email address/)).toBeInTheDocument();

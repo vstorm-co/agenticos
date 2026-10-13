@@ -74,7 +74,7 @@ they switched.
 only kind a published agent's spec may name *by id*.
 
 An organization server can belong to a department. Under **Who can use it** the
-connect dialog offers **Everyone**, the default, or **Chosen groups or people**,
+connect dialog offers **Everyone**, the default, or **Some people**,
 found by typing; the server is then private and shared with each of them at
 `use`. They and whoever connected it see it and bind it; owners and admins see
 every server. Its **Who can use it** button changes that later. An agent already
