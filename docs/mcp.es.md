@@ -1,5 +1,5 @@
 ---
-source_sha: "f5e2666bd2b8"
+source_sha: "179806c4d0f1"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -172,9 +172,14 @@ persona de por medio. La marca de solo lectura la declara el propio servidor, as
 que `writes` es tan estricta como honesto sea el servidor: elige `all` para un
 servidor que no controlas.
 
+En el Builder, los ajustes de un servidor lo dicen por
+grupos: sus **lecturas** y las herramientas que **cambian cosas** se ejecutan sin
+preguntar o preguntan primero.
+
 ### A través de qué cuenta habla una vinculación { #whose-account-a-binding-speaks-through }
 
-Una vinculación es de uno de dos tipos, y el Builder pregunta cuál en la tarjeta.
+Una vinculación es de uno de dos tipos, y el Builder pregunta cuál en los ajustes
+del servidor, que también muestran tus propias cuentas en el servicio.
 
 **La cuenta de la organización** (`account: organization`) nombra una de las
 conexiones de la organización y responde por todo el mundo, en cualquier
@@ -537,10 +542,9 @@ la casualidad de elegir el mismo nombre.
 
 ### Estado, uso y llamadas { #health-users-and-calls }
 
-Un servidor al que el agent está vinculado con la cuenta de la organización
-muestra en su tarjeta del Builder si respondió en la última comprobación, cuándo
-fue y qué dijo si falló; quien gestiona los servidores MCP puede volver a
-comprobarlo ahí.
+La tarjeta de un servidor en la página MCP servers dice cuándo una de sus cuentas
+no respondió en la última comprobación, y la lista de sus cuentas dice cuál y qué
+dijo; quien gestiona los servidores MCP puede volver a comprobarlo ahí.
 Una cuenta OAuth cuyo inicio de sesión no se pudo renovar se muestra como
 pendiente de autorización y no como inalcanzable, con **Autorizar** para volver
 a iniciar sesión.

@@ -1,5 +1,5 @@
 ---
-source_sha: "f5e2666bd2b8"
+source_sha: "179806c4d0f1"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -170,9 +170,14 @@ wszystkie, dla serwera, któremu ufasz bez człowieka w pętli. Wskazówka „ty
 odczytu” to deklaracja samego serwera, więc `writes` jest tak ścisłe, jak serwer
 jest uczciwy — dla serwera, którego nie kontrolujesz, wybierz `all`.
 
+W Builderze
+ustawienia serwera mówią to osobno dla grup: **Odczyt** i **Zmiany** działają bez
+pytania albo najpierw pytają.
+
 ### Przez czyje konto mówi powiązanie { #whose-account-a-binding-speaks-through }
 
-Powiązanie jest jednego z dwóch rodzajów, a Builder pyta na karcie, którego.
+Powiązanie jest jednego z dwóch rodzajów, a Builder pyta, którego, w ustawieniach
+serwera, które pokazują też Twoje własne konta w tej usłudze.
 
 **Konto organizacji** (`account: organization`) wskazuje jedno z połączeń
 organizacji i odpowiada za wszystkich, na każdej powierzchni. To ustawienie
@@ -521,10 +526,9 @@ z połączeniem użytkownika, które trafiło na tę samą nazwę.
 
 ### Stan, użycie i wywołania { #health-users-and-calls }
 
-Serwer, do którego agent jest podpięty kontem organizacji, pokazuje na swojej
-karcie w Builderze, czy odpowiedział przy ostatnim sprawdzeniu, kiedy to było i
-co zwrócił, jeśli się nie udało; kto zarządza serwerami MCP, może sprawdzić go
-tam ponownie.
+Karta serwera na stronie MCP servers mówi, kiedy któreś z jego kont nie
+odpowiedziało przy ostatnim sprawdzeniu, a lista jego kont mówi, które i co
+zwróciło; kto zarządza serwerami MCP, może sprawdzić go tam ponownie.
 Konto OAuth, którego logowania nie udało się odnowić, jest pokazywane jako
 wymagające autoryzacji, a nie nieosiągalne, z przyciskiem **Autoryzuj**, by
 zalogować się ponownie.

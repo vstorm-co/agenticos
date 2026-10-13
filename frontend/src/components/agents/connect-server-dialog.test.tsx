@@ -9,9 +9,11 @@ import {
   ConnectOwnServerDialog,
   ConnectServerDialog,
   useConnectEntry,
+  useSignInOwn,
 } from "./connect-server-dialog";
 import { PublicConfigProvider } from "@/components/public-config/public-config-provider";
 import { DEFAULT_PUBLIC_CONFIG } from "@/lib/public-config";
+import type { McpConnectionRecord } from "@/lib/mcp-connections-api";
 import type { McpCatalogEntry } from "@/types/mcp";
 
 const create = vi.fn();
@@ -504,5 +506,75 @@ describe("useConnectEntry for the organization", () => {
     await userEvent.click(screen.getByRole("button", { name: "go" }));
 
     expect(openForm).toHaveBeenCalled();
+  });
+});
+
+describe("useConnectEntry with names already taken", () => {
+  it("signs in under the first free prefix", async () => {
+    vi.clearAllMocks();
+    vi.mocked(startMcpOAuth).mockResolvedValue({ authorization_url: "https://consent.example" });
+    function Harness() {
+      const connect = useConnectEntry("personal", {
+        openForm: vi.fn(),
+        returnTo: "/agents/a1",
+        taken: ["notion", "notion-2"],
+      });
+      return (
+        <button type="button" onClick={() => connect(OAUTH_ENTRY)}>
+          go
+        </button>
+      );
+    }
+    render(<Harness />, { wrapper });
+
+    await userEvent.click(screen.getByRole("button", { name: "go" }));
+
+    await waitFor(() =>
+      expect(startMcpOAuth).toHaveBeenCalledWith(
+        expect.objectContaining({ name: "notion-3" }),
+        "personal",
+      ),
+    );
+  });
+});
+
+describe("useSignInOwn", () => {
+  function Harness({ connection }: { connection: McpConnectionRecord }) {
+    const signIn = useSignInOwn({ returnTo: "/agents/a1" });
+    return (
+      <button type="button" onClick={() => signIn(connection)}>
+        go
+      </button>
+    );
+  }
+
+  it("signs an account in again under the name it has", async () => {
+    vi.clearAllMocks();
+    vi.mocked(startMcpOAuth).mockResolvedValue({ authorization_url: "https://consent.example" });
+    const lapsed = {
+      id: "p2",
+      name: "notion-2",
+      url: "https://mcp.notion.com/mcp",
+      catalog_key: "notion",
+    } as McpConnectionRecord;
+    const { rerender } = render(<Harness connection={lapsed} />, { wrapper });
+
+    await userEvent.click(screen.getByRole("button", { name: "go" }));
+    await waitFor(() =>
+      expect(startMcpOAuth).toHaveBeenCalledWith(
+        { name: "notion-2", url: "https://mcp.notion.com/mcp", catalog_key: "notion" },
+        "personal",
+      ),
+    );
+
+    // One added by its address has no catalog key to send.
+    rerender(<Harness connection={{ ...lapsed, name: "crm", catalog_key: null }} />);
+    await userEvent.click(screen.getByRole("button", { name: "go" }));
+    await waitFor(() =>
+      expect(startMcpOAuth).toHaveBeenLastCalledWith(
+        { name: "crm", url: "https://mcp.notion.com/mcp" },
+        "personal",
+      ),
+    );
   });
 });

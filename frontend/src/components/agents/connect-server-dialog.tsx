@@ -16,7 +16,7 @@ import type {
 import { getErrorMessage } from "@/lib/api-error";
 import { startMcpOAuth } from "@/lib/mcp-connections-api";
 import { mcpOAuthClient, rememberMcpOAuthReturn, secretWithoutClientId } from "@/lib/mcp-oauth";
-import { rowForEntry, slugForPrefix } from "@/lib/mcp-servers";
+import { freePrefix, rowForEntry, slugForPrefix } from "@/lib/mcp-servers";
 import { EVERYONE, audiencePayload } from "@/components/sharing/audience-picker";
 import { useMcpConnections } from "@/hooks/use-mcp-connections";
 import { useOrgMcpConnections } from "@/hooks/use-org-mcp-connections";
@@ -303,7 +303,15 @@ function useConsent(scope: Scope, { returnTo, keepThisTab }: ConsentOptions) {
  */
 export function useConnectEntry(
   scope: Scope,
-  { openForm, ...options }: ConsentOptions & { openForm: (entry: McpCatalogEntry) => void },
+  {
+    openForm,
+    taken = [],
+    ...options
+  }: ConsentOptions & {
+    openForm: (entry: McpCatalogEntry) => void;
+    /** The names this scope's connections already hold, which a new one cannot take. */
+    taken?: string[];
+  },
 ) {
   const consent = useConsent(scope, options);
   return (entry: McpCatalogEntry) => {
@@ -312,7 +320,7 @@ export function useConnectEntry(
       return;
     }
     void consent({
-      name: slugForPrefix(entry.key),
+      name: freePrefix(slugForPrefix(entry.key), new Set(taken)),
       url: entry.url,
       catalog_key: entry.key,
       ...(scope === "organization" ? audiencePayload(EVERYONE) : {}),
@@ -373,4 +381,19 @@ export function ConnectOwnButton({
       />
     </>
   );
+}
+
+/**
+ * Sign one of the reader's own accounts in again - one whose grant lapsed, or
+ * whose consent was never finished - under the name it already has.
+ */
+export function useSignInOwn(options: ConsentOptions) {
+  const consent = useConsent("personal", options);
+  return (connection: McpConnectionRecord) => {
+    void consent({
+      name: connection.name,
+      url: connection.url,
+      ...(connection.catalog_key ? { catalog_key: connection.catalog_key } : {}),
+    });
+  };
 }

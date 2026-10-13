@@ -1,10 +1,11 @@
 "use client";
 
-import type { ReactNode } from "react";
-import { Plug, Plus, Settings2, Wrench, X } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { ExternalLink, Plug, Plus, Settings2, Wrench, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { McpToolChecklist } from "@/components/agents/mcp-tool-checklist";
+import { McpServerIcon } from "@/components/mcp/mcp-server-icon";
 import {
   Button,
   Dialog,
@@ -19,12 +20,15 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Switch,
 } from "@/components/ui";
-import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
-import type { McpToolInfo } from "@/lib/mcp-connections-api";
+import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
+import type { McpConnectionRecord, McpToolInfo } from "@/lib/mcp-connections-api";
+import { ROUTES } from "@/lib/constants";
+import { connectionState, MCP_STATE_LABEL } from "@/lib/mcp-servers";
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
 import { cn } from "@/lib/utils";
-import type { McpServerRef } from "@/types/agents";
+import type { McpApproval, McpServerRef } from "@/types/agents";
 
 /** A binding through somebody's account - every kind but the platform's own server. */
 export type AccountRef = Exclude<McpServerRef, { account: "platform" }>;
@@ -33,6 +37,9 @@ interface McpBindingDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   name: string;
+  /** The catalog's mark and the server's address, for the logo at the top. */
+  icon: string | null;
+  url: string | null;
   /** Every binding the spec holds for this server, in spec order; empty while unused. */
   bindings: AccountRef[];
   /** Every account the organization holds on the server. */
@@ -50,8 +57,12 @@ interface McpBindingDialogProps {
    * organization holds no connection to have listed them.
    */
   personalTools?: McpToolInfo[] | null;
-  /** Whether the reader has connected their own account on this server. */
-  hasOwnAccount?: boolean;
+  /** The reader's own accounts on the server, every one of which a personal binding reaches. */
+  ownAccounts?: McpConnectionRecord[];
+  /** Disconnect one of the reader's own accounts; absent where nobody may. */
+  onDisconnectOwn?: (connection: McpConnectionRecord) => void;
+  /** Sign one of them in again, where its grant lapsed or was never finished. */
+  onSignInOwn?: (connection: McpConnectionRecord) => void;
   /** Connect the reader's own account; absent outside the catalog. */
   onConnectOwn?: () => void;
   /**
@@ -60,24 +71,32 @@ interface McpBindingDialogProps {
    * provider and this is the way to change what it would send.
    */
   onConfigure?: (scope: "organization" | "personal") => void;
+  /** Switch the server on or off for this agent, from the dialog's header. */
+  onEnabled: (on: boolean) => void;
   disabled?: boolean;
 }
 
 /**
- * How this agent uses one MCP server: through which accounts, and which tools -
- * the two questions as two sections, the tools ticked in place.
+ * How this agent uses one MCP server: through whose account, which tools, and
+ * which of them wait for a person.
+ *
+ * Whose account is one switch between the two kinds, with the state of that
+ * kind and its next step under it - connected, or a Connect - rather than two
+ * tiles whose buttons only some states had. The tools are the reads and the
+ * changes as two groups, by their names as a person reads them; the server's
+ * own descriptions are a hover away, because some run to a paragraph each.
  *
  * A server can be reached through several accounts at once - the company
  * mailbox and `info@`, both the organization's, or each person's own beside
- * them (#2125) - so the dialog is a list of accounts, each with its own whose,
- * which and tools, and **Add another account** under it. The card on the grid
- * only says whether the agent uses the server; everything about *how* lives
- * here.
+ * them (#2125) - so further accounts sit under the first, with **Add another
+ * account**.
  */
 export function McpBindingDialog({
   open,
   onOpenChange,
   name,
+  icon,
+  url,
   bindings,
   connections,
   catalogKey,
@@ -85,9 +104,12 @@ export function McpBindingDialog({
   onTools,
   onConnect,
   personalTools = null,
-  hasOwnAccount = false,
+  ownAccounts = [],
+  onDisconnectOwn,
+  onSignInOwn,
   onConnectOwn,
   onConfigure,
+  onEnabled,
   disabled,
 }: McpBindingDialogProps) {
   const t = useTranslations("agents");
@@ -98,6 +120,13 @@ export function McpBindingDialog({
   const free = connections.filter((connection) => !boundIds.has(connection.id));
   const personalBound = bindings.some((ref) => ref.account === "personal");
   const canAddPersonal = catalogKey !== null && !personalBound;
+  const primary = bindings[0];
+  // Which kind the switch shows. Choosing the organization's while it holds no
+  // account is a choice with a next step - connect one - so it is the switch's
+  // to remember until there is an account to bind.
+  const [chosenKind, setChosenKind] = useState<"organization" | "personal" | null>(null);
+  const kind =
+    chosenKind ?? primary?.account ?? (connections.length > 0 ? "organization" : "personal");
 
   const replace = (index: number, next: AccountRef) =>
     onChange(bindings.map((ref, at) => (at === index ? next : ref)));
@@ -108,6 +137,7 @@ export function McpBindingDialog({
     // Carried over: the tools are chosen for the agent, and the account it
     // speaks through is a different question.
     allowed_tools: from?.allowed_tools ?? null,
+    ...(from?.approval ? { approval: from.approval } : {}),
   });
   const personalRef = (from?: AccountRef): AccountRef | null =>
     catalogKey === null
@@ -116,138 +146,203 @@ export function McpBindingDialog({
           account: "personal",
           catalog_key: catalogKey,
           allowed_tools: from?.allowed_tools ?? null,
+          ...(from?.approval ? { approval: from.approval } : {}),
         };
+  const rebindPrimary = (next: AccountRef) =>
+    onChange(primary ? bindings.map((ref) => (ref === primary ? next : ref)) : [next]);
+  const choose = (next: "organization" | "personal") => {
+    setChosenKind(next);
+    if (next === "personal") {
+      // The option is disabled where there is no catalog key to bind by.
+      const next = primary?.account === "personal" ? null : personalRef(primary);
+      if (next) rebindPrimary(next);
+    } else if (primary?.account !== "organization") {
+      const target = free[0] ?? connections[0];
+      if (target) rebindPrimary(organizationRef(target, primary));
+    }
+  };
+
   // Where the tools are listed from: the organization's account the agent uses,
   // any of its accounts on the server, or the reader's own. The same tools
   // whichever credential reaches them, so one list chooses for every account.
   const listedBy =
     connections.find((connection) => boundIds.has(connection.id)) ?? connections[0] ?? null;
   const tools = listedBy?.last_tools ?? personalTools;
-  const allowed = bindings[0]?.allowed_tools ?? null;
+  const allowed = primary?.allowed_tools ?? null;
+  const approval = primary?.approval ?? "writes";
   const setTools = (next: string[] | null) =>
     onChange(bindings.map((ref) => ({ ...ref, allowed_tools: next })));
-  const primary = bindings[0];
+  const setApproval = (next: McpApproval) =>
+    onChange(bindings.map((ref) => ({ ...ref, approval: next })));
   const add = () => {
     const next = free[0] ? organizationRef(free[0]) : canAddPersonal ? personalRef() : null;
     if (next) onChange([...bindings, next]);
   };
+  const primaryChoices =
+    primary?.account === "organization"
+      ? connections.filter(
+          (option) => option.id === primary.connection_id || !boundIds.has(option.id),
+        )
+      : [];
+  // The organization's account this agent speaks through, else the one it would.
+  const current =
+    (primary?.account === "organization"
+      ? connections.find((option) => option.id === primary.connection_id)
+      : undefined) ?? connections[0];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={cn(DIALOG_FORM, DIALOG_SCROLL)}>
-        <DialogHeader>
-          <DialogTitle>{t("serverSettingsTitle", { name })}</DialogTitle>
-          <DialogDescription>{t("serverSettingsDescription")}</DialogDescription>
+      <DialogContent className={cn(DIALOG_FORM, DIALOG_COLUMN)}>
+        <DialogHeader className="min-w-0">
+          <div className="flex items-center gap-3">
+            <span className="border-foreground/10 grid size-10 shrink-0 place-items-center rounded-xl border bg-white">
+              <McpServerIcon
+                icon={icon}
+                name={name}
+                url={url}
+                className="size-6 text-neutral-900"
+              />
+            </span>
+            <div className="min-w-0 flex-1">
+              <DialogTitle>{name}</DialogTitle>
+              <DialogDescription>{t("serverInThisAgent")}</DialogDescription>
+            </div>
+            {/* Beside the title, clear of the close button in the corner. */}
+            <Switch
+              checked={bindings.length > 0}
+              disabled={disabled}
+              onCheckedChange={onEnabled}
+              aria-label={t("useServerInAgent", { name })}
+              className="mr-8 shrink-0"
+            />
+          </div>
         </DialogHeader>
 
-        <div className="space-y-5">
-          <section className="space-y-2">
-            <h3 className="text-sm font-medium">{t("serverAccount")}</h3>
-            {/* Whose account, as two choices that each carry their own next step:
-                choosing the organization's with none connected connects one, and
-                choosing each person's own offers to connect yours. The connect
-                buttons used to sit under a select, a second decision after the
-                first. */}
+        {/* The scrollbar sits in the dialog's padding, not over the controls. */}
+        <div className={cn(DIALOG_BODY, "-mr-5 min-w-0 space-y-6 pr-5")}>
+          <section className="space-y-2.5">
+            <h3 className="text-sm font-medium">{t("whoseAccount")}</h3>
             <div
               role="radiogroup"
               aria-label={t("accountForServer", { name })}
-              className="grid gap-2 sm:grid-cols-2"
+              className="bg-foreground/[0.05] grid grid-cols-2 gap-1 rounded-xl p-1"
             >
-              <KindTile
-                selected={primary?.account === "organization"}
-                title={t("organizationsAccount")}
-                hint={connections.length === 0 ? t("orgAccountConnectHint") : t("orgAccountHint")}
-                disabled={disabled || (connections.length === 0 && !onConnect)}
-                onSelect={() => {
-                  if (primary?.account === "organization") return;
-                  if (connections[0] === undefined) {
-                    // Nothing to bind yet: connect one, and the Builder binds it.
-                    onChange(bindings.filter((ref) => ref !== primary));
-                    onConnect?.();
-                    return;
-                  }
-                  const next = organizationRef(free[0] ?? connections[0], primary);
-                  onChange(
-                    primary ? bindings.map((ref) => (ref === primary ? next : ref)) : [next],
-                  );
-                }}
-              >
-                {connections.length === 0 && onConfigure && (
-                  <ConfigureLink
-                    name={name}
-                    disabled={disabled}
-                    onClick={() => onConfigure("organization")}
-                  />
-                )}
-                {primary?.account === "organization" &&
-                  connections.length > 1 &&
-                  (() => {
-                    const choices = connections.filter(
-                      (option) => option.id === primary.connection_id || !boundIds.has(option.id),
-                    );
-                    const current = connections.find(
-                      (option) => option.id === primary.connection_id,
-                    );
-                    // A select where there is something to switch to; the account's
-                    // name where every other one is bound in its own row.
-                    return choices.length > 1 ? (
-                      <WhichOrgAccount
-                        name={name}
-                        value={primary.connection_id}
-                        choices={choices}
-                        disabled={disabled}
-                        onChange={(target) =>
-                          onChange(
-                            bindings.map((ref) =>
-                              ref === primary ? organizationRef(target, primary) : ref,
-                            ),
-                          )
-                        }
-                      />
-                    ) : (
-                      current && (
-                        <span className="block text-sm">{current.label ?? current.name}</span>
-                      )
-                    );
-                  })()}
-              </KindTile>
-              <KindTile
-                selected={primary?.account === "personal"}
-                title={t("eachPersonsOwnAccount")}
-                hint={t("eachPersonsOwnAccountShort")}
+              <KindOption
+                selected={kind === "personal"}
                 disabled={disabled || catalogKey === null}
-                onSelect={() => {
-                  if (primary?.account === "personal") return;
-                  const next = personalRef(primary);
-                  if (next === null) return;
-                  onChange(
-                    primary ? bindings.map((ref) => (ref === primary ? next : ref)) : [next],
-                  );
-                }}
+                onSelect={() => choose("personal")}
               >
-                {primary?.account === "personal" && !hasOwnAccount && onConnectOwn && (
-                  <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={disabled}
-                      onClick={onConnectOwn}
-                    >
-                      <Plug className="mr-1 h-3.5 w-3.5" />
-                      {t("connectYours")}
-                    </Button>
-                    {onConfigure && (
-                      <ConfigureLink
-                        name={name}
-                        disabled={disabled}
-                        onClick={() => onConfigure("personal")}
-                      />
-                    )}
-                  </span>
-                )}
-              </KindTile>
+                {t("eachPersonsOwnAccount")}
+              </KindOption>
+              <KindOption
+                selected={kind === "organization"}
+                disabled={disabled || (connections.length === 0 && !onConnect)}
+                onSelect={() => choose("organization")}
+              >
+                {t("organizationsAccount")}
+              </KindOption>
             </div>
+
+            {kind === "personal" ? (
+              ownAccounts.length > 0 ? (
+                <>
+                  <AccountState
+                    live
+                    // A person may hold any number of their own accounts on a
+                    // service, and the agent reaches every one of them (#2125).
+                    action={
+                      onConnectOwn && (
+                        <button
+                          type="button"
+                          disabled={disabled}
+                          onClick={onConnectOwn}
+                          className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-xs font-medium disabled:opacity-50"
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                          {t("connectAnotherOwn")}
+                        </button>
+                      )
+                    }
+                  >
+                    {t("personalConnectedState", { count: ownAccounts.length })}
+                  </AccountState>
+                  <OwnAccounts
+                    accounts={ownAccounts}
+                    disabled={disabled}
+                    onDisconnect={onDisconnectOwn}
+                    onSignIn={onSignInOwn}
+                  />
+                </>
+              ) : (
+                <AccountState
+                  action={
+                    onConnectOwn && (
+                      <>
+                        {onConfigure && (
+                          <ConfigureLink
+                            name={name}
+                            disabled={disabled}
+                            onClick={() => onConfigure("personal")}
+                          />
+                        )}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={disabled}
+                          onClick={onConnectOwn}
+                        >
+                          <Plug className="mr-1 h-3.5 w-3.5" />
+                          {t("connectYours")}
+                        </Button>
+                      </>
+                    )
+                  }
+                >
+                  {t("personalNotConnectedState")}
+                </AccountState>
+              )
+            ) : current === undefined ? (
+              <AccountState
+                action={
+                  onConnect && (
+                    <>
+                      {onConfigure && (
+                        <ConfigureLink
+                          name={name}
+                          disabled={disabled}
+                          onClick={() => onConfigure("organization")}
+                        />
+                      )}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={disabled}
+                        onClick={onConnect}
+                      >
+                        <Plug className="mr-1 h-3.5 w-3.5" />
+                        {t("connectForOrganization")}
+                      </Button>
+                    </>
+                  )
+                }
+              >
+                {t("organizationHasNone", { name })}
+              </AccountState>
+            ) : primary?.account === "organization" && primaryChoices.length > 1 ? (
+              // A select where there is something to switch to; the account's
+              // name where every other one is bound in its own row.
+              <WhichOrgAccount
+                name={name}
+                value={primary.connection_id}
+                choices={primaryChoices}
+                disabled={disabled}
+                onChange={(target) => rebindPrimary(organizationRef(target, primary))}
+              />
+            ) : (
+              <AccountState live>{current.label ?? current.name}</AccountState>
+            )}
 
             {/* Further accounts the server is reached through (#2125), each a row. */}
             {bindings.slice(1).map((binding, offset) => {
@@ -299,15 +394,20 @@ export function McpBindingDialog({
             )}
           </section>
 
-          {bindings.length > 0 && (
-            <section className="space-y-2">
+          {(bindings.length > 0 || tools) && (
+            <section className="min-w-0 space-y-2.5">
               <h3 className="text-sm font-medium">{t("serverTools")}</h3>
               {tools ? (
                 <McpToolChecklist
                   tools={tools}
                   allowed={allowed}
                   onChange={setTools}
-                  disabled={disabled}
+                  approval={approval}
+                  onApproval={setApproval}
+                  prefix={catalogKey}
+                  // What the server offers is worth reading before it is
+                  // switched on; choosing among it waits until it is.
+                  disabled={disabled || bindings.length === 0}
                 />
               ) : listedBy ? (
                 // The organization's account has never been asked what it offers;
@@ -317,7 +417,7 @@ export function McpBindingDialog({
                   variant="outline"
                   size="sm"
                   disabled={disabled}
-                  onClick={() => bindings[0] && onTools(bindings[0], listedBy, name)}
+                  onClick={() => primary && onTools(primary, listedBy, name)}
                 >
                   <Wrench className="mr-1 h-3.5 w-3.5" />
                   {t("loadTools")}
@@ -331,13 +431,195 @@ export function McpBindingDialog({
           )}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="items-center sm:justify-between">
+          {bindings.length > 0 ? (
+            <Button
+              type="button"
+              variant="ghost"
+              className="text-destructive hover:text-destructive"
+              disabled={disabled}
+              onClick={() => {
+                onChange([]);
+                onOpenChange(false);
+              }}
+            >
+              {t("removeFromAgent")}
+            </Button>
+          ) : (
+            <span />
+          )}
           <Button type="button" onClick={() => onOpenChange(false)}>
             {tc("done")}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** One half of the whose-account switch. */
+function KindOption({
+  selected,
+  disabled,
+  onSelect,
+  children,
+}: {
+  selected: boolean;
+  disabled?: boolean;
+  onSelect: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={selected}
+      disabled={disabled}
+      onClick={onSelect}
+      className={cn(
+        "h-8 truncate rounded-lg px-2 text-[13px] transition-colors disabled:opacity-50",
+        selected
+          ? "bg-background text-foreground font-medium shadow-sm"
+          : "text-muted-foreground hover:text-foreground",
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+/**
+ * The reader's own accounts on the server - which the agent reaches through
+ * them, each by its name and the prefix its tools carry, and a way to drop one.
+ * Renaming them, or choosing the main one, is the servers page's; it opens
+ * in a new tab so the draft here is not lost.
+ */
+function OwnAccounts({
+  accounts,
+  disabled,
+  onDisconnect,
+  onSignIn,
+}: {
+  accounts: McpConnectionRecord[];
+  disabled?: boolean;
+  onDisconnect?: (connection: McpConnectionRecord) => void;
+  onSignIn?: (connection: McpConnectionRecord) => void;
+}) {
+  const t = useTranslations("agents");
+  const tMcp = useTranslations("mcp");
+  // Disconnecting deletes a credential, so it takes a second click on the row.
+  const [confirming, setConfirming] = useState<string | null>(null);
+  return (
+    <div className="space-y-1.5">
+      <ul className="border-foreground/10 divide-foreground/[0.06] divide-y rounded-xl border">
+        {accounts.map((account) => {
+          const state = connectionState(account);
+          return (
+            <li key={account.id} className="flex min-w-0 items-center gap-3 px-3 py-2">
+              <span
+                aria-hidden
+                className={cn(
+                  "size-1.5 shrink-0 rounded-full",
+                  state === "connected"
+                    ? "bg-success"
+                    : state === "disabled"
+                      ? "bg-muted-foreground/35"
+                      : "bg-destructive",
+                )}
+              />
+              <span className="min-w-0 flex-1">
+                <span className="flex min-w-0 items-center gap-1.5 text-[13px]">
+                  <span className="truncate">{account.label ?? account.name}</span>
+                  {account.is_default && accounts.length > 1 && (
+                    <span className="text-muted-foreground bg-foreground/[0.05] shrink-0 rounded-full px-1.5 text-[11px]">
+                      {t("ownAccountMain")}
+                    </span>
+                  )}
+                </span>
+                <span className="text-muted-foreground block truncate text-xs">
+                  {state === "connected"
+                    ? t("ownAccountPrefix", { prefix: account.name })
+                    : tMcp(MCP_STATE_LABEL[state])}
+                </span>
+              </span>
+              {onSignIn && state === "needs-authorization" && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={disabled}
+                  onClick={() => onSignIn(account)}
+                >
+                  {t("signInOwn")}
+                </Button>
+              )}
+              {onDisconnect &&
+                (confirming === account.id ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="destructive"
+                    disabled={disabled}
+                    onClick={() => {
+                      setConfirming(null);
+                      onDisconnect(account);
+                    }}
+                  >
+                    {t("confirmDisconnectOwn")}
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    disabled={disabled}
+                    onClick={() => setConfirming(account.id)}
+                    aria-label={t("disconnectOwnNamed", { name: account.label ?? account.name })}
+                  >
+                    {t("disconnectOwn")}
+                  </Button>
+                ))}
+            </li>
+          );
+        })}
+      </ul>
+      <a
+        href={ROUTES.MCP_SERVERS}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs underline-offset-2 hover:underline"
+      >
+        {t("manageOwnAccounts")}
+        <ExternalLink className="h-3 w-3" aria-hidden />
+      </a>
+    </div>
+  );
+}
+
+/** Where the chosen kind of account stands, and its next step at the right. */
+function AccountState({
+  live = false,
+  action,
+  children,
+}: {
+  live?: boolean;
+  action?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex min-h-8 flex-wrap items-center gap-x-3 gap-y-2">
+      <span className="text-muted-foreground flex min-w-0 flex-1 items-center gap-1.5 text-xs">
+        <span
+          aria-hidden
+          className={cn(
+            "size-1.5 shrink-0 rounded-full",
+            live ? "bg-success" : "bg-muted-foreground/35",
+          )}
+        />
+        <span className="min-w-0">{children}</span>
+      </span>
+      {action && <span className="flex shrink-0 items-center gap-3">{action}</span>}
+    </div>
   );
 }
 
@@ -479,7 +761,6 @@ function AccountBlock({
   );
 }
 
-/** One answer to "whose account": a tile with what it means, and its next step under it. */
 /** **Configure**, as the quiet link beside a connect action rather than a second button. */
 function ConfigureLink({
   name,
@@ -502,54 +783,6 @@ function ConfigureLink({
       <Settings2 className="h-3.5 w-3.5" aria-hidden />
       {tMcp("configure")}
     </button>
-  );
-}
-
-function KindTile({
-  selected,
-  title,
-  hint,
-  disabled,
-  onSelect,
-  children,
-}: {
-  selected: boolean;
-  title: string;
-  hint: string;
-  disabled?: boolean;
-  onSelect: () => void;
-  children?: ReactNode;
-}) {
-  return (
-    <div
-      role="radio"
-      aria-checked={selected}
-      aria-disabled={disabled}
-      tabIndex={disabled ? -1 : 0}
-      // A click on a control inside the tile - the account select, Connect
-      // yours - is that control's, not a choice of the tile.
-      onClick={(event) => {
-        if (disabled || (event.target as HTMLElement).closest("button, a, input")) return;
-        onSelect();
-      }}
-      onKeyDown={(event) => {
-        if (!disabled && (event.key === "Enter" || event.key === " ")) {
-          event.preventDefault();
-          onSelect();
-        }
-      }}
-      className={cn(
-        "focus-visible:ring-ring space-y-2 rounded-xl border p-3 text-left transition-colors outline-none focus-visible:ring-2",
-        selected
-          ? "border-foreground bg-accent"
-          : "border-foreground/12 hover:bg-foreground/[0.03] cursor-pointer",
-        disabled && "pointer-events-none opacity-50",
-      )}
-    >
-      <span className="block text-sm font-medium">{title}</span>
-      <span className="text-muted-foreground block text-xs leading-snug">{hint}</span>
-      {children}
-    </div>
   );
 }
 

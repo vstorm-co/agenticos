@@ -159,9 +159,14 @@ server you trust with no person in the loop. The read-only hint is the server's
 own claim, so `writes` is only as strict as the server is honest — choose `all`
 for a server you do not control.
 
+In the Builder, a server's settings say this
+per group: its **Reads** and the tools that **Change things** each run freely
+or ask first.
+
 ### Whose account a binding speaks through
 
-A binding is one of two kinds, and the Builder asks which on the card.
+A binding is one of two kinds, and the Builder asks which in the server's
+settings, which also list your own accounts on the service.
 
 **The organization's account** (`account: organization`) names one of the
 organization's connections and answers for everybody, on every surface. It is
@@ -497,9 +502,9 @@ so they win over a user connection that happens to pick the same name.
 
 ### Health, users and calls
 
-A server the agent is bound to through the organization's account shows on its
-card in the Builder whether it answered its last check, when that was and what
-it said if it failed; whoever manages MCP servers can check it again there.
+A server's card on the MCP servers page says when one of its accounts did not
+answer its last check, and its accounts list says which and what it said;
+whoever manages MCP servers can check it again there.
 An OAuth account whose sign-in could not be renewed is shown as needing
 authorization rather than as unreachable, with **Authorize** to sign in again.
 

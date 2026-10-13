@@ -383,3 +383,20 @@ export function ownAccountStatus(
 export function categoryLabel(category: string): string {
   return category.replace(/-/g, " ");
 }
+
+/**
+ * `base`, or the first of `base-2`, `base-3`... nothing in `taken` holds.
+ *
+ * A connection's name is unique per owner and becomes its tool prefix, so a
+ * second account on a server must not seed the first one's name - its first
+ * submit, or its sign-in, would be a guaranteed conflict. Each suffixed
+ * candidate stays within the prefix pattern's 32 characters.
+ */
+export function freePrefix(base: string, taken: ReadonlySet<string>): string {
+  if (!taken.has(base)) return base;
+  for (let n = 2; ; n += 1) {
+    const suffix = `-${n}`;
+    const candidate = `${base.slice(0, 32 - suffix.length)}${suffix}`;
+    if (!taken.has(candidate)) return candidate;
+  }
+}

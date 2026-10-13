@@ -3,6 +3,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { bindingKey, McpServerPicker } from "./mcp-server-picker";
+import type { McpConnectionRecord } from "@/lib/mcp-connections-api";
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
 import type { McpServerRef, OrgMcpServerRef, PersonalMcpServerRef } from "@/types/agents";
 import type { McpCatalogEntry } from "@/types/mcp";
@@ -248,7 +249,7 @@ describe("McpServerPicker", () => {
     render(picker({}));
 
     expect(screen.getByText("GitHub")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Connect" })).toBeInTheDocument();
+    expect(screen.getByText("Not connected")).toBeInTheDocument();
   });
 
   it("offers to connect an unconnected server here rather than sending anyone away", async () => {
@@ -258,7 +259,9 @@ describe("McpServerPicker", () => {
     render(picker({ onConnect }));
 
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Connect" }));
+    await settings();
+    await userEvent.click(kind("organization"));
+    await userEvent.click(screen.getByRole("button", { name: "Connect for the organization" }));
 
     // The entry, so the caller's dialog can seed a form from it.
     expect(onConnect).toHaveBeenCalledWith(GITHUB);
@@ -391,7 +394,7 @@ describe("several connections behind one catalog entry", () => {
   it("lists every bound account and offers each only the accounts still free", async () => {
     render(picker({ connections: THREE, value: [bound("c1"), bound("c3")] }));
 
-    expect(screen.getByRole("button", { name: "2 accounts" })).toBeInTheDocument();
+    expect(screen.getByText("2 accounts")).toBeInTheDocument();
     await settings();
     const [first] = screen.getAllByRole("combobox", { name: /which github account/i });
     await userEvent.click(first!);
@@ -484,7 +487,7 @@ describe("several connections behind one catalog entry", () => {
     await userEvent.click(screen.getByText(GITHUB.description));
 
     expect(screen.queryByRole("dialog")).toBeNull();
-    expect(screen.getByRole("button", { name: "Settings" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /^Settings for GitHub/ })).toBeNull();
   });
 });
 
@@ -548,7 +551,9 @@ describe("whose account a binding speaks through", () => {
 
   it("says on the card that each person's own account answers", async () => {
     render(picker({ connections: [GH], value: [personal("github")] }));
-    expect(screen.getByRole("button", { name: "Each person's own account" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Settings for GitHub in this agent" }),
+    ).toHaveTextContent("Each person's own account");
     expect(screen.getByRole("switch", { name: "Use GitHub in this agent" })).toHaveAttribute(
       "aria-checked",
       "true",
@@ -556,7 +561,7 @@ describe("whose account a binding speaks through", () => {
     await settings();
 
     expect(kind("personal")).toHaveAttribute("aria-checked", "true");
-    expect(screen.getByText(/not for API keys/)).toBeInTheDocument();
+    expect(screen.getByText(/You have not connected yours yet/)).toBeInTheDocument();
   });
 
   it("offers each person's own account for a server nobody has connected", async () => {
@@ -579,8 +584,10 @@ describe("whose account a binding speaks through", () => {
 
     await settings();
     await userEvent.click(kind("organization"));
+    // Nothing to bind yet: the binding stays until there is an account.
+    expect(onChange).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Connect for the organization" }));
 
-    expect(onChange).toHaveBeenCalledWith([]);
     expect(onConnect).toHaveBeenCalledWith(GITHUB);
   });
 
@@ -623,24 +630,13 @@ describe("whose account a binding speaks through", () => {
         />,
       );
 
-    it("sits beside the card's Connect", async () => {
-      const onConfigure = vi.fn();
-      mount(onConfigure);
-
-      await userEvent.click(
-        screen.getByRole("button", { name: "Configure Notion before connecting" }),
-      );
-
-      expect(onConfigure).toHaveBeenCalledWith(NOTION, "organization");
-    });
-
     it("sits under the organization's tile while it holds no account", async () => {
       const onConfigure = vi.fn();
       mount(onConfigure, [personal("notion")]);
 
       await settings("Pages.");
-      const tile = within(kind("organization"));
-      await userEvent.click(tile.getByRole("button", { name: "Configure" }));
+      await userEvent.click(kind("organization"));
+      await userEvent.click(screen.getByRole("button", { name: "Configure" }));
 
       expect(onConfigure).toHaveBeenCalledWith(NOTION, "organization");
     });
@@ -650,8 +646,7 @@ describe("whose account a binding speaks through", () => {
       mount(onConfigure, [personal("notion")]);
 
       await settings("Pages.");
-      const tile = within(kind("personal"));
-      await userEvent.click(tile.getByRole("button", { name: "Configure" }));
+      await userEvent.click(screen.getByRole("button", { name: "Configure" }));
 
       expect(onConfigure).toHaveBeenCalledWith(NOTION, "personal");
     });
@@ -703,10 +698,10 @@ describe("whose account a binding speaks through", () => {
       }),
     );
 
-    await userEvent.click(screen.getByRole("button", { name: "Settings" }));
+    await userEvent.click(screen.getByRole("button", { name: "Settings for crm in this agent" }));
 
     expect(kind("organization")).toHaveAttribute("aria-checked", "true");
-    expect(kind("personal")).toHaveAttribute("aria-disabled", "true");
+    expect(kind("personal")).toBeDisabled();
   });
 
   it("cannot be switched by a viewer who cannot edit", () => {
@@ -741,7 +736,7 @@ describe("which of a server's tools this agent may call", () => {
     render(picker({ connections: [{ ...GH, last_tools: TOOLS }], value: [bound("c1")] }));
     await settings();
 
-    expect(screen.getByText("3 of 3 tools")).toBeInTheDocument();
+    expect(screen.getByText("3 of 3")).toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: "fetch" })).toBeChecked();
   });
 
@@ -765,8 +760,8 @@ describe("which of a server's tools this agent may call", () => {
     );
     await settings();
 
-    expect(screen.getByText("1 of 3 tools")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Select all" }));
+    expect(screen.getByText("1 of 3")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("checkbox", { name: "Every tool in Tools" }));
     expect(onChange).toHaveBeenLastCalledWith([bound("c1")]);
   });
 
@@ -796,7 +791,7 @@ describe("which of a server's tools this agent may call", () => {
     );
     await settings();
 
-    expect(screen.getByText("3 of 3 tools")).toBeInTheDocument();
+    expect(screen.getByText("3 of 3")).toBeInTheDocument();
   });
 
   it("says where the tools come from when nothing has listed them", async () => {
@@ -829,6 +824,206 @@ describe("which of a server's tools this agent may call", () => {
     await userEvent.click(screen.getByText(GITHUB.description));
 
     expect(screen.queryByRole("checkbox", { name: "search" })).toBeNull();
+  });
+});
+
+describe("a server's settings", () => {
+  const NOTION = entry({ key: "notion", name: "Notion", auth: "oauth", description: "Pages." });
+  const READS = [
+    { name: "notion-search", description: "Search", read_only: true },
+    { name: "notion-create-pages", description: "Create" },
+  ];
+  const mine = (count: number) =>
+    Array.from(
+      { length: count },
+      (_, i) =>
+        ({
+          ...connection({ id: `p${i}`, name: `notion-${i}`, catalog_key: "notion" }),
+          last_tools: READS,
+        }) as never,
+    );
+  const mount = (
+    props: Partial<{
+      value: McpServerRef[];
+      onChange: (next: McpServerRef[]) => void;
+      onConnectOwn: (entry: McpCatalogEntry) => void;
+      own: number;
+    }> = {},
+  ) =>
+    render(
+      <McpServerPicker
+        connections={[]}
+        catalog={[NOTION]}
+        value={props.value ?? []}
+        onChange={props.onChange ?? vi.fn()}
+        onTools={vi.fn()}
+        onConnect={vi.fn()}
+        onConnectOwn={props.onConnectOwn}
+        personalConnections={mine(props.own ?? 1)}
+      />,
+    );
+
+  it("previews the tools of a server not yet used, and switches it on from the header", async () => {
+    const onChange = vi.fn();
+    mount({ onChange });
+
+    await settings("Pages.");
+    // What it offers is readable before it is on; choosing waits until it is.
+    expect(screen.getByRole("checkbox", { name: "notion-search" })).toBeDisabled();
+    await userEvent.click(
+      within(screen.getByRole("dialog")).getByRole("switch", { name: "Use Notion in this agent" }),
+    );
+
+    expect(onChange).toHaveBeenCalledWith([personal("notion")]);
+  });
+
+  it("removes the server from the agent", async () => {
+    const onChange = vi.fn();
+    mount({ value: [personal("notion")], onChange });
+
+    await settings("Pages.");
+    await userEvent.click(screen.getByRole("button", { name: "Remove from agent" }));
+
+    expect(onChange).toHaveBeenCalledWith([]);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("writes the approval chosen per group onto the binding", async () => {
+    const onChange = vi.fn();
+    mount({ value: [personal("notion")], onChange });
+
+    await settings("Pages.");
+    await userEvent.click(screen.getByRole("combobox", { name: "Approval for Changes things" }));
+    await userEvent.click(await screen.findByRole("option", { name: "Run freely" }));
+
+    expect(onChange).toHaveBeenCalledWith([{ ...personal("notion"), approval: "none" }]);
+  });
+
+  it("keeps the approval when the binding moves to another kind of account", async () => {
+    const onChange = vi.fn();
+    const gh = connection({ id: "c1", name: "notion-org", catalog_key: "notion" });
+    render(
+      <McpServerPicker
+        connections={[gh]}
+        catalog={[NOTION]}
+        value={[{ ...personal("notion"), approval: "all" }]}
+        onChange={onChange}
+        onTools={vi.fn()}
+        onConnect={vi.fn()}
+      />,
+    );
+
+    await settings("Pages.");
+    await userEvent.click(kind("organization"));
+
+    expect(onChange).toHaveBeenCalledWith([{ ...bound("c1"), approval: "all" }]);
+  });
+
+  it("connects another of the reader's own accounts, and counts the ones it reaches", async () => {
+    const onConnectOwn = vi.fn();
+    mount({ value: [personal("notion")], onConnectOwn, own: 2 });
+
+    await settings("Pages.");
+    expect(screen.getByText(/You have 2 accounts connected/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Connect another account" }));
+
+    expect(onConnectOwn).toHaveBeenCalledWith(NOTION);
+  });
+});
+
+describe("the reader's own accounts in a server's settings", () => {
+  const NOTION = entry({ key: "notion", name: "Notion", auth: "oauth", description: "Pages." });
+  const WORK = connection({
+    id: "p1",
+    name: "notion",
+    label: "Work",
+    catalog_key: "notion",
+    is_default: true,
+  });
+  const SIDE = connection({ id: "p2", name: "notion-2", catalog_key: "notion", authorized: false });
+  const OFF = connection({ id: "p3", name: "notion-3", catalog_key: "notion", is_enabled: false });
+  const mount = (handlers: {
+    onDisconnectOwn?: (connection: McpConnectionRecord) => void;
+    onSignInOwn?: (connection: McpConnectionRecord) => void;
+  }) =>
+    render(
+      <McpServerPicker
+        connections={[]}
+        catalog={[NOTION]}
+        value={[personal("notion")]}
+        onChange={vi.fn()}
+        onTools={vi.fn()}
+        onConnect={vi.fn()}
+        personalConnections={[WORK, SIDE, OFF] as never}
+        {...handlers}
+      />,
+    );
+
+  it("lists each by name, with the main one marked and the prefix its tools carry", async () => {
+    mount({});
+
+    await settings("Pages.");
+    const row = within(screen.getByText("Work").closest("li")!);
+    expect(row.getByText("Main")).toBeInTheDocument();
+    expect(row.getByText("Its tools start with notion")).toBeInTheDocument();
+    expect(
+      within(screen.getByText("notion-2").closest("li")!).getByText("Needs authorization"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /Rename or choose your main account/ }),
+    ).toHaveAttribute("target", "_blank");
+  });
+
+  it("disconnects one only on the second click", async () => {
+    const onDisconnectOwn = vi.fn();
+    mount({ onDisconnectOwn });
+
+    await settings("Pages.");
+    await userEvent.click(screen.getByRole("button", { name: "Disconnect Work" }));
+    expect(onDisconnectOwn).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Disconnect for good" }));
+
+    expect(onDisconnectOwn).toHaveBeenCalledWith(WORK);
+  });
+
+  it("signs in again an account whose grant lapsed", async () => {
+    const onSignInOwn = vi.fn();
+    mount({ onSignInOwn });
+
+    await settings("Pages.");
+    await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+    expect(onSignInOwn).toHaveBeenCalledWith(SIDE);
+  });
+});
+
+describe("a further account in a server's settings", () => {
+  const THREE_GH = [
+    connection({ id: "c1", name: "gh-admin", catalog_key: "github" }),
+    connection({ id: "c2", name: "gh-readonly", catalog_key: "github" }),
+  ];
+
+  it("moves a further account from each person's own to the organization's", async () => {
+    const onChange = vi.fn();
+    render(picker({ connections: THREE_GH, value: [bound("c1"), personal("github")], onChange }));
+
+    await settings();
+    await userEvent.click(screen.getByRole("combobox", { name: /^Whose GitHub account/ }));
+    await userEvent.click(
+      await screen.findByRole("option", { name: "The organization's account" }),
+    );
+
+    expect(onChange).toHaveBeenCalledWith([bound("c1"), bound("c2")]);
+  });
+
+  it("opens a server's settings from the line at the foot of its card", async () => {
+    render(picker({ connections: THREE_GH }));
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Settings for GitHub in this agent" }),
+    );
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
   });
 });
 

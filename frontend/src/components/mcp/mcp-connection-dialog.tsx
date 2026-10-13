@@ -163,8 +163,9 @@ function ConnectionForm({
   // the slug is a technical name with a constraint to explain, and leading
   // with that is what left two Notion accounts called `notion` and `notion-2`.
   const known = draft.row.entry !== null && draft.existing === null;
+  // Side by side: two short fields, each with a line of explanation under it.
   const identity = (
-    <>
+    <div className="grid gap-4 sm:grid-cols-2">
       <div>
         <Label htmlFor="mcp-label">{t("displayName")}</Label>
         <Input
@@ -197,7 +198,7 @@ function ConnectionForm({
           {t("namePrefixesToolNames", { scope })}
         </p>
       </div>
-    </>
+    </div>
   );
   // A client registered at the provider by hand: optional for most servers, so
   // folded with the rest - and unfolded when the probe says this one needs it.

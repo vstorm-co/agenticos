@@ -53,6 +53,7 @@ import {
   ConnectOwnServerDialog,
   ConnectServerDialog,
   useConnectEntry,
+  useSignInOwn,
 } from "@/components/agents/connect-server-dialog";
 import { hereForMcpOAuthReturn } from "@/lib/mcp-oauth";
 import { McpToolPickerDialog } from "@/components/mcp/mcp-tool-picker-dialog";
@@ -123,6 +124,7 @@ import {
   useOrgMcpConnections,
   usePermissions,
   useSkills,
+  useUrlState,
 } from "@/hooks";
 import {
   readSubagentsConfig,
@@ -186,12 +188,15 @@ function toolChoice(
   };
 }
 
+/** The Builder's tabs, as `?tab=` names them; anything else is the first. */
+const BUILDER_TABS = new Set(["build", "toolbox", "mcp", "limits", "availability", "history"]);
+
 export default function AgentBuilderPage({ params }: PageProps) {
   const t = useTranslations("pages.agents");
   const tMenu = useTranslations("agents");
   // The reader's own MCP accounts: the tools of a server bound only through each
   // person's account are listed from theirs.
-  const { connections: myMcpConnections } = useMcpConnections();
+  const { connections: myMcpConnections, remove: removeMyMcpConnection } = useMcpConnections();
   const tc = useTranslations("common");
   const tSharing = useTranslations("sharing");
   const tAgents = useTranslations("agents");
@@ -255,10 +260,15 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const [connectingOwnServer, setConnectingOwnServer] = useState<McpCatalogEntry | null>(null);
   // Whether the open connect form came from **Configure**, so it opens unfolded.
   const [configuringServer, setConfiguringServer] = useState(false);
-  const connectServer = useConnectEntry("organization", { openForm: setConnectingServer });
+  const connectServer = useConnectEntry("organization", {
+    openForm: setConnectingServer,
+    taken: mcpConnections.map((connection) => connection.name),
+  });
+  const signInOwnServer = useSignInOwn({ returnTo: hereForMcpOAuthReturn() });
   const connectOwnServer = useConnectEntry("personal", {
     returnTo: hereForMcpOAuthReturn(),
     openForm: setConnectingOwnServer,
+    taken: myMcpConnections.map((connection) => connection.name),
   });
   const [toolPicker, setToolPicker] = useState<ToolPickerState | null>(null);
   // Which binding the open tool picker narrows, by `bindingKey`. Kept beside the
@@ -281,7 +291,10 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const [publishOpen, setPublishOpen] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
-  const [tab, setTab] = useState("build");
+  // In the address, so a reload or a shared link lands on the same tab.
+  const [tabParam, changeTab] = useUrlState("tab");
+  const tab = tabParam !== null && BUILDER_TABS.has(tabParam) ? tabParam : "build";
+  const setTab = (next: string) => changeTab(next === "build" ? null : next);
   // Set by the first publish only: the moment an agent can be reached is the
   // moment to say where it can be reached from, which people did not find on
   // their own (#2131).
@@ -1500,6 +1513,12 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   onChange={(mcp_servers) => update({ mcp_servers })}
                   personalConnections={myMcpConnections}
                   onConnectOwn={connectOwnServer}
+                  onSignInOwn={signInOwnServer}
+                  onDisconnectOwn={(connection) => {
+                    removeMyMcpConnection(connection.id).catch((caught: unknown) =>
+                      toast.error(getErrorMessage(caught, tErrors)),
+                    );
+                  }}
                   onConfigure={(entry, scope) => {
                     setConfiguringServer(true);
                     if (scope === "organization") setConnectingServer(entry);

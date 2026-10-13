@@ -6,6 +6,7 @@ import {
   ownAccountStatus,
   CUSTOM_CATEGORY,
   connectionState,
+  freePrefix,
   matchingCustomRows,
   mergeServers,
   narrowedSelection,
@@ -454,5 +455,17 @@ describe("slugForPrefix", () => {
   it("returns an empty string when nothing usable remains, so the field stays blank", () => {
     expect(slugForPrefix("///")).toBe("");
     expect(slugForPrefix("...")).toBe("");
+  });
+});
+
+describe("freePrefix", () => {
+  it("keeps the base while nothing holds it, then counts up", () => {
+    expect(freePrefix("notion", new Set())).toBe("notion");
+    expect(freePrefix("notion", new Set(["notion", "notion-2"]))).toBe("notion-3");
+  });
+
+  it("stays within the prefix's 32 characters", () => {
+    const base = "a".repeat(32);
+    expect(freePrefix(base, new Set([base]))).toBe(`${"a".repeat(30)}-2`);
   });
 });

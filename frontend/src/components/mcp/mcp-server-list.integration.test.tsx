@@ -183,10 +183,10 @@ describe("McpServerList", () => {
 
     const row = within(githubRow());
     expect(row.getByRole("button", { name: "Connect" })).toBeInTheDocument();
-    // Labelled for a screen reader, and counted for everybody else.
-    // The count as a number beside a mark; the button's name says what it counts.
+    expect(row.getByRole("button", { name: "Configure GitHub before connecting" })).toBeVisible();
+    // Whose accounts it holds, as the foot's one line; its name says what it opens.
     expect(row.getByRole("button", { name: "Manage 1 connection on GitHub" })).toHaveTextContent(
-      "1",
+      "The organization's account",
     );
   });
 
@@ -403,11 +403,16 @@ describe("McpServerList", () => {
     );
   });
 
-  it("offers Configure only where Connect skips the form", async () => {
+  it("opens the form with its settings unfolded from Configure", async () => {
     await mount();
 
-    // GitHub takes a token, so its Connect is the form already.
-    expect(within(githubRow()).queryByRole("button", { name: /^Configure GitHub/ })).toBeNull();
+    await userEvent.click(
+      within(githubRow()).getByRole("button", { name: "Configure GitHub before connecting" }),
+    );
+
+    expect(await screen.findByLabelText("Server URL")).toHaveValue(
+      "https://api.githubcopilot.com/mcp/",
+    );
   });
 
   it("lets a member without connections:manage read the organization column, not write it", async () => {
@@ -438,7 +443,9 @@ describe("McpServerList", () => {
     await mount({ own: [crm] });
 
     expect(screen.getByText("internal-crm")).toBeInTheDocument();
-    expect(screen.getByText("not in the catalog")).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("group", { name: "internal-crm" })).getByText("Your account"),
+    ).toBeInTheDocument();
   });
 
   it("marks each card with the service's own logo", async () => {
@@ -448,12 +455,12 @@ describe("McpServerList", () => {
     // class name, because that is the property a reader actually depends on.
     await mount();
 
-    const glyph = (server: string) =>
-      screen.getByRole("group", { name: server }).querySelector("svg path")?.getAttribute("d");
+    const mark = (server: string) =>
+      screen.getByRole("group", { name: server }).querySelector("img")?.getAttribute("src");
 
-    expect(glyph("GitHub")).toBeTruthy();
-    expect(glyph("Linear")).toBeTruthy();
-    expect(glyph("GitHub")).not.toBe(glyph("Linear"));
+    expect(mark("GitHub")).toBeTruthy();
+    expect(mark("Linear")).toBeTruthy();
+    expect(mark("GitHub")).not.toBe(mark("Linear"));
   });
 
   it("falls back to a monogram for a server the catalog has never heard of", async () => {

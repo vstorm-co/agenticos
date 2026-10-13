@@ -488,6 +488,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **MCP servers read as one kind of card, and connect in one click.** Every
+  card, on the servers page and in the Builder, is the server's logo in its own
+  colours, its name, two lines of what it does and one foot saying where it
+  stands - no address, category or check date. **Connect** on a catalog server
+  that signs in goes straight to the provider, with **Configure** beside it for
+  the form, whose known settings sit under **More options**. A server's
+  settings in the Builder switch it on, choose whose account in one control,
+  list your own accounts on the service with a way to sign one in again or
+  disconnect it, and group its tools into reads and changes, each running
+  freely or asking first. The Builder keeps its tab in the address.
 - **A quieter, denser console, item by item.** Card descriptions fold to one
   line with **More** at its end; the chat's history reads by day (Today,
   Yesterday, Previous 7 days…) in one-line rows, with search alone above it and

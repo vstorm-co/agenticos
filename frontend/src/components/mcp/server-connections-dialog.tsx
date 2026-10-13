@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Building2, History, Lock, Plug, User, Users } from "lucide-react";
+import { Building2, ExternalLink, History, Lock, Plug, User, Users } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { AddToAgent } from "@/components/agents/add-to-agent";
@@ -77,6 +77,17 @@ export function ServerConnectionsDialog({
               <DialogHeader>
                 <DialogTitle>{row.name}</DialogTitle>
                 <DialogDescription>{t("accountsOnThisServer")}</DialogDescription>
+                {row.docsUrl && (
+                  <a
+                    href={row.docsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-muted-foreground hover:text-foreground inline-flex w-fit items-center gap-1 text-xs underline underline-offset-4"
+                  >
+                    {t("documentation")}
+                    <ExternalLink className="h-3 w-3" aria-hidden />
+                  </a>
+                )}
               </DialogHeader>
 
               <div className="space-y-5">

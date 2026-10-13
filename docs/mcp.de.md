@@ -1,5 +1,5 @@
 ---
-source_sha: "f5e2666bd2b8"
+source_sha: "179806c4d0f1"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -175,10 +175,14 @@ Nur-lesen-Hinweis ist die Behauptung des Servers selbst, also ist `writes` nur s
 streng, wie der Server ehrlich ist — wählen Sie `all` für einen Server, den Sie
 nicht kontrollieren.
 
+Im Builder sagen die Einstellungen eines Servers das je
+Gruppe: **Lesen** und **Ändern** laufen jeweils ohne Rückfrage oder fragen erst.
+
 ### Durch wessen Konto ein Binding spricht { #whose-account-a-binding-speaks-through }
 
-Ein Binding ist von einer von zwei Arten, und der Builder fragt auf der Karte,
-welcher.
+Ein Binding ist von einer von zwei Arten, und der Builder fragt in den
+Einstellungen des Servers, welcher; dort stehen auch Ihre eigenen Konten bei
+dem Dienst.
 
 **Das Konto der Organisation** (`account: organization`) benennt eine der
 Connections der Organisation und antwortet für alle, auf jeder Oberfläche. Das ist
@@ -548,10 +552,10 @@ Nutzer-Connection, die zufällig denselben Namen wählt.
 
 ### Zustand, Nutzer und Aufrufe { #health-users-and-calls }
 
-Ein Server, an den der Agent über das Konto der Organisation gebunden ist, zeigt
-auf seiner Karte im Builder, ob er bei der letzten Prüfung geantwortet hat, wann
-das war und was er bei einem Fehler meldete; wer MCP-Server verwaltet, kann ihn
-dort erneut prüfen.
+Die Karte eines Servers auf der Seite MCP servers sagt, wenn eines seiner Konten
+bei der letzten Prüfung nicht geantwortet hat, und die Liste seiner Konten sagt,
+welches und was es meldete; wer MCP-Server verwaltet, kann ihn dort erneut
+prüfen.
 Ein OAuth-Konto, dessen Anmeldung nicht erneuert werden konnte, wird als
 autorisierungsbedürftig statt als unerreichbar gezeigt, mit **Autorisieren**, um
 sich erneut anzumelden.

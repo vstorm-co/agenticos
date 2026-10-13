@@ -1,33 +1,24 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { ExternalLink } from "lucide-react";
-import { useTranslations } from "next-intl";
 
-import { CatalogCheck } from "@/components/mcp/catalog-check";
 import { McpServerIcon } from "@/components/mcp/mcp-server-icon";
 import { Card, CardContent } from "@/components/ui";
 import { cn } from "@/lib/utils";
-import type { McpCatalogEntry } from "@/types/mcp";
 
 interface McpServerCardProps {
   name: string;
   icon: string | null;
-  /** What it asks for, or that it came from the registry - beside the name. */
-  badge: ReactNode;
-  /** The category as a reader sees it. */
-  category: string;
-  description: string;
   url: string | null;
-  docsUrl: string | null;
-  /** The catalog entry, for what the last catalog check found. */
-  entry: McpCatalogEntry | null;
-  /** The left of the action bar: the card's verbs. */
-  actions: ReactNode;
-  /** The far right of the action bar, after the check. */
-  trailing?: ReactNode;
-  /** Top right, beside the badge: the Builder's switch. */
+  description: string;
+  /** Beside the name, for the one thing worth saying there - a registry server. */
+  badge?: ReactNode;
+  /** Top right: the Builder's switch. */
   headerAction?: ReactNode;
+  /** Where the server stands, as one line at the foot. */
+  status: ReactNode;
+  /** The foot's right end: the page's verbs, where it has any. */
+  actions?: ReactNode;
   /** The Builder's card for a server this agent uses. */
   selected?: boolean;
   /** Clicking the card's body, where the card is more than its controls. */
@@ -36,39 +27,38 @@ interface McpServerCardProps {
 }
 
 /**
- * One MCP server, drawn the same on the servers page and in the Builder.
+ * One MCP server, drawn the same on the servers page and in the Builder, and
+ * the same whatever state it is in.
  *
- * The two used to be different shapes of the same thing - a catalog card there,
- * a dense row here - so a server looked like a different object depending on
- * where somebody met it. The caller decides only the verbs: connecting and
- * managing accounts on the servers page, using the server in this agent in the
- * Builder.
+ * Every card is a logo, a name, two lines of what it does, and one foot: where
+ * it stands on the left, the verbs on the right. The address, the category,
+ * the documentation link and the date of the last catalog check used to sit
+ * in between, and whether a card had a Connect, a settings button or nothing
+ * at all depended on its state, so no two cards in a row looked alike. The
+ * address and the documentation are one click away, in the server's own
+ * dialog.
  */
 export function McpServerCard({
   name,
   icon,
-  badge,
-  category,
-  description,
   url,
-  docsUrl,
-  entry,
-  actions,
-  trailing,
+  description,
+  badge,
   headerAction,
+  status,
+  actions,
   selected = false,
   onOpen,
   dataTour,
 }: McpServerCardProps) {
-  const t = useTranslations("mcp");
   return (
     <Card
       role="group"
       aria-label={name}
       className={cn(
         "h-full transition-colors",
-        selected && "border-brand bg-brand/5",
-        onOpen && "hover:border-foreground/20 cursor-pointer",
+        selected && "border-foreground/40",
+        onOpen && "hover:border-foreground/25 cursor-pointer",
       )}
       data-tour={dataTour}
       onClick={
@@ -80,61 +70,71 @@ export function McpServerCard({
       }
     >
       <CardContent className="flex h-full flex-col gap-3 p-4">
-        <div className="flex items-start gap-2.5">
-          <McpServerIcon icon={icon} name={name} url={url} className="mt-0.5 h-6 w-6" />
-          <div className="min-w-0 flex-1 space-y-1">
-            <div className="flex items-start justify-between gap-2">
+        <div className="flex items-start gap-3">
+          {/* A white tile in both themes: the logos are drawn for a light ground. */}
+          <span className="border-foreground/10 grid size-10 shrink-0 place-items-center rounded-xl border bg-white">
+            <McpServerIcon icon={icon} name={name} url={url} className="size-6 text-neutral-900" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
               <span className="truncate text-sm font-medium">{name}</span>
-              <span className="flex shrink-0 items-center gap-2">
-                {badge}
-                {headerAction}
-              </span>
+              {badge}
             </div>
-            <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-              {category}
+            <p className="text-muted-foreground mt-0.5 line-clamp-2 text-[13px] leading-snug">
+              {description}
             </p>
-            <p className="text-muted-foreground line-clamp-2 text-sm">{description}</p>
-            {url === null ? (
-              // Prose, so it is set as prose. Monospacing this sentence and then
-              // truncating it produced "Self-hosted - you supply the…", which
-              // reads as a URL that got cut off.
-              <p className="text-muted-foreground text-xs">{t("selfHostedYouSupply")}</p>
-            ) : (
-              // Truncated rather than wrapped: spelled out, the URL is the tallest
-              // thing on the card, and the full copy is one click away.
-              <p className="text-muted-foreground truncate font-mono text-xs" title={url}>
-                {/* A query string may carry a key - never render one. */}
-                {`${url.split("?")[0]}${url.includes("?") ? "?…" : ""}`}
-              </p>
-            )}
-            {docsUrl && (
-              <a
-                href={docsUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs underline underline-offset-4"
-              >
-                {t("documentation")}
-                <ExternalLink className="h-3 w-3" />
-              </a>
-            )}
           </div>
+          {headerAction && <span className="shrink-0">{headerAction}</span>}
         </div>
-
-        {/* Pushed to the foot, with a rule above it: cards in a row are the same
-            height and their descriptions are not, so actions kept under the
-            text landed at a different height in every column. `min-w-0` so the
-            row shrinks rather than pushing its right end past the card. */}
-        <div className="mt-auto">
-          <div className="border-border mt-3 flex min-w-0 items-center gap-1.5 border-t pt-3">
-            {actions}
-            <div className="ml-auto flex min-w-0 items-center gap-2">
-              <CatalogCheck entry={entry} />
-              {trailing}
-            </div>
-          </div>
+        <div className="mt-auto flex min-h-8 min-w-0 items-center gap-2">
+          <span className="text-muted-foreground flex min-w-0 flex-1 items-center gap-1.5 text-xs">
+            {status}
+          </span>
+          {actions && <span className="flex shrink-0 items-center gap-1">{actions}</span>}
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+/** The foot's left end: a dot for whether anything answers, and what that is. */
+export function CardStatus({
+  tone,
+  children,
+  onClick,
+  label,
+}: {
+  tone: "live" | "off" | "error";
+  children: ReactNode;
+  /** Where the line opens the server's accounts or settings - the keyboard's way in. */
+  onClick?: () => void;
+  label?: string;
+}) {
+  const body = (
+    <>
+      <span
+        aria-hidden
+        className={cn(
+          "size-1.5 shrink-0 rounded-full",
+          tone === "live"
+            ? "bg-success"
+            : tone === "error"
+              ? "bg-destructive"
+              : "bg-muted-foreground/35",
+        )}
+      />
+      <span className="truncate">{children}</span>
+    </>
+  );
+  if (onClick === undefined) return body;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      className="hover:text-foreground flex min-w-0 items-center gap-1.5 rounded-sm underline-offset-2 hover:underline"
+    >
+      {body}
+    </button>
   );
 }

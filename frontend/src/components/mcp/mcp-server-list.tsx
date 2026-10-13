@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Cable, ChevronRight, Plug, Plus, Settings2 } from "lucide-react";
+import { Plug, Plus, Settings2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
-import { McpServerCard } from "@/components/mcp/mcp-server-card";
+import { CardStatus, McpServerCard } from "@/components/mcp/mcp-server-card";
 import { McpConnectionDialog } from "@/components/mcp/mcp-connection-dialog";
 import { ServerConnectionsDialog } from "@/components/mcp/server-connections-dialog";
 import { McpToolPickerDialog } from "@/components/mcp/mcp-tool-picker-dialog";
@@ -30,7 +30,6 @@ import {
 import { useMcpServers } from "@/hooks";
 import { useCreatedToast } from "@/hooks/use-created-toast";
 import { MCP_PAGE_SIZE, useMcpCatalog, useMcpCatalogPage } from "@/hooks/use-mcp-servers";
-import { cn } from "@/lib/utils";
 import { getErrorMessage } from "@/lib/api-error";
 import type { McpConnectionRecord } from "@/lib/mcp-connections-api";
 import { startMcpOAuth } from "@/lib/mcp-connections-api";
@@ -41,6 +40,7 @@ import {
   matchingCustomRows,
   categoryLabel,
   customRows,
+  freePrefix,
   isReviewed,
   MCP_AUTH_LABEL,
   MCP_STATE_LABEL,
@@ -80,12 +80,7 @@ function freeName(row: McpServerRow, taken: Set<string>): string | undefined {
   if (key === undefined) return undefined;
   const base = slugForPrefix(key);
   if (base === "") return undefined;
-  if (!taken.has(base)) return base;
-  for (let n = 2; ; n += 1) {
-    const suffix = `-${n}`;
-    const candidate = `${base.slice(0, 32 - suffix.length)}${suffix}`;
-    if (!taken.has(candidate)) return candidate;
-  }
+  return freePrefix(base, taken);
 }
 
 /** The row's sentence, from whichever side wrote it. */
@@ -631,81 +626,48 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
               key={row.key}
               name={row.name}
               icon={row.entry?.icon ?? null}
-              // One list holds both kinds, so the difference has to be on the
-              // card rather than in a heading over half of it. Nobody here
-              // checked a registry server: the description is the publisher's
-              // and there is no token hint, which is worth knowing before
-              // pasting a credential into it.
+              url={row.url}
+              // Nobody here checked a registry server: the description is the
+              // publisher's and there is no token hint, which is worth knowing
+              // before pasting a credential into it.
               badge={
-                isReviewed(row) ? (
-                  <Badge variant="outline" className="shrink-0">
-                    {t(MCP_AUTH_LABEL[row.auth])}
-                  </Badge>
-                ) : (
+                isReviewed(row) ? null : (
                   <Badge variant="secondary" className="shrink-0" title={t("fromRegistryHint")}>
                     {t("fromRegistry")}
                   </Badge>
                 )
               }
-              category={
-                row.category === CUSTOM_CATEGORY ? t("notCatalog") : categoryLabel(row.category)
-              }
               description={rowDescription(row, t)}
-              url={row.url}
-              docsUrl={row.docsUrl}
-              entry={row.entry}
               dataTour={index === 0 ? "mcp-connect" : undefined}
-              // Exactly two controls, whatever the card holds. The row used to
-              // grow one chip per connection, so a server with three accounts
-              // stood taller than its neighbours and the grid went ragged.
+              status={<RowStatus row={row} onManage={() => setManaging(row)} />}
+              // A server somebody holds an account on opens its accounts.
+              onOpen={connectionCount(row) > 0 ? () => setManaging(row) : undefined}
+              // The same two controls on every card, whatever it holds.
               actions={
                 <>
-                  {row.auth === "oauth" && row.entry !== null && (
-                    <Button
-                      size="icon-sm"
-                      variant="ghost"
-                      className="shrink-0"
-                      onClick={() =>
-                        openDraft(defaultScope(row, canManageOrganization), row, null, true)
-                      }
-                      disabled={busyId === row.key}
-                      title={t("configureNamed", { name: row.name })}
-                      aria-label={t("configureNamed", { name: row.name })}
-                    >
-                      <Settings2 aria-hidden />
-                    </Button>
-                  )}
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    onClick={() =>
+                      openDraft(defaultScope(row, canManageOrganization), row, null, true)
+                    }
+                    disabled={busyId === row.key}
+                    title={t("configureNamed", { name: row.name })}
+                    aria-label={t("configureNamed", { name: row.name })}
+                  >
+                    <Settings2 aria-hidden />
+                  </Button>
                   <Button
                     size="sm"
                     variant="outline"
-                    className="shrink-0"
                     onClick={() => connect(defaultScope(row, canManageOrganization), row)}
                     disabled={busyId === row.key}
                   >
                     <Plug className="mr-1 h-3.5 w-3.5" />
                     {busyId === row.key ? t("redirecting") : t("connectAction")}
                   </Button>
-                  {connectionCount(row) > 0 && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      // The one control allowed to give way: the count is the
-                      // least important thing on the row.
-                      className="min-w-0"
-                      onClick={() => setManaging(row)}
-                      aria-label={t("manageConnectionsOn", {
-                        name: row.name,
-                        count: connectionCount(row),
-                      })}
-                    >
-                      <Cable className="h-3.5 w-3.5" aria-hidden />
-                      <span className="tabular-nums">{connectionCount(row)}</span>
-                      <ChevronRight className="h-3.5 w-3.5" aria-hidden />
-                    </Button>
-                  )}
                 </>
               }
-              trailing={<StateDot row={row} />}
             />
           ))}
         </div>
@@ -811,29 +773,35 @@ function connectionCount(row: McpServerRow): number {
  * says so, because "mostly working" is not what somebody scanning a grid of
  * sixty servers for a broken one needs to see.
  */
-function StateDot({ row }: { row: McpServerRow }) {
+function RowStatus({ row, onManage }: { row: McpServerRow; onManage: () => void }) {
   const t = useTranslations("mcp");
   const states = [...row.organizations, ...row.personals].map((c) => connectionState(c));
-  if (states.length === 0) return null;
-  const worst = states.includes("error")
-    ? "error"
-    : states.includes("needs-authorization")
-      ? "needs-authorization"
-      : states.includes("disabled")
-        ? "disabled"
-        : "connected";
-
+  if (states.length === 0) return <CardStatus tone="off">{t("cardNotConnected")}</CardStatus>;
+  const trouble = states.find((state) => state === "error" || state === "needs-authorization");
+  if (trouble) {
+    return (
+      <CardStatus
+        tone="error"
+        onClick={onManage}
+        label={t("manageConnectionsOn", { name: row.name, count: states.length })}
+      >
+        {t(MCP_STATE_LABEL[trouble])}
+      </CardStatus>
+    );
+  }
+  const yours = row.personals.length;
+  const theirs = row.organizations.length;
   return (
-    <span
-      className={cn(
-        "inline-block h-2 w-2 shrink-0 rounded-full",
-        worst === "connected"
-          ? "bg-success"
-          : worst === "error"
-            ? "bg-destructive"
-            : "bg-muted-foreground/50",
-      )}
-      title={t(MCP_STATE_LABEL[worst])}
-    />
+    <CardStatus
+      tone="live"
+      onClick={onManage}
+      label={t("manageConnectionsOn", { name: row.name, count: yours + theirs })}
+    >
+      {yours > 0 && theirs > 0
+        ? t("cardYoursAndOrganizations")
+        : yours > 0
+          ? t("cardYours", { count: yours })
+          : t("cardOrganizations", { count: theirs })}
+    </CardStatus>
   );
 }

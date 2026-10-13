@@ -1,13 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Plug, Settings2 } from "lucide-react";
 
 import { McpBindingDialog } from "@/components/agents/mcp-binding-dialog";
-import { McpServerCard } from "@/components/mcp/mcp-server-card";
-import { Button, Checkbox, Pager, SearchInput, Switch, useListControls } from "@/components/ui";
+import { CardStatus, McpServerCard } from "@/components/mcp/mcp-server-card";
+import { Checkbox, Pager, SearchInput, Switch, useListControls } from "@/components/ui";
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
-import { categoryLabel, entryForConnection } from "@/lib/mcp-servers";
+import { entryForConnection } from "@/lib/mcp-servers";
 import type { McpConnectionRecord, McpToolInfo } from "@/lib/mcp-connections-api";
 import type { AccountRef } from "@/components/agents/mcp-binding-dialog";
 import type { McpServerRef } from "@/types/agents";
@@ -68,6 +67,10 @@ interface McpServerPickerProps {
   personalConnections?: McpConnectionRecord[];
   /** Connect the reader's own account on a catalog server, without leaving the page. */
   onConnectOwn?: (entry: McpCatalogEntry) => void;
+  /** Disconnect one of the reader's own accounts, from a server's settings. */
+  onDisconnectOwn?: (connection: McpConnectionRecord) => void;
+  /** Sign one of the reader's own accounts in again. */
+  onSignInOwn?: (connection: McpConnectionRecord) => void;
   /** The connect form with its settings open, for a server **Connect** signs straight in to. */
   onConfigure?: (entry: McpCatalogEntry, scope: "organization" | "personal") => void;
   disabled?: boolean;
@@ -108,6 +111,8 @@ export function McpServerPicker({
   onConnect,
   personalConnections = [],
   onConnectOwn,
+  onDisconnectOwn,
+  onSignInOwn,
   onConfigure,
   disabled,
 }: McpServerPickerProps) {
@@ -218,9 +223,11 @@ export function McpServerPicker({
                   connection.catalog_key === row.entry?.key && connection.last_tools !== null,
               )?.last_tools ?? null
             }
-            hasOwnAccount={personalConnections.some(
+            ownAccounts={personalConnections.filter(
               (connection) => connection.catalog_key === row.entry?.key,
             )}
+            onDisconnectOwn={onDisconnectOwn}
+            onSignInOwn={onSignInOwn}
             onConnectOwn={onConnectOwn}
             onConfigure={onConfigure}
             disabled={disabled}
@@ -281,7 +288,9 @@ function ServerCard({
   onTools,
   onConnect,
   personalTools,
-  hasOwnAccount,
+  ownAccounts,
+  onDisconnectOwn,
+  onSignInOwn,
   onConnectOwn,
   onConfigure,
   disabled,
@@ -292,7 +301,10 @@ function ServerCard({
   onTools: (ref: McpServerRef, probed: OrgMcpConnectionRecord, name: string) => void;
   onConnect: (entry: McpCatalogEntry) => void;
   personalTools: McpToolInfo[] | null;
-  hasOwnAccount: boolean;
+  /** The reader's own accounts on the server. */
+  ownAccounts: McpConnectionRecord[];
+  onDisconnectOwn?: (connection: McpConnectionRecord) => void;
+  onSignInOwn?: (connection: McpConnectionRecord) => void;
   onConnectOwn?: (entry: McpCatalogEntry) => void;
   onConfigure?: (entry: McpCatalogEntry, scope: "organization" | "personal") => void;
   disabled?: boolean;
@@ -342,7 +354,8 @@ function ServerCard({
       <McpServerCard
         name={name}
         icon={icon}
-        badge={null}
+        url={entry?.url ?? connection?.url ?? null}
+        description={description}
         headerAction={
           <Switch
             checked={isOn}
@@ -351,70 +364,49 @@ function ServerCard({
             aria-label={t("useServerInAgent", { name })}
           />
         }
-        category={entry ? categoryLabel(entry.category) : tMcp("notCatalog")}
-        description={description}
-        url={entry?.url ?? connection?.url ?? null}
-        docsUrl={entry?.docs_url ?? null}
-        // No catalog check here: whether the server answered a probe last week
-        // is the servers page's business, not a question while building an agent.
-        entry={null}
-        selected={isOn}
-        onOpen={disabled ? undefined : () => setSettingsOpen(true)}
-        actions={
+        // One line in the same place on every card: how this agent reaches the
+        // server when it uses it, and otherwise who could connect it. Whose
+        // account, which tools and connecting one are all in its settings,
+        // which the card opens, so no card carries a button another lacks.
+        status={
           isOn ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="shrink-0"
-              disabled={disabled}
-              onClick={() => setSettingsOpen(true)}
+            <CardStatus
+              tone="live"
+              onClick={disabled ? undefined : () => setSettingsOpen(true)}
+              label={t("serverSettingsNamed", { name })}
             >
-              <Settings2 className="mr-1 h-3.5 w-3.5" />
               {bindings.length > 1
                 ? t("accountCount", { count: bindings.length })
                 : onlyPersonal
                   ? t("eachPersonsOwnAccount")
-                  : t("serverSettings")}
-            </Button>
+                  : t("cardOrganizationsAccount", {
+                      name: connection?.label ?? connection?.name ?? name,
+                    })}
+            </CardStatus>
           ) : (
-            // Here rather than on the servers page, which would throw away an
-            // unsaved draft.
-            !orgBindable &&
-            entry !== null && (
-              <span className="flex shrink-0 items-center gap-0.5">
-                {configure && (
-                  <Button
-                    type="button"
-                    size="icon-sm"
-                    variant="ghost"
-                    disabled={disabled}
-                    onClick={() => configure("organization")}
-                    title={tMcp("configureNamed", { name })}
-                    aria-label={tMcp("configureNamed", { name })}
-                  >
-                    <Settings2 aria-hidden />
-                  </Button>
-                )}
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  disabled={disabled}
-                  onClick={() => onConnect(entry)}
-                >
-                  <Plug className="mr-1 h-3.5 w-3.5" />
-                  {tMcp("connectAction")}
-                </Button>
-              </span>
-            )
+            <CardStatus
+              tone="off"
+              onClick={disabled ? undefined : () => setSettingsOpen(true)}
+              label={t("serverSettingsNamed", { name })}
+            >
+              {orgBindable
+                ? t("cardOrganizationConnected")
+                : ownAccounts.length > 0
+                  ? t("cardYourAccountConnected")
+                  : tMcp("cardNotConnected")}
+            </CardStatus>
           )
         }
+        selected={isOn}
+        onOpen={disabled ? undefined : () => setSettingsOpen(true)}
       />
       <McpBindingDialog
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
         name={name}
+        icon={icon}
+        url={entry?.url ?? connection?.url ?? null}
+        onEnabled={toggle}
         bindings={bindings}
         connections={connections}
         catalogKey={personalBindable ? entry.key : null}
@@ -432,7 +424,9 @@ function ServerCard({
             : undefined
         }
         personalTools={personalTools}
-        hasOwnAccount={hasOwnAccount}
+        ownAccounts={ownAccounts}
+        onDisconnectOwn={onDisconnectOwn}
+        onSignInOwn={onSignInOwn}
         onConnectOwn={
           entry && onConnectOwn
             ? () => {
