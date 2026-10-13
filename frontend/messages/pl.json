@@ -2628,7 +2628,7 @@
     "connect": "Podłącz dla",
     "connect2": "Podłącz dla",
     "connectAction": "Podłącz",
-    "connectAnother": "Podłącz kolejne",
+    "connectAnother": "Dodaj konto",
     "connectCheck": "Podłącz i sprawdź",
     "connectCustomForScope": "Dodaj serwer MCP dla {scope, select, organization {organizacji} other {siebie}}",
     "connectForScope": "Podłącz {name} dla {scope, select, organization {organizacji} other {siebie}}",
@@ -2755,7 +2755,8 @@
     "cardNotConnected": "Niepołączony",
     "cardYours": "{count, plural, =1 {Twoje konto} few {Twoje # konta} many {Twoich # kont} other {Twoich # kont}}",
     "cardOrganizations": "{count, plural, =1 {Konto organizacji} few {# konta organizacji} many {# kont organizacji} other {# kont organizacji}}",
-    "cardYoursAndOrganizations": "Twoje i organizacji"
+    "cardYoursAndOrganizations": "Twoje i organizacji",
+    "accountActions": "Więcej dla {name}"
   },
   "members": {
     "emailPlaceholder": "kolega@example.com",

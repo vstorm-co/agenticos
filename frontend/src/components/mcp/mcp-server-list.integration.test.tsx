@@ -430,8 +430,7 @@ describe("McpServerList", () => {
     // Readable - an agent author has to see what the Builder will offer.
     expect(dialog.getByText("gh-org")).toBeInTheDocument();
     // But nothing that writes it. A button that always 403s is worse than none.
-    expect(dialog.queryByRole("button", { name: "Disconnect" })).toBeNull();
-    expect(dialog.queryByRole("button", { name: "Edit" })).toBeNull();
+    expect(dialog.queryByRole("button", { name: "More for gh-org" })).toBeNull();
   });
 
   it("shows a server nobody curated rather than hiding it", async () => {
@@ -547,7 +546,8 @@ describe("McpServerList", () => {
     await mount({ org: [connection()] });
 
     const connections = await openConnections();
-    await userEvent.click(connections.getByRole("button", { name: "Disconnect" }));
+    await userEvent.click(connections.getByRole("button", { name: /^More for / }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Disconnect" }));
 
     // A real dialog, not window.confirm, and its description names the server.
     // Two are open by now - the connections modal underneath it - so the confirm
@@ -625,7 +625,7 @@ describe("several accounts on one server", () => {
 
     const dialog = await openConnections();
     // The organization's section, where `github` is already taken.
-    await userEvent.click(dialog.getByRole("button", { name: "Connect another" }));
+    await userEvent.click(dialog.getByRole("button", { name: "Add account" }));
 
     await userEvent.click(await screen.findByRole("button", { name: "More options" }));
     expect(await screen.findByLabelText("Tool prefix")).toHaveValue("github-2");
@@ -841,7 +841,8 @@ describe("naming a connection something a person can read", () => {
     vi.mocked(apiClient.patch).mockResolvedValue(connection({ id: "p1", name: "notion" }));
     const dialog = await openConnections();
 
-    await userEvent.click(dialog.getByRole("button", { name: "Edit" }));
+    await userEvent.click(dialog.getByRole("button", { name: "More for Marketing workspace" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Edit" }));
     const form = within(await screen.findByRole("dialog"));
     await userEvent.clear(form.getByLabelText("Name"));
     await userEvent.click(form.getByRole("button", { name: "Save" }));
@@ -860,7 +861,8 @@ describe("naming a connection something a person can read", () => {
     });
     const dialog = await openConnections();
 
-    await userEvent.click(dialog.getByRole("button", { name: "Edit" }));
+    await userEvent.click(dialog.getByRole("button", { name: "More for Marketing workspace" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Edit" }));
 
     const form = within(await screen.findByRole("dialog"));
     expect(form.getByLabelText("Name")).toHaveValue("Marketing workspace");

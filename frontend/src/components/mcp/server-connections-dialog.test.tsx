@@ -69,19 +69,29 @@ function open(organizations: McpConnectionRecord[], canManageOrganization = true
   );
 }
 
+/** Open one account's menu - where everything but its next step lives. */
+async function menuOf(name: string) {
+  await userEvent.click(screen.getByRole("button", { name: `More for ${name}` }));
+}
+
 describe("who an organization server is for (#2072)", () => {
-  it("marks one limited to groups, and only the organization's", () => {
+  it("marks one limited to groups, and only the organization's", async () => {
     open([connection({ id: "c1", name: "ledger", visibility: "private" })]);
 
     expect(screen.getAllByText("Limited")).toHaveLength(1);
+    await menuOf("ledger");
+    expect(screen.getByRole("menuitem", { name: "Who can use it" })).toBeInTheDocument();
+    await userEvent.keyboard("{Escape}");
     // A person's own account is theirs whatever its column says: no badge, no action.
-    expect(screen.getAllByRole("button", { name: "Who can use it" })).toHaveLength(1);
+    await menuOf("mine");
+    expect(screen.queryByRole("menuitem", { name: "Who can use it" })).toBeNull();
   });
 
   it("opens the sharing panel for the server", async () => {
     open([connection({ id: "c1", label: "Finance ledger" })]);
 
-    await userEvent.click(screen.getByRole("button", { name: "Who can use it" }));
+    await menuOf("Finance ledger");
+    await userEvent.click(screen.getByRole("menuitem", { name: "Who can use it" }));
 
     expect(screen.getByRole("heading", { name: "Who can use Finance ledger" })).toBeInTheDocument();
     expect(screen.getByText("sharing mcp_connection c1")).toBeInTheDocument();
@@ -90,7 +100,8 @@ describe("who an organization server is for (#2072)", () => {
   it("closes the panel again", async () => {
     open([connection({ id: "c1" })]);
 
-    await userEvent.click(screen.getByRole("button", { name: "Who can use it" }));
+    await menuOf("ledger");
+    await userEvent.click(screen.getByRole("menuitem", { name: "Who can use it" }));
     await userEvent.keyboard("{Escape}");
 
     expect(screen.queryByText("sharing mcp_connection c1")).not.toBeInTheDocument();
@@ -99,7 +110,8 @@ describe("who an organization server is for (#2072)", () => {
   it("offers no change to somebody who cannot manage the organization's servers", () => {
     open([connection({ id: "c1", visibility: "private" })], false);
 
-    expect(screen.queryByRole("button", { name: "Who can use it" })).not.toBeInTheDocument();
+    // Read-only: the organization's account has no menu at all.
+    expect(screen.queryByRole("button", { name: "More for ledger" })).not.toBeInTheDocument();
   });
 });
 
@@ -113,7 +125,8 @@ describe("what an organization server is used for (#2072)", () => {
   it("opens and closes the server's call log", async () => {
     open([connection({ id: "c1" })]);
 
-    await userEvent.click(screen.getByRole("button", { name: "What agents asked it" }));
+    await menuOf("ledger");
+    await userEvent.click(screen.getByRole("menuitem", { name: "What agents asked it" }));
     // Outside the open dialog, so hidden from the accessibility tree and from pointer events.
     fireEvent.click(screen.getByText("calls of c1"));
 
@@ -134,5 +147,27 @@ describe("what an organization server is used for (#2072)", () => {
     expect(screen.queryByText("add mcp c4")).not.toBeInTheDocument();
     // A person's own account is reached through bindings to each person's, never by id.
     expect(screen.queryByText("add mcp p1")).not.toBeInTheDocument();
+  });
+});
+
+describe("one action in sight, the rest in the account's menu", () => {
+  it("leads with Tools for a working account and keeps the rest behind More", async () => {
+    open([connection({ id: "c1" })]);
+
+    expect(screen.getAllByRole("button", { name: "Tools" }).length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: "Disconnect" })).toBeNull();
+    await menuOf("ledger");
+    expect(screen.getByRole("menuitem", { name: "Edit" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Disconnect" })).toBeInTheDocument();
+  });
+
+  it("leads with Authorize for one that needs it, and moves Tools into the menu", async () => {
+    open([
+      connection({ id: "c1", auth_type: "oauth", oauth_authorized: false, authorized: false }),
+    ]);
+
+    expect(screen.getByRole("button", { name: "Authorize" })).toBeInTheDocument();
+    await menuOf("ledger");
+    expect(screen.getByRole("menuitem", { name: "Tools" })).toBeInTheDocument();
   });
 });

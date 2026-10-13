@@ -1,13 +1,27 @@
 "use client";
 
 import { useState } from "react";
-import { Building2, ExternalLink, History, Lock, Plug, User, Users } from "lucide-react";
+import {
+  Building2,
+  ExternalLink,
+  History,
+  Lock,
+  MoreHorizontal,
+  Pencil,
+  Plug,
+  Plus,
+  Unplug,
+  User,
+  Users,
+  Wrench,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { AddToAgent } from "@/components/agents/add-to-agent";
 import { UsedBy } from "@/components/agents/used-by";
 import { SharingPanel } from "@/components/sharing/sharing-panel";
 import { McpCallLog } from "./mcp-call-log";
+import { McpServerIcon } from "./mcp-server-icon";
 
 import {
   Button,
@@ -17,6 +31,11 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from "@/components/ui";
 import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 import { connectionState, MCP_STATE_LABEL } from "@/lib/mcp-servers";
@@ -74,24 +93,43 @@ export function ServerConnectionsDialog({
         <DialogContent className={cn(DIALOG_FORM, DIALOG_SCROLL)}>
           {row !== null && (
             <>
-              <DialogHeader>
-                <DialogTitle>{row.name}</DialogTitle>
-                <DialogDescription>{t("accountsOnThisServer")}</DialogDescription>
-                {row.docsUrl && (
-                  <a
-                    href={row.docsUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-muted-foreground hover:text-foreground inline-flex w-fit items-center gap-1 text-xs underline underline-offset-4"
-                  >
-                    {t("documentation")}
-                    <ExternalLink className="h-3 w-3" aria-hidden />
-                  </a>
-                )}
+              {/* Left-aligned on a phone too: a centred title beside a logo reads
+                  as two things that missed each other. */}
+              <DialogHeader className="min-w-0 text-left sm:text-left">
+                <div className="flex items-center gap-3">
+                  {/* The service's own mark, on the white tile its card draws it on:
+                      the logos are made for a light ground. */}
+                  <ServerMark row={row} className="size-10" />
+                  <div className="min-w-0">
+                    <DialogTitle>{row.name}</DialogTitle>
+                    {/* The documentation on the line it belongs to, rather than a
+                        lone link under the sentence it finishes. */}
+                    <DialogDescription>
+                      {t("accountsOnThisServer")}
+                      {row.docsUrl && (
+                        <>
+                          {" "}
+                          <a
+                            href={row.docsUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hover:text-foreground inline-flex items-center gap-0.5 whitespace-nowrap underline underline-offset-4"
+                          >
+                            {t("documentation")}
+                            <ExternalLink className="h-3 w-3" aria-hidden />
+                          </a>
+                        </>
+                      )}
+                    </DialogDescription>
+                  </div>
+                </div>
               </DialogHeader>
 
-              <div className="space-y-5">
+              {/* `min-w-0`: a grid child keeps its content's width otherwise, and on
+                  a phone that pushed every row past the dialog's edge. */}
+              <div className="min-w-0 space-y-5">
                 <Owners
+                  row={row}
                   heading={t("theOrganizations")}
                   caption={t("boundByAgents")}
                   icon={Building2}
@@ -112,6 +150,7 @@ export function ServerConnectionsDialog({
                   offerToAgents
                 />
                 <Owners
+                  row={row}
                   heading={t("yours")}
                   caption={t("yourChatAndDirectMessages")}
                   icon={User}
@@ -160,6 +199,7 @@ export function ServerConnectionsDialog({
 }
 
 function Owners({
+  row,
   heading,
   caption,
   icon: Icon,
@@ -176,6 +216,7 @@ function Owners({
   onCalls,
   offerToAgents = false,
 }: {
+  row: McpServerRow;
   heading: string;
   caption: string;
   icon: typeof Building2;
@@ -198,22 +239,39 @@ function Owners({
   const t = useTranslations("mcp");
 
   return (
-    <section className="space-y-2">
-      <div>
-        <h3 className="flex items-center gap-1.5 text-sm font-medium">
-          <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
-          {heading}
-        </h3>
-        <p className="text-muted-foreground text-xs">{caption}</p>
+    <section className="space-y-2.5">
+      {/* Adding an account sits on the heading it adds to, so "another" never
+          has to be explained: the button is beside the list it grows. */}
+      <div className="flex items-start gap-3">
+        <span className="bg-muted text-muted-foreground grid size-8 shrink-0 place-items-center rounded-lg">
+          <Icon className="h-4 w-4" aria-hidden />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-semibold">{heading}</h3>
+          <p className="text-muted-foreground text-xs">{caption}</p>
+        </div>
+        {onConnect && (
+          <Button size="sm" variant="outline" onClick={onConnect} className="shrink-0">
+            {connections.length === 0 ? (
+              <Plug className="h-3.5 w-3.5" aria-hidden />
+            ) : (
+              <Plus className="h-3.5 w-3.5" aria-hidden />
+            )}
+            {connections.length === 0 ? t("connectAction") : t("connectAnother")}
+          </Button>
+        )}
       </div>
 
       {connections.length === 0 ? (
-        <p className="text-muted-foreground text-sm">{t("noneHere")}</p>
+        <p className="border-border text-muted-foreground rounded-lg border border-dashed px-3 py-3 text-center text-xs">
+          {t("noneHere")}
+        </p>
       ) : (
-        <ul className="space-y-1.5">
+        <ul className="space-y-2">
           {connections.map((connection) => (
             <Account
               key={connection.id}
+              row={row}
               connection={connection}
               readOnly={readOnly}
               busy={busyId === connection.id}
@@ -233,18 +291,31 @@ function Owners({
           ))}
         </ul>
       )}
-
-      {onConnect && (
-        <Button size="sm" variant="outline" onClick={onConnect}>
-          <Plug className="mr-1 h-3.5 w-3.5" />
-          {connections.length === 0 ? t("connectAction") : t("connectAnother")}
-        </Button>
-      )}
     </section>
   );
 }
 
+/** The server's mark on a white tile, as its card draws it. */
+function ServerMark({ row, className }: { row: McpServerRow; className?: string }) {
+  return (
+    <span
+      className={cn(
+        "border-foreground/10 grid shrink-0 place-items-center rounded-xl border bg-white",
+        className,
+      )}
+    >
+      <McpServerIcon
+        icon={row.entry?.icon ?? null}
+        name={row.name}
+        url={row.url}
+        className="size-[60%] text-neutral-900"
+      />
+    </span>
+  );
+}
+
 function Account({
+  row,
   connection,
   readOnly,
   busy,
@@ -257,6 +328,7 @@ function Account({
   onCalls,
   offerToAgents = false,
 }: {
+  row: McpServerRow;
   connection: McpConnectionRecord;
   readOnly: boolean;
   busy: boolean;
@@ -279,28 +351,33 @@ function Account({
   const narrowed = onAudience !== undefined && connection.visibility !== "org";
 
   return (
-    <li className="border-border flex items-center gap-2 rounded-lg border px-3 py-2">
-      <span
-        aria-hidden
-        className={cn(
-          "inline-block h-2 w-2 shrink-0 rounded-full",
-          state === "connected"
-            ? "bg-success"
-            : state === "error"
-              ? "bg-destructive"
-              : "bg-muted-foreground/50",
-        )}
-      />
+    <li className="border-border flex items-center gap-3 rounded-xl border px-3 py-2.5">
+      <span className="relative shrink-0">
+        <ServerMark row={row} className="size-8 rounded-lg" />
+        {/* The state as a dot on the mark, the way a person's presence is on
+            their face: green connected, red refused, grey waiting. */}
+        <span
+          aria-hidden
+          className={cn(
+            "ring-background absolute -right-0.5 -bottom-0.5 h-2.5 w-2.5 rounded-full ring-2",
+            state === "connected"
+              ? "bg-success"
+              : state === "error"
+                ? "bg-destructive"
+                : "bg-muted-foreground/50",
+          )}
+        />
+      </span>
       <span className="min-w-0 flex-1">
         {/* The label a person gave it, and always the slug underneath. Never
             the label alone: the slug is the prefix the model reads before it
             calls a tool, and a run's calls are recorded under it - so hiding it
             leaves "why did it call `notion-2_search`" unanswerable from the
             page that names the account. */}
-        <span className="flex items-center gap-1.5 truncate text-sm">
+        <span className="flex items-center gap-1.5 truncate text-sm font-medium">
           {connection.label ?? connection.name}
           {narrowed && (
-            <span className="text-muted-foreground flex items-center gap-0.5 text-xs">
+            <span className="text-muted-foreground flex items-center gap-0.5 text-xs font-normal">
               <Lock className="h-3 w-3" aria-hidden />
               {t("narrowed")}
             </span>
@@ -338,53 +415,64 @@ function Account({
       </span>
 
       {!readOnly && (
+        // One action in sight - the one this account needs next - and the rest
+        // behind a menu: six controls in a row made every account look like a
+        // toolbar, and the red Disconnect was the loudest thing on it.
         <span className="flex shrink-0 items-center gap-1">
-          {state === "needs-authorization" && (
+          {state === "needs-authorization" ? (
             <Button size="sm" variant="outline" disabled={busy} onClick={onOAuth}>
               {t("authorize")}
             </Button>
-          )}
-          <Button size="sm" variant="ghost" disabled={busy} onClick={onTools}>
-            {t("tools")}
-          </Button>
-          {onCalls && (
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-8 w-8"
-              disabled={busy}
-              onClick={onCalls}
-              aria-label={t("callLog")}
-              title={t("callLog")}
-            >
-              <History className="h-4 w-4" />
+          ) : (
+            <Button size="sm" variant="outline" disabled={busy} onClick={onTools}>
+              {t("tools")}
             </Button>
           )}
-          {onAudience && (
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-8 w-8"
-              disabled={busy}
-              onClick={onAudience}
-              aria-label={t("whoCanUse")}
-              title={t("whoCanUse")}
-            >
-              <Users className="h-4 w-4" />
-            </Button>
-          )}
-          <Button size="sm" variant="ghost" disabled={busy} onClick={onEdit}>
-            {t("edit")}
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="text-destructive"
-            disabled={busy}
-            onClick={onDisconnect}
-          >
-            {t("disconnect")}
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8"
+                disabled={busy}
+                aria-label={t("accountActions", { name: connection.label ?? connection.name })}
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              {state === "needs-authorization" && (
+                <DropdownMenuItem onSelect={onTools}>
+                  <Wrench className="h-4 w-4" aria-hidden />
+                  {t("tools")}
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onSelect={onEdit}>
+                <Pencil className="h-4 w-4" aria-hidden />
+                {t("edit")}
+              </DropdownMenuItem>
+              {onAudience && (
+                <DropdownMenuItem onSelect={onAudience}>
+                  <Users className="h-4 w-4" aria-hidden />
+                  {t("whoCanUse")}
+                </DropdownMenuItem>
+              )}
+              {onCalls && (
+                <DropdownMenuItem onSelect={onCalls}>
+                  <History className="h-4 w-4" aria-hidden />
+                  {t("callLog")}
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onSelect={onDisconnect}
+                className="text-destructive focus:text-destructive"
+              >
+                <Unplug className="h-4 w-4" aria-hidden />
+                {t("disconnect")}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </span>
       )}
     </li>
