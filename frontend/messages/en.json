@@ -4568,7 +4568,8 @@
       "testRun": "test",
       "testRunsHidden": "Without test runs",
       "testRunsIncluded": "With test runs",
-      "testRunsOnly": "Only test runs"
+      "testRunsOnly": "Only test runs",
+      "toolState": "{status, select, completed {Done} error {Failed} running {Running} pending {Running} unfinished {Did not finish} awaiting_approval {Waiting for approval} awaiting_answer {Waiting for an answer} other {Unknown}}"
     },
     "sandboxes": {
       "addConnection": "Add connection",

@@ -451,7 +451,11 @@ describe("walking the run's conversation from the detail", () => {
     // Tokens in → out, the cost, and the agent's name resolved from its id.
     // The cost also sits in the delegations table below, so the header's copy
     // is read as the first of the two rather than as the only one.
-    expect(await screen.findByText("1000 → 100")).toBeVisible();
+    expect(
+      await screen.findByText(
+        (_, element) => element?.tagName === "DD" && element.textContent === "1,000 → 100",
+      ),
+    ).toBeVisible();
     expect(screen.getAllByText("$1.0000").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Orchestrator")).toBeVisible();
   });

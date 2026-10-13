@@ -4450,7 +4450,8 @@
       "testRun": "Test",
       "testRunsHidden": "Ohne Test-Runs",
       "testRunsIncluded": "Mit Test-Runs",
-      "testRunsOnly": "Nur Test-Runs"
+      "testRunsOnly": "Nur Test-Runs",
+      "toolState": "{status, select, completed {Fertig} error {Fehlgeschlagen} running {Läuft} pending {Läuft} unfinished {Nicht beendet} awaiting_approval {Wartet auf Freigabe} awaiting_answer {Wartet auf Antwort} other {Unbekannt}}"
     },
     "sandboxes": {
       "addConnection": "Verbindung hinzufügen",

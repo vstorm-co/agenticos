@@ -4338,7 +4338,8 @@
       "testRun": "test",
       "testRunsHidden": "Bez runów testowych",
       "testRunsIncluded": "Z runami testowymi",
-      "testRunsOnly": "Tylko runy testowe"
+      "testRunsOnly": "Tylko runy testowe",
+      "toolState": "{status, select, completed {Gotowe} error {Błąd} running {W toku} pending {W toku} unfinished {Nie dokończone} awaiting_approval {Czeka na zatwierdzenie} awaiting_answer {Czeka na odpowiedź} other {Nieznany}}"
     },
     "sandboxes": {
       "addConnection": "Dodaj połączenie",

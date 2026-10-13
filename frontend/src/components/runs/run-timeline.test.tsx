@@ -193,7 +193,8 @@ describe("a tool call, raw", () => {
     renderTimeline();
 
     const step = screen.getByText("web_search").closest("details") as HTMLElement;
-    expect(within(step).getByText("completed")).toBeVisible();
+    // Said in words beside the tool's own id: how it ended, and what it was.
+    expect(within(step).getByText("Done")).toBeVisible();
 
     await userEvent.click(within(step).getByText("web_search"));
 

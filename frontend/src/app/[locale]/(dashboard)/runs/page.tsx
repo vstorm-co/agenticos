@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -24,6 +24,21 @@ import {
 import { cn, setUrlParam } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
+
+/**
+ * Pinned beside the other column, from `lg`, to the window less 8px a side.
+ *
+ * The offset cancels `main`'s top padding - a sticky top is measured from the
+ * scroll container's padding edge, so a plain `top-4` sat 48px down the window -
+ * and adds 8px back. A definite height rather than a cap, because the run panel
+ * is `h-full` over one scrolling column: with only a `max-height` the chain
+ * grows past it and clips instead of scrolling.
+ */
+const PINNED_COLUMN = "lg:sticky lg:top-[calc(0.5rem-2rem)] lg:h-[calc(100dvh-1rem)] lg:self-start";
+
+/** The list as the master beside an open run: pinned with it, scrolling itself. */
+// i18n-exempt: Tailwind classes, not copy.
+const LIST_BESIDE_RUN = `${PINNED_COLUMN} lg:overflow-y-auto lg:rounded-xl lg:pb-0 scrollbar-thin`;
 
 /**
  * What the agents did: three figures, and the tabs that each answer separately -
@@ -132,6 +147,16 @@ export default function RunsPage() {
     enabled: canView,
   });
   const { spend } = useSpend(range, { enabled: canView });
+  const listColumn = useRef<HTMLDivElement>(null);
+  // The list scrolls inside its own column while a run is open, so the row
+  // that opened it is brought into that column's view rather than left where
+  // the page's scroll had it.
+  useEffect(() => {
+    if (focusedRunId === null) return;
+    listColumn.current
+      ?.querySelector('[aria-selected="true"]')
+      ?.scrollIntoView?.({ block: "nearest" });
+  }, [focusedRunId]);
   const spent = (spend?.by_agent ?? []).reduce((sum, row) => sum + Number(row.cost_usd), 0);
 
   return (
@@ -219,7 +244,15 @@ export default function RunsPage() {
                   // the row still ends at the viewport (#1206).
                   PAGE_CLEARANCE,
                   focusedRunId !== null && "hidden lg:block",
+                  // With a run open the two columns are one master-detail
+                  // pair: pinned at the same top, the same height, each
+                  // scrolling inside itself. Before, the panel pinned while the
+                  // list slid under the window's edge, so a moment's scroll left
+                  // the two out of line - a card floating beside rows cut off
+                  // mid-table.
+                  focusedRunId !== null && LIST_BESIDE_RUN,
                 )}
+                ref={listColumn}
               >
                 {canDecide && (
                   <TabsContent
@@ -301,7 +334,7 @@ export default function RunsPage() {
                     // flex item with no width of its own shrank to its content,
                     // and the panel's content is clipped by `overflow-hidden` -
                     // it collapsed to its 2px border and a phone saw a blank page.
-                    "w-full lg:sticky lg:top-[calc(0.5rem-2rem)] lg:-mr-4 lg:h-[calc(100dvh-1rem)] lg:w-auto lg:self-start lg:pb-0",
+                    `w-full lg:-mr-4 lg:w-auto lg:pb-0 ${PINNED_COLUMN}`,
                   )}
                 >
                   <RunDetailPanel runId={focusedRunId} onFocusRun={focusRun} />
