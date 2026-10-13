@@ -193,6 +193,17 @@ export function useOrganizations() {
     [writeCache],
   );
 
+  const setAiAssistance = useCallback(
+    async (id: string, enabled: boolean): Promise<Organization> => {
+      const updated = await apiClient.patch<Organization>(`/orgs/${id}`, {
+        ai_assistance_enabled: enabled,
+      });
+      writeCache((prev) => prev.map((o) => (o.id === id ? updated : o)));
+      return updated;
+    },
+    [writeCache],
+  );
+
   const deleteOrg = useCallback(
     async (id: string) => {
       try {
@@ -227,6 +238,7 @@ export function useOrganizations() {
     patchOrg,
     setMonthlyBudget,
     setChatApprovalWaiver,
+    setAiAssistance,
     deleteOrg,
     switchOrg,
   };

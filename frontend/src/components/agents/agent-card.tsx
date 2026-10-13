@@ -137,6 +137,11 @@ export function AgentCard({
               </p>
               <div className="mt-2 flex flex-wrap items-center gap-1.5">
                 <AccessChip agent={agent} />
+                {agent.system_key && (
+                  <Badge variant="secondary" className="font-normal" title={t("systemAgentHint")}>
+                    {t("systemAgent")}
+                  </Badge>
+                )}
                 {(agent.channels ?? []).map((channel) => (
                   <Badge
                     key={channel}
