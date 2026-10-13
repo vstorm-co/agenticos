@@ -140,6 +140,7 @@ class RetrievalService(BaseRetrievalService):
             SearchResult(
                 content=r.content,
                 score=float(s),
+                similarity=r.similarity,
                 metadata=r.metadata,
                 parent_doc_id=r.parent_doc_id,
             )

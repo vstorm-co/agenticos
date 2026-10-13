@@ -881,6 +881,7 @@ class PgVectorStore(BaseVectorStore):
             SearchResult(
                 content=row[0],
                 score=float(row[3]),
+                similarity=float(row[3]),
                 metadata=row[2] if isinstance(row[2], dict) else json.loads(row[2]),
                 parent_doc_id=row[1],
             )
