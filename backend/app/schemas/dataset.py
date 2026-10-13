@@ -193,6 +193,10 @@ class DatasetRead(BaseSchema):
     can_edit: bool = Field(
         default=False, description="Whether the caller may change this dataset's cases"
     )
+    pending_proposals: int = Field(
+        default=0,
+        description="Generated cases waiting for a decision; 0 for a caller who may not decide",
+    )
     created_at: datetime
     updated_at: datetime | None = None
 

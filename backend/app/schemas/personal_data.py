@@ -78,3 +78,6 @@ class PersonalDataPurge(BaseModel):
     dataset_cases: int = Field(
         description="Dataset cases taken from their conversations, kept but unlinked from them."
     )
+    case_proposals: int = Field(
+        description="Proposed dataset cases drafted from their conversations, deleted undecided.",
+    )

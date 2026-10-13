@@ -14,23 +14,13 @@ The claims a mocked session cannot make:
 from __future__ import annotations
 
 import asyncio
-import uuid
-from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from app.db.models.agent import Agent
-from app.db.models.agent_run import AgentRun
-from app.db.models.case_generation import CaseGeneration, CaseOrigin, CaseProposal
-from app.db.models.conversation import Conversation, Message
-from app.db.models.dataset import Dataset
-from app.db.models.knowledge_base import KBScope, KnowledgeBase
-from app.db.models.message_rating import MessageRating
-from app.db.models.organization import Organization
-from app.db.models.rag_document import DocumentStatus, RAGDocument
-from app.db.models.user import User
+from app.db.models.case_generation import CaseProposal
+from app.db.models.rag_document import DocumentStatus
 from app.repositories import (
     agent_run_repo,
     case_generation_repo,
@@ -38,179 +28,23 @@ from app.repositories import (
     personal_data_repo,
     rag_document_repo,
 )
+from tests.integration import case_generation_world as world
 
 pytestmark = pytest.mark.anyio
 
-_START = datetime(2026, 10, 1, 9, 0, tzinfo=UTC)
-
-
-async def _user(db) -> User:
-    user = User(id=uuid.uuid4(), email=f"{uuid.uuid4().hex}@example.com", hashed_password="x")
-    db.add(user)
-    await db.flush()
-    return user
-
-
-async def _org(db, owner: User) -> Organization:
-    org = Organization(
-        id=uuid.uuid4(),
-        name="Acme",
-        slug=f"acme-{uuid.uuid4().hex[:8]}",
-        created_by_user_id=owner.id,
-    )
-    db.add(org)
-    await db.flush()
-    return org
-
-
-async def _agent(db, org: Organization) -> Agent:
-    agent = Agent(
-        id=uuid.uuid4(),
-        organization_id=org.id,
-        slug=f"clerk-{uuid.uuid4().hex[:8]}",
-        name="Clerk",
-        draft_spec={},
-    )
-    db.add(agent)
-    await db.flush()
-    return agent
-
-
-async def _asked(
-    db,
-    org: Organization,
-    agent: Agent,
-    person: User,
-    question: str,
-    *,
-    minutes: int,
-    rating: int | None = None,
-    comment: str | None = None,
-) -> tuple[AgentRun, Conversation, Message]:
-    """A conversation in which `person` asked `agent` one question and got an answer."""
-    conversation = Conversation(
-        id=uuid.uuid4(), user_id=person.id, organization_id=org.id, title="Support"
-    )
-    db.add(conversation)
-    await db.flush()
-    run = AgentRun(
-        id=uuid.uuid4(),
-        organization_id=org.id,
-        agent_id=agent.id,
-        user_id=person.id,
-        conversation_id=conversation.id,
-        status="completed",
-        started_at=_START + timedelta(minutes=minutes),
-    )
-    db.add(run)
-    await db.flush()
-    asked = Message(
-        id=uuid.uuid4(),
-        conversation_id=conversation.id,
-        run_id=run.id,
-        role="user",
-        content=question,
-        created_at=_START + timedelta(minutes=minutes),
-    )
-    answer = Message(
-        id=uuid.uuid4(),
-        conversation_id=conversation.id,
-        run_id=run.id,
-        agent_id=agent.id,
-        role="assistant",
-        content="An answer.",
-        created_at=_START + timedelta(minutes=minutes, seconds=5),
-    )
-    db.add_all([asked, answer])
-    await db.flush()
-    if rating is not None:
-        db.add(
-            MessageRating(message_id=answer.id, user_id=person.id, rating=rating, comment=comment)
-        )
-        await db.flush()
-    return run, conversation, asked
-
-
-async def _collection(db, org: Organization | None) -> KnowledgeBase:
-    kb = KnowledgeBase(
-        id=uuid.uuid4(),
-        name=f"Docs {uuid.uuid4().hex[:6]}",
-        scope=KBScope.ORG.value if org else KBScope.PERSONAL.value,
-        organization_id=org.id if org else None,
-        collection_name=f"c_{uuid.uuid4().hex[:12]}",
-        embedding_model="text-embedding-3-small",
-        embedding_dim=1536,
-        visibility="org",
-    )
-    db.add(kb)
-    await db.flush()
-    return kb
-
-
-async def _document(db, kb: KnowledgeBase, status: DocumentStatus, name: str) -> RAGDocument:
-    document = RAGDocument(
-        id=uuid.uuid4(),
-        collection_name=kb.collection_name,
-        filename=name,
-        filesize=4,
-        filetype="md",
-        storage_path="",
-        status=status,
-        chunk_count=3,
-        ingestion_config={},
-        knowledge_base_id=kb.id,
-    )
-    db.add(document)
-    await db.flush()
-    return document
-
-
-async def _dataset(db, org: Organization) -> Dataset:
-    dataset = Dataset(id=uuid.uuid4(), organization_id=org.id, name=f"d-{uuid.uuid4().hex[:6]}")
-    db.add(dataset)
-    await db.flush()
-    return dataset
-
-
-async def _proposals(
-    db, org: Organization, dataset: Dataset, agent: Agent, count: int, **source: uuid.UUID
-) -> tuple[CaseGeneration, list[CaseProposal]]:
-    generation = await case_generation_repo.create_generation(
-        db,
-        organization_id=org.id,
-        dataset_id=dataset.id,
-        agent_id=agent.id,
-        requested_by_user_id=None,
-        sources=["conversation"],
-        requested_count=count,
-    )
-    proposals = [
-        CaseProposal(
-            id=uuid.uuid4(),
-            organization_id=org.id,
-            generation_id=generation.id,
-            dataset_id=dataset.id,
-            position=index,
-            origin=CaseOrigin.CONVERSATION.value,
-            input=f"question {index}",
-            **source,
-        )
-        for index in range(count)
-    ]
-    await case_generation_repo.add_proposals(db, proposals)
-    return generation, proposals
-
 
 async def test_questions_come_back_rated_down_first_from_this_agent_only(db) -> None:
-    person = await _user(db)
-    org = await _org(db, person)
-    agent = await _agent(db, org)
-    other_agent = await _agent(db, org)
-    await _asked(db, org, agent, person, "Oldest", minutes=1)
-    await _asked(db, org, agent, person, "Newest", minutes=30)
-    await _asked(db, org, agent, person, "Disliked", minutes=10, rating=-1, comment="Wrong window")
-    await _asked(db, org, agent, person, "Liked", minutes=20, rating=1, comment="Great")
-    await _asked(db, org, other_agent, person, "Someone else's", minutes=40, rating=-1)
+    person = await world.user(db)
+    org = await world.org(db, person)
+    agent = await world.agent(db, org)
+    other_agent = await world.agent(db, org)
+    await world.asked(db, org, agent, person, "Oldest", minutes=1)
+    await world.asked(db, org, agent, person, "Newest", minutes=30)
+    await world.asked(
+        db, org, agent, person, "Disliked", minutes=10, rating=-1, comment="Wrong window"
+    )
+    await world.asked(db, org, agent, person, "Liked", minutes=20, rating=1, comment="Great")
+    await world.asked(db, org, other_agent, person, "Someone else's", minutes=40, rating=-1)
 
     questions = await agent_run_repo.questions_asked(
         db, organization_id=org.id, agent_id=agent.id, limit=10
@@ -224,11 +58,11 @@ async def test_questions_come_back_rated_down_first_from_this_agent_only(db) -> 
 
 
 async def test_questions_never_cross_into_another_organization(db) -> None:
-    person = await _user(db)
-    mine = await _org(db, person)
-    theirs = await _org(db, person)
-    their_agent = await _agent(db, theirs)
-    await _asked(db, theirs, their_agent, person, "Their secret question", minutes=1)
+    person = await world.user(db)
+    mine = await world.org(db, person)
+    theirs = await world.org(db, person)
+    their_agent = await world.agent(db, theirs)
+    await world.asked(db, theirs, their_agent, person, "Their secret question", minutes=1)
 
     assert (
         await agent_run_repo.questions_asked(
@@ -243,11 +77,11 @@ async def test_questions_never_cross_into_another_organization(db) -> None:
 
 
 async def test_questions_are_capped(db) -> None:
-    person = await _user(db)
-    org = await _org(db, person)
-    agent = await _agent(db, org)
+    person = await world.user(db)
+    org = await world.org(db, person)
+    agent = await world.agent(db, org)
     for minute in range(5):
-        await _asked(db, org, agent, person, f"q{minute}", minutes=minute)
+        await world.asked(db, org, agent, person, f"q{minute}", minutes=minute)
 
     questions = await agent_run_repo.questions_asked(
         db, organization_id=org.id, agent_id=agent.id, limit=2
@@ -257,18 +91,18 @@ async def test_questions_are_capped(db) -> None:
 
 
 async def test_collections_and_documents_are_read_through_the_organization(db) -> None:
-    person = await _user(db)
-    org = await _org(db, person)
-    other = await _org(db, person)
-    first = await _collection(db, org)
-    second = await _collection(db, org)
-    foreign = await _collection(db, other)
-    personal = await _collection(db, None)
-    done = await _document(db, first, DocumentStatus.DONE, "handbook.md")
-    await _document(db, first, DocumentStatus.ERROR, "broken.md")
-    await _document(db, first, DocumentStatus.PROCESSING, "parsing.md")
-    later = await _document(db, second, DocumentStatus.DONE, "faq.md")
-    await _document(db, foreign, DocumentStatus.DONE, "theirs.md")
+    person = await world.user(db)
+    org = await world.org(db, person)
+    other = await world.org(db, person)
+    first = await world.collection(db, org)
+    second = await world.collection(db, org)
+    foreign = await world.collection(db, other)
+    personal = await world.collection(db, None)
+    done = await world.document(db, first, DocumentStatus.DONE, "handbook.md")
+    await world.document(db, first, DocumentStatus.ERROR, "broken.md")
+    await world.document(db, first, DocumentStatus.PROCESSING, "parsing.md")
+    later = await world.document(db, second, DocumentStatus.DONE, "faq.md")
+    await world.document(db, foreign, DocumentStatus.DONE, "theirs.md")
 
     collections = await knowledge_base_repo.get_in_organization(
         db, [second.id, foreign.id, personal.id, first.id], organization_id=org.id
@@ -284,11 +118,11 @@ async def test_collections_and_documents_are_read_through_the_organization(db) -
 
 
 async def test_a_proposal_is_taken_once_however_many_reviewers_decide_it(db, engine) -> None:
-    person = await _user(db)
-    org = await _org(db, person)
-    agent = await _agent(db, org)
-    dataset = await _dataset(db, org)
-    _, proposals = await _proposals(db, org, dataset, agent, 2)
+    person = await world.user(db)
+    org = await world.org(db, person)
+    agent = await world.agent(db, org)
+    dataset = await world.dataset(db, org)
+    _, proposals = await world.proposals(db, org, dataset, agent, 2)
     await db.commit()
     ids = [proposals[1].id, proposals[0].id]
 
@@ -311,13 +145,13 @@ async def test_a_proposal_is_taken_once_however_many_reviewers_decide_it(db, eng
 
 
 async def test_taking_and_counting_stay_inside_the_dataset_and_tenant(db) -> None:
-    person = await _user(db)
-    org = await _org(db, person)
-    other = await _org(db, person)
-    agent = await _agent(db, org)
-    dataset = await _dataset(db, org)
-    empty = await _dataset(db, org)
-    generation, proposals = await _proposals(db, org, dataset, agent, 3)
+    person = await world.user(db)
+    org = await world.org(db, person)
+    other = await world.org(db, person)
+    agent = await world.agent(db, org)
+    dataset = await world.dataset(db, org)
+    empty = await world.dataset(db, org)
+    generation, proposals = await world.proposals(db, org, dataset, agent, 3)
 
     assert (
         await case_generation_repo.take_proposals(
@@ -366,14 +200,14 @@ async def test_taking_and_counting_stay_inside_the_dataset_and_tenant(db) -> Non
 
 
 async def test_generations_list_newest_first_and_finish(db) -> None:
-    person = await _user(db)
-    org = await _org(db, person)
-    other = await _org(db, person)
-    agent = await _agent(db, org)
-    dataset = await _dataset(db, org)
-    older, _ = await _proposals(db, org, dataset, agent, 1)
-    older.created_at = _START
-    newer, _ = await _proposals(db, org, dataset, agent, 1)
+    person = await world.user(db)
+    org = await world.org(db, person)
+    other = await world.org(db, person)
+    agent = await world.agent(db, org)
+    dataset = await world.dataset(db, org)
+    older, _ = await world.proposals(db, org, dataset, agent, 1)
+    older.created_at = world.START
+    newer, _ = await world.proposals(db, org, dataset, agent, 1)
     await db.flush()
 
     listed = await case_generation_repo.list_generations(
@@ -383,19 +217,19 @@ async def test_generations_list_newest_first_and_finish(db) -> None:
     assert await case_generation_repo.get_generation(db, newer.id, organization_id=other.id) is None
 
     finished = await case_generation_repo.finish_generation(
-        db, newer, status="ready", finished_at=_START, proposed_count=1
+        db, newer, status="ready", finished_at=world.START, proposed_count=1
     )
     assert (finished.status, finished.proposed_count) == ("ready", 1)
 
 
 async def test_deleting_a_conversation_takes_its_proposals_along(db) -> None:
-    person = await _user(db)
-    org = await _org(db, person)
-    agent = await _agent(db, org)
-    dataset = await _dataset(db, org)
-    run, conversation, asked = await _asked(db, org, agent, person, "Refund?", minutes=1)
-    _, _, kept = await _asked(db, org, agent, person, "Other", minutes=2)
-    await _proposals(
+    person = await world.user(db)
+    org = await world.org(db, person)
+    agent = await world.agent(db, org)
+    dataset = await world.dataset(db, org)
+    run, conversation, asked = await world.asked(db, org, agent, person, "Refund?", minutes=1)
+    _, _, kept = await world.asked(db, org, agent, person, "Other", minutes=2)
+    await world.proposals(
         db,
         org,
         dataset,
@@ -405,9 +239,9 @@ async def test_deleting_a_conversation_takes_its_proposals_along(db) -> None:
         source_run_id=run.id,
         source_message_id=asked.id,
     )
-    await _proposals(db, org, dataset, agent, 1, source_conversation_id=kept.conversation_id)
+    await world.proposals(db, org, dataset, agent, 1, source_conversation_id=kept.conversation_id)
 
-    other = await _org(db, person)
+    other = await world.org(db, person)
     assert (
         await personal_data_repo.delete_case_proposals_from_conversation(
             db, conversation.id, organization_id=other.id
@@ -424,16 +258,16 @@ async def test_deleting_a_conversation_takes_its_proposals_along(db) -> None:
 
 
 async def test_erasing_a_person_takes_the_proposals_drafted_from_them(db) -> None:
-    person = await _user(db)
-    bystander = await _user(db)
-    org = await _org(db, person)
-    agent = await _agent(db, org)
-    dataset = await _dataset(db, org)
-    run, conversation, _ = await _asked(db, org, agent, person, "Mine", minutes=1)
-    await _proposals(db, org, dataset, agent, 1, source_conversation_id=conversation.id)
-    await _proposals(db, org, dataset, agent, 1, source_run_id=run.id)
-    _, theirs, _ = await _asked(db, org, agent, bystander, "Theirs", minutes=2)
-    await _proposals(db, org, dataset, agent, 1, source_conversation_id=theirs.id)
+    person = await world.user(db)
+    bystander = await world.user(db)
+    org = await world.org(db, person)
+    agent = await world.agent(db, org)
+    dataset = await world.dataset(db, org)
+    run, conversation, _ = await world.asked(db, org, agent, person, "Mine", minutes=1)
+    await world.proposals(db, org, dataset, agent, 1, source_conversation_id=conversation.id)
+    await world.proposals(db, org, dataset, agent, 1, source_run_id=run.id)
+    _, theirs, _ = await world.asked(db, org, agent, bystander, "Theirs", minutes=2)
+    await world.proposals(db, org, dataset, agent, 1, source_conversation_id=theirs.id)
 
     assert await personal_data_repo.delete_case_proposals_of(db, person.id) == 2
     assert await db.scalar(select(func.count(CaseProposal.id))) == 1

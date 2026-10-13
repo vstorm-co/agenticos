@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
@@ -29,6 +30,7 @@ from app.core.permissions import AuthContext, Perm
 from app.db.models.dataset import CaseSource, Dataset, DatasetCase, DatasetChange, DatasetVersion
 from app.db.updates import writable
 from app.repositories import (
+    case_generation_repo,
     conversation_repo,
     dataset_repo,
     message_rating_repo,
@@ -61,6 +63,17 @@ logger = logging.getLogger(__name__)
 # The most cases one dataset holds. The export cap, so every version of every
 # dataset can always be exported whole.
 MAX_CASES = MAX_EXPORT_ROWS
+
+
+@dataclass(frozen=True)
+class GeneratedCase:
+    """A generated case on its way into a dataset, with what it was drafted from."""
+
+    content: DatasetCaseContent
+    source_document_id: UUID | None = None
+    source_run_id: UUID | None = None
+    source_conversation_id: UUID | None = None
+    source_message_id: UUID | None = None
 
 
 def _redact(text: str | None) -> tuple[str | None, int]:
@@ -116,7 +129,7 @@ def _version_read(version: DatasetVersion) -> DatasetVersionRead:
     return DatasetVersionRead.model_validate(version)
 
 
-def _dataset_read(dataset: Dataset, *, can_edit: bool) -> DatasetRead:
+def _dataset_read(dataset: Dataset, *, can_edit: bool, pending: int = 0) -> DatasetRead:
     return DatasetRead(
         id=dataset.id,
         name=dataset.name,
@@ -126,6 +139,7 @@ def _dataset_read(dataset: Dataset, *, can_edit: bool) -> DatasetRead:
         latest_version=dataset.latest_version,
         case_count=dataset.case_count,
         can_edit=can_edit,
+        pending_proposals=pending if can_edit else 0,
         created_at=dataset.created_at,
         updated_at=dataset.updated_at,
     )
@@ -160,9 +174,16 @@ class DatasetService:
             self.db, ctx, dataset, Perm.DATASETS_EDIT, resource_type=DATASET
         )
 
+    async def _pending(self, ctx: AuthContext, dataset_ids: list[UUID]) -> dict[UUID, int]:
+        return await case_generation_repo.count_pending(
+            self.db, dataset_ids, organization_id=ctx.organization_id
+        )
+
     async def read(self, ctx: AuthContext, dataset_id: UUID) -> DatasetRead:
         dataset = await self.get(ctx, dataset_id)
-        return _dataset_read(dataset, can_edit=await self._can_edit(ctx, dataset))
+        can_edit = await self._can_edit(ctx, dataset)
+        pending = (await self._pending(ctx, [dataset.id])).get(dataset.id, 0) if can_edit else 0
+        return _dataset_read(dataset, can_edit=can_edit, pending=pending)
 
     async def list_readable(
         self,
@@ -207,8 +228,12 @@ class DatasetService:
         editable = await accessible_ids(
             self.db, ctx, items, Perm.DATASETS_EDIT, resource_type=DATASET
         )
+        pending = await self._pending(ctx, [item.id for item in items if item.id in editable])
         return DatasetList(
-            items=[_dataset_read(item, can_edit=item.id in editable) for item in items],
+            items=[
+                _dataset_read(item, can_edit=item.id in editable, pending=pending.get(item.id, 0))
+                for item in items
+            ],
             total=total,
         )
 
@@ -247,6 +272,7 @@ class DatasetService:
         if "name" in update_data and update_data["name"] != dataset.name:
             await self._refuse_taken_name(ctx, update_data["name"])
         updated = await dataset_repo.update(self.db, dataset=dataset, update_data=update_data)
+        pending = (await self._pending(ctx, [dataset.id])).get(dataset.id, 0)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -256,7 +282,7 @@ class DatasetService:
             target_id=str(dataset.id),
             details={"name": updated.name, "fields": sorted(update_data)},
         )
-        return _dataset_read(updated, can_edit=True)
+        return _dataset_read(updated, can_edit=True, pending=pending)
 
     async def delete(self, ctx: AuthContext, dataset_id: UUID) -> None:
         """Delete a dataset with every version and case it held."""
@@ -485,6 +511,53 @@ class DatasetService:
     ) -> DatasetCaseRead:
         """Add a case written by hand, as a new version."""
         return await self._add(ctx, dataset_id, data, source=CaseSource.MANUAL)
+
+    async def lock_for_edit(self, ctx: AuthContext, dataset_id: UUID) -> Dataset:
+        """The dataset, locked until the transaction ends, for a caller who may edit it.
+
+        For work that must read something under the same lock a version is
+        minted under, before handing what it read to :meth:`add_generated`.
+
+        Raises:
+            NotFoundError: As :meth:`get` does, for a dataset the caller may not edit.
+        """
+        return await self._locked(ctx, dataset_id)
+
+    async def add_generated(
+        self, ctx: AuthContext, dataset: Dataset, cases: list[GeneratedCase]
+    ) -> DatasetVersionRead:
+        """Add generated cases a person accepted, as one new version.
+
+        `dataset` comes from :meth:`lock_for_edit` in this transaction. Every case
+        is redacted again on the way in, because a reviewer may have edited it.
+        """
+        previous = await self._version(ctx, dataset, None)
+        revisions: list[DatasetCase] = []
+        redacted = 0
+        for case in cases:
+            fields, found = _redacted(case.content)
+            redacted += found
+            revisions.append(
+                self._revision(
+                    ctx,
+                    dataset,
+                    fields,
+                    source=CaseSource.SYNTHETIC,
+                    source_document_id=case.source_document_id,
+                    source_run_id=case.source_run_id,
+                    source_conversation_id=case.source_conversation_id,
+                    source_message_id=case.source_message_id,
+                )
+            )
+        version = await self._mint(
+            ctx,
+            dataset,
+            change=DatasetChange.GENERATE,
+            previous=previous,
+            added=revisions,
+            redacted=redacted,
+        )
+        return _version_read(version)
 
     async def _held_case(
         self, ctx: AuthContext, dataset: Dataset, case_id: UUID

@@ -249,7 +249,8 @@ class PersonalDataService:
             self.db, person_owner_key(user_id)
         )
         dataset_cases = await personal_data_repo.unlink_dataset_cases_of(self.db, user_id)
-        if notes or identities or workspaces or dataset_cases:
+        case_proposals = await personal_data_repo.delete_case_proposals_of(self.db, user_id)
+        if notes or identities or workspaces or dataset_cases or case_proposals:
             logger.info(
                 "personal_data_purged",
                 extra={
@@ -258,6 +259,7 @@ class PersonalDataService:
                     "identities": identities,
                     "workspaces": workspaces,
                     "dataset_cases": dataset_cases,
+                    "case_proposals": case_proposals,
                 },
             )
         return PersonalDataPurge(
@@ -265,4 +267,5 @@ class PersonalDataService:
             channel_identities=identities,
             workspaces=workspaces,
             dataset_cases=dataset_cases,
+            case_proposals=case_proposals,
         )
