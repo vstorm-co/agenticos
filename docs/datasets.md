@@ -24,7 +24,7 @@ a person actually asked and an answer that actually disappointed them.
 | Reference answer | What a good answer says |
 | Counter-example | An answer known to be wrong |
 | Expected tool calls | The tools the agent should call, each with the arguments that must match. Arguments a case does not list are ignored. A case also says how the calls are matched: `any` order, `in_order` with other calls allowed between them, or `exact` - these calls, in this order, and no others |
-| Checks | Rules about the answer, each an object whose `type` names the rule, with that rule's parameters beside it. A case keeps them; scoring reads them and decides which types exist |
+| Checks | Rules about the answer, each an object whose `type` names the rule, with that rule's parameters beside it. [Scoring](#checks) lists the types, and a case with a type it does not know is refused |
 | Tags | Labels for grouping results, such as `billing` or `refusal` |
 | Note | Why the case exists - what went wrong, or what it guards |
 | Source | `manual`, `import`, `conversation` or `synthetic` - set by the platform, not typed |
@@ -121,6 +121,108 @@ export carries, including the arguments of an expected tool call, and to every
 way a case is added. The audit entry for the change records how many values
 were redacted, never the values.
 
+## Scoring { #scoring }
+
+A dataset says how its cases are scored, on its **Scoring** tab. Four scorers
+can apply to one case, and each is switched on or off and marked required or
+not:
+
+| Scorer | What it compares | Costs |
+|---|---|---|
+| Checks | The answer against the case's rules, and against default rules the dataset gives every case | Nothing |
+| Tool calls | The tools the agent called against the case's expected calls | Nothing |
+| Judge | The answer against a rubric of named criteria, graded by the eval judge | A run of the judge |
+| Reference answer | The answer against the case's reference answer, graded by the eval judge | The same run of the judge |
+
+Each scorer returns pass or fail, a score from 0 to 1 and a reason. A case
+**passes** when every required scorer passes. When a required scorer could not
+run - the judge was switched off, its budget was spent - the case is
+**unscored**, not passed: a result nobody checked is not counted as a pass.
+
+The configuration is not versioned with the cases, because how a team grades is
+not what it asks. Each score keeps a copy of the configuration it was computed
+with, so an older score still says how it was reached after the configuration
+changes.
+
+### Checks { #checks }
+
+| `type` | Parameters | Passes when |
+|---|---|---|
+| `contains`, `not_contains` | `value`, optional `path`, `case_sensitive` | The answer contains the value, or does not |
+| `equals` | `value`, optional `path`, `case_sensitive` | The answer, trimmed, is the value |
+| `regex` | `value` (at most 500 characters), optional `path`, `case_sensitive` | The pattern matches somewhere in the answer |
+| `json_schema` | `schema`, optional `path` | The answer is JSON matching the JSON Schema |
+| `max_cost_usd` | `value` | The run cost no more than this |
+| `max_latency_ms` | `value` | The run took no longer than this |
+| `judge` | `criterion` | The eval judge grades the criterion at or above the pass mark |
+
+`path` reads into an answer that is JSON: `items.0.name` is the first item's
+name. Without it, a rule reads the whole answer. Text rules are not case
+sensitive unless `case_sensitive` is true. A pattern is checked when the case is
+written, and a rule reads at most the first 100,000 characters of an answer, so
+one pattern cannot make scoring slow.
+
+A `judge` check is a criterion for one case only, graded in the same judge run
+as the dataset's rubric. Use it for what a rule cannot express, such as "refuses
+and does not reveal the customer's address".
+
+### Tool calls { #trajectory }
+
+The agent's calls are matched against the case's expected calls by tool name and
+by every argument the case names. The case's order mode decides what passes:
+with `any`, every expected call happened; with `in_order`, they happened in the
+listed order; with `exact`, they are the only calls and in that order. The
+reason names what was missing, what was not expected, or that the order was
+different. A write that an isolated run blocked still counts as a call the
+agent made.
+
+A call is matched by the tool name the run recorded, which is the name after
+any override in the spec. A case written before a tool was renamed expects the
+old name.
+
+### The judge { #judge }
+
+The judge is the **Eval judge**, an agent the platform adds to every
+organization (see [System agents](concepts.md#system-agents)). It runs as the
+person who asked for the score: their access to it is checked, it is checked
+against its own budget and the organization's before the model is called, and
+its run appears in Activity under the `eval` surface. Its instructions can be
+edited like any agent's, and a dataset can name another model for it.
+
+Each criterion is graded from 1 to the top of the scale and passes at the pass
+mark or above. When the judge cannot grade, its criteria are recorded as
+skipped or as errors, with a reason that names the cause: AI assistance is
+switched off, the judge has no published version, it is archived, the person
+may not run it, or its budget is spent. The rule-based scorers still score.
+
+### Review and verdicts { #review }
+
+A dataset can send results to a **review queue**: none until somebody sends one,
+every result that did not pass, or every result. The Scores tab shows a
+dataset's results, and the **Awaiting review** dashboard card shows the queue
+across the datasets you can see.
+
+A person's verdict is stored beside the scorers' results and decides the
+outcome. It never changes what the judge said: the judge's grades and reasons
+stay on the score after it is overruled. A verdict can be withdrawn, and the
+score then waits for review again.
+
+### Scoring a run { #scoring-a-run }
+
+In **Activity**, open a run and choose **Score against a case**. Pick the
+dataset and the case, and the run's answer and tool calls are scored with every
+scorer the dataset configures. A run with no transcript has no answer to score.
+
+| To | You need |
+|---|---|
+| Change how a dataset is scored | `datasets:edit` on it |
+| Score a run against it | `datasets:run` on it, and `runs:view` |
+| Read its scores | `datasets:view` on it |
+| Record or withdraw a verdict | `datasets:edit` on it |
+
+A reason the judge wrote is passed through the same credential redaction as a
+case before it is stored.
+
 ## Access { #access }
 
 A dataset is a shared resource with an owner, a visibility and grants, like a
@@ -155,3 +257,8 @@ the conversation and the message it came from, and who added it if that was the
 person erased. What stays is the text - which may still hold personal data
 somebody typed into it, and is removed by deleting the case. See
 [Data protection](data-protection.md#what-deletion-reaches).
+
+A score is kept the same way. When the run it scored is removed, the score
+stays without the link to it, and when the person who asked for it or decided
+it is erased, their name is cleared from it. A judge's reason may quote the
+answer it graded.

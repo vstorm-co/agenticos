@@ -1,5 +1,5 @@
 ---
-source_sha: "bbb1801a8c80"
+source_sha: "1bd22ff5edac"
 ---
 
 # Koncepcje { #concepts }
@@ -565,6 +565,27 @@ poznać pułapy i narzędzia, oraz
 dowiedzieć się, kto komu może delegować.
 
 ---
+
+## Agenci systemowi { #system-agents }
+
+Niektórych agentów uruchamia platforma, a nie człowiek: **Eval judge** ocenia
+odpowiedzi na potrzeby [oceniania zbiorów danych](datasets.md#judge). To są
+**agenci systemowi**. Każda organizacja dostaje ich przy utworzeniu, a
+organizacja utworzona wcześniej dostaje danego agenta wtedy, gdy coś po raz
+pierwszy go potrzebuje.
+
+Agent systemowy jest zwykłym agentem. Jest widoczny w Agents z plakietką
+**System**, jego instrukcje i model można edytować, można go udostępnić, a jego
+runy są sprawdzane względem budżetu i zapisywane jak każde inne. Startuje z
+niewielkim własnym miesięcznym budżetem, żeby nowa organizacja nie mogła
+przypadkiem wydać całego swojego budżetu na ewaluację.
+
+Gdy organizacja ma już profil modelu, agent jest publikowany na najstarszym z
+nich. Bez profilu jest tworzony jako draft, a człowiek wybiera mu model i go
+publikuje. Do tego czasu mówią o tym funkcje, które z niego korzystają.
+
+[Przełącznik wsparcia AI](governance.md#ai-assistance) organizacji decyduje, czy
+agenci systemowi w ogóle działają.
 
 ## Profile modeli { #model-profiles }
 

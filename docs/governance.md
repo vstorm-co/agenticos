@@ -1340,6 +1340,27 @@ than no report, because both numbers look authoritative.
 Sending never blocks and never raises into the caller: a run that has already
 ended must not fail again because SMTP was down.
 
+## AI assistance { #ai-assistance }
+
+One switch, in the organization's settings on its members page, decides whether
+models assist the organization's evals and authoring: the eval judge that
+grades [dataset scores](datasets.md#judge), and the case generator and
+authoring assistant that come after it. It is on by default and changed by
+whoever holds `org:settings`.
+
+When it is off, the service that would start such a run refuses it, whichever
+client asks - a hidden control is not the boundary. Scoring still runs its
+rule-based checks and tool-call matching, records the judge's criteria as
+skipped with the reason, and leaves a case whose judge was required unscored
+rather than passed. People's verdicts stay available.
+
+These features run as [system agents](concepts.md#system-agents). Each run is an
+ordinary run: it is budget-checked against the agent's own monthly budget and
+the organization's before every model call, its cost is recorded, and it is
+listed in Activity under the `eval` surface. A system agent starts with a
+budget of its own - the judge's is $5 a month - which can be changed like any
+agent's.
+
 ## Audit
 
 Actions that change access or spend money are recorded with an actor, and a context

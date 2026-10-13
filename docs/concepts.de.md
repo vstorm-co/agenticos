@@ -1,5 +1,5 @@
 ---
-source_sha: "bbb1801a8c80"
+source_sha: "1bd22ff5edac"
 ---
 
 # Begriffe { #concepts }
@@ -597,6 +597,29 @@ Obergrenzen und die Tools, und
 wer an was delegieren darf.
 
 ---
+
+## System-Agents { #system-agents }
+
+Manche Agents werden von der Plattform gestartet und nicht von einem Menschen:
+Der **Eval judge** bewertet Antworten für das
+[Scoring von Datasets](datasets.md#judge). Das sind **System-Agents**. Jede
+Organisation erhält sie bei ihrer Erstellung, und eine früher erstellte
+Organisation erhält einen, sobald etwas ihn zum ersten Mal braucht.
+
+Ein System-Agent ist ein gewöhnlicher Agent. Er steht in Agents mit einem
+**System**-Badge, seine Instruktionen und sein Modell lassen sich bearbeiten, er
+kann geteilt werden, und seine Runs werden wie alle anderen gegen das Budget
+geprüft und aufgezeichnet. Er startet mit einem eigenen kleinen Monatsbudget,
+damit eine neue Organisation nicht versehentlich ihr ganzes Budget für
+Evaluierung ausgibt.
+
+Hat die Organisation bereits ein Model-Profil, wird der Agent auf dem ältesten
+veröffentlicht. Ohne eines wird er als Draft angelegt, und ein Mensch wählt sein
+Modell und veröffentlicht ihn. Bis dahin sagen das die Funktionen, die ihn
+verwenden.
+
+Der [Schalter für KI-Unterstützung](governance.md#ai-assistance) der
+Organisation entscheidet, ob System-Agents überhaupt laufen.
 
 ## Model-Profile { #model-profiles }
 
