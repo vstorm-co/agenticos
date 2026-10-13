@@ -42,6 +42,18 @@ describe("DatasetsWidget", () => {
     expect(screen.getByText("12 cases · v3")).toBeInTheDocument();
   });
 
+  it("says how many drafted cases wait on a dataset, and nothing when none do", () => {
+    answer({
+      datasets: [
+        { id: "d1", name: "refunds", case_count: 12, latest_version: 3, pending_proposals: 4 },
+        { id: "d2", name: "billing", case_count: 2, latest_version: 1, pending_proposals: 0 },
+      ],
+    });
+    widget();
+    expect(screen.getByText("4 to review")).toBeInTheDocument();
+    expect(screen.queryByText("0 to review")).toBeNull();
+  });
+
   it("says what appears here when there is nothing yet", () => {
     answer({});
     widget();

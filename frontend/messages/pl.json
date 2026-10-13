@@ -1166,7 +1166,8 @@
         "empty": {
           "title": "Brak datasetów",
           "description": "Tu pojawią się przypadki testowe zbierane do evali."
-        }
+        },
+        "waiting": "{count, plural, one {1 do przejrzenia} other {# do przejrzenia}}"
       }
     },
     "activeSessions": "Aktywne sesje",
@@ -1911,6 +1912,18 @@
       "datasets-list": {
         "title": "Twoje datasety",
         "body": "Każda zmiana przypadków tworzy nową wersję, więc run eval zawsze wskazuje pytania, które się nie zmieniają."
+      },
+      "datasets-add-case": {
+        "title": "Napisz przypadek",
+        "body": "Przypadek to pytanie, na które odpowiada agent, i opis dobrej odpowiedzi. Każdy dodany przypadek tworzy nową wersję datasetu."
+      },
+      "datasets-generate": {
+        "title": "Wygeneruj przypadki",
+        "body": "Generator przygotowuje przypadki na podstawie agenta, jego bazy wiedzy, prawdziwych rozmów albo red teamingu. Najpierw widzisz szacowany koszt, a nic nie trafia do datasetu, dopóki tego nie zaakceptujesz."
+      },
+      "datasets-proposals": {
+        "title": "Zdecyduj o propozycjach",
+        "body": "Tu czekają przygotowane przypadki. Zaakceptuj je bez zmian, najpierw edytuj albo odrzuć. Jedno Zaakceptuj to jedna nowa wersja."
       },
       "flow-dataset-create": {
         "title": "Utwórz dataset",
@@ -3254,7 +3267,7 @@
     "caseCount": "{count, plural, one {1 przypadek} few {# przypadki} many {# przypadków} other {# przypadku}}",
     "version": "Wersja",
     "newestVersion": "Najnowsza wersja",
-    "versionChange": "v{number} · {change, select, add {dodano} edit {zmieniono} remove {usunięto} import {zaimportowano} other {zmieniono}} {count, plural, one {1 przypadek} few {# przypadki} many {# przypadków} other {# przypadku}}",
+    "versionChange": "v{number} · {change, select, add {dodano} edit {zmieniono} remove {usunięto} import {zaimportowano} generate {zaakceptowano z propozycji} other {zmieniono}} {count, plural, one {1 przypadek} few {# przypadki} many {# przypadków} other {# przypadku}}",
     "importFile": "Wybierz plik CSV lub JSONL do importu",
     "import": "Importuj",
     "exportCsv": "Eksportuj CSV",
@@ -3317,6 +3330,55 @@
       "in_orderHint": "Oczekiwane wywołania muszą nastąpić w podanej kolejności; między nimi mogą być inne.",
       "exact": "Dokładnie te, w tej kolejności",
       "exactHint": "Agent musi wykonać dokładnie oczekiwane wywołania, w podanej kolejności, i żadnych innych."
-    }
+    },
+    "origin": {
+      "agent": "Z agenta",
+      "knowledge": "Z wiedzy",
+      "conversation": "Z rozmów",
+      "red_team": "Red team"
+    },
+    "sourceHint": {
+      "agent": "Typowe prośby i przypadki brzegowe na podstawie instrukcji, skilli i narzędzi",
+      "knowledge": "Pytania, na które odpowiada baza wiedzy, każde ze wskazaniem dokumentu źródłowego",
+      "conversation": "Trudniejsze warianty tego, o co pytali ludzie, najpierw odpowiedzi ocenione negatywnie",
+      "red_team": "Prośby, którym agent musi odmówić, każda z oczekiwaną odmową"
+    },
+    "plan": {
+      "agent": "{count, plural, one {1 przypadek} few {# przypadki} many {# przypadków} other {# przypadku}} z agenta i {material, plural, one {1 jego narzędzia} other {# jego narzędzi}}",
+      "knowledge": "{count, plural, one {1 przypadek} few {# przypadki} many {# przypadków} other {# przypadku}} z {material, plural, one {1 fragmentu} other {# fragmentów}} bazy wiedzy",
+      "conversation": "{count, plural, one {1 przypadek} few {# przypadki} many {# przypadków} other {# przypadku}} z {material, plural, one {1 pytania} other {# pytań}} zadanych przez ludzi",
+      "red_team": "{count, plural, one {1 przypadek red team} few {# przypadki red team} many {# przypadków red team} other {# przypadku red team}}"
+    },
+    "dismissProposal": "Odrzuć ten proponowany przypadek",
+    "editProposal": "Edytuj proponowany przypadek",
+    "acceptProposal": "Zaakceptuj ten proponowany przypadek",
+    "dismiss": "Odrzuć",
+    "edit": "Edytuj",
+    "accept": "Zaakceptuj",
+    "generatorRun": "Otwórz run generatora",
+    "generating": "Generowanie: {count, plural, one {1 przypadek} few {# przypadki} many {# przypadków} other {# przypadku}}…",
+    "generationFailed": "Generowanie się nie powiodło.",
+    "proposedCases": "Proponowane przypadki",
+    "proposalCount": "{count, plural, =0 {Nic nie czeka} one {1 przypadek czeka na decyzję} few {# przypadki czekają na decyzję} many {# przypadków czeka na decyzję} other {# przypadku czeka na decyzję}}",
+    "dismissAll": "Odrzuć wszystkie",
+    "acceptAll": "Zaakceptuj wszystkie",
+    "proposalsBody": "Przygotowane przez generator przypadków. Nic nie trafia do datasetu, dopóki tego nie zaakceptujesz, a jedno Zaakceptuj to jedna nowa wersja.",
+    "editProposalBody": "Akceptacja dodaje przypadek w takiej postaci, w jakiej go tu zostawisz, jako nową wersję datasetu.",
+    "proposalsAccepted": "Dodano {count, plural, one {1 przypadek} few {# przypadki} many {# przypadków} other {# przypadku}} jako wersję {version}",
+    "proposalsDismissed": "Odrzucono {count, plural, one {1 proponowany przypadek} few {# proponowane przypadki} many {# proponowanych przypadków} other {# proponowanego przypadku}}",
+    "estimate": "{count, plural, one {1 przypadek} few {# przypadki} many {# przypadków} other {# przypadku}}, szacunkowo {cost, number, ::currency/USD}",
+    "estimateUnpriced": "{count, plural, one {1 przypadek} few {# przypadki} many {# przypadków} other {# przypadku}}. Nie da się oszacować kosztu dla modelu generatora.",
+    "excludedCollections": "Pominięto {count, plural, one {1 bazę wiedzy} few {# bazy wiedzy} many {# baz wiedzy} other {# bazy wiedzy}} tego agenta: nie masz do nich dostępu.",
+    "generationStarted": "Generowanie: {count, plural, one {1 przypadek} few {# przypadki} many {# przypadków} other {# przypadku}}. Poczekają tu na Twoją decyzję.",
+    "generateCases": "Generuj przypadki",
+    "generateCasesBody": "Generator przygotowuje przypadki do Twojego przeglądu. Szacowany koszt widzisz, zanim cokolwiek zostanie wydane.",
+    "agent": "Agent",
+    "chooseAgent": "Wybierz agenta do przetestowania",
+    "sources": "Źródła",
+    "sourceNeedsRunsView": "Wymaga uprawnienia do przeglądania runów",
+    "caseNumber": "Liczba przypadków",
+    "caseNumberHint": "Dzielona między źródła, najwyżej {max}.",
+    "estimateCost": "Oszacuj koszt",
+    "generate": "Generuj"
   }
 }

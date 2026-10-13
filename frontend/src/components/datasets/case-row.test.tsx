@@ -21,6 +21,7 @@ const CASE: DatasetCase = {
   source_run_id: "run",
   source_conversation_id: null,
   source_message_id: null,
+  source_document_id: null,
   created_by_user_id: null,
   created_at: "2026-10-13T00:00:00Z",
 };

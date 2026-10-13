@@ -14,6 +14,7 @@ const DATASET: Dataset = {
   latest_version: 3,
   case_count: 12,
   can_edit: true,
+  pending_proposals: 0,
   created_at: "2026-10-13T00:00:00Z",
   updated_at: null,
 };

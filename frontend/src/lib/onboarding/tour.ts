@@ -13,6 +13,9 @@ export const AGENT_BUILDER = "agent-builder";
 /** The knowledge-base detail view, `/rag/<id>`, collapsed to one identity the same way. */
 export const KB_DETAIL = "kb-detail";
 
+/** One dataset, `/datasets/<id>`, collapsed the same way. */
+export const DATASET_DETAIL = "dataset-detail";
+
 /**
  * The two organization detail routes, collapsed the same way. Unlike the builder
  * and the collection — one detail route each — an organization opens onto two,
@@ -315,6 +318,27 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "datasets-list",
     permission: Perm.datasetsView,
   },
+  // One dataset: writing a case, having the generator draft some, and the drafts
+  // waiting for a decision - the last only while some wait.
+  {
+    id: "datasets-add-case",
+    page: DATASET_DETAIL,
+    target: "datasets-add-case",
+    permission: Perm.datasetsEdit,
+  },
+  {
+    id: "datasets-generate",
+    page: DATASET_DETAIL,
+    target: "datasets-generate",
+    permission: Perm.datasetsEdit,
+  },
+  {
+    id: "datasets-proposals",
+    page: DATASET_DETAIL,
+    target: "datasets-proposals",
+    permission: Perm.datasetsEdit,
+    optional: true,
+  },
 
   // Published artifacts - pages agents wrote. Nothing to create here (a run
   // publishes one), so a single describing stop on the list, view-gated.
@@ -608,6 +632,7 @@ const SECTION_FLOWS: readonly (readonly string[])[] = [
 export function pageKey(path: string): string {
   if (path.startsWith(`${ROUTES.AGENTS}/`)) return AGENT_BUILDER;
   if (path.startsWith(`${ROUTES.RAG}/`)) return KB_DETAIL;
+  if (path.startsWith(`${ROUTES.DATASETS}/`)) return DATASET_DETAIL;
   if (path.startsWith(`${ROUTES.ORGS}/`)) {
     if (path.endsWith("/roles")) return ORG_ROLES;
     if (path.endsWith("/retention")) return ORG_RETENTION;

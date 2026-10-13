@@ -35,6 +35,10 @@ interface CaseEditorDialogProps {
   /** Absent for a case that is only read - an older version, or no edit access. */
   onSave?: (content: DatasetCaseContent) => Promise<unknown>;
   title: string;
+  /** What saving does, when it is not "a new version of the dataset". */
+  description?: string;
+  /** The save button, when it is not "Save case". */
+  saveLabel?: string;
 }
 
 const ORDER_MODES: ToolOrderMode[] = ["any", "in_order", "exact"];
@@ -68,6 +72,8 @@ export function CaseEditorDialog({
   initial,
   onSave,
   title,
+  description,
+  saveLabel,
 }: CaseEditorDialogProps) {
   const t = useTranslations("datasets");
   const tErrors = useTranslations("errors");
@@ -105,7 +111,9 @@ export function CaseEditorDialog({
       <DialogContent className={cn(DIALOG_COLUMN, DIALOG_WIDE)}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{t(readOnly ? "caseReadOnly" : "caseSavesVersion")}</DialogDescription>
+          <DialogDescription>
+            {description ?? t(readOnly ? "caseReadOnly" : "caseSavesVersion")}
+          </DialogDescription>
         </DialogHeader>
         <div className="-mx-1.5 min-h-0 flex-1 space-y-4 overflow-y-auto px-1.5 py-1">
           {TEXT_FIELDS.map(({ field, rows }) => (
@@ -171,7 +179,7 @@ export function CaseEditorDialog({
               onClick={() => void save(onSave)}
               disabled={saving || draft.input.trim() === ""}
             >
-              {t("saveCase")}
+              {saveLabel ?? t("saveCase")}
             </Button>
           )}
         </DialogFooter>

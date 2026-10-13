@@ -1887,7 +1887,8 @@
         "empty": {
           "title": "Noch keine Datasets",
           "description": "Testfälle, die Sie für Evals sammeln, erscheinen hier."
-        }
+        },
+        "waiting": "{count, plural, =1 {1 zu prüfen} other {# zu prüfen}}"
       }
     },
     "edit": {
@@ -3207,6 +3208,18 @@
       "datasets-list": {
         "title": "Ihre Datasets",
         "body": "Jede Änderung an den Fällen erzeugt eine neue Version, sodass ein Eval-Run immer auf Fragen zeigt, die sich nicht ändern."
+      },
+      "datasets-add-case": {
+        "title": "Einen Fall schreiben",
+        "body": "Ein Fall ist eine Frage, die der Agent beantwortet, und wie eine gute Antwort aussieht. Jeder hinzugefügte Fall erzeugt eine neue Version des Datasets."
+      },
+      "datasets-generate": {
+        "title": "Fälle entwerfen lassen",
+        "body": "Der Fallgenerator entwirft Fälle aus dem Agent, seiner Wissensbasis, echten Gesprächen oder Red Teaming. Sie sehen zuerst die geschätzten Kosten, und nichts gelangt in das Dataset, bevor Sie es annehmen."
+      },
+      "datasets-proposals": {
+        "title": "Über die Entwürfe entscheiden",
+        "body": "Entworfene Fälle warten hier. Nehmen Sie sie unverändert an, bearbeiten Sie sie vorher oder verwerfen Sie sie. Ein Annehmen ist eine neue Version."
       },
       "flow-dataset-create": {
         "title": "Dataset anlegen",
@@ -5486,7 +5499,7 @@
     "caseCount": "{count, plural, =1 {1 Fall} other {# Fälle}}",
     "version": "Version",
     "newestVersion": "Neueste Version",
-    "versionChange": "v{number} · {count, plural, =1 {1 Fall} other {# Fälle}} {change, select, add {hinzugefügt} edit {bearbeitet} remove {entfernt} import {importiert} other {geändert}}",
+    "versionChange": "v{number} · {count, plural, =1 {1 Fall} other {# Fälle}} {change, select, add {hinzugefügt} edit {bearbeitet} remove {entfernt} import {importiert} generate {aus Entwürfen angenommen} other {geändert}}",
     "importFile": "CSV- oder JSONL-Datei zum Importieren wählen",
     "import": "Importieren",
     "exportCsv": "CSV exportieren",
@@ -5549,6 +5562,55 @@
       "in_orderHint": "Die erwarteten Aufrufe müssen in der angegebenen Reihenfolge erfolgen; andere Aufrufe dürfen dazwischen liegen.",
       "exact": "Genau diese, in dieser Reihenfolge",
       "exactHint": "Der Agent muss genau die erwarteten Aufrufe machen, in der angegebenen Reihenfolge, und keine anderen."
-    }
+    },
+    "origin": {
+      "agent": "Vom Agent",
+      "knowledge": "Aus dem Wissen",
+      "conversation": "Aus Gesprächen",
+      "red_team": "Red Team"
+    },
+    "sourceHint": {
+      "agent": "Typische Anfragen und Grenzfälle, aus seinen Anweisungen, Skills und Werkzeugen",
+      "knowledge": "Fragen, die seine Wissensbasis beantwortet, jede mit dem Dokument, aus dem sie stammt",
+      "conversation": "Schwierigere Varianten dessen, was Menschen ihn gefragt haben, negativ bewertete Antworten zuerst",
+      "red_team": "Anfragen, die er ablehnen muss, jede mit der erwarteten Ablehnung"
+    },
+    "plan": {
+      "agent": "{count, plural, =1 {1 Fall} other {# Fälle}} vom Agent und {material, plural, =1 {1 Werkzeug} other {# Werkzeugen}}",
+      "knowledge": "{count, plural, =1 {1 Fall} other {# Fälle}} aus {material, plural, =1 {1 Abschnitt} other {# Abschnitten}} seiner Wissensbasis",
+      "conversation": "{count, plural, =1 {1 Fall} other {# Fälle}} aus {material, plural, =1 {1 gestellten Frage} other {# gestellten Fragen}}",
+      "red_team": "{count, plural, =1 {1 Red-Team-Fall} other {# Red-Team-Fälle}}"
+    },
+    "dismissProposal": "Diesen vorgeschlagenen Fall verwerfen",
+    "editProposal": "Vorgeschlagenen Fall bearbeiten",
+    "acceptProposal": "Diesen vorgeschlagenen Fall annehmen",
+    "dismiss": "Verwerfen",
+    "edit": "Bearbeiten",
+    "accept": "Annehmen",
+    "generatorRun": "Run des Generators öffnen",
+    "generating": "{count, plural, =1 {1 Fall wird} other {# Fälle werden}} entworfen…",
+    "generationFailed": "Die Generierung ist fehlgeschlagen.",
+    "proposedCases": "Vorgeschlagene Fälle",
+    "proposalCount": "{count, plural, =0 {Nichts wartet} =1 {1 Fall wartet auf eine Entscheidung} other {# Fälle warten auf eine Entscheidung}}",
+    "dismissAll": "Alle verwerfen",
+    "acceptAll": "Alle annehmen",
+    "proposalsBody": "Vom Fallgenerator entworfen. Nichts gelangt in das Dataset, bevor Sie es annehmen, und ein Annehmen ist eine neue Version.",
+    "editProposalBody": "Beim Annehmen wird der Fall so übernommen, wie Sie ihn hier lassen, als neue Version des Datasets.",
+    "proposalsAccepted": "{count, plural, =1 {1 Fall} other {# Fälle}} als Version {version} hinzugefügt",
+    "proposalsDismissed": "{count, plural, =1 {1 vorgeschlagener Fall} other {# vorgeschlagene Fälle}} verworfen",
+    "estimate": "{count, plural, =1 {1 Fall} other {# Fälle}}, geschätzt {cost, number, ::currency/USD}",
+    "estimateUnpriced": "{count, plural, =1 {1 Fall} other {# Fälle}}. Für das Modell des Generators lassen sich die Kosten nicht schätzen.",
+    "excludedCollections": "{count, plural, =1 {1 Wissensbasis} other {# Wissensbasen}} dieses Agents ausgelassen: Sie haben keinen Lesezugriff.",
+    "generationStarted": "{count, plural, =1 {1 Fall wird} other {# Fälle werden}} entworfen. Sie warten hier auf Ihre Entscheidung.",
+    "generateCases": "Fälle generieren",
+    "generateCasesBody": "Der Fallgenerator entwirft Fälle, die Sie prüfen. Die geschätzten Kosten sehen Sie, bevor etwas ausgegeben wird.",
+    "agent": "Agent",
+    "chooseAgent": "Zu testenden Agent wählen",
+    "sources": "Entwerfen aus",
+    "sourceNeedsRunsView": "Erfordert die Berechtigung, Runs anzusehen",
+    "caseNumber": "Anzahl der Fälle",
+    "caseNumberHint": "Auf die Quellen verteilt, höchstens {max}.",
+    "estimateCost": "Kosten schätzen",
+    "generate": "Generieren"
   }
 }

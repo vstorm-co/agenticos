@@ -1901,7 +1901,8 @@
         "empty": {
           "title": "No datasets yet",
           "description": "Test cases you collect for evals appear here."
-        }
+        },
+        "waiting": "{count, plural, =1 {1 to review} other {# to review}}"
       }
     },
     "edit": {
@@ -3344,6 +3345,18 @@
       "datasets-list": {
         "title": "Your datasets",
         "body": "Every change to a dataset's cases makes a new version, so an eval run always points at questions that do not move."
+      },
+      "datasets-add-case": {
+        "title": "Write a case",
+        "body": "A case is a question the agent answers and what a good answer looks like. Every case you add makes a new version of the dataset."
+      },
+      "datasets-generate": {
+        "title": "Have cases drafted",
+        "body": "The case generator drafts cases from the agent, its knowledge base, real conversations or red teaming. You see the estimated cost first, and nothing reaches the dataset until you accept it."
+      },
+      "datasets-proposals": {
+        "title": "Decide the drafts",
+        "body": "Drafted cases wait here. Accept them as they are, edit them first, or dismiss them. One Accept is one new version."
       },
       "flow-dataset-create": {
         "title": "Create a dataset",
@@ -5628,7 +5641,7 @@
     "caseCount": "{count, plural, =1 {1 case} other {# cases}}",
     "version": "Version",
     "newestVersion": "Newest version",
-    "versionChange": "v{number} · {change, select, add {added} edit {edited} remove {removed} import {imported} other {changed}} {count, plural, =1 {1 case} other {# cases}}",
+    "versionChange": "v{number} · {change, select, add {added} edit {edited} remove {removed} import {imported} generate {accepted from drafts} other {changed}} {count, plural, =1 {1 case} other {# cases}}",
     "importFile": "Choose a CSV or JSONL file to import",
     "import": "Import",
     "exportCsv": "Export CSV",
@@ -5691,6 +5704,55 @@
       "in_orderHint": "The expected calls must happen in the listed order; other calls may come between them.",
       "exact": "Exactly these, in this order",
       "exactHint": "The agent must make exactly the expected calls, in the listed order, and no others."
-    }
+    },
+    "origin": {
+      "agent": "From the agent",
+      "knowledge": "From knowledge",
+      "conversation": "From conversations",
+      "red_team": "Red team"
+    },
+    "sourceHint": {
+      "agent": "Typical requests and edge cases, from its instructions, skills and tools",
+      "knowledge": "Questions its knowledge base answers, each citing the document it came from",
+      "conversation": "Harder variants of what people asked it, rated-down answers first",
+      "red_team": "Requests it must refuse, each with the refusal expected"
+    },
+    "plan": {
+      "agent": "{count, plural, =1 {1 case} other {# cases}} from the agent and its {material, plural, =1 {1 tool} other {# tools}}",
+      "knowledge": "{count, plural, =1 {1 case} other {# cases}} from {material, plural, =1 {1 passage} other {# passages}} of its knowledge base",
+      "conversation": "{count, plural, =1 {1 case} other {# cases}} from {material, plural, =1 {1 question} other {# questions}} people asked",
+      "red_team": "{count, plural, =1 {1 red-team case} other {# red-team cases}}"
+    },
+    "dismissProposal": "Dismiss this proposed case",
+    "editProposal": "Edit proposed case",
+    "acceptProposal": "Accept this proposed case",
+    "dismiss": "Dismiss",
+    "edit": "Edit",
+    "accept": "Accept",
+    "generatorRun": "Open the generator's run",
+    "generating": "Drafting {count, plural, =1 {1 case} other {# cases}}…",
+    "generationFailed": "The generation failed.",
+    "proposedCases": "Proposed cases",
+    "proposalCount": "{count, plural, =0 {Nothing waiting} =1 {1 case waiting for a decision} other {# cases waiting for a decision}}",
+    "dismissAll": "Dismiss all",
+    "acceptAll": "Accept all",
+    "proposalsBody": "Drafted by the case generator. Nothing reaches the dataset until you accept it, and one Accept is one new version.",
+    "editProposalBody": "Accepting adds the case as you leave it here, in a new version of the dataset.",
+    "proposalsAccepted": "{count, plural, =1 {1 case} other {# cases}} added as version {version}",
+    "proposalsDismissed": "{count, plural, =1 {1 proposed case} other {# proposed cases}} dismissed",
+    "estimate": "{count, plural, =1 {1 case} other {# cases}}, estimated {cost, number, ::currency/USD}",
+    "estimateUnpriced": "{count, plural, =1 {1 case} other {# cases}}. The cost cannot be estimated for the generator's model.",
+    "excludedCollections": "{count, plural, =1 {1 knowledge base} other {# knowledge bases}} of this agent left out: you cannot read them.",
+    "generationStarted": "Drafting {count, plural, =1 {1 case} other {# cases}}. They will wait here for your decision.",
+    "generateCases": "Generate cases",
+    "generateCasesBody": "The case generator drafts cases for you to review. You see the estimated cost before anything is spent.",
+    "agent": "Agent",
+    "chooseAgent": "Choose the agent to test",
+    "sources": "Draft from",
+    "sourceNeedsRunsView": "Needs permission to view runs",
+    "caseNumber": "Number of cases",
+    "caseNumberHint": "Shared across the sources, at most {max}.",
+    "estimateCost": "Estimate cost",
+    "generate": "Generate"
   }
 }

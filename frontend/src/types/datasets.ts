@@ -8,7 +8,7 @@
 import type { Visibility } from "./sharing";
 
 export type CaseSource = "manual" | "import" | "conversation" | "synthetic";
-export type DatasetChange = "add" | "edit" | "remove" | "import";
+export type DatasetChange = "add" | "edit" | "remove" | "import" | "generate";
 export type DatasetSort = "name" | "updated";
 export type DatasetFileFormat = "csv" | "jsonl";
 /** How an agent's calls are matched against the expected ones. */
@@ -53,6 +53,8 @@ export interface DatasetCase extends DatasetCaseContent {
   source_run_id: string | null;
   source_conversation_id: string | null;
   source_message_id: string | null;
+  /** The knowledge base document a generated case's passage came from. */
+  source_document_id: string | null;
   created_by_user_id: string | null;
   created_at: string;
 }
@@ -74,6 +76,8 @@ export interface Dataset {
   case_count: number;
   /** Whether the caller may change this dataset's cases. */
   can_edit: boolean;
+  /** Generated cases waiting for a decision; 0 for a caller who may not decide. */
+  pending_proposals: number;
   created_at: string;
   updated_at: string | null;
 }

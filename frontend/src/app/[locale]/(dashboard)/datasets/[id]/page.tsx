@@ -1,7 +1,7 @@
 "use client";
 
 import { use, useState } from "react";
-import { FlaskConical, Plus } from "lucide-react";
+import { FlaskConical, Plus, Sparkles } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -9,6 +9,8 @@ import { CaseEditorDialog } from "@/components/datasets/case-editor-dialog";
 import { draftOf, EMPTY_DRAFT, type CaseDraft } from "@/components/datasets/case-form";
 import { CaseRow } from "@/components/datasets/case-row";
 import { DatasetFileActions } from "@/components/datasets/dataset-file-actions";
+import { GenerateCasesDialog } from "@/components/datasets/generate-cases-dialog";
+import { ProposedCases } from "@/components/datasets/proposed-cases";
 import { VersionSelect } from "@/components/datasets/version-select";
 import { SharingPanel } from "@/components/sharing/sharing-panel";
 import { ErrorState, LoadingState } from "@/components/states";
@@ -39,6 +41,7 @@ export default function DatasetPage({ params }: PageProps) {
   const [version, setVersion] = useState<number | null>(null);
   const [page, setPage] = useState(0);
   const [editing, setEditing] = useState<Editing>(null);
+  const [generating, setGenerating] = useState(false);
   const { dataset, error: datasetError } = useDataset(id);
   const { versions } = useDatasetVersions(id);
   const cases = useDatasetCases(id, { version, skip: page * PAGE_SIZE, limit: PAGE_SIZE });
@@ -71,16 +74,28 @@ export default function DatasetPage({ params }: PageProps) {
         }
         actions={
           editable ? (
-            <Button
-              data-tour="datasets-add-case"
-              onClick={() => setEditing({ draft: EMPTY_DRAFT, item: null })}
-            >
-              <Plus className="h-4 w-4" />
-              {t("addCase")}
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                data-tour="datasets-generate"
+                onClick={() => setGenerating(true)}
+              >
+                <Sparkles className="h-4 w-4" />
+                {t("generateCases")}
+              </Button>
+              <Button
+                data-tour="datasets-add-case"
+                onClick={() => setEditing({ draft: EMPTY_DRAFT, item: null })}
+              >
+                <Plus className="h-4 w-4" />
+                {t("addCase")}
+              </Button>
+            </div>
           ) : undefined
         }
       />
+
+      <ProposedCases datasetId={id} canEdit={dataset.can_edit} />
 
       <ListCard
         title={t("cases")}
@@ -139,6 +154,8 @@ export default function DatasetPage({ params }: PageProps) {
       </ListCard>
 
       <SharingPanel resourceType="dataset" resourceId={id} canManage={dataset.can_edit} />
+
+      {generating && <GenerateCasesDialog datasetId={id} open onOpenChange={setGenerating} />}
 
       {editing !== null && (
         <CaseEditorDialog
