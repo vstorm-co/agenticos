@@ -1,5 +1,5 @@
 ---
-source_sha: "2d175ad3c6b2"
+source_sha: "4934dfd7bbcb"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -107,12 +107,17 @@ usuwa ten jeden `'`. Eksport jest zapisywany w [dzienniku audytu](governance.md#
 
 Są dwie drogi i obie tworzą taki sam przypadek:
 
-- **W czacie** oceń odpowiedź łapką w dół. Okno, które pyta, co poszło źle,
-  proponuje też **Dodaj tę odpowiedź do datasetu**: zaznacz to, wybierz dataset
-  i to, jako co zachować odpowiedź, i wyślij. Najpierw zapisuje się ocena, a
-  przypadek jest dodawany po niej, więc twój komentarz staje się notatką
-  przypadku. To dwa osobne zapisy - jeśli dodanie zostanie odrzucone, ocena
-  zostaje, a komunikat mówi, która połowa się nie udała.
+- **W czacie** oceń odpowiedź, a ocena zdecyduje, jako co zostanie zachowana.
+  Po łapce w górę potwierdzenie proponuje **Dodaj do datasetu**: wybierz
+  dataset, a odpowiedź zostanie zachowana jako odpowiedź wzorcowa. Po łapce w
+  dół okno, które pyta, co poszło źle, proponuje też **Dodaj tę odpowiedź do
+  datasetu**: zaznacz to, wybierz dataset i wyślij, a odpowiedź zostanie
+  zachowana jako kontrprzykład. Najpierw zapisuje się ocena, a przypadek jest
+  dodawany po niej, więc twój komentarz staje się notatką przypadku. To dwa
+  osobne zapisy - jeśli dodanie zostanie odrzucone, ocena zostaje, a komunikat
+  mówi, która połowa się nie udała. Późniejsze cofnięcie oceny zostawia
+  przypadek na miejscu: to kopia, wersjonowana razem z datasetem. Konsola
+  pamięta ostatnio użyty dataset, więc kolejne dodanie to jedno kliknięcie.
 - **W Aktywności** każda tura agenta ma przycisk **Dodaj do datasetu**. To
   miejsce kuracji, więc dobrą odpowiedź równie łatwo zachować jako wzorcową, jak
   złą jako kontrprzykład.

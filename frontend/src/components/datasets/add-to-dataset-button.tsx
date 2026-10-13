@@ -17,7 +17,8 @@ interface AddToDatasetButtonProps {
 /**
  * "Add to dataset" on an agent's turn in Activity, where answers are curated - a
  * good one as a reference as much as a bad one as a counter-example. In chat the
- * same choice is offered only in the rate-down dialog.
+ * rating decides: a thumbs-up offers it as a reference, a thumbs-down as a
+ * counter-example.
  *
  * Not rendered for somebody whose role edits no dataset: the dialog would offer
  * them nothing to add to.
@@ -43,7 +44,8 @@ export function AddToDatasetButton({ messageId, ratedDown }: AddToDatasetButtonP
           open={open}
           onOpenChange={setOpen}
           messageId={messageId}
-          ratedDown={ratedDown}
+          answerAs={ratedDown ? "counter_example" : "reference_answer"}
+          askAnswerAs
         />
       )}
     </>

@@ -13,22 +13,29 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui";
-import { useAddToDataset, useDatasets } from "@/hooks/use-datasets";
+import { useAddToDataset } from "@/hooks/use-datasets";
 import { getErrorMessage } from "@/lib/api-error";
 import { DIALOG_FORM } from "@/lib/dialog-sizes";
+import type { Dataset } from "@/types/datasets";
 import { DatasetTargetFields, type AnswerAs } from "./dataset-target-fields";
+import { useDatasetTarget } from "./use-dataset-target";
 
 interface AddToDatasetDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** The agent's answer that becomes the case. */
   messageId: string;
-  /** Whether the answer was rated down, which decides what it is kept as by default. */
-  ratedDown: boolean;
+  /** What the answer is kept as, or what is offered first when `askAnswerAs`. */
+  answerAs: AnswerAs;
+  /**
+   * Whether the reader picks it. True in Activity, where a turn may carry no
+   * rating; false after a thumbs-up in chat, where the rating already said.
+   */
+  askAnswerAs: boolean;
 }
 
 /**
- * Which dataset an answer goes into, and whether it is the bad answer or the good one.
+ * Which dataset an answer goes into.
  *
  * The question, the turns before it and the rating's comment come with it on the
  * server; this asks only what the server cannot know.
@@ -37,23 +44,19 @@ export function AddToDatasetDialog({
   open,
   onOpenChange,
   messageId,
-  ratedDown,
+  answerAs: initial,
+  askAnswerAs,
 }: AddToDatasetDialogProps) {
   const t = useTranslations("datasets");
   const tErrors = useTranslations("errors");
-  const { datasets, isLoading } = useDatasets({ sort: "updated", limit: 100 });
+  const { editable, isLoading, target, choose, remember } = useDatasetTarget();
   const add = useAddToDataset();
-  const editable = datasets.filter((dataset) => dataset.can_edit);
-  const [chosen, setChosen] = useState<string>("");
-  const [answerAs, setAnswerAs] = useState<AnswerAs>(
-    ratedDown ? "counter_example" : "reference_answer",
-  );
-  const target = editable.find((dataset) => dataset.id === chosen) ?? editable[0];
-  const datasetId = target?.id ?? "";
+  const [answerAs, setAnswerAs] = useState<AnswerAs>(initial);
 
-  async function submit(into: { id: string; name: string }) {
+  async function submit(into: Dataset) {
     try {
       await add.mutateAsync({ datasetId: into.id, messageId, answerAs });
+      remember(into);
       toast.success(t("addedTo", { name: into.name }));
       onOpenChange(false);
     } catch (error) {
@@ -66,15 +69,16 @@ export function AddToDatasetDialog({
       <DialogContent className={DIALOG_FORM}>
         <DialogHeader>
           <DialogTitle>{t("addToDataset")}</DialogTitle>
-          <DialogDescription>{t("addToDatasetBody")}</DialogDescription>
+          <DialogDescription>
+            {t(askAnswerAs ? "addToDatasetBody" : "addAsReferenceBody")}
+          </DialogDescription>
         </DialogHeader>
         <DatasetTargetFields
           editable={editable}
           isLoading={isLoading}
-          datasetId={datasetId}
-          onDatasetChange={setChosen}
-          answerAs={answerAs}
-          onAnswerAsChange={setAnswerAs}
+          datasetId={target?.id ?? ""}
+          onDatasetChange={choose}
+          answerAs={askAnswerAs ? { value: answerAs, onChange: setAnswerAs } : undefined}
           idPrefix="add-to-dataset"
         />
         <DialogFooter>

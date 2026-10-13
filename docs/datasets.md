@@ -103,12 +103,17 @@ recorded in the [audit log](governance.md#audit).
 
 There are two ways in, and both make the same case:
 
-- **In the chat**, rate an answer down. The dialog that asks what went wrong
-  also offers **Add this answer to a dataset**: tick it, choose the dataset and
-  what to keep the answer as, and submit. The rating is saved first and the
-  case is added after it, so your comment becomes the case's note. They are two
+- **In the chat**, rate the answer, and the rating decides what the answer is
+  kept as. After a thumbs-up, the confirmation offers **Add to dataset**: choose
+  the dataset and the answer is kept as the reference answer. After a
+  thumbs-down, the dialog that asks what went wrong also offers **Add this
+  answer to a dataset**: tick it, choose the dataset and submit, and the answer
+  is kept as the counter-example. The rating is saved first and the case is
+  added after it, so your comment becomes the case's note. They are two
   separate writes - if the add is refused, the rating stays, and the message
-  says which half failed.
+  says which half failed. Removing the rating later leaves the case where it
+  is: it is a copy, versioned with its dataset. The console remembers the
+  dataset you added to last, so the next add is one click.
 - **In Activity**, every agent turn has an **Add to dataset** control. This is
   where answers are curated, so a good answer can be kept as a reference just
   as easily as a bad one as a counter-example.

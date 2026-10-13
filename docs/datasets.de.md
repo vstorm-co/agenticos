@@ -1,5 +1,5 @@
 ---
-source_sha: "2d175ad3c6b2"
+source_sha: "4934dfd7bbcb"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -112,13 +112,19 @@ Export wird im [Audit-Log](governance.md#audit) festgehalten.
 
 Es gibt zwei Wege, und beide erzeugen denselben Fall:
 
-- **Im Chat** bewerten Sie eine Antwort mit dem Daumen nach unten. Der Dialog,
-  der fragt, was schiefging, bietet auch **Diese Antwort zu einem Dataset
-  hinzufügen** an: Haken setzen, Dataset und die Rolle der Antwort wählen und
-  absenden. Zuerst wird die Bewertung gespeichert, danach der Fall angelegt,
-  sodass Ihr Kommentar zur Notiz des Falls wird. Es sind zwei getrennte
-  Schreibvorgänge - wird das Hinzufügen abgelehnt, bleibt die Bewertung, und die
-  Meldung sagt, welcher Teil fehlschlug.
+- **Im Chat** bewerten Sie die Antwort, und die Bewertung entscheidet, als was
+  sie behalten wird. Nach einem Daumen nach oben bietet die Bestätigung **Zum
+  Dataset hinzufügen** an: Dataset wählen, und die Antwort wird als
+  Referenzantwort behalten. Nach einem Daumen nach unten bietet der Dialog, der
+  fragt, was schiefging, auch **Diese Antwort zu einem Dataset hinzufügen** an:
+  Haken setzen, Dataset wählen und absenden, und die Antwort wird als
+  Gegenbeispiel behalten. Zuerst wird die Bewertung gespeichert, danach der Fall
+  angelegt, sodass Ihr Kommentar zur Notiz des Falls wird. Es sind zwei
+  getrennte Schreibvorgänge - wird das Hinzufügen abgelehnt, bleibt die
+  Bewertung, und die Meldung sagt, welcher Teil fehlschlug. Wird die Bewertung
+  später entfernt, bleibt der Fall: Er ist eine Kopie, versioniert mit seinem
+  Dataset. Die Konsole merkt sich das zuletzt verwendete Dataset, sodass das
+  nächste Hinzufügen ein Klick ist.
 - **In Aktivität** hat jeder Agent-Zug ein Bedienelement **Zum Dataset
   hinzufügen**. Hier werden Antworten kuratiert, daher lässt sich eine gute
   Antwort ebenso leicht als Referenz behalten wie eine schlechte als

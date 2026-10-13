@@ -5,11 +5,12 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { Checkbox } from "@/components/ui/checkbox";
-import { useAddToDataset, useDatasets } from "@/hooks/use-datasets";
+import { useAddToDataset } from "@/hooks/use-datasets";
 import { usePermissions } from "@/hooks/use-permissions";
 import { getErrorMessage } from "@/lib/api-error";
 import { Perm } from "@/types/permissions";
-import { DatasetTargetFields, type AnswerAs } from "./dataset-target-fields";
+import { DatasetTargetFields } from "./dataset-target-fields";
+import { useDatasetTarget } from "./use-dataset-target";
 
 export interface AlsoAddToDatasetHandle {
   /**
@@ -27,7 +28,8 @@ interface AlsoAddToDatasetProps {
 /**
  * "Add this answer to a dataset", offered in the dialog that asks what went wrong.
  *
- * The rating is saved first, so its comment is already there to become the
+ * A rated-down answer is kept as the counter-example: the rating already said
+ * it is wrong. The rating is saved first, so its comment is there to become the
  * case's note. Not rendered for somebody whose role edits no dataset.
  */
 export function AlsoAddToDataset({ messageId, ref }: AlsoAddToDatasetProps) {
@@ -36,16 +38,10 @@ export function AlsoAddToDataset({ messageId, ref }: AlsoAddToDatasetProps) {
   const { can } = usePermissions();
   const allowed = can(Perm.datasetsEdit);
   const [wanted, setWanted] = useState(false);
-  const { datasets, isLoading } = useDatasets({
-    sort: "updated",
-    limit: 100,
+  const { editable, isLoading, target, choose, remember } = useDatasetTarget({
     enabled: allowed && wanted,
   });
   const add = useAddToDataset();
-  const editable = datasets.filter((dataset) => dataset.can_edit);
-  const [chosen, setChosen] = useState("");
-  const [answerAs, setAnswerAs] = useState<AnswerAs>("counter_example");
-  const target = editable.find((dataset) => dataset.id === chosen) ?? editable[0];
 
   useImperativeHandle(
     ref,
@@ -53,14 +49,15 @@ export function AlsoAddToDataset({ messageId, ref }: AlsoAddToDatasetProps) {
       async addIfChosen() {
         if (!wanted || target === undefined) return;
         try {
-          await add.mutateAsync({ datasetId: target.id, messageId, answerAs });
+          await add.mutateAsync({ datasetId: target.id, messageId, answerAs: "counter_example" });
+          remember(target);
           toast.success(t("addedTo", { name: target.name }));
         } catch (error) {
           toast.error(t("addAfterRatingFailed", { reason: getErrorMessage(error, tErrors) }));
         }
       },
     }),
-    [wanted, target, add, messageId, answerAs, t, tErrors],
+    [wanted, target, add, messageId, remember, t, tErrors],
   );
 
   if (!allowed) return null;
@@ -75,9 +72,7 @@ export function AlsoAddToDataset({ messageId, ref }: AlsoAddToDatasetProps) {
           editable={editable}
           isLoading={isLoading}
           datasetId={target?.id ?? ""}
-          onDatasetChange={setChosen}
-          answerAs={answerAs}
-          onAnswerAsChange={setAnswerAs}
+          onDatasetChange={choose}
           idPrefix="rate-down"
         />
       )}

@@ -16,10 +16,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { DIALOG_CONFIRM } from "@/lib/dialog-sizes";
+import { AddToDatasetDialog } from "@/components/datasets/add-to-dataset-dialog";
 import {
   AlsoAddToDataset,
   type AlsoAddToDatasetHandle,
 } from "@/components/datasets/also-add-to-dataset";
+import { usePermissions } from "@/hooks/use-permissions";
+import { Perm } from "@/types/permissions";
 
 interface RatingButtonsProps {
   messageId: string;
@@ -52,6 +55,10 @@ export function RatingButtons({
   // spinner on currentRating (null on an unrated message) spins both thumbs.
   const [inFlight, setInFlight] = useState<RatingValue | null>(null);
   const datasetChoice = useRef<AlsoAddToDatasetHandle>(null);
+  const tDatasets = useTranslations("datasets");
+  const { can } = usePermissions();
+  const canAddToDataset = can(Perm.datasetsEdit);
+  const [addingReference, setAddingReference] = useState(false);
 
   const calculateNewCounts = useMemo(
     () =>
@@ -80,7 +87,15 @@ export function RatingButtons({
         await rateMessage({ rating, comment: commentText });
         const newCounts = calculateNewCounts(currentRating, rating);
         onRatingChange?.({ rating, rating_count: newCounts });
-        toast.success(t("thankYouFeedback"));
+        if (rating === RatingValue.LIKE && canAddToDataset) {
+          // A thumbs-up asks nothing, so the add is a toast's action rather than
+          // a dialog in the way of every good answer.
+          toast.success(t("thankYouFeedback"), {
+            action: { label: tDatasets("addToDataset"), onClick: () => setAddingReference(true) },
+          });
+        } else {
+          toast.success(t("thankYouFeedback"));
+        }
         // After the rating, so its comment is there to become the case's note.
         await datasetChoice.current?.addIfChosen();
         setShowCommentDialog(false);
@@ -91,7 +106,16 @@ export function RatingButtons({
         setInFlight(null);
       }
     },
-    [rateMessage, currentRating, calculateNewCounts, onRatingChange, t, tErrors],
+    [
+      rateMessage,
+      currentRating,
+      calculateNewCounts,
+      onRatingChange,
+      canAddToDataset,
+      t,
+      tDatasets,
+      tErrors,
+    ],
   );
 
   // No guard against a missing conversation id here: both buttons are
@@ -222,6 +246,15 @@ export function RatingButtons({
           </div>
         </DialogContent>
       </Dialog>
+      {addingReference && (
+        <AddToDatasetDialog
+          open
+          onOpenChange={setAddingReference}
+          messageId={messageId}
+          answerAs="reference_answer"
+          askAnswerAs={false}
+        />
+      )}
     </>
   );
 }

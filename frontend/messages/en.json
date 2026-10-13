@@ -3339,7 +3339,7 @@
       },
       "datasets-new": {
         "title": "Collect test cases",
-        "body": "A dataset holds the questions an agent is tested on. Create one here, then add cases by hand, from a file, from the thumbs-down dialog in chat, or from a turn in Activity."
+        "body": "A dataset holds the questions an agent is tested on. Create one here, then add cases by hand, from a file, from an answer rated up or down in chat, or from a turn in Activity."
       },
       "datasets-list": {
         "title": "Your datasets",
@@ -5655,6 +5655,7 @@
     "needsExpectation": "Add a reference answer, a counter-example, an expected tool call or a check: a case needs something to test the answer against.",
     "addToDataset": "Add to dataset",
     "addToDatasetBody": "The question, the conversation before it and the comment left with a thumbs-down come with the answer.",
+    "addAsReferenceBody": "You rated this answer up, so it is kept as the reference answer. The question and the conversation before it come with it.",
     "noDatasetToAddTo": "There is no dataset you can add to. <link>Create one</link> first.",
     "dataset": "Dataset",
     "keepAnswerAs": "Keep the answer as",

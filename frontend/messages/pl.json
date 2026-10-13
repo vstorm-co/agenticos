@@ -1906,7 +1906,7 @@
       },
       "datasets-new": {
         "title": "Zbieraj przypadki testowe",
-        "body": "Dataset zawiera pytania, na których testujesz agenta. Utwórz go tutaj, a potem dodawaj przypadki ręcznie, z pliku, z okna łapki w dół w czacie albo z tury w Aktywności."
+        "body": "Dataset zawiera pytania, na których testujesz agenta. Utwórz go tutaj, a potem dodawaj przypadki ręcznie, z pliku, z odpowiedzi ocenionej w czacie łapką w górę albo w dół, albo z tury w Aktywności."
       },
       "datasets-list": {
         "title": "Twoje datasety",
@@ -3281,6 +3281,7 @@
     "needsExpectation": "Dodaj odpowiedź wzorcową, kontrprzykład, oczekiwane wywołanie narzędzia albo sprawdzenie: przypadek potrzebuje czegoś, z czym porówna odpowiedź.",
     "addToDataset": "Dodaj do datasetu",
     "addToDatasetBody": "Razem z odpowiedzią trafiają pytanie, wcześniejsza część rozmowy i komentarz zostawiony z łapką w dół.",
+    "addAsReferenceBody": "Ta odpowiedź dostała łapkę w górę, więc zostanie zachowana jako odpowiedź wzorcowa. Razem z nią trafiają pytanie i wcześniejsza część rozmowy.",
     "noDatasetToAddTo": "Nie ma datasetu, do którego możesz dodać. Najpierw <link>utwórz dataset</link>.",
     "dataset": "Dataset",
     "keepAnswerAs": "Zachowaj odpowiedź jako",

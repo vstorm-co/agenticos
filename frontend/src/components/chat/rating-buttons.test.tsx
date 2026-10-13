@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
@@ -66,6 +66,7 @@ const down = () => screen.getByTitle("notHelpful");
 
 beforeEach(() => {
   vi.clearAllMocks();
+  localStorage.clear();
   datasets.granted = [];
   datasets.add.mockResolvedValue({});
   rateMessage.mockResolvedValue({});
@@ -400,6 +401,12 @@ describe("a refusal the proxy minted", () => {
  * Adding the answer to a dataset from the rate-down dialog: a second, separate
  * write after the rating, offered only to somebody who edits a dataset.
  */
+/** The action a toast offered, as sonner was handed it. */
+function toastAction(call: number): { label: string; onClick: () => void } {
+  const options = vi.mocked(toast.success).mock.calls[call]?.[1];
+  return (options as unknown as { action: { label: string; onClick: () => void } }).action;
+}
+
 describe("adding a rated-down answer to a dataset", () => {
   const alsoAdd = () => screen.getByRole("checkbox", { name: "alsoAddToDataset" });
 
@@ -474,6 +481,55 @@ describe("adding a rated-down answer to a dataset", () => {
     } finally {
       datasets.list = all;
     }
+  });
+
+  it("offers a thumbs-up answer as a reference through the toast, without asking what to keep it as", async () => {
+    mount();
+    await userEvent.click(up());
+    await waitFor(() => expect(toast.success).toHaveBeenCalled());
+    expect(vi.mocked(toast.success).mock.calls[0]![0]).toBe("thankYouFeedback");
+    const action = toastAction(0);
+    expect(action.label).toBe("addToDataset");
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    act(() => action.onClick());
+    expect(screen.getByText("addAsReferenceBody")).toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "keepAnswerAs" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "add" }));
+    await waitFor(() =>
+      expect(datasets.add).toHaveBeenCalledWith({
+        datasetId: "d1",
+        messageId: "m-1",
+        answerAs: "reference_answer",
+      }),
+    );
+    await waitFor(() => expect(screen.queryByText("addAsReferenceBody")).toBeNull());
+  });
+
+  it("starts the next add from the dataset added to last", async () => {
+    mount();
+    await userEvent.click(down());
+    await userEvent.click(alsoAdd());
+    await userEvent.click(screen.getByRole("combobox", { name: "dataset" }));
+    await userEvent.click(screen.getByRole("option", { name: "returns" }));
+    await userEvent.click(screen.getByRole("button", { name: "skipComment" }));
+    await waitFor(() => expect(datasets.add).toHaveBeenCalledTimes(1));
+
+    await userEvent.click(up());
+    await waitFor(() => expect(toast.success).toHaveBeenCalledTimes(3));
+    act(() => toastAction(2).onClick());
+    await userEvent.click(screen.getByRole("button", { name: "add" }));
+    await waitFor(() =>
+      expect(datasets.add).toHaveBeenLastCalledWith(expect.objectContaining({ datasetId: "d2" })),
+    );
+  });
+
+  it("offers no add on a thumbs-up to somebody who edits no dataset", async () => {
+    datasets.granted = [];
+    mount();
+    await userEvent.click(up());
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("thankYouFeedback"));
+    expect(vi.mocked(toast.success).mock.calls[0]).toHaveLength(1);
   });
 
   it("adds nothing when the rating itself is refused", async () => {

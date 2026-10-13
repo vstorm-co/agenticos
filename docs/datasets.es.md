@@ -1,5 +1,5 @@
 ---
-source_sha: "2d175ad3c6b2"
+source_sha: "4934dfd7bbcb"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -110,12 +110,17 @@ importación quita de nuevo ese único `'`. La exportación queda registrada en 
 
 Hay dos caminos y los dos crean el mismo caso:
 
-- **En el chat**, valora una respuesta con un pulgar abajo. El diálogo que
-  pregunta qué salió mal ofrece también **Añadir esta respuesta a un dataset**:
-  márcalo, elige el dataset y cómo guardar la respuesta, y envía. Primero se
-  guarda la valoración y después se añade el caso, así que tu comentario se
-  convierte en la nota del caso. Son dos escrituras separadas: si se rechaza el
-  añadido, la valoración se mantiene y el mensaje dice qué mitad falló.
+- **En el chat**, valora la respuesta, y la valoración decide cómo se guarda.
+  Tras un pulgar arriba, la confirmación ofrece **Añadir al dataset**: elige el
+  dataset y la respuesta se guarda como respuesta de referencia. Tras un pulgar
+  abajo, el diálogo que pregunta qué salió mal ofrece también **Añadir esta
+  respuesta a un dataset**: márcalo, elige el dataset y envía, y la respuesta se
+  guarda como contraejemplo. Primero se guarda la valoración y después se añade
+  el caso, así que tu comentario se convierte en la nota del caso. Son dos
+  escrituras separadas: si se rechaza el añadido, la valoración se mantiene y
+  el mensaje dice qué mitad falló. Quitar la valoración más tarde deja el caso
+  donde está: es una copia, versionada con su dataset. La consola recuerda el
+  último dataset al que añadiste, así que el siguiente añadido es un clic.
 - **En Actividad**, cada turno del agent tiene un control **Añadir al dataset**.
   Es donde se curan las respuestas, así que una buena respuesta se guarda como
   referencia tan fácilmente como una mala como contraejemplo.
