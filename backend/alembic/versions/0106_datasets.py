@@ -149,7 +149,7 @@ def upgrade() -> None:
             server_default="[]",
             nullable=False,
         ),
-        sa.Column("tool_calls_ordered", sa.Boolean(), server_default="false", nullable=False),
+        sa.Column("order_mode", sa.String(length=16), server_default="any", nullable=False),
         sa.Column(
             "checks", postgresql.JSONB(astext_type=sa.Text()), server_default="[]", nullable=False
         ),
@@ -171,6 +171,10 @@ def upgrade() -> None:
         sa.CheckConstraint(
             "source IN ('manual', 'import', 'conversation', 'synthetic')",
             name=op.f("dataset_cases_ck_dataset_case_source_check"),
+        ),
+        sa.CheckConstraint(
+            "order_mode IN ('any', 'in_order', 'exact')",
+            name=op.f("dataset_cases_ck_dataset_case_order_mode_check"),
         ),
         sa.ForeignKeyConstraint(
             ["created_by_user_id"],

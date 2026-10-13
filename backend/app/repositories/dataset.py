@@ -197,13 +197,21 @@ async def create_version(
 
 
 async def list_cases(
-    db: AsyncSession, version_id: UUID, *, skip: int = 0, limit: int | None = 50
+    db: AsyncSession,
+    version_id: UUID,
+    *,
+    organization_id: UUID,
+    skip: int = 0,
+    limit: int | None = 50,
 ) -> list[DatasetCase]:
     """A version's cases in their order. `limit=None` reads them all, for an export."""
     query = (
         select(DatasetCase)
         .join(DatasetVersionCase, DatasetVersionCase.case_revision_id == DatasetCase.id)
-        .where(DatasetVersionCase.version_id == version_id)
+        .where(
+            DatasetVersionCase.version_id == version_id,
+            DatasetCase.organization_id == organization_id,
+        )
         .order_by(DatasetVersionCase.position.asc())
         .offset(skip)
     )
@@ -214,23 +222,30 @@ async def list_cases(
 
 
 async def find_case(
-    db: AsyncSession, version_id: UUID, case_id: UUID
+    db: AsyncSession, version_id: UUID, case_id: UUID, *, organization_id: UUID
 ) -> tuple[DatasetCase, int] | None:
     """The revision of a case a version holds, and its position there."""
     result = await db.execute(
         select(DatasetCase, DatasetVersionCase.position)
         .join(DatasetVersionCase, DatasetVersionCase.case_revision_id == DatasetCase.id)
-        .where(DatasetVersionCase.version_id == version_id, DatasetCase.case_id == case_id)
+        .where(
+            DatasetVersionCase.version_id == version_id,
+            DatasetCase.case_id == case_id,
+            DatasetCase.organization_id == organization_id,
+        )
     )
     row = result.one_or_none()
     return None if row is None else (row[0], row[1])
 
 
-async def last_position(db: AsyncSession, version_id: UUID) -> int:
+async def last_position(db: AsyncSession, version_id: UUID, *, organization_id: UUID) -> int:
     """The highest position a version uses, or -1 when it holds nothing."""
     value = await db.scalar(
-        select(func.max(DatasetVersionCase.position)).where(
-            DatasetVersionCase.version_id == version_id
+        select(func.max(DatasetVersionCase.position))
+        .join(DatasetVersion, DatasetVersion.id == DatasetVersionCase.version_id)
+        .where(
+            DatasetVersionCase.version_id == version_id,
+            DatasetVersion.organization_id == organization_id,
         )
     )
     return -1 if value is None else value
@@ -243,7 +258,12 @@ async def add_cases(db: AsyncSession, cases: list[DatasetCase]) -> None:
 
 
 async def copy_membership(
-    db: AsyncSession, *, source_version_id: UUID, target_version_id: UUID, skip: set[UUID]
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    source_version_id: UUID,
+    target_version_id: UUID,
+    skip: set[UUID],
 ) -> None:
     """Give the new version every revision the old one held, bar `skip`, in place.
 
@@ -254,7 +274,12 @@ async def copy_membership(
         literal(target_version_id),
         DatasetVersionCase.case_revision_id,
         DatasetVersionCase.position,
-    ).where(DatasetVersionCase.version_id == source_version_id)
+    ).where(
+        DatasetVersionCase.version_id == source_version_id,
+        DatasetVersionCase.version_id.in_(
+            select(DatasetVersion.id).where(DatasetVersion.organization_id == organization_id)
+        ),
+    )
     if skip:
         query = query.where(DatasetVersionCase.case_revision_id.not_in(skip))
     await db.execute(

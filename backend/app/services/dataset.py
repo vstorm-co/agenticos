@@ -323,7 +323,9 @@ class DatasetService:
         held = await self._version(ctx, dataset, version)
         if held is None:
             return DatasetCaseList(items=[], total=0, version=0)
-        cases = await dataset_repo.list_cases(self.db, held.id, skip=skip, limit=limit)
+        cases = await dataset_repo.list_cases(
+            self.db, held.id, organization_id=ctx.organization_id, skip=skip, limit=limit
+        )
         return DatasetCaseList(
             items=[_case_read(case) for case in cases], total=held.case_count, version=held.number
         )
@@ -385,9 +387,18 @@ class DatasetService:
         if previous is not None:
             skip = {case.id for case in (removed, replaced[0] if replaced else None) if case}
             await dataset_repo.copy_membership(
-                self.db, source_version_id=previous.id, target_version_id=version.id, skip=skip
+                self.db,
+                organization_id=ctx.organization_id,
+                source_version_id=previous.id,
+                target_version_id=version.id,
+                skip=skip,
             )
-            next_position = await dataset_repo.last_position(self.db, previous.id) + 1
+            next_position = (
+                await dataset_repo.last_position(
+                    self.db, previous.id, organization_id=ctx.organization_id
+                )
+                + 1
+            )
         if replaced is not None:
             placements.append((replaced[1].id, replaced[2]))
         placements.extend((case.id, next_position + index) for index, case in enumerate(added))
@@ -480,7 +491,9 @@ class DatasetService:
     ) -> tuple[DatasetVersion, DatasetCase, int]:
         previous = await self._version(ctx, dataset, None)
         found = (
-            await dataset_repo.find_case(self.db, previous.id, case_id)
+            await dataset_repo.find_case(
+                self.db, previous.id, case_id, organization_id=ctx.organization_id
+            )
             if previous is not None
             else None
         )
@@ -588,7 +601,11 @@ class DatasetService:
         dataset = await self.get(ctx, dataset_id)
         held = await self._version(ctx, dataset, version)
         cases = (
-            await dataset_repo.list_cases(self.db, held.id, limit=None) if held is not None else []
+            await dataset_repo.list_cases(
+                self.db, held.id, organization_id=ctx.organization_id, limit=None
+            )
+            if held is not None
+            else []
         )
         content = dataset_files.render(cases, fmt)
         number = held.number if held is not None else 0
@@ -645,7 +662,11 @@ class DatasetService:
         earlier = [
             turn
             for turn in await conversation_repo.get_messages_before(
-                self.db, conversation.id, ordinal=message.ordinal, limit=MAX_HISTORY_TURNS + 1
+                self.db,
+                conversation.id,
+                organization_id=ctx.organization_id,
+                ordinal=message.ordinal,
+                limit=MAX_HISTORY_TURNS + 1,
             )
             if turn.role in ("user", "assistant") and turn.content.strip()
         ]

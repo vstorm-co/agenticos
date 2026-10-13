@@ -26,7 +26,7 @@ def _case(**fields: object) -> DatasetCase:
         "reference_answer": None,
         "counter_example": None,
         "expected_tool_calls": [],
-        "tool_calls_ordered": False,
+        "order_mode": "any",
         "checks": [],
         "tags": [],
         "note": None,
@@ -77,44 +77,48 @@ class TestRoundTrip:
             input="q",
             history=[{"role": "user", "content": "before"}],
             expected_tool_calls=[{"tool": "search", "args": {"q": "x"}}],
-            tool_calls_ordered=True,
+            order_mode="in_order",
+            checks=[{"value": "x", "type": "contains", "path": None}],
             tags=["a"],
         )
         line = json.loads(render([case], "jsonl"))
 
         assert line["history"] == [{"role": "user", "content": "before"}]
-        assert line["tool_calls_ordered"] is True
+        assert line["order_mode"] == "in_order"
+        assert list(line["checks"][0]) == ["type", "path", "value"]
         assert parse(render([case], "jsonl").encode(), "jsonl")[0].tags == ["a"]
 
     def test_a_byte_order_mark_and_missing_optional_columns_are_fine(self) -> None:
         parsed = parse(b'\xef\xbb\xbfinput,tags\nhello," a , b "\n', "csv")
         assert parsed[0].input == "hello"
         assert parsed[0].tags == ["a", "b"]
-        assert parsed[0].tool_calls_ordered is False
+        assert parsed[0].order_mode == "any"
 
-    @pytest.mark.parametrize(("word", "expected"), [("YES", True), ("1", True), ("no", False)])
-    def test_order_mode_reads_the_words_a_spreadsheet_writes(self, word, expected) -> None:
-        parsed = parse(f"input,tool_calls_ordered\nq,{word}\n".encode(), "csv")
-        assert parsed[0].tool_calls_ordered is expected
+    @pytest.mark.parametrize(
+        ("cell", "expected"), [("exact", "exact"), (" in_order ", "in_order"), ("", "any")]
+    )
+    def test_an_empty_order_mode_cell_means_any_order(self, cell, expected) -> None:
+        parsed = parse(f"input,order_mode\nq,{cell}\n".encode(), "csv")
+        assert parsed[0].order_mode == expected
 
 
 class TestRefusals:
     def test_one_bad_row_refuses_the_whole_file_and_names_the_row(self) -> None:
         refusal = _refusal(
-            "input,tool_calls_ordered,history\n"
-            "fine,true,\n"
-            ",false,\n"
+            "input,order_mode,history\n"
+            "fine,any,\n"
+            ",any,\n"
             "q,maybe,\n"
-            'q,true,"[not json"\n'
-            "q,true,,extra\n"
+            'q,any,"[not json"\n'
+            "q,any,,extra\n"
         )
 
         assert refusal.details["refused_rows"] == 4
         fields = {problem["field"] for problem in refusal.details["fields"]}
-        assert fields == {"rows.2.input", "rows.3", "rows.4", "rows.5"}
+        assert fields == {"rows.2.input", "rows.3.order_mode", "rows.4", "rows.5"}
 
     def test_the_reported_rows_are_capped(self) -> None:
-        refusal = _refusal("input,tool_calls_ordered\n" + "q,maybe\n" * 30)
+        refusal = _refusal("input,order_mode\n" + "q,maybe\n" * 30)
         assert refusal.details["refused_rows"] == 30
         assert len(refusal.details["fields"]) == 20
 

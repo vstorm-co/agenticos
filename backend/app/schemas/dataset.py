@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import re
 from datetime import datetime
-from typing import Annotated, Literal
+from typing import Literal
 from uuid import UUID
 
-from pydantic import Field, JsonValue, field_validator, model_validator
+from pydantic import ConfigDict, Field, JsonValue, field_validator
 
 from app.schemas.base import BaseSchema
 from app.schemas.resource_grant import VisibilityLiteral
@@ -16,6 +15,7 @@ CaseSourceLiteral = Literal["manual", "import", "conversation", "synthetic"]
 DatasetChangeLiteral = Literal["add", "edit", "remove", "import"]
 DatasetSort = Literal["name", "updated"]
 DatasetFileFormat = Literal["csv", "jsonl"]
+ToolOrderModeLiteral = Literal["any", "in_order", "exact"]
 
 # One field of a case. Generous enough for a long conversation turn or a whole
 # reference document, bounded so one import row cannot be a hundred megabytes.
@@ -43,42 +43,21 @@ class ExpectedToolCall(BaseSchema):
     args: dict[str, JsonValue] = Field(default_factory=dict)
 
 
-class TextCheck(BaseSchema):
-    """A check on the answer's text, or on one value inside a structured answer.
+class CaseCheck(BaseSchema):
+    """One rule a case's answer is scored against, named by `type`.
 
-    `path` is a dotted path into an answer that is JSON (`items.0.name`); without
-    one the check reads the whole answer as text.
+    Only the shape is fixed here: an object with a `type`, and that rule's own
+    parameters beside it. Which types exist and what each requires belongs to
+    scoring, which reads these - and whatever it later refuses, it must still
+    accept the checks datasets already hold.
     """
 
-    type: Literal["contains", "not_contains", "equals", "regex"]
-    value: str = Field(min_length=1, max_length=2000)
-    path: str | None = Field(default=None, max_length=200)
+    model_config = ConfigDict(
+        from_attributes=True, populate_by_name=True, str_strip_whitespace=True, extra="allow"
+    )
+    __pydantic_extra__: dict[str, JsonValue] = Field(init=False)
 
-    @model_validator(mode="after")
-    def _regex_compiles(self) -> TextCheck:
-        if self.type == "regex":
-            try:
-                re.compile(self.value)
-            except re.error as exc:
-                raise ValueError(f"Not a valid regular expression: {exc.msg}") from None
-        return self
-
-
-class JsonSchemaCheck(BaseSchema):
-    """The answer must be JSON matching this schema."""
-
-    type: Literal["json_schema"]
-    json_schema: dict[str, JsonValue]
-
-
-class CeilingCheck(BaseSchema):
-    """The run must cost or take no more than this."""
-
-    type: Literal["max_cost_usd", "max_latency_ms"]
-    limit: float = Field(gt=0)
-
-
-CaseCheck = Annotated[TextCheck | JsonSchemaCheck | CeilingCheck, Field(discriminator="type")]
+    type: str = Field(min_length=1, max_length=64)
 
 
 def _clean_tags(tags: list[str]) -> list[str]:
@@ -120,8 +99,12 @@ class DatasetCaseContent(BaseSchema):
         description="An answer known to be wrong, so a judge has something to compare against",
     )
     expected_tool_calls: list[ExpectedToolCall] = Field(default_factory=list, max_length=50)
-    tool_calls_ordered: bool = Field(
-        default=False, description="Whether the expected calls must happen in this order"
+    order_mode: ToolOrderModeLiteral = Field(
+        default="any",
+        description=(
+            "How the agent's calls are matched against the expected ones: `any` order, "
+            "`in_order` with other calls allowed between, or `exact`"
+        ),
     )
     checks: list[CaseCheck] = Field(default_factory=list, max_length=50)
     tags: list[str] = Field(default_factory=list)
@@ -145,7 +128,7 @@ class DatasetCaseUpdate(BaseSchema):
     reference_answer: str | None = Field(default=None, max_length=MAX_CASE_TEXT)
     counter_example: str | None = Field(default=None, max_length=MAX_CASE_TEXT)
     expected_tool_calls: list[ExpectedToolCall] | None = Field(default=None, max_length=50)
-    tool_calls_ordered: bool | None = None
+    order_mode: ToolOrderModeLiteral | None = None
     checks: list[CaseCheck] | None = Field(default=None, max_length=50)
     tags: list[str] | None = None
     note: str | None = Field(default=None, max_length=2000)

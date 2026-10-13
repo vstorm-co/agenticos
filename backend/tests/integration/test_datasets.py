@@ -228,8 +228,8 @@ async def test_a_hundred_csv_rows_import_as_one_version_and_export_unchanged(db)
                 f"Answer {number}" if number % 3 else "",
                 "'=not a formula" if number == 7 else "",
                 '[{"tool": "search", "args": {"q": "refund"}}]' if number % 5 == 0 else "",
-                "true" if number % 4 == 0 else "false",
-                '[{"type": "contains", "value": "days", "path": null}]' if number % 6 == 0 else "",
+                ("exact", "in_order", "any")[number % 3],
+                '[{"type": "contains", "path": null, "value": "days"}]' if number % 6 == 0 else "",
                 "billing,returns" if number % 2 else "",
                 "line one\nline two" if number == 9 else "",
             ]
@@ -621,3 +621,59 @@ async def test_a_change_that_would_pass_the_case_ceiling_is_refused_whole(
             ctx, dataset.id, content=b"input\ntwo\nthree\n", filename="x.csv", fmt=None
         )
     assert (await service.read(ctx, dataset.id)).latest_version == 1
+
+
+async def test_an_order_mode_outside_the_three_is_refused_by_the_table(db) -> None:
+    ctx = await _owner(db)
+    dataset = await dataset_repo.create(
+        db,
+        organization_id=ctx.organization_id,
+        owner_user_id=ctx.user_id,
+        name="x",
+        description=None,
+    )
+    db.add(
+        DatasetCase(
+            dataset_id=dataset.id,
+            organization_id=ctx.organization_id,
+            case_id=uuid.uuid4(),
+            input="q",
+            source="manual",
+            order_mode="sorted",
+        )
+    )
+    with pytest.raises(IntegrityError):
+        await db.flush()
+
+
+@pytest.mark.security
+async def test_a_version_read_with_another_tenant_finds_no_cases(db) -> None:
+    """The case reads take the tenant too, so a version id alone reaches nothing."""
+    ctx = await _owner(db)
+    elsewhere = await _owner(db)
+    service = DatasetService(db)
+    dataset = await service.create(ctx, DatasetCreate(name="mine"))
+    case = await service.add_case(ctx, dataset.id, DatasetCaseCreate(input="q"))
+    version = await dataset_repo.get_version(db, dataset.id, 1, organization_id=ctx.organization_id)
+    assert version is not None
+
+    other = elsewhere.organization_id
+    assert await dataset_repo.list_cases(db, version.id, organization_id=other) == []
+    assert await dataset_repo.find_case(db, version.id, case.case_id, organization_id=other) is None
+    assert await dataset_repo.last_position(db, version.id, organization_id=other) == -1
+
+
+async def test_a_check_keeps_parameters_scoring_has_not_defined_yet(db) -> None:
+    ctx = await _owner(db)
+    service = DatasetService(db)
+    dataset = await service.create(ctx, DatasetCreate(name="checks"))
+    await service.add_case(
+        ctx,
+        dataset.id,
+        DatasetCaseCreate(
+            input="q",
+            checks=[{"type": "rubric", "criteria": ["tone", "policy"], "scale": 5}],
+        ),
+    )
+    stored = (await service.list_cases(ctx, dataset.id)).items[0].checks[0]
+    assert stored.model_dump() == {"type": "rubric", "criteria": ["tone", "policy"], "scale": 5}

@@ -28,7 +28,6 @@ from enum import StrEnum
 from typing import Any
 
 from sqlalchemy import (
-    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -61,6 +60,19 @@ class CaseSource(StrEnum):
 
     SYNTHETIC = "synthetic"
     """Drafted by the case generator and accepted by a person."""
+
+
+class ToolOrderMode(StrEnum):
+    """How the calls an agent made are matched against a case's expected ones."""
+
+    ANY = "any"
+    """Every expected call happened, in any order, other calls allowed."""
+
+    IN_ORDER = "in_order"
+    """The expected calls happened in the listed order, other calls allowed between them."""
+
+    EXACT = "exact"
+    """Exactly the expected calls, in the listed order, and nothing else."""
 
 
 class DatasetChange(StrEnum):
@@ -199,9 +211,13 @@ class DatasetCase(Base):
     expected_tool_calls: Mapped[list[dict[str, Any]]] = mapped_column(
         JSONB, nullable=False, default=list, server_default="[]"
     )
-    tool_calls_ordered: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False, server_default="false"
+    order_mode: Mapped[str] = mapped_column(
+        String(16), nullable=False, default=ToolOrderMode.ANY.value, server_default="any"
     )
+    # Each entry is an object naming its rule in `type`, with that rule's own
+    # parameters beside it. Which types exist, and what each requires, is decided
+    # by scoring rather than here - and whatever validation scoring adds has to
+    # accept the rows already stored, or tightening it makes old datasets unreadable.
     checks: Mapped[list[dict[str, Any]]] = mapped_column(
         JSONB, nullable=False, default=list, server_default="[]"
     )
@@ -244,6 +260,9 @@ class DatasetCase(Base):
         CheckConstraint(
             "source IN ('manual', 'import', 'conversation', 'synthetic')",
             name="ck_dataset_case_source",
+        ),
+        CheckConstraint(
+            "order_mode IN ('any', 'in_order', 'exact')", name="ck_dataset_case_order_mode"
         ),
     )
 

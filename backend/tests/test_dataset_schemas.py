@@ -11,10 +11,19 @@ from app.db.models.dataset import Dataset, DatasetCase, DatasetVersion, DatasetV
 from app.schemas.dataset import DatasetCaseCreate, DatasetCaseUpdate
 
 
-def test_a_regex_check_must_compile() -> None:
-    with pytest.raises(ValidationError, match="Not a valid regular expression"):
-        DatasetCaseCreate(input="q", checks=[{"type": "regex", "value": "("}])
-    assert DatasetCaseCreate(input="q", checks=[{"type": "contains", "value": "("}]).checks
+def test_a_check_needs_a_type_and_json_parameters() -> None:
+    with pytest.raises(ValidationError, match="type"):
+        DatasetCaseCreate(input="q", checks=[{"value": "x"}])
+    with pytest.raises(ValidationError):
+        DatasetCaseCreate(input="q", checks=[{"type": "contains", "value": object()}])
+    case = DatasetCaseCreate(input="q", checks=[{"type": "contains", "value": "("}])
+    assert case.checks[0].model_dump() == {"type": "contains", "value": "("}
+
+
+def test_an_order_mode_is_one_of_three() -> None:
+    assert DatasetCaseCreate(input="q").order_mode == "any"
+    with pytest.raises(ValidationError):
+        DatasetCaseCreate(input="q", order_mode="sorted")
 
 
 def test_tags_are_trimmed_and_deduplicated_in_order() -> None:

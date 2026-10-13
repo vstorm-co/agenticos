@@ -42,7 +42,7 @@ COLUMNS = (
     "reference_answer",
     "counter_example",
     "expected_tool_calls",
-    "tool_calls_ordered",
+    "order_mode",
     "checks",
     "tags",
     "note",
@@ -61,9 +61,6 @@ _MAX_REPORTED_ROWS = 20
 # A cell's ceiling for the `csv` reader, whose default of 128 KiB is smaller than
 # one case's history may be. No cell can be larger than the file it is in.
 _CELL_LIMIT = MAX_IMPORT_BYTES
-
-_TRUE = frozenset({"true", "1", "yes"})
-_FALSE = frozenset({"false", "0", "no", ""})
 
 
 def format_of(filename: str | None, declared: DatasetFileFormat | None) -> DatasetFileFormat:
@@ -93,16 +90,28 @@ def _unescape(value: str) -> str:
     return value[1:] if value.startswith("'") else value
 
 
-def _record(case: DatasetCase) -> dict[str, Any]:
-    """One case as its fields, in the order the schema declares them.
+def _sorted(value: dict[str, Any], *, first: str | None = None) -> dict[str, Any]:
+    """An object with its keys in a fixed order: `first`, then the rest alphabetically."""
+    head = {first: value[first]} if first is not None else {}
+    return {**head, **{key: value[key] for key in sorted(value) if key != first}}
 
-    Through the schema rather than straight off the row: `jsonb` stores an
-    object's keys in its own order, so a tool call written `{"tool", "args"}`
-    comes back `{"args", "tool"}`, and an export has to be the same text every
-    time it is taken.
+
+def _record(case: DatasetCase) -> dict[str, Any]:
+    """One case as its fields, every object in it with its keys in a fixed order.
+
+    `jsonb` keeps an object's keys in an order of its own, not the order they
+    were written in, so an export taken straight off the row would differ from
+    the file that was imported and from the next export of a re-import. The
+    schema fixes the order of the fields it declares; the keys it leaves open - a
+    check's parameters and a tool call's arguments - are sorted.
     """
-    content = DatasetCaseContent.model_validate(case, from_attributes=True)
-    return content.model_dump(mode="json")
+    record = DatasetCaseContent.model_validate(case, from_attributes=True).model_dump(mode="json")
+    record["checks"] = [_sorted(check, first="type") for check in record["checks"]]
+    record["expected_tool_calls"] = [
+        {"tool": call["tool"], "args": _sorted(call["args"])}
+        for call in record["expected_tool_calls"]
+    ]
+    return record
 
 
 def _csv_cell(column: str, value: Any) -> str:
@@ -110,8 +119,6 @@ def _csv_cell(column: str, value: Any) -> str:
         return json.dumps(value, ensure_ascii=False) if value else ""
     if column == "tags":
         return _escape(",".join(value))
-    if column == "tool_calls_ordered":
-        return "true" if value else "false"
     return "" if value is None else _escape(value)
 
 
@@ -133,13 +140,8 @@ def _from_csv_cell(column: str, raw: str) -> Any:
         return json.loads(raw) if raw.strip() else []
     if column == "tags":
         return [tag for tag in _unescape(raw).split(",") if tag.strip()]
-    if column == "tool_calls_ordered":
-        word = raw.strip().lower()
-        if word in _TRUE:
-            return True
-        if word in _FALSE:
-            return False
-        raise ValueError("Write true or false")
+    if column == "order_mode":
+        return raw.strip() or "any"
     value = _unescape(raw)
     if column in _TEXT_COLUMNS and column != "input" and value == "":
         return None
