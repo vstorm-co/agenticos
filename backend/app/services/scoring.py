@@ -67,7 +67,6 @@ from app.services.scorers import (
 )
 from app.services.system_agent_runner import SystemAgentRunner
 
-# A run's turns read to find its answer; a scored run is one question answered.
 _MAX_TURNS = 100
 
 

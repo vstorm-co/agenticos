@@ -124,10 +124,8 @@ class Agent(Base, TimestampMixin):
         nullable=True,
     )
 
-    # Set on an agent the platform seeds into every organization - the eval judge,
-    # the case generator - and names which one it is (`app.agents.system_agents`).
-    # The key, not the slug, is how the platform finds it again: the slug derives
-    # from a name people may change, and a person's own agent may already hold it.
+    # The key, not the slug, identifies a seeded agent: the slug derives from a
+    # name people may change, and a person's own agent may already hold it.
     system_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     # Declared here as well as in the migration: a schema built from the models

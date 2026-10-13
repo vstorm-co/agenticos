@@ -464,7 +464,6 @@ export default function OrgMembersPage({ params }: PageProps) {
           approval in the first place. */}
       {org && <OrgApprovalWaiver org={org} />}
 
-      {/* Whether models judge, draft and propose here at all. */}
       {org && <OrgAiAssistance org={org} />}
 
       {/* The table draws its own skeleton from the same column definitions, so

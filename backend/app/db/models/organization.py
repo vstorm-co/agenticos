@@ -104,11 +104,8 @@ class Organization(Base, TimestampMixin):
         Boolean, nullable=False, default=False, server_default="false"
     )
 
-    # Whether the model-backed parts of evals and authoring run here at all: the
-    # judge, the case generator, the authoring assistant, knowledge-gap drafts.
-    # Off is enforced by the service that would start the run, so a client that
-    # still shows the control is refused rather than obeyed. Deterministic checks
-    # and a person's verdicts do not call a model and stay available.
+    # Off is enforced by the service that would start each model-backed run, not
+    # by the client; deterministic checks and people's verdicts stay available.
     ai_assistance_enabled: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default="true"
     )
