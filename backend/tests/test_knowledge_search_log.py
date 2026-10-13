@@ -181,8 +181,13 @@ def _ctx() -> AuthContext:
     return AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=OrgRoleName.OWNER)
 
 
-def _prepared(log: KnowledgeSearchLog | None) -> PreparedRun:
-    run = MagicMock(id=uuid.uuid4(), organization_id=uuid.uuid4(), conversation_id=uuid.uuid4())
+def _prepared(log: KnowledgeSearchLog | None, *, surface: str = "web") -> PreparedRun:
+    run = MagicMock(
+        id=uuid.uuid4(),
+        organization_id=uuid.uuid4(),
+        conversation_id=uuid.uuid4(),
+        surface=surface,
+    )
     return PreparedRun(
         run=run,
         agent=MagicMock(),
@@ -231,6 +236,19 @@ class TestTheRunnerWritesTheLog:
             await service._write_knowledge_searches(_prepared(_log()))
 
         write.assert_not_awaited()
+
+    async def test_an_eval_run_records_no_searches(self):
+        log = _log()
+        log.record("q", ["kb_a"], [])
+        service = AgentRunnerService(_savepoint_db())
+
+        with patch(
+            "app.services.agent_runner.knowledge_gap_repo.record_searches", new=AsyncMock()
+        ) as write:
+            await service._write_knowledge_searches(_prepared(log, surface="eval"))
+
+        write.assert_not_awaited()
+        assert log.records == []
 
     async def test_a_lost_write_does_not_fail_the_run(self, caplog):
         log = _log()

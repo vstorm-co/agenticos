@@ -3316,6 +3316,9 @@ class AgentRunnerService:
         records = list(log.records)
         log.records.clear()
         run = prepared.run
+        if run.surface == RunSurface.EVAL.value:
+            # A gap is a question a person asked; an eval replays or generates them.
+            return
         try:
             async with self.db.begin_nested():
                 await knowledge_gap_repo.record_searches(
