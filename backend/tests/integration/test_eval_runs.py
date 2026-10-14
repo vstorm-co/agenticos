@@ -43,7 +43,7 @@ from app.db.models.agent_run import AgentRun, RunSurface
 from app.db.models.case_score import CaseScore
 from app.db.models.credential import ModelProfile
 from app.db.models.dataset import Dataset, DatasetCase
-from app.db.models.eval_run import EvalRun, EvalRunStatus
+from app.db.models.eval_run import EvalRun, EvalRunCase, EvalRunStatus
 from app.db.models.intercepted_tool_call import InterceptedToolCall
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import GrantLevel, ResourceGrant
@@ -855,6 +855,42 @@ async def test_a_baseline_graded_by_another_judge_is_not_compared(db) -> None:
     comparison = await service.compare(ctx, v7.id)
     assert comparison.verdict == "invalid"
     assert "different judge" in (comparison.invalid_reason or "")
+
+
+async def test_cases_with_their_own_judge_checks_still_compare(db) -> None:
+    """A rubric fingerprint covers a case's own judge checks, so two cases of one
+    side are pinned differently; only the same case on the two sides must match."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=2)
+    service = EvalRunService(db)
+    started = await service.start(
+        ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, paired_baseline=True, reruns=0)
+    )
+    await _run_to_end(db, Model(db), started.id, ctx)
+    attempts = (
+        (await db.execute(select(EvalRunCase).where(EvalRunCase.eval_run_id == started.id)))
+        .scalars()
+        .all()
+    )
+    rubric = {case_id: uuid.uuid4().hex for case_id in {a.case_id for a in attempts}}
+    for attempt in attempts:
+        score = await db.get(CaseScore, attempt.case_score_id)
+        assert score is not None
+        score.judge = {"agent_version_id": None, "rubric_hash": rubric[attempt.case_id]}
+    await db.flush()
+
+    comparison = await service.compare(ctx, started.id)
+    assert comparison.verdict == "no_difference"
+    assert comparison.invalid_reason is None
+
+    # The same case graded under another rubric on one side does not compare.
+    one = next(a for a in attempts if a.arm_id == comparison.baseline.arm_id)
+    score = await db.get(CaseScore, one.case_score_id)
+    assert score is not None
+    score.judge = {"agent_version_id": None, "rubric_hash": "other"}
+    await db.flush()
+    assert (await service.compare(ctx, started.id)).verdict == "invalid"
 
 
 async def test_a_case_added_since_the_baseline_is_not_compared(db) -> None:

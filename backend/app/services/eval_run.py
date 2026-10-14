@@ -1319,10 +1319,14 @@ class EvalRunService:
         Different scoring decides cases by different rules; a different judge
         grades by a different hand. Either way a flip says nothing about the
         agent, so the comparison is refused rather than read.
+
+        The judge is compared case by case: a rubric fingerprint covers the
+        judge checks a case carries of its own, so two cases of one side are
+        rightly pinned differently. A case only one side's judge graded is left
+        to its outcome, which is already undecided on the other side.
         """
         if baseline.run.scoring_hash != run.scoring_hash:
             return "The two runs were scored with different scoring settings."
-        mine = await self._scores(ctx, await self._arm_attempts(ctx, candidate, attempts))
         other_attempts = (
             attempts
             if baseline.run.id == run.id
@@ -1330,16 +1334,23 @@ class EvalRunService:
                 self.db, baseline.run.id, organization_id=ctx.organization_id
             )
         )
-        theirs = await self._scores(
-            ctx, await self._arm_attempts(ctx, baseline.arm, other_attempts)
-        )
-        pins = [
-            {json.dumps(s.judge, sort_keys=True) for s in side.values() if s.judge is not None}
-            for side in (mine, theirs)
-        ]
-        if len(pins[0] | pins[1]) > 1:
+        mine = await self._pins(ctx, await self._arm_attempts(ctx, candidate, attempts))
+        theirs = await self._pins(ctx, await self._arm_attempts(ctx, baseline.arm, other_attempts))
+        if any(mine[case_id] != theirs[case_id] for case_id in mine.keys() & theirs.keys()):
             return "The two sides were graded by a different judge, model or rubric."
         return None
+
+    async def _pins(
+        self, ctx: AuthContext, attempts: Sequence[EvalRunCase]
+    ) -> dict[UUID, set[str]]:
+        """Each case's judge pins across its attempts, for the cases a judge graded."""
+        scores = await self._scores(ctx, attempts)
+        pins: dict[UUID, set[str]] = defaultdict(set)
+        for attempt in attempts:
+            score = scores.get(attempt.case_score_id)
+            if score is not None and score.judge is not None:
+                pins[attempt.case_id].add(json.dumps(score.judge, sort_keys=True))
+        return pins
 
 
 @dataclass(frozen=True)
