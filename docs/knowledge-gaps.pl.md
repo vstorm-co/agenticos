@@ -1,5 +1,5 @@
 ---
-source_sha: "775a7c21abe1"
+source_sha: "74eb8874477e"
 title: "Luki w wiedzy"
 description: "Luki w wiedzy pokazują pytania, dla których agent nie znalazł w bazie wiedzy nic trafnego, pogrupowane w tematy, żeby było widać, jakiego dokumentu brakuje."
 ---
@@ -40,9 +40,10 @@ Zapisywane jest każde wyszukiwanie, nie tylko chybione. Gdy zmienisz próg,
 dotyczy on także wyszukiwań już wykonanych: luki, które czytasz, to zawsze
 wyszukiwania poniżej bieżącego ustawienia.
 
-Zapisywane są tylko wyszukiwania, które agent wykonuje w trakcie runa.
-Wyszukiwanie przez `/rag/search` w HTTP API ani podgląd na stronie kolekcji
-nie są zapisywane.
+Zapisywane są tylko wyszukiwania, które agent wykonuje w trakcie runa, i tylko
+dla pytań zadanych przez ludzi: wyszukiwanie przez `/rag/search` w HTTP API,
+podgląd na stronie kolekcji ani wyszukiwanie wykonane przez run evala nie są
+zapisywane. Z zapytania zachowywane jest pierwsze 1000 znaków.
 
 ## Tematy { #topics }
 
@@ -71,8 +72,8 @@ Luki są widoczne w trzech miejscach:
 - na karcie **Luki w wiedzy** kolekcji: wszystkie tematy tej bazy wiedzy;
 - na karcie **Luki w wiedzy** agenta: tylko pytania tego agenta, w bazach
   wiedzy, które możesz czytać;
-- w widżecie **Luki w wiedzy** na pulpicie: najczęściej zadawane tematy w całej
-  organizacji.
+- w widżecie **Luki w wiedzy** na domyślnym pulpicie: najczęściej zadawane
+  tematy w całej organizacji i liczba tematów w każdej bazie wiedzy.
 
 Temat pokazuje, ile razy go zadano, kiedy ostatnio, którzy agenci go zadali, i
 do trzech jego pytań. Otwórz go, żeby zobaczyć najnowsze pytania: o co zapytała
@@ -99,15 +100,24 @@ którego ma każda organizacja. Agent widzi 20 najnowszych pytań tematu: o co
 zapytała każda osoba, czego agent szukał i co znalazł, jaką odpowiedź dostała
 osoba i komentarz zostawiony przy ocenie łapką w dół.
 
-Szkic zostaje przy temacie, oznaczony jako szkic, z dokumentami, z których
-według niego korzysta, i odnośnikiem do jego runa. Możesz go skopiować albo
-pobrać jako Markdown. Nigdy nie jest dodawany do kolekcji. Agent nie zna faktów
+Szkic zostaje przy temacie, oznaczony jako szkic, z odnośnikiem do jego runa.
+Możesz go skopiować albo pobrać jako Markdown. Nigdy nie jest dodawany do
+kolekcji. Agent nie zna faktów
 twojej firmy: tam, gdzie odpowiedź wymaga liczby, daty albo reguły, wpisuje w
 nawiasach kwadratowych miejsce do uzupełnienia. Ponowny szkic zastępuje
 poprzedni.
 
+Szkic podaje swoje źródła: dokumenty bazy wiedzy, na których się opiera, i
+pytania tematu, na które odpowiada. Każde źródło jest weryfikowane przed
+zapisaniem szkicu - dokument musi należeć do bazy wiedzy tematu, pytanie musi
+być pytaniem tematu - a to, które nie przejdzie, jest pomijane, nigdy
+pokazywane, i liczone przy szkicu. Zachowywanych jest najwyżej 12 źródeł.
+Źródło usunięte później przestaje być pokazywane.
+
 Szkic to run modelu jak każdy inny. Jest odrzucany, gdy organizacja wyłączyła
-[asystenta AI](governance.md#ai-assistance), przed wywołaniem modelu sprawdzany
+[asystenta AI](governance.md#ai-assistance), a jest on wyłączony, dopóki nie
+włączy go ktoś z `org:settings`; do tego czasu temat to mówi, z odnośnikiem do
+przełącznika dla tego, kto może go zmienić. Przed wywołaniem modelu sprawdzany
 jest budżet agenta i organizacji, a jego koszt widać w Activity. Grupowanie
 pytań w tematy nie prosi modelu o pisanie, więc działa niezależnie od
 przełącznika.

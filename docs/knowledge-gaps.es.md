@@ -1,5 +1,5 @@
 ---
-source_sha: "775a7c21abe1"
+source_sha: "74eb8874477e"
 title: "Lagunas de conocimiento"
 description: "Las lagunas de conocimiento muestran las preguntas para las que un agent no encontró nada relevante en su base de conocimiento, agrupadas por tema, para saber qué documento falta."
 ---
@@ -41,9 +41,11 @@ Se guarda cada búsqueda, no solo los fallos. Cuando cambias el umbral, se aplic
 también a las búsquedas ya hechas: las lagunas que lees son siempre las
 búsquedas por debajo del ajuste actual.
 
-Solo se registran las búsquedas que un agent hace mientras ejecuta un run. Una
-búsqueda a través de `/rag/search` de la HTTP API, o una vista previa en la
-página de la colección, no se registra.
+Solo se registran las búsquedas que un agent hace mientras ejecuta un run, y
+solo para preguntas que hicieron personas: una búsqueda a través de
+`/rag/search` de la HTTP API, una vista previa en la página de la colección y
+una búsqueda de un run de eval no se registran. Se guardan los primeros 1.000
+caracteres de una consulta.
 
 ## Temas { #topics }
 
@@ -75,8 +77,9 @@ Las lagunas aparecen en tres lugares:
   esa base de conocimiento;
 - la pestaña **Lagunas de conocimiento** de un agent: solo las preguntas que
   hizo ese agent, en las bases de conocimiento que puedes leer;
-- el widget **Lagunas de conocimiento** del panel: los temas más preguntados de
-  toda la organización.
+- el widget **Lagunas de conocimiento** del panel por defecto: los temas más
+  preguntados de toda la organización y cuántos temas tiene cada base de
+  conocimiento.
 
 Un tema muestra cuántas veces se preguntó, cuándo fue la última vez, qué agents
 lo preguntaron y hasta tres de sus preguntas. Ábrelo para ver las preguntas más
@@ -105,16 +108,25 @@ las 20 preguntas más recientes del tema: qué preguntó cada persona, qué busc
 encontró el agent, qué respuesta recibió la persona y cualquier comentario
 dejado con una valoración negativa.
 
-El borrador se guarda en el tema, marcado como borrador, con los documentos que
-dice haber usado y un enlace a su run. Puedes copiarlo o descargarlo como
-Markdown. Nunca se añade a la colección. El redactor no conoce los datos de tu
+El borrador se guarda en el tema, marcado como borrador, con un enlace a su
+run. Puedes copiarlo o descargarlo como Markdown. Nunca se añade a la
+colección. El redactor no conoce los datos de tu
 empresa: donde una respuesta necesita una cifra, una fecha o una regla, escribe
 entre corchetes un marcador para que lo completes. Redactar de nuevo sustituye
 el borrador.
 
+Un borrador nombra sus fuentes: los documentos de la base de conocimiento en
+los que se apoya y las preguntas del tema que responde. Cada una se verifica
+antes de guardar el borrador - un documento debe pertenecer a la base de
+conocimiento del tema, una pregunta debe ser del tema - y la que no pasa se
+omite, nunca se muestra, y se cuenta en el borrador. Se guardan como mucho 12
+fuentes. Una fuente borrada después deja de mostrarse.
+
 Un borrador es un run de modelo como cualquier otro. Se deniega mientras la
 organización tiene la [asistencia de IA](governance.md#ai-assistance)
-desactivada, se comprueban el presupuesto del redactor y el de la organización
+desactivada, y lo está hasta que alguien con `org:settings` la activa; hasta
+entonces el tema lo dice, con un enlace al interruptor para quien puede
+cambiarlo. Se comprueban el presupuesto del redactor y el de la organización
 antes de llamar al modelo, y su coste aparece en Activity. Agrupar preguntas en
 temas no pide a ningún modelo que escriba nada, así que funciona sea cual sea
 el interruptor.

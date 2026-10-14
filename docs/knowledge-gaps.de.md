@@ -1,5 +1,5 @@
 ---
-source_sha: "775a7c21abe1"
+source_sha: "74eb8874477e"
 title: "Wissenslücken"
 description: "Wissenslücken zeigen die Fragen, zu denen ein Agent in seiner Wissensbasis nichts Passendes gefunden hat, nach Thema gruppiert, damit klar ist, welches Dokument fehlt."
 ---
@@ -42,9 +42,11 @@ Jede Suche wird gespeichert, nicht nur die Fehltreffer. Wenn du den
 Schwellenwert änderst, gilt er auch für die bereits gemachten Suchen: Die
 Lücken, die du liest, sind immer die Suchen unter der aktuellen Einstellung.
 
-Gespeichert werden nur Suchen, die ein Agent während seines Runs macht. Eine
-Suche über `/rag/search` der HTTP API oder eine Vorschau auf der Seite der
-Collection wird nicht gespeichert.
+Gespeichert werden nur Suchen, die ein Agent während seines Runs macht, und nur
+zu Fragen, die Menschen gestellt haben: Eine Suche über `/rag/search` der HTTP
+API, eine Vorschau auf der Seite der Collection und eine Suche eines Eval-Runs
+werden nicht gespeichert. Von einer Anfrage werden die ersten 1.000 Zeichen
+behalten.
 
 ## Themen { #topics }
 
@@ -74,8 +76,9 @@ Lücken erscheinen an drei Stellen:
 - im Tab **Wissenslücken** einer Collection: alle Themen dieser Wissensbasis;
 - im Tab **Wissenslücken** eines Agents: nur die Fragen dieses Agents, in den
   Wissensbasen, die du lesen darfst;
-- im Dashboard-Widget **Wissenslücken**: die am häufigsten gestellten Themen in
-  der ganzen Organisation.
+- im Dashboard-Widget **Wissenslücken** auf dem Standard-Dashboard: die am
+  häufigsten gestellten Themen in der ganzen Organisation und wie viele Themen
+  jede Wissensbasis hat.
 
 Ein Thema zeigt, wie oft es gestellt wurde, wann zuletzt, welche Agents es
 gestellt haben, und bis zu drei seiner Fragen. Öffne es, um die neuesten Fragen
@@ -105,17 +108,25 @@ die 20 neuesten Fragen des Themas: was jede Person gefragt hat, wonach der Agent
 gesucht und was er gefunden hat, welche Antwort die Person bekam und jeden
 Kommentar zu einer negativen Bewertung.
 
-Der Entwurf bleibt beim Thema, als Entwurf gekennzeichnet, mit den Dokumenten,
-die er nach eigener Angabe verwendet hat, und einem Link zu seinem Run. Du
-kannst ihn kopieren oder als Markdown herunterladen. Er wird nie der Collection
-hinzugefügt. Der Entwerfer kennt die Fakten deines Unternehmens nicht: Wo eine
+Der Entwurf bleibt beim Thema, als Entwurf gekennzeichnet, mit einem Link zu
+seinem Run. Du kannst ihn kopieren oder als Markdown herunterladen. Er wird nie
+der Collection hinzugefügt. Der Entwerfer kennt die Fakten deines Unternehmens nicht: Wo eine
 Antwort eine Zahl, ein Datum oder eine Regel braucht, schreibt er einen
 Platzhalter in eckigen Klammern, den du ausfüllst. Ein neuer Entwurf ersetzt den
 alten.
 
+Ein Entwurf nennt seine Quellen: die Dokumente der Wissensbasis, auf die er
+sich stützt, und die Fragen des Themas, die er beantwortet. Jede wird geprüft,
+bevor der Entwurf gespeichert wird - ein Dokument muss zur Wissensbasis des
+Themas gehören, eine Frage zum Thema - und eine, die das nicht tut, wird
+weggelassen, nie angezeigt und beim Entwurf gezählt. Höchstens 12 Quellen
+werden behalten. Eine später gelöschte Quelle wird nicht mehr angezeigt.
+
 Ein Entwurf ist ein Modell-Run wie jeder andere. Er wird verweigert, solange die
 Organisation die [KI-Unterstützung](governance.md#ai-assistance) ausgeschaltet
-hat, vor dem Modellaufruf werden das Budget des Entwerfers und das der
+hat, und das ist sie, bis jemand mit `org:settings` sie einschaltet; bis dahin
+sagt das Thema es, mit einem Link zum Schalter für den, der ihn ändern darf. Vor
+dem Modellaufruf werden das Budget des Entwerfers und das der
 Organisation geprüft, und seine Kosten erscheinen in Activity. Das Gruppieren
 von Fragen zu Themen lässt kein Modell etwas schreiben und läuft deshalb
 unabhängig vom Schalter.

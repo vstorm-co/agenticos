@@ -37,8 +37,10 @@ Every search is kept, not only the misses. When you change the threshold, it
 applies to the searches already made: the gaps you read are always the
 searches that fall below the current setting.
 
-Only searches an agent makes while it runs are recorded. A search through the
-HTTP API's `/rag/search`, or a preview in the collection page, is not.
+Only searches an agent makes while it runs are recorded, and only for
+questions people asked: a search through the HTTP API's `/rag/search`, a
+preview in the collection page, and a search made by an eval run are not. The
+first 1,000 characters of a query are kept.
 
 ## Topics { #topics }
 
@@ -67,8 +69,9 @@ Gaps are shown in three places:
   base;
 - the **Knowledge gaps** tab of an agent: only the questions that agent asked,
   in the knowledge bases you can read;
-- the **Knowledge gaps** dashboard widget: the most asked topics across the
-  organization.
+- the **Knowledge gaps** dashboard widget, on the default dashboard: the most
+  asked topics across the organization, and how many topics each knowledge
+  base holds.
 
 A topic shows how many times it was asked, when it was last asked, which
 agents asked it, and up to three of its questions. Open it to see the most
@@ -96,15 +99,24 @@ organization has. The drafter is shown the topic's 20 newest questions: what
 each person asked, what the agent searched for and found, the answer the
 person got, and any comment left with a thumbs-down.
 
-The draft is kept on the topic, labelled as a draft, with the documents it
-says it used and a link to its run. You can copy it or download it as
-Markdown. It is never added to the collection. The drafter does not know your
+The draft is kept on the topic, labelled as a draft, with a link to its run.
+You can copy it or download it as Markdown. It is never added to the
+collection. The drafter does not know your
 company's facts: where an answer needs a number, a date or a rule, it writes a
 placeholder in square brackets for you to fill in. Drafting again replaces the
 draft.
 
+A draft names its sources: the documents of the knowledge base it builds on,
+and the topic's questions it answers. Each one is verified before the draft is
+kept - a document must belong to the topic's knowledge base, a question must be
+one of the topic's - and one that is not is left out, never shown, and
+counted on the draft. At most 12 sources are kept. A source deleted later is
+no longer shown.
+
 A draft is a model run like any other. It is refused while the organization
-has [AI assistance](governance.md#ai-assistance) switched off, it is checked
+has [AI assistance](governance.md#ai-assistance) switched off, which it is
+until someone with `org:settings` turns it on; until then the topic says so,
+with a link to the switch for whoever may change it. It is checked
 against the drafter's budget and the organization's before the model is
 called, and its cost is listed in Activity. Grouping questions into topics
 asks no model to write anything, so it runs whatever the switch says.
