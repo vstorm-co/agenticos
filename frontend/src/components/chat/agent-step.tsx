@@ -78,6 +78,11 @@ interface AgentStepProps {
   detail?: string | null;
   kind: StepKind;
   state: "running" | "done" | "error" | "parked";
+  /**
+   * What a parked step waits for. A question's own label already says it waits
+   * for an answer, so only an approval carries the amber note.
+   */
+  parkedOn?: "approval" | "answer";
   expanded: boolean;
   /** Absent when this step has nothing to open, which makes the row plain text. */
   onToggle?: () => void;
@@ -106,6 +111,7 @@ export function AgentStep({
   detail,
   kind,
   state,
+  parkedOn = "approval",
   expanded,
   onToggle,
   actions,
@@ -158,7 +164,7 @@ export function AgentStep({
           {detail}
         </span>
       )}
-      {state === "parked" && (
+      {state === "parked" && parkedOn === "approval" && (
         <span className="shrink-0 text-xs text-amber-600">{t("awaitingApproval")}</span>
       )}
       {state === "error" && (

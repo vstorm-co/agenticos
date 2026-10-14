@@ -118,6 +118,20 @@ describe("a tool call in the transcript", () => {
     expect(screen.queryByText("Running")).toBeNull();
   });
 
+  it("lets a question waiting on its person say so once, not as an approval", () => {
+    // Its own label is "Waiting for your answer"; the amber approval note beside it
+    // named a decision nobody was being asked to make.
+    card({
+      name: "ask_user_question",
+      args: { questions: [{ header: "Plans", question: "Which plans?" }] },
+      status: "awaiting_answer",
+      result: undefined,
+    });
+
+    expect(screen.getByText("Waiting for your answer")).toBeInTheDocument();
+    expect(screen.queryByText("waiting for approval")).toBeNull();
+  });
+
   it("says a replayed call that never finished in the past tense, without a spinner", () => {
     // The step of an expired approval, or of a run that broke mid-call. Nothing
     // on this screen can finish it, so an animation promises a result that is

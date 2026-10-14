@@ -181,6 +181,7 @@ export function ToolCallCard({
       kind={step.kind}
       logoDomain={step.logoDomain}
       state={isParked ? "parked" : isRunning ? "running" : isError ? "error" : "done"}
+      parkedOn={toolCall.status === "awaiting_answer" ? "answer" : "approval"}
       expanded={expanded}
       onToggle={() =>
         setExpanded((prev) => {
