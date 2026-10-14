@@ -229,6 +229,8 @@ async def test_a_start_queues_a_running_generation_for_after_the_commit(db, monk
         queued.append((name, coro))
         coro.close()
 
+    # The generator's own readiness is the runner's to prove; this is about queueing.
+    monkeypatch.setattr(SystemAgentRunner, "require_runnable", AsyncMock())
     monkeypatch.setattr(facade, "spawn_after_commit", spawn)
 
     started = await _service(db).start(owner, dataset.id, _request(agent, "knowledge", count=4))
@@ -263,6 +265,24 @@ async def test_a_start_the_generator_would_refuse_is_refused_up_front(db, monkey
     with pytest.raises(SystemAgentUnavailableError) as archived:
         await _service(db).start(owner, dataset.id, _request(agent, "agent"))
     assert archived.value.reason == "archived"
+    assert await db.scalar(select(func.count(CaseGeneration.id))) == 0
+
+
+async def test_a_generator_whose_model_is_gone_refuses_a_start_up_front(db, monkeypatch) -> None:
+    monkeypatch.setattr(facade, "spawn_after_commit", lambda *a, **k: a[1].close())
+    owner, org, agent, dataset, _ = await _setup(db)
+    generator = await SystemAgentService(db).ensure(organization_id=org.id, key="case_generator")
+    assert generator.current_version_id is not None
+    for profile in (
+        await db.execute(select(ModelProfile).where(ModelProfile.organization_id == org.id))
+    ).scalars():
+        await db.delete(profile)
+    await db.flush()
+
+    with pytest.raises(SystemAgentUnavailableError) as refused:
+        await _service(db).start(owner, dataset.id, _request(agent, "agent"))
+
+    assert refused.value.reason == "no_model"
     assert await db.scalar(select(func.count(CaseGeneration.id))) == 0
 
 

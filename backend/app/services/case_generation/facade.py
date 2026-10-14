@@ -20,9 +20,8 @@ from app.agents.spec import AgentSpec
 from app.agents.system_agents import CASE_GENERATOR
 from app.core.audit import record_audit
 from app.core.background import spawn_after_commit
-from app.core.exceptions import NotFoundError, SystemAgentUnavailableError
+from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext, Perm
-from app.db.models.agent import AgentStatus
 from app.db.models.case_generation import (
     CaseGeneration,
     CaseOrigin,
@@ -42,7 +41,6 @@ from app.schemas.case_generation import (
     SourcePlan,
 )
 from app.schemas.dataset import DatasetCaseContent, DatasetVersionRead
-from app.services.access import AGENT, resolve_access
 from app.services.ai_assistance import AiAssistanceService
 from app.services.case_generation.drafts import split
 from app.services.case_generation.estimate import estimate_cost
@@ -51,7 +49,7 @@ from app.services.case_generation.prompt import build_prompt
 from app.services.case_generation.sources import Material, SourceGatherer
 from app.services.dataset import DatasetService, GeneratedCase
 from app.services.rag.vectorstore import BaseVectorStore
-from app.services.system_agents import SystemAgentService
+from app.services.system_agent_runner import SystemAgentRunner
 
 # A restart loses a generation mid-run: it runs in the process that answered the
 # request. Past any real run's length, a running one is reported as interrupted.
@@ -166,30 +164,6 @@ class CaseGenerationService:
             estimated_cost_usd=await self._price(ctx, prompt, data.count),
         )
 
-    async def _may_run_generator(self, ctx: AuthContext) -> None:
-        """Refuse, before anything is queued, a generation its run would refuse.
-
-        The runner checks the same again when the generation runs; this answers
-        the request with the reason instead of a generation that fails at once.
-
-        Raises:
-            SystemAgentUnavailableError: When the generator cannot be set up, is
-                archived or unpublished, or the caller may not run it.
-        """
-        agent = await SystemAgentService(self.db).ensure(
-            organization_id=ctx.organization_id, key=CASE_GENERATOR.key
-        )
-        if agent.status == AgentStatus.ARCHIVED.value:
-            reason, message = "archived", f"'{agent.name}' is archived. Restore it to use it."
-        elif agent.current_version_id is None:
-            reason = "unpublished"
-            message = f"'{agent.name}' has no published version. Pick a model and publish it."
-        elif not await resolve_access(self.db, ctx, agent, Perm.AGENTS_RUN, resource_type=AGENT):
-            reason, message = "no_access", f"You may not run '{agent.name}'. Ask for access to it."
-        else:
-            return
-        raise SystemAgentUnavailableError(message=message, key=CASE_GENERATOR.key, reason=reason)
-
     async def start(
         self, ctx: AuthContext, dataset_id: UUID, data: CaseGenerationRequest
     ) -> CaseGenerationRead:
@@ -201,7 +175,9 @@ class CaseGenerationService:
             SystemAgentUnavailableError: When the generator cannot run for this caller.
         """
         dataset_id, material, quotas, prompt = await self._plan(ctx, dataset_id, data)
-        await self._may_run_generator(ctx)
+        # Refused here with the reason, rather than queued to fail at once; the run
+        # checks the same again when it starts.
+        await SystemAgentRunner(self.db).require_runnable(ctx, key=CASE_GENERATOR.key)
         generation = await case_generation_repo.create_generation(
             self.db,
             organization_id=ctx.organization_id,
