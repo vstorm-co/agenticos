@@ -1,5 +1,5 @@
 ---
-source_sha: "2bec95c1a323"
+source_sha: "e9d1be9e102c"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -219,8 +219,10 @@ hat - nichts wird gespeichert, und der Judge wird nicht aufgerufen.
 des ersten Elements. Ohne ihn liest eine Regel die ganze Antwort. Textregeln
 unterscheiden nicht zwischen Groß- und Kleinschreibung, außer `case_sensitive`
 ist true. Ein Muster wird geprüft, wenn der Fall geschrieben wird, und eine Regel
-liest höchstens die ersten 100.000 Zeichen einer Antwort, damit ein einzelnes
-Muster das Scoring nicht langsam machen kann.
+liest höchstens die ersten 100.000 Zeichen einer Antwort. Ein Muster, das auf
+einer Antwort länger als eine Zehntelsekunde braucht, wird abgebrochen und als
+Fehler festgehalten, damit ein einzelnes Muster das Scoring nicht aufhalten
+kann.
 
 Eine `judge`-Prüfung ist ein Kriterium nur für einen Fall, bewertet im selben
 Judge-Run wie die Rubrik des Datasets. Verwenden Sie sie für das, was eine Regel

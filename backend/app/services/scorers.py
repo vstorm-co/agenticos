@@ -17,6 +17,7 @@ from decimal import Decimal
 from typing import Annotated, Any
 from uuid import UUID
 
+import regex
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import best_match
 from pydantic import BaseModel, Field, JsonValue
@@ -38,9 +39,10 @@ MAX_QUOTE = 600
 MAX_REASON = 2000
 _QUOTE_SHOWN = 80
 
-# A pattern is bounded where it is written; bounding the text it reads keeps one
-# match's cost bounded whatever the agent said.
 MAX_MATCH_TEXT = 100_000
+# A pattern is a person's input and backtracking is exponential in the text it
+# reads, so a match runs under a deadline rather than a length cap alone.
+PATTERN_SECONDS = 0.1
 _FENCE = re.compile(r"^```[a-zA-Z]*\s*\n?|\n?```\s*$")
 
 
@@ -151,7 +153,7 @@ def _text_check(check: TextCheck, answer: ScoredAnswer, *, required: bool) -> Sc
         subject = _text(answer, check.path)
     except _NoValue as exc:
         return _result(name, passed=False, reason=str(exc), required=required)
-    flags = 0 if check.case_sensitive else re.IGNORECASE
+    flags = 0 if check.case_sensitive else regex.IGNORECASE
     haystack, needle = (
         (subject, check.value)
         if check.case_sensitive
@@ -167,7 +169,17 @@ def _text_check(check: TextCheck, answer: ScoredAnswer, *, required: bool) -> Sc
         passed = haystack.strip() == needle.strip()
         reason = "Equal" if passed else "Not equal"
     else:
-        passed = re.search(check.value, subject, flags) is not None
+        try:
+            passed = regex.search(check.value, subject, flags, timeout=PATTERN_SECONDS) is not None
+        except TimeoutError:
+            return ScorerResult(
+                scorer="check",
+                name=name,
+                required=required,
+                status="error",
+                reason="The pattern took too long on this answer; simplify it",
+                reason_code="pattern_timeout",
+            )
         reason = "Matches" if passed else "Does not match"
     return _result(name, passed=passed, reason=reason, required=required)
 
@@ -513,7 +525,7 @@ def graded(
                 )
             )
             continue
-        flag = _unverified(grade.quotes, shown)
+        flag = _unverified(grade.quotes, shown)[: MAX_REASON // 2]
         results.append(
             ScorerResult(
                 scorer=criterion.scorer,

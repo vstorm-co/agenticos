@@ -1,5 +1,5 @@
 ---
-source_sha: "2bec95c1a323"
+source_sha: "e9d1be9e102c"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -211,8 +211,9 @@ comprobar: no se guarda nada y no se llama al juez.
 primer elemento. Sin él, una regla lee la respuesta entera. Las reglas de texto
 no distinguen mayúsculas de minúsculas salvo que `case_sensitive` sea true. Un
 patrón se comprueba al escribir el caso, y una regla lee como máximo los
-primeros 100.000 caracteres de una respuesta, así que un patrón no puede volver
-lenta la puntuación.
+primeros 100.000 caracteres de una respuesta. Un patrón que tarda más de una
+décima de segundo en una respuesta se detiene y se registra como error, así que
+un patrón no puede bloquear la puntuación.
 
 Una comprobación `judge` es un criterio solo para un caso, calificado en el
 mismo run del juez que la rúbrica del dataset. Úsala para lo que una regla no

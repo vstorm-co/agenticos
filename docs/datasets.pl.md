@@ -1,5 +1,5 @@
 ---
-source_sha: "2bec95c1a323"
+source_sha: "e9d1be9e102c"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -207,7 +207,9 @@ nic nie jest zapisywane, a sędzia nie jest wywoływany.
 pierwszego elementu. Bez niego reguła czyta całą odpowiedź. Reguły tekstowe nie
 rozróżniają wielkości liter, chyba że `case_sensitive` ma wartość true. Wzorzec
 jest sprawdzany przy zapisie przypadku, a reguła czyta najwyżej pierwsze 100 000
-znaków odpowiedzi, więc jeden wzorzec nie może spowolnić oceniania.
+znaków odpowiedzi. Wzorzec, który na jakiejś odpowiedzi działa dłużej niż
+dziesiątą część sekundy, zostaje przerwany i zapisany jako błąd, więc jeden
+wzorzec nie może zatrzymać oceniania.
 
 Sprawdzenie `judge` to kryterium tylko dla jednego przypadku, oceniane w tym
 samym runie sędziego co rubryka datasetu. Używaj go do tego, czego reguła nie

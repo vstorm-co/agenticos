@@ -9,11 +9,11 @@ a person's verdict on it.
 
 from __future__ import annotations
 
-import re
 from datetime import datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
+import regex
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
 from pydantic import (
@@ -27,8 +27,6 @@ from pydantic import (
 
 from app.schemas.base import BaseSchema
 
-# A pattern is compiled from a person's input and run over a model's answer; both
-# are bounded, so a pathological pattern costs a bounded amount of backtracking.
 MAX_PATTERN = 500
 MAX_CHECK_VALUE = 2000
 MAX_CRITERION = 1000
@@ -57,8 +55,8 @@ class TextCheck(BaseSchema):
             if len(self.value) > MAX_PATTERN:
                 raise ValueError(f"A pattern is at most {MAX_PATTERN} characters")
             try:
-                re.compile(self.value)
-            except re.error as exc:
+                regex.compile(self.value)
+            except regex.error as exc:
                 raise ValueError(f"Not a valid regular expression: {exc}") from exc
         return self
 
