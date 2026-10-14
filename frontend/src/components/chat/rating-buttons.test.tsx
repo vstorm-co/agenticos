@@ -33,7 +33,13 @@ vi.mock("@/hooks/use-permissions", () => ({
   usePermissions: () => ({ can: (perm: string) => datasets.granted.includes(perm) }),
 }));
 vi.mock("@/hooks/use-datasets", () => ({
-  useDatasets: () => ({ datasets: datasets.list, isLoading: false }),
+  // The server's `editable` filter, as the listing applies it.
+  useDatasets: (query: { editable?: boolean }) => {
+    const rows = query.editable
+      ? datasets.list.filter((dataset) => dataset.can_edit)
+      : datasets.list;
+    return { datasets: rows, total: rows.length, isLoading: false };
+  },
   useAddToDataset: () => ({ mutateAsync: datasets.add, isPending: false }),
 }));
 

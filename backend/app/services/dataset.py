@@ -235,6 +235,7 @@ class DatasetService:
         ctx: AuthContext,
         *,
         shared_with_me: bool = False,
+        editable: bool = False,
         search: str | None = None,
         sort: DatasetSort = "name",
         skip: int = 0,
@@ -258,6 +259,13 @@ class DatasetService:
                 subject_user_id=ctx.subject_id,
                 resource_type=DATASET.key,
             )
+        # The same answer `can_edit` gives per row, asked of the whole listing, so
+        # "is there anything I may add to" is one row of one page, not a scan.
+        edit_ids = (
+            await visible_resource_ids(self.db, ctx, resource_type=DATASET, perm=Perm.DATASETS_EDIT)
+            if editable
+            else None
+        )
         items, total = await dataset_repo.list_visible(
             self.db,
             organization_id=ctx.organization_id,
@@ -265,18 +273,20 @@ class DatasetService:
             see_all=shared is None,
             shared_ids=grant_ids,
             shared_with_me=shared_with_me,
+            edit_scope=ctx.scope_for(Perm.DATASETS_EDIT) if edit_ids is not None else None,
+            edit_ids=edit_ids or [],
             search=search,
             sort=sort,
             skip=skip,
             limit=limit,
         )
-        editable = await accessible_ids(
+        may_edit = await accessible_ids(
             self.db, ctx, items, Perm.DATASETS_EDIT, resource_type=DATASET
         )
         stats = await self._stats(ctx, items)
         return DatasetList(
             items=[
-                _dataset_read(item, can_edit=item.id in editable, stats=stats.get(item.id))
+                _dataset_read(item, can_edit=item.id in may_edit, stats=stats.get(item.id))
                 for item in items
             ],
             total=total,

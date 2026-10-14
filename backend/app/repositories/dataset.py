@@ -13,6 +13,7 @@ from uuid import UUID
 from sqlalchemy import func, insert, literal, select, true
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.permissions import Scope
 from app.db.models.dataset import (
     Dataset,
     DatasetCase,
@@ -20,7 +21,7 @@ from app.db.models.dataset import (
     DatasetVersionCase,
 )
 from app.repositories._search import contains_ci
-from app.repositories._visibility import shared_with_caller, visible_to_caller
+from app.repositories._visibility import reached_by_scope, shared_with_caller, visible_to_caller
 from app.schemas.dataset import CaseSourceLiteral, DatasetSort, DatasetStats, DatasetTagCount
 
 
@@ -62,6 +63,8 @@ async def list_visible(
     see_all: bool,
     shared_ids: list[UUID],
     shared_with_me: bool = False,
+    edit_scope: Scope | None = None,
+    edit_ids: Sequence[UUID] = (),
     search: str | None = None,
     sort: DatasetSort = "name",
     skip: int = 0,
@@ -73,6 +76,9 @@ async def list_visible(
         see_all: True when the caller's role reaches the whole organization.
         shared_ids: Dataset ids explicitly shared with this member.
         shared_with_me: Narrow to rows shared with the caller and not their own.
+        edit_scope: Narrow to the rows the caller may also edit: their role's
+            scope for editing, with `edit_ids` granted at edit level. None, or
+            `Scope.ALL`, narrows nothing.
     """
     where = [Dataset.organization_id == organization_id]
     if shared_with_me:
@@ -93,6 +99,17 @@ async def list_visible(
                 Dataset.id,
                 user_id=user_id,
                 shared_ids=shared_ids,
+            )
+        )
+    if edit_scope is not None and edit_scope is not Scope.ALL:
+        where.append(
+            reached_by_scope(
+                Dataset.owner_user_id,
+                Dataset.visibility,
+                Dataset.id,
+                scope=edit_scope,
+                user_id=user_id,
+                granted_ids=edit_ids,
             )
         )
     if search:
