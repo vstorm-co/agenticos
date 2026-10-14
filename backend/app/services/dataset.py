@@ -24,6 +24,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
+from app.core.config import settings
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.exceptions import ValidationError as InvalidCaseError
 from app.core.field_errors import field_problems, refused_field
@@ -86,6 +87,26 @@ def _refuse_past_ceiling(held: int, adding: int) -> None:
                 "Split the cases across two datasets."
             ),
             details={"case_count": held, "adding": adding, "max_cases": MAX_CASES},
+        )
+
+
+def _refuse_past_storage(used: int, adding: int) -> None:
+    """Refuse a version that would take the organization past its stored case rows.
+
+    Raises:
+        BadRequestError: Naming how many rows are held, how many this version
+            adds and the ceiling, and what to do about it.
+    """
+    ceiling = settings.DATASET_MAX_VERSION_ROWS_PER_ORG
+    if used + adding > ceiling:
+        raise BadRequestError(
+            message=(
+                f"This organization's datasets hold {used:,} cases across their versions, "
+                f"and this change would add {adding:,} more; the limit is {ceiling:,}. "
+                "Delete datasets you no longer need, or ask the deployment's "
+                "administrator to raise DATASET_MAX_VERSION_ROWS_PER_ORG."
+            ),
+            details={"version_rows": used, "adding": adding, "max_version_rows": ceiling},
         )
 
 
@@ -415,12 +436,16 @@ class DatasetService:
 
         Raises:
             BadRequestError: When the change would take the dataset past
-                :data:`MAX_CASES`.
+                :data:`MAX_CASES`, or the organization past
+                `DATASET_MAX_VERSION_ROWS_PER_ORG` stored case rows.
         """
         added = added or []
         before = previous.case_count if previous is not None else 0
         count = before + len(added) - (1 if removed is not None else 0)
         _refuse_past_ceiling(before, len(added))
+        _refuse_past_storage(
+            await dataset_repo.version_rows(self.db, organization_id=ctx.organization_id), count
+        )
         new_revisions = [*added, *([replaced[1]] if replaced is not None else [])]
         if new_revisions:
             await dataset_repo.add_cases(self.db, new_revisions)

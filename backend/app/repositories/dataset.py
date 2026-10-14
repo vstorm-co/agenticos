@@ -313,6 +313,16 @@ async def case_stats(
     return stats
 
 
+async def version_rows(db: AsyncSession, *, organization_id: UUID) -> int:
+    """How many case rows an organization's dataset versions hold, all of them together."""
+    total = await db.scalar(
+        select(func.coalesce(func.sum(DatasetVersion.case_count), 0)).where(
+            DatasetVersion.organization_id == organization_id
+        )
+    )
+    return int(total or 0)
+
+
 async def find_case(
     db: AsyncSession, version_id: UUID, case_id: UUID, *, organization_id: UUID
 ) -> tuple[DatasetCase, int] | None:

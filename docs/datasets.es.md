@@ -1,5 +1,5 @@
 ---
-source_sha: "ccd82f221e92"
+source_sha: "33fc16e4c48c"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -66,8 +66,15 @@ agent y no de la prueba. La página del dataset muestra por defecto la versión
 más reciente; elige una anterior en la lista de versiones. Una versión anterior
 es de solo lectura.
 
-Renombrar un dataset o cambiar su descripción no crea una versión, porque
-ninguna de las dos cosas cambia un caso.
+Renombrar un dataset o cambiar su descripción, con **Editar detalles** en su
+página, no crea una versión, porque ninguna de las dos cosas cambia un caso.
+
+La lista de versiones muestra las cien más recientes; una más antigua se abre
+escribiendo su número. Cada versión guarda una fila por caso, así que las
+versiones de una organización guardan juntas como mucho
+`DATASET_MAX_VERSION_ROWS_PER_ORG` filas (5 millones por defecto, consulta
+[Configuración](configuration.md#datasets)). Un cambio que lo supere se rechaza
+indicando cuántas hay ocupadas; borrar un dataset libera sus filas.
 
 ## Añadir casos { #adding-cases }
 

@@ -760,6 +760,40 @@ async def test_a_change_that_would_pass_the_case_ceiling_is_refused_whole(
     assert (await service.read(ctx, dataset.id)).latest_version == 2
 
 
+async def test_an_organization_past_its_stored_version_rows_is_refused(
+    db, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The ceiling sums every version of every dataset of one organization, and only it."""
+    monkeypatch.setattr(dataset_service.settings, "DATASET_MAX_VERSION_ROWS_PER_ORG", 5)
+    ctx = await _owner(db)
+    service = DatasetService(db)
+    first = await service.create(ctx, DatasetCreate(name="first"))
+    second = await service.create(ctx, DatasetCreate(name="second"))
+    case = DatasetCaseCreate(input="q", reference_answer="a")
+    await service.add_case(ctx, first.id, case)  # v1 holds 1
+    await service.add_case(ctx, first.id, case)  # v2 holds 2
+    await service.add_case(ctx, second.id, case)  # v1 holds 1: 4 rows in all
+
+    # Another organization's rows are its own: it still has room for its first five.
+    stranger = await _owner(db)
+    theirs = await service.create(stranger, DatasetCreate(name="theirs"))
+    await service.add_case(stranger, theirs.id, case)
+    await service.add_case(stranger, theirs.id, case)
+
+    with pytest.raises(BadRequestError) as refused:
+        await service.add_case(ctx, second.id, case)  # v2 would hold 2: 6 rows
+    assert refused.value.details == {"version_rows": 4, "adding": 2, "max_version_rows": 5}
+    assert "DATASET_MAX_VERSION_ROWS_PER_ORG" in refused.value.message
+    assert (await service.read(ctx, second.id)).latest_version == 1
+    assert await dataset_repo.version_rows(db, organization_id=ctx.organization_id) == 4
+    assert await dataset_repo.version_rows(db, organization_id=stranger.organization_id) == 3
+
+    await service.remove_case(
+        ctx, first.id, (await service.list_cases(ctx, first.id)).items[0].case_id
+    )
+    assert await dataset_repo.version_rows(db, organization_id=ctx.organization_id) == 5
+
+
 async def test_a_name_taken_by_a_concurrent_request_answers_409_not_500(
     db, monkeypatch: pytest.MonkeyPatch
 ) -> None:
