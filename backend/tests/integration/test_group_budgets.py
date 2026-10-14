@@ -272,6 +272,25 @@ class TestTheSpendPage:
         with pytest.raises(NotFoundError):
             await service.export(org.owner_ctx, uuid.uuid4())
 
+    async def test_a_leads_key_without_runs_view_does_not_carry_the_lead(
+        self, db: AsyncSession
+    ) -> None:
+        """Codex on #2062: a narrow key exported the department's spend."""
+        from dataclasses import replace
+
+        from app.core.permissions import Perm
+
+        org = await _Org(db).build()
+        lead = await org.member()
+        finance = await org.department("Finance", "10", lead, lead=lead)
+        service = GroupSpendService(db)
+        narrow = replace(lead, api_key_id=uuid.uuid4(), key_scopes=frozenset({Perm.AGENTS_VIEW}))
+        reading = replace(lead, api_key_id=uuid.uuid4(), key_scopes=frozenset({Perm.RUNS_VIEW}))
+
+        with pytest.raises(AuthorizationError):
+            await service.export(narrow, finance.id)
+        assert (await service.export(reading, finance.id)).filename.startswith("Finance-spend-")
+
 
 class TestSettingTheCap:
     async def test_a_cap_is_set_kept_and_removed(self, db: AsyncSession) -> None:

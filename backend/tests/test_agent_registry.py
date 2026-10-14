@@ -4151,3 +4151,27 @@ class TestTheAssistantIsSettings:
         assert await service.get(owner, agent.id, perm=Perm.AGENTS_EDIT) is agent
         with pytest.raises(BadRequestError, match="Switch the AI Architect off"):
             await service.archive(owner, agent.id)
+
+
+class TestUndoingADraft:
+    """Codex on #2062: the MCP undo deleted an agent published since it looked."""
+
+    @pytest.mark.anyio
+    async def test_draft_only_refuses_what_the_locked_row_shows_published(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        ctx = _ctx()
+        agent = _agent(ctx)
+        agent.current_version_id = uuid.uuid4()
+        db = _db()
+        db.refresh = AsyncMock()
+        monkeypatch.setattr(f"{REGISTRY_PATH}.agent_repo.get", AsyncMock(return_value=agent))
+        monkeypatch.setattr(f"{REGISTRY_PATH}.resolve_access", AsyncMock(return_value=True))
+        delete = AsyncMock()
+        monkeypatch.setattr(f"{REGISTRY_PATH}.agent_repo.delete", delete)
+
+        with pytest.raises(BadRequestError, match="never-published draft"):
+            await AgentRegistryService(db).delete(ctx, agent.id, draft_only=True)
+
+        db.refresh.assert_awaited_once_with(agent, with_for_update=True)
+        delete.assert_not_awaited()

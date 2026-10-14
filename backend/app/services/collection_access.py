@@ -65,7 +65,8 @@ async def readable_kb(db: AsyncSession, ctx: AuthContext, kb: KnowledgeBase) -> 
     if kb.scope == KBScope.APP.value:
         return True
     if kb.scope == KBScope.PERSONAL.value:
-        return ctx.user_id is not None and kb.owner_user_id == ctx.user_id
+        # The owner's, and through a key only one issued to read collections.
+        return _owns(ctx, kb) and ctx.key_allows(Perm.COLLECTIONS_VIEW)
     return await resolve_access(db, ctx, kb, Perm.COLLECTIONS_VIEW, resource_type=COLLECTION)
 
 
@@ -81,8 +82,12 @@ async def writable_kb(db: AsyncSession, ctx: AuthContext, kb: KnowledgeBase) -> 
     if kb.scope == KBScope.APP.value:
         return ctx.is_app_admin
     if kb.scope == KBScope.PERSONAL.value:
-        return ctx.user_id is not None and kb.owner_user_id == ctx.user_id
+        return _owns(ctx, kb) and ctx.key_allows(Perm.COLLECTIONS_EDIT)
     return await resolve_access(db, ctx, kb, Perm.COLLECTIONS_EDIT, resource_type=COLLECTION)
+
+
+def _owns(ctx: AuthContext, kb: KnowledgeBase) -> bool:
+    return ctx.user_id is not None and kb.owner_user_id == ctx.user_id
 
 
 def _as_uuid(value: str) -> UUID | None:

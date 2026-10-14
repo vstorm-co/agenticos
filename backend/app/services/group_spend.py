@@ -81,8 +81,13 @@ class GroupSpendService:
 
 
 async def leads_group(db: AsyncSession, ctx: AuthContext, group_id: UUID) -> bool:
-    """Whether the caller leads this department - what lets a lead read its figures."""
-    if ctx.user_id is None:
+    """Whether the caller leads this department - what lets a lead read its figures.
+
+    A person's standing, not a permission: through an API key it counts only for
+    a key issued to read runs, so a narrower key the lead made for something
+    else does not carry it.
+    """
+    if ctx.user_id is None or not ctx.key_allows(Perm.RUNS_VIEW):
         return False
     member = await group_repo.get_member(db, group_id=group_id, user_id=ctx.user_id)
     return member is not None and member.is_lead

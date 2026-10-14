@@ -109,7 +109,11 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
                 "This agent has been published, so it is not undone from here - "
                 "archive or delete it in the console"
             )
-        await api.request("DELETE", f"/agents/{agent_id}")
+        # Checked again by the server on the locked row: a publish in another tab
+        # since the read above must not be deleted.
+        deleted = await api.request("DELETE", f"/agents/{agent_id}", params={"draft_only": "true"})
+        if deleted is not None:
+            return deleted
         return {"discarded": str(agent_id), "name": agent.get("name")}
 
     async def get_spend(days: int = 30) -> dict[str, Any]:

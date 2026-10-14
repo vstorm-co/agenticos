@@ -561,9 +561,20 @@ async def unarchive_agent(agent_id: UUID, service: AgentRegistrySvc, ctx: Auth) 
     status_code=status.HTTP_204_NO_CONTENT,
     response_model=None,
 )
-async def delete_agent(agent_id: UUID, service: AgentRegistrySvc, ctx: Auth) -> None:
+async def delete_agent(
+    agent_id: UUID,
+    service: AgentRegistrySvc,
+    ctx: Auth,
+    draft_only: bool = Query(
+        False,
+        description=(
+            "Delete only a never-published draft the caller created; refused "
+            "otherwise, checked on the locked row so a publish in between is seen."
+        ),
+    ),
+) -> None:
     """Permanently remove an agent, its versions and its shares."""
-    await service.delete(ctx, agent_id)
+    await service.delete(ctx, agent_id, draft_only=draft_only)
 
 
 @router.post(

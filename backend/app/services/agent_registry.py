@@ -2313,9 +2313,26 @@ class AgentRegistryService:
             )
         return agent.avatar_url
 
-    async def delete(self, ctx: AuthContext, agent_id: UUID) -> None:
-        """Permanently remove an agent, its versions and its shares."""
+    async def delete(self, ctx: AuthContext, agent_id: UUID, *, draft_only: bool = False) -> None:
+        """Permanently remove an agent, its versions and its shares.
+
+        `draft_only` is the undo of a draft made by mistake: the agent must be the
+        caller's and never published, read from the row locked for this
+        transaction - a publish committed since the caller looked is seen, and
+        one starting now waits for the delete.
+
+        Raises:
+            BadRequestError: `draft_only`, and the agent is somebody else's or was
+                published.
+        """
         agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_EDIT)
+        if draft_only:
+            await self.db.refresh(agent, with_for_update=True)
+            if agent.owner_user_id != ctx.subject_id or agent.current_version_id is not None:
+                raise BadRequestError(
+                    message="Only a never-published draft you created can be undone",
+                    details={"agent_id": agent.id},
+                )
         # The agent's triggers go with it by CASCADE, which would silently discard
         # the provider webhook ids their auto-registered hooks are removable by -
         # so the provider side is swept first, best-effort. Imported locally:

@@ -195,9 +195,12 @@ class TestGroupRoutes:
 
         assert added.status_code == 201
         assert added.json()["email"] == "jane@corp.example"
-        assert groups.add_member.await_args.args == (ORG, group_id, user_id, CALLER.id)
+        # The whole context, so the service holds a key to its scopes.
+        assert groups.add_member.await_args.args[:3] == (ORG, group_id, user_id)
+        assert groups.add_member.await_args.args[3].user_id == CALLER.id
         assert removed.status_code == 204
-        assert groups.remove_member.await_args.args == (ORG, group_id, user_id, CALLER.id)
+        assert groups.remove_member.await_args.args[:3] == (ORG, group_id, user_id)
+        assert groups.remove_member.await_args.args[3].user_id == CALLER.id
 
     async def test_naming_a_lead(self, client: AsyncClient, groups: MagicMock) -> None:
         member, email, name = _member_row("manual")

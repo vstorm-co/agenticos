@@ -197,7 +197,17 @@ class TestUndoingADraft:
         result = await server.call_tool("discard_agent_draft", {"agent_id": str(AGENT)})
 
         assert api.request.await_args.args == ("DELETE", f"/agents/{AGENT}")
+        # The server checks it again on the locked row.
+        assert api.request.await_args.kwargs == {"params": {"draft_only": "true"}}
         assert result.structured_content == {"discarded": str(AGENT), "name": "Bot"}
+
+    async def test_a_draft_published_in_between_is_refused_by_the_server(
+        self, api: MagicMock
+    ) -> None:
+        api.request.side_effect = [ME, _draft(), {"refused": "published"}]
+        tool = {t.name: t for t in platform_tools(api)}["discard_agent_draft"]
+
+        assert await tool.function(agent_id=AGENT) == {"refused": "published"}
 
     @pytest.mark.parametrize(
         ("agent", "reason"),
