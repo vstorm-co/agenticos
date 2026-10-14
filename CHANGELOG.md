@@ -581,6 +581,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **The AgenticOS mark moves in the README and on the docs' front page.**
+  The blob floats, breathes, blinks and glances aside, from CSS inside the
+  SVG that GitHub runs in an image; `gen-logo.ts` writes it from the same
+  recipe as the still mark, and it holds still under reduced motion.
+
 - **The Architect blinks, and watches you type.** Its mark blinks every few
   seconds, and the large one over an empty conversation follows the caret
   of the text box being typed in with its eyes; neither moves under reduced

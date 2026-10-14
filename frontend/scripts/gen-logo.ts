@@ -5,8 +5,8 @@
  * the console wears, from the same `blobatar` - lightened, on a deep violet tile.
  * The surfaces that need it cannot share a file: MkDocs and the README want a
  * path, the console draws it inside a `next/og` image where only a data URI
- * survives, and a desktop icon sits on the platform's own grid. All three are
- * written here, so none of them is a second drawing.
+ * survives, a desktop icon sits on the platform's own grid, and the README shows
+ * it moving. All four are written here, so none of them is a second drawing.
  *
  * `gen-logo.test.ts` fails when a re-run would change any of them. The desktop
  * app's icon set is rasterised from the last:
@@ -24,6 +24,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 export const LOGO_SVG = join(here, "..", "..", "docs", "assets", "logo.svg");
 export const LOGO_TS = join(here, "..", "src", "lib", "logo.generated.ts");
 export const APP_ICON_SVG = join(here, "..", "..", "desktop", "src-tauri", "app-icon.svg");
+export const ANIMATED_SVG = join(here, "..", "..", "docs", "assets", "logo-animated.svg");
 
 /** The tile: the violet the blob is drawn in, taken down to ink. */
 const TILE = "#2b2547";
@@ -50,6 +51,43 @@ export function buildLogo(): string {
     "  <title>AgenticOS</title>\n" +
     `  <rect width="${SIDE}" height="${SIDE}" rx="30" fill="${TILE}"/>\n` +
     `  <g transform="translate(${INSET} ${INSET}) scale(${scale})">${blobBody()}</g>\n` +
+    "</svg>\n"
+  );
+}
+
+/**
+ * The mark, alive: the blob breathes, blinks and glances aside, for the README.
+ *
+ * CSS inside the SVG, which GitHub runs in an `<img>` where it runs no script.
+ * Blobatar draws the body and the eyes as one group each, in that order, so
+ * those two groups are what move. A reader who asked for reduced motion gets
+ * the still mark - the same drawing - because the rules are additive.
+ */
+export function buildAnimated(): string {
+  const scale = (SIDE - 2 * INSET) / BLOB_BOX;
+  const groups = blobBody().split("<g ");
+  if (groups.length !== 3)
+    throw new Error("blobatar no longer draws a body group and an eyes group");
+  const body = `<g class="ao-body" ${groups[1]}`;
+  const eyes = `<g class="ao-eyes" ${groups[2]}`;
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${SIDE} ${SIDE}" width="${SIDE}" height="${SIDE}"` +
+    ' role="img" aria-label="AgenticOS">\n' +
+    "  <title>AgenticOS</title>\n" +
+    "  <style>\n" +
+    "    .ao-float, .ao-body, .ao-eyes, .ao-look { transform-box: fill-box; transform-origin: center; }\n" +
+    "    .ao-float { animation: ao-float 3.6s ease-in-out infinite; }\n" +
+    "    .ao-body { animation: ao-breathe 3.6s ease-in-out infinite; }\n" +
+    "    .ao-look { animation: ao-glance 9s ease-in-out infinite; }\n" +
+    "    .ao-eyes { animation: ao-blink 4.8s ease-in-out infinite; }\n" +
+    "    @keyframes ao-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }\n" +
+    "    @keyframes ao-breathe { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.02, 0.985); } }\n" +
+    "    @keyframes ao-glance { 0%, 30%, 100% { transform: translateX(0); } 38%, 52% { transform: translateX(-3px); } 60%, 74% { transform: translateX(3px); } 82% { transform: translateX(0); } }\n" +
+    "    @keyframes ao-blink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.1); } }\n" +
+    "    @media (prefers-reduced-motion: reduce) { .ao-float, .ao-body, .ao-eyes, .ao-look { animation: none; } }\n" +
+    "  </style>\n" +
+    `  <rect width="${SIDE}" height="${SIDE}" rx="30" fill="${TILE}"/>\n` +
+    `  <g transform="translate(${INSET} ${INSET}) scale(${scale})">${groups[0]}<g class="ao-float">${body}<g class="ao-look">${eyes}</g></g></g>\n` +
     "</svg>\n"
   );
 }
@@ -90,6 +128,7 @@ function main(): number {
     [LOGO_SVG, logo],
     [LOGO_TS, buildModule(logo)],
     [APP_ICON_SVG, buildAppIcon(logo)],
+    [ANIMATED_SVG, buildAnimated()],
   ];
   for (const [path, text] of wanted) {
     let current: string | null = null;

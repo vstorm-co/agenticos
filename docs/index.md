@@ -1,6 +1,6 @@
 <div class="agenticos-hero" markdown>
 
-![AgenticOS](assets/logo.svg){ .agenticos-hero__mark }
+![AgenticOS](assets/logo-animated.svg){ .agenticos-hero__mark }
 
 <p class="agenticos-hero__name">AgenticOS</p>
 

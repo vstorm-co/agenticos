@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/assets/logo.svg" alt="" width="96" height="96">
+<img src="docs/assets/logo-animated.svg" alt="" width="96" height="96">
 
 <h1>AgenticOS</h1>
 
