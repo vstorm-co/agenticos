@@ -1,5 +1,5 @@
 ---
-source_sha: "c41b7914ae35"
+source_sha: "43166d9903cd"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -108,9 +108,19 @@ importación quita de nuevo ese único `'`. La exportación queda registrada en 
 
 ### Desde una conversación o un run { #add-to-dataset }
 
-Cada respuesta del agent en el chat y cada turno del agent en **Actividad**
-tiene un control **Añadir al dataset**. Elige un dataset y el caso se crea a
-partir de ese turno:
+Hay dos caminos y los dos crean el mismo caso:
+
+- **En el chat**, valora una respuesta con un pulgar abajo. El diálogo que
+  pregunta qué salió mal ofrece también **Añadir esta respuesta a un dataset**:
+  márcalo, elige el dataset y cómo guardar la respuesta, y envía. Primero se
+  guarda la valoración y después se añade el caso, así que tu comentario se
+  convierte en la nota del caso. Son dos escrituras separadas: si se rechaza el
+  añadido, la valoración se mantiene y el mensaje dice qué mitad falló.
+- **En Actividad**, cada turno del agent tiene un control **Añadir al dataset**.
+  Es donde se curan las respuestas, así que una buena respuesta se guarda como
+  referencia tan fácilmente como una mala como contraejemplo.
+
+En ambos casos, el caso se crea a partir de ese turno:
 
 - la pregunta se convierte en la entrada, y los turnos anteriores en la
   conversación antes de la entrada;
@@ -120,7 +130,7 @@ partir de ese turno:
 - el comentario más reciente dejado con un pulgar abajo se convierte en la
   nota.
 
-El control lo ven los miembros que pueden editar un dataset. El mensaje debe
+Los dos caminos solo los ven los miembros que pueden editar un dataset. El mensaje debe
 pertenecer a tu organización y debes poder leerlo: o tienes `runs:view`, que lee
 cada run de la organización como hace Actividad, o puedes abrir la conversación.
 Un mensaje de otra organización se rechaza como si no existiera.

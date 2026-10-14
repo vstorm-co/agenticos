@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -13,17 +12,11 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  FormField,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
 } from "@/components/ui";
-import { useAddToDataset, useDatasets, type AddFromMessage } from "@/hooks/use-datasets";
+import { useAddToDataset, useDatasets } from "@/hooks/use-datasets";
 import { getErrorMessage } from "@/lib/api-error";
-import { ROUTES } from "@/lib/constants";
 import { DIALOG_FORM } from "@/lib/dialog-sizes";
+import { DatasetTargetFields, type AnswerAs } from "./dataset-target-fields";
 
 interface AddToDatasetDialogProps {
   open: boolean;
@@ -52,7 +45,7 @@ export function AddToDatasetDialog({
   const add = useAddToDataset();
   const editable = datasets.filter((dataset) => dataset.can_edit);
   const [chosen, setChosen] = useState<string>("");
-  const [answerAs, setAnswerAs] = useState<AddFromMessage["answerAs"]>(
+  const [answerAs, setAnswerAs] = useState<AnswerAs>(
     ratedDown ? "counter_example" : "reference_answer",
   );
   const target = editable.find((dataset) => dataset.id === chosen) ?? editable[0];
@@ -75,48 +68,15 @@ export function AddToDatasetDialog({
           <DialogTitle>{t("addToDataset")}</DialogTitle>
           <DialogDescription>{t("addToDatasetBody")}</DialogDescription>
         </DialogHeader>
-        {!isLoading && editable.length === 0 ? (
-          <p className="text-muted-foreground text-sm">
-            {t.rich("noDatasetToAddTo", {
-              link: (chunks) => (
-                <Link href={ROUTES.DATASETS} className="underline">
-                  {chunks}
-                </Link>
-              ),
-            })}
-          </p>
-        ) : (
-          <div className="space-y-4">
-            <FormField htmlFor="add-to-dataset" label={t("dataset")}>
-              <Select value={datasetId} onValueChange={setChosen}>
-                <SelectTrigger id="add-to-dataset">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {editable.map((dataset) => (
-                    <SelectItem key={dataset.id} value={dataset.id}>
-                      {dataset.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </FormField>
-            <FormField htmlFor="add-answer-as" label={t("keepAnswerAs")}>
-              <Select
-                value={answerAs}
-                onValueChange={(next) => setAnswerAs(next as AddFromMessage["answerAs"])}
-              >
-                <SelectTrigger id="add-answer-as">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="counter_example">{t("field.counter_example")}</SelectItem>
-                  <SelectItem value="reference_answer">{t("field.reference_answer")}</SelectItem>
-                </SelectContent>
-              </Select>
-            </FormField>
-          </div>
-        )}
+        <DatasetTargetFields
+          editable={editable}
+          isLoading={isLoading}
+          datasetId={datasetId}
+          onDatasetChange={setChosen}
+          answerAs={answerAs}
+          onAnswerAsChange={setAnswerAs}
+          idPrefix="add-to-dataset"
+        />
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("cancel")}

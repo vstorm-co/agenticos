@@ -29,6 +29,8 @@ export interface DatasetQuery {
   sort?: DatasetSort;
   skip?: number;
   limit?: number;
+  /** False holds the request until it is needed, as a picker behind a checkbox is. */
+  enabled?: boolean;
 }
 
 export interface NewDataset {
@@ -47,6 +49,7 @@ export function useDatasets({
   sort = "name",
   skip = 0,
   limit = PAGE_SIZE,
+  enabled = true,
 }: DatasetQuery = {}) {
   const t = useTranslations("datasets");
   const tErrors = useTranslations("errors");
@@ -63,6 +66,7 @@ export function useDatasets({
       return apiClient.get<DatasetList>(`/datasets?${params}`);
     },
     placeholderData: (previous) => previous,
+    enabled,
   });
 
   const invalidate = useCallback(

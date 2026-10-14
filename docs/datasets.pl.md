@@ -1,5 +1,5 @@
 ---
-source_sha: "c41b7914ae35"
+source_sha: "43166d9903cd"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -105,8 +105,19 @@ usuwa ten jeden `'`. Eksport jest zapisywany w [dzienniku audytu](governance.md#
 
 ### Z rozmowy albo runa { #add-to-dataset }
 
-Każda odpowiedź agenta w czacie i każda tura agenta w **Aktywności** ma
-przycisk **Dodaj do datasetu**. Wybierz dataset, a przypadek powstanie z tej tury:
+Są dwie drogi i obie tworzą taki sam przypadek:
+
+- **W czacie** oceń odpowiedź łapką w dół. Okno, które pyta, co poszło źle,
+  proponuje też **Dodaj tę odpowiedź do datasetu**: zaznacz to, wybierz dataset
+  i to, jako co zachować odpowiedź, i wyślij. Najpierw zapisuje się ocena, a
+  przypadek jest dodawany po niej, więc twój komentarz staje się notatką
+  przypadku. To dwa osobne zapisy - jeśli dodanie zostanie odrzucone, ocena
+  zostaje, a komunikat mówi, która połowa się nie udała.
+- **W Aktywności** każda tura agenta ma przycisk **Dodaj do datasetu**. To
+  miejsce kuracji, więc dobrą odpowiedź równie łatwo zachować jako wzorcową, jak
+  złą jako kontrprzykład.
+
+W obu przypadkach przypadek powstaje z tej tury:
 
 - pytanie staje się wejściem, a tury przed nim - rozmową przed wejściem;
 - odpowiedź staje się kontrprzykładem. Jeśli nikt nie ocenił jej łapką w dół,
@@ -114,7 +125,7 @@ przycisk **Dodaj do datasetu**. Wybierz dataset, a przypadek powstanie z tej tur
   dwóch;
 - najnowszy komentarz zostawiony z łapką w dół staje się notatką.
 
-Przycisk widzą członkowie, którzy mogą edytować jakiś dataset. Wiadomość musi
+Obie drogi widzą tylko członkowie, którzy mogą edytować jakiś dataset. Wiadomość musi
 należeć do twojej organizacji i musisz móc ją przeczytać: albo masz
 `runs:view`, które czyta każdy run w organizacji tak jak Aktywność, albo możesz
 otworzyć rozmowę. Wiadomość z innej organizacji jest odrzucana tak, jakby nie

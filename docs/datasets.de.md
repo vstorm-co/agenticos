@@ -1,5 +1,5 @@
 ---
-source_sha: "c41b7914ae35"
+source_sha: "43166d9903cd"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -110,9 +110,21 @@ Export wird im [Audit-Log](governance.md#audit) festgehalten.
 
 ### Aus einem Gespräch oder einem Run { #add-to-dataset }
 
-Jede Agent-Antwort im Chat und jeder Agent-Zug in **Aktivität** hat ein
-Bedienelement **Zum Dataset hinzufügen**. Wählen Sie ein Dataset, und der Fall
-entsteht aus diesem Zug:
+Es gibt zwei Wege, und beide erzeugen denselben Fall:
+
+- **Im Chat** bewerten Sie eine Antwort mit dem Daumen nach unten. Der Dialog,
+  der fragt, was schiefging, bietet auch **Diese Antwort zu einem Dataset
+  hinzufügen** an: Haken setzen, Dataset und die Rolle der Antwort wählen und
+  absenden. Zuerst wird die Bewertung gespeichert, danach der Fall angelegt,
+  sodass Ihr Kommentar zur Notiz des Falls wird. Es sind zwei getrennte
+  Schreibvorgänge - wird das Hinzufügen abgelehnt, bleibt die Bewertung, und die
+  Meldung sagt, welcher Teil fehlschlug.
+- **In Aktivität** hat jeder Agent-Zug ein Bedienelement **Zum Dataset
+  hinzufügen**. Hier werden Antworten kuratiert, daher lässt sich eine gute
+  Antwort ebenso leicht als Referenz behalten wie eine schlechte als
+  Gegenbeispiel.
+
+In beiden Fällen entsteht der Fall aus diesem Zug:
 
 - die Frage wird zur Eingabe, die Züge davor werden zum Gespräch vor der
   Eingabe;
@@ -121,7 +133,7 @@ entsteht aus diesem Zug:
   beiden;
 - der neueste Kommentar zu einem Daumen nach unten wird zur Notiz.
 
-Das Bedienelement sehen Mitglieder, die ein Dataset bearbeiten dürfen. Die
+Beide Wege sehen nur Mitglieder, die ein Dataset bearbeiten dürfen. Die
 Nachricht muss zu Ihrer Organisation gehören, und Sie müssen sie lesen dürfen:
 Entweder Sie haben `runs:view`, womit Sie wie in Aktivität jeden Run der
 Organisation lesen, oder Sie können das Gespräch öffnen. Eine Nachricht aus

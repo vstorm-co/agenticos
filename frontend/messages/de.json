@@ -3218,7 +3218,7 @@
       },
       "datasets-new": {
         "title": "Testfälle sammeln",
-        "body": "Ein Dataset enthält die Fragen, an denen ein Agent getestet wird. Legen Sie hier eines an und fügen Sie Fälle von Hand, aus einer Datei oder aus einer negativ bewerteten Antwort hinzu."
+        "body": "Ein Dataset enthält die Fragen, an denen ein Agent getestet wird. Legen Sie hier eines an und fügen Sie Fälle von Hand, aus einer Datei, aus dem Dialog zum Daumen nach unten im Chat oder aus einem Schritt in der Aktivität hinzu."
       },
       "runs-score-against-case": {
         "title": "Diesen Run bewerten",
@@ -5631,6 +5631,8 @@
     "dataset": "Dataset",
     "keepAnswerAs": "Antwort behalten als",
     "addedTo": "Zu {name} hinzugefügt",
+    "alsoAddToDataset": "Diese Antwort zu einem Dataset hinzufügen",
+    "addAfterRatingFailed": "Die Bewertung wurde gespeichert, aber die Antwort wurde keinem Dataset hinzugefügt: {reason}",
     "field": {
       "input": "Eingabe",
       "reference_answer": "Referenzantwort",

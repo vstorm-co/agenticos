@@ -199,6 +199,75 @@ async def test_editing_a_case_mints_a_version_and_the_old_one_stays_readable(db)
     assert (stored.latest_version, stored.case_count) == (4, 1)
 
 
+async def test_stats_count_what_the_newest_version_tests_against(db) -> None:
+    ctx = await _owner(db)
+    service = DatasetService(db)
+    dataset = await service.create(ctx, DatasetCreate(name="refunds"))
+    assert dataset.stats.with_reference == 0
+    assert dataset.stats.by_source == {"manual": 0, "import": 0, "conversation": 0, "synthetic": 0}
+
+    both = await service.add_case(
+        ctx,
+        dataset.id,
+        DatasetCaseCreate(
+            input="q1",
+            reference_answer="30 days",
+            checks=[{"type": "contains", "value": "30"}],
+            tags=["returns", "billing"],
+        ),
+    )
+    await service.add_case(
+        ctx,
+        dataset.id,
+        DatasetCaseCreate(
+            input="q2",
+            counter_example="never",
+            expected_tool_calls=[{"tool": "search"}],
+            tags=["returns"],
+        ),
+    )
+    await service.import_cases(
+        ctx,
+        dataset.id,
+        content=b"input,counter_example,tags\nq3,no,refusal\nq4,no,returns\n",
+        filename="x.csv",
+        fmt=None,
+    )
+    # Only the newest version counts: the revision that still had its check and
+    # its "returns" tag stays in the versions before this edit.
+    await service.update_case(
+        ctx, dataset.id, both.case_id, DatasetCaseUpdate(checks=[], tags=["billing"])
+    )
+    other = await service.create(ctx, DatasetCreate(name="empty"))
+
+    listed = {item.name: item.stats for item in (await service.list_readable(ctx)).items}
+    stats = listed["refunds"]
+    assert (
+        stats.with_reference,
+        stats.with_counter_example,
+        stats.with_tool_calls,
+        stats.with_checks,
+    ) == (1, 3, 1, 0)
+    assert stats.by_source == {"manual": 2, "import": 2, "conversation": 0, "synthetic": 0}
+    assert [(tag.tag, tag.cases) for tag in stats.top_tags] == [
+        ("returns", 2),
+        ("billing", 1),
+        ("refusal", 1),
+    ]
+    assert listed["empty"].by_source["manual"] == 0
+    assert (await service.read(ctx, dataset.id)).stats == stats
+    assert (
+        await service.update(ctx, other.id, DatasetUpdate(description="x"))
+    ).stats.top_tags == []
+
+    stranger = await _owner(db)
+    assert (
+        await dataset_repo.case_stats(db, [dataset.id], organization_id=stranger.organization_id)
+        == {}
+    )
+    assert await dataset_repo.case_stats(db, [], organization_id=ctx.organization_id) == {}
+
+
 async def test_a_version_number_the_dataset_never_reached_is_not_found(db) -> None:
     ctx = await _owner(db)
     service = DatasetService(db)
