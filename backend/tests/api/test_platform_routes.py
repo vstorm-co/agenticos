@@ -327,6 +327,7 @@ CALLS: tuple[Call, ...] = (
     Call("GET", "/datasets", Perm.DATASETS_VIEW),
     Call("POST", "/datasets", Perm.DATASETS_EDIT, body={"name": "refund questions"}),
     Call("GET", "/datasets/review-queue", Perm.DATASETS_VIEW),
+    Call("GET", "/eval-runs/recent", Perm.RUNS_VIEW),
     # Which providers exist and what shape of credential each takes is read by
     # the Builder's model picker, so it is gated on seeing agents rather than on
     # managing connections. Knowing Bedrock wants a key pair is not a secret.
@@ -747,6 +748,10 @@ _PLATFORM_PREFIXES = (
     # Datasets, the same shape: collection routes gate on datasets:view/edit,
     # the per-dataset routes - cases, versions, import, export - in the service.
     "/datasets",
+    # Eval runs: the per-agent and per-run routes resolve the agent's and the
+    # dataset's grants in the service; the organization-wide recent list gates on
+    # runs:view.
+    "/eval-runs",
     # Memory routes carry no `require()`: every one acts on one agent's memory and the
     # service resolves access against that agent, so the sweep must reach them here.
     "/memory",
@@ -894,6 +899,10 @@ RESOURCE_AWARE_SERVICES = (
     # Scoring acts on one dataset: configuring it, scoring against it and
     # recording a verdict resolve the dataset's grants in the service.
     deps.get_scoring_service,
+    # An eval run acts on one agent and one dataset: starting one is `agents:run`
+    # and `datasets:run`, reading one is seeing both, each resolved against the
+    # resource's grants in the service.
+    deps.get_eval_run_service,
     # A memory file rides on its parent agent: every `/memory` route resolves access
     # to the agent, per agent rather than per role.
     deps.get_memory_service,
