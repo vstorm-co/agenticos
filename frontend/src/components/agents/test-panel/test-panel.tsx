@@ -157,9 +157,12 @@ export function TestPanel({
       aria-label={t("testPanel")}
       data-tour="agent-test-panel"
       style={{ "--test-panel-width": `${width}px` } as React.CSSProperties}
-      // Tall enough to end one gutter above the window's edge: at 6rem short it
-      // stopped 48px early, a band of nothing under the composer.
-      className="bg-background fixed inset-0 z-40 flex flex-col lg:sticky lg:top-4 lg:z-auto lg:h-[calc(100dvh-4rem)] lg:w-[var(--test-panel-width)] lg:shrink-0 lg:rounded-xl lg:border"
+      // One gutter from the window's top and bottom, scrolled or not. The page
+      // scrolls inside a container padded 2rem at the top, which a sticky offset
+      // counts from - so the panel is lifted by that padding in the flow and
+      // stuck 1rem above it, and both land 1rem from the window's edge. It sat
+      // 48px down once scrolled and stopped 48px short of the bottom.
+      className="bg-background fixed inset-0 z-40 flex flex-col lg:sticky lg:top-[-1rem] lg:z-auto lg:-mt-8 lg:h-[calc(100dvh-2rem)] lg:w-[var(--test-panel-width)] lg:shrink-0 lg:rounded-xl lg:border"
     >
       <div
         role="separator"
