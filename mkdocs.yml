@@ -300,6 +300,12 @@ nav:
       - about/dify.md
       - about/n8n.md
       - about/viktor.md
+      - about/openai-dots.md
+      - about/grok-bot.md
+      - about/openai-frontier.md
+      - about/microsoft-agent-365.md
+      - about/claude-managed-agents.md
+      - about/openclaw.md
       - about/wonderful.md
       - about/claude-code.md
       - about/codex.md

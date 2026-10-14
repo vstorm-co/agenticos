@@ -32,6 +32,10 @@ Two things are versioned separately from this file and worth knowing about:
   that published it stays one line, so the turn's work folds away. A link to
   an app reads *Open the app*, and a link to a known service leads with its
   logo.
+- **Comparisons with the new always-on agents and agent platforms**: OpenAI
+  dots, Grok Bot, OpenAI Frontier, Microsoft Agent 365, Claude Managed
+  Agents and OpenClaw / NemoClaw each have a guide in four languages, and
+  the comparison overview places them beside the rest.
 - **Delegation reads as the team at work.** A delegation step is *Asked
   Finance Analyst*, with that agent's face, and opens onto the brief and the
   answer - after a reload too, where it was raw JSON. While delegates work a
