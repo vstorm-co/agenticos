@@ -2,101 +2,117 @@
 
 import { useTranslations } from "next-intl";
 
-import { Button } from "@/components/ui/button";
+import { toolCaption, toolDisplayName } from "@/lib/agent-step-captions";
 import { viewState, type CallState } from "@/lib/voice/call-reducer";
 import { clock } from "@/lib/voice/clock";
-import type { VoiceEndReason } from "@/types/voice";
+import { cn } from "@/lib/utils";
 
-/** The ended reasons with words of their own; every other reads as a plain end. */
-const ENDED_KEYS: Partial<Record<VoiceEndReason, string>> = {
+/** The notices that mean a limit is ending the call, by kind (`session.py`). */
+export const ENDING_NOTICES: Record<string, string> = {
   time_limit: "timeLimit",
   budget: "budget",
   minutes: "minutes",
-  minutes_exhausted: "minutes",
-  revoked: "revoked",
-  guardrail: "guardrail",
-  shutdown: "shutdown",
-  voice_off: "voiceOff",
-  busy: "busy",
-  line_busy: "lineBusy",
-  forbidden: "forbidden",
-  no_agent: "forbidden",
-  not_configured: "notConfigured",
-  not_priced: "notPriced",
-  resume_refused: "resumeRefused",
 };
 
-/** The notice frames the server sends (`pump.py`, `session.py`), by kind. */
+/** The notices with words of their own; any other is left unsaid. */
 const NOTICE_KEYS: Record<string, string> = {
+  ...ENDING_NOTICES,
   guardrail: "guardrail",
   provider_error: "providerError",
-  time_limit: "timeLimit",
-  budget: "budget",
-  minutes: "minutes",
 };
 
-const FAILURE_KEYS = {
-  mic_insecure: "micInsecure",
-  mic_denied: "micDenied",
-  mic_not_found: "micNotFound",
-  mic_busy: "micBusy",
-  connection_failed: "connectionFailed",
-} as const;
+/** The states whose label shimmers: waiting on something with no level to show. */
+const WORKING = new Set(["connecting", "reconnecting", "thinking", "tool"]);
 
 /**
- * What the call is doing, how long it has run against its cap, what is left of
- * the month's minutes, and - in an assertive live region - every warning, notice
- * and reason it ended (#54). A drop or a failure offers Call again.
+ * The call bar's status (#54): what the call is doing, its time against its
+ * cap and the month's minutes left - and, for screen readers, an assertive
+ * region with the approval waiting, the one-minute warning and every notice.
  */
 export function VoiceCallStatus({
   call,
   now,
   agentName,
-  onCallAgain,
+  pushToTalk,
+  holding,
 }: {
   call: CallState;
   now: number;
   agentName: string;
-  onCallAgain: () => void;
+  pushToTalk: boolean;
+  holding: boolean;
 }) {
   const t = useTranslations("chat.voice");
+  const tTools = useTranslations("chat.tools");
   const view = viewState(call);
-  const running = call.phase === "live" || call.phase === "reconnecting";
-  const timed = running && call.startedAt !== null && call.capSeconds !== null;
+  const ending = call.notice === null ? undefined : ENDING_NOTICES[call.notice];
   const noticeKey = call.notice === null ? undefined : NOTICE_KEYS[call.notice];
 
-  let alert: string | null = null;
-  if (call.failure !== null) alert = t(`failure.${FAILURE_KEYS[call.failure]}`);
-  else if (view === "dropped") alert = t("failure.dropped");
-  else if (call.phase === "ended")
-    alert = t(`ended.${(call.endReason && ENDED_KEYS[call.endReason]) ?? "generic"}`);
-  const canCallAgain = view === "dropped" || view === "connfailed" || view === "micblocked";
+  let label: string;
+  if (ending) label = t(`view.ending.${ending}`);
+  else if (view === "listening" || view === "limitwarn") {
+    if (holding && !call.muted) label = t("view.talking");
+    else if (call.muted) label = t("view.muted");
+    else if (pushToTalk) label = t("controls.hold");
+    else label = t("state.listening");
+  } else if (view === "tool" && call.tool !== null) label = toolCaption(call.tool, tTools);
+  else label = t(`state.${view}`, { agent: agentName });
 
+  const timed = call.startedAt !== null && call.capSeconds !== null;
   return (
-    <div className="space-y-1 text-sm">
-      <p className="font-medium">{t(`state.${view}`, { agent: agentName })}</p>
-      {timed && (
-        <p className="text-muted-foreground font-mono text-xs tabular-nums">
-          {clock((now - (call.startedAt as number)) / 1000)} / {clock(call.capSeconds as number)}
-        </p>
-      )}
-      {call.minutesLeft !== null && (
-        <p className="text-muted-foreground text-xs">
-          {t("minutesLeft", { minutes: call.minutesLeft })}
-        </p>
-      )}
-      <div role="alert" aria-live="assertive" className="text-xs empty:hidden">
-        {running && call.warningSecondsLeft !== null && (
+    <div className="flex min-w-0 flex-col gap-0.5">
+      <p
+        className={cn(
+          "truncate text-sm font-semibold",
+          WORKING.has(view) && !ending && "voice-call-shimmer",
+        )}
+      >
+        {label}
+      </p>
+      <p className="text-muted-foreground truncate text-xs">
+        {!timed ? (
+          t("view.settingUp")
+        ) : (
+          <>
+            <span className="text-foreground font-mono tabular-nums">
+              {clock((now - (call.startedAt as number)) / 1000)}
+            </span>
+            <span
+              className={cn(
+                "font-mono tabular-nums",
+                call.warningSecondsLeft !== null && "text-warning font-semibold",
+              )}
+            >
+              {" / "}
+              {clock(call.capSeconds as number)}
+            </span>
+            {view === "tool" && call.tool !== null ? (
+              <span className="font-mono"> · {call.tool}</span>
+            ) : (
+              call.minutesLeft !== null && (
+                <span className="hidden @md:inline">
+                  {" · "}
+                  {t("minutesLeft", { minutes: call.minutesLeft })}
+                </span>
+              )
+            )}
+          </>
+        )}
+      </p>
+      <div role="alert" aria-live="assertive" className="sr-only">
+        {call.approval && (
+          <p>
+            {t("view.announceApproval", {
+              tool: toolDisplayName(call.approval.tool, tTools),
+              seconds: call.approval.timeoutSeconds,
+            })}
+          </p>
+        )}
+        {call.warningSecondsLeft !== null && (
           <p>{t("notice.limitWarning", { seconds: call.warningSecondsLeft })}</p>
         )}
-        {running && noticeKey && <p>{t(`notice.${noticeKey}`)}</p>}
-        {alert && <p>{alert}</p>}
+        {noticeKey && <p>{t(`notice.${noticeKey}`)}</p>}
       </div>
-      {canCallAgain && (
-        <Button type="button" variant="secondary" size="sm" onClick={onCallAgain}>
-          {t("callAgain")}
-        </Button>
-      )}
     </div>
   );
 }

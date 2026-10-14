@@ -101,6 +101,10 @@ class FakePc {
   static last = () => FakePc.instances[FakePc.instances.length - 1]!;
 
   ontrack: ((event: { streams: MediaStream[] }) => void) | null = null;
+  onconnectionstatechange: (() => void) | null = null;
+  oniceconnectionstatechange: (() => void) | null = null;
+  connectionState = "new";
+  iceConnectionState = "new";
   localDescription: { sdp: string } | null = null;
   addTrack = vi.fn();
   createDataChannel = vi.fn();
@@ -361,6 +365,95 @@ describe("useVoiceSession", () => {
     expect(micTrack.stop).toHaveBeenCalled();
     await act(() => vi.advanceTimersByTimeAsync(RESUME_WINDOW_MS));
     expect(FakeSocket.instances).toHaveLength(2);
+  });
+
+  it("tells the server a muted caller is still muted once the call resumes", async () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() => useVoiceSession(), { wrapper });
+    await act(() =>
+      result.current.start({
+        kind: "console",
+        agentId: "a1",
+        conversationId: null,
+        transport: "webrtc",
+      }),
+    );
+    const first = FakeSocket.last();
+    act(() => {
+      first.open();
+      first.receive(READY);
+    });
+    // A fresh call's ready re-sends nothing: nobody muted it yet.
+    expect(first.sent.filter((frame) => (frame as { type: string }).type === "mute")).toEqual([]);
+    act(() => result.current.setMuted(true));
+    act(() => first.drop());
+    await act(() => vi.advanceTimersByTimeAsync(RECONNECT_DELAY_MS));
+    const second = FakeSocket.last();
+    act(() => {
+      second.open();
+      second.receive({ ...READY, call_id: "c2" });
+    });
+    expect(second.sent.at(-1)).toEqual({ type: "mute", muted: true });
+    expect(result.current.call.muted).toBe(true);
+    expect(micTrack.enabled).toBe(false);
+  });
+
+  it.each(["connectionState", "iceConnectionState"] as const)(
+    "ends a call whose audio cannot get through (%s failed), closing everything",
+    async (field) => {
+      const { result } = renderHook(() => useVoiceSession(), { wrapper });
+      await act(() =>
+        result.current.start({
+          kind: "console",
+          agentId: "a1",
+          conversationId: null,
+          transport: "webrtc",
+        }),
+      );
+      const socket = FakeSocket.last();
+      const pc = FakePc.last();
+      act(() => {
+        socket.open();
+        socket.receive(READY);
+      });
+      // A state that is not a failure changes nothing.
+      pc[field] = "disconnected";
+      act(() => pc.onconnectionstatechange?.());
+      expect(result.current.call.phase).toBe("live");
+
+      pc[field] = "failed";
+      act(() =>
+        field === "connectionState"
+          ? pc.onconnectionstatechange?.()
+          : pc.oniceconnectionstatechange?.(),
+      );
+      expect(viewState(result.current.call)).toBe("connfailed");
+      expect(result.current.call.startedAt).not.toBeNull();
+      expect(socket.close).toHaveBeenCalled();
+      expect(pc.close).toHaveBeenCalled();
+      expect(micTrack.stop).toHaveBeenCalled();
+      // Nothing the socket says afterwards brings the call back.
+      act(() => socket.receive({ type: "state", state: "listening" }));
+      expect(result.current.call.phase).toBe("ended");
+    },
+  );
+
+  it("ignores a failure reported by a peer connection the call has already let go", async () => {
+    const { result } = renderHook(() => useVoiceSession(), { wrapper });
+    await act(() =>
+      result.current.start({
+        kind: "console",
+        agentId: "a1",
+        conversationId: null,
+        transport: "webrtc",
+      }),
+    );
+    const pc = FakePc.last();
+    act(() => FakeSocket.last().open());
+    act(() => result.current.end());
+    pc.connectionState = "failed";
+    act(() => pc.onconnectionstatechange?.());
+    expect(result.current.call.failure).toBeNull();
   });
 
   it("keeps trying the resumed socket until the window closes, then says the call dropped", async () => {
@@ -834,6 +927,56 @@ describe("useVoiceSession", () => {
       await Promise.resolve();
     });
     expect(viewState(result.current.call)).toBe("ended");
+  });
+
+  it("forgets an ended call on dismiss, but never a live one", async () => {
+    const { result } = renderHook(() => useVoiceSession(), { wrapper });
+    await act(() =>
+      result.current.start({
+        kind: "console",
+        agentId: "a1",
+        conversationId: null,
+        transport: "webrtc",
+      }),
+    );
+    act(() => FakeSocket.last().open());
+    act(() => result.current.dismiss());
+    expect(result.current.call.phase).toBe("connecting");
+    act(() => result.current.end());
+    expect(result.current.call.phase).toBe("ended");
+    act(() => result.current.dismiss());
+    expect(result.current.call.phase).toBe("idle");
+  });
+
+  it("lets go of the peer connection and the microphone as soon as the server ends the call", async () => {
+    const onTurnSaved = vi.fn();
+    const { result } = renderHook(() => useVoiceSession({ onTurnSaved }), { wrapper });
+    await act(() =>
+      result.current.start({
+        kind: "console",
+        agentId: "a1",
+        conversationId: null,
+        transport: "webrtc",
+      }),
+    );
+    const socket = FakeSocket.last();
+    act(() => {
+      socket.open();
+      socket.receive(READY);
+      socket.receive({ type: "ended", reason: "time_limit" });
+    });
+    expect(FakePc.last().close).toHaveBeenCalled();
+    expect(micTrack.stop).toHaveBeenCalled();
+    expect(result.current.localStream).toBeNull();
+    // The socket stays open for the turns saved on the way out.
+    expect(socket.close).not.toHaveBeenCalled();
+    act(() =>
+      socket.receive({
+        type: "turn_saved",
+        message: { id: "m", role: "assistant", content: "Bye.", interrupted: false, turn_id: "t" },
+      }),
+    );
+    expect(onTurnSaved).toHaveBeenCalledOnce();
   });
 
   it("does nothing on end when no call is in progress", () => {

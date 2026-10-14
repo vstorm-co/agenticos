@@ -372,14 +372,6 @@
       "start": "Rozpocznij rozmowę głosową",
       "canSetUp": "Możesz to skonfigurować w ustawieniach głosu.",
       "unavailable": {
-        "orgOff": {
-          "title": "Rozmowy głosowe są wyłączone w tej organizacji",
-          "body": "Administrator włącza je w ustawieniach głosu organizacji."
-        },
-        "notInChat": {
-          "title": "Rozmowy głosowe są wyłączone w czacie",
-          "body": "Ta organizacja oferuje rozmowy tylko w widżecie lub na stronie hostowanej."
-        },
         "noVoice": {
           "title": "Ten agent nie ma skonfigurowanego głosu",
           "body": "Jego karta Głos nie ma modelu do rozmów głosowych."
@@ -396,10 +388,6 @@
           "title": "W tym miesiącu nie zostały żadne minuty rozmów",
           "body": "Administrator może zwiększyć miesięczny limit minut."
         },
-        "checking": {
-          "title": "Sprawdzanie, czy ten agent może odebrać rozmowę",
-          "body": "To potrwa chwilę."
-        },
         "unchecked": {
           "title": "Nie udało się sprawdzić, czy ten agent może odebrać rozmowę",
           "body": "Odśwież stronę, aby spróbować ponownie."
@@ -409,12 +397,22 @@
         "title": "Zatwierdzić {tool}?",
         "youSaid": "Twoje słowa: <q>{said}</q>",
         "countdown": "Czas na decyzję",
-        "deniedIn": "{seconds, plural, one {Automatyczna odmowa za # s} few {Automatyczna odmowa za # s} many {Automatyczna odmowa za # s} other {Automatyczna odmowa za # s}}",
         "approve": "Zatwierdź",
         "deny": "Odrzuć",
-        "notByVoice": "Powiedzenie „tak” niczego nie zatwierdza.",
+        "notByVoice": "Decydują tylko te przyciski. Powiedzenie agentowi „tak” niczego nie zatwierdza.",
         "unavailable": "{tool} wymaga zatwierdzenia, którego nie możesz udzielić głosem. Zapytaj w czacie tekstowym, gdzie prośba może poczekać na kogoś, kto może ją zatwierdzić.",
-        "dismiss": "Zamknij"
+        "needed": "Wymagane zatwierdzenie",
+        "autoDeny": "Automatyczna odmowa za {time}",
+        "misheard": "Mowa może zostać źle usłyszana. Sprawdź każde imię i każdą liczbę, zanim zatwierdzisz.",
+        "exactJson": "Dokładny JSON przekazany narzędziu",
+        "outcome": {
+          "approved": "Zatwierdzone przez Ciebie",
+          "denied": "Odrzucone przez Ciebie",
+          "expired": "{seconds, plural, one {Odrzucone automatycznie: brak decyzji w ciągu # sekundy} few {Odrzucone automatycznie: brak decyzji w ciągu # sekund} many {Odrzucone automatycznie: brak decyzji w ciągu # sekund} other {Odrzucone automatycznie: brak decyzji w ciągu # sekundy}}"
+        },
+        "unavailableTitle": "Wymaga zatwierdzenia, którego nie możesz tu udzielić",
+        "keepTalking": "Rozmawiaj dalej",
+        "continueInText": "Zakończ rozmowę, kontynuuj tekstem"
       },
       "captions": {
         "you": "Ty: {text}",
@@ -425,7 +423,8 @@
         "unmute": "Wyłącz wyciszenie",
         "hold": "Przytrzymaj, aby mówić",
         "pushToTalk": "Naciśnij, aby mówić",
-        "end": "Zakończ rozmowę"
+        "end": "Zakończ rozmowę",
+        "endShort": "Zakończ"
       },
       "state": {
         "connecting": "Łączenie…",
@@ -472,12 +471,56 @@
         "generic": "Rozmowa została zakończona"
       },
       "failure": {
-        "micInsecure": "Ta strona nie może używać mikrofonu. Otwórz ją przez HTTPS.",
-        "micDenied": "Zezwól tej stronie na mikrofon w przeglądarce, a potem zadzwoń ponownie.",
-        "micNotFound": "Nie znaleziono mikrofonu. Podłącz go, a potem zadzwoń ponownie.",
-        "micBusy": "Nie udało się uruchomić mikrofonu. Może używa go inna aplikacja.",
-        "connectionFailed": "Sprawdź połączenie, a potem zadzwoń ponownie.",
-        "dropped": "Połączenie zostało przerwane i nie udało się go przywrócić."
+        "micInsecure": "<strong>Ta strona nie może używać mikrofonu.</strong> Przeglądarki otwierają mikrofon tylko przez HTTPS albo na localhost. Poproś administratora, aby udostępnił konsolę przez HTTPS.",
+        "micDenied": "<strong>Mikrofon jest zablokowany dla tej strony.</strong> Kliknij ikonę po lewej stronie paska adresu, ustaw Mikrofon na Zezwalaj i spróbuj ponownie. Nic nie zostało nagrane i nie zużyto żadnych minut.",
+        "micNotFound": "<strong>Nie znaleziono mikrofonu.</strong> Podłącz go albo sprawdź, czy system pozwala przeglądarce z niego korzystać, a potem spróbuj ponownie.",
+        "micBusy": "<strong>Mikrofon się nie uruchomił.</strong> Może używa go inna aplikacja. Zamknij ją albo sprawdź ustawienia mikrofonu w systemie, a potem spróbuj ponownie.",
+        "connectionFailed": "<strong>Nie udało się połączyć.</strong> Nie zużyto żadnych minut. Sprawdź połączenie i spróbuj ponownie.",
+        "dropped": "Połączenie zostało przerwane i nie udało się go przywrócić. Wszystko, co zostało powiedziane do tej chwili, jest zapisane powyżej."
+      },
+      "view": {
+        "bar": "Rozmowa głosowa",
+        "live": "Na żywo",
+        "voice": "Głos",
+        "interrupted": "Przerwano",
+        "interruptedTitle": "Przycięte mniej więcej do tego, co było słychać",
+        "you": "Ty",
+        "micOff": "Mikrofon wyłączony",
+        "muted": "Wyciszono",
+        "talking": "Mówisz · puść, aby wysłać",
+        "settingUp": "Nawiązywanie bezpiecznego połączenia",
+        "announceApproval": "{seconds, plural, one {Wymagane zatwierdzenie dla {tool}. Zatwierdź albo odrzuć na ekranie. Automatyczna odmowa za # sekundę.} few {Wymagane zatwierdzenie dla {tool}. Zatwierdź albo odrzuć na ekranie. Automatyczna odmowa za # sekundy.} many {Wymagane zatwierdzenie dla {tool}. Zatwierdź albo odrzuć na ekranie. Automatyczna odmowa za # sekund.} other {Wymagane zatwierdzenie dla {tool}. Zatwierdź albo odrzuć na ekranie. Automatyczna odmowa za # sekundy.}}",
+        "ending": {
+          "timeLimit": "Kończenie: osiągnięto limit czasu",
+          "budget": "Kończenie: budżet się wyczerpał",
+          "minutes": "Kończenie: minuty na ten miesiąc się skończyły"
+        },
+        "strip": {
+          "allowMic": "<strong>Zezwól na mikrofon</strong> w oknie przeglądarki. Rozmowa zacznie się, gdy będzie włączony.",
+          "reconnecting": "<strong>Ponowne łączenie…</strong> Połączenie zostało przerwane; rozmowa wróci tam, gdzie się zatrzymała.",
+          "approval": "<strong>Zatwierdź albo odrzuć prośbę powyżej.</strong> Automatyczna odmowa za {time}.",
+          "showCard": "Pokaż kartę",
+          "noApproval": "<strong>{tool} wymaga zatwierdzenia, którego nie możesz tu udzielić.</strong> Karta powyżej wyjaśnia, co możesz zrobić.",
+          "ending": {
+            "timeLimit": "<strong>Osiągnięto limit czasu.</strong> Agent to mówi, a potem rozmowa się kończy.",
+            "budget": "<strong>Budżet się wyczerpał.</strong> Agent to mówi, a potem rozmowa się kończy.",
+            "minutes": "<strong>Minuty rozmów na ten miesiąc się skończyły.</strong> Agent to mówi, a potem rozmowa się kończy."
+          },
+          "limitWarning": "<strong>Do końca rozmowy zostało {remaining}.</strong> Po {limit} agent to powie i się rozłączy. Potem możesz zacząć nową rozmowę.",
+          "pushToTalk": "<strong>Tryb „naciśnij, aby mówić” jest włączony.</strong> Przytrzymaj <kbd>Space</kbd> albo przycisk, gdy mówisz; puść, aby wysłać."
+        },
+        "refused": "<strong>Rozmowa się nie rozpoczęła.</strong> {reason}",
+        "tryAgain": "Spróbuj ponownie",
+        "dismiss": "Zamknij",
+        "summary": {
+          "ended": "Rozmowa głosowa zakończona · {duration}",
+          "timeLimit": "{minutes, plural, one {Rozmowa zakończona po osiągnięciu limitu # minuty} few {Rozmowa zakończona po osiągnięciu limitu # minut} many {Rozmowa zakończona po osiągnięciu limitu # minut} other {Rozmowa zakończona po osiągnięciu limitu # minuty}}",
+          "turns": "{count, plural, =0 {Nie zapisano żadnej wypowiedzi. Pisz dalej albo zadzwoń ponownie.} one {Zapisano # wypowiedź jako wiadomość. Pisz dalej albo zadzwoń ponownie.} few {Zapisano # wypowiedzi jako wiadomości. Pisz dalej albo zadzwoń ponownie.} many {Zapisano # wypowiedzi jako wiadomości. Pisz dalej albo zadzwoń ponownie.} other {Zapisano # wypowiedzi jako wiadomości. Pisz dalej albo zadzwoń ponownie.}}",
+          "limitBody": "Agent {agent} powiedział o tym przed rozłączeniem. Każda wypowiedź jest zapisana powyżej.",
+          "minutesLeft": "{minutes, plural, one {Twojej organizacji została w tym miesiącu # minuta rozmów.} few {Twojej organizacji zostały w tym miesiącu # minuty rozmów.} many {Twojej organizacji zostało w tym miesiącu # minut rozmów.} other {Twojej organizacji zostało w tym miesiącu # minuty rozmów.}}",
+          "newCall": "Zacznij nową rozmowę"
+        },
+        "mediaFailed": "<strong>Dźwięk rozmowy nie mógł się przedostać,</strong> więc rozmowa została zakończona. Twoja sieć może go blokować. Wszystko, co zostało powiedziane do tej chwili, jest zapisane powyżej."
       }
     }
   },
@@ -1827,6 +1870,10 @@
       "chat-model-picker": {
         "title": "Dostrój model",
         "body": "Wybierz, który z modeli organizacji odpowiada — tylko dla tej rozmowy, bez zmiany agenta."
+      },
+      "chat-voice-call": {
+        "title": "Porozmawiaj z agentem",
+        "body": "Rozpocznij rozmowę głosową. Agent odpowiada na głos, używa swoich narzędzi i pyta Cię, zanim coś zrobi; każda wypowiedź zostaje tu zapisana jako tekst."
       },
       "chat-start": {
         "title": "Rozmawiaj ze swoimi agentami",

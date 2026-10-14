@@ -40,6 +40,12 @@ export interface PendingVoiceApproval {
   timeoutSeconds: number;
 }
 
+/** An approval the call has settled, kept on screen as the record until the next turn lands. */
+export interface SettledVoiceApproval {
+  approval: PendingVoiceApproval;
+  outcome: "approved" | "denied" | "expired";
+}
+
 export interface CallState {
   phase: "idle" | "connecting" | "live" | "reconnecting" | "ended";
   activity: VoiceActivity;
@@ -52,8 +58,11 @@ export interface CallState {
   /** When the first connection of the call went live; a reconnect keeps it. */
   startedAt: number | null;
   warningSecondsLeft: number | null;
+  /** When the warning arrived, in this page's clock (ms), so its countdown runs from it. */
+  warningAt: number | null;
   captions: Caption[];
   approval: PendingVoiceApproval | null;
+  settled: SettledVoiceApproval | null;
   approvalUnavailable: { tool: string; args: Record<string, unknown> } | null;
   tool: string | null;
   notice: string | null;
@@ -61,6 +70,10 @@ export interface CallState {
   endMessage: string | null;
   failure: MicFailure | "connection_failed" | null;
   muted: boolean;
+  /** Turns saved as messages over the whole call, reconnects included. */
+  savedTurns: number;
+  /** When the call ended, in this page's clock (ms). */
+  endedAt: number | null;
 }
 
 export type CallAction =
@@ -68,6 +81,7 @@ export type CallAction =
   | { type: "frame"; frame: VoiceServerFrame; now: number }
   | { type: "mic_failed"; failure: MicFailure }
   | { type: "socket_lost"; willRetry: boolean }
+  | { type: "media_failed"; now: number }
   | { type: "muted"; muted: boolean }
   | { type: "dismiss_unavailable" }
   | { type: "reset" };
@@ -91,8 +105,10 @@ export const initialCall: CallState = {
   minutesLeft: null,
   startedAt: null,
   warningSecondsLeft: null,
+  warningAt: null,
   captions: [],
   approval: null,
+  settled: null,
   approvalUnavailable: null,
   tool: null,
   notice: null,
@@ -100,6 +116,8 @@ export const initialCall: CallState = {
   endMessage: null,
   failure: null,
   muted: false,
+  savedTurns: 0,
+  endedAt: null,
 };
 
 function onFrame(state: CallState, frame: VoiceServerFrame, now: number): CallState {
@@ -127,7 +145,13 @@ function onFrame(state: CallState, frame: VoiceServerFrame, now: number): CallSt
     case "caption":
       return { ...state, captions: applyCaption(state.captions, frame) };
     case "turn_saved":
-      return { ...state, captions: applySavedTurn(state.captions, frame.message) };
+      // The settled card was the record until the transcript could hold it.
+      return {
+        ...state,
+        captions: applySavedTurn(state.captions, frame.message),
+        savedTurns: state.savedTurns + 1,
+        settled: null,
+      };
     case "tool":
       return { ...state, tool: frame.status === "running" ? frame.name : null };
     case "approval_required":
@@ -146,18 +170,26 @@ function onFrame(state: CallState, frame: VoiceServerFrame, now: number): CallSt
     case "approval_unavailable":
       return { ...state, approvalUnavailable: { tool: frame.tool, args: frame.args } };
     case "approval_settled":
-      return state.approval?.id === frame.id ? { ...state, approval: null } : state;
+      return state.approval?.id === frame.id
+        ? {
+            ...state,
+            approval: null,
+            settled: { approval: state.approval, outcome: frame.outcome },
+          }
+        : state;
     case "notice":
       return { ...state, notice: frame.kind };
     case "limit":
-      return { ...state, warningSecondsLeft: frame.seconds_left };
+      return { ...state, warningSecondsLeft: frame.seconds_left, warningAt: now };
     case "ended":
       return {
         ...state,
         phase: "ended",
         endReason: frame.reason,
         endMessage: frame.message ?? null,
+        endedAt: state.endedAt ?? now,
         approval: null,
+        settled: null,
       };
     default:
       // `answer` and `clear_playback` are the media's.
@@ -188,6 +220,17 @@ export function callReducer(state: CallState, action: CallAction): CallState {
         phase: "ended",
         failure: state.phase === "connecting" ? "connection_failed" : null,
         endReason: state.phase === "connecting" ? null : "disconnected",
+      };
+    case "media_failed":
+      // The peer connection itself failed - a network that lets the socket
+      // through but blocks the audio. The call is over, whatever the socket says.
+      return {
+        ...state,
+        phase: "ended",
+        failure: "connection_failed",
+        endedAt: state.endedAt ?? action.now,
+        approval: null,
+        settled: null,
       };
     case "muted":
       return { ...state, muted: action.muted };

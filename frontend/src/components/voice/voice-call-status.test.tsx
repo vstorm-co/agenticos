@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
 
 import { initialCall, type CallState } from "@/lib/voice/call-reducer";
 
@@ -15,9 +15,15 @@ const LIVE: CallState = {
   callId: "c1",
 };
 
-function show(call: CallState, now = 1, onCallAgain = vi.fn()) {
+function show(call: CallState, now = 1, { pushToTalk = false, holding = false } = {}) {
   return render(
-    <VoiceCallStatus call={call} now={now} agentName="Support" onCallAgain={onCallAgain} />,
+    <VoiceCallStatus
+      call={call}
+      now={now}
+      agentName="Support"
+      pushToTalk={pushToTalk}
+      holding={holding}
+    />,
   );
 }
 
@@ -25,8 +31,9 @@ describe("VoiceCallStatus", () => {
   it("shows the state, the elapsed time against the cap and the minutes left", () => {
     show(LIVE, 65_000);
     expect(screen.getByText("Listening")).toBeInTheDocument();
-    expect(screen.getByText("1:05 / 10:00")).toBeInTheDocument();
-    expect(screen.getByText("540 min left this month")).toBeInTheDocument();
+    expect(screen.getByText("1:05")).toBeInTheDocument();
+    expect(screen.getByText(/\/ 10:00/)).toBeInTheDocument();
+    expect(screen.getByText(/540 min left this month/)).toBeInTheDocument();
   });
 
   it("says nothing of minutes where only the budgets bound calls", () => {
@@ -39,27 +46,55 @@ describe("VoiceCallStatus", () => {
     expect(screen.getByText("Support is speaking")).toBeInTheDocument();
   });
 
-  it("shows no clock before the call is live", () => {
+  it("says it is setting up before the call is live, with a working shimmer", () => {
     show({ ...initialCall, phase: "connecting" });
-    expect(screen.getByText("Connecting…")).toBeInTheDocument();
-    expect(screen.queryByText(/\//)).toBeNull();
+    expect(screen.getByText("Connecting…")).toHaveClass("voice-call-shimmer");
+    expect(screen.getByText("Setting up a secure connection")).toBeInTheDocument();
   });
 
-  it("announces a limit warning assertively", () => {
+  it.each([
+    [{ holding: true }, false, "Talking · release to send"],
+    [{}, true, "Muted"],
+    [{ holding: true }, true, "Muted"],
+    [{ pushToTalk: true }, false, "Hold to talk"],
+  ])(
+    "tells a closed or held microphone apart while listening (%o, muted %s)",
+    (opts, muted, label) => {
+      show({ ...LIVE, muted }, 1, opts);
+      expect(screen.getByText(label)).toBeInTheDocument();
+    },
+  );
+
+  it("names the tool that is running, and its id in place of the minutes", () => {
+    show({ ...LIVE, activity: "tool_running", tool: "web_search" });
+    expect(screen.getByText("Searching the web")).toHaveClass("voice-call-shimmer");
+    expect(screen.getByText(/web_search/)).toBeInTheDocument();
+    expect(screen.queryByText(/left this month/)).toBeNull();
+  });
+
+  it("says a tool is working before it knows which", () => {
+    show({ ...LIVE, activity: "tool_running" });
+    expect(screen.getByText("Working…")).toBeInTheDocument();
+  });
+
+  it("warns near the limit, in the time and assertively", () => {
     show({ ...LIVE, warningSecondsLeft: 60 }, 540_000);
-    expect(screen.getByText("Almost out of time")).toBeInTheDocument();
+    expect(screen.getByText("Listening")).toBeInTheDocument();
+    expect(screen.getByText(/\/ 10:00/)).toHaveClass("text-warning");
     expect(screen.getByRole("alert")).toHaveTextContent("1 minute left in this call");
   });
 
-  it("counts a warning in seconds when it is not a whole minute", () => {
-    show({ ...LIVE, warningSecondsLeft: 30 });
-    expect(screen.getByRole("alert")).toHaveTextContent("30 seconds left in this call");
+  it("says the call is ending when a limit stops it, and why", () => {
+    show({ ...LIVE, activity: "agent_speaking", notice: "time_limit" });
+    expect(screen.getByText("Ending: time limit reached")).not.toHaveClass("voice-call-shimmer");
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "This call has reached its time limit. The call is ending.",
+    );
   });
 
   it.each([
     ["guardrail", "A guardrail cut the agent off."],
     ["provider_error", "The voice provider reported an error."],
-    ["budget", "The budget has run out. The call is ending."],
   ])("says what a %s notice means", (kind, text) => {
     show({ ...LIVE, notice: kind });
     expect(screen.getByRole("alert")).toHaveTextContent(text);
@@ -70,46 +105,22 @@ describe("VoiceCallStatus", () => {
     expect(screen.getByRole("alert")).toBeEmptyDOMElement();
   });
 
-  it("offers Call again after a drop", () => {
-    const onCallAgain = vi.fn();
-    show({ ...LIVE, phase: "ended", endReason: "disconnected" }, 1, onCallAgain);
-    expect(screen.getByText("Call dropped")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Call again" }));
-    expect(onCallAgain).toHaveBeenCalledOnce();
-  });
-
-  it("names the limit that ended a call", () => {
-    show({ ...LIVE, phase: "ended", endReason: "budget" });
-    expect(screen.getByText("Call ended by a limit")).toBeInTheDocument();
-    expect(screen.getByText("The call ended: the budget ran out")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Call again" })).toBeNull();
-  });
-
-  it.each([
-    ["minutes_exhausted", "The call ended: this month's call minutes are used up"],
-    ["no_agent", "This agent can't take your call"],
-    ["busy", "You're already on a call"],
-    ["line_busy", "Too many calls are open here right now"],
-    ["user", "The call ended"],
-    ["reaped", "The call ended"],
-  ] as const)("says why a call ended (%s)", (reason, text) => {
-    show({ ...LIVE, phase: "ended", endReason: reason });
-    expect(screen.getByRole("alert")).toHaveTextContent(text);
-  });
-
-  it("tells a blocked microphone apart from a failed connection", () => {
-    const { rerender } = show({ ...initialCall, phase: "ended", failure: "mic_denied" });
-    expect(screen.getByText("The microphone is blocked")).toBeInTheDocument();
-    expect(screen.getByRole("alert")).toHaveTextContent("Allow the microphone for this site");
-    rerender(
-      <VoiceCallStatus
-        call={{ ...initialCall, phase: "ended", failure: "connection_failed" }}
-        now={1}
-        agentName="S"
-        onCallAgain={vi.fn()}
-      />,
+  it("announces an approval with how long it waits", () => {
+    show({
+      ...LIVE,
+      activity: "awaiting_approval",
+      approval: {
+        id: "a1",
+        tool: "send_invoice",
+        args: {},
+        said: null,
+        deadline: 60_000,
+        timeoutSeconds: 60,
+      },
+    });
+    expect(screen.getByText("Waiting for your approval")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Approval needed for Send Invoice. Approve or deny on screen. It is denied automatically in 60 seconds.",
     );
-    expect(screen.getByText("The call could not connect")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Call again" })).toBeInTheDocument();
   });
 });

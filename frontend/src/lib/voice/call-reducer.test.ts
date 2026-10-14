@@ -105,6 +105,48 @@ describe("callReducer", () => {
       frame: { type: "approval_settled", id: "a1", outcome: "denied" },
     });
     expect(settled.approval).toBeNull();
+    // Kept as the record of what was decided until the next turn lands.
+    expect(settled.settled).toEqual({ approval: asked.approval, outcome: "denied" });
+    const next = callReducer(settled, {
+      type: "frame",
+      now: 7000,
+      frame: {
+        type: "turn_saved",
+        message: { id: "m", role: "assistant", content: "Okay.", interrupted: false, turn_id: "t" },
+      },
+    });
+    expect(next.settled).toBeNull();
+    expect(next.savedTurns).toBe(1);
+  });
+
+  it("drops a pending and a settled approval when the call ends, and keeps the first end time", () => {
+    const asked = callReducer(live(), {
+      type: "frame",
+      now: 5000,
+      frame: {
+        type: "approval_required",
+        id: "a1",
+        tool: "send_invoice",
+        args: {},
+        said: null,
+        timeout_seconds: 60,
+      },
+    });
+    const ended = callReducer(asked, {
+      type: "frame",
+      now: 8000,
+      frame: { type: "ended", reason: "user" },
+    });
+    expect(ended.approval).toBeNull();
+    expect(ended.settled).toBeNull();
+    expect(ended.endedAt).toBe(8000);
+    // The server's own account of the end arrives after the button press.
+    const confirmed = callReducer(ended, {
+      type: "frame",
+      now: 9000,
+      frame: { type: "ended", reason: "user" },
+    });
+    expect(confirmed.endedAt).toBe(8000);
   });
 
   it("shows an approval this caller cannot give, until it is dismissed", () => {
@@ -163,6 +205,7 @@ describe("callReducer", () => {
       frame: { type: "limit", seconds_left: 60 },
     });
     expect(viewState(warned)).toBe("limitwarn");
+    expect(warned.warningAt).toBe(1);
     expect(
       viewState(
         callReducer(warned, { type: "frame", now: 1, frame: { type: "state", state: "thinking" } }),
@@ -245,6 +288,14 @@ describe("callReducer", () => {
       ...initialCall,
       phase: "connecting",
     });
+  });
+
+  it("ends a call whose audio failed as a failed connection, keeping when it ran", () => {
+    const failed = callReducer(live(), { type: "media_failed", now: 9000 });
+    expect(failed.phase).toBe("ended");
+    expect(failed.startedAt).toBe(1000);
+    expect(failed.endedAt).toBe(9000);
+    expect(viewState(failed)).toBe("connfailed");
   });
 
   it("forgets everything on reset", () => {

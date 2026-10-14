@@ -1393,14 +1393,6 @@
       "start": "Start a voice call",
       "canSetUp": "You can set this up in Voice settings.",
       "unavailable": {
-        "orgOff": {
-          "title": "Voice calls are off in this organization",
-          "body": "An admin turns them on in the organization's Voice settings."
-        },
-        "notInChat": {
-          "title": "Voice calls are off in chat",
-          "body": "This organization offers calls only on its widget or hosted page."
-        },
         "noVoice": {
           "title": "This agent has no voice set up",
           "body": "Its Voice card has no voice conversation model."
@@ -1417,10 +1409,6 @@
           "title": "No call minutes left this month",
           "body": "An admin can raise the monthly minutes."
         },
-        "checking": {
-          "title": "Checking whether this agent can take a call",
-          "body": "This takes a moment."
-        },
         "unchecked": {
           "title": "Could not check whether this agent can take a call",
           "body": "Reload the page to try again."
@@ -1430,12 +1418,22 @@
         "title": "Approve {tool}?",
         "youSaid": "You said: <q>{said}</q>",
         "countdown": "Time left to decide",
-        "deniedIn": "{seconds, plural, =1 {Denied automatically in 1 s} other {Denied automatically in # s}}",
         "approve": "Approve",
         "deny": "Deny",
-        "notByVoice": "Saying yes does not approve it.",
+        "notByVoice": "Only these buttons decide. Saying “yes” to the agent doesn't approve.",
         "unavailable": "{tool} needs an approval you cannot give by voice. Ask in text chat, where the request can wait for someone who can approve it.",
-        "dismiss": "Dismiss"
+        "needed": "Approval needed",
+        "autoDeny": "Auto-deny in {time}",
+        "misheard": "Speech can be misheard. Check every name and number before you approve.",
+        "exactJson": "Exact JSON sent to the tool",
+        "outcome": {
+          "approved": "Approved by you",
+          "denied": "Denied by you",
+          "expired": "{seconds, plural, =1 {Denied automatically: no decision within 1 second} other {Denied automatically: no decision within # seconds}}"
+        },
+        "unavailableTitle": "Needs an approval you can't give here",
+        "keepTalking": "Keep talking",
+        "continueInText": "End call, continue in text"
       },
       "captions": {
         "you": "You: {text}",
@@ -1446,7 +1444,8 @@
         "unmute": "Unmute",
         "hold": "Hold to talk",
         "pushToTalk": "Push to talk",
-        "end": "End call"
+        "end": "End call",
+        "endShort": "End"
       },
       "state": {
         "connecting": "Connecting…",
@@ -1493,12 +1492,56 @@
         "generic": "The call ended"
       },
       "failure": {
-        "micInsecure": "This page can't use a microphone. Open it over HTTPS.",
-        "micDenied": "Allow the microphone for this site in your browser, then call again.",
-        "micNotFound": "No microphone was found. Connect one, then call again.",
-        "micBusy": "The microphone could not start. Another app may be using it.",
-        "connectionFailed": "Check your connection, then call again.",
-        "dropped": "The connection was lost and could not be restored."
+        "micInsecure": "<strong>This page can't use the microphone.</strong> Browsers open the microphone only on HTTPS or on localhost. Ask your administrator to serve the console over HTTPS.",
+        "micDenied": "<strong>Microphone blocked for this site.</strong> Click the icon left of the address bar, set Microphone to Allow, then try again. Nothing was recorded and no minutes were used.",
+        "micNotFound": "<strong>No microphone found.</strong> Connect one, or check that your system lets the browser use it, then try again.",
+        "micBusy": "<strong>The microphone didn't start.</strong> Another app may be using it. Close it or check your system's microphone settings, then try again.",
+        "connectionFailed": "<strong>The call couldn't connect.</strong> No minutes were used. Check your connection, then try again.",
+        "dropped": "The connection was lost and could not be restored. Everything said until then is saved above."
+      },
+      "view": {
+        "bar": "Voice call",
+        "live": "Live",
+        "voice": "Voice",
+        "interrupted": "Interrupted",
+        "interruptedTitle": "Cut to roughly what was heard",
+        "you": "You",
+        "micOff": "Mic off",
+        "muted": "Muted",
+        "talking": "Talking · release to send",
+        "settingUp": "Setting up a secure connection",
+        "announceApproval": "{seconds, plural, =1 {Approval needed for {tool}. Approve or deny on screen. It is denied automatically in 1 second.} other {Approval needed for {tool}. Approve or deny on screen. It is denied automatically in # seconds.}}",
+        "ending": {
+          "timeLimit": "Ending: time limit reached",
+          "budget": "Ending: the budget ran out",
+          "minutes": "Ending: this month's minutes are used up"
+        },
+        "strip": {
+          "allowMic": "<strong>Allow the microphone</strong> in your browser's prompt. The call starts when it's on.",
+          "reconnecting": "<strong>Reconnecting…</strong> The connection dropped; the call picks up where it left off.",
+          "approval": "<strong>Approve or deny the request above.</strong> Denied automatically in {time}.",
+          "showCard": "Show card",
+          "noApproval": "<strong>{tool} needs an approval you can't give here.</strong> The card above explains what you can do.",
+          "ending": {
+            "timeLimit": "<strong>Time limit reached.</strong> The agent is saying so, then the call ends.",
+            "budget": "<strong>The budget has run out.</strong> The agent is saying so, then the call ends.",
+            "minutes": "<strong>This month's call minutes are used up.</strong> The agent is saying so, then the call ends."
+          },
+          "limitWarning": "<strong>{remaining} left in this call.</strong> At {limit} the agent says so and hangs up. You can start a new call after.",
+          "pushToTalk": "<strong>Push to talk is on.</strong> Hold <kbd>Space</kbd> or the button while you speak; let go to send."
+        },
+        "refused": "<strong>The call didn't start.</strong> {reason}",
+        "tryAgain": "Try again",
+        "dismiss": "Dismiss",
+        "summary": {
+          "ended": "Voice call ended · {duration}",
+          "timeLimit": "{minutes, plural, =1 {Call ended at the 1-minute limit} other {Call ended at the #-minute limit}}",
+          "turns": "{count, plural, =0 {No turns were saved. Keep going by typing, or call again.} =1 {1 turn saved as a message. Keep going by typing, or call again.} other {# turns saved as messages. Keep going by typing, or call again.}}",
+          "limitBody": "{agent} said so before hanging up. Every turn is saved above.",
+          "minutesLeft": "{minutes, plural, =1 {Your organization has 1 voice minute left this month.} other {Your organization has # voice minutes left this month.}}",
+          "newCall": "Start a new call"
+        },
+        "mediaFailed": "<strong>The call's audio couldn't get through,</strong> so the call has ended. Your network may block it. Everything said until then is saved above."
       }
     }
   },
@@ -3218,6 +3261,10 @@
       "chat-model-picker": {
         "title": "Tune the model",
         "body": "Pick which of the organization's models answers — just for this conversation, without changing the agent."
+      },
+      "chat-voice-call": {
+        "title": "Talk to the agent",
+        "body": "Start a voice call. The agent answers aloud, uses its tools, and asks you before acting; every turn is saved here as text."
       },
       "chat-plan": {
         "title": "What it is working to",

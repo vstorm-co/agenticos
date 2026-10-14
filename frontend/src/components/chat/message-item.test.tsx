@@ -129,10 +129,26 @@ describe("a turn in the transcript", () => {
     expect(screen.getByText("stopped")).toBeVisible();
   });
 
+  it("marks a turn spoken in a call, and an answer the caller talked over", () => {
+    item({
+      role: "assistant",
+      content: "Tomorrow in Warsaw",
+      turnId: "c1:2:assistant",
+      interrupted: true,
+    });
+
+    expect(screen.getByText("Voice")).toBeVisible();
+    expect(screen.getByText("Interrupted")).toHaveAttribute(
+      "title",
+      "Cut to roughly what was heard",
+    );
+  });
+
   it("says nothing about a turn that finished", () => {
     item({ role: "assistant", content: "Refunds run to thirty days." });
 
     expect(screen.queryByText("stopped")).toBeNull();
+    expect(screen.queryByText("Voice")).toBeNull();
   });
 
   it("marks a stopped ask-only turn, whose only body is the answered question", () => {

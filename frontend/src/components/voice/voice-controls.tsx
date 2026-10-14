@@ -1,39 +1,51 @@
 "use client";
 
-import { Mic, MicOff, PhoneOff } from "lucide-react";
+import { Hand, Mic, MicOff, PhoneOff } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useRef } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
+import { cn } from "@/lib/utils";
 
-/** Whether a key press belongs to a field somebody is typing in. */
-function typing(target: EventTarget | null): boolean {
-  return (
-    target instanceof HTMLElement &&
-    (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))
-  );
+/** The controls Space already means something to - pressing a button, typing in a field. */
+const SPACE_OWNERS =
+  "input,textarea,select,button,a,summary,[role=button],[role=switch],[role=checkbox]";
+
+/**
+ * Whether Space belongs to whatever has focus rather than to push to talk: a
+ * field somebody is typing in, or a control Space presses. Hold to talk is the
+ * exception - Space on it is what it is for.
+ */
+function ownsSpace(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable) return true;
+  const control = target.closest(SPACE_OWNERS);
+  return control !== null && !control.hasAttribute("data-voice-hold");
 }
 
 interface VoiceControlsProps {
   muted: boolean;
   pushToTalk: boolean;
-  disabled?: boolean;
+  /** Whether the microphone is held open right now, by the button or by Space. */
+  holding: boolean;
   onMutedChange: (muted: boolean) => void;
   onPushToTalkChange: (on: boolean) => void;
   onPress: (down: boolean) => void;
   onEnd: () => void;
 }
 
+const ICON = "h-9 w-9 shrink-0 pointer-coarse:h-11 pointer-coarse:w-11";
+
 /**
- * Mute, push-to-talk and End (#54). Hands-free is the default; push-to-talk is
+ * The call bar's controls (#54): push to talk, then Mute - or, with push to
+ * talk on, Hold to talk - then End. Hands-free is the default; push to talk is
  * a per-person preference (`useVoiceCallStore`) and works by holding the button
- * or Space - never while focus is in a text field.
+ * or Space, never while focus is in a text field. Only End ends a call.
  */
 export function VoiceControls({
   muted,
   pushToTalk,
-  disabled,
+  holding,
   onMutedChange,
   onPushToTalkChange,
   onPress,
@@ -47,7 +59,7 @@ export function VoiceControls({
   useEffect(() => {
     if (!pushToTalk) return;
     const down = (event: KeyboardEvent) => {
-      if (event.code !== "Space" || event.repeat || typing(event.target)) return;
+      if (event.code !== "Space" || event.repeat || ownsSpace(event.target)) return;
       event.preventDefault();
       spaceHeld.current = true;
       onPress(true);
@@ -64,6 +76,13 @@ export function VoiceControls({
     return () => {
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
+      // Push to talk switched off, or the call over, with the microphone held:
+      // let go, so it does not stay open with nothing left to release it.
+      if (spaceHeld.current || held.current) {
+        spaceHeld.current = false;
+        held.current = false;
+        onPress(false);
+      }
     };
   }, [pushToTalk, onPress]);
 
@@ -74,24 +93,25 @@ export function VoiceControls({
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex shrink-0 items-center gap-0.5 @xl:gap-1.5">
       <Button
         type="button"
         variant="ghost"
         size="icon"
-        disabled={disabled}
-        aria-pressed={muted}
-        aria-label={muted ? t("unmute") : t("mute")}
-        onClick={() => onMutedChange(!muted)}
-        className="h-11 w-11"
+        aria-pressed={pushToTalk}
+        aria-label={t("pushToTalk")}
+        title={t("pushToTalk")}
+        onClick={() => onPushToTalkChange(!pushToTalk)}
+        className={cn(ICON, pushToTalk && "bg-foreground text-background hover:bg-foreground/90")}
       >
-        {muted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+        <Hand className="h-4 w-4" />
       </Button>
-      {pushToTalk && (
+      {pushToTalk ? (
         <Button
           type="button"
-          variant="secondary"
-          disabled={disabled}
+          variant="outline"
+          aria-pressed={holding}
+          data-voice-hold
           onPointerDown={() => {
             held.current = true;
             onPress(true);
@@ -100,29 +120,44 @@ export function VoiceControls({
           onPointerLeave={release}
           onPointerCancel={release}
           onLostPointerCapture={release}
-          className="h-11 touch-none select-none"
+          className={cn(
+            "h-9 touch-none gap-2 px-3 select-none pointer-coarse:h-11",
+            holding && "bg-foreground text-background hover:bg-foreground motion-safe:scale-[0.97]",
+          )}
         >
-          {t("hold")}
+          <Mic className="h-4 w-4" aria-hidden />
+          <span className="sr-only @xl:not-sr-only">{t("hold")}</span>
+          <kbd
+            aria-hidden
+            className="hidden rounded border border-b-2 border-current/30 px-1 font-mono text-[10.5px] @xl:inline"
+          >
+            {/* i18n-exempt: the name printed on the key itself. */}
+            Space
+          </kbd>
+        </Button>
+      ) : (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-pressed={muted}
+          aria-label={muted ? t("unmute") : t("mute")}
+          title={muted ? t("unmute") : t("mute")}
+          onClick={() => onMutedChange(!muted)}
+          className={cn(ICON, muted && "bg-foreground text-background hover:bg-foreground/90")}
+        >
+          {muted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
         </Button>
       )}
-      <label className="flex items-center gap-1.5 text-xs">
-        <Switch
-          checked={pushToTalk}
-          onCheckedChange={onPushToTalkChange}
-          aria-label={t("pushToTalk")}
-          disabled={disabled}
-        />
-        {t("pushToTalk")}
-      </label>
       <Button
         type="button"
         variant="destructive"
-        size="icon"
         aria-label={t("end")}
         onClick={onEnd}
-        className="h-11 w-11"
+        className="h-9 w-9 gap-1.5 px-0 @xl:w-auto @xl:px-4 pointer-coarse:h-11 pointer-coarse:w-11"
       >
-        <PhoneOff className="h-5 w-5" />
+        <PhoneOff className="h-4 w-4" aria-hidden />
+        <span className="hidden @xl:inline">{t("endShort")}</span>
       </Button>
     </div>
   );

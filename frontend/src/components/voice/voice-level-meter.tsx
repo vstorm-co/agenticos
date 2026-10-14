@@ -44,7 +44,7 @@ export function VoiceLevelMeter({
           aria-hidden
           className={cn(
             "w-1 rounded-full",
-            tone === "agent" ? "bg-primary" : "bg-foreground",
+            tone === "agent" ? "voice-meter-agent" : "bg-foreground",
             index < step ? "opacity-100" : "opacity-20",
             !reduced && "transition-opacity duration-150",
           )}

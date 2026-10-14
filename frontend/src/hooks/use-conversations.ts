@@ -174,6 +174,8 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
   // the previous request - otherwise a slower earlier fetch could resolve last
   // and overwrite the messages of the conversation the user actually selected.
   const messagesAbortRef = useRef<AbortController | null>(null);
+  // Which re-read is the latest; an older one answering after it is dropped.
+  const rereadRef = useRef(0);
 
   /**
    * Whether the account the caller started as is still the one signed in.
@@ -393,6 +395,36 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
     [setCurrentConversationId, clearMessages, setCurrentMessages, setLoading, setError, t, tErrors],
   );
 
+  /**
+   * Read the open conversation's messages again in place - nothing cleared, no
+   * loading flag, so the transcript and its scroll stay put - for turns written
+   * while it is on screen: a voice call's, as each is saved (#54). An answer for
+   * a conversation no longer open, or older than the latest re-read, is dropped.
+   */
+  const rereadConversation = useCallback(
+    async (id: string) => {
+      const ticket = ++rereadRef.current;
+      const startedAs = useAuthStore.getState().user?.id;
+      let response: MessagesResponse;
+      try {
+        response = await apiClient.get<MessagesResponse>(`/conversations/${id}/messages`);
+      } catch {
+        // The turn is saved whatever this read did; the transcript keeps what it
+        // shows, and the next saved turn reads it again.
+        return;
+      }
+      if (
+        ticket !== rereadRef.current ||
+        useConversationStore.getState().currentConversationId !== id ||
+        !stillSameAccount(startedAs)
+      ) {
+        return;
+      }
+      setCurrentMessages(response.items, response.cost);
+    },
+    [setCurrentMessages],
+  );
+
   const archiveConversation = useCallback(
     async (id: string) => {
       try {
@@ -602,6 +634,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
     hasMore,
     createConversation,
     selectConversation,
+    rereadConversation,
     archiveConversation,
     unarchiveConversation,
     setFavourite,

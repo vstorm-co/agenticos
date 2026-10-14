@@ -1,13 +1,23 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { render, screen, within } from "@testing-library/react";
+import { beforeEach, describe, expect, it } from "vitest";
+
+import { useAuthStore } from "@/stores";
+import type { Agent } from "@/types/agents";
 
 import { VoiceCaptions } from "./voice-captions";
+
+const NONE: ReadonlySet<string> = new Set();
+
+beforeEach(() => {
+  useAuthStore.setState({ user: { id: "u-1", email: "k@example.test" } as never });
+});
 
 describe("VoiceCaptions", () => {
   it("shows the words to sighted readers and announces whole sentences to screen readers", () => {
     render(
       <VoiceCaptions
         agentName="Support"
+        hidden={NONE}
         captions={[
           { turnId: "t1", part: 0, role: "user", text: "Weather in Warsaw?", final: true },
           { turnId: "t2", part: 0, role: "assistant", text: "It is eigh", final: false },
@@ -23,10 +33,28 @@ describe("VoiceCaptions", () => {
     expect(live).not.toHaveTextContent("It is eigh");
   });
 
+  it("marks the message being spoken as live, and both as said by voice", () => {
+    render(
+      <VoiceCaptions
+        agentName="Support"
+        hidden={NONE}
+        captions={[
+          { turnId: "t1", part: 0, role: "user", text: "Weather?", final: true },
+          { turnId: "t2", part: 0, role: "assistant", text: "It is", final: false },
+        ]}
+      />,
+    );
+    const visible = screen.getByTestId("voice-captions-visible");
+    expect(within(visible).getAllByText("Live")).toHaveLength(1);
+    expect(within(visible).getAllByText("Voice")).toHaveLength(2);
+    expect(within(visible).getByText("Support")).toBeInTheDocument();
+  });
+
   it("names the agent when its line is finished", () => {
     render(
       <VoiceCaptions
         agentName="Support"
+        hidden={NONE}
         captions={[
           { turnId: "t2", part: 0, role: "assistant", text: "It is eight degrees.", final: true },
         ]}
@@ -36,21 +64,58 @@ describe("VoiceCaptions", () => {
   });
 
   it("announces nothing before a line is finished", () => {
-    render(<VoiceCaptions agentName="Support" captions={[]} />);
+    render(<VoiceCaptions agentName="Support" hidden={NONE} captions={[]} />);
     expect(screen.getByRole("status")).toBeEmptyDOMElement();
   });
 
-  it("shows each part of one answer as a line of its own", () => {
+  it("puts every part of one answer in one message, live until the last part is final", () => {
+    const agent = { id: "a-1", slug: "support", has_avatar: false } as Agent;
     render(
       <VoiceCaptions
         agentName="Support"
+        agent={agent}
+        hidden={NONE}
         captions={[
           { turnId: "a1", part: 0, role: "assistant", text: "Let me check.", final: true },
           { turnId: "a1", part: 1, role: "assistant", text: "Eight degrees.", final: false },
         ]}
       />,
     );
-    const lines = screen.getByTestId("voice-captions-visible").querySelectorAll("p");
-    expect([...lines].map((line) => line.textContent)).toEqual(["Let me check.", "Eight degrees."]);
+    const visible = screen.getByTestId("voice-captions-visible");
+    expect(visible).toHaveTextContent("Let me check. Eight degrees.");
+    expect(within(visible).getAllByText("Live")).toHaveLength(1);
+    expect(visible.querySelector(".voice-live-rule")).not.toBeNull();
+  });
+
+  it("marks nothing live once the call is over", () => {
+    render(
+      <VoiceCaptions
+        agentName="Support"
+        hidden={NONE}
+        speaking={false}
+        captions={[
+          { turnId: "a1", part: 0, role: "assistant", text: "Let me", final: false },
+          { turnId: "a1", part: 1, role: "assistant", text: "check", final: false },
+        ]}
+      />,
+    );
+    expect(screen.queryByText("Live")).toBeNull();
+  });
+
+  it("leaves out a turn the conversation already holds as a message", () => {
+    useAuthStore.setState({ user: null });
+    render(
+      <VoiceCaptions
+        agentName="Support"
+        hidden={new Set(["t1"])}
+        captions={[
+          { turnId: "t1", part: 0, role: "user", text: "Saved already.", final: true },
+          { turnId: "t2", part: 0, role: "user", text: "Still speaking", final: false },
+        ]}
+      />,
+    );
+    const visible = screen.getByTestId("voice-captions-visible");
+    expect(visible).not.toHaveTextContent("Saved already.");
+    expect(visible).toHaveTextContent("Still speaking");
   });
 });

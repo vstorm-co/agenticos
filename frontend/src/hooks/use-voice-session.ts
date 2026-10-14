@@ -84,6 +84,8 @@ export interface VoiceSession {
   pressToTalk: (down: boolean) => void;
   decide: (approvalId: string, approve: boolean) => void;
   dismissUnavailable: () => void;
+  /** Forget an ended call: its summary, or why it could not start. A live call is left alone. */
+  dismiss: () => void;
 }
 
 /**
@@ -190,6 +192,17 @@ export function useVoiceSession(
     closeAll();
   }, [closeAll]);
 
+  /**
+   * The peer connection failed - ICE found no path, as on a network that blocks
+   * UDP. The socket may still be open and the server still billing for a call
+   * nobody can hear, so the call ends here: closing the socket ends it there.
+   */
+  const mediaFailed = useCallback(() => {
+    liveRef.current = false;
+    dispatch({ type: "media_failed", now: Date.now() });
+    closeAll();
+  }, [closeAll]);
+
   /** Run the retry after `delay`, or as soon as the browser is back online. */
   const scheduleResume = useCallback(
     (attempt: Attempt, delay: number) => {
@@ -257,6 +270,14 @@ export function useVoiceSession(
         const mic = micRef.current as MediaStream;
         mic.getAudioTracks().forEach((track) => peer.addTrack(track, mic));
         peer.ontrack = (event) => setRemoteStream(event.streams[0] ?? null);
+        const watch = () => {
+          if (pcRef.current !== peer || !current(generation)) return;
+          if (peer.connectionState === "failed" || peer.iceConnectionState === "failed") {
+            mediaFailed();
+          }
+        };
+        peer.onconnectionstatechange = watch;
+        peer.oniceconnectionstatechange = watch;
         sdp = await audioOnlyOffer(peer);
         if (!current(generation)) {
           peer.close();
@@ -315,13 +336,28 @@ export function useVoiceSession(
           ready = true;
           if (relayed && relayRef.current === null && !startRelay(socket, frame)) return;
           callIdRef.current = frame.call_id;
+          // A resumed connection starts unmuted on the server; a caller who
+          // muted before the drop is still muted here.
+          if (mutedRef.current) {
+            socket.send(JSON.stringify({ type: "mute", muted: true } satisfies VoiceClientFrame));
+          }
           if (conversationRef.current !== frame.conversation_id) {
             conversationRef.current = frame.conversation_id;
             optionsRef.current.onConversation?.(frame.conversation_id);
           }
         }
         if (frame.type === "turn_saved") optionsRef.current.onTurnSaved?.();
-        if (frame.type === "ended") liveRef.current = false;
+        if (frame.type === "ended") {
+          // Over on the server: the media goes now. The socket stays for the
+          // turns still being saved, until the server closes it.
+          liveRef.current = false;
+          cancelRetry();
+          closeMedia();
+          micRef.current?.getTracks().forEach((track) => track.stop());
+          micRef.current = null;
+          setLocalStream(null);
+          setRemoteStream(null);
+        }
         dispatch({ type: "frame", frame, now: Date.now() });
       };
       socket.onclose = () => {
@@ -350,7 +386,18 @@ export function useVoiceSession(
         );
       };
     },
-    [activeOrgId, applyTrack, closeAll, closeMedia, giveUp, scheduleResume, startRelay, wsUrl],
+    [
+      activeOrgId,
+      applyTrack,
+      cancelRetry,
+      closeAll,
+      closeMedia,
+      giveUp,
+      mediaFailed,
+      scheduleResume,
+      startRelay,
+      wsUrl,
+    ],
   );
 
   useEffect(() => {
@@ -456,6 +503,10 @@ export function useVoiceSession(
 
   const dismissUnavailable = useCallback(() => dispatch({ type: "dismiss_unavailable" }), []);
 
+  const dismiss = useCallback(() => {
+    if (!liveRef.current) dispatch({ type: "reset" });
+  }, []);
+
   return {
     call,
     localStream,
@@ -466,5 +517,6 @@ export function useVoiceSession(
     pressToTalk,
     decide,
     dismissUnavailable,
+    dismiss,
   };
 }

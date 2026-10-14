@@ -57,12 +57,29 @@ import { useFollowContent } from "@/hooks/use-follow-content";
 import { useChanged } from "@/hooks/use-changed";
 import { Beam } from "@/components/ui/beam";
 import { useMicrophone, VoiceGlow } from "@/components/ui/voice-glow";
-import { useDictation, useDictationStatus, useOrganizationList, usePermissions } from "@/hooks";
+import {
+  useDictation,
+  useDictationStatus,
+  useOrganizationList,
+  usePermissions,
+  useVoiceReadiness,
+  useVoiceSession,
+  type VoiceSession,
+} from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import { dictate, type DictationSend } from "@/lib/dictation-api";
 import { cn } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
 import { dictationHint, DictationStrip } from "./dictation-strip";
+import { VoiceCallButton } from "@/components/voice/voice-call-button";
+import { voiceFailureHint } from "@/components/voice/voice-call-strip";
+import {
+  callActive,
+  showVoiceApproval,
+  VoiceCallBar,
+  VoiceCallFeed,
+} from "@/components/voice/voice-call-view";
+import type { VoiceTransport } from "@/types/voice";
 
 /**
  * The browser's voice processing, on for a recording that is transcribed: echo
@@ -124,8 +141,13 @@ export function ChatContainer() {
   // search box, and reading the two facts below off *that* would flip the
   // composer to writable the moment somebody typed a search that excluded the
   // thread they have open.
-  const { conversations, fetchConversations, refreshConversations, selectConversation } =
-    useConversations();
+  const {
+    conversations,
+    fetchConversations,
+    refreshConversations,
+    selectConversation,
+    rereadConversation,
+  } = useConversations();
   const prevConversationIdRef = useRef<string | null | undefined>(undefined);
 
   // An archived conversation is read-only: the backend refuses new messages on
@@ -144,6 +166,58 @@ export function ChatContainer() {
   const handleConversationCreated = useCallback(() => {
     fetchConversations();
   }, [fetchConversations]);
+
+  // A voice call's turns are saved by the server as it goes (#54), so the
+  // transcript is read again, in place, as each lands; a call that started a
+  // conversation opens it. Whether this page has a call open is kept apart from
+  // which conversation it is in: a call started in a new chat has none until the
+  // server names one, and leaving it before then still hangs it up.
+  const openCallRef = useRef<{ conversationId: string | null } | null>(null);
+  const handleVoiceConversation = useCallback(
+    (id: string) => {
+      const open = openCallRef.current;
+      // The person left the call's conversation before the server named it.
+      if (open === null) return;
+      open.conversationId = id;
+      void selectConversation(id);
+      fetchConversations();
+    },
+    [selectConversation, fetchConversations],
+  );
+  const handleVoiceTurnSaved = useCallback(() => {
+    const id = openCallRef.current?.conversationId ?? null;
+    if (id !== null && useConversationStore.getState().currentConversationId === id) {
+      void rereadConversation(id);
+    }
+    void refreshConversations();
+  }, [rereadConversation, refreshConversations]);
+  const voice = useVoiceSession({
+    onTurnSaved: handleVoiceTurnSaved,
+    onConversation: handleVoiceConversation,
+  });
+  const startCall = useCallback(
+    (transport: VoiceTransport) => {
+      if (selectedAgentId === null) return;
+      openCallRef.current = { conversationId: currentConversationId };
+      void voice.start({
+        kind: "console",
+        agentId: selectedAgentId,
+        conversationId: currentConversationId,
+        transport,
+      });
+    },
+    [selectedAgentId, currentConversationId, voice],
+  );
+  // A call belongs to its conversation: opening another, or a new chat, hangs
+  // it up, and an ended call's summary does not follow anybody elsewhere.
+  const { end: endCall, dismiss: dismissCall } = voice;
+  useEffect(() => {
+    const open = openCallRef.current;
+    if (open === null || open.conversationId === currentConversationId) return;
+    openCallRef.current = null;
+    endCall();
+    dismissCall();
+  }, [currentConversationId, endCall, dismissCall]);
 
   // A listing fetched when the conversation was created cannot say who answered
   // in it, because at that moment nobody had: `agents` is derived from the turns
@@ -174,7 +248,7 @@ export function ChatContainer() {
     lastUsage,
     delegations,
     browses,
-    sendMessage,
+    sendMessage: sendChatMessage,
     stopGeneration,
     clearMessages,
     queuedMessages,
@@ -194,6 +268,16 @@ export function ChatContainer() {
     onTurnSaved: handleTurnSaved,
     onTurnInterrupted: handleTurnInterrupted,
   });
+
+  // Typing on after a call: its summary has said its piece, and would otherwise
+  // sit under the new turn.
+  const sendMessage = useCallback(
+    (...args: Parameters<typeof sendChatMessage>) => {
+      dismissCall();
+      sendChatMessage(...args);
+    },
+    [dismissCall, sendChatMessage],
+  );
 
   // The reader pressing the notice's button has gone to look for the answer, so
   // the notice stops saying one is on its way. The re-read is the same one a
@@ -397,6 +481,8 @@ export function ChatContainer() {
       pendingConnection={pendingConnection}
       onConnectionResponse={sendConnectionResponse}
       onStop={stopGeneration}
+      voice={voice}
+      onStartCall={startCall}
     />
   );
 }
@@ -472,6 +558,10 @@ interface ChatUIProps {
   pendingConnection?: ConnectionRequest | null;
   onConnectionResponse?: (connected: boolean) => void;
   onStop?: () => void;
+  /** The voice call this page holds (#54): its bar stands in for the composer while it is on. */
+  voice: VoiceSession;
+  /** Start a call to the selected agent, in this conversation. */
+  onStartCall: (transport: VoiceTransport) => void;
 }
 
 function ChatUI({
@@ -513,6 +603,8 @@ function ChatUI({
   pendingConnection,
   onConnectionResponse,
   onStop,
+  voice,
+  onStartCall,
 }: ChatUIProps) {
   const t = useTranslations("chat");
   const tDictation = useTranslations("chat.dictation");
@@ -606,10 +698,52 @@ function ChatUI({
     dictationState.phase === "recording" || dictationState.phase === "transcribing";
   const [composerFocused, setComposerFocused] = useState(false);
 
+  // A voice call (#54): offered beside the microphone when the selected agent
+  // can take one, crossed out with the reason when it cannot.
+  const tVoice = useTranslations("chat.voice");
+  const { readiness, failed: readinessFailed } = useVoiceReadiness(selectedAgentId);
+  const onCall = callActive(voice);
+  const startCall = () => {
+    if (dictationState.phase !== "idle") cancelDictation();
+    onStartCall(readiness?.transport ?? voice.call.transport ?? "webrtc");
+  };
+  const voiceHint = voiceFailureHint(
+    { call: voice.call, onRetry: startCall, onDismiss: voice.dismiss },
+    tVoice,
+  );
+  const composerStrip = voiceHint ?? dictationStrip;
+  // Focus went into the call bar when the call started. When the call is over
+  // it goes to the box after "continue in text", and otherwise back to the call
+  // button - but only if it was lost with the bar, never taken from where the
+  // person has since put it.
+  const callButtonRef = useRef<HTMLSpanElement>(null);
+  const wasOnCall = useRef(false);
+  const continueInText = useRef(false);
+  useEffect(() => {
+    if (wasOnCall.current && !onCall) {
+      if (continueInText.current) dockRef.current?.querySelector("textarea")?.focus();
+      else if (document.activeElement === document.body || document.activeElement === null) {
+        callButtonRef.current?.querySelector("button")?.focus();
+      }
+      continueInText.current = false;
+    }
+    wasOnCall.current = onCall;
+  }, [onCall]);
+  const endForText = () => {
+    continueInText.current = true;
+    voice.end();
+  };
+
   // The rail's ticks, built from the transcript already on screen rather than
   // from a query of its own: one list, drawn twice.
   const { agents: knownAgents } = useAgents({ includeArchived: true });
   const { user: authUser } = useAuthStore();
+  const callAgent = knownAgents.find((agent) => agent.id === selectedAgentId);
+  // The turns the transcript already holds, so a call's live caption is not drawn beside its saved message.
+  const savedTurns = useMemo(
+    () => new Set(messages.flatMap((message) => (message.turnId ? [message.turnId] : []))),
+    [messages],
+  );
   const agentNames = useMemo(
     () =>
       new Map(
@@ -689,7 +823,7 @@ function ChatUI({
           <div ref={transcriptRef} className="mx-auto max-w-5xl px-2 py-4 sm:px-4 sm:py-6">
             {isLoadingConversation ? (
               <ConversationSkeleton />
-            ) : messages.length === 0 ? (
+            ) : messages.length === 0 && voice.call.phase === "idle" ? (
               <div className="flex h-full items-center">
                 <ChatEmptyState onPick={(prompt) => sendMessage(prompt)} />
               </div>
@@ -704,6 +838,17 @@ function ChatUI({
                 column. An agent asked to compare two pages browses both at
                 once, and a single card would hide half of what it is doing. */}
             <BrowserCards browses={browses} />
+            {/* The call, as it happens: live captions inside the turns being
+                spoken, the approval card, and the summary when it ends. */}
+            <VoiceCallFeed
+              session={voice}
+              agentName={callAgent?.name ?? t("rail.agent")}
+              agent={callAgent}
+              canDecide={can(Perm.approvalsDecide)}
+              hidden={savedTurns}
+              onCallAgain={startCall}
+              onContinueInText={endForText}
+            />
             <div ref={messagesEndRef} />
           </div>
         </div>
@@ -776,111 +921,136 @@ function ChatUI({
                 is 360px wide, and a viewport breakpoint showed a reading there
                 that had nowhere to go. */}
             <div className="@container">
-              {/* Around the whole composer, not around a row inside it: the glow
+              {/* While a call is on the composer becomes the call bar. The
+                  composer stays mounted underneath, hidden, so a draft and its
+                  attachments are still there when the call ends. */}
+              {onCall && (
+                <VoiceCallBar
+                  session={voice}
+                  agentName={callAgent?.name ?? t("rail.agent")}
+                  canDecide={can(Perm.approvalsDecide)}
+                  onShowApproval={showVoiceApproval}
+                />
+              )}
+              <div className={cn(onCall && "hidden")}>
+                {/* Around the whole composer, not around a row inside it: the glow
                 blooms outward from the edge it is given, and given an inner row
                 it bloomed into the card's own fill and was all but invisible.
                 Always mounted and always lit - at rest it breathes, on a voice
                 it rises with the level, and while the answer is being thought
                 through it sweeps. */}
-              {/* Lit only while the microphone is actually open. At rest it is a
+                {/* Lit only while the microphone is actually open. At rest it is a
                 glow with nothing to report, and during a turn the transcript
                 already says what is happening. */}
-              {/* For server dictation it stays lit through transcribing, sweeping
+                {/* For server dictation it stays lit through transcribing, sweeping
                   instead of listening: the microphone is closed by then, and
                   the box is still busy. Not while the bar counts the upload:
                   the sweep is for a wait nobody can measure. */}
-              <VoiceGlow
-                stream={mic.stream}
-                active={engine === "server" ? recordingPhase : mic.state === "live"}
-                processing={
-                  engine === "server" &&
-                  dictationState.phase === "transcribing" &&
-                  dictationState.upload === null
-                }
-              >
-                {/* All the way around the composer, and only while somebody is in
+                <VoiceGlow
+                  stream={mic.stream}
+                  active={engine === "server" ? recordingPhase : mic.state === "live"}
+                  processing={
+                    engine === "server" &&
+                    dictationState.phase === "transcribing" &&
+                    dictationState.upload === null
+                  }
+                >
+                  {/* All the way around the composer, and only while somebody is in
                   it. A border that glows permanently is decoration; one that
                   lights when the caret arrives is the box saying it is where
                   the typing goes. The glow outside it answers the microphone
                   and the turn; this is the box's own. */}
-                <Beam
-                  size="md"
-                  borderRadius={16}
-                  active={composerFocused}
-                  onFocusChange={setComposerFocused}
-                >
-                  <div
-                    data-tour="chat-composer"
-                    className={cn(
-                      "panel focus-within:border-foreground/30 rounded-2xl transition-colors",
-                      dictationStrip !== null && "rounded-b-none",
-                    )}
+                  <Beam
+                    size="md"
+                    borderRadius={16}
+                    active={composerFocused}
+                    onFocusChange={setComposerFocused}
                   >
-                    <div className="px-3 pt-3 pb-1 sm:px-4 sm:pt-4">
-                      {isArchived && (
-                        <p className="text-muted-foreground pb-2 text-center font-mono text-xs tracking-wider uppercase">
-                          {t("conversationArchived")}
-                        </p>
+                    <div
+                      data-tour="chat-composer"
+                      className={cn(
+                        "panel focus-within:border-foreground/30 rounded-2xl transition-colors",
+                        composerStrip !== null && "rounded-b-none",
                       )}
-                      {/* One row of actions under the text, the same at every
+                    >
+                      <div className="px-3 pt-3 pb-1 sm:px-4 sm:pt-4">
+                        {isArchived && (
+                          <p className="text-muted-foreground pb-2 text-center font-mono text-xs tracking-wider uppercase">
+                            {t("conversationArchived")}
+                          </p>
+                        )}
+                        {/* One row of actions under the text, the same at every
                           level of every limit: attach and who answers on the left;
                           usage, the model, the microphone and send on the right. A
                           limit near its end changes an icon's colour and never
                           costs the row a button. */}
-                      <ChatInput
-                        onSend={sendMessage}
-                        disabled={
-                          !isConnected ||
-                          isArchived ||
-                          !!pendingApproval ||
-                          !!(pendingQuestions && pendingQuestions.length)
-                        }
-                        isProcessing={isProcessing}
-                        onStop={onStop}
-                        slashContext={slashContext}
-                        commands={slashCommands}
-                        attachmentSlot={attachmentSlot}
-                        mic={mic}
-                        dictation={{
-                          engine,
-                          ready: dictationReady,
-                          hasAgent,
-                          noKey,
-                          state: dictationState,
-                          actions: dictationActions,
-                          voiceSettingsHref,
-                          agentVoiceHref,
-                          onExplain: () => setExplaining((open) => !open),
-                        }}
-                        // Who answers first and largest: it is the most
-                        // consequential choice in the composer.
-                        controlsSlot={<AgentPicker />}
-                        actionsSlot={
-                          <>
-                            <UsageMeter
-                              usage={lastUsage}
-                              workspace={workspace}
-                              total={conversationCost}
-                              contextWindow={contextWindow}
-                            />
-                            <div data-tour="chat-model-picker">
-                              <ChatControls
-                                onModelProfileChange={onModelProfileChange}
-                                onApprovalModeChange={onApprovalModeChange}
-                                agentModel={agentModel}
+                        <ChatInput
+                          onSend={sendMessage}
+                          disabled={
+                            !isConnected ||
+                            isArchived ||
+                            onCall ||
+                            !!pendingApproval ||
+                            !!(pendingQuestions && pendingQuestions.length)
+                          }
+                          isProcessing={isProcessing}
+                          onStop={onStop}
+                          slashContext={slashContext}
+                          commands={slashCommands}
+                          attachmentSlot={attachmentSlot}
+                          mic={mic}
+                          dictation={{
+                            engine,
+                            ready: dictationReady,
+                            hasAgent,
+                            noKey,
+                            state: dictationState,
+                            actions: dictationActions,
+                            voiceSettingsHref,
+                            agentVoiceHref,
+                            onExplain: () => setExplaining((open) => !open),
+                          }}
+                          // Who answers first and largest: it is the most
+                          // consequential choice in the composer.
+                          controlsSlot={<AgentPicker />}
+                          actionsSlot={
+                            <>
+                              <UsageMeter
+                                usage={lastUsage}
+                                workspace={workspace}
+                                total={conversationCost}
+                                contextWindow={contextWindow}
                               />
-                            </div>
-                          </>
-                        }
-                      />
+                              <div data-tour="chat-model-picker">
+                                <ChatControls
+                                  onModelProfileChange={onModelProfileChange}
+                                  onApprovalModeChange={onApprovalModeChange}
+                                  agentModel={agentModel}
+                                />
+                              </div>
+                              {hasAgent && (
+                                <span ref={callButtonRef} className="contents">
+                                  <VoiceCallButton
+                                    readiness={readiness}
+                                    failed={readinessFailed}
+                                    disabled={isProcessing || isArchived}
+                                    onStart={startCall}
+                                    canSetUp={voiceSettingsHref !== null || agentVoiceHref !== null}
+                                  />
+                                </span>
+                              )}
+                            </>
+                          }
+                        />
+                      </div>
                     </div>
-                  </div>
-                </Beam>
-                {/* Attached under the box and sliding out from behind it: every
+                  </Beam>
+                  {/* Attached under the box and sliding out from behind it: every
                     hint, prompt and error dictation has, so the bar above
                     holds controls only. */}
-                <DictationStrip hint={dictationStrip} />
-              </VoiceGlow>
+                  <DictationStrip hint={composerStrip} />
+                </VoiceGlow>
+              </div>
               <ComposerStatus isConnected={isConnected} />
             </div>
           </div>

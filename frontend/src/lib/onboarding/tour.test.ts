@@ -187,6 +187,7 @@ describe("stepsForPage", () => {
       "chat-composer",
       "chat-plan",
       "chat-model-picker",
+      "chat-voice-call",
       "chat-approval-mode",
       "chat-your-connections",
     ]);
@@ -409,6 +410,12 @@ describe("the Routines page", () => {
 });
 
 describe("voice call stops (#54)", () => {
+  it("spotlights the composer's call button, optionally, because readiness loads late", () => {
+    const step = TOUR_STEPS.find((s) => s.id === "chat-voice-call");
+    expect(step).toMatchObject({ page: ROUTES.CHAT, target: "chat-voice-call", optional: true });
+    expect(step?.permission).toBeUndefined();
+  });
+
   it.each([
     ["org-voice-conversations", "org-voice-conversations", Perm.orgSettings, undefined],
     ["agent-voice", "agent-voice", Perm.agentsView, "agent-tab-build"],

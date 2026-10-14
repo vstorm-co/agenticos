@@ -139,6 +139,10 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // four seconds for a strip that never mounts.
   { id: "chat-plan", page: ROUTES.CHAT, target: "chat-plan", optional: true },
   { id: "chat-model-picker", page: ROUTES.CHAT, target: "chat-model-picker" },
+  // The call button sits in the composer whenever an agent is selected - offered
+  // or crossed out - but readiness loads after the page, so the stop is optional:
+  // a slow read must not pin the caption to nothing (#54).
+  { id: "chat-voice-call", page: ROUTES.CHAT, target: "chat-voice-call", optional: true },
   // Inside the same popover as the model, so the walk opens it once. `optional`
   // because the control it names lives behind the trigger: the caption is
   // pinned to nothing on a walk that never opened it.

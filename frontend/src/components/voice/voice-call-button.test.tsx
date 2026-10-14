@@ -42,8 +42,6 @@ describe("VoiceCallButton", () => {
   });
 
   it.each([
-    ["org_off", "Voice calls are off in this organization"],
-    ["not_in_chat", "Voice calls are off in chat"],
     ["no_voice", "This agent has no voice set up"],
     ["not_offered", "This agent's voice model is no longer offered"],
     ["no_key", "This agent's voice has no key"],
@@ -65,10 +63,39 @@ describe("VoiceCallButton", () => {
     expect(onStart).not.toHaveBeenCalled();
   });
 
-  it("says it is still checking while the agent's answer loads", () => {
-    render(<VoiceCallButton readiness={null} failed={false} onStart={vi.fn()} canSetUp={false} />);
+  it("is not there at all while the agent's answer loads, so it does not flash", () => {
+    const { container } = render(
+      <VoiceCallButton readiness={null} failed={false} onStart={vi.fn()} canSetUp={false} />,
+    );
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it.each(["org_off", "not_in_chat"] as const)(
+    "is not there at all when the organization has calls off (%s)",
+    (reason) => {
+      const { container } = render(
+        <VoiceCallButton
+          readiness={{ ...READY, available: false, unavailable: reason }}
+          failed={false}
+          onStart={vi.fn()}
+          canSetUp
+        />,
+      );
+      expect(container).toBeEmptyDOMElement();
+    },
+  );
+
+  it("says it could not check when an unavailable answer names no reason", () => {
+    render(
+      <VoiceCallButton
+        readiness={{ ...READY, available: false, unavailable: null }}
+        failed={false}
+        onStart={vi.fn()}
+        canSetUp={false}
+      />,
+    );
     expect(screen.getByRole("button", { name: NAME })).toHaveAccessibleDescription(
-      expect.stringContaining("Checking whether this agent can take a call"),
+      expect.stringContaining("Could not check"),
     );
   });
 
@@ -101,7 +128,7 @@ describe("VoiceCallButton", () => {
   it("explains itself on hover, on keyboard focus and on a press", async () => {
     render(
       <VoiceCallButton
-        readiness={{ ...READY, available: false, unavailable: "org_off" }}
+        readiness={{ ...READY, available: false, unavailable: "no_voice" }}
         failed={false}
         onStart={vi.fn()}
         canSetUp={false}
@@ -109,7 +136,7 @@ describe("VoiceCallButton", () => {
     );
     const button = screen.getByRole("button", { name: NAME });
     const popover = () =>
-      screen.queryByText("An admin turns them on in the organization's Voice settings.", {
+      screen.queryByText("Its Voice card has no voice conversation model.", {
         selector: "p",
       });
 

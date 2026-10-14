@@ -7,9 +7,16 @@ import { useId, useRef, useState } from "react";
 import { Button, Popover, PopoverAnchor, PopoverContent } from "@/components/ui";
 import type { VoiceReadiness, VoiceUnavailable } from "@/types/voice";
 
-const REASON_KEYS: Record<VoiceUnavailable, string> = {
-  org_off: "orgOff",
-  not_in_chat: "notInChat",
+/**
+ * Calls the organization switched off - all of them, or in chat - offer no
+ * button at all: nothing about this agent would change the answer.
+ */
+const SWITCHED_OFF: ReadonlySet<VoiceUnavailable> = new Set<VoiceUnavailable>([
+  "org_off",
+  "not_in_chat",
+]);
+
+const REASON_KEYS: Record<Exclude<VoiceUnavailable, "org_off" | "not_in_chat">, string> = {
   no_voice: "noVoice",
   not_offered: "notOffered",
   no_key: "noKey",
@@ -31,7 +38,9 @@ interface VoiceCallButtonProps {
 /**
  * The composer's call button (#54). Offered when a call would start; otherwise
  * crossed out and still focusable, saying why - the dictation rule, so a person
- * is never left guessing whether calls exist here.
+ * is never left guessing why this agent takes no call. Absent while the agent's
+ * readiness loads, so it does not flash, and where the organization has calls
+ * switched off in chat.
  *
  * Hover or keyboard focus opens the reason in a popover; a press toggles it,
  * because a touch screen has no hover.
@@ -49,6 +58,12 @@ export function VoiceCallButton({
   const pressed = useRef(false);
   const describedBy = useId();
 
+  if (
+    !failed &&
+    (readiness === null || (readiness.unavailable && SWITCHED_OFF.has(readiness.unavailable)))
+  ) {
+    return null;
+  }
   if (readiness?.available) {
     return (
       <Button
@@ -67,11 +82,8 @@ export function VoiceCallButton({
     );
   }
 
-  const key = failed
-    ? "unchecked"
-    : readiness?.unavailable
-      ? REASON_KEYS[readiness.unavailable]
-      : "checking";
+  const reason = readiness?.unavailable as keyof typeof REASON_KEYS | null | undefined;
+  const key = failed || !reason ? "unchecked" : REASON_KEYS[reason];
   const title = t(`unavailable.${key}.title`);
   const body = t(`unavailable.${key}.body`);
 

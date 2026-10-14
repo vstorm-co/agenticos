@@ -348,3 +348,19 @@ describe("a stored tool call that never finished", () => {
     expect(message.toolCalls?.map((call) => call.status)).toEqual(["awaiting_approval"]);
   });
 });
+
+describe("a replayed turn spoken in a call (#54)", () => {
+  it("keeps its turn id and whether the caller talked over it", () => {
+    const spoken = conversationMessageToChatMessage(
+      raw({ turn_id: "c1:3:assistant", interrupted: true }),
+    );
+    expect(spoken.turnId).toBe("c1:3:assistant");
+    expect(spoken.interrupted).toBe(true);
+  });
+
+  it("marks nothing on a typed turn", () => {
+    const typed = conversationMessageToChatMessage(raw({ turn_id: null, interrupted: false }));
+    expect(typed.turnId).toBeUndefined();
+    expect(typed.interrupted).toBeUndefined();
+  });
+});

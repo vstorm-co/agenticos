@@ -1379,14 +1379,6 @@
       "start": "Sprachanruf starten",
       "canSetUp": "Sie können das in den Einstellungen unter „Stimme“ einrichten.",
       "unavailable": {
-        "orgOff": {
-          "title": "Sprachanrufe sind in dieser Organisation ausgeschaltet",
-          "body": "Ein Admin schaltet sie in den Einstellungen der Organisation unter „Stimme“ ein."
-        },
-        "notInChat": {
-          "title": "Sprachanrufe sind im Chat ausgeschaltet",
-          "body": "Diese Organisation bietet Anrufe nur im Widget oder auf der gehosteten Seite an."
-        },
         "noVoice": {
           "title": "Für diesen Agent ist keine Stimme eingerichtet",
           "body": "Seine Karte „Stimme“ hat kein Modell für Sprachgespräche."
@@ -1403,10 +1395,6 @@
           "title": "Diesen Monat sind keine Anrufminuten mehr übrig",
           "body": "Ein Admin kann die monatlichen Minuten erhöhen."
         },
-        "checking": {
-          "title": "Es wird geprüft, ob dieser Agent einen Anruf annehmen kann",
-          "body": "Das dauert einen Moment."
-        },
         "unchecked": {
           "title": "Es konnte nicht geprüft werden, ob dieser Agent einen Anruf annehmen kann",
           "body": "Laden Sie die Seite neu, um es erneut zu versuchen."
@@ -1416,12 +1404,22 @@
         "title": "{tool} genehmigen?",
         "youSaid": "Sie sagten: <q>{said}</q>",
         "countdown": "Verbleibende Zeit für die Entscheidung",
-        "deniedIn": "{seconds, plural, =1 {Automatisch abgelehnt in 1 s} other {Automatisch abgelehnt in # s}}",
         "approve": "Genehmigen",
         "deny": "Ablehnen",
-        "notByVoice": "Ein gesprochenes Ja genehmigt nichts.",
+        "notByVoice": "Nur diese Schaltflächen entscheiden. Ein „Ja“ zum Agent genehmigt nichts.",
         "unavailable": "{tool} braucht eine Genehmigung, die Sie per Stimme nicht erteilen können. Fragen Sie im Text-Chat, wo die Anfrage auf jemanden warten kann, der sie genehmigen darf.",
-        "dismiss": "Schließen"
+        "needed": "Genehmigung erforderlich",
+        "autoDeny": "Automatische Ablehnung in {time}",
+        "misheard": "Gesprochenes kann falsch verstanden werden. Prüfen Sie jeden Namen und jede Zahl, bevor Sie genehmigen.",
+        "exactJson": "Exaktes JSON, das an das Tool geht",
+        "outcome": {
+          "approved": "Von Ihnen genehmigt",
+          "denied": "Von Ihnen abgelehnt",
+          "expired": "{seconds, plural, one {Automatisch abgelehnt: keine Entscheidung innerhalb von # Sekunde} other {Automatisch abgelehnt: keine Entscheidung innerhalb von # Sekunden}}"
+        },
+        "unavailableTitle": "Braucht eine Genehmigung, die Sie hier nicht erteilen können",
+        "keepTalking": "Weitersprechen",
+        "continueInText": "Anruf beenden, im Text weiter"
       },
       "captions": {
         "you": "Sie: {text}",
@@ -1432,7 +1430,8 @@
         "unmute": "Stummschaltung aufheben",
         "hold": "Zum Sprechen halten",
         "pushToTalk": "Push-to-Talk",
-        "end": "Anruf beenden"
+        "end": "Anruf beenden",
+        "endShort": "Beenden"
       },
       "state": {
         "connecting": "Verbindung wird hergestellt…",
@@ -1479,12 +1478,56 @@
         "generic": "Der Anruf wurde beendet"
       },
       "failure": {
-        "micInsecure": "Diese Seite kann kein Mikrofon verwenden. Öffnen Sie sie über HTTPS.",
-        "micDenied": "Erlauben Sie dieser Seite das Mikrofon im Browser und rufen Sie dann erneut an.",
-        "micNotFound": "Es wurde kein Mikrofon gefunden. Schließen Sie eines an und rufen Sie dann erneut an.",
-        "micBusy": "Das Mikrofon konnte nicht starten. Vielleicht verwendet es eine andere App.",
-        "connectionFailed": "Prüfen Sie Ihre Verbindung und rufen Sie dann erneut an.",
-        "dropped": "Die Verbindung wurde unterbrochen und konnte nicht wiederhergestellt werden."
+        "micInsecure": "<strong>Diese Seite kann das Mikrofon nicht verwenden.</strong> Browser öffnen das Mikrofon nur über HTTPS oder auf localhost. Bitten Sie Ihren Administrator, die Konsole über HTTPS bereitzustellen.",
+        "micDenied": "<strong>Das Mikrofon ist für diese Seite blockiert.</strong> Klicken Sie auf das Symbol links neben der Adressleiste, stellen Sie Mikrofon auf Zulassen und versuchen Sie es erneut. Es wurde nichts aufgenommen und keine Minuten verbraucht.",
+        "micNotFound": "<strong>Kein Mikrofon gefunden.</strong> Schließen Sie eines an oder prüfen Sie, ob Ihr System dem Browser den Zugriff erlaubt, und versuchen Sie es dann erneut.",
+        "micBusy": "<strong>Das Mikrofon ist nicht gestartet.</strong> Vielleicht verwendet es eine andere App. Schließen Sie sie oder prüfen Sie die Mikrofoneinstellungen Ihres Systems und versuchen Sie es dann erneut.",
+        "connectionFailed": "<strong>Der Anruf konnte keine Verbindung herstellen.</strong> Es wurden keine Minuten verbraucht. Prüfen Sie Ihre Verbindung und versuchen Sie es dann erneut.",
+        "dropped": "Die Verbindung wurde unterbrochen und konnte nicht wiederhergestellt werden. Alles bis dahin Gesagte ist oben gespeichert."
+      },
+      "view": {
+        "bar": "Sprachanruf",
+        "live": "Live",
+        "voice": "Stimme",
+        "interrupted": "Unterbrochen",
+        "interruptedTitle": "Auf ungefähr das Gehörte gekürzt",
+        "you": "Sie",
+        "micOff": "Mikrofon aus",
+        "muted": "Stummgeschaltet",
+        "talking": "Sie sprechen · zum Senden loslassen",
+        "settingUp": "Sichere Verbindung wird aufgebaut",
+        "announceApproval": "{seconds, plural, one {Genehmigung für {tool} erforderlich. Genehmigen oder lehnen Sie auf dem Bildschirm ab. In # Sekunde wird automatisch abgelehnt.} other {Genehmigung für {tool} erforderlich. Genehmigen oder lehnen Sie auf dem Bildschirm ab. In # Sekunden wird automatisch abgelehnt.}}",
+        "ending": {
+          "timeLimit": "Wird beendet: Zeitlimit erreicht",
+          "budget": "Wird beendet: das Budget ist aufgebraucht",
+          "minutes": "Wird beendet: die Minuten dieses Monats sind aufgebraucht"
+        },
+        "strip": {
+          "allowMic": "<strong>Erlauben Sie das Mikrofon</strong> in der Abfrage Ihres Browsers. Der Anruf beginnt, sobald es an ist.",
+          "reconnecting": "<strong>Verbindung wird wiederhergestellt…</strong> Die Verbindung ist abgebrochen; der Anruf macht dort weiter, wo er war.",
+          "approval": "<strong>Genehmigen oder lehnen Sie die Anfrage oben ab.</strong> Automatische Ablehnung in {time}.",
+          "showCard": "Karte zeigen",
+          "noApproval": "<strong>{tool} braucht eine Genehmigung, die Sie hier nicht erteilen können.</strong> Die Karte oben erklärt, was Sie tun können.",
+          "ending": {
+            "timeLimit": "<strong>Zeitlimit erreicht.</strong> Der Agent sagt es noch, dann endet der Anruf.",
+            "budget": "<strong>Das Budget ist aufgebraucht.</strong> Der Agent sagt es noch, dann endet der Anruf.",
+            "minutes": "<strong>Die Anrufminuten dieses Monats sind aufgebraucht.</strong> Der Agent sagt es noch, dann endet der Anruf."
+          },
+          "limitWarning": "<strong>Noch {remaining} in diesem Anruf.</strong> Bei {limit} sagt der Agent es und legt auf. Danach können Sie einen neuen Anruf starten.",
+          "pushToTalk": "<strong>Push-to-Talk ist an.</strong> Halten Sie <kbd>Space</kbd> oder die Schaltfläche, während Sie sprechen; zum Senden loslassen."
+        },
+        "refused": "<strong>Der Anruf hat nicht begonnen.</strong> {reason}",
+        "tryAgain": "Erneut versuchen",
+        "dismiss": "Schließen",
+        "summary": {
+          "ended": "Sprachanruf beendet · {duration}",
+          "timeLimit": "{minutes, plural, one {Anruf beim Limit von # Minute beendet} other {Anruf beim Limit von # Minuten beendet}}",
+          "turns": "{count, plural, =0 {Keine Beiträge gespeichert. Schreiben Sie weiter oder rufen Sie erneut an.} one {# Beitrag als Nachricht gespeichert. Schreiben Sie weiter oder rufen Sie erneut an.} other {# Beiträge als Nachrichten gespeichert. Schreiben Sie weiter oder rufen Sie erneut an.}}",
+          "limitBody": "{agent} hat es vor dem Auflegen gesagt. Jeder Beitrag ist oben gespeichert.",
+          "minutesLeft": "{minutes, plural, one {Ihre Organisation hat diesen Monat noch # Sprachminute.} other {Ihre Organisation hat diesen Monat noch # Sprachminuten.}}",
+          "newCall": "Neuen Anruf starten"
+        },
+        "mediaFailed": "<strong>Der Ton des Anrufs kam nicht durch,</strong> daher wurde der Anruf beendet. Ihr Netzwerk blockiert ihn möglicherweise. Alles bis dahin Gesagte ist oben gespeichert."
       }
     }
   },
@@ -3081,6 +3124,10 @@
       "chat-model-picker": {
         "title": "Das Modell einstellen",
         "body": "Wählen Sie, welches Modell der Organisation antwortet — nur für diese Unterhaltung, ohne den Agent zu ändern."
+      },
+      "chat-voice-call": {
+        "title": "Mit dem Agent sprechen",
+        "body": "Starten Sie einen Sprachanruf. Der Agent antwortet laut, nutzt seine Tools und fragt Sie, bevor er handelt; jeder Beitrag wird hier als Text gespeichert."
       },
       "chat-plan": {
         "title": "Worauf er hinarbeitet",

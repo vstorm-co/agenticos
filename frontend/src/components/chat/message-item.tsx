@@ -15,7 +15,17 @@ import { RatingButtons } from "./rating-buttons";
 import { useChatStore, useFilePreviewStore } from "@/stores";
 import { useMcpToolServers } from "@/hooks";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
-import { Bot, FileText, Globe, OctagonPause, Paperclip, RefreshCw, User } from "lucide-react";
+import {
+  Bot,
+  FileText,
+  Globe,
+  Mic,
+  OctagonPause,
+  Paperclip,
+  Pause,
+  RefreshCw,
+  User,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 import Image from "next/image";
 import { useAuthStore } from "@/stores";
@@ -320,6 +330,23 @@ export function MessageItem({
               <span className="text-muted-foreground flex items-center gap-1 text-[11px]">
                 <OctagonPause className="h-3 w-3" aria-hidden />
                 {t("turnWasStopped")}
+              </span>
+            )}
+            {/* A turn spoken in a call (#54), and one the caller talked over -
+                whose text is cut to roughly what was heard. */}
+            {message.turnId !== undefined && (
+              <span className="text-muted-foreground flex items-center gap-1 text-[11px]">
+                <Mic className="h-3 w-3" aria-hidden />
+                {t("voice.view.voice")}
+              </span>
+            )}
+            {message.interrupted && (
+              <span
+                title={t("voice.view.interruptedTitle")}
+                className="text-foreground flex items-center gap-1 text-[11px] font-medium"
+              >
+                <Pause className="text-warning h-3 w-3" aria-hidden />
+                {t("voice.view.interrupted")}
               </span>
             )}
             {!isUser && footerUsage && (
