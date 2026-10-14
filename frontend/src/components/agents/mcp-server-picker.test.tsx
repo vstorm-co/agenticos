@@ -369,15 +369,16 @@ describe("several connections behind one catalog entry", () => {
     expect(onChange).toHaveBeenCalledWith([bound("c1")]);
   });
 
-  it("binds the server from its settings by choosing whose account", async () => {
+  it("binds the server from its settings with whose account was chosen there", async () => {
+    // Choosing alone binds nothing - the switch does, with the choice on screen.
     const onChange = vi.fn();
     render(picker({ connections: THREE, onChange }));
 
-    await settings();
-    await userEvent.click(kind("personal"));
-    expect(onChange).toHaveBeenLastCalledWith([personal("github")]);
-
+    const dialog = await settings();
     await userEvent.click(kind("organization"));
+    expect(onChange).not.toHaveBeenCalled();
+    await userEvent.click(within(dialog).getByRole("switch", { name: "Use GitHub in this agent" }));
+
     expect(onChange).toHaveBeenLastCalledWith([bound("c1")]);
   });
 
@@ -547,6 +548,84 @@ describe("whose account a binding speaks through", () => {
     await userEvent.click(kind("organization"));
 
     expect(onChange).toHaveBeenCalledWith([bound("c1", ["search"])]);
+  });
+
+  it("leaves a server off while whose account it would use is chosen", async () => {
+    // Going to the organization's account and back used to switch the server
+    // on by itself: choosing whose account bound it.
+    const onChange = vi.fn();
+    render(picker({ connections: [GH], onChange }));
+
+    await settings();
+    await userEvent.click(kind("personal"));
+    await userEvent.click(kind("organization"));
+    await userEvent.click(kind("personal"));
+
+    expect(onChange).not.toHaveBeenCalled();
+    expect(kind("personal")).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("switches on in the settings with the account chosen there", async () => {
+    // The card's own switch prefers the organization's account; from the
+    // settings, the choice already on screen is the one that is meant.
+    const onChange = vi.fn();
+    render(picker({ connections: [GH], onChange }));
+
+    const dialog = await settings();
+    await userEvent.click(kind("personal"));
+    await userEvent.click(within(dialog).getByRole("switch", { name: "Use GitHub in this agent" }));
+
+    expect(onChange).toHaveBeenCalledWith([personal("github")]);
+  });
+
+  it("switches on in the settings with the organization's account when that is chosen", async () => {
+    const onChange = vi.fn();
+    render(picker({ connections: [GH], onChange }));
+
+    const dialog = await settings();
+    await userEvent.click(kind("personal"));
+    await userEvent.click(kind("organization"));
+    await userEvent.click(within(dialog).getByRole("switch", { name: "Use GitHub in this agent" }));
+
+    expect(onChange).toHaveBeenCalledWith([bound("c1")]);
+  });
+
+  it("changes nothing when the account already in use is chosen again", async () => {
+    const onChange = vi.fn();
+    const { unmount } = render(picker({ connections: [GH], value: [bound("c1")], onChange }));
+    await settings();
+    await userEvent.click(kind("organization"));
+    unmount();
+
+    render(picker({ connections: [GH], value: [personal("github")], onChange }));
+    await settings();
+    await userEvent.click(kind("personal"));
+
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("switches on with each person's own account when the organization has none to give", async () => {
+    // The organization's tile was chosen, but there is no account to bind yet;
+    // the switch falls back to what the card's own switch would do.
+    const onChange = vi.fn();
+    render(picker({ onChange }));
+
+    const dialog = await settings();
+    await userEvent.click(kind("organization"));
+    await userEvent.click(within(dialog).getByRole("switch", { name: "Use GitHub in this agent" }));
+
+    expect(onChange).toHaveBeenCalledWith([personal("github")]);
+  });
+
+  it("switches off from the settings whatever account was chosen", async () => {
+    const onChange = vi.fn();
+    render(picker({ connections: [GH], value: [bound("c1")], onChange }));
+
+    const dialog = await settings();
+    await userEvent.click(kind("organization"));
+    await userEvent.click(within(dialog).getByRole("switch", { name: "Use GitHub in this agent" }));
+
+    expect(onChange).toHaveBeenLastCalledWith([]);
   });
 
   it("says on the card that each person's own account answers", async () => {

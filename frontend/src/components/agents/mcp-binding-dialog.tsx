@@ -148,10 +148,15 @@ export function McpBindingDialog({
           allowed_tools: from?.allowed_tools ?? null,
           ...(from?.approval ? { approval: from.approval } : {}),
         };
+  // Only ever called with something bound: an unused server is switched on, not rebound.
   const rebindPrimary = (next: AccountRef) =>
-    onChange(primary ? bindings.map((ref) => (ref === primary ? next : ref)) : [next]);
+    onChange(bindings.map((ref) => (ref === primary ? next : ref)));
   const choose = (next: "organization" | "personal") => {
     setChosenKind(next);
+    // A server the agent does not use stays unused: picking whose account it
+    // would speak through is not switching it on. Binding here made going to
+    // the organization's account and back turn the server on by itself.
+    if (bindings.length === 0) return;
     if (next === "personal") {
       // The option is disabled where there is no catalog key to bind by.
       const next = primary?.account === "personal" ? null : personalRef(primary);
@@ -174,6 +179,18 @@ export function McpBindingDialog({
     onChange(bindings.map((ref) => ({ ...ref, allowed_tools: next })));
   const setApproval = (next: McpApproval) =>
     onChange(bindings.map((ref) => ({ ...ref, approval: next })));
+  // Switched on from here, the server binds the kind the switch above shows -
+  // the card's own switch, with no choice made, prefers the organization's.
+  const enable = (on: boolean) => {
+    const next =
+      on && chosenKind === "personal"
+        ? personalRef()
+        : on && chosenKind === "organization" && connections[0]
+          ? organizationRef(connections[0])
+          : null;
+    if (next) onChange([next]);
+    else onEnabled(on);
+  };
   const add = () => {
     const next = free[0] ? organizationRef(free[0]) : canAddPersonal ? personalRef() : null;
     if (next) onChange([...bindings, next]);
@@ -211,7 +228,7 @@ export function McpBindingDialog({
             <Switch
               checked={bindings.length > 0}
               disabled={disabled}
-              onCheckedChange={onEnabled}
+              onCheckedChange={enable}
               aria-label={t("useServerInAgent", { name })}
               className="mr-8 shrink-0"
             />
