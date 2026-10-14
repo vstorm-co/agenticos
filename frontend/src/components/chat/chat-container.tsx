@@ -107,6 +107,11 @@ interface ChatContainerProps {
   testing?: ChatTesting;
   /** Questions kept to ask again after each change, pinned from the conversation (#2075). */
   pins?: PinnedPrompts;
+  /**
+   * Hold what is sent until this turns false: the test panel's draft is still
+   * saving, and a draft test runs what is stored, not what is on the screen.
+   */
+  holdSending?: boolean;
 }
 
 /** The test panel's pinned questions, and how one is pinned or taken off. */
@@ -122,6 +127,7 @@ export function ChatContainer({
   incomingFiles = null,
   testing,
   pins,
+  holdSending = false,
 }: ChatContainerProps = {}) {
   const {
     currentConversationId,
@@ -370,11 +376,22 @@ export function ChatContainer({
 
   const { commands: slashCommands } = useSlashCommands();
 
+  // A message sent while the draft is still saving goes out once it has landed.
+  // A ref, not state: releasing it is a send, not something to render.
+  const held = useRef<Parameters<typeof sendMessage> | null>(null);
   const send = useCallback(
-    (content: string, fileIds?: string[], files?: ChatMessageFile[]) =>
-      sendMessage(content, fileIds, files),
-    [sendMessage],
+    (content: string, fileIds?: string[], files?: ChatMessageFile[]) => {
+      if (holdSending) held.current = [content, fileIds, files];
+      else sendMessage(content, fileIds, files);
+    },
+    [sendMessage, holdSending],
   );
+  useEffect(() => {
+    if (held.current === null || holdSending) return;
+    const waiting = held.current;
+    held.current = null;
+    sendMessage(...waiting);
+  }, [holdSending, sendMessage]);
 
   const handleRegenerate = useCallback(
     (assistantMessageId: string) => {
@@ -395,10 +412,12 @@ export function ChatContainer({
   // widget - goes out once the socket can carry it, and only once.
   const sentPromptRef = useRef<number | null>(null);
   useEffect(() => {
-    if (prompt === null || !isConnected || sentPromptRef.current === prompt.id) return;
+    if (prompt === null || !isConnected || holdSending || sentPromptRef.current === prompt.id) {
+      return;
+    }
     sentPromptRef.current = prompt.id;
     sendMessage(prompt.text);
-  }, [prompt, isConnected, sendMessage]);
+  }, [prompt, isConnected, holdSending, sendMessage]);
 
   // Slash command handlers - passed down to ChatInput so the / palette can
   // run them locally without going through the agent.

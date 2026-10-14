@@ -28,12 +28,12 @@ vi.mock("@/lib/api-client", () => ({
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const { socket } = vi.hoisted(() => ({
-  socket: { onMessage: null as ((event: MessageEvent) => void) | null },
+  socket: { onMessage: null as ((event: MessageEvent) => void) | null, send: vi.fn() },
 }));
 vi.mock("@/hooks/use-websocket", () => ({
   useWebSocket: (options: { onMessage?: (event: MessageEvent) => void }) => {
     socket.onMessage = options.onMessage ?? null;
-    return { isConnected: true, connect: vi.fn(), disconnect: vi.fn(), sendMessage: vi.fn() };
+    return { isConnected: true, connect: vi.fn(), disconnect: vi.fn(), sendMessage: socket.send };
   },
 }));
 
@@ -124,6 +124,54 @@ beforeEach(() => {
 });
 
 describe("the chat container - delegation panels across a conversation switch", () => {
+  it("holds a question until the test panel's draft has saved", async () => {
+    // Codex on #2062: a draft test runs what is stored, so one sent mid-save
+    // tested the previous spec.
+    socket.send.mockClear();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const at = (holdSending: boolean) => (
+      <QueryClientProvider client={client}>
+        <ChatContainer prompt={{ id: 1, text: "Refunds?" }} holdSending={holdSending} />
+      </QueryClientProvider>
+    );
+    const { rerender } = render(at(true));
+    await act(async () => {});
+    const asked = () =>
+      socket.send.mock.calls.filter(([frame]) => JSON.stringify(frame).includes("Refunds?"));
+    expect(asked()).toHaveLength(0);
+
+    rerender(at(false));
+    await act(async () => {});
+    expect(asked()).toHaveLength(1);
+  });
+
+  it("sends a pick made while the draft saved once it has", async () => {
+    socket.send.mockClear();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const at = (holdSending: boolean) => (
+      <QueryClientProvider client={client}>
+        <ChatContainer
+          holdSending={holdSending}
+          emptyState={(onPick) => (
+            <button type="button" onClick={() => onPick("Who are you?")}>
+              pick
+            </button>
+          )}
+        />
+      </QueryClientProvider>
+    );
+    const { rerender } = render(at(true));
+    await act(async () => {});
+    fireEvent.click(screen.getByRole("button", { name: "pick" }));
+    const asked = () =>
+      socket.send.mock.calls.filter(([frame]) => JSON.stringify(frame).includes("Who are you?"));
+    expect(asked()).toHaveLength(0);
+
+    rerender(at(false));
+    await act(async () => {});
+    expect(asked()).toHaveLength(1);
+  });
+
   it("leaves one conversation's specialists behind when another is opened", async () => {
     // The report: finish a delegated turn in one conversation, then pick another from
     // the sidebar *without sending anything*. Sending was the only thing that cleared

@@ -88,6 +88,24 @@ describe("the test panel's conversation", () => {
     expect(lastProps().prompt?.text).toBe("Refunds?");
   });
 
+  it("passes on that the draft is still saving", () => {
+    render(
+      <ChatScope agentId="a1">
+        <TestChat
+          agentId="a1"
+          testing={{ draft: true, environmentId: null }}
+          pinned={[]}
+          onTogglePin={vi.fn()}
+          ask={null}
+          replay={0}
+          holdSending
+        />
+      </ChatScope>,
+    );
+
+    expect((container.mock.calls.at(-1)![0] as { holdSending: boolean }).holdSending).toBe(true);
+  });
+
   it("replays the last question of its own conversation", () => {
     const at = (replay: number) => (
       <ChatScope agentId="a1">

@@ -267,6 +267,7 @@ export function TestPanel({
                 onTogglePin={togglePin}
                 ask={ask}
                 replay={replay}
+                holdSending={value === "draft" && saving}
               />
             </ChatScope>
           </div>

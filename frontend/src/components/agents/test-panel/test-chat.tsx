@@ -29,6 +29,8 @@ interface TestChatProps {
   ask: ChatPrompt | null;
   /** Bumped to send the last question again. */
   replay: number;
+  /** The draft is still saving: what is sent waits for it, or it would test the last save. */
+  holdSending?: boolean;
 }
 
 /**
@@ -42,7 +44,15 @@ interface TestChatProps {
  * It opens as `/chat` does (#2075): the agent's face and what answers, then its
  * pinned questions and a few any agent should be asked.
  */
-export function TestChat({ agentId, testing, pinned, onTogglePin, ask, replay }: TestChatProps) {
+export function TestChat({
+  agentId,
+  testing,
+  pinned,
+  onTogglePin,
+  ask,
+  replay,
+  holdSending = false,
+}: TestChatProps) {
   const t = useTranslations("agents");
   const { agent } = useAgent(agentId);
   const chatApi = useChatStore.useApi();
@@ -94,6 +104,7 @@ export function TestChat({ agentId, testing, pinned, onTogglePin, ask, replay }:
           agentFixed
           testing={testing}
           pins={{ pinned, toggle: onTogglePin }}
+          holdSending={holdSending}
           emptyState={(onPick) => (
             <ChatWelcome
               compact
