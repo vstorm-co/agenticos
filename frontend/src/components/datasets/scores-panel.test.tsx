@@ -72,6 +72,18 @@ describe("ScoresPanel", () => {
     expect(state.calls.at(-1)).toEqual(["d1", { pending: true, skip: 0, limit: 50 }]);
   });
 
+  it("steps back a page when a verdict empties the last one", async () => {
+    state.answer = { scores: [SCORE], total: 51 };
+    const { rerender } = render(<ScoresPanel datasetId="d1" canDecide />);
+    await userEvent.click(screen.getByRole("button", { name: /next/i }));
+    expect(state.calls.at(-1)).toEqual(["d1", { pending: false, skip: 50, limit: 50 }]);
+
+    state.answer = { scores: [], total: 50 };
+    rerender(<ScoresPanel datasetId="d1" canDecide />);
+
+    expect(state.calls.at(-1)).toEqual(["d1", { pending: false, skip: 0, limit: 50 }]);
+  });
+
   it("offers a retry when the scores could not be read", async () => {
     state.answer = { error: new Error("502") };
     render(<ScoresPanel datasetId="d1" canDecide />);

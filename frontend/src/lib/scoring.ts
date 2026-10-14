@@ -1,3 +1,4 @@
+import type { CaseCheck } from "@/types/datasets";
 import type { DatasetScoring, ScorerResult } from "@/types/scoring";
 
 /** What a dataset is scored with before anybody configures it - the server's defaults. */
@@ -20,6 +21,25 @@ export function scoringProblem(scoring: DatasetScoring): string | null {
   }
   if (judge.enabled && judge.criteria.length === 0) return "problem.noCriterion";
   return null;
+}
+
+/**
+ * Whether scoring this case calls the eval judge, which is a paid run.
+ *
+ * The same rule the server applies: the rubric, the reference comparison where
+ * the case has a reference answer, or a `judge` check - the case's own or a
+ * default - while checks are on.
+ */
+export function callsJudge(
+  scoring: DatasetScoring,
+  kase: { reference_answer: string | null; checks: CaseCheck[] },
+): boolean {
+  if (scoring.judge.enabled && scoring.judge.criteria.length > 0) return true;
+  if (scoring.reference.enabled && kase.reference_answer) return true;
+  return (
+    scoring.checks.enabled &&
+    [...scoring.checks.defaults, ...kase.checks].some((check) => check.type === "judge")
+  );
 }
 
 /**

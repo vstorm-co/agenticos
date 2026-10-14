@@ -5794,7 +5794,8 @@
         "body": "AI assistance is off in this organization, so the judge and the reference comparison are skipped and only the rule-based scorers score.",
         "enable": "Enable AI assistance",
         "askAdmin": "Ask an admin to turn it on."
-      }
+      },
+      "findDataset": "Find a dataset"
     },
     "title": "Datasets",
     "pageDescription": "The questions your agents are tested on. Every change to a dataset's cases makes a new version, so two eval runs on one version saw the same questions.",

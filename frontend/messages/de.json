@@ -5652,7 +5652,8 @@
         "body": "Die KI-Unterstützung ist in dieser Organisation ausgeschaltet, daher werden der Eval-Bewerter und der Vergleich mit der Referenzantwort übersprungen, und nur die regelbasierten Bewertungen zählen.",
         "enable": "KI-Unterstützung einschalten",
         "askAdmin": "Bitten Sie einen Administrator, sie einzuschalten."
-      }
+      },
+      "findDataset": "Dataset suchen"
     },
     "title": "Datasets",
     "pageDescription": "Die Fragen, an denen Ihre Agents getestet werden. Jede Änderung an den Fällen eines Datasets erzeugt eine neue Version, sodass zwei Eval-Runs auf einer Version dieselben Fragen gesehen haben.",
