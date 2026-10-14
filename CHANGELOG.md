@@ -548,6 +548,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Two cards with a hole in them filled.** Latency draws its median against
+  the slowest 5% on one bar instead of leaving the middle of the card empty, and
+  Settings → MCP clients says "No connected applications" in a line rather than
+  in a framed table under its own card.
+
 - **The live browser view shows the page at the panel's size, sharply.** The
   first step started before the watching window said its size, so it - and a
   whole one-step browse - ran at 1024 px and was shown shrunk into the top of
