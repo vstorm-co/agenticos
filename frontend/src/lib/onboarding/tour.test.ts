@@ -203,12 +203,14 @@ describe("stepsForPage", () => {
   });
 
   it("gives Settings and a workspace their own '?' stop, from any of their routes", () => {
-    // Settings collapses its seven tabs onto one identity, so help opened on any of
-    // them lands the same stops; a workspace detail has its own. The memory, API
-    // key and assistant stops are optional - each card renders on one tab only.
+    // Settings collapses its eight tabs onto one identity, so help opened on any of
+    // them lands the same stops; a workspace detail has its own. The memory,
+    // sign-in, API key and assistant stops are optional - each card renders on one
+    // tab only.
     expect(stepsForPage(ROUTES.SETTINGS_NOTIFICATIONS, () => true).map((s) => s.id)).toEqual([
       "settings-tabs",
       "my-memory",
+      "my-sign-ins",
       "settings-api-usage",
       "settings-api-keys",
       "settings-mcp-connect",

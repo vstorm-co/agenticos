@@ -47,7 +47,7 @@ describe("BrowserWindow - the agent's browser, drawn as a browser", () => {
 
     expect(screen.getByRole("heading", { name: "Pricing" })).toBeInTheDocument();
     expect(screen.getByTitle("https://example.test/pricing")).toHaveTextContent("example.test");
-    expect(screen.getByLabelText("Live")).toBeInTheDocument();
+    expect(screen.getByText("Live")).toBeInTheDocument();
   });
 
   it("falls back to the host, then to a plain name, before the page has a title", () => {
@@ -67,7 +67,7 @@ describe("BrowserWindow - the agent's browser, drawn as a browser", () => {
 
     rerender(<BrowserWindow browse={browse({ image: null, outcome: "done" })} control={null} />);
     expect(screen.getByText(/without a live preview/)).toBeInTheDocument();
-    expect(screen.queryByLabelText("Live")).toBeNull();
+    expect(screen.queryByText("Live")).toBeNull();
   });
 
   it("puts what the browser is doing now under the page, and how it ended once it has", () => {
