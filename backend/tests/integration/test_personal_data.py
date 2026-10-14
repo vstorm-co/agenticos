@@ -24,6 +24,7 @@ from sqlalchemy import func, select
 from app.core.config import settings
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.memory_keys import person_owner_key
+from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent
 from app.db.models.agent_workspace import AgentWorkspace
 from app.db.models.audit_log import AppAdminAuditLog
@@ -39,8 +40,16 @@ from app.db.models.notification import (
 )
 from app.db.models.notification_preference import NotificationChannelPreference
 from app.db.models.organization import Organization, OrganizationMember
-from app.repositories import conversation_repo, personal_data_repo, session_repo, user_repo
+from app.repositories import (
+    case_score_repo,
+    conversation_repo,
+    personal_data_repo,
+    session_repo,
+    user_repo,
+)
+from app.schemas.dataset import DatasetCaseCreate, DatasetCreate
 from app.services.conversation import ConversationService
+from app.services.dataset import DatasetService
 from app.services.file_storage import LocalFileStorage, delete_files_best_effort
 from app.services.memory import _native
 from app.services.personal_data import PersonalDataService
@@ -263,6 +272,60 @@ class TestTheExport:
         export = await PersonalDataService(db).export(user_id, actor_user_id=user_id)
 
         assert [row["content"] for row in export.memory] == ["Prefers short answers."]
+
+    async def test_it_carries_the_eval_verdicts_they_gave(self, db):
+        """A pass or fail given by hand, and its note, are that person's opinion."""
+        user = await _person(db, "export-verdicts@example.com")
+        organization, _ = await _org_and_agent(db)
+        owner = AuthContext(
+            user_id=organization.created_by_user_id,
+            organization_id=organization.id,
+            role=OrgRoleName.OWNER,
+        )
+        datasets = DatasetService(db)
+        dataset = await datasets.create(owner, DatasetCreate(name="refunds"))
+        case = await datasets.add_case(
+            owner, dataset.id, DatasetCaseCreate(input="q", reference_answer="a")
+        )
+        for reviewer in (user.id, organization.created_by_user_id):
+            score = await case_score_repo.create(
+                db,
+                organization_id=organization.id,
+                dataset_id=dataset.id,
+                case_revision_id=case.id,
+                case_id=case.case_id,
+                run_id=None,
+                scoring={},
+                results=[],
+                judge=None,
+                passed=False,
+                review_state="done",
+                created_by_user_id=None,
+            )
+            await case_score_repo.update(
+                db,
+                score=score,
+                update_data={
+                    "human_passed": True,
+                    "human_note": "Right, just terse",
+                    "reviewed_by_user_id": reviewer,
+                    "reviewed_at": datetime.now(UTC),
+                },
+            )
+
+        export = await PersonalDataService(db).export(user.id, actor_user_id=user.id)
+
+        assert [(row["human_passed"], row["human_note"]) for row in export.case_verdicts] == [
+            (True, "Right, just terse")
+        ]
+        assert set(export.case_verdicts[0]) == {
+            "id",
+            "dataset_id",
+            "case_id",
+            "human_passed",
+            "human_note",
+            "reviewed_at",
+        }
 
     async def test_it_carries_the_notifications_addressed_to_them(self, db):
         """`docs/data-protection.md` classifies these rows as personal data, and
