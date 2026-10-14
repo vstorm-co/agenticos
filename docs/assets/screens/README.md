@@ -29,9 +29,8 @@ runs they recorded are real runs of those agents on Claude Sonnet 5.5. The
 dashboard's history and the approvals waiting there are seeded test records, not
 usage figures or benchmarks.
 
-The README's dark-theme readers get the `dark/` capture through `<picture>`, except
-for the app screenshot. That page's colours are the agent's own, and its third
-chart series is close to invisible on the dark background.
+The README shows the light captures in both GitHub themes; the docs site
+switches between `light/` and `dark/` with the reader's theme.
 
 The annotated figures in `../readme/` are drawn over captures of their own;
 `../readme/capture.mjs` writes those.

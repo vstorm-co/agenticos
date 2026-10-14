@@ -1,4 +1,4 @@
-<!-- source_sha: 79d784fba66a -->
+<!-- source_sha: 66f220608a81 -->
 
 <div align="center">
 
@@ -59,20 +59,20 @@ AgenticOS to suwerenna warstwa dla firmowych agentów AI, działająca na własn
 
 <table>
 <tr>
-<td width="50%"><a href="docs/assets/screens/light/agent-builder.webp"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/agent-builder.webp"><img src="docs/assets/screens/light/agent-builder.webp" alt="Builder agenta z instrukcjami, wyborem modelu i opublikowaną wersją"></picture></a><br><b>Twórz w przeglądarce.</b> Instrukcje, model i narzędzia; publikuj wersje.</td>
-<td width="50%"><a href="docs/assets/screens/light/chat.webp"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/chat.webp"><img src="docs/assets/screens/light/chat.webp" alt="Plik CSV z przychodami przeanalizowany w czacie i opublikowany jako dashboard"></picture></a><br><b>Pracuj z plikami i kodem.</b> CSV na wejściu, wykres i wnioski na wyjściu.</td>
+<td width="50%"><a href="docs/assets/screens/light/agent-builder.webp"><img src="docs/assets/screens/light/agent-builder.webp" alt="Builder agenta z instrukcjami, wyborem modelu i opublikowaną wersją"></a><br><b>Twórz w przeglądarce.</b> Instrukcje, model i narzędzia; publikuj wersje.</td>
+<td width="50%"><a href="docs/assets/screens/light/chat.webp"><img src="docs/assets/screens/light/chat.webp" alt="Plik CSV z przychodami przeanalizowany w czacie i opublikowany jako dashboard"></a><br><b>Pracuj z plikami i kodem.</b> CSV na wejściu, wykres i wnioski na wyjściu.</td>
 </tr>
 <tr>
-<td><a href="docs/assets/screens/light/skills.webp"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/skills.webp"><img src="docs/assets/screens/light/skills.webp" alt="Biblioteka skills z kategorią, odbiorcami i agentami, którzy z nich korzystają"></picture></a><br><b>Naucz agentów, jak pracuje zespół.</b> Skills pisane raz, używane przez każdego agenta.</td>
-<td><a href="docs/assets/screens/light/knowledge-collection.webp"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/knowledge-collection.webp"><img src="docs/assets/screens/light/knowledge-collection.webp" alt="Baza wiedzy z zaindeksowanymi dokumentami, parserem i statusem"></picture></a><br><b>Odpowiadaj na podstawie dokumentów.</b> Wgraj lub zsynchronizuj, a potem cytuj.</td>
+<td><a href="docs/assets/screens/light/skills.webp"><img src="docs/assets/screens/light/skills.webp" alt="Biblioteka skills z kategorią, odbiorcami i agentami, którzy z nich korzystają"></a><br><b>Naucz agentów, jak pracuje zespół.</b> Skills pisane raz, używane przez każdego agenta.</td>
+<td><a href="docs/assets/screens/light/knowledge-collection.webp"><img src="docs/assets/screens/light/knowledge-collection.webp" alt="Baza wiedzy z zaindeksowanymi dokumentami, parserem i statusem"></a><br><b>Odpowiadaj na podstawie dokumentów.</b> Wgraj lub zsynchronizuj, a potem cytuj.</td>
 </tr>
 <tr>
 <td><a href="docs/assets/screens/light/app-detail.webp"><img src="docs/assets/screens/light/app-detail.webp" alt="Dashboard przychodów zbudowany przez agenta z pliku CSV i opublikowany jako appka"></a><br><b>Publikuj wyniki jako strony.</b> Stałe linki i wersje. Dane demonstracyjne.</td>
-<td><a href="docs/assets/screens/light/dashboard.webp"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/dashboard.webp"><img src="docs/assets/screens/light/dashboard.webp" alt="Dashboard z sumami wykorzystania, zarejestrowanymi wydatkami, trendami runów i ich wynikami"></picture></a><br><b>Wykorzystanie i wydatki.</b> Runy, wyniki i budżety w jednym widoku.</td>
+<td><a href="docs/assets/screens/light/dashboard.webp"><img src="docs/assets/screens/light/dashboard.webp" alt="Dashboard z sumami wykorzystania, zarejestrowanymi wydatkami, trendami runów i ich wynikami"></a><br><b>Wykorzystanie i wydatki.</b> Runy, wyniki i budżety w jednym widoku.</td>
 </tr>
 <tr>
-<td><a href="docs/assets/screens/light/agents.webp"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/agents.webp"><img src="docs/assets/screens/light/agents.webp" alt="Katalog agentów z opublikowanymi agentami, ich kategoriami i widocznością"></picture></a><br><b>Katalog agentów.</b> Prywatni, udostępnieni grupie lub całej firmie.</td>
-<td><a href="docs/assets/screens/light/groups.webp"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/groups.webp"><img src="docs/assets/screens/light/groups.webp" alt="Grupy organizacji Engineering, Finance, Marketing, Operations, Sales i Support"></picture></a><br><b>Dostęp zgodny ze strukturą firmy.</b> Role, grupy i logowanie firmowe.</td>
+<td><a href="docs/assets/screens/light/agents.webp"><img src="docs/assets/screens/light/agents.webp" alt="Katalog agentów z opublikowanymi agentami, ich kategoriami i widocznością"></a><br><b>Katalog agentów.</b> Prywatni, udostępnieni grupie lub całej firmie.</td>
+<td><a href="docs/assets/screens/light/groups.webp"><img src="docs/assets/screens/light/groups.webp" alt="Grupy organizacji Engineering, Finance, Marketing, Operations, Sales i Support"></a><br><b>Dostęp zgodny ze strukturą firmy.</b> Role, grupy i logowanie firmowe.</td>
 </tr>
 </table>
 
