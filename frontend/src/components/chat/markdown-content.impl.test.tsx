@@ -153,6 +153,31 @@ describe("rendering an answer", () => {
     vi.unstubAllGlobals();
   });
 
+  it("leads a link to a known service with that service's logo, in place of the arrow", () => {
+    const { container } = markdown("See [the roadmap](https://www.notion.so/ledgerly/Q4-2b1f).");
+
+    const link = screen.getByRole("link", { name: "the roadmap" });
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link.querySelector("svg path")).not.toBeNull();
+    expect(container.querySelector(".lucide-external-link")).toBeNull();
+  });
+
+  it("names an app link by what it is, and opens it here", () => {
+    const href = `${window.location.origin}/apps/866b63c3-92b5-4ac7-82b9-8e97b6f09b9f?org=o`;
+    markdown(`Link: [${href}](${href})`);
+
+    const link = screen.getByRole("link", { name: "Open the app" });
+    expect(link).not.toHaveAttribute("target");
+    expect(link.querySelector(".lucide-panels-top-left")).not.toBeNull();
+  });
+
+  it("keeps an app link's own words when the agent gave it some", () => {
+    const href = "/apps/866b63c3-92b5-4ac7-82b9-8e97b6f09b9f";
+    markdown(`[Revenue dashboard](${href})`);
+
+    expect(screen.getByRole("link", { name: "Revenue dashboard" })).toBeInTheDocument();
+  });
+
   it("shows a fenced block's language, and offers it for copying", () => {
     // The one thing people take out of a chat answer.
     markdown("```python\nprint(1)\n```");

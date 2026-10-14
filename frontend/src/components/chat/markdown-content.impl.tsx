@@ -5,9 +5,11 @@ import type { Components } from "react-markdown";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
-import { ExternalLink, ImageOff } from "lucide-react";
+import { ExternalLink, ImageOff, PanelsTopLeft } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { BrandIcon } from "@/components/icons/brand-icon";
+import { brandForUrl, isAppLink } from "@/lib/link-brands";
 import { rehypeStreamWords } from "@/lib/stream-words";
 import { cn } from "@/lib/utils";
 
@@ -233,17 +235,35 @@ export function MarkdownContent({
             );
           }
         }
-        const isExternal = !!href && /^https?:\/\//i.test(href);
+        // An app this console published opens here, under the app's mark and a
+        // name rather than the forty characters of its address; a page on a
+        // service the reader knows leads with that service's logo.
+        const app = !!href && isAppLink(href, window.location.origin);
+        const isExternal = !app && !!href && /^https?:\/\//i.test(href);
+        const brand = isExternal ? brandForUrl(href) : null;
+        const label = app && textOf(children) === href ? t("openApp") : children;
         return (
           <a
             href={href}
             target={isExternal ? "_blank" : undefined}
             rel={isExternal ? "noopener noreferrer" : undefined}
-            className="text-foreground hover:text-brand-hover decoration-brand hover:decoration-brand inline-flex items-baseline gap-0.5 font-medium underline decoration-2 underline-offset-[3px] transition-colors"
+            className="text-foreground hover:text-brand-hover decoration-brand hover:decoration-brand inline-flex items-baseline gap-1 font-medium underline decoration-2 underline-offset-[3px] transition-colors"
             {...props}
           >
-            {children}
-            {isExternal && (
+            {app && (
+              <PanelsTopLeft
+                aria-hidden
+                className="text-foreground/70 inline h-[0.95em] w-[0.95em] shrink-0 translate-y-[0.1em]"
+              />
+            )}
+            {brand && (
+              <BrandIcon
+                name={brand}
+                className="inline h-[0.95em] w-[0.95em] shrink-0 translate-y-[0.1em]"
+              />
+            )}
+            {label}
+            {isExternal && !brand && (
               <ExternalLink className="text-foreground/60 inline h-[0.8em] w-[0.8em] shrink-0 -translate-y-[1px]" />
             )}
           </a>

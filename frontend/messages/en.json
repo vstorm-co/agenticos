@@ -1467,7 +1467,8 @@
     "openPage": "Open the page",
     "openPageNamed": "Open {name}",
     "showMore": "Show more",
-    "showLess": "Show less"
+    "showLess": "Show less",
+    "openApp": "Open the app"
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",

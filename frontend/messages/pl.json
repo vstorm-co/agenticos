@@ -1467,7 +1467,8 @@
     "openPage": "Otwórz stronę",
     "openPageNamed": "Otwórz {name}",
     "showMore": "Pokaż więcej",
-    "showLess": "Pokaż mniej"
+    "showLess": "Pokaż mniej",
+    "openApp": "Otwórz appkę"
   },
   "common": {
     "archiveNamedConfirm": "Zarchiwizować {name}?",

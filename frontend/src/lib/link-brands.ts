@@ -82,3 +82,18 @@ export function brandForUrl(url: string): BrandName | null {
   const found = BRAND_DOMAINS.find(([domain]) => host === domain || host.endsWith(`.${domain}`));
   return found ? found[1] : null;
 }
+
+const APP_PATH = /^\/apps\/[0-9a-f-]{36}\/?$/i;
+
+/**
+ * Whether an address is one of this console's own apps - the link an agent
+ * writes after publishing one, absolute, with the organization in its query.
+ */
+export function isAppLink(href: string, origin: string): boolean {
+  try {
+    const url = new URL(href, origin);
+    return url.origin === origin && APP_PATH.test(url.pathname);
+  } catch {
+    return false;
+  }
+}
