@@ -1,5 +1,5 @@
 ---
-source_sha: "67e3afefc3fc"
+source_sha: "a9fb059efb28"
 ---
 
 # Słownik { #glossary }
@@ -78,7 +78,7 @@ w [Capabilities](capabilities.md).
 | Planowanie | `planning` |
 | Sandbox | `sandbox` |
 | Skille | `skills` |
-| Delegowanie | `subagents` |
+| Subagenci | `subagents` |
 | Przypomnienia instrukcji | `system_reminders` |
 | Myślenie | `thinking` |
 | Limity wyników narzędzi | `tool_output_limits` |

@@ -75,7 +75,7 @@ in [Capabilities](capabilities.md).
 | Planning | `planning` |
 | Sandbox | `sandbox` |
 | Skills | `skills` |
-| Delegation | `subagents` |
+| Subagents | `subagents` |
 | Instruction reminders | `system_reminders` |
 | Thinking | `thinking` |
 | Tool output limits | `tool_output_limits` |

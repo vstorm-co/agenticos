@@ -191,8 +191,12 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
   await page.getByRole("tab", { name: "Toolbox" }).click();
   const toolbox = page.getByRole("tabpanel");
 
-  // A switch, labelled "Give this agent <name>" in the list on the left.
-  const capability = toolbox.getByRole("switch", { name: /^Give this agent / }).first();
+  // A switch, labelled "Give this agent <name>" in the list on the left. A new
+  // agent starts with the recommended capabilities on, so the one granted here
+  // is the first still off.
+  const capability = toolbox
+    .getByRole("switch", { name: /^Give this agent /, checked: false })
+    .first();
   if (!(await capability.isVisible())) {
     test.skip(true, "the capability catalog is empty in this environment");
   }

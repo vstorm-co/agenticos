@@ -1,5 +1,5 @@
 ---
-source_sha: "67e3afefc3fc"
+source_sha: "a9fb059efb28"
 ---
 
 # Glosario { #glossary }
@@ -80,7 +80,7 @@ se describe en [Capabilities](capabilities.md).
 | Planning | `planning` |
 | Sandbox | `sandbox` |
 | Skills | `skills` |
-| Delegation | `subagents` |
+| Subagents | `subagents` |
 | Instruction reminders | `system_reminders` |
 | Thinking | `thinking` |
 | Tool output limits | `tool_output_limits` |

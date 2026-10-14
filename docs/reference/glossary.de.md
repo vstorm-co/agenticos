@@ -1,5 +1,5 @@
 ---
-source_sha: "67e3afefc3fc"
+source_sha: "a9fb059efb28"
 ---
 
 # Glossar { #glossary }
@@ -79,7 +79,7 @@ Jede ist unter [Capabilities](capabilities.md) beschrieben.
 | Planung | `planning` |
 | Sandbox | `sandbox` |
 | Skills | `skills` |
-| Delegation | `subagents` |
+| Subagents | `subagents` |
 | Erinnerung an Anweisungen | `system_reminders` |
 | Nachdenken | `thinking` |
 | Grenzen für Tool-Ergebnisse | `tool_output_limits` |

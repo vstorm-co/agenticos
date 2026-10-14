@@ -113,18 +113,19 @@ test("an agent delegates to another, and both runs are recorded", async ({ page 
 
   // 3. binding the delegate
   await openBuilderTab(page, "Toolbox");
-  const grant = page.getByRole("switch", { name: "Give this agent Delegation", exact: true });
+  const grant = page.getByRole("switch", { name: "Give this agent Subagents", exact: true });
   await expect(
     grant,
-    "the capability catalog has no Delegation entry; is the capability registered?",
+    "the capability catalog has no Subagents entry; is the capability registered?",
   ).toBeVisible();
-  await grant.click();
+  // A new agent starts with the recommended capabilities, Subagents among them.
+  if ((await grant.getAttribute("aria-checked")) !== "true") await grant.click();
   await expect(grant).toHaveAttribute("aria-checked", "true");
 
   // Switching a capability on deliberately does not open its panel - reading what
   // a capability offers and granting it are different gestures - so the panel has
   // to be asked for.
-  await page.getByRole("button", { name: /^Delegation\b/ }).click();
+  await page.getByRole("button", { name: /^Subagents\b/ }).click();
   await page.getByRole("button", { name: "Add a delegate" }).click();
   await page.getByRole("menuitem", { name: new RegExp(delegateName) }).click();
 

@@ -47,10 +47,11 @@ async function openShareDialog(page: Page): Promise<Locator> {
   await page.getByRole("button", { name: "Share", exact: true }).click();
 
   const panel = page.getByRole("dialog");
-  // The panel renders a spinner until both the sharing state and the member
-  // list arrive, and the owner's row is built from the second - so this is the
-  // point at which anything below is reading real data rather than a default.
-  await expect(panel.getByText("Owner", { exact: true })).toBeVisible();
+  // The panel renders a skeleton until the sharing state arrives, and the list
+  // of who has access is the first thing drawn from it - so this is the point
+  // at which anything below is reading real data rather than a default. (Not
+  // "Owner": the seeded owner is called Owner, which matches twice.)
+  await expect(panel.getByText("People with access", { exact: true })).toBeVisible();
   return panel;
 }
 
