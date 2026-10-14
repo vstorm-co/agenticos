@@ -3397,7 +3397,11 @@
       "noCaseToScore": "Ten dataset nie ma jeszcze przypadku",
       "score": "Oceń",
       "scoring": "Ocenianie…",
-      "close": "Zamknij"
+      "close": "Zamknij",
+      "problem": {
+        "noScorer": "Włącz co najmniej jednego oceniacza - gdy wszystkie są wyłączone, żadnego przypadku nie da się ocenić.",
+        "noCriterion": "Daj sędziemu co najmniej jedno kryterium albo go wyłącz - nie ma czego oceniać."
+      }
     },
     "title": "Datasety",
     "pageDescription": "Pytania, na których testujesz agentów. Każda zmiana przypadków w datasecie tworzy nową wersję, więc dwa runy eval na jednej wersji widziały te same pytania.",

@@ -20,6 +20,7 @@ import {
 import { useModelProviders } from "@/hooks/use-model-providers";
 import { useSetScoring } from "@/hooks/use-scoring";
 import { getErrorMessage } from "@/lib/api-error";
+import { scoringProblem } from "@/lib/scoring";
 import type { CaseCheck } from "@/types/datasets";
 import type { DatasetScoring, ReviewSelect } from "@/types/scoring";
 import { RubricEditor } from "./rubric-editor";
@@ -104,6 +105,7 @@ export function ScoringPanel({ datasetId, scoring, canEdit }: ScoringPanelProps)
   );
   const [problem, setProblem] = useState<string | null>(null);
   const disabled = !canEdit || save.isPending;
+  const unusable = scoringProblem(draft);
   const set = <K extends keyof DatasetScoring>(key: K, value: DatasetScoring[K]) =>
     setDraft((current) => ({ ...current, [key]: value }));
 
@@ -134,13 +136,18 @@ export function ScoringPanel({ datasetId, scoring, canEdit }: ScoringPanelProps)
       description={t("description")}
       action={
         canEdit ? (
-          <Button size="sm" disabled={disabled} onClick={() => void submit()}>
+          <Button size="sm" disabled={disabled || unusable !== null} onClick={() => void submit()}>
             {t("save")}
           </Button>
         ) : undefined
       }
     >
       <div className="space-y-4" data-tour="datasets-scoring">
+        {canEdit && unusable !== null && (
+          <p role="alert" className="text-destructive text-sm">
+            {t(unusable)}
+          </p>
+        )}
         <ScorerRow
           label={t("scorer.check")}
           hint={t("checksHint")}

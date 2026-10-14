@@ -1,5 +1,5 @@
 ---
-source_sha: "fd1f20c91bb6"
+source_sha: "1ceb0a8e14cf"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -188,6 +188,11 @@ Die Konfiguration wird nicht mit den Fällen versioniert, weil die Art, wie ein
 Team bewertet, nicht das ist, was es fragt. Jeder Score bewahrt eine Kopie der
 Konfiguration auf, mit der er berechnet wurde, sodass ein älterer Score auch
 nach einer Änderung der Konfiguration noch sagt, wie er zustande kam.
+
+Eine Konfiguration, die nichts bewerten könnte, wird abgelehnt: alle Scorer
+ausgeschaltet oder der Judge eingeschaltet ohne ein Kriterium. Ebenso die
+Bewertung eines Falls, an dem keiner der konfigurierten Scorer etwas zu prüfen
+hat - nichts wird gespeichert, und der Judge wird nicht aufgerufen.
 
 ### Prüfungen { #checks }
 

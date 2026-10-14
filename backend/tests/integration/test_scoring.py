@@ -55,6 +55,7 @@ from app.schemas.scoring import (
     ReferenceScorer,
     ReviewScorer,
     RubricCriterion,
+    TrajectoryScorer,
 )
 from app.services.agent_registry import AgentRegistryService
 from app.services.dataset import DatasetService
@@ -798,8 +799,52 @@ class TestRefusals:
             await ScoringService(db).set_scoring(
                 mine.ctx,
                 dataset.id,
-                DatasetScoring(judge=JudgeScorer(enabled=True, model_profile_id=foreign.id)),
+                DatasetScoring(
+                    judge=JudgeScorer(enabled=True, criteria=RUBRIC, model_profile_id=foreign.id)
+                ),
             )
+
+    @pytest.mark.parametrize(
+        ("scoring", "field"),
+        [
+            (
+                DatasetScoring(
+                    checks=ChecksScorer(enabled=False), trajectory=TrajectoryScorer(enabled=False)
+                ),
+                "checks.enabled",
+            ),
+            (DatasetScoring(judge=JudgeScorer(enabled=True)), "judge.criteria"),
+        ],
+    )
+    async def test_a_scoring_that_can_score_nothing_is_refused(
+        self, db, judge, scoring, field
+    ) -> None:
+        tenant = await _tenant(db)
+        dataset, _ = await _dataset(db, tenant, scoring=DatasetScoring())
+
+        with pytest.raises(BadRequestError) as refused:
+            await ScoringService(db).set_scoring(tenant.ctx, dataset.id, scoring)
+
+        assert [problem["field"] for problem in refused.value.details["fields"]] == [field]
+
+    async def test_a_case_the_scorers_have_nothing_to_check_on_keeps_no_score(
+        self, db, judge
+    ) -> None:
+        tenant = await _tenant(db)
+        dataset, _ = await _dataset(db, tenant, scoring=DatasetScoring())
+        bare = await DatasetService(db).add_case(
+            tenant.ctx, dataset.id, DatasetCaseCreate(input="Hi?", reference_answer="Hello.")
+        )
+        run = await _scored_run(db, tenant)
+        scoring = ScoringService(db)
+
+        with pytest.raises(BadRequestError, match="Nothing to score"):
+            await scoring.score_run(
+                tenant.ctx, dataset.id, bare.case_id, CaseScoreCreate(run_id=run.id)
+            )
+
+        assert (await scoring.list_scores(tenant.ctx, dataset.id)).total == 0
+        assert judge.calls == 0
 
     async def test_a_score_from_another_dataset_is_not_found(self, db, judge) -> None:
         tenant = await _tenant(db)

@@ -5637,7 +5637,11 @@
       "noCaseToScore": "Dieses Dataset hat noch keinen Fall",
       "score": "Bewerten",
       "scoring": "Wird bewertet…",
-      "close": "Schließen"
+      "close": "Schließen",
+      "problem": {
+        "noScorer": "Schalten Sie mindestens eine Bewertungsart ein – sind alle aus, lässt sich kein Fall bewerten.",
+        "noCriterion": "Geben Sie dem Eval-Bewerter mindestens ein Kriterium oder schalten Sie ihn aus – er hat nichts zu bewerten."
+      }
     },
     "title": "Datasets",
     "pageDescription": "Die Fragen, an denen Ihre Agents getestet werden. Jede Änderung an den Fällen eines Datasets erzeugt eine neue Version, sodass zwei Eval-Runs auf einer Version dieselben Fragen gesehen haben.",

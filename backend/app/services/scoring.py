@@ -130,9 +130,15 @@ class ScoringService:
 
         Raises:
             NotFoundError: The dataset is not one the caller may edit.
-            BadRequestError: The judge's model is not one of the organization's.
+            BadRequestError: Every scorer is off, the judge is on with nothing to
+                grade, or the judge's model is not one of the organization's.
         """
         dataset = await self.datasets.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
+        scorers = (data.checks, data.trajectory, data.judge, data.reference)
+        if not any(scorer.enabled for scorer in scorers):
+            raise refused_field("checks.enabled", "Turn on at least one scorer")
+        if data.judge.enabled and not data.judge.criteria:
+            raise refused_field("judge.criteria", "Give the judge at least one criterion")
         profile_id = data.judge.model_profile_id
         if profile_id is not None and (
             await credential_repo.get_profile(
@@ -160,7 +166,8 @@ class ScoringService:
             NotFoundError: The dataset, the case or the run is not one the caller
                 may reach.
             AuthorizationError: The caller may not read runs.
-            BadRequestError: The run kept no transcript to score.
+            BadRequestError: The run kept no transcript to score, or the
+                dataset's scorers have nothing to check on the case.
         """
         dataset = await self.datasets.get(ctx, dataset_id, perm=Perm.DATASETS_RUN)
         case = await self.datasets.case_at(ctx, dataset, case_id, version=data.version)
@@ -238,10 +245,19 @@ class ScoringService:
         The entry point for an eval run as much as for a single score: `scoring`
         overrides the dataset's configuration, as a suite may. The caller has
         already decided the caller may score this dataset.
+
+        Raises:
+            BadRequestError: No configured scorer has anything to check on this
+                case - nothing is kept, and the judge is not called.
         """
         config = scoring or DatasetScoring.model_validate(dataset.scoring)
         evaluation = await self.evaluate(ctx, _case_view(case), answer, config)
         results = evaluation.results
+        if not results:
+            raise BadRequestError(
+                message=("Nothing to score: the dataset's scorers check nothing this case expects"),
+                details={"case_id": case.case_id},
+            )
         passed = case_passed(results)
         select = config.review.select
         waits = select == "all" or (select == "failed" and passed is not True)

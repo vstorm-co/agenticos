@@ -1,5 +1,5 @@
 ---
-source_sha: "fd1f20c91bb6"
+source_sha: "1ceb0a8e14cf"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -182,6 +182,11 @@ La configuración no se versiona con los casos, porque cómo califica un equipo 
 es lo que pregunta. Cada puntuación guarda una copia de la configuración con la
 que se calculó, así que una puntuación anterior sigue diciendo cómo se obtuvo
 después de que cambie la configuración.
+
+Se rechaza una configuración que no podría puntuar nada: todos los evaluadores
+apagados, o el juez encendido sin ningún criterio. También la puntuación de un
+caso en el que ninguno de los evaluadores configurados tiene nada que
+comprobar: no se guarda nada y no se llama al juez.
 
 ### Comprobaciones { #checks }
 

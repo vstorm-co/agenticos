@@ -173,6 +173,10 @@ not what it asks. Each score keeps a copy of the configuration it was computed
 with, so an older score still says how it was reached after the configuration
 changes.
 
+A configuration that could score nothing is refused: every scorer off, or the
+judge on with no criteria. So is a score of a case none of the configured
+scorers has anything to check on - nothing is kept and the judge is not called.
+
 ### Checks { #checks }
 
 | `type` | Parameters | Passes when |

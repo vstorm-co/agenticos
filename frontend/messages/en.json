@@ -5779,7 +5779,11 @@
       "noCaseToScore": "This dataset has no case yet",
       "score": "Score",
       "scoring": "Scoring…",
-      "close": "Close"
+      "close": "Close",
+      "problem": {
+        "noScorer": "Turn on at least one scorer - with every scorer off, no case can be scored.",
+        "noCriterion": "Give the judge at least one criterion, or turn it off - it has nothing to grade."
+      }
     },
     "title": "Datasets",
     "pageDescription": "The questions your agents are tested on. Every change to a dataset's cases makes a new version, so two eval runs on one version saw the same questions.",

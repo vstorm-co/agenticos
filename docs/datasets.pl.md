@@ -1,5 +1,5 @@
 ---
-source_sha: "fd1f20c91bb6"
+source_sha: "1ceb0a8e14cf"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -178,6 +178,11 @@ Konfiguracja nie jest wersjonowana razem z przypadkami, bo to, jak zespół
 ocenia, nie jest tym, o co pyta. Każdy wynik przechowuje kopię konfiguracji, z
 którą został obliczony, więc starszy wynik nadal mówi, jak do niego doszło, po
 zmianie konfiguracji.
+
+Konfiguracja, która nie mogłaby niczego ocenić, jest odrzucana: wszystkie
+oceniacze wyłączone albo sędzia włączony bez żadnego kryterium. Tak samo ocena
+przypadku, w którym żaden ze skonfigurowanych oceniaczy nie ma czego sprawdzić -
+nic nie jest zapisywane, a sędzia nie jest wywoływany.
 
 ### Sprawdzenia { #checks }
 
