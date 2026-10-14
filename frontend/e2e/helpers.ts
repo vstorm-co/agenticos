@@ -165,6 +165,12 @@ export const SEEDED_ORG_MCP_SECRET = "sk-e2eORGmcpnotarealtoken4KQ2";
 export const RENDERED_SECRET = /sk-[A-Za-z0-9]{20,}/;
 
 /** The page's own title, as `PageHeader` renders it. */
+/**
+ * The dashboard's heading on the view everybody opens on, their own: a
+ * greeting for the time of day rather than the page's name.
+ */
+export const DASHBOARD_GREETING = /^Good (morning|afternoon|evening)/;
+
 export function pageHeading(page: Page, name?: string | RegExp): Locator {
   return page.getByRole("heading", { level: 1, name });
 }

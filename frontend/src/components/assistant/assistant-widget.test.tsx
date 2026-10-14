@@ -390,11 +390,13 @@ describe("the Architect widget", () => {
   });
 
   it("still speaks where the tab keeps nothing", () => {
-    vi.spyOn(Storage.prototype, "getItem").mockImplementation((key: string) => {
+    // On the storage objects themselves: `vitest.setup.ts` installs its own,
+    // so a spy on `Storage.prototype` never reaches the read.
+    vi.spyOn(sessionStorage, "getItem").mockImplementation((key: string) => {
       if (key === "assistant-approvals-heard") throw new Error("denied");
       return null;
     });
-    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+    vi.spyOn(sessionStorage, "setItem").mockImplementation(() => {
       throw new Error("denied");
     });
     state.signals.pendingApprovals = 1;

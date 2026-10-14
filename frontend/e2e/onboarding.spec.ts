@@ -1,6 +1,6 @@
 import { expect, test } from "./fixtures";
 
-import { AUTH_STATE, pageHeading } from "./helpers";
+import { AUTH_STATE, DASHBOARD_GREETING, pageHeading } from "./helpers";
 
 /**
  * The walkthrough, which every other spec in this suite spends its life avoiding.
@@ -76,7 +76,7 @@ test.describe("Onboarding", () => {
 
     // And it does not come back on the next load, which is the point of the write.
     await page.goto("/dashboard");
-    await expect(pageHeading(page, "Dashboard")).toBeVisible();
+    await expect(pageHeading(page, DASHBOARD_GREETING)).toBeVisible();
     await expect(page.locator(POPOVER)).toBeHidden();
   });
 
