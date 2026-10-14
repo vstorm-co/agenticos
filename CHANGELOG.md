@@ -457,6 +457,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **The browser window reads as a browser.** One toolbar instead of a tab
+  strip over an address bar: the address with its lock, host and path and
+  a Live mark, then Take over as a solid button and the window's controls
+  at full contrast. The page waits for a frame of the window's own size
+  instead of showing the default-size first frames shrunk into the column,
+  and the agent's cursor is a labelled pointer whose click ring fades out
+  rather than staying on the page as a blue disc.
+
 - **A browse stays in the turn that made it.** Its line was a strip under
   the whole transcript, so a finished browse sat under the answer's footer,
   out of line with the message, and vanished with the next message. Each

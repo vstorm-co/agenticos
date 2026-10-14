@@ -1442,6 +1442,7 @@
     "moveDown": "Move down",
     "browserAction": "{operation, select, CLICK {Clicked} TYPE_TEXT {Typed into} SELECT {Chose in} SCROLL {Scrolled the page} NAVIGATE {Opened} BACK {Went back} WAIT {Waited for the page} DONE {Finished} BLOCKED {Stopped} ASK_PERSON {Asked for help} other {Worked on the page}}",
     "browserLive": "Live",
+    "browserAgentCursor": "Agent",
     "browserStarting": "Opening the page…",
     "browserTakeOver": "Take over",
     "browserMaximize": "Maximize",

@@ -1442,6 +1442,7 @@
     "moveDown": "Przesuń niżej",
     "browserAction": "{operation, select, CLICK {Kliknięto} TYPE_TEXT {Wpisano w} SELECT {Wybrano w} SCROLL {Przewinięto stronę} NAVIGATE {Otwarto} BACK {Cofnięto} WAIT {Czekano na stronę} DONE {Gotowe} BLOCKED {Zatrzymano} ASK_PERSON {Poproszono o pomoc} other {Praca na stronie}}",
     "browserLive": "Na żywo",
+    "browserAgentCursor": "Agent",
     "browserStarting": "Otwieranie strony…",
     "browserTakeOver": "Przejmij",
     "browserMaximize": "Maksymalizuj",
