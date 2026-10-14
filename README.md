@@ -189,7 +189,7 @@ Agents can publish reports, interactive comparisons and small dashboards as **ap
 
 ### 📊 Track runs, costs and approvals
 
-<img src="docs/assets/readme/dashboard-annotated.webp" alt="The dashboard with six numbered sections: time range, at a glance, runs over time, outcomes, run sources and adoption." width="100%">
+<img src="docs/assets/readme/dashboard-annotated.webp" alt="The dashboard with six numbered sections: time range, at a glance, runs over time, outcomes, decisions waiting and recent failures." width="100%">
 
 The dashboard answers six questions for a chosen period: how many runs there were, how many finished, what they cost and how many people used agents; how runs changed over time; what failed, waited for approval or was stopped by a budget; where runs came from; and which agents people actually use.
 

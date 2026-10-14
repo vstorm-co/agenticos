@@ -1,4 +1,4 @@
-<!-- source_sha: 7006489d91d0 -->
+<!-- source_sha: 82caf917bac9 -->
 
 <div align="center">
 
@@ -191,7 +191,7 @@ Agenci mogą publikować raporty, interaktywne porównania i małe dashboardy ja
 
 ### 📊 Śledź runy, koszty i zatwierdzenia
 
-<img src="docs/assets/readme/dashboard-annotated.webp" alt="Dashboard z sześcioma ponumerowanymi sekcjami: zakres czasu, podsumowanie, runy w czasie, wyniki, źródła runów i adopcja." width="100%">
+<img src="docs/assets/readme/dashboard-annotated.webp" alt="Dashboard z sześcioma ponumerowanymi sekcjami: zakres czasu, podsumowanie, runy w czasie, wyniki, decyzje do podjęcia i ostatnie błędy." width="100%">
 
 Dashboard odpowiada na sześć pytań dla wybranego okresu: ile było runów, ile się zakończyło, ile kosztowały i ile osób korzystało z agentów; jak runy zmieniały się w czasie; co się nie powiodło, czekało na zatwierdzenie lub zostało zatrzymane przez budżet; skąd pochodziły runy; oraz z których agentów ludzie faktycznie korzystają.
 

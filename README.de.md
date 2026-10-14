@@ -1,4 +1,4 @@
-<!-- source_sha: 7006489d91d0 -->
+<!-- source_sha: 82caf917bac9 -->
 
 <div align="center">
 
@@ -191,7 +191,7 @@ Agenten können Berichte, interaktive Vergleiche und kleine Dashboards als **App
 
 ### 📊 Runs, Kosten und Freigaben verfolgen
 
-<img src="docs/assets/readme/dashboard-annotated.webp" alt="Das Dashboard mit sechs nummerierten Abschnitten: Zeitraum, auf einen Blick, Runs im Zeitverlauf, Ergebnisse, Run-Quellen und Nutzung." width="100%">
+<img src="docs/assets/readme/dashboard-annotated.webp" alt="Das Dashboard mit sechs nummerierten Abschnitten: Zeitraum, auf einen Blick, Runs im Zeitverlauf, Ergebnisse, offene Entscheidungen und letzte Fehler." width="100%">
 
 Das Dashboard beantwortet für einen gewählten Zeitraum sechs Fragen: wie viele Runs es gab, wie viele abgeschlossen wurden, was sie gekostet haben und wie viele Personen Agenten genutzt haben; wie sich die Runs im Zeitverlauf verändert haben; was fehlgeschlagen ist, auf eine Freigabe gewartet hat oder von einem Budget gestoppt wurde; woher die Runs kamen; und welche Agenten tatsächlich genutzt werden.
 

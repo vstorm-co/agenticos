@@ -1,4 +1,4 @@
-<!-- source_sha: 7006489d91d0 -->
+<!-- source_sha: 82caf917bac9 -->
 
 <div align="center">
 
@@ -191,7 +191,7 @@ Los agentes pueden publicar informes, comparaciones interactivas y pequeños pan
 
 ### 📊 Supervisa runs, costes y aprobaciones
 
-<img src="docs/assets/readme/dashboard-annotated.webp" alt="El dashboard con seis secciones numeradas: periodo, de un vistazo, runs a lo largo del tiempo, resultados, orígenes de los runs y adopción." width="100%">
+<img src="docs/assets/readme/dashboard-annotated.webp" alt="El dashboard con seis secciones numeradas: periodo, de un vistazo, runs a lo largo del tiempo, resultados, decisiones pendientes y fallos recientes." width="100%">
 
 El dashboard responde a seis preguntas para el periodo elegido: cuántos runs hubo, cuántos terminaron, cuánto costaron y cuántas personas usaron agentes; cómo cambiaron los runs a lo largo del tiempo; qué falló, esperó una aprobación o se detuvo por un budget; de dónde vinieron los runs; y qué agentes usa realmente la gente.
 
