@@ -1,28 +1,73 @@
 "use client";
 
-import { Globe } from "lucide-react";
+import { ArrowUpRight, Globe } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { createContext, useContext } from "react";
 
 import { isRunning, type Browse } from "@/lib/browse";
 import { cn } from "@/lib/utils";
 import { useBrowserPanelStore } from "@/stores/browser-panel-store";
+import type { ToolCall } from "@/types";
 import { OUTCOME_TONE } from "./browser-view";
 import { hostOf } from "./browser-window";
 
+/** The browses running in this chat, by call - what a turn's `browse_web` steps draw live. */
+const LiveBrowses = createContext<Browse[]>([]);
+
+/** Hands the chat's live browses to the turns that made them. */
+export const LiveBrowsesProvider = LiveBrowses.Provider;
+
 /**
- * Every browse of the turn, one line each, under the message that started it.
+ * A turn's browses, one line each, where the turn made them.
  *
- * A line rather than a window: the browser has its own column beside the
- * conversation, and the transcript only has to say that the agent is browsing,
- * where, and whether it needs somebody - with the way to look.
+ * Part of the turn rather than a strip under the whole transcript: drawn there,
+ * a finished browse sat under the answer's footer, misaligned with the message,
+ * and vanished with the next message, because the strip only knew the turn in
+ * flight. Here each `browse_web` call draws its own line - live while the
+ * browse is in this chat's socket, with the way to watch it; as a record once
+ * it is not, with the way to the site.
  */
-export function BrowserCards({ browses }: { browses: Browse[] }) {
-  if (browses.length === 0) return null;
+export function TurnBrowses({ calls }: { calls: ToolCall[] }) {
+  const live = useContext(LiveBrowses);
+  if (calls.length === 0) return null;
   return (
-    <div className="ml-10 flex max-w-2xl flex-col gap-2 pb-2 sm:ml-[52px]">
-      {browses.map((browse) => (
-        <BrowserLine key={browse.callId} browse={browse} />
-      ))}
+    <div className="flex max-w-2xl flex-col gap-2 py-1">
+      {calls.map((call) => {
+        const browse = live.find((entry) => entry.callId === call.id);
+        return browse ? (
+          <BrowserLine key={call.id} browse={browse} />
+        ) : (
+          <RecordedBrowse key={call.id} call={call} />
+        );
+      })}
+    </div>
+  );
+}
+
+/** A browse from an earlier turn: where it went, and the way there. */
+function RecordedBrowse({ call }: { call: ToolCall }) {
+  const t = useTranslations("chat");
+  const start = typeof call.args.start_url === "string" ? call.args.start_url : null;
+  const host = hostOf(start);
+  return (
+    <div className="bg-foreground/[0.04] flex w-full min-w-0 items-center gap-3 rounded-2xl px-2.5 py-2">
+      <span className="ring-foreground/10 bg-background flex h-10 w-14 shrink-0 items-center justify-center rounded-lg ring-1">
+        <Globe className="text-muted-foreground size-4" aria-hidden />
+      </span>
+      <span className="text-foreground min-w-0 flex-1 truncate text-sm font-medium">
+        {host ? t("browserLineBrowsed", { host }) : t("browserLineBrowsedWeb")}
+      </span>
+      {start && host && (
+        <a
+          href={start}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-muted-foreground hover:text-foreground inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium"
+        >
+          {t("browserVisitSite")}
+          <ArrowUpRight className="size-3.5" aria-hidden />
+        </a>
+      )}
     </div>
   );
 }

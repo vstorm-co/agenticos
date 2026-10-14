@@ -1452,6 +1452,8 @@
     "browserHolding": "Sie steuern - klicken, tippen und scrollen Sie auf der Seite",
     "browserLineBrowsing": "Surft auf {host}",
     "browserLineBrowsed": "War auf {host}",
+    "browserLineBrowsedWeb": "War im Web",
+    "browserVisitSite": "Seite öffnen",
     "browserLineNeeds": "Braucht Sie: {what}",
     "browserLineShowing": "Geöffnet",
     "browserLineOpen": "Öffnen",

@@ -8,8 +8,9 @@ import { toolEntry } from "@/lib/tool-catalog";
 import { cn } from "@/lib/utils";
 import { useInChatScope } from "@/stores/chat-scope-context";
 import type { McpServerRef } from "@/lib/tool-steps";
-import type { MessagePart } from "@/types";
+import type { MessagePart, ToolCall } from "@/types";
 import { AgentSteps } from "./agent-step";
+import { TurnBrowses } from "./browser-card";
 import { MarkdownContent } from "./markdown-content";
 import { ToolCallCard } from "./tool-call-card";
 import { YouFace } from "./you-face";
@@ -65,7 +66,9 @@ export function TurnParts({
 }) {
   const runs = runsOf(parts);
   const elapsed = useTurnElapsed(startedAt, isStreaming);
-  const render = (run: PartRun) =>
+  // A browse is shown in the turn whether or not the steps around it fold:
+  // inside a folded run it would be a live browser nobody can see is running.
+  const render = (run: PartRun, browses = true) =>
     run.kind === "tools" ? (
       <div key={run.parts[0].id} className="w-full">
         {/* The rail folds its own earlier steps away, but it cannot see what is
@@ -87,6 +90,7 @@ export function TurnParts({
             />
           ))}
         </AgentSteps>
+        {browses && <TurnBrowses calls={browseCalls([run])} />}
       </div>
     ) : run.part.type === "thinking" ? (
       <ThinkingBlock
@@ -121,18 +125,19 @@ export function TurnParts({
     return (
       <>
         {runs.some(isWork) && <WorkingLine elapsedMs={elapsed} />}
-        {runs.map(render)}
+        {runs.map((run) => render(run))}
       </>
     );
   }
   const split = foldWork(runs, stopped);
-  if (split === null) return <>{runs.map(render)}</>;
+  if (split === null) return <>{runs.map((run) => render(run))}</>;
   return (
     <>
       <WorkFold steps={split.steps} durationMs={durationMs ?? elapsed} stopped={stopped}>
-        {split.folded.map(render)}
+        {split.folded.map((run) => render(run, false))}
       </WorkFold>
-      {split.shown.map(render)}
+      <TurnBrowses calls={browseCalls(split.folded)} />
+      {split.shown.map((run) => render(run))}
     </>
   );
 }
@@ -394,6 +399,15 @@ export function runsOf(parts: MessagePart[]): PartRun[] {
  * the same row the card reads to decide whether to open itself - so a tool is
  * described in one place and the rail and the card cannot disagree about it.
  */
+/** The `browse_web` calls in these runs, in the order they were made. */
+function browseCalls(runs: PartRun[]): ToolCall[] {
+  return runs.flatMap((run) =>
+    run.kind === "tools"
+      ? run.parts.flatMap((part) => (part.toolCall?.name === "browse_web" ? [part.toolCall] : []))
+      : [],
+  );
+}
+
 export function mustShowEveryStep(parts: MessagePart[]): boolean {
   return parts.some((part) => {
     const call = part.toolCall;

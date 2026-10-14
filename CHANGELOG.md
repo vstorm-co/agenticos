@@ -457,6 +457,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **A browse stays in the turn that made it.** Its line was a strip under
+  the whole transcript, so a finished browse sat under the answer's footer,
+  out of line with the message, and vanished with the next message. Each
+  `browse_web` call now draws its line in its turn - under the folded work
+  once the turn is done - live with Open while the browse is in the chat,
+  and as a record with a link to the site afterwards.
+
 - **`code` in the markdown editor is a grey chip, not red.** Tool names in
   an agent's instructions read as errors in rose; inline code and fenced
   lines are now drawn in the ink colour on the neutral tint.

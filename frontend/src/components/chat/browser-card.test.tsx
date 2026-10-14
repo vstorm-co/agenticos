@@ -2,7 +2,8 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { BrowserCards } from "./browser-card";
+import { LiveBrowsesProvider, TurnBrowses } from "./browser-card";
+import type { ToolCall } from "@/types";
 import type { Browse } from "@/lib/browse";
 import { useBrowserPanelStore } from "@/stores/browser-panel-store";
 
@@ -22,13 +23,26 @@ function browse(overrides: Partial<Browse> = {}): Browse {
   };
 }
 
+function call(id = "c1", args: Record<string, unknown> = {}): ToolCall {
+  return { id, name: "browse_web", args, status: "completed" };
+}
+
+/** The turn's `browse_web` calls, drawn against the browses live in the chat. */
+function BrowserCards({ browses, calls }: { browses: Browse[]; calls?: ToolCall[] }) {
+  return (
+    <LiveBrowsesProvider value={browses}>
+      <TurnBrowses calls={calls ?? browses.map((entry) => call(entry.callId))} />
+    </LiveBrowsesProvider>
+  );
+}
+
 const line = () => screen.getByRole("button", { name: "Open in the side panel" });
 
 beforeEach(() => {
   useBrowserPanelStore.setState({ openCallId: null, mode: "full" });
 });
 
-describe("BrowserCards - a browse as one line in the transcript", () => {
+describe("TurnBrowses - a browse as one line in its turn", () => {
   it("draws nothing for a turn that did not browse", () => {
     const { container } = render(<BrowserCards browses={[]} />);
     expect(container).toBeEmptyDOMElement();
@@ -88,5 +102,29 @@ describe("BrowserCards - a browse as one line in the transcript", () => {
     expect(screen.getAllByRole("button", { name: "Open in the side panel" })[1]).toHaveTextContent(
       "Showing",
     );
+  });
+
+  it("keeps a browse from an earlier turn, with the way to the site", () => {
+    // Nothing live in this chat for it any more - the line used to vanish with
+    // the next message.
+    render(
+      <BrowserCards
+        browses={[]}
+        calls={[call("old", { start_url: "https://vstorm.co/pricing" })]}
+      />,
+    );
+
+    expect(screen.getByText("Browsed vstorm.co")).toBeVisible();
+    expect(screen.getByRole("link", { name: /Visit site/ })).toHaveAttribute(
+      "href",
+      "https://vstorm.co/pricing",
+    );
+  });
+
+  it("says the agent browsed the web when the call named no page", () => {
+    render(<BrowserCards browses={[]} calls={[call("old")]} />);
+
+    expect(screen.getByText("Browsed the web")).toBeVisible();
+    expect(screen.queryByRole("link")).toBeNull();
   });
 });

@@ -1452,6 +1452,8 @@
     "browserHolding": "You're driving - click, type and scroll the page",
     "browserLineBrowsing": "Browsing {host}",
     "browserLineBrowsed": "Browsed {host}",
+    "browserLineBrowsedWeb": "Browsed the web",
+    "browserVisitSite": "Visit site",
     "browserLineNeeds": "Needs you: {what}",
     "browserLineShowing": "Showing",
     "browserLineOpen": "Open",

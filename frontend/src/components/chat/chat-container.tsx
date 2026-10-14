@@ -15,7 +15,7 @@ import { UsageMeter } from "./usage-meter";
 import { WorkspaceFiles } from "./workspace-files";
 import { FilePreviewDialog } from "./file-preview-dialog";
 import type { Browse } from "@/lib/browse";
-import { BrowserCards } from "./browser-card";
+import { LiveBrowsesProvider } from "./browser-card";
 import { BrowserPanel } from "./browser-panel";
 import { SourcesPanel } from "./sources-panel";
 import { MessageList } from "./message-list";
@@ -712,16 +712,14 @@ function ChatUI({
                 )}
               </div>
             ) : (
-              <MessageList messages={messages} onRegenerate={onRegenerate} pins={pins} />
+              <LiveBrowsesProvider value={browses}>
+                <MessageList messages={messages} onRegenerate={onRegenerate} pins={pins} />
+              </LiveBrowsesProvider>
             )}
             {/* After the transcript, not inside it: a delegation is a second agent's
                 conversation happening inside one turn of this one, and it can still be
                 streaming when the turn it belongs to has already answered. */}
             <DelegationPanels delegations={delegations} />
-            {/* One card per browse, in the transcript, aligned to the message
-                column. An agent asked to compare two pages browses both at
-                once, and a single card would hide half of what it is doing. */}
-            <BrowserCards browses={browses} />
           </div>
         </div>
         {/* The floating dock: banners, the composer, the caption. Over the

@@ -1452,6 +1452,8 @@
     "browserHolding": "Sterujesz - klikaj, pisz i przewijaj stronę",
     "browserLineBrowsing": "Przegląda {host}",
     "browserLineBrowsed": "Przeglądał {host}",
+    "browserLineBrowsedWeb": "Przeglądał internet",
+    "browserVisitSite": "Otwórz stronę",
     "browserLineNeeds": "Potrzebuje Ciebie: {what}",
     "browserLineShowing": "Otwarte",
     "browserLineOpen": "Otwórz",
