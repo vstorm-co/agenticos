@@ -1,5 +1,5 @@
 ---
-source_sha: "2bec95c1a323"
+source_sha: "d95ab4372b95"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -280,6 +280,10 @@ oceny.
 
 Uzasadnienie napisane przez sędziego przechodzi przed zapisaniem przez tę samą
 redakcję poświadczeń co przypadek.
+
+Żeby agent odpowiedział na każdy przypadek wersji, każda odpowiedź została
+oceniona za jednym razem, a wynik porównany z wcześniejszą wersją, uruchom
+[eval run](evals.md).
 
 ## Dostęp { #access }
 

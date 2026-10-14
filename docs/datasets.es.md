@@ -1,5 +1,5 @@
 ---
-source_sha: "2bec95c1a323"
+source_sha: "d95ab4372b95"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -288,6 +288,10 @@ respuesta que puntuar.
 
 Un motivo que escribió el juez pasa por la misma ocultación de credenciales que
 un caso antes de guardarse.
+
+Para que un agent responda a todos los casos de una versión, se puntúe cada
+respuesta de una vez y el resultado se compare con una versión anterior, inicia
+un [eval run](evals.md).
 
 ## Acceso { #access }
 

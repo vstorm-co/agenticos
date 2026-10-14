@@ -270,6 +270,10 @@ scorer the dataset configures. A run with no transcript has no answer to score.
 A reason the judge wrote is passed through the same credential redaction as a
 case before it is stored.
 
+To have an agent answer every case of a version and score each answer in one
+go, and compare the result with an earlier version, start an
+[eval run](evals.md).
+
 ## Access { #access }
 
 A dataset is a shared resource with an owner, a visibility and grants, like a

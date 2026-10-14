@@ -1,5 +1,5 @@
 ---
-source_sha: "de345fa10b17"
+source_sha: "ad98623460be"
 ---
 
 # Governance { #governance }
@@ -142,6 +142,17 @@ der Anfrage sehr wohl begrenzt. Deshalb ist das Cap eine Obergrenze auf
 
 Ein Deployment, das ein striktes Cap braucht, lässt seine Agents durch eine
 einzige Queue laufen statt parallel.
+
+### Evals zahlen aus denselben Budgets { #evals-spend-from-the-same-budgets }
+
+Ein [Eval-Run](evals.md) besteht aus gewöhnlichen Runs. Jeder Fall wird daher
+vor jeder Modellanfrage gegen die Limits des Agents und der Organisation
+geprüft, und was er ausgibt, zählt gegen beide - ein eigenes Eval-Budget gibt
+es nicht. Ein großes Dataset kann deshalb das Monatsbudget aufbrauchen, das der
+Produktionsverkehr braucht. Der Start eines Runs zeigt, was jedes Limit nach
+der geschätzten Ausgabe behält, und wird abgelehnt, bevor etwas läuft, wenn die
+Schätzung höher ist als das, was einem der beiden bleibt; siehe
+[Das verbleibende Budget](evals.md#the-budget-it-leaves).
 
 ### Ein Run kostet mehr als seine Modellanfragen { #a-run-costs-more-than-its-model-requests }
 

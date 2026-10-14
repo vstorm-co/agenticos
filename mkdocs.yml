@@ -320,6 +320,7 @@ nav:
           - skills.md
           - context.md
           - datasets.md
+          - evals.md
           - file-processing.md
           - mcp.md
           - sandbox.md

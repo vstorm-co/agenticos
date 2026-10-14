@@ -1,5 +1,5 @@
 ---
-source_sha: "2bec95c1a323"
+source_sha: "d95ab4372b95"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -297,6 +297,10 @@ ohne Transkript hat keine Antwort, die sich bewerten ließe.
 
 Eine Begründung, die der Judge geschrieben hat, durchläuft vor dem Speichern
 dieselbe Schwärzung von Zugangsdaten wie ein Fall.
+
+Damit ein Agent jeden Fall einer Version in einem Durchgang beantwortet, jede
+Antwort bewertet und das Ergebnis mit einer früheren Version verglichen wird,
+starte einen [Eval-Run](evals.md).
 
 ## Zugriff { #access }
 
