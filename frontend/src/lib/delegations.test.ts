@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  answerPreview,
   applyDelegationFrame,
+  delegateNamed,
   childrenOf,
   closeOpenDelegations,
   resolveAwaitingOnResume,
@@ -625,5 +627,26 @@ describe("closeOpenDelegations", () => {
     const none: Delegation[] = [];
 
     expect(closeOpenDelegations(none)).toBe(none);
+  });
+});
+
+describe("a delegate's name and the first words of its answer", () => {
+  it("names a delegate the reader can see by its own name, any other by its handle", () => {
+    const agents = [{ id: "a1", slug: "finance-analyst", name: "Finance Analyst" }];
+
+    expect(delegateNamed("finance-analyst", agents).name).toBe("Finance Analyst");
+    expect(delegateNamed("quarterly_report-researcher", agents)).toEqual({
+      id: null,
+      slug: "quarterly_report-researcher",
+      name: "Quarterly report researcher",
+    });
+  });
+
+  it("previews an answer as words, without its markdown", () => {
+    expect(answerPreview("\n## What shipped\n- **Payment links**")).toBe("What shipped");
+    expect(answerPreview("See [the notes](https://x.example) for `4.13`.")).toBe(
+      "See the notes for 4.13.",
+    );
+    expect(answerPreview("  \n ")).toBe("");
   });
 });

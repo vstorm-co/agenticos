@@ -13,7 +13,8 @@ import { newSpecialist, specialistNameError } from "@/lib/agent-spec";
 import { cn } from "@/lib/utils";
 import { childrenOf, delegateNamed, rootsOf, type DelegateRef } from "@/lib/delegations";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
-import { DelegationHandoff } from "./delegation-handoff";
+import { DelegationChat } from "./delegation-chat";
+import { STATUS_KEY } from "./delegation-sheet";
 import { toolStep } from "@/lib/tool-steps";
 import { Button } from "@/components/ui";
 import { Perm } from "@/types/permissions";
@@ -43,6 +44,7 @@ export function DelegationPanels({
   agents = [],
   parent,
   settled = false,
+  conversation = false,
 }: {
   delegations: Delegation[];
   /** The agents the reader can see, which give a delegate its name and face. */
@@ -55,6 +57,8 @@ export function DelegationPanels({
    * background, one that failed, and a specialist that can still be kept stay.
    */
   settled?: boolean;
+  /** The turn is still running: draw the delegations as a conversation. */
+  conversation?: boolean;
 }) {
   const roots = rootsOf(delegations).filter(
     (delegation) =>
@@ -64,25 +68,11 @@ export function DelegationPanels({
       delegation.specialist !== null,
   );
   if (roots.length === 0) return null;
-  // The team at work, over the panels, while any of it is still out. Once all of
-  // it is back the strip under the answer says who did what, and these panels
-  // stay for what only they hold - the run behind each, promoting a specialist.
-  const working = roots.some(
-    (delegation) => delegation.status === "running" || delegation.status === "awaiting_approval",
-  );
+  // While the turn runs, the team is drawn as the exchange it is - see
+  // `DelegationChat`; the panels are what remains once it is over.
+  if (conversation) return <DelegationChat delegations={roots} agents={agents} parent={parent} />;
   return (
     <div className="space-y-1 pb-2">
-      {working && (
-        <DelegationHandoff
-          parent={parent}
-          named={false}
-          lanes={roots.map((delegation) => ({
-            key: delegation.taskId,
-            delegate: delegateNamed(delegation.subagent, agents),
-            status: delegation.status,
-          }))}
-        />
-      )}
       {roots.map((delegation) => (
         <DelegationPanel
           key={delegation.taskId}
@@ -110,20 +100,6 @@ const TONE: Record<DelegationStatus, string> = {
   // person, not working and not done - and never a spinner, which is a lie that
   // does not resolve until somebody decides.
   awaiting_approval: "text-amber-600",
-};
-
-/**
- * The catalog key for each status - keys here, translated at the point of use.
- *
- * A module-level table cannot call a translator, and holding English here would put
- * four strings outside `messages/` where no translation reaches them.
- */
-const STATUS_KEY: Record<DelegationStatus, string> = {
-  running: "working",
-  completed: "finished",
-  failed: "failed",
-  cancelled: "stopped",
-  awaiting_approval: "awaiting",
 };
 
 /**

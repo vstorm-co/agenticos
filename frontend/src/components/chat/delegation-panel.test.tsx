@@ -306,3 +306,18 @@ describe("DelegationPanels - once the turn is over", () => {
     expect(container).toBeEmptyDOMElement();
   });
 });
+
+describe("DelegationPanels - while the turn runs", () => {
+  it("draws the team as a conversation rather than as panels", () => {
+    render(
+      <DelegationPanels
+        conversation
+        parent={{ id: "p", slug: "chief-of-staff", name: "Chief of Staff" }}
+        delegations={[delegation()]}
+      />,
+    );
+
+    expect(screen.getByText("Chief of Staff → Researcher")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { expanded: false })).toBeNull();
+  });
+});

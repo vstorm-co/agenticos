@@ -294,3 +294,24 @@ export function delegateNamed(slug: string, agents: readonly DelegateRef[]): Del
   const words = slug.replace(/[-_]+/g, " ").trim();
   return { id: null, slug, name: words.charAt(0).toUpperCase() + words.slice(1) };
 }
+
+/**
+ * The first thing an answer says, as plain text for a one- or two-line preview.
+ *
+ * A delegate answers in markdown; a preview that showed `## What shipped` or
+ * `**No, not yet.**` would be showing the syntax. Headings, emphasis, code
+ * ticks and link targets go, and the first line with words left is the preview.
+ */
+export function answerPreview(markdown: string): string {
+  const line = markdown
+    .split("\n")
+    .map((each) =>
+      each
+        .replace(/^\s*(#{1,6}|[-*+>]|\d+\.)\s+/, "")
+        .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+        .replace(/[*_`]+/g, "")
+        .trim(),
+    )
+    .find((each) => each !== "");
+  return line ?? "";
+}

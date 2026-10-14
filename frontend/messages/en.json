@@ -1015,8 +1015,12 @@
       "working": "working…",
       "teamAtWork": "The team at work",
       "teamOnThis": "Who worked on this",
-      "askedCount": "{count, plural, =1 {Asked 1 agent} other {Asked # agents}}",
-      "actionCount": "{count, plural, =1 {1 action} other {# actions}}"
+      "actionCount": "{count, plural, =1 {1 action} other {# actions}}",
+      "talkedWith": "Talked it through with {names}",
+      "exchangeCount": "{count, plural, =1 {1 exchange} other {# exchanges}}",
+      "openExchanges": "Open the exchanges with the team",
+      "askedBy": "{from} → {to}",
+      "actions": "Actions"
     },
     "delete": "Delete",
     "describeIssue": "Describe the issue... (optional)",
