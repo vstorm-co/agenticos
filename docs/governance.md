@@ -1346,8 +1346,10 @@ One switch, in the organization's settings on its members page, decides whether
 models assist the organization's evals and authoring: the eval judge that
 grades [dataset scores](datasets.md#judge), the drafter that writes the
 content a [knowledge gap](knowledge-gaps.md#drafting-the-missing-content) is
-missing, and the case generator and authoring assistant that come after them. It is on by default and changed by
-whoever holds `org:settings`.
+missing, and the case generator and authoring assistant that come after them.
+It is off by default, for an organization that existed before the switch as
+for a new one: whether models judge and draft is the organization's decision,
+and whoever holds `org:settings` turns it on.
 
 When it is off, the service that would start such a run refuses it, whichever
 client asks - a hidden control is not the boundary. Scoring still runs its

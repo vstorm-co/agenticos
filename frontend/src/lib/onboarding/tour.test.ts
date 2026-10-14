@@ -44,6 +44,7 @@ const BUILDER_STEPS = [
   "agent-limits",
   "agent-availability",
   "agent-history",
+  "agent-test-connections",
   "agent-gaps",
   "agent-publish",
 ];
@@ -67,9 +68,9 @@ describe("pageKey", () => {
     expect(pageKey("/rag/abc-123/anything")).toBe(KB_DETAIL);
   });
 
-  it("collapses every dataset onto the one dataset identity", () => {
+  it("collapses every concrete dataset route onto the one dataset identity", () => {
     expect(pageKey("/datasets/abc-123")).toBe(DATASET_DETAIL);
-    expect(pageKey(ROUTES.DATASETS)).toBe(ROUTES.DATASETS);
+    expect(pageKey("/datasets")).toBe("/datasets");
   });
 
   it("splits the three organization detail routes onto their own identities", () => {
@@ -246,7 +247,13 @@ describe("stepsForPage", () => {
       stepsForPage("/agents/some-id", (permission) => permission === Perm.agentsView).map(
         (step) => step.id,
       ),
-    ).toEqual(BUILDER_STEPS.filter((id) => id !== "agent-publish" && id !== "agent-gaps"));
+    ).toEqual(
+      // Publishing and the test connections a publisher manages are
+      // agents:publish; the knowledge gaps are runs:view.
+      BUILDER_STEPS.filter(
+        (id) => id !== "agent-publish" && id !== "agent-test-connections" && id !== "agent-gaps",
+      ),
+    );
   });
 
   it("walks the list and then the whole collection when asked from the Knowledge list", () => {

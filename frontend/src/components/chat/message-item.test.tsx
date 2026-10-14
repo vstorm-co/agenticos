@@ -39,10 +39,6 @@ vi.mock("./tool-call-card", () => ({
     </div>
   ),
 }));
-// "Add to dataset" reads permissions and datasets itself; covered in its own tests.
-vi.mock("@/components/datasets/add-to-dataset-button", () => ({
-  AddToDatasetButton: () => null,
-}));
 // Ratings own their own fetch; this file cares only that they are offered.
 vi.mock("./rating-buttons", () => ({
   RatingButtons: ({

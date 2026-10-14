@@ -11,7 +11,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 
 from app.agents.spec import AgentSpec
@@ -204,10 +204,24 @@ class TestSeeding:
 
 
 class TestTheSwitch:
-    async def test_an_organization_starts_with_ai_assistance_on(self, db) -> None:
+    async def test_an_organization_starts_with_ai_assistance_off(self, db) -> None:
         organization, _ = await _organization(db)
 
-        assert await AiAssistanceService(db).is_enabled(organization_id=organization.id)
+        assert not await AiAssistanceService(db).is_enabled(organization_id=organization.id)
+
+    async def test_an_organization_the_migration_finds_has_it_off(self, db) -> None:
+        """The column's own default, as a row written without it gets it."""
+        user = await _user(db)
+        organization_id = uuid.uuid4()
+        await db.execute(
+            text(
+                "INSERT INTO organizations (id, name, slug, created_by_user_id, is_personal) "
+                "VALUES (:id, 'Old', :slug, :user, false)"
+            ),
+            {"id": organization_id, "slug": f"old-{organization_id.hex[:8]}", "user": user.id},
+        )
+
+        assert not await AiAssistanceService(db).is_enabled(organization_id=organization_id)
 
     async def test_switched_off_the_service_refuses(self, db) -> None:
         organization, owner = await _organization(db)
@@ -218,9 +232,8 @@ class TestTheSwitch:
         with pytest.raises(AiAssistanceDisabledError):
             await AiAssistanceService(db).require_enabled(organization_id=organization.id)
 
-    async def test_an_admin_switches_it_back_on(self, db) -> None:
+    async def test_an_admin_switches_it_on(self, db) -> None:
         organization, _ = await _organization(db)
-        organization.ai_assistance_enabled = False
         admin = await _user(db)
         await _member(db, organization, admin, OrgRoleName.ADMIN)
 
@@ -237,19 +250,19 @@ class TestTheSwitch:
 
         with pytest.raises(AuthorizationError):
             await OrganizationService(db).update(
-                organization.id, OrganizationUpdate(ai_assistance_enabled=False), member.id
+                organization.id, OrganizationUpdate(ai_assistance_enabled=True), member.id
             )
 
         await db.refresh(organization)
-        assert organization.ai_assistance_enabled is True
+        assert organization.ai_assistance_enabled is False
 
     async def test_renaming_the_organization_leaves_the_switch_alone(self, db) -> None:
         organization, owner = await _organization(db)
-        organization.ai_assistance_enabled = False
+        organization.ai_assistance_enabled = True
         await db.flush()
 
         updated = await OrganizationService(db).update(
             organization.id, OrganizationUpdate(name="Renamed"), owner.id
         )
 
-        assert updated.ai_assistance_enabled is False
+        assert updated.ai_assistance_enabled is True

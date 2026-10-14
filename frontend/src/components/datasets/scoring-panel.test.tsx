@@ -13,6 +13,10 @@ vi.mock("@/hooks/use-scoring", () => ({
 vi.mock("@/hooks/use-model-providers", () => ({
   useModelProviders: () => ({ profiles: [{ id: "p1", label: "Claude (prod)" }] }),
 }));
+vi.mock("@/hooks/use-organizations", () => ({
+  useOrganizations: () => ({ activeOrg: { id: "o1", ai_assistance_enabled: true } }),
+}));
+vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can: () => true }) }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 import { toast } from "sonner";
 
@@ -57,6 +61,21 @@ describe("ScoringPanel", () => {
     expect(saved().reference).toEqual({ enabled: true, required: false });
   });
 
+  it("holds the save shut while the configuration could score nothing", async () => {
+    panel();
+
+    await userEvent.click(screen.getByRole("switch", { name: "Checks" }));
+    await userEvent.click(screen.getByRole("switch", { name: "Tool calls" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Turn on at least one scorer");
+    expect(screen.getByRole("button", { name: "Save scoring" })).toBeDisabled();
+
+    await userEvent.click(screen.getByRole("switch", { name: "Judge" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("Give the judge at least one criterion");
+    await userEvent.click(screen.getByRole("button", { name: "Add criterion" }));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it("configures the judge: its model, its scale and its rubric", async () => {
     panel();
 
@@ -84,18 +103,26 @@ describe("ScoringPanel", () => {
   });
 
   it("goes back to the judge's own model and drops a criterion", async () => {
-    panel({ ...JUDGED, judge: { ...JUDGED.judge, model_profile_id: "p1" } });
+    const accuracy = { name: "accuracy", description: "Right facts", required: true };
+    panel({
+      ...JUDGED,
+      judge: {
+        ...JUDGED.judge,
+        model_profile_id: "p1",
+        criteria: [...JUDGED.judge.criteria, accuracy],
+      },
+    });
 
     await userEvent.click(screen.getByRole("combobox", { name: "Judge's model" }));
     await userEvent.click(screen.getByRole("option", { name: "The judge agent's own model" }));
-    await userEvent.click(screen.getByRole("button", { name: "Remove criterion" }));
+    await userEvent.click(screen.getAllByRole("button", { name: "Remove criterion" })[0]!);
     await userEvent.click(screen.getByRole("combobox", { name: "Send to the review queue" }));
     await userEvent.click(screen.getByRole("option", { name: "Results that did not pass" }));
     await userEvent.click(screen.getByRole("button", { name: "Save scoring" }));
 
     await waitFor(() => expect(state.save).toHaveBeenCalled());
     expect(saved().judge.model_profile_id).toBeNull();
-    expect(saved().judge.criteria).toEqual([]);
+    expect(saved().judge.criteria).toEqual([accuracy]);
     expect(saved().review.select).toBe("failed");
     expect(saved().checks.defaults).toEqual([{ type: "max_cost_usd", value: 0.05 }]);
   });

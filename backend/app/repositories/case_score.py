@@ -8,7 +8,7 @@ tests/test_org_scope_regression.py).
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import ColumnElement, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.case_score import CaseScore
@@ -26,6 +26,7 @@ async def create(
     run_id: UUID | None,
     scoring: dict[str, Any],
     results: list[dict[str, Any]],
+    judge: dict[str, Any] | None,
     passed: bool | None,
     review_state: str,
     created_by_user_id: UUID | None,
@@ -38,6 +39,7 @@ async def create(
         run_id=run_id,
         scoring=scoring,
         results=results,
+        judge=judge,
         passed=passed,
         review_state=review_state,
         created_by_user_id=created_by_user_id,
@@ -97,13 +99,49 @@ async def list_pending(
     shared_ids: list[UUID],
     skip: int = 0,
     limit: int = 50,
-) -> tuple[list[CaseScore], int]:
+) -> tuple[list[tuple[CaseScore, str]], int]:
     """Scores waiting for a person's verdict in the datasets one member may see.
 
-    Oldest first, so the queue is worked in the order it filled. Visibility is
-    the dataset listing's own predicate; `see_all` is a role reaching every
-    dataset, `shared_ids` those shared with the member.
+    Oldest first, so the queue is worked in the order it filled, each with its
+    dataset's name. Visibility is the dataset listing's own predicate;
+    `see_all` is a role reaching every dataset, `shared_ids` those shared with
+    the member.
     """
+    where = _pending(organization_id, user_id=user_id, see_all=see_all, shared_ids=shared_ids)
+    joined = (
+        select(CaseScore, Dataset.name)
+        .join(Dataset, Dataset.id == CaseScore.dataset_id)
+        .where(*where)
+    )
+    total = await db.scalar(select(func.count()).select_from(joined.subquery())) or 0
+    result = await db.execute(
+        joined.order_by(CaseScore.created_at.asc(), CaseScore.id.asc()).offset(skip).limit(limit)
+    )
+    return [(score, name) for score, name in result.all()], total
+
+
+async def pending_counts(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    user_id: UUID,
+    see_all: bool,
+    shared_ids: list[UUID],
+) -> list[tuple[UUID, str, bool | None, int]]:
+    """How many scores wait in each dataset one member may see, by what the scorers concluded."""
+    where = _pending(organization_id, user_id=user_id, see_all=see_all, shared_ids=shared_ids)
+    result = await db.execute(
+        select(Dataset.id, Dataset.name, CaseScore.passed, func.count())
+        .join(Dataset, Dataset.id == CaseScore.dataset_id)
+        .where(*where)
+        .group_by(Dataset.id, Dataset.name, CaseScore.passed)
+    )
+    return [(row[0], row[1], row[2], row[3]) for row in result.all()]
+
+
+def _pending(
+    organization_id: UUID, *, user_id: UUID, see_all: bool, shared_ids: list[UUID]
+) -> list[ColumnElement[bool]]:
     where = [
         CaseScore.organization_id == organization_id,
         CaseScore.review_state == "pending",
@@ -118,12 +156,7 @@ async def list_pending(
                 shared_ids=shared_ids,
             )
         )
-    joined = select(CaseScore).join(Dataset, Dataset.id == CaseScore.dataset_id).where(*where)
-    total = await db.scalar(select(func.count()).select_from(joined.subquery())) or 0
-    result = await db.execute(
-        joined.order_by(CaseScore.created_at.asc(), CaseScore.id.asc()).offset(skip).limit(limit)
-    )
-    return list(result.scalars().all()), total
+    return where
 
 
 async def update(db: AsyncSession, *, score: CaseScore, update_data: dict[str, Any]) -> CaseScore:

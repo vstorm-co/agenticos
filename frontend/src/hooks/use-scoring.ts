@@ -7,7 +7,7 @@ import { PAGE_SIZE } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import type { Dataset } from "@/types/datasets";
-import type { CaseScore, CaseScoreList, DatasetScoring } from "@/types/scoring";
+import type { CaseScore, CaseScoreList, DatasetScoring, ReviewQueue } from "@/types/scoring";
 
 /** Replace how a dataset's cases are scored. Scores already kept keep theirs. */
 export function useSetScoring(datasetId: string) {
@@ -120,12 +120,12 @@ export function useReviewQueue({
 }: { skip?: number; limit?: number } = {}) {
   const query = useQuery({
     queryKey: qk.datasets.reviewQueue({ skip, limit }),
-    queryFn: () =>
-      apiClient.get<CaseScoreList>(`/datasets/review-queue?skip=${skip}&limit=${limit}`),
+    queryFn: () => apiClient.get<ReviewQueue>(`/datasets/review-queue?skip=${skip}&limit=${limit}`),
   });
   return {
     scores: query.data?.items ?? [],
     total: query.data?.total ?? 0,
+    datasets: query.data?.datasets ?? [],
     isLoading: query.isLoading,
     error: query.error,
     refetch: query.refetch,

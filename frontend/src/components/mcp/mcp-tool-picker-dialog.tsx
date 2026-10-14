@@ -12,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
   SearchInput,
+  Switch,
 } from "@/components/ui";
 import type { ToolPickerState } from "@/components/mcp/mcp-server-list-types";
 import { DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
@@ -160,6 +161,29 @@ export function McpToolPickerDialog({
             </li>
           )}
         </ul>
+
+        {toolPicker?.trustReadOnlyHints !== undefined && (
+          <label className="flex shrink-0 cursor-pointer items-start gap-3">
+            <Switch
+              checked={toolPicker.trustReadOnlyHints}
+              onCheckedChange={(on) =>
+                setToolPicker((previous) =>
+                  previous === null ? previous : { ...previous, trustReadOnlyHints: on },
+                )
+              }
+              aria-label={t("trustReadOnlyHints")}
+              className="mt-0.5"
+            />
+            <span className="min-w-0 flex-1 text-xs">
+              <span className="text-foreground block">{t("trustReadOnlyHints")}</span>
+              <span className="text-muted-foreground block">
+                {t("trustReadOnlyHintsHint", {
+                  count: tools.filter((tool) => tool.read_only_hint === true).length,
+                })}
+              </span>
+            </span>
+          </label>
+        )}
 
         <DialogFooter className="shrink-0">
           <Button variant="ghost" onClick={() => setToolPicker(null)} disabled={submitting}>

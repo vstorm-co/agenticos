@@ -122,6 +122,10 @@ class Settings(BaseSettings):
     # window in which access revoked a moment ago still reaches a page that was
     # already open.
     ARTIFACT_VIEW_TTL_SECONDS: int = Field(default=300, gt=0, le=3600)
+    # Every change to a dataset's cases writes a version holding a row per case, so
+    # storage grows with edits times cases. Summed over every dataset and version of
+    # one organization; a change past it is refused.
+    DATASET_MAX_VERSION_ROWS_PER_ORG: int = Field(default=5_000_000, gt=0)
     # Where artifact content is served from. Unset, it is the API's own public
     # address, and isolation rests on the `sandbox` policy every content
     # response carries, which gives the page an opaque origin. Set to a host on

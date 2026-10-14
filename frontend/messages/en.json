@@ -661,7 +661,19 @@
     "whoCanFindIt": "Who can find it",
     "visibilityOrgHint": "Everyone in the organization. A draft still cannot run.",
     "visibilityPrivateHint": "You, and whoever you share it with afterwards.",
-    "preview": "Preview"
+    "preview": "Preview",
+    "testConnectionsFor": "Test connections for {name}",
+    "testConnectionsHint": "Runs in this environment, evals included, answer each binding below with its test system. A binding switched off here does nothing - it never falls back to production.",
+    "testConnectionKindLabel": "What to replace",
+    "testConnectionKindMcp": "MCP server",
+    "testConnectionKindSecret": "Vault key",
+    "productionSide": "Production",
+    "testSide": "Test replacement",
+    "testSideFor": "Test replacement for {name}",
+    "bindingOffHere": "Off in this environment",
+    "testSideUnusable": "Off here: the test connection is disabled or not signed in",
+    "testConnectionsSaved": "Test connections saved",
+    "failedTestConnections": "The test connections could not be saved"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -1897,26 +1909,25 @@
           "description": "Reports and dashboards an agent publishes appear here."
         }
       },
-      "reviewQueue": {
-        "title": "Awaiting review",
-        "description": "Eval results waiting for a person's verdict.",
-        "waiting": "{count, plural, =1 {1 result waits} other {# results wait}} for a verdict",
-        "allPassed": "All required scorers passed",
-        "passed": "Passed",
-        "didNotPass": "Did not pass",
-        "unscored": "Unscored",
-        "empty": {
-          "title": "Nothing to review",
-          "description": "Results a dataset sends for review appear here."
-        }
-      },
       "datasets": {
         "title": "Datasets",
-        "description": "The test case sets changed most recently.",
+        "description": "The datasets changed most recently, and what their cases test against.",
         "cases": "{count, plural, =1 {1 case} other {# cases}} · v{version}",
         "empty": {
           "title": "No datasets yet",
           "description": "Test cases you collect for evals appear here."
+        },
+        "stat": {
+          "reference": "{count, plural, =1 {1 reference} other {# references}}",
+          "counter": "{count, plural, =1 {1 counter-example} other {# counter-examples}}",
+          "toolCalls": "{count, plural, =1 {1 with tool calls} other {# with tool calls}}",
+          "checks": "{count, plural, =1 {1 with checks} other {# with checks}}"
+        },
+        "source": {
+          "conversation": "{count} from chat",
+          "import": "{count} imported",
+          "manual": "{count} by hand",
+          "synthetic": "{count} generated"
         }
       },
       "knowledge-gaps": {
@@ -1926,6 +1937,20 @@
         "empty": {
           "title": "No knowledge gaps",
           "description": "Questions agents could not answer from a knowledge base appear here."
+        }
+      },
+      "review-queue": {
+        "title": "Awaiting review",
+        "description": "Eval results waiting for a person's verdict.",
+        "waiting": "{count, plural, =1 {1 result waits} other {# results wait}} for a verdict",
+        "empty": {
+          "title": "Nothing to review",
+          "description": "Results a dataset sends for review appear here."
+        },
+        "outcome": {
+          "failed": "{count} did not pass",
+          "unscored": "{count} unscored",
+          "passed": "{count} passed"
         }
       }
     },
@@ -2754,7 +2779,9 @@
     "whoeverSignsGrantsIf": "Whoever signs in grants it. If their access at the provider is revoked, this server stops working for every agent until somebody signs in again - so use an account the organization controls.",
     "yourChatAndDirectMessages": "Yours alone — your chat, and your direct messages in a channel.",
     "yours": "Yours",
-    "yoursAloneYourOwn": "Yours alone, in your own chat. No agent can bind it."
+    "yoursAloneYourOwn": "Yours alone, in your own chat. No agent can bind it.",
+    "trustReadOnlyHints": "Let evals call tools this server marks read-only",
+    "trustReadOnlyHintsHint": "Evals hold every call to a production server unless you trust it: the read-only mark is the server's own claim. {count, plural, =0 {No tool here claims it.} =1 {1 tool here claims it.} other {# tools here claim it.}}"
   },
   "members": {
     "emailPlaceholder": "colleague@example.com",
@@ -2890,7 +2917,7 @@
       },
       "create-dataset": {
         "title": "Create a dataset?",
-        "body": "A dataset holds the questions your agents are tested on. Want to make your first one now? We'll walk you through it."
+        "body": "A dataset holds the questions your agents are tested on. Want to make your first one and write a first good case together? We'll walk you through it."
       }
     },
     "steps": {
@@ -3364,7 +3391,7 @@
       },
       "datasets-new": {
         "title": "Collect test cases",
-        "body": "A dataset holds the questions an agent is tested on. Create one here, then add cases by hand, from a file, or from a rated-down answer."
+        "body": "A dataset holds the questions an agent is tested on. Create one here, then add cases by hand, from a file, from an answer rated up or down in chat, or from a turn in Activity."
       },
       "runs-score-against-case": {
         "title": "Score this run",
@@ -3372,7 +3399,7 @@
       },
       "dataset-scoring": {
         "title": "How cases are scored",
-        "body": "Pick the scorers: rule-based checks, the expected tool calls, and the eval judge with a rubric or the reference answer. Mark which ones a case must pass."
+        "body": "Pick the scorers: rule-based checks, the expected tool calls, and the eval judge with a rubric or the reference answer. Mark which ones a case must pass. The judge needs AI assistance, which an admin turns on for the organization."
       },
       "dataset-scores": {
         "title": "Scores and review",
@@ -3401,6 +3428,46 @@
       "agent-gaps": {
         "title": "What it went looking for",
         "body": "The questions this agent searched a knowledge base for and found nothing. Each one links to the run it came from."
+      },
+      "agent-test-connections": {
+        "title": "Test connections",
+        "body": "A named environment can answer the agent's MCP servers and vault keys with test ones - a sandbox CRM, a test mailbox. Evals run there, and a tool that writes with no test connection is held and recorded instead of run."
+      },
+      "flow-dataset-open": {
+        "title": "Open your dataset",
+        "body": "It is the first card - the one changed last. Open it to add its first case."
+      },
+      "flow-dataset-add-case": {
+        "title": "Add your first case",
+        "body": "Choose Add case. A case is one question, and what a good answer to it looks like."
+      },
+      "flow-dataset-case-question": {
+        "title": "What the agent is asked",
+        "body": "The input is the message the agent answers. Add the conversation before it only when the question depends on earlier turns. Then choose Next."
+      },
+      "flow-dataset-case-answers": {
+        "title": "A good answer, and a bad one",
+        "body": "The reference answer says what a good answer contains; a judge compares the agent's answer with it. The counter-example is an answer known to be wrong - often the one somebody rated down. One of them is usually enough."
+      },
+      "flow-dataset-case-tools": {
+        "title": "The tools it should call",
+        "body": "List the tools the agent must call, with the arguments that have to match. Choose how they are matched: in any order, in this order with others allowed between, or exactly these and nothing else."
+      },
+      "flow-dataset-case-checks": {
+        "title": "Rules about the answer",
+        "body": "A check is a rule the answer is scored by, such as that it mentions 30 days. Each one names its type and carries that rule's parameters."
+      },
+      "flow-dataset-case-labels": {
+        "title": "Tags and a note",
+        "body": "Tags group results, such as billing or refusal. The note says why the case exists - what went wrong, or what it guards."
+      },
+      "flow-dataset-case-save": {
+        "title": "Save the case",
+        "body": "A case has to say what the answer is tested against: a reference answer, a counter-example, a tool call or a check. Until it has one, Save case stays off and says what is missing."
+      },
+      "flow-dataset-sources": {
+        "title": "Where the next cases come from",
+        "body": "Write them here, or import a CSV or JSONL file here. In chat, rate an answer up or down and add it - a thumbs-up keeps it as the reference, a thumbs-down as the counter-example. In Activity, add any agent turn of a run."
       }
     }
   },
@@ -4990,7 +5057,7 @@
   "teams": {
     "acmeCom": "acme.com",
     "aiAssistance": "AI assistance",
-    "aiAssistanceDescription": "Whether models may judge eval answers, draft test cases and propose changes to agents.",
+    "aiAssistanceDescription": "Off until somebody turns it on. It lets models judge eval answers, draft test cases, propose changes to agents and draft knowledge-gap content, and every use is a metered run within the agent's and the organization's budgets.",
     "aiAssistanceHint": "When this is off, nothing here calls a model to judge, generate or propose: the eval judge, the case generator and the authoring assistant are refused. Deterministic checks and people's verdicts keep working.",
     "aiAssistanceOn": "AI assistance is on",
     "aiAssistanceOff": "AI assistance is off",
@@ -5695,7 +5762,7 @@
       "onlyAwaitingReview": "Only awaiting review",
       "noScores": "No scores yet",
       "nothingAwaitingReview": "Nothing is waiting for review",
-      "noScoresBody": "Score a run against a case from Activity, and the result is kept here.",
+      "noScoresBody": "Open a run in <link>Activity</link> and score it against a case - the result is kept here.",
       "passed": "Passed",
       "failed": "Failed",
       "unscored": "Unscored",
@@ -5732,7 +5799,18 @@
       "noCaseToScore": "This dataset has no case yet",
       "score": "Score",
       "scoring": "Scoring…",
-      "close": "Close"
+      "close": "Close",
+      "problem": {
+        "noScorer": "Turn on at least one scorer - with every scorer off, no case can be scored.",
+        "noCriterion": "Give the judge at least one criterion, or turn it off - it has nothing to grade."
+      },
+      "willRun": "Runs {scorers}.",
+      "judgeSpends": "The judge's grading is a run of the eval judge, charged to its budget.",
+      "aiOff": {
+        "body": "AI assistance is off in this organization, so the judge and the reference comparison are skipped and only the rule-based scorers score.",
+        "enable": "Enable AI assistance",
+        "askAdmin": "Ask an admin to turn it on."
+      }
     },
     "title": "Datasets",
     "pageDescription": "The questions your agents are tested on. Every change to a dataset's cases makes a new version, so two eval runs on one version saw the same questions.",
@@ -5822,7 +5900,22 @@
       "in_orderHint": "The expected calls must happen in the listed order; other calls may come between them.",
       "exact": "Exactly these, in this order",
       "exactHint": "The agent must make exactly the expected calls, in the listed order, and no others."
-    }
+    },
+    "needsInput": "Write the input the agent answers.",
+    "needsExpectation": "Add a reference answer, a counter-example, an expected tool call or a check: a case needs something to test the answer against.",
+    "addAsReferenceBody": "You rated this answer up, so it is kept as the reference answer. The question and the conversation before it come with it.",
+    "alsoAddToDataset": "Add this answer to a dataset",
+    "addAfterRatingFailed": "The rating was saved, but the answer was not added to a dataset: {reason}",
+    "importRowProblem": "Row {row}: {message}",
+    "importRowFieldProblem": "Row {row}, {field}: {message}",
+    "checkCount": "{count, plural, =1 {1 check} other {# checks}}",
+    "hasNote": "Note",
+    "editDetails": "Edit details",
+    "editDetailsBody": "What the dataset is called and what it is for. Changing them makes no new version: no case changes.",
+    "saveDetails": "Save",
+    "detailsSaved": "Saved",
+    "olderVersion": "Older version #",
+    "findDataset": "Find a dataset"
   },
   "knowledgeGaps": {
     "tab": "Knowledge gaps",

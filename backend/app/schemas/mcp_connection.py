@@ -21,6 +21,9 @@ MAX_ALLOWED_TOOLS = 100
 class McpToolRead(BaseSchema):
     name: str
     description: str
+    # The server's own claim that the tool changes nothing. Absent from a list
+    # recorded before it was kept, which reads as no claim.
+    read_only_hint: bool = False
 
 
 class McpConnectionCreate(BaseSchema):
@@ -122,6 +125,7 @@ class McpConnectionRead(TimestampSchema, BaseSchema):
     # Whether an agent speaking as this member uses this account. Only ever true
     # for one of their connections per service.
     is_default: bool = False
+    trust_read_only_hints: bool = False
 
     @classmethod
     def from_model(cls, connection: McpConnection) -> McpConnectionRead:
@@ -149,9 +153,10 @@ class McpConnectionRead(TimestampSchema, BaseSchema):
             last_tools=(
                 None
                 if connection.last_tools is None
-                else [McpToolRead(**tool) for tool in connection.last_tools]
+                else [McpToolRead.model_validate(tool) for tool in connection.last_tools]
             ),
             is_default=connection.is_default,
+            trust_read_only_hints=connection.trust_read_only_hints,
             created_at=connection.created_at,
             updated_at=connection.updated_at,
         )
@@ -200,6 +205,14 @@ class OrgMcpConnectionUpdate(BaseSchema):
     allowed_tools: list[str] | None = Field(default=None, max_length=MAX_ALLOWED_TOOLS)
     clear_allowed_tools: bool = False
     is_enabled: bool | None = None
+    trust_read_only_hints: bool | None = Field(
+        default=None,
+        description=(
+            "Let an isolated run (an eval) call a tool this server marks "
+            "`readOnlyHint` live. The hint is the server's own claim; off, every "
+            "tool of this connection without a test connection is held instead."
+        ),
+    )
     label: str | None = Field(
         default=None,
         max_length=64,

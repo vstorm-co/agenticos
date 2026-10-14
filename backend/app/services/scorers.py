@@ -8,17 +8,19 @@ judge and keeps what these return.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Any
+from typing import Annotated, Any
 from uuid import UUID
 
+import regex
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import best_match
-from pydantic import BaseModel, JsonValue
+from pydantic import BaseModel, Field, JsonValue
 from pydantic import ValidationError as PydanticValidationError
 
 from app.schemas.scoring import (
@@ -32,9 +34,15 @@ from app.schemas.scoring import (
     TextCheck,
 )
 
-# A pattern is bounded where it is written; bounding the text it reads keeps one
-# match's cost bounded whatever the agent said.
+MAX_QUOTES = 12
+MAX_QUOTE = 600
+MAX_REASON = 2000
+_QUOTE_SHOWN = 80
+
 MAX_MATCH_TEXT = 100_000
+# A pattern is a person's input and backtracking is exponential in the text it
+# reads, so a match runs under a deadline rather than a length cap alone.
+PATTERN_SECONDS = 0.1
 _FENCE = re.compile(r"^```[a-zA-Z]*\s*\n?|\n?```\s*$")
 
 
@@ -145,7 +153,7 @@ def _text_check(check: TextCheck, answer: ScoredAnswer, *, required: bool) -> Sc
         subject = _text(answer, check.path)
     except _NoValue as exc:
         return _result(name, passed=False, reason=str(exc), required=required)
-    flags = 0 if check.case_sensitive else re.IGNORECASE
+    flags = 0 if check.case_sensitive else regex.IGNORECASE
     haystack, needle = (
         (subject, check.value)
         if check.case_sensitive
@@ -161,7 +169,17 @@ def _text_check(check: TextCheck, answer: ScoredAnswer, *, required: bool) -> Sc
         passed = haystack.strip() == needle.strip()
         reason = "Equal" if passed else "Not equal"
     else:
-        passed = re.search(check.value, subject, flags) is not None
+        try:
+            passed = regex.search(check.value, subject, flags, timeout=PATTERN_SECONDS) is not None
+        except TimeoutError:
+            return ScorerResult(
+                scorer="check",
+                name=name,
+                required=required,
+                status="error",
+                reason="The pattern took too long on this answer; simplify it",
+                reason_code="pattern_timeout",
+            )
         reason = "Matches" if passed else "Does not match"
     return _result(name, passed=passed, reason=reason, required=required)
 
@@ -363,9 +381,19 @@ class JudgeCriterion:
 
 
 class JudgeGrade(BaseModel):
+    """One criterion's grade.
+
+    `quotes` are the passages of the answer the grade rests on, word for word.
+    Each is looked for in the answer; one that is not there is named in the
+    result's reason, and the grade stands.
+    """
+
     id: str
     score: int
     reason: str
+    quotes: list[Annotated[str, Field(min_length=1, max_length=MAX_QUOTE)]] = Field(
+        default_factory=list, max_length=MAX_QUOTES
+    )
 
 
 class JudgeVerdict(BaseModel):
@@ -435,21 +463,52 @@ def judge_prompt(
     listed = "\n".join(f"- {c.id} ({c.name}): {c.description}" for c in criteria)
     parts.append(
         f"Grade the answer on each criterion below, from 1 (does not meet it at all) to "
-        f"{scale_max} (fully meets it). Give exactly one grade per criterion id.\n{listed}"
+        f"{scale_max} (fully meets it). Give exactly one grade per criterion id. Where a "
+        f"grade rests on something the answer says, copy that passage word for word into "
+        f"the grade's quotes.\n{listed}"
     )
     return "\n\n".join(parts)
+
+
+def rubric_hash(criteria: Sequence[JudgeCriterion], *, scale_max: int) -> str:
+    """A fingerprint of what the judge was asked: every criterion it graded, and the scale."""
+    asked = {
+        "scale_max": scale_max,
+        "criteria": [[c.id, c.name, c.description] for c in criteria],
+    }
+    canonical = json.dumps(asked, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(canonical.encode()).hexdigest()
+
+
+def _unverified(quotes: Sequence[str], answer: str) -> str:
+    missing = [quote for quote in quotes if quote not in answer]
+    if not missing:
+        return ""
+    shown = ", ".join(
+        json.dumps(
+            quote if len(quote) <= _QUOTE_SHOWN else f"{quote[:_QUOTE_SHOWN]}…",
+            ensure_ascii=False,
+        )
+        for quote in missing
+    )
+    return f" [not in the answer, unverified: {shown}]"
 
 
 def graded(
     criteria: Sequence[JudgeCriterion],
     verdict: JudgeVerdict,
     *,
+    answer: str,
     scale_max: int,
     pass_at: int,
     run_id: UUID,
 ) -> list[ScorerResult]:
-    """The judge's grades as results; a criterion it skipped or misgraded is an error."""
+    """The judge's grades as results; a criterion it skipped or misgraded is an error.
+
+    A quote is checked against the part of `answer` the judge was shown.
+    """
     grades = {grade.id: grade for grade in verdict.grades}
+    shown = answer[:MAX_MATCH_TEXT]
     results = []
     for criterion in criteria:
         grade = grades.get(criterion.id)
@@ -466,6 +525,7 @@ def graded(
                 )
             )
             continue
+        flag = _unverified(grade.quotes, shown)[: MAX_REASON // 2]
         results.append(
             ScorerResult(
                 scorer=criterion.scorer,
@@ -473,7 +533,8 @@ def graded(
                 required=criterion.required,
                 status="pass" if grade.score >= pass_at else "fail",
                 score=grade.score / scale_max,
-                reason=f"{grade.score}/{scale_max}: {grade.reason}"[:2000],
+                reason=f"{grade.score}/{scale_max}: {grade.reason}"[: MAX_REASON - len(flag)]
+                + flag,
                 judge_run_id=run_id,
             )
         )

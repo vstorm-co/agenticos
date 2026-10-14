@@ -1,5 +1,5 @@
 ---
-source_sha: "7b99c090a2b6"
+source_sha: "a5e00e82c50b"
 ---
 
 # Governance { #governance }
@@ -1451,7 +1451,9 @@ który ocenia [wyniki datasetów](datasets.md#judge), agenta piszącego
 szkic treści, której brakuje przy
 [luce w wiedzy](knowledge-gaps.md#drafting-the-missing-content), oraz generator
 przypadków i asystenta tworzenia, które pojawią się po nich. Domyślnie jest
-włączony, a zmienia go ten, kto ma `org:settings`.
+wyłączony, zarówno w organizacji, która istniała przed przełącznikiem, jak i w
+nowej: to, czy modele oceniają i piszą szkice, jest decyzją organizacji, a
+włącza go ten, kto ma `org:settings`.
 
 Gdy jest wyłączony, usługa, która uruchomiłaby taki run, odmawia go, niezależnie
 od tego, który klient o niego prosi - ukryta kontrolka nie jest granicą.

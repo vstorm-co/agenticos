@@ -1,5 +1,5 @@
 ---
-source_sha: "38969973baf1"
+source_sha: "2f65cc805dab"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -32,6 +32,21 @@ zawiodła.
 | Notatka | Po co jest ten przypadek - co poszło źle albo czego pilnuje |
 | Źródło | `manual`, `import`, `conversation` albo `synthetic` - ustawia je platforma, nie wpisuje się go |
 
+Przypadek musi mówić, z czym porównuje się odpowiedź: odpowiedź wzorcowa,
+kontrprzykład, oczekiwane wywołanie narzędzia albo sprawdzenie - co najmniej
+jedno z czterech. Przypadek z samym wejściem nigdy nie mógłby nie przejść, więc
+jest odrzucany: formularz go nie zapisze, API odpowiada 422 ze wskazaniem
+`reference_answer`, a import podaje numer wiersza.
+
+Dobry przypadek jest mały: jedno pytanie i ta jedna rzecz, którą poprawna
+odpowiedź musi zrobić dobrze. Zwykle wystarczy odpowiedź wzorcowa albo
+kontrprzykład. Oczekiwane wywołania narzędzi dodaj, gdy agent ma działać, a nie
+tylko odpowiadać, sprawdzenia - gdy regułę da się podać dokładnie, a rozmowę
+przed wejściem - tylko gdy pytanie od niej zależy. Notatka jest dla następnego
+czytelnika: co poszło źle albo czego przypadek pilnuje. Przy tworzeniu
+pierwszego datasetu konsola proponuje przewodnik, który kończy się napisaniem
+pierwszego przypadku pole po polu.
+
 Przypadek wzięty z rozmowy zachowuje też odnośnik do runa, rozmowy i
 wiadomości, z których pochodzi. Pytanie i odpowiedź są kopiowane do przypadku,
 więc przypadek pozostaje kompletny także po tym, jak sam run usunie retencja.
@@ -50,15 +65,22 @@ widziały te same pytania, więc różnica w wynikach pochodzi od agenta, a nie 
 testu. Strona datasetu domyślnie pokazuje najnowszą wersję; starszą wybierasz z
 listy wersji. Starsza wersja jest tylko do odczytu.
 
-Zmiana nazwy datasetu albo jego opisu nie tworzy wersji, bo żadna z nich nie
-zmienia przypadku.
+Zmiana nazwy datasetu albo jego opisu, przyciskiem **Edytuj szczegóły** na jego
+stronie, nie tworzy wersji, bo żadna z nich nie zmienia przypadku.
+
+Lista wersji pokazuje sto najnowszych; starszą otwiera się, wpisując jej numer.
+Każda wersja trzyma wiersz na przypadek, więc wersje jednej organizacji
+trzymają łącznie najwyżej `DATASET_MAX_VERSION_ROWS_PER_ORG` wierszy (domyślnie
+5 milionów, zobacz [Konfiguracja](configuration.md#datasets)). Zmiana ponad to
+jest odrzucana z podaniem, ile jest zajęte; usunięcie datasetu zwalnia jego
+wiersze.
 
 ## Dodawanie przypadków { #adding-cases }
 
 ### W konsoli { #in-the-console }
 
-Otwórz **Datasety**, utwórz dataset i wybierz **Dodaj przypadek**. Jedyne
-wymagane pole to wejście. Rozmowę, oczekiwane wywołania narzędzi i sprawdzenia
+Otwórz **Datasety**, utwórz dataset i wybierz **Dodaj przypadek**. Wpisz wejście
+i co najmniej jedno z czterech oczekiwań opisanych wyżej. Rozmowę, oczekiwane wywołania narzędzi i sprawdzenia
 wpisuje się jako listy JSON - ten sam tekst, w jakim trzyma je eksport CSV.
 
 ### Z pliku { #import-and-export }
@@ -99,8 +121,24 @@ usuwa ten jeden `'`. Eksport jest zapisywany w [dzienniku audytu](governance.md#
 
 ### Z rozmowy albo runa { #add-to-dataset }
 
-Każda odpowiedź agenta w czacie i każda tura agenta w **Aktywności** ma
-przycisk **Dodaj do datasetu**. Wybierz dataset, a przypadek powstanie z tej tury:
+Są dwie drogi i obie tworzą taki sam przypadek:
+
+- **W czacie** oceń odpowiedź, a ocena zdecyduje, jako co zostanie zachowana.
+  Po łapce w górę potwierdzenie proponuje **Dodaj do datasetu**: wybierz
+  dataset, a odpowiedź zostanie zachowana jako odpowiedź wzorcowa. Po łapce w
+  dół okno, które pyta, co poszło źle, proponuje też **Dodaj tę odpowiedź do
+  datasetu**: zaznacz to, wybierz dataset i wyślij, a odpowiedź zostanie
+  zachowana jako kontrprzykład. Najpierw zapisuje się ocena, a przypadek jest
+  dodawany po niej, więc twój komentarz staje się notatką przypadku. To dwa
+  osobne zapisy - jeśli dodanie zostanie odrzucone, ocena zostaje, a komunikat
+  mówi, która połowa się nie udała. Późniejsze cofnięcie oceny zostawia
+  przypadek na miejscu: to kopia, wersjonowana razem z datasetem. Konsola
+  pamięta ostatnio użyty dataset, więc kolejne dodanie to jedno kliknięcie.
+- **W Aktywności** każda tura agenta ma przycisk **Dodaj do datasetu**. To
+  miejsce kuracji, więc dobrą odpowiedź równie łatwo zachować jako wzorcową, jak
+  złą jako kontrprzykład.
+
+W obu przypadkach przypadek powstaje z tej tury:
 
 - pytanie staje się wejściem, a tury przed nim - rozmową przed wejściem;
 - odpowiedź staje się kontrprzykładem. Jeśli nikt nie ocenił jej łapką w dół,
@@ -108,7 +146,7 @@ przycisk **Dodaj do datasetu**. Wybierz dataset, a przypadek powstanie z tej tur
   dwóch;
 - najnowszy komentarz zostawiony z łapką w dół staje się notatką.
 
-Przycisk widzą członkowie, którzy mogą edytować jakiś dataset. Wiadomość musi
+Obie drogi widzą tylko członkowie, którzy mogą edytować jakiś dataset. Wiadomość musi
 należeć do twojej organizacji i musisz móc ją przeczytać: albo masz
 `runs:view`, które czyta każdy run w organizacji tak jak Aktywność, albo możesz
 otworzyć rozmowę. Wiadomość z innej organizacji jest odrzucana tak, jakby nie
@@ -148,6 +186,11 @@ ocenia, nie jest tym, o co pyta. Każdy wynik przechowuje kopię konfiguracji, z
 którą został obliczony, więc starszy wynik nadal mówi, jak do niego doszło, po
 zmianie konfiguracji.
 
+Konfiguracja, która nie mogłaby niczego ocenić, jest odrzucana: wszystkie
+oceniacze wyłączone albo sędzia włączony bez żadnego kryterium. Tak samo ocena
+przypadku, w którym żaden ze skonfigurowanych oceniaczy nie ma czego sprawdzić -
+nic nie jest zapisywane, a sędzia nie jest wywoływany.
+
 ### Sprawdzenia { #checks }
 
 | `type` | Parametry | Zalicza, gdy |
@@ -164,7 +207,9 @@ zmianie konfiguracji.
 pierwszego elementu. Bez niego reguła czyta całą odpowiedź. Reguły tekstowe nie
 rozróżniają wielkości liter, chyba że `case_sensitive` ma wartość true. Wzorzec
 jest sprawdzany przy zapisie przypadku, a reguła czyta najwyżej pierwsze 100 000
-znaków odpowiedzi, więc jeden wzorzec nie może spowolnić oceniania.
+znaków odpowiedzi. Wzorzec, który na jakiejś odpowiedzi działa dłużej niż
+dziesiątą część sekundy, zostaje przerwany i zapisany jako błąd, więc jeden
+wzorzec nie może zatrzymać oceniania.
 
 Sprawdzenie `judge` to kryterium tylko dla jednego przypadku, oceniane w tym
 samym runie sędziego co rubryka datasetu. Używaj go do tego, czego reguła nie
@@ -194,6 +239,12 @@ jego run pojawia się w Activity pod powierzchnią `eval`. Jego instrukcje możn
 edytować jak instrukcje każdego agenta, a dataset może wskazać dla niego inny
 model.
 
+Sędzia działa tylko tam, gdzie włączone jest [wsparcie AI](governance.md#ai-assistance),
+a jest ono wyłączone, dopóki administrator nie włączy go dla organizacji. Do
+tego czasu kryteria sędziego i odpowiedzi wzorcowej są zapisywane jako
+pominięte, oceniają tylko oceniacze oparte na regułach, a karta Scoring mówi o
+tym i podaje link do przełącznika temu, kto może go zmienić.
+
 Każde kryterium jest oceniane od 1 do górnej granicy skali i zalicza na progu
 zaliczenia lub wyżej. Gdy sędzia nie może ocenić, jego kryteria są zapisywane
 jako pominięte albo jako błędy, z uzasadnieniem podającym przyczynę: wsparcie
@@ -201,12 +252,20 @@ AI jest wyłączone, sędzia nie ma opublikowanej wersji, jest zarchiwizowany,
 osoba nie może go uruchomić albo jego budżet się wyczerpał. Oceniacze oparte na
 regułach nadal oceniają.
 
+Ocena może cytować odpowiedź, do 12 fragmentów; cytat, którego odpowiedź nie
+zawiera słowo w słowo, jest wskazany w uzasadnieniu jako niezweryfikowany, a
+ocena pozostaje. Każdy wynik zapisuje sędziego, który go ocenił - jego profil
+modelu, wersję spec i hash rubryki - więc wyniki od różnych sędziów nie są
+porównywane jak równe z równym.
+
 ### Przegląd i werdykty { #review }
 
 Dataset może wysyłać wyniki do **kolejki przeglądu**: żadnych, dopóki ktoś
 jakiegoś nie wyśle, każdy wynik, który nie zaliczył, albo każdy wynik. Karta
 Scores pokazuje wyniki datasetu, a karta pulpitu **Awaiting review** pokazuje
-kolejkę ze wszystkich datasetów, które widzisz.
+kolejkę ze wszystkich datasetów, które widzisz: ile wyników nie zaliczyło, nie
+dało się ocenić albo zaliczyło, i w których datasetach, a każdy otwiera się na
+karcie Scores. Karta jest domyślnie na pulpicie.
 
 Werdykt osoby jest zapisywany obok wyników oceniaczy i rozstrzyga o rezultacie.
 Nigdy nie zmienia tego, co powiedział sędzia: oceny i uzasadnienia sędziego

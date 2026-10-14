@@ -623,6 +623,37 @@ describe("useAgent mutations", () => {
     expect(toast.error).toHaveBeenCalledWith("nope");
   });
 
+  it("saves an environment's test connections as one list", async () => {
+    // The API replaces the whole set, so a switched-off binding travels with
+    // the rest rather than being dropped - dropping it means production.
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(apiClient.patch).mockResolvedValue({ id: "e1" });
+    const { result } = renderHook(() => useAgentEnvironments("a1"), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    const connections = [
+      { kind: "mcp" as const, production_id: "crm", test_id: "sandbox" },
+      { kind: "secret" as const, production_id: "key", test_id: null },
+    ];
+
+    await result.current.setConnections.mutateAsync({ environmentId: "e1", connections });
+
+    expect(apiClient.patch).toHaveBeenCalledWith("/agents/a1/environments/e1", { connections });
+    expect(toast.success).toHaveBeenCalledWith("Test connections saved");
+  });
+
+  it("reports refused test connections", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(apiClient.patch).mockRejectedValue(new Error("not in the vault"));
+    const { result } = renderHook(() => useAgentEnvironments("a1"), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await expect(
+      result.current.setConnections.mutateAsync({ environmentId: "e1", connections: [] }),
+    ).rejects.toThrow();
+
+    expect(toast.error).toHaveBeenCalledWith("not in the vault");
+  });
+
   it("reports a refused publish", async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ id: "a1" });
     vi.mocked(apiClient.post).mockRejectedValue(new Error("spec invalid"));

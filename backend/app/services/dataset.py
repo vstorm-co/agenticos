@@ -24,7 +24,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
+from app.core.config import settings
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
+from app.core.exceptions import ValidationError as InvalidCaseError
 from app.core.field_errors import field_problems, refused_field
 from app.core.permissions import AuthContext, Perm, Scope
 from app.db.models.dataset import CaseSource, Dataset, DatasetCase, DatasetChange, DatasetVersion
@@ -48,10 +50,11 @@ from app.schemas.dataset import (
     DatasetList,
     DatasetRead,
     DatasetSort,
+    DatasetStats,
     DatasetUpdate,
     DatasetVersionList,
     DatasetVersionRead,
-    StoredCaseContent,
+    EditedCaseContent,
 )
 from app.schemas.resource_grant import as_visibility
 from app.schemas.scoring import DatasetScoring
@@ -87,6 +90,26 @@ def _refuse_past_ceiling(held: int, adding: int) -> None:
                 "Split the cases across two datasets."
             ),
             details={"case_count": held, "adding": adding, "max_cases": MAX_CASES},
+        )
+
+
+def _refuse_past_storage(used: int, adding: int) -> None:
+    """Refuse a version that would take the organization past its stored case rows.
+
+    Raises:
+        BadRequestError: Naming how many rows are held, how many this version
+            adds and the ceiling, and what to do about it.
+    """
+    ceiling = settings.DATASET_MAX_VERSION_ROWS_PER_ORG
+    if used + adding > ceiling:
+        raise BadRequestError(
+            message=(
+                f"This organization's datasets hold {used:,} cases across their versions, "
+                f"and this change would add {adding:,} more; the limit is {ceiling:,}. "
+                "Delete datasets you no longer need, or ask the deployment's "
+                "administrator to raise DATASET_MAX_VERSION_ROWS_PER_ORG."
+            ),
+            details={"version_rows": used, "adding": adding, "max_version_rows": ceiling},
         )
 
 
@@ -151,8 +174,11 @@ def _version_read(version: DatasetVersion) -> DatasetVersionRead:
     return DatasetVersionRead.model_validate(version)
 
 
-def _dataset_read(dataset: Dataset, *, can_edit: bool) -> DatasetRead:
+def _dataset_read(
+    dataset: Dataset, *, can_edit: bool, stats: DatasetStats | None = None
+) -> DatasetRead:
     return DatasetRead(
+        stats=stats or DatasetStats(),
         id=dataset.id,
         name=dataset.name,
         description=dataset.description,
@@ -196,15 +222,24 @@ class DatasetService:
             self.db, ctx, dataset, Perm.DATASETS_EDIT, resource_type=DATASET
         )
 
+    async def _stats(self, ctx: AuthContext, datasets: list[Dataset]) -> dict[UUID, DatasetStats]:
+        return await dataset_repo.case_stats(
+            self.db, [dataset.id for dataset in datasets], organization_id=ctx.organization_id
+        )
+
     async def read(self, ctx: AuthContext, dataset_id: UUID) -> DatasetRead:
         dataset = await self.get(ctx, dataset_id)
-        return _dataset_read(dataset, can_edit=await self._can_edit(ctx, dataset))
+        stats = await self._stats(ctx, [dataset])
+        return _dataset_read(
+            dataset, can_edit=await self._can_edit(ctx, dataset), stats=stats.get(dataset.id)
+        )
 
     async def list_readable(
         self,
         ctx: AuthContext,
         *,
         shared_with_me: bool = False,
+        editable: bool = False,
         search: str | None = None,
         sort: DatasetSort = "name",
         skip: int = 0,
@@ -228,6 +263,13 @@ class DatasetService:
                 subject_user_id=ctx.subject_id,
                 resource_type=DATASET.key,
             )
+        # The same answer `can_edit` gives per row, asked of the whole listing, so
+        # "is there anything I may add to" is one row of one page, not a scan.
+        edit_ids = (
+            await visible_resource_ids(self.db, ctx, resource_type=DATASET, perm=Perm.DATASETS_EDIT)
+            if editable
+            else None
+        ) or []
         items, total = await dataset_repo.list_visible(
             self.db,
             organization_id=ctx.organization_id,
@@ -235,16 +277,22 @@ class DatasetService:
             see_all=shared is None,
             shared_ids=grant_ids,
             shared_with_me=shared_with_me,
+            edit_scope=ctx.scope_for(Perm.DATASETS_EDIT) if editable else None,
+            edit_ids=edit_ids,
             search=search,
             sort=sort,
             skip=skip,
             limit=limit,
         )
-        editable = await accessible_ids(
+        may_edit = await accessible_ids(
             self.db, ctx, items, Perm.DATASETS_EDIT, resource_type=DATASET
         )
+        stats = await self._stats(ctx, items)
         return DatasetList(
-            items=[_dataset_read(item, can_edit=item.id in editable) for item in items],
+            items=[
+                _dataset_read(item, can_edit=item.id in may_edit, stats=stats.get(item.id))
+                for item in items
+            ],
             total=total,
         )
 
@@ -302,7 +350,8 @@ class DatasetService:
             target_id=str(dataset.id),
             details={"name": updated.name, "fields": sorted(update_data)},
         )
-        return _dataset_read(updated, can_edit=True)
+        stats = await self._stats(ctx, [updated])
+        return _dataset_read(updated, can_edit=True, stats=stats.get(updated.id))
 
     async def delete(self, ctx: AuthContext, dataset_id: UUID) -> None:
         """Delete a dataset with every version and case it held."""
@@ -401,12 +450,16 @@ class DatasetService:
 
         Raises:
             BadRequestError: When the change would take the dataset past
-                :data:`MAX_CASES`.
+                :data:`MAX_CASES`, or the organization past
+                `DATASET_MAX_VERSION_ROWS_PER_ORG` stored case rows.
         """
         added = added or []
         before = previous.case_count if previous is not None else 0
         count = before + len(added) - (1 if removed is not None else 0)
         _refuse_past_ceiling(before, len(added))
+        _refuse_past_storage(
+            await dataset_repo.version_rows(self.db, organization_id=ctx.organization_id), count
+        )
         new_revisions = [*added, *([replaced[1]] if replaced is not None else [])]
         if new_revisions:
             await dataset_repo.add_cases(self.db, new_revisions)
@@ -576,11 +629,17 @@ class DatasetService:
             **DatasetCaseRead.model_validate(current).model_dump(),
             **writable(data, over=DatasetCase),
         }
-        # Both halves were validated on their way in - the stored one by the rules
-        # of its day, which a later tightening must not turn into a refused edit.
-        content = StoredCaseContent.model_validate(
-            {key: merged[key] for key in DatasetCaseContent.model_fields}
-        )
+        # Each half is valid alone, but an edit clearing the only expectation the
+        # stored case had leaves a union that is not.
+        try:
+            content = EditedCaseContent.model_validate(
+                {key: merged[key] for key in DatasetCaseContent.model_fields}
+            )
+        except ValidationError as exc:
+            raise InvalidCaseError(
+                message="This edit leaves a case that is not valid",
+                details={"fields": field_problems(exc.errors(), root="")},
+            ) from None
         fields, redacted = _redacted(content)
         provenance = {
             "source_run_id": current.source_run_id,
@@ -741,6 +800,8 @@ class DatasetService:
             raise missing from None
         if message.role != "assistant":
             raise refused_field("message_id", "Only an agent's answer can be added to a dataset")
+        if not message.content.strip():
+            raise refused_field("message_id", "This answer has no text to keep as a case")
 
         earlier = [
             turn
@@ -762,7 +823,7 @@ class DatasetService:
         comments = await message_rating_repo.get_down_rating_comments_for_messages(
             self.db, message_ids=[message.id]
         )
-        answer = message.content or None
+        answer = message.content
         try:
             content = DatasetCaseContent(
                 input=earlier[asked].content,

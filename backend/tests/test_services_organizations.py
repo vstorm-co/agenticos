@@ -40,6 +40,7 @@ def _org_row(*, name: str) -> Organization:
         # never flushed - so an unset boolean reaches the response schema as None
         # and fails it, which is the honest failure rather than one to coerce away.
         chat_may_waive_approvals=False,
+        ai_assistance_enabled=True,
         created_at=datetime(2026, 7, 31, tzinfo=UTC),
         updated_at=None,
     )
@@ -69,6 +70,14 @@ class TestOrganizationService:
             new=AsyncMock(return_value=DeploymentLimits()),
         ):
             yield
+
+    @pytest.fixture(autouse=True)
+    def seed_system_agents(self):
+        """Seeding the system agents creates agents through the registry, which a
+        mocked session cannot answer; what it writes is proven against a real
+        database in `tests/integration/test_system_agents.py`."""
+        with patch("app.services.organization.SystemAgentService.seed", new=AsyncMock()) as seed:
+            yield seed
 
     @pytest.fixture
     def service(self, mock_db):
@@ -299,6 +308,30 @@ class TestOrganizationService:
 
         install.assert_awaited_once()
         assert install.await_args.args[1] == "refund-policy"
+
+    @pytest.mark.anyio
+    async def test_a_new_organization_seeds_its_system_agents_as_its_owner(
+        self, service, seed_system_agents
+    ):
+        mock_org = MagicMock()
+        mock_org.id = uuid.uuid4()
+        owner_id = uuid.uuid4()
+
+        with (
+            patch(
+                "app.services.organization.organization_repo.generate_unique_slug",
+                new=AsyncMock(return_value="alice"),
+            ),
+            patch(
+                "app.services.organization.organization_repo.create",
+                new=AsyncMock(return_value=mock_org),
+            ),
+            patch("app.services.organization.member_repo.create", new=AsyncMock()),
+            patch("app.services.organization.skill_library.library", return_value=()),
+        ):
+            await service.create_personal_org(owner_id, "alice@example.com")
+
+        seed_system_agents.assert_awaited_once_with(organization_id=mock_org.id, owner_id=owner_id)
 
     @pytest.mark.anyio
     async def test_delete_blocks_personal_org(self, service, mock_db):

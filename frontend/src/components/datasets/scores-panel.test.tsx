@@ -36,6 +36,7 @@ const SCORE: CaseScore = {
   case_id: "c1",
   case_revision_id: "r1",
   run_id: null,
+  judge: null,
   results: [],
   passed: false,
   review_state: "none",
@@ -59,6 +60,7 @@ describe("ScoresPanel", () => {
     render(<ScoresPanel datasetId="d1" canDecide />);
 
     expect(screen.getByText("No scores yet")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Activity" })).toHaveAttribute("href", "/runs");
   });
 
   it("narrows to the review queue, back to the first page", async () => {

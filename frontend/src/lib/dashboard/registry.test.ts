@@ -13,6 +13,7 @@ import {
   type WidgetId,
 } from "./registry";
 import { ROUTES } from "@/lib/constants";
+import en from "../../../messages/en.json";
 import { Perm, type Permission } from "@/types/permissions";
 
 const canOnly =
@@ -70,6 +71,14 @@ const GATE_TABLE: Record<WidgetId, Permission | "app_admin" | "everyone"> = {
 describe("the widget catalog", () => {
   it("holds all forty widgets", () => {
     expect(WIDGET_IDS).toHaveLength(40);
+  });
+
+  it.each(WIDGET_IDS)("%s has a title and a description under its own id", (id) => {
+    const copy = (en.dashboard.widgets as Record<string, { title?: string; description?: string }>)[
+      id
+    ];
+    expect(copy?.title).toBeTruthy();
+    expect(copy?.description).toBeTruthy();
   });
 
   it.each(WIDGET_IDS)("%s opens on exactly its own permission", (id) => {

@@ -122,6 +122,8 @@ function useOrgSnapshot(): {
   // grows by one when the reader creates a schedule or a trigger.
   const routines = useOrgTriggers();
   const datasets = useDatasets();
+  // The picker's own query, so the coach shares its cache rather than adding one.
+  const recentDatasets = useDatasets({ sort: "updated", limit: 100 });
   // The same query the Routines page gates its create buttons on
   // (`qk.agents.anyRunnable()`), so the flow and the buttons can never disagree.
   // `isFetching` too, not only `isLoading`: a cached answer being refetched is a
@@ -154,7 +156,12 @@ function useOrgSnapshot(): {
       org: settled(orgs.isLoading, orgs.isFetching, orgs.data?.length ?? 0),
       group: settled(groups.isLoading, groups.isFetching, groups.groups.length),
       routine: settled(routines.isLoading, false, routines.total),
-      dataset: settled(datasets.isLoading, false, datasets.total),
+      dataset: settled(datasets.isLoading, datasets.isFetching, datasets.total),
+      case: settled(
+        recentDatasets.isLoading,
+        recentDatasets.isFetching,
+        recentDatasets.datasets.reduce((sum, dataset) => sum + dataset.case_count, 0),
+      ),
     },
     // A profile is runnable when it is keyed by a vault secret, or self-hosted at
     // a `base_url` with no key — the same rule the model resolver enforces. A key

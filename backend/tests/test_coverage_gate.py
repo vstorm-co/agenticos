@@ -101,7 +101,11 @@ PLATFORM_MODULES = (
     "app/services/rag/filters.py",
     "app/services/sharing.py",
     "app/services/skills.py",
+    "app/db/models/agent_environment.py",
+    "app/schemas/agent_environment.py",
     "app/repositories/agent_environment.py",
+    "app/db/models/intercepted_tool_call.py",
+    "app/repositories/intercepted_tool_call.py",
     "app/repositories/agent_exposure.py",
     "app/repositories/mcp_connection.py",
     "app/repositories/organization_secret.py",
@@ -122,6 +126,13 @@ PLATFORM_MODULES = (
     "app/services/memory/_native.py",
     "app/services/memory/facade.py",
     "app/api/routes/v1/memory.py",
+    "app/services/system_agents.py",
+    "app/services/system_agent_runner.py",
+    "app/services/ai_assistance.py",
+    "app/services/scorers.py",
+    "app/services/scoring.py",
+    "app/repositories/case_score.py",
+    "app/schemas/scoring.py",
 )
 
 

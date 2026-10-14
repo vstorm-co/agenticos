@@ -103,7 +103,13 @@ export function useDetailTargets(enabled: boolean): Record<string, ResolvedDetai
 
   // The first page the Datasets list itself reads, so the two share one cache entry.
   const datasets = useQuery({
-    queryKey: qk.datasets.list({ search: "", sort: "name", skip: 0, limit: PAGE_SIZE }),
+    queryKey: qk.datasets.list({
+      search: "",
+      sort: "name",
+      skip: 0,
+      limit: PAGE_SIZE,
+      editable: false,
+    }),
     queryFn: () => apiClient.get<DatasetList>(`/datasets?sort=name&skip=0&limit=${PAGE_SIZE}`),
     enabled,
   });

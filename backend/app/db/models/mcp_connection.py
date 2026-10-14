@@ -162,7 +162,7 @@ class McpConnection(Base, TimestampMixin):
     # catalogue `allowed_tools` is chosen from. Recorded so the Builder can list
     # them without holding `connections:manage`, which gates the probe because it
     # dials out to a third party. Null until the connection is next checked.
-    last_tools: Mapped[list[dict[str, str]] | None] = mapped_column(JSONB, nullable=True)
+    last_tools: Mapped[list[dict[str, str | bool]] | None] = mapped_column(JSONB, nullable=True)
     # Which of this member's accounts on one service an agent speaks as, where a
     # binding asked to substitute theirs and they hold more than one. False on
     # every row until somebody chooses: a single account is substituted whether
@@ -221,6 +221,11 @@ class McpConnection(Base, TimestampMixin):
     # at it, so an ordinary MCP connect is untouched.
     granted_scopes: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
     is_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # `readOnlyHint` is the server's own claim. An isolated run lets a tool it
+    # marks run live only on a connection somebody chose to believe it of.
+    trust_read_only_hints: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=text("false"), nullable=False
+    )
 
     auth_type: Mapped[str] = mapped_column(String(16), nullable=False, default="bearer")
     # CSRF token for an in-flight OAuth authorization redirect; NULL once done.

@@ -24,7 +24,8 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.exceptions import ValidationError as InvalidCaseError
+from app.core.permissions import AuthContext, OrgRoleName, Scope
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun
 from app.db.models.audit_log import AppAdminAuditLog
@@ -35,14 +36,17 @@ from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import GrantLevel, ResourceGrant
 from app.db.models.user import User
 from app.repositories import dataset_repo
+from app.repositories._visibility import reached_by_scope
 from app.schemas.dataset import (
     DatasetCaseCreate,
     DatasetCaseFromMessage,
     DatasetCaseUpdate,
     DatasetCreate,
+    DatasetList,
     DatasetUpdate,
 )
 from app.services import dataset as dataset_service
+from app.services.access import _scope_allows
 from app.services.conversation import ConversationService
 from app.services.dataset import DatasetService
 from app.services.dataset_files import COLUMNS
@@ -159,8 +163,12 @@ async def test_editing_a_case_mints_a_version_and_the_old_one_stays_readable(db)
     dataset = await service.create(ctx, DatasetCreate(name="refunds"))
     assert dataset.latest_version == 0
 
-    first = await service.add_case(ctx, dataset.id, DatasetCaseCreate(input="Return window?"))
-    second = await service.add_case(ctx, dataset.id, DatasetCaseCreate(input="Lost receipt?"))
+    first = await service.add_case(
+        ctx, dataset.id, DatasetCaseCreate(input="Return window?", reference_answer="yes")
+    )
+    second = await service.add_case(
+        ctx, dataset.id, DatasetCaseCreate(input="Lost receipt?", reference_answer="yes")
+    )
     edited = await service.update_case(
         ctx,
         dataset.id,
@@ -194,6 +202,75 @@ async def test_editing_a_case_mints_a_version_and_the_old_one_stays_readable(db)
     assert (stored.latest_version, stored.case_count) == (4, 1)
 
 
+async def test_stats_count_what_the_newest_version_tests_against(db) -> None:
+    ctx = await _owner(db)
+    service = DatasetService(db)
+    dataset = await service.create(ctx, DatasetCreate(name="refunds"))
+    assert dataset.stats.with_reference == 0
+    assert dataset.stats.by_source == {"manual": 0, "import": 0, "conversation": 0, "synthetic": 0}
+
+    both = await service.add_case(
+        ctx,
+        dataset.id,
+        DatasetCaseCreate(
+            input="q1",
+            reference_answer="30 days",
+            checks=[{"type": "contains", "value": "30"}],
+            tags=["returns", "billing"],
+        ),
+    )
+    await service.add_case(
+        ctx,
+        dataset.id,
+        DatasetCaseCreate(
+            input="q2",
+            counter_example="never",
+            expected_tool_calls=[{"tool": "search"}],
+            tags=["returns"],
+        ),
+    )
+    await service.import_cases(
+        ctx,
+        dataset.id,
+        content=b"input,counter_example,tags\nq3,no,refusal\nq4,no,returns\n",
+        filename="x.csv",
+        fmt=None,
+    )
+    # Only the newest version counts: the revision that still had its check and
+    # its "returns" tag stays in the versions before this edit.
+    await service.update_case(
+        ctx, dataset.id, both.case_id, DatasetCaseUpdate(checks=[], tags=["billing"])
+    )
+    other = await service.create(ctx, DatasetCreate(name="empty"))
+
+    listed = {item.name: item.stats for item in (await service.list_readable(ctx)).items}
+    stats = listed["refunds"]
+    assert (
+        stats.with_reference,
+        stats.with_counter_example,
+        stats.with_tool_calls,
+        stats.with_checks,
+    ) == (1, 3, 1, 0)
+    assert stats.by_source == {"manual": 2, "import": 2, "conversation": 0, "synthetic": 0}
+    assert [(tag.tag, tag.cases) for tag in stats.top_tags] == [
+        ("returns", 2),
+        ("billing", 1),
+        ("refusal", 1),
+    ]
+    assert listed["empty"].by_source["manual"] == 0
+    assert (await service.read(ctx, dataset.id)).stats == stats
+    assert (
+        await service.update(ctx, other.id, DatasetUpdate(description="x"))
+    ).stats.top_tags == []
+
+    stranger = await _owner(db)
+    assert (
+        await dataset_repo.case_stats(db, [dataset.id], organization_id=stranger.organization_id)
+        == {}
+    )
+    assert await dataset_repo.case_stats(db, [], organization_id=ctx.organization_id) == {}
+
+
 async def test_a_version_number_the_dataset_never_reached_is_not_found(db) -> None:
     ctx = await _owner(db)
     service = DatasetService(db)
@@ -210,10 +287,33 @@ async def test_a_case_the_newest_version_does_not_hold_cannot_be_edited(db) -> N
     dataset = await service.create(ctx, DatasetCreate(name="refunds"))
     with pytest.raises(NotFoundError):
         await service.remove_case(ctx, dataset.id, uuid.uuid4())
-    case = await service.add_case(ctx, dataset.id, DatasetCaseCreate(input="q"))
+    case = await service.add_case(
+        ctx, dataset.id, DatasetCaseCreate(input="q", reference_answer="yes")
+    )
     await service.remove_case(ctx, dataset.id, case.case_id)
     with pytest.raises(NotFoundError):
         await service.update_case(ctx, dataset.id, case.case_id, DatasetCaseUpdate(input="again"))
+
+
+async def test_an_edit_clearing_the_only_expectation_is_refused_and_mints_nothing(db) -> None:
+    ctx = await _owner(db)
+    service = DatasetService(db)
+    dataset = await service.create(ctx, DatasetCreate(name="refunds"))
+    case = await service.add_case(
+        ctx, dataset.id, DatasetCaseCreate(input="q", reference_answer="a")
+    )
+
+    with pytest.raises(InvalidCaseError) as refused:
+        await service.update_case(
+            ctx, dataset.id, case.case_id, DatasetCaseUpdate(reference_answer=None, note="n")
+        )
+    assert [problem["field"] for problem in refused.value.details["fields"]] == ["reference_answer"]
+    assert (await service.read(ctx, dataset.id)).latest_version == 1
+
+    swapped = await service.update_case(
+        ctx, dataset.id, case.case_id, DatasetCaseUpdate(reference_answer=None, counter_example="b")
+    )
+    assert (swapped.reference_answer, swapped.counter_example) == (None, "b")
 
 
 async def test_a_hundred_csv_rows_import_as_one_version_and_export_unchanged(db) -> None:
@@ -230,7 +330,7 @@ async def test_a_hundred_csv_rows_import_as_one_version_and_export_unchanged(db)
                 f"Question {number}, with a comma",
                 '[{"role": "user", "content": "earlier"}]' if number % 2 else "",
                 f"Answer {number}" if number % 3 else "",
-                "'=not a formula" if number == 7 else "",
+                "'=not a formula" if number == 7 else "Never" if number % 3 == 0 else "",
                 '[{"tool": "search", "args": {"q": "refund"}}]' if number % 5 == 0 else "",
                 ("exact", "in_order", "any")[number % 3],
                 '[{"type": "contains", "path": null, "value": "days"}]' if number % 6 == 0 else "",
@@ -442,6 +542,13 @@ async def test_only_an_answer_with_a_question_before_it_can_become_a_case(db) ->
         await service.add_from_message(
             ctx, dataset.id, DatasetCaseFromMessage(message_id=lonely.id)
         )
+    blank = Message(
+        id=uuid.uuid4(), conversation_id=answer.conversation_id, role="assistant", content="  "
+    )
+    db.add(blank)
+    await db.flush()
+    with pytest.raises(BadRequestError, match="no text"):
+        await service.add_from_message(ctx, dataset.id, DatasetCaseFromMessage(message_id=blank.id))
 
 
 async def test_a_conversation_too_long_to_keep_is_refused(db) -> None:
@@ -464,7 +571,7 @@ async def test_a_member_the_dataset_was_not_shared_with_cannot_read_or_change_it
     org = Organization(id=owner.organization_id)
     service = DatasetService(db)
     dataset = await service.create(owner, DatasetCreate(name="private"))
-    await service.add_case(owner, dataset.id, DatasetCaseCreate(input="q"))
+    await service.add_case(owner, dataset.id, DatasetCaseCreate(input="q", reference_answer="yes"))
 
     for role in (OrgRoleName.MEMBER, OrgRoleName.VIEWER):
         outsider = await _member(db, org, role)
@@ -475,14 +582,18 @@ async def test_a_member_the_dataset_was_not_shared_with_cannot_read_or_change_it
         with pytest.raises(NotFoundError):
             await service.export(outsider, dataset.id, version=None, fmt="csv")
         with pytest.raises(NotFoundError):
-            await service.add_case(outsider, dataset.id, DatasetCaseCreate(input="mine now"))
+            await service.add_case(
+                outsider, dataset.id, DatasetCaseCreate(input="mine now", reference_answer="yes")
+            )
         listing = await service.list_readable(outsider)
         assert dataset.id not in {item.id for item in listing.items}
 
     builder = await _member(db, org, OrgRoleName.BUILDER)
     assert (await service.read(builder, dataset.id)).can_edit is False
     with pytest.raises(NotFoundError):
-        await service.add_case(builder, dataset.id, DatasetCaseCreate(input="mine now"))
+        await service.add_case(
+            builder, dataset.id, DatasetCaseCreate(input="mine now", reference_answer="yes")
+        )
 
 
 @pytest.mark.security
@@ -503,7 +614,9 @@ async def test_a_grant_widens_access_to_one_dataset_without_promoting_the_member
     )
     await db.flush()
 
-    await service.add_case(viewer, shared.id, DatasetCaseCreate(input="from the viewer"))
+    await service.add_case(
+        viewer, shared.id, DatasetCaseCreate(input="from the viewer", reference_answer="yes")
+    )
     listing = await service.list_readable(viewer)
     assert [(item.id, item.can_edit) for item in listing.items] == [(shared.id, True)]
     assert (await service.list_readable(viewer, shared_with_me=True)).total == 1
@@ -528,7 +641,7 @@ async def test_names_are_unique_per_organization_and_renaming_keeps_the_version(
     ctx = await _owner(db)
     service = DatasetService(db)
     first = await service.create(ctx, DatasetCreate(name="refunds"))
-    await service.add_case(ctx, first.id, DatasetCaseCreate(input="q"))
+    await service.add_case(ctx, first.id, DatasetCaseCreate(input="q", reference_answer="yes"))
     second = await service.create(ctx, DatasetCreate(name="returns"))
 
     with pytest.raises(AlreadyExistsError):
@@ -551,7 +664,7 @@ async def test_deleting_a_dataset_takes_every_version_case_and_grant_with_it(db)
     ctx = await _owner(db)
     service = DatasetService(db)
     dataset = await service.create(ctx, DatasetCreate(name="doomed"))
-    await service.add_case(ctx, dataset.id, DatasetCaseCreate(input="q"))
+    await service.add_case(ctx, dataset.id, DatasetCaseCreate(input="q", reference_answer="yes"))
     db.add(
         ResourceGrant(
             organization_id=ctx.organization_id,
@@ -632,16 +745,145 @@ async def test_a_change_that_would_pass_the_case_ceiling_is_refused_whole(
     ctx = await _owner(db)
     service = DatasetService(db)
     dataset = await service.create(ctx, DatasetCreate(name="small"))
-    await service.add_case(ctx, dataset.id, DatasetCaseCreate(input="one"))
+    await service.add_case(ctx, dataset.id, DatasetCaseCreate(input="one", reference_answer="yes"))
 
     with pytest.raises(BadRequestError):
         await service.import_cases(
-            ctx, dataset.id, content=b"input\ntwo\nthree\n", filename="x.csv", fmt=None
+            ctx,
+            dataset.id,
+            content=b"input,reference_answer\ntwo,a\nthree,a\n",
+            filename="x.csv",
+            fmt=None,
         )
-    await service.add_case(ctx, dataset.id, DatasetCaseCreate(input="two"))
+    await service.add_case(ctx, dataset.id, DatasetCaseCreate(input="two", reference_answer="yes"))
     with pytest.raises(BadRequestError):
-        await service.add_case(ctx, dataset.id, DatasetCaseCreate(input="three"))
+        await service.add_case(
+            ctx, dataset.id, DatasetCaseCreate(input="three", reference_answer="yes")
+        )
     assert (await service.read(ctx, dataset.id)).latest_version == 2
+
+
+async def test_the_editable_listing_reaches_a_granted_dataset_however_old(db) -> None:
+    """`editable=True` asks `resolve_access` of the whole listing, not of one page of it."""
+    owner = await _owner(db)
+    org = Organization(id=owner.organization_id)
+    viewer = await _member(db, org, OrgRoleName.VIEWER)
+    member = await _member(db, org, OrgRoleName.MEMBER)
+    builder = await _member(db, org, OrgRoleName.BUILDER)
+    service = DatasetService(db)
+    granted = await service.create(owner, DatasetCreate(name="granted long ago"))
+    read_only = await service.create(owner, DatasetCreate(name="read only"))
+    for number in range(101):
+        await service.create(owner, DatasetCreate(name=f"newer {number:03}"))
+    org_wide = await service.create(owner, DatasetCreate(name="org wide"))
+    shared_row = await db.get(Dataset, org_wide.id)
+    assert shared_row is not None
+    shared_row.visibility = "org"
+    await service.create(member, DatasetCreate(name="the member's own"))
+    for dataset_id, level in ((granted.id, GrantLevel.EDIT), (read_only.id, GrantLevel.READ)):
+        db.add(
+            ResourceGrant(
+                organization_id=owner.organization_id,
+                subject_user_id=viewer.user_id,
+                resource_type="dataset",
+                resource_id=dataset_id,
+                level=level.value,
+            )
+        )
+    await db.flush()
+
+    def names(listing: DatasetList) -> list[str]:
+        return [item.name for item in listing.items]
+
+    viewer_editable = await service.list_readable(viewer, editable=True, limit=1)
+    assert (names(viewer_editable), viewer_editable.total) == (["granted long ago"], 1)
+    assert (await service.list_readable(viewer)).total == 3  # the two granted, and "org wide"
+
+    assert names(await service.list_readable(member, editable=True)) == ["the member's own"]
+    builder_editable = await service.list_readable(builder, editable=True, sort="name")
+    assert names(builder_editable) == ["org wide"]
+    assert (await service.list_readable(owner, editable=True)).total == 105
+    # An admin's edit scope is the whole organization: no grant, and still every row.
+    admin = await _member(db, org, OrgRoleName.ADMIN)
+    admin_editable = await service.list_readable(admin, editable=True, search="the member")
+    assert names(admin_editable) == ["the member's own"]
+    assert (await service.list_readable(admin, editable=True, limit=1)).total == 105
+
+
+@pytest.mark.parametrize("scope", list(Scope))
+async def test_the_editable_predicate_admits_exactly_what_resolve_access_does(
+    db, scope: Scope
+) -> None:
+    """The SQL arm and `_scope_allows` are two spellings of one rule; every row agrees."""
+    owner = await _owner(db)
+    other = await _user(db)
+    rows = [
+        Dataset(
+            organization_id=owner.organization_id,
+            owner_user_id=row_owner,
+            visibility=visibility,
+            name=f"{label}-{visibility}",
+        )
+        for label, row_owner in (("mine", owner.user_id), ("theirs", other.id), ("nobody", None))
+        for visibility in ("private", "team", "org")
+    ]
+    db.add_all(rows)
+    await db.flush()
+    granted = rows[1].id
+
+    admitted = set(
+        await db.scalars(
+            select(Dataset.id).where(
+                Dataset.organization_id == owner.organization_id,
+                reached_by_scope(
+                    Dataset.owner_user_id,
+                    Dataset.visibility,
+                    Dataset.id,
+                    scope=scope,
+                    user_id=owner.user_id,
+                    granted_ids=[granted],
+                ),
+            )
+        )
+    )
+    expected = {
+        row.id for row in rows if _scope_allows(scope, row, owner.user_id) or row.id == granted
+    }
+    assert admitted == expected
+
+
+async def test_an_organization_past_its_stored_version_rows_is_refused(
+    db, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The ceiling sums every version of every dataset of one organization, and only it."""
+    monkeypatch.setattr(dataset_service.settings, "DATASET_MAX_VERSION_ROWS_PER_ORG", 5)
+    ctx = await _owner(db)
+    service = DatasetService(db)
+    first = await service.create(ctx, DatasetCreate(name="first"))
+    second = await service.create(ctx, DatasetCreate(name="second"))
+    case = DatasetCaseCreate(input="q", reference_answer="a")
+    await service.add_case(ctx, first.id, case)  # v1 holds 1
+    await service.add_case(ctx, first.id, case)  # v2 holds 2
+    await service.add_case(ctx, second.id, case)  # v1 holds 1: 4 rows in all
+
+    # Another organization's rows are its own: it still has room for its first five.
+    stranger = await _owner(db)
+    theirs = await service.create(stranger, DatasetCreate(name="theirs"))
+    await service.add_case(stranger, theirs.id, case)
+    await service.add_case(stranger, theirs.id, case)
+
+    with pytest.raises(BadRequestError) as refused:
+        await service.add_case(ctx, second.id, case)  # v2 would hold 2: 6 rows
+    assert refused.value.details == {"version_rows": 4, "adding": 2, "max_version_rows": 5}
+    assert "DATASET_MAX_VERSION_ROWS_PER_ORG" in refused.value.message
+    assert (await service.read(ctx, second.id)).latest_version == 1
+    assert await dataset_repo.version_rows(db, organization_id=ctx.organization_id) == 4
+    assert await dataset_repo.version_rows(db, organization_id=stranger.organization_id) == 3
+
+    await service.remove_case(
+        ctx, first.id, (await service.list_cases(ctx, first.id)).items[0].case_id
+    )
+    assert await dataset_repo.version_rows(db, organization_id=ctx.organization_id) == 5
 
 
 async def test_a_name_taken_by_a_concurrent_request_answers_409_not_500(
@@ -694,7 +936,9 @@ async def test_a_version_read_with_another_tenant_finds_no_cases(db) -> None:
     elsewhere = await _owner(db)
     service = DatasetService(db)
     dataset = await service.create(ctx, DatasetCreate(name="mine"))
-    case = await service.add_case(ctx, dataset.id, DatasetCaseCreate(input="q"))
+    case = await service.add_case(
+        ctx, dataset.id, DatasetCaseCreate(input="q", reference_answer="yes")
+    )
     version = await dataset_repo.get_version(db, dataset.id, 1, organization_id=ctx.organization_id)
     assert version is not None
 
@@ -723,7 +967,9 @@ async def _case_with_an_older_check(db) -> tuple[AuthContext, DatasetService, uu
     ctx = await _owner(db)
     service = DatasetService(db)
     dataset = await service.create(ctx, DatasetCreate(name="older checks"))
-    case = await service.add_case(ctx, dataset.id, DatasetCaseCreate(input="q"))
+    case = await service.add_case(
+        ctx, dataset.id, DatasetCaseCreate(input="q", reference_answer="a")
+    )
     row = await db.get(DatasetCase, case.id)
     assert row is not None
     row.checks = [{"type": "rubric", "criteria": ["tone"], "scale": 5}]
@@ -754,6 +1000,21 @@ async def test_editing_another_field_keeps_a_check_scoring_no_longer_knows(db) -
 
     assert edited.note == "n"
     assert edited.checks[0].type == "rubric"
+
+
+async def test_a_check_scoring_no_longer_knows_still_counts_as_what_a_case_expects(db) -> None:
+    ctx, service, dataset_id, case_id = await _case_with_an_older_check(db)
+    row = await db.scalar(select(DatasetCase).where(DatasetCase.case_id == case_id))
+    assert row is not None
+    row.reference_answer = None
+    await db.flush()
+
+    kept = await service.update_case(ctx, dataset_id, case_id, DatasetCaseUpdate(note="n"))
+    assert (kept.reference_answer, kept.checks[0].type) == (None, "rubric")
+
+    with pytest.raises(InvalidCaseError) as refused:
+        await service.update_case(ctx, dataset_id, case_id, DatasetCaseUpdate(checks=[]))
+    assert [problem["field"] for problem in refused.value.details["fields"]] == ["reference_answer"]
 
 
 async def _case_from_someone(db) -> tuple[AuthContext, AuthContext, uuid.UUID]:
@@ -829,7 +1090,9 @@ async def test_erasing_the_author_of_a_case_clears_who_wrote_it(db) -> None:
         )
     )
     await db.flush()
-    case = await service.add_case(builder, dataset.id, DatasetCaseCreate(input="q"))
+    case = await service.add_case(
+        builder, dataset.id, DatasetCaseCreate(input="q", reference_answer="yes")
+    )
     assert builder.user_id is not None
 
     await UserService(db).delete(builder.user_id)

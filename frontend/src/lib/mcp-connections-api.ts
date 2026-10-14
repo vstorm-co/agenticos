@@ -50,6 +50,8 @@ export interface McpConnectionRecord {
    * has asked yet, which is not the same as "offers none".
    */
   last_tools: McpToolInfo[] | null;
+  /** Whether an eval may call a tool this server marks `readOnlyHint` live. */
+  trust_read_only_hints: boolean;
   created_at: string;
   updated_at: string | null;
 }
@@ -57,6 +59,8 @@ export interface McpConnectionRecord {
 export interface McpToolInfo {
   name: string;
   description: string;
+  /** The server's own claim that the tool changes nothing. */
+  read_only_hint?: boolean;
 }
 
 export interface McpConnectionTestResult {

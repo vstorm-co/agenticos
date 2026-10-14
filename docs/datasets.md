@@ -29,6 +29,20 @@ a person actually asked and an answer that actually disappointed them.
 | Note | Why the case exists - what went wrong, or what it guards |
 | Source | `manual`, `import`, `conversation` or `synthetic` - set by the platform, not typed |
 
+A case has to say what its answer is tested against: a reference answer, a
+counter-example, an expected tool call or a check - at least one of the four. A
+case with only an input could never fail, so it is refused: the form will not
+save it, the API answers 422 naming `reference_answer`, and an import names the
+row.
+
+A good case is small: one question, and the one thing a right answer has to get
+right. A reference answer or a counter-example is usually enough. Add expected
+tool calls when the agent has to act rather than answer, checks when a rule can
+be stated exactly, and the conversation before the input only when the question
+depends on it. The note is for the next reader: what went wrong, or what the
+case guards. Creating your first dataset in the console offers a guided walk
+that ends on writing its first case field by field.
+
 A case taken from a conversation also keeps a link to the run, the conversation
 and the message it came from. The question and the answer are copied into the
 case, so the case stays complete after the run itself is removed by retention.
@@ -47,15 +61,21 @@ the same questions, so a difference in their results comes from the agent, not
 from the test. The dataset page shows the newest version by default; choose an
 older one from the version list to read it. An older version is read-only.
 
-Renaming a dataset or changing its description does not create a version,
-because neither changes a case.
+Renaming a dataset or changing its description, with **Edit details** on its
+page, does not create a version, because neither changes a case.
+
+The version list shows the newest hundred versions; an older one is opened by
+typing its number. Every version keeps a row per case, so one organization's
+versions together hold at most `DATASET_MAX_VERSION_ROWS_PER_ORG` rows (5
+million by default, see [Configuration](configuration.md#datasets)). A change
+past that is refused with how many are held; deleting a dataset frees its rows.
 
 ## Adding cases
 
 ### In the console
 
-Open **Datasets**, create a dataset, and choose **Add case**. The input is the
-only required field. The conversation, the expected tool calls and the checks
+Open **Datasets**, create a dataset, and choose **Add case**. Write the input
+and at least one of the four expectations above. The conversation, the expected tool calls and the checks
 are written as JSON lists - the same text a CSV export holds them as.
 
 ### From a file { #import-and-export }
@@ -95,9 +115,24 @@ recorded in the [audit log](governance.md#audit).
 
 ### From a conversation or a run { #add-to-dataset }
 
-Every agent answer in the chat, and every agent turn in **Activity**, has an
-**Add to dataset** control. Choose a dataset and the case is created from the
-turn:
+There are two ways in, and both make the same case:
+
+- **In the chat**, rate the answer, and the rating decides what the answer is
+  kept as. After a thumbs-up, the confirmation offers **Add to dataset**: choose
+  the dataset and the answer is kept as the reference answer. After a
+  thumbs-down, the dialog that asks what went wrong also offers **Add this
+  answer to a dataset**: tick it, choose the dataset and submit, and the answer
+  is kept as the counter-example. The rating is saved first and the case is
+  added after it, so your comment becomes the case's note. They are two
+  separate writes - if the add is refused, the rating stays, and the message
+  says which half failed. Removing the rating later leaves the case where it
+  is: it is a copy, versioned with its dataset. The console remembers the
+  dataset you added to last, so the next add is one click.
+- **In Activity**, every agent turn has an **Add to dataset** control. This is
+  where answers are curated, so a good answer can be kept as a reference just
+  as easily as a bad one as a counter-example.
+
+Either way, the case is created from the turn:
 
 - the question becomes the input, and the turns before it become the
   conversation before the input;
@@ -105,7 +140,7 @@ turn:
   offered as the reference answer instead, and you can choose either;
 - the newest comment left with a thumbs-down becomes the note.
 
-The control is shown to members who may edit a dataset. The message must belong
+Both are shown only to members who may edit a dataset. The message must belong
 to your organization, and you must be able to read it: either you hold
 `runs:view`, which reads every run in the organization as Activity does, or you
 can open the conversation. A message from another organization is refused as
@@ -144,6 +179,10 @@ not what it asks. Each score keeps a copy of the configuration it was computed
 with, so an older score still says how it was reached after the configuration
 changes.
 
+A configuration that could score nothing is refused: every scorer off, or the
+judge on with no criteria. So is a score of a case none of the configured
+scorers has anything to check on - nothing is kept and the judge is not called.
+
 ### Checks { #checks }
 
 | `type` | Parameters | Passes when |
@@ -159,8 +198,9 @@ changes.
 `path` reads into an answer that is JSON: `items.0.name` is the first item's
 name. Without it, a rule reads the whole answer. Text rules are not case
 sensitive unless `case_sensitive` is true. A pattern is checked when the case is
-written, and a rule reads at most the first 100,000 characters of an answer, so
-one pattern cannot make scoring slow.
+written, and a rule reads at most the first 100,000 characters of an answer. A
+pattern that takes longer than a tenth of a second on an answer stops and is
+recorded as an error, so one pattern cannot hold up scoring.
 
 A `judge` check is a criterion for one case only, graded in the same judge run
 as the dataset's rubric. Use it for what a rule cannot express, such as "refuses
@@ -189,18 +229,32 @@ against its own budget and the organization's before the model is called, and
 its run appears in Activity under the `eval` surface. Its instructions can be
 edited like any agent's, and a dataset can name another model for it.
 
+The judge runs only where [AI assistance](governance.md#ai-assistance) is on,
+and it is off until an admin turns it on for the organization. Until then the
+judge's and the reference answer's criteria are recorded as skipped, only the
+rule-based scorers score, and the Scoring tab says so with a link to the switch
+for whoever may change it.
+
 Each criterion is graded from 1 to the top of the scale and passes at the pass
 mark or above. When the judge cannot grade, its criteria are recorded as
 skipped or as errors, with a reason that names the cause: AI assistance is
 switched off, the judge has no published version, it is archived, the person
 may not run it, or its budget is spent. The rule-based scorers still score.
 
+A grade may quote the answer, up to 12 passages; a quote the answer does not
+contain word for word is named in the reason as unverified, and the grade
+stands. Each score records the judge that graded it - its model profile, its
+spec version and a hash of the rubric - so scores from different judges are not
+compared as like for like.
+
 ### Review and verdicts { #review }
 
 A dataset can send results to a **review queue**: none until somebody sends one,
 every result that did not pass, or every result. The Scores tab shows a
 dataset's results, and the **Awaiting review** dashboard card shows the queue
-across the datasets you can see.
+across the datasets you can see: how many results did not pass, could not be
+scored or passed, and in which datasets, each opening on its Scores tab. The
+card is on the dashboard by default.
 
 A person's verdict is stored beside the scorers' results and decides the
 outcome. It never changes what the judge said: the judge's grades and reasons

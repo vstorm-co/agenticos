@@ -51,6 +51,14 @@ export interface ScorerResult {
  * (null: a required scorer could not run); `human_passed` a person's verdict;
  * `outcome` the one that counts.
  */
+/** Which judge graded a score; two scores compare only when every field matches. */
+export interface JudgePin {
+  model_profile_id: string | null;
+  agent_version_id: string | null;
+  spec_version: number | null;
+  rubric_hash: string;
+}
+
 export interface CaseScore {
   id: string;
   dataset_id: string;
@@ -58,6 +66,7 @@ export interface CaseScore {
   case_revision_id: string;
   run_id: string | null;
   results: ScorerResult[];
+  judge: JudgePin | null;
   passed: boolean | null;
   review_state: ReviewState;
   human_passed: boolean | null;
@@ -72,4 +81,25 @@ export interface CaseScore {
 export interface CaseScoreList {
   items: CaseScore[];
   total: number;
+}
+
+/** A score in the review queue, with the dataset it belongs to. */
+export interface PendingScore extends CaseScore {
+  dataset_name: string;
+}
+
+/** How many scores wait in one dataset, by what the scorers concluded. */
+export interface PendingDataset {
+  dataset_id: string;
+  name: string;
+  failed: number;
+  unscored: number;
+  passed: number;
+}
+
+/** A page of the review queue, oldest first, and every dataset holding any of it. */
+export interface ReviewQueue {
+  items: PendingScore[];
+  total: number;
+  datasets: PendingDataset[];
 }

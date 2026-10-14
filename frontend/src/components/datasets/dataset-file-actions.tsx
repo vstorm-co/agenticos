@@ -7,7 +7,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui";
 import { exportDataset } from "@/hooks/use-datasets";
-import { getErrorMessage } from "@/lib/api-error";
+import { fieldProblems, getErrorMessage } from "@/lib/api-error";
 import type { DatasetFileFormat } from "@/types/datasets";
 
 interface DatasetFileActionsProps {
@@ -24,6 +24,30 @@ interface DatasetFileActionsProps {
  * An import is all or nothing, and a refused one says which rows - that sentence
  * comes from the server and is shown as it is.
  */
+/** How many refused rows a toast lists; the server names at most twenty. */
+const SHOWN_ROWS = 5;
+
+/**
+ * The rows an import was refused for, one line each, as the server named them.
+ *
+ * The server reports `rows.<n>` for a row it could not read and `rows.<n>.<field>`
+ * for a field that failed, numbered from the first data row or line.
+ */
+export function refusedRows(
+  error: unknown,
+  t: (key: string, values: Record<string, string | number>) => string,
+): string | undefined {
+  const lines = fieldProblems(error).flatMap((problem) => {
+    const named = /^rows\.(\d+)(?:\.(.+))?$/.exec(problem.field);
+    if (named === null) return [];
+    const [, row, field] = named;
+    return field === undefined
+      ? [t("importRowProblem", { row: Number(row), message: problem.message })]
+      : [t("importRowFieldProblem", { row: Number(row), field, message: problem.message })];
+  });
+  return lines.length === 0 ? undefined : lines.slice(0, SHOWN_ROWS).join("\n");
+}
+
 export function DatasetFileActions({ datasetId, version, onImport }: DatasetFileActionsProps) {
   const t = useTranslations("datasets");
   const tErrors = useTranslations("errors");
@@ -45,12 +69,12 @@ export function DatasetFileActions({ datasetId, version, onImport }: DatasetFile
     try {
       await send(file);
     } catch (error) {
-      toast.error(getErrorMessage(error, tErrors));
+      toast.error(getErrorMessage(error, tErrors), { description: refusedRows(error, t) });
     }
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2" data-tour="dataset-file-actions">
       {onImport !== undefined && (
         <>
           <input

@@ -2,11 +2,12 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { CaseScore } from "@/types/scoring";
+import { DEFAULT_SCORING } from "@/lib/scoring";
+import type { CaseScore, DatasetScoring } from "@/types/scoring";
 import { ScoreRunButton } from "./score-run-button";
 
 const state = vi.hoisted(() => ({
-  datasets: [] as { id: string; name: string }[],
+  datasets: [] as { id: string; name: string; scoring?: DatasetScoring }[],
   isLoading: false,
   cases: {} as Record<string, { case_id: string; input: string }[]>,
   score: vi.fn(),
@@ -26,6 +27,7 @@ const SCORE: CaseScore = {
   case_id: "c1",
   case_revision_id: "r1",
   run_id: "run-1",
+  judge: null,
   results: [
     {
       scorer: "check",
@@ -79,6 +81,29 @@ describe("Score against a case", () => {
     // The footer's and the dialog's own close both answer to the name.
     await userEvent.click(screen.getAllByRole("button", { name: "Close" })[0]!);
     expect(screen.queryByText("Matches the schema")).toBeNull();
+  });
+
+  it("says which scorers will run, and that the judge's half is a paid run", async () => {
+    state.datasets = [
+      { id: "d1", name: "refunds", scoring: DEFAULT_SCORING },
+      {
+        id: "d2",
+        name: "returns",
+        scoring: { ...DEFAULT_SCORING, reference: { enabled: true, required: true } },
+      },
+    ];
+    render(<ScoreRunButton runId="run-1" />);
+
+    await open();
+    expect(screen.getByText("Runs Checks and Tool calls.")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("combobox", { name: "Dataset" }));
+    await userEvent.click(screen.getByRole("option", { name: "returns" }));
+
+    expect(
+      screen.getByText(
+        "Runs Checks, Tool calls, and Reference answer. The judge's grading is a run of the eval judge, charged to its budget.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("takes the case from the dataset chosen, shortening a long question", async () => {

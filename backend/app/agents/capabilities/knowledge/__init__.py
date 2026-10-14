@@ -24,6 +24,7 @@ __all__ = [
 
 @register(
     id="knowledge",
+    read_only=True,
     name="Knowledge search",
     category="knowledge",
     description="Search the collections this agent is connected to and cite the sources.",

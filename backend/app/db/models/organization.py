@@ -107,7 +107,7 @@ class Organization(Base, TimestampMixin):
     # Off is enforced by the service that would start each model-backed run, not
     # by the client; deterministic checks and people's verdicts stay available.
     ai_assistance_enabled: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=True, server_default="true"
+        Boolean, nullable=False, default=False, server_default="false"
     )
 
     # How long this organization's data lives, per class, in days. `None` on the

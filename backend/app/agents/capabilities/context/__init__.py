@@ -31,6 +31,7 @@ class ContextConfig(BaseModel):
 
 @register(
     id="context",
+    read_only=True,
     name="Context",
     category="knowledge",
     description=(

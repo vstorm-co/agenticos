@@ -20,12 +20,14 @@ import pytest
 
 from app.core.exceptions import NotFoundError
 from app.repositories import (
+    agent_environment_repo,
     agent_repo,
     case_score_repo,
     channel_bot_repo,
     conversation_repo,
     credential_repo,
     dataset_repo,
+    intercepted_tool_call_repo,
     knowledge_gap_repo,
     personal_data_repo,
 )
@@ -36,12 +38,17 @@ TENANT_REQUIRED = [
     (conversation_repo, "get_conversations_by_user"),
     (conversation_repo, "count_conversations"),
     (conversation_repo, "create_conversation"),
+    (conversation_repo, "list_tool_calls_for_run"),
     (channel_bot_repo, "get_for_org"),
     (channel_bot_repo, "get_by_platform"),
     (channel_bot_repo, "list_for_org"),
     (channel_bot_repo, "count"),
     (channel_bot_repo, "create"),
     (channel_bot_repo, "delete"),
+    (agent_environment_repo, "list_connections"),
+    (agent_environment_repo, "replace_connections"),
+    (intercepted_tool_call_repo, "add_many"),
+    (intercepted_tool_call_repo, "list_for_run"),
     (dataset_repo, "get"),
     (dataset_repo, "get_by_name"),
     (dataset_repo, "lock"),
@@ -51,6 +58,8 @@ TENANT_REQUIRED = [
     (dataset_repo, "list_versions"),
     (dataset_repo, "create_version"),
     (dataset_repo, "list_cases"),
+    (dataset_repo, "case_stats"),
+    (dataset_repo, "version_rows"),
     (dataset_repo, "find_case"),
     (dataset_repo, "last_position"),
     (dataset_repo, "copy_membership"),
@@ -73,6 +82,7 @@ TENANT_REQUIRED = [
     (case_score_repo, "get"),
     (case_score_repo, "list_for_dataset"),
     (case_score_repo, "list_pending"),
+    (case_score_repo, "pending_counts"),
 ]
 
 # Deliberately unscoped, each documented at its definition.

@@ -16,6 +16,7 @@ a case whose required judge was skipped is left unscored rather than passed.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -28,17 +29,25 @@ from app.core.exceptions import (
     AiAssistanceDisabledError,
     BadRequestError,
     NotFoundError,
+    NothingToScoreError,
     SystemAgentOutputError,
     SystemAgentRunError,
     SystemAgentUnavailableError,
 )
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
-from app.db.models.agent_run import RunStatus
+from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.case_score import CaseScore
-from app.db.models.conversation import Message, ToolCall
 from app.db.models.dataset import Dataset, DatasetCase
-from app.repositories import case_score_repo, credential_repo, dataset_repo
+from app.db.models.intercepted_tool_call import InterceptionOutcome
+from app.repositories import (
+    agent_repo,
+    case_score_repo,
+    conversation_repo,
+    credential_repo,
+    dataset_repo,
+    intercepted_tool_call_repo,
+)
 from app.schemas.dataset import DatasetRead
 from app.schemas.scoring import (
     CaseScoreCreate,
@@ -46,6 +55,10 @@ from app.schemas.scoring import (
     CaseScoreRead,
     CaseVerdict,
     DatasetScoring,
+    JudgePin,
+    PendingDataset,
+    PendingScore,
+    ReviewQueue,
     ScorerResult,
 )
 from app.services.access import DATASET, visible_resource_ids
@@ -62,6 +75,7 @@ from app.services.scorers import (
     judge_criteria,
     judge_prompt,
     not_graded,
+    rubric_hash,
     run_checks,
     score_trajectory,
 )
@@ -79,8 +93,31 @@ def _redact(text: str | None) -> str | None:
     return text
 
 
+@dataclass(frozen=True)
+class Evaluation:
+    """Every scorer's result for one answer, and which judge graded it, if one did."""
+
+    results: list[ScorerResult]
+    judge: JudgePin | None = None
+
+
 def _score_read(score: CaseScore) -> CaseScoreRead:
     return CaseScoreRead.model_validate(score)
+
+
+def _by_dataset(counts: list[tuple[UUID, str, bool | None, int]]) -> list[PendingDataset]:
+    """Each dataset's waiting scores by outcome, the dataset with the most first."""
+    tallies: dict[UUID, dict[str, int]] = {}
+    names: dict[UUID, str] = {}
+    for dataset_id, name, passed, count in counts:
+        names[dataset_id] = name
+        outcome = "unscored" if passed is None else "passed" if passed else "failed"
+        tallies.setdefault(dataset_id, {})[outcome] = count
+    datasets = [
+        PendingDataset(dataset_id=dataset_id, name=names[dataset_id], **tally)
+        for dataset_id, tally in tallies.items()
+    ]
+    return sorted(datasets, key=lambda d: (-(d.failed + d.unscored + d.passed), d.name))
 
 
 def _case_view(case: DatasetCase) -> CaseView:
@@ -93,34 +130,6 @@ def _case_view(case: DatasetCase) -> CaseView:
         order_mode=case.order_mode,
         checks=case.checks,
     )
-
-
-def _ordered_calls(messages: list[Message]) -> tuple[ScoredCall, ...]:
-    """A run's tool calls in the order it made them.
-
-    Turns are in order already. Inside one, every call is written at one instant,
-    so the turn's `parts` - which record the order things happened in - decide,
-    and the provider's call id breaks what is left.
-    """
-    calls: list[ScoredCall] = []
-    for message in messages:
-        positions = [
-            part.get("tool_call_id") for part in message.parts or [] if part.get("type") == "tool"
-        ]
-
-        def key(call: ToolCall, positions: list[object] = positions) -> tuple[datetime, int, str]:
-            at = (
-                positions.index(call.tool_call_id)
-                if call.tool_call_id in positions
-                else len(positions)
-            )
-            return call.started_at, at, call.tool_call_id
-
-        calls.extend(
-            ScoredCall(tool=call.tool_name, args=call.args or {})
-            for call in sorted(message.tool_calls, key=key)
-        )
-    return tuple(calls)
 
 
 class ScoringService:
@@ -140,9 +149,15 @@ class ScoringService:
 
         Raises:
             NotFoundError: The dataset is not one the caller may edit.
-            BadRequestError: The judge's model is not one of the organization's.
+            BadRequestError: Every scorer is off, the judge is on with nothing to
+                grade, or the judge's model is not one of the organization's.
         """
         dataset = await self.datasets.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
+        scorers = (data.checks, data.trajectory, data.judge, data.reference)
+        if not any(scorer.enabled for scorer in scorers):
+            raise refused_field("checks.enabled", "Turn on at least one scorer")
+        if data.judge.enabled and not data.judge.criteria:
+            raise refused_field("judge.criteria", "Give the judge at least one criterion")
         profile_id = data.judge.model_profile_id
         if profile_id is not None and (
             await credential_repo.get_profile(
@@ -170,7 +185,8 @@ class ScoringService:
             NotFoundError: The dataset, the case or the run is not one the caller
                 may reach.
             AuthorizationError: The caller may not read runs.
-            BadRequestError: The run kept no transcript to score.
+            BadRequestError: The run kept no transcript to score, or the
+                dataset's scorers have nothing to check on the case.
         """
         dataset = await self.datasets.get(ctx, dataset_id, perm=Perm.DATASETS_RUN)
         case = await self.datasets.case_at(ctx, dataset, case_id, version=data.version)
@@ -203,10 +219,35 @@ class ScoringService:
         )
         return ScoredAnswer(
             text=answers[-1].content,
-            calls=_ordered_calls(messages),
+            calls=await self._calls_of(ctx, run.id),
             cost_usd=run.cost_usd,
             latency_ms=latency,
             run_id=run.id,
+        )
+
+    async def _calls_of(self, ctx: AuthContext, run_id: UUID) -> tuple[ScoredCall, ...]:
+        """A run's tool calls in the order it made them, with the writes it was kept from.
+
+        A call an isolated run held back still has its row in the transcript, so
+        it is joined by its call id. Only the run's own calls are read: a
+        delegate's calls belong to the delegate's run.
+        """
+        calls = await conversation_repo.list_tool_calls_for_run(
+            self.db, run_id=run_id, organization_id=ctx.organization_id
+        )
+        held = await intercepted_tool_call_repo.list_for_run(
+            self.db, run_id=run_id, organization_id=ctx.organization_id
+        )
+        blocked = {
+            call.tool_call_id for call in held if call.outcome == InterceptionOutcome.BLOCKED
+        }
+        return tuple(
+            ScoredCall(
+                tool=call.tool_name,
+                args=call.args or {},
+                blocked=call.tool_call_id in blocked,
+            )
+            for call, _ in calls
         )
 
     async def score_case(
@@ -223,9 +264,16 @@ class ScoringService:
         The entry point for an eval run as much as for a single score: `scoring`
         overrides the dataset's configuration, as a suite may. The caller has
         already decided the caller may score this dataset.
+
+        Raises:
+            NothingToScoreError: No configured scorer has anything to check on
+                this case - nothing is kept, and the judge is not called.
         """
         config = scoring or DatasetScoring.model_validate(dataset.scoring)
-        results = await self.evaluate(ctx, _case_view(case), answer, config)
+        evaluation = await self.evaluate(ctx, _case_view(case), answer, config)
+        results = evaluation.results
+        if not results:
+            raise NothingToScoreError(case_id=case.case_id)
         passed = case_passed(results)
         select = config.review.select
         waits = select == "all" or (select == "failed" and passed is not True)
@@ -241,6 +289,7 @@ class ScoringService:
                 result.model_copy(update={"reason": _redact(result.reason)}).model_dump(mode="json")
                 for result in results
             ],
+            judge=None if evaluation.judge is None else evaluation.judge.model_dump(mode="json"),
             passed=passed,
             review_state="pending" if waits else "none",
             created_by_user_id=ctx.user_id,
@@ -248,7 +297,7 @@ class ScoringService:
 
     async def evaluate(
         self, ctx: AuthContext, case: CaseView, answer: ScoredAnswer, scoring: DatasetScoring
-    ) -> list[ScorerResult]:
+    ) -> Evaluation:
         """Every configured scorer's result for one answer, without keeping them."""
         results: list[ScorerResult] = []
         judged = []
@@ -268,9 +317,10 @@ class ScoringService:
             if trajectory is not None:
                 results.append(trajectory)
         criteria = judge_criteria(case, scoring, judged)
-        if criteria:
-            results.extend(await self._judge(ctx, case, answer, criteria, scoring))
-        return results
+        if not criteria:
+            return Evaluation(results)
+        judging = await self._judge(ctx, case, answer, criteria, scoring)
+        return Evaluation([*results, *judging.results], judging.judge)
 
     async def _judge(
         self,
@@ -279,7 +329,7 @@ class ScoringService:
         answer: ScoredAnswer,
         criteria: list[JudgeCriterion],
         scoring: DatasetScoring,
-    ) -> list[ScorerResult]:
+    ) -> Evaluation:
         try:
             result = await self.judge.run(
                 ctx,
@@ -289,34 +339,65 @@ class ScoringService:
                 model_profile_id=scoring.judge.model_profile_id,
             )
         except AiAssistanceDisabledError as exc:
-            return not_graded(criteria, skipped=True, code="ai_assistance_off", reason=exc.message)
+            skipped = not_graded(
+                criteria, skipped=True, code="ai_assistance_off", reason=exc.message
+            )
+            return Evaluation(skipped)
         except SystemAgentUnavailableError as exc:
-            return not_graded(
+            skipped = not_graded(
                 criteria, skipped=True, code=f"judge_{exc.reason}", reason=exc.message
             )
+            return Evaluation(skipped)
         except SystemAgentRunError as exc:
             budget = exc.status == RunStatus.BUDGET_EXCEEDED.value
-            return not_graded(
+            failed = not_graded(
                 criteria,
                 skipped=budget,
                 code="judge_budget" if budget else "judge_run_failed",
                 reason=exc.message,
                 run_id=exc.run_id,
             )
+            return Evaluation(failed)
         except SystemAgentOutputError as exc:
-            return not_graded(
+            failed = not_graded(
                 criteria,
                 skipped=False,
                 code="judge_output_invalid",
                 reason=exc.message,
                 run_id=exc.run_id,
             )
-        return graded(
+            return Evaluation(failed)
+        grades = graded(
             criteria,
             result.output,
+            answer=answer.text,
             scale_max=scoring.judge.scale_max,
             pass_at=scoring.judge.pass_at,
             run_id=result.run.id,
+        )
+        return Evaluation(grades, await self._pin(ctx, result.run, criteria, scoring))
+
+    async def _pin(
+        self,
+        ctx: AuthContext,
+        run: AgentRun,
+        criteria: list[JudgeCriterion],
+        scoring: DatasetScoring,
+    ) -> JudgePin:
+        """The judge that graded: its version, the model it ran on, and what it was asked."""
+        version = (
+            None
+            if run.agent_version_id is None
+            else await agent_repo.get_version(
+                self.db, run.agent_version_id, organization_id=ctx.organization_id
+            )
+        )
+        published = None if version is None else version.spec.get("model_profile_id")
+        return JudgePin(
+            model_profile_id=scoring.judge.model_profile_id or published,
+            agent_version_id=run.agent_version_id,
+            spec_version=None if version is None else version.version,
+            rubric_hash=rubric_hash(criteria, scale_max=scoring.judge.scale_max),
         )
 
     async def list_scores(
@@ -344,21 +425,36 @@ class ScoringService:
 
     async def review_queue(
         self, ctx: AuthContext, *, skip: int = 0, limit: int = 50
-    ) -> CaseScoreList:
+    ) -> ReviewQueue:
         """Scores waiting for a person, across every dataset the caller may see."""
         shared = await visible_resource_ids(
             self.db, ctx, resource_type=DATASET, perm=Perm.DATASETS_VIEW
         )
+        see_all, shared_ids = shared is None, [] if shared is None else shared
         items, total = await case_score_repo.list_pending(
             self.db,
             organization_id=ctx.organization_id,
             user_id=ctx.subject_id,
-            see_all=shared is None,
-            shared_ids=[] if shared is None else shared,
+            see_all=see_all,
+            shared_ids=shared_ids,
             skip=skip,
             limit=limit,
         )
-        return CaseScoreList(items=[_score_read(item) for item in items], total=total)
+        counts = await case_score_repo.pending_counts(
+            self.db,
+            organization_id=ctx.organization_id,
+            user_id=ctx.subject_id,
+            see_all=see_all,
+            shared_ids=shared_ids,
+        )
+        return ReviewQueue(
+            items=[
+                PendingScore(**_score_read(score).model_dump(), dataset_name=name)
+                for score, name in items
+            ],
+            total=total,
+            datasets=_by_dataset(counts),
+        )
 
     async def _score(self, ctx: AuthContext, dataset_id: UUID, score_id: UUID) -> CaseScore:
         await self.datasets.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)

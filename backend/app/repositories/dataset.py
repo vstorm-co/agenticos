@@ -6,16 +6,23 @@ id rather than a dataset id. Minting a version is the service's to sequence; the
 pieces it is built from are here.
 """
 
-from typing import Any
+from collections.abc import Sequence
+from typing import Any, get_args
 from uuid import UUID
 
-from sqlalchemy import func, insert, literal, select
+from sqlalchemy import func, insert, literal, select, true
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models.dataset import Dataset, DatasetCase, DatasetVersion, DatasetVersionCase
+from app.core.permissions import Scope
+from app.db.models.dataset import (
+    Dataset,
+    DatasetCase,
+    DatasetVersion,
+    DatasetVersionCase,
+)
 from app.repositories._search import contains_ci
-from app.repositories._visibility import shared_with_caller, visible_to_caller
-from app.schemas.dataset import DatasetSort
+from app.repositories._visibility import reached_by_scope, shared_with_caller, visible_to_caller
+from app.schemas.dataset import CaseSourceLiteral, DatasetSort, DatasetStats, DatasetTagCount
 
 
 async def get(db: AsyncSession, dataset_id: UUID, *, organization_id: UUID) -> Dataset | None:
@@ -56,6 +63,8 @@ async def list_visible(
     see_all: bool,
     shared_ids: list[UUID],
     shared_with_me: bool = False,
+    edit_scope: Scope | None = None,
+    edit_ids: Sequence[UUID] = (),
     search: str | None = None,
     sort: DatasetSort = "name",
     skip: int = 0,
@@ -67,6 +76,9 @@ async def list_visible(
         see_all: True when the caller's role reaches the whole organization.
         shared_ids: Dataset ids explicitly shared with this member.
         shared_with_me: Narrow to rows shared with the caller and not their own.
+        edit_scope: Narrow to the rows the caller may also edit: their role's
+            scope for editing, with `edit_ids` granted at edit level. None
+            narrows nothing.
     """
     where = [Dataset.organization_id == organization_id]
     if shared_with_me:
@@ -87,6 +99,17 @@ async def list_visible(
                 Dataset.id,
                 user_id=user_id,
                 shared_ids=shared_ids,
+            )
+        )
+    if edit_scope is not None:
+        where.append(
+            reached_by_scope(
+                Dataset.owner_user_id,
+                Dataset.visibility,
+                Dataset.id,
+                scope=edit_scope,
+                user_id=user_id,
+                granted_ids=edit_ids,
             )
         )
     if search:
@@ -219,6 +242,102 @@ async def list_cases(
         query = query.limit(limit)
     result = await db.execute(query)
     return list(result.scalars().all())
+
+
+TOP_TAGS = 3
+
+
+async def case_stats(
+    db: AsyncSession, dataset_ids: Sequence[UUID], *, organization_id: UUID
+) -> dict[UUID, DatasetStats]:
+    """What the newest version of each dataset tests against, counted.
+
+    Two queries for any number of datasets - the counts, and the most used tags -
+    so a listing page costs the same whichever size it is. A dataset with no
+    version yet is absent; the caller's default is all zeros.
+    """
+    if not dataset_ids:
+        return {}
+    latest = (
+        select(DatasetVersion.id, DatasetVersion.dataset_id)
+        .join(
+            Dataset,
+            (Dataset.id == DatasetVersion.dataset_id)
+            & (Dataset.latest_version == DatasetVersion.number),
+        )
+        .where(
+            DatasetVersion.dataset_id.in_(dataset_ids),
+            DatasetVersion.organization_id == organization_id,
+        )
+        .subquery()
+    )
+    held = (
+        select(
+            latest.c.dataset_id,
+            DatasetCase.reference_answer,
+            DatasetCase.counter_example,
+            DatasetCase.expected_tool_calls,
+            DatasetCase.checks,
+            DatasetCase.source,
+            DatasetCase.tags,
+        )
+        .join(DatasetVersionCase, DatasetVersionCase.version_id == latest.c.id)
+        .join(DatasetCase, DatasetCase.id == DatasetVersionCase.case_revision_id)
+        .where(DatasetCase.organization_id == organization_id)
+        .subquery()
+    )
+    sources: tuple[CaseSourceLiteral, ...] = get_args(CaseSourceLiteral)
+    counts = await db.execute(
+        select(
+            held.c.dataset_id,
+            func.count().filter(func.nullif(held.c.reference_answer, "").is_not(None)),
+            func.count().filter(func.nullif(held.c.counter_example, "").is_not(None)),
+            func.count().filter(func.jsonb_array_length(held.c.expected_tool_calls) > 0),
+            func.count().filter(func.jsonb_array_length(held.c.checks) > 0),
+            *(func.count().filter(held.c.source == source) for source in sources),
+        ).group_by(held.c.dataset_id)
+    )
+    stats = {
+        row[0]: DatasetStats(
+            with_reference=row[1],
+            with_counter_example=row[2],
+            with_tool_calls=row[3],
+            with_checks=row[4],
+            by_source=dict(zip(sources, row[5:], strict=True)),
+        )
+        for row in counts.all()
+    }
+
+    tag = func.jsonb_array_elements_text(held.c.tags).table_valued("value").lateral("tag")
+    used = func.count()
+    rank = func.row_number().over(
+        partition_by=held.c.dataset_id, order_by=(used.desc(), tag.c.value.asc())
+    )
+    ranked = (
+        select(held.c.dataset_id, tag.c.value.label("tag"), used.label("cases"), rank.label("rank"))
+        .select_from(held)
+        .join(tag, true())
+        .group_by(held.c.dataset_id, tag.c.value)
+        .subquery()
+    )
+    tags = await db.execute(
+        select(ranked.c.dataset_id, ranked.c.tag, ranked.c.cases)
+        .where(ranked.c.rank <= TOP_TAGS)
+        .order_by(ranked.c.dataset_id, ranked.c.rank)
+    )
+    for dataset_id, name, cases in tags.all():
+        stats[dataset_id].top_tags.append(DatasetTagCount(tag=name, cases=cases))
+    return stats
+
+
+async def version_rows(db: AsyncSession, *, organization_id: UUID) -> int:
+    """How many case rows an organization's dataset versions hold, all of them together."""
+    total = await db.scalar(
+        select(func.coalesce(func.sum(DatasetVersion.case_count), 0)).where(
+            DatasetVersion.organization_id == organization_id
+        )
+    )
+    return int(total or 0)
 
 
 async def find_case(

@@ -16,6 +16,14 @@ const DATASET: Dataset = {
   case_count: 12,
   can_edit: true,
   scoring: DEFAULT_SCORING,
+  stats: {
+    with_reference: 0,
+    with_counter_example: 0,
+    with_tool_calls: 0,
+    with_checks: 0,
+    by_source: { manual: 0, import: 0, conversation: 0, synthetic: 0 },
+    top_tags: [],
+  },
   created_at: "2026-10-13T00:00:00Z",
   updated_at: null,
 };

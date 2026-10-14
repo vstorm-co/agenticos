@@ -252,3 +252,18 @@ class SystemAgentOutputError(BadRequestError):
     def __init__(self, message: str, *, run_id: UUID) -> None:
         super().__init__(message=message, details={"run_id": run_id})
         self.run_id = run_id
+
+
+class NothingToScoreError(BadRequestError):
+    """No configured scorer has anything to check on a case (400).
+
+    Raised before anything is kept or the judge is called, so an eval run can
+    count the case as undecided rather than failed.
+    """
+
+    message = "Nothing to score: the dataset's scorers check nothing this case expects"
+    code = "NOTHING_TO_SCORE"
+
+    def __init__(self, *, case_id: UUID) -> None:
+        super().__init__(details={"case_id": case_id})
+        self.case_id = case_id

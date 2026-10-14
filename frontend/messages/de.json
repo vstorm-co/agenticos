@@ -657,7 +657,19 @@
     "eachPersonsOwnAccount": "Das eigene Konto jeder Person",
     "useEachPersonsOwnAccount": "Das eigene Konto jeder Person verwenden",
     "eachPersonsOwnAccountHint": "Wer mit diesem Agent spricht, verbindet sein eigenes Konto, und der Agent spricht als diese Person mit dem Dienst – im Dashboard, in Direktnachrichten und in Kanälen gleichermaßen. Nicht verfügbar für API-Schlüssel, das Widget, Zeitpläne und Trigger, wo niemand angemeldet ist.",
-    "everyToolThisServerOffers": "Jedes Tool, das er anbietet"
+    "everyToolThisServerOffers": "Jedes Tool, das er anbietet",
+    "testConnectionsFor": "Testverbindungen für {name}",
+    "testConnectionsHint": "Runs in diesem Environment, Evals eingeschlossen, beantworten jedes Binding unten mit seinem Testsystem. Ein hier abgeschaltetes Binding tut nichts - es fällt nie auf die Produktion zurück.",
+    "testConnectionKindLabel": "Was ersetzt wird",
+    "testConnectionKindMcp": "MCP-Server",
+    "testConnectionKindSecret": "Vault-Schlüssel",
+    "productionSide": "Produktion",
+    "testSide": "Testersatz",
+    "testSideFor": "Testersatz für {name}",
+    "bindingOffHere": "In diesem Environment aus",
+    "testSideUnusable": "Hier aus: Die Testverbindung ist deaktiviert oder nicht angemeldet",
+    "testConnectionsSaved": "Testverbindungen gespeichert",
+    "failedTestConnections": "Die Testverbindungen konnten nicht gespeichert werden"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -1883,26 +1895,25 @@
           "description": "Hier erscheinen Berichte und Dashboards, die ein Agent veröffentlicht."
         }
       },
-      "reviewQueue": {
-        "title": "Wartet auf Prüfung",
-        "description": "Eval-Ergebnisse, die auf das Urteil eines Menschen warten.",
-        "waiting": "{count, plural, =1 {1 Ergebnis wartet} other {# Ergebnisse warten}} auf ein Urteil",
-        "allPassed": "Alle erforderlichen Bewertungen bestanden",
-        "passed": "Bestanden",
-        "didNotPass": "Nicht bestanden",
-        "unscored": "Nicht bewertet",
-        "empty": {
-          "title": "Nichts zu prüfen",
-          "description": "Ergebnisse, die ein Dataset zur Prüfung sendet, erscheinen hier."
-        }
-      },
       "datasets": {
         "title": "Datasets",
-        "description": "Die zuletzt geänderten Sammlungen von Testfällen.",
+        "description": "Die zuletzt geänderten Datasets und woran ihre Fälle die Antwort messen.",
         "cases": "{count, plural, =1 {1 Fall} other {# Fälle}} · v{version}",
         "empty": {
           "title": "Noch keine Datasets",
           "description": "Testfälle, die Sie für Evals sammeln, erscheinen hier."
+        },
+        "stat": {
+          "reference": "{count, plural, =1 {1 Referenz} other {# Referenzen}}",
+          "counter": "{count, plural, =1 {1 Gegenbeispiel} other {# Gegenbeispiele}}",
+          "toolCalls": "{count, plural, =1 {1 mit Tool-Aufrufen} other {# mit Tool-Aufrufen}}",
+          "checks": "{count, plural, =1 {1 mit Prüfungen} other {# mit Prüfungen}}"
+        },
+        "source": {
+          "conversation": "{count} aus dem Chat",
+          "import": "{count} importiert",
+          "manual": "{count} von Hand",
+          "synthetic": "{count} generiert"
         }
       },
       "knowledge-gaps": {
@@ -1912,6 +1923,20 @@
         "empty": {
           "title": "Keine Wissenslücken",
           "description": "Fragen, die Agents aus keiner Wissensbasis beantworten konnten, erscheinen hier."
+        }
+      },
+      "review-queue": {
+        "title": "Wartet auf Prüfung",
+        "description": "Eval-Ergebnisse, die auf das Urteil eines Menschen warten.",
+        "waiting": "{count, plural, =1 {1 Ergebnis wartet} other {# Ergebnisse warten}} auf ein Urteil",
+        "empty": {
+          "title": "Nichts zu prüfen",
+          "description": "Ergebnisse, die ein Dataset zur Prüfung sendet, erscheinen hier."
+        },
+        "outcome": {
+          "failed": "{count} nicht bestanden",
+          "unscored": "{count} nicht bewertet",
+          "passed": "{count} bestanden"
         }
       }
     },
@@ -2617,7 +2642,9 @@
     "whoeverSignsGrantsIf": "Wer sich anmeldet, gewährt ihn. Wird dessen Zugriff beim Provider entzogen, hört dieser Server für jeden Agent auf zu funktionieren, bis sich jemand erneut anmeldet – verwenden Sie also ein Konto, das die Organisation kontrolliert.",
     "yourChatAndDirectMessages": "Nur Ihres — Ihr Chat und Ihre Direktnachrichten in einem Kanal.",
     "yours": "Ihre",
-    "yoursAloneYourOwn": "Nur Ihres, in Ihrem eigenen Chat. Kein Agent kann es binden."
+    "yoursAloneYourOwn": "Nur Ihres, in Ihrem eigenen Chat. Kein Agent kann es binden.",
+    "trustReadOnlyHints": "Evals Tools aufrufen lassen, die dieser Server als nur lesend markiert",
+    "trustReadOnlyHintsHint": "Evals halten jeden Aufruf eines Produktionsservers an, solange Sie ihm nicht vertrauen: Die Markierung „nur lesend“ ist die eigene Angabe des Servers. {count, plural, =0 {Kein Tool hier beansprucht sie.} =1 {1 Tool hier beansprucht sie.} other {# Tools hier beanspruchen sie.}}"
   },
   "members": {
     "emailPlaceholder": "kollege@example.com",
@@ -2753,7 +2780,7 @@
       },
       "create-dataset": {
         "title": "Ein Dataset anlegen?",
-        "body": "Ein Dataset enthält die Fragen, an denen Ihre Agents getestet werden. Möchten Sie jetzt Ihr erstes anlegen? Wir führen Sie durch."
+        "body": "Ein Dataset enthält die Fragen, an denen Ihre Agents getestet werden. Möchten Sie jetzt Ihr erstes anlegen und gemeinsam einen ersten guten Fall schreiben? Wir führen Sie durch."
       }
     },
     "steps": {
@@ -3227,7 +3254,7 @@
       },
       "datasets-new": {
         "title": "Testfälle sammeln",
-        "body": "Ein Dataset enthält die Fragen, an denen ein Agent getestet wird. Legen Sie hier eines an und fügen Sie Fälle von Hand, aus einer Datei oder aus einer negativ bewerteten Antwort hinzu."
+        "body": "Ein Dataset enthält die Fragen, an denen ein Agent getestet wird. Legen Sie hier eines an und fügen Sie Fälle von Hand, aus einer Datei, aus einer im Chat bewerteten Antwort oder aus einem Schritt in der Aktivität hinzu."
       },
       "runs-score-against-case": {
         "title": "Diesen Run bewerten",
@@ -3235,7 +3262,7 @@
       },
       "dataset-scoring": {
         "title": "Wie Fälle bewertet werden",
-        "body": "Wählen Sie die Bewertungen: regelbasierte Prüfungen, die erwarteten Tool-Aufrufe und den Eval-Bewerter mit einer Rubrik oder der Referenzantwort. Legen Sie fest, welche ein Fall bestehen muss."
+        "body": "Wählen Sie die Bewertungen: regelbasierte Prüfungen, die erwarteten Tool-Aufrufe und den Eval-Bewerter mit einer Rubrik oder der Referenzantwort. Legen Sie fest, welche ein Fall bestehen muss. Der Eval-Bewerter braucht die KI-Unterstützung, die ein Administrator für die Organisation einschaltet."
       },
       "dataset-scores": {
         "title": "Ergebnisse und Prüfung",
@@ -3264,6 +3291,46 @@
       "agent-gaps": {
         "title": "Wonach er gesucht hat",
         "body": "Die Fragen, zu denen dieser Agent eine Wissensbasis durchsucht und nichts gefunden hat. Jede führt zum Run, aus dem sie stammt."
+      },
+      "agent-test-connections": {
+        "title": "Testverbindungen",
+        "body": "Ein benanntes Environment kann die MCP-Server und Vault-Schlüssel des Agents durch Testversionen ersetzen - ein Sandbox-CRM, ein Testpostfach. Dort laufen Evals, und ein schreibendes Tool ohne Testverbindung wird angehalten und aufgezeichnet statt ausgeführt."
+      },
+      "flow-dataset-open": {
+        "title": "Öffnen Sie Ihr Dataset",
+        "body": "Es ist die erste Karte - die zuletzt geänderte. Öffnen Sie sie, um den ersten Fall hinzuzufügen."
+      },
+      "flow-dataset-add-case": {
+        "title": "Fügen Sie Ihren ersten Fall hinzu",
+        "body": "Wählen Sie Fall hinzufügen. Ein Fall ist eine Frage und die Beschreibung einer guten Antwort darauf."
+      },
+      "flow-dataset-case-question": {
+        "title": "Was der Agent gefragt wird",
+        "body": "Die Eingabe ist die Nachricht, auf die der Agent antwortet. Fügen Sie das Gespräch davor nur hinzu, wenn die Frage von früheren Zügen abhängt. Dann wählen Sie Weiter."
+      },
+      "flow-dataset-case-answers": {
+        "title": "Eine gute Antwort und eine schlechte",
+        "body": "Die Referenzantwort sagt, was eine gute Antwort enthält; ein Judge vergleicht die Antwort des Agents damit. Das Gegenbeispiel ist eine Antwort, die bekanntermaßen falsch ist - oft die negativ bewertete. Meist genügt eines von beiden."
+      },
+      "flow-dataset-case-tools": {
+        "title": "Die Tools, die er aufrufen soll",
+        "body": "Listen Sie die Tools auf, die der Agent aufrufen muss, mit den Argumenten, die übereinstimmen müssen. Wählen Sie den Abgleich: in beliebiger Reihenfolge, in dieser Reihenfolge mit anderen dazwischen oder genau diese und keine anderen."
+      },
+      "flow-dataset-case-checks": {
+        "title": "Regeln für die Antwort",
+        "body": "Eine Prüfung ist eine Regel, nach der die Antwort bewertet wird, etwa dass sie 30 Tage nennt. Jede nennt ihren Typ und die Parameter dieser Regel."
+      },
+      "flow-dataset-case-labels": {
+        "title": "Tags und eine Notiz",
+        "body": "Tags gruppieren Ergebnisse, etwa billing oder refusal. Die Notiz sagt, wozu der Fall da ist - was schiefging oder was er absichert."
+      },
+      "flow-dataset-case-save": {
+        "title": "Speichern Sie den Fall",
+        "body": "Ein Fall muss sagen, woran die Antwort gemessen wird: eine Referenzantwort, ein Gegenbeispiel, ein Tool-Aufruf oder eine Prüfung. Solange keines davon da ist, bleibt Fall speichern aus und sagt, was fehlt."
+      },
+      "flow-dataset-sources": {
+        "title": "Woher die nächsten Fälle kommen",
+        "body": "Schreiben Sie sie hier, oder importieren Sie hier eine CSV- oder JSONL-Datei. Bewerten Sie im Chat eine Antwort positiv oder negativ und fügen Sie sie hinzu - ein Daumen nach oben behält sie als Referenz, einer nach unten als Gegenbeispiel. In der Aktivität fügen Sie einen beliebigen Agent-Zug eines Runs hinzu."
       }
     }
   },
@@ -4848,7 +4915,7 @@
   "teams": {
     "acmeCom": "acme.com",
     "aiAssistance": "KI-Unterstützung",
-    "aiAssistanceDescription": "Ob Modelle Eval-Antworten bewerten, Testfälle entwerfen und Änderungen an Agenten vorschlagen dürfen.",
+    "aiAssistanceDescription": "Aus, bis jemand sie einschaltet. Sie lässt Modelle Eval-Antworten bewerten, Testfälle entwerfen, Änderungen an Agenten vorschlagen und Inhalte für Wissenslücken entwerfen; jede Nutzung ist ein abgerechneter Run innerhalb der Budgets des Agents und der Organisation.",
     "aiAssistanceHint": "Ist sie aus, ruft hier nichts ein Modell zum Bewerten, Erzeugen oder Vorschlagen auf: der Eval-Bewerter, der Fallgenerator und der Authoring-Assistent werden abgelehnt. Deterministische Prüfungen und Urteile von Menschen funktionieren weiter.",
     "aiAssistanceOn": "KI-Unterstützung ist an",
     "aiAssistanceOff": "KI-Unterstützung ist aus",
@@ -5553,7 +5620,7 @@
       "onlyAwaitingReview": "Nur wartende Prüfungen",
       "noScores": "Noch keine Ergebnisse",
       "nothingAwaitingReview": "Nichts wartet auf eine Prüfung",
-      "noScoresBody": "Bewerten Sie einen Run in Activity gegen einen Fall, dann wird das Ergebnis hier gespeichert.",
+      "noScoresBody": "Öffnen Sie einen Run in <link>Activity</link> und bewerten Sie ihn gegen einen Fall – das Ergebnis wird hier gespeichert.",
       "passed": "Bestanden",
       "failed": "Nicht bestanden",
       "unscored": "Nicht bewertet",
@@ -5590,7 +5657,18 @@
       "noCaseToScore": "Dieses Dataset hat noch keinen Fall",
       "score": "Bewerten",
       "scoring": "Wird bewertet…",
-      "close": "Schließen"
+      "close": "Schließen",
+      "problem": {
+        "noScorer": "Schalten Sie mindestens eine Bewertungsart ein – sind alle aus, lässt sich kein Fall bewerten.",
+        "noCriterion": "Geben Sie dem Eval-Bewerter mindestens ein Kriterium oder schalten Sie ihn aus – er hat nichts zu bewerten."
+      },
+      "willRun": "Wendet an: {scorers}.",
+      "judgeSpends": "Die Benotung durch den Eval-Bewerter ist ein eigener Run, der aus seinem Budget bezahlt wird.",
+      "aiOff": {
+        "body": "Die KI-Unterstützung ist in dieser Organisation ausgeschaltet, daher werden der Eval-Bewerter und der Vergleich mit der Referenzantwort übersprungen, und nur die regelbasierten Bewertungen zählen.",
+        "enable": "KI-Unterstützung einschalten",
+        "askAdmin": "Bitten Sie einen Administrator, sie einzuschalten."
+      }
     },
     "title": "Datasets",
     "pageDescription": "Die Fragen, an denen Ihre Agents getestet werden. Jede Änderung an den Fällen eines Datasets erzeugt eine neue Version, sodass zwei Eval-Runs auf einer Version dieselben Fragen gesehen haben.",
@@ -5680,7 +5758,22 @@
       "in_orderHint": "Die erwarteten Aufrufe müssen in der angegebenen Reihenfolge erfolgen; andere Aufrufe dürfen dazwischen liegen.",
       "exact": "Genau diese, in dieser Reihenfolge",
       "exactHint": "Der Agent muss genau die erwarteten Aufrufe machen, in der angegebenen Reihenfolge, und keine anderen."
-    }
+    },
+    "needsInput": "Schreiben Sie die Eingabe, auf die der Agent antwortet.",
+    "needsExpectation": "Fügen Sie eine Referenzantwort, ein Gegenbeispiel, einen erwarteten Tool-Aufruf oder eine Prüfung hinzu: Ein Fall braucht etwas, woran die Antwort gemessen wird.",
+    "addAsReferenceBody": "Sie haben diese Antwort positiv bewertet, daher wird sie als Referenzantwort behalten. Die Frage und das Gespräch davor kommen mit.",
+    "alsoAddToDataset": "Diese Antwort zu einem Dataset hinzufügen",
+    "addAfterRatingFailed": "Die Bewertung wurde gespeichert, aber die Antwort wurde keinem Dataset hinzugefügt: {reason}",
+    "importRowProblem": "Zeile {row}: {message}",
+    "importRowFieldProblem": "Zeile {row}, {field}: {message}",
+    "checkCount": "{count, plural, =1 {1 Prüfung} other {# Prüfungen}}",
+    "hasNote": "Notiz",
+    "editDetails": "Details bearbeiten",
+    "editDetailsBody": "Wie das Dataset heißt und wofür es da ist. Eine Änderung erzeugt keine neue Version, weil sich kein Fall ändert.",
+    "saveDetails": "Speichern",
+    "detailsSaved": "Gespeichert",
+    "olderVersion": "Ältere Version Nr.",
+    "findDataset": "Dataset suchen"
   },
   "knowledgeGaps": {
     "tab": "Wissenslücken",

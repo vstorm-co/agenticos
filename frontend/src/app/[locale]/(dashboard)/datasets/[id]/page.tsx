@@ -1,7 +1,8 @@
 "use client";
 
 import { use, useState } from "react";
-import { FlaskConical, Plus } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { FlaskConical, Pencil, Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -9,6 +10,7 @@ import { CaseEditorDialog } from "@/components/datasets/case-editor-dialog";
 import { draftOf, EMPTY_DRAFT, type CaseDraft } from "@/components/datasets/case-form";
 import { CaseRow } from "@/components/datasets/case-row";
 import { DatasetFileActions } from "@/components/datasets/dataset-file-actions";
+import { EditDatasetDialog } from "@/components/datasets/edit-dataset-dialog";
 import { ScoresPanel } from "@/components/datasets/scores-panel";
 import { ScoringPanel } from "@/components/datasets/scoring-panel";
 import { VersionSelect } from "@/components/datasets/version-select";
@@ -35,6 +37,8 @@ interface PageProps {
   params: Promise<{ id: string }>;
 }
 
+const TABS = ["cases", "scoring", "scores"];
+
 /** What the case dialog is showing: a new case, or one from the list. */
 type Editing = { draft: CaseDraft; item: DatasetCase | null } | null;
 
@@ -49,12 +53,18 @@ export default function DatasetPage({ params }: PageProps) {
   const t = useTranslations("datasets");
   const tc = useTranslations("common");
   const tErrors = useTranslations("errors");
+  const asked = useSearchParams().get("tab");
   const [version, setVersion] = useState<number | null>(null);
   const [page, setPage] = useState(0);
   const [editing, setEditing] = useState<Editing>(null);
-  const { dataset, error: datasetError } = useDataset(id);
+  const [editingDetails, setEditingDetails] = useState(false);
+  const { dataset, error: datasetError, update } = useDataset(id);
   const { versions } = useDatasetVersions(id);
   const cases = useDatasetCases(id, { version, skip: page * PAGE_SIZE, limit: PAGE_SIZE });
+  const pageCount = Math.max(1, Math.ceil(cases.total / PAGE_SIZE));
+  // Removing the last case of the last page leaves that page empty; step back to
+  // the page that still exists, the adjust-state-while-rendering way.
+  if (!cases.isLoading && page >= pageCount) setPage(pageCount - 1);
 
   if (datasetError) {
     return <ErrorState description={getErrorMessage(datasetError, tErrors)} />;
@@ -83,19 +93,30 @@ export default function DatasetPage({ params }: PageProps) {
           ) : undefined
         }
         actions={
-          editable ? (
-            <Button
-              data-tour="datasets-add-case"
-              onClick={() => setEditing({ draft: EMPTY_DRAFT, item: null })}
-            >
-              <Plus className="h-4 w-4" />
-              {t("addCase")}
-            </Button>
+          dataset.can_edit ? (
+            <>
+              <Button variant="outline" onClick={() => setEditingDetails(true)}>
+                <Pencil className="h-4 w-4" />
+                {t("editDetails")}
+              </Button>
+              {editable && (
+                <Button
+                  data-tour="datasets-add-case"
+                  onClick={() => setEditing({ draft: EMPTY_DRAFT, item: null })}
+                >
+                  <Plus className="h-4 w-4" />
+                  {t("addCase")}
+                </Button>
+              )}
+            </>
           ) : undefined
         }
       />
 
-      <Tabs defaultValue="cases" className="space-y-4">
+      <Tabs
+        defaultValue={asked !== null && TABS.includes(asked) ? asked : "cases"}
+        className="space-y-4"
+      >
         <TabsList>
           <TabsTrigger value="cases">{t("cases")}</TabsTrigger>
           <TabsTrigger value="scoring" data-tour="datasets-scoring-tab">
@@ -114,6 +135,7 @@ export default function DatasetPage({ params }: PageProps) {
                 {versions.length > 0 && (
                   <VersionSelect
                     versions={versions}
+                    latest={dataset.latest_version}
                     value={version}
                     onChange={(next) => {
                       setVersion(next);
@@ -156,7 +178,7 @@ export default function DatasetPage({ params }: PageProps) {
                 </ul>
                 <Pager
                   page={page}
-                  pageCount={Math.max(1, Math.ceil(cases.total / PAGE_SIZE))}
+                  pageCount={pageCount}
                   matched={cases.total}
                   total={cases.total}
                   onPage={setPage}
@@ -180,6 +202,10 @@ export default function DatasetPage({ params }: PageProps) {
       </Tabs>
 
       <SharingPanel resourceType="dataset" resourceId={id} canManage={dataset.can_edit} />
+
+      {editingDetails && (
+        <EditDatasetDialog dataset={dataset} onOpenChange={setEditingDetails} update={update} />
+      )}
 
       {editing !== null && (
         <CaseEditorDialog

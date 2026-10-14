@@ -1159,26 +1159,25 @@
           "description": "Tu pojawią się raporty i dashboardy opublikowane przez agenta."
         }
       },
-      "reviewQueue": {
-        "title": "Do przeglądu",
-        "description": "Wyniki ewaluacji czekające na werdykt człowieka.",
-        "waiting": "{count, plural, one {# wynik czeka} few {# wyniki czekają} many {# wyników czeka} other {# wyniku czeka}} na werdykt",
-        "allPassed": "Wszystkie wymagane oceny zaliczone",
-        "passed": "Zaliczony",
-        "didNotPass": "Niezaliczony",
-        "unscored": "Bez oceny",
-        "empty": {
-          "title": "Nic do przeglądu",
-          "description": "Tu pojawią się wyniki, które dataset wysyła do przeglądu."
-        }
-      },
       "datasets": {
         "title": "Datasety",
-        "description": "Ostatnio zmieniane datasety przypadków testowych.",
+        "description": "Ostatnio zmieniane datasety i to, z czym ich przypadki porównują odpowiedź.",
         "cases": "{count, plural, one {1 przypadek} few {# przypadki} many {# przypadków} other {# przypadku}} · v{version}",
         "empty": {
           "title": "Brak datasetów",
           "description": "Tu pojawią się przypadki testowe zbierane do evali."
+        },
+        "stat": {
+          "reference": "{count} z odpowiedzią wzorcową",
+          "counter": "{count} z kontrprzykładem",
+          "toolCalls": "{count} z wywołaniami narzędzi",
+          "checks": "{count} ze sprawdzeniami"
+        },
+        "source": {
+          "conversation": "{count} z czatu",
+          "import": "{count} z importu",
+          "manual": "{count} ręcznie",
+          "synthetic": "{count} wygenerowane"
         }
       },
       "knowledge-gaps": {
@@ -1188,6 +1187,20 @@
         "empty": {
           "title": "Brak luk w wiedzy",
           "description": "Tu pojawiają się pytania, na które agenci nie znaleźli odpowiedzi w bazie wiedzy."
+        }
+      },
+      "review-queue": {
+        "title": "Do przeglądu",
+        "description": "Wyniki ewaluacji czekające na werdykt człowieka.",
+        "waiting": "{count, plural, one {# wynik czeka} few {# wyniki czekają} many {# wyników czeka} other {# wyniku czeka}} na werdykt",
+        "empty": {
+          "title": "Nic do przeglądu",
+          "description": "Tu pojawią się wyniki, które dataset wysyła do przeglądu."
+        },
+        "outcome": {
+          "failed": "{count, plural, one {# niezaliczony} few {# niezaliczone} many {# niezaliczonych} other {# niezaliczonego}}",
+          "unscored": "{count} bez oceny",
+          "passed": "{count, plural, one {# zaliczony} few {# zaliczone} many {# zaliczonych} other {# zaliczonego}}"
         }
       }
     },
@@ -1490,7 +1503,7 @@
       },
       "create-dataset": {
         "title": "Utworzyć dataset?",
-        "body": "Dataset zawiera pytania, na których testujesz agentów. Chcesz teraz utworzyć pierwszy? Przeprowadzimy Cię przez to."
+        "body": "Dataset trzyma pytania, na których testujesz agentów. Chcesz utworzyć pierwszy i razem napisać pierwszy dobry przypadek? Przeprowadzimy cię przez to."
       }
     },
     "steps": {
@@ -1928,7 +1941,7 @@
       },
       "datasets-new": {
         "title": "Zbieraj przypadki testowe",
-        "body": "Dataset zawiera pytania, na których testujesz agenta. Utwórz go tutaj, a potem dodawaj przypadki ręcznie, z pliku albo z odpowiedzi ocenionej łapką w dół."
+        "body": "Dataset zawiera pytania, na których testujesz agenta. Utwórz go tutaj, a potem dodawaj przypadki ręcznie, z pliku, z odpowiedzi ocenionej w czacie łapką w górę albo w dół, albo z tury w Aktywności."
       },
       "runs-score-against-case": {
         "title": "Oceń ten run",
@@ -1936,7 +1949,7 @@
       },
       "dataset-scoring": {
         "title": "Jak oceniane są przypadki",
-        "body": "Wybierz oceniaczy: sprawdzenia oparte na regułach, oczekiwane wywołania narzędzi i sędziego ewaluacji z rubryką lub odpowiedzią wzorcową. Zaznacz, które przypadek musi zaliczyć."
+        "body": "Wybierz oceniaczy: sprawdzenia oparte na regułach, oczekiwane wywołania narzędzi i sędziego ewaluacji z rubryką lub odpowiedzią wzorcową. Zaznacz, które przypadek musi zaliczyć. Sędzia wymaga wsparcia AI, które włącza administrator organizacji."
       },
       "dataset-scores": {
         "title": "Wyniki i przegląd",
@@ -1965,6 +1978,46 @@
       "agent-gaps": {
         "title": "Czego szukał",
         "body": "Pytania, dla których ten agent przeszukał bazę wiedzy i nic nie znalazł. Każde prowadzi do runu, z którego pochodzi."
+      },
+      "agent-test-connections": {
+        "title": "Połączenia testowe",
+        "body": "Nazwane środowisko może zastąpić serwery MCP i klucze z vault agenta testowymi - sandboxowym CRM, testową skrzynką. Tam działają evale, a narzędzie, które zapisuje i nie ma połączenia testowego, jest wstrzymywane i zapisywane zamiast uruchamiane."
+      },
+      "flow-dataset-open": {
+        "title": "Otwórz swój dataset",
+        "body": "To pierwsza karta - ostatnio zmieniona. Otwórz ją, żeby dodać pierwszy przypadek."
+      },
+      "flow-dataset-add-case": {
+        "title": "Dodaj pierwszy przypadek",
+        "body": "Wybierz Dodaj przypadek. Przypadek to jedno pytanie i opis tego, jak wygląda dobra odpowiedź."
+      },
+      "flow-dataset-case-question": {
+        "title": "O co pytany jest agent",
+        "body": "Wejście to wiadomość, na którą odpowiada agent. Rozmowę przed nim dodaj tylko wtedy, gdy pytanie zależy od wcześniejszych tur. Potem wybierz Dalej."
+      },
+      "flow-dataset-case-answers": {
+        "title": "Dobra odpowiedź i zła",
+        "body": "Odpowiedź wzorcowa mówi, co zawiera dobra odpowiedź; judge porównuje z nią odpowiedź agenta. Kontrprzykład to odpowiedź, o której wiadomo, że jest błędna - często ta oceniona łapką w dół. Zwykle wystarczy jedna z nich."
+      },
+      "flow-dataset-case-tools": {
+        "title": "Narzędzia, które powinien wywołać",
+        "body": "Wypisz narzędzia, które agent musi wywołać, z argumentami, które muszą się zgadzać. Wybierz sposób dopasowania: w dowolnej kolejności, w tej kolejności z innymi pomiędzy albo dokładnie te i żadnych innych."
+      },
+      "flow-dataset-case-checks": {
+        "title": "Reguły dotyczące odpowiedzi",
+        "body": "Sprawdzenie to reguła, według której oceniana jest odpowiedź, np. że wspomina 30 dni. Każde podaje swój typ i parametry tej reguły."
+      },
+      "flow-dataset-case-labels": {
+        "title": "Tagi i notatka",
+        "body": "Tagi grupują wyniki, np. billing albo refusal. Notatka mówi, po co jest przypadek - co poszło źle albo czego pilnuje."
+      },
+      "flow-dataset-case-save": {
+        "title": "Zapisz przypadek",
+        "body": "Przypadek musi mówić, z czym porównuje się odpowiedź: odpowiedź wzorcowa, kontrprzykład, wywołanie narzędzia albo sprawdzenie. Dopóki nie ma żadnego, Zapisz przypadek jest nieaktywne i mówi, czego brakuje."
+      },
+      "flow-dataset-sources": {
+        "title": "Skąd biorą się kolejne przypadki",
+        "body": "Pisz je tutaj albo importuj tu plik CSV lub JSONL. W czacie oceń odpowiedź łapką w górę albo w dół i dodaj ją - łapka w górę zachowuje ją jako wzorcową, łapka w dół jako kontrprzykład. W Aktywności dodaj dowolną turę agenta z runa."
       }
     }
   },
@@ -2083,7 +2136,9 @@
     "tools": "Narzędzia",
     "edit": "Edytuj",
     "connectionCount": "{count, plural, one {1 połączenie} few {# połączenia} many {# połączeń} other {# połączeń}}",
-    "manageConnectionsOn": "Zarządzaj połączeniami do {name}"
+    "manageConnectionsOn": "Zarządzaj połączeniami do {name}",
+    "trustReadOnlyHints": "Pozwól evalom wywoływać narzędzia, które ten serwer oznacza jako tylko do odczytu",
+    "trustReadOnlyHintsHint": "Evale wstrzymują każde wywołanie serwera produkcyjnego, chyba że mu ufasz: oznaczenie „tylko do odczytu” to deklaracja samego serwera. {count, plural, =0 {Żadne narzędzie tutaj go nie deklaruje.} =1 {Deklaruje je 1 narzędzie.} few {Deklarują je # narzędzia.} many {Deklaruje je # narzędzi.} other {Deklaruje je # narzędzia.}}"
   },
   "skills": {
     "addFile": "Dodaj plik",
@@ -3069,7 +3124,19 @@
     "youNotVisitorsWhich": "Dla Ciebie, nie dla odwiedzających - które to umiejscowienie.",
     "yourBackendSignsToken": "Twój backend podpisuje token, który weryfikujemy",
     "zoom": "Powiększ",
-    "zoomOut": "Pomniejsz"
+    "zoomOut": "Pomniejsz",
+    "testConnectionsFor": "Połączenia testowe dla {name}",
+    "testConnectionsHint": "Runy w tym środowisku, łącznie z evalami, odpowiadają na każdy binding poniżej jego systemem testowym. Binding wyłączony tutaj nic nie robi - nigdy nie wraca do produkcji.",
+    "testConnectionKindLabel": "Co zastąpić",
+    "testConnectionKindMcp": "Serwer MCP",
+    "testConnectionKindSecret": "Klucz z vault",
+    "productionSide": "Produkcja",
+    "testSide": "Zamiennik testowy",
+    "testSideFor": "Zamiennik testowy dla {name}",
+    "bindingOffHere": "Wyłączone w tym środowisku",
+    "testSideUnusable": "Wyłączone tutaj: połączenie testowe jest wyłączone albo niezalogowane",
+    "testConnectionsSaved": "Połączenia testowe zapisane",
+    "failedTestConnections": "Nie udało się zapisać połączeń testowych"
   },
   "steps": {
     "skills-gallery": {
@@ -3313,7 +3380,7 @@
       "onlyAwaitingReview": "Tylko czekające na przegląd",
       "noScores": "Brak wyników",
       "nothingAwaitingReview": "Nic nie czeka na przegląd",
-      "noScoresBody": "Oceń run względem przypadku z poziomu Activity, a wynik zostanie zapisany tutaj.",
+      "noScoresBody": "Otwórz run w <link>Activity</link> i oceń go względem przypadku - wynik zostanie zapisany tutaj.",
       "passed": "Zaliczony",
       "failed": "Niezaliczony",
       "unscored": "Bez oceny",
@@ -3350,7 +3417,18 @@
       "noCaseToScore": "Ten dataset nie ma jeszcze przypadku",
       "score": "Oceń",
       "scoring": "Ocenianie…",
-      "close": "Zamknij"
+      "close": "Zamknij",
+      "problem": {
+        "noScorer": "Włącz co najmniej jednego oceniacza - gdy wszystkie są wyłączone, żadnego przypadku nie da się ocenić.",
+        "noCriterion": "Daj sędziemu co najmniej jedno kryterium albo go wyłącz - nie ma czego oceniać."
+      },
+      "willRun": "Uruchamia: {scorers}.",
+      "judgeSpends": "Ocena sędziego to run sędziego ewaluacji, rozliczany z jego budżetu.",
+      "aiOff": {
+        "body": "Wsparcie AI jest wyłączone w tej organizacji, więc sędzia i porównanie z odpowiedzią wzorcową są pomijane, a oceniają tylko oceniacze oparte na regułach.",
+        "enable": "Włącz wsparcie AI",
+        "askAdmin": "Poproś administratora o włączenie."
+      }
     },
     "title": "Datasety",
     "pageDescription": "Pytania, na których testujesz agentów. Każda zmiana przypadków w datasecie tworzy nową wersję, więc dwa runy eval na jednej wersji widziały te same pytania.",
@@ -3440,7 +3518,22 @@
       "in_orderHint": "Oczekiwane wywołania muszą nastąpić w podanej kolejności; między nimi mogą być inne.",
       "exact": "Dokładnie te, w tej kolejności",
       "exactHint": "Agent musi wykonać dokładnie oczekiwane wywołania, w podanej kolejności, i żadnych innych."
-    }
+    },
+    "needsInput": "Wpisz wejście, na które odpowiada agent.",
+    "needsExpectation": "Dodaj odpowiedź wzorcową, kontrprzykład, oczekiwane wywołanie narzędzia albo sprawdzenie: przypadek potrzebuje czegoś, z czym porówna odpowiedź.",
+    "addAsReferenceBody": "Ta odpowiedź dostała łapkę w górę, więc zostanie zachowana jako odpowiedź wzorcowa. Razem z nią trafiają pytanie i wcześniejsza część rozmowy.",
+    "alsoAddToDataset": "Dodaj tę odpowiedź do datasetu",
+    "addAfterRatingFailed": "Ocena została zapisana, ale odpowiedź nie trafiła do datasetu: {reason}",
+    "importRowProblem": "Wiersz {row}: {message}",
+    "importRowFieldProblem": "Wiersz {row}, {field}: {message}",
+    "checkCount": "{count, plural, one {1 sprawdzenie} few {# sprawdzenia} many {# sprawdzeń} other {# sprawdzenia}}",
+    "hasNote": "Notatka",
+    "editDetails": "Edytuj szczegóły",
+    "editDetailsBody": "Jak nazywa się dataset i do czego służy. Zmiana nie tworzy nowej wersji, bo żaden przypadek się nie zmienia.",
+    "saveDetails": "Zapisz",
+    "detailsSaved": "Zapisano",
+    "olderVersion": "Starsza wersja nr",
+    "findDataset": "Znajdź dataset"
   },
   "knowledgeGaps": {
     "tab": "Luki w wiedzy",

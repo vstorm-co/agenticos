@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import {
   Button,
@@ -24,8 +24,32 @@ import { useScoreRun } from "@/hooks/use-scoring";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { DIALOG_SCROLL, DIALOG_WIDE } from "@/lib/dialog-sizes";
-import type { CaseScore } from "@/types/scoring";
+import type { CaseScore, DatasetScoring } from "@/types/scoring";
 import { ScoreCard } from "./score-card";
+
+const SCORERS = ["checks", "trajectory", "judge", "reference"] as const;
+const SCORER_KEY = {
+  checks: "check",
+  trajectory: "trajectory",
+  judge: "judge",
+  reference: "reference",
+} as const;
+
+/** Which of a dataset's scorers a score runs, and that the judge's half is a paid run. */
+function ScorersToRun({ scoring }: { scoring: DatasetScoring }) {
+  const t = useTranslations("datasets.scoring");
+  const locale = useLocale();
+  const on = SCORERS.filter((scorer) => scoring[scorer].enabled);
+  const names = new Intl.ListFormat(locale, { type: "conjunction" }).format(
+    on.map((scorer) => t(`scorer.${SCORER_KEY[scorer]}`)),
+  );
+  return (
+    <p className="text-muted-foreground text-xs">
+      {t("willRun", { scorers: names })}
+      {(scoring.judge.enabled || scoring.reference.enabled) && ` ${t("judgeSpends")}`}
+    </p>
+  );
+}
 
 interface ScoreRunDialogProps {
   open: boolean;
@@ -49,6 +73,7 @@ export function ScoreRunDialog({ open, onOpenChange, runId }: ScoreRunDialogProp
   const [result, setResult] = useState<CaseScore | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const chosen = datasetId || datasets[0]?.id || "";
+  const scoring = datasets.find((dataset) => dataset.id === chosen)?.scoring;
   const { cases } = useDatasetCases(chosen, { limit: 100 });
   const target = caseId || cases[0]?.case_id || "";
   const score = useScoreRun();
@@ -117,6 +142,7 @@ export function ScoreRunDialog({ open, onOpenChange, runId }: ScoreRunDialogProp
                 </SelectContent>
               </Select>
             </FormField>
+            {scoring !== undefined && <ScorersToRun scoring={scoring} />}
           </div>
         )}
         <DialogFooter>

@@ -23,7 +23,7 @@ function widget() {
 
 function answer(overrides: Record<string, unknown>) {
   useReviewQueueMock.mockReturnValue({
-    scores: [],
+    datasets: [],
     total: 0,
     isLoading: false,
     error: null,
@@ -32,42 +32,29 @@ function answer(overrides: Record<string, unknown>) {
   });
 }
 
-function score(id: string, passed: boolean | null, results: { name: string; status: string }[]) {
-  return {
-    id,
-    dataset_id: `dataset-${id}`,
-    passed,
-    results: results.map((result) => ({ ...result, required: true })),
-  };
+function pending(id: string, failed: number, unscored: number, passed: number) {
+  return { dataset_id: id, name: `Dataset ${id}`, failed, unscored, passed };
 }
 
 describe("ReviewQueueWidget", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("lists what waits, naming the scorer that did not pass", () => {
-    answer({
-      total: 7,
-      scores: [
-        score("a", false, [
-          { name: "json_schema", status: "pass" },
-          { name: "tone", status: "fail" },
-        ]),
-        score("b", null, [{ name: "correctness", status: "skipped" }]),
-        score("c", true, [{ name: "json_schema", status: "pass" }]),
-      ],
-    });
+  it("breaks what waits down by outcome and by dataset, each opening on its scores", () => {
+    answer({ total: 7, datasets: [pending("a", 3, 1, 0), pending("b", 1, 0, 2)] });
     widget();
 
-    expect(useReviewQueueMock).toHaveBeenCalledWith({ limit: 5 });
+    expect(useReviewQueueMock).toHaveBeenCalledWith({ limit: 1 });
     expect(screen.getByText("7 results wait for a verdict")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /tone/ })).toHaveAttribute(
+    expect(screen.getByText("4 did not pass")).toBeInTheDocument();
+    expect(screen.getAllByText("1 unscored")).toHaveLength(2);
+    expect(screen.getAllByText("2 passed")).toHaveLength(2);
+    expect(screen.getByRole("link", { name: /Dataset a/ })).toHaveAttribute(
       "href",
-      "/datasets/dataset-a",
+      "/datasets/a?tab=scores",
     );
-    expect(screen.getByText("Did not pass")).toBeInTheDocument();
-    expect(screen.getByText("Unscored")).toBeInTheDocument();
-    expect(screen.getByText("All required scorers passed")).toBeInTheDocument();
-    expect(screen.getByText("Passed")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Dataset b/ })).toHaveTextContent(
+      "1 did not pass2 passed",
+    );
   });
 
   it("says what appears here when nothing waits", () => {

@@ -1,5 +1,5 @@
 ---
-source_sha: "38969973baf1"
+source_sha: "2f65cc805dab"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -31,6 +31,21 @@ verdad la decepcionó.
 | Nota | Por qué existe el caso: qué salió mal o qué protege |
 | Origen | `manual`, `import`, `conversation` o `synthetic`: lo fija la plataforma, no se escribe |
 
+Un caso tiene que decir contra qué se compara su respuesta: una respuesta de
+referencia, un contraejemplo, una llamada a herramienta esperada o una
+comprobación, al menos una de las cuatro. Un caso con solo una entrada no podría
+fallar nunca, así que se rechaza: el formulario no lo guarda, la API responde 422
+señalando `reference_answer` y una importación nombra la fila.
+
+Un buen caso es pequeño: una pregunta y lo único que una respuesta correcta
+tiene que acertar. Normalmente basta con una respuesta de referencia o un
+contraejemplo. Añade llamadas a herramientas esperadas cuando el agent tenga que
+actuar y no solo responder, comprobaciones cuando una regla pueda enunciarse con
+exactitud, y la conversación antes de la entrada solo cuando la pregunta dependa
+de ella. La nota es para quien lea el caso después: qué salió mal o qué protege.
+Al crear tu primer dataset, la consola ofrece un recorrido guiado que termina
+escribiendo su primer caso, campo por campo.
+
 Un caso tomado de una conversación también guarda un enlace al run, a la
 conversación y al mensaje de los que procede. La pregunta y la respuesta se
 copian en el caso, así que el caso sigue completo después de que la retención
@@ -51,15 +66,22 @@ agent y no de la prueba. La página del dataset muestra por defecto la versión
 más reciente; elige una anterior en la lista de versiones. Una versión anterior
 es de solo lectura.
 
-Renombrar un dataset o cambiar su descripción no crea una versión, porque
-ninguna de las dos cosas cambia un caso.
+Renombrar un dataset o cambiar su descripción, con **Editar detalles** en su
+página, no crea una versión, porque ninguna de las dos cosas cambia un caso.
+
+La lista de versiones muestra las cien más recientes; una más antigua se abre
+escribiendo su número. Cada versión guarda una fila por caso, así que las
+versiones de una organización guardan juntas como mucho
+`DATASET_MAX_VERSION_ROWS_PER_ORG` filas (5 millones por defecto, consulta
+[Configuración](configuration.md#datasets)). Un cambio que lo supere se rechaza
+indicando cuántas hay ocupadas; borrar un dataset libera sus filas.
 
 ## Añadir casos { #adding-cases }
 
 ### En la consola { #in-the-console }
 
-Abre **Datasets**, crea un dataset y elige **Añadir caso**. La entrada es el
-único campo obligatorio. La conversación, las llamadas a herramientas esperadas
+Abre **Datasets**, crea un dataset y elige **Añadir caso**. Escribe la entrada
+y al menos una de las cuatro expectativas de arriba. La conversación, las llamadas a herramientas esperadas
 y las comprobaciones se escriben como listas JSON: el mismo texto con el que las
 guarda una exportación CSV.
 
@@ -102,9 +124,24 @@ importación quita de nuevo ese único `'`. La exportación queda registrada en 
 
 ### Desde una conversación o un run { #add-to-dataset }
 
-Cada respuesta del agent en el chat y cada turno del agent en **Actividad**
-tiene un control **Añadir al dataset**. Elige un dataset y el caso se crea a
-partir de ese turno:
+Hay dos caminos y los dos crean el mismo caso:
+
+- **En el chat**, valora la respuesta, y la valoración decide cómo se guarda.
+  Tras un pulgar arriba, la confirmación ofrece **Añadir al dataset**: elige el
+  dataset y la respuesta se guarda como respuesta de referencia. Tras un pulgar
+  abajo, el diálogo que pregunta qué salió mal ofrece también **Añadir esta
+  respuesta a un dataset**: márcalo, elige el dataset y envía, y la respuesta se
+  guarda como contraejemplo. Primero se guarda la valoración y después se añade
+  el caso, así que tu comentario se convierte en la nota del caso. Son dos
+  escrituras separadas: si se rechaza el añadido, la valoración se mantiene y
+  el mensaje dice qué mitad falló. Quitar la valoración más tarde deja el caso
+  donde está: es una copia, versionada con su dataset. La consola recuerda el
+  último dataset al que añadiste, así que el siguiente añadido es un clic.
+- **En Actividad**, cada turno del agent tiene un control **Añadir al dataset**.
+  Es donde se curan las respuestas, así que una buena respuesta se guarda como
+  referencia tan fácilmente como una mala como contraejemplo.
+
+En ambos casos, el caso se crea a partir de ese turno:
 
 - la pregunta se convierte en la entrada, y los turnos anteriores en la
   conversación antes de la entrada;
@@ -114,7 +151,7 @@ partir de ese turno:
 - el comentario más reciente dejado con un pulgar abajo se convierte en la
   nota.
 
-El control lo ven los miembros que pueden editar un dataset. El mensaje debe
+Los dos caminos solo los ven los miembros que pueden editar un dataset. El mensaje debe
 pertenecer a tu organización y debes poder leerlo: o tienes `runs:view`, que lee
 cada run de la organización como hace Actividad, o puedes abrir la conversación.
 Un mensaje de otra organización se rechaza como si no existiera.
@@ -153,6 +190,11 @@ es lo que pregunta. Cada puntuación guarda una copia de la configuración con l
 que se calculó, así que una puntuación anterior sigue diciendo cómo se obtuvo
 después de que cambie la configuración.
 
+Se rechaza una configuración que no podría puntuar nada: todos los evaluadores
+apagados, o el juez encendido sin ningún criterio. También la puntuación de un
+caso en el que ninguno de los evaluadores configurados tiene nada que
+comprobar: no se guarda nada y no se llama al juez.
+
 ### Comprobaciones { #checks }
 
 | `type` | Parámetros | Aprueba cuando |
@@ -169,8 +211,9 @@ después de que cambie la configuración.
 primer elemento. Sin él, una regla lee la respuesta entera. Las reglas de texto
 no distinguen mayúsculas de minúsculas salvo que `case_sensitive` sea true. Un
 patrón se comprueba al escribir el caso, y una regla lee como máximo los
-primeros 100.000 caracteres de una respuesta, así que un patrón no puede volver
-lenta la puntuación.
+primeros 100.000 caracteres de una respuesta. Un patrón que tarda más de una
+décima de segundo en una respuesta se detiene y se registra como error, así que
+un patrón no puede bloquear la puntuación.
 
 Una comprobación `judge` es un criterio solo para un caso, calificado en el
 mismo run del juez que la rúbrica del dataset. Úsala para lo que una regla no
@@ -200,6 +243,13 @@ modelo, y su run aparece en Activity bajo la superficie `eval`. Sus
 instrucciones se pueden editar como las de cualquier agent, y un dataset puede
 indicar otro modelo para él.
 
+El juez solo se ejecuta donde la [asistencia de IA](governance.md#ai-assistance)
+está activada, y está desactivada hasta que un administrador la activa para la
+organización. Hasta entonces, los criterios del juez y de la respuesta de
+referencia se registran como omitidos, solo puntúan los evaluadores basados en
+reglas, y la pestaña Scoring lo indica con un enlace al interruptor para quien
+pueda cambiarlo.
+
 Cada criterio se califica de 1 al máximo de la escala y aprueba en la nota de
 aprobado o por encima. Cuando el juez no puede calificar, sus criterios se
 registran como omitidos o como errores, con un motivo que nombra la causa: la
@@ -207,12 +257,22 @@ asistencia de IA está desactivada, el juez no tiene una versión publicada, est
 archivado, la persona no puede ejecutarlo o su budget se ha agotado. Los
 evaluadores basados en reglas siguen puntuando.
 
+Una calificación puede citar la respuesta, hasta 12 fragmentos; una cita que la
+respuesta no contiene palabra por palabra se señala en el motivo como no
+verificada, y la calificación se mantiene. Cada puntuación registra el juez que
+la calificó - su perfil de modelo, la versión de su spec y un hash de la
+rúbrica - para que las puntuaciones de jueces distintos no se comparen como
+equivalentes.
+
 ### Revisión y veredictos { #review }
 
 Un dataset puede enviar resultados a una **cola de revisión**: ninguno hasta que
 alguien envíe uno, cada resultado que no aprobó, o cada resultado. La pestaña
 Scores muestra los resultados de un dataset, y la tarjeta del dashboard
-**Awaiting review** muestra la cola de todos los datasets que puedes ver.
+**Awaiting review** muestra la cola de todos los datasets que puedes ver:
+cuántos resultados no aprobaron, no se pudieron puntuar o aprobaron, y en qué
+datasets, cada uno abriéndose en su pestaña Scores. La tarjeta está en el panel
+por defecto.
 
 El veredicto de una persona se guarda junto a los resultados de los evaluadores
 y decide el resultado final. Nunca cambia lo que dijo el juez: las

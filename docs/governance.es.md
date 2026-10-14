@@ -1,5 +1,5 @@
 ---
-source_sha: "7b99c090a2b6"
+source_sha: "a5e00e82c50b"
 ---
 
 # Governance { #governance }
@@ -1420,7 +1420,9 @@ juez de evals que califica las [puntuaciones de datasets](datasets.md#judge), el
 redactor que escribe el contenido que le falta a una
 [laguna de conocimiento](knowledge-gaps.md#drafting-the-missing-content), y el
 generador de casos y el asistente de autoría que vienen después. Está
-activado por defecto y lo cambia quien tenga `org:settings`.
+desactivado por defecto, tanto en una organización que existía antes del
+interruptor como en una nueva: si los modelos califican y redactan es una
+decisión de la organización, y lo activa quien tenga `org:settings`.
 
 Cuando está desactivado, el servicio que iniciaría un run así lo rechaza, sea
 cual sea el cliente que lo pida: un control oculto no es la frontera. La
