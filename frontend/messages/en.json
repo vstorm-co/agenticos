@@ -5797,7 +5797,9 @@
       },
       "findDataset": "Find a dataset",
       "question": "Question",
-      "referenceAnswer": "Reference answer"
+      "referenceAnswer": "Reference answer",
+      "pickDatasetFirst": "Pick a dataset first",
+      "loadingCases": "Loading cases…"
     },
     "title": "Datasets",
     "pageDescription": "The questions your agents are tested on. Every change to a dataset's cases makes a new version, so two eval runs on one version saw the same questions.",

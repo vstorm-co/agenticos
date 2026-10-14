@@ -3415,7 +3415,9 @@
       },
       "findDataset": "Znajdź dataset",
       "question": "Pytanie",
-      "referenceAnswer": "Odpowiedź wzorcowa"
+      "referenceAnswer": "Odpowiedź wzorcowa",
+      "pickDatasetFirst": "Najpierw wybierz dataset",
+      "loadingCases": "Wczytywanie przypadków…"
     },
     "title": "Datasety",
     "pageDescription": "Pytania, na których testujesz agentów. Każda zmiana przypadków w datasecie tworzy nową wersję, więc dwa runy eval na jednej wersji widziały te same pytania.",

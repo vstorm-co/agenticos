@@ -332,6 +332,7 @@ class TestScoringARun:
             "How long do I have to return an order?",
             "Thirty days.",
         )
+        assert score.run_model == "gpt-4.1"
 
     async def test_a_score_pins_the_judge_that_graded_it(self, db, judge) -> None:
         tenant = await _tenant(db)

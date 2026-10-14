@@ -22,6 +22,7 @@ const state = vi.hoisted(() => ({
   cases: {} as Record<string, Kase[]>,
   caseTotal: null as number | null,
   casesError: null as Error | null,
+  casesLoading: false,
   refetchCases: vi.fn(),
   caseCalls: [] as { datasetId: string; skip?: number }[],
   searches: [] as string[],
@@ -50,6 +51,7 @@ vi.mock("@/hooks/use-datasets", () => ({
       cases,
       total: state.caseTotal ?? cases.length,
       error: state.casesError,
+      isLoading: state.casesLoading,
       refetch: state.refetchCases,
     };
   },
@@ -66,6 +68,7 @@ const SCORE: CaseScore = {
   question: "How long is the refund window?",
   reference_answer: null,
   run_id: "run-1",
+  run_model: null,
   judge: null,
   results: [
     {
@@ -104,6 +107,7 @@ beforeEach(() => {
   state.datasetsError = null;
   state.caseTotal = null;
   state.casesError = null;
+  state.casesLoading = false;
   state.caseCalls = [];
   state.searches = [];
   state.cases = {
@@ -191,6 +195,19 @@ describe("Score against a case", () => {
     await userEvent.click(screen.getByRole("button", { name: /next/i }));
 
     expect(state.caseCalls.at(-1)).toEqual({ datasetId: "d1", skip: 100 });
+  });
+
+  it.each([
+    [{ datasets: [], isLoading: true }, "Pick a dataset first"],
+    [{ casesLoading: true, cases: { d1: [] } }, "Loading cases…"],
+    [{ cases: { d1: [] } }, "This dataset has no case yet"],
+  ])("says what the case picker waits for: %o", async (overrides, shown) => {
+    Object.assign(state, overrides);
+    render(<ScoreRunButton runId="run-1" />);
+
+    await open();
+
+    expect(screen.getByRole("combobox", { name: "Case" })).toHaveTextContent(shown);
   });
 
   it("says why the cases could not be read", async () => {

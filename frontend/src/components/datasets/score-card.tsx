@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
 
 import { Badge, Button, Textarea } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
@@ -77,6 +77,7 @@ function ResultRow({ result }: { result: ScorerResult }) {
  */
 export function ScoreCard({ score, onVerdict, onReview, busy = false }: ScoreCardProps) {
   const t = useTranslations("datasets.scoring");
+  const format = useFormatter();
   const [note, setNote] = useState(score.human_note ?? "");
   const decide = (passed: boolean | null) =>
     onVerdict?.({ passed, note: passed === null || note.trim() === "" ? null : note });
@@ -89,14 +90,20 @@ export function ScoreCard({ score, onVerdict, onReview, busy = false }: ScoreCar
           <span className="text-muted-foreground text-xs">{t("decidedByPerson")}</span>
         )}
         {score.review_state === "pending" && <Badge variant="outline">{t("awaitingReview")}</Badge>}
-        {score.run_id !== null && (
-          <Link
-            href={`${ROUTES.RUNS}?run=${score.run_id}`}
-            className="text-muted-foreground ml-auto text-xs underline"
-          >
-            {t("scoredRun")}
-          </Link>
-        )}
+        <span className="text-muted-foreground ml-auto flex flex-wrap items-center gap-2 text-xs">
+          <time dateTime={score.created_at}>
+            {format.dateTime(new Date(score.created_at), {
+              dateStyle: "medium",
+              timeStyle: "short",
+            })}
+          </time>
+          {score.run_model !== null && <span className="font-mono">{score.run_model}</span>}
+          {score.run_id !== null && (
+            <Link href={`${ROUTES.RUNS}?run=${score.run_id}`} className="underline">
+              {t("scoredRun")}
+            </Link>
+          )}
+        </span>
       </header>
 
       <dl className="bg-muted/40 space-y-1 rounded-md px-3 py-2 text-sm">

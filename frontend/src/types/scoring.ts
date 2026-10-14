@@ -68,6 +68,8 @@ export interface CaseScore {
   question: string;
   reference_answer: string | null;
   run_id: string | null;
+  /** The model the scored run answered on, while the run is kept. */
+  run_model: string | null;
   results: ScorerResult[];
   judge: JudgePin | null;
   passed: boolean | null;

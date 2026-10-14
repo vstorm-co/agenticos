@@ -5655,7 +5655,9 @@
       },
       "findDataset": "Dataset suchen",
       "question": "Frage",
-      "referenceAnswer": "Referenzantwort"
+      "referenceAnswer": "Referenzantwort",
+      "pickDatasetFirst": "Wählen Sie zuerst ein Dataset",
+      "loadingCases": "Fälle werden geladen…"
     },
     "title": "Datasets",
     "pageDescription": "Die Fragen, an denen Ihre Agents getestet werden. Jede Änderung an den Fällen eines Datasets erzeugt eine neue Version, sodass zwei Eval-Runs auf einer Version dieselben Fragen gesehen haben.",

@@ -28,6 +28,7 @@ function score(overrides: Partial<CaseScore> = {}): CaseScore {
     question: "How long is the refund window?",
     reference_answer: null,
     run_id: "run-1",
+    run_model: null,
     judge: null,
     results: [result()],
     passed: false,
@@ -48,6 +49,13 @@ function score(overrides: Partial<CaseScore> = {}): CaseScore {
  * them - so the judge's opinion stays readable after it is overruled.
  */
 describe("ScoreCard", () => {
+  it("says when the score was made and on which model the scored run answered", () => {
+    render(<ScoreCard score={score({ run_model: "gpt-4.1" })} />);
+
+    expect(screen.getByText("gpt-4.1")).toBeInTheDocument();
+    expect(screen.getByText(/2026/)).toHaveAttribute("datetime", "2026-10-13T00:00:00Z");
+  });
+
   it("shows what the scored revision asked, and its reference answer", () => {
     render(<ScoreCard score={score({ reference_answer: "Thirty days." })} />);
 

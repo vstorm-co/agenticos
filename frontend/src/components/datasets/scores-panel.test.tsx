@@ -38,6 +38,7 @@ const SCORE: CaseScore = {
   question: "How long is the refund window?",
   reference_answer: null,
   run_id: null,
+  run_model: null,
   judge: null,
   results: [],
   passed: false,
