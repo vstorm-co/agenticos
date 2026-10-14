@@ -1230,6 +1230,7 @@
     "turnInterrupted": "The connection dropped mid-answer. The agent finishes the turn and saves it to this conversation.",
     "turnInterruptedRecheck": "Check for it",
     "turnStillArriving": "The earlier answer is still being written. It lands in this conversation when it finishes, below the question you have just asked.",
+    "turnLeftRunning": "The agent was still answering when you left. It finishes the turn and saves it here.",
     "thankYouFeedback": "Thanks for your feedback!",
     "thinking": "Thinking...",
     "thoughtAboutIt": "Thought about it",

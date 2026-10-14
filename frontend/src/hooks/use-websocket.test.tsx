@@ -488,6 +488,36 @@ describe("disconnecting", () => {
   });
 });
 
+describe("reopening", () => {
+  // Leaving a conversation whose turn is still running: the server serves one
+  // turn per socket, so the next conversation needs a socket of its own.
+  it("swaps the live socket for a fresh one at once, saying nothing about the old", () => {
+    const onClose = vi.fn();
+    const { result } = renderHook(() => useWebSocket({ url: "wss://api/chat", onClose }));
+    act(() => result.current.connect());
+    act(() => latest().open());
+    const old = latest();
+
+    act(() => result.current.reopen());
+
+    expect(old.close).toHaveBeenCalled();
+    expect(sockets()).toHaveLength(2);
+    // Disconnected until the new one opens, so nothing is sent into it early.
+    expect(result.current.isConnected).toBe(false);
+    act(() => latest().open());
+    expect(result.current.isConnected).toBe(true);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("opens one where there was none", () => {
+    const { result } = renderHook(() => useWebSocket({ url: "wss://api/chat" }));
+
+    act(() => result.current.reopen());
+
+    expect(sockets()).toHaveLength(1);
+  });
+});
+
 describe("sending", () => {
   it("sends an object as JSON and a string as itself", () => {
     const { result } = renderHook(() => useWebSocket({ url: "wss://api/chat" }));

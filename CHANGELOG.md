@@ -553,6 +553,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **A new chat no longer waits behind an answer from another one.** Opening a
+  new chat - or another conversation - while an agent was still answering left
+  the composer busy, so the next message went into a queue behind an answer that
+  belonged somewhere else. Leaving now lets that turn finish on its own and saves
+  it where it was asked; coming back says the answer is on its way until it lands.
+
 - **Two cards with a hole in them filled.** Latency draws its median against
   the slowest 5% on one bar instead of leaving the middle of the card empty, and
   Settings → MCP clients says "No connected applications" in a line rather than

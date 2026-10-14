@@ -102,6 +102,14 @@ export interface ChatTesting {
   environmentId: string | null;
 }
 
+/** `threads` without `id`, or the same set when it was not there. */
+function withoutThread(threads: ReadonlySet<string>, id: string | null): ReadonlySet<string> {
+  if (id === null || !threads.has(id)) return threads;
+  const next = new Set(threads);
+  next.delete(id);
+  return next;
+}
+
 export function useChat(options: UseChatOptions = {}) {
   const tErrors = useTranslations("errors");
 
@@ -297,6 +305,11 @@ export function useChat(options: UseChatOptions = {}) {
   // one still being written.
   const interrupted = interruptedFor !== null && interruptedFor.id === activeConversationId;
   const detachedTurnPending = detachedThreads.has(activeConversationId);
+  // Conversations somebody left while their agent was still answering. The turn
+  // goes on without them - see the switch below - and lands in the transcript
+  // when it finishes, which is what coming back to one of these says.
+  const [leftRunning, setLeftRunning] = useState<ReadonlySet<string>>(() => new Set());
+  const leftTurnPending = activeConversationId !== null && leftRunning.has(activeConversationId);
 
   /**
    * Re-read what the whole thread has cost, after a turn has added to it.
@@ -861,7 +874,7 @@ export function useChat(options: UseChatOptions = {}) {
   // in-flight /me at a time is enough to recover a stale access token.
   const refreshingRef = useRef(false);
 
-  const { isConnected, connect, disconnect, sendMessage } = useWebSocket({
+  const { isConnected, connect, disconnect, reopen, sendMessage } = useWebSocket({
     url: wsUrl,
     protocols: wsProtocols,
     onMessage: handleWebSocketMessage,
@@ -1590,7 +1603,36 @@ export function useChat(options: UseChatOptions = {}) {
       next.delete(activeConversationId);
       return next;
     });
+    setLeftRunning((threads) => withoutThread(threads, activeConversationId));
   }, [activeConversationId]);
+
+  // Leaving a conversation whose agent is still answering - a new chat, or
+  // another thread. The server serves one turn per socket and drops a message
+  // that arrives during it, so the turn being left used to hold this client:
+  // what was typed in the new chat sat in the queue behind an answer that belongs
+  // somewhere else. The turn is let go instead - ended here, its socket swapped
+  // for a fresh one, which is what lets the server finish it on its own and save
+  // it to the conversation it was asked in. Coming back there says so until the
+  // answer is in the transcript.
+  //
+  // Not on the first turn of a new chat being told its id (`previous` null):
+  // that is the same conversation getting a name, not a different one opening.
+  const turnBelongsTo = useRef(activeConversationId);
+  useLayoutEffect(() => {
+    const previous = turnBelongsTo.current;
+    turnBelongsTo.current = activeConversationId;
+    if (previous === null || previous === activeConversationId || !isProcessing) return;
+    endTurnLocally();
+    reopen();
+    setLeftRunning((threads) => new Set(threads).add(previous));
+  }, [activeConversationId, isProcessing, endTurnLocally, reopen]);
+
+  // The answer that was left behind has landed - the transcript, re-read on
+  // coming back, ends with it - so there is nothing still coming to talk about.
+  const lastMessage = messages.at(-1);
+  if (leftTurnPending && lastMessage?.role === "assistant" && !lastMessage.isStreaming) {
+    setLeftRunning((threads) => withoutThread(threads, activeConversationId));
+  }
 
   // A socket that dropped mid-answer, and came back.
   //
@@ -1709,6 +1751,8 @@ export function useChat(options: UseChatOptions = {}) {
      * question asked in the meantime. The notice is the only thing that says so.
      */
     detachedTurnPending,
+    /** A turn the reader left running in this conversation, still on its way here. */
+    leftTurnPending,
     /** The reader has gone to look for that answer; stop saying it is coming. */
     acknowledgeDetachedTurn,
     /** The agent's personal MCP services this person cannot reach, for the turn on screen. */

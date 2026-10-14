@@ -218,6 +218,7 @@ export function ChatContainer({
     compactionImpossible,
     interrupted,
     detachedTurnPending,
+    leftTurnPending,
     acknowledgeDetachedTurn,
     personalGaps,
     lastUsage,
@@ -426,6 +427,7 @@ export function ChatContainer({
       compactionImpossible={compactionImpossible}
       interrupted={interrupted}
       detachedTurnPending={detachedTurnPending}
+      leftTurnPending={leftTurnPending}
       onRecheck={handleRecheck}
       personalGaps={personalGaps}
       // The live turn's cost while there is one, and the newest measured answer in
@@ -501,6 +503,8 @@ interface ChatUIProps {
   interrupted?: boolean;
   /** True while such a turn's answer is still coming and the reader has moved on. */
   detachedTurnPending?: boolean;
+  /** True while a turn the reader left running here is still on its way. */
+  leftTurnPending?: boolean;
   /** Read the transcript again, for the notice above. */
   onRecheck?: () => void;
   /** The agent's personal MCP services this person cannot reach, drawn as a card with the button that connects one. */
@@ -576,6 +580,7 @@ function ChatUI({
   compactionImpossible,
   interrupted = false,
   detachedTurnPending = false,
+  leftTurnPending = false,
   onRecheck,
   personalGaps,
   lastUsage,
@@ -834,6 +839,7 @@ function ChatUI({
             <InterruptedNotice
               interrupted={interrupted}
               detached={detachedTurnPending}
+              left={leftTurnPending}
               onRecheck={onRecheck}
             />
             <CompactionNotice compacting={compacting} impossible={compactionImpossible} />

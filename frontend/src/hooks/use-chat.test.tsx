@@ -27,10 +27,11 @@ const { post, get } = vi.hoisted(() => ({ post: vi.fn(), get: vi.fn() }));
 vi.mock("@/lib/api-client", () => ({ apiClient: { post, get } }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
-const { sent, socket, connect, disconnect } = vi.hoisted(() => ({
+const { sent, socket, connect, disconnect, reopen } = vi.hoisted(() => ({
   sent: vi.fn(),
   connect: vi.fn(),
   disconnect: vi.fn(),
+  reopen: vi.fn(),
   socket: {
     onMessage: null as ((event: MessageEvent) => void) | null,
     onClose: null as (() => void) | null,
@@ -92,6 +93,7 @@ vi.mock("./use-websocket", () => ({
       isConnected: socket.isConnected,
       connect,
       disconnect,
+      reopen,
       sendMessage: sent,
     };
   },
@@ -2181,6 +2183,76 @@ describe("useChat - the Builder's test panel", () => {
     act(() => result.current.sendMessage("hello"));
 
     expect(frame(0)).not.toHaveProperty("test");
+  });
+});
+
+describe("useChat - leaving a conversation whose agent is still answering", () => {
+  // The server serves one turn per socket and drops a message sent during it, so
+  // a new chat opened mid-answer queued its first message behind an answer that
+  // belonged to another conversation.
+  it("lets the turn go, so the next conversation sends straight away", () => {
+    reopen.mockClear();
+    let conversationId: string | null = "c-a";
+    const { result, rerender } = renderHook(() => useChat({ conversationId }), { wrapper });
+    act(() => result.current.sendMessage("a long question"));
+    expect(result.current.isProcessing).toBe(true);
+
+    conversationId = null;
+    act(() => useConversationStore.getState().setCurrentConversationId(null));
+    rerender();
+
+    expect(reopen).toHaveBeenCalledTimes(1);
+    expect(result.current.isProcessing).toBe(false);
+    sent.mockClear();
+    act(() => result.current.sendMessage("something else, in a new chat"));
+    expect(sent).toHaveBeenCalledTimes(1);
+    expect(result.current.queuedMessages).toEqual([]);
+  });
+
+  it("says on coming back that the answer is on its way, until it lands", () => {
+    let conversationId = "c-a";
+    const { result, rerender } = renderHook(() => useChat({ conversationId }), { wrapper });
+    act(() => result.current.sendMessage("a long question"));
+    conversationId = "c-b";
+    rerender();
+    expect(result.current.leftTurnPending).toBe(false);
+
+    conversationId = "c-a";
+    rerender();
+    expect(result.current.leftTurnPending).toBe(true);
+
+    act(() =>
+      useChatStore.getState().addMessage({
+        id: "landed",
+        role: "assistant",
+        content: "the answer, saved while nobody watched",
+        timestamp: new Date(),
+      }),
+    );
+    expect(result.current.leftTurnPending).toBe(false);
+  });
+
+  it("stops saying so once the reader goes to look", () => {
+    let conversationId = "c-a";
+    const { result, rerender } = renderHook(() => useChat({ conversationId }), { wrapper });
+    act(() => result.current.sendMessage("a long question"));
+    conversationId = "c-b";
+    rerender();
+    conversationId = "c-a";
+    rerender();
+
+    act(() => result.current.acknowledgeDetachedTurn());
+
+    expect(result.current.leftTurnPending).toBe(false);
+  });
+
+  it("leaves a conversation with nothing running alone", () => {
+    reopen.mockClear();
+    let conversationId = "c-a";
+    const { rerender } = renderHook(() => useChat({ conversationId }), { wrapper });
+    conversationId = "c-b";
+    rerender();
+    expect(reopen).not.toHaveBeenCalled();
   });
 });
 

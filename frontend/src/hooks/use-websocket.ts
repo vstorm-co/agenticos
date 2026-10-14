@@ -231,6 +231,27 @@ export function useWebSocket({
     }, 150);
   }, []);
 
+  /**
+   * Replace the live socket with a fresh one, now.
+   *
+   * For leaving a conversation whose turn is still running: the server serves one
+   * turn per socket and ignores a message that arrives during it, so the next
+   * conversation needs a socket of its own - and the old one's closing is what
+   * lets the server finish that turn on its own and save it. Disconnected until
+   * the new one opens, so whatever is sent meanwhile waits in the queue rather
+   * than going into a socket that is not open yet.
+   */
+  const reopen = useCallback(() => {
+    const live = wsRef.current;
+    if (live) {
+      silentClose(live);
+      wsRef.current = null;
+      wsSigRef.current = null;
+    }
+    setIsConnected(false);
+    connectRef.current();
+  }, []);
+
   const sendMessage = useCallback((data: string | object) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       const message = typeof data === "string" ? data : JSON.stringify(data);
@@ -248,6 +269,7 @@ export function useWebSocket({
     isConnected,
     connect,
     disconnect,
+    reopen,
     sendMessage,
   };
 }

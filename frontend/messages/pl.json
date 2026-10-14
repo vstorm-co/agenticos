@@ -1230,6 +1230,7 @@
     "turnInterrupted": "Połączenie zerwało się w trakcie odpowiedzi. Agent kończy turę i zapisuje ją w tej rozmowie.",
     "turnInterruptedRecheck": "Sprawdź",
     "turnStillArriving": "Wcześniejsza odpowiedź wciąż się pisze. Pojawi się w tej rozmowie po zakończeniu, pod pytaniem, które właśnie zadałeś.",
+    "turnLeftRunning": "Agent wciąż odpowiadał, gdy rozmowa została opuszczona. Dokończy turę i zapisze ją tutaj.",
     "thankYouFeedback": "Dziękujemy za opinię!",
     "thinking": "Myślę...",
     "thoughtAboutIt": "Przemyślał to",
