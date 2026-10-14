@@ -202,9 +202,12 @@ class ScoringService:
             BadRequestError: The run has no answer to score - it kept no
                 transcript, or never answered.
         """
-        run, messages, _ = await AgentRunnerService(self.db).get_run_transcript(
-            ctx, run_id, limit=_MAX_TURNS
-        )
+        runs = AgentRunnerService(self.db)
+        run, messages, total = await runs.get_run_transcript(ctx, run_id, limit=_MAX_TURNS)
+        if total > len(messages):
+            run, messages, _ = await runs.get_run_transcript(
+                ctx, run_id, skip=total - _MAX_TURNS, limit=_MAX_TURNS
+            )
         answers = [message for message in messages if message.role == "assistant"]
         if not answers:
             raise BadRequestError(
