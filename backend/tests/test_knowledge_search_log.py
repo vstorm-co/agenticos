@@ -27,6 +27,7 @@ from app.agents.capabilities.knowledge import (
 from app.agents.capabilities.knowledge._search import search_knowledge_base
 from app.agents.capabilities.knowledge._toolset import build_knowledge_toolset
 from app.agents.deps import AgentDeps
+from app.agents.isolation import RunIsolation
 from app.agents.spec import AgentSpec, CapabilityBindingSpec
 from app.core.permissions import AuthContext, OrgRoleName
 from app.services.agent_runner import AgentRunnerService, PreparedRun
@@ -249,6 +250,20 @@ class TestTheRunnerWritesTheLog:
 
         write.assert_not_awaited()
         assert log.records == []
+
+    async def test_an_isolated_run_records_no_searches_whatever_its_surface(self):
+        log = _log()
+        log.record("q", ["kb_a"], [])
+        prepared = _prepared(log)
+        prepared.isolation = RunIsolation()
+        service = AgentRunnerService(_savepoint_db())
+
+        with patch(
+            "app.services.agent_runner.knowledge_gap_repo.record_searches", new=AsyncMock()
+        ) as write:
+            await service._write_knowledge_searches(prepared)
+
+        write.assert_not_awaited()
 
     async def test_a_lost_write_does_not_fail_the_run(self, caplog):
         log = _log()

@@ -3430,7 +3430,7 @@ class AgentRunnerService:
         records = list(log.records)
         log.records.clear()
         run = prepared.run
-        if run.surface == RunSurface.EVAL.value:
+        if run.surface == RunSurface.EVAL.value or prepared.isolation is not None:
             # A gap is a question a person asked; an eval replays or generates them.
             return
         try:
