@@ -195,6 +195,7 @@ async def test_the_same_model_twice_is_refused_before_the_service(
     service.estimate.assert_not_awaited()
 
 
+@pytest.mark.security
 async def test_a_run_past_the_budget_answers_402(client: OpenClient, service: MagicMock) -> None:
     service.start.side_effect = PaymentRequiredError(
         message="This eval would cost more than is left", details={"estimate_usd": "1.00"}

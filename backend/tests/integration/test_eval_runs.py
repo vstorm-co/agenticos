@@ -314,6 +314,7 @@ async def test_a_draft_run_is_twenty_eval_runs_none_attributed_to_a_version(db) 
     assert read.arms[0].source == "draft"
 
 
+@pytest.mark.security
 async def test_a_run_past_the_budget_is_refused_before_anything_is_written(db) -> None:
     ctx = await _owner(db)
     agent, _ = await _agent(db, ctx)
@@ -357,6 +358,7 @@ async def test_a_cancelled_run_starts_no_further_case(db) -> None:
     assert read.attempts_done == 2
 
 
+@pytest.mark.security
 async def test_a_case_that_runs_out_of_budget_stops_the_run(db) -> None:
     ctx = await _owner(db)
     agent, _ = await _agent(db, ctx)
@@ -464,6 +466,7 @@ async def test_one_run_over_two_models_reports_each(db) -> None:
     assert len(rates) == 2
 
 
+@pytest.mark.security
 async def test_nothing_crosses_organizations(db) -> None:
     ctx = await _owner(db)
     agent, _ = await _agent(db, ctx)
@@ -486,6 +489,7 @@ async def test_nothing_crosses_organizations(db) -> None:
     assert (await service.recent(stranger)).items == []
 
 
+@pytest.mark.security
 async def test_running_the_draft_needs_edit_access_to_the_agent(db) -> None:
     owner = await _owner(db)
     agent, _ = await _agent(db, owner)
@@ -501,6 +505,7 @@ async def test_running_the_draft_needs_edit_access_to_the_agent(db) -> None:
     assert estimate.cases == 2
 
 
+@pytest.mark.security
 async def test_a_grant_on_the_dataset_lets_a_member_run_it(db) -> None:
     owner = await _owner(db)
     agent, _ = await _agent(db, owner)
@@ -524,6 +529,7 @@ async def test_a_grant_on_the_dataset_lets_a_member_run_it(db) -> None:
     assert (await service.estimate(member, agent.id, request)).cases == 2
 
 
+@pytest.mark.security
 async def test_reading_runs_needs_runs_view(db) -> None:
     owner = await _owner(db)
     agent, _ = await _agent(db, owner)
@@ -764,6 +770,7 @@ async def test_a_case_from_a_conversation_is_answered_from_its_recording(db) -> 
     assert [call["isolation"].recording for call in model.calls] == [recording, None]
 
 
+@pytest.mark.security
 async def test_who_may_stop_a_run(db) -> None:
     owner = await _owner(db)
     agent, _ = await _agent(db, owner)
@@ -782,6 +789,7 @@ async def test_who_may_stop_a_run(db) -> None:
     assert again.ended_at == stopped.ended_at
 
 
+@pytest.mark.security
 async def test_a_run_whose_agent_the_reader_cannot_see_is_not_found(db) -> None:
     owner = await _owner(db)
     agent, _ = await _agent(db, owner)
@@ -1015,6 +1023,7 @@ async def test_cases_narrow_by_tag(db) -> None:
     assert (passed.total, len(passed.items)) == (3, 1)
 
 
+@pytest.mark.security
 async def test_a_budget_stop_leaves_a_run_another_worker_already_ended(db) -> None:
     ctx = await _owner(db)
     agent, _ = await _agent(db, ctx)
