@@ -40,9 +40,8 @@ export function hostOf(url: string | null): string | null {
   }
 }
 
-/** What follows the host in the address bar - the path and query - or "" at the root. */
-function pathOf(url: string | null): string {
-  if (!url) return "";
+/** What follows the host in the address bar - the path and query - or "" at the root or for an address that is not a URL. */
+function pathOf(url: string): string {
   try {
     const parsed = new URL(url);
     const rest = `${parsed.pathname}${parsed.search}`;
@@ -346,7 +345,7 @@ export function BrowserWindow({
             {host ? (
               <>
                 <span className="text-foreground font-medium">{host}</span>
-                <span className="text-muted-foreground">{pathOf(browse.url)}</span>
+                <span className="text-muted-foreground">{pathOf(browse.url ?? "")}</span>
               </>
             ) : (
               <span className="text-muted-foreground">{t("browserStarting")}</span>

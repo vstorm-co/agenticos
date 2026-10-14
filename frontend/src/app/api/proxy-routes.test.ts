@@ -31,6 +31,7 @@ import * as localServices from "./local-services/[[...path]]/route";
 import * as mcpConnections from "./mcp-connections/[[...path]]/route";
 import * as mcpOauth from "./mcp-oauth/[[...path]]/route";
 import * as memory from "./memory/[[...path]]/route";
+import * as browserSignIns from "./browser-sign-ins/[[...path]]/route";
 import * as channelLink from "./me/channel-link/[[...path]]/route";
 import * as notifications from "./notifications/[[...path]]/route";
 import * as permissions from "./me/permissions/route";
@@ -105,6 +106,7 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["approvals", approvals],
   ["apps", apps],
   ["audit", audit],
+  ["browser-sign-ins", browserSignIns],
   ["catalog", catalog],
   ["channels", channels],
   ["context", context],

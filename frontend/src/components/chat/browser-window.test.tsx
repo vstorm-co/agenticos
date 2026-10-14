@@ -351,6 +351,22 @@ describe("BrowserWindow - the page laid out for the window showing it", () => {
   });
 });
 
+describe("BrowserWindow - the address bar", () => {
+  it("shows the host and then the path, and an address it cannot parse whole", () => {
+    const { rerender } = render(
+      <BrowserWindow
+        browse={browse({ url: "https://example.test/pricing?plan=pro" })}
+        control={null}
+      />,
+    );
+    expect(screen.getByText("example.test")).toBeVisible();
+    expect(screen.getByText("/pricing?plan=pro")).toBeVisible();
+
+    rerender(<BrowserWindow browse={browse({ url: "not a url" })} control={null} />);
+    expect(screen.getByText("not a url")).toBeVisible();
+  });
+});
+
 describe("BrowserWindow - the first picture, at the window's own size", () => {
   /** An image whose decoded width the test chooses, since jsdom decodes nothing. */
   function decodesAt(width: number) {
