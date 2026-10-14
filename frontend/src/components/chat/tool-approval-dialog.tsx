@@ -62,8 +62,11 @@ export function ToolApprovalDialog({
     onDecisions(actionRequests.map(() => ({ type })));
 
   return (
-    <div className="border-border bg-card space-y-4 rounded-2xl border p-4 shadow-sm">
-      <ul className="space-y-4">
+    // The answers sit beside the question rather than under it: under it, a
+    // folded Details left a band of empty card between what was asked and the
+    // buttons that answer it.
+    <div className="border-border bg-card flex flex-col gap-3 rounded-2xl border p-4 shadow-sm sm:flex-row sm:items-start">
+      <ul className="min-w-0 flex-1 space-y-4">
         {actionRequests.map((action) => {
           // The Architect's agent draft is decided as a draft, not as a JSON call (#1799).
           const draft = action.tool_name === AGENT_DRAFT_TOOL ? draftArgs(action.args) : null;
@@ -108,7 +111,7 @@ export function ToolApprovalDialog({
       </ul>
 
       {mayDecide ? (
-        <div className="flex justify-end gap-2">
+        <div className="flex shrink-0 justify-end gap-2 sm:pt-4">
           <Button size="sm" variant="ghost" onClick={() => decideAll("reject")} disabled={disabled}>
             {t("reject")}
           </Button>
@@ -117,7 +120,9 @@ export function ToolApprovalDialog({
           </Button>
         </div>
       ) : (
-        <p className="text-muted-foreground text-xs">{t("decidingNeedsPermission")}</p>
+        <p className="text-muted-foreground max-w-56 shrink-0 text-xs sm:pt-4">
+          {t("decidingNeedsPermission")}
+        </p>
       )}
     </div>
   );
