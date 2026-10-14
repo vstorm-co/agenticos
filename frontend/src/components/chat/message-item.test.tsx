@@ -14,6 +14,7 @@ import type { ChatMessage, ChatMessageFile, MessagePart, ToolCall, TurnUsage } f
 // and hands them to each step, so a public surface can render the same step without
 // a session - the fetch would need one, and a query client to run it in.
 vi.mock("@/hooks", () => ({ useMcpToolServers: () => [] }));
+vi.mock("@/hooks/use-knowledge-bases", () => ({ useKnowledgeBaseFor: () => () => undefined }));
 vi.mock("./markdown-content", () => ({
   MarkdownContent: ({
     content,
@@ -523,17 +524,17 @@ describe("citations", () => {
     expect(screen.getByRole("button", { name: /1 source/ })).toBeInTheDocument();
   });
 
-  it("marks which kinds of source an answer drew on", async () => {
-    // Two small icons rather than a sentence: a reader scanning a thread wants to
-    // know whether an answer came from their own documents or from the web.
-    const { container } = item({
+  it("stacks a mark for each document an answer drew on, by its kind", () => {
+    // A file's kind for a knowledge base passage, the web's globe for a page:
+    // a reader scanning a thread sees where an answer came from without opening it.
+    item({
       toolCalls: [
         {
           id: "tc-1",
           name: "search_documents",
           args: {},
           status: "completed",
-          result: "[1] Source: a.md (score: 0.8)\nOne.",
+          result: "[1] Source: a.md (score: 0.8)\nOne.\n[2] Source: a.md (score: 0.7)\nTwo.",
         },
         {
           id: "tc-2",
@@ -548,38 +549,21 @@ describe("citations", () => {
       ],
     });
 
+    // Two passages of one file are one source.
     const footer = screen.getByRole("button", { name: /2 sources/ });
-    expect(footer.querySelectorAll(".lucide-file-text")).toHaveLength(1);
     expect(footer.querySelectorAll(".lucide-globe")).toHaveLength(1);
-    expect(container.querySelector(".lucide-file-text")).not.toBeNull();
+    expect(footer.querySelectorAll("svg")).toHaveLength(3);
   });
 
-  it("shows only the web icon for an answer that came only from the web", () => {
-    const { container } = item({
-      toolCalls: [
-        {
-          id: "tc-1",
-          name: "web_search",
-          args: {},
-          status: "completed",
-          result: JSON.stringify({
-            kind: "web_search",
-            results: [{ title: "Hit", url: "https://a.example/" }],
-          }),
-        },
-      ],
-    });
-
-    expect(container.querySelectorAll(".lucide-globe")).toHaveLength(1);
-  });
-
-  it("opens the whole list from the footer, with nothing highlighted", async () => {
+  it("opens into the list of documents, and a document onto its passages", async () => {
     item({ ...withSources });
 
     await userEvent.click(screen.getByRole("button", { name: /2 sources/ }));
+    expect(useSourcesPanelStore.getState().isOpen).toBe(false);
+    await userEvent.click(screen.getByRole("button", { name: /policy\.md/ }));
 
     expect(useSourcesPanelStore.getState().isOpen).toBe(true);
-    expect(useSourcesPanelStore.getState().highlightedIndex).toBeNull();
+    expect(useSourcesPanelStore.getState().highlightedIndex).toBe(2);
   });
 
   it("opens on the citation that was clicked in the answer", async () => {

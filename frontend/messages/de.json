@@ -1460,7 +1460,14 @@
     "browserLineNeeds": "Braucht Sie: {what}",
     "browserLineShowing": "Geöffnet",
     "browserLineOpen": "Öffnen",
-    "approvalAsk": "{action} erlauben?"
+    "approvalAsk": "{action} erlauben?",
+    "passageCount": "{count, plural, =1 {1 Abschnitt} other {# Abschnitte}}",
+    "openOriginal": "Original öffnen",
+    "openOriginalNamed": "Original von {name} öffnen",
+    "openPage": "Seite öffnen",
+    "openPageNamed": "{name} öffnen",
+    "showMore": "Mehr anzeigen",
+    "showLess": "Weniger anzeigen"
   },
   "common": {
     "archiveNamedConfirm": "{name} archivieren?",

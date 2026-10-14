@@ -32,6 +32,29 @@ import type {
 } from "@/types";
 import { useCreatedToast } from "./use-created-toast";
 
+const listKnowledgeBases = async (): Promise<KnowledgeBase[]> =>
+  (await apiClient.get<KnowledgeBaseList>("/kb")).items;
+
+/**
+ * The knowledge base holding a collection, for a surface that knows only the name.
+ *
+ * An agent's citation names the collection a passage came from; the base it
+ * belongs to is what a reader recognises and what opening the file needs. Reads
+ * the same cached list as the knowledge base pages, and finds nothing for a
+ * caller who may not read that base.
+ */
+export function useKnowledgeBaseFor(): (
+  collection: string | undefined,
+) => KnowledgeBase | undefined {
+  const { data: bases = [] } = useQuery({
+    queryKey: qk.kb.list(),
+    queryFn: listKnowledgeBases,
+    retry: false,
+  });
+  return (collection) =>
+    collection === undefined ? undefined : bases.find((kb) => kb.collection_name === collection);
+}
+
 export function useKnowledgeBases() {
   const queryClient = useQueryClient();
   // Every toast the catalog already held. It walked `*.tsx` alone, so this
@@ -50,7 +73,7 @@ export function useKnowledgeBases() {
     error: listError,
   } = useQuery({
     queryKey: qk.kb.list(),
-    queryFn: async () => (await apiClient.get<KnowledgeBaseList>("/kb")).items,
+    queryFn: listKnowledgeBases,
   });
 
   /**

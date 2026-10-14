@@ -1460,7 +1460,14 @@
     "browserLineNeeds": "Needs you: {what}",
     "browserLineShowing": "Showing",
     "browserLineOpen": "Open",
-    "approvalAsk": "Allow {action}?"
+    "approvalAsk": "Allow {action}?",
+    "passageCount": "{count, plural, =1 {1 passage} other {# passages}}",
+    "openOriginal": "Open the original",
+    "openOriginalNamed": "Open the original of {name}",
+    "openPage": "Open the page",
+    "openPageNamed": "Open {name}",
+    "showMore": "Show more",
+    "showLess": "Show less"
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",

@@ -9,10 +9,13 @@ import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 
 /** The quote's paragraphs, a blank line apart, as a reply box expects them. */
 function quoteText(quote: HTMLElement): string {
-  return Array.from(quote.children)
-    .map((block) => (block.textContent ?? "").trim())
-    .filter((text) => text !== "")
-    .join("\n\n");
+  return (
+    Array.from(quote.children)
+      // An element's text is never null; only a document or a doctype has none.
+      .map((block) => (block.textContent as string).trim())
+      .filter((text) => text !== "")
+      .join("\n\n")
+  );
 }
 
 /**

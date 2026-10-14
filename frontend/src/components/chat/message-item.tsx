@@ -10,6 +10,7 @@ import { AgentSteps } from "./agent-step";
 import { foldWork, runsOf, TextBubble, ThinkingBlock, TurnParts } from "./turn-parts";
 import type { PinnedPrompts } from "./chat-container";
 import { CopyButton } from "./copy-button";
+import { MessageSources } from "./message-sources";
 import { RoundedCost } from "./message-cost";
 import { YouFace } from "./you-face";
 import { TURN_ACTION } from "./turn-action";
@@ -18,16 +19,7 @@ import { useChatStore, useFilePreviewStore } from "@/stores";
 import { useMcpToolServers } from "@/hooks";
 import { useInChatScope } from "@/stores/chat-scope-context";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
-import {
-  Bot,
-  FileText,
-  Globe,
-  OctagonPause,
-  Paperclip,
-  Pin,
-  PinOff,
-  RefreshCw,
-} from "lucide-react";
+import { Bot, FileText, OctagonPause, Paperclip, Pin, PinOff, RefreshCw } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Image from "next/image";
 import { useAuthStore } from "@/stores";
@@ -35,37 +27,6 @@ import { getFileUrl } from "@/lib/file-api";
 import { isRenderSafeImage } from "@/lib/file-kinds";
 import { FileCard } from "@/components/files";
 import { extractSources } from "@/lib/chat-sources";
-import type { SourceItem } from "@/lib/chat-sources";
-
-function SourcesButton({ sources, onClick }: { sources: SourceItem[]; onClick: () => void }) {
-  const t = useTranslations("chat");
-  const ragCount = sources.filter((s) => s.type === "rag").length;
-  const webCount = sources.filter((s) => s.type === "web").length;
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="border-foreground/15 bg-background hover:border-foreground/30 hover:bg-foreground/5 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 transition-colors"
-    >
-      <span className="flex -space-x-1">
-        {ragCount > 0 && (
-          <span className="bg-muted border-background inline-flex h-4 w-4 items-center justify-center rounded-full border">
-            <FileText className="text-foreground/60 h-2.5 w-2.5" />
-          </span>
-        )}
-        {webCount > 0 && (
-          <span className="bg-muted border-background inline-flex h-4 w-4 items-center justify-center rounded-full border">
-            <Globe className="text-foreground/60 h-2.5 w-2.5" />
-          </span>
-        )}
-      </span>
-      <span className="text-foreground/60 text-xs font-medium">
-        {t("sourceCount", { count: sources.length })}
-      </span>
-    </button>
-  );
-}
 
 interface MessageItemProps {
   message: ChatMessage;
@@ -308,7 +269,7 @@ export function MessageItem({
 
         {hasSources && !isUser && (
           <div className="mt-1">
-            <SourcesButton sources={sources} onClick={() => openSources(sources, null)} />
+            <MessageSources sources={sources} onOpen={(index) => openSources(sources, index)} />
           </div>
         )}
 

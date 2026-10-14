@@ -1460,7 +1460,14 @@
     "browserLineNeeds": "Potrzebuje Ciebie: {what}",
     "browserLineShowing": "Otwarte",
     "browserLineOpen": "Otwórz",
-    "approvalAsk": "Zezwolić: {action}?"
+    "approvalAsk": "Zezwolić: {action}?",
+    "passageCount": "{count, plural, =1 {1 fragment} few {# fragmenty} many {# fragmentów} other {# fragmentu}}",
+    "openOriginal": "Otwórz oryginał",
+    "openOriginalNamed": "Otwórz oryginał pliku {name}",
+    "openPage": "Otwórz stronę",
+    "openPageNamed": "Otwórz {name}",
+    "showMore": "Pokaż więcej",
+    "showLess": "Pokaż mniej"
   },
   "common": {
     "archiveNamedConfirm": "Zarchiwizować {name}?",
