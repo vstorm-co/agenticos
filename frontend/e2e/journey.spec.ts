@@ -192,16 +192,14 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
   const toolbox = page.getByRole("tabpanel");
 
   // A switch, labelled "Give this agent <name>" in the list on the left. A new
-  // agent starts with the recommended capabilities on, so the one granted here
-  // is the first still off.
-  const capability = toolbox
-    .getByRole("switch", { name: /^Give this agent /, checked: false })
-    .first();
+  // agent starts with the recommended capabilities on - Calculations among them -
+  // so the one configured here is already granted rather than clicked on.
+  const capability = toolbox.getByRole("switch", { name: "Give this agent Calculations" });
   if (!(await capability.isVisible())) {
     test.skip(true, "the capability catalog is empty in this environment");
   }
-  await capability.click();
   await expect(capability).toHaveAttribute("aria-checked", "true");
+  await toolbox.getByRole("button", { name: /^Calculations/ }).click();
 
   // Configure it. A side-effecting capability parks its first call in the
   // approval queue by default, which would leave the run below waiting on a

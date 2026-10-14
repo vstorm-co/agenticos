@@ -142,6 +142,13 @@ test("an agent delegates to another, and both runs are recorded", async ({ page 
     "the delegate is listed but carries no pin, so nothing froze it at a version",
   ).toContainText(/v\d+, current/);
 
+  // Waited for, not started in the background: a new agent starts with the
+  // starter template's subagents, whose mode is `auto`, and a stub that names
+  // no mode is resolved to a background task - whose answer arrives after the
+  // turn, where this spec could not read it.
+  await row.getByLabel("When it hands back").click();
+  await page.getByRole("option", { name: "Wait for it" }).click();
+
   await publish(page);
 
   // 4. running it

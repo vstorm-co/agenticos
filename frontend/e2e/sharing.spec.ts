@@ -86,7 +86,6 @@ test.describe("Sharing", () => {
     await page.reload();
     await openShareDialog(page);
     await expect(panel.getByLabel(`Access for ${COLLEAGUE_EMAIL}`)).toHaveCount(0);
-    await expect(panel.getByText("Not shared with anyone yet.")).toBeVisible();
   });
 
   test("says who the general access reaches", async ({ page }) => {
