@@ -55,6 +55,9 @@ from app.schemas.scoring import (
     CaseVerdict,
     DatasetScoring,
     JudgePin,
+    PendingDataset,
+    PendingScore,
+    ReviewQueue,
     ScorerResult,
 )
 from app.services.access import DATASET, visible_resource_ids
@@ -99,6 +102,21 @@ class Evaluation:
 
 def _score_read(score: CaseScore) -> CaseScoreRead:
     return CaseScoreRead.model_validate(score)
+
+
+def _by_dataset(counts: list[tuple[UUID, str, bool | None, int]]) -> list[PendingDataset]:
+    """Each dataset's waiting scores by outcome, the dataset with the most first."""
+    tallies: dict[UUID, dict[str, int]] = {}
+    names: dict[UUID, str] = {}
+    for dataset_id, name, passed, count in counts:
+        names[dataset_id] = name
+        outcome = "unscored" if passed is None else "passed" if passed else "failed"
+        tallies.setdefault(dataset_id, {})[outcome] = count
+    datasets = [
+        PendingDataset(dataset_id=dataset_id, name=names[dataset_id], **tally)
+        for dataset_id, tally in tallies.items()
+    ]
+    return sorted(datasets, key=lambda d: (-(d.failed + d.unscored + d.passed), d.name))
 
 
 def _case_view(case: DatasetCase) -> CaseView:
@@ -409,21 +427,36 @@ class ScoringService:
 
     async def review_queue(
         self, ctx: AuthContext, *, skip: int = 0, limit: int = 50
-    ) -> CaseScoreList:
+    ) -> ReviewQueue:
         """Scores waiting for a person, across every dataset the caller may see."""
         shared = await visible_resource_ids(
             self.db, ctx, resource_type=DATASET, perm=Perm.DATASETS_VIEW
         )
+        see_all, shared_ids = shared is None, [] if shared is None else shared
         items, total = await case_score_repo.list_pending(
             self.db,
             organization_id=ctx.organization_id,
             user_id=ctx.subject_id,
-            see_all=shared is None,
-            shared_ids=[] if shared is None else shared,
+            see_all=see_all,
+            shared_ids=shared_ids,
             skip=skip,
             limit=limit,
         )
-        return CaseScoreList(items=[_score_read(item) for item in items], total=total)
+        counts = await case_score_repo.pending_counts(
+            self.db,
+            organization_id=ctx.organization_id,
+            user_id=ctx.subject_id,
+            see_all=see_all,
+            shared_ids=shared_ids,
+        )
+        return ReviewQueue(
+            items=[
+                PendingScore(**_score_read(score).model_dump(), dataset_name=name)
+                for score, name in items
+            ],
+            total=total,
+            datasets=_by_dataset(counts),
+        )
 
     async def _score(self, ctx: AuthContext, dataset_id: UUID, score_id: UUID) -> CaseScore:
         await self.datasets.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)

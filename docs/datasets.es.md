@@ -1,5 +1,5 @@
 ---
-source_sha: "1ceb0a8e14cf"
+source_sha: "63bea32cff7a"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -254,7 +254,10 @@ equivalentes.
 Un dataset puede enviar resultados a una **cola de revisión**: ninguno hasta que
 alguien envíe uno, cada resultado que no aprobó, o cada resultado. La pestaña
 Scores muestra los resultados de un dataset, y la tarjeta del dashboard
-**Awaiting review** muestra la cola de todos los datasets que puedes ver.
+**Awaiting review** muestra la cola de todos los datasets que puedes ver:
+cuántos resultados no aprobaron, no se pudieron puntuar o aprobaron, y en qué
+datasets, cada uno abriéndose en su pestaña Scores. La tarjeta está en el panel
+por defecto.
 
 El veredicto de una persona se guarda junto a los resultados de los evaluadores
 y decide el resultado final. Nunca cambia lo que dijo el juez: las

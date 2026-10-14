@@ -712,11 +712,26 @@ class TestVerdicts:
             tenant.ctx, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
         )
 
-        queue = await service.review_queue(tenant.ctx)
+        everything, other = await _dataset(
+            db, tenant, scoring=DatasetScoring(review=ReviewScorer(select="all"))
+        )
+        for _ in range(2):
+            await service.score_run(
+                tenant.ctx, everything.id, other.case_id, CaseScoreCreate(run_id=run.id)
+            )
+
+        queue = await service.review_queue(tenant.ctx, limit=1)
         pending = await service.list_scores(tenant.ctx, dataset.id, pending=True)
         for_case = await service.list_scores(tenant.ctx, dataset.id, case_id=case.case_id)
 
-        assert [item.id for item in queue.items] == [scored.id]
+        names = {dataset.id: dataset.name, everything.id: everything.name}
+        [oldest] = queue.items
+        assert oldest.dataset_name == names[oldest.dataset_id]
+        assert queue.total == 3
+        assert [(d.dataset_id, d.failed, d.unscored, d.passed) for d in queue.datasets] == [
+            (everything.id, 0, 0, 2),
+            (dataset.id, 1, 0, 0),
+        ]
         assert [item.id for item in pending.items] == [scored.id]
         assert for_case.total == 1
 
@@ -870,7 +885,8 @@ class TestRefusals:
         )
         member = await _join(db, tenant, OrgRoleName.MEMBER)
 
-        assert (await ScoringService(db).review_queue(member)).total == 0
+        hidden = await ScoringService(db).review_queue(member)
+        assert (hidden.total, hidden.datasets) == (0, [])
         assert (await ScoringService(db).review_queue(tenant.ctx)).total == 1
 
     async def test_a_case_the_version_does_not_hold_is_not_found(self, db, judge) -> None:

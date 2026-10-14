@@ -257,3 +257,28 @@ class CaseScoreRead(BaseSchema):
 class CaseScoreList(BaseSchema):
     items: list[CaseScoreRead]
     total: int
+
+
+class PendingScore(CaseScoreRead):
+    """A score in the review queue, with the dataset it belongs to."""
+
+    dataset_name: str
+
+
+class PendingDataset(BaseSchema):
+    """How many scores wait in one dataset, by what the scorers concluded."""
+
+    dataset_id: UUID
+    name: str
+    failed: int = 0
+    unscored: int = 0
+    passed: int = 0
+
+
+class ReviewQueue(BaseSchema):
+    """Scores waiting for a verdict: a page of them, oldest first, and every
+    dataset that holds any, most waiting first."""
+
+    items: list[PendingScore]
+    total: int
+    datasets: list[PendingDataset]

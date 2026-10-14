@@ -1,5 +1,5 @@
 ---
-source_sha: "1ceb0a8e14cf"
+source_sha: "63bea32cff7a"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -262,7 +262,9 @@ Ein Dataset kann Ergebnisse in eine **Review-Warteschlange** schicken: keine,
 bis jemand eines schickt, jedes Ergebnis, das nicht bestanden hat, oder jedes
 Ergebnis. Der Tab Scores zeigt die Ergebnisse eines Datasets, und die
 Dashboard-Karte **Awaiting review** zeigt die Warteschlange über alle Datasets,
-die Sie sehen können.
+die Sie sehen können: wie viele Ergebnisse nicht bestanden haben, nicht bewertet
+werden konnten oder bestanden haben, und in welchen Datasets, jedes öffnet sich
+auf seinem Tab Scores. Die Karte ist standardmäßig auf dem Dashboard.
 
 Das Urteil einer Person wird neben den Ergebnissen der Scorer gespeichert und
 entscheidet über das Ergebnis. Es ändert nie, was der Judge gesagt hat: Die

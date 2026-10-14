@@ -1163,13 +1163,14 @@
         "title": "Do przeglądu",
         "description": "Wyniki ewaluacji czekające na werdykt człowieka.",
         "waiting": "{count, plural, one {# wynik czeka} few {# wyniki czekają} many {# wyników czeka} other {# wyniku czeka}} na werdykt",
-        "allPassed": "Wszystkie wymagane oceny zaliczone",
-        "passed": "Zaliczony",
-        "didNotPass": "Niezaliczony",
-        "unscored": "Bez oceny",
         "empty": {
           "title": "Nic do przeglądu",
           "description": "Tu pojawią się wyniki, które dataset wysyła do przeglądu."
+        },
+        "outcome": {
+          "failed": "{count, plural, one {# niezaliczony} few {# niezaliczone} many {# niezaliczonych} other {# niezaliczonego}}",
+          "unscored": "{count} bez oceny",
+          "passed": "{count, plural, one {# zaliczony} few {# zaliczone} many {# zaliczonych} other {# zaliczonego}}"
         }
       },
       "datasets": {

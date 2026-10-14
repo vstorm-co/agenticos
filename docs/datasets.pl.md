@@ -1,5 +1,5 @@
 ---
-source_sha: "1ceb0a8e14cf"
+source_sha: "63bea32cff7a"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -248,7 +248,9 @@ porównywane jak równe z równym.
 Dataset może wysyłać wyniki do **kolejki przeglądu**: żadnych, dopóki ktoś
 jakiegoś nie wyśle, każdy wynik, który nie zaliczył, albo każdy wynik. Karta
 Scores pokazuje wyniki datasetu, a karta pulpitu **Awaiting review** pokazuje
-kolejkę ze wszystkich datasetów, które widzisz.
+kolejkę ze wszystkich datasetów, które widzisz: ile wyników nie zaliczyło, nie
+dało się ocenić albo zaliczyło, i w których datasetach, a każdy otwiera się na
+karcie Scores. Karta jest domyślnie na pulpicie.
 
 Werdykt osoby jest zapisywany obok wyników oceniaczy i rozstrzyga o rezultacie.
 Nigdy nie zmienia tego, co powiedział sędzia: oceny i uzasadnienia sędziego

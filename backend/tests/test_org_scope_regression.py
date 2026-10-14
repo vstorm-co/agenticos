@@ -69,6 +69,7 @@ TENANT_REQUIRED = [
     (case_score_repo, "get"),
     (case_score_repo, "list_for_dataset"),
     (case_score_repo, "list_pending"),
+    (case_score_repo, "pending_counts"),
 ]
 
 # Deliberately unscoped, each documented at its definition.

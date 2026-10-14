@@ -82,3 +82,24 @@ export interface CaseScoreList {
   items: CaseScore[];
   total: number;
 }
+
+/** A score in the review queue, with the dataset it belongs to. */
+export interface PendingScore extends CaseScore {
+  dataset_name: string;
+}
+
+/** How many scores wait in one dataset, by what the scorers concluded. */
+export interface PendingDataset {
+  dataset_id: string;
+  name: string;
+  failed: number;
+  unscored: number;
+  passed: number;
+}
+
+/** A page of the review queue, oldest first, and every dataset holding any of it. */
+export interface ReviewQueue {
+  items: PendingScore[];
+  total: number;
+  datasets: PendingDataset[];
+}

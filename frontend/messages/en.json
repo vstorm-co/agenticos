@@ -1913,13 +1913,14 @@
         "title": "Awaiting review",
         "description": "Eval results waiting for a person's verdict.",
         "waiting": "{count, plural, =1 {1 result waits} other {# results wait}} for a verdict",
-        "allPassed": "All required scorers passed",
-        "passed": "Passed",
-        "didNotPass": "Did not pass",
-        "unscored": "Unscored",
         "empty": {
           "title": "Nothing to review",
           "description": "Results a dataset sends for review appear here."
+        },
+        "outcome": {
+          "failed": "{count} did not pass",
+          "unscored": "{count} unscored",
+          "passed": "{count} passed"
         }
       },
       "datasets": {

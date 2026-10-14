@@ -239,7 +239,9 @@ compared as like for like.
 A dataset can send results to a **review queue**: none until somebody sends one,
 every result that did not pass, or every result. The Scores tab shows a
 dataset's results, and the **Awaiting review** dashboard card shows the queue
-across the datasets you can see.
+across the datasets you can see: how many results did not pass, could not be
+scored or passed, and in which datasets, each opening on its Scores tab. The
+card is on the dashboard by default.
 
 A person's verdict is stored beside the scorers' results and decides the
 outcome. It never changes what the judge said: the judge's grades and reasons

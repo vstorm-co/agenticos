@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { FlaskConical, Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -35,6 +36,8 @@ interface PageProps {
   params: Promise<{ id: string }>;
 }
 
+const TABS = ["cases", "scoring", "scores"];
+
 /** What the case dialog is showing: a new case, or one from the list. */
 type Editing = { draft: CaseDraft; item: DatasetCase | null } | null;
 
@@ -49,6 +52,7 @@ export default function DatasetPage({ params }: PageProps) {
   const t = useTranslations("datasets");
   const tc = useTranslations("common");
   const tErrors = useTranslations("errors");
+  const asked = useSearchParams().get("tab");
   const [version, setVersion] = useState<number | null>(null);
   const [page, setPage] = useState(0);
   const [editing, setEditing] = useState<Editing>(null);
@@ -95,7 +99,10 @@ export default function DatasetPage({ params }: PageProps) {
         }
       />
 
-      <Tabs defaultValue="cases" className="space-y-4">
+      <Tabs
+        defaultValue={asked !== null && TABS.includes(asked) ? asked : "cases"}
+        className="space-y-4"
+      >
         <TabsList>
           <TabsTrigger value="cases">{t("cases")}</TabsTrigger>
           <TabsTrigger value="scoring" data-tour="datasets-scoring-tab">

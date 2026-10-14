@@ -1899,13 +1899,14 @@
         "title": "Wartet auf Prüfung",
         "description": "Eval-Ergebnisse, die auf das Urteil eines Menschen warten.",
         "waiting": "{count, plural, =1 {1 Ergebnis wartet} other {# Ergebnisse warten}} auf ein Urteil",
-        "allPassed": "Alle erforderlichen Bewertungen bestanden",
-        "passed": "Bestanden",
-        "didNotPass": "Nicht bestanden",
-        "unscored": "Nicht bewertet",
         "empty": {
           "title": "Nichts zu prüfen",
           "description": "Ergebnisse, die ein Dataset zur Prüfung sendet, erscheinen hier."
+        },
+        "outcome": {
+          "failed": "{count} nicht bestanden",
+          "unscored": "{count} nicht bewertet",
+          "passed": "{count} bestanden"
         }
       },
       "datasets": {

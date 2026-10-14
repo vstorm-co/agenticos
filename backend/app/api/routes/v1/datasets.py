@@ -39,6 +39,7 @@ from app.schemas.scoring import (
     CaseScoreRead,
     CaseVerdict,
     DatasetScoring,
+    ReviewQueue,
 )
 from app.services.dataset_files import MAX_IMPORT_BYTES
 
@@ -65,7 +66,7 @@ async def list_datasets(
 
 @router.get(
     "/review-queue",
-    response_model=CaseScoreList,
+    response_model=ReviewQueue,
     dependencies=[Depends(require(Perm.DATASETS_VIEW))],
 )
 async def list_review_queue(
