@@ -265,7 +265,7 @@ class DatasetService:
             await visible_resource_ids(self.db, ctx, resource_type=DATASET, perm=Perm.DATASETS_EDIT)
             if editable
             else None
-        )
+        ) or []
         items, total = await dataset_repo.list_visible(
             self.db,
             organization_id=ctx.organization_id,
@@ -273,8 +273,8 @@ class DatasetService:
             see_all=shared is None,
             shared_ids=grant_ids,
             shared_with_me=shared_with_me,
-            edit_scope=ctx.scope_for(Perm.DATASETS_EDIT) if edit_ids is not None else None,
-            edit_ids=edit_ids or [],
+            edit_scope=ctx.scope_for(Perm.DATASETS_EDIT) if editable else None,
+            edit_ids=edit_ids,
             search=search,
             sort=sort,
             skip=skip,

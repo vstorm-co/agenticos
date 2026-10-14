@@ -803,9 +803,14 @@ async def test_the_editable_listing_reaches_a_granted_dataset_however_old(db) ->
     builder_editable = await service.list_readable(builder, editable=True, sort="name")
     assert names(builder_editable) == ["org wide"]
     assert (await service.list_readable(owner, editable=True)).total == 105
+    # An admin's edit scope is the whole organization: no grant, and still every row.
+    admin = await _member(db, org, OrgRoleName.ADMIN)
+    admin_editable = await service.list_readable(admin, editable=True, search="the member")
+    assert names(admin_editable) == ["the member's own"]
+    assert (await service.list_readable(admin, editable=True, limit=1)).total == 105
 
 
-@pytest.mark.parametrize("scope", [scope for scope in Scope if scope is not Scope.ALL])
+@pytest.mark.parametrize("scope", list(Scope))
 async def test_the_editable_predicate_admits_exactly_what_resolve_access_does(
     db, scope: Scope
 ) -> None:
