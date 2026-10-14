@@ -32,6 +32,12 @@ Two things are versioned separately from this file and worth knowing about:
   that published it stays one line, so the turn's work folds away. A link to
   an app reads *Open the app*, and a link to a known service leads with its
   logo.
+- **Delegation reads as the team at work.** A delegation step is *Asked
+  Finance Analyst*, with that agent's face, and opens onto the brief and the
+  answer - after a reload too, where it was raw JSON. While delegates work a
+  strip sends the brief down a lane to each, the delegates hop in turn and
+  the answer comes back; under the finished answer the same strip names who
+  was asked, each opening what it was asked and said.
 - **Copy a quote from an answer**, as a table is copied - a suggested reply
   comes out as its paragraphs.
 - **Sign in to a site from Settings** (#2129). **Settings → Sign-ins** opens
@@ -499,6 +505,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **An agent's face keeps its colour in the conversation list** and a
+  message's header, as it does in the picker and on its own page.
 - **Choosing whose account no longer switches an MCP server on.** In the
   Builder's server settings, going to the organization's account and back
   left an unused server bound; the choice now waits for the switch, which
