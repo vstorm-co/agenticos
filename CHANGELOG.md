@@ -630,6 +630,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **Both presentations wear the new brand and show the current console.**
+  The 14-slide introduction and the 44-slide tour drop the red and beige for
+  the mark's violet, open on the animated mark, and use blobatar characters
+  where drawn people stood. Every screenshot is a new capture from the demo
+  organization, and the copy that described the old demo - a sales CSV, the
+  Meridian page, a Slack run - now describes what is on screen.
+  `docs/presentation/capture.mjs` retakes the screens and measures the areas
+  the slides outline; a slide names an area (`@builder.instructions`) rather
+  than holding coordinates, so a recapture moves the outlines and the camera
+  with the screen.
 - **Every console screen is pictured again, in both themes.** The README's
   eight screenshots and the placeholders in "Every screen in the console" are
   new captures of the current interface - 41 screens, light and dark - taken
