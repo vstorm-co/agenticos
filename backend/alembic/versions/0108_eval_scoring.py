@@ -24,7 +24,7 @@ which agents were seeded, whether an organization had switched AI assistance
 off, every dataset's scoring configuration and every score.
 
 Revision ID: 0108_eval_scoring
-Revises: 0106_datasets
+Revises: 0107_environment_connections
 Create Date: 2026-10-13
 """
 
@@ -36,7 +36,7 @@ from sqlalchemy.dialects import postgresql
 from alembic import op
 
 revision: str = "0108_eval_scoring"
-down_revision: str | None = "0106_datasets"
+down_revision: str | None = "0107_environment_connections"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
