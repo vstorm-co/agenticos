@@ -108,6 +108,9 @@ export default defineConfig({
         "src/components/chat/dictation-bar.tsx",
         "src/components/chat/dictation-strip.tsx",
         "src/components/chat/dictation-unavailable.tsx",
+        // Voice calls (#54): the call button, the approval card, captions, the
+        // level meter, the controls and the status line. New, so inside the gate.
+        "src/components/voice/**/*.tsx",
         "src/components/chat/file-preview-panel.tsx",
         "src/components/chat/markdown-content.impl.tsx",
         "src/components/chat/markdown-content.tsx",
@@ -136,6 +139,8 @@ export default defineConfig({
         // The organization's Voice card (#1797). The rest of `teams/` predates
         // the gate; this file is new, so it starts inside.
         "src/components/teams/org-voice-settings.tsx",
+        // Its voice-call section (#54), new and so inside the gate too.
+        "src/components/teams/org-voice-conversations.tsx",
         // The deployment's switch for compressed dictation audio (#1797), new and
         // so inside the gate, like the Voice card above.
         "src/components/admin/dictation-audio-card.tsx",

@@ -69,6 +69,8 @@ function run(overrides: Partial<AgentRun> = {}): AgentRun {
     ended_at: "2026-08-14T09:00:04Z",
     parent_run_id: null,
     subagent_task_id: null,
+    modality: "text",
+    voice_chain: null,
     ...overrides,
   };
 }
@@ -239,5 +241,13 @@ describe("the row being held while the next one loads", () => {
     renderRun();
 
     expect(screen.queryByTestId("timeline")).toBeNull();
+  });
+});
+
+describe("a voice call in focus", () => {
+  it("says it was a call beside its surface", () => {
+    serve({ run: run({ modality: "voice" }) });
+    renderRun();
+    expect(screen.getByText("Voice call")).toHaveClass("sr-only");
   });
 });

@@ -15,7 +15,7 @@ import {
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { RunStatusBadge } from "@/components/agents/status-badge";
-import { SurfaceIcon, surfaceLabel } from "@/components/runs/surface-icon";
+import { ModalityBadge, SurfaceIcon, surfaceLabel } from "@/components/runs/surface-icon";
 import { RunManifest } from "@/components/runs/run-manifest";
 import { RunTimeline } from "@/components/runs/run-timeline";
 import { ProviderIcon } from "@/components/vault/provider-icon";
@@ -189,6 +189,7 @@ export function FocusedRun({
             <span className="text-muted-foreground flex items-center gap-1.5 text-sm">
               <SurfaceIcon surface={run.surface} />
               {surfaceLabel(run.surface, t)}
+              <ModalityBadge modality={run.modality} />
             </span>
             <span className="flex items-center gap-1.5 font-mono text-xs">
               {run.provider !== null && (

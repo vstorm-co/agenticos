@@ -30,6 +30,7 @@ const KNOWLEDGE: CapabilityCatalogEntry = {
   category: "knowledge",
   description: "Search the collections this agent is connected to.",
   side_effecting: false,
+  voice: true,
   scopes: ["knowledge:read"],
   tools: [
     {
@@ -54,6 +55,7 @@ const CLOCK: CapabilityCatalogEntry = {
   category: "utility",
   description: "Read the current date and time.",
   side_effecting: false,
+  voice: true,
   scopes: [],
   tools: [],
   config_schema: null,
@@ -67,6 +69,7 @@ const SEND_EMAIL: CapabilityCatalogEntry = {
   category: "action",
   description: "Send a message on the organization's behalf.",
   side_effecting: true,
+  voice: true,
   scopes: [],
   tools: [],
   config_schema: null,
@@ -85,6 +88,7 @@ const EMAIL: CapabilityCatalogEntry = {
   category: "action",
   description: "Read, draft and send mail.",
   side_effecting: true,
+  voice: true,
   scopes: [],
   tools: [
     { id: "draft_email", name: "draft_email", description: "Write a message without sending it." },

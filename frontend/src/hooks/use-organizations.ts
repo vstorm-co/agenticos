@@ -12,6 +12,7 @@ import type {
   Organization,
   OrganizationList,
   CreateOrganizationInput,
+  VoiceConversationsUpdate,
   VoiceSettingsUpdate,
 } from "@/types";
 
@@ -212,6 +213,19 @@ export function useOrganizations() {
     [writeCache, queryClient],
   );
 
+  // The voice-call settings (#54). One PATCH; the server splits the permission:
+  // monthly minutes need budgets:manage, the rest org:settings.
+  const setVoiceConversations = useCallback(
+    async (id: string, update: VoiceConversationsUpdate): Promise<Organization> => {
+      const updated = await apiClient.patch<Organization>(`/orgs/${id}`, update);
+      writeCache((prev) => prev.map((o) => (o.id === id ? updated : o)));
+      // Whether each agent can take a call reads these settings.
+      await queryClient.invalidateQueries({ queryKey: qk.voice.all() });
+      return updated;
+    },
+    [writeCache, queryClient],
+  );
+
   const deleteOrg = useCallback(
     async (id: string) => {
       try {
@@ -247,6 +261,7 @@ export function useOrganizations() {
     setMonthlyBudget,
     setChatApprovalWaiver,
     setVoiceSettings,
+    setVoiceConversations,
     deleteOrg,
     switchOrg,
   };

@@ -1155,6 +1155,16 @@ export default function AgentBuilderPage({ params }: PageProps) {
           <VoiceCard
             value={spec.speech_to_text}
             onChange={(speech_to_text) => update({ speech_to_text })}
+            conversation={{
+              value: spec.voice,
+              onChange: (voice) => update({ voice }),
+              capabilityIds: spec.capabilities
+                .filter((binding) => binding.enabled !== false)
+                .map((binding) => binding.id),
+              hasGuardrails: spec.capabilities.some(
+                (binding) => binding.id === "guardrails" && binding.enabled !== false,
+              ),
+            }}
             disabled={!canEdit}
           />
 

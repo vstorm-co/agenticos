@@ -39,6 +39,7 @@ const SANDBOX: CapabilityCatalogEntry = {
   category: "analysis",
   description: "Read, write and run things in a workspace that persists between turns.",
   side_effecting: true,
+  voice: true,
   scopes: ["sandbox:execute"],
   tools: [
     { id: "read_file", name: "read_file", description: "Read a file from the workspace." },

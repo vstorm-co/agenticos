@@ -62,6 +62,8 @@ export function useRuns(
     /** Narrows to these statuses - `failed,budget_exceeded` is "the problems". */
     statuses?: RunStatus[];
     surface?: string;
+    /** Voice calls or text runs (#54); a call is one row, however often it reconnected. */
+    modality?: "text" | "voice";
     /** The model as the run recorded it - the dashboard's bars count these. */
     modelLabel?: string;
     /** Who the run ran as. */
@@ -89,6 +91,7 @@ export function useRuns(
     rated,
     statuses,
     surface,
+    modality,
     modelLabel,
     userId,
     conversationId,
@@ -105,6 +108,7 @@ export function useRuns(
       rated,
       statuses,
       surface,
+      modality,
       modelLabel,
       userId,
       conversationId,
@@ -126,6 +130,7 @@ export function useRuns(
       if (rated) params.rated = rated;
       if (statuses && statuses.length > 0) params.status = statuses.join(",");
       if (surface) params.surface = surface;
+      if (modality) params.modality = modality;
       if (modelLabel) params.model_label = modelLabel;
       if (userId) params.user_id = userId;
       if (conversationId) params.conversation_id = conversationId;

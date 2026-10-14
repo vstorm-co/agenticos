@@ -19,6 +19,13 @@ vi.mock("@/lib/api-client", async () => {
   };
 });
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+// Its own form with its own Save, tested on its own
+// (`org-voice-conversations.integration.test.tsx`).
+vi.mock("./org-voice-conversations", () => ({
+  OrgVoiceConversations: ({ org }: { org: Organization }) => (
+    <div data-testid="org-voice-conversations">{org.id}</div>
+  ),
+}));
 
 const ORG_ID = "org-1";
 
@@ -80,6 +87,10 @@ function org(overrides: Partial<Organization> = {}): Organization {
     speech_to_text_language: null,
     dictation_max_seconds: 300,
     chat_dictation_ready: false,
+    voice_conversations_enabled: false,
+    voice_in_chat: true,
+    voice_max_call_seconds: 600,
+    voice_monthly_minutes: 600,
     created_at: "2026-07-01T00:00:00Z",
     updated_at: null,
     ...overrides,
@@ -712,14 +723,10 @@ describe("OrgVoiceSettings", () => {
     expect(screen.queryByText(/^Sent with/)).not.toBeInTheDocument();
   });
 
-  it("lists voice conversations as coming soon, with nothing to set", async () => {
+  it("holds the voice conversations section under dictation", async () => {
     await mount();
 
-    const heading = screen.getByRole("heading", { name: /Voice conversations/ });
-    expect(heading).toHaveTextContent("Coming soon");
-    const section = heading.closest("[aria-disabled]");
-    expect(section).toHaveAttribute("aria-disabled", "true");
-    expect(section?.querySelector("input, select, button")).toBeNull();
+    expect(screen.getByTestId("org-voice-conversations")).toHaveTextContent("org-1");
   });
 
   describe("transcription usage", () => {

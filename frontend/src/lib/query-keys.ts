@@ -83,6 +83,11 @@ export const qk = {
     all: () => ["dictation"] as const,
     agent: (agentId: string) => ["dictation", agentId] as const,
   },
+  voice: {
+    // Whether one agent can take a call, and the organization's call minutes (#54).
+    all: () => ["voice"] as const,
+    readiness: (agentId: string) => ["voice", "readiness", agentId] as const,
+  },
   ml: {
     // How much the organization transcribed over a window, by agent and bot.
     transcriptionUsage: (days: number) => ["ml", "transcription-usage", days] as const,
@@ -149,6 +154,7 @@ export const qk = {
     // models qualify is a rule the SDK enforces, so the server answers it.
     imageModels: () => ["providers", "image-models"] as const,
     speechToTextModels: () => ["providers", "speech-to-text-models"] as const,
+    realtimeModels: () => ["providers", "realtime-models"] as const,
   },
   secrets: {
     all: () => ["secrets"] as const,
@@ -178,6 +184,7 @@ export const qk = {
         rated?: string;
         statuses?: string[];
         surface?: string;
+        modality?: string;
         modelLabel?: string;
         userId?: string;
         conversationId?: string;
@@ -196,6 +203,7 @@ export const qk = {
         opts.rated ?? "any-rating",
         opts.statuses?.join(",") ?? "any-status",
         opts.surface ?? "any-surface",
+        opts.modality ?? "any-modality",
         opts.modelLabel ?? "any-model",
         opts.userId ?? "anyone",
         opts.agentVersionId ?? "any-version",

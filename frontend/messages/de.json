@@ -683,7 +683,32 @@
     "embedDictationServerUnavailable": "Server braucht einen Speech-to-Text-Provider mit Zugangsdaten, gewählt auf der Karte Stimme der Organisation oder dieses Agents.",
     "embedDictationServerDrift": "Für diesen Agent antwortet gerade kein Speech-to-Text-Provider, deshalb sehen Besucher kein Mikrofon, bis wieder einer antwortet.",
     "embedDictationServerUnchecked": "Server lässt sich gerade nicht prüfen: Die Speech-to-Text-Bereitschaft dieses Agents wurde nicht geladen. Laden Sie die Seite neu, um es noch einmal zu versuchen.",
-    "voiceProviderNoKey": "{name} (noch kein Schlüssel)"
+    "voiceProviderNoKey": "{name} (noch kein Schlüssel)",
+    "voiceConversationTitle": "Sprachgespräche",
+    "voiceConversationEnabled": "Sprachanrufe annehmen",
+    "voiceConversationEnabledHint": "Personen können diesen Agent anrufen und mit ihm sprechen. Wirksam, sobald der Agent veröffentlicht ist.",
+    "voiceConversationProvider": "Provider für Anrufe",
+    "voiceConversationModel": "Modell für Anrufe",
+    "voiceConversationBaseModel": "Basismodell",
+    "voiceConversationDeployment": "Name des Deployments",
+    "voiceConversationDeploymentHint": "Das Azure-OpenAI-Deployment, an das Anrufe gehen. Der Endpunkt kommt aus dem Schlüssel.",
+    "voiceConversationKeyName": "{provider} Sprachanrufe",
+    "voiceConversationVoice": "Stimme",
+    "voiceConversationVoiceHint": "Wie der Agent in Anrufen klingt.",
+    "voiceConversationVoiceDefault": "{voice} (Standard)",
+    "voiceConversationLanguage": "Gesprochene Sprache",
+    "voiceConversationLanguageHint": "Die Sprache, in der der Agent in Anrufen spricht.",
+    "voiceConversationFollowCaller": "Wie die anrufende Person",
+    "voiceConversationMaxLength": "Längster Anruf (Minuten)",
+    "voiceConversationMaxHint": "Leer verwendet das Limit der Organisation.",
+    "voiceConversationMaxInvalid": "Geben Sie 1 bis 50 Minuten ein.",
+    "voiceConversationMaxOverOrg": "{minutes, plural, one {Höchstens # Minute in dieser Organisation.} other {Höchstens # Minuten in dieser Organisation.}}",
+    "voiceConversationNote": "Hinweis zur Stimme",
+    "voiceConversationNoteHint": "Wird in Anrufen nach dem eingebauten Sprechstil an die Anweisungen des Agents angehängt.",
+    "voiceConversationUnavailable": "In Anrufen nicht verfügbar",
+    "voiceConversationGuardrails": "Guardrails prüfen Transkripte während eines Anrufs und unterbrechen den Agent bei einem Treffer, aber gesprochene Worte lassen sich nicht filtern, bevor sie zu hören sind. Tool-Aufrufe werden weiterhin blockiert, bevor sie laufen.",
+    "voiceConversationRecorded": "Anrufe werden als Text in der Unterhaltung festgehalten. Es wird kein Audio gespeichert.",
+    "voiceConversationCatalogFailed": "Die Liste der Sprachmodelle konnte nicht geladen werden, daher lassen sich Anrufe hier nicht einschalten. Laden Sie die Seite neu, um es erneut zu versuchen."
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -1343,6 +1368,117 @@
         "noAgentBody": "Ein Diktat wird für den Agent transkribiert, mit dem diese Unterhaltung geführt wird.",
         "noKeyTitle": "Diktieren braucht einen Schlüssel.",
         "noKeyBody": "Ein Speech-to-Text-Modell ist gewählt, aber kein Schlüssel für seinen Provider."
+      }
+    },
+    "voice": {
+      "start": "Sprachanruf starten",
+      "canSetUp": "Sie können das in den Einstellungen unter „Stimme“ einrichten.",
+      "unavailable": {
+        "orgOff": {
+          "title": "Sprachanrufe sind in dieser Organisation ausgeschaltet",
+          "body": "Ein Admin schaltet sie in den Einstellungen der Organisation unter „Stimme“ ein."
+        },
+        "notInChat": {
+          "title": "Sprachanrufe sind im Chat ausgeschaltet",
+          "body": "Diese Organisation bietet Anrufe nur im Widget oder auf der gehosteten Seite an."
+        },
+        "noVoice": {
+          "title": "Für diesen Agent ist keine Stimme eingerichtet",
+          "body": "Seine Karte „Stimme“ hat kein Modell für Sprachgespräche."
+        },
+        "notOffered": {
+          "title": "Das Sprachmodell dieses Agents wird nicht mehr angeboten",
+          "body": "Wählen Sie auf seiner Karte „Stimme“ ein anderes Modell."
+        },
+        "noKey": {
+          "title": "Die Stimme dieses Agents hat keinen Schlüssel",
+          "body": "Wählen Sie auf seiner Karte „Stimme“ einen Schlüssel."
+        },
+        "minutesExhausted": {
+          "title": "Diesen Monat sind keine Anrufminuten mehr übrig",
+          "body": "Ein Admin kann die monatlichen Minuten erhöhen."
+        },
+        "checking": {
+          "title": "Es wird geprüft, ob dieser Agent einen Anruf annehmen kann",
+          "body": "Das dauert einen Moment."
+        },
+        "unchecked": {
+          "title": "Es konnte nicht geprüft werden, ob dieser Agent einen Anruf annehmen kann",
+          "body": "Laden Sie die Seite neu, um es erneut zu versuchen."
+        }
+      },
+      "approval": {
+        "title": "{tool} genehmigen?",
+        "youSaid": "Sie sagten: <q>{said}</q>",
+        "countdown": "Verbleibende Zeit für die Entscheidung",
+        "deniedIn": "{seconds, plural, =1 {Automatisch abgelehnt in 1 s} other {Automatisch abgelehnt in # s}}",
+        "approve": "Genehmigen",
+        "deny": "Ablehnen",
+        "notByVoice": "Ein gesprochenes Ja genehmigt nichts.",
+        "unavailable": "{tool} braucht eine Genehmigung, die Sie per Stimme nicht erteilen können. Fragen Sie im Text-Chat, wo die Anfrage auf jemanden warten kann, der sie genehmigen darf.",
+        "dismiss": "Schließen"
+      },
+      "captions": {
+        "you": "Sie: {text}",
+        "agent": "{agent}: {text}"
+      },
+      "controls": {
+        "mute": "Stummschalten",
+        "unmute": "Stummschaltung aufheben",
+        "hold": "Zum Sprechen halten",
+        "pushToTalk": "Push-to-Talk",
+        "end": "Anruf beenden"
+      },
+      "state": {
+        "connecting": "Verbindung wird hergestellt…",
+        "listening": "Hört zu",
+        "user": "Sie sprechen",
+        "thinking": "Denkt nach…",
+        "agent": "{agent} spricht",
+        "interrupted": "Unterbrochen",
+        "tool": "Arbeitet…",
+        "approval": "Wartet auf Ihre Genehmigung",
+        "noapproval": "Dafür ist eine Genehmigung nötig, die Sie nicht erteilen können",
+        "limitwarn": "Die Zeit ist fast um",
+        "limitend": "Anruf durch ein Limit beendet",
+        "ended": "Anruf beendet",
+        "micblocked": "Das Mikrofon ist blockiert",
+        "connfailed": "Der Anruf konnte nicht verbunden werden",
+        "reconnecting": "Verbindung wird wiederhergestellt…",
+        "dropped": "Anruf abgebrochen"
+      },
+      "minutesLeft": "{minutes, plural, other {Noch # Min. diesen Monat}}",
+      "callAgain": "Erneut anrufen",
+      "notice": {
+        "limitWarning": "{seconds, plural, =60 {Noch 1 Minute in diesem Anruf} other {Noch # Sekunden in diesem Anruf}}",
+        "guardrail": "Ein Guardrail hat den Agent unterbrochen.",
+        "providerError": "Der Sprachanbieter hat einen Fehler gemeldet.",
+        "timeLimit": "Der Anruf hat sein Zeitlimit erreicht und wird beendet.",
+        "budget": "Das Budget ist aufgebraucht. Der Anruf wird beendet.",
+        "minutes": "Die Anrufminuten dieses Monats sind aufgebraucht. Der Anruf wird beendet."
+      },
+      "ended": {
+        "timeLimit": "Der Anruf wurde beendet: Das Zeitlimit ist erreicht",
+        "budget": "Der Anruf wurde beendet: Das Budget ist aufgebraucht",
+        "minutes": "Der Anruf wurde beendet: Die Anrufminuten dieses Monats sind aufgebraucht",
+        "revoked": "Der Anruf wurde beendet: Ihr Zugriff hat sich geändert",
+        "guardrail": "Der Anruf wurde beendet: Ein Guardrail hat ihn gestoppt",
+        "shutdown": "Der Anruf wurde beendet: Der Server wurde neu gestartet",
+        "voiceOff": "Sprachanrufe sind hier ausgeschaltet",
+        "busy": "Sie führen bereits einen Anruf",
+        "forbidden": "Dieser Agent kann Ihren Anruf nicht annehmen",
+        "notConfigured": "Dieser Agent ist nicht für Anrufe eingerichtet",
+        "notPriced": "Der Preis dieses Modells ist unbekannt, daher sind Anrufe aus",
+        "resumeRefused": "Der Anruf konnte nicht fortgesetzt werden",
+        "generic": "Der Anruf wurde beendet"
+      },
+      "failure": {
+        "micInsecure": "Diese Seite kann kein Mikrofon verwenden. Öffnen Sie sie über HTTPS.",
+        "micDenied": "Erlauben Sie dieser Seite das Mikrofon im Browser und rufen Sie dann erneut an.",
+        "micNotFound": "Es wurde kein Mikrofon gefunden. Schließen Sie eines an und rufen Sie dann erneut an.",
+        "micBusy": "Das Mikrofon konnte nicht starten. Vielleicht verwendet es eine andere App.",
+        "connectionFailed": "Prüfen Sie Ihre Verbindung und rufen Sie dann erneut an.",
+        "dropped": "Die Verbindung wurde unterbrochen und konnte nicht wiederhergestellt werden."
       }
     }
   },
@@ -4209,7 +4345,13 @@
       "whatYourAgentsDid2": "Was Ihre Agents getan haben, was es gekostet hat und was auf einen Menschen wartet.",
       "whereTheMoneyWent": "Wohin das Geld geflossen ist",
       "whoIsSpendingCouldNotBeRead": "Wer ausgibt, konnte nicht gelesen werden.",
-      "widenTheWindowAbove": "Im Zeitraum oben lief nichts. Weiten Sie ihn, oder führen Sie einen Agent aus."
+      "widenTheWindowAbove": "Im Zeitraum oben lief nichts. Weiten Sie ihn, oder führen Sie einen Agent aus.",
+      "modalityVoice": "Sprachanruf",
+      "modalityFilter": "Nach Art filtern",
+      "anyModality": "Jede Art",
+      "modalityText": "Text",
+      "modalityVoiceCalls": "Sprachanrufe",
+      "reconnected": "{count, plural, one {Einmal neu verbunden} other {# Mal neu verbunden}}"
     },
     "sandboxes": {
       "addConnection": "Verbindung hinzufügen",
@@ -5045,9 +5187,25 @@
       "saved": "Spracheinstellungen gespeichert",
       "conversationsTitle": "Sprachgespräche",
       "conversationsDescription": "Mit einem Agent sprechen und die Antwort hören.",
-      "comingSoon": "Demnächst",
       "providerNoKey": "{name} (noch kein Schlüssel)",
-      "notReadyNoKey": "Für {provider} ist kein Schlüssel gewählt. Mitglieder sehen ein durchgestrichenes Mikrofon, bis du unten einen wählst oder die Engine wechselst."
+      "notReadyNoKey": "Für {provider} ist kein Schlüssel gewählt. Mitglieder sehen ein durchgestrichenes Mikrofon, bis du unten einen wählst oder die Engine wechselst.",
+      "conversations": {
+        "enabled": "Sprachgespräche erlauben",
+        "enabledHint": "Mitglieder können Agents anrufen, für die eine Stimme eingerichtet ist. Standardmäßig aus.",
+        "inChat": "Anrufe im Chat anbieten",
+        "inChatHint": "Widget und gehostete Seite werden pro Embed eingeschaltet.",
+        "maxLength": "Längster Anruf (Minuten)",
+        "maxHint": "1 bis 50 Minuten. Ein Agent kann ein kürzeres Limit festlegen.",
+        "maxInvalid": "Geben Sie 1 bis 50 Minuten ein.",
+        "monthly": "Monatliche Anrufminuten",
+        "monthlyHint": "Jeder Anruf in der Organisation zählt, ab der ersten Sekunde.",
+        "monthlyInvalid": "Geben Sie eine ganze Zahl von Minuten über 0 ein.",
+        "monthlyNone": "Kein monatliches Limit (nur Budgets)",
+        "monthlyReadOnly": "{minutes, plural, one {# Anrufminute pro Monat} other {# Anrufminuten pro Monat}}",
+        "monthlyUnlimited": "Kein monatliches Limit",
+        "budgetsNote": "Anrufe zählen auch gegen das Budget der Organisation und jedes Agents.",
+        "saved": "Einstellungen für Sprachgespräche gespeichert"
+      }
     }
   },
   "theme": {
@@ -5188,7 +5346,8 @@
       "none": "Im Vault gibt es noch keine Schlüssel für {provider}. Füge unten einen hinzu.",
       "noneOrg": "Im Vault gibt es noch keine organisationsweiten Schlüssel für {provider}. Füge unten einen hinzu oder teile einen vorhandenen mit der ganzen Organisation.",
       "cannotList": "Du kannst die Schlüssel im Vault nicht auflisten, daher kann hier kein Schlüssel gewählt werden. Frag jemanden, der Verbindungen verwaltet.",
-      "suggestedName": "{provider} Spracherkennung"
+      "suggestedName": "{provider} Spracherkennung",
+      "noneInVault": "Im Vault gibt es noch keine {provider}-Schlüssel. Fügen Sie einen im Vault hinzu und wählen Sie ihn dann hier."
     }
   },
   "context": {

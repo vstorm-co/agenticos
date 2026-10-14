@@ -687,7 +687,32 @@
     "embedDictationServerUnavailable": "Server needs a speech-to-text provider with a credential, chosen on the organization's Voice card or on this agent's.",
     "embedDictationServerDrift": "No speech-to-text provider answers for this agent right now, so visitors see no microphone until one does.",
     "embedDictationServerUnchecked": "Server can't be checked right now: this agent's speech-to-text readiness didn't load. Reload the page to try again.",
-    "voiceProviderNoKey": "{name} (no key yet)"
+    "voiceProviderNoKey": "{name} (no key yet)",
+    "voiceConversationTitle": "Voice conversations",
+    "voiceConversationEnabled": "Take voice calls",
+    "voiceConversationEnabledHint": "People can call this agent and talk to it. Takes effect when the agent is published.",
+    "voiceConversationProvider": "Call provider",
+    "voiceConversationModel": "Call model",
+    "voiceConversationBaseModel": "Base model",
+    "voiceConversationDeployment": "Deployment name",
+    "voiceConversationDeploymentHint": "The Azure OpenAI deployment calls go to. The endpoint comes from the key.",
+    "voiceConversationKeyName": "{provider} voice calls",
+    "voiceConversationVoice": "Voice",
+    "voiceConversationVoiceHint": "How the agent sounds in calls.",
+    "voiceConversationVoiceDefault": "{voice} (default)",
+    "voiceConversationLanguage": "Spoken language",
+    "voiceConversationLanguageHint": "The language the agent speaks in calls.",
+    "voiceConversationFollowCaller": "Follow the caller",
+    "voiceConversationMaxLength": "Longest call (minutes)",
+    "voiceConversationMaxHint": "Empty uses the organization's limit.",
+    "voiceConversationMaxInvalid": "Enter between 1 and 50 minutes.",
+    "voiceConversationMaxOverOrg": "{minutes, plural, one {At most # minute in this organization.} other {At most # minutes in this organization.}}",
+    "voiceConversationNote": "Voice note",
+    "voiceConversationNoteHint": "Added to the agent's instructions in calls, after the built-in spoken style.",
+    "voiceConversationUnavailable": "Not available in calls",
+    "voiceConversationGuardrails": "Guardrails check transcripts during a call and cut the agent off on a hit, but spoken words cannot be filtered before they are heard. Tool calls are still blocked before they run.",
+    "voiceConversationRecorded": "Calls are recorded as text in the conversation. No audio is kept.",
+    "voiceConversationCatalogFailed": "The list of voice models could not be loaded, so calls cannot be turned on here. Reload the page to try again."
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -1357,6 +1382,117 @@
         "noAgentBody": "A dictation is transcribed for the agent this conversation talks to.",
         "noKeyTitle": "Dictation needs a key.",
         "noKeyBody": "A speech-to-text model is chosen, but no key for its provider."
+      }
+    },
+    "voice": {
+      "start": "Start a voice call",
+      "canSetUp": "You can set this up in Voice settings.",
+      "unavailable": {
+        "orgOff": {
+          "title": "Voice calls are off in this organization",
+          "body": "An admin turns them on in the organization's Voice settings."
+        },
+        "notInChat": {
+          "title": "Voice calls are off in chat",
+          "body": "This organization offers calls only on its widget or hosted page."
+        },
+        "noVoice": {
+          "title": "This agent has no voice set up",
+          "body": "Its Voice card has no voice conversation model."
+        },
+        "notOffered": {
+          "title": "This agent's voice model is no longer offered",
+          "body": "Choose another model on its Voice card."
+        },
+        "noKey": {
+          "title": "This agent's voice has no key",
+          "body": "Choose a key on its Voice card."
+        },
+        "minutesExhausted": {
+          "title": "No call minutes left this month",
+          "body": "An admin can raise the monthly minutes."
+        },
+        "checking": {
+          "title": "Checking whether this agent can take a call",
+          "body": "This takes a moment."
+        },
+        "unchecked": {
+          "title": "Could not check whether this agent can take a call",
+          "body": "Reload the page to try again."
+        }
+      },
+      "approval": {
+        "title": "Approve {tool}?",
+        "youSaid": "You said: <q>{said}</q>",
+        "countdown": "Time left to decide",
+        "deniedIn": "{seconds, plural, =1 {Denied automatically in 1 s} other {Denied automatically in # s}}",
+        "approve": "Approve",
+        "deny": "Deny",
+        "notByVoice": "Saying yes does not approve it.",
+        "unavailable": "{tool} needs an approval you cannot give by voice. Ask in text chat, where the request can wait for someone who can approve it.",
+        "dismiss": "Dismiss"
+      },
+      "captions": {
+        "you": "You: {text}",
+        "agent": "{agent}: {text}"
+      },
+      "controls": {
+        "mute": "Mute",
+        "unmute": "Unmute",
+        "hold": "Hold to talk",
+        "pushToTalk": "Push to talk",
+        "end": "End call"
+      },
+      "state": {
+        "connecting": "Connecting…",
+        "listening": "Listening",
+        "user": "You're speaking",
+        "thinking": "Thinking…",
+        "agent": "{agent} is speaking",
+        "interrupted": "Interrupted",
+        "tool": "Working…",
+        "approval": "Waiting for your approval",
+        "noapproval": "This needs an approval you can't give",
+        "limitwarn": "Almost out of time",
+        "limitend": "Call ended by a limit",
+        "ended": "Call ended",
+        "micblocked": "The microphone is blocked",
+        "connfailed": "The call could not connect",
+        "reconnecting": "Reconnecting…",
+        "dropped": "Call dropped"
+      },
+      "minutesLeft": "{minutes, plural, other {# min left this month}}",
+      "callAgain": "Call again",
+      "notice": {
+        "limitWarning": "{seconds, plural, =60 {1 minute left in this call} other {# seconds left in this call}}",
+        "guardrail": "A guardrail cut the agent off.",
+        "providerError": "The voice provider reported an error.",
+        "timeLimit": "This call has reached its time limit. The call is ending.",
+        "budget": "The budget has run out. The call is ending.",
+        "minutes": "This month's call minutes are used up. The call is ending."
+      },
+      "ended": {
+        "timeLimit": "The call ended: it reached its time limit",
+        "budget": "The call ended: the budget ran out",
+        "minutes": "The call ended: this month's call minutes are used up",
+        "revoked": "The call ended: your access changed",
+        "guardrail": "The call ended: a guardrail stopped it",
+        "shutdown": "The call ended: the server restarted",
+        "voiceOff": "Voice calls are switched off here",
+        "busy": "You're already on a call",
+        "forbidden": "This agent can't take your call",
+        "notConfigured": "This agent isn't set up for calls",
+        "notPriced": "This model's price is unknown, so calls are off",
+        "resumeRefused": "The call couldn't be resumed",
+        "generic": "The call ended"
+      },
+      "failure": {
+        "micInsecure": "This page can't use a microphone. Open it over HTTPS.",
+        "micDenied": "Allow the microphone for this site in your browser, then call again.",
+        "micNotFound": "No microphone was found. Connect one, then call again.",
+        "micBusy": "The microphone could not start. Another app may be using it.",
+        "connectionFailed": "Check your connection, then call again.",
+        "dropped": "The connection was lost and could not be restored."
       }
     }
   },
@@ -4350,7 +4486,13 @@
       "whatYourAgentsDid2": "What your agents did, what it cost, and what is waiting on a person.",
       "whereTheMoneyWent": "Where the money went",
       "whoIsSpendingCouldNotBeRead": "Who is spending could not be read.",
-      "widenTheWindowAbove": "Nothing ran in the window above. Widen it, or run an agent."
+      "widenTheWindowAbove": "Nothing ran in the window above. Widen it, or run an agent.",
+      "modalityVoice": "Voice call",
+      "modalityFilter": "Filter by kind",
+      "anyModality": "Any kind",
+      "modalityText": "Text",
+      "modalityVoiceCalls": "Voice calls",
+      "reconnected": "{count, plural, one {Reconnected once} other {Reconnected # times}}"
     },
     "sandboxes": {
       "addConnection": "Add connection",
@@ -5186,9 +5328,25 @@
       "saved": "Voice settings saved",
       "conversationsTitle": "Voice conversations",
       "conversationsDescription": "Talk to an agent and hear it answer.",
-      "comingSoon": "Coming soon",
       "providerNoKey": "{name} (no key yet)",
-      "notReadyNoKey": "No key is chosen for {provider}. Members see a crossed-out microphone until you choose one below or switch the engine."
+      "notReadyNoKey": "No key is chosen for {provider}. Members see a crossed-out microphone until you choose one below or switch the engine.",
+      "conversations": {
+        "enabled": "Allow voice conversations",
+        "enabledHint": "Members can call agents that have a voice set up. Off by default.",
+        "inChat": "Offer calls in chat",
+        "inChatHint": "The widget and the hosted page are switched on per embed.",
+        "maxLength": "Longest call (minutes)",
+        "maxHint": "1 to 50 minutes. An agent can set a shorter limit.",
+        "maxInvalid": "Enter between 1 and 50 minutes.",
+        "monthly": "Monthly call minutes",
+        "monthlyHint": "Every call in the organization counts, from the first second.",
+        "monthlyInvalid": "Enter a whole number of minutes above 0.",
+        "monthlyNone": "No monthly limit (budgets only)",
+        "monthlyReadOnly": "{minutes, plural, one {# call minute a month} other {# call minutes a month}}",
+        "monthlyUnlimited": "No monthly limit",
+        "budgetsNote": "Calls also count against the organization's and each agent's budget.",
+        "saved": "Voice conversation settings saved"
+      }
     }
   },
   "theme": {
@@ -5329,7 +5487,8 @@
       "none": "No {provider} keys in the vault yet. Add one below.",
       "noneOrg": "No organization-wide {provider} keys in the vault yet. Add one below, or share an existing one with the whole organization.",
       "cannotList": "You cannot list the vault's keys, so a key cannot be chosen here. Ask someone who manages connections.",
-      "suggestedName": "{provider} speech to text"
+      "suggestedName": "{provider} speech to text",
+      "noneInVault": "No {provider} keys in the vault yet. Add one in the vault, then choose it here."
     }
   },
   "context": {

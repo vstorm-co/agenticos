@@ -35,6 +35,7 @@ const WEATHER: CapabilityCatalogEntry = {
   category: "utility",
   description: "Read the forecast for a place.",
   side_effecting: false,
+  voice: true,
   scopes: [],
   tools: [{ id: "forecast", name: "forecast", description: "Read the forecast for a place." }],
   config_schema: null,

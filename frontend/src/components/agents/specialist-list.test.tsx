@@ -44,6 +44,7 @@ const CHARTS: CapabilityCatalogEntry = {
   category: "analysis",
   description: "Draw a chart so the user can see the numbers.",
   side_effecting: false,
+  voice: true,
   scopes: [],
   tools: [{ id: "create_chart", name: "create_chart", description: "Draw a chart." }],
   contracts: [],
