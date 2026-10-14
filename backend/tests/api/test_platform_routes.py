@@ -1267,6 +1267,7 @@ class TestStatsScopeIsDecidedInTheService:
                 ),
             ),
             ("window_totals", (0, Decimal(0))),
+            ("runs_by_bin", []),
             (
                 "window_breakdown",
                 WindowBreakdown(
