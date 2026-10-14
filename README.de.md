@@ -1,4 +1,4 @@
-<!-- source_sha: b2a0655fe91b -->
+<!-- source_sha: 1289e3fc240f -->
 
 <div align="center">
 
@@ -54,20 +54,49 @@ AgenticOS gibt jedem Team KI-Teammates: Agents, die mit Dateien arbeiten, Code a
 
 ## ⚡ Highlights
 
-<table>
-<tr>
-<td width="50%"><a href="docs/assets/readme/highlight-subagents.webp"><img src="docs/assets/readme/highlight-subagents.webp" alt="Das Briefing eines Chief-of-Staff-Agents für eine Vorstandssitzung, aus den Antworten von Support Desk und Sales Researcher, mit beiden Agents darunter genannt"></a><br><b>Agents, die als Team arbeiten.</b> Ein führender Agent gibt Teile einer Aufgabe an Kollegen weiter und fasst zusammen, was sie gefunden haben - du siehst, wen er gefragt hat und was jeder gesagt hat.</td>
-<td width="50%"><a href="docs/assets/readme/highlight-browser.webp"><img src="docs/assets/readme/highlight-browser.webp" alt="Ein Sales Researcher liest die Release-Seite von Pydantic AI in einem Live-Browser neben dem Chat, mit einem Take-over-Knopf"></a><br><b>Ein echter Browser, neben dem Chat.</b> Sieh zu, wie er sich durch Seiten klickt, übernimm, wenn eine Anmeldung dich braucht, zeig auf eine Stelle, um sie zu kommentieren.</td>
-</tr>
-<tr>
-<td><a href="docs/assets/screens/light/app-detail.webp"><img src="docs/assets/screens/light/app-detail.webp" alt="Ein Umsatz-Dashboard, das ein Agent aus einer CSV gebaut und als App veröffentlicht hat"></a><br><b>Apps, nicht nur Antworten.</b> Ein Agent veröffentlicht ein Dashboard oder einen Bericht als Seite mit festem Link und Versionen.</td>
-<td><a href="docs/assets/readme/highlight-builder-test.webp"><img src="docs/assets/readme/highlight-builder-test.webp" alt="Der Finance Analyst im Agent-Builder, links die Anweisungen, rechts antwortet ein Test-Chat"></a><br><b>Bauen und testen in einem Fenster.</b> Schreib die Anweisungen, schalte Werkzeuge ein und probiere den Entwurf in einem Chat neben dem Formular aus, bevor ihn jemand anderes sieht.</td>
-</tr>
-<tr>
-<td><a href="docs/assets/screens/light/mcp-servers.webp"><img src="docs/assets/screens/light/mcp-servers.webp" alt="Die MCP-Server-Galerie mit verbundenen Servern und ihrer Anmeldeart"></a><br><b>Über 4.700 MCP-Server.</b> Verbinde Notion, GitHub, Jira oder deinen eigenen Server und wähle, welche Werkzeuge jeder Agent nutzen darf. AgenticOS ist selbst auch ein MCP-Server - für Claude Code, Codex oder Cursor.</td>
-<td><a href="docs/assets/readme/highlight-api.webp"><img src="docs/assets/readme/highlight-api.webp" alt="API-Einstellungen mit der Basis-URL, einem Link zu jedem Endpoint und zwei Schlüsseln, beschränkt auf das, was sie dürfen"></a><br><b>Eine API für alles.</b> Agents starten, Runs und Kosten lesen, Wissensdatenbanken befüllen - mit Schlüsseln, die auf das beschränkt sind, was jedes Skript darf.</td>
-</tr>
-</table>
+### Dein Tag auf einem Bildschirm
+
+Die Konsole öffnet mit dem, was deine Agents getan haben, den Entscheidungen, die auf dich warten, und den Unterhaltungen zum Weitermachen - samt einer Tour durch das, was leicht zu übersehen ist.
+
+<a href="docs/assets/readme/highlight-dashboard.webp"><img src="docs/assets/readme/highlight-dashboard.webp" alt="Der Me-Tab des Dashboards: eine Begrüßung, eine Einstiegs-Checkliste, ein Karussell mit isometrischen Illustrationen, Runs, Abschlussquote und Kosten des Zeitraums, wartende Entscheidungen und Unterhaltungen zum Fortsetzen" width="100%"></a>
+
+### Agents, die als Team arbeiten
+
+Ein führender Agent gibt Teile einer Aufgabe an Kollegen weiter und fasst zusammen, was sie gefunden haben - du siehst, wen er gefragt hat und was jeder gesagt hat.
+
+<a href="docs/assets/readme/highlight-subagents.webp"><img src="docs/assets/readme/highlight-subagents.webp" alt="Das Briefing eines Chief-of-Staff-Agents für eine Vorstandssitzung, aus den Antworten von Support Desk und Sales Researcher, mit beiden Agents darunter genannt" width="100%"></a>
+
+### Ein echter Browser, neben dem Chat
+
+Sieh zu, wie er sich durch Seiten klickt, übernimm, wenn eine Anmeldung dich braucht, zeig auf eine Stelle, um sie zu kommentieren.
+
+<a href="docs/assets/readme/highlight-browser.webp"><img src="docs/assets/readme/highlight-browser.webp" alt="Ein Sales Researcher liest die Release-Seite von Pydantic AI in einem Live-Browser neben dem Chat, mit einem Take-over-Knopf" width="100%"></a>
+
+### Bauen, ausstatten und testen in einem Fenster
+
+Schalte Tools über illustrierte Karten ein und gib dem Entwurf im Test-Chat daneben eine echte Aufgabe - hier zeichnet er den Umsatz eines Quartals gegen die Kosten und liest die Marge ab, bevor jemand anderes den Agent sieht.
+
+<a href="docs/assets/readme/highlight-builder-test.webp"><img src="docs/assets/readme/highlight-builder-test.webp" alt="Die Toolbox des Finance Analyst mit isometrischen Capability-Karten und sein Test-Chat, der Umsatz gegen Kosten im dritten Quartal zeichnet" width="100%"></a>
+
+### Apps, nicht nur Antworten
+
+Ein Agent veröffentlicht ein Dashboard oder einen Bericht als Seite mit festem Link und Versionen.
+
+<a href="docs/assets/screens/light/app-detail.webp"><img src="docs/assets/screens/light/app-detail.webp" alt="Ein Umsatz-Dashboard, das ein Agent aus einer CSV gebaut und als App veröffentlicht hat" width="100%"></a>
+
+### Über 4.700 MCP-Server
+
+Verbinde Notion, GitHub, Jira oder deinen eigenen Server und wähle, welche Werkzeuge jeder Agent nutzen darf. AgenticOS ist selbst auch ein MCP-Server - für Claude Code, Codex oder Cursor.
+
+<a href="docs/assets/screens/light/mcp-servers.webp"><img src="docs/assets/screens/light/mcp-servers.webp" alt="Die MCP-Server-Galerie mit verbundenen Servern und ihrer Anmeldeart" width="100%"></a>
+
+### Eine API für alles
+
+Agents starten, Runs und Kosten lesen, Wissensdatenbanken befüllen - mit Schlüsseln, die auf das beschränkt sind, was jedes Skript darf.
+
+<a href="docs/assets/readme/highlight-api.webp"><img src="docs/assets/readme/highlight-api.webp" alt="API-Einstellungen mit der Basis-URL, einem Link zu jedem Endpoint und zwei Schlüsseln, beschränkt auf das, was sie dürfen" width="100%"></a>
+
+<p align="center"><sub>Aufgenommen in einer Testinstallation. Die Zahlen sind Testdatensätze, keine Benchmarks.</sub></p>
 
 ## 📸 AgenticOS in Aktion
 
@@ -79,26 +108,6 @@ AgenticOS gibt jedem Team KI-Teammates: Agents, die mit Dateien arbeiten, Code a
 
 <p align="center"><sub><b>Briefing → Recherche → gemeinsames Ergebnis.</b> Ein aufgezeichneter Run: Ein Agent liest ein Kampagnen-Briefing in Notion, untersucht Repositories auf GitHub und veröffentlicht einen interaktiven Planer. <a href="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512">Ansehen (37 s)</a></sub></p>
 
-<table>
-<tr>
-<td width="50%"><a href="docs/assets/screens/light/agent-builder.webp"><img src="docs/assets/screens/light/agent-builder.webp" alt="Agent Builder mit Anweisungen, Modellauswahl und einer veröffentlichten Version"></a><br><b>Im Browser erstellen.</b> Anweisungen, Modell und Werkzeuge; Versionen veröffentlichen.</td>
-<td width="50%"><a href="docs/assets/screens/light/chat.webp"><img src="docs/assets/screens/light/chat.webp" alt="Eine Umsatz-CSV, im Chat analysiert und als Dashboard-App veröffentlicht"></a><br><b>Mit Dateien und Code arbeiten.</b> Eine CSV hinein, ein Diagramm und Erkenntnisse heraus.</td>
-</tr>
-<tr>
-<td><a href="docs/assets/screens/light/skills.webp"><img src="docs/assets/screens/light/skills.webp" alt="Skills-Bibliothek mit Kategorie, Zielgruppe und den Agenten, die jeden Skill nutzen"></a><br><b>Die Arbeitsweise des Teams vermitteln.</b> Skills einmal schreiben, von jedem Agenten nutzen.</td>
-<td><a href="docs/assets/screens/light/knowledge-collection.webp"><img src="docs/assets/screens/light/knowledge-collection.webp" alt="Eine Wissensdatenbank mit indexierten Dokumenten, Parser und Status"></a><br><b>Aus deinen Dokumenten antworten.</b> Hochladen oder synchronisieren, dann zitieren.</td>
-</tr>
-<tr>
-<td><a href="docs/assets/screens/light/app-detail.webp"><img src="docs/assets/screens/light/app-detail.webp" alt="Ein Umsatz-Dashboard, das ein Agent aus einer CSV gebaut und als App veröffentlicht hat"></a><br><b>Ergebnisse als Seiten veröffentlichen.</b> Feste Links und Versionen. Demodaten.</td>
-<td><a href="docs/assets/screens/light/dashboard.webp"><img src="docs/assets/screens/light/dashboard.webp" alt="Dashboard mit Nutzungssummen, erfassten Ausgaben, Run-Verlauf und Ergebnissen"></a><br><b>Nutzung und Ausgaben sehen.</b> Runs, Ergebnisse und Budgets in einer Ansicht.</td>
-</tr>
-<tr>
-<td><a href="docs/assets/screens/light/agents.webp"><img src="docs/assets/screens/light/agents.webp" alt="Agentenkatalog mit veröffentlichten Agenten, ihren Kategorien und ihrer Sichtbarkeit"></a><br><b>Ein Katalog von Agenten.</b> Privat, mit einer Gruppe geteilt oder unternehmensweit.</td>
-<td><a href="docs/assets/screens/light/groups.webp"><img src="docs/assets/screens/light/groups.webp" alt="Organisationsgruppen Engineering, Finance, Marketing, Operations, Sales und Support"></a><br><b>Zugriff folgt deiner Organisation.</b> Rollen, Gruppen und Unternehmensanmeldung.</td>
-</tr>
-</table>
-
-<p align="center"><sub>Aufgenommen in einer Testinstallation. Die Zahlen sind Testdatensätze, keine Benchmarks.</sub></p>
 
 ## 💡 Was ist AgenticOS?
 
@@ -434,3 +443,9 @@ Docker Compose auf einem Host. Eine Maschine mit 4 vCPU und 8 GB RAM reicht, und
 Vstorm stellt AgenticOS in der Infrastruktur von Kunden bereit, schreibt die Dokumentation, definiert die Prozesse und baut eigene Capabilities. Wartung und Support werden pro Auftrag vereinbart.
 
 Mit Sorgfalt gebaut von [**Vstorm**](https://vstorm.co) · [Vstorm on GitHub](https://github.com/vstorm-co)
+
+## 👥 Mitwirkende
+
+Alle, die AgenticOS mit aufgebaut haben:
+
+<a href="https://github.com/vstorm-co/agenticos/graphs/contributors"><img src="https://contrib.rocks/image?repo=vstorm-co/agenticos" alt="Avatare aller, die zu AgenticOS beigetragen haben"></a>

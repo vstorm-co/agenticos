@@ -52,20 +52,49 @@ AgenticOS gives every team AI teammates: agents that work with files, run code, 
 
 ## ⚡ Highlights
 
-<table>
-<tr>
-<td width="50%"><a href="docs/assets/readme/highlight-subagents.webp"><img src="docs/assets/readme/highlight-subagents.webp" alt="A Chief of Staff agent's brief for a board call, written from what Support Desk and Sales Researcher answered, with the two agents named under it"></a><br><b>Agents that work as a team.</b> A lead agent hands parts of a task to colleagues and writes up what they found - you see who it asked, and what each said.</td>
-<td width="50%"><a href="docs/assets/readme/highlight-browser.webp"><img src="docs/assets/readme/highlight-browser.webp" alt="A Sales Researcher reading the Pydantic AI releases page in a live browser beside the chat, with a Take over button"></a><br><b>A real browser, beside the chat.</b> Watch it click through sites, take over when a sign-in needs you, point at a spot to comment.</td>
-</tr>
-<tr>
-<td><a href="docs/assets/screens/light/app-detail.webp"><img src="docs/assets/screens/light/app-detail.webp" alt="A revenue dashboard an agent built from a CSV and published as an app"></a><br><b>Apps, not just answers.</b> An agent publishes a dashboard or a report as a page with a stable link and versions.</td>
-<td><a href="docs/assets/readme/highlight-builder-test.webp"><img src="docs/assets/readme/highlight-builder-test.webp" alt="The Finance Analyst in the agent builder, its instructions on the left and a test chat answering on the right"></a><br><b>Build and test in one window.</b> Write the instructions, switch on tools, and try the draft in a chat beside the form before anyone else sees it.</td>
-</tr>
-<tr>
-<td><a href="docs/assets/screens/light/mcp-servers.webp"><img src="docs/assets/screens/light/mcp-servers.webp" alt="The MCP server gallery with connected servers and their sign-in method"></a><br><b>4,700+ MCP servers.</b> Connect Notion, GitHub, Jira or your own server, and choose which tools each agent may call. AgenticOS is an MCP server too - for Claude Code, Codex or Cursor.</td>
-<td><a href="docs/assets/readme/highlight-api.webp"><img src="docs/assets/readme/highlight-api.webp" alt="API settings with the base URL, a link to every endpoint and two keys narrowed to what they may do"></a><br><b>An API for everything.</b> Run agents, read runs and costs, fill knowledge bases - with keys narrowed to what each script may do.</td>
-</tr>
-</table>
+### Your day, on one screen
+
+Open the console to what your agents did, the calls waiting on you and the conversations to pick up again - with a tour of what they can do that is easy to miss.
+
+<a href="docs/assets/readme/highlight-dashboard.webp"><img src="docs/assets/readme/highlight-dashboard.webp" alt="The Me tab of the dashboard: a greeting, a getting-started checklist, a carousel of features with isometric illustrations, this period's runs, completion and spend, the decisions waiting and conversations to continue" width="100%"></a>
+
+### Agents that work as a team
+
+A lead agent hands parts of a task to colleagues and writes up what they found - you see who it asked, and what each said.
+
+<a href="docs/assets/readme/highlight-subagents.webp"><img src="docs/assets/readme/highlight-subagents.webp" alt="A Chief of Staff agent's brief for a board call, written from what Support Desk and Sales Researcher answered, with the two agents named under it" width="100%"></a>
+
+### A real browser, beside the chat
+
+Watch it click through sites, take over when a sign-in needs you, point at a spot to comment.
+
+<a href="docs/assets/readme/highlight-browser.webp"><img src="docs/assets/readme/highlight-browser.webp" alt="A Sales Researcher reading the Pydantic AI releases page in a live browser beside the chat, with a Take over button" width="100%"></a>
+
+### Build, equip and test in one window
+
+Switch tools on from illustrated cards, then give the draft a real job in the test chat beside them - here it charts a quarter's revenue against costs and reads the margin, before anyone else sees the agent.
+
+<a href="docs/assets/readme/highlight-builder-test.webp"><img src="docs/assets/readme/highlight-builder-test.webp" alt="The Finance Analyst's toolbox with isometric capability cards, and its test chat drawing a chart of Q3 revenue against costs" width="100%"></a>
+
+### Apps, not just answers
+
+An agent publishes a dashboard or a report as a page with a stable link and versions.
+
+<a href="docs/assets/screens/light/app-detail.webp"><img src="docs/assets/screens/light/app-detail.webp" alt="A revenue dashboard an agent built from a CSV and published as an app" width="100%"></a>
+
+### 4,700+ MCP servers
+
+Connect Notion, GitHub, Jira or your own server, and choose which tools each agent may call. AgenticOS is an MCP server too - for Claude Code, Codex or Cursor.
+
+<a href="docs/assets/screens/light/mcp-servers.webp"><img src="docs/assets/screens/light/mcp-servers.webp" alt="The MCP server gallery with connected servers and their sign-in method" width="100%"></a>
+
+### An API for everything
+
+Run agents, read runs and costs, fill knowledge bases - with keys narrowed to what each script may do.
+
+<a href="docs/assets/readme/highlight-api.webp"><img src="docs/assets/readme/highlight-api.webp" alt="API settings with the base URL, a link to every endpoint and two keys narrowed to what they may do" width="100%"></a>
+
+<p align="center"><sub>Captured from a test deployment. Figures are test records, not benchmarks.</sub></p>
 
 ## 📸 See it in action
 
@@ -77,26 +106,6 @@ AgenticOS gives every team AI teammates: agents that work with files, run code, 
 
 <p align="center"><sub><b>Brief → research → shared result.</b> A recorded run: an agent reads a campaign brief in Notion, researches repositories on GitHub and publishes an interactive planner. <a href="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512">Watch (37 s)</a></sub></p>
 
-<table>
-<tr>
-<td width="50%"><a href="docs/assets/screens/light/agent-builder.webp"><img src="docs/assets/screens/light/agent-builder.webp" alt="Agent builder with instructions, model selection and a published version"></a><br><b>Build in the browser.</b> Instructions, model and tools; publish versions.</td>
-<td width="50%"><a href="docs/assets/screens/light/chat.webp"><img src="docs/assets/screens/light/chat.webp" alt="A revenue CSV analysed in chat and published as a dashboard app"></a><br><b>Work with files and code.</b> A CSV in, a chart and findings out.</td>
-</tr>
-<tr>
-<td><a href="docs/assets/screens/light/skills.webp"><img src="docs/assets/screens/light/skills.webp" alt="Skills library with each skill's category, audience and the agents that use it"></a><br><b>Teach how your team works.</b> Skills written once, reused by every agent.</td>
-<td><a href="docs/assets/screens/light/knowledge-collection.webp"><img src="docs/assets/screens/light/knowledge-collection.webp" alt="A knowledge base with its indexed documents, parser and status"></a><br><b>Answer from your documents.</b> Upload or sync, then cite.</td>
-</tr>
-<tr>
-<td><a href="docs/assets/screens/light/app-detail.webp"><img src="docs/assets/screens/light/app-detail.webp" alt="A revenue dashboard an agent built from a CSV and published as an app"></a><br><b>Publish results as pages.</b> Stable links and versions. Demo data.</td>
-<td><a href="docs/assets/screens/light/dashboard.webp"><img src="docs/assets/screens/light/dashboard.webp" alt="Dashboard with usage totals, recorded spend, run trends and outcomes"></a><br><b>See usage and spend.</b> Runs, outcomes and budgets in one view.</td>
-</tr>
-<tr>
-<td><a href="docs/assets/screens/light/agents.webp"><img src="docs/assets/screens/light/agents.webp" alt="Agent catalog with published agents, their categories and visibility"></a><br><b>A catalog of agents.</b> Private, shared with a group, or company-wide.</td>
-<td><a href="docs/assets/screens/light/groups.webp"><img src="docs/assets/screens/light/groups.webp" alt="Organization groups for Engineering, Finance, Marketing, Operations, Sales and Support"></a><br><b>Access follows your organization.</b> Roles, groups and company sign-in.</td>
-</tr>
-</table>
-
-<p align="center"><sub>Captured from a test deployment. Figures are test records, not benchmarks.</sub></p>
 
 ## 💡 What is AgenticOS?
 
@@ -432,3 +441,9 @@ Docker Compose on one host. A machine with 4 vCPU and 8 GB of RAM runs it, and t
 Vstorm deploys AgenticOS in client infrastructure, writes the documentation, defines the processes and builds custom capabilities. Maintenance and support are agreed per engagement.
 
 Built with care by [**Vstorm**](https://vstorm.co) · [Vstorm on GitHub](https://github.com/vstorm-co)
+
+## 👥 Contributors
+
+Everyone who has helped build AgenticOS:
+
+<a href="https://github.com/vstorm-co/agenticos/graphs/contributors"><img src="https://contrib.rocks/image?repo=vstorm-co/agenticos" alt="Avatars of everyone who has contributed to AgenticOS"></a>
