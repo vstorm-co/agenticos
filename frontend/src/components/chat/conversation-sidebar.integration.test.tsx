@@ -18,7 +18,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ConversationSidebar } from "./conversation-sidebar";
 import { apiClient } from "@/lib/api-client";
-import { useChatBandsStore, useConversationStore } from "@/stores";
+import { useAgentSelectionStore, useChatBandsStore, useConversationStore } from "@/stores";
 
 vi.mock("@/lib/api-client", () => ({
   apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
@@ -35,7 +35,9 @@ vi.mock("@/components/agents/agent-avatar", () => ({
   AgentAvatar: ({ name }: { name: string }) => <span>{name}</span>,
 }));
 vi.mock("@/components/agents/conversation-agents", () => ({
-  ConversationAgents: () => null,
+  ConversationAgents: ({ agents }: { agents: Array<{ name: string }> }) => (
+    <span data-testid="row-agents">{agents.map((agent) => agent.name).join(", ")}</span>
+  ),
 }));
 // The event path is the portal grid, covered by the portal tests; stubbed here so
 // the sidebar menu's own job - opening it - is what this suite checks.
@@ -581,5 +583,20 @@ describe("conversations opened over the API (#2122)", () => {
     await userEvent.click(await within(list()).findByRole("button", { name: /clear/i }));
 
     await waitFor(() => expect(listRequests().at(-1)).toContain("hide_api=true"));
+  });
+});
+
+describe("who a row is with", () => {
+  it("shows the addressed agent on the open thread before any run has named one", async () => {
+    // A thread whose first run failed, or has not been listed yet, used to wear
+    // a generic chat mark - while the console knew exactly whom it had asked.
+    serve([conversation("c-1", "Quarterly numbers"), conversation("c-2", "Older thread")]);
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
+    mount();
+
+    await screen.findAllByText("Quarterly numbers");
+    const faces = within(list()).getAllByTestId("row-agents");
+    expect(faces.map((face) => face.textContent)).toEqual(["Analyst"]);
   });
 });

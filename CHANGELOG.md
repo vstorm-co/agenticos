@@ -492,8 +492,14 @@ Two things are versioned separately from this file and worth knowing about:
 - **Reopening a conversation addresses its agent.** The composer kept
   whichever agent was picked last, anywhere, so opening a Finance Analyst
   thread with the Architect last chosen sent the next message to the
-  Architect. A thread had with one agent now addresses that agent when it is
-  opened - once, so choosing another agent mid-thread still sticks.
+  Architect. A thread now addresses its agent when it is opened - in a
+  thread several agents answered, the one that answered last - once, so
+  choosing another agent mid-thread still sticks.
+- **Every thread in the sidebar wears its agent's face.** The list named
+  only agents whose runs completed, so a thread whose agent failed on its
+  first turn - or one whose first run had not been listed yet - fell back to
+  a generic chat mark. Any run in the thread now names its agent, and the
+  open thread shows the agent the composer addressed until one does.
 - **A just-published agent no longer reads "Draft differs".** Publish
   stamps the deployment's spec version on the frozen copy but left the draft
   at the number it was saved with, so an imported agent, or one saved before

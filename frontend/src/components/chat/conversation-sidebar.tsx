@@ -3,14 +3,14 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
-import { useConversations } from "@/hooks";
+import { useAgents, useConversations } from "@/hooks";
 import { ConversationSearchDialog } from "@/components/chat/conversation-search-dialog";
 import { Button, Skeleton } from "@/components/ui";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/components/ui";
 import { IconButton } from "@/components/ui";
 import { ConversationAgents } from "@/components/agents/conversation-agents";
 import { cn, setUrlParam, timeAgo } from "@/lib/utils";
-import { useChatBandsStore, useChatSidebarStore } from "@/stores";
+import { useAgentSelectionStore, useChatBandsStore, useChatSidebarStore } from "@/stores";
 import { DEFAULT_COLLAPSED_BANDS, LONG_LIST } from "@/stores/chat-sidebar-store";
 import {
   Archive,
@@ -82,7 +82,27 @@ function ConversationItem({
 
   const displayTitle = conversation.title || t("newConversation");
   const unread = conversation.unread === true && !isActive;
-  const agents = conversation.agents ?? [];
+  // Who the thread is with. The listing names the agents its runs went to; the
+  // open thread whose first run has not been listed yet is with the agent the
+  // composer addressed, which the console already knows - so no row falls back
+  // to a generic mark.
+  const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
+  const { agents: catalog } = useAgents({ includeArchived: true });
+  const addressed =
+    isActive && !conversation.agents?.length
+      ? catalog.find((agent) => agent.id === selectedAgentId)
+      : undefined;
+  const agents =
+    conversation.agents?.length || !addressed
+      ? (conversation.agents ?? [])
+      : [
+          {
+            id: addressed.id,
+            slug: addressed.slug,
+            name: addressed.name,
+            has_avatar: addressed.has_avatar ?? false,
+          },
+        ];
   const agentLabel =
     agents.length === 0
       ? null
@@ -101,16 +121,13 @@ function ConversationItem({
       onClick={onSelect}
     >
       {/* Which agent the thread is with leads the row - the face people pick a
-          thread by - and a thread with no agent keeps the plain mark. */}
+          thread by. */}
       <span className="relative shrink-0">
-        {conversation.agents && conversation.agents.length > 0 ? (
-          <ConversationAgents agents={conversation.agents} showName={false} />
+        {agents.length > 0 ? (
+          <ConversationAgents agents={agents} showName={false} />
         ) : (
-          // In a box the size of an agent's face, so every title in the list
-          // starts at the same x whichever kind of row it is.
-          <span className="flex size-6 items-center justify-center">
-            <MessageSquare className={cn("h-4 w-4", isActive && "text-foreground")} />
-          </span>
+          // A box the size of a face, so every title starts at the same x.
+          <span className="block size-6" aria-hidden />
         )}
         {/* An answer arrived while the reader was elsewhere: a badge on the face,
             as a count sits on an app icon - part of the row's own mark rather

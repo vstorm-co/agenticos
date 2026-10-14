@@ -39,7 +39,7 @@ _MESSAGE_FILE_COLUMNS = (
 async def agents_in_conversations(
     db: AsyncSession, conversation_ids: list[UUID]
 ) -> dict[UUID, list[Agent]]:
-    """Which agents answered in each of these conversations, oldest turn first.
+    """Which agents each of these conversations was with, oldest turn first.
 
     One query per source for the whole page rather than one per row: a conversation
     list is fifty rows, and the alternative is fifty round trips to render a chip.
@@ -61,8 +61,10 @@ async def agents_in_conversations(
     a completed run in it is exactly that evidence. So the two are merged, and a
     conversation from before the fix shows its agents.
 
-    Only `completed` runs. A cancelled or failed one did not answer, and this list is
-    read as "who answered here".
+    Every run, whatever it ended as. The list is read as "who is this thread with",
+    and a run that failed, was stopped or is still going is a message addressed to
+    that agent: counting only completed ones left a thread whose agent broke on its
+    first turn without a face in the sidebar, as if nobody had been asked.
 
     And only *top-level* runs. A delegation gets an `agent_runs` row carrying the
     parent's `conversation_id` and a terminal status, so without the null test on
@@ -89,7 +91,6 @@ async def agents_in_conversations(
         .join(Agent, Agent.id == AgentRun.agent_id)
         .where(
             AgentRun.conversation_id.in_(conversation_ids),
-            AgentRun.status == "completed",
             AgentRun.parent_run_id.is_(None),
         )
         .group_by(AgentRun.conversation_id, Agent.id)
