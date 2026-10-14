@@ -87,14 +87,11 @@ class InterceptedToolCall(Base, TimestampMixin):
     # trajectory carry too - so a held call joins the calls it sits among.
     tool_call_id: Mapped[str] = mapped_column(String(100), nullable=False)
     tool_name: Mapped[str] = mapped_column(String(128), nullable=False)
-    # `capability:<capability>.<tool>`, which survives a rename, or
-    # `tool:<name>` for an MCP or framework tool.
     tool_id: Mapped[str] = mapped_column(String(256), nullable=False)
     args: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, server_default=text("'{}'::jsonb")
     )
     outcome: Mapped[str] = mapped_column(String(16), nullable=False)
-    # Set on a blocked call only: a replayed or divergent one needs no reason.
     reason: Mapped[str | None] = mapped_column(String(16), nullable=True)
 
     __table_args__ = (

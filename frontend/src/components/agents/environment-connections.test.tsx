@@ -193,7 +193,6 @@ describe("an environment's test connections", () => {
       { kind: "secret", production_id: "mail-live", test_id: null },
       { kind: "mcp", production_id: "crm", test_id: "crm-sandbox" },
     ]);
-    // The form is cleared for the next one.
     expect(screen.getByRole("button", { name: "Add" })).toBeDisabled();
   });
 

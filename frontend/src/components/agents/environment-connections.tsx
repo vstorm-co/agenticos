@@ -50,9 +50,8 @@ function useConnectionOptions() {
   };
   const label = (kind: Kind, id: string) =>
     options[kind].find((option) => option.id === id)?.label ?? id.slice(0, 8);
-  // A test side has to be the same kind of thing as what it stands in for - the
-  // server refuses a Tavily key standing in for a CRM key - so only those are offered.
-  // One a run could not reach would mean "off" while reading as a replacement.
+  // The server refuses a stand-in of another kind or purpose, and a run treats one it
+  // cannot reach as off, so neither is offered as a replacement.
   const standIns = (kind: Kind, productionId: string) => {
     const match = options[kind].find((option) => option.id === productionId)?.match;
     return options[kind].filter(

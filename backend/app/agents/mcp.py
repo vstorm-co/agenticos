@@ -79,7 +79,6 @@ class McpServerSpec:
     headers: dict[str, str] = field(default_factory=dict)
     # None = expose every tool the server offers.
     allowed_tools: list[str] | None = None
-    # An environment's test connection, standing in for the one the spec binds.
     test: bool = False
 
 
