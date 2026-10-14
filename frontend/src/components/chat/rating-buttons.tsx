@@ -21,8 +21,7 @@ import {
   AlsoAddToDataset,
   type AlsoAddToDatasetHandle,
 } from "@/components/datasets/also-add-to-dataset";
-import { usePermissions } from "@/hooks/use-permissions";
-import { Perm } from "@/types/permissions";
+import { useCanAddToDataset } from "@/components/datasets/use-dataset-target";
 
 interface RatingButtonsProps {
   messageId: string;
@@ -56,8 +55,7 @@ export function RatingButtons({
   const [inFlight, setInFlight] = useState<RatingValue | null>(null);
   const datasetChoice = useRef<AlsoAddToDatasetHandle>(null);
   const tDatasets = useTranslations("datasets");
-  const { can } = usePermissions();
-  const canAddToDataset = can(Perm.datasetsEdit);
+  const canAddToDataset = useCanAddToDataset();
   const [addingReference, setAddingReference] = useState(false);
 
   const calculateNewCounts = useMemo(

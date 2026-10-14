@@ -9,13 +9,18 @@ const state = vi.hoisted(() => ({
   granted: [] as string[],
   datasets: [] as { id: string; name: string; can_edit: boolean }[],
   isLoading: false,
+  total: 0,
+  lastQuery: undefined as unknown,
   add: vi.fn(),
 }));
 vi.mock("@/hooks/use-permissions", () => ({
   usePermissions: () => ({ can: (perm: string) => state.granted.includes(perm) }),
 }));
 vi.mock("@/hooks/use-datasets", () => ({
-  useDatasets: () => ({ datasets: state.datasets, isLoading: state.isLoading }),
+  useDatasets: (query: unknown) => {
+    state.lastQuery = query;
+    return { datasets: state.datasets, total: state.total, isLoading: state.isLoading };
+  },
   useAddToDataset: () => ({ mutateAsync: state.add, isPending: false }),
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -33,12 +38,36 @@ describe("Add to dataset", () => {
       { id: "d3", name: "returns", can_edit: true },
     ];
     state.isLoading = false;
+    state.total = 0;
   });
 
   it("is not offered to somebody who edits no dataset", () => {
     state.granted = [Perm.datasetsView];
+    state.datasets = [{ id: "d2", name: "read only", can_edit: false }];
     render(<AddToDatasetButton messageId="m1" ratedDown />);
     expect(screen.queryByRole("button", { name: "Add to dataset" })).toBeNull();
+  });
+
+  it("is offered to somebody an edit grant lets add to one dataset", async () => {
+    state.granted = [Perm.datasetsView];
+    state.add.mockResolvedValue({});
+    render(<AddToDatasetButton messageId="m1" ratedDown />);
+    await open();
+    await userEvent.click(screen.getByRole("button", { name: "Add" }));
+    await waitFor(() => expect(state.add).toHaveBeenCalled());
+  });
+
+  it("searches every dataset once the list stops short of them all", async () => {
+    state.total = 250;
+    render(<AddToDatasetButton messageId="m1" ratedDown />);
+    await open();
+    await userEvent.type(screen.getByPlaceholderText("Find a dataset"), "ret");
+    await waitFor(() =>
+      expect(state.lastQuery).toEqual(expect.objectContaining({ search: "ret" })),
+    );
+    state.datasets = [];
+    await userEvent.type(screen.getByPlaceholderText("Find a dataset"), "x");
+    expect(screen.getByPlaceholderText("Find a dataset")).toBeInTheDocument();
   });
 
   it("adds a rated-down answer as the counter-example to the first dataset it may edit", async () => {

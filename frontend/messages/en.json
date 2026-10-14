@@ -5766,6 +5766,12 @@
     "importRowProblem": "Row {row}: {message}",
     "importRowFieldProblem": "Row {row}, {field}: {message}",
     "checkCount": "{count, plural, =1 {1 check} other {# checks}}",
-    "hasNote": "Note"
+    "hasNote": "Note",
+    "editDetails": "Edit details",
+    "editDetailsBody": "What the dataset is called and what it is for. Changing them makes no new version: no case changes.",
+    "saveDetails": "Save",
+    "detailsSaved": "Saved",
+    "olderVersion": "Older version #",
+    "findDataset": "Find a dataset"
   }
 }

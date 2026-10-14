@@ -5624,6 +5624,12 @@
     "importRowProblem": "Zeile {row}: {message}",
     "importRowFieldProblem": "Zeile {row}, {field}: {message}",
     "checkCount": "{count, plural, =1 {1 Prüfung} other {# Prüfungen}}",
-    "hasNote": "Notiz"
+    "hasNote": "Notiz",
+    "editDetails": "Details bearbeiten",
+    "editDetailsBody": "Wie das Dataset heißt und wofür es da ist. Eine Änderung erzeugt keine neue Version, weil sich kein Fall ändert.",
+    "saveDetails": "Speichern",
+    "detailsSaved": "Gespeichert",
+    "olderVersion": "Ältere Version Nr.",
+    "findDataset": "Dataset suchen"
   }
 }
