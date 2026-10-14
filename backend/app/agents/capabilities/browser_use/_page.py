@@ -628,6 +628,20 @@ class CdpPage:
             )
         return float(found.get("x", 0.0)), float(found.get("y", 0.0))
 
+    async def point(  # pragma: no cover - needs a live browser
+        self, element: Element
+    ) -> tuple[float, float] | None:
+        """Where `element` is now, as fractions of the viewport, or `None` when it moved.
+
+        For the cursor a watching person sees, so never an error: an element the
+        action itself will then refuse simply draws no cursor.
+        """
+        try:
+            x, y = await self._locate(element)
+        except StaleElement:
+            return None
+        return min(max(x / self._width, 0.0), 1.0), min(max(y / self._height, 0.0), 1.0)
+
     async def click(self, element: Element) -> None:  # pragma: no cover - needs a live browser
         """Press an element, where it is now rather than where it was."""
         x, y = await self._locate(element)

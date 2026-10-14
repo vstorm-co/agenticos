@@ -1,5 +1,5 @@
 ---
-source_sha: "0bb7b4961bf4"
+source_sha: "64823e56c5cd"
 ---
 
 # Konsola { #the-console }
@@ -253,7 +253,7 @@ przybliżał.
 [przeglądarką](reference/capabilities.md#browser-automation) zaczyna na stronie, jego
 przeglądarka otwiera się obok rozmowy, tak jak u agenta na desktopie: karta nazwana od
 strony, adres i strona taka, jak widzi ją agent, a pod nią jedna linijka o tym, co robi
-teraz. Transkrypt zwęża się, żeby zrobić miejsce, i zostawia jedną linijkę na każde
+teraz, i jego kursor, który przesuwa się do tego, co klika albo w co pisze. Transkrypt zwęża się, żeby zrobić miejsce, i zostawia jedną linijkę na każde
 przeglądanie - gdzie jest i czy cię potrzebuje - która po zamknięciu otwiera przeglądarkę
 z powrotem. Pełna lista kroków, każdy z tym, po co był, jest pod przyciskiem kroków. Na
 telefonie wejściem jest ta linijka, a przeglądarka zajmuje ekran.

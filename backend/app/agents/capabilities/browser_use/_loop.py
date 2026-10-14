@@ -153,6 +153,9 @@ class PageSession(Protocol):
     async def resize(self, width: int, height: int, scale: int) -> None:
         """Lay the page out for a window `width` by `height`, drawn at `scale`."""
 
+    async def point(self, element: Element) -> tuple[float, float] | None:
+        """Where `element` is now, as fractions of the viewport, or `None` off it."""
+
     async def capture_sign_in(self) -> SignIn | None:
         """The sign-in to the site this tab is on, or `None` on a page off the web."""
 
@@ -322,6 +325,21 @@ async def run_browse(
                 reason=step.next_goal,
             )
         )
+        if previews_land and element is not None:
+            # Where the agent is about to press, for the cursor a person watches
+            # move across the page - only while somebody is watching, and before
+            # the action, so the cursor arrives as the click happens.
+            spot = await page.point(element)
+            if spot is not None:
+                await emit(
+                    BrowserEvent(
+                        kind="browser_pointer",
+                        call_id=call_id,
+                        step=step_no,
+                        x=spot[0],
+                        y=spot[1],
+                    )
+                )
 
         if isinstance(action, Done):
             return await _finish(

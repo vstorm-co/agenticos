@@ -246,7 +246,8 @@ export type WSEventType =
   | "browser_finished"
   | "browser_held"
   | "browser_released"
-  | "browser_needs_person";
+  | "browser_needs_person"
+  | "browser_pointer";
 
 /**
  * How a browse ended, and all four are ordinary.
@@ -275,7 +276,8 @@ export interface BrowserFrame {
     | "browser_finished"
     | "browser_held"
     | "browser_released"
-    | "browser_needs_person";
+    | "browser_needs_person"
+    | "browser_pointer";
   /** Which `browse_web` call this belongs to; one turn can browse twice. */
   call_id: string;
   step: number;
@@ -295,6 +297,9 @@ export interface BrowserFrame {
   run_id?: string | null;
   /** On `browser_held`: who took the browser over. */
   by?: string | null;
+  /** On `browser_pointer`: where the agent is about to press, as fractions of the viewport. */
+  x?: number | null;
+  y?: number | null;
   /** On `browser_frame`: the viewport as a `data:` URL. */
   image?: string | null;
   outcome?: BrowseOutcome | null;

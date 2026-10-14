@@ -242,7 +242,7 @@ Enter starts a new line, and attaching a file or dictating sits behind one
 [web browser](reference/capabilities.md#browser-automation) starts on a page, its
 browser opens beside the conversation the way a desktop agent's does: a tab named after
 the page, the address, and the page as the agent sees it, with what it is doing now in
-one line underneath. The transcript narrows to make room, and keeps one line per
+one line underneath and its cursor moving to whatever it clicks or types into. The transcript narrows to make room, and keeps one line per
 browse - where it is and whether it needs you - that reopens the browser after you close
 it. The full list of steps, each with what it was for, is behind the steps button. On a
 phone the line is the way in, and the browser takes the screen.

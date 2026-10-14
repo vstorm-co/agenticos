@@ -238,3 +238,30 @@ describe("applyBrowserFrame - a person and the browser (#2128)", () => {
     expect(browse).toMatchObject({ needs: null, heldBy: null, outcome: "blocked" });
   });
 });
+
+describe("applyBrowserFrame - the agent's cursor", () => {
+  it("points where the agent is about to press, and hides while a person holds it or once it ends", () => {
+    const pointed = fold(
+      frame({ kind: "browser_opened", step: 0 }),
+      frame({ kind: "browser_pointer", step: 2, x: 0.25, y: 0.5 }),
+    );
+    expect(pointed[0]?.pointer).toEqual({ x: 0.25, y: 0.5, step: 2 });
+
+    const held = applyBrowserFrame(pointed, frame({ kind: "browser_held", step: 2, by: "Ada" }));
+    expect(held[0]?.pointer).toBeNull();
+
+    const ended = applyBrowserFrame(
+      pointed,
+      frame({ kind: "browser_finished", step: 3, outcome: "done" }),
+    );
+    expect(ended[0]?.pointer).toBeNull();
+  });
+
+  it("reads a pointer frame with no position as the corner", () => {
+    const [browse] = fold(
+      frame({ kind: "browser_opened", step: 0 }),
+      frame({ kind: "browser_pointer", step: 1 }),
+    );
+    expect(browse?.pointer).toEqual({ x: 0, y: 0, step: 1 });
+  });
+});

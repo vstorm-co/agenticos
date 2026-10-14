@@ -1,6 +1,6 @@
 "use client";
 
-import type { KeyboardEvent, MouseEvent, WheelEvent } from "react";
+import type { KeyboardEvent, MouseEvent, ReactNode, WheelEvent } from "react";
 import { useTranslations } from "next-intl";
 
 import type { BrowserCommand } from "@/hooks/use-live-browse";
@@ -38,12 +38,15 @@ export function LiveViewport({
   holding,
   onCommand,
   flush = false,
+  overlay,
 }: {
   browse: Browse;
   holding: boolean;
   onCommand: (command: BrowserCommand) => void;
   /** Drawn inside a window that already frames it, so no frame of its own. */
   flush?: boolean;
+  /** Drawn over the page, in its coordinates - the agent's cursor. */
+  overlay?: ReactNode;
 }) {
   const t = useTranslations("browse");
   // On the picture rather than the surface, because the point is measured
@@ -118,6 +121,7 @@ export function LiveViewport({
         draggable={false}
         onClick={onClick}
       />
+      {overlay}
     </div>
   );
 }

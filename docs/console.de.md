@@ -1,5 +1,5 @@
 ---
-source_sha: "0bb7b4961bf4"
+source_sha: "64823e56c5cd"
 ---
 
 # Die Konsole { #the-console }
@@ -273,7 +273,7 @@ Felder sind nie so klein, dass iOS hineinzoomt.
 [Webbrowser](reference/capabilities.md#browser-automation) auf einer Seite, öffnet sich
 sein Browser neben der Unterhaltung, wie bei einem Desktop-Agent: ein Tab mit dem Namen
 der Seite, die Adresse und die Seite, wie der Agent sie sieht, darunter eine Zeile dazu,
-was er gerade tut. Das Transkript wird schmaler, um Platz zu machen, und behält eine
+was er gerade tut, und sein Cursor, der zu dem wandert, was er anklickt oder ausfüllt. Das Transkript wird schmaler, um Platz zu machen, und behält eine
 Zeile pro Durchlauf - wo er ist und ob er Sie braucht -, die den Browser nach dem
 Schließen wieder öffnet. Die vollständige Liste der Schritte, jeder mit seinem Zweck,
 liegt hinter der Schritte-Schaltfläche. Auf dem Telefon ist die Zeile der Einstieg, und

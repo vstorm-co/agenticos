@@ -848,6 +848,18 @@
   background: oklch(68% 0.11 245);
   animation: unread-halo 2.8s ease-out infinite;
 }
+/* The agent's click in the live browser: a ring that opens out and fades, once. */
+@keyframes agent-click {
+  0% {
+    transform: scale(0.35);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+
 @keyframes unread-halo {
   0% {
     transform: scale(1);

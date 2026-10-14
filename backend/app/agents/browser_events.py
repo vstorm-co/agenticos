@@ -66,6 +66,7 @@ class BrowserEvent(BaseModel):
         "browser_held",
         "browser_released",
         "browser_needs_person",
+        "browser_pointer",
     ]
 
     call_id: str = Field(
@@ -137,6 +138,19 @@ class BrowserEvent(BaseModel):
     by: str | None = Field(
         default=None,
         description="Who took the browser over, by name, on `browser_held`.",
+    )
+    x: float | None = Field(
+        default=None,
+        ge=0,
+        le=1,
+        description=(
+            "On `browser_pointer`: where the agent is about to click or type, as a "
+            "fraction of the viewport's width, so a surface draws its cursor on the "
+            "picture whatever size the picture is drawn at."
+        ),
+    )
+    y: float | None = Field(
+        default=None, ge=0, le=1, description="The same, as a fraction of its height."
     )
     image: str | None = Field(
         default=None,

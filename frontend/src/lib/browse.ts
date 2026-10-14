@@ -51,6 +51,13 @@ export interface Browse {
   imageStep: number;
   outcome: BrowseOutcome | null;
   detail: string | null;
+  /**
+   * Where the agent is about to press, as fractions of the viewport - the
+   * cursor a person watches move across the page - and the step it belongs to,
+   * so each press draws its own click. Absent until the agent points at
+   * something, and cleared while a person holds the browser or once it is over.
+   */
+  pointer?: { x: number; y: number; step: number } | null;
 }
 
 function opened(frame: BrowserFrame): Browse {
@@ -105,8 +112,10 @@ function applyTo(browse: Browse, frame: BrowserFrame): Browse {
     }
     case "browser_needs_person":
       return { ...browse, needs: frame.detail ?? null };
+    case "browser_pointer":
+      return { ...browse, pointer: { x: frame.x ?? 0, y: frame.y ?? 0, step: frame.step } };
     case "browser_held":
-      return { ...browse, needs: null, heldBy: frame.by ?? null };
+      return { ...browse, needs: null, heldBy: frame.by ?? null, pointer: null };
     case "browser_released":
       return { ...browse, heldBy: null };
     case "browser_finished":
@@ -114,6 +123,7 @@ function applyTo(browse: Browse, frame: BrowserFrame): Browse {
         ...browse,
         needs: null,
         heldBy: null,
+        pointer: null,
         outcome: frame.outcome ?? null,
         detail: frame.detail ?? null,
         url: frame.url ?? browse.url,

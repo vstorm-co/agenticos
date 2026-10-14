@@ -530,7 +530,9 @@ Two things are versioned separately from this file and worth knowing about:
   a thumbnail, and the page a channel links to is the same window. The
   page is laid out at the window's own size and screen density, so it
   reads like the site in a browser rather than a shrunk laptop screen
-  (`resize` on the live view's socket, applied between steps).
+  (`resize` on the live view's socket, applied between steps). The
+  agent's cursor moves to what it is about to click or type into and
+  shows the click (`browser_pointer` frames).
 
 - **An approval reads as a question, not a JSON document.** In the chat,
   in Activity and in Slack, Telegram and Mattermost a waiting call shows

@@ -1,5 +1,5 @@
 ---
-source_sha: "0bb7b4961bf4"
+source_sha: "64823e56c5cd"
 ---
 
 # La consola { #the-console }
@@ -258,7 +258,7 @@ campos nunca son tan pequeños como para que iOS haga zoom en ellos.
 [navegador web](reference/capabilities.md#browser-automation) empieza en una página, su
 navegador se abre junto a la conversación, como el de un agente de escritorio: una
 pestaña con el nombre de la página, la dirección y la página tal como la ve el agent, con
-lo que hace ahora en una línea debajo. La transcripción se estrecha para dejar sitio y
+lo que hace ahora en una línea debajo y su cursor moviéndose hacia lo que pulsa o rellena. La transcripción se estrecha para dejar sitio y
 conserva una línea por recorrido - dónde está y si te necesita - que vuelve a abrir el
 navegador cuando lo cierras. La lista completa de pasos, cada uno con su propósito, está
 detrás del botón de pasos. En un teléfono la línea es la entrada, y el navegador ocupa la

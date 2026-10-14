@@ -669,6 +669,12 @@ class _FakePage:
     async def resize(self, width: int, height: int, scale: int) -> None:
         self.done.append(f"resize:{width}x{height}@{scale}")
 
+    spot: tuple[float, float] | None = (0.25, 0.5)
+
+    async def point(self, element: Element) -> tuple[float, float] | None:
+        self.done.append(f"point:{element.index}")
+        return self.spot
+
     async def capture_sign_in(self) -> SignIn | None:
         self.done.append("capture")
         return self.sign_in
@@ -964,6 +970,36 @@ class TestThePageIsTheSizeOfTheWindowWatchingIt:
     def test_a_size_no_window_has_is_refused(self, bad: dict[str, int]):
         with pytest.raises(ValidationError):
             BrowserCommand(type="resize", **bad)
+
+
+class TestTheAgentsCursorIsDrawn:
+    """Where the agent is about to press, for the cursor a watching person sees."""
+
+    async def test_a_click_is_pointed_at_before_it_is_made(self):
+        page = _FakePage(_snapshot(_element(0)))
+        frames = _Frames()
+
+        await _watched(page, _decider(CLICK0, DONE), None, frames, preview=True)
+
+        [pointer] = frames.of("browser_pointer")
+        assert (pointer.x, pointer.y) == (0.25, 0.5)
+        assert page.done.index("point:0") < page.done.index("click:0")
+
+    async def test_nobody_watching_or_nothing_to_point_at_draws_no_cursor(self):
+        unwatched = _FakePage(_snapshot(_element(0)))
+        frames = _Frames()
+        await _watched(unwatched, _decider(CLICK0, DONE), None, frames)
+        assert frames.of("browser_pointer") == []
+        assert "point:0" not in unwatched.done
+
+        moved = _FakePage(_snapshot(_element(0)))
+        moved.spot = None
+        await _watched(moved, _decider(CLICK0, DONE), None, frames, preview=True)
+        assert frames.of("browser_pointer") == []
+
+    def test_a_point_off_the_page_is_refused(self):
+        with pytest.raises(ValidationError):
+            BrowserEvent(kind="browser_pointer", call_id="c", step=1, x=1.5, y=0.2)
 
 
 class TestAPersonKeepsTheirSignIn:

@@ -199,6 +199,18 @@ describe("BrowserWindow - the agent's browser, drawn as a browser", () => {
     expect(screen.queryByRole("button", { name: /Hand it back/ })).toBeNull();
   });
 
+  it("draws the agent's cursor where it is about to press, while it runs and nobody holds it", () => {
+    const pointer = { x: 0.25, y: 0.5, step: 3 };
+    const { rerender } = render(<BrowserWindow browse={browse({ pointer })} control={null} />);
+    expect(screen.getByTestId("agent-cursor")).toHaveStyle({ left: "25%", top: "50%" });
+
+    rerender(<BrowserWindow browse={browse({ pointer, heldBy: "Ada" })} control={null} />);
+    expect(screen.queryByTestId("agent-cursor")).toBeNull();
+
+    rerender(<BrowserWindow browse={browse({ pointer, outcome: "done" })} control={null} />);
+    expect(screen.queryByTestId("agent-cursor")).toBeNull();
+  });
+
   it("closes, maximises and restores, and opens on its own page", async () => {
     const onClose = vi.fn();
     const onMaximize = vi.fn();

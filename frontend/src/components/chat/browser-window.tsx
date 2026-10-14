@@ -98,6 +98,44 @@ function useHold(browse: Browse, control: BrowseControl | null) {
 }
 
 /**
+ * The agent's pointer, where it is about to press - as a desktop agent shows it.
+ *
+ * Positioned in fractions of the picture, so it lands on the same element at
+ * whatever size the picture is drawn. It glides from the last place it pressed
+ * to the next, and each step draws its own click, keyed on the step so a second
+ * press on the same spot still pulses.
+ */
+export function AgentCursor({ pointer }: { pointer: { x: number; y: number; step: number } }) {
+  return (
+    <span
+      aria-hidden
+      data-testid="agent-cursor"
+      className="pointer-events-none absolute z-10 transition-[left,top] duration-500 ease-out motion-reduce:transition-none"
+      style={{ left: `${pointer.x * 100}%`, top: `${pointer.y * 100}%` }}
+    >
+      <span
+        key={pointer.step}
+        className="absolute -top-4 -left-4 size-8 rounded-full bg-sky-500/40 motion-safe:animate-[agent-click_700ms_ease-out_1]"
+      />
+      <svg
+        width="22"
+        height="22"
+        viewBox="0 0 24 24"
+        className="relative -translate-x-[3px] -translate-y-[2px] drop-shadow-[0_2px_3px_rgba(0,0,0,0.35)]"
+      >
+        <path
+          d="M4 2.5 L4 19.5 L8.6 15.2 L11.6 21.5 L14.4 20.2 L11.5 14.1 L17.8 14.1 Z"
+          fill="#111"
+          stroke="#fff"
+          strokeWidth="1.6"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </span>
+  );
+}
+
+/**
  * What the browser is doing this moment, floating over the bottom of the page.
  *
  * The one line of the trace worth a glance while it runs - the whole list is a
@@ -345,6 +383,11 @@ export function BrowserWindow({
               holding={hold.holding}
               onCommand={(command) => control?.send(command)}
               flush
+              overlay={
+                running && browse.pointer && !hold.holding ? (
+                  <AgentCursor pointer={browse.pointer} />
+                ) : null
+              }
             />
           ) : (
             <div className="text-muted-foreground flex h-full items-center justify-center p-6 text-center text-sm">
