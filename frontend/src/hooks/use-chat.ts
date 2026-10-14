@@ -1514,6 +1514,7 @@ export function useChat(options: UseChatOptions = {}) {
   /** Answer a question a run parked on, which continues the run (#2064). */
   const answerParkedQuestion = useCallback(
     async (parked: NonNullable<typeof parkedQuestion>, answers: AskUserAnswer[]) => {
+      const asked = pendingQuestions;
       setPendingQuestions(null);
       setParkedQuestion(null);
       if (parked.messageId !== null) {
@@ -1534,13 +1535,21 @@ export function useChat(options: UseChatOptions = {}) {
         }
         showContinuation(resumed, parked.runId, new Set([parked.toolCallId]));
       } catch (error) {
-        // The run is still parked unless the continuation itself failed, which the
-        // backend recorded; either way the person is told, and the transcript keeps
-        // its waiting step until they reload.
         toast.error(getErrorMessage(error, tErrors));
+        // The continuation itself failed and the backend recorded the run
+        // terminal: there is no question left to answer.
+        if (resumeFailureStatus(error) !== null) return;
+        // Otherwise the answer never landed - a dropped connection, a resume that
+        // could not be built - and the run is still parked, so the question goes
+        // back on screen and can be answered again, like an approval does.
+        setPendingQuestions(asked);
+        setParkedQuestion(parked);
+        if (parked.messageId !== null) {
+          updateToolCallPart(parked.messageId, parked.toolCallId, { status: "awaiting_answer" });
+        }
       }
     },
-    [updateToolCallPart, showContinuation, tErrors],
+    [pendingQuestions, updateToolCallPart, showContinuation, tErrors],
   );
 
   const sendAskUserResponses = useCallback(

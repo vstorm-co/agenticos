@@ -2971,6 +2971,45 @@ describe("useChat - a question its person came back to", () => {
     expect(result.current.pendingQuestions).toBeNull();
   });
 
+  it("puts the question back when the answer never landed", async () => {
+    get.mockResolvedValue(ASKED);
+    post.mockRejectedValue(new Error("Network down"));
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(askedTurn());
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await act(async () => {});
+
+    await act(async () => {
+      result.current.sendAskUserResponses([{ answer: "", selected: ["Casual"], skipped: false }]);
+    });
+
+    expect(result.current.pendingQuestions?.[0]).toMatchObject({ question: "How formal?" });
+    expect(useChatStore.getState().messages[0]?.toolCalls?.[0]?.status).toBe("awaiting_answer");
+  });
+
+  it("does not offer it again once the continuation itself failed", async () => {
+    get.mockResolvedValue(ASKED);
+    post.mockRejectedValue(
+      new ApiError(500, "The run failed", {
+        error: {
+          code: "RUN_EXECUTION_FAILED",
+          message: "The run failed",
+          details: { run_id: "r-1", status: "failed" },
+        },
+      }),
+    );
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(askedTurn());
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await act(async () => {});
+
+    await act(async () => {
+      result.current.sendAskUserResponses([{ answer: "", selected: ["Casual"], skipped: false }]);
+    });
+
+    expect(result.current.pendingQuestions).toBeNull();
+  });
+
   it("puts a question asked again on the continuation back up", async () => {
     get.mockResolvedValue(ASKED);
     post.mockResolvedValue({

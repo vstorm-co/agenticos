@@ -32,6 +32,39 @@ class TestTheCredential:
 
         mint.assert_awaited_once_with(CTX)
 
+    async def test_a_run_resumed_by_somebody_else_keeps_its_owner_s_authority(self) -> None:
+        """Codex on #2062: an administrator answering an approval lent the run their role."""
+        runner = AgentRunnerService(MagicMock())
+        owner = uuid.uuid4()
+        run = MagicMock(user_id=owner, initiated_by_publisher_fallback=False)
+        membership = MagicMock(role="member")
+
+        with patch(
+            "app.services.agent_runner.member_repo.get_active",
+            new=AsyncMock(return_value=membership),
+        ):
+            rebuilt = await runner._run_owner_context(CTX, run)
+        assert rebuilt is not None
+        assert (rebuilt.user_id, rebuilt.role) == (owner, "member")
+
+        bound = AgentSpec(
+            name="AI Architect", mcp_servers=[PlatformMcpServerRef(account="platform")]
+        )
+        with (
+            patch(
+                "app.services.agent_runner.member_repo.get_active",
+                new=AsyncMock(return_value=None),
+            ),
+            patch("app.services.agent_runner.mint_for_run", new=AsyncMock()) as mint,
+        ):
+            assert await runner._run_owner_context(CTX, run) is None
+            assert await runner._platform_credential(bound, CTX, run) is None
+        mint.assert_not_awaited()
+
+        assert await runner._run_owner_context(CTX, None) is CTX
+        own = MagicMock(user_id=CTX.user_id)
+        assert await runner._run_owner_context(CTX, own) is CTX
+
 
 class TestPublishing:
     async def test_the_platform_is_bound_under_its_own_prefix(self) -> None:

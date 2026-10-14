@@ -698,7 +698,8 @@ class SandboxWorkspaceService:
 
         Args:
             keep_spills: Leave this run's spilled tool returns where they are -
-                for a run parked on an approval, whose history still names them.
+                for a run parked on an approval or a question, whose history
+                still names them.
                 Deleted at the park, the resumed run was handed handles to files
                 that no longer existed, and a shell sent to read one found no
                 directory. The run that resumes it spills into the same

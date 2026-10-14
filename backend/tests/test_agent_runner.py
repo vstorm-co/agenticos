@@ -2477,7 +2477,11 @@ class TestParking:
     @pytest.mark.anyio
     @pytest.mark.parametrize(
         ("status", "kept"),
-        [(RunStatus.AWAITING_APPROVAL, True), (RunStatus.COMPLETED, False)],
+        [
+            (RunStatus.AWAITING_APPROVAL, True),
+            (RunStatus.AWAITING_ANSWER, True),
+            (RunStatus.COMPLETED, False),
+        ],
     )
     async def test_only_a_parked_run_keeps_its_spills(self, status: RunStatus, kept: bool):
         """The history a parked run resumes from names its spilled returns, so

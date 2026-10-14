@@ -207,6 +207,7 @@ from app.repositories import (
     conversation_repo,
     group_repo,
     knowledge_base_repo,
+    member_repo,
     message_rating_repo,
     organization_repo,
     run_manifest_repo,
@@ -2150,16 +2151,48 @@ class AgentRunnerService:
 
         return render
 
-    async def _platform_credential(self, spec: AgentSpec, ctx: AuthContext) -> str | None:
+    async def _run_owner_context(
+        self, ctx: AuthContext, existing_run: AgentRun | None
+    ) -> AuthContext | None:
+        """Whose authority a run's platform credential carries: the run's own person.
+
+        A resumed run is continued by whoever answered its approval - an operator,
+        an administrator - and lending the run their authority would let it do
+        what the person who started it never could. So a run resumed by somebody
+        else is rebuilt on its owner's current membership, and on nobody's where
+        that membership is gone.
+        """
+        if (
+            existing_run is None
+            or existing_run.user_id is None
+            or existing_run.user_id == ctx.user_id
+        ):
+            return ctx
+        membership = await member_repo.get_active(
+            self.db, organization_id=ctx.organization_id, user_id=existing_run.user_id
+        )
+        if membership is None:
+            return None
+        return AuthContext(
+            user_id=existing_run.user_id,
+            organization_id=ctx.organization_id,
+            role=membership.role,
+            subject_is_publisher_fallback=existing_run.initiated_by_publisher_fallback,
+        )
+
+    async def _platform_credential(
+        self, spec: AgentSpec, ctx: AuthContext, existing_run: AgentRun | None = None
+    ) -> str | None:
         """A credential for this platform's own MCP server, when the spec binds it.
 
-        Minted from this run's own authorization, so the agent can do what the
-        person it runs for can do - and an agent that does not bind the server
-        mints nothing. `None` where nobody is behind the run.
+        Minted from the authority of the person the run is for, so the agent can do
+        what they can do - and an agent that does not bind the server mints
+        nothing. `None` where nobody is behind the run.
         """
         if not any(isinstance(ref, PlatformMcpServerRef) for ref in spec.mcp_servers):
             return None
-        return await mint_for_run(ctx)
+        owner = await self._run_owner_context(ctx, existing_run)
+        return None if owner is None else await mint_for_run(owner)
 
     async def _collection_names(self, spec: AgentSpec, ctx: AuthContext) -> list[str]:
         """Vector-store collection names for the agent's bound collections.
@@ -2612,7 +2645,7 @@ class AgentRunnerService:
             organization_id=ctx.organization_id,
             refs=spec.mcp_servers,
             sender_user_id=personal_mcp_user_id,
-            platform_credential=await self._platform_credential(spec, ctx),
+            platform_credential=await self._platform_credential(spec, ctx, existing_run),
         )
         spec_toolsets = resolved.toolsets
         on_use, briefed = _connect_on_use(
@@ -3773,9 +3806,11 @@ class AgentRunnerService:
         # Before the run row is written, so a workspace flush that fails cannot
         # leave the run un-finished, and after the run has certainly stopped
         # using it. `close` never raises; it logs.
-        # A parked run keeps its spills: the history it resumes from names them.
+        # A parked run keeps its spills: the history it resumes from names them -
+        # parked on an approval or on a question to the person alike.
         await self.workspaces.close(
-            prepared.workspace, keep_spills=status is RunStatus.AWAITING_APPROVAL
+            prepared.workspace,
+            keep_spills=status in (RunStatus.AWAITING_APPROVAL, RunStatus.AWAITING_ANSWER),
         )
 
         # The approval rows the run parked, written here rather than while it ran:
