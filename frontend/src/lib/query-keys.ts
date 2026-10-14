@@ -89,6 +89,7 @@ export const qk = {
     all: () => ["voice"] as const,
     readiness: (agentId: string, surface: VoiceCallSurface = "web") =>
       ["voice", "readiness", agentId, surface] as const,
+    usage: (start: string, end: string) => ["voice", "usage", start, end] as const,
   },
   ml: {
     // How much the organization transcribed over a window, by agent and bot.

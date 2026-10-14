@@ -1,0 +1,316 @@
+---
+title: "Voice conversations"
+seo_title: "Voice conversations: talk to a published agent"
+description: "Call a published agent and talk to it: realtime models, approvals in the call, time and minute limits, hang-up safety nets, and transcripts saved as text."
+---
+
+# Voice conversations
+
+A **voice call** is a spoken conversation with a published agent. You talk, the
+agent answers aloud, and you can interrupt it mid-sentence. The agent keeps what
+it has in text chat: its tools, its knowledge, its approvals and its budgets.
+Every turn of the call is saved as text in the same conversation, so you can
+read it back or continue it by typing. No audio is stored, anywhere.
+
+Calls are made from `/chat` in the console, and from a widget or a hosted page
+when an embed's own switch is on. Each call is one [run](concepts.md), with the
+realtime model's name on it, so Activity, the cost screen and the audit trail
+see it like any other run.
+
+!!! note "The call view lands separately"
+
+    The server side, the settings, the readiness check and the API described
+    here are in place. The call view itself - in `/chat`, on the widget and on
+    the hosted page - is still being designed, and until it lands no surface
+    shows a call button.
+
+## Turn it on
+
+Two switches and one Voice section have to agree before anybody can call.
+
+**The organization.** Calls are **off** until an admin turns them on, in the
+Voice card on the organization's page, under "Voice conversations":
+
+| Setting | Default | What it does |
+|---|---|---|
+| Allow voice conversations | off | The master switch. Off refuses every call, on every surface |
+| Offer calls in chat | on | Whether `/chat` offers calls once they are allowed. The widget and the hosted page are switched per embed |
+| Longest call | 10 min | Any whole number of minutes from 1 to 50 (stored as 60–3000 s). An agent can set a shorter limit, never a longer one |
+| Monthly call minutes | 600 | Every call in the organization counts, from its first second. Clear it to rely on budgets alone |
+
+The first three need `org:settings`. The monthly minutes are a spend limit, so
+changing them needs `budgets:manage`, like the organization's monthly budget; a
+member without it sees the figure read-only.
+
+**The agent.** Its Voice card in the Builder gains a "Voice conversations"
+section, written to the spec's [`voice` field](reference/spec.md#voice). It
+names the provider, the model (or, for Azure, the deployment name and the base
+model it runs), the vault key calls are held with, the voice, an optional
+language, an optional longest call and an optional voice note. The note is
+added to the agent's instructions in calls only. The section takes effect when
+the agent is published.
+
+**The embed.** A widget or a hosted page offers calls only when its own "Voice
+calls" switch is on. Saving the switch on is refused while the organization's
+switch is off or the agent has no voice it can call with. See
+[Channels](channels.md#voice-calls-on-a-widget-or-a-hosted-page).
+
+## Models and keys
+
+The models a call can use come from one catalog file,
+`backend/app/core/catalog/realtime_models.json`, described in
+[Models](models.md#realtime-models). There is no model profile for voice and no
+organization default: the agent's Voice section is the only place a realtime
+model is named.
+
+| Provider | Models | Transport | Verified |
+|---|---|---|---|
+| OpenAI | `gpt-realtime`, `gpt-realtime-2.1`, `gpt-realtime-2.1-mini` | WebRTC | Live-tested |
+| Azure OpenAI | a deployment of `gpt-realtime` | Relay | **Not verified live** |
+| Google | Gemini Live: `gemini-2.5-flash-native-audio-latest`, `gemini-3.1-flash-live-preview` | Relay | **Not verified live** |
+| xAI | `grok-voice-latest`, billed per minute | Relay | **Not verified live** |
+
+Only OpenAI could be tested against a real account. Azure, Gemini and xAI are
+built from the providers' and Pydantic AI's documentation and tested with fakes.
+Expect them to work, and check them on your own account before you rely on them.
+
+**The key is an explicit vault secret.** Its purpose must be the provider and
+its kind must match: an `api_key`, or an `azure_openai` secret for Azure, which
+also carries the endpoint and API version. The publisher must be able to see the
+key, as for any binding. See [Secrets](secrets.md#where-they-are-used).
+
+**GPT-Live is not offered.** It takes the conversation's history only when a
+session starts and cannot be reconfigured, so a reconnect could not continue the
+call it resumes.
+
+## How a call runs
+
+The browser opens a socket to this deployment, `/api/v1/ws/voice`, and sends a
+`start` frame naming the agent and, optionally, the conversation. Everything
+about the call passes over that socket: the frames are listed in
+[the API page](api.md#voice-calls).
+
+**OpenAI, over WebRTC.** The browser builds a peer connection with its
+microphone and sends the SDP offer inside `start`. The server answers it with
+the provider, sends the answer back, and then holds a *sideband* connection to
+the same call for as long as the socket is open. The audio flows between the
+browser and OpenAI; the tools, the approvals, the transcripts and the metering
+run on the server.
+
+```mermaid
+sequenceDiagram
+    participant B as Browser
+    participant S as AgenticOS
+    participant P as OpenAI
+    B->>S: start (agent, SDP offer)
+    S->>S: refusals, run and call row, commit
+    S->>P: answer the offer
+    P-->>S: SDP answer, call id
+    S-->>B: answer, then ready
+    B->>P: audio over WebRTC
+    S->>P: sideband: tools, approvals, transcripts
+    B->>S: end, or the socket closes
+    S->>P: hang up the call
+    S-->>B: ended
+```
+
+Two things are refused on purpose. An offer that opens a **data channel** (an
+`m=application` section) is refused: the browser never needs one, and a data
+channel would let the page send events to the provider behind the server's back.
+And **no client secret is ever minted**, so the browser never holds a credential
+that could open a call of its own.
+
+**Azure, Gemini and xAI, over the relay.** The browser streams 16-bit PCM audio
+over the same socket, at the model's input rate, and plays what comes back at
+its output rate. When you talk over the agent, the server cuts its answer and
+tells the browser to drop what it has queued. Audio that arrives much faster
+than anyone speaks is dropped, and a sustained flood ends the call.
+
+## What a call can use
+
+A call runs the agent its published spec describes, built by the same factory as
+a text run. The differences come from the realtime session: its tools are fixed
+when the call connects, it cannot pause for an approval, and some capabilities
+cannot run in it at all.
+
+| By voice | Capabilities |
+|---|---|
+| As-is | clock (the time in the instructions is fixed when the call connects), context, knowledge, web research, web fetch, charts, artifacts, code execution, conversation search, memory files, mem0 memory, planning, tool output limits, image generation |
+| Adapted | skills: loaded as instructions on demand, without the tools a text run uses to read them |
+| Dropped | tool search: the MCP tools it would have deferred are passed to the call directly |
+| Mapped | thinking: becomes the realtime model's own reasoning setting, where the model has one |
+| Not available | sandbox, browser use, browser choice, subagents |
+
+The Builder's Voice card lists the capabilities this agent cannot use in calls.
+They do not block publishing; the agent is told to say plainly that it cannot do
+that on a call and to suggest text chat.
+
+**Built-in spoken style.** Every call adds the same guidance to the agent's
+instructions: short sentences; no markdown, lists, tables or links read aloud;
+numbers and dates said the way a person says them; names, amounts, addresses and
+dates read back before acting on them; and saying so when it is waiting for an
+approval, rather than claiming a result first. The agent's own voice note
+follows it.
+
+Over WebRTC the agent is resolved twice, once to answer the offer and once for
+the sideband. MCP servers are connected twice and dynamic instructions run
+twice, so a mem0 memory lookup is paid twice; both are metered on the run.
+
+## Approvals in a call
+
+A realtime session cannot pause, so an approval is decided inside the call.
+
+When the agent calls a tool that needs an approval, the server writes the
+approval row at once and shows the person on the call a card: the tool, **the
+exact arguments it will run with**, and what the caller was heard to say. A
+misheard name is the risk here ("Acme" heard as "Ahmad"), and the card is the
+check on it. Approving runs exactly those arguments, once; the same tool called
+again needs a new approval.
+
+- **60 seconds** without a decision expires the request, with no decider, and
+  the agent says so.
+- Only **the person on the call** decides, and only with `approvals:decide`. The
+  approvals queue refuses a request that belongs to a live call, and the stale
+  sweep leaves it alone.
+- A member **without** `approvals:decide` keeps the tool. When the agent reaches
+  for it, the call shows a notice, the tool is refused, and the agent says that
+  this needs an approval the caller cannot give by voice and suggests text chat.
+- An **anonymous visitor** on a widget or a hosted page never sees a tool that
+  needs an approval: those tools are left out of the call entirely.
+
+A call ending, for any reason, expires whatever it was still waiting on.
+
+## Limits and cost
+
+**Time.** A call runs at most the agent's longest call, the organization's
+longest call, or 50 minutes, whichever is shortest, and never longer than the
+month's minutes left. A minute before the end the call view is warned. At the
+end the agent says one short sentence about why and the call stops.
+
+**Minutes.** The organization's monthly minutes are counted from the call rows
+(`voice_calls`): each call to its end, or to its last heartbeat while it is
+still running. When they run out, new calls are refused, and a running call is
+told and ended at its next heartbeat. The dashboard's "Voice minutes" figure and
+the organization's Voice card read the same rows.
+
+**Money.** Calls count against the agent's and the organization's budgets, as
+text runs do:
+
+- Before a call starts, its longest possible length times the model's
+  worst-case price per minute is checked against the budget left. A call that
+  could not be afforded is refused, rather than started and cut short.
+- During the call, each response is booked on the run as it finishes, and the
+  budget is re-read at every heartbeat. The session's cost limit can overshoot
+  by at most one response (two on Azure, whose deployment is priced here as its
+  base model).
+- xAI is billed per connected minute, at the catalog's rate.
+- A model whose price cannot be computed is refused at setup, so a budget is
+  never silently unenforced.
+- Transcribing the caller's speech is not priced, so a call's recorded cost is
+  slightly under what the provider bills.
+
+**Concurrency.** One person holds one call at a time
+(`VOICE_MAX_CALLS_PER_USER`, default 1). One embed holds at most three open
+calls, from every visitor together (`VOICE_MAX_CALLS_PER_EMBED`); a fourth
+caller is refused as `line_busy`. See [Configuration](configuration.md#voice-calls).
+
+## Ending a call, and what bounds a lost one
+
+Closing the socket does not end an OpenAI WebRTC call: the audio is the
+browser's and the provider's, and the call goes on talking and billing until it
+is hung up or reaches the provider's own one-hour limit. So hanging up is the
+server's job, on every path:
+
+1. **A `finally` on every exit.** Hanging up, a limit, a lost socket, an error,
+   a revoked access or a shutdown all end in the same teardown. It records the
+   call's end, so a reconnect waiting on it does not also wait out the hang-up,
+   then hangs the provider call up (OpenAI's hang-up endpoint; a relay call ends
+   when the server closes its upstream socket), then finishes the run with its
+   cost.
+2. **Heartbeats.** The process holding a call writes its cost and seconds every
+   15 seconds. Each heartbeat also re-checks the caller's session, their
+   membership, the agent's published state and the organization's switch, and
+   ends the call when any of them fails.
+3. **The sweep.** A scheduled job, every minute and once at start-up, hangs up
+   any call whose heartbeat is older than 45 seconds, or whose end was recorded
+   but whose hang-up failed. It needs only the call id and the key.
+4. **Shutdown.** A server told to stop hangs up its own calls before it goes.
+5. **The browser** closes its peer connection when the tab is hidden for good
+   (`pagehide`) or the socket closes. That is a convenience; the four above are
+   the guarantee.
+
+!!! danger "The worst case for a lost OpenAI call"
+
+    If every safety net failed, a silent call costs close to nothing and a
+    chatty one about $5–15 for its hour. The bigger risk is not the money: it is
+    your organization's key held open with no tools, no approvals and no audit.
+    The sweep closes that window to about a minute.
+
+## Reconnecting
+
+A dropped connection gets **one automatic retry within 10 seconds**. The new
+connection is accepted only for the same person, agent and conversation, and
+only within 10 seconds of the previous one ending; it ends the previous one if
+it is still half-open. Time and budget carry over: a reconnect continues the
+call's clock rather than restarting it.
+
+The new session starts from the turns saved so far, as **text**, so nothing is
+repeated, no tool runs twice and the audio is not billed again. When those turns
+would fill more than half the model's context window, the older ones become a
+short summary written by the agent's chat model (billed to the run) and the
+recent ones follow word for word.
+
+Each connection is its own run, linked to the one it resumed. Activity shows the
+chain as one call, with every connection's time and cost summed.
+
+!!! note "Gemini's own resumption"
+
+    Gemini ends its connections after about ten minutes and resumes them
+    in-process, inside one call. A reconnect from the browser is a new session
+    seeded with text, as for every other provider.
+
+## Transcripts
+
+Each turn is saved the moment it finishes, as an ordinary message in the
+conversation: the caller's words from the input transcript, the agent's from
+what it said. Tool calls appear inline, as in text chat. A crash loses at most
+the turn in progress, and a reconnect cannot save a turn twice.
+
+When you talk over the agent, its answer is cut to what you heard and marked as
+interrupted. Over the relay the server knows exactly what was played. Over
+WebRTC it does not, so the cut is an estimate, made from when you started
+speaking. The live captions can run slightly ahead of the audio.
+
+**Guardrails** run on the transcripts. A hit on the agent's words cuts it off
+mid-sentence and shows a notice; a hit on the caller's words is not announced.
+Either way the hit is counted on the call and the whole turn is saved as
+`[withheld by a guardrail]`, and a guardrail that redacts rather than blocks
+saves the redacted text. Spoken words cannot be filtered before they are heard -
+the Voice card says so.
+
+Tools are screened on their way back: a tool's result is screened, and blocked,
+before the agent reads it. The check before a tool runs is the approval, for
+tools that need one. Guardrails do not screen a tool's arguments.
+
+## Frequently asked questions { #frequently-asked-questions }
+
+### Is audio recorded?
+
+No. The call keeps text only: each turn's transcript is saved as a message in
+the conversation, and no audio is stored by this deployment, in the database,
+on disk or in memory after the call. What the provider keeps is governed by
+your agreement with that provider.
+
+### Why can't a visitor approve a tool?
+
+A visitor on a widget or a hosted page is anonymous, and an approval is a
+decision somebody has to be accountable for. So tools that need an approval are
+left out of a visitor's call entirely, and the agent says plainly when it cannot
+do something there.
+
+### What happens if my tab closes mid-call?
+
+The socket closes, and the server hangs up the provider call and records its
+time and cost. If the server itself stopped, the sweep hangs the call up within
+about a minute of its last heartbeat. The turns said before the tab closed are
+already saved in the conversation.

@@ -711,7 +711,7 @@
     "voiceConversationNote": "Hinweis zur Stimme",
     "voiceConversationNoteHint": "Wird in Anrufen nach dem eingebauten Sprechstil an die Anweisungen des Agents angehängt.",
     "voiceConversationUnavailable": "In Anrufen nicht verfügbar",
-    "voiceConversationGuardrails": "Guardrails prüfen Transkripte während eines Anrufs und unterbrechen den Agent bei einem Treffer, aber gesprochene Worte lassen sich nicht filtern, bevor sie zu hören sind. Tool-Aufrufe werden weiterhin blockiert, bevor sie laufen.",
+    "voiceConversationGuardrails": "Guardrails prüfen Transkripte während eines Anrufs und unterbrechen den Agent, wenn seine Worte einen Treffer auslösen, aber gesprochene Worte lassen sich nicht filtern, bevor sie zu hören sind. Das Ergebnis eines Tools wird weiterhin geprüft, bevor der Agent es liest; Tool-Argumente werden nicht geprüft.",
     "voiceConversationRecorded": "Anrufe werden als Text in der Unterhaltung festgehalten. Es wird kein Audio gespeichert.",
     "voiceConversationCatalogFailed": "Die Liste der Sprachmodelle konnte nicht geladen werden, daher lassen sich Anrufe hier nicht einschalten. Laden Sie die Seite neu, um es erneut zu versuchen."
   },
@@ -2103,6 +2103,20 @@
           "title": "Noch nichts veröffentlicht",
           "description": "Hier erscheinen Berichte und Dashboards, die ein Agent veröffentlicht."
         }
+      },
+      "voice-minutes": {
+        "title": "Anrufminuten",
+        "description": "Anrufminuten im Zeitraum und welche Agents sie geführt haben, dazu die Minuten dieses Monats gegenüber dem monatlichen Limit der Organisation.",
+        "minutes": "{minutes} Min.",
+        "calls": "{count, plural, one {# Anruf} other {# Anrufe}}",
+        "month": "Anrufminuten in diesem Monat",
+        "monthUsed": "Dieser Monat: {used} von {limit} Min.",
+        "noLimit": "Dieser Monat: {used} Min. · kein monatliches Limit",
+        "empty": {
+          "title": "Noch keine Sprachanrufe",
+          "description": "Minuten erscheinen hier, sobald Mitglieder oder Besucher einen Agent anrufen."
+        },
+        "deletedAgent": "Gelöschter Agent"
       }
     },
     "edit": {
@@ -3451,6 +3465,14 @@
       "org-voice": {
         "title": "Stimme",
         "body": "Wählen Sie, wie Diktieren im Chat Sprache in Text umwandelt: mit dem eigenen Dienst des Browsers oder über dieses Deployment mit Ihrem Provider."
+      },
+      "agent-voice": {
+        "title": "Stimme",
+        "body": "Legen Sie fest, wie diesem Agent diktiert wird, und unter Sprachgespräche das Realtime-Modell, den Schlüssel und die Stimme, mit denen er Anrufe annimmt."
+      },
+      "org-voice-conversations": {
+        "title": "Sprachgespräche",
+        "body": "Schalten Sie Anrufe ein und begrenzen Sie ihre Länge und die monatlichen Minuten der Organisation. Anrufe zählen auch gegen die Budgets."
       }
     }
   },
@@ -5210,7 +5232,9 @@
         "monthlyReadOnly": "{minutes, plural, one {# Anrufminute pro Monat} other {# Anrufminuten pro Monat}}",
         "monthlyUnlimited": "Kein monatliches Limit",
         "budgetsNote": "Anrufe zählen auch gegen das Budget der Organisation und jedes Agents.",
-        "saved": "Einstellungen für Sprachgespräche gespeichert"
+        "saved": "Einstellungen für Sprachgespräche gespeichert",
+        "used": "In diesem Monat verbrauchte Anrufminuten: {used} von {limit}",
+        "usedNoLimit": "In diesem Monat verbrauchte Anrufminuten: {used}"
       }
     }
   },

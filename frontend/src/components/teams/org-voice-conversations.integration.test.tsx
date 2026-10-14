@@ -73,6 +73,17 @@ function grant(permissions: string[]) {
       };
     }
     if (path === "/orgs") return { items: [org()], total: 1 };
+    if (path.startsWith("/voice/usage?")) {
+      return {
+        start: "2026-10-01T00:00:00Z",
+        end: "2026-10-14T12:00:00Z",
+        seconds: 1500,
+        calls: 6,
+        by_agent: [],
+        month_seconds: 2520,
+        monthly_minutes: 600,
+      };
+    }
     throw new Error(`unexpected GET ${path}`);
   });
 }
@@ -256,5 +267,34 @@ describe("OrgVoiceConversations", () => {
     await userEvent.click(await screen.findByRole("switch", { name: "Allow voice conversations" }));
     await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
+  });
+
+  it("tells somebody who may read runs how much of the month's minutes calls used", async () => {
+    grant(["org:settings", "runs:view"]);
+    render(<OrgVoiceConversations org={org({ voice_monthly_minutes: 600 })} />, { wrapper });
+    expect(await screen.findByText("Call minutes used this month: 42 of 600")).toBeInTheDocument();
+    // The window is this calendar month so far, from its first UTC midnight.
+    const now = new Date();
+    const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    const asked = vi.mocked(apiClient.get).mock.calls.map(([path]) => String(path));
+    const usage = new URLSearchParams(
+      asked.find((path) => path.startsWith("/voice/usage?"))?.split("?")[1],
+    );
+    expect(usage.get("start")).toBe(monthStart.toISOString());
+  });
+
+  it("states the month's minutes alone when only budgets bound calls", async () => {
+    grant(["org:settings", "runs:view"]);
+    render(<OrgVoiceConversations org={org({ voice_monthly_minutes: null })} />, { wrapper });
+    expect(await screen.findByText("Call minutes used this month: 42")).toBeInTheDocument();
+  });
+
+  it("never asks for the minutes used without runs:view", async () => {
+    grant(["org:settings"]);
+    render(<OrgVoiceConversations org={org()} />, { wrapper });
+    await screen.findByLabelText(LONGEST);
+    const asked = vi.mocked(apiClient.get).mock.calls.map(([path]) => String(path));
+    expect(asked.some((path) => path.startsWith("/voice/usage"))).toBe(false);
+    expect(screen.queryByText(/Call minutes used this month/)).toBeNull();
   });
 });

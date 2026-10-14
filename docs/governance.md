@@ -433,6 +433,27 @@ to the bill, because each child's cost is added by its own row and removed by it
 parent's. A key works the same way, and matters more: a key is what somebody
 rotates when a bill looks wrong.
 
+### A voice call's budget and minutes
+
+A [voice call](voice.md) is a run, and its spend counts against the agent's and
+the organization's budgets like any other. Three things differ, because a call
+cannot be checked before each request the way a text run is:
+
+- **Before it starts**, the call's longest possible length times the model's
+  worst-case price per minute is checked against the budget left. A call that
+  could not be afforded is refused rather than started and cut short.
+- **While it runs**, each response is booked on the run as it finishes, and the
+  month's spend is re-read every 15 seconds, so other runs spending meanwhile
+  are seen. A budget that runs out mid-call gets one spoken sentence and ends
+  the call, recorded `budget_exceeded`.
+- **Calls have a second limit of their own**: the organization's monthly call
+  minutes (600 by default, null for budgets only), set by whoever holds
+  `budgets:manage`. They are counted from the call rows, not from run
+  durations, and a call that reaches them is ended the same way.
+
+A call whose process died is closed by the voice sweep at the cost its last
+heartbeat recorded, unlike a text run, whose spend dies with its process.
+
 ### What run history shows
 
 **`GET /runs` lists top-level runs only, and its `total` counts those.** The same
@@ -1002,6 +1023,27 @@ tools are not declared by capabilities. Connection and binding allowlists contro
 which MCP tools are exposed; they do not themselves request approval. The default
 **Follow the agent** mode applies the agent's capability policy and does not add
 an approval gate to those MCP tools.
+
+### An approval inside a voice call
+
+A [voice call](voice.md#approvals-in-a-call) cannot pause and wait for the
+queue, so its approvals are decided in the call, by the person on it:
+
+- The request is written to the queue at once, and the call shows the tool,
+  the exact arguments it will run with, and what the caller was heard to say.
+  Approving runs those arguments, once.
+- It is decided **only through the call**, and only by a caller holding
+  `approvals:decide`. `POST /approvals/{id}` refuses a request that belongs to a
+  live call, and the stale-approval sweep below skips voice runs.
+- **60 seconds** without a decision expires it, with no decider - the same null
+  the sweep writes. A call that ends for any reason expires whatever it was
+  still waiting on.
+- A member without `approvals:decide` is told plainly, and the tool is refused.
+  A visitor on a widget or a hosted page never sees a tool that needs an
+  approval: it is left out of their call.
+
+`approval_mode` follows the agent's spec, as in text chat, and every decision
+reaches the audit trail like any other.
 
 ### A decision nobody makes
 

@@ -20,34 +20,34 @@ tools listed.
 
 ## What ships
 
-| id | Name | Category | Tools | Scope | Key |
-|---|---|---|---|---|---|
-| `knowledge` | Knowledge search | knowledge | `search_documents` | `knowledge:read` | — |
-| `skills` | Skills | knowledge | `read_skill_resource` | `knowledge:read` | — |
-| `context` | Context | knowledge | `list_context`, `read_context` | — | — |
-| `memory_files` | Memory files | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — |
-| `memory_mem0` | Memory (mem0) | knowledge | `remember`, `recall` | — | required |
-| `conversation_search` | Conversation search | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — |
-| `web_research` | Web search | research | `web_search` | `web:read` | for paid services |
-| `web_fetch` | Web fetch | research | `web_fetch` | `web:fetch` | — |
-| `browser_choice` | Browser automation (choose) | research | `browse_page` | `web:browse` | via the `browser` extra |
-| `browser_use` | Browser automation | research | `browse_web` | `web:browse` | via the `browser-use` extra |
-| `code_execution` | Run Python | analysis | `run_python` | `code:execute` | — |
-| `sandbox` | Files & shell | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | for Daytona |
-| `charts` | Charts | analysis | `create_chart` | — | — |
-| `image_generation` | Image generation | analysis | `generate_image` | — | required |
-| `subagents` | Delegation | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — |
-| `planning` | Planning | reasoning | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — |
-| `thinking` | Thinking | reasoning | none, by design | — | — |
-| `system_reminders` | System reminders | reasoning | none, by design | — | — |
-| `tool_search` | Tool search | utility | none, by design | — | — |
-| `clock` | Date and time | utility | none, by design | — | — |
-| `guardrails` | Guardrails | utility | none, by design | — | — |
-| `compaction` | Context management | utility | none, by design | — | — |
-| `media` | Media offload | utility | none, by design | — | — |
-| `tool_output_limits` | Tool output limits | utility | `read_tool_result` | — | — |
-| `artifacts` | Artifacts | utility | `publish_artifact`, `read_artifact` | — | — |
-| `channel_tools` | Chat channel lookup | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
+| id | Name | Category | Tools | Scope | Key | Voice |
+|---|---|---|---|---|---|---|
+| `knowledge` | Knowledge search | knowledge | `search_documents` | `knowledge:read` | — | as-is |
+| `skills` | Skills | knowledge | `read_skill_resource` | `knowledge:read` | — | adapted |
+| `context` | Context | knowledge | `list_context`, `read_context` | — | — | as-is |
+| `memory_files` | Memory files | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — | as-is |
+| `memory_mem0` | Memory (mem0) | knowledge | `remember`, `recall` | — | required | as-is |
+| `conversation_search` | Conversation search | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — | as-is |
+| `web_research` | Web search | research | `web_search` | `web:read` | for paid services | as-is |
+| `web_fetch` | Web fetch | research | `web_fetch` | `web:fetch` | — | as-is |
+| `browser_choice` | Browser automation (choose) | research | `browse_page` | `web:browse` | via the `browser` extra | not available |
+| `browser_use` | Browser automation | research | `browse_web` | `web:browse` | via the `browser-use` extra | not available |
+| `code_execution` | Run Python | analysis | `run_python` | `code:execute` | — | as-is |
+| `sandbox` | Files & shell | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | for Daytona | not available |
+| `charts` | Charts | analysis | `create_chart` | — | — | as-is |
+| `image_generation` | Image generation | analysis | `generate_image` | — | required | as-is |
+| `subagents` | Delegation | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — | not available |
+| `planning` | Planning | reasoning | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — | as-is |
+| `thinking` | Thinking | reasoning | none, by design | — | — | mapped |
+| `system_reminders` | System reminders | reasoning | none, by design | — | — | no effect |
+| `tool_search` | Tool search | utility | none, by design | — | — | dropped |
+| `clock` | Date and time | utility | none, by design | — | — | as-is |
+| `guardrails` | Guardrails | utility | none, by design | — | — | on transcripts |
+| `compaction` | Context management | utility | none, by design | — | — | no effect |
+| `media` | Media offload | utility | none, by design | — | — | no effect |
+| `tool_output_limits` | Tool output limits | utility | `read_tool_result` | — | — | as-is |
+| `artifacts` | Artifacts | utility | `publish_artifact`, `read_artifact` | — | — | as-is |
+| `channel_tools` | Chat channel lookup | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — | not available |
 
 Seven of those have no tools on purpose. `thinking` changes how the model runs
 rather than what it can reach, `clock` puts the date in the instructions,
@@ -66,6 +66,21 @@ tools says so with `tools=()` rather than omitting the argument; see
 offered.** Delegation is the one place the two differ: `create_agent` and `delegate`
 appear only under `allow_dynamic`, and `answer_subagent` appears to nobody at all —
 both explained under [Delegation](#delegation) below.
+
+**The Voice column is what a capability does in a [voice call](../voice.md#what-a-call-can-use).**
+*As-is* runs unchanged. *Adapted* skills load as instructions on demand,
+without their reading tool. *Dropped* tool search gives the call its MCP tools
+directly, because a call's tools are fixed when it connects. *Mapped* thinking
+becomes the realtime model's own reasoning setting. *Not available* is left out
+of calls, and the Builder's Voice card lists it for an agent that has it; it
+does not block publishing. Chat channel lookup is among them because a call is
+never made on a channel. *No effect* marks three that work on a text run's
+model requests and their stored history, which a call does not send.
+
+Guardrails screen the call's transcripts. A tool's result is screened, and
+blocked, before the agent reads it; the check before a tool runs is the
+approval, for tools that need one. Guardrails do not screen a tool's arguments.
+The catalog API carries the column as each capability's `voice` flag.
 
 **One of them is not in the Toolbox at all.** `channel_tools` is chosen per bound
 bot under *Where this agent is available*, and publishing refuses a spec that

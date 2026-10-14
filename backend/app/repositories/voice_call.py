@@ -11,6 +11,7 @@ from uuid import UUID
 from sqlalchemy import extract, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.models.agent import Agent
 from app.db.models.voice_call import VoiceCall, VoiceEndReason
 
 _CHAIN_DEPTH = 20
@@ -170,6 +171,40 @@ async def seconds_since(db: AsyncSession, *, organization_id: UUID, since: datet
         )
     )
     return int(result.scalar_one())
+
+
+async def usage_by_agent(
+    db: AsyncSession, *, organization_id: UUID, start: datetime, end: datetime
+) -> list[tuple[UUID | None, str | None, int, int]]:
+    """Per agent, most seconds first: call seconds and calls started in `[start, end)`.
+
+    Seconds are counted like :func:`seconds_since`. A reconnect is its own row
+    but not a second call, so only the first connection of a chain is counted -
+    which means a reconnect inside the window whose first connection started
+    before it adds its seconds and no call. Calls of a deleted agent (their
+    `agent_id` cleared) come back together as one row with no id and no name,
+    so the rows still add up to every call in the window.
+    """
+    until = func.coalesce(VoiceCall.ended_at, VoiceCall.heartbeat_at)
+    seconds = func.coalesce(func.sum(extract("epoch", until - VoiceCall.started_at)), 0)
+    result = await db.execute(
+        select(
+            VoiceCall.agent_id,
+            Agent.name,
+            seconds,
+            func.count().filter(VoiceCall.resume_of.is_(None)),
+        )
+        .select_from(VoiceCall)
+        .outerjoin(Agent, Agent.id == VoiceCall.agent_id)
+        .where(
+            VoiceCall.organization_id == organization_id,
+            VoiceCall.started_at >= start,
+            VoiceCall.started_at < end,
+        )
+        .group_by(VoiceCall.agent_id, Agent.name)
+        .order_by(seconds.desc(), Agent.name.asc().nullslast())
+    )
+    return [(row[0], row[1], int(row[2]), int(row[3])) for row in result.all()]
 
 
 async def chain_seconds(db: AsyncSession, call_id: UUID) -> int:

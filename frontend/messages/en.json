@@ -715,7 +715,7 @@
     "voiceConversationNote": "Voice note",
     "voiceConversationNoteHint": "Added to the agent's instructions in calls, after the built-in spoken style.",
     "voiceConversationUnavailable": "Not available in calls",
-    "voiceConversationGuardrails": "Guardrails check transcripts during a call and cut the agent off on a hit, but spoken words cannot be filtered before they are heard. Tool calls are still blocked before they run.",
+    "voiceConversationGuardrails": "Guardrails check transcripts during a call and cut the agent off when its words hit one, but spoken words cannot be filtered before they are heard. A tool's result is still screened before the agent reads it; tool arguments are not screened.",
     "voiceConversationRecorded": "Calls are recorded as text in the conversation. No audio is kept.",
     "voiceConversationCatalogFailed": "The list of voice models could not be loaded, so calls cannot be turned on here. Reload the page to try again."
   },
@@ -2117,6 +2117,20 @@
           "title": "Nothing published yet",
           "description": "Reports and dashboards an agent publishes appear here."
         }
+      },
+      "voice-minutes": {
+        "title": "Voice minutes",
+        "description": "Call minutes in the period and which agents took them, with this month's minutes against the organization's monthly limit.",
+        "minutes": "{minutes} min",
+        "calls": "{count, plural, one {# call} other {# calls}}",
+        "month": "Call minutes this month",
+        "monthUsed": "This month: {used} of {limit} min",
+        "noLimit": "This month: {used} min · no monthly limit",
+        "empty": {
+          "title": "No voice calls yet",
+          "description": "Minutes appear here once members or visitors call an agent."
+        },
+        "deletedAgent": "Deleted agent"
       }
     },
     "edit": {
@@ -3588,6 +3602,14 @@
       "org-voice": {
         "title": "Voice",
         "body": "Choose how dictation in chat turns speech into text: the browser's own service, or your provider through this deployment."
+      },
+      "agent-voice": {
+        "title": "Voice",
+        "body": "Choose how this agent is dictated to and, under Voice conversations, the realtime model, key and voice it takes calls with."
+      },
+      "org-voice-conversations": {
+        "title": "Voice conversations",
+        "body": "Turn calls on, cap their length and the organization's monthly minutes. Calls also count against budgets."
       }
     }
   },
@@ -5351,7 +5373,9 @@
         "monthlyReadOnly": "{minutes, plural, one {# call minute a month} other {# call minutes a month}}",
         "monthlyUnlimited": "No monthly limit",
         "budgetsNote": "Calls also count against the organization's and each agent's budget.",
-        "saved": "Voice conversation settings saved"
+        "saved": "Voice conversation settings saved",
+        "used": "Call minutes used this month: {used} of {limit}",
+        "usedNoLimit": "Call minutes used this month: {used}"
       }
     }
   },

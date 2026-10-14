@@ -1,5 +1,5 @@
 ---
-source_sha: "02ec08e2ff51"
+source_sha: "fe0087d9fc16"
 ---
 
 # Der Agent-Spec { #the-agent-spec }
@@ -56,3 +56,47 @@ sich nicht in ein Deployment importieren, das älter ist als der Block: dessen
 Spec lehnt Felder ab, die er nicht kennt.
 
 ::: app.agents.spec.SpeechToTextSpec
+
+## Stimme { #voice }
+
+Wie der Agent einen [Sprachanruf](../voice.md) führt: das Realtime-Modell, der
+Vault-Schlüssel, die Stimme und die eigenen Limits des Anrufs. Optional, und ein
+vollständig leerer Block gilt als kein Block, also laden Specs, die vor ihm
+geschrieben wurden, unverändert, und `SPEC_VERSION` hat sich nicht bewegt. Wie
+beim Block zur Spracherkennung lässt sich ein Spec, der ihn trägt, nicht in ein
+Deployment importieren, das älter ist als der Block.
+
+| Feld | Was es hält |
+|---|---|
+| `provider` | Ein Provider aus dem Realtime-Katalog: `openai`, `azure`, `google` oder `xai` |
+| `model` | Ein Realtime-Modell dieses Providers. Für Azure leer lassen und die beiden folgenden Felder verwenden |
+| `deployment` | Nur Azure: der Name des Deployments, an das Anrufe gehen |
+| `base_model` | Nur Azure: das Katalogmodell, das dieses Deployment ausführt und das seine Stimmen und seinen Preis bestimmt |
+| `secret_id` | Der Vault-Schlüssel, mit dem Anrufe gehalten werden - eine ID, nie der Schlüssel |
+| `voice` | Eine der Stimmen des Modells; leer verwendet die Standardstimme des Modells |
+| `language` | Ein ISO-639-1-Code der Sprache, die der Agent spricht; leer folgt dem Anrufer |
+| `max_call_seconds` | Der längste Anruf, 60 bis 3000, und höchstens der längste Anruf der Organisation |
+| `voice_note` | Bis zu 1000 Zeichen, die nur in Anrufen an die Anweisungen des Agents angehängt werden |
+
+Jede Regel, die mehrere Felder umfasst, wird beim Veröffentlichen der Version
+geprüft, nicht beim Speichern des Entwurfs, denn der Builder speichert
+automatisch zwischen der Wahl eines Providers und der Wahl seines Modells. Das
+Veröffentlichen wird abgelehnt, unter Nennung des Abschnitts Stimme (Voice), wenn:
+
+- ein Provider fehlt oder der Katalog dieses Deployments keinen solchen Provider
+  hat;
+- das Modell fehlt oder kein Realtime-Modell ist, das der Katalog für diesen
+  Provider anbietet (bei Azure das Basismodell), oder ein Azure-Abschnitt kein
+  Deployment benennt;
+- die Stimme keine der Stimmen des Modells ist;
+- kein Schlüssel gewählt ist oder der Schlüssel die gemeinsame Prüfung nicht
+  besteht: Sein Zweck ist nicht der Provider, seine Art ist nicht die des
+  Providers (`api_key`, oder `azure_openai` für Azure), er gehört einer anderen
+  Organisation, oder der Veröffentlichende kann ihn nicht sehen;
+- die Sprache kein Code ist, den Anrufe annehmen;
+- der längste Anruf über dem längsten Anruf der Organisation liegt.
+
+Capabilities, die ein Anruf nicht ausführen kann, blockieren das Veröffentlichen
+nicht; sie werden aus Anrufen weggelassen, und der Builder listet sie auf.
+
+::: app.agents.spec.VoiceSpec

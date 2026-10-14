@@ -1,5 +1,5 @@
 ---
-source_sha: "d6244bf5e175"
+source_sha: "6d462d6f18be"
 ---
 
 # Arquitectura { #architecture }
@@ -138,8 +138,8 @@ Una ruta pide `DBSession` (`app/api/deps.py`), que resuelve `get_db_session`
 (`app/db/session.py`). Todo lo que hay por debajo de la ruta comparte esa única
 sesión: los servicios la reciben en su constructor, los repositorios la reciben
 como primer argumento, y ninguno de los dos llama nunca a `commit()` — con una
-excepción deliberada, el camino del run de un agent, descrito
-[más abajo](#the-run-paths-two-commits). `flush()` envía las sentencias para que
+excepción deliberada, el camino del run de un agent y la llamada de voz que es
+uno, descritos [más abajo](#the-run-paths-two-commits). `flush()` envía las sentencias para que
 la fila tenga un id y se hayan comprobado las restricciones; el commit ocurre una
 vez, a la salida.
 
@@ -239,6 +239,30 @@ y un run que falta en el historial es un run del que nadie responde.
 
 Los dos límites se demuestran contra una base de datos real en
 `tests/integration/test_run_commit_boundary.py`.
+
+**Una llamada de voz es un run, y mantiene los mismos dos commits** ([#54][54]).
+Una llamada retiene su socket hasta cincuenta minutos, así que hace commit donde
+lo hace el camino del run y escribe todo lo intermedio a través de sesiones
+propias:
+
+- `VoiceCallStarter.start` hace commit una vez superados todos los rechazos, con
+  la fila de `voice_calls` y su run ya escritos, antes de llamar al provider.
+  Las filas de aprobación, el latido y el barrido de voz necesitan que esas filas
+  se puedan leer desde otras sesiones; un rechazo antes de ese punto revierte
+  todo, así que una llamada rechazada no deja nada en Activity.
+- Cada turno guardado, cada latido de 15 segundos y cada escritura de una
+  aprobación abre su propia sesión `get_db_context()` y hace commit ahí, nunca en
+  la sesión compartida del run - un turno es durable en el momento en que se
+  dice, y una caída pierde como mucho el turno en curso.
+- El desmontaje de `VoiceCallSession`, un `finally` protegido, registra el final
+  de la fila de la llamada, después cuelga la llamada al provider, termina el
+  run y vuelve a hacer commit - el commit terminal, por cualquier salida. El
+  final va primero para que una reconexión que lo espera no espere también al
+  colgado.
+
+`tests/test_voice_starter.py::test_a_started_call_is_committed_with_its_row_and_a_voice_run`
+y `tests/test_voice_session.py::test_every_exit_path_hangs_up_the_provider_call`
+sostienen los dos extremos.
 
 ### El único otro commit temprano { #the-one-other-early-commit }
 
@@ -349,6 +373,7 @@ cualquier cosa que deba sobrevivir a un reinicio es un deployment de Prefect.
 
 [3]: https://github.com/vstorm-co/agenticos/issues/3
 [12]: https://github.com/vstorm-co/agenticos/issues/12
+[54]: https://github.com/vstorm-co/agenticos/issues/54
 [353]: https://github.com/vstorm-co/agenticos/issues/353
 [417]: https://github.com/vstorm-co/agenticos/issues/417
 [658]: https://github.com/vstorm-co/agenticos/issues/658

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { apiClient } from "@/lib/api-client";
-import { realtimeModels, voiceReadiness } from "./voice-api";
+import { realtimeModels, voiceReadiness, voiceUsage } from "./voice-api";
 
 vi.mock("@/lib/api-client", () => ({ apiClient: { get: vi.fn() } }));
 
@@ -24,5 +24,13 @@ describe("voice api", () => {
     vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
     await realtimeModels();
     expect(apiClient.get).toHaveBeenCalledWith("/providers/realtime-models");
+  });
+
+  it("reads the call minutes for a window of instants", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({});
+    await voiceUsage("2026-09-01T00:00:00.000Z", "2026-09-07T23:59:59.999Z");
+    expect(apiClient.get).toHaveBeenCalledWith(
+      "/voice/usage?start=2026-09-01T00%3A00%3A00.000Z&end=2026-09-07T23%3A59%3A59.999Z",
+    );
   });
 });

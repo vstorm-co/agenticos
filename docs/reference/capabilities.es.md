@@ -1,5 +1,5 @@
 ---
-source_sha: "6cd3215a642b"
+source_sha: "54080ee7bd9c"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -24,34 +24,34 @@ capabilities cubren además cosas que no son herramientas en absoluto, y por eso
 
 ## Qué se entrega { #what-ships }
 
-| id | Nombre | Categoría | Herramientas | Scope | Clave |
-|---|---|---|---|---|---|
-| `knowledge` | Búsqueda de conocimiento | knowledge | `search_documents` | `knowledge:read` | — |
-| `skills` | Skills | knowledge | `read_skill_resource` | `knowledge:read` | — |
-| `context` | Contexto | knowledge | `list_context`, `read_context` | — | — |
-| `memory_files` | Archivos de memoria | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — |
-| `memory_mem0` | Memoria (mem0) | knowledge | `remember`, `recall` | — | obligatoria |
-| `conversation_search` | Búsqueda de conversaciones | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — |
-| `web_research` | Búsqueda web | research | `web_search` | `web:read` | para servicios de pago |
-| `web_fetch` | Lectura de páginas web | research | `web_fetch` | `web:fetch` | — |
-| `browser_choice` | Automatización del navegador (elección) | research | `browse_page` | `web:browse` | mediante el extra `browser` |
-| `browser_use` | Automatización del navegador | research | `browse_web` | `web:browse` | mediante el extra `browser-use` |
-| `code_execution` | Ejecutar Python | analysis | `run_python` | `code:execute` | — |
-| `sandbox` | Archivos y shell | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | para Daytona |
-| `charts` | Gráficos | analysis | `create_chart` | — | — |
-| `image_generation` | Generación de imágenes | analysis | `generate_image` | — | obligatoria |
-| `subagents` | Delegación | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — |
-| `planning` | Planificación | reasoning | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — |
-| `thinking` | Razonamiento | reasoning | ninguna, a propósito | — | — |
-| `system_reminders` | Recordatorios del sistema | reasoning | ninguna, a propósito | — | — |
-| `tool_search` | Búsqueda de herramientas | utility | ninguna, a propósito | — | — |
-| `clock` | Fecha y hora | utility | ninguna, a propósito | — | — |
-| `guardrails` | Guardrails | utility | ninguna, a propósito | — | — |
-| `compaction` | Gestión del contexto | utility | ninguna, a propósito | — | — |
-| `media` | Descarga de medios | utility | ninguna, a propósito | — | — |
-| `tool_output_limits` | Límites de salida de herramientas | utility | `read_tool_result` | — | — |
-| `artifacts` | Artefactos | utility | `publish_artifact`, `read_artifact` | — | — |
-| `channel_tools` | Consulta del canal de chat | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
+| id | Nombre | Categoría | Herramientas | Scope | Clave | Voz |
+|---|---|---|---|---|---|---|
+| `knowledge` | Búsqueda de conocimiento | knowledge | `search_documents` | `knowledge:read` | — | tal cual |
+| `skills` | Skills | knowledge | `read_skill_resource` | `knowledge:read` | — | adaptada |
+| `context` | Contexto | knowledge | `list_context`, `read_context` | — | — | tal cual |
+| `memory_files` | Archivos de memoria | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — | tal cual |
+| `memory_mem0` | Memoria (mem0) | knowledge | `remember`, `recall` | — | obligatoria | tal cual |
+| `conversation_search` | Búsqueda de conversaciones | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — | tal cual |
+| `web_research` | Búsqueda web | research | `web_search` | `web:read` | para servicios de pago | tal cual |
+| `web_fetch` | Lectura de páginas web | research | `web_fetch` | `web:fetch` | — | tal cual |
+| `browser_choice` | Automatización del navegador (elección) | research | `browse_page` | `web:browse` | mediante el extra `browser` | no disponible |
+| `browser_use` | Automatización del navegador | research | `browse_web` | `web:browse` | mediante el extra `browser-use` | no disponible |
+| `code_execution` | Ejecutar Python | analysis | `run_python` | `code:execute` | — | tal cual |
+| `sandbox` | Archivos y shell | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | para Daytona | no disponible |
+| `charts` | Gráficos | analysis | `create_chart` | — | — | tal cual |
+| `image_generation` | Generación de imágenes | analysis | `generate_image` | — | obligatoria | tal cual |
+| `subagents` | Delegación | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — | no disponible |
+| `planning` | Planificación | reasoning | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — | tal cual |
+| `thinking` | Razonamiento | reasoning | ninguna, a propósito | — | — | mapeada |
+| `system_reminders` | Recordatorios del sistema | reasoning | ninguna, a propósito | — | — | sin efecto |
+| `tool_search` | Búsqueda de herramientas | utility | ninguna, a propósito | — | — | descartada |
+| `clock` | Fecha y hora | utility | ninguna, a propósito | — | — | tal cual |
+| `guardrails` | Guardrails | utility | ninguna, a propósito | — | — | en las transcripciones |
+| `compaction` | Gestión del contexto | utility | ninguna, a propósito | — | — | sin efecto |
+| `media` | Descarga de medios | utility | ninguna, a propósito | — | — | sin efecto |
+| `tool_output_limits` | Límites de salida de herramientas | utility | `read_tool_result` | — | — | tal cual |
+| `artifacts` | Artefactos | utility | `publish_artifact`, `read_artifact` | — | — | tal cual |
+| `channel_tools` | Consulta del canal de chat | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — | no disponible |
 
 Siete de ellas no tienen herramientas a propósito. `thinking` cambia cómo trabaja
 el modelo, no qué puede alcanzar, `clock` pone la fecha en las instrucciones,
@@ -71,6 +71,26 @@ ofrece a un modelo.** La delegación es el único sitio donde ambas difieren:
 `create_agent` y `delegate` aparecen solo bajo `allow_dynamic`, y
 `answer_subagent` no aparece para nadie — las dos cosas se explican en
 [Delegación](#delegation) más abajo.
+
+**La columna Voz es lo que hace una capability en una [llamada de voz](../voice.md#what-a-call-can-use).**
+*Tal cual* funciona sin cambios. Los skills de una capability *adaptada* se
+cargan como instrucciones bajo demanda, sin su herramienta de lectura. La
+búsqueda de herramientas *descartada* da a la llamada sus herramientas MCP
+directamente, porque las herramientas de una llamada quedan fijas cuando se
+conecta. El razonamiento *mapeado* se convierte en el propio ajuste de
+razonamiento del modelo en tiempo real. *No disponible* queda fuera de las
+llamadas, y la tarjeta Voice del Builder la enumera para un agent que la tiene;
+no bloquea la publicación. La consulta del canal de chat está entre ellas
+porque una llamada nunca se hace en un canal. *Sin efecto* marca tres que
+actúan sobre las peticiones al modelo de un run de texto y sobre su historial
+almacenado, que una llamada no envía.
+
+Los guardrails revisan las transcripciones de la llamada. El resultado de una
+herramienta se revisa, y se bloquea, antes de que el agent lo lea; la
+comprobación antes de que una herramienta se ejecute es la aprobación, para las
+herramientas que la necesitan. Los guardrails no revisan los argumentos de una
+herramienta. La API del catálogo lleva la columna como la marca `voice` de cada
+capability.
 
 **Una de ellas no está en el Toolbox en absoluto.** `channel_tools` se elige por
 bot vinculado en *Where this agent is available*, y la publicación rechaza un spec

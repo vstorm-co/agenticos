@@ -1,5 +1,5 @@
 ---
-source_sha: "6cd3215a642b"
+source_sha: "54080ee7bd9c"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -25,34 +25,34 @@ Capabilities decken außerdem Dinge ab, die gar keine Tools sind — deshalb ste
 
 ## Was ausgeliefert wird { #what-ships }
 
-| id | Name | Kategorie | Tools | Scope | Schlüssel |
-|---|---|---|---|---|---|
-| `knowledge` | Wissenssuche | knowledge | `search_documents` | `knowledge:read` | — |
-| `skills` | Skills | knowledge | `read_skill_resource` | `knowledge:read` | — |
-| `context` | Kontext | knowledge | `list_context`, `read_context` | — | — |
-| `memory_files` | Gedächtnisdateien | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — |
-| `memory_mem0` | Gedächtnis (mem0) | knowledge | `remember`, `recall` | — | erforderlich |
-| `conversation_search` | Unterhaltungssuche | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — |
-| `web_research` | Websuche | research | `web_search` | `web:read` | für kostenpflichtige Dienste |
-| `web_fetch` | Webabruf | research | `web_fetch` | `web:fetch` | — |
-| `browser_choice` | Browser-Automatisierung (Auswahl) | research | `browse_page` | `web:browse` | über das Extra `browser` |
-| `browser_use` | Browser-Automatisierung | research | `browse_web` | `web:browse` | über das Extra `browser-use` |
-| `code_execution` | Python ausführen | analysis | `run_python` | `code:execute` | — |
-| `sandbox` | Dateien & Shell | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | für Daytona |
-| `charts` | Diagramme | analysis | `create_chart` | — | — |
-| `image_generation` | Bilderzeugung | analysis | `generate_image` | — | erforderlich |
-| `subagents` | Delegation | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — |
-| `planning` | Planung | reasoning | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — |
-| `thinking` | Nachdenken | reasoning | keine, mit Absicht | — | — |
-| `system_reminders` | Systemerinnerungen | reasoning | keine, mit Absicht | — | — |
-| `tool_search` | Tool-Suche | utility | keine, mit Absicht | — | — |
-| `clock` | Datum und Uhrzeit | utility | keine, mit Absicht | — | — |
-| `guardrails` | Guardrails | utility | keine, mit Absicht | — | — |
-| `compaction` | Kontextverwaltung | utility | keine, mit Absicht | — | — |
-| `media` | Medien-Auslagerung | utility | keine, mit Absicht | — | — |
-| `tool_output_limits` | Grenzen für Tool-Ausgaben | utility | `read_tool_result` | — | — |
-| `artifacts` | Artefakte | utility | `publish_artifact`, `read_artifact` | — | — |
-| `channel_tools` | Chat-Kanal-Abfrage | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
+| id | Name | Kategorie | Tools | Scope | Schlüssel | Sprachanruf |
+|---|---|---|---|---|---|---|
+| `knowledge` | Wissenssuche | knowledge | `search_documents` | `knowledge:read` | — | unverändert |
+| `skills` | Skills | knowledge | `read_skill_resource` | `knowledge:read` | — | angepasst |
+| `context` | Kontext | knowledge | `list_context`, `read_context` | — | — | unverändert |
+| `memory_files` | Gedächtnisdateien | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — | unverändert |
+| `memory_mem0` | Gedächtnis (mem0) | knowledge | `remember`, `recall` | — | erforderlich | unverändert |
+| `conversation_search` | Unterhaltungssuche | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — | unverändert |
+| `web_research` | Websuche | research | `web_search` | `web:read` | für kostenpflichtige Dienste | unverändert |
+| `web_fetch` | Webabruf | research | `web_fetch` | `web:fetch` | — | unverändert |
+| `browser_choice` | Browser-Automatisierung (Auswahl) | research | `browse_page` | `web:browse` | über das Extra `browser` | nicht verfügbar |
+| `browser_use` | Browser-Automatisierung | research | `browse_web` | `web:browse` | über das Extra `browser-use` | nicht verfügbar |
+| `code_execution` | Python ausführen | analysis | `run_python` | `code:execute` | — | unverändert |
+| `sandbox` | Dateien & Shell | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | für Daytona | nicht verfügbar |
+| `charts` | Diagramme | analysis | `create_chart` | — | — | unverändert |
+| `image_generation` | Bilderzeugung | analysis | `generate_image` | — | erforderlich | unverändert |
+| `subagents` | Delegation | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — | nicht verfügbar |
+| `planning` | Planung | reasoning | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — | unverändert |
+| `thinking` | Nachdenken | reasoning | keine, mit Absicht | — | — | abgebildet |
+| `system_reminders` | Systemerinnerungen | reasoning | keine, mit Absicht | — | — | ohne Wirkung |
+| `tool_search` | Tool-Suche | utility | keine, mit Absicht | — | — | entfällt |
+| `clock` | Datum und Uhrzeit | utility | keine, mit Absicht | — | — | unverändert |
+| `guardrails` | Guardrails | utility | keine, mit Absicht | — | — | auf Transkripten |
+| `compaction` | Kontextverwaltung | utility | keine, mit Absicht | — | — | ohne Wirkung |
+| `media` | Medien-Auslagerung | utility | keine, mit Absicht | — | — | ohne Wirkung |
+| `tool_output_limits` | Grenzen für Tool-Ausgaben | utility | `read_tool_result` | — | — | unverändert |
+| `artifacts` | Artefakte | utility | `publish_artifact`, `read_artifact` | — | — | unverändert |
+| `channel_tools` | Chat-Kanal-Abfrage | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — | nicht verfügbar |
 
 Sieben davon haben absichtlich keine Tools. `thinking` verändert, wie das Modell
 arbeitet, statt was es erreichen kann, `clock` schreibt das Datum in die
@@ -73,6 +73,24 @@ was einem Modell angeboten wird.** Die Delegation ist die einzige Stelle, an der
 beides auseinandergeht: `create_agent` und `delegate` erscheinen nur unter
 `allow_dynamic`, und `answer_subagent` erscheint überhaupt niemandem — beides wird
 unten unter [Delegation](#delegation) erklärt.
+
+**Die Spalte Sprachanruf zeigt, was eine Capability in einem [Sprachanruf](../voice.md#what-a-call-can-use) tut.**
+*Unverändert* läuft ohne Änderung. *Angepasst*: Skills werden bei Bedarf als
+Instruktionen geladen, ohne ihr Lese-Tool. *Entfällt*: Die Tool-Suche gibt dem
+Anruf seine MCP-Tools direkt, weil die Tools eines Anrufs beim Verbinden
+feststehen. *Abgebildet*: Das Nachdenken wird zur eigenen Reasoning-Einstellung
+des Realtime-Modells. *Nicht verfügbar* wird aus Anrufen weggelassen, und die
+Karte Stimme (Voice) im Builder listet es für einen Agent auf, der es hat; die
+Veröffentlichung blockiert es nicht. Die Chat-Kanal-Abfrage gehört dazu, weil
+ein Anruf nie über einen Kanal geführt wird. *Ohne Wirkung* kennzeichnet drei,
+die auf den Modellanfragen eines Text-Runs und deren gespeicherter Historie
+arbeiten, die ein Anruf nicht sendet.
+
+Guardrails prüfen die Transkripte des Anrufs. Das Ergebnis eines Tools wird
+geprüft und blockiert, bevor der Agent es liest; die Prüfung, bevor ein Tool
+läuft, ist die Freigabe, für Tools, die eine brauchen. Guardrails prüfen die
+Argumente eines Tools nicht. Die Katalog-API führt die Spalte als Flag `voice`
+jeder Capability.
 
 **Eine davon steht gar nicht in der Toolbox.** `channel_tools` wird pro gebundenem
 Bot unter *Where this agent is available* gewählt, und die Veröffentlichung lehnt

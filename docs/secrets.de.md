@@ -1,5 +1,5 @@
 ---
-source_sha: "7bd19927933a"
+source_sha: "e0744f5a3d70"
 ---
 
 # Secrets und der Vault { #secrets-and-the-vault }
@@ -173,6 +173,21 @@ können. Der [Nutzungseintrag](ml-services.md#what-is-recorded) jeder
 Transkription nennt den Schlüssel, mit dem sie gesendet wurde. Siehe
 [welche Engine eine Aufnahme erreicht](ml-services.md#which-engine-a-recording-reaches).
 Die Liste der Agents, die einen Schlüssel nutzen, zeigt diese Verwendung nicht.
+
+**Sprachanrufe.** Der Schlüssel, mit dem ein [Sprachanruf](voice.md) geführt
+wird, ist auf der Karte Stimme (Voice) des Agents benannt, neben Realtime-Provider
+und Modell. Sein Zweck muss der Provider sein und seine Art die des Providers:
+ein `api_key` oder, für Azure, ein `azure_openai`-Secret, das auch Endpunkt und
+API-Version trägt. Er folgt der Leihregel - der Veröffentlichende muss ihn sehen
+können -, und zur Laufzeit wird kein Schlüssel gesucht. Der Schlüssel wird
+entsiegelt, um einen Anruf zu öffnen, und erreicht nie den Browser: Der Server
+beantwortet das WebRTC-Angebot, und es wird kein Client-Secret ausgestellt.
+
+Um einen Anruf aufzulegen, dessen Prozess gestorben ist, liest der Voice-Sweep
+ihn über `OrganizationSecretService.voice_call_key`, einen Leser, dessen
+Klartext an den Auflege-Endpunkt des Providers geht und nirgendwohin sonst. Eine
+Zeile eines Anrufs behält nur die Id des Schlüssels, und ein gelöschter
+Schlüssel lässt den Agent keine Anrufe annehmen, bis ein anderer gewählt ist.
 
 **Capabilities.** Eine Capability erklärt, dass sie Zugangsdaten einer
 bestimmten *Art* braucht — nie eine Instanz. Der Code sagt "ich brauche einen API

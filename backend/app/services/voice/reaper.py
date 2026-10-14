@@ -49,6 +49,7 @@ class VoiceCallReaper:
             # row's columns, and an expired column read here would be a lazy load.
             call_id, run_id, provider = row.id, row.run_id, row.provider
             heartbeat_at, cost_usd, seconds = row.heartbeat_at, row.cost_usd, row.seconds
+            guardrail_hits = row.guardrail_hits
             started_at, ended_at, end_reason = row.started_at, row.ended_at, row.end_reason
             hung = await hang_up_row(self.db, row)
             abandoned = not hung and started_at < now - timedelta(seconds=PROVIDER_SESSION_SECONDS)
@@ -60,7 +61,7 @@ class VoiceCallReaper:
                     reason=VoiceEndReason.ABANDONED if abandoned else VoiceEndReason.REAPED,
                     cost_usd=cost_usd,
                     seconds=seconds,
-                    guardrail_hits=0,
+                    guardrail_hits=guardrail_hits,
                 )
             if run_id is not None:
                 # Only a run still `running` is touched: one its call's own teardown

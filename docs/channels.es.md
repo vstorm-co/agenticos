@@ -1,5 +1,5 @@
 ---
-source_sha: "1d9bfa9904d4"
+source_sha: "802bf67003f5"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -843,6 +843,83 @@ nombre de la página en la que se ejecuta el widget, así que un sitio que enví
 `Permissions-Policy: microphone=()`, un `<iframe>` sin `allow="microphone"` o
 HTTP sin cifrar lo bloquea. El widget lo dice bajo su caja en vez de fallar en
 silencio.
+
+## Llamadas de voz en un widget o en una página alojada { #voice-calls-on-a-widget-or-a-hosted-page }
+
+Un widget y una página alojada tienen cada uno un interruptor **Voice calls**
+(`voice_conversation`), apagado por defecto e independiente del dictado. Con él
+encendido, los visitantes pueden mantener una [llamada de voz](voice.md) con el
+agent: la misma llamada que un miembro hace desde `/chat`, con los mismos
+límites, ejecutada en el contexto del publicador y registrada con la superficie
+`embed`.
+
+**Encenderlo se rechaza** mientras el interruptor de voz de la organización esté
+apagado o el agent no tenga una sección Voice con la que se pueda mantener una
+llamada. Solo se comprueba el cambio, así que un embed cuyo agent pierda la voz
+más tarde todavía puede editarse. Mientras una llamada no pudiera empezar, la
+config pública dice `voice_conversation: false` y a los visitantes no se les
+ofrece ninguna llamada; cuando sí pudiera, la config indica además qué
+transporte usa la llamada (`voice_transport`).
+
+!!! note "La vista de llamada del visitante llega con la de la consola"
+
+    El interruptor, la config pública y el socket de llamada ya están en su
+    sitio. La vista de llamada de la página alojada y el script de llamada
+    propio del widget llegan con la vista de llamada de la consola, que todavía
+    se está diseñando; hasta entonces los visitantes no ven ningún botón de
+    llamada.
+
+**Un visitante no puede aprobar nada.** Las herramientas que necesitan una aprobación
+quedan fuera por completo de la llamada de un visitante, así que el agent nunca
+recurre a una; dice claramente cuándo no puede hacer algo ahí. Una llamada
+recibe también la nota de ubicación del embed y las variables declaradas de la
+página, exactamente igual que un mensaje escrito, así que el agent se comporta
+igual en ambos casos.
+
+### El socket de llamada { #the-call-socket }
+
+`/api/v1/embed/{public_key}/voice/ws` habla los mismos frames que el
+`/api/v1/ws/voice` de la consola ([API](api.md#voice-calls)). La admisión sigue
+a la superficie, como la del socket de chat. Un **widget** se admite por su
+lista de permitidos y, en modo `jwt`, por el token del cliente en `?token=`.
+Una **página alojada** se admite por el propio origen de este despliegue y la
+clave de continuidad en `?visitor=`, y la llamada cae en el hilo que guarda esa
+clave, así que una llamada cortada puede reanudarse ahí. Un **socket en crudo**
+no tiene desde dónde llamar.
+
+El socket se cierra con `4029` al pasar un rate limit y con `4003` por cualquier
+cosa relativa al embed - desconocido, en pausa, un socket en crudo, llamadas
+apagadas, un origen que no permite - sin decir cuál. Todo lo que ocurre después
+de la admisión es el rechazo propio de la llamada, enviado como un frame `ended`
+con su motivo.
+
+### Lo que cuesta una llamada a un enlace público { #what-a-call-costs-a-public-link }
+
+Las llamadas están dentro de los budgets: cada una es un run, medido en los
+budgets del agent y de la organización, y contado contra los minutos de llamada
+mensuales de la organización. Además, un enlace público tiene límites propios:
+
+| Límite | Por defecto | Qué cuenta |
+|---|---|---|
+| `RATE_LIMIT_EMBED_VOICE_PER_MINUTE` | 3 | Inicios de llamada por dirección, y por sujeto del token del visitante en un widget `jwt` |
+| `RATE_LIMIT_EMBED_VOICE_PER_LINK_PER_MINUTE` | 6 | Inicios de llamada en una página o widget, de todos a la vez |
+| `VOICE_MAX_CALLS_PER_EMBED` | 3 | Llamadas abiertas a la vez en un embed; el siguiente que llama se rechaza como `line_busy` |
+
+El propio `rate_limit_per_minute` del embed cuenta **mensajes**, no inicios de
+llamada, así que no limita las llamadas. Los contadores de inicio se gastan
+antes de buscar la clave, así que un inicio rechazado también cuenta. El límite
+por sujeto `jwt` es una tasa de inicios, no un tope de llamadas abiertas; las
+llamadas abiertas quedan limitadas, junto con las de todos, por el del embed.
+
+!!! danger "El peor caso para un enlace filtrado"
+
+    Tres llamadas abiertas a la vez, cada una como mucho la llamada más larga
+    de la organización - 10 minutos por defecto, 50 como máximo -, gastan como
+    mucho tres minutos de llamada por minuto. A ese ritmo, los 600 minutos
+    mensuales por defecto duran al menos tres horas y veinte minutos de abuso,
+    y después se rechaza toda llamada de la organización, incluidas las de los
+    miembros, hasta que cambie el mes. Pon el embed en pausa, baja los minutos
+    mensuales de la organización o apaga sus llamadas si eso es demasiado.
 
 ---
 

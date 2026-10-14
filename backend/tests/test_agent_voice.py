@@ -13,6 +13,7 @@ from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.realtime.openai import OpenAIRealtimeModel
 from pydantic_ai.toolsets import FunctionToolset
 
+from app.agents.capabilities import get as capability_def
 from app.agents.capabilities import load_builtins
 from app.agents.capabilities.clock import Clock
 from app.agents.capabilities.skills import Skills
@@ -49,6 +50,11 @@ def _spec(*ids: str, enabled: bool = True) -> AgentSpec:
 
 def test_the_builder_lists_what_a_call_cannot_use():
     assert voice_unavailable(_spec("clock", "sandbox", "browser_use")) == ["browser_use", "sandbox"]
+
+
+def test_channel_lookups_are_not_offered_in_a_call():
+    """A call is never made on a channel, so there is nothing for them to look up."""
+    assert capability_def("channel_tools").voice is False
 
 
 def test_a_disabled_binding_is_not_listed():

@@ -1,5 +1,5 @@
 ---
-source_sha: "421b416a5a36"
+source_sha: "289ca2672118"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -130,6 +130,75 @@ Zwei WebSocket-Endpunkte, für zwei Zielgruppen.
 Beide streamen Token, sobald sie eintreffen (ein Agent mit Ausgabe-Guardrail streamt
 Schritt für Schritt, siehe [Guardrails](reference/capabilities.md#guardrails)), und
 beide erzeugen einen gewöhnlichen Run, mit derselben Buchführung wie alles andere.
+
+## Sprachanrufe { #voice-calls }
+
+Ein [Sprachanruf](voice.md) hat ein eigenes Socket, weil ein Anruf keine
+Schleife aus Runden ist: **`/api/v1/ws/voice`** für ein Mitglied und
+**`/api/v1/embed/{public_key}/voice/ws`** für einen Besucher auf einem Widget
+oder einer gehosteten Seite ([Zulassung](channels.md#the-call-socket)). Beide
+sprechen dieselben Frames, definiert in `backend/app/schemas/voice.py`.
+
+Das Socket der Konsole authentifiziert sich wie `/ws/agent`: das Token als
+Eintrag `access_token.<JWT>` in `Sec-WebSocket-Protocol` (oder das
+Same-Origin-Cookie), nie im Query-String, und die Organisation als
+`?organization_id=`. Es schließt mit `4001` ohne gültige Session und mit `4003`,
+wenn der Aufrufer kein Mitglied ist. Das Embed-Socket schließt mit `4029`
+jenseits eines Rate-Limits und mit `4003` bei jeder Ablehnung, die das Embed
+betrifft. Jeder Heartbeat prüft die Session erneut, sodass ein Anruf eine
+Abmeldung nicht überdauert.
+
+**Der Client sendet** JSON-Frames und über das Relay auch binäres Audio:
+
+| Frame | Felder | Wann |
+|---|---|---|
+| `start` | `agent_id`, `conversation_id`, `sdp_offer` (WebRTC), `resume_of` (eine Wiederverbindung), `context` (die Variablen eines Embeds) | Zuerst, innerhalb von 10 Sekunden |
+| `approval` | `id`, `decision` (`approve` oder `deny`) | Entscheidung über eine Freigabe, auf die der Anruf wartet |
+| `ptt` | `state` (`down` oder `up`) | Push-to-Talk |
+| `mute` | `muted` | Das Relay: das Mikrofon stummgeschaltet |
+| `played` | `bytes` | Das Relay: wie viel vom Audio des Agents abgespielt wurde |
+| `end` | - | Auflegen |
+| *binär* | 16-Bit-PCM mit der Eingangsrate des Modells | Das Relay: das Audio des Anrufers |
+
+**Der Server sendet:**
+
+| Frame | Felder | Bedeutet |
+|---|---|---|
+| `answer` | `sdp` | WebRTC: die Antwort des Providers für die Peer-Verbindung des Browsers |
+| `ready` | `call_id`, `run_id`, `conversation_id`, `transport`, `input_sample_rate`, `output_sample_rate`, `cap_seconds`, `minutes_left` | Der Anruf ist eingerichtet |
+| `state` | `state`: `connecting`, `listening`, `user_speaking`, `thinking`, `agent_speaking`, `interrupted`, `tool_running`, `awaiting_approval` | Wer spricht oder was der Agent gerade tut |
+| `caption` | `role`, `turn_id`, `part` und eines von `delta` (anhängen), `text` (durch den bisher geprüften Text ersetzen) oder `final` | Ein Live-Untertitel |
+| `turn_saved` | `message` | Eine abgeschlossene Runde, als die Nachricht, als die sie gespeichert wurde; sie ersetzt die Untertitel mit ihrer `turn_id` |
+| `tool` | `name`, `status` (`running` oder `done`) | Ein Tool, das der Agent ausführt |
+| `approval_required` | `id`, `tool`, `args`, `said`, `timeout_seconds` | Eine Freigabe für die Person im Anruf: die exakten Argumente und was von ihr verstanden wurde |
+| `approval_unavailable` | `tool`, `args` | Ein Tool-Aufruf, den dieser Anrufer per Stimme nicht freigeben kann |
+| `approval_settled` | `id`, `outcome` (`approved`, `denied` oder `expired`) | Wie eine Freigabe ausgegangen ist |
+| `notice` | `kind`, `message` (optional) | Etwas, das in Worten zu sagen ist: ein Guardrail-Treffer, ein erreichtes Limit |
+| `limit` | `seconds_left` | Die Zeit des Anrufs ist fast um |
+| `clear_playback` | - | Das Relay: das eingereihte Audio des Agents verwerfen |
+| `ended` | `reason`, `message` | Der Anruf ist vorbei |
+| *binär* | 16-Bit-PCM mit der Ausgangsrate des Modells | Das Relay: das Audio des Agents |
+
+Ein Socket, das innerhalb von 10 Sekunden kein `start` sendet, bekommt `ended`
+mit `no_start`. Ein Anruf, der nicht startet, antwortet mit `ended` und einem
+stabilen `reason`: `voice_off`, `no_agent`, `forbidden`, `not_configured`,
+`bad_offer`, `data_channel`, `resume_refused`, `minutes_exhausted`,
+`call_limit`, `not_priced`, `budget`, `busy` oder `line_busy`, mit einer
+`message`, die sich gefahrlos anzeigen lässt. Ein Anruf, der gelaufen ist,
+endet mit `user`, `time_limit`, `budget`, `minutes`, `disconnected`, `revoked`,
+`shutdown` oder `error`. Kein Frame trägt je Zugangsdaten eines Providers.
+
+Vier HTTP-Routen gehören dazu:
+
+| Route | Gate | Antwortet |
+|---|---|---|
+| `GET /api/v1/agents/{agent_id}/voice?surface=web` | `agents:run` auf diesem Agent, ein Grant eingeschlossen; sonst `404` | Ob ein Anruf starten würde, warum nicht, der Transport, der längste Anruf und die verbleibenden Minuten. `surface=embed` fragt für ein Widget oder eine gehostete Seite |
+| `GET /api/v1/providers/realtime-models` | `agents:view` | Der Realtime-Katalog, aus dem der Abschnitt Stimme auswählt |
+| `GET /api/v1/voice/usage?start=…&end=…` | `runs:view` | Anrufsekunden und Anrufe für Anrufe, die zu oder nach `start` und vor `end` begonnen haben, nach Agent (die Anrufe eines gelöschten Agents als eine Zeile ohne ID oder Namen), und die Sekunden dieses Monats gegenüber den monatlichen Minuten der Organisation. Ein `end`, das nicht nach `start` liegt, wird mit `422` abgelehnt |
+| `GET /api/v1/runs?modality=voice` | `runs:view` | Nur Anrufe (`text` nur für getippte Runs); ein Anruf, der sich neu verbunden hat, ist eine Zeile mit `voice_chain`, alle Verbindungen summiert |
+
+Eine Freigabe, die zu einem laufenden Anruf gehört, wird im Anruf entschieden:
+`POST /api/v1/approvals/{id}` lehnt sie mit `400` ab.
 
 ## Fehler { #errors }
 

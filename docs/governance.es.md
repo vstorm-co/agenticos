@@ -1,5 +1,5 @@
 ---
-source_sha: "c070f50e41ec"
+source_sha: "23e048868171"
 ---
 
 # Governance { #governance }
@@ -461,6 +461,30 @@ tiene a sus nietos descontados por él, una vez — y sumado sobre cada fila sig
 dando la factura, porque el coste de cada hijo lo añade su propia fila y lo quita la
 de su padre. Una clave funciona igual, e importa más: una clave es lo que alguien
 rota cuando una factura parece mal.
+
+### El budget y los minutos de una llamada de voz { #a-voice-calls-budget-and-minutes }
+
+Una [llamada de voz](voice.md) es un run, y su gasto cuenta contra los budgets
+del agent y de la organización como cualquier otro. Tres cosas cambian, porque
+una llamada no se puede comprobar antes de cada petición como un run de texto:
+
+- **Antes de empezar**, la duración máxima posible de la llamada multiplicada por
+  el precio por minuto del peor caso del modelo se comprueba contra el budget
+  restante. Una llamada que no se podría pagar se rechaza, en vez de empezar y
+  cortarse a medias.
+- **Mientras dura**, cada respuesta se anota en el run cuando termina, y el gasto
+  del mes se vuelve a leer cada 15 segundos, así que se ve lo que otros runs
+  gastan entretanto. Un budget que se agota a mitad de llamada recibe una frase
+  hablada y termina la llamada, registrada como `budget_exceeded`.
+- **Las llamadas tienen un segundo límite propio**: los minutos de llamada
+  mensuales de la organización (600 por defecto, null para usar solo budgets),
+  que fija quien tenga `budgets:manage`. Se cuentan a partir de las filas de
+  llamada, no de la duración de los runs, y una llamada que los alcanza termina
+  de la misma forma.
+
+Una llamada cuyo proceso murió la cierra el barrido de voz con el coste que
+registró su último heartbeat, a diferencia de un run de texto, cuyo gasto muere
+con su proceso.
 
 ### Qué muestra el historial de runs { #what-run-history-shows }
 
@@ -1055,6 +1079,29 @@ de herramientas permitidas de la conexión y del vínculo con el agente controla
 qué herramientas MCP están disponibles; no solicitan aprobación por sí mismas.
 El modo predeterminado **Follow the agent** aplica la política de capabilities
 del agente y no añade una puerta de aprobación a esas herramientas MCP.
+
+### Una aprobación dentro de una llamada de voz { #an-approval-inside-a-voice-call }
+
+Una [llamada de voz](voice.md#approvals-in-a-call) no puede pausarse y esperar a
+la cola, así que sus aprobaciones se deciden en la llamada, por la persona que
+está en ella:
+
+- La solicitud se escribe en la cola al instante, y la llamada muestra la
+  herramienta, los argumentos exactos con los que se ejecutará y lo que se oyó
+  decir a quien llama. Aprobar ejecuta esos argumentos, una vez.
+- Se decide **solo a través de la llamada**, y solo por quien llama si tiene
+  `approvals:decide`. `POST /approvals/{id}` rechaza una solicitud que pertenece
+  a una llamada en curso, y el barrido de aprobaciones caducadas de más abajo se
+  salta los runs de voz.
+- **60 segundos** sin decisión la caducan, sin nadie que decida: el mismo null
+  que escribe el barrido. Una llamada que termina por cualquier motivo caduca lo
+  que todavía estuviera esperando.
+- A un miembro sin `approvals:decide` se le dice claramente, y la herramienta se
+  rechaza. Un visitante en un widget o en una página alojada nunca ve una
+  herramienta que necesite aprobación: se deja fuera de su llamada.
+
+`approval_mode` sigue el spec del agent, como en el chat de texto, y cada
+decisión llega al registro de auditoría como cualquier otra.
 
 ### Una decisión que nadie toma { #a-decision-nobody-makes }
 

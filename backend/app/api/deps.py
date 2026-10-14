@@ -1316,7 +1316,7 @@ def get_announcement_service(db: DBSession) -> AnnouncementService:
 
 
 AnnouncementSvc = Annotated[AnnouncementService, Depends(get_announcement_service)]
-from app.services.voice import VoiceSettingsService
+from app.services.voice import VoiceSettingsService, VoiceUsageService
 
 
 def get_voice_settings_service(db: DBSession) -> VoiceSettingsService:
@@ -1325,3 +1325,11 @@ def get_voice_settings_service(db: DBSession) -> VoiceSettingsService:
 
 
 VoiceSettingsSvc = Annotated[VoiceSettingsService, Depends(get_voice_settings_service)]
+
+
+def get_voice_usage_service(db: DBSession) -> VoiceUsageService:
+    """Create VoiceUsageService instance with database session."""
+    return VoiceUsageService(db)
+
+
+VoiceUsageSvc = Annotated[VoiceUsageService, Depends(get_voice_usage_service)]

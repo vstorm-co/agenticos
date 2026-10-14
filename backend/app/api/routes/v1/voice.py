@@ -1,13 +1,22 @@
-"""Voice conversations (#54): whether an agent can take a call, and the call's socket."""
+"""Voice conversations (#54): whether an agent can take a call, the call's socket, its minutes."""
 
+from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Query, WebSocket
+from fastapi import APIRouter, Depends, Query, WebSocket
 
-from app.api.deps import ActiveOrgWS, AgentRegistrySvc, Auth, CurrentUserWS, VoiceSettingsSvc
+from app.api.deps import (
+    ActiveOrgWS,
+    AgentRegistrySvc,
+    Auth,
+    CurrentUserWS,
+    VoiceSettingsSvc,
+    VoiceUsageSvc,
+    require,
+)
 from app.core.permissions import Perm
-from app.schemas.voice import VoiceReadinessRead
+from app.schemas.voice import VoiceReadinessRead, VoiceUsageRead
 from app.services.voice import VoiceCallSession, socket_caller
 
 router = APIRouter()
@@ -40,6 +49,26 @@ async def voice_readiness(
         organization_id=ctx.organization_id, agent=agent, surface=surface
     )
     return VoiceReadinessRead(**readiness.__dict__)
+
+
+@router.get(
+    "/voice/usage",
+    response_model=VoiceUsageRead,
+    dependencies=[Depends(require(Perm.RUNS_VIEW))],
+)
+async def voice_usage(
+    service: VoiceUsageSvc,
+    ctx: Auth,
+    start: datetime = Query(description="Calls started at or after this instant"),
+    end: datetime = Query(description="Calls started before this instant"),
+) -> Any:
+    """Call minutes over a window, by agent, and this month's against the organization's limit.
+
+    Counted from the call rows the monthly limit reads, so the dashboard figure
+    and the refusal at the limit agree. A reconnect is not a second call. An
+    `end` not after `start` is refused with 422.
+    """
+    return VoiceUsageRead.model_validate(await service.usage(ctx, start=start, end=end))
 
 
 @router.websocket("/ws/voice")

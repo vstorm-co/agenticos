@@ -12,6 +12,7 @@ from app.services.voice.settings import (
     resolve_voice,
 )
 from app.services.voice.starter import VoiceCaller
+from app.services.voice.usage import VoiceUsage, VoiceUsageService
 
 __all__ = [
     "LIVE_CALLS",
@@ -22,6 +23,8 @@ __all__ = [
     "VoiceReadiness",
     "VoiceRefused",
     "VoiceSettingsService",
+    "VoiceUsage",
+    "VoiceUsageService",
     "embed_voice_caller",
     "resolve_voice",
     "socket_caller",

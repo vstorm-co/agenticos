@@ -19,6 +19,37 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Voice conversations with agents (#54).** A member can call a published
+  agent and talk to it, with barge-in; the agent keeps its tools, knowledge,
+  in-call approvals (the exact arguments shown, 60 seconds to decide, only the
+  caller with `approvals:decide` deciding) and budgets, and every turn is saved
+  as text in the conversation with no audio stored. Calls are off until an
+  organization turns them on (new organization voice columns,
+  `0111_org_voice_settings.py`: the switch, `/chat` offering calls, the longest
+  call - 10 minutes by default, 50 at most - and 600 monthly call minutes by
+  default, the minutes gated on `budgets:manage`). An agent's spec gains an
+  optional `voice` block - provider, model or Azure deployment and base model,
+  key, voice, language, longest call, voice note - picked from a new realtime
+  catalog (`GET /api/v1/providers/realtime-models`) and refused at publish when
+  it cannot hold a call; no `SPEC_VERSION` bump. Calls run over
+  `/api/v1/ws/voice`: OpenAI over WebRTC with a server sideband (no data
+  channel, no client secret), Azure OpenAI, Gemini Live and xAI through a relay,
+  those three **not verified live**. Each call is a run (`agent_runs.modality`,
+  and a `voice_calls` row per connection, `0112_voice_calls.py`), hung up on
+  every exit, heartbeated every 15 seconds and swept every minute for a dead
+  worker's calls; one call per person (`VOICE_MAX_CALLS_PER_USER`); one
+  automatic reconnect within 10 seconds, seeded with text. Turns are messages
+  with a `turn_id` and an `interrupted` marker (`0113_message_voice_turns.py`).
+  `GET /api/v1/agents/{agent_id}/voice` says whether a call would start,
+  `GET /api/v1/voice/usage` reports call minutes, `GET /api/v1/runs` takes
+  `?modality=`, and Activity shows a call as one row with a microphone badge.
+  Widgets and hosted pages get their own Voice calls switch and
+  `/api/v1/embed/{public_key}/voice/ws`, with gated tools left out of visitors'
+  calls, `RATE_LIMIT_EMBED_VOICE_PER_MINUTE` (3) and
+  `RATE_LIMIT_EMBED_VOICE_PER_LINK_PER_MINUTE` (6), and at most
+  `VOICE_MAX_CALLS_PER_EMBED` (3) calls open per embed. The dashboard gains a
+  Voice minutes card and the walkthrough stops for both voice settings. The
+  call view itself lands separately. See [Voice conversations](docs/voice.md).
 - **Dictation in `/chat` on the organization's own speech-to-text provider
   (#1797).** With the organization's engine set to Server, the composer records
   in any browser, `POST /api/v1/agents/{agent_id}/dictation` transcribes the

@@ -30,6 +30,7 @@ def _row(**overrides):
         "end_reason": None,
         "cost_usd": Decimal("0.40"),
         "seconds": 180,
+        "guardrail_hits": 2,
     }
     values.update(overrides)
     return SimpleNamespace(**values)
@@ -59,6 +60,8 @@ async def test_a_call_whose_heartbeat_stopped_is_hung_up_and_its_run_closed():
     assert count == 1
     assert seen.hang.await_args.args[1] is row
     assert seen.ended.await_args.kwargs["reason"].value == "reaped"
+    # What the row recorded stands: the reaper knows nothing the call did not write.
+    assert seen.ended.await_args.kwargs["guardrail_hits"] == 2
     seen.marked.assert_awaited_once()
     closed = seen.closed.await_args.kwargs
     assert (

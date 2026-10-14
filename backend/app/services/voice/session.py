@@ -6,9 +6,10 @@ cap - and nothing outlives the group. A relay call's audio rides on two of them:
 the socket reader passes the caller's to the provider, the pump forwards the
 agent's in event order. Every way out (the caller's `end`, the socket gone, a
 limit, an error, a revocation, a shutdown, a cancellation) goes through one
-shielded `finally`, which hangs the provider call up *first*, then
-records the call row, finishes the run (spend recorded on every path) and
-commits - the terminal commit of the run path (amendment 5).
+shielded `finally`, which records the call row's end, then hangs the provider
+call up - the end first, so a reconnect waiting on it does not also wait out
+the hang-up - then finishes the run (spend recorded on every path) and commits:
+the terminal commit of the run path (amendment 5).
 """
 
 from __future__ import annotations

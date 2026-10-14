@@ -1,5 +1,5 @@
 ---
-source_sha: "c34546b8f0ba"
+source_sha: "55ceaf417630"
 ---
 
 # Konfiguracja { #configuration }
@@ -1066,6 +1066,27 @@ usunięty), profile modeli mogą wskazywać na lokalne endpointy takie jak Ollam
 sandboksa dla `run_python` są konfiguracją capability per agent
 (`CODE_EXECUTION_TIMEOUT_SECS` / `CODE_EXECUTION_MAX_MEMORY_MB` zostały usunięte).
 
+## Rozmowy głosowe { #voice-calls }
+
+[Rozmowy głosowe](voice.md) włącza się, ogranicza i przydziela im miesięczne
+minuty per organizacja, w aplikacji. Dwa sufity należą do deploymentu:
+
+| Zmienna | Domyślnie | Opis |
+|----------|---------|-------------|
+| `VOICE_MAX_CALLS_PER_USER` | `1` | Rozmowy, które jedna osoba może prowadzić jednocześnie. Rozmowa z drugiej karty to prawie zawsze pomyłka, a każda jest rozliczana; drugie rozpoczęcie jest odrzucane jako `busy` |
+| `VOICE_MAX_CALLS_PER_EMBED` | `3` | Rozmowy, które jeden widżet albo jedna hostowana strona może prowadzić jednocześnie, od wszystkich odwiedzających razem; następna jest odrzucana jako `line_busy`. Odwiedzający nie mają konta, na które można by liczyć, więc to właśnie powstrzymuje wyciekły link przed równoległym zużywaniem miesięcznych minut organizacji |
+
+Oba liczą rozmowy ze świeżym heartbeatem, więc rozmowa, której proces padł,
+przestaje się liczyć w ciągu 45 sekund. Rozpoczynanie rozmów w embedzie ma też
+rate limit (`RATE_LIMIT_EMBED_VOICE_*`, [niżej](#rate-limiting)). Własny
+`rate_limit_per_minute` embeda, ustawiany w Builderze, liczy **wiadomości**
+odwiedzającego, a nie rozpoczęcia rozmów, więc nie ogranicza rozmów.
+
+Reszta jest ustalona w kodzie, a nie konfigurowana: rozmowa nigdy nie trwa
+dłużej niż 50 minut, heartbeaty idą co 15 sekund, a sprzątanie rozmów
+głosowych działa co minutę i raz przy starcie, jako deployment Prefecta
+`voice-call-sweep`.
+
 ## CORS { #cors }
 
 | Zmienna | Domyślnie | Opis |
@@ -1082,7 +1103,7 @@ Walidacja produkcyjna: `CORS_ORIGINS` nie może zawierać `"*"` przy
 
 Stosowane do powierzchni, do których może sięgnąć obcy, i tylko do nich: publicznego
 API runów, skryptu widżetu, jego configu, handshake'u socketu którejkolwiek z tych
-powierzchni, configu i logo hostowanej strony oraz uploadu i dyktowania odwiedzającego. Własne
+powierzchni, configu i logo hostowanej strony oraz uploadu, dyktowania i rozmowy głosowej odwiedzającego. Własne
 trasy konsoli są za sesją i nie są mierzone — czy całe API powinno nosić sufit, to
 osobna decyzja, nie ta.
 
@@ -1097,6 +1118,8 @@ osobna decyzja, nie ta.
 | `RATE_LIMIT_DICTATION_PER_MINUTE` | `10` | [Dyktowanie w czacie](ml-services.md#dictation-in-chat), na osobę, na osobnym liczniku, żeby dyktowanie i integracja wywołująca usługi ML nie zużywały sobie nawzajem limitu. Każde dyktowanie to wywołanie płatnego providera organizacji |
 | `RATE_LIMIT_EMBED_DICTATION_PER_MINUTE` | `6` | [Dyktowanie w widżecie lub na hostowanej stronie](channels.md#dictation-on-a-widget-or-a-hosted-page), na adres, a w widżecie `jwt` także na odwiedzającego. Każde dyktowanie to wywołanie płatnego providera organizacji, poza każdym budżetem modelu |
 | `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` | `10` | To samo, na stronę albo widżet, od wszystkich odwiedzających razem — sufit tego, ile kosztuje wyciekły link: tyle nagrań na minutę, każde do najdłuższego dyktowania organizacji |
+| `RATE_LIMIT_EMBED_VOICE_PER_MINUTE` | `3` | [Rozmowy głosowe](channels.md#voice-calls-on-a-widget-or-a-hosted-page) rozpoczynane w widżecie albo na hostowanej stronie, na adres, a w widżecie `jwt` także na subject tokena odwiedzającego. Liczone, zanim klucz zostanie odnaleziony; każda rozmowa to płatna sesja realtime |
+| `RATE_LIMIT_EMBED_VOICE_PER_LINK_PER_MINUTE` | `6` | To samo, na stronę albo widżet, od wszystkich odwiedzających razem. Razem z `VOICE_MAX_CALLS_PER_EMBED` wyżej — sufit tego, ile kosztuje wyciekły link |
 | `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Czy `X-Forwarded-For` nazywa wołającego |
 
 **Co dostaje odrzucony wołający** to własna koperta błędu tego API z

@@ -1425,6 +1425,20 @@
           "title": "Nic jeszcze nie opublikowano",
           "description": "Tu pojawią się raporty i dashboardy opublikowane przez agenta."
         }
+      },
+      "voice-minutes": {
+        "title": "Minuty rozmów",
+        "description": "Minuty rozmów w okresie i agenci, którzy je prowadzili, oraz minuty w tym miesiącu wobec miesięcznego limitu organizacji.",
+        "minutes": "{minutes} min",
+        "calls": "{count, plural, one {# rozmowa} few {# rozmowy} many {# rozmów} other {# rozmowy}}",
+        "month": "Minuty rozmów w tym miesiącu",
+        "monthUsed": "W tym miesiącu: {used} z {limit} min",
+        "noLimit": "W tym miesiącu: {used} min · bez miesięcznego limitu",
+        "empty": {
+          "title": "Jeszcze nie było rozmów głosowych",
+          "description": "Minuty pojawią się tutaj, gdy członkowie lub odwiedzający zadzwonią do agenta."
+        },
+        "deletedAgent": "Usunięty agent"
       }
     },
     "activeSessions": "Aktywne sesje",
@@ -2165,6 +2179,14 @@
       "org-voice": {
         "title": "Głos",
         "body": "Wybierz, jak dyktowanie w czacie zamienia mowę na tekst: usługą samej przeglądarki albo przez Twojego providera, za pośrednictwem tego wdrożenia."
+      },
+      "agent-voice": {
+        "title": "Głos",
+        "body": "Wybierz, jak dyktuje się temu agentowi, a w sekcji Rozmowy głosowe – model realtime, klucz i głos, którym odbiera rozmowy."
+      },
+      "org-voice-conversations": {
+        "title": "Rozmowy głosowe",
+        "body": "Włącz rozmowy, ogranicz ich długość i miesięczne minuty organizacji. Rozmowy liczą się też do budżetów."
       }
     }
   },
@@ -3370,7 +3392,7 @@
     "voiceConversationNote": "Uwagi do głosu",
     "voiceConversationNoteHint": "Dodawane do instrukcji agenta w rozmowach, po wbudowanym stylu mówionym.",
     "voiceConversationUnavailable": "Niedostępne w rozmowach",
-    "voiceConversationGuardrails": "Guardraile sprawdzają transkrypcje w trakcie rozmowy i przerywają agentowi po trafieniu, ale wypowiedzianych słów nie da się odfiltrować, zanim zostaną usłyszane. Wywołania narzędzi nadal są blokowane, zanim się wykonają.",
+    "voiceConversationGuardrails": "Guardraile sprawdzają transkrypcje w trakcie rozmowy i przerywają agentowi, gdy jego słowa trafią na regułę, ale wypowiedzianych słów nie da się odfiltrować, zanim zostaną usłyszane. Wynik narzędzia nadal jest sprawdzany, zanim agent go przeczyta; argumenty narzędzi nie są sprawdzane.",
     "voiceConversationRecorded": "Rozmowy są zapisywane jako tekst w konwersacji. Dźwięk nie jest przechowywany.",
     "voiceConversationCatalogFailed": "Nie udało się wczytać listy modeli głosowych, więc nie można tu włączyć rozmów. Odśwież stronę, aby spróbować ponownie."
   },
@@ -3720,7 +3742,9 @@
         "monthlyReadOnly": "{minutes, plural, one {# minuta rozmów miesięcznie} few {# minuty rozmów miesięcznie} many {# minut rozmów miesięcznie} other {# minuty rozmów miesięcznie}}",
         "monthlyUnlimited": "Bez miesięcznego limitu",
         "budgetsNote": "Rozmowy liczą się też do budżetu organizacji i każdego agenta.",
-        "saved": "Zapisano ustawienia rozmów głosowych"
+        "saved": "Zapisano ustawienia rozmów głosowych",
+        "used": "Minuty rozmów wykorzystane w tym miesiącu: {used} z {limit}",
+        "usedNoLimit": "Minuty rozmów wykorzystane w tym miesiącu: {used}"
       }
     }
   },

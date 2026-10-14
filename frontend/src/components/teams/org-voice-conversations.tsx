@@ -9,6 +9,7 @@ import { Button, Checkbox, Input, Label, Switch } from "@/components/ui";
 import { FormField } from "@/components/ui/form-field";
 import { useOrganizations, usePermissions } from "@/hooks";
 import { useChanged } from "@/hooks/use-changed";
+import { useVoiceUsage } from "@/hooks/use-voice-usage";
 import { NO_FAILURE, submitFailure, type SubmitFailure } from "@/lib/api-error";
 import type { Organization, VoiceConversationsUpdate } from "@/types";
 import { Perm } from "@/types/permissions";
@@ -22,6 +23,12 @@ const FIELDS = [
 ] as const;
 
 const MAX_MINUTES = 50;
+
+/** This calendar month so far, in UTC like the limit: the window the line reports on. */
+function thisMonth(now: Date = new Date()): { start: string; end: string } {
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  return { start: start.toISOString(), end: now.toISOString() };
+}
 
 interface Draft {
   enabled: boolean;
@@ -203,6 +210,7 @@ export function OrgVoiceConversations({ org }: { org: Organization }) {
               : t("conversations.monthlyReadOnly", { minutes: org.voice_monthly_minutes })}
           </p>
         )}
+        <MonthUsed limit={org.voice_monthly_minutes} />
         <p className="text-muted-foreground text-xs">{t("conversations.budgetsNote")}</p>
       </div>
       <div className="mt-5 flex justify-end gap-2">
@@ -220,6 +228,26 @@ export function OrgVoiceConversations({ org }: { org: Organization }) {
         </Button>
       </div>
     </section>
+  );
+}
+
+/**
+ * This month's call minutes against the limit, for a `runs:view` holder only:
+ * the read names agents and refuses anyone else, so nothing is asked for them.
+ * Hidden while loading and on a failure - an outage is not "0 minutes used".
+ */
+function MonthUsed({ limit }: { limit: number | null }) {
+  const t = useTranslations("teams.voice.conversations");
+  const { can } = usePermissions();
+  // Fixed at mount: "now" moving on every render would be a new query each time.
+  const [range] = useState(thisMonth);
+  const { usage } = useVoiceUsage(range, { enabled: can(Perm.runsView) });
+  if (usage === null) return null;
+  const used = Math.round(usage.month_seconds / 60);
+  return (
+    <p className="text-sm">
+      {limit === null ? t("usedNoLimit", { used }) : t("used", { used, limit })}
+    </p>
   );
 }
 

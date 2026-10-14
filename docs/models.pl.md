@@ -1,5 +1,5 @@
 ---
-source_sha: "0b5ae075ae8b"
+source_sha: "3d0323a4f530"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -434,6 +434,46 @@ Wiersz runa potomnego, który zapisuje delegacja, nazywa model, który na nią
 odpowiedział, więc dashboard kosztów grupuje delegowaną turę pod modelem, który
 faktycznie zadziałał, a nie pod modelem rodzica.
 
+## Modele realtime { #realtime-models }
+
+[Rozmowa głosowa](voice.md) nie używa profilu modelu. Jej model wybiera się z
+katalogu, który dostarcza to wdrożenie,
+`backend/app/core/catalog/realtime_models.json`, czytanego przez
+`backend/app/services/realtime_models.py` i serwowanego Builderowi pod
+`GET /api/v1/providers/realtime-models`. Klucz wskazuje sekcja Głos agenta jako
+sekret z vaultu, a nie profil. To ten sam kształt, którego używa mowa na tekst:
+wybór z katalogu plus jawny klucz.
+
+Każdy wpis nazywa providera, jego modele i dla każdego modelu:
+
+| Pole | O czym decyduje |
+|---|---|
+| `transport` | `webrtc` (przeglądarka rozmawia z providerem; to wdrożenie trzyma połączenie sideband) albo `relay` (dźwięk przechodzi przez gniazdo tego wdrożenia) |
+| `input_sample_rate`, `output_sample_rate` | Częstotliwości PCM, z którymi przeglądarka nagrywa i odtwarza dźwięk przez relay |
+| `voices`, `default_voice` | Co oferuje sekcja Głos i co oznacza pusty wybór |
+| `supports_thinking` | Czy capability thinking agenta przekłada się na własne ustawienie rozumowania modelu |
+| `context_window` | Gdzie ponowne połączenie przechodzi z odtwarzania tur na podsumowanie starszych |
+| `pricing` | `kind` (`tokens` albo `per_minute`), `worst_case_usd_per_minute` do sprawdzenia przed rozmową i `usd_per_minute` dla modelu rozliczanego za minutę |
+
+Rodzina `gpt-realtime` od OpenAI działa przez WebRTC i jest jedynym providerem
+przetestowanym na żywo. Azure OpenAI, Gemini Live i xAI działają przez relay i
+**nie zostały zweryfikowane na żywo**. GPT-Live nie ma w katalogu: nie przyjmuje
+historii po rozpoczęciu sesji, więc ponowne połączenie nie mogłoby kontynuować
+rozmowy.
+
+**Azure to wdrożenie plus model bazowy.** Nazwę wdrożenia wybiera jego
+właściciel i nic ona nie mówi o tym, co wdrożenie uruchamia, więc sekcja Głos
+przyjmuje nazwę wdrożenia jako wolny tekst, a model z katalogu, który ono
+uruchamia, jako `base_model`. Model bazowy decyduje o głosach i cenie: tokeny
+rozmowy przez Azure wyceniane są jak ten model w OpenAI. Endpoint i wersja API
+pochodzą z sekretu `azure_openai`.
+
+**Ceny.** Modele wyceniane za tokeny są wyceniane per odpowiedź z tej samej
+dołączonej migawki co runy tekstowe. Model rozliczany za minutę (xAI) jest
+obciążany za czas połączenia według `usd_per_minute` z katalogu. Model wyceniany
+za tokeny, którego migawka nie potrafi wycenić, jest odrzucany przy starcie
+rozmowy, zamiast działać z budżetem, którego nie da się egzekwować.
+
 ## Podsumowanie { #recap }
 
 - **Profil** to nazwany model plus nazwany klucz, a agenci wskazują na profile, żeby
@@ -445,6 +485,8 @@ faktycznie zadziałał, a nie pod modelem rodzica.
   niej w kierunku, który psuje run.
 - **Koszt** pochodzi z dołączonej migawki, nieznany model zapisywany jest jako
   niewyceniony, a nie darmowy, a provider bez klucza nie zapisuje wydatku w ogóle.
+- **Modele realtime** do rozmów głosowych to wybór z katalogu plus nazwany klucz,
+  bez profilu; tylko modele OpenAI są zweryfikowane na żywo.
 
 ## Jak go skonfigurować { #setting-one-up }
 

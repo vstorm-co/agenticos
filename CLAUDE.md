@@ -220,6 +220,7 @@ retranslated is how a stale translation stops being visible.
 | Context files — standing knowledge bound to agents | `docs/context.md` |
 | Named environments, promotion, per-environment tracing | `docs/environments.md` |
 | Surfaces: widget, WebSocket, Slack, Telegram | `docs/channels.md` |
+| Voice conversations: calls, realtime models, limits, hang-up | `docs/voice.md` |
 | Published pages: artifacts, versions, public links, isolation | `docs/artifacts.md` |
 | The desktop app: a Tauri shell around a deployment's console | `docs/desktop.md` |
 | Upload, parsing, ingestion | `docs/file-processing.md` |

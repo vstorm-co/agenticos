@@ -1,5 +1,5 @@
 ---
-source_sha: "7bd19927933a"
+source_sha: "e0744f5a3d70"
 ---
 
 # Secretos y el vault { #secrets-and-the-vault }
@@ -166,6 +166,22 @@ poder verla. El [registro de uso](ml-services.md#what-is-recorded) de cada
 transcripción nombra la clave con la que se envió. Consulta
 [a qué motor llega una grabación](ml-services.md#which-engine-a-recording-reaches).
 La lista de agents que usan una clave no muestra este uso.
+
+**Llamadas de voz.** La clave con la que se mantiene una
+[llamada de voz](voice.md) se nombra en la tarjeta Voice del agent, junto al
+provider y el modelo en tiempo real. Su propósito tiene que ser el provider y su
+kind el del provider: una `api_key`, o un secreto `azure_openai` para Azure, que
+lleva además el endpoint y la versión de la API. Sigue la regla del préstamo -
+quien publica tiene que poder verla - y nada busca una clave en tiempo de
+ejecución. La clave se desella para abrir una llamada y nunca llega al
+navegador: el servidor responde a la oferta WebRTC y no se emite ningún secreto
+de cliente.
+
+Para colgar una llamada cuyo proceso murió, el barrido de voz la lee a través
+de `OrganizationSecretService.voice_call_key`, un lector cuyo texto en claro va
+al endpoint de colgar del provider y a ningún otro sitio. Una fila de llamada
+solo guarda el id de la clave, y una clave borrada deja al agent sin poder
+atender llamadas hasta que se elija otra.
 
 **Capabilities.** Una capability declara que necesita una credencial de un *kind*
 dado — nunca una instancia. El código dice «necesito una clave de API»; la

@@ -1,5 +1,5 @@
 ---
-source_sha: "1d9bfa9904d4"
+source_sha: "802bf67003f5"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -835,6 +835,81 @@ strony, na której działa widget, więc strona wysyłająca
 `Permissions-Policy: microphone=()`, `<iframe>` bez `allow="microphone"` albo
 zwykły HTTP go blokuje. Widget mówi to pod swoim polem, zamiast zawodzić po
 cichu.
+
+## Rozmowy głosowe w widgecie lub na hostowanej stronie { #voice-calls-on-a-widget-or-a-hosted-page }
+
+Widget i hostowana strona mają każde przełącznik **Rozmowy głosowe (Voice
+calls)** (`voice_conversation`), domyślnie wyłączony i niezależny od dyktowania.
+Gdy jest włączony, odwiedzający mogą prowadzić z agentem
+[rozmowę głosową](voice.md): tę samą rozmowę, którą członek prowadzi z `/chat`,
+z tymi samymi limitami, uruchamianą w kontekście publikującego i zapisywaną
+z powierzchnią `embed`.
+
+**Włączenie go jest odrzucane**, dopóki przełącznik głosu organizacji jest
+wyłączony albo agent nie ma sekcji głosu, z którą można prowadzić rozmowę.
+Sprawdzane jest tylko samo przełączenie, więc embed, którego agent później
+straci głos, nadal można edytować. Dopóki rozmowa by się nie rozpoczęła,
+publiczna konfiguracja mówi `voice_conversation: false`, a odwiedzającym nie
+jest proponowana żadna rozmowa; gdy by się rozpoczęła, konfiguracja podaje też,
+jakiego transportu rozmowa używa (`voice_transport`).
+
+!!! note "Widok rozmowy dla odwiedzającego przyjdzie razem z widokiem konsoli"
+
+    Przełącznik, publiczna konfiguracja i socket rozmowy są gotowe. Widok
+    rozmowy na hostowanej stronie i własny skrypt rozmowy widgetu przyjdą razem
+    z widokiem rozmowy w konsoli, który wciąż jest projektowany; do tego czasu
+    odwiedzający nie widzą przycisku rozmowy.
+
+**Odwiedzający nie może niczego zatwierdzić.** Narzędzia wymagające
+zatwierdzenia są całkowicie pomijane w rozmowie odwiedzającego, więc agent nigdy
+po nie nie sięga; mówi wprost, gdy czegoś nie może tam zrobić. Rozmowa dostaje
+też notatkę o umiejscowieniu embeda i zadeklarowane zmienne strony, dokładnie
+tak jak wpisana wiadomość, więc agent zachowuje się w obu przypadkach tak samo.
+
+### Socket rozmowy { #the-call-socket }
+
+`/api/v1/embed/{public_key}/voice/ws` mówi tymi samymi ramkami co konsolowy
+`/api/v1/ws/voice` ([API](api.md#voice-calls)). Wpuszczanie zależy od
+powierzchni, tak jak w sockecie czatu. **Widget** jest wpuszczany według swojej
+listy dozwolonych, a w trybie `jwt` według tokena klienta w `?token=`.
+**Hostowana strona** jest wpuszczana według własnego originu tego deploymentu
+i klucza ciągłości w `?visitor=`, a rozmowa ląduje w wątku, który ten klucz
+trzyma, więc przerwaną rozmowę można tam wznowić. **Surowy socket** nie ma
+z czego dzwonić.
+
+Socket zamyka się z kodem `4029` po przekroczeniu rate limitu i z `4003` przy
+wszystkim, co dotyczy embeda — nieznany, zapauzowany, surowy socket, rozmowy
+wyłączone, origin, na który nie pozwala — bez mówienia, co dokładnie. Wszystko
+po wpuszczeniu to już odmowa samej rozmowy, wysyłana jako ramka `ended`
+z powodem.
+
+### Ile rozmowa kosztuje publiczny link { #what-a-call-costs-a-public-link }
+
+Rozmowy mieszczą się w budżetach: każda jest runem, liczonym w budżecie agenta
+i organizacji, i wliczanym do miesięcznych minut rozmów organizacji. Do tego
+publiczny link ma własne limity:
+
+| Limit | Domyślnie | Co jest liczone |
+|---|---|---|
+| `RATE_LIMIT_EMBED_VOICE_PER_MINUTE` | 3 | Rozpoczęcia rozmów na adres, a w widgecie `jwt` także na subject tokena odwiedzającego |
+| `RATE_LIMIT_EMBED_VOICE_PER_LINK_PER_MINUTE` | 6 | Rozpoczęcia rozmów na jednej stronie albo w jednym widgecie, od wszystkich razem |
+| `VOICE_MAX_CALLS_PER_EMBED` | 3 | Rozmowy otwarte jednocześnie w jednym embedzie; następny dzwoniący jest odrzucany jako `line_busy` |
+
+Własny `rate_limit_per_minute` embeda liczy **wiadomości**, a nie rozpoczęcia
+rozmów, więc nie ogranicza rozmów. Liczniki rozpoczęć są zużywane, zanim klucz
+zostanie odnaleziony, więc odrzucone rozpoczęcie też się liczy. Limit na subject
+`jwt` to tempo rozpoczęć, a nie limit otwartych rozmów; otwarte rozmowy
+ogranicza, razem z rozmowami wszystkich, limit embeda.
+
+!!! danger "Najgorszy przypadek dla wyciekniętego linku"
+
+    Trzy rozmowy otwarte jednocześnie, każda co najwyżej tak długa jak
+    najdłuższa rozmowa organizacji — domyślnie 10 minut, najwyżej 50 — zużywają
+    najwyżej trzy minuty rozmów na minutę. W tym tempie domyślne 600 minut
+    miesięcznie wystarczy na co najmniej trzy godziny i dwadzieścia minut
+    nadużycia, a potem każda rozmowa w organizacji, łącznie z rozmowami
+    członków, jest odrzucana do końca miesiąca. Zapauzuj embed, obniż
+    miesięczne minuty organizacji albo wyłącz jej rozmowy, jeśli to za dużo.
 
 ---
 

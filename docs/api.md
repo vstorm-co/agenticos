@@ -117,6 +117,74 @@ Both stream tokens as they arrive (an agent with an output guardrail streams a s
 at a time, see [Guardrails](reference/capabilities.md#guardrails)) and both produce
 an ordinary run, with the same books as everything else.
 
+## Voice calls
+
+A [voice call](voice.md) has a socket of its own, because a call is not a turn
+loop: **`/api/v1/ws/voice`** for a member, and
+**`/api/v1/embed/{public_key}/voice/ws`** for a visitor on a widget or a hosted
+page ([admission](channels.md#the-call-socket)). Both speak the same frames,
+defined in `backend/app/schemas/voice.py`.
+
+The console socket authenticates as `/ws/agent` does: the token as a
+`Sec-WebSocket-Protocol` entry `access_token.<JWT>` (or the same-origin cookie),
+never in the query string, and the organization as `?organization_id=`. It
+closes with `4001` without a valid session and `4003` when the caller is not a
+member. The embed socket closes with `4029` past a rate limit and `4003` for any
+refusal about the embed. Every heartbeat re-checks the session, so a call does
+not outlive a sign-out.
+
+**The client sends** JSON frames, and over the relay binary audio too:
+
+| Frame | Fields | When |
+|---|---|---|
+| `start` | `agent_id`, `conversation_id`, `sdp_offer` (WebRTC), `resume_of` (a reconnect), `context` (an embed's variables) | First, within 10 seconds |
+| `approval` | `id`, `decision` (`approve` or `deny`) | Deciding an approval the call is waiting on |
+| `ptt` | `state` (`down` or `up`) | Push-to-talk |
+| `mute` | `muted` | The relay: the microphone muted |
+| `played` | `bytes` | The relay: how much of the agent's audio has been played |
+| `end` | - | Hanging up |
+| *binary* | 16-bit PCM at the model's input rate | The relay: the caller's audio |
+
+**The server sends:**
+
+| Frame | Fields | Means |
+|---|---|---|
+| `answer` | `sdp` | WebRTC: the provider's answer for the browser's peer connection |
+| `ready` | `call_id`, `run_id`, `conversation_id`, `transport`, `input_sample_rate`, `output_sample_rate`, `cap_seconds`, `minutes_left` | The call is set up |
+| `state` | `state`: `connecting`, `listening`, `user_speaking`, `thinking`, `agent_speaking`, `interrupted`, `tool_running`, `awaiting_approval` | Who is talking, or what the agent is doing |
+| `caption` | `role`, `turn_id`, `part`, and one of `delta` (append), `text` (replace with the screened text so far) or `final` | A live caption |
+| `turn_saved` | `message` | A finished turn, as the message it was saved as; it replaces the captions carrying its `turn_id` |
+| `tool` | `name`, `status` (`running` or `done`) | A tool the agent is running |
+| `approval_required` | `id`, `tool`, `args`, `said`, `timeout_seconds` | An approval for the person on the call: the exact arguments, and what they were heard to say |
+| `approval_unavailable` | `tool`, `args` | A tool call this caller cannot approve by voice |
+| `approval_settled` | `id`, `outcome` (`approved`, `denied` or `expired`) | How an approval ended |
+| `notice` | `kind`, `message` (optional) | Something to say in words: a guardrail hit, a limit being reached |
+| `limit` | `seconds_left` | The call's time is nearly up |
+| `clear_playback` | - | The relay: drop the agent's queued audio |
+| `ended` | `reason`, `message` | The call is over |
+| *binary* | 16-bit PCM at the model's output rate | The relay: the agent's audio |
+
+A socket that sends no `start` within 10 seconds gets `ended` with `no_start`.
+A call that will not start answers with `ended` and a stable `reason`:
+`voice_off`, `no_agent`, `forbidden`, `not_configured`, `bad_offer`,
+`data_channel`, `resume_refused`, `minutes_exhausted`, `call_limit`,
+`not_priced`, `budget`, `busy` or `line_busy`, with a `message` safe to show. A
+call that ran ends with `user`, `time_limit`, `budget`, `minutes`,
+`disconnected`, `revoked`, `shutdown` or `error`. No frame ever carries a
+provider credential.
+
+Four HTTP routes go with it:
+
+| Route | Gate | Answers |
+|---|---|---|
+| `GET /api/v1/agents/{agent_id}/voice?surface=web` | `agents:run` on that agent, a grant included; `404` otherwise | Whether a call would start, why not, the transport, the longest call and the minutes left. `surface=embed` asks for a widget or a hosted page |
+| `GET /api/v1/providers/realtime-models` | `agents:view` | The realtime catalog the Voice section picks from |
+| `GET /api/v1/voice/usage?start=…&end=…` | `runs:view` | Call seconds and calls for calls started at or after `start` and before `end`, by agent (a deleted agent's calls as one row with no id or name), and this month's seconds against the organization's monthly minutes. An `end` not after `start` is refused with `422` |
+| `GET /api/v1/runs?modality=voice` | `runs:view` | Calls only (`text` for typed runs only); a call that reconnected is one row carrying `voice_chain`, every connection summed |
+
+An approval that belongs to a live call is decided in the call:
+`POST /api/v1/approvals/{id}` refuses it with `400`.
+
 ## Errors
 
 One envelope, everywhere:

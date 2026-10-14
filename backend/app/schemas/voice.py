@@ -1,5 +1,6 @@
 """Voice conversations on the wire (#54): readiness, socket frames, usage."""
 
+from datetime import datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
@@ -235,3 +236,28 @@ ServerFrame = Annotated[
     Field(discriminator="type"),
 ]
 """Every JSON frame the server sends on the voice socket: the contract the call view reads."""
+
+
+class AgentMinutesRead(BaseSchema):
+    agent_id: UUID | None = Field(description="Null for the calls of agents since deleted")
+    agent_name: str | None = Field(description="Null for the calls of agents since deleted")
+    seconds: int
+    calls: int = Field(description="Calls started; a reconnect is part of the call it resumed")
+
+
+class VoiceUsageRead(BaseSchema):
+    """Call time over a window, by agent, and this month's against the organization's limit."""
+
+    start: datetime
+    end: datetime
+    seconds: int = Field(description="Call seconds in the window, every agent together")
+    calls: int
+    by_agent: list[AgentMinutesRead] = Field(
+        description="Most seconds first; one row with no id for deleted agents"
+    )
+    month_seconds: int = Field(
+        description="Call seconds this calendar month, what the limit counts"
+    )
+    monthly_minutes: int | None = Field(
+        description="The organization's monthly call minutes; null = budgets only"
+    )

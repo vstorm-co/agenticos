@@ -194,6 +194,15 @@ export const TOUR_STEPS: readonly TourStep[] = [
     activate: "agent-tab-build",
     permission: Perm.agentsView,
   },
+  // The Voice card, right under the model: dictation and, below it, the
+  // realtime model, key and voice the agent takes calls with (#54).
+  {
+    id: "agent-voice",
+    page: AGENT_BUILDER,
+    target: "agent-voice",
+    activate: "agent-tab-build",
+    permission: Perm.agentsView,
+  },
   {
     id: "agent-toolbox",
     page: AGENT_BUILDER,
@@ -443,6 +452,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "org-voice",
     page: ORG_MEMBERS,
     target: "org-voice",
+    permission: Perm.orgSettings,
+  },
+  // Inside the Voice card, after its dictation half; gated like the card (#54).
+  {
+    id: "org-voice-conversations",
+    page: ORG_MEMBERS,
+    target: "org-voice-conversations",
     permission: Perm.orgSettings,
   },
   { id: "org-members", page: ORG_MEMBERS, target: "org-members" },

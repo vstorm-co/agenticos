@@ -156,3 +156,27 @@ export interface RealtimeProvider {
   deployment: boolean;
   models: RealtimeModel[];
 }
+
+/** One agent's call time over a usage window; no id and no name for agents since deleted. */
+export interface VoiceAgentMinutes {
+  agent_id: string | null;
+  agent_name: string | null;
+  seconds: number;
+  /** Calls started; a reconnect is part of the call it resumed. */
+  calls: number;
+}
+
+/** Call time over a window by agent, and this month's against the organization's limit. */
+export interface VoiceUsage {
+  /** The window, as instants: calls started at or after `start` and before `end`. */
+  start: string;
+  end: string;
+  seconds: number;
+  calls: number;
+  /** Most seconds first; deleted agents' calls together in one row. */
+  by_agent: VoiceAgentMinutes[];
+  /** This calendar month's call seconds: what the monthly limit counts. */
+  month_seconds: number;
+  /** `null` = no monthly limit, budgets only. */
+  monthly_minutes: number | null;
+}

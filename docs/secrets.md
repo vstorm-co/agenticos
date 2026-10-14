@@ -151,6 +151,19 @@ transcription's [usage record](ml-services.md#what-is-recorded) names the key it
 was sent with. See [which engine a recording reaches](ml-services.md#which-engine-a-recording-reaches).
 A key's list of the agents using it does not show this use.
 
+**Voice calls.** The key a [voice call](voice.md) is held with is named on the
+agent's Voice card, beside the realtime provider and model. Its purpose must be
+the provider and its kind the provider's: an `api_key`, or an `azure_openai`
+secret for Azure, which also carries the endpoint and API version. It follows
+the lending rule - the publisher must be able to view it - and nothing looks a
+key up at run time. The key is unsealed to open a call and never reaches the
+browser: the server answers the WebRTC offer and no client secret is minted.
+To hang up a call whose process died, the voice sweep reads it through
+`OrganizationSecretService.voice_call_key`, a reader whose plaintext goes to the
+provider's hang-up endpoint and nowhere else. A call row keeps only the key's
+id, and a deleted key leaves the agent unable to take calls until another is
+chosen.
+
 **Capabilities.** A capability declares that it needs a credential of a given
 *kind* — never an instance. Code says "I need an API key"; a binding's `secret_id`
 says which one. See

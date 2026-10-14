@@ -13,7 +13,7 @@ header — it replays that page's walkthrough, and a page whose header carries n
 The landing page is an **arrangeable grid of widgets**, and it is the answer to
 "what is happening" without opening five pages.
 
-Thirty-six cards exist. You will not see all of them: **a card is gated on the
+Thirty-eight cards exist. You will not see all of them: **a card is gated on the
 permission its data needs**, so a widget you may not read is never mounted and
 its queries are never issued — except your own notifications, below, which need
 only that you are signed in. An empty band disappears with its heading rather
@@ -26,7 +26,7 @@ They arrive grouped into bands:
 | *(untitled, at the top)* | The summary the rest of the page is the detail of |
 | **Deployment** | Only for a [deployment admin](permissions.md) — platform totals, health, busiest tenants, ratings |
 | **Attention** | What is waiting: [approvals](governance.md#approvals), recent failures, budget headroom, MCP health, stale knowledge, your most recent [notifications](#the-bell) |
-| **Usage** | Runs, outcomes, surfaces, latency, spend, model mix, version comparison |
+| **Usage** | Runs, outcomes, surfaces, latency, spend, [voice minutes](#voice-calls), model mix, version comparison |
 | **People** | Members, active users, ratings, who is doing what |
 | **Sandboxes** | [Capacity, live sessions, policy](sandbox.md) |
 | **Workspace** | Yours: your agents, your conversations, your activity, what was shared with you |
@@ -208,7 +208,7 @@ catalog, or the key was deleted or made private — the card says so, and asks t
 **choose a key** where that is what is missing, because every member then sees
 a crossed-out microphone.
 
-Server with no default provider is a setup rather than a fault: the card notes that only agents with their own provider dictate. **Voice conversations**, below it, is not built yet.
+Server with no default provider is a setup rather than a fault: the card notes that only agents with their own provider dictate. **Voice conversations**, below it, holds the organization's call settings - see [Voice calls](#voice-calls).
 
 For somebody who also holds `runs:view`, the card opens with one line on what
 the organization transcribed in the last 30 days — "42 min · 118 recordings (30
@@ -239,6 +239,64 @@ the rest.
 The card says when the override changes less than it looks like: with the
 organization's engine on Off or Browser it reaches only channel voice messages,
 and with no organization provider it is what dictation to this agent runs on.
+
+### Voice calls
+
+A [voice call](voice.md) is a spoken conversation with a published agent: you
+talk, it answers aloud, and you can interrupt it. Three places in the console
+set it up.
+
+- **The organization's Voice card**, under **Voice conversations**: **Allow
+  voice conversations** (off by default), **Offer calls in chat**, **Longest
+  call (minutes)**, from 1 to 50, and **Monthly call minutes**, or no monthly
+  limit to rely on budgets alone. The first three need `org:settings`; the
+  minutes need `budgets:manage` and are read-only to anybody else. A holder of
+  `runs:view` also sees how many of this month's minutes calls have used.
+- **The agent's Voice card**, under **Voice conversations**: **Take voice
+  calls**, then the call provider and model (for Azure, the deployment name and
+  its base model), the key, the voice, the spoken language (or **Follow the
+  caller**), the longest call and a voice note. The card lists what the agent
+  cannot use in calls, says that guardrails cannot filter spoken words before
+  they are heard, and that calls are recorded as text with no audio kept. It
+  takes effect when the agent is published.
+- **An embed's Voice calls switch**, in the widget and hosted page forms - see
+  [Channels](channels.md#voice-calls-on-a-widget-or-a-hosted-page).
+
+Before offering a call, the console asks whether this agent can take one
+(`GET /agents/{id}/voice`), so nobody grants the microphone only to be refused.
+The answer names what is missing: calls off in the organization or in chat, no
+voice set up on the agent, the model no longer offered, no key, or no minutes
+left this month.
+
+A call moves through states the console names: connecting, listening, you
+speaking, thinking, the agent speaking, interrupted, working on a tool, waiting
+for your approval, an approval you cannot give, almost out of time, and ended -
+by you, by a limit, a dropped connection or a failure. Captions appear word by
+word in a live region a screen reader announces, and each finished turn
+replaces its caption with the message saved in the conversation, so the call is
+in your history afterwards and you can carry on typing.
+
+**Approvals** are decided in the call: a card shows the tool, its exact
+arguments and what you were heard to say, with 60 seconds to decide. Without
+`approvals:decide` you are told the tool needs an approval you cannot give by
+voice. **Limits** are spoken: a minute before the longest call ends you are
+warned, and when the time, the budget or the month's minutes run out the agent
+says one sentence and the call ends. Talking is hands-free by default;
+**push-to-talk** (hold the button or Space) is a choice remembered in your
+browser, beside mute and **End call**.
+
+!!! note "The call view is still being designed"
+
+    Everything above is built except the call view itself and its button in
+    the chat composer, whose layout is still being decided. Until it lands, no
+    page offers a call.
+
+In **Activity**, a call is one row with a microphone badge, and the kind filter
+(**Text** or **Voice calls**) narrows to calls; a call that reconnected is still
+one row, with every connection's time and cost summed. The **Voice minutes**
+dashboard card, in the Usage band for a holder of `runs:view`, shows the
+period's call minutes and calls, the top three agents, and this month's minutes
+against the organization's limit.
 
 ## What each area is for
 
@@ -276,7 +334,7 @@ quiet one.
 
 ## Recap
 
-- The dashboard is **thirty-six widgets** you arrange yourself, saved per
+- The dashboard is **thirty-eight widgets** you arrange yourself, saved per
   person and per organization — all but your own notifications gated on the
   permission their data needs.
 - A saved arrangement **can hide and reorder but never reveal** — the gate runs
