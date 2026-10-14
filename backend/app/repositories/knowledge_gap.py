@@ -210,6 +210,8 @@ async def delete_empty_topics(db: AsyncSession) -> int:
         )
     )
     await db.flush()
+    # `execute` is typed to return `Result`, which has no `rowcount`; a DML
+    # statement actually returns a `CursorResult`, which does (see `resource_grant`).
     return result.rowcount or 0  # ty: ignore[unresolved-attribute]
 
 

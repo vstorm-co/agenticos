@@ -181,6 +181,8 @@ async def purge_knowledge_searches_of(db: AsyncSession, user_id: UUID) -> int:
     """
     result = await db.execute(sa_delete(KnowledgeSearch).where(_their_searches(user_id)))
     await db.flush()
+    # `execute` is typed to return `Result`, which has no `rowcount`; a DML
+    # statement actually returns a `CursorResult`, which does (see `resource_grant`).
     return result.rowcount or 0  # ty: ignore[unresolved-attribute]
 
 
