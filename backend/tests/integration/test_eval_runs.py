@@ -355,7 +355,7 @@ async def test_a_cancelled_run_starts_no_further_case(db) -> None:
     assert len(model.calls) == 2
     assert read.status == "cancelled"
     # The case that was already running when the person cancelled finished.
-    assert read.attempts_done == 2
+    assert (read.attempts_done, read.attempts_total) == (2, 6)
 
 
 @pytest.mark.security
@@ -372,7 +372,8 @@ async def test_a_case_that_runs_out_of_budget_stops_the_run(db) -> None:
     read = await service.get(ctx, started.id)
     assert len(model.calls) == 3
     assert read.status == "budget_exceeded"
-    assert read.attempts_total == 3
+    # The cases left unanswered still count, so progress reads 3 of 5.
+    assert (read.attempts_done, read.attempts_total) == (3, 5)
 
 
 async def test_a_case_that_passed_on_v6_and_fails_on_v7_is_a_confirmed_regression(db) -> None:
@@ -431,7 +432,11 @@ async def test_a_baseline_in_the_same_run_is_reused_when_everything_matches(db) 
     await _run_to_end(db, again, second.id, ctx)
     assert len(again.calls) == 3
     comparison = await service.compare(ctx, second.id)
-    assert comparison.paired
+    # The comparison names the run the baseline was answered in, and when.
+    assert not comparison.paired
+    assert comparison.baseline is not None
+    assert comparison.baseline.run_id == first.id
+    assert comparison.baseline.finished_at is not None
     assert comparison.verdict == "no_difference"
     read = await service.get(ctx, second.id)
     reused = next(arm for arm in read.arms if arm.role == "baseline")
@@ -693,7 +698,7 @@ async def test_a_worker_never_starts_a_finished_run_or_one_whose_starter_left(db
     assert model.calls == []
     assert read.status == "failed"
     assert read.error == "Whoever started this eval is no longer a member."
-    assert read.attempts_total == 0
+    assert (read.attempts_done, read.attempts_total) == (0, 2)
 
 
 async def test_a_full_organization_waits_for_a_free_slot(db) -> None:

@@ -930,9 +930,7 @@ class EvalRunService:
                     cost_usd=attempt_cost + judge_cost,
                     cost_is_partial=judge_partial or any(a.cost_is_partial for a in attempts),
                     attempts_done=sum(1 for a in attempts if a.status in finished),
-                    attempts_total=sum(
-                        1 for a in attempts if a.status != CaseAttemptStatus.SKIPPED.value
-                    ),
+                    attempts_total=len(attempts),
                     error=run.error,
                     created_by_user_id=run.created_by_user_id,
                     created_at=run.created_at,
@@ -1059,15 +1057,18 @@ class EvalRunService:
     ) -> Baseline | None:
         """What a candidate arm is compared with when nobody names a baseline.
 
-        The baseline that ran in this run, if one did - or the run it reused.
-        Otherwise the cheap default: the last completed run of this dataset on
+        The baseline that ran in this run, if one did. One reused from an
+        earlier run is that run's arm, so the comparison names where it came
+        from and when it finished. Otherwise the cheap default: the last completed run of this dataset on
         the version before the candidate's (the published one, for a draft),
         whatever its model and dataset version - the comparison says both.
         """
         arms = await eval_run_repo.list_arms(self.db, [run.id], organization_id=ctx.organization_id)
         paired = next((a for a in arms if a.role == ArmRole.BASELINE.value), None)
-        if paired is not None:
+        if paired is not None and paired.reused_from_arm_id is None:
             return Baseline(arm=paired, run=run, paired=True)
+        if paired is not None:
+            return await self._reused(ctx, paired)
         if arm.version_number is not None:
             previous = await agent_repo.version_before(
                 self.db,
@@ -1090,6 +1091,17 @@ class EvalRunService:
             exclude_run_id=run.id,
         )
         return Baseline(arm=found[0], run=found[1], paired=False) if found else None
+
+    async def _reused(self, ctx: AuthContext, arm: EvalRunArm) -> Baseline:
+        assert arm.reused_from_arm_id is not None
+        org = ctx.organization_id
+        # The reference is set null when the original arm goes, and an arm
+        # never outlives its run.
+        original = await eval_run_repo.get_arm(self.db, arm.reused_from_arm_id, organization_id=org)
+        assert original is not None
+        source = await eval_run_repo.get(self.db, original.eval_run_id, organization_id=org)
+        assert source is not None
+        return Baseline(arm=original, run=source, paired=False)
 
     async def outcomes(
         self, ctx: AuthContext, arm: EvalRunArm, attempts: Sequence[EvalRunCase]
