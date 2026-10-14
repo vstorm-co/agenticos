@@ -466,6 +466,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **The Architect's conversation list looks like the chat page's.** Rows
+  were a grey chat icon over a title and a time; they now carry the
+  agent's face and unread dot, "Architect · 4m ago" over the title, the
+  open row's fill, and Today, Yesterday and the older days as headings.
+
 - **An answer's sources open inside the Architect's widget.** The Sources
   panel was fixed to the page's right edge, so from the widget in the
   corner it opened beside it, over the page underneath; in the widget it
