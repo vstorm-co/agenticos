@@ -473,6 +473,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **An agent remembers a file after the turn it arrived in.** The history a
+  later turn is given was rebuilt from what people typed, so a file attached
+  earlier was gone from it: an agent without a workspace had read the file
+  once and could not answer a follow-up about it, and one with a workspace was
+  never told the file was in `uploads/`. What the attachments added to a
+  prompt - the file pasted whole, or its path and first lines - is now kept
+  beside the message and replayed after it; a picture is named rather than
+  sent again.
 - **Reopening a conversation addresses its agent.** The composer kept
   whichever agent was picked last, anywhere, so opening a Finance Analyst
   thread with the Architect last chosen sent the next message to the

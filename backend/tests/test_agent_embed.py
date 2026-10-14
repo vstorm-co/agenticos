@@ -468,7 +468,7 @@ class TestTheWidgetRemembersWhatWasSaid:
 
     @staticmethod
     def _message(role: str, content: str) -> MagicMock:
-        return MagicMock(role=role, content=content)
+        return MagicMock(role=role, content=content, attachment_context=None)
 
     @pytest.mark.anyio
     async def test_the_previous_turns_reach_the_model(self):

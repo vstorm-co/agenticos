@@ -80,11 +80,15 @@ def _file_uuids(file_ids: Sequence[str]) -> tuple[list[UUID], list[str]]:
 
 
 def _as_history(rows: Sequence[Message], exclude_message_id: UUID | None) -> list[HistoryMessage]:
-    """Transcript rows as the replayer wants them, minus the turn being answered."""
+    """Transcript rows as the replayer wants them, minus the turn being answered.
+
+    A prompt that carried files is replayed with what they added for the model,
+    so a follow-up about the file reaches a model that knows it is there.
+    """
     return [
         {
             "role": row.role,
-            "content": row.content,
+            "content": row.content + (row.attachment_context or ""),
             # The size of the request this answer came out of: the anchor the
             # compaction estimator measures against, in place of counting
             # characters - see `agent.build_message_history`.

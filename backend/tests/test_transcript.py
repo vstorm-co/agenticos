@@ -340,6 +340,25 @@ class TestWritingTheTranscript:
             "user",
         ), "the file hangs off the turn that brought it, not off the answer"
 
+    async def test_what_the_files_told_the_model_is_kept_beside_the_turn(
+        self, conversations, files
+    ):
+        """Beside the words, not in them: the transcript shows what the person
+        wrote, and the next turn's history replays the rest."""
+        await TranscriptService(_session()).record(
+            _run(),
+            prompt="co tu widzisz",
+            answer="A dashboard.",
+            attachments=[MagicMock(id=uuid.uuid4(), user_id=uuid.uuid4())],
+            attachment_context="\n---\nAttached file: raport.csv",
+        )
+
+        asked = conversations.create_message.await_args_list[0].kwargs
+        assert (asked["content"], asked["attachment_context"]) == (
+            "co tu widzisz",
+            "\n---\nAttached file: raport.csv",
+        )
+
     async def test_a_file_with_no_caption_still_gets_a_turn_to_hang_off(self, conversations, files):
         """Somebody drops an image and says nothing. That is a turn, and its body
         names what arrived: a blank user message reads as somebody sending

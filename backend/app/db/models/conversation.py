@@ -314,6 +314,17 @@ class Message(Base, TimestampMixin):
     Null is not recorded: a message older than the column, and any turn that
     never reached a model."""
 
+    attachment_context: Mapped[str | None] = mapped_column(Text, nullable=True)
+    """What this turn's attachments added to the prompt the model read.
+
+    The file pasted whole where the agent has no workspace, its path and first
+    lines where it has one - whatever `AttachmentRouter` appended. `content` is
+    what the person typed and what the transcript shows; this is replayed after
+    it when a later turn rebuilds the history, so a follow-up question about a
+    file reaches a model that still knows the file is there.
+
+    Null on every message that carried no attachment."""
+
     conversation: Mapped["Conversation"] = relationship("Conversation", back_populates="messages")
     tool_calls: Mapped[list["ToolCall"]] = relationship(
         "ToolCall",

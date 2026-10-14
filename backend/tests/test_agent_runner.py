@@ -1404,6 +1404,7 @@ class TestFilesAcrossOneTurn:
 
         with patch("app.services.agent_runner.AttachmentRouter") as router:
             router.return_value.build_prompt = built
+            router.return_value.context = "\n---\na reference"
             await service.execute(
                 MagicMock(), uuid.uuid4(), "look at this", attachments=[MagicMock()]
             )
@@ -1412,6 +1413,8 @@ class TestFilesAcrossOneTurn:
         # the agent can read it, and only `prepare` knows whether there is one.
         assert router.call_args.args[0] is prepared.workspace.workspace
         assert service._run.await_args.kwargs["user_prompt"] == "a prompt with a reference"
+        # And what it appended travels to the transcript, for the next turn's history.
+        assert service._run.await_args.kwargs["attachment_context"] == "\n---\na reference"
 
     @pytest.mark.anyio
     async def test_a_turn_with_no_attachments_builds_no_prompt(self):

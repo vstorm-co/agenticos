@@ -946,6 +946,41 @@ class TestAttachmentsAreRoutedHereAndNotBySurfaces:
         prompt = prepared.built.agent.iter.call_args.args[0]
         assert "month,total" in prompt
 
+    async def test_what_the_file_added_is_kept_on_the_prompt_for_the_next_turn(self):
+        """The paste reached this request and nothing after it, so a follow-up
+        about the file went to a model that had never been told of it."""
+        attachment = SimpleNamespace(
+            id=uuid.uuid4(),
+            filename="raport.csv",
+            mime_type="text/csv",
+            size=512,
+            storage_path="u/1/raport.csv",
+            file_type="text",
+            parsed_content="month,total\njan,10",
+        )
+        prepared = _prepared()
+        prepared.workspace = None
+        conversation_id, message_id = uuid.uuid4(), uuid.uuid4()
+
+        with (
+            _runner(prepared),
+            patch("app.services.agent_chat.conversation_repo.link_message_to_run", new=AsyncMock()),
+            patch(
+                "app.services.agent_chat.conversation_repo.set_attachment_context",
+                new=AsyncMock(),
+            ) as kept,
+        ):
+            await _run(
+                _db(),
+                attachments=[attachment],
+                conversation_id=conversation_id,
+                prompt_message_id=message_id,
+            )
+
+        written = kept.await_args.kwargs
+        assert (written["message_id"], written["conversation_id"]) == (message_id, conversation_id)
+        assert "month,total" in written["context"]
+
     async def test_the_workspace_the_run_opened_is_the_one_the_file_lands_in(self):
         """Not a fresh one, and not none - the file has to be where the agent
         will look for it."""

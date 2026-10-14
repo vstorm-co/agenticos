@@ -1,5 +1,5 @@
 ---
-source_sha: "217a295cc0a5"
+source_sha: "27fe488f738b"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -133,6 +133,14 @@ bekommt die Datei statt des Textes:
 | pdf, docx, spreadsheet, document, presentation, email | geparster Text inline eingefügt | nach `uploads/` geschrieben, mit dem extrahierten Text daneben, sofern die Laufzeitumgebung sie nicht selbst lesen kann (`email` bekommt ihn immer — `lit` kann `.msg` nicht lesen); Referenz und die ersten 20 Zeilen |
 | Bild | `BinaryContent` | `BinaryContent` **und** geschrieben; die Referenz nennt den Pfad |
 | tiff | PNG-Seite(n) als `BinaryContent`, Seitengrenze vermerkt | Original-`.tiff` geschrieben; PNG-Seite(n) angezeigt, Seitengrenze vermerkt |
+
+**Ein späterer Zug hat die Datei noch.** Was der Anhang dem Prompt hinzugefügt
+hat - der eingefügte Text oder der Verweis mit seinen ersten Zeilen - wird neben
+der Nachricht gespeichert und mit dem Verlauf wiedergegeben, sodass „und was ist
+mit März“ ein Modell erreicht, das noch von der Datei weiß. Ein Bild wird in
+diesem Verlauf nur genannt, nicht erneut gesendet; ein Agent, der es noch einmal
+ansehen muss, bittet darum oder öffnet es aus `uploads/`, wenn er einen Workspace
+hat.
 
 **Der extrahierte Text kommt nur dort mit, wo nichts das Original lesen kann.**
 Eine `.txt` des Parsens wurde früher neben jedes PDF, jede `.docx` und jede

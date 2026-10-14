@@ -1089,12 +1089,14 @@ async def create_message(
     agent_version_id: UUID | None = None,
     run_id: UUID | None = None,
     channel_identity_id: UUID | None = None,
+    attachment_context: str | None = None,
 ) -> Message:
     """Create a new message."""
     message = Message(
         conversation_id=conversation_id,
         role=role,
         content=content,
+        attachment_context=attachment_context,
         channel_identity_id=channel_identity_id,
         thinking=thinking,
         parts=parts,
@@ -1139,6 +1141,22 @@ async def link_message_to_run(
         sql_update(Message)
         .where(Message.id == message_id, Message.conversation_id == conversation_id)
         .values(run_id=run_id)
+    )
+
+
+async def set_attachment_context(
+    db: AsyncSession, *, message_id: UUID, conversation_id: UUID, context: str
+) -> None:
+    """Record what a prompt's attachments added for the model - see `Message.attachment_context`.
+
+    Written after the prompt row, because where a file goes depends on whether
+    the agent has a workspace and that is known only once the run is prepared.
+    Narrowed by `conversation_id` for the reason `link_message_to_run` is.
+    """
+    await db.execute(
+        sql_update(Message)
+        .where(Message.id == message_id, Message.conversation_id == conversation_id)
+        .values(attachment_context=context)
     )
 
 

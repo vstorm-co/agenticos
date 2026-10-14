@@ -192,6 +192,14 @@ def _pasted(chat_file: ChatFile) -> str:
     return f"\n---\nAttached file: {chat_file.filename}\n```\n{body}\n```"
 
 
+def _shown_once(filename: str) -> str:
+    """How a later turn's history names a picture that was sent as bytes."""
+    return (
+        f"\n---\nAttached image: {filename} - it was shown with this message and is "
+        "not repeated; ask for it again if you need to look at it."
+    )
+
+
 def _text_sibling(chat_file: ChatFile, path: str) -> str | None:
     """Where this file's extracted text sits, when one was written beside it.
 
@@ -377,6 +385,14 @@ class AttachmentRouter:
         can_parse: bool = False,
     ) -> None:
         self._workspace = workspace
+        self.context = ""
+        """What the last `build_prompt` appended to the person's message.
+
+        Stored on the prompt's row as `attachment_context`, so a later turn's
+        history still tells the model the file is there. A picture sent as bytes
+        is named here rather than repeated: the history carries text, and paying
+        for the image again on every turn is what the workspace path avoids for
+        documents."""
         # Whether the workspace can read a PDF, a `.docx` or a spreadsheet *itself*.
         # True only for a runtime this deployment describes, which is the same
         # condition as having told the model it has `lit` - so the caller passes
@@ -392,6 +408,7 @@ class AttachmentRouter:
 
         text_parts: list[str] = []
         inline: list[BinaryContent] = []
+        shown: list[str] = []
         refused = False
         # The per-turn text budget. The no-workspace path pastes each file's full
         # parsed text, so several large attachments in one turn compound past any
@@ -409,6 +426,7 @@ class AttachmentRouter:
             plan = await self.route(chat_file, inline_budget=inline_budget)
             refused = refused or plan.refused
             if plan.inline:
+                shown.append(chat_file.filename)
                 inline.extend(plan.inline)
                 inline_budget -= sum(len(part.data) for part in plan.inline)
             if plan.reference and not truncated:
@@ -435,7 +453,9 @@ class AttachmentRouter:
         if refused and self._workspace is not None:
             text_parts.append(_WORKSPACE_REFUSED)
 
-        full_text = user_message + "".join(text_parts)
+        appended = "".join(text_parts)
+        self.context = appended + "".join(_shown_once(name) for name in shown)
+        full_text = user_message + appended
         if inline:
             return [full_text, *inline]
         return full_text

@@ -68,6 +68,7 @@ class MockMessage:
         # Which run produced the turn, and therefore how it ended - a listing
         # reads a status off it so a stopped turn can say it was stopped.
         self.run_id = run_id
+        self.attachment_context = None
         # Enough of a row for `MessageRead.model_validate`, which the listing runs
         # when it has a reader to attach ratings for.
         self.created_at = datetime(2026, 8, 16, tzinfo=UTC)
@@ -1996,6 +1997,28 @@ class TestTheThreadAModelIsGivenBack:
         history = await ConversationService(AsyncMock()).model_history(conversation.id, limit=50)
 
         assert [part.content for message in history for part in message.parts] == ["hi", "hello"]
+
+    async def test_a_file_sent_earlier_is_still_in_the_history(self, monkeypatch):
+        """What the attachments added to a prompt is replayed after the words, so
+        "and what about March" reaches a model that still has the file."""
+        conversation = MockConversation()
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
+        )
+        asked = self._row("user", "what changed?")
+        asked.attachment_context = "\n---\nAttached file: raport.csv\n```\nmonth,total\n```"
+        monkeypatch.setattr(
+            conversation_repo,
+            "get_recent_messages",
+            AsyncMock(return_value=[asked, self._row("assistant", "Revenue rose.")]),
+        )
+
+        history = await ConversationService(AsyncMock()).model_history(conversation.id, limit=50)
+
+        assert [part.content for message in history for part in message.parts] == [
+            "what changed?\n---\nAttached file: raport.csv\n```\nmonth,total\n```",
+            "Revenue rose.",
+        ]
 
     async def test_a_summary_replaces_the_turns_it_accounts_for(self, monkeypatch):
         """The whole point: the summarised turns are not read back at all, so the

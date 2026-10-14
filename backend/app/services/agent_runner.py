@@ -4087,14 +4087,17 @@ class AgentRunnerService:
         # `BinaryContent` beside the text, and narrowing that back to a string
         # would hand the model a path where it should have been handed a picture.
         assembled: str | list[Any] = prompt
+        attachment_context: str | None = None
         if attachments:
-            assembled = await AttachmentRouter(
+            router = AttachmentRouter(
                 prepared.workspace.workspace if prepared.workspace is not None else None,
                 # Whether the workspace can read a PDF itself. Known, not inferred
                 # from the briefing: a briefing is a best effort and this decides
                 # whether the extracted text is written at all.
                 can_parse=prepared.workspace is not None and prepared.workspace.parses_documents,
-            ).build_prompt(prompt, attachments)
+            )
+            assembled = await router.build_prompt(prompt, attachments)
+            attachment_context = router.context or None
         try:
             segment = await self._run(
                 prepared,
@@ -4104,6 +4107,7 @@ class AgentRunnerService:
                 # note passes what the person typed.
                 said=prompt if said is None else said,
                 attachments=attachments or (),
+                attachment_context=attachment_context,
                 message_history=message_history,
                 deferred_tool_results=None,
                 stream=stream,
@@ -4604,6 +4608,7 @@ class AgentRunnerService:
         user_prompt: str | list[Any] | None,
         said: str | None,
         attachments: Sequence[ChatFile] = (),
+        attachment_context: str | None = None,
         message_history: Sequence[ModelMessage] | None,
         deferred_tool_results: DeferredToolResults | None,
         stream: RunStream | None = None,
@@ -4768,6 +4773,7 @@ class AgentRunnerService:
                     prompt=said,
                     answer=output,
                     attachments=attachments,
+                    attachment_context=attachment_context,
                     tool_calls=called,
                     settled=settled,
                     # So the step the run stopped on reads "awaiting approval" when

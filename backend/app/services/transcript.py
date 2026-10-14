@@ -250,6 +250,7 @@ class TranscriptService:
         prompt: str | None,
         answer: str,
         attachments: Sequence[ChatFile] = (),
+        attachment_context: str | None = None,
         tool_calls: Sequence[RecordedToolCall] = (),
         settled: Mapping[str, str] | None = None,
         parked: Collection[str] = (),
@@ -270,6 +271,10 @@ class TranscriptService:
         read in `/chat` was `co tu widzisz` followed by `--- Attached file: …
         (/uploads/…, 43 KB, image)`. The dashboard's own uploads have been rows
         since they existed; a channel's became nothing at all.
+
+        `attachment_context` is that briefing, kept beside the row rather than in
+        it: the transcript shows what the person wrote, and a later turn's history
+        appends this so the model still knows the file is there.
 
         An empty *prompt* with a file beside it is a turn, because a picture
         posted with no caption is one: the row is what the file hangs off, and
@@ -332,6 +337,7 @@ class TranscriptService:
                         conversation_id=run.conversation_id,
                         role="user",
                         content=prompt or what_arrived(attachments),
+                        attachment_context=attachment_context,
                         run_id=run.id,
                         # Off the run rather than passed in: the run row already
                         # records which chat account asked, and a second route to

@@ -508,6 +508,15 @@ class ChatAgentRunner:
                 can_parse=prepared.workspace is not None and prepared.workspace.parses_documents,
             )
             user_input = await router.build_prompt(_as_text(user_input), attachments)
+            # Kept on the prompt's row so the next turn's history still carries
+            # the file - it is otherwise in this one request and nowhere else.
+            if router.context and prompt_message_id is not None and conversation_id is not None:
+                await conversation_repo.set_attachment_context(
+                    self.db,
+                    message_id=prompt_message_id,
+                    conversation_id=conversation_id,
+                    context=router.context,
+                )
 
         status = RunStatus.FAILED
         error: str | None = None
