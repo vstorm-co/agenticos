@@ -220,3 +220,31 @@ def test_a_parked_question_s_step_waits_for_an_answer_and_any_other_for_approval
 
     assert parked_status("ask_user_question") == "awaiting_answer"
     assert parked_status("send_email") == "awaiting_approval"
+
+
+def test_a_thread_parked_on_a_question_reads_back() -> None:
+    """The step a parked question leaves is one the transcript can serve.
+
+    Its status was missing from the read schema, so listing the thread's
+    messages answered 500 and the conversation opened empty - with the question
+    waiting in it and no way to reach the card that answers it.
+    """
+    from datetime import UTC, datetime
+    from uuid import uuid4
+
+    from app.agents.ask_user import parked_status
+    from app.schemas.conversation import ToolCallRead
+
+    step = ToolCallRead.model_validate(
+        {
+            "id": uuid4(),
+            "message_id": uuid4(),
+            "tool_call_id": "call-1",
+            "tool_name": "ask_user_question",
+            "args": {},
+            "status": parked_status("ask_user_question"),
+            "started_at": datetime.now(UTC),
+        }
+    )
+
+    assert step.status == "awaiting_answer"

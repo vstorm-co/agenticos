@@ -112,7 +112,12 @@ class ToolCallRead(ToolCallBase):
     id: UUID
     message_id: UUID
     result: str | None = None
-    status: Literal["pending", "running", "completed", "failed", "awaiting_approval"] = "pending"
+    # Every status a stored step can hold - `awaiting_answer` included, the step
+    # of a run parked on a question (#2064): left out, the whole thread's
+    # transcript failed to read back and the conversation opened empty.
+    status: Literal[
+        "pending", "running", "completed", "failed", "awaiting_approval", "awaiting_answer"
+    ] = "pending"
     started_at: datetime
     completed_at: datetime | None = None
     duration_ms: int | None = None
