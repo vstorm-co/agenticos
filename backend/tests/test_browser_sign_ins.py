@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 from typing import Any
+from uuid import uuid4
 
 import pytest
 from pydantic import JsonValue
@@ -29,6 +30,7 @@ from app.agents.browser_sign_ins import (
     site_of,
     storage_from,
 )
+from app.db.models.browser_sign_in import BrowserSignIn
 
 
 def _cookie(domain: str, **fields: JsonValue) -> dict[str, JsonValue]:
@@ -146,3 +148,17 @@ class TestStorage:
         assert json.dumps({"https://a.test": {"t": "1"}}) in script
         assert "[location.origin]" in script
         assert "localStorage.getItem(k) === null" in script
+
+
+class TestTheRow:
+    def test_its_repr_names_the_site_and_never_the_sealed_state(self):
+        """A row lands in logs and tracebacks by its repr; the cookies it holds
+        are a signed-in session and must not travel with it."""
+        row = BrowserSignIn(
+            id=uuid4(), user_id=uuid4(), site="notion.so", sealed_state="v1:sealed-cookies"
+        )
+
+        shown = repr(row)
+
+        assert "notion.so" in shown
+        assert "sealed-cookies" not in shown
