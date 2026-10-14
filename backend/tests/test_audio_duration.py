@@ -307,7 +307,7 @@ def test_a_file_of_a_million_empty_elements_is_given_up_on_quickly() -> None:
     assert time.monotonic() - started < 5
 
 
-def test_a_run_of_more_samples_than_the_budget_is_unknown(
+def test_a_run_of_more_samples_than_the_step_cap_is_unknown(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(audio_duration, "MAX_ELEMENTS", 50)
