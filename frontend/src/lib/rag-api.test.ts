@@ -169,3 +169,19 @@ describe("downloading a knowledge-base document", () => {
     click.mockRestore();
   });
 });
+
+describe("finding the document a citation names", () => {
+  it("asks the base for exactly that name, escaped", async () => {
+    const doc = { id: "d1", filename: "Q3 & Q4.md" };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ items: [doc], total: 1 });
+
+    await expect(rag.findKBDocument("kb1", "Q3 & Q4.md")).resolves.toBe(doc);
+    expect(apiClient.get).toHaveBeenCalledWith(
+      "/kb/kb1/documents?filename=Q3%20%26%20Q4.md&limit=1",
+    );
+  });
+
+  it("is null once the base no longer holds it", async () => {
+    await expect(rag.findKBDocument("kb1", "gone.md")).resolves.toBeNull();
+  });
+});

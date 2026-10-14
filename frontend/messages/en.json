@@ -2523,7 +2523,8 @@
     "createKbDescription": "Upload documents into it once it exists. Agents search it when it is attached to them or picked in chat.",
     "whoCanSearchIt": "Who can search it",
     "parsingDetails": "Chunking, OCR and images",
-    "moreOptions": "More options"
+    "moreOptions": "More options",
+    "citedFileGone": "This file is no longer in its knowledge base - it was deleted or replaced after it was cited."
   },
   "knowledgeBases": {
     "active": "Active",
@@ -4920,7 +4921,8 @@
       "resultCount": "{count, plural, =0 {No results} =1 {1 result} other {# results}} · {ms} ms",
       "retry": "Try again",
       "scopeLabel": "Search scope",
-      "searching": "Searching..."
+      "searching": "Searching...",
+      "openFile": "Open {name}"
     },
     "skippedCount": "{count} skipped",
     "sourceName": "Source name",

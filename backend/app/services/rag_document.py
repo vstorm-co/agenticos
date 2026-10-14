@@ -94,10 +94,12 @@ class RAGDocumentService:
         )
 
     async def list_for_kb(
-        self, *, kb_id: UUID, skip: int = 0, limit: int = 50
+        self, *, kb_id: UUID, skip: int = 0, limit: int = 50, filename: str | None = None
     ) -> RAGTrackedDocumentList:
-        """List documents ingested into a Knowledge Base, paginated."""
-        rows, total = await rag_document_repo.get_for_kb(self.db, kb_id, skip=skip, limit=limit)
+        """List documents ingested into a Knowledge Base, paginated, optionally by name."""
+        rows, total = await rag_document_repo.get_for_kb(
+            self.db, kb_id, skip=skip, limit=limit, filename=filename
+        )
         return RAGTrackedDocumentList(
             items=[_tracked_item(d) for d in rows],
             total=total,

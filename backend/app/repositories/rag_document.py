@@ -87,9 +87,16 @@ async def get_for_kb(
     *,
     skip: int = 0,
     limit: int = 50,
+    filename: str | None = None,
 ) -> tuple[list[RAGDocument], int]:
-    """Page through documents linked to a Knowledge Base. Returns (rows, total)."""
+    """Page through documents linked to a Knowledge Base. Returns (rows, total).
+
+    `filename` narrows to documents with exactly that name - how a citation,
+    which names a file and not a row, finds the document it came from.
+    """
     base = select(RAGDocument).where(RAGDocument.knowledge_base_id == kb_id)
+    if filename is not None:
+        base = base.where(RAGDocument.filename == filename)
     total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar_one()
     rows = (
         (

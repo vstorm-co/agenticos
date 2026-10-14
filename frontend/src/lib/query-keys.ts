@@ -390,6 +390,10 @@ export const qk = {
     // stored parse does not change, so the second tab must not fetch it again.
     documentParsed: (id: string, documentId: string) =>
       ["kb", id, "documents", documentId, "parsed"] as const,
+    // A document found by the name a citation gave it, under the base's
+    // documents so an upload or a delete there refreshes what it resolves to.
+    documentNamed: (id: string, filename: string) =>
+      ["kb", id, "documents", "named", filename] as const,
   },
   attachments: {
     // A chat attachment, which is scoped to the user rather than to a collection

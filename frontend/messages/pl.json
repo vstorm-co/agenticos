@@ -2523,7 +2523,8 @@
     "createKbDescription": "Wgraj do niej dokumenty, gdy już powstanie. Agenci przeszukują ją, gdy jest do nich dołączona albo wybrana w czacie.",
     "whoCanSearchIt": "Kto może ją przeszukiwać",
     "parsingDetails": "Dzielenie na fragmenty, OCR i obrazy",
-    "moreOptions": "Więcej opcji"
+    "moreOptions": "Więcej opcji",
+    "citedFileGone": "Tego pliku nie ma już w bazie wiedzy - został usunięty albo zastąpiony po tym, jak go zacytowano."
   },
   "knowledgeBases": {
     "active": "Aktywna",
@@ -4690,7 +4691,8 @@
       "resultCount": "{count, plural, =0 {Brak wyników} =1 {1 wynik} few {# wyniki} other {# wyników}} · {ms} ms",
       "retry": "Spróbuj ponownie",
       "scopeLabel": "Zakres wyszukiwania",
-      "searching": "Szukam..."
+      "searching": "Szukam...",
+      "openFile": "Otwórz {name}"
     },
     "skippedCount": "{count} pominiętych",
     "sourceName": "Nazwa źródła",

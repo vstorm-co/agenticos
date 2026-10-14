@@ -2523,7 +2523,8 @@
     "createKbDescription": "Laden Sie Dokumente hoch, sobald sie existiert. Agents durchsuchen sie, wenn sie ihnen zugeordnet oder im Chat ausgewählt ist.",
     "whoCanSearchIt": "Wer sie durchsuchen kann",
     "parsingDetails": "Chunking, OCR und Bilder",
-    "moreOptions": "Weitere Optionen"
+    "moreOptions": "Weitere Optionen",
+    "citedFileGone": "Diese Datei ist nicht mehr in ihrer Wissensdatenbank - sie wurde nach dem Zitieren gelöscht oder ersetzt."
   },
   "knowledgeBases": {
     "active": "Aktiv",
@@ -4802,7 +4803,8 @@
       "resultCount": "{count, plural, =0 {Keine Ergebnisse} =1 {1 Ergebnis} other {# Ergebnisse}} · {ms} ms",
       "retry": "Erneut versuchen",
       "scopeLabel": "Suchbereich",
-      "searching": "Wird gesucht …"
+      "searching": "Wird gesucht …",
+      "openFile": "{name} öffnen"
     },
     "skippedCount": "{count} übersprungen",
     "sourceName": "Name der Quelle",

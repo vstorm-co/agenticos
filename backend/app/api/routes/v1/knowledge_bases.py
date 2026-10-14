@@ -148,10 +148,16 @@ async def list_kb_documents(
     ctx: Auth,
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
+    filename: str | None = Query(None, max_length=255),
 ) -> Any:
-    """List documents ingested into a Knowledge Base."""
+    """List documents ingested into a Knowledge Base.
+
+    `filename` returns only the documents with exactly that name: a search
+    result or an agent's citation names its file, and this is how the console
+    opens the original from one.
+    """
     await service.get(kb_id, ctx=ctx)
-    return await rag_doc_service.list_for_kb(kb_id=kb_id, skip=skip, limit=limit)
+    return await rag_doc_service.list_for_kb(kb_id=kb_id, skip=skip, limit=limit, filename=filename)
 
 
 @router.post(
