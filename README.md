@@ -41,6 +41,8 @@
 
 </div>
 
+<a href="docs/assets/screens/light/chat-hero.webp"><img src="docs/assets/screens/light/chat-hero.webp" alt="AgenticOS chat: the Finance Analyst asks how to chart an attached revenue CSV, gets the answers, runs Python and draws the chart, beside a list of threads with one to four agents each" width="100%"></a>
+
 AgenticOS is a sovereign, self-hosted layer for your company's AI agents: they work with files, run code and use your company's tools and knowledge. Build and publish agents in the browser, share them with colleagues, and manage their access, cost and results in one place.
 
 **New here?** Click through the [14-slide introduction](https://vstorm-co.github.io/agenticos/presentation/): the problem, the idea, the product on real screens, its controls and limits, and how to start. For every screen in detail, open the [44-slide product tour](https://vstorm-co.github.io/agenticos/presentation/tour/). Arrow keys step through either deck; `O` lists every slide.

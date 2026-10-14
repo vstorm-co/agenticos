@@ -1,4 +1,4 @@
-<!-- source_sha: 66f220608a81 -->
+<!-- source_sha: 09538101c2de -->
 
 <div align="center">
 
@@ -42,6 +42,8 @@
 </p>
 
 </div>
+
+<a href="docs/assets/screens/light/chat-hero.webp"><img src="docs/assets/screens/light/chat-hero.webp" alt="Czat AgenticOS: Finance Analyst pyta, jak przedstawić dołączony plik CSV z przychodami, dostaje odpowiedzi, uruchamia Pythona i rysuje wykres, obok lista wątków z jednym do czterech agentów" width="100%"></a>
 
 AgenticOS to suwerenna warstwa dla firmowych agentów AI, działająca na własnej infrastrukturze: agenci pracują z plikami, wykonują kod i korzystają z firmowych narzędzi oraz wiedzy. Twórz i publikuj agentów w przeglądarce, udostępniaj ich współpracownikom oraz zarządzaj ich dostępem, kosztami i wynikami w jednym miejscu.
 

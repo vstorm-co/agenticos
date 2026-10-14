@@ -673,7 +673,9 @@ Two things are versioned separately from this file and worth knowing about:
   Apps, one app, members, roles, groups and your settings, and the chat and
   documents sections describe what those screens now show.
   `docs/assets/screens/capture.mjs` retakes the set against any running
-  deployment; `ORG`, `AGENT` and `CHAT` choose what it shows.
+  deployment; `ORG`, `AGENT` and `CHAT` choose what it shows. The README now
+  opens on the chat: an agent asking before it charts an attached CSV,
+  beside threads with one to four agents.
 - **A link to a deployment unfurls in the new colours.** The Open Graph
   image drops the lime-on-black of the old brand for the mark's deep violet,
   with the title's key word in the blob's blue and the mark drawn large

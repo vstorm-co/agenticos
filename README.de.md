@@ -1,4 +1,4 @@
-<!-- source_sha: 66f220608a81 -->
+<!-- source_sha: 09538101c2de -->
 
 <div align="center">
 
@@ -42,6 +42,8 @@
 </p>
 
 </div>
+
+<a href="docs/assets/screens/light/chat-hero.webp"><img src="docs/assets/screens/light/chat-hero.webp" alt="Chat in AgenticOS: Der Finance Analyst fragt, wie eine angehängte Umsatz-CSV dargestellt werden soll, erhält die Antworten, führt Python aus und zeichnet das Diagramm, daneben Unterhaltungen mit einem bis vier Agents" width="100%"></a>
 
 AgenticOS ist eine souveräne, selbst gehostete Schicht für die KI-Agenten deines Unternehmens: Sie arbeiten mit Dateien, führen Code aus und nutzen die Werkzeuge und das Wissen deines Unternehmens. Erstelle und veröffentliche Agenten im Browser, teile sie mit Kollegen und verwalte Zugriff, Kosten und Ergebnisse an einem Ort.
 

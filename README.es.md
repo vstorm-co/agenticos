@@ -1,4 +1,4 @@
-<!-- source_sha: 66f220608a81 -->
+<!-- source_sha: 09538101c2de -->
 
 <div align="center">
 
@@ -42,6 +42,8 @@
 </p>
 
 </div>
+
+<a href="docs/assets/screens/light/chat-hero.webp"><img src="docs/assets/screens/light/chat-hero.webp" alt="Chat de AgenticOS: el Finance Analyst pregunta cómo representar un CSV de ingresos adjunto, recibe las respuestas, ejecuta Python y dibuja el gráfico, junto a conversaciones con uno a cuatro agents" width="100%"></a>
 
 AgenticOS es una capa soberana y autoalojada para los agentes de IA de tu empresa: trabajan con archivos, ejecutan código y usan las herramientas y el conocimiento de tu empresa. Crea y publica agentes en el navegador, compártelos con tus compañeros y gestiona su acceso, su coste y sus resultados en un mismo lugar.
 

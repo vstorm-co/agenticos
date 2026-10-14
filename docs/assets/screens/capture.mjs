@@ -39,6 +39,7 @@ const only = new Set(process.argv.slice(2));
 const ORG = process.env.ORG;
 const AGENT = process.env.AGENT ?? "Claude Code like";
 const CHAT = process.env.CHAT;
+const HERO_CHAT = process.env.HERO_CHAT ?? "Chart our 2026 MRR";
 
 /** Open a tab of the page by its name. */
 const tab = (name) => async (page) => {
@@ -78,6 +79,26 @@ const first = (prefix) => async (page) => {
 const SCREENS = [
   { name: "dashboard", path: "/dashboard?view=organization", then: dismissChecklist },
   { name: "chat", path: (ids) => `/chat?id=${ids.conversation}` },
+  // The README's first picture: a thread where the agent asked before it charted.
+  {
+    name: "chat-hero",
+    path: (ids) => `/chat?id=${ids.hero}`,
+    height: 1100,
+    then: async (page) => {
+      await page.getByText("Asked you", { exact: true }).first().click();
+      await page.waitForTimeout(800);
+      // From the question down: the thread opens at its end.
+      await page
+        .getByText("You", { exact: true })
+        .first()
+        .evaluate((element) => {
+          element.scrollIntoView({ block: "start" });
+          let scroller = element.parentElement;
+          while (scroller && scroller.scrollHeight <= scroller.clientHeight) scroller = scroller.parentElement;
+          scroller?.scrollBy(0, -24);
+        });
+    },
+  },
   { name: "agents", path: "/agents" },
   { name: "agent-templates", path: "/agents", then: button("Agent templates") },
   { name: "skills", path: "/skills" },
@@ -151,7 +172,8 @@ async function lookUp(page) {
     conversations.find((item) => (CHAT ? item.title?.startsWith(CHAT) : item.agents?.length)) ??
     conversations[0];
   const apps = (await get("/apps?limit=1")).items;
-  return { agent: agent?.id, conversation: conversation?.id, org: org.id, app: apps[0]?.id };
+  const hero = conversations.find((item) => item.title?.startsWith(HERO_CHAT)) ?? conversation;
+  return { agent: agent?.id, conversation: conversation?.id, hero: hero?.id, org: org.id, app: apps[0]?.id };
 }
 
 /** The address, in the organization chosen: the console adopts `?org=` on arrival. */
@@ -188,6 +210,7 @@ for (const theme of THEMES) {
     if (only.size > 0 && !only.has(screen.name)) continue;
     const path = typeof screen.path === "function" ? screen.path(ids) : screen.path;
     try {
+      await page.setViewportSize({ width: VIEW.width, height: screen.height ?? VIEW.height });
       await page.goto(`${BASE}${inOrg(path, ids.org)}`);
       await page.waitForLoadState("networkidle").catch(() => {});
       await tidy(page);
