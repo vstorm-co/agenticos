@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChatContainer } from "./chat-container";
@@ -61,7 +61,10 @@ function runDelegatedTurn(): void {
     task_id: "t-1",
     subagent: "quarterly-report-researcher",
     depth: 0,
-    mode: "sync",
+    // In the background, whose panel outlives the turn - one that answered in
+    // the turn is its step once the turn is over, and would leave nothing here
+    // for the switch to clear.
+    mode: "async",
     prompt: "read the three filings and list what changed",
     parent_task_id: null,
   });
@@ -163,6 +166,7 @@ describe("the chat container - delegation panels across a conversation switch", 
     receive("conversation_created", { conversation_id: "c-new" });
 
     expect(await screen.findByText("Quarterly report researcher")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Quarterly report researcher/ }));
     expect(screen.getByText("read the three filings and list what changed")).toBeInTheDocument();
   });
 });
