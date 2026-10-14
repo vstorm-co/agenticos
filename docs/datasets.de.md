@@ -1,5 +1,5 @@
 ---
-source_sha: "74f1c7e43545"
+source_sha: "fd1f20c91bb6"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -243,6 +243,13 @@ der Bestehensgrenze. Kann der Judge nicht bewerten, werden seine Kriterien als
 Ursache nennt: KI-Unterstützung ist ausgeschaltet, der Judge hat keine
 veröffentlichte Version, er ist archiviert, die Person darf ihn nicht ausführen,
 oder sein Budget ist aufgebraucht. Die regelbasierten Scorer bewerten trotzdem.
+
+Eine Bewertung darf die Antwort zitieren, bis zu 12 Stellen; ein Zitat, das die
+Antwort nicht wörtlich enthält, wird in der Begründung als nicht verifiziert
+genannt, und die Bewertung bleibt bestehen. Jedes Ergebnis hält den Judge fest,
+der es bewertet hat - sein Modellprofil, die Version seiner Spec und einen Hash
+der Rubrik -, damit Ergebnisse verschiedener Judges nicht als gleichwertig
+verglichen werden.
 
 ### Review und Urteile { #review }
 

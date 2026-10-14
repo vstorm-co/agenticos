@@ -51,6 +51,14 @@ export interface ScorerResult {
  * (null: a required scorer could not run); `human_passed` a person's verdict;
  * `outcome` the one that counts.
  */
+/** Which judge graded a score; two scores compare only when every field matches. */
+export interface JudgePin {
+  model_profile_id: string | null;
+  agent_version_id: string | null;
+  spec_version: number | null;
+  rubric_hash: string;
+}
+
 export interface CaseScore {
   id: string;
   dataset_id: string;
@@ -58,6 +66,7 @@ export interface CaseScore {
   case_revision_id: string;
   run_id: string | null;
   results: ScorerResult[];
+  judge: JudgePin | null;
   passed: boolean | null;
   review_state: ReviewState;
   human_passed: boolean | null;

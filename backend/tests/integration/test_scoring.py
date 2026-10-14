@@ -322,6 +322,40 @@ class TestScoringARun:
         assert score.passed is False
         assert score.run_id == run.id
 
+    async def test_a_score_pins_the_judge_that_graded_it(self, db, judge) -> None:
+        tenant = await _tenant(db)
+        profile = await _model(db, tenant)
+        dataset, case = await _dataset(db, tenant, scoring=_rubric())
+        run = await _scored_run(db, tenant)
+        scoring = ScoringService(db)
+        judge_agent = await SystemAgentService(db).ensure(
+            organization_id=tenant.organization.id, key=JUDGE.key
+        )
+
+        first = await scoring.score_run(
+            tenant.ctx, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
+        )
+        again = await scoring.score_run(
+            tenant.ctx, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
+        )
+        await scoring.set_scoring(
+            tenant.ctx,
+            dataset.id,
+            DatasetScoring(judge=JudgeScorer(enabled=True, criteria=RUBRIC[:1])),
+        )
+        narrower = await scoring.score_run(
+            tenant.ctx, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
+        )
+
+        assert first.judge is not None and narrower.judge is not None
+        assert (first.judge.agent_version_id, first.judge.spec_version) == (
+            judge_agent.current_version_id,
+            1,
+        )
+        assert first.judge.model_profile_id == profile.id
+        assert again.judge == first.judge
+        assert narrower.judge.rubric_hash != first.judge.rubric_hash
+
     async def test_the_judge_is_a_recorded_eval_run_in_activity(self, db, judge) -> None:
         tenant = await _tenant(db)
         await _model(db, tenant)
@@ -534,6 +568,7 @@ class TestWhenTheJudgeCannotRun:
         judged = [r for r in score.results if r.scorer == "judge"]
         assert {(r.status, r.reason_code) for r in judged} == {("skipped", "ai_assistance_off")}
         assert score.passed is None
+        assert score.judge is None
         assert judge.calls == 0
         assert await _eval_runs(db, tenant) == []
 

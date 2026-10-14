@@ -15,7 +15,8 @@ models judging or drafting turns it off, and the services refuse from then on.
 
 `datasets.scoring` holds how a dataset's cases are scored. It is not versioned
 with the cases - how a team grades is not what it asks - so `case_scores` keeps
-the configuration each score was computed with beside its results. A score
+the configuration each score was computed with beside its results, and which
+judge graded it - model profile, spec version, rubric hash. A score
 outlives the run it read (`SET NULL`), and a person's verdict lives in its own
 columns so it never overwrites what the judge said.
 
@@ -78,6 +79,7 @@ def upgrade() -> None:
         sa.Column("run_id", sa.UUID(), nullable=True),
         sa.Column("scoring", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
         sa.Column("results", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+        sa.Column("judge", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
         sa.Column("passed", sa.Boolean(), nullable=True),
         sa.Column("review_state", sa.String(length=16), server_default="none", nullable=False),
         sa.Column("human_passed", sa.Boolean(), nullable=True),

@@ -1,5 +1,5 @@
 ---
-source_sha: "74f1c7e43545"
+source_sha: "fd1f20c91bb6"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -231,6 +231,12 @@ jako pominięte albo jako błędy, z uzasadnieniem podającym przyczynę: wsparc
 AI jest wyłączone, sędzia nie ma opublikowanej wersji, jest zarchiwizowany,
 osoba nie może go uruchomić albo jego budżet się wyczerpał. Oceniacze oparte na
 regułach nadal oceniają.
+
+Ocena może cytować odpowiedź, do 12 fragmentów; cytat, którego odpowiedź nie
+zawiera słowo w słowo, jest wskazany w uzasadnieniu jako niezweryfikowany, a
+ocena pozostaje. Każdy wynik zapisuje sędziego, który go ocenił - jego profil
+modelu, wersję spec i hash rubryki - więc wyniki od różnych sędziów nie są
+porównywane jak równe z równym.
 
 ### Przegląd i werdykty { #review }
 

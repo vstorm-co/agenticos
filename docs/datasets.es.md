@@ -1,5 +1,5 @@
 ---
-source_sha: "74f1c7e43545"
+source_sha: "fd1f20c91bb6"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -236,6 +236,13 @@ registran como omitidos o como errores, con un motivo que nombra la causa: la
 asistencia de IA está desactivada, el juez no tiene una versión publicada, está
 archivado, la persona no puede ejecutarlo o su budget se ha agotado. Los
 evaluadores basados en reglas siguen puntuando.
+
+Una calificación puede citar la respuesta, hasta 12 fragmentos; una cita que la
+respuesta no contiene palabra por palabra se señala en el motivo como no
+verificada, y la calificación se mantiene. Cada puntuación registra el juez que
+la calificó - su perfil de modelo, la versión de su spec y un hash de la
+rúbrica - para que las puntuaciones de jueces distintos no se comparen como
+equivalentes.
 
 ### Revisión y veredictos { #review }
 

@@ -26,6 +26,7 @@ const SCORE: CaseScore = {
   case_id: "c1",
   case_revision_id: "r1",
   run_id: "run-1",
+  judge: null,
   results: [
     {
       scorer: "check",

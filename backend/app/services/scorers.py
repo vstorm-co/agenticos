@@ -8,6 +8,7 @@ judge and keeps what these return.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from collections.abc import Mapping, Sequence
@@ -455,6 +456,16 @@ def judge_prompt(
         f"the grade's quotes.\n{listed}"
     )
     return "\n\n".join(parts)
+
+
+def rubric_hash(criteria: Sequence[JudgeCriterion], *, scale_max: int) -> str:
+    """A fingerprint of what the judge was asked: every criterion it graded, and the scale."""
+    asked = {
+        "scale_max": scale_max,
+        "criteria": [[c.id, c.name, c.description] for c in criteria],
+    }
+    canonical = json.dumps(asked, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(canonical.encode()).hexdigest()
 
 
 def _unverified(quotes: Sequence[str], answer: str) -> str:

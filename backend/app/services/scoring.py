@@ -16,6 +16,7 @@ a case whose required judge was skipped is left unscored rather than passed.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -34,11 +35,12 @@ from app.core.exceptions import (
 )
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
-from app.db.models.agent_run import RunStatus
+from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.case_score import CaseScore
 from app.db.models.dataset import Dataset, DatasetCase
 from app.db.models.intercepted_tool_call import InterceptionOutcome
 from app.repositories import (
+    agent_repo,
     case_score_repo,
     conversation_repo,
     credential_repo,
@@ -52,6 +54,7 @@ from app.schemas.scoring import (
     CaseScoreRead,
     CaseVerdict,
     DatasetScoring,
+    JudgePin,
     ScorerResult,
 )
 from app.services.access import DATASET, visible_resource_ids
@@ -68,6 +71,7 @@ from app.services.scorers import (
     judge_criteria,
     judge_prompt,
     not_graded,
+    rubric_hash,
     run_checks,
     score_trajectory,
 )
@@ -83,6 +87,14 @@ def _redact(text: str | None) -> str | None:
     if verdict.action == "replace" and isinstance(verdict.replacement, str):
         return verdict.replacement
     return text
+
+
+@dataclass(frozen=True)
+class Evaluation:
+    """Every scorer's result for one answer, and which judge graded it, if one did."""
+
+    results: list[ScorerResult]
+    judge: JudgePin | None = None
 
 
 def _score_read(score: CaseScore) -> CaseScoreRead:
@@ -228,7 +240,8 @@ class ScoringService:
         already decided the caller may score this dataset.
         """
         config = scoring or DatasetScoring.model_validate(dataset.scoring)
-        results = await self.evaluate(ctx, _case_view(case), answer, config)
+        evaluation = await self.evaluate(ctx, _case_view(case), answer, config)
+        results = evaluation.results
         passed = case_passed(results)
         select = config.review.select
         waits = select == "all" or (select == "failed" and passed is not True)
@@ -244,6 +257,7 @@ class ScoringService:
                 result.model_copy(update={"reason": _redact(result.reason)}).model_dump(mode="json")
                 for result in results
             ],
+            judge=None if evaluation.judge is None else evaluation.judge.model_dump(mode="json"),
             passed=passed,
             review_state="pending" if waits else "none",
             created_by_user_id=ctx.user_id,
@@ -251,7 +265,7 @@ class ScoringService:
 
     async def evaluate(
         self, ctx: AuthContext, case: CaseView, answer: ScoredAnswer, scoring: DatasetScoring
-    ) -> list[ScorerResult]:
+    ) -> Evaluation:
         """Every configured scorer's result for one answer, without keeping them."""
         results: list[ScorerResult] = []
         judged = []
@@ -271,9 +285,10 @@ class ScoringService:
             if trajectory is not None:
                 results.append(trajectory)
         criteria = judge_criteria(case, scoring, judged)
-        if criteria:
-            results.extend(await self._judge(ctx, case, answer, criteria, scoring))
-        return results
+        if not criteria:
+            return Evaluation(results)
+        judging = await self._judge(ctx, case, answer, criteria, scoring)
+        return Evaluation([*results, *judging.results], judging.judge)
 
     async def _judge(
         self,
@@ -282,7 +297,7 @@ class ScoringService:
         answer: ScoredAnswer,
         criteria: list[JudgeCriterion],
         scoring: DatasetScoring,
-    ) -> list[ScorerResult]:
+    ) -> Evaluation:
         try:
             result = await self.judge.run(
                 ctx,
@@ -292,35 +307,65 @@ class ScoringService:
                 model_profile_id=scoring.judge.model_profile_id,
             )
         except AiAssistanceDisabledError as exc:
-            return not_graded(criteria, skipped=True, code="ai_assistance_off", reason=exc.message)
+            skipped = not_graded(
+                criteria, skipped=True, code="ai_assistance_off", reason=exc.message
+            )
+            return Evaluation(skipped)
         except SystemAgentUnavailableError as exc:
-            return not_graded(
+            skipped = not_graded(
                 criteria, skipped=True, code=f"judge_{exc.reason}", reason=exc.message
             )
+            return Evaluation(skipped)
         except SystemAgentRunError as exc:
             budget = exc.status == RunStatus.BUDGET_EXCEEDED.value
-            return not_graded(
+            failed = not_graded(
                 criteria,
                 skipped=budget,
                 code="judge_budget" if budget else "judge_run_failed",
                 reason=exc.message,
                 run_id=exc.run_id,
             )
+            return Evaluation(failed)
         except SystemAgentOutputError as exc:
-            return not_graded(
+            failed = not_graded(
                 criteria,
                 skipped=False,
                 code="judge_output_invalid",
                 reason=exc.message,
                 run_id=exc.run_id,
             )
-        return graded(
+            return Evaluation(failed)
+        grades = graded(
             criteria,
             result.output,
             answer=answer.text,
             scale_max=scoring.judge.scale_max,
             pass_at=scoring.judge.pass_at,
             run_id=result.run.id,
+        )
+        return Evaluation(grades, await self._pin(ctx, result.run, criteria, scoring))
+
+    async def _pin(
+        self,
+        ctx: AuthContext,
+        run: AgentRun,
+        criteria: list[JudgeCriterion],
+        scoring: DatasetScoring,
+    ) -> JudgePin:
+        """The judge that graded: its version, the model it ran on, and what it was asked."""
+        version = (
+            None
+            if run.agent_version_id is None
+            else await agent_repo.get_version(
+                self.db, run.agent_version_id, organization_id=ctx.organization_id
+            )
+        )
+        published = None if version is None else version.spec.get("model_profile_id")
+        return JudgePin(
+            model_profile_id=scoring.judge.model_profile_id or published,
+            agent_version_id=run.agent_version_id,
+            spec_version=None if version is None else version.version,
+            rubric_hash=rubric_hash(criteria, scale_max=scoring.judge.scale_max),
         )
 
     async def list_scores(

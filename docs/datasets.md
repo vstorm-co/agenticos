@@ -224,6 +224,12 @@ skipped or as errors, with a reason that names the cause: AI assistance is
 switched off, the judge has no published version, it is archived, the person
 may not run it, or its budget is spent. The rule-based scorers still score.
 
+A grade may quote the answer, up to 12 passages; a quote the answer does not
+contain word for word is named in the reason as unverified, and the grade
+stands. Each score records the judge that graded it - its model profile, its
+spec version and a hash of the rubric - so scores from different judges are not
+compared as like for like.
+
 ### Review and verdicts { #review }
 
 A dataset can send results to a **review queue**: none until somebody sends one,

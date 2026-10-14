@@ -208,6 +208,21 @@ class CaseVerdict(BaseSchema):
     note: str | None = Field(default=None, max_length=2000)
 
 
+class JudgePin(BaseSchema):
+    """Which judge graded a score.
+
+    Two scores are graded alike only when every field matches. `rubric_hash`
+    fingerprints what the judge was asked: each criterion it graded and the
+    scale. `model_profile_id` is the model it ran on - the dataset's choice, or
+    the one its version publishes on.
+    """
+
+    model_profile_id: UUID | None = None
+    agent_version_id: UUID | None = None
+    spec_version: int | None = None
+    rubric_hash: str
+
+
 class CaseScoreRead(BaseSchema):
     """One run's answer scored against one case.
 
@@ -223,6 +238,7 @@ class CaseScoreRead(BaseSchema):
     case_revision_id: UUID
     run_id: UUID | None = None
     results: list[ScorerResult]
+    judge: JudgePin | None = None
     passed: bool | None = None
     review_state: ReviewState
     human_passed: bool | None = None
