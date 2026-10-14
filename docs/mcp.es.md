@@ -1,5 +1,5 @@
 ---
-source_sha: "342fa7b17aae"
+source_sha: "38d51ecddb91"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -441,11 +441,13 @@ conexión de producción, así que el modelo ve las mismas herramientas; si la
 conexión de prueba ya no existe o está desactivada, el binding queda apagado en
 ese turno y nunca se llega a producción en su lugar.
 
-En un eval, una herramienta MCP se ejecuta en una conexión de producción solo
-cuando su servidor la marca con `readOnlyHint`. Cualquier otra llamada se
-retiene y se registra con sus argumentos en lugar de ejecutarse. La indicación
-es una afirmación del propio servidor, así que revisa qué marca un servidor como
-de solo lectura antes de evaluar contra una conexión de producción.
+En un eval, cada llamada a una conexión de producción se retiene y se registra con
+sus argumentos en lugar de ejecutarse. La única excepción es una herramienta que
+el servidor marca con `readOnlyHint`, en una conexión que confía en esa marca. La
+marca es una afirmación del propio servidor, así que la confianza está
+desactivada en todas las conexiones. Se activa en el diálogo **Tools** de la
+conexión. El diálogo indica cuántas herramientas declaran la marca, y el cambio
+queda en la auditoría con ese número.
 
 ### Conectar uno desde el Builder { #connecting-one-from-the-builder }
 

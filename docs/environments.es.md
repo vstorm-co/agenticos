@@ -1,5 +1,5 @@
 ---
-source_sha: "8bd34216f6f5"
+source_sha: "6272681ba405"
 ---
 
 # Entornos { #environments }
@@ -133,8 +133,9 @@ que es como se ejecuta un eval — ejecuta una herramienta solo cuando es seguro
 | Solo lee | Se ejecuta en la conexión normal |
 | Escribe, sin conexión de prueba | **No se ejecuta.** Se registra como llamada prevista, con sus argumentos |
 
-Una herramienta MCP solo lee cuando su servidor lo dice con `readOnlyHint`. Una
-herramienta de una capability lo declara en el registro, y el
+Una herramienta MCP cuenta como de lectura solo cuando su servidor la marca con
+`readOnlyHint` y la conexión confía en esa marca. Por defecto no confía, porque
+la marca es una afirmación del propio servidor. Una herramienta de una capability lo declara en el registro, y el
 [catálogo](reference/capabilities.md#what-an-eval-runs) indica cuáles lo hacen.
 **Una herramienta que no declara nada escribe.** Al modelo se le dice que la
 llamada no se envió, y la llamada prevista se guarda con el run para puntuarla.

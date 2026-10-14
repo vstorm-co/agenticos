@@ -123,8 +123,9 @@ an eval runs — executes a tool only when that is safe:
 | Only reads | Runs on the normal connection |
 | Writes, with no test connection | **Not executed.** Recorded as an intended call, with its arguments |
 
-An MCP tool reads only when its server says so with `readOnlyHint`. A
-capability's tool declares it in the registry, and the
+An MCP tool counts as reading only when its server marks it `readOnlyHint` and
+the connection is set to trust that mark; by default it is not, because the mark
+is the server's own claim. A capability's tool declares it in the registry, and the
 [catalog](reference/capabilities.md#what-an-eval-runs) lists which do. **A tool
 that declares nothing writes.** The model is told the call was not sent, and
 the intended call is kept with the run for scoring.

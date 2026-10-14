@@ -61,8 +61,13 @@ class _World:
     def __init__(self) -> None:
         self.effects: list[tuple[str, str]] = []
 
-    def toolset(self, tool: str, *, test: bool, read_only: bool) -> AbstractToolset[Any]:
-        """One MCP-shaped tool: stamped with its origin, annotated by its server."""
+    def toolset(
+        self, tool: str, *, test: bool, read_only: bool, trusted: bool = True
+    ) -> AbstractToolset[Any]:
+        """One MCP-shaped tool: stamped with its origin, annotated by its server.
+
+        `trusted` is whether its connection believes the server's annotations.
+        """
         toolset: FunctionToolset[Any] = FunctionToolset()
         effects = self.effects
 
@@ -72,7 +77,10 @@ class _World:
 
         toolset.add_function(act, name=tool)
         return toolset.with_metadata(
-            **{MCP_ORIGIN: {"test": test}, "annotations": {"readOnlyHint": read_only}}
+            **{
+                MCP_ORIGIN: {"test": test, "trust_read_only_hints": trusted},
+                "annotations": {"readOnlyHint": read_only},
+            }
         )
 
 
@@ -157,6 +165,28 @@ class TestWhatAnIsolatedRunExecutes:
 
         assert world.effects == [("crm_find", "Ada"), ("sandbox_create", "Ada")]
         assert [call.tool_name for call in isolation.intercepted] == ["crm_create"]
+
+    async def test_a_production_tool_claiming_to_read_is_held_unless_its_connection_trusts_it(
+        self,
+    ):
+        """`readOnlyHint` is the server's word: a write mislabelled as a read must
+        not reach production because the server said so."""
+        world = _World()
+        isolation = RunIsolation()
+
+        await _run(
+            isolation,
+            [
+                world.toolset("crm_purge", test=False, read_only=True, trusted=False),
+                world.toolset("docs_find", test=False, read_only=True, trusted=True),
+            ],
+            _calls_then_answers(("crm_purge", {"name": "Ada"}), ("docs_find", {"name": "Ada"})),
+        )
+
+        assert world.effects == [("docs_find", "Ada")]
+        assert [(call.tool_name, call.outcome, call.reason) for call in isolation.intercepted] == [
+            ("crm_purge", InterceptionOutcome.BLOCKED, InterceptionReason.WRITES)
+        ]
 
     async def test_a_recording_answers_the_same_call_without_executing_it(self):
         world = _World()
@@ -247,17 +277,27 @@ class TestWhatAnIsolatedRunExecutes:
 
 
 class TestClassification:
-    def test_an_mcp_tool_reads_only_when_its_server_says_so(self):
+    def test_an_mcp_tool_reads_only_when_its_server_says_so_and_is_believed(self):
+        def tool(*, hint: bool | None, trusted: bool) -> ToolDefinition:
+            return ToolDefinition(
+                name="crm_find",
+                metadata={
+                    MCP_ORIGIN: {"test": False, "trust_read_only_hints": trusted},
+                    "annotations": None if hint is None else {"readOnlyHint": hint},
+                },
+            )
+
+        assert classify(tool(hint=True, trusted=True), {}).read_only is True
+        assert classify(tool(hint=True, trusted=False), {}).read_only is False
+        assert classify(tool(hint=None, trusted=True), {}).read_only is False
+
+    def test_a_stamp_from_before_trust_existed_believes_no_hint(self):
         stamped = ToolDefinition(
             name="crm_find",
             metadata={MCP_ORIGIN: {"test": False}, "annotations": {"readOnlyHint": True}},
         )
-        unannotated = ToolDefinition(
-            name="crm_find", metadata={MCP_ORIGIN: {"test": False}, "annotations": None}
-        )
 
-        assert classify(stamped, {}) == ToolClass("tool:crm_find", read_only=True)
-        assert classify(unannotated, {}) == ToolClass("tool:crm_find", read_only=False)
+        assert classify(stamped, {}) == ToolClass("tool:crm_find", read_only=False)
 
     def test_an_mcp_tool_is_never_mistaken_for_a_registry_tool_of_the_same_name(self):
         """The stamp decides, not the name: a server cannot borrow a read's identity."""

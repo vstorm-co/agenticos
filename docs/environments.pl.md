@@ -1,5 +1,5 @@
 ---
-source_sha: "8bd34216f6f5"
+source_sha: "6272681ba405"
 ---
 
 # Środowiska { #environments }
@@ -134,8 +134,9 @@ bezpieczne:
 | Tylko czyta | Działa na zwykłym połączeniu |
 | Zapisuje i nie ma połączenia testowego | **Nie jest wykonywane.** Zapisywane jako zamierzone wywołanie, z argumentami |
 
-Narzędzie MCP tylko czyta, gdy jego serwer mówi tak przez `readOnlyHint`.
-Narzędzie capability deklaruje to w rejestrze, a
+Narzędzie MCP liczy się jako czytające tylko wtedy, gdy serwer oznacza je
+`readOnlyHint`, a połączenie ma włączone zaufanie do tego oznaczenia. Domyślnie
+nie ma, bo oznaczenie to deklaracja samego serwera. Narzędzie capability deklaruje to w rejestrze, a
 [katalog](reference/capabilities.md#what-an-eval-runs) wymienia, które to robią.
 **Narzędzie, które niczego nie deklaruje, zapisuje.** Model dowiaduje się, że
 wywołanie nie zostało wysłane, a zamierzone wywołanie zostaje zachowane z runem

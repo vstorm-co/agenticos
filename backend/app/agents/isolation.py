@@ -10,8 +10,9 @@ What it decides, per call:
 
 * **A tool with a test connection runs.** An environment can answer a binding
   with a test system (a sandbox CRM, a test mailbox); the call goes there.
-* **A read-only tool runs** on the normal connection. MCP tools say so with the
-  server's `readOnlyHint`; capability tools declare `read_only` in the registry.
+* **A read-only tool runs** on the normal connection. Capability tools declare
+  `read_only` in the registry. An MCP tool's `readOnlyHint` is its server's own
+  claim, so it counts only on a connection set to trust it.
 * **Anything else is blocked and recorded** as an intended call - the tool and
   its arguments - which is what trajectory scoring judges. A tool that declares
   nothing writes.
@@ -106,7 +107,8 @@ def classify(tool_def: ToolDefinition, tools: Mapping[str, ToolClass]) -> ToolCl
     """What one tool is, whoever contributed it.
 
     An MCP tool is recognised by the origin this deployment stamped on it, never
-    by its name, and is read-only only when its server says `readOnlyHint`. A
+    by its name, and is read-only only when its server says `readOnlyHint` and its
+    connection trusts the server to say so. A
     registry tool is looked up by the name the model called. Anything else -
     including a tool nothing declared - writes.
     """
@@ -116,7 +118,8 @@ def classify(tool_def: ToolDefinition, tools: Mapping[str, ToolClass]) -> ToolCl
         annotations = metadata.get("annotations") or {}
         return ToolClass(
             tool_id=f"tool:{tool_def.name}",
-            read_only=annotations.get("readOnlyHint") is True,
+            read_only=annotations.get("readOnlyHint") is True
+            and origin.get("trust_read_only_hints") is True,
             test=origin.get("test") is True,
         )
     known = tools.get(tool_def.name)

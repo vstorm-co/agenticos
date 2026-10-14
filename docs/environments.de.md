@@ -1,5 +1,5 @@
 ---
-source_sha: "8bd34216f6f5"
+source_sha: "6272681ba405"
 ---
 
 # Umgebungen { #environments }
@@ -140,8 +140,10 @@ gestarteter Run — so läuft ein Eval — führt ein Tool nur aus, wenn das sic
 | Liest nur | Läuft auf der normalen Verbindung |
 | Schreibt, ohne Testverbindung | **Wird nicht ausgeführt.** Als beabsichtigter Aufruf mit seinen Argumenten aufgezeichnet |
 
-Ein MCP-Tool liest nur, wenn sein Server das mit `readOnlyHint` sagt. Das Tool
-einer Capability erklärt es in der Registry, und der
+Ein MCP-Tool gilt nur dann als lesend, wenn sein Server es mit `readOnlyHint`
+markiert und die Verbindung dieser Markierung vertraut. Standardmäßig tut sie das
+nicht, denn die Markierung ist die eigene Angabe des Servers. Das Tool einer
+Capability erklärt es in der Registry, und der
 [Katalog](reference/capabilities.md#what-an-eval-runs) führt auf, welche es tun.
 **Ein Tool, das nichts erklärt, schreibt.** Das Modell erfährt, dass der Aufruf
 nicht gesendet wurde, und der beabsichtigte Aufruf wird für die Bewertung mit

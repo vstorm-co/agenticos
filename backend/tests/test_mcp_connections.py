@@ -134,6 +134,7 @@ def _connection(**overrides) -> McpConnection:
         "secret_key_version": 1,
         "allowed_tools": None,
         "is_enabled": True,
+        "trust_read_only_hints": False,
         "auth_type": "bearer",
         "oauth_state": None,
         "oauth_payload": None,
@@ -290,16 +291,21 @@ class TestMakeToolset:
 
         assert _make_toolset(spec).wrapped.wrapped.tool_error_behavior == "failed"
 
-    @pytest.mark.parametrize("test", [False, True])
-    def test_every_tool_says_which_side_of_an_override_it_came_from(self, test):
-        """The isolation guard lets a test connection's tools write and nothing
-        else's; the stamp is ours, set after the server answered."""
+    @pytest.mark.parametrize(("test", "trusted"), [(False, False), (True, False), (False, True)])
+    def test_every_tool_says_which_side_of_an_override_it_came_from(self, test, trusted):
+        """The isolation guard lets a test connection's tools write, and believes
+        `readOnlyHint` only where the connection trusts it; the stamp is ours, set
+        after the server answered."""
         from pydantic_ai.toolsets import SetMetadataToolset
 
-        toolset = _make_toolset(McpServerSpec(name="crm", url="https://e.com/mcp", test=test))
+        toolset = _make_toolset(
+            McpServerSpec(
+                name="crm", url="https://e.com/mcp", test=test, trust_read_only_hints=trusted
+            )
+        )
 
         assert isinstance(toolset, SetMetadataToolset)
-        assert toolset.metadata == {MCP_ORIGIN: {"test": test}}
+        assert toolset.metadata == {MCP_ORIGIN: {"test": test, "trust_read_only_hints": trusted}}
 
     def test_with_allowlist_filters_before_prefixing(self):
         from pydantic_ai.toolsets import FilteredToolset, PrefixedToolset
@@ -392,6 +398,34 @@ class TestProbeSuccess:
             McpToolInfo(name="create_issue", description=""),
         ]
         session.initialize.assert_awaited_once()
+
+    @pytest.mark.anyio
+    async def test_a_tool_the_server_marks_read_only_is_recorded_as_claiming_it(self, monkeypatch):
+        """Kept so the person deciding whether to believe the server can see how
+        many tools that belief covers."""
+        from mcp.types import ToolAnnotations
+
+        claims = MagicMock(description="", annotations=ToolAnnotations(readOnlyHint=True))
+        claims.name = "find"
+        denies = MagicMock(description="", annotations=ToolAnnotations(readOnlyHint=False))
+        denies.name = "purge"
+        silent = MagicMock(description="", annotations=None)
+        silent.name = "create"
+        session = AsyncMock()
+        session.list_tools = AsyncMock(return_value=MagicMock(tools=[claims, denies, silent]))
+        monkeypatch.setattr(
+            "app.agents.mcp._mcp_transport",
+            lambda url, headers: _acm((MagicMock(), MagicMock())),
+        )
+        monkeypatch.setattr("mcp.ClientSession", lambda read, write: _acm(session))
+
+        tools = await probe_mcp_server("https://example.com/mcp")
+
+        assert [(tool.name, tool.read_only_hint) for tool in tools] == [
+            ("find", True),
+            ("purge", False),
+            ("create", False),
+        ]
 
 
 class TestProbeErrors:
@@ -597,6 +631,32 @@ class TestToolsetsForAgent:
         assert (spec.name, spec.url, spec.test) == ("crm", "https://sandbox.example/mcp", True)
         # Every allowlist narrows: production's ceiling, the binding's, the sandbox's.
         assert spec.allowed_tools == ["find"]
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("override", [False, True])
+    async def test_whether_hints_are_believed_is_the_connection_that_answers(
+        self, monkeypatch, override
+    ):
+        """A sandbox answering for production is believed or not on its own say-so,
+        never on production's."""
+        seen = self._capture(monkeypatch)
+        production = _connection(name="crm", trust_read_only_hints=True)
+        sandbox = _connection(name="crm-sandbox", trust_read_only_hints=False)
+        monkeypatch.setattr(
+            mcp_connection_service.mcp_connection_repo,
+            "get_org_scoped_by_ids",
+            AsyncMock(return_value={production.id: production, sandbox.id: sandbox}),
+        )
+
+        await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[OrgMcpServerRef(connection_id=production.id)],
+            test_connections={production.id: sandbox.id} if override else None,
+        )
+
+        (spec,) = seen[0]
+        assert spec.trust_read_only_hints is not override
 
     @pytest.mark.anyio
     @pytest.mark.parametrize("state", ["deleted", "disabled", "no_credentials"])
@@ -3371,6 +3431,47 @@ class TestOrganizationConnections:
         assert recorded["target_id"] == str(conn.id)
         assert recorded["details"] == {"fields": ["auth_token"]}
         assert "ghp-rotated-4321" not in str(recorded)
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        ("last_tools", "count"),
+        [
+            (
+                [
+                    {"name": "find", "description": "", "read_only_hint": True},
+                    {"name": "purge", "description": "", "read_only_hint": False},
+                    {"name": "list", "description": ""},
+                ],
+                1,
+            ),
+            (None, None),
+        ],
+    )
+    async def test_trusting_a_servers_hints_records_how_many_tools_that_covers(
+        self, service, ctx, repo, audit, last_tools, count
+    ):
+        """The decision lets an eval call those tools live, so the trail says how
+        many there were when it was made - or that nothing had probed it yet."""
+        conn = self._org_connection(ctx, last_tools=last_tools)
+        repo.get_org_scoped_by_id.return_value = conn
+
+        async def write(db, *, db_connection, update_data):
+            for key, value in update_data.items():
+                setattr(db_connection, key, value)
+            return db_connection
+
+        repo.update.side_effect = write
+
+        await service.update_for_org(
+            ctx, connection_id=conn.id, data=OrgMcpConnectionUpdate(trust_read_only_hints=True)
+        )
+
+        assert repo.update.call_args.kwargs["update_data"] == {"trust_read_only_hints": True}
+        assert audit.call_args.kwargs["details"] == {
+            "fields": ["trust_read_only_hints"],
+            "trust_read_only_hints": True,
+            "read_only_hint_tools": count,
+        }
 
     @pytest.mark.anyio
     async def test_a_no_op_update_writes_no_audit(self, service, ctx, repo, audit):

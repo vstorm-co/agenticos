@@ -28,8 +28,9 @@ Two things are versioned separately from this file and worth knowing about:
   default environment carries no overrides. Managed in the Builder's history
   tab, next to each named environment.
 - **Isolated runs, for evals.** A run started isolated executes only tools that
-  read - MCP tools marked `readOnlyHint`, capability tools declared `read_only`
-  in the registry - and calls that reach a test connection. A tool that writes
+  read - capability tools declared `read_only` in the registry, and MCP tools
+  marked `readOnlyHint` on a connection set to trust that mark (off by default,
+  audited when changed) - and calls that reach a test connection. A tool that writes
   without one is not executed; the call and its arguments are kept in the new
   `intercepted_tool_calls` table, as is a call the agent gates behind an
   approval, which an isolated run cannot ask for. An isolated run can also be

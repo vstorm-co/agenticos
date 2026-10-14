@@ -2074,6 +2074,8 @@
     "stateDisabled": "Wyłączone",
     "storedEncryptedNeverShown": "Zapisane w postaci zaszyfrowanej i nigdy więcej niepokazywane.",
     "toolSelectionSaved": "Wybór narzędzi zapisany.",
+    "trustReadOnlyHints": "Pozwól evalom wywoływać narzędzia, które ten serwer oznacza jako tylko do odczytu",
+    "trustReadOnlyHintsHint": "Evale wstrzymują każde wywołanie serwera produkcyjnego, chyba że mu ufasz: oznaczenie „tylko do odczytu” to deklaracja samego serwera. {count, plural, =0 {Żadne narzędzie tutaj go nie deklaruje.} =1 {Deklaruje je 1 narzędzie.} few {Deklarują je # narzędzia.} many {Deklaruje je # narzędzi.} other {Deklaruje je # narzędzia.}}",
     "toolsFrom": "Narzędzia z „{name}”",
     "unreachable": "Nieosiągalny",
     "urlMustStartWithHttp": "URL musi zaczynać się od http:// lub https://",

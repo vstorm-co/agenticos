@@ -1,5 +1,5 @@
 ---
-source_sha: "342fa7b17aae"
+source_sha: "38d51ecddb91"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -452,11 +452,13 @@ der Produktionsverbindung, sodass das Modell dieselben Tools sieht; ist die
 Testverbindung weg oder deaktiviert, ist das Binding für diesen Turn aus, und
 die Produktion wird nie stattdessen erreicht.
 
-In einem Eval läuft ein MCP-Tool auf einer Produktionsverbindung nur, wenn sein
-Server es mit `readOnlyHint` markiert. Jeder andere Aufruf wird angehalten und
-mit seinen Argumenten aufgezeichnet statt ausgeführt. Der Hinweis ist die eigene
-Angabe des Servers, also prüfen Sie, was ein Server als nur lesend markiert,
-bevor Sie gegen eine Produktionsverbindung evaluieren.
+In einem Eval wird jeder Aufruf einer Produktionsverbindung angehalten und mit
+seinen Argumenten aufgezeichnet statt ausgeführt. Die einzige Ausnahme ist ein
+Tool, das der Server mit `readOnlyHint` markiert, auf einer Verbindung, die
+dieser Markierung vertraut. Die Markierung ist die eigene Angabe des Servers,
+deshalb ist das Vertrauen auf jeder Verbindung aus. Eingeschaltet wird es im
+Dialog **Tools** der Verbindung. Der Dialog nennt, wie viele Tools die
+Markierung beanspruchen, und die Änderung wird mit dieser Zahl im Audit erfasst.
 
 ### Einen aus dem Builder heraus verbinden { #connecting-one-from-the-builder }
 
