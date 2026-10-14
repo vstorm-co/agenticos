@@ -704,7 +704,7 @@
     "testStarterIdentityTitle": "Za kogo się podaje",
     "testStarterIdentityPrompt": "Kim jesteś i kto cię zbudował?",
     "testPanelClose": "Zamknij panel testowy",
-    "testPanelDraft": "Szkic - nieopublikowane zmiany",
+    "testPanelDraft": "Szkic",
     "testPanelDraftSaving": "Zapisywanie ostatniej zmiany - wyślij po zapisaniu, żeby ją przetestować.",
     "testPanelEnvironment": "{name} (wersja {version})",
     "testPanelNew": "Nowa rozmowa",

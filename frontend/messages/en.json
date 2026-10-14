@@ -704,7 +704,7 @@
     "testStarterIdentityTitle": "Who it says it is",
     "testStarterIdentityPrompt": "Who are you, and who built you?",
     "testPanelClose": "Close the test panel",
-    "testPanelDraft": "Draft - your unpublished changes",
+    "testPanelDraft": "Draft",
     "testPanelDraftSaving": "Saving your latest change - send once it is saved to test it.",
     "testPanelEnvironment": "{name} (version {version})",
     "testPanelNew": "New conversation",

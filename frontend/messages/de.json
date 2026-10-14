@@ -704,7 +704,7 @@
     "testStarterIdentityTitle": "Wer er zu sein behauptet",
     "testStarterIdentityPrompt": "Wer bist du, und wer hat dich gebaut?",
     "testPanelClose": "Testbereich schließen",
-    "testPanelDraft": "Entwurf - unveröffentlichte Änderungen",
+    "testPanelDraft": "Entwurf",
     "testPanelDraftSaving": "Die letzte Änderung wird gespeichert - senden Sie danach, um sie zu testen.",
     "testPanelEnvironment": "{name} (Version {version})",
     "testPanelNew": "Neues Gespräch",

@@ -157,7 +157,9 @@ export function TestPanel({
       aria-label={t("testPanel")}
       data-tour="agent-test-panel"
       style={{ "--test-panel-width": `${width}px` } as React.CSSProperties}
-      className="bg-background fixed inset-0 z-40 flex flex-col lg:sticky lg:top-4 lg:z-auto lg:h-[calc(100vh-6rem)] lg:w-[var(--test-panel-width)] lg:shrink-0 lg:rounded-xl lg:border"
+      // Tall enough to end one gutter above the window's edge: at 6rem short it
+      // stopped 48px early, a band of nothing under the composer.
+      className="bg-background fixed inset-0 z-40 flex flex-col lg:sticky lg:top-4 lg:z-auto lg:h-[calc(100dvh-4rem)] lg:w-[var(--test-panel-width)] lg:shrink-0 lg:rounded-xl lg:border"
     >
       <div
         role="separator"
