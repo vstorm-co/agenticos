@@ -1,5 +1,5 @@
 ---
-source_sha: "7bfdbfb408ca"
+source_sha: "2c916397f4c0"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1265,6 +1265,13 @@ ist — eine Nachricht pro Freigabe mit **Approve** und **Reject**, eine Nachric
 pro Frage mit ihren Optionen und **Skip**. Ein Druck entscheidet oder antwortet,
 der Run läuft weiter, und seine Antwort erscheint im selben Chat; die gedrückte
 Nachricht behält die Frage und zeigt die Wahl.
+
+Eine Freigabe liest sich als Bitte des Agents, in seiner eigenen Stimme: was er tun
+will und das eine Argument, das sagt, worum es geht — *I need your approval to
+**search in Notion**: “what's new in releases”*. Ein Tool von einem MCP-Server wird
+mit seinem Dienst und seiner Aktion benannt statt mit seiner Kennung samt Präfix,
+und die übrigen Argumente bleiben in **Approvals** in der Konsole, wo dieselbe
+Anfrage mit dieser einen Zeile beginnt und den Rest hinter **Details** faltet.
 
 Ein Druck handelt als die Person, die gedrückt hat, über ihr verknüpftes Konto:
 Entscheiden braucht `approvals:decide`, und nur die gefragte Person kann eine

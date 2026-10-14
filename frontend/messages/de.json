@@ -1455,7 +1455,8 @@
     "browserLineBrowsed": "War auf {host}",
     "browserLineNeeds": "Braucht Sie: {what}",
     "browserLineShowing": "Geöffnet",
-    "browserLineOpen": "Öffnen"
+    "browserLineOpen": "Öffnen",
+    "approvalAsk": "{action} erlauben?"
   },
   "common": {
     "archiveNamedConfirm": "{name} archivieren?",
@@ -4396,7 +4397,6 @@
       "runs2": "Runs",
       "runsViewIsMissing": "Run-Historie und Ausgaben zu lesen braucht die Berechtigung runs:view, die dieses Konto nicht hat. Es ist nichts fehlgeschlagen – die Seite hat gar nicht gefragt.",
       "settingPair": "{key} {value}",
-      "showArguments": "Argumente",
       "showEveryAgent": "Jeden Agent anzeigen",
       "showingTheNewestOf": "{shown, plural, =1 {Der neueste von {total} in diesem Zeitraum entschiedenen wird angezeigt} other {Die neuesten # von {total} in diesem Zeitraum entschiedenen werden angezeigt}}. Exportieren Sie die CSV für den ganzen Datensatz.",
       "someRunsCouldNotBePriced": "{count, plural, =1 {1 Run in diesem Zeitraum ließ sich nicht bepreisen, die Zahlen unten sind also eine Untergrenze} other {# Runs in diesem Zeitraum ließen sich nicht bepreisen, die Zahlen unten sind also eine Untergrenze}}",
@@ -4465,7 +4465,10 @@
       "share": "Anteil",
       "monthAgainstCap": "${spent} von ${cap} in diesem Monat",
       "spendOverTime": "Ausgaben im Zeitverlauf",
-      "spendOverTimeHint": "Was jeder Tag des Zeitraums gekostet hat, in UTC-Tagen."
+      "spendOverTimeHint": "Was jeder Tag des Zeitraums gekostet hat, in UTC-Tagen.",
+      "actionInService": "{action} in {service}",
+      "approvalDetails": "Details",
+      "approvalNoArguments": "Es nimmt nichts entgegen."
     },
     "sandboxes": {
       "addConnection": "Verbindung hinzufügen",

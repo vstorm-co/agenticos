@@ -1,5 +1,5 @@
 ---
-source_sha: "7bfdbfb408ca"
+source_sha: "2c916397f4c0"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1198,6 +1198,13 @@ aprobación con **Approve** y **Reject**, un mensaje por pregunta con sus opcion
 y **Skip**. Pulsar uno decide o responde, el run continúa y su respuesta se
 publica en el mismo chat; el mensaje pulsado conserva la pregunta y muestra lo
 elegido.
+
+Una aprobación se lee como una petición del agent, con su propia voz: lo que quiere
+hacer y el único argumento que dice de qué trata — *I need your approval to
+**search in Notion**: “what's new in releases”*. Una herramienta de un servidor MCP
+se nombra por su servicio y su acción, no por su identificador con prefijo, y el
+resto de los argumentos se queda en **Approvals** de la consola, donde la misma
+petición empieza por esa línea y pliega lo demás tras **Details**.
 
 Una pulsación actúa como la persona que pulsó, mediante su cuenta enlazada:
 decidir requiere `approvals:decide`, y solo la persona a quien se preguntó puede

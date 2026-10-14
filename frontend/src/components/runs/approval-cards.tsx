@@ -5,9 +5,9 @@ import { CheckCircle2, ExternalLink, XCircle } from "lucide-react";
 
 import { AgentFace } from "@/components/dashboard/agent-face";
 import { ApprovalDelegate } from "@/components/runs/approval-delegate";
+import { ApprovalDetails, useActionPhrase } from "@/components/runs/approval-request";
 import { Button } from "@/components/ui";
-import { toolLabel } from "@/lib/tool-catalog";
-import { titleWords } from "@/lib/tool-steps";
+import { callSummary } from "@/lib/approval-view";
 import { cn, formatDateTime, timeAgo } from "@/lib/utils";
 import type { ToolApproval } from "@/types/runs";
 
@@ -15,37 +15,6 @@ import type { ToolApproval } from "@/types/runs";
 function useActor(approval: ToolApproval): string {
   const t = useTranslations("pages.runs");
   return approval.subagent_name ?? approval.agent_name ?? t("anAgent");
-}
-
-/**
- * What a call will be given, as fields rather than a JSON document.
- *
- * Approving a call is reading what it will do, and `"content": "- word_heron
- * [note]: ..."` in a code block is a reading test. Each argument is its name in
- * words and its value as text; a nested value stays JSON, because that is the
- * only honest rendering of a structure.
- */
-export function ApprovalArguments({ args }: { args: Record<string, unknown> }) {
-  const entries = Object.entries(args);
-  if (entries.length === 0) return null;
-  return (
-    <dl className="bg-muted/40 divide-foreground/[0.06] divide-y rounded-lg text-sm">
-      {entries.map(([name, value]) => (
-        <div key={name} className="grid gap-1 px-3 py-2 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-3">
-          <dt className="text-muted-foreground text-xs sm:pt-0.5">{titleWords(name)}</dt>
-          <dd className="min-w-0">
-            {typeof value === "string" ? (
-              <span className="line-clamp-6 break-words whitespace-pre-wrap">{value}</span>
-            ) : typeof value === "number" || typeof value === "boolean" || value === null ? (
-              <span className="font-mono text-xs">{String(value)}</span>
-            ) : (
-              <pre className="overflow-x-auto text-xs">{JSON.stringify(value, null, 2)}</pre>
-            )}
-          </dd>
-        </div>
-      ))}
-    </dl>
-  );
 }
 
 /**
@@ -69,11 +38,12 @@ export function PendingApproval({
   onOpenRun: () => void;
 }) {
   const t = useTranslations("pages.runs");
-  const tTools = useTranslations("chat.tools");
   const tTime = useTranslations("time");
   const locale = useLocale();
   const actor = useActor(approval);
+  const phrase = useActionPhrase();
   const ago = approval.created_at ? timeAgo(approval.created_at, tTime, locale) : null;
+  const summary = callSummary(approval.tool_args);
 
   return (
     <li className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-start">
@@ -84,10 +54,15 @@ export function PendingApproval({
             <p className="text-sm">
               {t.rich("wantsTo", {
                 actor,
-                tool: toolLabel(approval.tool_id, tTools),
+                tool: lowerFirst(phrase(approval.tool_id)),
                 strong: (chunks) => <span className="text-foreground font-medium">{chunks}</span>,
               })}
             </p>
+            {summary !== null && (
+              <p className="text-foreground/80 mt-1 truncate text-sm" title={summary}>
+                {summary}
+              </p>
+            )}
             <p className="text-muted-foreground flex flex-wrap items-center gap-x-2 text-xs">
               {approval.triggered_by_email && (
                 <span>{t("askedFor", { email: approval.triggered_by_email })}</span>
@@ -95,7 +70,6 @@ export function PendingApproval({
               {ago !== null && (
                 <span title={formatDateTime(approval.created_at as string, locale)}>{ago}</span>
               )}
-              <span className="font-mono">{approval.tool_id}</span>
               <button
                 type="button"
                 onClick={onOpenRun}
@@ -107,7 +81,7 @@ export function PendingApproval({
             </p>
           </div>
           <ApprovalDelegate approval={approval} />
-          <ApprovalArguments args={approval.tool_args} />
+          <ApprovalDetails toolName={approval.tool_id} args={approval.tool_args} />
         </div>
       </div>
       <div className="flex shrink-0 gap-2 sm:flex-col">
@@ -145,10 +119,10 @@ export function DecidedApproval({
   onOpenRun: () => void;
 }) {
   const t = useTranslations("pages.runs");
-  const tTools = useTranslations("chat.tools");
   const tTime = useTranslations("time");
   const locale = useLocale();
   const actor = useActor(approval);
+  const phrase = useActionPhrase();
   // A status this build does not know is shown as the data it is - labelling it
   // "Expired" would put a specific claim on a row the backend said something
   // newer about.
@@ -165,7 +139,7 @@ export function DecidedApproval({
         >
           <span className="font-medium">{actor}</span>
           <span className="text-muted-foreground"> · </span>
-          {toolLabel(approval.tool_id, tTools)}
+          {phrase(approval.tool_id)}
         </button>
         <span
           className={cn(
@@ -192,13 +166,15 @@ export function DecidedApproval({
             {timeAgo(approval.created_at, tTime, locale)}
           </span>
         )}
-        <details className="w-full">
-          <summary className="cursor-pointer select-none">{t("showArguments")}</summary>
-          <div className="mt-2">
-            <ApprovalArguments args={approval.tool_args} />
-          </div>
-        </details>
+        <div className="w-full pt-1">
+          <ApprovalDetails toolName={approval.tool_id} args={approval.tool_args} />
+        </div>
       </div>
     </li>
   );
+}
+
+/** "Search in Notion" read inside a sentence: "wants to search in Notion". */
+function lowerFirst(text: string): string {
+  return text.charAt(0).toLowerCase() + text.slice(1);
 }

@@ -17,12 +17,14 @@ presser is told to link, like an unlinked sender.
 
 from __future__ import annotations
 
-import json
 import logging
+import re
+from functools import cache
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities import all_capabilities
 from app.core.exceptions import AppException, AuthorizationError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent_run import ApprovalStatus
@@ -57,8 +59,28 @@ LINK_FIRST = "Link your account first - send /link to this bot - and press again
 ALREADY = "That has already been answered."
 NOT_YOURS = "Only somebody who may approve tool calls can decide this one."
 NOBODY = UUID(int=0)
-_ARGS_SHOWN = 300
-"""How much of a gated call's arguments the approval message quotes."""
+_SUMMARY_SHOWN = 200
+"""How much of a gated call's telling argument the approval message quotes."""
+
+_TELLING = (
+    "command",
+    "cmd",
+    "query",
+    "q",
+    "url",
+    "path",
+    "file_path",
+    "title",
+    "subject",
+    "name",
+    "to",
+    "text",
+    "content",
+    "message",
+    "prompt",
+    "task",
+)
+"""The arguments that say what a call is about, most telling first - the console's list."""
 
 
 async def linked_member(
@@ -81,9 +103,50 @@ async def linked_member(
     )
 
 
-def _arguments(args: dict[str, object]) -> str:
-    shown = json.dumps(args, ensure_ascii=False, default=str)
-    return shown if len(shown) <= _ARGS_SHOWN else f"{shown[:_ARGS_SHOWN]}…"
+@cache
+def _builtin_tools() -> frozenset[str]:
+    """Every tool a capability of this deployment declares, by its stable id."""
+    return frozenset(tool.id for definition in all_capabilities() for tool in definition.tools)
+
+
+def call_action(tool_name: str) -> str:
+    """What a gated call does, in words: "write memory", "search in Notion".
+
+    A tool none of our capabilities declares came from an MCP server, which
+    prefixes its tools with the service's key - and often repeats itself:
+    Notion's search is `notion_notion-search`. The service is named once.
+    """
+    if tool_name not in _builtin_tools():
+        service, _, action = tool_name.partition("_")
+        words = [w for w in re.split(r"[-_]+", action) if w and w.lower() != service.lower()]
+        if service and words:
+            return f"{' '.join(words)} in {service.capitalize()}"
+    return tool_name.replace("_", " ")
+
+
+def call_summary(args: dict[str, object]) -> str | None:
+    """The one argument that says what the call is about - its first line, cut short."""
+    strings = [
+        (key, value) for key, value in args.items() if isinstance(value, str) and value.strip()
+    ]
+    if not strings:
+        return None
+    by_key = dict(strings)
+    telling = next((by_key[key] for key in _TELLING if key in by_key), strings[0][1])
+    line = telling.strip().splitlines()[0].strip()
+    return line if len(line) <= _SUMMARY_SHOWN else f"{line[: _SUMMARY_SHOWN - 1]}…"
+
+
+def approval_text(tool_name: str, args: dict[str, object]) -> str:
+    """The approval message: what the agent wants to do and what about, as the agent says it.
+
+    The agent is the one speaking in the chat, so it asks in its own voice. The
+    rest of the arguments stay in the console; a chat message with an MCP
+    schema's twenty fields in it was read by nobody.
+    """
+    summary = call_summary(args)
+    about = f": “{summary}”" if summary else "."
+    return f"I need your approval to *{call_action(tool_name)}*{about}"
 
 
 class ChannelPrompts:
@@ -139,8 +202,7 @@ class ChannelPrompts:
                 self._message(
                     bot,
                     prompt,
-                    f"The agent wants to run `{call.tool_name}` with {_arguments(call.tool_args)}. "
-                    "Approve it?",
+                    approval_text(call.tool_name, call.tool_args),
                     skippable=False,
                 ),
             )

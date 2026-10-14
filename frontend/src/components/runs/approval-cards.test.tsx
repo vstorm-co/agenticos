@@ -4,7 +4,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { describe, expect, it, vi } from "vitest";
 
 import messages from "../../../messages/en.json";
-import { ApprovalArguments, DecidedApproval, PendingApproval } from "./approval-cards";
+import { DecidedApproval, PendingApproval } from "./approval-cards";
 import type { ToolApproval } from "@/types/runs";
 
 vi.mock("@/components/dashboard/agent-face", () => ({
@@ -40,40 +40,6 @@ function inIntl(node: React.ReactNode) {
   );
 }
 
-describe("ApprovalArguments - what a call will be given, as fields", () => {
-  it("names each argument in words and shows each kind of value as itself", () => {
-    inIntl(
-      <li>
-        <ApprovalArguments
-          args={{
-            file_name: "notes.md",
-            limit: 3,
-            dry_run: false,
-            nothing: null,
-            filters: { a: 1 },
-          }}
-        />
-      </li>,
-    );
-
-    expect(screen.getByText("File Name")).toBeInTheDocument();
-    expect(screen.getByText("notes.md")).toBeInTheDocument();
-    expect(screen.getByText("3")).toBeInTheDocument();
-    expect(screen.getByText("false")).toBeInTheDocument();
-    expect(screen.getByText("null")).toBeInTheDocument();
-    expect(screen.getByText(/"a": 1/)).toBeInTheDocument();
-  });
-
-  it("draws nothing for a call that takes nothing", () => {
-    const { container } = inIntl(
-      <li>
-        <ApprovalArguments args={{}} />
-      </li>,
-    );
-    expect(container.querySelector("dl")).toBeNull();
-  });
-});
-
 describe("PendingApproval - a request a person reads", () => {
   it("says who wants to do what, and opens the run it belongs to", async () => {
     const onOpenRun = vi.fn();
@@ -87,6 +53,9 @@ describe("PendingApproval - a request a person reads", () => {
     );
 
     expect(screen.getByText("Architect")).toBeInTheDocument();
+    // The catalog's words, read inside the sentence, and the telling argument.
+    expect(screen.getByText("save to memory")).toBeInTheDocument();
+    expect(screen.getByText("MEMORY.md")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /Open the run/ }));
 
     expect(onOpenRun).toHaveBeenCalled();
@@ -112,6 +81,54 @@ describe("PendingApproval - a request a person reads", () => {
 
     expect(screen.getByText("researcher")).toBeInTheDocument();
     expect(screen.getByText("An agent")).toBeInTheDocument();
+  });
+});
+
+describe("PendingApproval - a call from an MCP server", () => {
+  it("reads as the service and its action, with the arguments folded", async () => {
+    inIntl(
+      <PendingApproval
+        approval={approval({
+          agent_name: "Claude Code like",
+          tool_id: "notion_notion-search",
+          tool_args: { query: "what's new", page_url: "" },
+        })}
+        deciding={false}
+        onDecide={vi.fn()}
+        onOpenRun={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("search in Notion")).toBeInTheDocument();
+    expect(screen.getByText("what's new")).toBeInTheDocument();
+    expect(screen.queryByText("Page Url")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Details" }));
+    expect(screen.getByText("Query")).toBeInTheDocument();
+    expect(screen.queryByText("Page Url")).toBeNull();
+  });
+
+  it("says whom the call is for", () => {
+    inIntl(
+      <PendingApproval
+        approval={approval({ triggered_by_email: "ada@acme.test" } as Partial<ToolApproval>)}
+        deciding={false}
+        onDecide={vi.fn()}
+        onOpenRun={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("For ada@acme.test")).toBeInTheDocument();
+  });
+
+  it("has no telling line for a call with nothing to say", () => {
+    inIntl(
+      <PendingApproval
+        approval={approval({ tool_args: {} })}
+        deciding={false}
+        onDecide={vi.fn()}
+        onOpenRun={vi.fn()}
+      />,
+    );
+    expect(screen.queryByText("MEMORY.md")).toBeNull();
   });
 });
 

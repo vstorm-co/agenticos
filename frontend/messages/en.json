@@ -1455,7 +1455,8 @@
     "browserLineBrowsed": "Browsed {host}",
     "browserLineNeeds": "Needs you: {what}",
     "browserLineShowing": "Showing",
-    "browserLineOpen": "Open"
+    "browserLineOpen": "Open",
+    "approvalAsk": "Allow {action}?"
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",
@@ -4514,7 +4515,6 @@
       "runs2": "Runs",
       "runsViewIsMissing": "Reading run history and spend takes the runs:view permission, which this account does not hold. Nothing failed - the page did not ask.",
       "settingPair": "{key} {value}",
-      "showArguments": "Arguments",
       "showEveryAgent": "Show every agent",
       "showingTheNewestOf": "{shown, plural, =1 {Showing the newest of {total} decided in this window} other {Showing the newest # of {total} decided in this window}}. Export the CSV for the whole record.",
       "someRunsCouldNotBePriced": "{count, plural, =1 {1 run in this window could not be priced, so the figures below are a floor} other {# runs in this window could not be priced, so the figures below are a floor}}",
@@ -4583,7 +4583,10 @@
       "share": "Share",
       "monthAgainstCap": "${spent} of ${cap} this month",
       "spendOverTime": "Spend over time",
-      "spendOverTimeHint": "What each day of the window cost, in UTC days."
+      "spendOverTimeHint": "What each day of the window cost, in UTC days.",
+      "actionInService": "{action} in {service}",
+      "approvalDetails": "Details",
+      "approvalNoArguments": "It takes nothing."
     },
     "sandboxes": {
       "addConnection": "Add connection",

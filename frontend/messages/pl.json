@@ -1455,7 +1455,8 @@
     "browserLineBrowsed": "Przeglądał {host}",
     "browserLineNeeds": "Potrzebuje Ciebie: {what}",
     "browserLineShowing": "Otwarte",
-    "browserLineOpen": "Otwórz"
+    "browserLineOpen": "Otwórz",
+    "approvalAsk": "Zezwolić: {action}?"
   },
   "common": {
     "archiveNamedConfirm": "Zarchiwizować {name}?",
@@ -4284,7 +4285,6 @@
       "runs2": "Runy",
       "runsViewIsMissing": "Czytanie historii runów i wydatków wymaga uprawnienia runs:view, którego to konto nie ma. Nic się nie zepsuło - strona nie zapytała.",
       "settingPair": "{key} {value}",
-      "showArguments": "Argumenty",
       "showEveryAgent": "Pokaż każdego agenta",
       "showingTheNewestOf": "{shown, plural, one {Pokazano najnowszą z {total} rozstrzygniętych w tym oknie} few {Pokazano najnowsze # z {total} rozstrzygniętych w tym oknie} many {Pokazano najnowszych # z {total} rozstrzygniętych w tym oknie} other {Pokazano najnowsze # z {total} rozstrzygniętych w tym oknie}}. Wyeksportuj CSV, aby dostać cały zapis.",
       "someRunsCouldNotBePriced": "{count, plural, one {1 run w tym oknie nie dał się wycenić, więc liczby poniżej to wartości minimalne} few {# runy w tym oknie nie dały się wycenić, więc liczby poniżej to wartości minimalne} many {# runów w tym oknie nie dało się wycenić, więc liczby poniżej to wartości minimalne} other {# runu w tym oknie nie dało się wycenić, więc liczby poniżej to wartości minimalne}}",
@@ -4353,7 +4353,10 @@
       "share": "Udział",
       "monthAgainstCap": "${spent} z ${cap} w tym miesiącu",
       "spendOverTime": "Wydatki w czasie",
-      "spendOverTimeHint": "Ile kosztował każdy dzień okna (dni w UTC)."
+      "spendOverTimeHint": "Ile kosztował każdy dzień okna (dni w UTC).",
+      "actionInService": "{action} w {service}",
+      "approvalDetails": "Szczegóły",
+      "approvalNoArguments": "Nie przyjmuje nic."
     },
     "sandboxes": {
       "addConnection": "Dodaj połączenie",

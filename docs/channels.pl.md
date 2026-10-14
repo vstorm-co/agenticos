@@ -1,5 +1,5 @@
 ---
-source_sha: "7bfdbfb408ca"
+source_sha: "2c916397f4c0"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1183,6 +1183,13 @@ człowieka: wywołanie narzędzia z bramką czeka na decyzję albo agent zadaje 
 **Approve** i **Reject**, wiadomość na każde pytanie z jego opcjami i **Skip**.
 Naciśnięcie decyduje albo odpowiada, run idzie dalej, a jego odpowiedź trafia do
 tego samego czatu; naciśnięta wiadomość zachowuje pytanie i pokazuje wybór.
+
+Akceptacja brzmi jak prośba agenta, jego własnym głosem: co chce zrobić i jeden
+argument, który mówi, czego to dotyczy — *I need your approval to **search in
+Notion**: “what's new in releases”*. Narzędzie z serwera MCP jest nazwane usługą i
+czynnością, a nie identyfikatorem z prefiksem, a pozostałe argumenty zostają w
+**Approvals** w konsoli, gdzie ta sama prośba zaczyna się od tej jednej linii, a
+resztę chowa pod **Details**.
 
 Naciśnięcie działa jako osoba, która nacisnęła, przez jej powiązane konto:
 decyzja wymaga `approvals:decide`, a na pytanie może odpowiedzieć tylko osoba,

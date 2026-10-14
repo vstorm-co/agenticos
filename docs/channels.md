@@ -1153,6 +1153,13 @@ Pressing one decides or answers, the run continues, and its answer is posted in
 the same chat; the pressed message keeps what was asked and shows what was
 chosen.
 
+An approval reads as the agent asking, in its own voice: what it wants to do and
+the one argument that says what it is about — *I need your approval to **search in
+Notion**: “what's new in releases”*. A tool from an MCP server is named by its
+service and action rather than by its prefixed id, and the rest of the arguments
+stay in the console's **Approvals**, where the same request opens with that one
+line and folds the others behind **Details**.
+
 A press acts as the person who pressed it, through their linked account: deciding
 needs `approvals:decide`, and only the person a question was put to can answer
 it. An unlinked presser is told to send `/link`. A run waits for an answer for

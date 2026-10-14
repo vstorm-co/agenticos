@@ -150,13 +150,13 @@ describe("deciding a parked call", () => {
     );
   });
 
-  it("shows a pending row's arguments in full, not just the tool's name", async () => {
+  it("says what a pending call does and what it is about, not just the tool's name", async () => {
     // Approving a tool name without seeing what it will do is a rubber stamp.
     backend({ queue: [PARKED] });
 
     render(<ApprovalsTab period={PERIOD} onFocusRun={vi.fn()} />, { wrapper });
 
-    expect(await screen.findByText("send_email")).toBeVisible();
+    expect(await screen.findByText("send email")).toBeVisible();
     expect(screen.getByText(/board@acme\.test/)).toBeVisible();
   });
 
@@ -258,8 +258,8 @@ describe("the decided record in the same table", () => {
 
     render(<ApprovalsTab period={PERIOD} onFocusRun={vi.fn()} />, { wrapper });
 
-    const disclosure = await screen.findByText("Arguments");
-    expect(screen.getByText(/board@acme\.test/)).not.toBeVisible();
+    const disclosure = await screen.findByRole("button", { name: "Details" });
+    expect(screen.queryByText(/board@acme\.test/)).toBeNull();
 
     await userEvent.click(disclosure);
 
@@ -348,7 +348,7 @@ describe("reaching a request past the first page of the queue", () => {
     backend({ queue: FULL, queueTotal: 62 });
 
     render(<ApprovalsTab period={PERIOD} onFocusRun={vi.fn()} />, { wrapper });
-    await screen.findByText("tool_0");
+    await screen.findByText("tool 0");
     await userEvent.click(screen.getByRole("button", { name: /next/i }));
 
     await waitFor(() => expect(queueSkips()).toContain("50"));
@@ -359,7 +359,7 @@ describe("reaching a request past the first page of the queue", () => {
 
     render(<ApprovalsTab period={PERIOD} onFocusRun={vi.fn()} />, { wrapper });
 
-    await screen.findByText("send_email");
+    await screen.findByText("send email");
     expect(screen.queryByRole("button", { name: /next/i })).toBeNull();
   });
 
@@ -394,7 +394,7 @@ describe("reaching a request past the first page of the queue", () => {
     });
 
     render(<ApprovalsTab period={PERIOD} onFocusRun={vi.fn()} />, { wrapper });
-    await screen.findByText("tool_0");
+    await screen.findByText("tool 0");
     await userEvent.click(screen.getByRole("button", { name: /next/i }));
     const decide = await screen.findByRole("button", { name: "Approve" });
 
@@ -402,7 +402,7 @@ describe("reaching a request past the first page of the queue", () => {
     await userEvent.click(decide);
 
     await waitFor(() => expect(queueSkips().at(-1)).toBe("0"));
-    expect(await screen.findByText("tool_0")).toBeVisible();
+    expect(await screen.findByText("tool 0")).toBeVisible();
   });
 });
 
@@ -451,7 +451,7 @@ describe("the export beside the table", () => {
 
     render(<ApprovalsTab period={PERIOD} onFocusRun={vi.fn()} />, { wrapper });
 
-    await screen.findByText("send_email");
+    await screen.findByText("send email");
     expect(screen.queryByRole("button", { name: "Export CSV" })).toBeNull();
   });
 });

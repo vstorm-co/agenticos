@@ -65,32 +65,44 @@ describe("the tool approval dialog", () => {
     mount([action("a-1", { tool_name: "run_python" })]);
 
     expect(screen.getByText("Tool approval required")).toBeVisible();
-    // The catalog's words - the same ones the step above it uses.
-    expect(screen.getByText("Run Python")).toBeVisible();
+    // The catalog's words - the same ones the step above it uses - as a question.
+    expect(screen.getByText("Allow Run Python?")).toBeVisible();
   });
 
-  it("falls back to the tool's own name when the catalog has none", () => {
-    mount([action("a-1", { tool_name: "linear_create_issue" })]);
+  it("reads a call from an MCP server as its service and what it does there", () => {
+    mount([action("a-1", { tool_name: "notion_notion-search", args: { query: "changelog" } })]);
 
-    expect(screen.getByText("linear_create_issue")).toBeVisible();
+    expect(screen.getByText("Allow Search in Notion?")).toBeVisible();
+    expect(screen.getByText("changelog")).toBeVisible();
   });
 
-  it("shows a single string argument as itself, not as escaped JSON", () => {
+  it("leads with a command's first line, and keeps the whole of it a click away", async () => {
     // A gated call is nearly always one string that matters, and
     // `{"command": "python - <<'PY'\nimport …"}` hides it: the newlines that make
     // a script readable arrive as `\n`.
     mount([action("a-1", { tool_name: "execute", args: { command: "ls -la\ncat x.txt" } })]);
 
-    // The literal text, newline and all - not `{"command": "ls -la\ncat x.txt"}`.
-    // Read off the element rather than matched, because the matcher normalises the
-    // whitespace this test is about.
-    expect(document.querySelector("pre")?.textContent).toBe("ls -la\ncat x.txt");
+    expect(screen.getByText("ls -la")).toHaveClass("font-mono");
+    await userEvent.click(screen.getByRole("button", { name: "Details" }));
+    // The literal text, newline and all - read off the element rather than
+    // matched, because the matcher normalises the whitespace this is about.
+    expect(screen.getByText(/cat x\.txt/).textContent).toBe("ls -la\ncat x.txt");
   });
 
-  it("shows anything else as indented JSON", () => {
+  it("names the rest of the arguments in words once asked, not as JSON", async () => {
     mount([action("a-1")]);
 
-    expect(screen.getByText(/"to": "customer@example\.com"/)).toBeVisible();
+    // An email's subject says what it is about; who it goes to is the detail.
+    expect(screen.getByText("Refund")).toBeVisible();
+    expect(screen.queryByText("customer@example.com")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Details" }));
+    expect(screen.getByText("To")).toBeVisible();
+    expect(screen.getByText("customer@example.com")).toBeVisible();
+  });
+
+  it("asks about a call that takes nothing without a line of arguments", () => {
+    mount([action("a-1", { tool_name: "run_python", args: undefined })]);
+    expect(screen.getByText("Allow Run Python?")).toBeVisible();
   });
 
   it("approves every call it is showing", async () => {
@@ -127,7 +139,7 @@ describe("the tool approval dialog", () => {
     mount([action("a-1", { tool_name: "run_python" })]);
 
     expect(screen.getByText("Tool approval required")).toBeVisible();
-    expect(screen.getByText("Run Python")).toBeVisible();
+    expect(screen.getByText("Allow Run Python?")).toBeVisible();
   });
 
   it("accepts nothing at all while the decision is being sent", () => {
@@ -156,7 +168,7 @@ describe("the tool approval dialog", () => {
 
     expect(screen.getByText("A new agent draft")).toBeVisible();
     expect(screen.getByText("Helpdesk")).toBeVisible();
-    // Arguments that are not a draft are shown as they are.
-    expect(screen.getByText("agenticos_create_agent_draft")).toBeVisible();
+    // Arguments that are not a draft are asked about as any call is.
+    expect(screen.getByText("Allow Agenticos create agent draft?")).toBeVisible();
   });
 });

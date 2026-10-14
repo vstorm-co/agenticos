@@ -27,7 +27,16 @@ from app.services.channels.base import (
     press_value,
     read_press,
 )
-from app.services.channels.prompts import ALREADY, LINK_FIRST, NOT_YOURS, SKIP, ChannelPrompts
+from app.services.channels.prompts import (
+    ALREADY,
+    LINK_FIRST,
+    NOT_YOURS,
+    SKIP,
+    ChannelPrompts,
+    approval_text,
+    call_action,
+    call_summary,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -166,7 +175,10 @@ class TestOffering:
         bot = _bot()
         run = MagicMock(id=RUN, user_id=USER)
         approval = ParkedCall(
-            id=uuid.uuid4(), tool_call_id="c1", tool_name="send_email", tool_args={"to": "a@b.c"}
+            id=uuid.uuid4(),
+            tool_call_id="c1",
+            tool_name="gmail_send_email",
+            tool_args={"to": "a@b.c", "subject": "", "cc": []},
         )
         asked = ParkedQuestion(
             tool_call_id="ask-1",
@@ -202,7 +214,9 @@ class TestOffering:
             sent = [call.args[1] for call in env.adapter.send_prompt.await_args_list]
 
         assert [fields["kind"] for fields in created] == [APPROVAL, QUESTION, QUESTION]
-        assert "`send_email`" in sent[0].text and '"to": "a@b.c"' in sent[0].text
+        # What it wants to do and what about, in the agent's voice - no tool id,
+        # no JSON, no empty fields.
+        assert sent[0].text == "I need your approval to *send email in Gmail*: “a@b.c”"
         assert [(choice.label, choice.style) for choice in sent[0].choices] == [
             ("Approve", "primary"),
             ("Reject", "danger"),
@@ -254,6 +268,24 @@ class TestOffering:
 
             text = env.adapter.send_prompt.await_args.args[1].text
         assert "…" in text and len(text) < 450
+
+
+class TestTheApprovalReadsAsARequest:
+    def test_a_built_in_tool_is_named_in_words(self):
+        assert call_action("write_memory") == "write memory"
+
+    def test_a_server_that_names_itself_twice_is_named_once(self):
+        assert call_action("notion_notion-search") == "search in Notion"
+
+    def test_a_name_with_nothing_after_its_prefix_is_kept(self):
+        assert call_action("notion_notion") == "notion notion"
+
+    def test_the_telling_argument_leads_and_a_call_about_nothing_says_so(self):
+        assert approval_text("execute", {"command": "ls -la\nrm x", "cwd": "/w"}) == (
+            "I need your approval to *execute*: “ls -la”"
+        )
+        assert approval_text("clock_now", {"zone": ""}) == "I need your approval to *now in Clock*."
+        assert call_summary({"size": 3}) is None
 
 
 class TestPressingAnApproval:

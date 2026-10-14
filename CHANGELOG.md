@@ -532,6 +532,13 @@ Two things are versioned separately from this file and worth knowing about:
   reads like the site in a browser rather than a shrunk laptop screen
   (`resize` on the live view's socket, applied between steps).
 
+- **An approval reads as a question, not a JSON document.** In the chat,
+  in Activity and in Slack, Telegram and Mattermost a waiting call shows
+  what it wants to do in words - "Allow Search in Notion?", with the
+  service's logo - and the one argument that says what it is about; the
+  rest folds behind Details, with the empty fields an MCP schema sends
+  left out. In a channel the agent asks in its own voice.
+
 - **A new install opens with the Architect and Claude Code like.**
   `bootstrap` installs the Architect and the Claude Code like template,
   visible to the organization and published on the bootstrapped model
