@@ -219,6 +219,32 @@ class TestAdmittingACall:
             )
 
 
+class TestTheCallScript:
+    """`voice.js` is served only for an active widget whose calls are switched on."""
+
+    async def test_a_widget_with_calls_on_gets_its_script(self):
+        embed = _embed("widget", voice_conversation=True)
+        with patch(f"{_M}.agent_embed_repo.get_by_key", AsyncMock(return_value=embed)):
+            assert await _service().find_voice_widget("key-123") is embed
+
+    @pytest.mark.parametrize(
+        "embed",
+        [
+            _embed("widget"),
+            _embed("page", voice_conversation=True),
+            _embed("socket", voice_conversation=True),
+            SimpleNamespace(
+                **{**_embed("widget", voice_conversation=True).__dict__, "is_active": False}
+            ),
+            None,
+        ],
+        ids=["calls-off", "page", "socket", "paused", "unknown"],
+    )
+    async def test_anything_else_gets_none(self, embed):
+        with patch(f"{_M}.agent_embed_repo.get_by_key", AsyncMock(return_value=embed)):
+            assert await _service().find_voice_widget("key-123") is None
+
+
 class TestCallsOnASave:
     """The switch is checked where it is saved, not only in the helper."""
 

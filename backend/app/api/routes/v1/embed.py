@@ -51,6 +51,7 @@ from app.schemas.ml import DictationRead
 from app.services import rate_limit, transcription
 from app.services.agent_embed import AgentEmbedService, EmbedDenied
 from app.services.embed_session import WIDGET_JS, EmbedSession, continuity_key
+from app.services.embed_voice_js import VOICE_JS, VOICE_JS_VERSION
 from app.services.voice import VoiceCallSession, embed_voice_caller
 
 logger = logging.getLogger(__name__)
@@ -202,8 +203,10 @@ async def embed_widget(public_key: str, db: DBSession) -> Response:
         # error page in a `<script>` is a syntax error in somebody's console.
         raise HTTPException(status_code=404, detail="Unknown widget")
 
-    body = WIDGET_JS.replace("__PUBLIC_KEY__", embed.public_key).replace(
-        "__BASE_URL__", settings.PUBLIC_BASE_URL.rstrip("/")
+    body = (
+        WIDGET_JS.replace("__PUBLIC_KEY__", embed.public_key)
+        .replace("__BASE_URL__", settings.PUBLIC_BASE_URL.rstrip("/"))
+        .replace("__VOICE_VERSION__", VOICE_JS_VERSION)
     )
     return Response(
         content=body,
@@ -213,6 +216,53 @@ async def embed_widget(public_key: str, db: DBSession) -> Response:
             # cache would make a colour change look like it did not save.
             "Cache-Control": "public, max-age=300",
         },
+    )
+
+
+@router.get(
+    "/{public_key}/voice.js",
+    response_class=Response,
+    dependencies=[Depends(limit_embed_script)],
+)
+async def embed_voice_script(
+    public_key: str,
+    service: EmbedSvc,
+    v: Annotated[
+        str | None,
+        Query(max_length=64, description="The script's content hash, as `widget.js` asks for it"),
+    ] = None,
+) -> Any:
+    """The widget's voice call UI (#54).
+
+    Fetched by `widget.js` the first time a visitor opens the panel, and only
+    when the public config offers calls, so the script every visitor downloads
+    stays small. Like `widget.js` it carries no secret and decides nothing: the
+    call's socket is where admission happens. 404 for a key that names no active
+    widget with calls switched on, for the reason `widget.js` gives - an error
+    page in a `<script>` is a syntax error in somebody's console.
+
+    On the script counter, with `widget.js`: a visitor who opens the panel
+    fetches both.
+
+    `widget.js` asks for `?v=<content hash>`, so the URL changes whenever the
+    script does and that response is cached for good: a browser can never pair
+    a cached call script with a newer widget. Any other `v` - a widget cached
+    from before a deploy - gets the current script with the short cache.
+    """
+    embed = await service.find_voice_widget(public_key)
+    if embed is None:
+        raise HTTPException(status_code=404, detail="Unknown widget")
+
+    body = VOICE_JS.replace("__PUBLIC_KEY__", embed.public_key).replace(
+        "__BASE_URL__", settings.PUBLIC_BASE_URL.rstrip("/")
+    )
+    cache = (
+        "public, max-age=31536000, immutable" if v == VOICE_JS_VERSION else "public, max-age=300"
+    )
+    return Response(
+        content=body,
+        media_type="application/javascript; charset=utf-8",
+        headers={"Cache-Control": cache},
     )
 
 

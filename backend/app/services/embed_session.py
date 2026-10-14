@@ -753,7 +753,8 @@ class EmbedSession:
 # conflict with whatever they already load, and a bundler would be a second
 # deployment artefact to keep in step with this server.
 #
-# `__PUBLIC_KEY__` and `__BASE_URL__` are substituted when it is served.
+# `__PUBLIC_KEY__`, `__BASE_URL__` and `__VOICE_VERSION__` (the call script's
+# content hash, `embed_voice_js.VOICE_JS_VERSION`) are substituted when it is served.
 WIDGET_JS = """(function () {
   var KEY = "__PUBLIC_KEY__";
   var BASE = "__BASE_URL__";
@@ -1259,6 +1260,27 @@ WIDGET_JS = """(function () {
     });
   }
 
+  // A visitor's voice call (#54) lives in its own script, fetched the first time
+  // the panel opens and only when this embed offers calls, so the bubble every
+  // visitor downloads stays small. It registers under this widget's key.
+  var voiceRequested = false;
+  var voiceCall = null;
+  function loadVoice(parts) {
+    if (voiceRequested) return;
+    voiceRequested = true;
+    var script = el("script");
+    // The call script's content hash, substituted when this is served: a deploy
+    // that changes it changes this URL, so the two scripts always match.
+    script.src = BASE + "/api/v1/embed/" + KEY + "/voice.js?v=__VOICE_VERSION__";
+    script.async = true;
+    script.onload = function () {
+      var mountCall = window.AgenticOSVoice && window.AgenticOSVoice[KEY];
+      if (mountCall) voiceCall = mountCall(parts, config);
+    };
+    script.onerror = function () { voiceRequested = false; };
+    (document.head || document.body).appendChild(script);
+  }
+
   function mount() {
     var side = config.position === "left" ? "left:24px" : "right:24px";
     var root = el("div", "position:fixed;bottom:24px;" + side + ";z-index:2147483000;" +
@@ -1286,6 +1308,7 @@ WIDGET_JS = """(function () {
     form.appendChild(send);
     panel.appendChild(form);
     mountVoice({ form: form, input: input, send: send, panel: panel });
+    var callParts = { form: form, input: input, send: send, panel: panel, log: log, bubble: bubble };
 
     var launcher = el("button", "border:0;border-radius:999px;padding:14px 20px;font-size:14px;font-weight:600;" +
       "color:#fff;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.18);background:" + config.accent,
@@ -1378,6 +1401,9 @@ WIDGET_JS = """(function () {
       open = !open;
       panel.style.display = open ? "flex" : "none";
       if (open && !socket) { connect(); if (config.greeting) bubble("assistant", config.greeting); }
+      if (open && config.voice_conversation) loadVoice(callParts);
+      // Closing the panel ends a call: no call goes on with its End button hidden.
+      if (!open && voiceCall) voiceCall.end();
       if (open) input.focus();
     };
 

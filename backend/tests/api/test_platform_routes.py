@@ -1688,6 +1688,11 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # and per link, each call by the organization's call cap, monthly minutes
         # and the agent's budget, and tools needing approval are left out.
         ("WEBSOCKET", f"{V1}/embed/{{public_key}}/voice/ws"),
+        # The widget's call UI, fetched by `widget.js` when a visitor opens the
+        # panel of a widget whose calls are on. A script like `widget.js`: no
+        # secret, decides nothing, 404 unless that widget is active with its
+        # voice switch on; the socket above is where a call is admitted.
+        ("GET", f"{V1}/embed/{{public_key}}/voice.js"),
     }
 )
 

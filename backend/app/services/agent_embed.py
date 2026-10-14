@@ -603,6 +603,21 @@ class AgentEmbedService:
             return None
         return embed
 
+    async def find_voice_widget(self, public_key: str) -> AgentEmbed | None:
+        """The widget a key names, if its call script is to be served (#54).
+
+        Active and with its stored voice switch on; no origin check, for the
+        reason `find_public` gives. Whether a call would actually start - the
+        organization's switch, the agent's voice - is the public config's to say
+        and the socket's to refuse: the script decides nothing.
+        """
+        embed = await self.find_public(public_key)
+        if embed is None or not embed.is_active:
+            return None
+        if not WidgetConfig.model_validate(embed.config).voice_conversation:
+            return None
+        return embed
+
     async def public_config(self, embed: AgentEmbed) -> PublicEmbedConfig:
         """What the widget renders itself from, before anybody authenticates.
 

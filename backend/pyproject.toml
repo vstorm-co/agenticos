@@ -728,6 +728,7 @@ include = [
     "app/services/collection_access.py",
     "app/repositories/collection_teardown.py",
     "app/services/embed_session.py",
+    "app/services/embed_voice_js.py",
     "app/services/embedding_resolution.py",
     "app/services/approvals.py",
     "app/services/audit.py",
@@ -1108,6 +1109,7 @@ include = [
     # unreachable `except BudgetExceeded` sat here for as long as it was
     # ungated, which is the failure this gate exists to name (#663).
     "app/services/embed_session.py",
+    "app/services/embed_voice_js.py",
     "app/services/embedding_resolution.py",
     "app/services/approvals.py",
     # The read half of the audit trail. `audit:read` is the only way to see who
