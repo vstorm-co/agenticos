@@ -1,5 +1,5 @@
 ---
-source_sha: "fea77a6261c0"
+source_sha: "6053a627229f"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -683,6 +683,16 @@ manejar la navegación la tiene abierta, el navegador maqueta la página para es
 entre pasos - el diseño propio del sitio para ese ancho, con la densidad de esa
 pantalla -, así que la vista en directo es el sitio y no una pantalla de portátil
 encogida en una columna. El modelo ve entonces la misma página a ese tamaño.
+
+**Una tarea ya hecha va más rápido la segunda vez, para la misma persona.** Cuando
+termina una navegación que actúa por una persona - su propio chat, su mensaje directo,
+su propia programación - los pasos que la llevaron allí se guardan solo para ella: la
+dirección y la etiqueta de cada cosa que pulsó, nunca lo que escribió (la grabación se
+detiene en el primer campo que rellena). La próxima vez que pida la misma tarea desde
+el mismo `start_url`, esos pasos se dan sin el modelo mientras la página los siga
+ofreciendo, y el modelo toma el relevo en la primera diferencia. Una repetición que no
+termina se descarta. Nadie más en la organización los lee, y Redis los guarda dos
+semanas desde la última vez que se hizo la tarea.
 
 **Cuando solo una persona puede pasar de una página** — un inicio de sesión sin datos,
 un captcha, una decisión que le corresponde a otro —, el modelo pide una persona en

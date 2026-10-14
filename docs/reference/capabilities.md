@@ -636,6 +636,16 @@ layout for that width, at that screen's density - between steps, so the live vie
 the site rather than a laptop screen shrunk into a column. The model then sees the same
 page at that size.
 
+**A task done before is quicker the second time, for the same person.** When a
+browse acting for one person - their own chat, their direct message, their own
+schedule - finishes, the steps that got it there are kept for that person alone:
+the address and the label of each thing it pressed, never what it typed (the
+recording stops at the first field it fills). The next time they ask the same task
+from the same `start_url`, those steps are taken without the model while the page
+still offers them, and the model takes over at the first difference. A replay that
+does not finish is dropped. Nobody else in the organization reads them, and they are
+kept in Redis for a fortnight after the task was last done.
+
 **When only a person can get past a page** - a sign-in it has no details for, a
 captcha, a choice that is theirs - the model asks for one rather than giving up. The
 card and the channel thread say *Needs you* and what for. The browse waits up to ten

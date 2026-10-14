@@ -1,5 +1,5 @@
 ---
-source_sha: "d3adf211e4ca"
+source_sha: "3a7476dc6a2f"
 ---
 
 # Ochrona danych { #data-protection }
@@ -102,7 +102,7 @@ kopiami czatu i idą razem z nim.
 |---|---|---|
 | `MEDIA_DIR` na hoście API (wolumen `media_data`) | Załączniki czatu pod `<user_id>/`, awatary, logotypy embedów, wygenerowane obrazy pod `generated_<org>/` oraz tymczasową kopię każdego dokumentu pod `_rag_tmp` na czas parsowania | Dokument zostaje usunięty przez produkt. **Nic w produkcie nie usuwa bajtów załącznika czatu** — ani usunięcie jego konwersacji, ani usunięcie jego właściciela. Zobacz [Co obejmuje usunięcie](#what-deletion-reaches) |
 | `SANDBOXD_WORKSPACE_ROOT` na hoście sandboksa | Pliki każdego workspace'u opartego o kontener | Konwersacja zostaje usunięta albo zamiata je `SANDBOXD_WORKSPACE_TTL`; nieustawiony — trzymane bezterminowo. Zobacz [Jak długo cokolwiek przeżywa](sandbox.md#how-long-anything-survives) |
-| Redis | Kubełki rate limitu kluczowane wywołującym — dla powierzchni publicznej to **jawny adres IP**, w kluczu, na czas TTL okna; klucze deduplikacji triggerów i kanałów; stan wymiany OAuth; zaparkowane zaproszenia; podgląd przeglądania na żywo — ostatni zrzut ekranu, kroki oraz to, co osoba trzymająca przeglądarkę kliknęła i wpisała, dopóki przeglądanie tego nie odczyta | Po wygaśnięciu: podgląd na żywo godzinę po ostatniej klatce przeglądania, wszystko inne w ciągu minut |
+| Redis | Kubełki rate limitu kluczowane wywołującym — dla powierzchni publicznej to **jawny adres IP**, w kluczu, na czas TTL okna; klucze deduplikacji triggerów i kanałów; stan wymiany OAuth; zaparkowane zaproszenia; podgląd przeglądania na żywo — ostatni zrzut ekranu, kroki oraz to, co osoba trzymająca przeglądarkę kliknęła i wpisała, dopóki przeglądanie tego nie odczyta; kroki do powtórzenia danej osoby — adresy i etykiety tego, co nacisnęły jej zakończone przeglądania, nigdy to, co wpisała | Po wygaśnięciu: podgląd na żywo godzinę po ostatniej klatce przeglądania, kroki do powtórzenia dwa tygodnie po ostatnim wykonaniu zadania, wszystko inne w ciągu minut |
 | Prefect | Historia i logi flow-runów | Parametry to id i ścieżki, z jednym wyjątkiem: **`event_context` runu wyzwolonego zdarzeniem** — nadawca, temat i treść wiadomości Gmail, zgłoszenia GitHub, ładunku webhooka — podróżuje jako parametr flow i zostaje w historii runów. Logi workera przechodzą przez ten sam filtr redakcji co logi API |
 | Logfire, jeśli skonfigurowany | Trace'y każdego runu | Retencja providera. Dziś trace niesie pełny prompt, wyjście i argumenty narzędzi — zobacz [Trace'y](#traces) |
 | Twój relay SMTP | Zaproszenia, magic linki, prośby o zatwierdzenie, alerty budżetowe, raporty użycia oraz własny mail [skrzynki powiadomień](governance.md#alerts) - nienadzorowane zakończenie albo błąd runa, zakończenie albo błąd ingestii dokumentu, zdarzenie bezpieczeństwa albo zmiana konfiguracji, własne ogłoszenie administratora | Cokolwiek relay zachowa. Mail o zatwierdzeniu nazywa agenta, narzędzie i link, a nie argumenty narzędzia |

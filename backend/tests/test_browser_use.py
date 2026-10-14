@@ -108,6 +108,13 @@ from app.agents.capabilities.browser_use._page import (
     StaleElement,
     parse_snapshot,
 )
+from app.agents.capabilities.browser_use._plans import (
+    PlanStep,
+    page_of,
+    plan_key,
+    record,
+    replay,
+)
 from app.agents.capabilities.browser_use._toolset import (
     NO_ENDPOINT,
     NO_TAB,
@@ -130,7 +137,7 @@ from app.agents.deps import AgentDeps
 from app.agents.spec import AgentSpec, SpecialistSpec
 from app.core.config import settings
 from app.core.sanitize import UrlRefusedError
-from app.services import browser_sign_in, live_browse
+from app.services import browse_plans, browser_sign_in, live_browse
 from app.services.agent_registry import DEFAULT_GRANTED_SCOPES
 
 pytestmark = pytest.mark.anyio
@@ -2343,3 +2350,231 @@ class TestAFasterModelForEachStep:
     def test_the_step_model_is_an_advanced_choice_of_profile(self):
         field = WebBrowserConfig.model_json_schema()["properties"]["step_model_profile_id"]
         assert (field["x-widget"], field["x-advanced"]) == ("model-profile", True)
+
+
+class TestAPlanIsWhatThePageShowed:
+    """`_plans`: what a finished browse keeps, and when a later page still fits it."""
+
+    def test_a_page_is_its_host_and_path_without_the_query(self):
+        assert page_of("https://shop.test/cart/?session=9#top") == "shop.test/cart"
+
+    def test_a_task_is_the_same_whatever_its_spacing_and_case(self):
+        a = plan_key("Find  the PRICE", "https://example.test/pricing?x=1")
+        assert a == plan_key("find the price", "https://example.test/pricing")
+        assert a != plan_key("find the price", "https://example.test/faq")
+        assert a != plan_key("find the plans", "https://example.test/pricing")
+
+    def test_each_movement_is_kept_by_what_it_pressed_never_by_its_number(self):
+        page = _snapshot(_element(3, role="link", label="Pricing"))
+        link = page.elements[0]
+
+        assert record(page, Click(action="click", index=3), link) == PlanStep(
+            op="click", at="example.test/page", role="link", label="Pricing"
+        )
+        assert record(page, Scroll(action="scroll", direction="up"), None) == PlanStep(
+            op="scroll", at="example.test/page", direction="up"
+        )
+        assert record(page, Navigate(action="navigate", url="https://x.test/"), None).url == (
+            "https://x.test/"
+        )
+        assert record(page, GoBack(action="back"), None).op == "back"
+        kept = record(page, Select(action="select", index=3, option="EUR"), link)
+        assert (kept.op, kept.option) == ("select", "EUR")
+
+    @pytest.mark.security
+    def test_typing_and_endings_are_never_kept(self):
+        page = _snapshot(_element(0, role="textbox", label="Password"))
+        field = page.elements[0]
+        assert record(page, TypeText(action="type", index=0, text="hunter2"), field) is None
+        assert record(page, Done(action="done", answer="x"), None) is None
+        assert record(page, Click(action="click", index=9), None) is None
+
+    def test_a_step_replays_where_the_page_still_offers_it(self):
+        page = _snapshot(_element(0), _element(5, role="link", label="Pricing"))
+        step = PlanStep(op="click", at="example.test/page", role="link", label="Pricing")
+
+        assert replay(step, page) == Click(action="click", index=5)
+        assert replay(PlanStep(op="scroll", at="example.test/page"), page) == Scroll(
+            action="scroll", direction="down"
+        )
+        assert replay(PlanStep(op="back", at="example.test/page"), page) == GoBack(action="back")
+        assert replay(
+            PlanStep(op="navigate", at="example.test/page", url="https://x.test/"), page
+        ) == Navigate(action="navigate", url="https://x.test/")
+
+    def test_a_dropdown_replays_only_an_option_it_still_has(self):
+        menu = _element(2, role="combobox", label="Currency", options=("USD", "EUR"))
+        page = _snapshot(menu)
+        step = PlanStep(
+            op="select", at="example.test/page", role="combobox", label="Currency", option="EUR"
+        )
+
+        assert replay(step, page) == Select(action="select", index=2, option="EUR")
+        assert replay(step.model_copy(update={"option": "GBP"}), page) is None
+        assert replay(step.model_copy(update={"option": None}), page) is None
+
+    def test_a_page_that_changed_ends_the_replay(self):
+        twice = _snapshot(_element(0, label="Next"), _element(1, label="Next"))
+        step = PlanStep(op="click", at="example.test/page", role="button", label="Next")
+
+        assert replay(step, twice) is None
+        assert replay(step, _snapshot(_element(0, label="Back"))) is None
+        assert replay(step, _snapshot(_element(0, label="Next"), url="https://other.test/")) is None
+        assert replay(PlanStep(op="navigate", at="example.test/page"), twice) is None
+
+
+async def _planned(page: _FakePage, decide: Any, plan: tuple[PlanStep, ...] = ()):
+    return await run_browse(
+        task="find the price",
+        session=BrowseSession(page=page),
+        decide=decide,
+        policy=_policy(),
+        call_id="call-1",
+        plan=plan,
+    )
+
+
+class TestABrowseReplaysWhatWorkedBefore:
+    """The loop takes recorded steps without the model while the page fits them."""
+
+    PRICING = PlanStep(op="click", at="example.test/page", role="link", label="Pricing")
+
+    async def test_a_finished_browse_hands_back_the_steps_that_got_it_there(self):
+        page = _FakePage(_snapshot(_element(0, role="link", label="Pricing")))
+        result = await _planned(page, _decider(CLICK0, _step(Scroll(action="scroll")), DONE))
+
+        assert result.outcome == "done"
+        assert [step.op for step in result.plan] == ["click", "scroll"]
+        assert result.replayed == 0
+
+    async def test_a_recorded_step_is_taken_without_asking_the_model(self):
+        page = _FakePage(_snapshot(_element(0), _element(4, role="link", label="Pricing")))
+        seen: list[Any] = []
+
+        result = await _planned(page, _decider(DONE, seen=seen), (self.PRICING,))
+
+        assert "click:4" in page.done
+        assert result.replayed == 1
+        # Only the last step - reading the answer off the page - was the model's.
+        assert len(seen) == 1
+        assert "Repeat a step" in seen[0][1][0]
+
+    async def test_the_first_step_that_does_not_fit_hands_the_rest_to_the_model(self):
+        page = _FakePage(_snapshot(_element(0, label="Something new")))
+        later = PlanStep(op="scroll", at="example.test/page")
+
+        result = await _planned(page, _decider(DONE), (self.PRICING, later))
+
+        assert result.replayed == 0
+        assert "scroll:down" not in page.done
+
+    @pytest.mark.security
+    async def test_typing_stops_the_recording_and_what_was_typed_is_never_kept(self):
+        page = _FakePage(_snapshot(_element(0, role="textbox", label="Search")))
+        typed = _step(TypeText(action="type", index=0, text="my own name"))
+
+        result = await _planned(page, _decider(CLICK0, typed, CLICK0, DONE))
+
+        assert [step.op for step in result.plan] == ["click"]
+        assert "my own name" not in json.dumps([step.model_dump() for step in result.plan])
+
+    async def test_a_browse_that_did_not_finish_hands_back_no_steps(self):
+        page = _FakePage(_snapshot(_element(0)))
+        blocked = _step(Blocked(action="blocked", reason="a captcha"))
+
+        result = await _planned(page, _decider(CLICK0, blocked))
+
+        assert result.outcome == "blocked"
+        assert result.plan == ()
+
+    async def test_a_refused_step_is_not_kept(self):
+        page = _FakePage(_snapshot(_element(0)))
+        stale = _step(Click(action="click", index=7))
+
+        result = await _planned(page, _decider(stale, DONE))
+
+        assert result.plan == ()
+
+
+class TestAPersonsPlansAreTheirsAlone:
+    """`browse_web` replays and keeps plans only for a run that is the person."""
+
+    PERSON = uuid4()
+    ORG = uuid4()
+
+    @pytest.fixture
+    def plans(self, monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+        record: dict[str, Any] = {"recalled": [], "kept": [], "forgotten": []}
+        stored: tuple[PlanStep, ...] = ()
+
+        async def recall(organization_id: Any, user_id: Any, key: str) -> tuple[PlanStep, ...]:
+            record["recalled"].append((organization_id, user_id, key))
+            return record.get("stored", stored)
+
+        async def keep(organization_id: Any, user_id: Any, key: str, steps: Any) -> None:
+            record["kept"].append((organization_id, user_id, key, steps))
+
+        async def forget(organization_id: Any, user_id: Any, key: str) -> None:
+            record["forgotten"].append((organization_id, user_id, key))
+
+        monkeypatch.setattr(browse_plans, "recall", recall)
+        monkeypatch.setattr(browse_plans, "keep", keep)
+        monkeypatch.setattr(browse_plans, "forget", forget)
+        monkeypatch.setattr(browser_sign_in, "load_for", AsyncMock(return_value=[]))
+        return record
+
+    def _deps(self, audience: RunAudience | None) -> AgentDeps:
+        return AgentDeps(
+            organization_id=self.ORG, user_id=str(self.PERSON), run_id=uuid4(), audience=audience
+        )
+
+    async def test_the_person_s_run_keeps_what_its_finished_browse_did(self, plans: dict[str, Any]):
+        opener = _Opener(_FakePage(_snapshot(_element(0))))
+        model = _browsing_model(_step_args({"action": "click", "index": 0}), DONE_ARGS)
+        toolset = _toolset(opener)
+        ctx = RunContext(
+            deps=self._deps(RunAudience(user_id=self.PERSON, browses_signed_in=True)),
+            model=model,
+            usage=RunUsage(),
+            tool_call_id="call-42",
+        )
+        tools = await toolset.get_tools(ctx)
+        args = {"task": "find the price", "start_url": "https://example.test/"}
+        await toolset.call_tool("browse_web", args, ctx, tools["browse_web"])
+
+        key = plan_key("find the price", "https://example.test/")
+        assert plans["recalled"] == [(self.ORG, self.PERSON, key)]
+        [(org, person, kept_key, steps)] = plans["kept"]
+        assert (org, person, kept_key) == (self.ORG, self.PERSON, key)
+        assert [step.op for step in steps] == ["click"]
+
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        "audience",
+        [None, RunAudience(user_id=PERSON), RunAudience(user_id=None, browses_signed_in=True)],
+    )
+    async def test_any_other_run_neither_replays_nor_keeps(
+        self, plans: dict[str, Any], audience: RunAudience | None
+    ):
+        await _call_as(self._deps(audience))
+
+        assert plans["recalled"] == []
+        assert plans["kept"] == []
+
+    async def test_a_replay_that_did_not_finish_is_forgotten(self, plans: dict[str, Any]):
+        plans["stored"] = (PlanStep(op="scroll", at="example.test/page"),)
+        blocked = _step_args({"action": "blocked", "reason": "the page moved"})
+        opener = _Opener(_FakePage(_snapshot(_element(0))))
+        toolset = _toolset(opener)
+        ctx = RunContext(
+            deps=self._deps(RunAudience(user_id=self.PERSON, browses_signed_in=True)),
+            model=_browsing_model(blocked),
+            usage=RunUsage(),
+            tool_call_id="call-42",
+        )
+        tools = await toolset.get_tools(ctx)
+        args = {"task": "find the price", "start_url": "https://example.test/"}
+        await toolset.call_tool("browse_web", args, ctx, tools["browse_web"])
+
+        assert plans["kept"] == []
+        assert len(plans["forgotten"]) == 1

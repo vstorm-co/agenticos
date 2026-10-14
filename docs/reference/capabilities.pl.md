@@ -1,5 +1,5 @@
 ---
-source_sha: "fea77a6261c0"
+source_sha: "6053a627229f"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -675,6 +675,16 @@ przeglądaniem, ma je otwarte, przeglądarka między krokami układa stronę pod
 własny układ strony dla tej szerokości, w gęstości tego ekranu - więc podgląd na żywo to
 strona, a nie pomniejszony ekran laptopa w kolumnie. Model widzi wtedy tę samą stronę w
 tym rozmiarze.
+
+**Zadanie zrobione wcześniej idzie szybciej za drugim razem, dla tej samej osoby.**
+Gdy przeglądanie działające w imieniu jednej osoby - jej własny czat, wiadomość
+prywatna, jej własny harmonogram - się zakończy, kroki, które do tego doprowadziły,
+są zapamiętywane tylko dla niej: adres i etykieta każdej naciśniętej rzeczy, nigdy to,
+co wpisała (nagrywanie zatrzymuje się na pierwszym wypełnianym polu). Gdy następnym
+razem poprosi o to samo zadanie z tego samego `start_url`, te kroki są wykonywane bez
+modelu, dopóki strona wciąż je oferuje, a model przejmuje przy pierwszej różnicy.
+Powtórka, która się nie zakończy, jest usuwana. Nikt inny w organizacji ich nie czyta,
+a Redis trzyma je dwa tygodnie od ostatniego wykonania zadania.
 
 **Gdy tylko człowiek przejdzie dalej** — logowanie, do którego agent nie ma danych,
 captcha, wybór należący do kogoś — model prosi o człowieka, zamiast się poddać. Karta

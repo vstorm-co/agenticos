@@ -1,5 +1,5 @@
 ---
-source_sha: "fea77a6261c0"
+source_sha: "6053a627229f"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -715,6 +715,16 @@ Durchlauf steuern darf, ihn geöffnet, legt der Browser die Seite zwischen den S
 für dieses Fenster an - das eigene Layout der Seite für diese Breite, in der Dichte
 dieses Bildschirms -, sodass die Live-Ansicht die Seite ist und kein in eine Spalte
 verkleinerter Laptop-Bildschirm. Das Modell sieht dann dieselbe Seite in dieser Größe.
+
+**Eine schon erledigte Aufgabe geht beim zweiten Mal schneller, für dieselbe Person.**
+Wenn ein Browse, der für eine Person handelt - ihr eigener Chat, ihre Direktnachricht,
+ihr eigener Zeitplan - fertig wird, werden die Schritte, die dorthin geführt haben,
+nur für diese Person gespeichert: die Adresse und die Beschriftung von allem, was
+gedrückt wurde, nie das Getippte (die Aufzeichnung endet am ersten ausgefüllten Feld).
+Fragt sie dieselbe Aufgabe vom selben `start_url` erneut an, laufen diese Schritte ohne
+das Modell, solange die Seite sie noch anbietet, und das Modell übernimmt beim ersten
+Unterschied. Eine Wiederholung, die nicht fertig wird, wird verworfen. Niemand sonst in
+der Organisation liest sie, und Redis hält sie zwei Wochen nach der letzten Erledigung.
 
 **Wenn nur ein Mensch weiterkommt** — eine Anmeldung ohne Zugangsdaten, ein Captcha,
 eine Entscheidung, die jemand anderem gehört —, bittet das Modell um einen Menschen,

@@ -28,9 +28,9 @@ something useful to say.
 from __future__ import annotations
 
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from contextlib import AbstractAsyncContextManager, nullcontext
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from hashlib import sha256
 from typing import Protocol
 
@@ -61,6 +61,7 @@ from app.agents.capabilities.browser_use._decision import (
 )
 from app.agents.capabilities.browser_use._elements import Element, Snapshot
 from app.agents.capabilities.browser_use._page import StaleElement
+from app.agents.capabilities.browser_use._plans import PlanStep, record, replay
 
 REPEAT_LIMIT = 3
 """How often the identical action on the identical page is tried before giving up.
@@ -113,6 +114,12 @@ class BrowseResult:
 
     steps: int
     """Steps this call took."""
+
+    plan: tuple[PlanStep, ...] = ()
+    """The steps that got a `done` browse there, to replay next time - see `_plans`."""
+
+    replayed: int = 0
+    """How many of this browse's steps were replayed rather than asked of the model."""
 
 
 class PageSession(Protocol):
@@ -232,6 +239,16 @@ class LoopPolicy:
     """Send each step's viewport to the browsing model as well as its table."""
 
 
+@dataclass
+class _Plan:
+    """A browse's replay and its recording, kept beside the loop that does both."""
+
+    pending: list[PlanStep]
+    recorded: list[PlanStep] = field(default_factory=list)
+    recording: bool = True
+    replayed: int = 0
+
+
 async def run_browse(
     *,
     task: str,
@@ -243,6 +260,7 @@ async def run_browse(
     control: BrowserControl | None = None,
     run_id: str | None = None,
     remember: RememberSignIn | None = None,
+    plan: Sequence[PlanStep] = (),
 ) -> BrowseResult:
     """Drive `session.page` towards `task`, narrating as it goes, and stop for a reason.
 
@@ -260,12 +278,48 @@ async def run_browse(
             the browse's live view.
         remember: Keeps a sign-in a person asks to keep when they hand the
             browser back, or `None` where this run may not keep one.
+        plan: Steps an earlier browse of this task took, replayed without the
+            model while the page still fits them - see `_plans`.
 
     Returns:
         The outcome, the answer, the page and how many steps this call took. Never
         raises for a page's behaviour - a page that cannot be worked with is
         `blocked`, which is an answer.
     """
+    kept = _Plan(pending=list(plan))
+    result = await _drive(
+        task=task,
+        session=session,
+        decide=decide,
+        policy=policy,
+        call_id=call_id,
+        sink=sink,
+        control=control,
+        run_id=run_id,
+        remember=remember,
+        kept=kept,
+    )
+    return replace(
+        result,
+        plan=tuple(kept.recorded) if result.outcome == "done" else (),
+        replayed=kept.replayed,
+    )
+
+
+async def _drive(
+    *,
+    task: str,
+    session: BrowseSession,
+    decide: Decide,
+    policy: LoopPolicy,
+    call_id: str,
+    sink: BrowserEventSink | None,
+    control: BrowserControl | None,
+    run_id: str | None,
+    remember: RememberSignIn | None,
+    kept: _Plan,
+) -> BrowseResult:
+    """`run_browse`'s loop, replaying and recording into `kept` as it goes."""
     # Whether anybody is still watching. A run whose reader closed the tab carries
     # on by design, and encoding a JPEG per step for a closed socket would be the
     # most expensive thing in the loop done for nobody.
@@ -348,9 +402,28 @@ async def run_browse(
                     )
                 )
 
-            step = await decide(
-                task, snapshot, session.history, session.memory, image if policy.vision else None
-            )
+            # A step this person's earlier browse of the same task took, while the
+            # page still offers it - no model call. The first step that does not
+            # fit ends the replay for good: the page has moved on from the recording.
+            again = replay(kept.pending[0], snapshot) if kept.pending else None
+            if again is not None:
+                kept.pending.pop(0)
+                kept.replayed += 1
+                step = Step(
+                    evaluation="Replayed from an earlier browse of this task.",
+                    memory=session.memory,
+                    next_goal="Repeat a step that worked the last time this task was done.",
+                    action=again,
+                )
+            else:
+                kept.pending.clear()
+                step = await decide(
+                    task,
+                    snapshot,
+                    session.history,
+                    session.memory,
+                    image if policy.vision else None,
+                )
             clock.mark("decide")
             session.memory = step.memory
             action = step.action
@@ -469,6 +542,13 @@ async def run_browse(
                 # model reads, not the end of the browse. The repeat guard is what
                 # stops a page that does this for ever.
                 result = f"refused: {refused}"
+            else:
+                # Typing ends the recording: what was typed is the person's, and a
+                # replay that stopped short of it leaves the model to type it again.
+                if isinstance(action, TypeText):
+                    kept.recording = False
+                elif kept.recording and (taken_step := record(snapshot, action, element)):
+                    kept.recorded.append(taken_step)
             clock.mark("act")
             session.history += (f"step {step_no}: {step.next_goal} - {result}",)
             await page.settle()

@@ -81,8 +81,9 @@ from app.agents.capabilities.browser_use._page import (
     StaleElement,
     open_page,
 )
+from app.agents.capabilities.browser_use._plans import plan_key
 from app.agents.deps import AgentDeps
-from app.services import browser_sign_in, live_browse
+from app.services import browse_plans, browser_sign_in, live_browse
 
 PageFactory = Callable[..., AbstractAsyncContextManager[PageSession]]
 """Opens a browser tab on a starting URL. The default is `_page.open_page`."""
@@ -195,6 +196,18 @@ def _remembering(person: _Person) -> RememberSignIn:
         return sign_in.site
 
     return remember
+
+
+async def _keep_plan(person: _Person, kept_as: str, result: BrowseResult) -> None:
+    """Keep a finished browse's steps; drop a replay that did not finish.
+
+    A replay that ended anywhere but `done` was following a page that changed, so
+    the next browse starts from the model rather than from the same dead end.
+    """
+    if result.outcome == "done" and result.plan:
+        await browse_plans.keep(person.organization_id, person.user_id, kept_as, result.plan)
+    elif result.replayed:
+        await browse_plans.forget(person.organization_id, person.user_id, kept_as)
 
 
 def _image(data_url: str | None) -> BinaryContent | None:
@@ -395,6 +408,14 @@ def build_toolset(
                     await session.page.navigate(start_url)
                 except StaleElement as refused:
                     return await fail(str(refused))
+            # A new task from a known page, for a person browsing as themselves,
+            # may replay what their last browse of it did (see `_plans`).
+            kept_as = plan_key(task, start_url) if person is not None and start_url else None
+            plan = (
+                await browse_plans.recall(person.organization_id, person.user_id, kept_as)
+                if person is not None and kept_as is not None
+                else ()
+            )
             result = await run_browse(
                 task=task,
                 session=session,
@@ -405,7 +426,10 @@ def build_toolset(
                 control=control,
                 run_id=run_id,
                 remember=remember,
+                plan=plan,
             )
+            if person is not None and kept_as is not None:
+                await _keep_plan(person, kept_as, result)
         except (DomainRefused, EndpointError) as exc:
             # The tab is no use after either: the browser left the allowlist or
             # stopped answering. Closed, so the next call opens a fresh one.

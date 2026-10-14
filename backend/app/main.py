@@ -14,7 +14,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from app import __version__
 from starlette.routing import Route
 
-from app.services import change_feed, live_browse, platform_mcp
+from app.services import browse_plans, change_feed, live_browse, platform_mcp
 from app.services.change_feed import ChangeFeedMiddleware
 from app.api.exception_handlers import register_exception_handlers
 from app.api.router import api_router
@@ -176,6 +176,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     # And browses' live views (#2128): published from a tool call, read by sockets
     # that outlive any request.
     live_browse.configure(redis_client)
+    # And a person's replayable browse steps, kept between their runs.
+    browse_plans.configure(redis_client)
     try:
         embedder = EmbeddingService(settings=settings.rag)
         embedder.warmup()
@@ -273,6 +275,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     maintenance.configure(None)
     change_feed.configure(None)
     live_browse.configure(None)
+    browse_plans.configure(None)
     if "redis" in state:
         await state["redis"].close()
 

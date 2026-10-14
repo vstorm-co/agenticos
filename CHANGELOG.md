@@ -19,6 +19,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **A browse done before goes quicker the second time, for the same person.**
+  When a browse acting for one person finishes, the steps that got it there are
+  kept for them alone - what it pressed, never what it typed - and the next time
+  they ask the same task from the same page those steps run without the model
+  while the page still fits, the model taking over at the first difference.
+
 - **Point at the browser's page and say something about it.** A button in the
   browser's toolbar lets you click a spot on the page and write a note; the page
   goes into your message as a picture with the spot ringed, with the note and the
