@@ -398,8 +398,11 @@ class PublicEmbedConfig(BaseSchema):
         default=300, description="The organization's longest dictation; the recording stops there"
     )
     dictation_format: RecordingFormat = Field(
-        default="webm",
-        description="What to record in for `server`: `webm` from MediaRecorder, or `wav`",
+        default="wav",
+        description=(
+            "What to record in for `server`: `wav` (16 kHz mono 16-bit PCM), or `webm` "
+            "from MediaRecorder where the deployment accepts compressed audio"
+        ),
     )
 
     @field_validator("agent_name")
@@ -438,7 +441,7 @@ class PublicPageConfig(BaseSchema):
         ),
     )
     dictation_max_seconds: int = 300
-    dictation_format: RecordingFormat = "webm"
+    dictation_format: RecordingFormat = "wav"
     allow_new_conversation: bool = True
     allow_files: bool = False
 

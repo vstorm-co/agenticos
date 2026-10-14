@@ -49,8 +49,9 @@ from app.repositories import ml_service_call_repo
 from app.repositories import organization as organization_repo
 from app.repositories.ml_service_call import CallFilters, UsageSummary
 from app.services import speech_to_text, transcription, transcription_usage
+from app.services.deployment_settings import DeploymentSettingsService
 from app.services.local_service import LocalServiceService
-from app.services.ml import audio_duration, parsing, pii
+from app.services.ml import audio_duration, parsing, pcm_wav, pii
 from app.services.ml.catalog import SERVICE_CATALOG, MLServiceEntry
 from app.services.speech_to_text import RecordingFormat
 from app.services.speech_to_text_settings import SpeechToTextSettingsService
@@ -59,20 +60,29 @@ from app.services.transcription_usage import TranscriptionCall
 
 logger = logging.getLogger(__name__)
 
-DICTATION_BYTES_PER_SECOND = 32_768
-"""Bytes per second of recording the dictation byte cap allows.
+DICTATION_BYTES_PER_SECOND = pcm_wav.BYTES_PER_SECOND
+"""Bytes per second of recording the dictation byte cap allows: 32,000.
 
-Double what the composer records at (128 kbps Opus is 16 KB/s), so a browser
-that encodes a little fatter than asked is not refused. The WAV the composer
-records for Mistral (16 kHz mono 16-bit PCM) is 32,000 bytes a second plus a
-44-byte header, so it fits under the same cap.
+What dictation's own format holds - 16 kHz mono 16-bit PCM is exactly this
+many bytes of samples a second - so for a WAV recording the cap and the length
+are the same limit, read twice. The length is what is refused on, from the
+samples counted (`pcm_wav`); the cap is the cheap check in front of it.
 
-**An outer bound on bytes, not a bound on seconds.** Opus at a script's lowest
-bitrate fits one to three hours into this many bytes, so the length itself is
-read from the recording (`audio_duration`) and refused against
-`dictation_max_seconds`. This cap is what still holds where that reading cannot:
-a recording whose length is unknown, where the surface accepts one, and a file
-built to state less than it holds.
+**For compressed audio it is an outer bound only.** Where the deployment
+accepts WebM, Ogg and MP4 (`DeploymentSettings.dictation_compressed_audio`),
+32 kbps Opus is 4,000 bytes a second, so a browser's recording fits with room
+to spare - and Opus at a script's lowest bitrate fits one to three hours into
+the same bytes. Their length is read from the file's own header
+(`audio_duration`), which a file built by hand can understate; this cap is what
+still holds then, and for a recording whose length is unknown where the surface
+accepts one.
+"""
+
+DICTATION_HEADER_ALLOWANCE = 4_096
+"""Bytes the cap allows beyond the audio itself, for the container around it.
+
+A browser's WAV header is 44 bytes; the rest is room for a chunk a writer
+adds, which `pcm_wav` steps over and the provider is never sent.
 """
 
 DICTATION_GRACE_SECONDS = 3
@@ -84,15 +94,21 @@ ticks late. Refusing those would refuse exactly the recordings the limit
 stopped for the person.
 """
 
-DICTATION_TYPES = frozenset({"audio/webm", "audio/ogg", "audio/mp4", "audio/wav"})
-"""What the composer records, by `transcription.recording_type`.
+DICTATION_PCM_TYPES = frozenset({"audio/wav"})
+"""What dictation accepts by default, by `transcription.recording_type`.
 
-The first three are what browsers' `MediaRecorder` produces; WAV is what the
-composer builds itself for a provider that documents neither WebM nor Opus
-(Mistral). A `Blob` in a `FormData` arrives named `blob`, so the name the
-provider is sent comes from the type (`transcription.RECORDING_EXTENSIONS`).
-Narrower than that table on purpose: an MP3 is not something the composer
-records, so one posted here is not a dictation.
+WAV holding 16 kHz mono 16-bit PCM, which the composer, the hosted page and the
+widget build themselves from the microphone's samples: the one format whose
+length is its size. Every other kind of WAV is refused by `pcm_wav`.
+"""
+
+DICTATION_COMPRESSED_TYPES = frozenset({"audio/webm", "audio/ogg", "audio/mp4"})
+"""What dictation also accepts once the deployment has turned compressed audio on.
+
+What browsers' `MediaRecorder` produces. A `Blob` in a `FormData` arrives named
+`blob`, so the name the provider is sent comes from the type
+(`transcription.RECORDING_EXTENSIONS`). Narrower than that table on purpose: an
+MP3 is not something a browser records here, so one posted is not a dictation.
 """
 
 
@@ -279,8 +295,9 @@ class MLService:
         The caller has already proven run access on `agent`. The gate is the
         organization's engine for `/chat`: anything but `server` refuses as
         `not_configured`. Everything after the gate is `transcribe_dictation`,
-        which the hosted page and the widget share. A recording whose length
-        cannot be read is accepted here, under the byte cap: the caller is a
+        which the hosted page and the widget share. A compressed recording
+        whose length cannot be read - where the deployment accepts compressed
+        audio at all - is accepted here, under the byte cap: the caller is a
         signed-in member on their own rate limit, and refusing would refuse a
         browser whose container this does not read.
 
@@ -336,31 +353,47 @@ class MLService:
         the organization. Nothing is kept but the usage record: the audio is
         discarded when this returns, and the text goes back in the response only.
 
-        **The length is measured before the provider is called.** The byte cap -
-        the organization's longest dictation at `DICTATION_BYTES_PER_SECOND`,
-        never above what transcription accepts - is checked first, because it
-        is free; then `audio_duration` reads the recording's length from its
-        container, and one longer than `dictation_max_seconds` (plus
-        `DICTATION_GRACE_SECONDS`) is refused as `too_large`. A length that
-        cannot be read is the caller's to decide: `accept_unmeasured` lets it
-        through under the byte cap alone, which is what the console does for a
-        member; otherwise it is refused as `unsupported_type`, which is what a
-        public page does for a stranger, whose spend nothing else bounds.
+        **Raw PCM unless the deployment says otherwise.** A dictation is WAV
+        holding 16 kHz mono 16-bit PCM (`pcm_wav`), whose length is its byte
+        count: the samples are counted, a recording longer than
+        `dictation_max_seconds` (plus `DICTATION_GRACE_SECONDS`) is refused as
+        `too_large` before the provider is called, and the provider is sent
+        those samples behind a header built here - never the caller's header,
+        nor any other chunk the file carried. Any other WAV is refused as
+        `unsupported_type`.
+
+        Where the deployment accepts compressed audio
+        (`DeploymentSettingsService.accepts_compressed_dictation`), WebM, Ogg
+        and MP4 are accepted too, and their length is read from the file's own
+        header (`audio_duration`) - the file's word for it, which a file built
+        by hand can understate, so the byte cap is then what bounds it. A
+        length that cannot be read is the caller's to decide:
+        `accept_unmeasured` lets it through under the byte cap alone, which is
+        what the console does for a member; otherwise it is refused as
+        `unsupported_type`, which is what a public page does for a stranger,
+        whose spend nothing else bounds. Off, these types are refused as
+        `unsupported_type` before anything is read.
+
+        The byte cap - the longest dictation plus its grace at
+        `DICTATION_BYTES_PER_SECOND`, with `DICTATION_HEADER_ALLOWANCE` for
+        the container, never above what transcription accepts - is checked
+        first in both, because it is free.
 
         The usage row's length is the measured one, then the provider's own
         figure, then `reported_seconds` - the length the browser says it
-        recorded. That last is **client-reported**, used only where nothing
-        else states a length, and clamped to what the byte cap stands for - so
-        a caller posting straight to the endpoint can inflate its own usage
-        figure by at most the organization's longest dictation, never by an
-        hour.
+        recorded. For PCM it is always the measured one, exactly. The last is
+        **client-reported**, used only where nothing else states a length,
+        and clamped to the organization's longest dictation - so a caller
+        posting straight to the endpoint can inflate its own usage figure by
+        at most that, never by an hour.
 
         Raises:
             ConfigurationError: `reason="not_configured"` - the gate is shut, no
                 pair resolves, or the provider has no credential here.
-            BadRequestError: `reason` `empty`, `unsupported_type` (including a
-                length that cannot be read, unless `accept_unmeasured`) or
-                `too_large`, the latter with `limit_seconds` in its details.
+            BadRequestError: `reason` `empty`, `unsupported_type` (a type or a
+                WAV this does not accept, or a compressed length that cannot
+                be read, unless `accept_unmeasured`) or `too_large`, the latter
+                with `limit_seconds` in its details.
             ExternalServiceError: `reason` `provider_error` or `timeout`.
         """
         started = time.monotonic()
@@ -382,20 +415,28 @@ class MLService:
                 raise BadRequestError(
                     message="The recording is empty.", details={"reason": "empty"}
                 )
+            compressed = await DeploymentSettingsService(self.db).accepts_compressed_dictation()
+            accepted = (
+                DICTATION_PCM_TYPES | DICTATION_COMPRESSED_TYPES
+                if compressed
+                else DICTATION_PCM_TYPES
+            )
             base_type = transcription.recording_type(mime_type)
-            if base_type not in DICTATION_TYPES:
+            if base_type not in accepted:
                 raise refused_field(
                     "file",
-                    "Dictation accepts WebM, Ogg, MP4 or WAV audio.",
+                    _ACCEPTED_AUDIO[compressed],
                     reason="unsupported_type",
+                    accepted=sorted(accepted),
                 )
+            limit = organization.dictation_max_seconds
             cap = min(
-                organization.dictation_max_seconds * DICTATION_BYTES_PER_SECOND,
+                (limit + DICTATION_GRACE_SECONDS) * DICTATION_BYTES_PER_SECOND
+                + DICTATION_HEADER_ALLOWANCE,
                 transcription.MAX_BYTES,
             )
             if reported_seconds is not None:
-                reported = min(max(reported_seconds, 0.0), cap / DICTATION_BYTES_PER_SECOND)
-            limit = organization.dictation_max_seconds
+                reported = min(max(reported_seconds, 0.0), float(limit))
             too_long = refused_field(
                 "file",
                 f"The recording is longer than this organization's {limit}-second limit.",
@@ -404,22 +445,26 @@ class MLService:
             )
             if len(content) > cap:
                 raise too_long
-            measured = audio_duration.measure(content)
-            if measured is None and not accept_unmeasured:
-                raise refused_field(
-                    "file",
-                    "The recording's length could not be read. Dictation accepts WebM, "
-                    "Ogg, MP4 or WAV audio as a browser records it.",
-                    reason="unsupported_type",
+            if base_type in DICTATION_PCM_TYPES:
+                recording, measured = _pcm_recording(content)
+            else:
+                measured = audio_duration.measure(content)
+                if measured is None and not accept_unmeasured:
+                    raise refused_field(
+                        "file",
+                        "The recording's length could not be read. Dictation accepts WebM, "
+                        "Ogg or MP4 audio as a browser records it.",
+                        reason="unsupported_type",
+                    )
+                recording = Recording(
+                    content=content,
+                    filename=f"recording.{transcription.RECORDING_EXTENSIONS[base_type]}",
+                    mime_type=base_type,
                 )
             if measured is not None and measured > limit + DICTATION_GRACE_SECONDS:
                 raise too_long
             result = await TranscriptionService(self.db).transcribe(
-                Recording(
-                    content=content,
-                    filename=f"recording.{transcription.RECORDING_EXTENSIONS[base_type]}",
-                    mime_type=base_type,
-                ),
+                recording,
                 organization_id=call.organization_id,
                 provider=resolved.provider,
                 model=resolved.model,
@@ -486,7 +531,11 @@ class MLService:
         checked for existence, never opened. Configured, not proven: a revoked
         key fails on the first recording. The provider and the format are
         returned whether or not it is available, because a browser records in
-        the format that provider accepts.
+        the format they say.
+
+        The format is `wav` - 16 kHz mono 16-bit PCM - unless the deployment
+        accepts compressed audio *and* the catalog says this provider takes
+        what `MediaRecorder` makes; Mistral is `wav` either way.
 
         No `AuthContext`: the embed service asks this for an anonymous visitor's
         page, so the organization is the agent's own and never a caller's.
@@ -499,10 +548,11 @@ class MLService:
             and resolved.provider
             in await TranscriptionService(self.db).credentialed_providers(agent.organization_id)
         )
+        compressed = await DeploymentSettingsService(self.db).accepts_compressed_dictation()
         return ServerDictation(
             available=available,
             provider=provider,
-            format=speech_to_text.recording_format(provider),
+            format=speech_to_text.recording_format(provider) if compressed else "wav",
         )
 
     async def speech_to_text_credentials(self, ctx: AuthContext) -> frozenset[str]:
@@ -790,6 +840,34 @@ class MLService:
                 exc_info=True,
             )
             await self.db.rollback()
+
+
+_ACCEPTED_AUDIO: dict[bool, str] = {
+    False: "Dictation accepts WAV audio as 16 kHz mono 16-bit PCM.",
+    True: "Dictation accepts WebM, Ogg or MP4 audio, or WAV as 16 kHz mono 16-bit PCM.",
+}
+"""What a refused type is told, by whether the deployment accepts compressed audio."""
+
+
+def _pcm_recording(content: bytes) -> tuple[Recording, float]:
+    """A dictation WAV as the provider is sent it, and its exact length in seconds.
+
+    The samples behind a header built by `pcm_wav.wrap`, so the provider is
+    sent what was counted and nothing the caller's header said.
+
+    Raises:
+        BadRequestError: `unsupported_type` for anything but 16 kHz mono 16-bit
+            PCM in a well-formed WAV, `empty` for one holding no samples.
+    """
+    pcm = pcm_wav.samples(content)
+    if pcm is None:
+        raise refused_field("file", _ACCEPTED_AUDIO[False], reason="unsupported_type")
+    if not pcm:
+        raise BadRequestError(message="The recording is empty.", details={"reason": "empty"})
+    return (
+        Recording(content=pcm_wav.wrap(pcm), filename="recording.wav", mime_type="audio/wav"),
+        len(pcm) / DICTATION_BYTES_PER_SECOND,
+    )
 
 
 def _refuse_oversized(content: bytes, *, ceiling: int | None = None) -> None:

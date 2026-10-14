@@ -1,5 +1,5 @@
 ---
-source_sha: "cb4976d8aeea"
+source_sha: "351a53639a63"
 ---
 
 # Die ML-Dienste { #the-ml-services }
@@ -179,7 +179,7 @@ Anfrage-URL samt Schlüssel in seine Meldung.
 |---|---|---|
 | `not_configured` | 503 | Keine brauchbaren Zugangsdaten für den Anbieter; beim Diktieren auch: Server-Diktat nicht eingerichtet |
 | `empty` | 400 | Die Engine hat keine Sprache gehört, oder die Aufnahme hat keine Bytes |
-| `unsupported_type` | 400 | Nur beim Diktieren: die Aufnahme ist kein WebM-, Ogg-, MP4- oder WAV-Audio, oder - auf einer gehosteten Seite oder in einem Widget - ihre Länge lässt sich nicht lesen |
+| `unsupported_type` | 400 | Nur beim Diktieren: die Aufnahme ist kein WAV mit 16 kHz, Mono und 16-Bit-PCM - oder, wo das Deployment komprimiertes Audio annimmt, kein WebM, Ogg oder MP4 -, oder auf einer gehosteten Seite oder in einem Widget lässt sich die Länge einer komprimierten Aufnahme nicht lesen. `details.accepted` listet die angenommenen Typen |
 | `too_large` | 400 | Über 25 MB oder über der Diktatgrenze der Organisation in Bytes oder in gemessener Länge; `details.limit_seconds` nennt die Grenze |
 | `provider_error` | 503 | Der Anbieter hat die Anfrage abgelehnt oder ist daran gescheitert |
 | `timeout` | 503 | Der Anbieter hat nicht innerhalb von 60 Sekunden geantwortet |
@@ -219,30 +219,43 @@ Das Embed-Formular liest `server_available`, denn eine
 hängt nicht an der Engine von `/chat`.
 
 `provider` ist der Anbieter, den eine Aufnahme erreichen würde, und `format`,
-worin für ihn aufgenommen wird - `webm` oder `wav`, aus dem
-Speech-to-Text-Katalog, sodass kein Client eine eigene Liste führt. Ein Agent
-ohne veröffentlichte Version antwortet aus den Einstellungen der Organisation.
+worin für ihn aufgenommen wird: `wav`, es sei denn, das Deployment
+[nimmt komprimiertes Audio an](deployment.md#what-a-dictation-may-be-uploaded-as)
+und der Speech-to-Text-Katalog sagt, dass der Anbieter nimmt, was
+`MediaRecorder` erzeugt - dann `webm`. Das wird hier entschieden, sodass kein
+Client eine eigene Liste führt. Ein Agent ohne veröffentlichte Version
+antwortet aus den Einstellungen der Organisation.
 
-Die Aufnahme muss `audio/webm`, `audio/ogg`, `audio/mp4` oder `audio/wav`
-sein, ein Codec-Suffix ist erlaubt, und `audio/x-wav` sowie `audio/wave` werden
-als `audio/wav` gelesen, `audio/x-m4a` und `audio/m4a` als `audio/mp4` und
-`audio/opus` sowie `audio/x-ogg` als `audio/ogg`. Die ersten drei erzeugt `MediaRecorder` in Browsern;
-WAV nimmt das Eingabefeld selbst auf, wenn `format` `wav` sagt, was der Katalog
-für Mistral sagt (siehe den Hinweis unten). Der Anbieter erhält die Aufnahme als `recording.webm`,
-`recording.ogg`, `recording.m4a` oder `recording.wav`, nach derselben Tabelle,
-die eine Sprachnotiz aus einem Kanal `voice.<ext>` nennt.
+**Standardmäßig ist ein Diktat rohes PCM**: `audio/wav` (oder `audio/x-wav`,
+`audio/wave`) mit 16 kHz, Mono und 16-Bit-Integer-PCM, das jeder Browser über
+Web Audio aufnimmt. Die Datei wird streng gelesen - ein `fmt `-Chunk, der genau
+das sagt, ein `data`-Chunk aus ganzen Samples, Größen, die zur Datei passen -,
+und jedes andere WAV, auch ein Stereo-, 48-kHz-, 24-Bit- oder Float-WAV, wird
+als `unsupported_type` abgelehnt. Der Anbieter bekommt die gezählten Samples
+hinter einem Header, den der Server baut, nie den Header des Aufrufers oder
+einen anderen Chunk der Datei, als `recording.wav`.
 
-Die Route liest höchstens 25 MB des Bodys; die Byte-Grenze der Organisation,
-`dictation_max_seconds × 32 KB`, gilt für das Gelesene. Ein Body, den die
+Wo das Deployment komprimiertes Audio annimmt, werden auch `audio/webm`,
+`audio/ogg` und `audio/mp4` angenommen, ein Codec-Suffix ist erlaubt, und
+`audio/x-m4a` und `audio/m4a` werden als `audio/mp4` gelesen, `audio/opus`
+sowie `audio/x-ogg` als `audio/ogg`. Sie erzeugt `MediaRecorder` in Browsern,
+und der Anbieter erhält sie als `recording.webm`, `recording.ogg` oder
+`recording.m4a`, nach derselben Tabelle, die eine Sprachnotiz aus einem Kanal
+`voice.<ext>` nennt.
+
+Die Route liest höchstens 25 MB des Bodys; die Byte-Grenze der Organisation -
+die Bytes, die `dictation_max_seconds` plus drei Sekunden PCM belegen, 32.000
+pro Sekunde, und 4 KB für den Container - gilt für das Gelesene. Ein Body, den die
 Anfragegrenze des Deployments ablehnt, bevor die Route läuft, bekommt 413 ohne
 `reason`, was das Eingabefeld als `too_large` liest.
 
-Dann wird **die Länge
-der Aufnahme aus ihrem Container gelesen** - dem WAV-Header, der letzten
+Dann wird **die Länge gemessen**, bevor der Provider aufgerufen wird, und eine
+Aufnahme, die länger als `dictation_max_seconds` ist, wird als `too_large`
+abgelehnt, mit drei Sekunden Spielraum, weil das Eingabefeld im Sekundentakt
+stoppt. Bei PCM ist die Länge die gezählten Samples, exakt. Die einer
+komprimierten Aufnahme wird aus ihrem eigenen Header gelesen - der letzten
 Ogg-Seite, den Zeitstempeln der WebM-Blöcke, den Movie- oder Fragment-Headern
-von MP4 -, und eine Aufnahme, die länger als `dictation_max_seconds` ist, wird
-als `too_large` abgelehnt, bevor der Provider aufgerufen wird, mit drei Sekunden
-Spielraum, weil das Eingabefeld im Sekundentakt stoppt. Eine Aufnahme, deren
+von MP4 -, den eine von Hand gebaute Datei zu kurz angeben kann. Eine, deren
 Länge sich nicht lesen lässt, wird hier innerhalb der Byte-Grenze angenommen;
 [eine gehostete Seite oder ein Widget](channels.md#what-it-costs-and-what-bounds-it)
 lehnt sie ab.
@@ -251,21 +264,24 @@ Jede Person darf `RATE_LIMIT_DICTATION_PER_MINUTE`-mal pro Minute diktieren,
 standardmäßig 10, auf einem eigenen Zähler, sodass Diktieren nicht das
 ML-Kontingent einer Integration verbraucht. Jedes Diktat hinterlässt einen
 [Aufrufdatensatz](#what-is-recorded), unter `speech_to_text` und in Sekunden
-Audio gezählt. Das Eingabefeld schickt die aufgenommene Länge als Formularfeld
-`duration` neben `file`. **Das Audio wird nie gespeichert**: Es wird verworfen, wenn der Aufruf
+Audio gezählt - bei PCM die gezählte Länge. Das Eingabefeld schickt die
+aufgenommene Länge als Formularfeld `duration` neben `file`, das nur für eine
+komprimierte Aufnahme verwendet wird, für die nichts anderes eine Länge angibt.
+
+**Das Audio wird nie gespeichert**: Es wird verworfen, wenn der Aufruf
 zurückkehrt, und der Text existiert nur in der Antwort. Abbrechen im Browser
 bricht eine bereits gesendete Aufnahme nicht ab — der Anbieter transkribiert sie
 trotzdem, stellt sie dem Konto der Organisation in Rechnung, und der Aufruf wird
 aufgezeichnet.
 
-!!! note "Bei Mistral nimmt der Browser WAV auf, und es werden weniger Sprachen transkribiert"
+!!! note "Bei Mistral nimmt der Browser immer WAV auf, und es werden weniger Sprachen transkribiert"
 
     Mistral dokumentiert für Voxtral WAV- und MP3-Eingaben, nicht WebM oder
     Opus, was Chrome und Firefox aufnehmen. Ist Mistral der Anbieter, auf den
-    sich eine Aufnahme auflöst, nimmt das Eingabefeld deshalb in jedem Browser stattdessen WAV mit 16 kHz, Mono und 16 Bit auf. Der Upload
-    ist etwa doppelt so groß — 32.000 Bytes pro Sekunde —, die Längengrenze
-    bleibt aber dieselbe, weil eine WAV-Aufnahme von `dictation_max_seconds`
-    unter die Grenze passt.
+    sich eine Aufnahme auflöst, nimmt das Eingabefeld deshalb in jedem Browser
+    WAV mit 16 kHz, Mono und 16 Bit auf, auch wo das Deployment komprimiertes
+    Audio annimmt. Ein PCM-Upload ist etwa doppelt so groß wie das WebM, das er
+    ersetzt — 32.000 Bytes pro Sekunde —, und die Längengrenze ist dieselbe.
 
     Die Sprachliste ist die von Whisper, die OpenAI und Groq akzeptieren.
     Mistral nennt 13 Sprachen für Voxtral, sodass eine festgelegte Sprache, die

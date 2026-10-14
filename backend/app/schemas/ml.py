@@ -159,10 +159,10 @@ class DictationStatusRead(BaseSchema):
     )
     format: RecordingFormat = Field(
         description=(
-            "What the browser records in for that provider: `webm` (what MediaRecorder "
-            "makes) or `wav` (16 kHz mono 16-bit PCM, for a provider that takes neither "
-            "WebM nor Opus). Decided by the speech-to-text catalog, so every client "
-            "records the same way."
+            "What the browser records in: `wav` (16 kHz mono 16-bit PCM), unless the "
+            "deployment accepts compressed audio and the speech-to-text catalog says this "
+            "provider takes what MediaRecorder makes, then `webm`. Decided here, so every "
+            "client records the same way."
         )
     )
 

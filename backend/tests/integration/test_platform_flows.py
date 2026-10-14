@@ -77,6 +77,7 @@ from app.repositories import (
     channel_session_repo,
     conversation_repo,
     credential_repo,
+    deployment_settings_repo,
     ingestion_spend_repo,
     mcp_connection_repo,
     organization_secret_repo,
@@ -3558,8 +3559,23 @@ class TestDictationReadinessFollowsTheAgent:
             "server_available": True,
             "max_seconds": 300,
             "provider": "groq",
-            "format": "webm",
+            # Raw PCM until the deployment accepts compressed audio.
+            "format": "wav",
         }
+
+    async def test_a_deployment_accepting_compressed_audio_records_webm_for_groq(
+        self, db, as_caller
+    ) -> None:
+        """The format is the deployment's setting and the catalog's together:
+        Groq takes WebM, so once the deployment accepts it the browser records it."""
+        tenant, agent = await self._set_up(db, "Compressed")
+        await deployment_settings_repo.upsert(db, update_data={"dictation_compressed_audio": True})
+
+        response = await as_caller(tenant.ctx).get(
+            f"{settings.API_V1_STR}/agents/{agent.id}/dictation"
+        )
+
+        assert response.json()["format"] == "webm"
 
     async def test_a_private_key_does_not_make_the_agent_ready(self, db, as_caller) -> None:
         """A member's own Groq key never pays for somebody else's dictation."""

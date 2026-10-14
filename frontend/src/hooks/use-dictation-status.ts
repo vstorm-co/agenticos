@@ -19,7 +19,7 @@ export interface DictationStatusRead {
  * Per agent because an agent's published speech-to-text override can name a
  * provider of its own: it can make server dictation work where the
  * organization has none, and it decides the format the browser records in -
- * Mistral takes WAV where the others take WebM.
+ * WAV, unless the deployment accepts compressed audio and the provider takes WebM.
  *
  * `agentId` null asks nothing, which is how the composer keeps this off the
  * network until the organization's engine is `server` and an agent is chosen.

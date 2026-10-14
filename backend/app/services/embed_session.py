@@ -815,10 +815,11 @@ WIDGET_JS = """(function () {
   }
   var MIC_ICON = ["M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z", "M19 10v2a7 7 0 0 1-14 0v-2", "M12 19v3"];
 
-  // The WAV path, for a provider that takes neither WebM nor Opus (Mistral).
-  // Ported from the console's `wav-encoder.ts`, resampler included: the server
-  // caps a recording at 32,768 bytes a second, which 16 kHz mono 16-bit PCM
-  // fits and the 48 kHz a microphone delivers would not.
+  // The WAV path: what the server advertises unless the deployment accepts
+  // compressed audio and the provider takes WebM. Ported from the console's
+  // `wav-encoder.ts`, resampler included. The server accepts exactly 16 kHz
+  // mono 16-bit PCM, whose length is its size, so whatever rate the
+  // microphone delivers is resampled to that before the file is built.
   function mixToMono(channels) {
     var length = channels[0].length;
     for (var c = 1; c < channels.length; c += 1) length = Math.min(length, channels[c].length);
@@ -934,7 +935,7 @@ WIDGET_JS = """(function () {
     }
     if (type === null) return null;
     var recorder;
-    try { recorder = new MediaRecorder(stream, { mimeType: type, audioBitsPerSecond: 128000 }); } catch (e) { return null; }
+    try { recorder = new MediaRecorder(stream, { mimeType: type, audioBitsPerSecond: 32000 }); } catch (e) { return null; }
     var chunks = [];
     recorder.ondataavailable = function (event) { chunks.push(event.data); };
     recorder.onstop = function () { done(new Blob(chunks, { type: type })); };

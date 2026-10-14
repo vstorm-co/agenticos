@@ -29,10 +29,16 @@ from app.core.exceptions import (
 from app.core.permissions import AuthContext, OrgRoleName
 from app.repositories.ml_service_call import CallFilters
 from app.services.ml import parsing
-from app.services.ml.facade import DICTATION_BYTES_PER_SECOND, DICTATION_GRACE_SECONDS, MLService
+from app.services.ml import pcm_wav as pcm
+from app.services.ml.facade import (
+    DICTATION_BYTES_PER_SECOND,
+    DICTATION_GRACE_SECONDS,
+    DICTATION_HEADER_ALLOWANCE,
+    MLService,
+)
 from app.services.transcription import TranscriptionResult
 from app.services.transcription_usage import TranscriptionCall
-from tests.recordings import ogg_opus, pcm_wav
+from tests.recordings import ogg_opus, pcm_wav, wav, wav_chunk, wav_fmt
 
 pytestmark = pytest.mark.anyio
 
@@ -618,6 +624,26 @@ _AGENT = SimpleNamespace(
 _SETTINGS = "app.services.speech_to_text_settings"
 
 
+@pytest.fixture
+def org_read() -> Any:
+    """The organization `speech_to_text_settings` reads for the resolved pair."""
+    with patch(
+        "app.services.ml.facade.organization_repo.get_by_id",
+        new=AsyncMock(return_value=_speech_org()),
+    ) as get:
+        yield get
+
+
+@pytest.fixture(autouse=True)
+def compressed() -> Any:
+    """The deployment's `dictation_compressed_audio`, off unless a test turns it on."""
+    with patch(
+        "app.services.ml.facade.DeploymentSettingsService.accepts_compressed_dictation",
+        new=AsyncMock(return_value=False),
+    ) as accepts:
+        yield accepts
+
+
 def _published(override: dict[str, str] | None) -> tuple[SimpleNamespace, AsyncMock]:
     """An agent whose published spec carries `override`, and the version read."""
     version_id = uuid.uuid4()
@@ -663,14 +689,14 @@ async def test_a_dictation_is_transcribed_with_the_org_settings_and_recorded(
         ) as transcribe,
     ):
         text = await service.dictate(
-            _ctx(), agent=_AGENT, content=b"audio", mime_type="audio/webm;codecs=opus"
+            _ctx(), agent=_AGENT, content=pcm_wav(1.5), mime_type="audio/wav"
         )
 
     assert text == "dzień dobry"
     assert get.await_args.args[1] == _ORG
     sent = transcribe.await_args
-    assert sent.args[0].filename == "recording.webm"
-    assert sent.args[0].mime_type == "audio/webm"
+    assert sent.args[0].filename == "recording.wav"
+    assert sent.args[0].mime_type == "audio/wav"
     assert sent.kwargs["organization_id"] == _ORG
     assert (sent.kwargs["provider"], sent.kwargs["model"]) == ("openai", "gpt-4o-transcribe")
     assert sent.kwargs["language"] == "pl"
@@ -679,7 +705,8 @@ async def test_a_dictation_is_transcribed_with_the_org_settings_and_recorded(
     assert (written["surface"], written["agent_id"]) == ("chat", _AGENT.id)
     assert (written["provider"], written["model"]) == ("openai", "gpt-4o-transcribe")
     assert written["requested_by_user_id"] == _CALLER
-    assert (written["units"], written["unit"], written["audio_ms"]) == (0, "seconds", None)
+    # Counted from the samples, so exact - nobody else had to say.
+    assert (written["units"], written["unit"], written["audio_ms"]) == (2, "seconds", 1500)
 
 
 async def test_a_dictation_uses_the_agents_published_override(recorded: Any) -> None:
@@ -700,7 +727,9 @@ async def test_a_dictation_uses_the_agents_published_override(recorded: Any) -> 
             new=AsyncMock(return_value=_heard("ok")),
         ) as transcribe,
     ):
-        await MLService(_db()).dictate(_ctx(), agent=agent, content=b"a", mime_type="audio/webm")
+        await MLService(_db()).dictate(
+            _ctx(), agent=agent, content=pcm_wav(1), mime_type="audio/wav"
+        )
 
     sent = transcribe.await_args.kwargs
     assert (sent["provider"], sent["model"], sent["language"]) == ("groq", "whisper-large-v3", "de")
@@ -726,7 +755,9 @@ async def test_an_agent_override_makes_dictation_work_where_the_org_has_no_pair(
             new=AsyncMock(return_value=_heard("ok")),
         ) as transcribe,
     ):
-        await MLService(_db()).dictate(_ctx(), agent=agent, content=b"a", mime_type="audio/webm")
+        await MLService(_db()).dictate(
+            _ctx(), agent=agent, content=pcm_wav(1), mime_type="audio/wav"
+        )
 
     assert transcribe.await_args.kwargs["model"] == "whisper-1"
     # The organization's language still applies where the agent pins none.
@@ -824,6 +855,42 @@ async def test_the_embed_form_learns_availability_without_the_chat_engine() -> N
     assert (status.ready, status.server_available, status.format) == (False, True, "wav")
 
 
+@pytest.mark.parametrize(
+    ("provider", "model", "accepts_compressed", "recorded_as"),
+    [
+        ("openai", "gpt-4o-transcribe", False, "wav"),
+        ("openai", "gpt-4o-transcribe", True, "webm"),
+        ("mistral", "voxtral-mini-latest", True, "wav"),
+        ("mistral", "voxtral-mini-latest", False, "wav"),
+    ],
+    ids=["pcm-by-default", "compressed-unlocked", "mistral-unlocked", "mistral"],
+)
+async def test_the_format_a_browser_records_in_follows_the_deployment_and_the_catalog(
+    compressed: AsyncMock, provider: str, model: str, accepts_compressed: bool, recorded_as: str
+) -> None:
+    """WAV unless the deployment accepts compressed audio and the provider
+    takes what `MediaRecorder` makes - one answer, for every client."""
+    compressed.return_value = accepts_compressed
+    with (
+        patch(
+            "app.services.ml.facade.organization_repo.get_by_id",
+            new=AsyncMock(
+                return_value=_speech_org(
+                    speech_to_text_provider=provider, speech_to_text_model=model
+                )
+            ),
+        ),
+        patch(
+            "app.services.ml.facade.TranscriptionService.credentialed_providers",
+            new=AsyncMock(return_value=frozenset({provider})),
+        ),
+    ):
+        status = await MLService(_db()).dictation_status(_ctx(), agent=_AGENT)
+        server = await MLService(_db()).server_dictation(_AGENT)
+
+    assert status.format == server.format == recorded_as
+
+
 async def test_a_visitors_dictation_is_recorded_against_its_surface_and_no_person(
     recorded: Any,
 ) -> None:
@@ -861,10 +928,11 @@ async def test_a_visitors_dictation_is_recorded_against_its_surface_and_no_perso
 
 
 async def test_a_visitors_recording_of_unknown_length_is_refused_before_the_provider(
-    recorded: Any,
+    recorded: Any, compressed: AsyncMock
 ) -> None:
     """On a public surface nothing but the length bounds a stranger's spend, so a
-    recording whose length cannot be read is not sent to be paid for."""
+    compressed recording whose length cannot be read is not sent to be paid for."""
+    compressed.return_value = True
     call = TranscriptionCall(organization_id=_ORG, surface="hosted", provider=None, model=None)
     with (
         patch(
@@ -892,9 +960,10 @@ async def test_a_visitors_recording_of_unknown_length_is_refused_before_the_prov
 
 
 async def test_a_members_recording_of_unknown_length_is_accepted_under_the_byte_cap(
-    recorded: Any,
+    recorded: Any, compressed: AsyncMock
 ) -> None:
     del recorded
+    compressed.return_value = True
     with (
         patch(
             "app.services.ml.facade.organization_repo.get_by_id",
@@ -915,10 +984,12 @@ async def test_a_members_recording_of_unknown_length_is_accepted_under_the_byte_
 
 @pytest.mark.parametrize("accept_unmeasured", [True, False], ids=["console", "embed"])
 async def test_a_recording_measured_over_the_limit_is_refused_before_the_provider(
-    recorded: Any, accept_unmeasured: bool
+    recorded: Any, compressed: AsyncMock, accept_unmeasured: bool
 ) -> None:
-    """Low-bitrate Opus: far under the byte cap, far over the length. The
-    measured length refuses it on every surface, and says what the limit is."""
+    """Low-bitrate Opus: far under the byte cap, far over the length. Where
+    compressed audio is accepted, the length its header states refuses it on
+    every surface, and says what the limit is."""
+    compressed.return_value = True
     recording = ogg_opus(10 + DICTATION_GRACE_SECONDS + 1)
     assert len(recording) < 10 * DICTATION_BYTES_PER_SECOND
     call = TranscriptionCall(organization_id=_ORG, surface="chat", provider=None, model=None)
@@ -948,9 +1019,12 @@ async def test_a_recording_measured_over_the_limit_is_refused_before_the_provide
     assert recorded.await_args.kwargs["audio_ms"] == (10 + DICTATION_GRACE_SECONDS + 1) * 1000
 
 
-async def test_a_recording_that_ran_a_tick_past_the_limit_is_transcribed(recorded: Any) -> None:
+async def test_a_compressed_recording_a_tick_past_the_limit_is_transcribed(
+    recorded: Any, compressed: AsyncMock
+) -> None:
     """The browser stops on a once-a-second tick, so a recording the limit stopped
     is a little over it - and must not be refused for that."""
+    compressed.return_value = True
     call = TranscriptionCall(organization_id=_ORG, surface="widget", provider=None, model=None)
     with (
         patch(
@@ -1065,11 +1139,42 @@ async def test_the_credentialed_providers_are_the_callers_organizations() -> Non
             "audio/webm",
             "not_configured",
         ),
-        (_speech_org(), b"", "audio/webm", "empty"),
+        (_speech_org(), b"", "audio/wav", "empty"),
         (_speech_org(), b"a", "audio/mpeg", "unsupported_type"),
-        (_speech_org(dictation_max_seconds=10), b"x" * (10 * 32_768 + 1), "audio/ogg", "too_large"),
+        (_speech_org(), ogg_opus(2), "audio/ogg", "unsupported_type"),
+        (_speech_org(), b"a", "audio/webm;codecs=opus", "unsupported_type"),
+        (_speech_org(), b"a", "audio/mp4", "unsupported_type"),
+        (_speech_org(), pcm_wav(1, channels=2), "audio/wav", "unsupported_type"),
+        (_speech_org(), pcm_wav(1, rate=48_000), "audio/wav", "unsupported_type"),
+        (_speech_org(), b"not a wav", "audio/wav", "unsupported_type"),
+        (_speech_org(), wav(wav_fmt(), wav_chunk(b"data", b"")), "audio/wav", "empty"),
+        (
+            _speech_org(dictation_max_seconds=10),
+            b"x"
+            * (
+                (10 + DICTATION_GRACE_SECONDS) * DICTATION_BYTES_PER_SECOND
+                + DICTATION_HEADER_ALLOWANCE
+                + 1
+            ),
+            "audio/wav",
+            "too_large",
+        ),
     ],
-    ids=["no-org", "browser-engine", "no-pair", "empty", "mp3", "over-the-limit"],
+    ids=[
+        "no-org",
+        "browser-engine",
+        "no-pair",
+        "empty",
+        "mp3",
+        "ogg-while-pcm-only",
+        "webm-while-pcm-only",
+        "mp4-while-pcm-only",
+        "stereo-wav",
+        "48-khz-wav",
+        "not-a-wav",
+        "no-samples",
+        "over-the-byte-cap",
+    ],
 )
 async def test_a_dictation_is_refused_with_a_reason_and_the_refusal_recorded(
     recorded: Any, org: SimpleNamespace | None, content: bytes, mime: str, reason: str
@@ -1095,7 +1200,7 @@ async def test_a_dictation_is_refused_with_a_reason_and_the_refusal_recorded(
     db.commit.assert_awaited()
 
 
-async def test_a_recording_exactly_at_the_limit_is_transcribed(recorded: Any) -> None:
+async def test_a_pcm_recording_at_the_limit_and_its_grace_is_transcribed(recorded: Any) -> None:
     del recorded
     with (
         patch(
@@ -1108,10 +1213,144 @@ async def test_a_recording_exactly_at_the_limit_is_transcribed(recorded: Any) ->
         ),
     ):
         text = await MLService(_db()).dictate(
-            _ctx(), agent=_AGENT, content=b"x" * (10 * 32_768), mime_type="audio/mp4"
+            _ctx(),
+            agent=_AGENT,
+            content=pcm_wav(10 + DICTATION_GRACE_SECONDS),
+            mime_type="audio/wav",
         )
 
     assert text == "ok"
+
+
+@pytest.mark.usefixtures("org_read")
+@pytest.mark.parametrize("accept_unmeasured", [True, False], ids=["console", "embed"])
+async def test_one_sample_past_the_limit_is_refused_before_the_provider(
+    recorded: Any, accept_unmeasured: bool
+) -> None:
+    """Raw PCM's length is its size, so the limit is exact: the samples are
+    counted, and the usage row says how long the refused recording was."""
+    over = 10 + DICTATION_GRACE_SECONDS + 1 / 16_000
+    call = TranscriptionCall(organization_id=_ORG, surface="hosted", provider=None, model=None)
+    with (
+        patch(
+            "app.services.ml.facade.TranscriptionService.transcribe", new=AsyncMock()
+        ) as transcribe,
+        pytest.raises(BadRequestError) as refused,
+    ):
+        await MLService(_db()).transcribe_dictation(
+            call,
+            organization=_speech_org(dictation_max_seconds=10),
+            agent=_AGENT,
+            content=pcm_wav(over),
+            mime_type="audio/wav",
+            accept_unmeasured=accept_unmeasured,
+        )
+
+    assert refused.value.details is not None
+    assert (refused.value.details["reason"], refused.value.details["limit_seconds"]) == (
+        "too_large",
+        10,
+    )
+    transcribe.assert_not_awaited()
+    assert recorded.await_args.kwargs["audio_ms"] == round(over * 1000)
+
+
+async def test_the_provider_is_sent_the_counted_samples_behind_a_header_of_our_own(
+    recorded: Any,
+) -> None:
+    """Whatever else the file carried - a chunk of metadata, a trailer - stays
+    here, and the length recorded is the samples' own, whatever the provider or
+    the browser says."""
+    samples = bytes(range(256)) * 250
+    posted = wav(
+        wav_chunk(b"LIST", b"INFOsomething"),
+        wav_fmt(),
+        wav_chunk(b"data", samples),
+        wav_chunk(b"junk", b"\xff" * 99),
+    )
+    with (
+        patch(
+            "app.services.ml.facade.organization_repo.get_by_id",
+            new=AsyncMock(return_value=_speech_org()),
+        ),
+        patch(
+            "app.services.ml.facade.TranscriptionService.transcribe",
+            new=AsyncMock(return_value=_heard("ok", 99.0)),
+        ) as transcribe,
+    ):
+        await MLService(_db()).dictate(
+            _ctx(), agent=_AGENT, content=posted, mime_type="audio/x-wav", reported_seconds=50.0
+        )
+
+    sent = transcribe.await_args.args[0]
+    assert sent.content == pcm.wrap(samples)
+    assert (sent.filename, sent.mime_type) == ("recording.wav", "audio/wav")
+    written = recorded.await_args.kwargs
+    assert written["audio_ms"] == 2000
+    assert written["input_bytes"] == len(posted)
+
+
+@pytest.mark.usefixtures("org_read")
+@pytest.mark.parametrize("accept_unmeasured", [True, False], ids=["console", "embed"])
+@pytest.mark.parametrize("mime", ["audio/webm;codecs=opus", "audio/ogg", "audio/mp4"])
+async def test_compressed_audio_is_refused_until_the_deployment_accepts_it(
+    recorded: Any, compressed: AsyncMock, mime: str, accept_unmeasured: bool
+) -> None:
+    """Off by default, on the console's route and on a public page's alike, and
+    the refusal says what is accepted; on, the same recording is transcribed."""
+    del recorded
+    call = TranscriptionCall(organization_id=_ORG, surface="chat", provider=None, model=None)
+
+    async def post() -> str:
+        return await MLService(_db()).transcribe_dictation(
+            call,
+            organization=_speech_org(),
+            agent=_AGENT,
+            content=ogg_opus(2),
+            mime_type=mime,
+            accept_unmeasured=accept_unmeasured,
+        )
+
+    with patch(
+        "app.services.ml.facade.TranscriptionService.transcribe",
+        new=AsyncMock(return_value=_heard("ok")),
+    ) as transcribe:
+        with pytest.raises(BadRequestError) as refused:
+            await post()
+        transcribe.assert_not_awaited()
+        compressed.return_value = True
+        text = await post()
+
+    assert refused.value.details is not None
+    assert refused.value.details["reason"] == "unsupported_type"
+    assert refused.value.details["accepted"] == ["audio/wav"]
+    assert text == "ok"
+    transcribe.assert_awaited_once()
+
+
+@pytest.mark.usefixtures("org_read")
+async def test_an_unlocked_deployment_says_it_accepts_every_type(
+    recorded: Any, compressed: AsyncMock
+) -> None:
+    del recorded
+    compressed.return_value = True
+    with pytest.raises(BadRequestError) as refused:
+        await MLService(_db()).transcribe_dictation(
+            TranscriptionCall(organization_id=_ORG, surface="chat", provider=None, model=None),
+            organization=_speech_org(),
+            agent=_AGENT,
+            content=b"ID3",
+            mime_type="audio/mpeg",
+            accept_unmeasured=True,
+        )
+
+    assert refused.value.details is not None
+    assert refused.value.details["accepted"] == [
+        "audio/mp4",
+        "audio/ogg",
+        "audio/wav",
+        "audio/webm",
+    ]
 
 
 @pytest.mark.parametrize(
@@ -1126,12 +1365,14 @@ async def test_a_recording_exactly_at_the_limit_is_transcribed(recorded: Any) ->
     ],
 )
 async def test_a_dictation_is_named_for_the_format_the_provider_reads(
-    recorded: Any, mime: str, filename: str, sent_type: str
+    recorded: Any, compressed: AsyncMock, mime: str, filename: str, sent_type: str
 ) -> None:
     """The provider reads the format from the file name. MP4 audio goes as
     `.m4a`, the name every OpenAI-compatible provider lists, and every name for
     WAV arrives as one type."""
     del recorded
+    compressed.return_value = True
+    content = pcm_wav(1) if sent_type == "audio/wav" else b"a"
     with (
         patch(
             "app.services.ml.facade.organization_repo.get_by_id",
@@ -1142,7 +1383,7 @@ async def test_a_dictation_is_named_for_the_format_the_provider_reads(
             new=AsyncMock(return_value=_heard("ok")),
         ) as transcribe,
     ):
-        await MLService(_db()).dictate(_ctx(), agent=_AGENT, content=b"a", mime_type=mime)
+        await MLService(_db()).dictate(_ctx(), agent=_AGENT, content=content, mime_type=mime)
 
     sent = transcribe.await_args.args[0]
     assert (sent.filename, sent.mime_type) == (filename, sent_type)
@@ -1151,7 +1392,7 @@ async def test_a_dictation_is_named_for_the_format_the_provider_reads(
 async def test_a_wav_recording_of_the_longest_dictation_fits_under_the_cap(
     recorded: Any,
 ) -> None:
-    """The composer records 16 kHz mono 16-bit WAV for Mistral: 32,000 bytes a
+    """Every browser records 16 kHz mono 16-bit WAV by default: 32,000 bytes a
     second and a 44-byte header, which a full-length recording must not exceed."""
     del recorded
     with (
@@ -1165,7 +1406,7 @@ async def test_a_wav_recording_of_the_longest_dictation_fits_under_the_cap(
         ) as transcribe,
     ):
         text = await MLService(_db()).dictate(
-            _ctx(), agent=_AGENT, content=b"x" * (300 * 32_000 + 44), mime_type="audio/wav"
+            _ctx(), agent=_AGENT, content=pcm_wav(300), mime_type="audio/wav"
         )
 
     assert text == "ok"
@@ -1188,7 +1429,7 @@ async def test_an_engine_refusal_during_dictation_is_recorded_and_re_raised(
         pytest.raises(ExternalServiceError) as caught,
     ):
         await MLService(_db()).dictate(
-            _ctx(), agent=_AGENT, content=b"a", mime_type="audio/ogg;codecs=opus"
+            _ctx(), agent=_AGENT, content=pcm_wav(1), mime_type="audio/wav"
         )
 
     assert caught.value is failure
@@ -1209,11 +1450,17 @@ async def test_an_engine_refusal_during_dictation_is_recorded_and_re_raised(
     ],
     ids=["provider-wins", "browser-fallback", "clamped-to-the-cap", "nobody-says"],
 )
-async def test_a_dictations_length_is_the_providers_else_the_browsers_clamped(
-    recorded: Any, provider_seconds: float | None, reported: float | None, audio_ms: int | None
+async def test_a_compressed_length_is_the_providers_else_the_browsers_clamped(
+    recorded: Any,
+    compressed: AsyncMock,
+    provider_seconds: float | None,
+    reported: float | None,
+    audio_ms: int | None,
 ) -> None:
-    """The browser's figure is client-reported: second to the provider's, and
-    never longer than the organization's longest dictation."""
+    """Where a compressed recording's length cannot be read, the browser's
+    figure is client-reported: second to the provider's, and never longer than
+    the organization's longest dictation."""
+    compressed.return_value = True
     with (
         patch(
             "app.services.ml.facade.organization_repo.get_by_id",
@@ -1231,7 +1478,10 @@ async def test_a_dictations_length_is_the_providers_else_the_browsers_clamped(
     assert recorded.await_args.kwargs["audio_ms"] == audio_ms
 
 
-async def test_a_refused_dictation_keeps_the_length_the_browser_reported(recorded: Any) -> None:
+async def test_a_refused_dictation_keeps_the_length_the_browser_reported(
+    recorded: Any, compressed: AsyncMock
+) -> None:
+    compressed.return_value = True
     failure = ExternalServiceError(message="m", details={"reason": "timeout", "stage": "engine"})
     with (
         patch(

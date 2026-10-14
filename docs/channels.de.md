@@ -1,5 +1,5 @@
 ---
-source_sha: "567a48de3031"
+source_sha: "f1f3406951be"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -798,9 +798,12 @@ wenn etwas schiefgeht. Seine Texte sind Englisch, wie der Rest des Widgets, und
 es hat kein Glow. Auf beiden landet der Text im Feld und wird nie von selbst
 gesendet; Enter beendet eine Aufnahme, und Escape verwirft sie.
 
-Das Aufnahmeformat folgt dem Provider, aus dem Speech-to-Text-Katalog des
-Backends: WebM, Ogg oder MP4, wie `MediaRecorder` es erzeugt, oder WAV mit 16 kHz
-und Mono für Mistral, das weder WebM noch Opus dokumentiert.
+Beide nehmen in dem Format auf, das der Server im `dictation_format` der
+öffentlichen Konfiguration ankündigt: WAV mit 16 kHz, Mono und 16-Bit-PCM, aus
+den Samples des Mikrofons gebaut, es sei denn, das Deployment
+[nimmt komprimiertes Audio an](deployment.md#what-a-dictation-may-be-uploaded-as)
+und der Provider nimmt, was `MediaRecorder` erzeugt - WebM, Ogg oder MP4.
+Mistral, das weder WebM noch Opus dokumentiert, bekommt in jedem Fall WAV.
 
 ### Der Endpoint { #the-endpoint }
 
@@ -818,8 +821,8 @@ in das es diktieren könnte, und bekommt 404.
 Ablehnungen tragen denselben `details.reason` wie die
 [Route des Eingabefelds](ml-services.md#dictation-in-chat): 400 `empty`,
 `unsupported_type` oder `too_large`, 503 `not_configured`, `provider_error` oder
-`timeout`. Anders als die Route des Eingabefelds lehnt diese eine Aufnahme, deren
-Länge sich nicht lesen lässt, als `unsupported_type` ab
+`timeout`. Anders als die Route des Eingabefelds lehnt diese eine komprimierte
+Aufnahme, deren Länge sich nicht lesen lässt, als `unsupported_type` ab
 ([unten](#what-it-costs-and-what-bounds-it)). Alles, was das Embed selbst betrifft - unbekannt, pausiert, nicht auf
 `server`, ein Origin, den es nicht erlaubt -, ist 404. Sobald ein Widget
 zugelassen ist, trägt jede Antwort seinen Origin in
@@ -845,15 +848,17 @@ Rest dieser Minute abgewiesen. Die Organisation kostet das nichts, weil kein
 Provider aufgerufen wird, aber es ist ein Weg, das Mikrofon einer Seite
 scheitern zu lassen.
 
-**Die Länge wird gemessen, nicht aus der Größe abgeleitet.** Bevor der Provider
-aufgerufen wird, liest der Server die Länge der Aufnahme aus ihrem Container -
-dem WAV-Header, der letzten Ogg-Seite, den Zeitstempeln der WebM-Blöcke, den
-Movie- oder Fragment-Headern von MP4 - und lehnt eine Aufnahme, die länger als
-`dictation_max_seconds` ist, als `too_large` ab, mit drei Sekunden Spielraum
-dafür, dass der Browser nur einmal pro Sekunde stoppt. Eine Aufnahme, deren
-Länge er nicht lesen kann, lehnt er als `unsupported_type` ab. Eine Byte-Grenze
-allein reicht nicht: Opus mit niedriger Bitrate bringt Stunden in den Bytes
-einer fünfminütigen Aufnahme unter.
+**Die Länge wird gemessen, bevor der Provider aufgerufen wird**, und eine
+Aufnahme, die länger als `dictation_max_seconds` ist, wird als `too_large`
+abgelehnt, mit drei Sekunden Spielraum dafür, dass der Browser nur einmal pro
+Sekunde stoppt. Standardmäßig ist eine Aufnahme rohes PCM, und ihre Länge ist
+ihre Größe - der Server zählt die Samples, also kann die Zahl nur stimmen. Wo
+das Deployment komprimiertes Audio annimmt, wird die Länge einer WebM-, Ogg-
+oder MP4-Aufnahme aus ihrem eigenen Header gelesen - der letzten Ogg-Seite, den
+Zeitstempeln der WebM-Blöcke, den Movie- oder Fragment-Headern von MP4 -, und
+eine, deren Länge sich nicht lesen lässt, wird als `unsupported_type`
+abgelehnt. Eine Byte-Grenze allein reicht nicht: Opus mit niedriger Bitrate
+bringt Stunden in den Bytes einer fünfminütigen Aufnahme unter.
 
 !!! danger "Der schlimmste Fall für einen geleakten oder öffentlichen Link"
 
@@ -865,11 +870,14 @@ einer fünfminütigen Aufnahme unter.
     Limit des Links, pausieren Sie das Embed, oder bleiben Sie bei `browser`, wo
     das zu viel ist.
 
-    Das gilt für jede Aufnahme, deren Container ihre wahre Länge angibt, wie es
-    jeder Browser tut. Eine von Hand gebaute Datei, die ihre Länge zu kurz
-    angibt, begrenzt stattdessen die Byte-Grenze, `dictation_max_seconds × 32 KB`,
-    die Audio mit niedriger Bitrate mit bis zu etwa vierzigmal so vielen Sekunden
-    füllen kann.
+    Mit dem Standard, rohem PCM, ist das exakt: Keine Datei kann mehr Sekunden
+    enthalten, als ihre Größe sagt. Wo das Deployment komprimiertes Audio
+    annimmt, gilt es nur für eine Datei, deren Header ihre wahre Länge angibt,
+    wie es jeder Browser tut. Eine von Hand gebaute Datei, die ihre Länge zu kurz
+    angibt, begrenzt stattdessen die Byte-Grenze - `dictation_max_seconds` plus
+    drei Sekunden zu 32.000 Bytes pro Sekunde -, die Audio mit niedriger Bitrate
+    mit bis zu etwa vierzigmal so vielen Sekunden füllen kann. Das ist das
+    Risiko, das der Administrator beim Einschalten in Kauf nimmt.
 
 Jeder Versuch, der den Provider erreicht, hinterlässt einen Nutzungsdatensatz mit
 der Oberfläche (`hosted` oder `widget`) und dem Agent, und **ohne Person**: ein

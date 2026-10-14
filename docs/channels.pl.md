@@ -1,5 +1,5 @@
 ---
-source_sha: "567a48de3031"
+source_sha: "f1f3406951be"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -749,9 +749,12 @@ teksty są po angielsku, jak reszta widgetu, i nie ma poświaty. Na obu tekst
 ląduje w polu i nigdy nie jest wysyłany sam; Enter zatrzymuje nagrywanie,
 a Escape je odrzuca.
 
-Format nagrania wynika z providera, według katalogu speech-to-text backendu:
-WebM, Ogg albo MP4 tak, jak tworzy je `MediaRecorder`, albo WAV 16 kHz mono dla
-Mistrala, który nie dokumentuje ani WebM, ani Opus.
+Oba nagrywają w formacie, który serwer ogłasza w polu `dictation_format`
+publicznej konfiguracji: WAV z 16-bitowym PCM 16 kHz mono, zbudowany z próbek
+mikrofonu, chyba że deployment
+[przyjmuje skompresowane audio](deployment.md#what-a-dictation-may-be-uploaded-as),
+a provider przyjmuje to, co tworzy `MediaRecorder` — WebM, Ogg albo MP4. Mistral,
+który nie dokumentuje ani WebM, ani Opus, dostaje WAV w każdym przypadku.
 
 ### Endpoint { #the-endpoint }
 
@@ -768,8 +771,8 @@ socket** nie ma do czego dyktować i dostaje odpowiedź 404.
 Odmowy niosą ten sam `details.reason` co
 [route composera](ml-services.md#dictation-in-chat): 400 `empty`,
 `unsupported_type` albo `too_large`, 503 `not_configured`, `provider_error` albo
-`timeout`. Inaczej niż route composera, ten odrzuca nagranie, którego długości
-nie da się odczytać, jako `unsupported_type`
+`timeout`. Inaczej niż route composera, ten odrzuca skompresowane nagranie,
+którego długości nie da się odczytać, jako `unsupported_type`
 ([niżej](#what-it-costs-and-what-bounds-it)). Wszystko, co dotyczy samego embeda — nieznany, zapauzowany, nie na
 `server`, origin, na który nie pozwala — to 404. Gdy widget zostanie wpuszczony,
 każda odpowiedź niesie jego origin w `Access-Control-Allow-Origin`, łącznie
@@ -792,12 +795,14 @@ wyczerpać jego dziesięć na minutę i zostawić odwiedzających stronę z odmo
 końca tej minuty. Organizację nic to nie kosztuje, bo żaden provider nie jest
 wywoływany, ale to sposób, żeby mikrofon na stronie przestał działać.
 
-**Długość jest mierzona, a nie wnioskowana z rozmiaru.** Zanim provider zostanie
-wywołany, serwer odczytuje długość nagrania z jego kontenera — nagłówka WAV,
-ostatniej strony Ogg, znaczników czasu bloków WebM, nagłówków filmu albo
-fragmentów MP4 — i odrzuca nagranie dłuższe niż `dictation_max_seconds` jako
-`too_large`, z trzema sekundami zapasu na zatrzymanie przez przeglądarkę raz na
-sekundę. Nagranie, którego długości nie da się odczytać, jest odrzucane jako
+**Długość jest mierzona, zanim provider zostanie wywołany**, a nagranie dłuższe
+niż `dictation_max_seconds` jest odrzucane jako `too_large`, z trzema sekundami
+zapasu na zatrzymanie przez przeglądarkę raz na sekundę. Domyślnie nagranie to
+surowy PCM, a jego długość to jego rozmiar — serwer liczy próbki, więc wynik nie
+może być nieprawdziwy. Gdy deployment przyjmuje skompresowane audio, długość
+nagrania WebM, Ogg albo MP4 jest odczytywana z jego własnego nagłówka — ostatniej
+strony Ogg, znaczników czasu bloków WebM, nagłówków filmu albo fragmentów MP4 —
+a nagranie, którego długości nie da się odczytać, jest odrzucane jako
 `unsupported_type`. Sam limit bajtów by nie wystarczył: Opus przy niskim
 bitrate mieści godziny w bajtach pięciominutowego nagrania.
 
@@ -810,11 +815,14 @@ bitrate mieści godziny w bajtach pięciominutowego nagrania.
     `dictation_max_seconds` albo limit linku, zapauzuj embed albo zostaw go na
     `browser`, gdy to za dużo.
 
-    To obowiązuje każde nagranie, którego kontener podaje prawdziwą długość, jak
-    robi to każda przeglądarka. Plik zbudowany ręcznie tak, by zaniżał swoją
-    długość, ogranicza zamiast tego limit bajtów, `dictation_max_seconds × 32 KB`,
-    który audio o niskim bitrate może wypełnić nawet około czterdziestokrotnie
-    większą liczbą sekund.
+    Przy domyślnym surowym PCM to wynik dokładny: żaden plik nie zmieści więcej
+    sekund, niż mówi jego rozmiar. Gdy deployment przyjmuje skompresowane audio,
+    obowiązuje to tylko plik, którego nagłówek podaje prawdziwą długość, jak robi
+    to każda przeglądarka. Plik zbudowany ręcznie tak, by zaniżał swoją długość,
+    ogranicza zamiast tego limit bajtów — `dictation_max_seconds` plus trzy
+    sekundy po 32 000 bajtów na sekundę — który audio o niskim bitrate może
+    wypełnić nawet około czterdziestokrotnie większą liczbą sekund. To ryzyko
+    administrator przyjmuje, włączając tę opcję.
 
 Każda próba, która dociera do providera, zostawia zapis zużycia z powierzchnią
 (`hosted` albo `widget`) i agentem, i **bez żadnej osoby**: odwiedzający nie

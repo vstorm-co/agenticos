@@ -26,11 +26,11 @@ Two things are versioned separately from this file and worth knowing about:
   Anyone who may run the agent may dictate to it. Refusals carry
   `details.reason`, each dictation is one `ml_service_calls` row, and the audio
   is not stored. A per-person `RATE_LIMIT_DICTATION_PER_MINUTE` (10) meters it on
-  its own counter. With Mistral the composer records 16 kHz WAV rather than
-  WebM or Opus, which Mistral does not document as input. An upload that takes
-  over a second shows its percentage before the transcribing sweep, and the
-  strip under the box says when a recording stopped at the organization's limit
-  and how many words it inserted - on a hosted page too.
+  its own counter. Every browser records 16 kHz mono 16-bit PCM WAV, the only
+  format accepted by default (see the Admin → Deployment switch below). An
+  upload that takes over a second shows its percentage before the transcribing
+  sweep, and the strip under the box says when a recording stopped at the
+  organization's limit and how many words it inserted - on a hosted page too.
   See [Dictation in chat](docs/ml-services.md#dictation-in-chat).
 - **A Voice card on the organization's Members page.** For `org:settings`
   holders: the dictation engine (Off, Browser or Server), the provider and model
@@ -84,18 +84,32 @@ Two things are versioned separately from this file and worth knowing about:
   its own, WAV encoder and resampler included. Switching Server on is refused
   while no provider and credential resolve, and a page or widget whose provider
   goes away offers no microphone. Rows record surface `hosted` or `widget` and
-  no person. Before the provider is called, the server reads each recording's
-  length from its container (WAV, Ogg, WebM, MP4) and refuses one over the
-  organization's longest dictation as `too_large`; a page or widget also
-  refuses one whose length it cannot read (`unsupported_type`), so the link's
-  limit times the longest dictation bounds the spend rather than a byte cap
-  that low-bitrate Opus fits hours into. The composer's route applies the same
-  length check and accepts an unreadable length under its byte cap. `RATE_LIMIT_EMBED_DICTATION_PER_MINUTE` (6, per address and per
+  no person. Before the provider is called, the server counts the recording's
+  samples and refuses one over the organization's longest dictation as
+  `too_large`, so the link's limit times the longest dictation bounds the
+  spend exactly. `RATE_LIMIT_EMBED_DICTATION_PER_MINUTE` (6, per address and per
   `jwt` visitor) and `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` (10, per
-  link) bound the spend. The recording format comes from the speech-to-text
-  catalog, as `format` on `GET /api/v1/agents/{agent_id}/dictation` with
-  `server_available` beside it. See
+  link) bound the spend. The recording format is the server's to say, as
+  `format` on `GET /api/v1/agents/{agent_id}/dictation` with
+  `server_available` beside it, and as `dictation_format` in a page's or a
+  widget's public config. See
   [Dictation on a widget or a hosted page](docs/channels.md#dictation-on-a-widget-or-a-hosted-page).
+- **Dictation is raw PCM unless the deployment accepts compressed audio
+  (#1797).** By default every dictation - composer, hosted page and widget - is
+  WAV holding 16 kHz mono 16-bit PCM, read strictly: any other WAV, and WebM,
+  Ogg or MP4, is refused as `unsupported_type`, with `details.accepted`. Its
+  length is its size, so the samples are counted, refused over the longest
+  dictation before the provider is called, recorded exactly, and sent behind a
+  header the server builds. A **Dictation audio** card on Admin → Deployment
+  turns on `dictation_compressed_audio`
+  (`0110_dictation_compressed_audio.py`, off), after a dialog naming the risk
+  and an acknowledgement: compressed formats are then accepted too, their
+  length read from the file's header, which a crafted file can understate up to
+  about forty times within the byte cap; a page or widget still refuses one
+  whose length it cannot read, and the composer accepts it under the byte cap.
+  Browsers record WebM only where it is on and the provider takes it - Mistral
+  stays on WAV. See
+  [What a dictation may be uploaded as](docs/deployment.md#what-a-dictation-may-be-uploaded-as).
 - **An Appearance card under Settings → Profile** with the theme, a **Voice
   glow** preference - Vivid, Subtle (the default) or Off, per browser, and no
   glow under reduced motion - and a per-browser **Motion** preference: System

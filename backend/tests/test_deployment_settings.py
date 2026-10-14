@@ -63,6 +63,7 @@ def a_row(**overrides) -> DeploymentSettings:
         maintenance_mode=False,
         maintenance_message=None,
         notify_impersonated_users=False,
+        dictation_compressed_audio=False,
     )
     row.created_at = WRITTEN
     row.updated_at = None
@@ -319,6 +320,66 @@ class TestTellingAnImpersonatedPerson:
         branding = await DeploymentSettingsService(mock_db_session).branding()
 
         assert "notify_impersonated_users" not in branding.model_dump()
+
+
+class TestAcceptingCompressedDictation:
+    """A risk the administrator takes on the settings page, never a default (#1797)."""
+
+    async def test_an_unconfigured_deployment_takes_raw_pcm_alone(self, mock_db_session, repo):
+        repo.get.return_value = None
+
+        service = DeploymentSettingsService(mock_db_session)
+        assert await service.accepts_compressed_dictation() is False
+        assert (await service.read()).dictation_compressed_audio is False
+        repo.upsert.assert_not_called()
+
+    async def test_it_is_off_until_somebody_turns_it_on(self, mock_db_session, repo):
+        repo.get.return_value = a_row()
+
+        assert (
+            await DeploymentSettingsService(mock_db_session).accepts_compressed_dictation() is False
+        )
+
+    async def test_a_deployment_that_turned_it_on_says_so(self, mock_db_session, repo):
+        repo.get.return_value = a_row(dictation_compressed_audio=True)
+
+        service = DeploymentSettingsService(mock_db_session)
+        assert await service.accepts_compressed_dictation() is True
+        assert (await service.read()).dictation_compressed_audio is True
+
+    async def test_it_is_not_on_the_public_branding(self, mock_db_session, repo):
+        repo.get.return_value = a_row(dictation_compressed_audio=True)
+
+        branding = await DeploymentSettingsService(mock_db_session).branding()
+
+        assert "dictation_compressed_audio" not in branding.model_dump()
+
+    async def test_turning_it_on_is_written_and_audited_by_name(
+        self, mock_db_session, repo, monkeypatch
+    ):
+        recorded = AsyncMock()
+        monkeypatch.setattr(module, "record_audit", recorded)
+
+        await DeploymentSettingsService(mock_db_session).update(
+            actor_user_id=uuid4(), data=DeploymentSettingsUpdate(dictation_compressed_audio=True)
+        )
+
+        assert repo.upsert.await_args.kwargs["update_data"] == {"dictation_compressed_audio": True}
+        assert recorded.await_args.kwargs["details"] == {"fields": ["dictation_compressed_audio"]}
+
+    async def test_a_null_never_reaches_the_column(self, mock_db_session, repo):
+        """NOT NULL, so `null` is "not provided" rather than a third answer."""
+        data = DeploymentSettingsUpdate.model_validate(
+            {"app_name": "Acme", "dictation_compressed_audio": None}
+        )
+
+        await DeploymentSettingsService(mock_db_session).update(actor_user_id=uuid4(), data=data)
+
+        assert repo.upsert.await_args.kwargs["update_data"] == {"app_name": "Acme"}
+
+    def test_only_a_boolean_is_accepted(self):
+        with pytest.raises(ValidationError):
+            DeploymentSettingsUpdate.model_validate({"dictation_compressed_audio": "sometimes"})
 
 
 class TestTheAdministratorsView:

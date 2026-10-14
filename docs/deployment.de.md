@@ -1,5 +1,5 @@
 ---
-source_sha: "11e8f02699df"
+source_sha: "c1baa442db48"
 ---
 
 # Das Deployment selbst { #the-deployment-itself }
@@ -541,6 +541,33 @@ Null wird vom Schema abgelehnt: ein Konto, das keine Organisation besitzen darf,
 ist ein Konto, das nicht angelegt werden kann, denn die Anmeldung gibt jedem von
 ihnen eine persönliche Organisation.
 
+## In welchem Format ein Diktat hochgeladen werden darf { #what-a-dictation-may-be-uploaded-as }
+
+`dictation_compressed_audio`, **standardmäßig aus**, entscheidet über das Format
+jedes [Diktats](ml-services.md#dictation-in-chat) im Deployment — im Eingabefeld
+von `/chat`, auf gehosteten Seiten und in Widgets, in jeder Organisation. Aus
+nimmt der Server ein Format an: WAV mit 16 kHz, Mono und 16-Bit-PCM, das jeder
+Browser aufnimmt. Seine Länge ist seine Größe, 32.000 Bytes pro Sekunde, der
+Server zählt also die Samples, und das längste Diktat begrenzt exakt, was eine
+Aufnahme kostet.
+
+Ein werden zusätzlich WebM, Ogg und MP4 angenommen, und Uploads sind etwa achtmal
+kleiner. Ihre Länge wird aus dem eigenen Header der Datei gelesen, den eine von
+Hand gebaute Datei zu kurz angeben kann: Ein Diktat kann dann innerhalb der
+Größengrenze bis zu etwa vierzigmal das längste Diktat tragen. Auf einer
+[öffentlichen Seite oder in einem Widget](channels.md#what-it-costs-and-what-bounds-it)
+kann jeder, der den Link hat, eines senden, abgerechnet über das Provider-Konto
+der Organisation und außerhalb jedes Budgets.
+
+Deshalb fragt der Schalter auf `/admin/settings` zuerst. Das Einschalten öffnet
+einen Dialog, der diese Risiken benennt, und aktiviert dessen
+Bestätigungsschaltfläche erst, wenn ein Kästchen angehakt ist, das bestätigt,
+dass sie gelesen wurden; das Ausschalten fragt nichts. In beiden Fällen wird er
+mit dem Rest des Formulars gespeichert und wie jedes andere Feld auditiert.
+Browser folgen ihm, sobald eine Seite das nächste Mal fragt: Das Format, in dem
+sie aufnehmen, ist das, das der Server ankündigt, nie eine im Client gepflegte
+Liste.
+
 ## Die Zeile { #the-row }
 
 Eine Zeile für die gesamte Installation, von der Datenbank bewacht statt von einer
@@ -608,5 +635,8 @@ es behoben ist, was der Zeitpunkt ist, an dem das Modul verschwindet.
   Zwischenablage, in einem Banner benannt, beendet vom Administrator, davon, dass
   die Person sich überall abmeldet, oder von der Stunde. Ob die Person informiert
   wird, ist `notify_impersonated_users`, standardmäßig aus.
+- Diktieren ist **rohes PCM, es sei denn, `dictation_compressed_audio` ist an**,
+  was ein Administrator erst nach einem Dialog einschaltet, der benennt, was es
+  kostet.
 - Jede Ablehnung dieses Deployments sieht gleich aus, welche Schicht sie auch
   erzeugt hat.

@@ -24,10 +24,11 @@ export type MembershipSource = "manual" | "directory";
 export type DictationEngine = "off" | "browser" | "server";
 
 /**
- * What the browser records a dictation in: `webm` is whatever `MediaRecorder`
- * makes, `wav` is 16 kHz mono PCM the page builds itself. The backend's
- * speech-to-text catalog decides which, per provider, so the composer, the
- * hosted page and the widget never keep a list of their own.
+ * What the browser records a dictation in: `wav` is 16 kHz mono 16-bit PCM the
+ * page builds itself, and the default; `webm` is whatever `MediaRecorder` makes,
+ * sent only where the deployment accepts compressed audio and the provider
+ * takes it. The backend decides which, so the composer, the hosted page and the
+ * widget never keep a list of their own.
  */
 export type RecordingFormat = "webm" | "wav";
 

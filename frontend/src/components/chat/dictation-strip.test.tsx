@@ -285,7 +285,7 @@ describe("dictationHint", () => {
     [
       "an audio format the server refuses",
       { state: { phase: "failed", reason: "unsupported_type" } },
-      /The server takes WebM, Ogg, MP4 or WAV audio\./,
+      /isn.t in a format the server accepts\./,
       ["Dismiss"],
     ],
     [

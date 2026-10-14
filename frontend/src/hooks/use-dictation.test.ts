@@ -263,7 +263,7 @@ describe("useDictation", () => {
 
     await record(view);
 
-    expect(lastRecorder().options).toEqual({ mimeType: expected, audioBitsPerSecond: 128_000 });
+    expect(lastRecorder().options).toEqual({ mimeType: expected, audioBitsPerSecond: 32_000 });
     expect(lastRecorder().timeslice).toBe(250);
     expect(lastRecorder().stream).toBe(stream);
   });

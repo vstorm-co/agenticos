@@ -1,5 +1,5 @@
 ---
-source_sha: "beb8db937ad9"
+source_sha: "27ed479dcdc5"
 ---
 
 # Seguridad { #security }
@@ -56,7 +56,7 @@ cada una es una frontera por la que preguntará la revisión de un cliente.
 | Servidores MCP | Llamadas a herramientas y sus argumentos | Solo para las herramientas a las que el agent está ligado |
 | Un proveedor de búsqueda web (Tavily, DuckDuckGo) | La consulta de búsqueda | Solo cuando se concede la capability de búsqueda |
 | Un proveedor de embeddings | El texto del documento, en la ingesta | Solo para una base de conocimiento cuyo proveedor sea remoto |
-| Un proveedor de speech-to-text | Una grabación: una nota de voz de un canal, un dictado en `/chat`, o la de un visitante en una página alojada o un widget en `server` | Cada vez que se transcribe una. El dictado de un visitante es anónimo y queda fuera de todo budget de modelo, así que lo que lo limita es el rate limit del enlace por el dictado más largo, con la duración de cada grabación leída de ella y rechazada por encima del límite antes de enviarla - [canales](channels.md#dictation-on-a-widget-or-a-hosted-page) calcula el peor caso y lo que todavía puede hacer un archivo hecho a mano. Con `browser`, el navegador del visitante envía el audio a su propio fabricante en su lugar, y nada pasa por aquí |
+| Un proveedor de speech-to-text | Una grabación: una nota de voz de un canal, un dictado en `/chat`, o la de un visitante en una página alojada o un widget en `server` | Cada vez que se transcribe una. El dictado de un visitante es anónimo y queda fuera de todo budget de modelo, así que lo que lo limita es el rate limit del enlace por el dictado más largo. Por defecto un dictado es PCM en crudo cuyas muestras se cuentan y que se rechaza por encima del límite antes de enviarlo, así que ese límite es exacto; un despliegue que [acepta audio comprimido](deployment.md#what-a-dictation-may-be-uploaded-as) lee la duración de la cabecera del archivo, que un archivo hecho a mano puede declarar por debajo - [canales](channels.md#dictation-on-a-widget-or-a-hosted-page) calcula el peor caso en ambos casos. Con `browser`, el navegador del visitante envía el audio a su propio fabricante en su lugar, y nada pasa por aquí |
 
 ## Qué se cifra y dónde { #what-is-encrypted-where }
 
@@ -242,6 +242,7 @@ Encuadrado frente a las salvaguardas técnicas de HIPAA §164.312 y SOC 2 CC6–
 | HTTPS y HSTS | Terminados en el reverse proxy — el `nginx/nginx.conf` incluido pone HSTS; la aplicación no, por diseño | Asunto del deployment; ver la lista de endurecimiento |
 | Las páginas escritas por agents no pueden alcanzar la consola | Un [artefacto](artifacts.md) publicado se sirve desde una ruta sin cookies tras un token firmado de vida corta, bajo `Content-Security-Policy: sandbox` sin `allow-same-origin` — un origen opaco — ni `allow-popups`, más `connect-src 'none'`, ninguna fuente remota salvo la ruta de bibliotecas del propio despliegue, y `frame-ancestors` nombrando solo la consola (y, para una página pública que se puede incrustar, el documento de incrustación y los sitios listados); un enlace de la página se abre solo después de que una persona confirme su dirección; opcionalmente desde su propio dominio registrable (`ARTIFACT_ORIGIN`) | `test_artifact_routes.py::TestTheContentRoute`, `test_artifact_service.py::TestThePolicy`, `test_artifact_pages.py`, `artifacts.test.tsx`, `csp.test.ts` |
 | Límites de peticiones en las superficies públicas | Límites sobre Redis en la API de runs, el widget embed, las páginas alojadas, los enlaces públicos de artefactos y sus direcciones de contenido firmadas (`app/services/rate_limit.py`); límites por remitente en los bots de canal (`app/services/channels/router.py`) | `test_rate_limited_surfaces.py`; el límite del bot de canal está implementado, pero poco testeado |
+| Un dictado cuesta como mucho su duración máxima | Por defecto solo WAV PCM de 16 bits, mono y 16 kHz: leído de forma estricta, con sus muestras contadas y rechazado por encima de `dictation_max_seconds` antes de llamar al proveedor, y enviado tras una cabecera que construye el servidor (`app/services/ml/pcm_wav.py`, `MLService.transcribe_dictation`). WebM, Ogg y MP4 solo cuando un app admin activa `dictation_compressed_audio`, tras un diálogo que nombra el riesgo | `test_pcm_wav.py`, `test_ml_service.py`, `dictation-audio-card.integration.test.tsx` |
 
 ### Los rechazos como conjunto { #the-refusals-as-a-set }
 

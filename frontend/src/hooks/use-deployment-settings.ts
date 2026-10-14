@@ -42,6 +42,12 @@ export interface DeploymentSettings extends BrandingResponse {
    * impersonation either way.
    */
   notify_impersonated_users: boolean;
+  /**
+   * Whether dictation accepts WebM, Ogg and MP4 as well as raw PCM WAV. Off
+   * until an administrator accepts the risk: a compressed file states its own
+   * length, and one built by hand can understate it.
+   */
+  dictation_compressed_audio: boolean;
   updated_at: string | null;
 }
 
@@ -61,6 +67,7 @@ export interface DeploymentSettingsPatch {
   max_organizations_per_user?: number | null;
   max_agents_per_organization?: number | null;
   notify_impersonated_users?: boolean;
+  dictation_compressed_audio?: boolean;
 }
 
 /** Which of the two marks an upload replaces. */

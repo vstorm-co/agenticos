@@ -1505,7 +1505,7 @@ def _published_agent(**overrides) -> MagicMock:
     return agent
 
 
-def _server(available: bool = True, fmt: str = "webm") -> ServerDictation:
+def _server(available: bool = True, fmt: str = "wav") -> ServerDictation:
     return ServerDictation(available=available, provider="openai", format=fmt)
 
 
@@ -1638,15 +1638,16 @@ class TestWhatAVisitorIsToldAboutTheMicrophone:
             ),
             patch(
                 f"{MODULE}.MLService.server_dictation",
-                new=AsyncMock(return_value=_server(fmt="wav")),
+                new=AsyncMock(return_value=_server(fmt="webm")),
             ),
         ):
             config = await _service().page_config(embed)
 
+        # The format is `server_dictation`'s to decide, deployment setting and all.
         assert (config.dictation, config.dictation_max_seconds, config.dictation_format) == (
             "server",
             90,
-            "wav",
+            "webm",
         )
 
     @pytest.mark.anyio
@@ -1677,7 +1678,7 @@ class TestWhatAVisitorIsToldAboutTheMicrophone:
         ):
             config = await _service().public_config(embed)
 
-        assert config.dictation == "off"
+        assert (config.dictation, config.dictation_format) == ("off", "wav")
 
     @pytest.mark.anyio
     async def test_browser_is_sent_without_reading_the_organization(self):
@@ -1689,6 +1690,8 @@ class TestWhatAVisitorIsToldAboutTheMicrophone:
             config = await _service().public_config(embed)
 
         assert config.dictation == "browser"
+        # Nothing assumes WebM: the format nobody records in is still PCM's.
+        assert config.dictation_format == "wav"
         organization.assert_not_awaited()
 
 

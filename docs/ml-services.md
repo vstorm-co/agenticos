@@ -167,7 +167,7 @@ all, in its message.
 |---|---|---|
 | `not_configured` | 503 | No usable credential for the provider; for dictation, also server dictation not set up |
 | `empty` | 400 | The engine heard no speech, or the recording has no bytes |
-| `unsupported_type` | 400 | Dictation only: the recording is not WebM, Ogg, MP4 or WAV audio, or - on a hosted page or a widget - its length cannot be read |
+| `unsupported_type` | 400 | Dictation only: the recording is not 16 kHz mono 16-bit PCM WAV - or, where the deployment accepts compressed audio, WebM, Ogg or MP4 - or, on a hosted page or a widget, a compressed recording's length cannot be read. `details.accepted` lists the types accepted |
 | `too_large` | 400 | Over 25 MB, or over the organization's dictation cap in bytes or in measured length; `details.limit_seconds` names the limit |
 | `provider_error` | 503 | The provider refused or failed the request |
 | `timeout` | 503 | The provider did not answer within 60 seconds |
@@ -203,52 +203,63 @@ opened; `ready` is that, the `server` engine and the agent not being archived. T
 is not gated by the `/chat` engine.
 
 `provider` is the one a recording would reach, and `format` what to record in
-for it - `webm` or `wav`, from the speech-to-text catalog, so no client keeps a
-list of its own. An agent with nothing published answers from the
-organization's settings.
+for it: `wav`, unless the deployment
+[accepts compressed audio](deployment.md#what-a-dictation-may-be-uploaded-as)
+and the speech-to-text catalog says the provider takes what `MediaRecorder`
+makes, in which case `webm`. Decided here, so no client keeps a list of its own.
+An agent with nothing published answers from the organization's settings.
 
-The recording has to be `audio/webm`, `audio/ogg`, `audio/mp4` or `audio/wav`,
-a codec suffix allowed, with `audio/x-wav` and `audio/wave` read as `audio/wav`,
-`audio/x-m4a` and `audio/m4a` as `audio/mp4`, and `audio/opus` and `audio/x-ogg`
-as `audio/ogg`.
-The first three are what browsers' `MediaRecorder` produces; the composer
-records WAV itself when `format` says `wav`, which the catalog says for Mistral
-(see the note below). The
-provider receives the recording as `recording.webm`, `recording.ogg`,
-`recording.m4a` or `recording.wav`, from the same table that names a channel
-voice note `voice.<ext>`.
+**By default a dictation is raw PCM**: `audio/wav` (or `audio/x-wav`,
+`audio/wave`) holding 16 kHz, mono, 16-bit integer PCM, which every browser
+records from Web Audio. The file is read strictly - one `fmt ` chunk saying
+exactly that, one `data` chunk of whole samples, sizes that agree with the file -
+and any other WAV, a stereo, 48 kHz, 24-bit or float one included, is refused as
+`unsupported_type`. The provider is sent the counted samples behind a header
+the server builds, never the caller's header or any other chunk the file held,
+as `recording.wav`.
 
-The route reads at most 25 MB of the body; the organization's byte cap,
-`dictation_max_seconds × 32 KB`, is applied to what was read. A body the
+Where the deployment accepts compressed audio, `audio/webm`, `audio/ogg` and
+`audio/mp4` are accepted too, a codec suffix allowed, with `audio/x-m4a` and
+`audio/m4a` read as `audio/mp4`, and `audio/opus` and `audio/x-ogg` as
+`audio/ogg`. They are what browsers' `MediaRecorder` produces, and the provider
+receives them as `recording.webm`, `recording.ogg` or `recording.m4a`, from the
+same table that names a channel voice note `voice.<ext>`.
+
+The route reads at most 25 MB of the body; the organization's byte cap - the
+bytes `dictation_max_seconds` plus three seconds of PCM take, 32,000 a second,
+and 4 KB for the container - is applied to what was read. A body the
 deployment's request limit refuses before the route runs answers 413 without a
 `reason`, which the composer reads as `too_large`.
 
-Then the recording's **length is read from its container** - the WAV header, the last
-Ogg page, the WebM block timestamps, the MP4 movie or fragment headers - and a
-recording longer than `dictation_max_seconds` is refused as `too_large` before
-the provider is called, with three seconds' grace because the composer stops on
-a once-a-second tick. A recording whose length cannot be read is accepted here,
-under the byte cap; a [hosted page or a widget](channels.md#what-it-costs-and-what-bounds-it)
-refuses one.
+Then the **length is measured** before the provider is called, and a recording
+longer than `dictation_max_seconds` is refused as `too_large`, with three
+seconds' grace because the composer stops on a once-a-second tick. For PCM the
+length is the samples counted, exactly. A compressed recording's is read from
+its own header - the last Ogg page, the WebM block timestamps, the MP4 movie or
+fragment headers - which a file built by hand can understate. One whose length
+cannot be read is accepted here, under the byte cap; a
+[hosted page or a widget](channels.md#what-it-costs-and-what-bounds-it) refuses one.
 
 Each person may dictate `RATE_LIMIT_DICTATION_PER_MINUTE` times a minute, 10 by
 default, on a counter of its own, so dictating does not spend an integration's
 ML quota. Every dictation leaves one [call record](#what-is-recorded), under
-`speech_to_text` and counted in seconds of audio. The composer sends the length
-it recorded as a `duration` form field beside `file`. **The audio is never stored**: it is
-discarded when the call returns, and the text exists only in the response.
-Cancelling in the browser does not cancel a recording already sent — the
-provider still transcribes it, bills the organization's account for it, and the
-call is recorded.
+`speech_to_text` and counted in seconds of audio - for PCM, the length counted.
+The composer sends the length it recorded as a `duration` form field beside
+`file`, used only for a compressed recording nothing else states a length for.
 
-!!! note "On Mistral the browser records WAV, and fewer languages are transcribed"
+**The audio is never stored**: it is discarded when the call returns, and the
+text exists only in the response. Cancelling in the browser does not cancel a
+recording already sent — the provider still transcribes it, bills the
+organization's account for it, and the call is recorded.
+
+!!! note "On Mistral the browser records WAV always, and fewer languages are transcribed"
 
     Mistral documents WAV and MP3 input for Voxtral, not WebM or Opus, which is
     what Chrome and Firefox record. So when the provider a recording resolves to
     is Mistral, the composer records 16 kHz mono 16-bit WAV in every browser
-    instead. The upload is about twice as large — 32,000 bytes a
-    second — but the length limit is the same, because a WAV recording of
-    `dictation_max_seconds` fits under the cap.
+    even where the deployment accepts compressed audio. A PCM upload is about
+    twice the size of the WebM it replaces - 32,000 bytes a second - and the
+    length limit is the same.
 
     The language list is Whisper's, which OpenAI and Groq accept. Mistral states
     13 languages for Voxtral, so a pinned language it does not take comes back

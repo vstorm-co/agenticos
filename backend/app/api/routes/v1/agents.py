@@ -547,8 +547,9 @@ async def dictation_status(agent_id: UUID, registry: AgentRegistrySvc, ml: MLSvc
     The same access as dictating: anyone who may run the agent, a grant included,
     and a 404 for an agent the caller may not run. Read before the microphone is
     offered, so nobody records only to be refused, and for the format to record
-    in - Mistral takes WAV where the others take WebM. `server_available` is the
-    same answer without the `/chat` engine, for the embed form.
+    in - WAV, unless the deployment accepts compressed audio and the provider
+    takes WebM. `server_available` is the same answer without the `/chat`
+    engine, for the embed form.
 
     An agent with nothing published answers from the organization's settings,
     never with a refusal.
@@ -580,7 +581,8 @@ async def dictate_into_composer(
     file: UploadFile = File(
         ...,
         description=(
-            "The recording: WebM, Ogg or MP4 audio as the browser's MediaRecorder made it, or WAV"
+            "The recording: WAV holding 16 kHz mono 16-bit PCM, or - where the deployment "
+            "accepts compressed audio - WebM, Ogg or MP4 as the browser's MediaRecorder made it"
         ),
     ),
     duration: float | None = Form(

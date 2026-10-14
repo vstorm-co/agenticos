@@ -1,5 +1,5 @@
 ---
-source_sha: "cb4976d8aeea"
+source_sha: "351a53639a63"
 ---
 
 # Los servicios de ML { #the-ml-services }
@@ -175,7 +175,7 @@ su mensaje la URL de la petición, clave incluida.
 |---|---|---|
 | `not_configured` | 503 | No hay credenciales utilizables para el proveedor; en el dictado, también que el dictado en servidor no está configurado |
 | `empty` | 400 | El motor no oyó voz, o la grabación no tiene bytes |
-| `unsupported_type` | 400 | Solo dictado: la grabación no es audio WebM, Ogg, MP4 ni WAV, o - en una página alojada o un widget - no se puede leer su duración |
+| `unsupported_type` | 400 | Solo dictado: la grabación no es WAV PCM de 16 bits, mono y 16 kHz - ni, donde el despliegue acepta audio comprimido, WebM, Ogg o MP4 -, o, en una página alojada o un widget, no se puede leer la duración de una grabación comprimida. `details.accepted` enumera los tipos aceptados |
 | `too_large` | 400 | Más de 25 MB, o por encima del límite de dictado de la organización en bytes o en duración medida; `details.limit_seconds` indica el límite |
 | `provider_error` | 503 | El proveedor rechazó la petición o falló al atenderla |
 | `timeout` | 503 | El proveedor no respondió en 60 segundos |
@@ -213,53 +213,69 @@ archivado. El formulario del embed lee
 no depende del motor de `/chat`.
 
 `provider` es aquel al que llegaría una grabación, y `format` en qué grabar para
-él — `webm` o `wav`, según el catálogo de speech-to-text, así que ningún cliente
+él: `wav`, salvo que el despliegue
+[acepte audio comprimido](deployment.md#what-a-dictation-may-be-uploaded-as)
+y el catálogo de speech-to-text diga que el proveedor admite lo que produce
+`MediaRecorder`, en cuyo caso `webm`. Se decide aquí, así que ningún cliente
 mantiene una lista propia. Un agent sin nada publicado responde con los ajustes
 de la organización.
 
-La grabación tiene que ser `audio/webm`, `audio/ogg`, `audio/mp4` o
-`audio/wav`, con sufijo de códec permitido, y `audio/x-wav` y `audio/wave` se
-leen como `audio/wav`, `audio/x-m4a` y `audio/m4a` como `audio/mp4`, y
-`audio/opus` y `audio/x-ogg` como `audio/ogg`. Los tres primeros son lo que produce el `MediaRecorder`
-de los navegadores; el WAV lo graba el propio cuadro de mensaje cuando `format`
-dice `wav`, que es lo que dice el catálogo para Mistral (ver la nota más abajo). El proveedor recibe la grabación
-como `recording.webm`, `recording.ogg`, `recording.m4a` o `recording.wav`,
+**Por defecto un dictado es PCM en crudo**: `audio/wav` (o `audio/x-wav`,
+`audio/wave`) con PCM entero de 16 bits, mono y 16 kHz, que cualquier navegador
+graba desde Web Audio. El archivo se lee de forma estricta - un único chunk
+`fmt ` que diga exactamente eso, un único chunk `data` de muestras completas,
+tamaños que cuadren con el archivo - y cualquier otro WAV, uno estéreo, de
+48 kHz, de 24 bits o de coma flotante incluido, se rechaza como
+`unsupported_type`. Al proveedor se le envían las muestras contadas tras una
+cabecera que construye el servidor, nunca la cabecera del cliente ni ningún otro
+chunk que tuviera el archivo, como `recording.wav`.
+
+Donde el despliegue acepta audio comprimido, se aceptan también `audio/webm`,
+`audio/ogg` y `audio/mp4`, con sufijo de códec permitido, y `audio/x-m4a` y
+`audio/m4a` se leen como `audio/mp4`, y `audio/opus` y `audio/x-ogg` como
+`audio/ogg`. Son lo que produce el `MediaRecorder` de los navegadores, y el
+proveedor los recibe como `recording.webm`, `recording.ogg` o `recording.m4a`,
 según la misma tabla que nombra `voice.<ext>` a una nota de voz de un canal.
 
-La ruta lee como mucho 25 MB del cuerpo; el límite de bytes de la organización,
-`dictation_max_seconds × 32 KB`, se aplica a lo leído. Un cuerpo que el límite
+La ruta lee como mucho 25 MB del cuerpo; el límite de bytes de la organización -
+los bytes que ocupan `dictation_max_seconds` más tres segundos de PCM, 32.000 por
+segundo, y 4 KB para el contenedor - se aplica a lo leído. Un cuerpo que el límite
 de peticiones del despliegue rechaza antes de que la ruta se ejecute recibe un
 413 sin `reason`, que el cuadro de mensaje lee como `too_large`.
 
-Después **la duración de
-la grabación se lee de su contenedor** - la cabecera WAV, la última página Ogg,
-las marcas de tiempo de los bloques WebM, las cabeceras de película o de
-fragmento de MP4 - y una grabación más larga que `dictation_max_seconds` se
-rechaza como `too_large` antes de llamar al proveedor, con tres segundos de
-margen porque el cuadro de mensaje la detiene en un ciclo de un segundo. Una
-grabación cuya duración no se puede leer se acepta aquí, dentro del límite de
-bytes; [una página alojada o un widget](channels.md#what-it-costs-and-what-bounds-it)
+Después **se mide la duración** antes de llamar al proveedor, y una grabación
+más larga que `dictation_max_seconds` se rechaza como `too_large`, con tres
+segundos de margen porque el cuadro de mensaje la detiene cada segundo. En PCM
+la duración son las muestras contadas, exactamente. La de una grabación comprimida se lee de su propia cabecera - la última página Ogg, las
+marcas de tiempo de los bloques WebM, las cabeceras de película o de fragmento
+de MP4 -, que un archivo hecho a mano puede falsear a la baja. Una cuya
+duración no se puede leer se acepta aquí, dentro del límite de bytes;
+[una página alojada o un widget](channels.md#what-it-costs-and-what-bounds-it)
 la rechaza.
 
 Cada persona puede dictar `RATE_LIMIT_DICTATION_PER_MINUTE` veces por minuto, 10
 por defecto, en un contador propio, así que dictar no gasta la cuota de ML de una
 integración. Cada dictado deja un [registro de llamada](#what-is-recorded), bajo
-`speech_to_text` y contado en segundos de audio. El compositor envía la duración
-que grabó como campo de formulario `duration` junto a `file`. **El audio nunca se guarda**: se
+`speech_to_text` y contado en segundos de audio - en PCM, la duración contada.
+El compositor envía la duración que grabó como campo de formulario `duration`
+junto a `file`, que solo se usa para una grabación comprimida cuya duración no
+indica nada más.
+
+**El audio nunca se guarda**: se
 descarta cuando la llamada vuelve, y el texto solo existe en la respuesta.
 Cancelar en el navegador no cancela una grabación ya enviada: el proveedor la
 transcribe igualmente, la cobra a la cuenta de la organización, y la llamada
 queda registrada.
 
-!!! note "Con Mistral el navegador graba WAV, y se transcriben menos idiomas"
+!!! note "Con Mistral el navegador graba siempre WAV, y se transcriben menos idiomas"
 
     Mistral documenta entrada WAV y MP3 para Voxtral, no WebM ni Opus, que es lo
     que graban Chrome y Firefox. Por eso, cuando el proveedor al que se resuelve
     una grabación es Mistral, el cuadro de mensaje graba en su lugar
-    WAV de 16 kHz, mono y 16 bits en todos los navegadores. La subida pesa más o
-    menos el doble —32.000 bytes por segundo—, pero el límite de duración es el
-    mismo, porque una grabación WAV de `dictation_max_seconds` cabe bajo el
-    límite.
+    WAV de 16 kHz, mono y 16 bits en todos los navegadores, incluso donde el
+    despliegue acepta audio comprimido. Una subida PCM pesa más o menos el doble
+    que el WebM al que sustituye —32.000 bytes por segundo—, y el límite de
+    duración es el mismo.
 
     La lista de idiomas es la de Whisper, que aceptan OpenAI y Groq. Mistral
     indica 13 idiomas para Voxtral, así que un idioma fijado que no acepte

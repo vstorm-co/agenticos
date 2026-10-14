@@ -1330,7 +1330,7 @@
         "tooLarge": "<strong>Die Aufnahme ist zu groß zum Transkribieren.</strong> Halten Sie Diktate kürzer und hängen Sie lange Aufnahmen als Datei an.",
         "signedOut": "<strong>Sie sind abgemeldet.</strong> Melden Sie sich erneut an und nehmen Sie dann noch einmal auf.",
         "forbidden": "<strong>Sie dürfen für diesen Agent nicht diktieren.</strong> Bitten Sie einen Admin um Zugriff.",
-        "unsupported": "<strong>Das Audioformat dieses Browsers wird nicht akzeptiert.</strong> Der Server nimmt WebM-, Ogg-, MP4- oder WAV-Audio an. Aktualisieren Sie den Browser oder nutzen Sie Chrome oder Firefox.",
+        "unsupported": "<strong>Die Aufnahme dieses Browsers ist in keinem Format, das der Server annimmt.</strong> Aktualisieren Sie den Browser oder nutzen Sie Chrome oder Firefox.",
         "failedTitle": "Die Transkription wurde nicht abgeschlossen.",
         "providerErrorBody": "Der Speech-to-Text-Provider hat mit einem Fehler geantwortet.",
         "timeoutBody": "Der Speech-to-Text-Provider hat nicht rechtzeitig geantwortet.",
@@ -3334,6 +3334,21 @@
     "you": "(Sie)"
   },
   "pages": {
+    "adminDictation": {
+      "title": "Diktat-Audio",
+      "hint": "In welchem Format ein Diktat hochgeladen werden darf – im Eingabefeld jeder Organisation, auf gehosteten Seiten und in Widgets.",
+      "toggle": "Komprimierte Aufnahmen annehmen (WebM, Ogg, MP4)",
+      "toggleHint": "Aus: Browser nehmen 16-kHz-Mono-PCM-WAV auf. Seine Länge ergibt sich aus seiner Größe, also begrenzt das längste Diktat, was eine Aufnahme kostet. An: Uploads sind etwa halb so groß, mit den Risiken, die beim Einschalten genannt werden.",
+      "dialogTitle": "Komprimierte Aufnahmen annehmen?",
+      "dialogIntro": "Rohes PCM ist das einzige Format, dessen Länge sich nicht fälschen lässt. Lesen Sie, was sich ändert, bevor Sie dies einschalten.",
+      "riskLength": "Die Länge einer komprimierten Aufnahme wird aus dem Header der Datei selbst gelesen. Eine präparierte Datei kann sie zu kurz angeben, sodass ein Diktat weit mehr Audio enthalten kann als die maximale Länge – innerhalb der Größengrenze bis zu etwa 40-mal so viel.",
+      "riskPublic": "In öffentlichen Widgets und auf gehosteten Seiten kann jeder mit dem Link solche Dateien senden. Die Transkription wird dem Provider-Konto der Organisation berechnet und liegt außerhalb der Budgets der Agents, sodass das Ratenlimit pro Link die Kosten nicht mehr auf den dokumentierten schlimmsten Fall begrenzt.",
+      "riskScope": "Das gilt für jede Organisation in diesem Deployment.",
+      "benefit": "Der Vorteil: Aufnahmen werden etwa achtmal kleiner hochgeladen. Wieder ausschalten erfordert keine Bestätigung.",
+      "acknowledge": "Ich verstehe, dass die Kosten eines Diktats in keiner Organisation mehr durch seine maximale Länge begrenzt sind.",
+      "cancel": "Nur PCM behalten",
+      "confirm": "Komprimierte Aufnahmen annehmen"
+    },
     "retention": {
       "title": "Datenaufbewahrung",
       "description": "Wie lange diese Organisation jede Datenklasse aufbewahrt und was das Deployment erlaubt.",

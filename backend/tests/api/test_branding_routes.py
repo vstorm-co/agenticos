@@ -194,6 +194,40 @@ class TestTheAdminSurface:
         assert response.status_code == 403
         assert service.calls == []
 
+    async def test_an_administrator_may_accept_compressed_dictation(
+        self, admin: AsyncClient, service: _Service
+    ):
+        response = await admin.patch(
+            f"{settings.API_V1_STR}/admin/settings", json={"dictation_compressed_audio": True}
+        )
+
+        assert response.status_code == 200
+        assert "dictation_compressed_audio" in response.json()
+        _name, kwargs = service.calls[0]
+        assert kwargs["data"].model_dump(exclude_unset=True) == {"dictation_compressed_audio": True}
+
+    @pytest.mark.security
+    async def test_a_member_cannot_accept_compressed_dictation(
+        self, member: AsyncClient, service: _Service
+    ):
+        """It changes what a stranger may send every organization's provider."""
+        response = await member.patch(
+            f"{settings.API_V1_STR}/admin/settings", json={"dictation_compressed_audio": True}
+        )
+
+        assert response.status_code == 403
+        assert service.calls == []
+
+    async def test_accepting_compressed_dictation_takes_a_boolean(
+        self, admin: AsyncClient, service: _Service
+    ):
+        response = await admin.patch(
+            f"{settings.API_V1_STR}/admin/settings", json={"dictation_compressed_audio": "maybe"}
+        )
+
+        assert response.status_code == 422
+        assert service.calls == []
+
     async def test_an_image_path_is_not_something_a_caller_may_name(
         self, admin: AsyncClient, service: _Service
     ):

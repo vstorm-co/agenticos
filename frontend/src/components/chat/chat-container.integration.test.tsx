@@ -121,7 +121,7 @@ const readiness = vi.hoisted(() => ({
     server_available: true,
     max_seconds: 300,
     provider: "openai",
-    format: "webm",
+    format: "wav",
   } as Record<string, unknown>,
 }));
 
@@ -362,23 +362,22 @@ describe("the chat container - server dictation", () => {
   });
 
   it("tells the recorder the format the agent's readiness names", async () => {
-    // An agent overriding to Mistral in an organization on OpenAI records WAV,
-    // which Mistral takes, rather than the WebM it refuses - and the backend's
-    // catalog says so, not a list of providers kept here.
+    // A deployment that accepts compressed audio, and an agent on a provider
+    // that takes WebM: the backend says so, not a list of providers kept here.
     organization.current = { ...organization.current, speech_to_text_provider: "openai" };
-    readiness.current = { ...readiness.current, provider: "mistral", format: "wav" };
+    readiness.current = { ...readiness.current, provider: "groq", format: "webm" };
     useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
     mount();
 
-    await waitFor(() => expect(dictation.format).toBe("wav"));
+    await waitFor(() => expect(dictation.format).toBe("webm"));
     expect(get).toHaveBeenCalledWith("/agents/a-1/dictation");
   });
 
-  it("records WebM and has nowhere to send before an agent is chosen", () => {
+  it("records PCM WAV and has nowhere to send before an agent is chosen", () => {
     organization.current = null;
     mount();
 
-    expect(dictation.format).toBe("webm");
+    expect(dictation.format).toBe("wav");
     expect(dictation.send).toBeNull();
   });
 

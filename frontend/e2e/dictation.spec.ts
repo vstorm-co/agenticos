@@ -7,10 +7,10 @@ import { AUTH_STATE, json } from "./helpers";
 /**
  * Server dictation in the composer (#1797), in a real Chromium.
  *
- * What only a browser can prove: that `MediaRecorder` records the stream the
+ * What only a browser can prove: that the recorder captures the stream the
  * microphone opened, that the recording is posted to the dictation route, and
  * that the text it answers lands in the box - editable, focused and unsent.
- * jsdom has no `MediaRecorder` and no `getUserMedia`, so the unit suite mocks
+ * jsdom has no Web Audio and no `getUserMedia`, so the unit suite mocks
  * exactly the part this spec exists for.
  *
  * Chromium's fake capture device stands in for a microphone: it plays a beep,
@@ -159,7 +159,9 @@ async function stubDictation(page: Page, onPost: (route: Route) => Promise<void>
           server_available: true,
           max_seconds: 300,
           provider: "openai",
-          format: "webm",
+          // The default every deployment starts on: Web Audio samples written
+          // as 16 kHz mono PCM WAV, not `MediaRecorder`'s WebM.
+          format: "wav",
         }),
       });
       return;
@@ -171,8 +173,10 @@ async function stubDictation(page: Page, onPost: (route: Route) => Promise<void>
 test.describe("Server dictation", () => {
   test("the transcript lands in the composer at the caret and is not sent", async ({ page }) => {
     const uploads: string[] = [];
+    const bodies: string[] = [];
     await stubDictation(page, async (route) => {
       uploads.push(route.request().headers()["content-type"] ?? "");
+      bodies.push(route.request().postDataBuffer()?.toString("latin1") ?? "");
       await route.fulfill(transcribed("hello from the microphone"));
     });
 
@@ -187,6 +191,10 @@ test.describe("Server dictation", () => {
     // One recording, posted as a multipart upload - the browser really recorded.
     expect(uploads).toHaveLength(1);
     expect(uploads[0]).toContain("multipart/form-data");
+    // As the readiness said: a WAV file of 16 kHz mono 16-bit PCM, which is all
+    // the server accepts unless the deployment has turned compressed audio on.
+    expect(bodies[0]).toContain("Content-Type: audio/wav");
+    expect(bodies[0]).toMatch(/RIFF[\s\S]{4}WAVEfmt /);
     // Still in the box, so still the person's to edit: a sent message would
     // have emptied it.
     await expect(page.getByRole("button", { name: "Send message" })).toBeEnabled();

@@ -1344,7 +1344,7 @@
         "tooLarge": "<strong>Recording too large to transcribe.</strong> Keep dictations shorter, and attach long audio as a file.",
         "signedOut": "<strong>You're signed out.</strong> Sign in again, then record again.",
         "forbidden": "<strong>You're not allowed to dictate to this agent.</strong> Ask an admin for access to it.",
-        "unsupported": "<strong>This browser's audio format isn't accepted.</strong> The server takes WebM, Ogg, MP4 or WAV audio. Update the browser, or try Chrome or Firefox.",
+        "unsupported": "<strong>This browser's recording isn't in a format the server accepts.</strong> Update the browser, or try Chrome or Firefox.",
         "failedTitle": "Transcription didn't finish.",
         "providerErrorBody": "The speech-to-text provider answered with an error.",
         "timeoutBody": "The speech-to-text provider didn't answer in time.",
@@ -3471,6 +3471,21 @@
     "you": "(you)"
   },
   "pages": {
+    "adminDictation": {
+      "title": "Dictation audio",
+      "hint": "What a dictation may be uploaded as, in every organization's composer, hosted pages and widgets.",
+      "toggle": "Accept compressed recordings (WebM, Ogg, MP4)",
+      "toggleHint": "Off, browsers record 16 kHz mono PCM WAV. Its length is its size, so the longest dictation bounds what one recording costs. On, uploads are about half the size, at the risks turning it on lists.",
+      "dialogTitle": "Accept compressed recordings?",
+      "dialogIntro": "Raw PCM is the only format whose length cannot be faked. Read what changes before you turn this on.",
+      "riskLength": "A compressed recording's length is read from the file's own header. A crafted file can understate it, so one dictation can carry far more audio than the maximum length - up to about 40 times as much within the size cap.",
+      "riskPublic": "On public widgets and hosted pages, anyone holding the link can send such files. Transcription is billed to the organization's provider account and is outside agent budgets, so the per-link rate limit no longer bounds the cost to the documented worst case.",
+      "riskScope": "It applies to every organization on this deployment.",
+      "benefit": "The benefit: recordings upload at about an eighth of the size. Turning this off again needs no confirmation.",
+      "acknowledge": "I understand that a dictation's cost is no longer bounded by its maximum length, in any organization.",
+      "cancel": "Keep PCM only",
+      "confirm": "Accept compressed recordings"
+    },
     "retention": {
       "title": "Data retention",
       "description": "How long this organization keeps each class of data, and what the deployment allows.",

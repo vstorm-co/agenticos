@@ -21,12 +21,16 @@ const MIN_SECONDS = 1;
 /** The countdown appears when this many seconds are left before the auto-stop. */
 const WARN_SECONDS = 30;
 /**
- * What `MediaRecorder` is asked for, in order. The server accepts these three
- * base types; Chromium and Firefox record the first, Safari the last.
+ * What `MediaRecorder` is asked for, in order, when the format is `webm`. The
+ * server accepts these three base types once the deployment accepts compressed
+ * audio; Chromium and Firefox record the first, Safari the last.
  */
 const TYPES = ["audio/webm;codecs=opus", "audio/ogg;codecs=opus", "audio/mp4"];
-/** Plenty for speech, and keeps the longest recording near 10 MB. */
-const BITS_PER_SECOND = 128_000;
+/**
+ * Speech, not music: Opus at 32 kbps transcribes as well as at 128, and a
+ * recording uploads at about an eighth of the PCM it replaces.
+ */
+const BITS_PER_SECOND = 32_000;
 /** How often the recorder hands over a chunk, so a stop loses at most this much. */
 const TIMESLICE_MS = 250;
 /** RMS of speech is small; this brings a normal voice near the top of 0..1. */
@@ -123,8 +127,9 @@ export interface UseDictationOptions {
   /** The organization's longest dictation; the recording stops itself there. */
   maxSeconds: number;
   /**
-   * What to record in, from the backend's speech-to-text catalog, read when the
-   * mic is pressed: `wav` for a provider that takes neither WebM nor Opus.
+   * What to record in, as the backend advertises it, read when the mic is
+   * pressed: `wav` - 16 kHz mono 16-bit PCM, in every browser - unless the
+   * deployment accepts compressed audio and the provider takes WebM.
    */
   format: RecordingFormat;
 }

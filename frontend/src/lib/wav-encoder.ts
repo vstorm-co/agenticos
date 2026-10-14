@@ -1,11 +1,12 @@
 /**
  * Speech as a WAV file: 16 kHz, mono, 16-bit little-endian PCM.
  *
- * The one audio format every speech-to-text provider takes. Mistral documents
- * neither WebM nor Opus, which is what `MediaRecorder` produces in Chromium and
- * Firefox, so for that provider the composer records raw samples from Web Audio
- * and builds the file itself with these functions. 16 kHz mono 16-bit is
- * 32,000 bytes a second, which the server's dictation size cap allows for.
+ * What dictation records in by default, in every browser: the one format every
+ * speech-to-text provider takes, and the one whose length is its size - 32,000
+ * bytes a second - so the server counts the samples rather than trusting a
+ * header. It accepts exactly this and nothing else, which is why the composer
+ * records raw samples from Web Audio and builds the file itself with these
+ * functions rather than asking `MediaRecorder` for a container.
  */
 
 /** The rate the file is written at: what speech models are trained on. */

@@ -683,12 +683,13 @@ class AgentEmbedService:
         text to be sent to otherwise, and a paid transcription for a message the
         socket would refuse is money spent on nothing.
 
-        **A recording whose length cannot be read is refused**
-        (`unsupported_type`), where the console accepts one under its byte cap.
-        The length is what the provider bills, the visitor is a stranger, and
-        bytes alone let low-bitrate Opus carry hours: the link's rate limit
-        times the longest dictation is a bound only while every recording's
-        length is known.
+        **Raw PCM unless the deployment accepts compressed audio**, whose
+        length is its size, so the link's rate limit times the longest
+        dictation bounds what a stranger can spend exactly. Where compressed
+        audio is accepted, **a recording whose length cannot be read is
+        refused** (`unsupported_type`), where the console accepts one under its
+        byte cap: the length is what the provider bills, the visitor is a
+        stranger, and bytes alone let low-bitrate Opus carry hours.
 
         **The usage row has no requester**, a `jwt` visitor included - neither is
         a member, and attributing a stranger's call to whoever published the page
@@ -746,12 +747,10 @@ class AgentEmbedService:
         sees the same answer as a disabled choice in the embed form.
         """
         if mode != "server":
-            return PublicDictation(mode=mode, max_seconds=_DICTATION_DEFAULT_SECONDS, format="webm")
+            return PublicDictation(mode=mode, max_seconds=_DICTATION_DEFAULT_SECONDS, format="wav")
         organization = await organization_repo.get_by_id(self.db, embed.organization_id)
         if organization is None or agent is None or not _runs(agent):
-            return PublicDictation(
-                mode="off", max_seconds=_DICTATION_DEFAULT_SECONDS, format="webm"
-            )
+            return PublicDictation(mode="off", max_seconds=_DICTATION_DEFAULT_SECONDS, format="wav")
         server = await MLService(self.db).server_dictation(agent)
         return PublicDictation(
             mode="server" if server.available else "off",

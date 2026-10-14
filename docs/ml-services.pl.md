@@ -1,5 +1,5 @@
 ---
-source_sha: "cb4976d8aeea"
+source_sha: "351a53639a63"
 ---
 
 # Usługi ML { #the-ml-services }
@@ -169,7 +169,7 @@ URL żądania razem z kluczem.
 |---|---|---|
 | `not_configured` | 503 | Brak użytecznych poświadczeń dla dostawcy; przy dyktowaniu także brak skonfigurowanego dyktowania na serwerze |
 | `empty` | 400 | Silnik nie usłyszał mowy albo nagranie nie ma bajtów |
-| `unsupported_type` | 400 | Tylko dyktowanie: nagranie nie jest dźwiękiem WebM, Ogg, MP4 ani WAV albo — na hostowanej stronie lub w widgecie — nie da się odczytać jego długości |
+| `unsupported_type` | 400 | Tylko dyktowanie: nagranie nie jest WAV z 16-bitowym PCM 16 kHz mono — ani, gdy wdrożenie przyjmuje skompresowany dźwięk, WebM, Ogg czy MP4 — albo, na hostowanej stronie lub w widgecie, nie da się odczytać długości skompresowanego nagrania. `details.accepted` wymienia przyjmowane typy |
 | `too_large` | 400 | Ponad 25 MB albo ponad limit dyktowania organizacji w bajtach lub w zmierzonej długości; `details.limit_seconds` podaje limit |
 | `provider_error` | 503 | Dostawca odrzucił żądanie albo nie zdołał go obsłużyć |
 | `timeout` | 503 | Dostawca nie odpowiedział w ciągu 60 sekund |
@@ -208,52 +208,67 @@ Formularz embeda czyta `server_available`, bo
 nie zależą od silnika `/chat`.
 
 `provider` to ten, do którego trafiłoby nagranie, a `format` to, w czym dla
-niego nagrywać — `webm` albo `wav`, według katalogu speech-to-text, więc żaden
-klient nie trzyma własnej listy. Agent bez niczego opublikowanego odpowiada
-według ustawień organizacji.
+niego nagrywać: `wav`, chyba że wdrożenie
+[przyjmuje skompresowany dźwięk](deployment.md#what-a-dictation-may-be-uploaded-as),
+a katalog speech-to-text mówi, że dostawca przyjmuje to, co tworzy
+`MediaRecorder` — wtedy `webm`. Rozstrzygane tutaj, więc żaden klient nie trzyma
+własnej listy. Agent bez niczego opublikowanego odpowiada według ustawień
+organizacji.
 
-Nagranie musi być `audio/webm`, `audio/ogg`, `audio/mp4` albo `audio/wav`, z
-dopuszczalnym sufiksem kodeka, a `audio/x-wav` i `audio/wave` są czytane jako
-`audio/wav`, `audio/x-m4a` i `audio/m4a` jako `audio/mp4`, a `audio/opus`
-i `audio/x-ogg` jako `audio/ogg`. Pierwsze trzy tworzy `MediaRecorder` przeglądarek; WAV pole
-wiadomości nagrywa samo, gdy `format` mówi `wav`, co katalog mówi dla Mistrala
-(zob. uwagę niżej). Dostawca
-otrzymuje nagranie jako `recording.webm`, `recording.ogg`, `recording.m4a` albo
-`recording.wav`, według tej samej tabeli, która nazywa notatkę głosową z kanału
-`voice.<ext>`.
+**Domyślnie dyktowanie to surowy PCM**: `audio/wav` (albo `audio/x-wav`,
+`audio/wave`) z 16-bitowym całkowitoliczbowym PCM 16 kHz mono, który każda
+przeglądarka nagrywa przez Web Audio. Plik jest czytany ściśle — jeden fragment
+`fmt ` mówiący dokładnie to, jeden fragment `data` z pełnymi próbkami, rozmiary
+zgodne z plikiem — a każdy inny WAV, także stereo, 48 kHz, 24-bitowy czy
+zmiennoprzecinkowy, jest odrzucany jako `unsupported_type`. Dostawca dostaje
+policzone próbki za nagłówkiem zbudowanym przez serwer, nigdy nagłówek
+wywołującego ani inny fragment, który plik zawierał, jako `recording.wav`.
 
-Trasa czyta najwyżej 25 MB treści żądania; limit bajtów organizacji,
-`dictation_max_seconds × 32 KB`, jest stosowany do tego, co przeczytano. Treść,
+Gdy wdrożenie przyjmuje skompresowany dźwięk, przyjmowane są też `audio/webm`,
+`audio/ogg` i `audio/mp4`, z dopuszczalnym sufiksem kodeka, a `audio/x-m4a`
+i `audio/m4a` są czytane jako `audio/mp4`, a `audio/opus` i `audio/x-ogg` jako
+`audio/ogg`. To właśnie tworzy `MediaRecorder` przeglądarek, a dostawca
+otrzymuje je jako `recording.webm`, `recording.ogg` albo `recording.m4a`, według
+tej samej tabeli, która nazywa notatkę głosową z kanału `voice.<ext>`.
+
+Trasa czyta najwyżej 25 MB treści żądania; limit bajtów organizacji — tyle
+bajtów, ile zajmuje PCM przez `dictation_max_seconds` plus trzy sekundy, 32 000
+na sekundę, i 4 KB na kontener — jest stosowany do tego, co przeczytano. Treść,
 którą limit żądań wdrożenia odrzuca, zanim trasa ruszy, dostaje 413 bez
 `reason`, co pole wiadomości odczytuje jako `too_large`.
 
-Potem **długość nagrania jest odczytywana z jego kontenera** — nagłówka WAV, ostatniej
-strony Ogg, znaczników czasu bloków WebM, nagłówków filmu albo fragmentów MP4 —
-a nagranie dłuższe niż `dictation_max_seconds` jest odrzucane jako `too_large`,
-zanim provider zostanie wywołany, z trzema sekundami zapasu, bo pole wiadomości
-zatrzymuje nagranie przy takcie co sekundę. Nagranie, którego długości nie da
-się odczytać, jest tu przyjmowane w granicach limitu bajtów;
+Potem **długość jest mierzona**, zanim dostawca zostanie wywołany, a nagranie
+dłuższe niż `dictation_max_seconds` jest odrzucane jako `too_large`, z trzema
+sekundami zapasu, bo pole wiadomości zatrzymuje nagranie przy takcie co sekundę.
+Dla PCM długość to policzone próbki, dokładnie. Długość skompresowanego
+nagrania jest odczytywana z jego własnego nagłówka — ostatniej strony Ogg,
+znaczników czasu bloków WebM, nagłówków filmu albo fragmentów MP4 — który plik
+zbudowany ręcznie może zaniżyć. Nagranie, którego długości nie da się odczytać,
+jest tu przyjmowane w granicach limitu bajtów;
 [hostowana strona i widget](channels.md#what-it-costs-and-what-bounds-it) je
 odrzucają.
 
 Każda osoba może dyktować `RATE_LIMIT_DICTATION_PER_MINUTE` razy na minutę,
 domyślnie 10, na osobnym liczniku, więc dyktowanie nie zużywa limitu usług ML
 integracji. Każde dyktowanie zostawia jeden [zapis wywołania](#what-is-recorded),
-pod `speech_to_text`, liczony w sekundach dźwięku. Pole wiadomości wysyła długość,
-którą nagrało, jako pole formularza `duration` obok `file`. **Dźwięk nigdy nie jest
-przechowywany**: zostaje odrzucony, gdy wywołanie się kończy, a tekst istnieje
-tylko w odpowiedzi. Anulowanie w przeglądarce nie anuluje nagrania już
+pod `speech_to_text`, liczony w sekundach dźwięku — dla PCM w policzonej
+długości. Pole wiadomości wysyła długość, którą nagrało, jako pole formularza
+`duration` obok `file`, używane tylko dla skompresowanego nagrania, którego
+długości nie podaje nic innego.
+
+**Dźwięk nigdy nie jest przechowywany**: zostaje odrzucony, gdy wywołanie się
+kończy, a tekst istnieje tylko w odpowiedzi. Anulowanie w przeglądarce nie anuluje nagrania już
 wysłanego — dostawca i tak je transkrybuje, obciąża za nie konto organizacji, a
 wywołanie zostaje zapisane.
 
-!!! note "W Mistralu przeglądarka nagrywa WAV, a transkrybowanych języków jest mniej"
+!!! note "W Mistralu przeglądarka zawsze nagrywa WAV, a transkrybowanych języków jest mniej"
 
     Mistral dokumentuje dla Voxtrala wejście WAV i MP3, a nie WebM ani Opus,
     które nagrywają Chrome i Firefox. Dlatego gdy dostawcą, do którego
     rozwiązuje się nagranie, jest Mistral, pole wiadomości w każdej przeglądarce nagrywa
-    zamiast tego WAV 16 kHz, mono, 16 bitów. Przesyłany plik jest mniej więcej
-    dwa razy większy — 32 000 bajtów na sekundę — ale limit długości jest ten
-    sam, bo nagranie WAV trwające `dictation_max_seconds` mieści się w limicie.
+    WAV 16 kHz, mono, 16 bitów, nawet gdy wdrożenie przyjmuje skompresowany
+    dźwięk. Przesyłany PCM jest mniej więcej dwa razy większy niż WebM, który
+    zastępuje — 32 000 bajtów na sekundę — a limit długości jest ten sam.
 
     Lista języków pochodzi z Whispera, którą akceptują OpenAI i Groq. Mistral
     podaje 13 języków dla Voxtrala, więc ustalony język, którego nie przyjmuje,

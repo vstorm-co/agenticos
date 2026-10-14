@@ -722,9 +722,12 @@ the box when something goes wrong. Its copy is English, like the rest of the
 widget, and it has no glow. On both, the text lands in the box and is never
 sent by itself; Enter stops a recording and Escape discards it.
 
-The recording format follows the provider, from the backend's speech-to-text
-catalog: WebM, Ogg or MP4 as `MediaRecorder` makes it, or 16 kHz mono WAV for
-Mistral, which documents neither WebM nor Opus.
+Both record in the format the server advertises in the public config's
+`dictation_format`: 16 kHz mono 16-bit PCM WAV, built from the microphone's
+samples, unless the deployment
+[accepts compressed audio](deployment.md#what-a-dictation-may-be-uploaded-as)
+and the provider takes what `MediaRecorder` makes - WebM, Ogg or MP4. Mistral,
+which documents neither WebM nor Opus, gets WAV either way.
 
 ### The endpoint
 
@@ -741,8 +744,9 @@ to dictate into and is answered 404.
 Refusals carry the same `details.reason` as the
 [composer's route](ml-services.md#dictation-in-chat): 400 `empty`,
 `unsupported_type` or `too_large`, 503 `not_configured`, `provider_error` or
-`timeout`. Unlike the composer's route, a recording whose length cannot be read
-is refused here, as `unsupported_type` ([below](#what-it-costs-and-what-bounds-it)).
+`timeout`. Unlike the composer's route, a compressed recording whose length
+cannot be read is refused here, as `unsupported_type`
+([below](#what-it-costs-and-what-bounds-it)).
 Anything about the embed itself - unknown, paused, not on `server`,
 an origin it does not allow - is 404. Once a widget is admitted, every answer
 carries its origin in `Access-Control-Allow-Origin`, refusals included;
@@ -766,14 +770,16 @@ ten a minute and leave the page's visitors refused for the rest of that minute.
 That costs the organization nothing, since no provider is called, but it is a
 way to make a page's microphone fail.
 
-**The length is measured, not inferred from the size.** Before the provider is
-called, the server reads the recording's length from its container - the WAV
-header, the last Ogg page, the WebM block timestamps, the MP4 movie or fragment
-headers - and refuses one longer than `dictation_max_seconds` as `too_large`,
-with three seconds' grace for the browser's once-a-second stop. A recording
-whose length it cannot read is refused as `unsupported_type`. A byte cap alone
-would not do: Opus at a low bitrate fits hours into the bytes of a five-minute
-recording.
+**The length is measured before the provider is called**, and a recording
+longer than `dictation_max_seconds` is refused as `too_large`, with three
+seconds' grace for the browser's once-a-second stop. By default a recording is
+raw PCM and its length is its size - the server counts the samples, so the
+figure cannot be anything but true. Where the deployment accepts compressed
+audio, a WebM, Ogg or MP4 recording's length is read from its own header - the
+last Ogg page, the WebM block timestamps, the MP4 movie or fragment headers -
+and one whose length cannot be read is refused as `unsupported_type`. A byte
+cap alone would not do: Opus at a low bitrate fits hours into the bytes of a
+five-minute recording.
 
 !!! danger "The worst case for a leaked or public link"
 
@@ -784,10 +790,13 @@ recording.
     account. Lower `dictation_max_seconds` or the link limit, pause the embed, or
     keep it on `browser` where that is too much.
 
-    That holds for every recording whose container states its true length, as
-    every browser's does. A file built by hand to understate its length is
-    bounded by the byte cap instead, `dictation_max_seconds × 32 KB`, which
-    low-bitrate audio can fill with up to about forty times as many seconds.
+    With the default, raw PCM, that is exact: no file can hold more seconds
+    than its size says. Where the deployment accepts compressed audio it holds
+    only for a file whose header states its true length, as every browser's
+    does. A file built by hand to understate its length is bounded by the byte
+    cap instead - `dictation_max_seconds` plus three seconds at 32,000 bytes a
+    second - which low-bitrate audio can fill with up to about forty times as
+    many seconds. That is the risk the administrator accepts when turning it on.
 
 Every attempt that reaches the provider leaves a usage record with the surface
 (`hosted` or `widget`) and the agent, and **no person**: a visitor is not a

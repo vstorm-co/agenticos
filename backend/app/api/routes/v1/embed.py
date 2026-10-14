@@ -283,7 +283,12 @@ async def embed_dictation(
     service: EmbedSvc,
     file: Annotated[
         UploadFile,
-        File(description="The recording: WebM, Ogg or MP4 from MediaRecorder, or WAV"),
+        File(
+            description=(
+                "The recording: WAV holding 16 kHz mono 16-bit PCM, or - where the deployment "
+                "accepts compressed audio - WebM, Ogg or MP4 from MediaRecorder"
+            )
+        ),
     ],
     duration: Annotated[
         float | None,

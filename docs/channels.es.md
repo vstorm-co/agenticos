@@ -1,5 +1,5 @@
 ---
-source_sha: "567a48de3031"
+source_sha: "f1f3406951be"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -754,9 +754,12 @@ algo sale mal. Sus textos están en inglés, como el resto del widget, y no tien
 brillo. En ambos, el texto cae en la caja y nunca se envía solo; Enter detiene
 una grabación y Escape la descarta.
 
-El formato de grabación sigue al provider, según el catálogo de speech-to-text
-del backend: WebM, Ogg o MP4 tal como lo produce `MediaRecorder`, o WAV mono de
-16 kHz para Mistral, que no documenta ni WebM ni Opus.
+Ambos graban en el formato que el servidor anuncia en el `dictation_format` de
+la config pública: WAV PCM de 16 bits, mono y 16 kHz, construido a partir de las
+muestras del micrófono, salvo que el despliegue
+[acepte audio comprimido](deployment.md#what-a-dictation-may-be-uploaded-as)
+y el provider admita lo que produce `MediaRecorder` - WebM, Ogg o MP4. Mistral,
+que no documenta ni WebM ni Opus, recibe WAV en cualquier caso.
 
 ### El endpoint { #the-endpoint }
 
@@ -774,7 +777,7 @@ Los rechazos llevan el mismo `details.reason` que la
 [ruta del composer](ml-services.md#dictation-in-chat): 400 `empty`,
 `unsupported_type` o `too_large`, 503 `not_configured`, `provider_error` o
 `timeout`. A diferencia de la ruta del composer, esta rechaza como
-`unsupported_type` una grabación cuya duración no se puede leer
+`unsupported_type` una grabación comprimida cuya duración no se puede leer
 ([más abajo](#what-it-costs-and-what-bounds-it)). Todo lo relativo al propio embed - desconocido, en pausa, no en
 `server`, un origen que no permite - es 404. Una vez admitido un widget, cada
 respuesta lleva su origen en `Access-Control-Allow-Origin`, rechazos incluidos;
@@ -799,14 +802,17 @@ rechazados el resto de ese minuto. A la organización no le cuesta nada, porque
 no se llama a ningún provider, pero es una forma de hacer fallar el micrófono
 de una página.
 
-**La duración se mide, no se deduce del tamaño.** Antes de llamar al provider,
-el servidor lee la duración de la grabación en su contenedor - la cabecera WAV,
-la última página Ogg, las marcas de tiempo de los bloques WebM, las cabeceras de
-película o de fragmento de MP4 - y rechaza como `too_large` una más larga que
-`dictation_max_seconds`, con tres segundos de margen porque el navegador solo
-detiene la grabación una vez por segundo. Una grabación cuya duración no puede
-leer se rechaza como `unsupported_type`. Un límite de bytes no bastaría: Opus a
-un bitrate bajo mete horas en los bytes de una grabación de cinco minutos.
+**La duración se mide antes de llamar al provider**, y una grabación más larga
+que `dictation_max_seconds` se rechaza como `too_large`, con tres segundos de
+margen porque el navegador solo detiene la grabación una vez por segundo. Por
+defecto una grabación es PCM en crudo y su duración es su tamaño: el servidor
+cuenta las muestras, así que la cifra no puede ser otra que la real. Donde el
+despliegue acepta audio comprimido, la duración de una grabación WebM, Ogg o MP4
+se lee de su propia cabecera - la última página Ogg, las marcas de tiempo de los
+bloques WebM, las cabeceras de película o de fragmento de MP4 - y una cuya
+duración no puede leerse se rechaza como `unsupported_type`. Un límite de bytes
+no bastaría: Opus a un bitrate bajo mete horas en los bytes de una grabación de
+cinco minutos.
 
 !!! danger "El peor caso para un enlace filtrado o público"
 
@@ -817,11 +823,15 @@ un bitrate bajo mete horas en los bytes de una grabación de cinco minutos.
     provider de la organización. Baja `dictation_max_seconds` o el límite del
     enlace, pon el embed en pausa, o déjalo en `browser` donde eso sea demasiado.
 
-    Eso vale para toda grabación cuyo contenedor indica su duración real, como
-    hace cualquier navegador. Un archivo hecho a mano para declarar menos
-    duración de la que tiene queda limitado en cambio por el límite de bytes,
-    `dictation_max_seconds × 32 KB`, que un audio de bitrate bajo puede llenar con
-    hasta unas cuarenta veces más segundos.
+    Con el valor por defecto, PCM en crudo, la cifra es exacta: ningún archivo
+    puede contener más segundos de los que dice su tamaño. Donde el despliegue
+    acepta audio comprimido, solo vale para un archivo cuya cabecera indica su
+    duración real, como hace la de cualquier navegador. Un archivo hecho a mano
+    para declarar menos duración de la que tiene queda limitado en cambio por el
+    límite de bytes - `dictation_max_seconds` más tres segundos a 32.000 bytes
+    por segundo -, que un audio de bitrate bajo puede llenar con hasta unas
+    cuarenta veces más segundos. Ese es el riesgo que acepta el administrador al
+    activarlo.
 
 Cada intento que llega al provider deja un registro de uso con la superficie
 (`hosted` o `widget`) y el agent, y **ninguna persona**: un visitante no es

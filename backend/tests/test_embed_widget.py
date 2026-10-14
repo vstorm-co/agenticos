@@ -153,11 +153,24 @@ def test_the_recording_request_carries_no_custom_header():
 
 
 def test_the_wav_path_resamples_before_it_encodes():
-    """The server caps a recording at 32,768 bytes a second, which 16 kHz mono
-    PCM fits and the 48 kHz a microphone delivers would not."""
+    """The server accepts exactly 16 kHz mono 16-bit PCM, whatever rate the
+    microphone delivers, so the widget resamples and mixes down before it
+    writes the samples - and its header says exactly that."""
+    assert "var WAV_RATE = 16000;" in RENDERED
     assert "createResampler(context.sampleRate)" in RENDERED
     assert "toPcm16(resample(mixToMono(channels)))" in RENDERED
     assert 'config.dictation_format === "wav"' in RENDERED
+    header = RENDERED[RENDERED.index("function wavHeader") : RENDERED.index("function wavRecorder")]
+    for field in (
+        "view.setUint32(16, 16, true);",  # a 16-byte `fmt ` body
+        "view.setUint16(20, 1, true);",  # integer PCM
+        "view.setUint16(22, 1, true);",  # one channel
+        "view.setUint32(24, WAV_RATE, true);",
+        "view.setUint32(28, WAV_RATE * 2, true);",
+        "view.setUint16(32, 2, true);",
+        "view.setUint16(34, 16, true);",
+    ):
+        assert field in header
 
 
 def test_the_text_is_put_in_the_box_and_never_sent():

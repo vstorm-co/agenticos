@@ -528,8 +528,9 @@ function ChatUI({
   const mic = useMicrophone(engine === "server" ? DICTATION_CONSTRAINTS : undefined);
   const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
   // Readiness and the format are the agent's: its published speech-to-text
-  // override can name another engine than the organization's, and the backend's
-  // catalog says what to record for it - Mistral takes WAV, the others WebM.
+  // override can name another engine than the organization's, and the backend
+  // says what to record for it - WAV, unless the deployment accepts compressed
+  // audio and that provider takes WebM.
   const { status } = useDictationStatus(engine === "server" ? selectedAgentId : null);
   const sendDictation = useMemo<DictationSend | null>(
     () =>
@@ -543,7 +544,7 @@ function ChatUI({
     mic,
     send: sendDictation,
     maxSeconds,
-    format: status?.format ?? "webm",
+    format: status?.format ?? "wav",
   });
   // The organization left `server` mid-dictation: the composer draws the
   // browser's microphone now, and a recording with no Stop button would run on

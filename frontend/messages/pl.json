@@ -347,7 +347,7 @@
         "tooLarge": "<strong>Nagranie jest za duże do przepisania.</strong> Dyktuj krócej, a długie nagrania dołączaj jako plik.",
         "signedOut": "<strong>Twoja sesja wygasła.</strong> Zaloguj się ponownie i nagraj jeszcze raz.",
         "forbidden": "<strong>Nie możesz dyktować do tego agenta.</strong> Poproś administratora o dostęp do niego.",
-        "unsupported": "<strong>Format dźwięku tej przeglądarki nie jest obsługiwany.</strong> Serwer przyjmuje dźwięk WebM, Ogg, MP4 lub WAV. Zaktualizuj przeglądarkę albo użyj Chrome lub Firefoksa.",
+        "unsupported": "<strong>Nagranie z tej przeglądarki nie jest w formacie, który przyjmuje serwer.</strong> Zaktualizuj przeglądarkę albo użyj Chrome lub Firefoksa.",
         "failedTitle": "Transkrypcja się nie zakończyła.",
         "providerErrorBody": "Provider mowy na tekst odpowiedział błędem.",
         "timeoutBody": "Provider mowy na tekst nie odpowiedział na czas.",
@@ -523,6 +523,21 @@
     }
   },
   "pages": {
+    "adminDictation": {
+      "title": "Dźwięk dyktowania",
+      "hint": "W jakim formacie można przesłać dyktowanie - w polu wiadomości każdej organizacji, na stronach hostowanych i w widżetach.",
+      "toggle": "Przyjmuj skompresowane nagrania (WebM, Ogg, MP4)",
+      "toggleHint": "Wyłączone: przeglądarki nagrywają WAV PCM 16 kHz mono. Jego długość wynika z rozmiaru, więc najdłuższe dyktowanie ogranicza koszt jednego nagrania. Włączone: przesyłane pliki są mniej więcej o połowę mniejsze, kosztem ryzyk wymienionych przy włączaniu.",
+      "dialogTitle": "Przyjmować skompresowane nagrania?",
+      "dialogIntro": "Surowy PCM to jedyny format, którego długości nie da się sfałszować. Przeczytaj, co się zmieni, zanim to włączysz.",
+      "riskLength": "Długość skompresowanego nagrania jest odczytywana z nagłówka samego pliku. Spreparowany plik może ją zaniżyć, więc jedno dyktowanie może zawierać znacznie więcej dźwięku niż maksymalna długość - do około 40 razy więcej w limicie rozmiaru.",
+      "riskPublic": "W publicznych widżetach i na stronach hostowanych takie pliki może wysłać każdy, kto ma link. Transkrypcja obciąża konto providera organizacji i jest poza budgetami agentów, więc limit zapytań na link nie ogranicza już kosztu do opisanego najgorszego przypadku.",
+      "riskScope": "Dotyczy to każdej organizacji w tym wdrożeniu.",
+      "benefit": "Korzyść: przesyłane nagrania są mniej więcej ośmiokrotnie mniejsze. Ponowne wyłączenie nie wymaga potwierdzenia.",
+      "acknowledge": "Rozumiem, że koszt dyktowania nie jest już ograniczony jego maksymalną długością, w żadnej organizacji.",
+      "cancel": "Zostaw tylko PCM",
+      "confirm": "Przyjmuj skompresowane nagrania"
+    },
     "retention": {
       "title": "Retencja danych",
       "description": "Jak długo ta organizacja trzyma każdą klasę danych i na co pozwala wdrożenie.",

@@ -136,6 +136,9 @@ export default defineConfig({
         // The organization's Voice card (#1797). The rest of `teams/` predates
         // the gate; this file is new, so it starts inside.
         "src/components/teams/org-voice-settings.tsx",
+        // The deployment's switch for compressed dictation audio (#1797), new and
+        // so inside the gate, like the Voice card above.
+        "src/components/admin/dictation-audio-card.tsx",
       ],
       exclude: [
         "node_modules",
