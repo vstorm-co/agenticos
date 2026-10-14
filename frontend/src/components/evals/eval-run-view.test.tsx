@@ -14,6 +14,7 @@ const state = vi.hoisted(() => ({
   comparison: undefined as unknown,
   casesArgs: [] as unknown[],
   comparisonArgs: [] as unknown[],
+  refetchComparison: (() => undefined) as () => unknown,
 }));
 vi.mock("@/hooks/use-eval-runs", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/hooks/use-eval-runs")>();
@@ -26,7 +27,7 @@ vi.mock("@/hooks/use-eval-runs", async (importOriginal) => {
     },
     useEvalComparison: (...args: unknown[]) => {
       state.comparisonArgs.push(args);
-      return { comparison: state.comparison };
+      return { comparison: state.comparison, refetch: state.refetchComparison };
     },
   };
 });
@@ -81,6 +82,20 @@ describe("EvalRunView", () => {
     // A live run's table and its verdict are read again while it answers.
     expect(state.casesArgs.at(-1)).toEqual(["run-1", expect.objectContaining({ live: true })]);
     expect(state.comparisonArgs.at(-1)).toEqual(["run-1", { arm: "arm-1", live: true }]);
+  });
+
+  it("reads the verdict once more when the run ends, after its last reruns", () => {
+    const refetch = vi.fn();
+    state.refetchComparison = refetch;
+    state.run = { ...state.run, run: evalRun({ status: "running" }) };
+    const { rerender } = render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    rerender(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(refetch).not.toHaveBeenCalled();
+
+    state.run = { ...state.run, run: evalRun({ status: "completed" }) };
+    rerender(<EvalRunView agentId="agent-1" runId="run-1" />);
+    rerender(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(refetch).toHaveBeenCalledTimes(1);
   });
 
   it("compares the model a reader picks when several ran", async () => {

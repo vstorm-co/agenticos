@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Square } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
@@ -83,10 +83,18 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
   const candidates = run?.arms.filter((arm) => arm.role === "candidate") ?? [];
   const [arm, setArm] = useState<string | null>(null);
   const focus = arm ?? candidates[0]?.id ?? null;
-  const { comparison } = useEvalComparison(runId, {
+  const live = run !== undefined && isLive(run.status);
+  const { comparison, refetch: refetchComparison } = useEvalComparison(runId, {
     arm: focus,
-    live: run !== undefined && isLive(run.status),
+    live,
   });
+  // The run and its verdict are polled apart, so the poll that sees the run end
+  // can stop the verdict's before it read the last reruns: read it once more.
+  const wasLive = useRef(live);
+  useEffect(() => {
+    if (wasLive.current && !live) void refetchComparison();
+    wasLive.current = live;
+  }, [live, refetchComparison]);
 
   if (isLoading) return <LoadingState variant="skeleton-cards" rows={3} />;
   if (error || !run) {
