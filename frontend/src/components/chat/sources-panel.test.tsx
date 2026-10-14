@@ -196,6 +196,9 @@ describe("where the panel opens", () => {
     const panel = container.firstElementChild!;
     expect(panel).toHaveClass("absolute", "inset-0");
     expect(panel).not.toHaveClass("fixed");
+    // The widget's back arrow, the one its conversation list wears, closes it.
+    fireEvent.click(screen.getByRole("button", { name: "Close sources panel" }));
+    expect(useSourcesPanelStore.getState().isOpen).toBe(false);
   });
 
   it("stays at the page's right edge on the chat page", () => {

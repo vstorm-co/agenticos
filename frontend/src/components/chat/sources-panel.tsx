@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { FileText, Globe, Link, X } from "lucide-react";
+import { ArrowLeft, FileText, Globe, Link, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
 import type { SourceItem } from "@/lib/chat-sources";
@@ -146,20 +146,40 @@ export function SourcesPanel({ contained = false }: { contained?: boolean }) {
           : "fixed top-0 right-0 z-50 h-full w-[360px] border-l shadow-xl",
       )}
     >
-      {/* Header */}
-      <div className="border-foreground/8 flex items-center justify-between border-b px-4 py-3">
-        <h2 className="text-foreground text-sm font-semibold">
+      {/* Header. Inside a widget it is the widget's own back-arrow header, the
+          one its conversation list wears; at the page's edge, a title and a
+          close button. */}
+      <div
+        className={cn(
+          "border-foreground/8 flex items-center gap-1.5 border-b",
+          contained ? "px-2 py-2" : "justify-between px-4 py-3",
+        )}
+      >
+        {contained && (
+          <button
+            type="button"
+            onClick={close}
+            aria-label={t("closeSourcesPanel")}
+            title={t("closeSourcesPanel")}
+            className="text-muted-foreground hover:text-foreground hover:bg-foreground/[0.05] rounded-md p-1.5"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+        )}
+        <h2 className="text-foreground flex-1 text-sm font-semibold">
           {t("sourcesHeading")}
           <span className="text-muted-foreground ml-2 font-normal">({sources.length})</span>
         </h2>
-        <button
-          type="button"
-          onClick={close}
-          aria-label={t("closeSourcesPanel")}
-          className="text-muted-foreground hover:text-foreground hover:bg-foreground/8 rounded-md p-1 transition-colors"
-        >
-          <X className="h-4 w-4" />
-        </button>
+        {!contained && (
+          <button
+            type="button"
+            onClick={close}
+            aria-label={t("closeSourcesPanel")}
+            className="text-muted-foreground hover:text-foreground hover:bg-foreground/8 rounded-md p-1 transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
       {/* Body */}
