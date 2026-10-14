@@ -18,7 +18,7 @@ const OUTCOMES = ["failed", "unscored", "passed"] as const;
 
 /** What the scorers concluded about the scores waiting in one place: the counts that are not zero. */
 function Outcomes({ counts }: { counts: Record<(typeof OUTCOMES)[number], number> }) {
-  const t = useTranslations("dashboard.widgets.reviewQueue");
+  const t = useTranslations("dashboard.widgets.review-queue");
   return (
     <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
       {OUTCOMES.filter((outcome) => counts[outcome] > 0).map((outcome) => (
@@ -40,7 +40,7 @@ function sum(datasets: PendingDataset[], outcome: (typeof OUTCOMES)[number]): nu
  * anyway, and which datasets hold them - each opening on its Scores tab.
  */
 export function ReviewQueueWidget({ title, hint, seeAll, options }: DashboardWidgetProps) {
-  const t = useTranslations("dashboard.widgets.reviewQueue");
+  const t = useTranslations("dashboard.widgets.review-queue");
   // The card reads the breakdown, not the scores; one row keeps the page small.
   const { datasets, total, isLoading, error, refetch } = useReviewQueue({ limit: 1 });
 

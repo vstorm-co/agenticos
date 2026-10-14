@@ -49,7 +49,7 @@ class TestScoringRefusal:
         refusal = scoring_refusal(scoring, [_case()], ai_enabled=False)
         assert refusal is not None
         assert refusal.details == {"reason": "ai_assistance_off"}
-        assert "AI assistance is off" in refusal.message
+        assert "The judge needs AI assistance, which is off" in refusal.message
 
     def test_a_judge_runs_when_ai_assistance_is_on(self):
         scoring = _scoring(

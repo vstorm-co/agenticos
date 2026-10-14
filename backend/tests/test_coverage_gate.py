@@ -126,6 +126,13 @@ PLATFORM_MODULES = (
     "app/services/memory/_native.py",
     "app/services/memory/facade.py",
     "app/api/routes/v1/memory.py",
+    "app/services/system_agents.py",
+    "app/services/system_agent_runner.py",
+    "app/services/ai_assistance.py",
+    "app/services/scorers.py",
+    "app/services/scoring.py",
+    "app/repositories/case_score.py",
+    "app/schemas/scoring.py",
 )
 
 

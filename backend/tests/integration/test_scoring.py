@@ -137,6 +137,7 @@ async def _tenant(db) -> Tenant:
         name="Acme",
         slug=f"acme-{uuid.uuid4().hex[:8]}",
         created_by_user_id=owner.id,
+        ai_assistance_enabled=True,
     )
     db.add(organization)
     await db.flush()

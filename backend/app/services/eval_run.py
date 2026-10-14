@@ -163,8 +163,9 @@ def scoring_refusal(
     if judged:
         return BadRequestError(
             message=(
-                "AI assistance is off, so the judge cannot run, and nothing else in this "
-                "dataset's scoring can decide a case. Add a check or turn AI assistance on."
+                "The judge needs AI assistance, which is off for this organization, and "
+                "nothing else in this dataset's scoring can decide a case. Turn AI "
+                "assistance on in the organization's settings, or add a check."
             ),
             details={"reason": "ai_assistance_off"},
         )
@@ -347,7 +348,7 @@ class EvalRunService:
                 dataset_version=dataset_version,
                 arm=baseline,
                 scoring_hash=hashed,
-                judged=config.judge.enabled or config.reference.enabled,
+                judged=ai_enabled and (config.judge.enabled or config.reference.enabled),
             )
             arms.append(baseline if cached is None else replace(baseline, cached=cached))
         return RunPlan(
@@ -511,7 +512,8 @@ class EvalRunService:
 
         Only one that matches on everything the comparison holds constant: the
         version, the dataset version, the model, the scoring - and the judge,
-        whose published version must be the one that graded every case.
+        whose published version must be the one that graded every case, or no
+        judge at all when none would grade now.
         """
         assert arm.version is not None
         since = datetime.now(UTC) - timedelta(hours=settings.EVAL_BASELINE_CACHE_HOURS)
@@ -526,8 +528,8 @@ class EvalRunService:
             scoring_hash=scoring_hash,
             since=since,
         )
-        if found is None or not judged:
-            return found
+        if found is None:
+            return None
         judge = await agent_repo.get_system(
             self.db, organization_id=ctx.organization_id, key=JUDGE.key
         )
@@ -545,7 +547,8 @@ class EvalRunService:
             if score.judge is not None
         }
         current = str(judge.current_version_id) if judge and judge.current_version_id else None
-        return found if pinned <= {current} else None
+        # Graded by the judge that would grade now, or by none when none would.
+        return found if pinned == ({current} if judged else set()) else None
 
     async def estimate(
         self,

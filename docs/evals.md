@@ -47,7 +47,12 @@ The body names the dataset (`dataset_id`, `dataset_version`), the candidate
 the `environment_id`, the `model_profile_ids` to compare, and
 `paired_baseline`. The estimate is the agent's average cost per run on each
 model, over its recent completed runs, times the number of cases, plus a judge
-call per case when a judge scores the dataset.
+call per case when a judge scores the dataset and AI assistance is on.
+
+AI assistance is off for an organization until someone with `org:settings`
+turns it on. While it is off the judge does not run: a case is decided by its
+checks and its expected tool calls, the judge's criteria are recorded as
+skipped, and the estimate counts no judge.
 
 An agent with no history on a model is estimated at
 `EVAL_FALLBACK_CASE_COST_USD` per case, and the estimate says it is a guess
@@ -77,8 +82,9 @@ A run that could not tell anybody anything is refused before it is estimated:
 - a dataset version with no cases;
 - scoring with no required scorer that can decide any case of the version -
   no check to apply, no expected tool call, and no judge. When the judge is the
-  only scorer and AI assistance is off, the refusal says so: the judge cannot
-  run, so add a check or turn AI assistance on;
+  only scorer and AI assistance is off, the refusal says so: the judge needs AI
+  assistance, which is off for this organization, so turn it on in the
+  organization's settings or add a check;
 - an agent that was never published, asked for a version - run its draft
   instead;
 - a baseline for a first version, which has nothing before it.

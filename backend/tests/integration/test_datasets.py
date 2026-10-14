@@ -25,7 +25,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.exceptions import ValidationError as InvalidCaseError
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import AuthContext, OrgRoleName, Scope
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun
 from app.db.models.audit_log import AppAdminAuditLog
@@ -36,14 +36,17 @@ from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import GrantLevel, ResourceGrant
 from app.db.models.user import User
 from app.repositories import dataset_repo
+from app.repositories._visibility import reached_by_scope
 from app.schemas.dataset import (
     DatasetCaseCreate,
     DatasetCaseFromMessage,
     DatasetCaseUpdate,
     DatasetCreate,
+    DatasetList,
     DatasetUpdate,
 )
 from app.services import dataset as dataset_service
+from app.services.access import _scope_allows
 from app.services.conversation import ConversationService
 from app.services.dataset import DatasetService
 from app.services.dataset_files import COLUMNS
@@ -758,6 +761,95 @@ async def test_a_change_that_would_pass_the_case_ceiling_is_refused_whole(
             ctx, dataset.id, DatasetCaseCreate(input="three", reference_answer="yes")
         )
     assert (await service.read(ctx, dataset.id)).latest_version == 2
+
+
+async def test_the_editable_listing_reaches_a_granted_dataset_however_old(db) -> None:
+    """`editable=True` asks `resolve_access` of the whole listing, not of one page of it."""
+    owner = await _owner(db)
+    org = Organization(id=owner.organization_id)
+    viewer = await _member(db, org, OrgRoleName.VIEWER)
+    member = await _member(db, org, OrgRoleName.MEMBER)
+    builder = await _member(db, org, OrgRoleName.BUILDER)
+    service = DatasetService(db)
+    granted = await service.create(owner, DatasetCreate(name="granted long ago"))
+    read_only = await service.create(owner, DatasetCreate(name="read only"))
+    for number in range(101):
+        await service.create(owner, DatasetCreate(name=f"newer {number:03}"))
+    org_wide = await service.create(owner, DatasetCreate(name="org wide"))
+    shared_row = await db.get(Dataset, org_wide.id)
+    assert shared_row is not None
+    shared_row.visibility = "org"
+    await service.create(member, DatasetCreate(name="the member's own"))
+    for dataset_id, level in ((granted.id, GrantLevel.EDIT), (read_only.id, GrantLevel.READ)):
+        db.add(
+            ResourceGrant(
+                organization_id=owner.organization_id,
+                subject_user_id=viewer.user_id,
+                resource_type="dataset",
+                resource_id=dataset_id,
+                level=level.value,
+            )
+        )
+    await db.flush()
+
+    def names(listing: DatasetList) -> list[str]:
+        return [item.name for item in listing.items]
+
+    viewer_editable = await service.list_readable(viewer, editable=True, limit=1)
+    assert (names(viewer_editable), viewer_editable.total) == (["granted long ago"], 1)
+    assert (await service.list_readable(viewer)).total == 3  # the two granted, and "org wide"
+
+    assert names(await service.list_readable(member, editable=True)) == ["the member's own"]
+    builder_editable = await service.list_readable(builder, editable=True, sort="name")
+    assert names(builder_editable) == ["org wide"]
+    assert (await service.list_readable(owner, editable=True)).total == 105
+    # An admin's edit scope is the whole organization: no grant, and still every row.
+    admin = await _member(db, org, OrgRoleName.ADMIN)
+    admin_editable = await service.list_readable(admin, editable=True, search="the member")
+    assert names(admin_editable) == ["the member's own"]
+    assert (await service.list_readable(admin, editable=True, limit=1)).total == 105
+
+
+@pytest.mark.parametrize("scope", list(Scope))
+async def test_the_editable_predicate_admits_exactly_what_resolve_access_does(
+    db, scope: Scope
+) -> None:
+    """The SQL arm and `_scope_allows` are two spellings of one rule; every row agrees."""
+    owner = await _owner(db)
+    other = await _user(db)
+    rows = [
+        Dataset(
+            organization_id=owner.organization_id,
+            owner_user_id=row_owner,
+            visibility=visibility,
+            name=f"{label}-{visibility}",
+        )
+        for label, row_owner in (("mine", owner.user_id), ("theirs", other.id), ("nobody", None))
+        for visibility in ("private", "team", "org")
+    ]
+    db.add_all(rows)
+    await db.flush()
+    granted = rows[1].id
+
+    admitted = set(
+        await db.scalars(
+            select(Dataset.id).where(
+                Dataset.organization_id == owner.organization_id,
+                reached_by_scope(
+                    Dataset.owner_user_id,
+                    Dataset.visibility,
+                    Dataset.id,
+                    scope=scope,
+                    user_id=owner.user_id,
+                    granted_ids=[granted],
+                ),
+            )
+        )
+    )
+    expected = {
+        row.id for row in rows if _scope_allows(scope, row, owner.user_id) or row.id == granted
+    }
+    assert admitted == expected
 
 
 async def test_an_organization_past_its_stored_version_rows_is_refused(

@@ -198,8 +198,9 @@ scorers has anything to check on - nothing is kept and the judge is not called.
 `path` reads into an answer that is JSON: `items.0.name` is the first item's
 name. Without it, a rule reads the whole answer. Text rules are not case
 sensitive unless `case_sensitive` is true. A pattern is checked when the case is
-written, and a rule reads at most the first 100,000 characters of an answer, so
-one pattern cannot make scoring slow.
+written, and a rule reads at most the first 100,000 characters of an answer. A
+pattern that takes longer than a tenth of a second on an answer stops and is
+recorded as an error, so one pattern cannot hold up scoring.
 
 A `judge` check is a criterion for one case only, graded in the same judge run
 as the dataset's rubric. Use it for what a rule cannot express, such as "refuses
@@ -227,6 +228,12 @@ person who asked for the score: their access to it is checked, it is checked
 against its own budget and the organization's before the model is called, and
 its run appears in Activity under the `eval` surface. Its instructions can be
 edited like any agent's, and a dataset can name another model for it.
+
+The judge runs only where [AI assistance](governance.md#ai-assistance) is on,
+and it is off until an admin turns it on for the organization. Until then the
+judge's and the reference answer's criteria are recorded as skipped, only the
+rule-based scorers score, and the Scoring tab says so with a link to the switch
+for whoever may change it.
 
 Each criterion is graded from 1 to the top of the scale and passes at the pass
 mark or above. When the judge cannot grade, its criteria are recorded as

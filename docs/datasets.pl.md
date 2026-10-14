@@ -1,5 +1,5 @@
 ---
-source_sha: "d95ab4372b95"
+source_sha: "79e39797658c"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -207,7 +207,9 @@ nic nie jest zapisywane, a sędzia nie jest wywoływany.
 pierwszego elementu. Bez niego reguła czyta całą odpowiedź. Reguły tekstowe nie
 rozróżniają wielkości liter, chyba że `case_sensitive` ma wartość true. Wzorzec
 jest sprawdzany przy zapisie przypadku, a reguła czyta najwyżej pierwsze 100 000
-znaków odpowiedzi, więc jeden wzorzec nie może spowolnić oceniania.
+znaków odpowiedzi. Wzorzec, który na jakiejś odpowiedzi działa dłużej niż
+dziesiątą część sekundy, zostaje przerwany i zapisany jako błąd, więc jeden
+wzorzec nie może zatrzymać oceniania.
 
 Sprawdzenie `judge` to kryterium tylko dla jednego przypadku, oceniane w tym
 samym runie sędziego co rubryka datasetu. Używaj go do tego, czego reguła nie
@@ -236,6 +238,12 @@ wywołaniem modelu sprawdzany jest jego własny budżet i budżet organizacji, a
 jego run pojawia się w Activity pod powierzchnią `eval`. Jego instrukcje można
 edytować jak instrukcje każdego agenta, a dataset może wskazać dla niego inny
 model.
+
+Sędzia działa tylko tam, gdzie włączone jest [wsparcie AI](governance.md#ai-assistance),
+a jest ono wyłączone, dopóki administrator nie włączy go dla organizacji. Do
+tego czasu kryteria sędziego i odpowiedzi wzorcowej są zapisywane jako
+pominięte, oceniają tylko oceniacze oparte na regułach, a karta Scoring mówi o
+tym i podaje link do przełącznika temu, kto może go zmienić.
 
 Każde kryterium jest oceniane od 1 do górnej granicy skali i zalicza na progu
 zaliczenia lub wyżej. Gdy sędzia nie może ocenić, jego kryteria są zapisywane

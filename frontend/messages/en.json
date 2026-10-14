@@ -1909,7 +1909,7 @@
           "description": "Reports and dashboards an agent publishes appear here."
         }
       },
-      "reviewQueue": {
+      "review-queue": {
         "title": "Awaiting review",
         "description": "Eval results waiting for a person's verdict.",
         "waiting": "{count, plural, =1 {1 result waits} other {# results wait}} for a verdict",
@@ -3409,7 +3409,7 @@
       },
       "dataset-scoring": {
         "title": "How cases are scored",
-        "body": "Pick the scorers: rule-based checks, the expected tool calls, and the eval judge with a rubric or the reference answer. Mark which ones a case must pass."
+        "body": "Pick the scorers: rule-based checks, the expected tool calls, and the eval judge with a rubric or the reference answer. Mark which ones a case must pass. The judge needs AI assistance, which an admin turns on for the organization."
       },
       "dataset-scores": {
         "title": "Scores and review",
@@ -5061,7 +5061,7 @@
   "teams": {
     "acmeCom": "acme.com",
     "aiAssistance": "AI assistance",
-    "aiAssistanceDescription": "Whether models may judge eval answers, draft test cases and propose changes to agents.",
+    "aiAssistanceDescription": "Off until somebody turns it on. It lets models judge eval answers, draft test cases, propose changes to agents and draft knowledge-gap content, and every use is a metered run within the agent's and the organization's budgets.",
     "aiAssistanceHint": "When this is off, nothing here calls a model to judge, generate or propose: the eval judge, the case generator and the authoring assistant are refused. Deterministic checks and people's verdicts keep working.",
     "aiAssistanceOn": "AI assistance is on",
     "aiAssistanceOff": "AI assistance is off",
@@ -5809,7 +5809,12 @@
         "noCriterion": "Give the judge at least one criterion, or turn it off - it has nothing to grade."
       },
       "willRun": "Runs {scorers}.",
-      "judgeSpends": "The judge's grading is a run of the eval judge, charged to its budget."
+      "judgeSpends": "The judge's grading is a run of the eval judge, charged to its budget.",
+      "aiOff": {
+        "body": "AI assistance is off in this organization, so the judge and the reference comparison are skipped and only the rule-based scorers score.",
+        "enable": "Enable AI assistance",
+        "askAdmin": "Ask an admin to turn it on."
+      }
     },
     "title": "Datasets",
     "pageDescription": "The questions your agents are tested on. Every change to a dataset's cases makes a new version, so two eval runs on one version saw the same questions.",
