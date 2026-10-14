@@ -534,6 +534,17 @@ Two things are versioned separately from this file and worth knowing about:
   agent's cursor moves to what it is about to click or type into and
   shows the click (`browser_pointer` frames).
 
+- **AgenticOS has a new mark: the blob its own name draws.** The light
+  face the avatar library draws for "agenticos", on a deep violet tile,
+  replaces Amigo's sombrero head in the console's sidebar and sign-in
+  header, the favicon, the home-screen and Open Graph images, the
+  documentation header and heroes, the top of every README, the desktop
+  app's icon set and the social card, which is redrawn around it.
+  `frontend/scripts/gen-logo.ts` writes the SVG, the console's data URI
+  and the desktop icon source from one recipe, and its test fails when
+  they drift. Amigo stays a desktop pet and the arcade's hero, and
+  `scripts/gen_amigo_assets.py` now cuts only his walk.
+
 - **The Architect wears a blueprint.** Its mark is now a blueprint-blue
   disc with a faint drafting grid and the two pill eyes every agent's face
   has, in the console and in the avatar a new install uploads.

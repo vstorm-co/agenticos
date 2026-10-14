@@ -1,6 +1,8 @@
-<!-- source_sha: b0d8863e1cb7 -->
+<!-- source_sha: 200f9f398fd0 -->
 
 <div align="center">
+
+<img src="docs/assets/logo.svg" alt="" width="96" height="96">
 
 <h1>AgenticOS</h1>
 

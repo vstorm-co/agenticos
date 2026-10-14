@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/assets/logo.svg" alt="" width="96" height="96">
+
 <h1>AgenticOS</h1>
 
 <h3>Sovereign Agentic AI Layer</h3>
