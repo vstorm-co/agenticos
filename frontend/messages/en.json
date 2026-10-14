@@ -5795,7 +5795,8 @@
         "judgeArchived": "The eval judge is archived. Restore it to grade again.",
         "judgeNoAccess": "You may not run the eval judge. Ask for access to it.",
         "judgeNotSeeded": "The eval judge could not be set up in this organization.",
-        "judgeBudget": "The eval judge's budget is spent, so it did not run."
+        "judgeBudget": "The eval judge's budget is spent, so it did not run.",
+        "judgeNoModel": "The eval judge's model is gone or has no key. Pick another model for it."
       },
       "scoreRun": "Score against a case",
       "scoreRunBody": "Run every scorer the dataset configures on this run's answer. The result is kept on the dataset.",
@@ -5814,7 +5815,10 @@
         "body": "AI assistance is off in this organization, so the judge and the reference comparison are skipped and only the rule-based scorers score.",
         "enable": "Enable AI assistance",
         "askAdmin": "Ask an admin to turn it on."
-      }
+      },
+      "findDataset": "Find a dataset",
+      "question": "Question",
+      "referenceAnswer": "Reference answer"
     },
     "title": "Datasets",
     "pageDescription": "The questions your agents are tested on. Every change to a dataset's cases makes a new version, so two eval runs on one version saw the same questions.",

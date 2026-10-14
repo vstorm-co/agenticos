@@ -64,6 +64,9 @@ export interface CaseScore {
   dataset_id: string;
   case_id: string;
   case_revision_id: string;
+  /** The scored revision's question and reference answer, which a later edit does not change. */
+  question: string;
+  reference_answer: string | null;
   run_id: string | null;
   results: ScorerResult[];
   judge: JudgePin | null;

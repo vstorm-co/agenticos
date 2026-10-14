@@ -32,6 +32,10 @@ export function ScoresPanel({ datasetId, canDecide }: ScoresPanelProps) {
   const [pending, setPending] = useState(false);
   const [page, setPage] = useState(0);
   const scores = useScores(datasetId, { pending, skip: page * PAGE_SIZE, limit: PAGE_SIZE });
+  const pageCount = Math.max(1, Math.ceil(scores.total / PAGE_SIZE));
+  // A verdict takes the last score off the last page of the queue; step back to
+  // the page that still exists, the adjust-state-while-rendering way.
+  if (!scores.isLoading && page >= pageCount) setPage(pageCount - 1);
 
   const decide = async (scoreId: string, verdict: Verdict) => {
     try {
@@ -100,7 +104,7 @@ export function ScoresPanel({ datasetId, canDecide }: ScoresPanelProps) {
           ))}
           <Pager
             page={page}
-            pageCount={Math.max(1, Math.ceil(scores.total / PAGE_SIZE))}
+            pageCount={pageCount}
             matched={scores.total}
             total={scores.total}
             onPage={setPage}

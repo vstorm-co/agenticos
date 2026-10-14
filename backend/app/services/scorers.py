@@ -22,6 +22,7 @@ from jsonschema import Draft202012Validator
 from jsonschema.exceptions import best_match
 from pydantic import BaseModel, Field, JsonValue
 from pydantic import ValidationError as PydanticValidationError
+from referencing.exceptions import Unresolvable
 
 from app.schemas.scoring import (
     CHECK,
@@ -190,7 +191,17 @@ def _schema_check(check: JsonSchemaCheck, answer: ScoredAnswer, *, required: boo
         value = _value(answer, check.path)
     except _NoValue as exc:
         return _result(name, passed=False, reason=str(exc), required=required)
-    error = best_match(Draft202012Validator(check.json_schema).iter_errors(value))
+    try:
+        error = best_match(Draft202012Validator(check.json_schema).iter_errors(value))
+    except Unresolvable:
+        return ScorerResult(
+            scorer="check",
+            name=name,
+            required=required,
+            status="error",
+            reason="The schema refers to a part of itself that does not exist",
+            reason_code="schema_unresolvable",
+        )
     if error is None:
         return _result(name, passed=True, reason="Matches the schema", required=required)
     where = "/".join(str(step) for step in error.absolute_path) or "the answer"

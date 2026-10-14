@@ -8,6 +8,7 @@ asks it for and what it makes of each answer.
 from __future__ import annotations
 
 import uuid
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -67,6 +68,12 @@ def _runner(
     )
     runner.agents.ensure = AsyncMock(return_value=agent or _agent())
     monkeypatch.setattr(system_agent_runner, "resolve_access", AsyncMock(return_value=may_run))
+    monkeypatch.setattr(
+        system_agent_runner.agent_repo,
+        "get_version",
+        AsyncMock(return_value=SimpleNamespace(spec={"model_profile_id": str(uuid.uuid4())})),
+    )
+    monkeypatch.setattr(system_agent_runner.ModelProfileService, "resolve", AsyncMock())
     execute = AsyncMock(return_value=(answer, run or _run()))
     monkeypatch.setattr(system_agent_runner.AgentRunnerService, "execute", execute)
     return runner, execute

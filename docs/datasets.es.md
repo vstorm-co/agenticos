@@ -1,5 +1,5 @@
 ---
-source_sha: "79e39797658c"
+source_sha: "fabd037360e6"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -209,11 +209,15 @@ comprobar: no se guarda nada y no se llama al juez.
 
 `path` lee dentro de una respuesta que es JSON: `items.0.name` es el nombre del
 primer elemento. Sin él, una regla lee la respuesta entera. Las reglas de texto
-no distinguen mayúsculas de minúsculas salvo que `case_sensitive` sea true. Un
-patrón se comprueba al escribir el caso, y una regla lee como máximo los
+no distinguen mayúsculas de minúsculas salvo que `case_sensitive` sea true.
+
+Un patrón se comprueba al escribir el caso, y una regla lee como máximo los
 primeros 100.000 caracteres de una respuesta. Un patrón que tarda más de una
 décima de segundo en una respuesta se detiene y se registra como error, así que
-un patrón no puede bloquear la puntuación.
+un patrón no puede bloquear la puntuación. Por la misma razón, un JSON Schema no
+puede usar `pattern` ni `patternProperties` (una comprobación `regex` con `path`
+hace lo mismo bajo el mismo límite de tiempo), y su `$ref` debe apuntar dentro
+del esquema.
 
 Una comprobación `judge` es un criterio solo para un caso, calificado en el
 mismo run del juez que la rúbrica del dataset. Úsala para lo que una regla no
@@ -254,7 +258,8 @@ Cada criterio se califica de 1 al máximo de la escala y aprueba en la nota de
 aprobado o por encima. Cuando el juez no puede calificar, sus criterios se
 registran como omitidos o como errores, con un motivo que nombra la causa: la
 asistencia de IA está desactivada, el juez no tiene una versión publicada, está
-archivado, la persona no puede ejecutarlo o su budget se ha agotado. Los
+archivado, su modelo ya no existe o no tiene clave, la persona no puede
+ejecutarlo o su budget se ha agotado. Los
 evaluadores basados en reglas siguen puntuando.
 
 Una calificación puede citar la respuesta, hasta 12 fragmentos; una cita que la

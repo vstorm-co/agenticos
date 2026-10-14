@@ -25,6 +25,8 @@ function score(overrides: Partial<CaseScore> = {}): CaseScore {
     dataset_id: "d1",
     case_id: "c1",
     case_revision_id: "r1",
+    question: "How long is the refund window?",
+    reference_answer: null,
     run_id: "run-1",
     judge: null,
     results: [result()],
@@ -46,6 +48,13 @@ function score(overrides: Partial<CaseScore> = {}): CaseScore {
  * them - so the judge's opinion stays readable after it is overruled.
  */
 describe("ScoreCard", () => {
+  it("shows what the scored revision asked, and its reference answer", () => {
+    render(<ScoreCard score={score({ reference_answer: "Thirty days." })} />);
+
+    expect(screen.getByText("How long is the refund window?")).toBeInTheDocument();
+    expect(screen.getByText("Thirty days.")).toBeInTheDocument();
+  });
+
   it("shows each scorer's verdict and reason, and links the scored run", () => {
     render(
       <ScoreCard

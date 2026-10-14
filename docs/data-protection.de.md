@@ -1,5 +1,5 @@
 ---
-source_sha: "47c40ac1122e"
+source_sha: "847f165f0105"
 ---
 
 # Datenschutz { #data-protection }
@@ -84,7 +84,7 @@ des Elternteils.
 | `chat_files` | Anhänge an einer Nachricht | Dateiname, Typ, Größe, der extrahierte Text (`parsed_content`) und der Pfad der Bytes auf der Platte | Antworten über eine Datei |
 | `context_files` | Dauerhaftes Wissen, das ein Builder für Agents geschrieben hat | Was der Autor dort hineingeschrieben hat — und es erreicht den Prompt wörtlich. Siehe [Kontextdateien](context.md) | Anweisungen und Fakten, die ein Agent immer kennen soll |
 | `datasets`, `dataset_cases` | Testfälle für Evals | Fragen und Antworten, die aus Conversations kopiert wurden, als jemand „Zum Dataset hinzufügen“ wählte, und was eine importierte Datei enthielt. Zugangsdaten werden geschwärzt, bevor ein Fall gespeichert wird. Siehe [Datasets](datasets.md#personal-data) | Prüfen, ob ein Agent besser geworden ist |
-| `case_scores` | Was das Scoring über die Antwort eines Runs auf einen Fall ergeben hat | Die Begründungen des Eval-Judge, die die bewertete Antwort zitieren können; das Urteil und die Notiz einer Person und wer es abgegeben hat. Zugangsdaten werden geschwärzt, bevor ein Score gespeichert wird. Siehe [Datasets](datasets.md#review) | Entscheiden, ob die Antwort eines Agents bestanden hat |
+| `case_scores` | Was das Scoring über die Antwort eines Runs auf einen Fall ergeben hat | Die Begründungen des Eval-Judge, die die bewertete Antwort zitieren können; das Urteil und die Notiz einer Person und wer es abgegeben hat. Die Urteile, die eine Person abgegeben hat, sind in ihrem Export enthalten (`GET /me/data/export`). Zugangsdaten werden geschwärzt, bevor ein Score gespeichert wird. Siehe [Datasets](datasets.md#review) | Entscheiden, ob die Antwort eines Agents bestanden hat |
 | `eval_runs`, `eval_run_arms`, `eval_run_cases` | Was ein Agent auf jeden Fall eines Eval-Runs geantwortet hat | Die Antwort und die Argumente jedes Aufrufs, den er gemacht hat - also das, was der Fall gefragt hat, und bei einem aus einer Aufzeichnung beantworteten Fall das, was die Conversation zurückgegeben hat, aus der er stammt; der Spec eines Drafts, den ein Run eingefroren hat. Gelöscht mit seinem Run, und ein Run mit seinem Agent oder Dataset. Siehe [Eval-Runs](evals.md#what-a-run-keeps) | Versionen eines Agents vergleichen |
 | `artifacts`, `artifact_versions` und ihre Dateien | Seiten, die Agents veröffentlicht haben — Berichte, Dashboards | Was auch immer die Seite zeigt, die der Run aus dem gebaut hat, was er lesen konnte; der Besitzer, der Run, der jede Version geschrieben hat, und, wenn einer aktiv ist, der Schlüssel des öffentlichen Links, seine Einstellungen (ein Passwort als bcrypt-Hash) und wie oft er geöffnet wurde — eine Zahl und ein Zeitpunkt, nichts über die Besucher. Siehe [Artefakte](artifacts.md) | Ein Ergebnis unter einem stabilen Link teilen |
 | `agent_memory_files` | Notizen, die ein Agent über eine Person oder einen Gruppenchat geschrieben hat | Was der Agent für merkenswert hielt, geschlüsselt auf `person:<user_id>` oder einen Chatraum | Kontinuität zwischen Conversations |

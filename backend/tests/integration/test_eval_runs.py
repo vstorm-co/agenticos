@@ -43,7 +43,7 @@ from app.db.models.agent_run import AgentRun, RunSurface
 from app.db.models.case_score import CaseScore
 from app.db.models.credential import ModelProfile
 from app.db.models.dataset import Dataset, DatasetCase
-from app.db.models.eval_run import EvalRun, EvalRunStatus
+from app.db.models.eval_run import EvalRun, EvalRunCase, EvalRunStatus
 from app.db.models.intercepted_tool_call import InterceptedToolCall
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import GrantLevel, ResourceGrant
@@ -355,7 +355,7 @@ async def test_a_cancelled_run_starts_no_further_case(db) -> None:
     assert len(model.calls) == 2
     assert read.status == "cancelled"
     # The case that was already running when the person cancelled finished.
-    assert read.attempts_done == 2
+    assert (read.attempts_done, read.attempts_total) == (2, 6)
 
 
 @pytest.mark.security
@@ -372,7 +372,8 @@ async def test_a_case_that_runs_out_of_budget_stops_the_run(db) -> None:
     read = await service.get(ctx, started.id)
     assert len(model.calls) == 3
     assert read.status == "budget_exceeded"
-    assert read.attempts_total == 3
+    # The cases left unanswered still count, so progress reads 3 of 5.
+    assert (read.attempts_done, read.attempts_total) == (3, 5)
 
 
 async def test_a_case_that_passed_on_v6_and_fails_on_v7_is_a_confirmed_regression(db) -> None:
@@ -431,7 +432,11 @@ async def test_a_baseline_in_the_same_run_is_reused_when_everything_matches(db) 
     await _run_to_end(db, again, second.id, ctx)
     assert len(again.calls) == 3
     comparison = await service.compare(ctx, second.id)
-    assert comparison.paired
+    # The comparison names the run the baseline was answered in, and when.
+    assert not comparison.paired
+    assert comparison.baseline is not None
+    assert comparison.baseline.run_id == first.id
+    assert comparison.baseline.finished_at is not None
     assert comparison.verdict == "no_difference"
     read = await service.get(ctx, second.id)
     reused = next(arm for arm in read.arms if arm.role == "baseline")
@@ -693,7 +698,7 @@ async def test_a_worker_never_starts_a_finished_run_or_one_whose_starter_left(db
     assert model.calls == []
     assert read.status == "failed"
     assert read.error == "Whoever started this eval is no longer a member."
-    assert read.attempts_total == 0
+    assert (read.attempts_done, read.attempts_total) == (0, 2)
 
 
 async def test_a_full_organization_waits_for_a_free_slot(db) -> None:
@@ -855,6 +860,42 @@ async def test_a_baseline_graded_by_another_judge_is_not_compared(db) -> None:
     comparison = await service.compare(ctx, v7.id)
     assert comparison.verdict == "invalid"
     assert "different judge" in (comparison.invalid_reason or "")
+
+
+async def test_cases_with_their_own_judge_checks_still_compare(db) -> None:
+    """A rubric fingerprint covers a case's own judge checks, so two cases of one
+    side are pinned differently; only the same case on the two sides must match."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=2)
+    service = EvalRunService(db)
+    started = await service.start(
+        ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, paired_baseline=True, reruns=0)
+    )
+    await _run_to_end(db, Model(db), started.id, ctx)
+    attempts = (
+        (await db.execute(select(EvalRunCase).where(EvalRunCase.eval_run_id == started.id)))
+        .scalars()
+        .all()
+    )
+    rubric = {case_id: uuid.uuid4().hex for case_id in {a.case_id for a in attempts}}
+    for attempt in attempts:
+        score = await db.get(CaseScore, attempt.case_score_id)
+        assert score is not None
+        score.judge = {"agent_version_id": None, "rubric_hash": rubric[attempt.case_id]}
+    await db.flush()
+
+    comparison = await service.compare(ctx, started.id)
+    assert comparison.verdict == "no_difference"
+    assert comparison.invalid_reason is None
+
+    # The same case graded under another rubric on one side does not compare.
+    one = next(a for a in attempts if a.arm_id == comparison.baseline.arm_id)
+    score = await db.get(CaseScore, one.case_score_id)
+    assert score is not None
+    score.judge = {"agent_version_id": None, "rubric_hash": "other"}
+    await db.flush()
+    assert (await service.compare(ctx, started.id)).verdict == "invalid"
 
 
 async def test_a_case_added_since_the_baseline_is_not_compared(db) -> None:

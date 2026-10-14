@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 
+import { ErrorState } from "@/components/states";
 import {
   Button,
   Dialog,
@@ -19,13 +20,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
+import { Pager, SearchInput, useDebounced } from "@/components/ui/list-controls";
 import { useDatasetCases, useDatasets } from "@/hooks/use-datasets";
 import { useScoreRun } from "@/hooks/use-scoring";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
+import { callsJudge } from "@/lib/scoring";
 import { DIALOG_SCROLL, DIALOG_WIDE } from "@/lib/dialog-sizes";
+import type { DatasetCase } from "@/types/datasets";
 import type { CaseScore, DatasetScoring } from "@/types/scoring";
 import { ScoreCard } from "./score-card";
+
+/** As many as the server lists at once; past it the dataset picker searches and the case picker pages. */
+const SHOWN = 100;
 
 const SCORERS = ["checks", "trajectory", "judge", "reference"] as const;
 const SCORER_KEY = {
@@ -35,8 +42,14 @@ const SCORER_KEY = {
   reference: "reference",
 } as const;
 
-/** Which of a dataset's scorers a score runs, and that the judge's half is a paid run. */
-function ScorersToRun({ scoring }: { scoring: DatasetScoring }) {
+/** Which of a dataset's scorers a score runs, and whether scoring this case pays for a judge run. */
+function ScorersToRun({
+  scoring,
+  kase,
+}: {
+  scoring: DatasetScoring;
+  kase: DatasetCase | undefined;
+}) {
   const t = useTranslations("datasets.scoring");
   const locale = useLocale();
   const on = SCORERS.filter((scorer) => scoring[scorer].enabled);
@@ -46,7 +59,7 @@ function ScorersToRun({ scoring }: { scoring: DatasetScoring }) {
   return (
     <p className="text-muted-foreground text-xs">
       {t("willRun", { scorers: names })}
-      {(scoring.judge.enabled || scoring.reference.enabled) && ` ${t("judgeSpends")}`}
+      {kase !== undefined && callsJudge(scoring, kase) && ` ${t("judgeSpends")}`}
     </p>
   );
 }
@@ -66,16 +79,23 @@ interface ScoreRunDialogProps {
 export function ScoreRunDialog({ open, onOpenChange, runId }: ScoreRunDialogProps) {
   const t = useTranslations("datasets.scoring");
   const td = useTranslations("datasets");
+  const tc = useTranslations("common");
   const tErrors = useTranslations("errors");
-  const { datasets, isLoading } = useDatasets({ sort: "updated", limit: 100 });
+  const [search, setSearch] = useState("");
+  const query = useDebounced(search);
+  const listed = useDatasets({ search: query, sort: "updated", limit: SHOWN });
+  const { datasets, isLoading } = listed;
   const [datasetId, setDatasetId] = useState("");
   const [caseId, setCaseId] = useState("");
+  const [page, setPage] = useState(0);
   const [result, setResult] = useState<CaseScore | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const chosen = datasetId || datasets[0]?.id || "";
   const scoring = datasets.find((dataset) => dataset.id === chosen)?.scoring;
-  const { cases } = useDatasetCases(chosen, { limit: 100 });
+  const listing = useDatasetCases(chosen, { skip: page * SHOWN, limit: SHOWN });
+  const { cases } = listing;
   const target = caseId || cases[0]?.case_id || "";
+  const kase = cases.find((item) => item.case_id === target);
   const score = useScoreRun();
 
   async function submit() {
@@ -96,7 +116,12 @@ export function ScoreRunDialog({ open, onOpenChange, runId }: ScoreRunDialogProp
         </DialogHeader>
         {result !== null ? (
           <ScoreCard score={result} />
-        ) : !isLoading && datasets.length === 0 ? (
+        ) : listed.error ? (
+          <ErrorState
+            description={getErrorMessage(listed.error, tErrors)}
+            cta={{ label: tc("retry"), onClick: () => void listed.refetch() }}
+          />
+        ) : !isLoading && datasets.length === 0 && query === "" ? (
           <p className="text-muted-foreground text-sm">
             {t.rich("noDatasetToScore", {
               link: (chunks) => (
@@ -108,12 +133,16 @@ export function ScoreRunDialog({ open, onOpenChange, runId }: ScoreRunDialogProp
           </p>
         ) : (
           <div className="space-y-4">
+            {(listed.total > datasets.length || search !== "") && (
+              <SearchInput value={search} onChange={setSearch} placeholder={t("findDataset")} />
+            )}
             <FormField htmlFor="score-dataset" label={td("dataset")}>
               <Select
                 value={chosen}
                 onValueChange={(next) => {
                   setDatasetId(next);
                   setCaseId("");
+                  setPage(0);
                 }}
               >
                 <SelectTrigger id="score-dataset">
@@ -142,7 +171,27 @@ export function ScoreRunDialog({ open, onOpenChange, runId }: ScoreRunDialogProp
                 </SelectContent>
               </Select>
             </FormField>
-            {scoring !== undefined && <ScorersToRun scoring={scoring} />}
+            {listing.error ? (
+              <ErrorState
+                description={getErrorMessage(listing.error, tErrors)}
+                cta={{ label: tc("retry"), onClick: () => void listing.refetch() }}
+              />
+            ) : (
+              listing.total > SHOWN && (
+                <Pager
+                  page={page}
+                  pageCount={Math.ceil(listing.total / SHOWN)}
+                  matched={listing.total}
+                  total={listing.total}
+                  onPage={(next) => {
+                    setPage(next);
+                    setCaseId("");
+                  }}
+                  counted={td("caseCount", { count: listing.total })}
+                />
+              )
+            )}
+            {scoring !== undefined && <ScorersToRun scoring={scoring} kase={kase} />}
           </div>
         )}
         <DialogFooter>

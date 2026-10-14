@@ -930,9 +930,7 @@ class EvalRunService:
                     cost_usd=attempt_cost + judge_cost,
                     cost_is_partial=judge_partial or any(a.cost_is_partial for a in attempts),
                     attempts_done=sum(1 for a in attempts if a.status in finished),
-                    attempts_total=sum(
-                        1 for a in attempts if a.status != CaseAttemptStatus.SKIPPED.value
-                    ),
+                    attempts_total=len(attempts),
                     error=run.error,
                     created_by_user_id=run.created_by_user_id,
                     created_at=run.created_at,
@@ -1059,15 +1057,18 @@ class EvalRunService:
     ) -> Baseline | None:
         """What a candidate arm is compared with when nobody names a baseline.
 
-        The baseline that ran in this run, if one did - or the run it reused.
-        Otherwise the cheap default: the last completed run of this dataset on
+        The baseline that ran in this run, if one did. One reused from an
+        earlier run is that run's arm, so the comparison names where it came
+        from and when it finished. Otherwise the cheap default: the last completed run of this dataset on
         the version before the candidate's (the published one, for a draft),
         whatever its model and dataset version - the comparison says both.
         """
         arms = await eval_run_repo.list_arms(self.db, [run.id], organization_id=ctx.organization_id)
         paired = next((a for a in arms if a.role == ArmRole.BASELINE.value), None)
-        if paired is not None:
+        if paired is not None and paired.reused_from_arm_id is None:
             return Baseline(arm=paired, run=run, paired=True)
+        if paired is not None:
+            return await self._reused(ctx, paired)
         if arm.version_number is not None:
             previous = await agent_repo.version_before(
                 self.db,
@@ -1090,6 +1091,17 @@ class EvalRunService:
             exclude_run_id=run.id,
         )
         return Baseline(arm=found[0], run=found[1], paired=False) if found else None
+
+    async def _reused(self, ctx: AuthContext, arm: EvalRunArm) -> Baseline:
+        assert arm.reused_from_arm_id is not None
+        org = ctx.organization_id
+        # The reference is set null when the original arm goes, and an arm
+        # never outlives its run.
+        original = await eval_run_repo.get_arm(self.db, arm.reused_from_arm_id, organization_id=org)
+        assert original is not None
+        source = await eval_run_repo.get(self.db, original.eval_run_id, organization_id=org)
+        assert source is not None
+        return Baseline(arm=original, run=source, paired=False)
 
     async def outcomes(
         self, ctx: AuthContext, arm: EvalRunArm, attempts: Sequence[EvalRunCase]
@@ -1319,10 +1331,14 @@ class EvalRunService:
         Different scoring decides cases by different rules; a different judge
         grades by a different hand. Either way a flip says nothing about the
         agent, so the comparison is refused rather than read.
+
+        The judge is compared case by case: a rubric fingerprint covers the
+        judge checks a case carries of its own, so two cases of one side are
+        rightly pinned differently. A case only one side's judge graded is left
+        to its outcome, which is already undecided on the other side.
         """
         if baseline.run.scoring_hash != run.scoring_hash:
             return "The two runs were scored with different scoring settings."
-        mine = await self._scores(ctx, await self._arm_attempts(ctx, candidate, attempts))
         other_attempts = (
             attempts
             if baseline.run.id == run.id
@@ -1330,16 +1346,23 @@ class EvalRunService:
                 self.db, baseline.run.id, organization_id=ctx.organization_id
             )
         )
-        theirs = await self._scores(
-            ctx, await self._arm_attempts(ctx, baseline.arm, other_attempts)
-        )
-        pins = [
-            {json.dumps(s.judge, sort_keys=True) for s in side.values() if s.judge is not None}
-            for side in (mine, theirs)
-        ]
-        if len(pins[0] | pins[1]) > 1:
+        mine = await self._pins(ctx, await self._arm_attempts(ctx, candidate, attempts))
+        theirs = await self._pins(ctx, await self._arm_attempts(ctx, baseline.arm, other_attempts))
+        if any(mine[case_id] != theirs[case_id] for case_id in mine.keys() & theirs.keys()):
             return "The two sides were graded by a different judge, model or rubric."
         return None
+
+    async def _pins(
+        self, ctx: AuthContext, attempts: Sequence[EvalRunCase]
+    ) -> dict[UUID, set[str]]:
+        """Each case's judge pins across its attempts, for the cases a judge graded."""
+        scores = await self._scores(ctx, attempts)
+        pins: dict[UUID, set[str]] = defaultdict(set)
+        for attempt in attempts:
+            score = scores.get(attempt.case_score_id)
+            if score is not None and score.judge is not None:
+                pins[attempt.case_id].add(json.dumps(score.judge, sort_keys=True))
+        return pins
 
 
 @dataclass(frozen=True)

@@ -6,16 +6,53 @@ import { DEFAULT_SCORING } from "@/lib/scoring";
 import type { CaseScore, DatasetScoring } from "@/types/scoring";
 import { ScoreRunButton } from "./score-run-button";
 
+type Kase = {
+  case_id: string;
+  input: string;
+  reference_answer?: string | null;
+  checks?: { type: string }[];
+};
+
 const state = vi.hoisted(() => ({
   datasets: [] as { id: string; name: string; scoring?: DatasetScoring }[],
+  datasetTotal: null as number | null,
+  datasetsError: null as Error | null,
+  refetchDatasets: vi.fn(),
   isLoading: false,
-  cases: {} as Record<string, { case_id: string; input: string }[]>,
+  cases: {} as Record<string, Kase[]>,
+  caseTotal: null as number | null,
+  casesError: null as Error | null,
+  refetchCases: vi.fn(),
+  caseCalls: [] as { datasetId: string; skip?: number }[],
+  searches: [] as string[],
   score: vi.fn(),
   pending: false,
 }));
 vi.mock("@/hooks/use-datasets", () => ({
-  useDatasets: () => ({ datasets: state.datasets, isLoading: state.isLoading }),
-  useDatasetCases: (datasetId: string) => ({ cases: state.cases[datasetId] ?? [] }),
+  useDatasets: ({ search }: { search: string }) => {
+    state.searches.push(search);
+    return {
+      datasets: state.datasets,
+      total: state.datasetTotal ?? state.datasets.length,
+      isLoading: state.isLoading,
+      error: state.datasetsError,
+      refetch: state.refetchDatasets,
+    };
+  },
+  useDatasetCases: (datasetId: string, { skip }: { skip?: number } = {}) => {
+    state.caseCalls.push({ datasetId, skip });
+    const cases = (state.cases[datasetId] ?? []).map((item) => ({
+      reference_answer: null,
+      checks: [],
+      ...item,
+    }));
+    return {
+      cases,
+      total: state.caseTotal ?? cases.length,
+      error: state.casesError,
+      refetch: state.refetchCases,
+    };
+  },
 }));
 vi.mock("@/hooks/use-scoring", () => ({
   useScoreRun: () => ({ mutateAsync: state.score, isPending: state.pending }),
@@ -26,6 +63,8 @@ const SCORE: CaseScore = {
   dataset_id: "d1",
   case_id: "c1",
   case_revision_id: "r1",
+  question: "How long is the refund window?",
+  reference_answer: null,
   run_id: "run-1",
   judge: null,
   results: [
@@ -61,9 +100,15 @@ beforeEach(() => {
   ];
   state.isLoading = false;
   state.pending = false;
+  state.datasetTotal = null;
+  state.datasetsError = null;
+  state.caseTotal = null;
+  state.casesError = null;
+  state.caseCalls = [];
+  state.searches = [];
   state.cases = {
     d1: [{ case_id: "c1", input: "How long is the refund window?" }],
-    d2: [{ case_id: "c2", input: "x".repeat(100) }],
+    d2: [{ case_id: "c2", input: "x".repeat(100), reference_answer: "Thirty days." }],
   };
 });
 
@@ -104,6 +149,59 @@ describe("Score against a case", () => {
         "Runs Checks, Tool calls, and Reference answer. The judge's grading is a run of the eval judge, charged to its budget.",
       ),
     ).toBeInTheDocument();
+  });
+
+  it("warns of the judge's cost when only the case's own judge check calls it", async () => {
+    state.datasets = [{ id: "d1", name: "refunds", scoring: DEFAULT_SCORING }];
+    state.cases = { d1: [{ case_id: "c1", input: "Polite?", checks: [{ type: "judge" }] }] };
+    render(<ScoreRunButton runId="run-1" />);
+
+    await open();
+
+    expect(screen.getByText(/charged to its budget/)).toBeInTheDocument();
+  });
+
+  it("offers a retry when the datasets could not be read, rather than saying there are none", async () => {
+    state.datasets = [];
+    state.datasetsError = new Error("502");
+    render(<ScoreRunButton runId="run-1" />);
+
+    await open();
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(state.refetchDatasets).toHaveBeenCalled();
+    expect(screen.queryByRole("link", { name: "Create one" })).toBeNull();
+  });
+
+  it("searches the datasets once there are more than one listing holds", async () => {
+    state.datasetTotal = 250;
+    render(<ScoreRunButton runId="run-1" />);
+
+    await open();
+    await userEvent.type(screen.getByPlaceholderText("Find a dataset"), "ref");
+
+    await waitFor(() => expect(state.searches).toContain("ref"));
+  });
+
+  it("pages through a dataset with more cases than one listing holds", async () => {
+    state.caseTotal = 250;
+    render(<ScoreRunButton runId="run-1" />);
+
+    await open();
+    await userEvent.click(screen.getByRole("button", { name: /next/i }));
+
+    expect(state.caseCalls.at(-1)).toEqual({ datasetId: "d1", skip: 100 });
+  });
+
+  it("says why the cases could not be read", async () => {
+    state.casesError = new Error("Cases unavailable");
+    render(<ScoreRunButton runId="run-1" />);
+
+    await open();
+
+    expect(screen.getByText("Cases unavailable")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(state.refetchCases).toHaveBeenCalled();
   });
 
   it("takes the case from the dataset chosen, shortening a long question", async () => {

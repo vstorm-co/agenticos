@@ -23,6 +23,7 @@ from app.core.exceptions import (
 )
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
+from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.credential import ModelProfile
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import Visibility
@@ -231,6 +232,33 @@ class TestTheSwitch:
 
         with pytest.raises(AiAssistanceDisabledError):
             await AiAssistanceService(db).require_enabled(organization_id=organization.id)
+
+    async def test_switching_it_is_audited_and_a_repeat_is_not(self, db) -> None:
+        organization, owner = await _organization(db)
+        service = OrganizationService(db)
+
+        await service.update(
+            organization.id, OrganizationUpdate(ai_assistance_enabled=True), owner.id
+        )
+        await service.update(
+            organization.id, OrganizationUpdate(ai_assistance_enabled=True), owner.id
+        )
+        await service.update(
+            organization.id, OrganizationUpdate(ai_assistance_enabled=False), owner.id
+        )
+
+        entries = (
+            await db.scalars(
+                select(AppAdminAuditLog)
+                .where(
+                    AppAdminAuditLog.organization_id == organization.id,
+                    AppAdminAuditLog.action == "organization.ai_assistance",
+                )
+                .order_by(AppAdminAuditLog.created_at, AppAdminAuditLog.id)
+            )
+        ).all()
+        assert sorted(entry.details["enabled"] for entry in entries) == [False, True]
+        assert {entry.actor_user_id for entry in entries} == {owner.id}
 
     async def test_an_admin_switches_it_on(self, db) -> None:
         organization, _ = await _organization(db)
