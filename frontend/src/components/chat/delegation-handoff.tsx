@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import type { DelegationStatus } from "@/types";
 
 /** The catalog key for each status, translated at the point of use. */
-const STATUS_KEY: Record<DelegationStatus, string> = {
+export const STATUS_KEY: Record<DelegationStatus, string> = {
   running: "working",
   completed: "finished",
   failed: "failed",

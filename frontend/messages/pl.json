@@ -1015,7 +1015,8 @@
       "working": "pracuje…",
       "teamAtWork": "Zespół przy pracy",
       "teamOnThis": "Kto nad tym pracował",
-      "askedCount": "{count, plural, =1 {Zapytano 1 agenta} few {Zapytano # agentów} many {Zapytano # agentów} other {Zapytano # agenta}}"
+      "askedCount": "{count, plural, =1 {Zapytano 1 agenta} few {Zapytano # agentów} many {Zapytano # agentów} other {Zapytano # agenta}}",
+      "actionCount": "{count, plural, =1 {1 akcja} few {# akcje} many {# akcji} other {# akcji}}"
     },
     "delete": "Usuń",
     "describeIssue": "Opisz problem... (opcjonalnie)",

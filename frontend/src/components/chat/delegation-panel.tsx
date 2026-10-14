@@ -42,15 +42,28 @@ export function DelegationPanels({
   delegations,
   agents = [],
   parent,
+  settled = false,
 }: {
   delegations: Delegation[];
   /** The agents the reader can see, which give a delegate its name and face. */
   agents?: readonly DelegateRef[];
   /** The agent that handed the work out, at the head of the strip. */
   parent?: DelegateRef;
+  /**
+   * The turn is over. A delegation that answered in it is then the "Asked …" step
+   * and the team under the answer, so its panel goes; one still out in the
+   * background, one that failed, and a specialist that can still be kept stay.
+   */
+  settled?: boolean;
 }) {
-  if (delegations.length === 0) return null;
-  const roots = rootsOf(delegations);
+  const roots = rootsOf(delegations).filter(
+    (delegation) =>
+      !settled ||
+      delegation.status !== "completed" ||
+      delegation.mode === "async" ||
+      delegation.specialist !== null,
+  );
+  if (roots.length === 0) return null;
   // The team at work, over the panels, while any of it is still out. Once all of
   // it is back the strip under the answer says who did what, and these panels
   // stay for what only they hold - the run behind each, promoting a specialist.
@@ -133,7 +146,10 @@ function DelegationPanel({
   const t = useTranslations("chat.delegation");
   const tTools = useTranslations("chat.tools");
   const { can } = usePermissions();
-  const [open, setOpen] = useState(delegation.status === "running");
+  // Closed even while it works: three delegates streaming their briefs, steps and
+  // drafts at once was a wall nobody could follow. The header says who, where
+  // they are and how many actions they have taken; the rest is one click away.
+  const [open, setOpen] = useState(false);
   // The render-time transition `ToolCallCard` uses rather than an effect: a panel
   // that has finished must not be shown open for a frame first. Comparing against
   // the status last *seen* is also what keeps a replayed delegation - mounted
@@ -182,6 +198,11 @@ function DelegationPanel({
         <span className={cn("shrink-0 text-[13px]", TONE[delegation.status])}>
           {t(STATUS_KEY[delegation.status])}
         </span>
+        {delegation.steps.length > 0 && (
+          <span className="text-muted-foreground shrink-0 text-xs tabular-nums">
+            {t("actionCount", { count: delegation.steps.length })}
+          </span>
+        )}
         {/* A background delegation reports *after* the parent has answered, so
             saying which kind it is at the start is what stops the panel reading as
             an answer that never arrived. */}

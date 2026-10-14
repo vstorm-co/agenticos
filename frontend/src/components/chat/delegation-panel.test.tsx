@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -57,7 +57,10 @@ describe("DelegationPanels - one panel per delegation", () => {
       />,
     );
 
-    expect(screen.getAllByRole("button", { expanded: true })).toHaveLength(3);
+    // Closed while they work - three streams at once is a wall - and each opens.
+    const headers = screen.getAllByRole("button", { expanded: false });
+    expect(headers).toHaveLength(3);
+    headers.forEach((header) => fireEvent.click(header));
     expect(screen.getAllByTestId("markdown").map((node) => node.textContent)).toEqual([
       "found three",
       "once upon a time",
@@ -71,6 +74,7 @@ describe("DelegationPanels - one panel per delegation", () => {
 
     expect(screen.getByText("Researcher")).toBeInTheDocument();
     expect(screen.getByText("working…")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { expanded: false }));
     expect(screen.getByText("find three papers on retrieval")).toBeInTheDocument();
   });
 
@@ -83,16 +87,31 @@ describe("DelegationPanels - one panel per delegation", () => {
   });
 });
 
-describe("DelegationPanels - open while it runs, closed once it is over", () => {
-  it("opens a running delegation", () => {
-    render(<DelegationPanels delegations={[delegation({ text: "half an answ" })]} />);
+describe("DelegationPanels - a line until it is opened", () => {
+  it("keeps a running delegation closed, counting what it has done", () => {
+    render(
+      <DelegationPanels
+        delegations={[
+          delegation({
+            text: "half an answ",
+            steps: [
+              { id: "c1", name: "search_documents", ok: true },
+              { id: "c2", name: "search_documents", ok: null },
+            ],
+          }),
+        ]}
+      />,
+    );
 
-    expect(screen.getByRole("button", { expanded: true })).toBeInTheDocument();
+    expect(screen.getByText("2 actions")).toBeInTheDocument();
+    expect(screen.queryByTestId("markdown")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { expanded: false }));
     expect(screen.getByTestId("markdown")).toBeInTheDocument();
   });
 
   it("closes the panel when the delegation reports, keeping the header", () => {
     const { rerender } = render(<DelegationPanels delegations={[delegation({ text: "done" })]} />);
+    fireEvent.click(screen.getByRole("button", { expanded: false }));
     expect(screen.getByTestId("markdown")).toBeInTheDocument();
 
     rerender(
@@ -133,6 +152,7 @@ describe("DelegationPanels - open while it runs, closed once it is over", () => 
     // The status-transition check must not close a panel on every re-render, which
     // is what a streaming delegation produces one of per delta.
     const { rerender } = render(<DelegationPanels delegations={[delegation({ text: "a" })]} />);
+    fireEvent.click(screen.getByRole("button", { expanded: false }));
     rerender(<DelegationPanels delegations={[delegation({ text: "ab" })]} />);
 
     expect(screen.getByRole("button", { expanded: true })).toBeInTheDocument();
@@ -205,6 +225,7 @@ describe("DelegationPanels - the delegate's own work", () => {
         ]}
       />,
     );
+    fireEvent.click(screen.getByRole("button", { expanded: false }));
 
     expect(screen.getByText("Knowledge Base Search")).toBeInTheDocument();
     expect(screen.getByText("Searching the documents")).toBeInTheDocument();
@@ -218,6 +239,7 @@ describe("DelegationPanels - the delegate's own work", () => {
         delegations={[delegation({ thinking: "three sources should do", text: "found three" })]}
       />,
     );
+    fireEvent.click(screen.getByRole("button", { expanded: false }));
 
     expect(screen.getByText("three sources should do")).toBeInTheDocument();
     expect(screen.getByTestId("markdown")).toHaveTextContent("found three");
@@ -235,6 +257,7 @@ describe("DelegationPanels - nesting", () => {
       />,
     );
 
+    fireEvent.click(screen.getByRole("button", { name: /Researcher/ }));
     const parent = screen.getByText("Researcher").closest("div.border-l");
     expect(parent).not.toBeNull();
     expect(parent!).toContainElement(screen.getByText("Assistant"));
@@ -253,5 +276,33 @@ describe("DelegationPanels - nesting", () => {
     );
 
     expect(screen.queryByText("Assistant")).toBeNull();
+  });
+});
+
+describe("DelegationPanels - once the turn is over", () => {
+  it("drops a delegation that answered in its turn, which its step already records", () => {
+    render(
+      <DelegationPanels
+        settled
+        delegations={[
+          delegation({ taskId: "t1", subagent: "researcher", status: "completed" }),
+          delegation({ taskId: "t2", subagent: "writer", status: "failed", error: "refused" }),
+          delegation({ taskId: "t3", subagent: "critic", status: "completed", mode: "async" }),
+        ]}
+      />,
+    );
+
+    // The failure says why, and the background one reports after the turn.
+    expect(screen.queryByText("Researcher")).toBeNull();
+    expect(screen.getByText("Writer")).toBeInTheDocument();
+    expect(screen.getByText("Critic")).toBeInTheDocument();
+  });
+
+  it("draws nothing once every delegation is recorded elsewhere", () => {
+    const { container } = render(
+      <DelegationPanels settled delegations={[delegation({ status: "completed" })]} />,
+    );
+
+    expect(container).toBeEmptyDOMElement();
   });
 });

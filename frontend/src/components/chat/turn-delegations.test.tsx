@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -58,15 +58,34 @@ describe("the team under an answer", () => {
     expect(screen.getAllByText("finished")).toHaveLength(3);
   });
 
-  it("opens a delegate onto its brief and its answer, and closes it again", async () => {
+  it("opens a delegate at the side, onto its brief and its answer, and closes it", async () => {
     render(<TurnDelegations toolCalls={[asked("1", "finance-analyst")]} agents={AGENTS} />);
 
     await userEvent.click(screen.getByRole("button", { name: /Finance Analyst/ }));
-    expect(screen.getByText("Brief for finance-analyst")).toBeInTheDocument();
-    expect(screen.getByText("Answer from finance-analyst")).toBeInTheDocument();
+    const sheet = screen.getByRole("dialog");
+    expect(within(sheet).getByText("Brief for finance-analyst")).toBeInTheDocument();
+    expect(within(sheet).getByText("Answer from finance-analyst")).toBeInTheDocument();
+
+    await userEvent.click(within(sheet).getByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("moves between the delegates from the faces along the top", async () => {
+    render(
+      <TurnDelegations
+        toolCalls={[asked("1", "finance-analyst"), asked("2", "support-desk")]}
+        agents={AGENTS}
+      />,
+    );
 
     await userEvent.click(screen.getByRole("button", { name: /Finance Analyst/ }));
-    expect(screen.queryByText("Answer from finance-analyst")).toBeNull();
+    await userEvent.click(screen.getByRole("tab", { name: "Support Desk" }));
+
+    expect(screen.getByRole("tab", { name: "Support Desk" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.getByText("Answer from support-desk")).toBeInTheDocument();
   });
 
   it("says where each delegation stands, a failure as failed", () => {
@@ -103,5 +122,6 @@ describe("the team under an answer", () => {
     await userEvent.click(screen.getByRole("button", { name: /Support Desk/ }));
 
     expect(screen.queryByText("Brief")).toBeNull();
+    expect(screen.queryByText("Answer")).toBeNull();
   });
 });

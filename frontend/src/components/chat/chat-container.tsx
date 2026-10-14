@@ -747,6 +747,7 @@ function ChatUI({
               delegations={delegations}
               agents={knownAgents}
               parent={knownAgents.find((agent) => agent.id === delegatingAgentId)}
+              settled={!isProcessing}
             />
           </div>
         </div>
