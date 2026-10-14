@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "@/lib/api-error";
 import { ESTIMATE, evalRun } from "@/test-utils/eval-runs";
 import { StartEvalDialog } from "./start-eval-dialog";
 
@@ -28,6 +29,15 @@ function mutation(overrides: Partial<Mutation> = {}): Mutation {
     ...overrides,
   };
 }
+
+const access = vi.hoisted(() => ({ settings: false, org: "org-1" as string | null }));
+vi.mock("@/hooks/use-permissions", () => ({
+  usePermissions: () => ({ can: () => access.settings }),
+}));
+vi.mock("@/stores/org-store", () => ({
+  useOrgStore: (select: (state: { activeOrgId: string | null }) => unknown) =>
+    select({ activeOrgId: access.org }),
+}));
 
 const hooks = vi.hoisted(() => ({
   estimate: undefined as unknown,
@@ -77,6 +87,8 @@ async function choose(combobox: string, option: string) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  access.settings = false;
+  access.org = "org-1";
   hooks.estimate = mutation();
   hooks.start = mutation();
 });
@@ -148,6 +160,32 @@ describe("StartEvalDialog", () => {
 
     expect(onOpenChange).not.toHaveBeenCalled();
     expect(push).not.toHaveBeenCalled();
+  });
+
+  it("shows whoever may turn AI assistance on where to do it", () => {
+    const off = new ApiError(400, "The judge needs AI assistance", {
+      error: {
+        code: "BAD_REQUEST",
+        message: "The judge needs AI assistance, which is off for this organization",
+        details: { reason: "ai_assistance_off" },
+      },
+    });
+    hooks.estimate = mutation({ error: off });
+    access.settings = true;
+    open();
+    expect(screen.getByRole("link", { name: "Open the organization's settings" })).toHaveAttribute(
+      "href",
+      "/orgs/org-1/members",
+    );
+  });
+
+  it("shows no settings link to who cannot change them, or for another refusal", () => {
+    const off = new ApiError(400, "off", {
+      error: { code: "BAD_REQUEST", message: "off", details: { reason: "ai_assistance_off" } },
+    });
+    hooks.estimate = mutation({ error: off });
+    open();
+    expect(screen.queryByRole("link", { name: /organization's settings/ })).toBeNull();
   });
 
   it("offers only what the caller may run", async () => {

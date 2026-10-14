@@ -3549,6 +3549,7 @@
     "startBody": "Wybierz, co się uruchamia i na jakim datasecie. Zanim cokolwiek ruszy, zobaczysz koszt.",
     "cancel": "Anuluj",
     "estimateCost": "Oszacuj koszt",
+    "aiSettings": "Otwórz ustawienia organizacji",
     "estimate": {
       "arm": {
         "candidate": "Kandydat na {model}",

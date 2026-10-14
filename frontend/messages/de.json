@@ -5787,6 +5787,7 @@
     "startBody": "Wähle aus, was läuft und auf welchem Dataset. Du siehst die Kosten, bevor etwas läuft.",
     "cancel": "Abbrechen",
     "estimateCost": "Kosten schätzen",
+    "aiSettings": "Einstellungen der Organisation öffnen",
     "estimate": {
       "arm": {
         "candidate": "Kandidat auf {model}",

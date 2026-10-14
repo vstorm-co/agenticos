@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 
@@ -14,10 +15,13 @@ import {
   DialogTitle,
 } from "@/components/ui";
 import { useEvalRuns } from "@/hooks/use-eval-runs";
-import { getErrorMessage } from "@/lib/api-error";
+import { usePermissions } from "@/hooks/use-permissions";
+import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
+import { useOrgStore } from "@/stores/org-store";
 import type { EvalRunRequest } from "@/types/eval-runs";
+import { Perm } from "@/types/permissions";
 import { EstimateSummary } from "./estimate-summary";
 import { usd } from "./format";
 import { StartEvalFields } from "./start-eval-fields";
@@ -45,6 +49,8 @@ export function StartEvalDialog({
   const locale = useLocale();
   const router = useRouter();
   const { estimate, start } = useEvalRuns(agentId);
+  const { can } = usePermissions();
+  const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const [request, setRequest] = useState<EvalRunRequest>({
     dataset_id: "",
     candidate: currentVersion === null ? "draft" : "version",
@@ -67,6 +73,13 @@ export function StartEvalDialog({
   }
 
   const failure = estimate.error ?? start.error;
+  // Only the judge could decide a case and AI assistance is off: whoever may
+  // turn it on is shown where.
+  const assistanceOff =
+    failure instanceof ApiError &&
+    failure.details?.reason === "ai_assistance_off" &&
+    can(Perm.orgSettings) &&
+    activeOrgId !== null;
   const quote = estimate.data;
   return (
     <Dialog open onOpenChange={onOpenChange}>
@@ -84,9 +97,17 @@ export function StartEvalDialog({
         />
         {quote && <EstimateSummary estimate={quote} />}
         {failure && (
-          <p role="alert" className="text-destructive text-sm">
-            {getErrorMessage(failure, tErrors)}
-          </p>
+          <div role="alert" className="text-destructive space-y-1 text-sm">
+            <p>{getErrorMessage(failure, tErrors)}</p>
+            {assistanceOff && (
+              <Link
+                href={`${ROUTES.ORGS}/${activeOrgId}/members`}
+                className="text-foreground underline underline-offset-4"
+              >
+                {t("aiSettings")}
+              </Link>
+            )}
+          </div>
         )}
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
