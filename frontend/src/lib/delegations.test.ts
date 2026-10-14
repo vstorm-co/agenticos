@@ -9,9 +9,10 @@ import {
   resolveAwaitingOnResume,
   resumeFailureStatus,
   rootsOf,
+  taskOutcome,
 } from "./delegations";
 import { ApiError } from "@/lib/api-error";
-import type { Delegation, SpecialistDefinition, SubagentFrame } from "@/types";
+import type { Delegation, SpecialistDefinition, SubagentFrame, ToolCall } from "@/types";
 
 /** A `subagent_start`, which is the only frame that can create a panel. */
 function start(
@@ -648,5 +649,61 @@ describe("a delegate's name and the first words of its answer", () => {
       "See the notes for 4.13.",
     );
     expect(answerPreview("  \n ")).toBe("");
+  });
+});
+
+describe("what a task call came to", () => {
+  const start = (id = "t1"): ToolCall => ({
+    id: "c1",
+    name: "task",
+    args: { subagent_type: "legal" },
+    status: "completed",
+    result: `Task started in background.\nTask ID: ${id}\nSubagent: legal\n`,
+  });
+  const check = (result: string, taskId = "t1"): ToolCall => ({
+    id: `k-${result.length}`,
+    name: "check_task",
+    args: { task_id: taskId },
+    status: "completed",
+    result,
+  });
+
+  it("reads a waited-for task as it stands", () => {
+    const call: ToolCall = { id: "c", name: "task", args: {}, status: "completed", result: "done" };
+    expect(taskOutcome(call, [call])).toBeNull();
+    expect(taskOutcome({ ...call, result: undefined }, [])).toBeNull();
+  });
+
+  it("leaves a background task running until a check of it says otherwise", () => {
+    expect(
+      taskOutcome(start(), [start(), check("Task: t9\nStatus: completed\nResult: no", "t9")]),
+    ).toEqual({
+      status: "running",
+      answer: "",
+    });
+    expect(
+      taskOutcome(start(), [
+        check("Task: t1\nSubagent: legal\nStatus: running\nRunning for: 2.0s"),
+      ]),
+    ).toEqual({ status: "running", answer: "" });
+  });
+
+  it("takes the answer from the last completed check", () => {
+    const done = check(
+      "Task: t1\nSubagent: legal\nStatus: completed\nDescription: d\nResult: PONG",
+    );
+    expect(
+      taskOutcome(start(), [check("Task: t1\nStatus: running\nRunning for: 1s"), done]),
+    ).toEqual({
+      status: "completed",
+      answer: "PONG",
+    });
+  });
+
+  it("says a failed one failed, with why", () => {
+    const failed = check(
+      "Task: t1\nSubagent: legal\nStatus: failed\nDescription: d\nError: timed out",
+    );
+    expect(taskOutcome(start(), [failed])).toEqual({ status: "failed", answer: "timed out" });
   });
 });

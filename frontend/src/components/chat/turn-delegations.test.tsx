@@ -115,4 +115,37 @@ describe("the team under an answer", () => {
     expect(screen.queryByText("Brief")).toBeNull();
     expect(screen.queryByText("Answer")).toBeNull();
   });
+
+  it("reads a background delegation through the check of its task", async () => {
+    const started: ToolCall = {
+      id: "1",
+      name: "task",
+      args: { subagent_type: "support-desk" },
+      status: "completed",
+      result: "Task started in background.\nTask ID: t1\nSubagent: support-desk\n",
+    };
+    const { rerender } = render(<TurnDelegations toolCalls={[started]} agents={AGENTS} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Open the exchanges with the team" }));
+    expect(screen.getByText("working…")).toBeInTheDocument();
+    expect(screen.queryByText(/Task started in background/)).toBeNull();
+
+    rerender(
+      <TurnDelegations
+        toolCalls={[
+          started,
+          {
+            id: "2",
+            name: "check_task",
+            args: { task_id: "t1" },
+            status: "completed",
+            result: "Task: t1\nSubagent: support-desk\nStatus: completed\nResult: Refund issued",
+          },
+        ]}
+        agents={AGENTS}
+      />,
+    );
+
+    expect(screen.getByText("Refund issued")).toBeInTheDocument();
+  });
 });

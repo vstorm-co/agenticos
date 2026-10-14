@@ -5,7 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { useState } from "react";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
-import { delegateNamed, type DelegateRef } from "@/lib/delegations";
+import { delegateNamed, taskOutcome, type DelegateRef } from "@/lib/delegations";
 import { cn } from "@/lib/utils";
 import type { DelegationStatus, ToolCall } from "@/types";
 
@@ -52,13 +52,18 @@ export function TurnDelegations({
   );
   if (tasks.length === 0) return null;
 
-  const items: SheetDelegation[] = tasks.map((call) => ({
-    key: call.id,
-    delegate: delegateNamed(call.args.subagent_type as string, agents),
-    status: statusOf(call),
-    brief: typeof call.args.description === "string" ? call.args.description : null,
-    answer: typeof call.result === "string" ? call.result : "",
-  }));
+  const items: SheetDelegation[] = tasks.map((call) => {
+    // A background start answers with its handle; what it came to is read from
+    // the check of its task later in the turn, or it is still working.
+    const background = taskOutcome(call, toolCalls);
+    return {
+      key: call.id,
+      delegate: delegateNamed(call.args.subagent_type as string, agents),
+      status: background?.status ?? statusOf(call),
+      brief: typeof call.args.description === "string" ? call.args.description : null,
+      answer: background?.answer ?? (typeof call.result === "string" ? call.result : ""),
+    };
+  });
   const team = [...new Map(items.map((item) => [item.delegate.slug, item])).values()];
   const names = new Intl.ListFormat(locale, { type: "conjunction" }).format(
     team.map((item) => item.delegate.name),

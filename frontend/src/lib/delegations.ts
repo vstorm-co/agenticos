@@ -14,7 +14,13 @@
  */
 
 import { ApiError } from "@/lib/api-error";
-import type { Delegation, DelegationStatus, SubagentFrame, SubagentStartFrame } from "@/types";
+import type {
+  Delegation,
+  DelegationStatus,
+  SubagentFrame,
+  SubagentStartFrame,
+  ToolCall,
+} from "@/types";
 import type { RunStatus } from "@/types/runs";
 
 /**
@@ -314,4 +320,43 @@ export function answerPreview(markdown: string): string {
     )
     .find((each) => each !== "");
   return line ?? "";
+}
+
+/** How a `task` call stands once the turn is over, and what it answered. */
+export interface TaskOutcome {
+  status: "completed" | "failed" | "running";
+  answer: string;
+}
+
+const STARTED_IN_BACKGROUND = /^Task started in background\.\s*Task ID: (\S+)/;
+
+/**
+ * What a `task` call came to, reading through a background start.
+ *
+ * A delegation started in the background returns its handle - "Task started in
+ * background. Task ID: …" - not an answer, and the answer arrives later as the
+ * result of a `check_task` for that id. Read as it stands, that call said
+ * "finished" with the handle as the answer, while the delegate was still
+ * working. So a background start is matched to the last check of its task: a
+ * completed one carries the result, a failed one the error, and none at all
+ * leaves it running.
+ */
+export function taskOutcome(call: ToolCall, calls: readonly ToolCall[]): TaskOutcome | null {
+  const result = typeof call.result === "string" ? call.result : "";
+  const started = STARTED_IN_BACKGROUND.exec(result);
+  if (started === null) return null;
+  const taskId = started[1];
+  const checks = calls.filter(
+    (other) =>
+      other.name === "check_task" &&
+      other.args.task_id === taskId &&
+      typeof other.result === "string",
+  );
+  const last = checks.at(-1)?.result as string | undefined;
+  if (last === undefined) return { status: "running", answer: "" };
+  const completed = /\nStatus: completed\n(?:[\s\S]*?\n)?Result: ([\s\S]*)$/.exec(last);
+  if (completed !== null) return { status: "completed", answer: completed[1]! };
+  const failed = /\nStatus: failed\n(?:[\s\S]*?\n)?Error: ([\s\S]*)$/.exec(last);
+  if (failed !== null) return { status: "failed", answer: failed[1]! };
+  return { status: "running", answer: "" };
 }

@@ -549,6 +549,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **A delegation started in the background no longer reads as finished.** Its
+  `task` call answers with a handle ("Task started in background. Task ID: …"),
+  which the line under the answer showed as the delegate's finished answer. It is
+  now matched to the last check of that task in the turn: the result once it
+  completed, the error once it failed, and "working" until then.
+
 - **The web browser works on Claude again.** Each browse step asked the model
   for a decision whose schema was a `oneOf`, which Anthropic's structured output
   refuses outright, so every browse on a Claude model failed on its first step
