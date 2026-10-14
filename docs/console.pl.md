@@ -1,5 +1,5 @@
 ---
-source_sha: "813c544b6c1e"
+source_sha: "896b890809b3"
 ---
 
 # Konsola { #the-console }
@@ -158,6 +158,10 @@ wyłącza dymki w ogóle. Dymek bez odpowiedzi znika po kilku sekundach. Pozosta
 w spokoju na niecałą minutę przycisk chowa się w prawą krawędź ekranu i zostawia
 wąski pasek, za który można go wyciągnąć - z kropką, gdy coś czeka - i zostaje
 tam między stronami, dopóki go nie otworzysz.
+
+Na telefonie dymka nie ma - zasłaniałby stronę, o której mówi - a przycisk nosi
+zamiast niego kropkę. Akceptacje, o których już powiedział, zostają powiedziane do
+końca karty przeglądarki, nawet gdy link przeładuje konsolę.
 
 Okno to ten sam czat co w konsoli, a nie strona osadzona w stronie. Otwiera się
 na czterech kafelkach, więc pierwsza wiadomość to jedno kliknięcie, i ma własną

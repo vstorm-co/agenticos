@@ -1,5 +1,5 @@
 ---
-source_sha: "813c544b6c1e"
+source_sha: "896b890809b3"
 ---
 
 # Die Konsole { #the-console }
@@ -170,6 +170,11 @@ Schaltfläche knapp eine Minute unberührt, schiebt sie sich in den rechten
 Bildschirmrand und lässt einen schmalen Streifen stehen, an dem man sie
 herauszieht - mit einem Punkt, wenn etwas wartet - und bleibt dort von Seite zu
 Seite, bis sie geöffnet wird.
+
+Auf einem Smartphone gibt es keine Sprechblase - sie würde die Seite verdecken,
+über die sie spricht -, und die Schaltfläche trägt stattdessen den Punkt.
+Freigaben, die sie schon genannt hat, bleiben für den Rest des Browser-Tabs
+genannt, auch wenn ein Link die Konsole neu lädt.
 
 Sein Fenster ist der Chat der Konsole selbst, keine Seite in der Seite, und öffnet
 sich mit vier Kacheln, sodass die erste Nachricht ein Klick ist; es führt einen

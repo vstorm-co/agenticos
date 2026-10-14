@@ -124,12 +124,19 @@ beforeEach(() => {
     fn.mockReset();
   vi.mocked(toast.error).mockReset();
   vi.mocked(toast).mockReset();
-  window.matchMedia = ((query: string) => ({ matches: state.phone, media: query })) as never;
+  window.matchMedia = ((query: string) => ({
+    matches: state.phone,
+    media: query,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  })) as never;
 });
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.restoreAllMocks();
   localStorage.clear();
+  sessionStorage.clear();
 });
 
 describe("the Architect widget", () => {
@@ -328,6 +335,76 @@ describe("the Architect widget", () => {
     rerender(<AssistantWidget />);
     lookAtThePage();
     expect(screen.getByText(/waiting for your approval/)).toBeInTheDocument();
+  });
+
+  it("keeps approvals it has raised quiet after the console is reloaded", () => {
+    state.signals.pendingApprovals = 1;
+    state.pathname = "/runs";
+    const { unmount } = render(<AssistantWidget />);
+    lookAtThePage();
+    fireEvent.click(screen.getByRole("button", { name: "Not now" }));
+    unmount();
+
+    // A link opened afresh: a new widget, the same tab.
+    state.pathname = "/skills";
+    render(<AssistantWidget />);
+    lookAtThePage();
+
+    expect(screen.queryByText(/waiting for your approval/)).toBeNull();
+  });
+
+  it("marks what waits with a dot on a phone rather than covering the page", () => {
+    state.phone = true;
+    state.signals.pendingApprovals = 1;
+    state.pathname = "/runs";
+    render(<AssistantWidget />);
+    lookAtThePage();
+
+    expect(screen.queryByText(/waiting for your approval/)).toBeNull();
+    const launcher = screen.getByRole("button", { name: "Open Architect" });
+    expect(launcher.querySelector("span[aria-hidden]")).not.toBeNull();
+  });
+
+  it("follows the window across the phone width", () => {
+    let listener: (() => void) | null = null;
+    window.matchMedia = ((query: string) => ({
+      get matches() {
+        return state.phone;
+      },
+      media: query,
+      addEventListener: (_: string, handler: () => void) => {
+        listener = handler;
+      },
+      removeEventListener: () => {},
+    })) as never;
+    state.signals.pendingApprovals = 1;
+    state.pathname = "/runs";
+    render(<AssistantWidget />);
+    lookAtThePage();
+    expect(screen.getByText(/waiting for your approval/)).toBeInTheDocument();
+
+    state.phone = true;
+    act(() => listener?.());
+
+    expect(screen.queryByText(/waiting for your approval/)).toBeNull();
+  });
+
+  it("still speaks where the tab keeps nothing", () => {
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation((key: string) => {
+      if (key === "assistant-approvals-heard") throw new Error("denied");
+      return null;
+    });
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("denied");
+    });
+    state.signals.pendingApprovals = 1;
+    state.pathname = "/runs";
+    render(<AssistantWidget />);
+    lookAtThePage();
+
+    fireEvent.click(screen.getByRole("button", { name: "Not now" }));
+
+    expect(screen.queryByText(/waiting for your approval/)).toBeNull();
   });
 
   it("keeps waiting approvals quiet on the next page after Not now", () => {

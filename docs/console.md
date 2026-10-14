@@ -148,6 +148,10 @@ seconds. Left alone for under a minute, the button tucks itself into the right
 edge of the screen, leaving a sliver to pull it out by - with a dot when
 something is waiting - and stays there from page to page until it is opened.
 
+On a phone there is no bubble - it would cover the page it talks about - and the
+button carries the dot instead. Approvals it has raised stay raised for the rest
+of the browser tab, even when a link reloads the console.
+
 Its window is the console's own chat, not a page inside the page, and opens on
 four tiles, so a first message is a click; it keeps its own conversation
 history. On a phone it fills the screen.

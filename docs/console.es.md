@@ -1,5 +1,5 @@
 ---
-source_sha: "813c544b6c1e"
+source_sha: "896b890809b3"
 ---
 
 # La consola { #the-console }
@@ -159,6 +159,10 @@ a los pocos segundos. Si nadie lo toca durante menos de un minuto, el botón se
 esconde en el borde derecho de la pantalla y deja una franja para sacarlo - con
 un punto cuando algo espera - y se queda allí de página en página hasta que se
 abre.
+
+En un teléfono no hay bocadillo - taparía la página de la que habla - y el botón
+lleva el punto en su lugar. Las aprobaciones que ya mencionó siguen mencionadas
+durante el resto de la pestaña, aunque un enlace recargue la consola.
 
 Su ventana es el propio chat de la consola, no una página dentro de la página, y
 se abre con cuatro mosaicos, para que el primer mensaje sea un clic; guarda su

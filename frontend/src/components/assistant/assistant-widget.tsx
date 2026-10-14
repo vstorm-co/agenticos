@@ -58,6 +58,42 @@ export function AssistantWidget() {
   return null;
 }
 
+const APPROVALS_HEARD_KEY = "assistant-approvals-heard";
+
+/**
+ * How many waiting approvals the bubble has raised in this tab.
+ *
+ * Kept for the tab rather than in memory: a link opened afresh reloads the
+ * console, and the same sentence then followed the reader onto every page.
+ */
+function readApprovalsHeard(): number {
+  try {
+    return Number(sessionStorage.getItem(APPROVALS_HEARD_KEY)) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+function writeApprovalsHeard(count: number): void {
+  try {
+    sessionStorage.setItem(APPROVALS_HEARD_KEY, String(count));
+  } catch {
+    // Remembered for this page only.
+  }
+}
+
+/** Whether the screen is a phone's, kept current as the window changes. */
+function usePhone(): boolean {
+  const [phone, setPhone] = useState(() => window.matchMedia(PHONE).matches);
+  useEffect(() => {
+    const query = window.matchMedia(PHONE);
+    const update = () => setPhone(query.matches);
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+  return phone;
+}
+
 function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentId: string }) {
   const t = useTranslations("assistantWidget");
   const pathname = usePathname();
@@ -75,7 +111,15 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
   // are not about the page, so once said they stay said on every page, until
   // more arrive - raised again on each navigation, the same sentence followed
   // the reader through the whole console.
-  const [approvalsHeard, setApprovalsHeard] = useState(0);
+  const [approvalsHeard, setApprovalsHeardState] = useState(readApprovalsHeard);
+  const setApprovalsHeard = (count: number) => {
+    setApprovalsHeardState(count);
+    writeApprovalsHeard(count);
+  };
+  // A phone has no room for the bubble: a card over 40% of the screen, on
+  // every page, hid the page it was talking about. There the button carries a
+  // dot instead, and the window says the rest when it is opened.
+  const phone = usePhone();
   const [prompt, setPrompt] = useState<ChatPrompt | null>(null);
   // Bumped by anything the reader does with the widget, which restarts the
   // wait before the button tucks itself away.
@@ -122,6 +166,7 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
     setPreferences(readPreferences());
   };
   const speaking =
+    !phone &&
     readyOn === pathname &&
     setAside !== pathname &&
     !open &&
@@ -205,7 +250,12 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
         agentId={agentId}
         open={open}
         docked={preferences.docked}
-        waiting={preferences.docked && bubble !== null && isProactive(bubble)}
+        waiting={
+          (preferences.docked || phone) &&
+          bubble !== null &&
+          isProactive(bubble) &&
+          !preferences.off
+        }
         onToggle={() => (open ? setOpen(false) : openWindow())}
         onHover={touch}
         overComposer={pageOf(pathname).startsWith("/chat")}

@@ -549,6 +549,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **The Architect's bubble no longer covers a phone screen.** On a phone the
+  bubble took about 40% of the screen on every page; there the button now carries
+  a dot instead. And the approvals it has raised stay raised for the browser
+  tab, so a link that reloads the console does not bring the same sentence back.
+
 - **A delegation started in the background no longer reads as finished.** Its
   `task` call answers with a handle ("Task started in background. Task ID: …"),
   which the line under the answer showed as the delegate's finished answer. It is
