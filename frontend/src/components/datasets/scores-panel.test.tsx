@@ -35,6 +35,8 @@ const SCORE: CaseScore = {
   dataset_id: "d1",
   case_id: "c1",
   case_revision_id: "r1",
+  question: "How long is the refund window?",
+  reference_answer: null,
   run_id: null,
   judge: null,
   results: [],
@@ -70,6 +72,18 @@ describe("ScoresPanel", () => {
 
     expect(screen.getByText("Nothing is waiting for review")).toBeInTheDocument();
     expect(state.calls.at(-1)).toEqual(["d1", { pending: true, skip: 0, limit: 50 }]);
+  });
+
+  it("steps back a page when a verdict empties the last one", async () => {
+    state.answer = { scores: [SCORE], total: 51 };
+    const { rerender } = render(<ScoresPanel datasetId="d1" canDecide />);
+    await userEvent.click(screen.getByRole("button", { name: /next/i }));
+    expect(state.calls.at(-1)).toEqual(["d1", { pending: false, skip: 50, limit: 50 }]);
+
+    state.answer = { scores: [], total: 50 };
+    rerender(<ScoresPanel datasetId="d1" canDecide />);
+
+    expect(state.calls.at(-1)).toEqual(["d1", { pending: false, skip: 0, limit: 50 }]);
   });
 
   it("offers a retry when the scores could not be read", async () => {

@@ -42,6 +42,9 @@ class PersonalDataExport(BaseModel):
         description="Which organizations they belong to, as what, and since when."
     )
     ratings: list[dict[str, Any]] = Field(description="Answers they marked good or bad.")
+    case_verdicts: list[dict[str, Any]] = Field(
+        description="Eval scores they passed or failed by hand, with the note they left."
+    )
     sessions: list[dict[str, Any]] = Field(
         description="Where and when they signed in. Never the credential; the row holds a hash."
     )

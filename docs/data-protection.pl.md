@@ -1,5 +1,5 @@
 ---
-source_sha: "76e2d37360c9"
+source_sha: "9e503ec6cb98"
 ---
 
 # Ochrona danych { #data-protection }
@@ -79,7 +79,7 @@ przez sprawdzenie rodzica.
 | `chat_files` | Załączniki do wiadomości | Nazwa pliku, typ, rozmiar, wyciągnięty tekst (`parsed_content`) i ścieżka bajtów na dysku | Odpowiadanie o pliku |
 | `context_files` | Stała wiedza, którą builder napisał dla agentów | Cokolwiek autor tam umieścił — i trafia to do promptu dosłownie. Zobacz [Pliki kontekstu](context.md) | Instrukcje i fakty, które agent zawsze ma znać |
 | `datasets`, `dataset_cases` | Przypadki testowe do evali | Pytania i odpowiedzi skopiowane z rozmów, gdy ktoś wybrał „Dodaj do datasetu”, oraz to, co zawierał zaimportowany plik. Poświadczenia są redagowane przed zapisaniem przypadku. Zobacz [Datasety](datasets.md#personal-data) | Sprawdzanie, czy agent się poprawił |
-| `case_scores` | Co ocenianie ustaliło o odpowiedzi jednego runa na jeden przypadek | Uzasadnienia sędziego evali, które mogą cytować ocenianą odpowiedź; werdykt i notatka osoby oraz to, kto je wydał. Poświadczenia są redagowane przed zapisaniem wyniku. Zobacz [Datasety](datasets.md#review) | Rozstrzyganie, czy odpowiedź agenta zaliczyła |
+| `case_scores` | Co ocenianie ustaliło o odpowiedzi jednego runa na jeden przypadek | Uzasadnienia sędziego evali, które mogą cytować ocenianą odpowiedź; werdykt i notatka osoby oraz to, kto je wydał. Werdykty, które osoba wydała, wracają w jej eksporcie (`GET /me/data/export`). Poświadczenia są redagowane przed zapisaniem wyniku. Zobacz [Datasety](datasets.md#review) | Rozstrzyganie, czy odpowiedź agenta zaliczyła |
 | `case_generations`, `case_proposals` | Propozycje generatora przypadków czekające na decyzję | Parafrazy pytań, które ludzie zadali agentowi, fragmenty jego dokumentów i odnośniki do nich. Poświadczenia są redagowane przed zapisaniem propozycji. Decyzja usuwa propozycję. Zobacz [Datasety](datasets.md#generating-cases) | Proponowanie przypadków testowych, które człowiek akceptuje albo odrzuca |
 | `artifacts`, `artifact_versions` i ich pliki | Strony opublikowane przez agentów — raporty, dashboardy | Cokolwiek strona pokazuje, a run zbudował ją z tego, co mógł przeczytać; właściciel, run, który zapisał każdą wersję, i — gdy jest włączony — klucz publicznego linku, jego ustawienia (hasło jako hash bcrypt) i to, ile razy go otwarto — liczba i czas, nic o odwiedzającym. Zobacz [Artefakty](artifacts.md) | Udostępnienie wyniku pod stałym linkiem |
 | `agent_memory_files` | Notatki, które agent napisał o osobie albo o czacie grupowym | Cokolwiek agent uznał za warte zapamiętania, kluczowane przez `person:<user_id>` albo pokój czatu | Ciągłość między rozmowami |

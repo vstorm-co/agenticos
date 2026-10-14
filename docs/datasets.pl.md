@@ -1,5 +1,5 @@
 ---
-source_sha: "b8b96371768e"
+source_sha: "c32b05fa816a"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -266,11 +266,14 @@ nic nie jest zapisywane, a sędzia nie jest wywoływany.
 
 `path` sięga do wnętrza odpowiedzi, która jest JSON-em: `items.0.name` to nazwa
 pierwszego elementu. Bez niego reguła czyta całą odpowiedź. Reguły tekstowe nie
-rozróżniają wielkości liter, chyba że `case_sensitive` ma wartość true. Wzorzec
-jest sprawdzany przy zapisie przypadku, a reguła czyta najwyżej pierwsze 100 000
-znaków odpowiedzi. Wzorzec, który na jakiejś odpowiedzi działa dłużej niż
-dziesiątą część sekundy, zostaje przerwany i zapisany jako błąd, więc jeden
-wzorzec nie może zatrzymać oceniania.
+rozróżniają wielkości liter, chyba że `case_sensitive` ma wartość true.
+
+Wzorzec jest sprawdzany przy zapisie przypadku, a reguła czyta najwyżej pierwsze
+100 000 znaków odpowiedzi. Wzorzec, który na jakiejś odpowiedzi działa dłużej
+niż dziesiątą część sekundy, zostaje przerwany i zapisany jako błąd, więc jeden
+wzorzec nie może zatrzymać oceniania. Z tego samego powodu JSON Schema nie może
+używać `pattern` ani `patternProperties` - to samo robi check `regex` z `path`,
+z tym samym limitem czasu - a jej `$ref` musi wskazywać wewnątrz schematu.
 
 Sprawdzenie `judge` to kryterium tylko dla jednego przypadku, oceniane w tym
 samym runie sędziego co rubryka datasetu. Używaj go do tego, czego reguła nie
@@ -310,7 +313,8 @@ Każde kryterium jest oceniane od 1 do górnej granicy skali i zalicza na progu
 zaliczenia lub wyżej. Gdy sędzia nie może ocenić, jego kryteria są zapisywane
 jako pominięte albo jako błędy, z uzasadnieniem podającym przyczynę: wsparcie
 AI jest wyłączone, sędzia nie ma opublikowanej wersji, jest zarchiwizowany,
-osoba nie może go uruchomić albo jego budżet się wyczerpał. Oceniacze oparte na
+jego model został usunięty albo nie ma klucza, osoba nie może go uruchomić albo
+jego budżet się wyczerpał. Oceniacze oparte na
 regułach nadal oceniają.
 
 Ocena może cytować odpowiedź, do 12 fragmentów; cytat, którego odpowiedź nie
