@@ -1,5 +1,5 @@
 ---
-source_sha: "09ecc078a9fd"
+source_sha: "beb8db937ad9"
 ---
 
 # Sicherheit { #security }
@@ -58,7 +58,7 @@ fragen wird.
 | MCP-Server | Tool-Aufrufe und ihre Argumente | Nur für die Tools, an die ein Agent gebunden ist |
 | Ein Websuche-Anbieter (Tavily, DuckDuckGo) | Die Suchanfrage | Nur wenn die Such-Capability gewährt ist |
 | Ein Embedding-Provider | Dokumenttext, beim Ingest | Nur für eine Wissensbasis, deren Provider entfernt ist |
-| Ein Speech-to-Text-Provider | Eine Aufnahme: eine Sprachnachricht aus einem Kanal, ein Diktat in `/chat` oder die eines Besuchers auf einer gehosteten Seite oder einem Widget, die auf `server` stehen | Immer wenn eine transkribiert wird. Das Diktat eines Besuchers ist anonym und liegt außerhalb jedes Modell-Budgets, begrenzt wird es also durch das Rate-Limit des Links mal das längste Diktat - [Kanäle](channels.md#dictation-on-a-widget-or-a-hosted-page) rechnet den schlimmsten Fall durch. Bei `browser` schickt der Browser des Besuchers das Audio stattdessen an seinen eigenen Anbieter, und nichts geht hier durch |
+| Ein Speech-to-Text-Provider | Eine Aufnahme: eine Sprachnachricht aus einem Kanal, ein Diktat in `/chat` oder die eines Besuchers auf einer gehosteten Seite oder einem Widget, die auf `server` stehen | Immer wenn eine transkribiert wird. Das Diktat eines Besuchers ist anonym und liegt außerhalb jedes Modell-Budgets, begrenzt wird es also durch das Rate-Limit des Links mal das längste Diktat, wobei die Länge jeder Aufnahme aus ihr gelesen und eine zu lange vor dem Senden abgelehnt wird - [Kanäle](channels.md#dictation-on-a-widget-or-a-hosted-page) rechnet den schlimmsten Fall durch und was eine von Hand gebaute Datei noch tun kann. Bei `browser` schickt der Browser des Besuchers das Audio stattdessen an seinen eigenen Anbieter, und nichts geht hier durch |
 
 ## Was wo verschlüsselt ist { #what-is-encrypted-where }
 

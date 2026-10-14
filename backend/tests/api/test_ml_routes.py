@@ -297,12 +297,12 @@ async def test_the_summary_is_routed_before_a_call_id_and_answers_in_seconds(
     """`/calls/summary` would otherwise be read as `/calls/{call_id}` and 422."""
     agent_id, bot_id = uuid.uuid4(), uuid.uuid4()
     summary = UsageSummary(
-        audio_ms=2_520_499,
+        seconds=2520,
         count=118,
         count_unknown_length=30,
-        by_agent=[AgentUsage(id=agent_id, name="Support", audio_ms=1500, count=2)],
-        by_channel=[AgentUsage(id=bot_id, name="Front desk", audio_ms=500, count=1)],
-        by_surface=[SurfaceUsage(surface="chat", audio_ms=1_000_000, count=100)],
+        by_agent=[AgentUsage(id=agent_id, name="Support", seconds=2, count=2)],
+        by_channel=[AgentUsage(id=bot_id, name="Front desk", seconds=1, count=1)],
+        by_surface=[SurfaceUsage(surface="chat", seconds=1000, count=100)],
     )
     with patch(f"{_FACADE}.usage_summary", new=AsyncMock(return_value=summary)) as called:
         response = await client.get(f"{_V1}/ml/calls/summary", params={"days": 7})

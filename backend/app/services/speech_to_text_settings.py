@@ -17,7 +17,8 @@ an agent somebody `@mentions`. Transcription runs before mention routing, and a
 handle said aloud in a voice note could not be routed anyway. Which *version*
 of that agent is read is the one the run will use: the exposure's environment
 pins one, otherwise the default. A draft or archived agent has nothing
-published to read, and the organization answers on its own.
+published to read: the composer is answered by the organization on its own,
+and a bot is told nothing answers on it, so its voice notes are not paid for.
 
 The engine choice for `/chat` (off, browser, server) and the longest dictation
 stay the organization's; nothing here overrides them.
@@ -61,8 +62,9 @@ class BotSpeechToText:
     """What a channel bot's voice notes resolve to, and through which agent."""
 
     exposed: bool
-    """Whether any agent answers on the bot. Without one every message is
-    refused, so a voice note is not worth a paid transcription."""
+    """Whether an agent answers on the bot: exposed, not archived, with a
+    version to run. Without one every message is refused, so a voice note is
+    not worth a paid transcription."""
     agent_name: str | None
     resolved: ResolvedSpeechToText | None
     agent_id: UUID | None = None
@@ -148,7 +150,11 @@ class SpeechToTextSettingsService:
 
         The exposure is read once. With none active the answer says so and
         resolves nothing, so the router skips a paid call for a message it is
-        about to refuse.
+        about to refuse. An agent archived, or with no version for the exposure
+        to run, answers the same way - unlike `for_agent`, which falls back to
+        the organization: a composer's member may still be shown what the
+        organization would use, but a bot's run refuses the turn, and a voice
+        note transcribed for it is a paid call for text nobody reads.
         """
         exposed = await agent_exposure_repo.list_active_for_bot(self.db, channel_bot_id=bot.id)
         organization = await self._organization(bot.organization_id)
@@ -156,10 +162,10 @@ class SpeechToTextSettingsService:
             return BotSpeechToText(exposed=bool(exposed), agent_name=None, resolved=None)
         # At most one, which `uq_exposure_bot` guarantees.
         exposure, agent = exposed[0]
-        override = await self._override(
-            agent,
-            version_id=await self._exposed_version(exposure, agent),
-        )
+        version_id = await self._exposed_version(exposure, agent)
+        if version_id is None or agent.status == AgentStatus.ARCHIVED.value:
+            return BotSpeechToText(exposed=False, agent_name=agent.name, resolved=None)
+        override = await self._override(agent, version_id=version_id)
         resolved = resolve(
             organization=organization,
             agent=override,

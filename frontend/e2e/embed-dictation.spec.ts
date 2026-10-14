@@ -33,6 +33,12 @@ import { AUTH_STATE, json, SEEDED_AGENT_NAME } from "./helpers";
  * browser will open a microphone there - and the embed is published with that
  * origin on its list. The widget's own script, config and socket are the real
  * backend's.
+ *
+ * Chrome's local network access check is switched off for this file: a page
+ * `page.route` fulfils counts as public whatever its host, and a public page
+ * loading a script from a backend on loopback is refused before the widget
+ * runs. A real customer site and a real deployment are both public, so the
+ * check guards nothing here that production has.
  */
 
 const SITE = "https://shop.e2e.test";
@@ -40,7 +46,11 @@ const SITE = "https://shop.e2e.test";
 test.use({
   storageState: AUTH_STATE,
   launchOptions: {
-    args: ["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream"],
+    args: [
+      "--use-fake-device-for-media-stream",
+      "--use-fake-ui-for-media-stream",
+      "--disable-features=LocalNetworkAccessChecks,BlockInsecurePrivateNetworkRequests",
+    ],
   },
   permissions: ["microphone"],
 });
@@ -98,7 +108,7 @@ test.beforeAll(async ({ playwright }, testInfo) => {
   const secret = await request.post("/api/secrets", {
     data: {
       name: `e2e-embed-dictation-${Date.now().toString(36)}`,
-      value: "gsk_e2eNOTAREALKEYatallZZ99",
+      value: { kind: "api_key", api_key: "gsk_e2eNOTAREALKEYatallZZ99" },
       purpose: "groq",
       visibility: "org",
     },

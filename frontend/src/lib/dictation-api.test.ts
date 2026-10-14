@@ -154,6 +154,8 @@ describe("dictationReason", () => {
     ["a 429 from the rate limiter", refusal(429, { retry_after_seconds: 40 }), "rate_limited"],
     ["a 413 from the body-limit middleware", refusal(413), "too_large"],
     ["a 404 from an embed that stopped taking recordings", refusal(404), "not_configured"],
+    ["a 401 the session could not refresh past", refusal(401), "signed_out"],
+    ["a 403 for somebody who may not dictate here", refusal(403), "forbidden"],
     ["a reason the client does not know", refusal(400, { reason: "novel" }), "provider_error"],
     ["any other refusal", refusal(500), "provider_error"],
     ["a fetch that never left the browser", new TypeError("Failed to fetch"), "offline"],

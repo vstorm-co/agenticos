@@ -325,6 +325,7 @@
       "tryAgain": "Spróbuj ponownie",
       "recordAgain": "Nagraj ponownie",
       "askAdmin": "Poproś administratora o konfigurację.",
+      "pressToSetUp": "Naciśnij mikrofon, aby zobaczyć, gdzie to skonfigurować.",
       "openVoiceSettings": "Otwórz ustawienia Głosu",
       "setForAgent": "Ustaw dla tego agenta",
       "announceRecording": "Nagrywanie",
@@ -338,11 +339,14 @@
         "micNotFound": "<strong>Nie znaleziono mikrofonu.</strong> Przeglądarka nie widzi żadnego urządzenia wejściowego, więc nie może o nie zapytać. Podłącz mikrofon albo sprawdź, czy system pozwala przeglądarce z niego korzystać (w Windows: Ustawienia → Prywatność i zabezpieczenia → Mikrofon), i spróbuj ponownie.",
         "micBusy": "<strong>Mikrofon się nie uruchomił.</strong> Może go używać inna aplikacja albo system blokuje przeglądarkę. Zamknij tę aplikację lub sprawdź ustawienia mikrofonu w systemie i spróbuj ponownie.",
         "nearLimit": "<strong>Zostało {remaining}.</strong> Po {limit} nagranie zatrzyma się i zostanie przepisane.",
+        "nearLimitSpoken": "<strong>Nagranie zaraz się zatrzyma.</strong> Po {limit} zatrzyma się i zostanie przepisane.",
         "stoppedAtLimit": "<strong>Nagranie zatrzymało się na limicie {limit}.</strong> Przepisywane jest wszystko do tego miejsca.",
         "silent": "<strong>Nie słychać Cię — czy mikrofon jest wyciszony?</strong> Nagrywanie trwa dalej.",
         "tooShort": "<strong>To trwało krócej niż sekundę,</strong> więc nic nie zostało wysłane. Naciśnij mikrofon, powiedz coś, a potem naciśnij Zatrzymaj.",
         "empty": "<strong>W nagraniu nie ma mowy.</strong> Sprawdź, czy mikrofon nie jest wyciszony, i nagraj ponownie.",
         "tooLarge": "<strong>Nagranie jest za duże do przepisania.</strong> Dyktuj krócej, a długie nagrania dołączaj jako plik.",
+        "signedOut": "<strong>Twoja sesja wygasła.</strong> Zaloguj się ponownie i nagraj jeszcze raz.",
+        "forbidden": "<strong>Nie możesz dyktować do tego agenta.</strong> Poproś administratora o dostęp do niego.",
         "unsupported": "<strong>Format dźwięku tej przeglądarki nie jest obsługiwany.</strong> Serwer przyjmuje dźwięk WebM, Ogg, MP4 lub WAV. Zaktualizuj przeglądarkę albo użyj Chrome lub Firefoksa.",
         "failedTitle": "Transkrypcja się nie zakończyła.",
         "providerErrorBody": "Provider mowy na tekst odpowiedział błędem.",
@@ -635,6 +639,7 @@
       "transcriptionInheritsFromOrg": "{pair}, od organizacji",
       "transcriptionPair": "{provider} · {model}",
       "transcriptionEngine": "Provider",
+      "transcriptionProviderNoCredentials": "{name} (brak poświadczeń)",
       "transcriptionMistralFormat": "{platform, select, slack {Aplikacja desktopowa Slacka nagrywa klipy audio jako WebM} other {Telegram wysyła wiadomości głosowe jako Ogg/Opus}}, a Mistral nie wymienia tego formatu wśród akceptowanych. Transkrypcja może się nie udać; jeśli tak się stanie, wybierz dla tego bota innego providera.",
       "webhook": "Webhook",
       "webhookToken": "Brak tokenu webhooka"
@@ -2057,11 +2062,14 @@
         "micNotFound": "<strong>Nie znaleziono mikrofonu.</strong> Podłącz mikrofon albo sprawdź, czy system pozwala przeglądarce z niego korzystać, i spróbuj ponownie.",
         "micBusy": "<strong>Mikrofon się nie uruchomił.</strong> Może go używać inna aplikacja. Zamknij ją i spróbuj ponownie.",
         "nearLimit": "<strong>Zostało {remaining}.</strong> Po {limit} nagranie zatrzyma się i zostanie przepisane.",
+        "nearLimitSpoken": "<strong>Nagranie zaraz się zatrzyma.</strong> Po {limit} zatrzyma się i zostanie przepisane.",
         "stoppedAtLimit": "<strong>Nagranie zatrzymało się na limicie {limit}.</strong> Przepisywane jest wszystko do tego miejsca.",
         "silent": "<strong>Nie słychać Cię - czy mikrofon jest wyciszony?</strong> Nagrywanie trwa dalej.",
         "tooShort": "<strong>To trwało krócej niż sekundę,</strong> więc nic nie zostało wysłane. Naciśnij mikrofon, powiedz coś, a potem naciśnij Zatrzymaj.",
         "empty": "<strong>W nagraniu nie ma mowy.</strong> Sprawdź, czy mikrofon nie jest wyciszony, i nagraj ponownie.",
         "tooLarge": "<strong>To nagranie jest za długie do przepisania.</strong> Spróbuj krótszego.",
+        "signedOut": "<strong>Sesja na tej stronie wygasła.</strong> Odśwież stronę i spróbuj ponownie.",
+        "forbidden": "<strong>Wprowadzanie głosowe nie jest tu dostępne.</strong> Napisz wiadomość zamiast tego.",
         "unsupported": "<strong>Ta przeglądarka nagrywa dźwięk w formacie, którego nie przyjmujemy.</strong> Spróbuj aktualnego Chrome albo Firefoksa.",
         "failedTitle": "Transkrypcja się nie zakończyła.",
         "providerErrorBody": "Usługa transkrypcji odpowiedziała błędem.",
@@ -3184,7 +3192,8 @@
     "embedDictationServer": "Serwer",
     "embedDictationServerHint": "Nagrywane na stronie i transkrybowane przez providera mowy na tekst tej organizacji, na jej koszt. Dźwięk nie jest przechowywany.",
     "embedDictationServerUnavailable": "Serwer wymaga providera mowy na tekst z poświadczeniem, wybranego na karcie Głos organizacji albo tego agenta.",
-    "embedDictationServerDrift": "Dla tego agenta nie odpowiada teraz żaden provider mowy na tekst, więc odwiedzający nie widzą mikrofonu, dopóki któryś nie zacznie."
+    "embedDictationServerDrift": "Dla tego agenta nie odpowiada teraz żaden provider mowy na tekst, więc odwiedzający nie widzą mikrofonu, dopóki któryś nie zacznie.",
+    "embedDictationServerUnchecked": "Nie można teraz sprawdzić opcji Serwer: gotowość mowy na tekst dla tego agenta się nie wczytała. Odśwież stronę, aby spróbować ponownie."
   },
   "steps": {
     "skills-gallery": {
@@ -3449,7 +3458,7 @@
     "waiverAllowed": "Konwersacje mogą teraz pomijać zatwierdzenia",
     "waiverFailed": "Nie udało się zmienić, czy czaty mogą pomijać zatwierdzenia",
     "waiverForbidden": "Konwersacje nie mogą już pomijać zatwierdzeń",
-    "you": "(ty)",
+    "you": "(Ty)",
     "voice": {
       "title": "Głos",
       "description": "Jak osoby w tej organizacji rozmawiają z agentami.",
@@ -3532,9 +3541,9 @@
     "reducedMotion": "Wyłączona, gdy animacje są ograniczone"
   },
   "appearance": {
-    "description": "Jak konsola wygląda i porusza się dla ciebie. Zapisywane w tej przeglądarce i stosowane od razu.",
+    "description": "Jak konsola wygląda i porusza się dla Ciebie. Zapisywane w tej przeglądarce i stosowane od razu.",
     "theme": "Motyw",
-    "voiceGlowHint": "Jak pole czatu reaguje na twój głos podczas dyktowania",
+    "voiceGlowHint": "Jak pole czatu reaguje na Twój głos podczas dyktowania",
     "motion": "Animacje",
     "system": "Systemowe",
     "reduce": "Ograniczone",

@@ -71,7 +71,9 @@ interface TranscriptionFieldsProps {
  *
  * **Both halves move together.** A provider with no model has nothing to call and
  * a model with no provider has nowhere to send it, so choosing a provider takes
- * its first model, and leaving Choose clears both. The server enforces the same
+ * its first model, and leaving Choose clears both. Choose starts on the first
+ * provider the organization holds a credential for; one without is marked and
+ * cannot be picked, unless the bot already names it. The server enforces the same
  * rule against the stored row; this is what stops somebody meeting it.
  *
  * Absent when the deployment offers nothing - every provider it knows wants a
@@ -98,7 +100,9 @@ export function TranscriptionFields({
       onChange({ mode, provider: null, model: null });
       return;
     }
-    const first = providers[0]!;
+    // The first provider this organization can send with, or the first offered
+    // when none can - the picker then says which lacks credentials.
+    const first = providers.find((entry) => entry.credentialed) ?? providers[0]!;
     onChange({ mode, provider: first.provider, model: first.models[0]!.id });
   };
 
@@ -149,11 +153,21 @@ export function TranscriptionFields({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {providers.map((entry) => (
-                  <SelectItem key={entry.provider} value={entry.provider} textValue={entry.name}>
-                    {entry.name}
-                  </SelectItem>
-                ))}
+                {providers.map((entry) => {
+                  const label = entry.credentialed
+                    ? entry.name
+                    : t("transcriptionProviderNoCredentials", { name: entry.name });
+                  return (
+                    <SelectItem
+                      key={entry.provider}
+                      value={entry.provider}
+                      disabled={!entry.credentialed && entry.provider !== value.provider}
+                      textValue={label}
+                    >
+                      {label}
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
           </FormField>

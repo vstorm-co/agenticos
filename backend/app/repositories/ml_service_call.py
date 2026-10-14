@@ -33,7 +33,7 @@ class AgentUsage:
 
     id: UUID
     name: str
-    audio_ms: int
+    seconds: int
     count: int
 
 
@@ -42,7 +42,7 @@ class SurfaceUsage:
     """One surface's share of a summary. `None` is a row older than surfaces."""
 
     surface: TranscriptionSurface | None
-    audio_ms: int
+    seconds: int
     count: int
 
 
@@ -50,7 +50,7 @@ class SurfaceUsage:
 class UsageSummary:
     """An organization's successful calls to one service over a window."""
 
-    audio_ms: int
+    seconds: int
     count: int
     count_unknown_length: int
     by_agent: list[AgentUsage]
@@ -184,6 +184,12 @@ async def summarise(
     A name is joined inside the same organization, so a row can never borrow
     another tenant's. Each breakdown is ordered longest first, then by count,
     then by name, so two reads of the same rows list them the same way.
+
+    Seconds are the rows' own `units` added up - each recording rounded up to
+    the second when it was recorded, and 0 for one with no length - rather
+    than the milliseconds added and rounded once. So the summary is the sum of
+    what `GET /ml/calls` lists, to the second, and a row with no length adds
+    nothing either way.
     """
     scope = (
         MLServiceCall.organization_id == organization_id,
@@ -191,19 +197,19 @@ async def summarise(
         MLServiceCall.status == MLCallStatus.SUCCEEDED.value,
         MLServiceCall.created_at >= since,
     )
-    audio = func.sum(MLServiceCall.audio_ms)
+    units = func.sum(MLServiceCall.units)
     count = func.count()
 
-    total_ms, total, unknown = (
+    total_seconds, total, unknown = (
         await db.execute(
-            select(audio, count, func.count().filter(MLServiceCall.audio_ms.is_(None))).where(
+            select(units, count, func.count().filter(MLServiceCall.audio_ms.is_(None))).where(
                 *scope
             )
         )
     ).one()
 
     agents = await db.execute(
-        select(Agent.id, Agent.name, audio, count)
+        select(Agent.id, Agent.name, units, count)
         .join(
             Agent,
             (Agent.id == MLServiceCall.agent_id) & (Agent.organization_id == organization_id),
@@ -212,7 +218,7 @@ async def summarise(
         .group_by(Agent.id, Agent.name)
     )
     bots = await db.execute(
-        select(ChannelBot.id, ChannelBot.name, audio, count)
+        select(ChannelBot.id, ChannelBot.name, units, count)
         .join(
             ChannelBot,
             (ChannelBot.id == MLServiceCall.channel_bot_id)
@@ -222,29 +228,29 @@ async def summarise(
         .group_by(ChannelBot.id, ChannelBot.name)
     )
     surfaces = await db.execute(
-        select(MLServiceCall.surface, audio, count).where(*scope).group_by(MLServiceCall.surface)
+        select(MLServiceCall.surface, units, count).where(*scope).group_by(MLServiceCall.surface)
     )
     return UsageSummary(
-        audio_ms=total_ms or 0,
+        seconds=total_seconds or 0,
         count=total,
         count_unknown_length=unknown,
         by_agent=_ordered(
-            AgentUsage(id=key, name=name, audio_ms=ms or 0, count=n)
-            for key, name, ms, n in agents.all()
+            AgentUsage(id=key, name=name, seconds=seconds or 0, count=n)
+            for key, name, seconds, n in agents.all()
         ),
         by_channel=_ordered(
-            AgentUsage(id=key, name=name, audio_ms=ms or 0, count=n)
-            for key, name, ms, n in bots.all()
+            AgentUsage(id=key, name=name, seconds=seconds or 0, count=n)
+            for key, name, seconds, n in bots.all()
         ),
         by_surface=sorted(
             (
-                SurfaceUsage(surface=surface, audio_ms=ms or 0, count=n)
-                for surface, ms, n in surfaces.all()
+                SurfaceUsage(surface=surface, seconds=seconds or 0, count=n)
+                for surface, seconds, n in surfaces.all()
             ),
-            key=lambda group: (-group.audio_ms, -group.count, group.surface or ""),
+            key=lambda group: (-group.seconds, -group.count, group.surface or ""),
         ),
     )
 
 
 def _ordered(groups: Iterable[AgentUsage]) -> list[AgentUsage]:
-    return sorted(groups, key=lambda group: (-group.audio_ms, -group.count, group.name))
+    return sorted(groups, key=lambda group: (-group.seconds, -group.count, group.name))

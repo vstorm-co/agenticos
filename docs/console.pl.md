@@ -150,18 +150,18 @@ zostanie zamknięty dla tego przeglądania.
 Mikrofon w kompozytorze zamienia mowę na tekst w polu i nigdy go nie wysyła: to,
 co powiesz, trafia tam, gdzie był kursor w chwili naciśnięcia mikrofonu, gotowe
 do edycji, i nie idzie nigdzie, dopóki nie naciśniesz Wyślij. Sposób
-transkrypcji wybiera organizacja, na [karcie Voice](#the-voice-card):
+transkrypcji wybiera organizacja, na [karcie Głos (Voice)](#the-voice-card):
 
-- **Off** — brak mikrofonu.
-- **Browser** — własne rozpoznawanie mowy przeglądarki, więc dźwięk trafia do jej
+- **Wyłączone (Off)** — brak mikrofonu.
+- **Przeglądarka (Browser)** — własne rozpoznawanie mowy przeglądarki, więc dźwięk trafia do jej
   producenta (Google, Apple). Firefox go nie ma: jego mikrofon mówi o tym po
   naciśnięciu.
-- **Server** — przeglądarka nagrywa, a to wdrożenie wysyła nagranie do providera
+- **Serwer (Server)** — przeglądarka nagrywa, a to wdrożenie wysyła nagranie do providera
   speech-to-text organizacji albo do
   [własnego providera agenta](#an-agents-own-engine), jeśli agent go wskazuje. Działa w każdej przeglądarce, która potrafi nagrywać. Endpoint, jego limity i to, co jest zapisywane, opisuje
   [Dyktowanie w czacie](ml-services.md#dictation-in-chat).
 
-Przy **Server** naciśnięcie mikrofonu zastępuje kontrolki paskiem nagrywania:
+Przy ustawieniu **Serwer** naciśnięcie mikrofonu zastępuje kontrolki paskiem nagrywania:
 Anuluj, poziom dźwięku, licznik czasu i Stop. **Enter** zatrzymuje i
 transkrybuje, **Escape** anuluje, a nic, co zostanie wpisane albo naciśnięte w
 trakcie nagrywania lub transkrypcji, nie jest wysyłane. Nagranie zatrzymuje się
@@ -175,35 +175,37 @@ kompozytorem: prośba o uprawnienie, zablokowany albo brakujący mikrofon, ostat
 30 sekund, pięć sekund bez dźwięku, nagranie krótsze niż sekunda (niewysłane),
 nagranie zatrzymane na limicie, liczba wstawionych słów i każda porażka. Liczba
 słów znika po kilku sekundach albo przy następnym klawiszu. Nagranie, którego nie
-udało się przetranskrybować, jest zachowywane, dopóki nie naciśniesz **Retry**
-albo **Discard**.
+udało się przetranskrybować, jest zachowywane, dopóki nie naciśniesz **Ponów (Retry)**
+albo **Odrzuć (Discard)**.
 
 Gdy organizacja
 wybrała Server, ale dla wybranego agenta nic się nie rozwiązuje — brak providera
 na agencie i w organizacji albo brak poświadczenia do niego — albo nie wybrano
 agenta, mikrofon jest przekreślony i mówi dlaczego; osoba z `org:settings`
-dostaje link do karty Voice, a osoba, która może edytować agenty — link do karty
-Voice tego agenta.
+dostaje link do karty Głos (Voice), a osoba, która może edytować agenty — link do
+karty Głos (Voice) tego agenta.
 
-Poświata pod kompozytorem, gdy mówisz, idzie za ustawieniem **Voice glow** w
-**Settings → Profile → Appearance**, obok motywu i ustawienia **Motion**:
-**Vivid**, **Subtle** (domyślnie) albo **Off**. Jest zapamiętywana dla każdej
-przeglądarki. **Motion** decyduje, ile ruchu pokazuje cała konsola: **System**
-(domyślnie) idzie za ustawieniem ograniczenia ruchu w systemie operacyjnym,
-**Reduce** ogranicza ruch bez niego, a **Full** zachowuje ruch niezależnie od
-systemu operacyjnego. Gdy ruch jest ograniczony, nie ma żadnej poświaty, pasek
+Poświata pod kompozytorem, gdy mówisz, idzie za ustawieniem **Animacja
+dyktowania (Voice glow)** w **Ustawienia → Profil → Wygląd (Settings → Profile →
+Appearance)**, obok motywu i ustawienia **Animacje (Motion)**: **Wyrazista
+(Vivid)**, **Subtelna (Subtle)** (domyślnie) albo **Wyłączona (Off)**. Jest
+zapamiętywana dla każdej przeglądarki. **Animacje** decydują, ile ruchu pokazuje
+cała konsola: **Systemowe (System)** (domyślnie) idą za ustawieniem ograniczenia
+ruchu w systemie operacyjnym, **Ograniczone (Reduce)** ograniczają ruch bez
+niego, a **Pełne (Full)** zachowują ruch niezależnie od systemu operacyjnego. Gdy ruch jest ograniczony, nie ma żadnej poświaty, pasek
 pojawia się bez wysuwania, a poziom dźwięku to pięciostopniowy wskaźnik.
 
-### Karta Voice { #the-voice-card }
+### Karta Głos (Voice) { #the-voice-card }
 
-Na stronie **Members** organizacji, dla kogoś z `org:settings`. **Speech to
-text** wybiera silnik — Off, Browser albo Server, każdy z informacją, dokąd idzie
-dźwięk — a dla Server najdłuższe nagranie, od 10 sekund do 10 minut. **Default
-provider**, pod nim, to provider i model z katalogu speech-to-text oraz język
+Na stronie **Members** organizacji, dla kogoś z `org:settings`. **Mowa na tekst
+(Speech to text)** wybiera silnik — Wyłączone, Przeglądarka albo Serwer (Off,
+Browser, Server), każdy z informacją, dokąd idzie dźwięk — a dla Serwera
+najdłuższe nagranie, od 10 sekund do 10 minut. **Domyślny provider (Default
+provider)**, pod nim, to provider i model z katalogu speech-to-text oraz język
 (automatyczne wykrywanie albo jeden ustalony język, co jest dokładniejsze). Jest
 pokazywany niezależnie od silnika, bo to także tam
 [boty kanałów](channels.md#what-every-channel-shares) ustawione na dziedziczenie
-wysyłają swoje wiadomości głosowe; **None** go czyści.
+wysyłają swoje wiadomości głosowe; **Brak (None)** go czyści.
 
 Server wysyła z własnymi poświadczeniami organizacji dla tego providera: kluczem
 w vaulcie widocznym dla całej organizacji albo profilem modelu, a profil bez
@@ -213,7 +215,7 @@ vaulta. Gdy zapisano Server, ale nie może działać — model wycofano z katalo
 albo zniknęły poświadczenia — karta to mówi, bo każdy członek widzi wtedy
 przekreślony mikrofon.
 
-Server bez domyślnego providera to ustawienie, a nie usterka: karta zaznacza, że dyktować mogą tylko agenty z własnym providerem. **Voice conversations**, pod nią, nie jest jeszcze
+Server bez domyślnego providera to ustawienie, a nie usterka: karta zaznacza, że dyktować mogą tylko agenty z własnym providerem. **Rozmowy głosowe (Voice conversations)**, pod nią, nie jest jeszcze
 zbudowane.
 
 Komuś, kto ma także `runs:view`, karta zaczyna się jedną linijką o tym, ile
@@ -226,9 +228,9 @@ brakuje; jest ukryta, dopóki niczego nie przetranskrybowano. Liczby pochodzą z
 
 ### Własny silnik agenta { #an-agents-own-engine }
 
-Zakładka **Build** agenta ma kartę **Voice** po ustawieniach modelu, dla agenta,
-który ma transkrybować inaczej niż jego organizacja. **Inherit** zachowuje
-providera i model organizacji i pokazuje, które to są; **Choose** wybiera parę z
+Zakładka **Build** agenta ma kartę **Głos (Voice)** po ustawieniach modelu, dla agenta,
+który ma transkrybować inaczej niż jego organizacja. **Dziedzicz (Inherit)** zachowuje
+providera i model organizacji i pokazuje, które to są; **Wybierz (Choose)** wybiera parę z
 katalogu, przy czym providera bez poświadczeń nie da się wybrać. Język wybiera
 się osobno: odziedzicz język organizacji albo ustal jeden — więc polski agent
 może zachować providera organizacji. To część speca, zapisywana z wersją

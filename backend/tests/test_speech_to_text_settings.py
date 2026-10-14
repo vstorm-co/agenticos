@@ -346,3 +346,35 @@ class TestForABot:
 
         assert settings.resolved is not None
         assert settings.resolved.pair_source == "organization"
+
+    @pytest.mark.parametrize(
+        "agent",
+        [
+            SimpleNamespace(
+                id=uuid.uuid4(),
+                organization_id=_ORG_ID,
+                name="Draft",
+                status="draft",
+                current_version_id=None,
+            ),
+            _agent(status="archived"),
+        ],
+        ids=["never-published", "archived"],
+    )
+    async def test_a_bot_whose_agent_runs_nothing_transcribes_nothing(self, agent):
+        """Unlike the composer, no organization fallback: the run refuses the
+        turn, so a voice note transcribed for it is paid for and never read."""
+        get_version = AsyncMock()
+        with (
+            patch(
+                f"{_MODULE}.agent_exposure_repo.list_active_for_bot",
+                new=AsyncMock(return_value=[(_exposure(), agent)]),
+            ),
+            patch(f"{_MODULE}.organization_repo.get_by_id", new=AsyncMock(return_value=_org())),
+            patch(f"{_MODULE}.agent_repo.get_version", new=get_version),
+        ):
+            settings = await _service().for_bot(_bot())
+
+        assert (settings.exposed, settings.resolved) == (False, None)
+        assert settings.agent_name == agent.name
+        get_version.assert_not_awaited()

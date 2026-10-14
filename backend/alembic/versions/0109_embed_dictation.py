@@ -59,11 +59,13 @@ def downgrade() -> None:
     # The old schema can say "the browser's recogniser" and "nothing", so a page
     # on `server` goes back to no microphone rather than to a vendor nobody chose
     # for it. A widget had no voice before this revision and just loses the key.
+    # A page with no `dictation` key compares to NULL, which `COALESCE` turns
+    # into `false` - a JSON null would be refused by the old boolean field.
     op.execute(
         """
         UPDATE agent_embeds
            SET config = config || jsonb_build_object(
-                 'allow_voice', config->>'dictation' = 'browser'
+                 'allow_voice', COALESCE(config->>'dictation' = 'browser', false)
                )
          WHERE kind = 'page'
         """

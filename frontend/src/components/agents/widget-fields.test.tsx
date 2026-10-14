@@ -21,7 +21,7 @@ function fields(config: Partial<WidgetConfig> = {}) {
     <WidgetFields
       config={{ ...DEFAULT_WIDGET_CONFIG, ...config }}
       disabled={false}
-      serverDictation={{ available: true, wasServer: false }}
+      serverDictation={{ available: true, unchecked: false, wasServer: false }}
       onChange={onChange}
     />,
   );

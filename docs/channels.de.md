@@ -1,5 +1,5 @@
 ---
-source_sha: "614feccb4582"
+source_sha: "567a48de3031"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -818,7 +818,9 @@ in das es diktieren könnte, und bekommt 404.
 Ablehnungen tragen denselben `details.reason` wie die
 [Route des Eingabefelds](ml-services.md#dictation-in-chat): 400 `empty`,
 `unsupported_type` oder `too_large`, 503 `not_configured`, `provider_error` oder
-`timeout`. Alles, was das Embed selbst betrifft - unbekannt, pausiert, nicht auf
+`timeout`. Anders als die Route des Eingabefelds lehnt diese eine Aufnahme, deren
+Länge sich nicht lesen lässt, als `unsupported_type` ab
+([unten](#what-it-costs-and-what-bounds-it)). Alles, was das Embed selbst betrifft - unbekannt, pausiert, nicht auf
 `server`, ein Origin, den es nicht erlaubt -, ist 404. Sobald ein Widget
 zugelassen ist, trägt jede Antwort seinen Origin in
 `Access-Control-Allow-Origin`, Ablehnungen eingeschlossen; sonst verbirgt ein
@@ -836,6 +838,23 @@ Subject seines Tokens. Jede Seite und jedes Widget nimmt
 `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` pro Minute an (standardmäßig 10),
 von allen zusammen, durch wie viele Adressen ein Skript auch rotiert.
 
+Beide Zähler werden verbraucht, bevor der Link nachgeschlagen oder der Besucher
+zugelassen wird, also zählt auch eine abgelehnte Anfrage: Wer den Link hat, kann
+seine zehn pro Minute aufbrauchen, und die Besucher der Seite werden für den
+Rest dieser Minute abgewiesen. Die Organisation kostet das nichts, weil kein
+Provider aufgerufen wird, aber es ist ein Weg, das Mikrofon einer Seite
+scheitern zu lassen.
+
+**Die Länge wird gemessen, nicht aus der Größe abgeleitet.** Bevor der Provider
+aufgerufen wird, liest der Server die Länge der Aufnahme aus ihrem Container -
+dem WAV-Header, der letzten Ogg-Seite, den Zeitstempeln der WebM-Blöcke, den
+Movie- oder Fragment-Headern von MP4 - und lehnt eine Aufnahme, die länger als
+`dictation_max_seconds` ist, als `too_large` ab, mit drei Sekunden Spielraum
+dafür, dass der Browser nur einmal pro Sekunde stoppt. Eine Aufnahme, deren
+Länge er nicht lesen kann, lehnt er als `unsupported_type` ab. Eine Byte-Grenze
+allein reicht nicht: Opus mit niedriger Bitrate bringt Stunden in den Bytes
+einer fünfminütigen Aufnahme unter.
+
 !!! danger "Der schlimmste Fall für einen geleakten oder öffentlichen Link"
 
     Das Limit des Links mal das längste Diktat: 10 Aufnahmen pro Minute zu je
@@ -845,6 +864,12 @@ von allen zusammen, durch wie viele Adressen ein Skript auch rotiert.
     Provider-Konto der Organisation. Senken Sie `dictation_max_seconds` oder das
     Limit des Links, pausieren Sie das Embed, oder bleiben Sie bei `browser`, wo
     das zu viel ist.
+
+    Das gilt für jede Aufnahme, deren Container ihre wahre Länge angibt, wie es
+    jeder Browser tut. Eine von Hand gebaute Datei, die ihre Länge zu kurz
+    angibt, begrenzt stattdessen die Byte-Grenze, `dictation_max_seconds × 32 KB`,
+    die Audio mit niedriger Bitrate mit bis zu etwa vierzigmal so vielen Sekunden
+    füllen kann.
 
 Jeder Versuch, der den Provider erreicht, hinterlässt einen Nutzungsdatensatz mit
 der Oberfläche (`hosted` oder `widget`) und dem Agent, und **ohne Person**: ein
@@ -1396,13 +1421,15 @@ auseinanderlaufen kann.
     lassen, denn eine Sprachnotiz, die keine Reaktion erzeugt, ist von einem
     kaputten Bot nicht zu unterscheiden - und er sagt, aus welchem Grund, weil
     jeweils jemand anderes ihn behebt: der Bot ist ausgeschaltet, oder niemand hat
-    einen Provider eingerichtet. Ein Bot ohne gebundenen Agent transkribiert gar
+    einen Provider eingerichtet. Ein Bot ohne gebundenen Agent, oder dessen Agent
+    archiviert ist oder keine Version zum Ausführen hat, transkribiert gar
     nichts, da die Nachricht ohnehin abgelehnt wird.
 
     Jede an den Provider geschickte Aufnahme hinterlässt einen
     [Nutzungsdatensatz](ml-services.md#what-is-recorded), der den Bot, seinen
-    Agent und die Person nennt, mit der das Konto des Absenders verknüpft ist, mit
-    der Länge der Aufnahme, wo Telegram, Slack oder der Provider sie angibt.
+    Agent und die Person nennt, mit der das Konto des Absenders verknüpft ist -
+    solange sie noch Mitglied der Organisation ist -, mit der Länge der Aufnahme,
+    wo Telegram, Slack oder der Provider sie angibt.
 
     !!! note "Upgrade: ein Bot, der nicht transkribiert hat, tut es weiterhin nicht"
 

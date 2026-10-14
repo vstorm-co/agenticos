@@ -741,7 +741,9 @@ to dictate into and is answered 404.
 Refusals carry the same `details.reason` as the
 [composer's route](ml-services.md#dictation-in-chat): 400 `empty`,
 `unsupported_type` or `too_large`, 503 `not_configured`, `provider_error` or
-`timeout`. Anything about the embed itself - unknown, paused, not on `server`,
+`timeout`. Unlike the composer's route, a recording whose length cannot be read
+is refused here, as `unsupported_type` ([below](#what-it-costs-and-what-bounds-it)).
+Anything about the embed itself - unknown, paused, not on `server`,
 an origin it does not allow - is 404. Once a widget is admitted, every answer
 carries its origin in `Access-Control-Allow-Origin`, refusals included;
 otherwise a browser hides the reason and a recording that was too long would
@@ -758,6 +760,21 @@ widget accepts `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` a minute (10 by
 default) from everybody together, however many addresses a script rotates
 through.
 
+Both counters are spent before the link is looked up or the visitor admitted,
+so a refused request counts as well: anybody holding the link can use up its
+ten a minute and leave the page's visitors refused for the rest of that minute.
+That costs the organization nothing, since no provider is called, but it is a
+way to make a page's microphone fail.
+
+**The length is measured, not inferred from the size.** Before the provider is
+called, the server reads the recording's length from its container - the WAV
+header, the last Ogg page, the WebM block timestamps, the MP4 movie or fragment
+headers - and refuses one longer than `dictation_max_seconds` as `too_large`,
+with three seconds' grace for the browser's once-a-second stop. A recording
+whose length it cannot read is refused as `unsupported_type`. A byte cap alone
+would not do: Opus at a low bitrate fits hours into the bytes of a five-minute
+recording.
+
 !!! danger "The worst case for a leaked or public link"
 
     The link's limit times the longest dictation: 10 recordings a minute of up
@@ -766,6 +783,11 @@ through.
     minute, $18 an hour, or $430 a day, billed to the organization's provider
     account. Lower `dictation_max_seconds` or the link limit, pause the embed, or
     keep it on `browser` where that is too much.
+
+    That holds for every recording whose container states its true length, as
+    every browser's does. A file built by hand to understate its length is
+    bounded by the byte cap instead, `dictation_max_seconds × 32 KB`, which
+    low-bitrate audio can fill with up to about forty times as many seconds.
 
 Every attempt that reaches the provider leaves a usage record with the surface
 (`hosted` or `widget`) and the agent, and **no person**: a visitor is not a
@@ -1265,13 +1287,15 @@ serves all three platforms, so the policy cannot drift between them.
     A bot that cannot listen says so rather than dropping the recording, because
     a voice note that produces no reaction is indistinguishable from a broken
     bot - and it says which reason, because different people fix them: the bot
-    is switched off, or nobody has set up a provider. A bot with no agent bound
-    transcribes nothing at all, since the message is refused anyway.
+    is switched off, or nobody has set up a provider. A bot with no agent bound,
+    or whose agent is archived or has no version to run, transcribes nothing at
+    all, since the message is refused anyway.
 
     Every recording sent to the provider leaves a
     [usage record](ml-services.md#what-is-recorded) naming the bot, its agent and
-    the person the sender is linked to, with the recording's length where
-    Telegram, Slack or the provider states it.
+    the person the sender is linked to - while that person is still a member of
+    the organization - with the recording's length where Telegram, Slack or the
+    provider states it.
 
     !!! note "Upgrading: a bot that did not transcribe still does not"
 

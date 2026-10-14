@@ -23,6 +23,7 @@ from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import anyio
 import httpx
 import pytest
 from aiogram.types import Chat
@@ -903,6 +904,77 @@ class TestMattermostWebhookFiles:
             described = await MattermostAdapter().describe_attachments("token", attachments)
 
         assert described == attachments
+
+    @pytest.mark.parametrize(
+        "answer",
+        [
+            ["not", "an", "object"],
+            {"name": "memo.mp3", "mime_type": "audio/mpeg", "size": "large"},
+            {"name": "memo.mp3", "mime_type": "audio/mpeg", "size": [2048]},
+            {"name": "memo.mp3", "mime_type": "audio/mpeg", "size": float("inf")},
+        ],
+        ids=["a-list", "size-a-word", "size-a-list", "size-not-finite"],
+    )
+    async def test_a_malformed_answer_keeps_the_file_rather_than_dropping_the_turn(
+        self, answer: object
+    ):
+        response = MagicMock()
+        response.raise_for_status = MagicMock()
+        response.json = MagicMock(return_value=answer)
+        attachments = self._webhook_files()
+
+        with patch("httpx.AsyncClient", return_value=_http_client(response)):
+            described = await MattermostAdapter().describe_attachments("token", attachments)
+
+        assert described == attachments
+
+    async def test_a_type_or_extension_that_is_not_text_is_not_trusted(self):
+        response = MagicMock()
+        response.raise_for_status = MagicMock()
+        response.json = MagicMock(
+            return_value={"name": "memo.mp3", "mime_type": 7, "extension": ["mp3"], "size": 9}
+        )
+
+        with patch("httpx.AsyncClient", return_value=_http_client(response)):
+            (described,) = await MattermostAdapter().describe_attachments(
+                "token", self._webhook_files()
+            )
+
+        # Typed from the name alone, as an untyped upload is.
+        assert (described.mime_type, described.size) == ("audio/mpeg", 9)
+
+    async def test_several_files_are_looked_up_together_and_kept_in_order(self):
+        adapter = MattermostAdapter()
+        adapter.remember_server("bot-1", "https://mm.test")
+        parsed = adapter.parse_incoming(
+            {"user_id": "u1", "user_name": "ada", "channel_id": "c1", "file_ids": "f1,f2,f3"},
+            "bot-1",
+        )
+        assert parsed is not None
+        in_flight = 0
+        widest = 0
+
+        async def info(url: str, **_: object) -> MagicMock:
+            nonlocal in_flight, widest
+            in_flight += 1
+            widest = max(widest, in_flight)
+            await anyio.sleep(0.01)
+            in_flight -= 1
+            file_id = url.rsplit("/", 2)[-2]
+            response = MagicMock()
+            response.raise_for_status = MagicMock()
+            response.json = MagicMock(
+                return_value={"name": f"{file_id}.ogg", "mime_type": "audio/ogg", "size": 1}
+            )
+            return response
+
+        client = _http_client(None)
+        client.get = AsyncMock(side_effect=info)
+        with patch("httpx.AsyncClient", return_value=client):
+            described = await MattermostAdapter().describe_attachments("token", parsed.attachments)
+
+        assert [one.filename for one in described] == ["f1.ogg", "f2.ogg", "f3.ogg"]
+        assert widest > 1
 
     async def test_a_file_the_event_described_is_not_asked_about(self):
         described = IncomingAttachment(

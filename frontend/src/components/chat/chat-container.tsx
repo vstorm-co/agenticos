@@ -530,7 +530,7 @@ function ChatUI({
   // Readiness and the format are the agent's: its published speech-to-text
   // override can name another engine than the organization's, and the backend's
   // catalog says what to record for it - Mistral takes WAV, the others WebM.
-  const status = useDictationStatus(engine === "server" ? selectedAgentId : null);
+  const { status } = useDictationStatus(engine === "server" ? selectedAgentId : null);
   const sendDictation = useMemo<DictationSend | null>(
     () =>
       selectedAgentId === null
@@ -545,6 +545,14 @@ function ChatUI({
     maxSeconds,
     format: status?.format ?? "webm",
   });
+  // The organization left `server` mid-dictation: the composer draws the
+  // browser's microphone now, and a recording with no Stop button would run on
+  // to the limit unseen, so it goes.
+  const dictationPhase = dictationState.phase;
+  const cancelDictation = dictationActions.cancel;
+  useEffect(() => {
+    if (engine !== "server" && dictationPhase !== "idle") cancelDictation();
+  }, [engine, dictationPhase, cancelDictation]);
   const { can } = usePermissions();
   const voiceSettingsHref =
     activeOrgId !== null && can(Perm.orgSettings)

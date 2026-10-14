@@ -1,5 +1,5 @@
 ---
-source_sha: "614feccb4582"
+source_sha: "567a48de3031"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -773,7 +773,9 @@ una cabecera propia que solo puede enviar el origen de este despliegue. Un
 Los rechazos llevan el mismo `details.reason` que la
 [ruta del composer](ml-services.md#dictation-in-chat): 400 `empty`,
 `unsupported_type` o `too_large`, 503 `not_configured`, `provider_error` o
-`timeout`. Todo lo relativo al propio embed - desconocido, en pausa, no en
+`timeout`. A diferencia de la ruta del composer, esta rechaza como
+`unsupported_type` una grabación cuya duración no se puede leer
+([más abajo](#what-it-costs-and-what-bounds-it)). Todo lo relativo al propio embed - desconocido, en pausa, no en
 `server`, un origen que no permite - es 404. Una vez admitido un widget, cada
 respuesta lleva su origen en `Access-Control-Allow-Origin`, rechazos incluidos;
 si no, el navegador oculta el motivo y una grabación demasiado larga le parecería
@@ -790,6 +792,22 @@ token. Cada página o widget acepta `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MIN
 por minuto (10 por defecto) de todos a la vez, por muchas direcciones que vaya
 rotando un script.
 
+Los dos contadores se gastan antes de buscar el enlace o admitir al visitante,
+así que una petición rechazada también cuenta: cualquiera que tenga el enlace
+puede agotar sus diez por minuto y dejar a los visitantes de la página
+rechazados el resto de ese minuto. A la organización no le cuesta nada, porque
+no se llama a ningún provider, pero es una forma de hacer fallar el micrófono
+de una página.
+
+**La duración se mide, no se deduce del tamaño.** Antes de llamar al provider,
+el servidor lee la duración de la grabación en su contenedor - la cabecera WAV,
+la última página Ogg, las marcas de tiempo de los bloques WebM, las cabeceras de
+película o de fragmento de MP4 - y rechaza como `too_large` una más larga que
+`dictation_max_seconds`, con tres segundos de margen porque el navegador solo
+detiene la grabación una vez por segundo. Una grabación cuya duración no puede
+leer se rechaza como `unsupported_type`. Un límite de bytes no bastaría: Opus a
+un bitrate bajo mete horas en los bytes de una grabación de cinco minutos.
+
 !!! danger "El peor caso para un enlace filtrado o público"
 
     El límite del enlace por el dictado más largo: 10 grabaciones por minuto de
@@ -798,6 +816,12 @@ rotando un script.
     de $0.30 por minuto, $18 por hora o $430 al día, cobrados a la cuenta del
     provider de la organización. Baja `dictation_max_seconds` o el límite del
     enlace, pon el embed en pausa, o déjalo en `browser` donde eso sea demasiado.
+
+    Eso vale para toda grabación cuyo contenedor indica su duración real, como
+    hace cualquier navegador. Un archivo hecho a mano para declarar menos
+    duración de la que tiene queda limitado en cambio por el límite de bytes,
+    `dictation_max_seconds × 32 KB`, que un audio de bitrate bajo puede llenar con
+    hasta unas cuarenta veces más segundos.
 
 Cada intento que llega al provider deja un registro de uso con la superficie
 (`hosted` o `widget`) y el agent, y **ninguna persona**: un visitante no es
@@ -1314,13 +1338,15 @@ así que la política no puede desviarse entre ellas.
     Un bot que no puede escuchar lo dice en vez de descartar la grabación, porque
     una nota de voz que no produce ninguna reacción es indistinguible de un bot roto
     — y dice por qué motivo, porque cada uno lo arregla otra persona: el bot está
-    desactivado, o nadie ha configurado un provider. Un bot sin agent vinculado
-    no transcribe nada en absoluto, porque el mensaje se rechaza de todos modos.
+    desactivado, o nadie ha configurado un provider. Un bot sin agent vinculado,
+    o cuyo agent está archivado o no tiene versión que ejecutar, no transcribe
+    nada en absoluto, porque el mensaje se rechaza de todos modos.
 
     Cada grabación enviada al provider deja un
     [registro de uso](ml-services.md#what-is-recorded) que nombra el bot, su agent
-    y la persona con la que está vinculada la cuenta del remitente, con la
-    duración de la grabación donde Telegram, Slack o el provider la indican.
+    y la persona con la que está vinculada la cuenta del remitente - mientras
+    siga siendo miembro de la organización -, con la duración de la grabación
+    donde Telegram, Slack o el provider la indican.
 
     !!! note "Al actualizar: un bot que no transcribía sigue sin transcribir"
 

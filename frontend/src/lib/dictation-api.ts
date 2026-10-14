@@ -95,9 +95,10 @@ export function invalidateSpeechSettings(queryClient: QueryClient): Promise<void
 /**
  * Why a dictation did not become text.
  *
- * The first six are the server's own `details.reason`; the last two are what
- * the browser can tell without one - a 429 from a rate limit, and a request
- * that never reached the server at all.
+ * The first six are the server's own `details.reason`; the rest are what the
+ * browser can tell without one - a 429 from a rate limit, a request that never
+ * reached the server at all, a 401 the session could not refresh past, and a
+ * 403 for somebody who may not dictate to this agent.
  */
 export type DictationReason =
   | "not_configured"
@@ -107,7 +108,9 @@ export type DictationReason =
   | "provider_error"
   | "timeout"
   | "rate_limited"
-  | "offline";
+  | "offline"
+  | "signed_out"
+  | "forbidden";
 
 const SERVER_REASONS: ReadonlySet<string> = new Set([
   "not_configured",
@@ -205,7 +208,8 @@ export async function dictateOnPage(
  * middleware refusing before the route ran, which is the same answer for the
  * person: the recording is too large. A 404 is an embed whose operator has
  * since turned server dictation off, which for the person is the same as it not
- * being set up. A `TypeError` is what `fetch`, and `sendWithProgress` like it,
+ * being set up. A 401 or a 403 is the person, not the recording, so sending it
+ * again cannot help. A `TypeError` is what `fetch`, and `sendWithProgress` like it,
  * throws when the request never left the browser.
  */
 export function dictationReason(error: unknown): DictationReason | null {
@@ -220,6 +224,9 @@ export function dictationReason(error: unknown): DictationReason | null {
       return reason as DictationReason;
     }
     if (error.status === 429) return "rate_limited";
+    // `apiClient` has already tried a refresh: a 401 here is a session that ended.
+    if (error.status === 401) return "signed_out";
+    if (error.status === 403) return "forbidden";
     if (error.status === 413) return "too_large";
     if (error.status === 404) return "not_configured";
   }

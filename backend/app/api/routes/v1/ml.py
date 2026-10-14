@@ -231,6 +231,9 @@ async def list_ml_calls(
 
     Every filter narrows inside the caller's organization: an agent or bot id
     from another tenant matches nothing, exactly as an id that does not exist.
+    The agent, bot and surface - as filters and as columns - are for a caller
+    holding `runs:view`, like the summary; with `ml:invoke` alone a filter on
+    them is refused and the columns come back null.
     """
     rows, total = await service.call_records(
         ctx,
@@ -243,8 +246,9 @@ async def list_ml_calls(
         skip=skip,
         limit=limit,
     )
+    attributed = service.sees_attribution(ctx)
     return MLServiceCallList(
-        items=[MLServiceCallRead.model_validate(row) for row in rows], total=total
+        items=[MLServiceCallRead.of(row, attributed=attributed) for row in rows], total=total
     )
 
 
@@ -284,5 +288,9 @@ async def summarise_ml_calls(
     dependencies=[Depends(require(Perm.ML_INVOKE))],
 )
 async def get_ml_call(call_id: UUID, service: MLSvc, ctx: Auth) -> Any:
-    """One call's status and usage. A call another tenant made is not found."""
-    return await service.call_record(ctx, call_id)
+    """One call's status and usage. A call another tenant made is not found.
+
+    The agent, bot and surface are null without `runs:view`, as on the list.
+    """
+    row = await service.call_record(ctx, call_id)
+    return MLServiceCallRead.of(row, attributed=service.sees_attribution(ctx))

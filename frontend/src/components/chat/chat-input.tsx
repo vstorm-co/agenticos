@@ -213,9 +213,11 @@ export function ChatInput({
     const from = kept ? caret.from : message.length;
     const to = kept ? caret.to : message.length;
     const before = message.slice(0, from);
+    const after = message.slice(to);
     const join = before.length > 0 && !/\s$/.test(before) ? " " : "";
-    const inserted = join + transcript.text;
-    setMessage(before + inserted + message.slice(to));
+    const gap = after.length > 0 && !/^\s/.test(after) ? " " : "";
+    const inserted = join + transcript.text + gap;
+    setMessage(before + inserted + after);
     setCaret(null);
     setPlaceCaret({ at: from + inserted.length });
     setAnnouncement(tDictation("announceInserted", { count: wordCount(transcript.text) }));
@@ -630,8 +632,7 @@ export function ChatInput({
             ) : (
               <DictationUnavailable
                 why={server.hasAgent ? "not_ready" : "no_agent"}
-                voiceSettingsHref={server.voiceSettingsHref}
-                agentVoiceHref={server.agentVoiceHref}
+                canSetUp={server.voiceSettingsHref !== null || server.agentVoiceHref !== null}
                 onExplain={server.onExplain}
               />
             ))}

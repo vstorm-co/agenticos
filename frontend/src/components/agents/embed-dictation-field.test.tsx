@@ -20,6 +20,7 @@ function field(
   serverAvailable: boolean | null,
   wasServer = false,
   disabled = false,
+  serverUnchecked = false,
 ) {
   render(
     <EmbedDictationField
@@ -27,6 +28,7 @@ function field(
       value={value}
       disabled={disabled}
       serverAvailable={serverAvailable}
+      serverUnchecked={serverUnchecked}
       wasServer={wasServer}
       onChange={onChange}
     />,
@@ -69,6 +71,15 @@ describe("the voice choice", () => {
     field("off", null);
 
     expect(screen.getByRole("radio", { name: /Server/ })).toBeDisabled();
+    expect(screen.queryByText(/needs a speech-to-text provider/)).toBeNull();
+    expect(screen.queryByText(/can't be checked/)).toBeNull();
+  });
+
+  it("says server can't be checked when the agent's readiness did not load, rather than nothing", () => {
+    field("off", null, false, false, true);
+
+    expect(screen.getByRole("radio", { name: /Server/ })).toBeDisabled();
+    expect(screen.getByText(/Server can't be checked right now/)).toBeInTheDocument();
     expect(screen.queryByText(/needs a speech-to-text provider/)).toBeNull();
   });
 

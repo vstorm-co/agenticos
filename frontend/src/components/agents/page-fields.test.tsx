@@ -16,7 +16,7 @@ import { DEFAULT_PAGE_CONFIG, type EmbedVariable, type PageConfig } from "@/type
  */
 
 const onChange = vi.fn();
-const READY = { available: true, wasServer: false };
+const READY = { available: true, unchecked: false, wasServer: false };
 
 function fields(config: Partial<PageConfig> = {}, variables: EmbedVariable[] = []) {
   render(

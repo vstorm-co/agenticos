@@ -401,8 +401,17 @@ class ChannelMessageRouter:
         recordings, rest = self._split_recordings(incoming)
         incoming.attachments = rest
         files, file_refusals = await self._receive_files(db, bot, incoming, identity)
+        # Attributed to the linked person only while they are still a member: a
+        # room admits an unlinked or departed sender, and a usage row naming a
+        # former member puts a call on the record of somebody who no longer
+        # belongs to the organization.
+        requested_by = (
+            identity.user_id
+            if recordings and await self._sender_is_active_member(db, bot, identity)
+            else None
+        )
         transcripts, voice_refusals = await self._transcribe(
-            db, bot, recordings, requested_by=identity.user_id
+            db, bot, recordings, requested_by=requested_by
         )
         file_refusals += voice_refusals
         incoming.text = self._with_transcripts(incoming.text, transcripts)
@@ -824,18 +833,21 @@ class ChannelMessageRouter:
         uploaded, typed from the extension or the clip marker where the platform
         left it untyped (`attachments.routed_type`).
 
-        Each recording is logged with its type and name, because the type is
-        the platform's and this is the line that says why a voice note was or
-        was not heard.
+        Each recording is logged with its type, because the type is the
+        platform's and this is the line that says why a voice note was or was
+        not heard - and by the platform's message id and its place on the
+        message rather than its file name, which a sender chose and which can
+        be personal.
         """
         recordings = [a for a in incoming.attachments if a.mime_type.startswith("audio/")]
         rest = [a for a in incoming.attachments if not a.mime_type.startswith("audio/")]
-        for recording in recordings:
+        for index, recording in enumerate(recordings):
             logger.info(
-                "Voice message routed to transcription: bot=%s type=%s filename=%s",
+                "Voice message routed to transcription: bot=%s message=%s recording=%d type=%s",
                 incoming.bot_id,
+                incoming.message_id,
+                index,
                 recording.mime_type,
-                recording.filename,
             )
         return recordings, rest
 

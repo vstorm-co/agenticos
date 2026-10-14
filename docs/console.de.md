@@ -163,9 +163,9 @@ Das Mikrofon im Eingabefeld macht aus Sprache Text im Feld und sendet ihn nie:
 Was Sie sagen, landet dort, wo die Einfügemarke stand, als Sie das Mikrofon
 gedrückt haben, bereit zum Bearbeiten, und geht nirgendwohin, bis Sie auf Senden
 drücken. Wie transkribiert wird, entscheidet die Organisation auf
-[der Voice-Karte](#the-voice-card):
+[der Karte Stimme (Voice)](#the-voice-card):
 
-- **Off** — kein Mikrofon.
+- **Aus (Off)** — kein Mikrofon.
 - **Browser** — die eigene Spracherkennung des Browsers, das Audio geht also an
   den Browserhersteller (Google, Apple). Firefox hat keine: sein Mikrofon
   sagt das, wenn man es drückt.
@@ -192,36 +192,39 @@ Mikrofon, die letzten 30 Sekunden, fünf Sekunden ohne Ton, eine Aufnahme unter
 einer Sekunde (nicht gesendet), eine Aufnahme, die am Limit gestoppt hat, wie
 viele Wörter eingefügt wurden, und jeder Fehlschlag. Die Wortzahl verschwindet
 nach ein paar Sekunden oder bei Ihrer nächsten Taste. Eine Aufnahme, deren
-Transkription fehlgeschlagen ist, bleibt erhalten, bis Sie **Retry** oder
-**Discard** drücken.
+Transkription fehlgeschlagen ist, bleibt erhalten, bis Sie **Erneut versuchen (Retry)**
+oder **Verwerfen (Discard)** drücken.
 
 Hat die Organisation Server gewählt, aber für den
 ausgewählten Agent löst sich nichts auf - kein Provider auf dem Agent oder der
 Organisation, oder keine Zugangsdaten dafür -, oder ist kein Agent ausgewählt,
 ist das Mikrofon durchgestrichen und sagt, warum; wer `org:settings` hält, bekommt einen Link zur
-Voice-Karte, und wer Agents bearbeiten darf, einen Link zur Voice-Karte dieses Agents.
+Karte Stimme (Voice), und wer Agents bearbeiten darf, einen Link zur Karte Stimme (Voice) dieses Agents.
 
-Das Leuchten unter dem Eingabefeld, während Sie sprechen, folgt **Voice glow**
-unter **Settings → Profile → Appearance**, neben Design und **Motion**:
-**Vivid**, **Subtle** (der Standard) oder **Off**. Es wird pro Browser
-gespeichert. **Motion** bestimmt, wie viel Bewegung die ganze Konsole zeigt:
-**System** (der Standard) folgt der Einstellung für reduzierte Bewegung im
-Betriebssystem, **Reduce** reduziert die Bewegung auch ohne sie, und **Full**
-behält sie, was auch immer das Betriebssystem sagt. Solange die Bewegung
+Das Leuchten unter dem Eingabefeld, während Sie sprechen, folgt
+**Diktieranimation (Voice glow)** unter **Einstellungen → Profil → Darstellung
+(Settings → Profile → Appearance)**, neben Design und **Bewegung (Motion)**:
+**Kräftig (Vivid)**, **Dezent (Subtle)** (der Standard) oder **Aus (Off)**. Es
+wird pro Browser gespeichert. **Bewegung** bestimmt, wie viel Bewegung die ganze
+Konsole zeigt: **System** (der Standard) folgt der Einstellung für reduzierte
+Bewegung im Betriebssystem, **Reduziert (Reduce)** reduziert die Bewegung auch
+ohne sie, und **Voll (Full)** behält sie, was auch immer das Betriebssystem
+sagt. Solange die Bewegung
 reduziert ist, gibt es gar kein Leuchten, der Streifen erscheint ohne Gleiten,
 und der Pegel ist eine fünfstufige Anzeige.
 
-### Die Voice-Karte { #the-voice-card }
+### Die Karte Stimme (Voice) { #the-voice-card }
 
 Auf der Seite **Members** der Organisation, für jemanden mit `org:settings`.
-**Speech to text** wählt die Engine — Off, Browser oder Server, jede mit der
-Angabe, wohin das Audio geht — und für Server die längste Aufnahme, von
-10 Sekunden bis 10 Minuten. **Default provider** darunter ist der Provider und
+**Sprache zu Text (Speech to text)** wählt die Engine — Aus, Browser oder Server
+(Off, Browser, Server), jede mit der Angabe, wohin das Audio geht — und für
+Server die längste Aufnahme, von 10 Sekunden bis 10 Minuten. **Standard-Provider
+(Default provider)** darunter ist der Provider und
 das Modell aus dem Speech-to-Text-Katalog und eine Sprache (automatische
 Erkennung oder eine feste Sprache, was genauer ist). Das Feld wird unabhängig
 von der Engine angezeigt, denn es ist auch das, wohin
-[Channel-Bots](channels.md#what-every-channel-shares), die auf Inherit stehen,
-ihre Sprachnachrichten schicken; **None** leert es.
+[Channel-Bots](channels.md#what-every-channel-shares), die auf Erben (Inherit)
+stehen, ihre Sprachnachrichten schicken; **Keiner (None)** leert es.
 
 Server sendet mit den eigenen Zugangsdaten der Organisation für diesen Provider:
 einem für die Organisation sichtbaren Schlüssel im Vault oder einem model
@@ -232,7 +235,7 @@ gespeichert, kann aber nicht laufen — das Modell wurde aus dem Katalog genomme
 oder die Zugangsdaten sind weg —, sagt die Karte es, denn dann sieht jedes
 Mitglied ein durchgestrichenes Mikrofon.
 
-Server ohne Standard-Provider ist eine Einstellung, kein Fehler: Die Karte weist darauf hin, dass nur Agents mit eigenem Provider diktieren. **Voice conversations** darunter ist
+Server ohne Standard-Provider ist eine Einstellung, kein Fehler: Die Karte weist darauf hin, dass nur Agents mit eigenem Provider diktieren. **Sprachgespräche (Voice conversations)** darunter ist
 noch nicht gebaut.
 
 Wer zusätzlich `runs:view` hat, sieht oben auf der Karte eine Zeile dazu, wie viel
@@ -247,14 +250,15 @@ ist sie ausgeblendet. Die Zahlen stammen aus
 ### Die eigene Engine eines Agents { #an-agents-own-engine }
 
 Der Tab **Build** eines Agents hat nach seinen Modelleinstellungen eine Karte
-**Voice**, für einen Agent, der anders transkribieren soll als seine
-Organisation. **Inherit** behält Provider und Modell der Organisation und zeigt,
-welche es sind; **Choose** wählt ein Paar aus dem Katalog, wobei sich ein
+**Stimme (Voice)**, für einen Agent, der anders transkribieren soll als seine
+Organisation. **Erben (Inherit)** behält Provider und Modell der Organisation und zeigt,
+welche es sind; **Auswählen (Choose)** wählt ein Paar aus dem Katalog, wobei sich ein
 Provider ohne Zugangsdaten nicht wählen lässt. Die Sprache wird für sich gewählt:
 die der Organisation erben oder eine festlegen - so kann ein polnischer Agent
-den Provider der Organisation behalten. Die Überschreibung ist Teil des Specs,
-wird mit dem Entwurf gespeichert und ist live, sobald der Agent veröffentlicht
-ist, und sie gilt für [das Diktieren](#dictation) an diesen Agent und für Sprachnachrichten,
+den Provider der Organisation behalten.
+
+Die Überschreibung ist Teil des Specs, wird mit dem Entwurf gespeichert und ist
+live, sobald der Agent veröffentlicht ist, und sie gilt für [das Diktieren](#dictation) an diesen Agent und für Sprachnachrichten,
 die seine Channel-Bots erben.
 [Die Reihenfolge](ml-services.md#which-engine-a-recording-reaches) erklärt den
 Rest.

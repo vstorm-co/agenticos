@@ -75,6 +75,9 @@ function draftOf(org: Organization): Draft {
   };
 }
 
+/** A provider and model, the pair Server records with. */
+type Pair = Pick<Draft, "provider" | "model">;
+
 /** The typed length in seconds, or `null` when it is not one the server takes. */
 function secondsOf(draft: Draft): number | null {
   const value = Number(draft.amount.trim());
@@ -133,11 +136,16 @@ function useVoiceDraft(org: Organization) {
   const [failure, setFailure] = useState<SubmitFailure>(NO_FAILURE);
   const [lengthInvalid, setLengthInvalid] = useState(false);
   const [saving, setSaving] = useState(false);
+  // The pair choosing Server filled in by itself, and the pair it replaced.
+  const [autoPair, setAutoPair] = useState<{ filled: Pair; replaced: Pair } | null>(null);
 
   // Re-seed when the stored settings change underneath - another tab, or this
   // form's own save coming back with what the server settled on. During
   // render: an effect would show the old values for a frame first.
-  if (useChanged(`${org.id}|${JSON.stringify(stored)}`)) setDraft(stored);
+  if (useChanged(`${org.id}|${JSON.stringify(stored)}`)) {
+    setDraft(stored);
+    setAutoPair(null);
+  }
 
   const edit = (next: Partial<Draft>) => {
     setDraft((prev) => ({ ...prev, ...next }));
@@ -178,11 +186,36 @@ function useVoiceDraft(org: Organization) {
     }
   };
 
+  /**
+   * Switch engines. `first` is the pair Server takes when nothing is picked;
+   * leaving Server with that pair untouched puts back what it replaced, so Save
+   * never sends a default the person only passed through.
+   */
+  const chooseEngine = (engine: DictationEngine, first: Pair | undefined) => {
+    if (engine !== "server") {
+      const untouched =
+        autoPair !== null &&
+        draft.provider === autoPair.filled.provider &&
+        draft.model === autoPair.filled.model;
+      setAutoPair(null);
+      edit(untouched ? { engine, ...autoPair.replaced } : { engine });
+      return;
+    }
+    if (first === undefined) {
+      edit({ engine });
+      return;
+    }
+    setAutoPair({ filled: first, replaced: { provider: draft.provider, model: draft.model } });
+    edit({ engine, ...first });
+  };
+
   return {
     draft,
     edit,
+    chooseEngine,
     reset: () => {
       setDraft(stored);
+      setAutoPair(null);
       setFailure(NO_FAILURE);
       setLengthInvalid(false);
     },
@@ -221,8 +254,9 @@ function VoiceForm({ org }: { org: Organization }) {
         ? providers.find((entry) => credentialed(entry.provider))
         : undefined;
     // The server drops a catalog entry with no models, so each has a first one.
-    form.edit(
-      first ? { engine, provider: first.provider, model: first.models[0]!.id } : { engine },
+    form.chooseEngine(
+      engine,
+      first ? { provider: first.provider, model: first.models[0]!.id } : undefined,
     );
   };
 

@@ -545,6 +545,13 @@ describe("ChatInput inserting a transcript", () => {
     expect(textarea).toHaveValue("Summarise the board pack");
   });
 
+  it("adds a space after the transcript when a word follows the caret, and leaves the caret past it", async () => {
+    const textarea = await dictateInto("Summarise pack", [10, 10], "the board");
+
+    expect(textarea).toHaveValue("Summarise the board pack");
+    await waitFor(() => expect(textarea.selectionStart).toBe("Summarise the board ".length));
+  });
+
   it("fills an empty box without a leading space", async () => {
     const textarea = await dictateInto("", null, "hello there");
 

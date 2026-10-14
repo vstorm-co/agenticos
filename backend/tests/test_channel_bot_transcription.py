@@ -82,12 +82,30 @@ class TestCreating:
         assert created["transcribe_voice_notes"] is True
         assert created["speech_to_text_provider"] is None
 
-    async def test_a_bot_created_off_drops_any_pair_it_was_sent(self):
-        created = await _created(
-            transcribe_voice_notes=False,
-            speech_to_text_provider="openai",
-            speech_to_text_model="whisper-1",
-        )
+    async def test_a_bot_created_off_with_a_pair_is_refused_as_an_update_is(self):
+        """The same field and the same sentence as an update naming a pair for a
+        bot that is off - not a pair silently dropped on one path and refused on
+        the other."""
+        with pytest.raises(BadRequestError) as refused:
+            await _created(
+                transcribe_voice_notes=False,
+                speech_to_text_provider="openai",
+                speech_to_text_model="whisper-1",
+            )
+        with pytest.raises(BadRequestError) as refused_update:
+            await _updated(
+                _row(transcribe=False),
+                ChannelBotUpdate(
+                    speech_to_text_provider="openai", speech_to_text_model="whisper-1"
+                ),
+            )
+
+        assert refused.value.details == refused_update.value.details
+        assert refused.value.details["fields"][0]["field"] == "transcribe_voice_notes"
+        assert refused.value.message == refused_update.value.message
+
+    async def test_a_bot_created_off_carries_no_pair(self):
+        created = await _created(transcribe_voice_notes=False)
 
         assert created["transcribe_voice_notes"] is False
         assert created["speech_to_text_provider"] is None
@@ -117,15 +135,27 @@ class TestUpdating:
             "speech_to_text_model": None,
         }
 
-    async def test_switching_off_wins_over_a_pair_sent_with_it(self):
-        bot = _row()
+    @pytest.mark.parametrize(
+        "pair",
+        [
+            {"speech_to_text_provider": "openai", "speech_to_text_model": "whisper-1"},
+            {"speech_to_text_model": "whisper-1"},
+        ],
+        ids=["both", "model-alone"],
+    )
+    async def test_a_pair_sent_with_switching_off_is_refused(self, pair: dict[str, str]):
+        with pytest.raises(BadRequestError) as refused:
+            await _updated(_row(), ChannelBotUpdate(transcribe_voice_notes=False, **pair))
 
+        assert refused.value.details["fields"][0]["field"] == "transcribe_voice_notes"
+
+    async def test_switching_off_with_an_explicit_null_pair_clears_it(self):
         changes = await _updated(
-            bot,
+            _row(provider="openai", model="whisper-1"),
             ChannelBotUpdate(
                 transcribe_voice_notes=False,
-                speech_to_text_provider="openai",
-                speech_to_text_model="whisper-1",
+                speech_to_text_provider=None,
+                speech_to_text_model=None,
             ),
         )
 

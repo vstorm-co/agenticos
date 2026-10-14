@@ -307,6 +307,12 @@ export function useDictation({ mic, send: sendTo, maxSeconds, format }: UseDicta
   /** How long the kept recording is, by the browser's clock - sent with it, and again on a retry. */
   const secondsRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
+  /**
+   * The `mic.start()` still waiting on the browser. The microphone holds one
+   * stream, so a press after a cancel waits for it rather than racing it: two
+   * requests in flight leave the later answer open with nothing to close it.
+   */
+  const openingRef = useRef<Promise<MediaStream | null> | null>(null);
   const transcriptIdRef = useRef(0);
   const retryAfterRef = useRef<number | null>(null);
   /** Tears down the recording's timers, frames, listeners and analyser. */
@@ -535,7 +541,14 @@ export function useDictation({ mic, send: sendTo, maxSeconds, format }: UseDicta
       return;
     }
     moveTo("requesting");
-    const stream = await micRef.current.start();
+    if (openingRef.current !== null) {
+      await openingRef.current;
+      if (session !== sessionRef.current) return;
+    }
+    const opening = micRef.current.start();
+    openingRef.current = opening;
+    const stream = await opening;
+    openingRef.current = null;
     if (session !== sessionRef.current) {
       // Cancelled while the browser was asking; the prompt was answered anyway.
       if (stream !== null) micRef.current.stop();

@@ -136,6 +136,7 @@ def test_downgrade_says_browser_and_nothing_and_never_a_vendor_nobody_chose(
             2: ("page", {"kind": "page", "dictation": "server"}),
             3: ("page", {"kind": "page", "dictation": "off"}),
             4: ("widget", {"kind": "widget", "dictation": "server"}),
+            5: ("page", {"kind": "page", "title": "No key"}),
         },
     )
 
@@ -143,3 +144,6 @@ def test_downgrade_says_browser_and_nothing_and_never_a_vendor_nobody_chose(
     assert after[2] == {"kind": "page", "allow_voice": False}
     assert after[3] == {"kind": "page", "allow_voice": False}
     assert after[4] == {"kind": "widget"}
+    # Without a `dictation` key the comparison is NULL; the old field is a
+    # boolean, so it goes back as `false` rather than as a JSON null.
+    assert after[5] == {"kind": "page", "title": "No key", "allow_voice": False}

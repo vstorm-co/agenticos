@@ -338,8 +338,15 @@ async def embed_dictation_allowed(connection: HTTPConnection, *, public_key: str
     everybody together, and that number times the organization's longest
     dictation is the worst a leaked link can cost - `docs/channels.md` works it
     through. A `jwt` widget also counts per visitor once the token is verified
-    (`embed_dictation_visitor_allowed`), so one signed-in visitor cannot spend
-    the link's allowance for the rest.
+    (`embed_dictation_visitor_allowed`), so one signed-in visitor can take at
+    most `RATE_LIMIT_EMBED_DICTATION_PER_MINUTE` of the link's allowance (6 of
+    10 by default) - fewer than all of it, not none of it.
+
+    Both counters are spent here, before the key is looked up or the visitor
+    admitted, so a refused request spends the link's allowance too: anybody
+    with the link can exhaust its minute for everybody else. That costs the
+    organization nothing - no provider is called - and is the price of
+    counting before the database read rather than after it.
     """
     by_address = await consume(
         surface="embed_dictation",

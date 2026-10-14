@@ -32,10 +32,16 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.exceptions import AppException, BadRequestError, ConfigurationError, NotFoundError
+from app.core.exceptions import (
+    AppException,
+    AuthorizationError,
+    BadRequestError,
+    ConfigurationError,
+    NotFoundError,
+)
 from app.core.field_errors import refused_field
-from app.core.permissions import AuthContext
-from app.db.models.agent import Agent
+from app.core.permissions import AuthContext, Perm
+from app.db.models.agent import Agent, AgentStatus
 from app.db.models.local_service import LocalServiceKind
 from app.db.models.ml_service_call import MLCallStatus, MLServiceCall, TranscriptionSurface
 from app.db.models.organization import DictationEngine, Organization
@@ -44,7 +50,7 @@ from app.repositories import organization as organization_repo
 from app.repositories.ml_service_call import CallFilters, UsageSummary
 from app.services import speech_to_text, transcription, transcription_usage
 from app.services.local_service import LocalServiceService
-from app.services.ml import parsing, pii
+from app.services.ml import audio_duration, parsing, pii
 from app.services.ml.catalog import SERVICE_CATALOG, MLServiceEntry
 from app.services.speech_to_text import RecordingFormat
 from app.services.speech_to_text_settings import SpeechToTextSettingsService
@@ -54,13 +60,28 @@ from app.services.transcription_usage import TranscriptionCall
 logger = logging.getLogger(__name__)
 
 DICTATION_BYTES_PER_SECOND = 32_768
-"""Bytes per second of recording the dictation cap allows.
+"""Bytes per second of recording the dictation byte cap allows.
 
 Double what the composer records at (128 kbps Opus is 16 KB/s), so a browser
-that encodes a little fatter than asked is not refused, while a caller posting
-straight to the endpoint cannot buy an hour of transcription with one request.
-The WAV the composer records for Mistral (16 kHz mono 16-bit PCM) is 32,000
-bytes a second plus a 44-byte header, so it fits under the same cap.
+that encodes a little fatter than asked is not refused. The WAV the composer
+records for Mistral (16 kHz mono 16-bit PCM) is 32,000 bytes a second plus a
+44-byte header, so it fits under the same cap.
+
+**An outer bound on bytes, not a bound on seconds.** Opus at a script's lowest
+bitrate fits one to three hours into this many bytes, so the length itself is
+read from the recording (`audio_duration`) and refused against
+`dictation_max_seconds`. This cap is what still holds where that reading cannot:
+a recording whose length is unknown, where the surface accepts one, and a file
+built to state less than it holds.
+"""
+
+DICTATION_GRACE_SECONDS = 3
+"""How far past `dictation_max_seconds` a measured recording may run.
+
+The composer stops a recording on a once-a-second tick of the browser's clock,
+so one that stopped at the limit is up to a second over it, and a throttled tab
+ticks late. Refusing those would refuse exactly the recordings the limit
+stopped for the person.
 """
 
 DICTATION_TYPES = frozenset({"audio/webm", "audio/ogg", "audio/mp4", "audio/wav"})
@@ -258,7 +279,10 @@ class MLService:
         The caller has already proven run access on `agent`. The gate is the
         organization's engine for `/chat`: anything but `server` refuses as
         `not_configured`. Everything after the gate is `transcribe_dictation`,
-        which the hosted page and the widget share.
+        which the hosted page and the widget share. A recording whose length
+        cannot be read is accepted here, under the byte cap: the caller is a
+        signed-in member on their own rate limit, and refusing would refuse a
+        browser whose container this does not read.
 
         Raises:
             ConfigurationError: `reason="not_configured"` - the engine is not
@@ -281,6 +305,7 @@ class MLService:
             content=content,
             mime_type=mime_type,
             reported_seconds=reported_seconds,
+            accept_unmeasured=True,
         )
 
     async def transcribe_dictation(
@@ -292,6 +317,7 @@ class MLService:
         content: bytes,
         mime_type: str,
         reported_seconds: float | None = None,
+        accept_unmeasured: bool,
     ) -> str:
         """Transcribe one dictation for `agent`, past whichever gate its surface has.
 
@@ -310,24 +336,36 @@ class MLService:
         the organization. Nothing is kept but the usage record: the audio is
         discarded when this returns, and the text goes back in the response only.
 
-        The byte cap is the organization's longest dictation at
-        `DICTATION_BYTES_PER_SECOND`, never above what transcription accepts.
+        **The length is measured before the provider is called.** The byte cap -
+        the organization's longest dictation at `DICTATION_BYTES_PER_SECOND`,
+        never above what transcription accepts - is checked first, because it
+        is free; then `audio_duration` reads the recording's length from its
+        container, and one longer than `dictation_max_seconds` (plus
+        `DICTATION_GRACE_SECONDS`) is refused as `too_large`. A length that
+        cannot be read is the caller's to decide: `accept_unmeasured` lets it
+        through under the byte cap alone, which is what the console does for a
+        member; otherwise it is refused as `unsupported_type`, which is what a
+        public page does for a stranger, whose spend nothing else bounds.
 
-        `reported_seconds` is the length the browser says it recorded. It is
-        **client-reported** and used only where the provider states no length
-        of its own (`gpt-4o-transcribe` does not), and only after clamping to
-        what the byte cap stands for - so a caller posting straight to the
-        endpoint can inflate its own usage figure by at most the organization's
-        longest dictation, never by an hour.
+        The usage row's length is the measured one, then the provider's own
+        figure, then `reported_seconds` - the length the browser says it
+        recorded. That last is **client-reported**, used only where nothing
+        else states a length, and clamped to what the byte cap stands for - so
+        a caller posting straight to the endpoint can inflate its own usage
+        figure by at most the organization's longest dictation, never by an
+        hour.
 
         Raises:
             ConfigurationError: `reason="not_configured"` - the gate is shut, no
                 pair resolves, or the provider has no credential here.
-            BadRequestError: `reason` `empty`, `unsupported_type` or `too_large`.
+            BadRequestError: `reason` `empty`, `unsupported_type` (including a
+                length that cannot be read, unless `accept_unmeasured`) or
+                `too_large`, the latter with `limit_seconds` in its details.
             ExternalServiceError: `reason` `provider_error` or `timeout`.
         """
         started = time.monotonic()
         reported: float | None = None
+        measured: float | None = None
         try:
             resolved = (
                 await SpeechToTextSettingsService(self.db).for_agent(agent)
@@ -357,13 +395,25 @@ class MLService:
             )
             if reported_seconds is not None:
                 reported = min(max(reported_seconds, 0.0), cap / DICTATION_BYTES_PER_SECOND)
+            limit = organization.dictation_max_seconds
+            too_long = refused_field(
+                "file",
+                f"The recording is longer than this organization's {limit}-second limit.",
+                reason="too_large",
+                limit_seconds=limit,
+            )
             if len(content) > cap:
+                raise too_long
+            measured = audio_duration.measure(content)
+            if measured is None and not accept_unmeasured:
                 raise refused_field(
                     "file",
-                    "The recording is longer than this organization's "
-                    f"{organization.dictation_max_seconds}-second limit.",
-                    reason="too_large",
+                    "The recording's length could not be read. Dictation accepts WebM, "
+                    "Ogg, MP4 or WAV audio as a browser records it.",
+                    reason="unsupported_type",
                 )
+            if measured is not None and measured > limit + DICTATION_GRACE_SECONDS:
+                raise too_long
             result = await TranscriptionService(self.db).transcribe(
                 Recording(
                     content=content,
@@ -380,7 +430,7 @@ class MLService:
                 call,
                 exc=exc,
                 input_bytes=len(content),
-                audio_seconds=reported,
+                audio_seconds=measured if measured is not None else reported,
                 started=started,
             )
             raise
@@ -388,7 +438,7 @@ class MLService:
             self.db,
             call,
             input_bytes=len(content),
-            audio_seconds=(result.audio_seconds if result.audio_seconds is not None else reported),
+            audio_seconds=_first_known(measured, result.audio_seconds, reported),
             duration_ms=_elapsed_ms(started),
         )
         return result.text
@@ -404,7 +454,9 @@ class MLService:
         the `/chat` engine does not gate them.
 
         An agent with nothing published answers from the organization alone,
-        as dictation itself would - never a refusal.
+        as dictation itself would - never a refusal. An archived agent is never
+        `ready`: nobody chats with it, so a microphone offered for it would
+        only spend the organization's provider credit on text with nowhere to go.
         """
         org = await organization_repo.get_by_id(self.db, ctx.organization_id)
         if org is None:
@@ -415,7 +467,11 @@ class MLService:
         server = await self.server_dictation(agent)
         return DictationStatus(
             engine=org.chat_dictation,
-            ready=org.chat_dictation == "server" and server.available,
+            ready=(
+                org.chat_dictation == "server"
+                and server.available
+                and agent.status != AgentStatus.ARCHIVED.value
+            ),
             server_available=server.available,
             max_seconds=org.dictation_max_seconds,
             provider=server.provider,
@@ -503,7 +559,21 @@ class MLService:
         The filters narrow inside the caller's organization and never widen it:
         another tenant's agent or bot id matches nothing, the same as an id that
         does not exist. `since` is inclusive and `until` exclusive.
+
+        Filtering by agent, bot or surface needs `runs:view`, as the summary
+        does (`sees_attribution`): a count of calls per agent id is the
+        summary's breakdown asked for one row at a time.
+
+        Raises:
+            AuthorizationError: An attribution filter without `runs:view`.
         """
+        if (
+            agent_id is not None or channel_bot_id is not None or surface is not None
+        ) and not self.sees_attribution(ctx):
+            raise AuthorizationError(
+                message="Filtering calls by agent, bot or surface needs runs:view",
+                details={"required": [Perm.RUNS_VIEW.value]},
+            )
         filters = CallFilters(
             service=service,
             agent_id=agent_id,
@@ -523,6 +593,18 @@ class MLService:
             self.db, organization_id=ctx.organization_id, filters=filters
         )
         return rows, total
+
+    @staticmethod
+    def sees_attribution(ctx: AuthContext) -> bool:
+        """Whether this caller may read which agent, bot and surface a call came from.
+
+        `runs:view`, the summary's gate. `ml:invoke` - every Member - lets a
+        caller use the services and read the log of calls, which before #1797
+        named nobody; the attribution added since is the organization's map
+        of which agents and bots transcribe, and is answered to the people who
+        may read runs. Without it a call record comes back as it did before.
+        """
+        return ctx.has(Perm.RUNS_VIEW)
 
     async def usage_summary(self, ctx: AuthContext, *, service: str, days: int) -> UsageSummary:
         """This organization's successful `service` calls over the last `days`, added up.
@@ -737,6 +819,11 @@ def _refuse_oversized(content: bytes, *, ceiling: int | None = None) -> None:
             f"This service accepts at most {limit // (1024 * 1024)} MB; "
             "split the document or the recording.",
         )
+
+
+def _first_known(*figures: float | None) -> float | None:
+    """The first length somebody stated, in the order the caller trusts them."""
+    return next((figure for figure in figures if figure is not None), None)
 
 
 def _elapsed_ms(started: float) -> int:

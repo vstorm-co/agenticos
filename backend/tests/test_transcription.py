@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
+from urllib.parse import urlsplit
 from uuid import uuid4
 
 import httpx
@@ -348,7 +349,7 @@ class TestWhichCredentialTranscribes:
 
         sent = client.post.await_args
         assert sent.kwargs["headers"] == {"Authorization": "Bearer sk-real-key-1234"}
-        assert not sent.args[0].startswith("http://whisper.local")
+        assert urlsplit(sent.args[0]).hostname != "whisper.local"
 
     async def test_only_a_keyless_profile_is_used_with_no_authorization_header(self, monkeypatch):
         """And never with the deployment's own `OPENAI_API_KEY` slipped in: a
@@ -626,6 +627,9 @@ class TestWhatARecordingIsCalled:
             ("Audio/X-WAV", "audio/wav"),
             ("audio/wave", "audio/wav"),
             ("audio/x-m4a", "audio/mp4"),
+            ("audio/m4a", "audio/mp4"),
+            ("audio/opus", "audio/ogg"),
+            ("audio/x-ogg", "audio/ogg"),
             ("audio/mp3", "audio/mpeg"),
             ("audio/flac", "audio/flac"),
         ],

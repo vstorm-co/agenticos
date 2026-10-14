@@ -108,6 +108,18 @@ def unseal_slack_app_token(bot: ChannelBot) -> str | None:
     )
 
 
+def _transcription_is_off() -> BadRequestError:
+    """The refusal for a transcription pair named for a bot that does not transcribe.
+
+    One sentence for create and update alike, so the form marks the same switch
+    whichever it was saving.
+    """
+    return refused_field(
+        "transcribe_voice_notes",
+        "Transcription is off for this bot - turn it on to choose a model",
+    )
+
+
 class ChannelBotService:
     """Service for channel bot management.
 
@@ -181,9 +193,15 @@ class ChannelBotService:
         Raises:
             BadRequestError: If Slack-app credentials arrive on a bot that is
                 not a Slack bot - accepting them would store secrets nothing
-                will ever read.
+                will ever read - or a transcription pair arrives with
+                transcription off, refused as an update refuses it rather than
+                stored as a pair that can never run.
         """
         self._check_slack_fields(data.platform, data.slack_signing_secret, data.slack_app_token)
+        if not data.transcribe_voice_notes and data.speech_to_text_provider is not None:
+            # The schema has already made the pair whole, so the provider stands
+            # for both halves.
+            raise _transcription_is_off()
         sealed = seal_bot_token(data.token, organization_id=self._org_id)
         webhook_secret = self._initial_webhook_secret(data)
         bot = await channel_bot_repo.create(
@@ -205,12 +223,8 @@ class ChannelBotService:
                 data.slack_app_token, key_version=sealed.key_version
             ),
             transcribe_voice_notes=data.transcribe_voice_notes,
-            # Off clears the pair, as it does on an update: a pair that can never
-            # run reads as configured and does nothing.
-            speech_to_text_provider=(
-                data.speech_to_text_provider if data.transcribe_voice_notes else None
-            ),
-            speech_to_text_model=data.speech_to_text_model if data.transcribe_voice_notes else None,
+            speech_to_text_provider=data.speech_to_text_provider,
+            speech_to_text_model=data.speech_to_text_model,
         )
         self._reopen_stream(bot)
         return bot
@@ -266,10 +280,16 @@ class ChannelBotService:
         Clearing is a pair too: both fields null, not a provider left pointing at
         nothing. Null is "inherit" since #1797; "off" is `transcribe_voice_notes`,
         and switching it off clears the pair here so an off bot never carries an
-        engine it will not use. A pair named for a bot that stays off is refused
-        for the same reason rather than stored.
+        engine it will not use. A pair named for a bot that is switched off in
+        the same request, or that stays off, is refused for the same reason
+        rather than dropped or stored - the answer `create` gives too.
         """
         if update_data.get("transcribe_voice_notes") is False:
+            if (
+                update_data.get("speech_to_text_provider") is not None
+                or update_data.get("speech_to_text_model") is not None
+            ):
+                raise _transcription_is_off()
             update_data["speech_to_text_provider"] = None
             update_data["speech_to_text_model"] = None
             return
@@ -299,10 +319,7 @@ class ChannelBotService:
         if provider is not None and not update_data.get(
             "transcribe_voice_notes", bot.transcribe_voice_notes
         ):
-            raise refused_field(
-                "transcribe_voice_notes",
-                "Transcription is off for this bot - turn it on to choose a model",
-            )
+            raise _transcription_is_off()
 
     @staticmethod
     def _check_server_url(platform: str, api_base_url: str | None) -> None:

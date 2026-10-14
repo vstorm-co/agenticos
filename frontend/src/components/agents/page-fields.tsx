@@ -22,8 +22,10 @@ import { useRef } from "react";
 
 /** Whether `server` dictation would be accepted for this agent, and whether it is on already. */
 export interface ServerDictationChoice {
-  /** Null while the agent's readiness is still loading. */
+  /** Null while the agent's readiness is still loading, or when it could not be read. */
   available: boolean | null;
+  /** The readiness read failed, so `available` stays null and is not on its way. */
+  unchecked: boolean;
   wasServer: boolean;
 }
 
@@ -175,6 +177,7 @@ export function PageFields({
         value={config.dictation}
         disabled={disabled}
         serverAvailable={serverDictation.available}
+        serverUnchecked={serverDictation.unchecked}
         wasServer={serverDictation.wasServer}
         onChange={(dictation) => onChange({ ...config, dictation })}
       />

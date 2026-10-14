@@ -1,5 +1,5 @@
 ---
-source_sha: "ccd0a3bcc61d"
+source_sha: "cb4976d8aeea"
 ---
 
 # Usługi ML { #the-ml-services }
@@ -147,12 +147,16 @@ używa `OPENAI_API_KEY` wdrożenia. Pierwszeństwo klucza sprawia, że bot kana�
 dalej transkrybuje w OpenAI, gdy ktoś doda profil `openai` bez klucza dla proxy
 czatu, które nie obsługuje `/audio/transcriptions`.
 
-Klucz z vaultu to zawsze wyłącznie klucz **widoczny dla całej organizacji**.
-Prywatny klucz członka nigdy nie jest wydawany na nagranie, bo to, za co by
-płacił, należy do wszystkich: notatka głosowa na kanale, dyktowanie w czyimś
-czacie. Organizacja, która trzyma klucz OpenAI w vaulcie i nie używa żadnego
+Awaryjne sięgnięcie do vaultu czyta tylko klucze **widoczne dla całej
+organizacji**: prywatny klucz członka w vaulcie nie jest brany do nagrania, bo
+to, za co by płacił, należy do wszystkich — notatka głosowa na kanale,
+dyktowanie w czyimś czacie. Organizacja, która trzyma klucz OpenAI w vaulcie i nie używa żadnego
 modelu czatu OpenAI, transkrybuje więc na nim bez profilu modelu, którego nie
-potrzebuje. Ta sama kolejność obsługuje ten endpoint, dyktowanie i notatki
+potrzebuje.
+
+Profil modelu jest używany tak, jak go skonfigurowano, więc profil wskazujący
+na klucz prywatny transkrybuje na nim, tak jak wydaje go run czatu na tym
+profilu. Ta sama kolejność obsługuje ten endpoint, dyktowanie i notatki
 głosowe z kanałów. Lista agentów używających klucza w vaulcie nie obejmuje tego
 użycia, bo żaden agent nie wiąże tego klucza.
 
@@ -165,8 +169,8 @@ URL żądania razem z kluczem.
 |---|---|---|
 | `not_configured` | 503 | Brak użytecznych poświadczeń dla dostawcy; przy dyktowaniu także brak skonfigurowanego dyktowania na serwerze |
 | `empty` | 400 | Silnik nie usłyszał mowy albo nagranie nie ma bajtów |
-| `unsupported_type` | 400 | Tylko dyktowanie: nagranie nie jest dźwiękiem WebM, Ogg, MP4 ani WAV |
-| `too_large` | 400 | Ponad 25 MB albo ponad limit dyktowania organizacji |
+| `unsupported_type` | 400 | Tylko dyktowanie: nagranie nie jest dźwiękiem WebM, Ogg, MP4 ani WAV albo — na hostowanej stronie lub w widgecie — nie da się odczytać jego długości |
+| `too_large` | 400 | Ponad 25 MB albo ponad limit dyktowania organizacji w bajtach lub w zmierzonej długości; `details.limit_seconds` podaje limit |
 | `provider_error` | 503 | Dostawca odrzucił żądanie albo nie zdołał go obsłużyć |
 | `timeout` | 503 | Dostawca nie odpowiedział w ciągu 60 sekund |
 
@@ -183,7 +187,7 @@ uruchomić, łącznie z osobą z rolą Viewer, która ma na nim grant `use`. Age
 nie może uruchomić, odpowiada 404, jak wszędzie indziej.
 
 Co odczytuje z organizacji, ustawione na
-[karcie Voice](console.md#the-voice-card) przez kogoś z `org:settings`:
+[karcie Głos (Voice)](console.md#the-voice-card) przez kogoś z `org:settings`:
 `chat_dictation` (`off`, `browser` albo `server`; wszystko poza `server` zostaje
 odrzucone jako `not_configured`), `speech_to_text_provider` i
 `speech_to_text_model` (para z katalogu speech-to-text),
@@ -197,7 +201,8 @@ mikrofon zadziała, zanim ktokolwiek zacznie nagrywać: `engine`, `max_seconds`,
 `provider`, `format`, `ready` i `server_available`. `server_available` wymaga
 pary, która rozwiązuje się dla tego agenta, katalogu, który nadal ją oferuje,
 oraz poświadczenia dla jej dostawcy w organizacji — sprawdzanego pod kątem
-istnienia, nigdy nie otwieranego; `ready` to to samo plus silnik `server`.
+istnienia, nigdy nie otwieranego; `ready` to to samo plus silnik `server` i
+agent, który nie jest zarchiwizowany.
 Formularz embeda czyta `server_available`, bo
 [hostowana strona i widget](channels.md#dictation-on-a-widget-or-a-hosted-page)
 nie zależą od silnika `/chat`.
@@ -209,17 +214,27 @@ według ustawień organizacji.
 
 Nagranie musi być `audio/webm`, `audio/ogg`, `audio/mp4` albo `audio/wav`, z
 dopuszczalnym sufiksem kodeka, a `audio/x-wav` i `audio/wave` są czytane jako
-`audio/wav`, a `audio/x-m4a` jako `audio/mp4`. Pierwsze trzy tworzy `MediaRecorder` przeglądarek; WAV pole
+`audio/wav`, `audio/x-m4a` i `audio/m4a` jako `audio/mp4`, a `audio/opus`
+i `audio/x-ogg` jako `audio/ogg`. Pierwsze trzy tworzy `MediaRecorder` przeglądarek; WAV pole
 wiadomości nagrywa samo, gdy `format` mówi `wav`, co katalog mówi dla Mistrala
 (zob. uwagę niżej). Dostawca
 otrzymuje nagranie jako `recording.webm`, `recording.ogg`, `recording.m4a` albo
 `recording.wav`, według tej samej tabeli, która nazywa notatkę głosową z kanału
 `voice.<ext>`.
 
-Trasa czyta najwyżej 25 MB treści żądania; własny limit organizacji,
+Trasa czyta najwyżej 25 MB treści żądania; limit bajtów organizacji,
 `dictation_max_seconds × 32 KB`, jest stosowany do tego, co przeczytano. Treść,
 którą limit żądań wdrożenia odrzuca, zanim trasa ruszy, dostaje 413 bez
 `reason`, co pole wiadomości odczytuje jako `too_large`.
+
+Potem **długość nagrania jest odczytywana z jego kontenera** — nagłówka WAV, ostatniej
+strony Ogg, znaczników czasu bloków WebM, nagłówków filmu albo fragmentów MP4 —
+a nagranie dłuższe niż `dictation_max_seconds` jest odrzucane jako `too_large`,
+zanim provider zostanie wywołany, z trzema sekundami zapasu, bo pole wiadomości
+zatrzymuje nagranie przy takcie co sekundę. Nagranie, którego długości nie da
+się odczytać, jest tu przyjmowane w granicach limitu bajtów;
+[hostowana strona i widget](channels.md#what-it-costs-and-what-bounds-it) je
+odrzucają.
 
 Każda osoba może dyktować `RATE_LIMIT_DICTATION_PER_MINUTE` razy na minutę,
 domyślnie 10, na osobnym liczniku, więc dyktowanie nie zużywa limitu usług ML
@@ -248,9 +263,9 @@ wywołanie zostaje zapisane.
 #### Do którego silnika trafia nagranie { #which-engine-a-recording-reaches }
 
 Silnik zamiany mowy na tekst mogą wskazać trzy miejsca:
-[karta Voice](console.md#the-voice-card) organizacji, nadpisanie
+[karta Głos (Voice)](console.md#the-voice-card) organizacji, nadpisanie
 [`speech_to_text`](reference/spec.md#speech-to-text) agenta, ustawiane na jego
-własnej [karcie Voice](console.md#an-agents-own-engine) i działające po
+własnej [karcie Głos (Voice)](console.md#an-agents-own-engine) i działające po
 opublikowaniu, oraz [bot kanału](channels.md#what-every-channel-shares).
 Rozwiązują się w dwóch połowach:
 
@@ -344,7 +359,8 @@ Do zamiany mowy na tekst prowadzą trzy drogi i każda zostawia ten sam wiersz: 
 (`channel`). Wiersz dodaje `provider` i `model`, `agent_id`, dla którego było
 nagranie - agenta, do którego dyktowano, albo agenta obsługiwanego przez bota -
 `channel_bot_id` oraz `audio_ms`, długość nagrania. `requested_by` wiadomości
-głosowej to osoba, z którą powiązany jest nadawca, albo nikt. Zapisywane jest
+głosowej to osoba, z którą powiązany jest nadawca, dopóki jest członkiem
+organizacji, albo nikt. Zapisywane jest
 tylko nagranie przekazane providerowi; bot wyłączony albo bez silnika do
 odziedziczenia nikogo nie pytał.
 
@@ -352,6 +368,7 @@ Długość to pierwsze znane z poniższych:
 
 | Źródło | Kto ją podaje |
 |---|---|
+| Samo nagranie | Tylko dyktowanie: długość odczytana z kontenera, jak wyżej |
 | Odpowiedź providera | OpenAI `whisper-1` (`usage.seconds`), Groq (`duration`, o które prosi `response_format=verbose_json`), Mistral (`usage.prompt_audio_seconds`) |
 | Metadane platformy | Notatka głosowa albo plik audio z Telegrama, klip ze Slacka |
 | Przeglądarka | Tylko dyktowanie: `duration` wysłane przez pole wiadomości, przycięte do najdłuższego dyktowania organizacji, bo to słowo klienta |
@@ -363,14 +380,18 @@ niezmierzone, a nie ciche.
 
 `GET /api/v1/ml/calls` zawęża też po `agent_id`, `channel_bot_id`, `surface`,
 `since` i `until`, a nie tylko po `ml_service`, zawsze w organizacji
-wywołującego: id agenta innej organizacji nie pasuje do niczego.
+wywołującego: id agenta innej organizacji nie pasuje do niczego. Agent, bot
+i droga — jako filtry i jako kolumny — wymagają `runs:view`, jak podsumowanie
+niżej. Z samym `ml:invoke` filtr po nich jest odrzucany z 403, a w każdym
+wierszu wszystkie trzy wracają jako null.
 
 `GET /api/v1/ml/calls/summary?days=30` sumuje udane transkrypcje w oknie
-czasu: `seconds` i `count`, `count_unknown_length` dla nagrań, których sekundy
-nie obejmują, oraz to samo według agenta, bota kanału i drogi (`surface`).
+czasu: `seconds` — własne `units` każdego wiersza, czyli nagranie zaokrąglone
+w górę do sekundy, zsumowane, więc podsumowanie zgadza się z listą — oraz
+`count`, `count_unknown_length` dla nagrań, których sekundy nie obejmują, oraz to samo według agenta, bota kanału i drogi (`surface`).
 Wymaga `runs:view`, jak [`GET /spend`](governance.md#what-the-cost-screen-shows),
 a nie `ml:invoke`: podział wymienia agentów i boty, których Member może nie
-widzieć. [Karta Voice](console.md#the-voice-card) organizacji pokazuje to w
+widzieć. [Karta Głos (Voice)](console.md#the-voice-card) organizacji pokazuje to w
 jednej linijce.
 
 ## Limity { #limits }

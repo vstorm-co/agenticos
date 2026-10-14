@@ -40,6 +40,8 @@ const dictation = vi.hoisted(() => ({
   reason: null as string | null,
   upload: null as number | null,
   inserted: false,
+  /** The recorder's cancel, one for every render, as the hook's own is. */
+  cancel: vi.fn(),
   /** The format the container last handed the recorder. */
   format: undefined as string | undefined,
   /** Where the container last told the recorder to send a recording. */
@@ -76,7 +78,7 @@ vi.mock("@/hooks/use-dictation", async (importOriginal) => ({
       actions: {
         start: vi.fn(),
         stop: vi.fn(),
-        cancel: vi.fn(),
+        cancel: dictation.cancel,
         retry: vi.fn(),
         dismiss: vi.fn(),
         dismissInserted: vi.fn(),
@@ -424,6 +426,25 @@ describe("the chat container - server dictation", () => {
 
     expect(await screen.findByRole("button", { name: "Voice input" })).toBeInTheDocument();
     expect(get).not.toHaveBeenCalledWith("/agents/a-1/dictation");
+  });
+
+  it("cancels a recording when the organization leaves the server engine mid-sentence", async () => {
+    dictation.phase = "recording";
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <ChatContainer />
+      </QueryClientProvider>,
+    );
+    await screen.findByRole("button", { name: "Stop and transcribe" });
+    dictation.cancel.mockClear();
+
+    organization.current = { ...organization.current, chat_dictation: "browser" };
+    await act(() => client.invalidateQueries());
+
+    // The bar with its Stop button is gone, so the recording goes with it.
+    await waitFor(() => expect(dictation.cancel).toHaveBeenCalled());
+    expect(screen.queryByRole("button", { name: "Stop and transcribe" })).not.toBeInTheDocument();
   });
 
   it("leaves the glow to the open microphone for the browser engine", async () => {

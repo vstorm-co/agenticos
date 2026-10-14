@@ -974,3 +974,36 @@ class TestADeactivatedLinkedSenderIsRefusedEarly:
         # The voice note's usage row names the person the sender is linked to.
         identity = router._receive_files.await_args.args[3]
         assert router._transcribe.await_args.kwargs["requested_by"] == identity.user_id
+
+    async def test_a_departed_members_voice_note_in_a_room_names_nobody(self):
+        """A room admits a sender whose membership is gone, as it admits an
+        unlinked one - but the usage row must not put the call on the record of
+        somebody who no longer belongs to the organization."""
+        router, _replies, _rows = _router()
+        router._receive_files = AsyncMock(return_value=([], []))  # type: ignore[method-assign]
+        router._transcribe = AsyncMock(return_value=([], []))  # type: ignore[method-assign]
+        router._answer_mention = AsyncMock(return_value=False)  # type: ignore[method-assign]
+        router._load_history = AsyncMock(return_value=[])  # type: ignore[method-assign]
+        router._deliver = AsyncMock()  # type: ignore[method-assign]
+
+        incoming = IncomingMessage(
+            platform="slack",
+            bot_id=str(uuid.uuid4()),
+            platform_user_id="U1",
+            platform_chat_id="C1",
+            chat_type="group",
+            text="please handle this",
+            attachments=[_attachment(mime_type="audio/ogg", filename="voice.ogg")],
+        )
+
+        with (
+            _channel(_agent_router(answer_default=None), []),
+            patch(
+                "app.services.channels.router.member_repo.get_active",
+                AsyncMock(return_value=None),
+            ),
+        ):
+            await router._route_inner(incoming, MagicMock())
+
+        router._transcribe.assert_awaited_once()
+        assert router._transcribe.await_args.kwargs["requested_by"] is None

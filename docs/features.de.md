@@ -1,5 +1,5 @@
 ---
-source_sha: "bf54d6dd6a38"
+source_sha: "9b4efce78f27"
 ---
 
 # Funktionen { #features }
@@ -178,6 +178,10 @@ Einmal veröffentlichen. Derselbe Runner antwortet auf all diesen:
 - **Die HTTP-API** und ein rohes WebSocket für Streaming
 - **Slack**, **Telegram** und **Mattermost**, wo eine `@mention` als die Person
   läuft, die sie geschickt hat — nicht als der Bot
+
+Spracherkennung läuft auch hier über den eigenen Provider der Organisation:
+Diktieren im Web-Chat, auf einer gehosteten Seite und im Widget sowie
+transkribierte Sprachnachrichten in Slack, Telegram und Mattermost.
 
 [Oberflächen →](channels.md)
 

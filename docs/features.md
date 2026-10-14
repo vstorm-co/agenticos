@@ -163,6 +163,10 @@ Publish once. The same runner answers on all of these:
 - **Slack**, **Telegram** and **Mattermost**, where an `@mention` runs as the
   person who sent it — not as the bot
 
+Speech to text runs on the organization's own provider on these too: dictation
+in web chat, on a hosted page and in the widget, and voice notes transcribed
+in Slack, Telegram and Mattermost.
+
 [Surfaces →](channels.md)
 
 ## Budgets that actually stop a run

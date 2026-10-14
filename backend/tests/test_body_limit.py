@@ -97,6 +97,22 @@ class TestWhatAnOverLargeRequestGets:
         assert response.status_code == 413
         assert response.headers["access-control-allow-origin"] == "https://shop.example"
 
+    async def test_a_dictation_without_an_origin_gets_no_cors_header(self, monkeypatch):
+        """Same-origin and server-to-server callers send no `Origin`; there is
+        nobody to name, so nothing is echoed."""
+        monkeypatch.setattr(settings, "MAX_UPLOAD_SIZE_MB", 1)
+        headers = {
+            "content-type": "application/octet-stream",
+            "content-length": str(500 * 1024 * 1024),
+        }
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.request(
+                "POST", "/api/v1/embed/k/dictation", headers=headers, content=b""
+            )
+
+        assert response.status_code == 413
+        assert "access-control-allow-origin" not in response.headers
+
     async def test_no_other_route_echoes_an_origin(self, monkeypatch):
         monkeypatch.setattr(settings, "MAX_UPLOAD_SIZE_MB", 1)
 

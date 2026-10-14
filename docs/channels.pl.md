@@ -1,5 +1,5 @@
 ---
-source_sha: "614feccb4582"
+source_sha: "567a48de3031"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -768,7 +768,9 @@ socket** nie ma do czego dyktować i dostaje odpowiedź 404.
 Odmowy niosą ten sam `details.reason` co
 [route composera](ml-services.md#dictation-in-chat): 400 `empty`,
 `unsupported_type` albo `too_large`, 503 `not_configured`, `provider_error` albo
-`timeout`. Wszystko, co dotyczy samego embeda — nieznany, zapauzowany, nie na
+`timeout`. Inaczej niż route composera, ten odrzuca nagranie, którego długości
+nie da się odczytać, jako `unsupported_type`
+([niżej](#what-it-costs-and-what-bounds-it)). Wszystko, co dotyczy samego embeda — nieznany, zapauzowany, nie na
 `server`, origin, na który nie pozwala — to 404. Gdy widget zostanie wpuszczony,
 każda odpowiedź niesie jego origin w `Access-Control-Allow-Origin`, łącznie
 z odmowami; inaczej przeglądarka ukrywa powód, a za długie nagranie wyglądałoby
@@ -784,6 +786,21 @@ samo każdy odwiedzający widgetu `jwt`, według subjectu tokena. Każda strona 
 widget przyjmuje `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` na minutę
 (domyślnie 10) od wszystkich razem, przez ile adresów by skrypt nie rotował.
 
+Oba liczniki są zużywane, zanim link zostanie odnaleziony, a odwiedzający
+wpuszczony, więc odrzucone żądanie też się liczy: każdy, kto ma link, może
+wyczerpać jego dziesięć na minutę i zostawić odwiedzających stronę z odmową do
+końca tej minuty. Organizację nic to nie kosztuje, bo żaden provider nie jest
+wywoływany, ale to sposób, żeby mikrofon na stronie przestał działać.
+
+**Długość jest mierzona, a nie wnioskowana z rozmiaru.** Zanim provider zostanie
+wywołany, serwer odczytuje długość nagrania z jego kontenera — nagłówka WAV,
+ostatniej strony Ogg, znaczników czasu bloków WebM, nagłówków filmu albo
+fragmentów MP4 — i odrzuca nagranie dłuższe niż `dictation_max_seconds` jako
+`too_large`, z trzema sekundami zapasu na zatrzymanie przez przeglądarkę raz na
+sekundę. Nagranie, którego długości nie da się odczytać, jest odrzucane jako
+`unsupported_type`. Sam limit bajtów by nie wystarczył: Opus przy niskim
+bitrate mieści godziny w bajtach pięciominutowego nagrania.
+
 !!! danger "Najgorszy przypadek dla wyciekniętego albo publicznego linku"
 
     Limit linku razy najdłuższe dyktowanie: 10 nagrań na minutę, każde do
@@ -792,6 +809,12 @@ widget przyjmuje `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` na minutę
     albo $430 na dzień, na rachunek konta organizacji u providera. Obniż
     `dictation_max_seconds` albo limit linku, zapauzuj embed albo zostaw go na
     `browser`, gdy to za dużo.
+
+    To obowiązuje każde nagranie, którego kontener podaje prawdziwą długość, jak
+    robi to każda przeglądarka. Plik zbudowany ręcznie tak, by zaniżał swoją
+    długość, ogranicza zamiast tego limit bajtów, `dictation_max_seconds × 32 KB`,
+    który audio o niskim bitrate może wypełnić nawet około czterdziestokrotnie
+    większą liczbą sekund.
 
 Każda próba, która dociera do providera, zostawia zapis zużycia z powierzchnią
 (`hosted` albo `widget`) i agentem, i **bez żadnej osoby**: odwiedzający nie
@@ -1306,12 +1329,14 @@ może się między nimi rozjechać.
     głosowa, która nie wywołuje żadnej reakcji, jest nie do odróżnienia od
     zepsutego bota — i mówi, z jakiego powodu, bo naprawiają to różne osoby: bot
     jest wyłączony albo nikt nie skonfigurował providera. Bot bez powiązanego
-    agenta nie transkrybuje niczego, bo wiadomość i tak zostaje odrzucona.
+    agenta albo z agentem zarchiwizowanym lub bez wersji do uruchomienia nie
+    transkrybuje niczego, bo wiadomość i tak zostaje odrzucona.
 
     Każde nagranie wysłane do providera zostawia
     [zapis zużycia](ml-services.md#what-is-recorded) wskazujący bota, jego agenta
-    i osobę, z którą powiązane jest konto nadawcy, z długością nagrania tam, gdzie
-    podaje ją Telegram, Slack albo provider.
+    i osobę, z którą powiązane jest konto nadawcy — dopóki jest ona członkiem
+    organizacji — z długością nagrania tam, gdzie podaje ją Telegram, Slack albo
+    provider.
 
     !!! note "Aktualizacja: bot, który nie transkrybował, nadal nie transkrybuje"
 

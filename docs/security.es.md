@@ -1,5 +1,5 @@
 ---
-source_sha: "09ecc078a9fd"
+source_sha: "beb8db937ad9"
 ---
 
 # Seguridad { #security }
@@ -56,7 +56,7 @@ cada una es una frontera por la que preguntará la revisión de un cliente.
 | Servidores MCP | Llamadas a herramientas y sus argumentos | Solo para las herramientas a las que el agent está ligado |
 | Un proveedor de búsqueda web (Tavily, DuckDuckGo) | La consulta de búsqueda | Solo cuando se concede la capability de búsqueda |
 | Un proveedor de embeddings | El texto del documento, en la ingesta | Solo para una base de conocimiento cuyo proveedor sea remoto |
-| Un proveedor de speech-to-text | Una grabación: una nota de voz de un canal, un dictado en `/chat`, o la de un visitante en una página alojada o un widget en `server` | Cada vez que se transcribe una. El dictado de un visitante es anónimo y queda fuera de todo budget de modelo, así que lo que lo limita es el rate limit del enlace por el dictado más largo - [canales](channels.md#dictation-on-a-widget-or-a-hosted-page) calcula el peor caso. Con `browser`, el navegador del visitante envía el audio a su propio fabricante en su lugar, y nada pasa por aquí |
+| Un proveedor de speech-to-text | Una grabación: una nota de voz de un canal, un dictado en `/chat`, o la de un visitante en una página alojada o un widget en `server` | Cada vez que se transcribe una. El dictado de un visitante es anónimo y queda fuera de todo budget de modelo, así que lo que lo limita es el rate limit del enlace por el dictado más largo, con la duración de cada grabación leída de ella y rechazada por encima del límite antes de enviarla - [canales](channels.md#dictation-on-a-widget-or-a-hosted-page) calcula el peor caso y lo que todavía puede hacer un archivo hecho a mano. Con `browser`, el navegador del visitante envía el audio a su propio fabricante en su lugar, y nada pasa por aquí |
 
 ## Qué se cifra y dónde { #what-is-encrypted-where }
 

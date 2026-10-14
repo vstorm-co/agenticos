@@ -146,12 +146,15 @@ never the deployment's `OPENAI_API_KEY`. Keyed first is what keeps a channel bot
 transcribing on OpenAI after somebody adds a keyless `openai` profile for a chat
 proxy that serves no `/audio/transcriptions`.
 
-The vault key is only ever one **visible to the whole organization**. A
-member's private key is never spent on a recording, because what it would pay
-for is everybody's: a voice note in a channel, a dictation in somebody else's
-chat. So an organization that keeps an OpenAI key in the vault and runs no
-OpenAI chat model transcribes on it without a model profile it does not need.
-The same order serves this endpoint, dictation and channel voice notes. The
+The vault fallback reads only keys **visible to the whole organization**: a
+member's private key in the vault is not picked up for a recording, because
+what it would pay for is everybody's - a voice note in a channel, a dictation
+in somebody else's chat. So an organization that keeps an OpenAI key in the
+vault and runs no OpenAI chat model transcribes on it without a model profile
+it does not need.
+
+A model profile is used as configured, so a profile that points at a private
+key transcribes on it, as a chat run on that profile spends it. The same order serves this endpoint, dictation and channel voice notes. The
 vault's list of the agents using a key does not include this use, because no
 agent binds the key.
 
@@ -164,8 +167,8 @@ all, in its message.
 |---|---|---|
 | `not_configured` | 503 | No usable credential for the provider; for dictation, also server dictation not set up |
 | `empty` | 400 | The engine heard no speech, or the recording has no bytes |
-| `unsupported_type` | 400 | Dictation only: the recording is not WebM, Ogg, MP4 or WAV audio |
-| `too_large` | 400 | Over 25 MB, or over the organization's dictation cap |
+| `unsupported_type` | 400 | Dictation only: the recording is not WebM, Ogg, MP4 or WAV audio, or - on a hosted page or a widget - its length cannot be read |
+| `too_large` | 400 | Over 25 MB, or over the organization's dictation cap in bytes or in measured length; `details.limit_seconds` names the limit |
 | `provider_error` | 503 | The provider refused or failed the request |
 | `timeout` | 503 | The provider did not answer within 60 seconds |
 
@@ -195,7 +198,7 @@ the microphone will work before anybody records: `engine`, `max_seconds`,
 `provider`, `format`, `ready` and `server_available`. `server_available` needs a
 pair that resolves for this agent, the catalog still offering it, and a
 credential for its provider in the organization - checked for existence, never
-opened; `ready` is that and the `server` engine. The embed form reads
+opened; `ready` is that, the `server` engine and the agent not being archived. The embed form reads
 `server_available`, because a [hosted page or a widget](channels.md#dictation-on-a-widget-or-a-hosted-page)
 is not gated by the `/chat` engine.
 
@@ -205,8 +208,9 @@ list of its own. An agent with nothing published answers from the
 organization's settings.
 
 The recording has to be `audio/webm`, `audio/ogg`, `audio/mp4` or `audio/wav`,
-a codec suffix allowed, with `audio/x-wav` and `audio/wave` read as `audio/wav`
-and `audio/x-m4a` as `audio/mp4`.
+a codec suffix allowed, with `audio/x-wav` and `audio/wave` read as `audio/wav`,
+`audio/x-m4a` and `audio/m4a` as `audio/mp4`, and `audio/opus` and `audio/x-ogg`
+as `audio/ogg`.
 The first three are what browsers' `MediaRecorder` produces; the composer
 records WAV itself when `format` says `wav`, which the catalog says for Mistral
 (see the note below). The
@@ -214,10 +218,18 @@ provider receives the recording as `recording.webm`, `recording.ogg`,
 `recording.m4a` or `recording.wav`, from the same table that names a channel
 voice note `voice.<ext>`.
 
-The route reads at most 25 MB of the body; the organization's own cap,
+The route reads at most 25 MB of the body; the organization's byte cap,
 `dictation_max_seconds × 32 KB`, is applied to what was read. A body the
 deployment's request limit refuses before the route runs answers 413 without a
 `reason`, which the composer reads as `too_large`.
+
+Then the recording's **length is read from its container** - the WAV header, the last
+Ogg page, the WebM block timestamps, the MP4 movie or fragment headers - and a
+recording longer than `dictation_max_seconds` is refused as `too_large` before
+the provider is called, with three seconds' grace because the composer stops on
+a once-a-second tick. A recording whose length cannot be read is accepted here,
+under the byte cap; a [hosted page or a widget](channels.md#what-it-costs-and-what-bounds-it)
+refuses one.
 
 Each person may dictate `RATE_LIMIT_DICTATION_PER_MINUTE` times a minute, 10 by
 default, on a counter of its own, so dictating does not spend an integration's
@@ -340,7 +352,8 @@ Speech to text is reached three ways, and each leaves the same row: the API
 (`channel`). The row adds the `provider` and `model`, the `agent_id` it was for -
 the dictated-to agent, or the agent the bot serves - the `channel_bot_id`, and
 `audio_ms`, the recording's length. A voice message's `requested_by` is the
-person the sender is linked to, or nobody. Only a recording handed to the
+person the sender is linked to while that person is still a member of the
+organization, or nobody. Only a recording handed to the
 provider is recorded; a bot switched off, or one with no engine to inherit,
 asked nobody.
 
@@ -348,6 +361,7 @@ The length is the first of these that is known:
 
 | Source | Who gives it |
 |---|---|
+| The recording itself | Dictation only: the length read from its container, as above |
 | The provider's answer | OpenAI `whisper-1` (`usage.seconds`), Groq (`duration`, asked for with `response_format=verbose_json`), Mistral (`usage.prompt_audio_seconds`) |
 | The platform's metadata | A Telegram voice note or audio file, a Slack clip |
 | The browser | Dictation only: the `duration` the composer sends, clamped to the organization's longest dictation, because it is the client's word |
@@ -359,11 +373,15 @@ models has none. A successful row then counts `0` seconds with a null
 
 `GET /api/v1/ml/calls` narrows by `agent_id`, `channel_bot_id`, `surface`,
 `since` and `until` as well as `ml_service`, always inside the caller's
-organization: another tenant's agent id matches nothing.
+organization: another tenant's agent id matches nothing. The agent, the bot and
+the surface - as filters and as columns - need `runs:view`, like the summary
+below. With `ml:invoke` alone a filter on them is refused with 403, and the
+three come back null on every row.
 
 `GET /api/v1/ml/calls/summary?days=30` adds up the successful transcriptions
-over a window: `seconds` and `count`, `count_unknown_length` for the recordings
-the seconds leave out, and the same by agent, by channel bot and by surface. It
+over a window: `seconds` - each row's own `units`, the recording rounded up to
+the second, added up, so the summary agrees with the listing - and `count`,
+`count_unknown_length` for the recordings the seconds leave out, and the same by agent, by channel bot and by surface. It
 needs `runs:view`, as [`GET /spend`](governance.md#what-the-cost-screen-shows) does, rather than
 `ml:invoke`: the breakdown names agents and bots a Member may not see. The
 organization's [Voice card](console.md#the-voice-card) shows it in one line.

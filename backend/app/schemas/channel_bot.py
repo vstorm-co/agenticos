@@ -106,7 +106,7 @@ class ChannelBotCreate(BaseSchema):
         description=(
             "Whether voice notes are transcribed at all. On by default, with the "
             "pair below or - with none - the agent's or organization's engine; "
-            "off never transcribes and clears the pair."
+            "off never transcribes, and a pair sent with it is refused."
         ),
     )
     speech_to_text_provider: str | None = Field(

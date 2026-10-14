@@ -3555,8 +3555,10 @@ class TestDictationReadinessFollowsTheAgent:
         assert response.json() == {
             "engine": "server",
             "ready": True,
+            "server_available": True,
             "max_seconds": 300,
             "provider": "groq",
+            "format": "webm",
         }
 
     async def test_a_private_key_does_not_make_the_agent_ready(self, db, as_caller) -> None:

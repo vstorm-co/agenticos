@@ -482,6 +482,27 @@ describe("useDictation", () => {
     expect(api.dictate).toHaveBeenCalledOnce();
   });
 
+  it.each([
+    [401, "signed_out"],
+    [403, "forbidden"],
+  ])(
+    "does not keep a recording refused with a %s: sending it again cannot help",
+    async (status, reason) => {
+      api.dictate.mockRejectedValueOnce(refusal(status));
+      const view = setup();
+      await record(view);
+      await wait(1500);
+
+      await act(async () => view.result.current.actions.stop());
+
+      expect(view.result.current.state.phase).toBe("failed");
+      expect(view.result.current.state.reason).toBe(reason);
+      expect(view.result.current.state.canRetry).toBe(false);
+      await act(async () => view.result.current.actions.retry());
+      expect(api.dictate).toHaveBeenCalledOnce();
+    },
+  );
+
   it("holds a rate-limited retry until the wait has passed", async () => {
     api.dictate.mockRejectedValueOnce(refusal(429, { retry_after_seconds: 40 }));
     const view = setup();
@@ -613,6 +634,64 @@ describe("useDictation", () => {
       expect(view.mic.stop).toHaveBeenCalledTimes(answer === null ? 0 : 1);
     },
   );
+
+  it("a press right after a cancel waits for the prompt still open, and closes only that stream", async () => {
+    const first = deferred<MediaStream | null>();
+    const second = { ...stream } as MediaStream;
+    const start = vi.fn<() => Promise<MediaStream | null>>();
+    start.mockReturnValueOnce(first.promise).mockResolvedValueOnce(second);
+    const view = setup({ mic: fakeMic({ start }) });
+    let pressed!: Promise<void>;
+    act(() => {
+      void view.result.current.actions.start();
+    });
+    act(() => view.result.current.actions.cancel());
+    vi.mocked(view.mic.stop).mockClear();
+
+    act(() => {
+      pressed = view.result.current.actions.start();
+    });
+    expect(start).toHaveBeenCalledOnce();
+    expect(view.result.current.state.phase).toBe("requesting");
+
+    await act(async () => {
+      first.resolve(stream);
+      await pressed;
+    });
+
+    // The earlier answer was closed before the second request went out, and
+    // the second recording runs on its own stream.
+    expect(view.mic.stop).toHaveBeenCalledOnce();
+    expect(start).toHaveBeenCalledTimes(2);
+    expect(start.mock.invocationCallOrder[1]).toBeGreaterThan(
+      vi.mocked(view.mic.stop).mock.invocationCallOrder[0]!,
+    );
+    expect(view.result.current.state.phase).toBe("recording");
+    expect(lastRecorder().stream).toBe(second);
+  });
+
+  it("a press waiting on an earlier prompt does nothing once it is cancelled too", async () => {
+    const first = deferred<MediaStream | null>();
+    const view = setup({ mic: fakeMic({ start: vi.fn(() => first.promise) }) });
+    act(() => {
+      void view.result.current.actions.start();
+    });
+    act(() => view.result.current.actions.cancel());
+    let pressed!: Promise<void>;
+    act(() => {
+      pressed = view.result.current.actions.start();
+    });
+    act(() => view.result.current.actions.cancel());
+
+    await act(async () => {
+      first.resolve(stream);
+      await pressed;
+    });
+
+    expect(view.mic.start).toHaveBeenCalledOnce();
+    expect(view.result.current.state.phase).toBe("idle");
+    expect(FakeRecorder.instances).toHaveLength(0);
+  });
 
   it("ignores a second press while one recording is under way, and a press with no agent", async () => {
     const view = setup();

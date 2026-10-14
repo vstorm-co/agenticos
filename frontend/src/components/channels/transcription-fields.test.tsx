@@ -144,6 +144,56 @@ describe("a bot's three-way transcription choice", () => {
     });
   });
 
+  it("choosing starts on the first provider with credentials", async () => {
+    state.providers[0]!.credentialed = false;
+    const { onChange } = mount();
+
+    await userEvent.click(screen.getByRole("radio", { name: "Choose" }));
+
+    expect(onChange).toHaveBeenCalledWith({
+      mode: "choose",
+      provider: "mistral",
+      model: "voxtral-mini-latest",
+    });
+  });
+
+  it("choosing still takes a whole pair when no provider has credentials", async () => {
+    state.providers.forEach((entry) => (entry.credentialed = false));
+    const { onChange } = mount();
+
+    await userEvent.click(screen.getByRole("radio", { name: "Choose" }));
+
+    expect(onChange).toHaveBeenCalledWith({
+      mode: "choose",
+      provider: "openai",
+      model: "gpt-4o-transcribe",
+    });
+  });
+
+  it("marks a provider without credentials and keeps it unselectable, unless it is the bot's", async () => {
+    state.providers[1]!.credentialed = false;
+    mount({ mode: "choose", provider: "openai", model: "gpt-4o-transcribe" });
+
+    await userEvent.click(screen.getByLabelText("Provider"));
+
+    expect(screen.getByRole("option", { name: "Mistral (no credentials)" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+    expect(screen.getByRole("option", { name: "OpenAI" })).not.toHaveAttribute("aria-disabled");
+  });
+
+  it("keeps a stored provider that lost its credentials selectable", async () => {
+    state.providers[0]!.credentialed = false;
+    mount({ mode: "choose", provider: "openai", model: "gpt-4o-transcribe" });
+
+    await userEvent.click(screen.getByLabelText("Provider"));
+
+    expect(screen.getByRole("option", { name: "OpenAI (no credentials)" })).not.toHaveAttribute(
+      "aria-disabled",
+    );
+  });
+
   it("off and inherit both clear the pair", async () => {
     const { onChange } = mount({ mode: "choose", provider: "openai", model: "gpt-4o-transcribe" });
 

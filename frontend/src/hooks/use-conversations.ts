@@ -275,7 +275,9 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       clearMessages();
       setCurrentMessages([]);
       try {
-        const msgs = await apiClient.get<MessagesResponse>(`/conversations/${urlId}/messages`);
+        const msgs = await apiClient.get<MessagesResponse>(
+          `/conversations/${encodeURIComponent(urlId)}/messages`,
+        );
         if (!stillSameAccount(startedAs)) return;
         setCurrentMessages(msgs.items, msgs.cost);
       } catch {

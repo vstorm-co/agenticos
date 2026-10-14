@@ -683,6 +683,13 @@ class AgentEmbedService:
         text to be sent to otherwise, and a paid transcription for a message the
         socket would refuse is money spent on nothing.
 
+        **A recording whose length cannot be read is refused**
+        (`unsupported_type`), where the console accepts one under its byte cap.
+        The length is what the provider bills, the visitor is a stranger, and
+        bytes alone let low-bitrate Opus carry hours: the link's rate limit
+        times the longest dictation is a bound only while every recording's
+        length is known.
+
         **The usage row has no requester**, a `jwt` visitor included - neither is
         a member, and attributing a stranger's call to whoever published the page
         would put it on a person's record who never made it. It carries the
@@ -724,6 +731,7 @@ class AgentEmbedService:
             content=content,
             mime_type=mime_type,
             reported_seconds=reported_seconds,
+            accept_unmeasured=False,
         )
 
     async def _public_dictation(

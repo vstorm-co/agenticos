@@ -1,5 +1,5 @@
 ---
-source_sha: "ccd0a3bcc61d"
+source_sha: "cb4976d8aeea"
 ---
 
 # Los servicios de ML { #the-ml-services }
@@ -153,12 +153,16 @@ clave vaya primero es lo que mantiene a un bot de canal transcribiendo en OpenAI
 después de que alguien añada un profile `openai` sin clave para un proxy de chat
 que no sirve `/audio/transcriptions`.
 
-La clave del vault es siempre una **visible para toda la organización**. La
-clave privada de un miembro nunca se gasta en una grabación, porque lo que
-pagaría es de todos: una nota de voz en un canal, un dictado en el chat de otra
-persona. Una organización que guarda una clave de OpenAI en el vault y no
+El recurso al vault solo lee claves **visibles para toda la organización**: la
+clave privada de un miembro en el vault no se toma para una grabación, porque
+lo que pagaría es de todos - una nota de voz en un canal, un dictado en el chat
+de otra persona. Una organización que guarda una clave de OpenAI en el vault y no
 ejecuta ningún modelo de chat de OpenAI transcribe con ella sin un model profile
-que no necesita. El mismo orden sirve a este endpoint, al dictado y a las notas
+que no necesita.
+
+Un model profile se usa tal como está configurado, así que un profile que apunta
+a una clave privada transcribe con ella, igual que la gasta un run de chat con
+ese profile. El mismo orden sirve a este endpoint, al dictado y a las notas
 de voz de los canales. La lista del vault con los agents que usan una clave no
 incluye este uso, porque ningún agent vincula la clave.
 
@@ -171,8 +175,8 @@ su mensaje la URL de la petición, clave incluida.
 |---|---|---|
 | `not_configured` | 503 | No hay credenciales utilizables para el proveedor; en el dictado, también que el dictado en servidor no está configurado |
 | `empty` | 400 | El motor no oyó voz, o la grabación no tiene bytes |
-| `unsupported_type` | 400 | Solo dictado: la grabación no es audio WebM, Ogg, MP4 ni WAV |
-| `too_large` | 400 | Más de 25 MB, o por encima del límite de dictado de la organización |
+| `unsupported_type` | 400 | Solo dictado: la grabación no es audio WebM, Ogg, MP4 ni WAV, o - en una página alojada o un widget - no se puede leer su duración |
+| `too_large` | 400 | Más de 25 MB, o por encima del límite de dictado de la organización en bytes o en duración medida; `details.limit_seconds` indica el límite |
 | `provider_error` | 503 | El proveedor rechazó la petición o falló al atenderla |
 | `timeout` | 503 | El proveedor no respondió en 60 segundos |
 
@@ -203,7 +207,8 @@ micrófono funcionará antes de que nadie grabe: `engine`, `max_seconds`,
 `provider`, `format`, `ready` y `server_available`. `server_available` exige un
 par que se resuelva para este agent, que el catálogo lo siga ofreciendo y una
 credencial para su proveedor en la organización — se comprueba que existe,
-nunca se abre; `ready` es eso más el motor `server`. El formulario del embed lee
+nunca se abre; `ready` es eso más el motor `server` y un agent que no esté
+archivado. El formulario del embed lee
 `server_available`, porque una [página alojada o un widget](channels.md#dictation-on-a-widget-or-a-hosted-page)
 no depende del motor de `/chat`.
 
@@ -214,16 +219,27 @@ de la organización.
 
 La grabación tiene que ser `audio/webm`, `audio/ogg`, `audio/mp4` o
 `audio/wav`, con sufijo de códec permitido, y `audio/x-wav` y `audio/wave` se
-leen como `audio/wav`, y `audio/x-m4a` como `audio/mp4`. Los tres primeros son lo que produce el `MediaRecorder`
+leen como `audio/wav`, `audio/x-m4a` y `audio/m4a` como `audio/mp4`, y
+`audio/opus` y `audio/x-ogg` como `audio/ogg`. Los tres primeros son lo que produce el `MediaRecorder`
 de los navegadores; el WAV lo graba el propio cuadro de mensaje cuando `format`
 dice `wav`, que es lo que dice el catálogo para Mistral (ver la nota más abajo). El proveedor recibe la grabación
 como `recording.webm`, `recording.ogg`, `recording.m4a` o `recording.wav`,
 según la misma tabla que nombra `voice.<ext>` a una nota de voz de un canal.
 
-La ruta lee como mucho 25 MB del cuerpo; el límite propio de la organización,
+La ruta lee como mucho 25 MB del cuerpo; el límite de bytes de la organización,
 `dictation_max_seconds × 32 KB`, se aplica a lo leído. Un cuerpo que el límite
 de peticiones del despliegue rechaza antes de que la ruta se ejecute recibe un
 413 sin `reason`, que el cuadro de mensaje lee como `too_large`.
+
+Después **la duración de
+la grabación se lee de su contenedor** - la cabecera WAV, la última página Ogg,
+las marcas de tiempo de los bloques WebM, las cabeceras de película o de
+fragmento de MP4 - y una grabación más larga que `dictation_max_seconds` se
+rechaza como `too_large` antes de llamar al proveedor, con tres segundos de
+margen porque el cuadro de mensaje la detiene en un ciclo de un segundo. Una
+grabación cuya duración no se puede leer se acepta aquí, dentro del límite de
+bytes; [una página alojada o un widget](channels.md#what-it-costs-and-what-bounds-it)
+la rechaza.
 
 Cada persona puede dictar `RATE_LIMIT_DICTATION_PER_MINUTE` veces por minuto, 10
 por defecto, en un contador propio, así que dictar no gasta la cuota de ML de una
@@ -351,7 +367,9 @@ los [mensajes de voz de un bot de canal](channels.md#what-every-channel-shares)
 (`channel`). La fila añade el `provider` y el `model`, el `agent_id` para el que
 fue - el agent al que se dictó, o el agent al que sirve el bot -, el
 `channel_bot_id` y `audio_ms`, la duración de la grabación. El `requested_by` de
-un mensaje de voz es la persona con la que está vinculado el remitente, o nadie.
+un mensaje de voz es la persona con la que está vinculado el remitente mientras
+siga siendo miembro de la organización, o nadie.
+
 Solo se registra una grabación entregada al proveedor; un bot desactivado o sin
 motor que heredar no preguntó a nadie.
 
@@ -359,6 +377,7 @@ La duración es la primera de estas que se conoce:
 
 | Fuente | Quién la da |
 |---|---|
+| La propia grabación | Solo el dictado: la duración leída de su contenedor, como arriba |
 | La respuesta del proveedor | OpenAI `whisper-1` (`usage.seconds`), Groq (`duration`, pedida con `response_format=verbose_json`), Mistral (`usage.prompt_audio_seconds`) |
 | Los metadatos de la plataforma | Una nota de voz o un archivo de audio de Telegram, un clip de Slack |
 | El navegador | Solo el dictado: la `duration` que envía el compositor, recortada al dictado más largo de la organización, porque es la palabra del cliente |
@@ -371,11 +390,15 @@ esos modelos no la tiene. Una fila con éxito cuenta entonces `0` segundos con
 `GET /api/v1/ml/calls` filtra también por `agent_id`, `channel_bot_id`,
 `surface`, `since` y `until`, además de `ml_service`, siempre dentro de la
 organización de quien llama: el id de un agent de otro tenant no coincide con
-nada.
+nada. El agent, el bot y el camino - como filtros y como columnas - piden
+`runs:view`, como el resumen de abajo. Con `ml:invoke` solo, un filtro por ellos
+se rechaza con 403 y los tres vuelven nulos en cada fila.
 
 `GET /api/v1/ml/calls/summary?days=30` suma las transcripciones con éxito en
-una ventana: `seconds` y `count`, `count_unknown_length` para las grabaciones que
-los segundos dejan fuera, y lo mismo por agent, por bot de canal y por camino
+una ventana: `seconds` - las `units` propias de cada fila, la grabación
+redondeada hacia arriba al segundo, sumadas, para que el resumen coincida con la
+lista - y `count`, `count_unknown_length` para las grabaciones que los segundos
+dejan fuera, y lo mismo por agent, por bot de canal y por camino
 (`surface`). Pide `runs:view`, como
 [`GET /spend`](governance.md#what-the-cost-screen-shows), en lugar de
 `ml:invoke`: el desglose nombra agents y bots que un Member puede no ver. La

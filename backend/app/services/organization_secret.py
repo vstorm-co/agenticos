@@ -415,16 +415,18 @@ class OrganizationSecretService:
             purposes=[provider],
             kind=SecretKind.API_KEY.value,
         )
-        for secret in secrets:
-            value = unseal_secret(
-                secret.sealed_secret,
-                kind=SecretKind.API_KEY,
-                scope=VaultScope.organization(organization_id),
-                key_version=secret.key_version,
-            )
-            if isinstance(value, ApiKeySecret):
-                return value.api_key.get_secret_value()
-        return None
+        if not secrets:
+            return None
+        first = secrets[0]
+        value = unseal_secret(
+            first.sealed_secret,
+            kind=SecretKind.API_KEY,
+            scope=VaultScope.organization(organization_id),
+            key_version=first.key_version,
+        )
+        # The query asked for API keys and `unseal_secret` refuses an envelope
+        # whose kind is not the one named, so this is one - the cast says so.
+        return cast(ApiKeySecret, value).api_key.get_secret_value()
 
     async def transcription_key_providers(
         self, organization_id: UUID, providers: Sequence[str]

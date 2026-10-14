@@ -35,6 +35,8 @@ const MODES: { value: EmbedDictation; icon: LucideIcon; label: string; hint: str
  * the choice is disabled then with the reason beside it. A page already on
  * `server` keeps it selectable - a key deleted since must not lock the form -
  * and says that visitors see no microphone until a provider answers again.
+ * When the agent's readiness could not be read at all, the choice says so
+ * rather than sitting disabled with no reason.
  *
  * Native radios inside labels, like the organization's Voice card: there is no
  * radio-group primitive in `ui/`.
@@ -44,6 +46,7 @@ export function EmbedDictationField({
   value,
   disabled,
   serverAvailable,
+  serverUnchecked,
   wasServer,
   onChange,
 }: {
@@ -53,6 +56,8 @@ export function EmbedDictationField({
   disabled: boolean;
   /** Whether a provider and credential resolve for the agent; null while unknown. */
   serverAvailable: boolean | null;
+  /** The agent's readiness could not be read, so `serverAvailable` stays null. */
+  serverUnchecked: boolean;
   /** Whether the stored embed is already on `server`. */
   wasServer: boolean;
   onChange: (value: EmbedDictation) => void;
@@ -95,6 +100,9 @@ export function EmbedDictationField({
         <p className="text-muted-foreground text-xs">
           {wasServer ? t("embedDictationServerDrift") : t("embedDictationServerUnavailable")}
         </p>
+      )}
+      {serverAvailable === null && serverUnchecked && (
+        <p className="text-muted-foreground text-xs">{t("embedDictationServerUnchecked")}</p>
       )}
     </fieldset>
   );

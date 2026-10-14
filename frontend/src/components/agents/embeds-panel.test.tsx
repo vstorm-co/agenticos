@@ -36,12 +36,14 @@ const copy = vi.fn();
 vi.mock("@/hooks", () => ({ useEmbeds: () => state }));
 const readiness = vi.hoisted(() => ({
   current: { server_available: true } as { server_available: boolean } | null,
+  /** Whether the read of it failed. */
+  failed: false,
   asked: [] as (string | null)[],
 }));
 vi.mock("@/hooks/use-dictation-status", () => ({
   useDictationStatus: (agentId: string | null) => {
     readiness.asked.push(agentId);
-    return readiness.current;
+    return { status: readiness.current, failed: readiness.failed };
   },
 }));
 vi.mock("@/hooks/use-copy-to-clipboard", () => ({
@@ -86,6 +88,7 @@ function page(overrides: Partial<Embed> = {}): Embed {
 
 beforeEach(() => {
   readiness.current = { server_available: true };
+  readiness.failed = false;
   readiness.asked = [];
   state.embeds = [];
   state.isLoading = false;
@@ -784,6 +787,16 @@ describe("what a hosted page is allowed to offer", () => {
 
     expect(readiness.asked).toContain("a-1");
     expect(screen.getByRole("radio", { name: /Server/ })).toBeDisabled();
+  });
+
+  it("says server can't be checked when the agent's readiness did not load", async () => {
+    readiness.current = null;
+    readiness.failed = true;
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await pick("widget");
+
+    expect(screen.getByRole("radio", { name: /Server/ })).toBeDisabled();
+    expect(screen.getByText(/Server can't be checked right now/)).toBeInTheDocument();
   });
 
   it("publishes a page that narrates its work and keeps the rest to itself", async () => {

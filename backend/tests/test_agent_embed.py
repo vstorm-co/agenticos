@@ -1778,6 +1778,8 @@ class TestAVisitorsDictation:
         sent = transcribe.await_args.kwargs
         assert (sent["organization"], sent["agent"]) == (organization, agent)
         assert sent["reported_seconds"] == 2.0
+        # A stranger's recording of unknown length is never sent to be paid for.
+        assert sent["accept_unmeasured"] is False
 
     @pytest.mark.anyio
     @pytest.mark.parametrize("dictation", ["off", "browser"])

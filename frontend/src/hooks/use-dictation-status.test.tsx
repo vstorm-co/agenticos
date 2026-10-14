@@ -23,24 +23,28 @@ describe("useDictationStatus", () => {
 
     const { result } = renderHook(() => useDictationStatus("a1"), { wrapper });
 
-    await waitFor(() => expect(result.current?.provider).toBe("mistral"));
-    expect(result.current?.ready).toBe(true);
+    await waitFor(() => expect(result.current.status?.provider).toBe("mistral"));
+    expect(result.current.status?.ready).toBe(true);
+    expect(result.current.failed).toBe(false);
     expect(get).toHaveBeenCalledWith("/agents/a1/dictation");
   });
 
   it("asks nothing without an agent", () => {
     const { result } = renderHook(() => useDictationStatus(null), { wrapper });
 
-    expect(result.current).toBeNull();
+    expect(result.current).toEqual({ status: null, failed: false });
     expect(get).not.toHaveBeenCalled();
   });
 
-  it("keeps the previous agent's answer while the next one's loads", async () => {
+  it("holds nothing of the previous agent's answer while the next one's loads", async () => {
+    // A press in that moment would record in the previous agent's format and
+    // call this one ready; until it answers, it is neither.
     get.mockResolvedValueOnce({
       engine: "server",
       ready: true,
       max_seconds: 300,
-      provider: "openai",
+      provider: "mistral",
+      format: "wav",
     });
     let resolveNext: (value: unknown) => void = () => {};
     get.mockReturnValueOnce(new Promise((resolve) => (resolveNext = resolve)));
@@ -49,13 +53,27 @@ describe("useDictationStatus", () => {
       wrapper,
       initialProps: { id: "a1" },
     });
-    await waitFor(() => expect(result.current?.ready).toBe(true));
+    await waitFor(() => expect(result.current.status?.format).toBe("wav"));
 
     rerender({ id: "a2" });
-    // Not crossed out for a frame between the two answers.
-    expect(result.current?.ready).toBe(true);
+    expect(result.current).toEqual({ status: null, failed: false });
 
-    resolveNext({ engine: "server", ready: false, max_seconds: 300, provider: null });
-    await waitFor(() => expect(result.current?.ready).toBe(false));
+    resolveNext({
+      engine: "server",
+      ready: true,
+      max_seconds: 300,
+      provider: "openai",
+      format: "webm",
+    });
+    await waitFor(() => expect(result.current.status?.format).toBe("webm"));
+  });
+
+  it("says the read failed, rather than that it is still loading", async () => {
+    get.mockRejectedValue(new Error("down"));
+
+    const { result } = renderHook(() => useDictationStatus("a1"), { wrapper });
+
+    await waitFor(() => expect(result.current.failed).toBe(true));
+    expect(result.current.status).toBeNull();
   });
 });

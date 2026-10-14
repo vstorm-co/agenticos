@@ -162,6 +162,7 @@ export function WidgetFields({
         value={config.dictation}
         disabled={disabled}
         serverAvailable={serverDictation.available}
+        serverUnchecked={serverDictation.unchecked}
         wasServer={serverDictation.wasServer}
         onChange={(dictation) => onChange({ ...config, dictation })}
       />

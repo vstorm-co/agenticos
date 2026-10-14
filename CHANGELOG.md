@@ -54,20 +54,26 @@ Two things are versioned separately from this file and worth knowing about:
   so none starts transcribing on upgrade. Slack audio clips are transcribed
   whatever type Slack gives them, and an untyped Slack or Mattermost upload is
   transcribed when its extension names audio; a Mattermost webhook-mode bot
-  looks each file up first. The provider is sent `voice.<ext>` named from the
-  type, and a voice note posted in a thread before the bot joined is named in
-  the reply rather than transcribed. See
+  looks its files up first, several at once, and keeps a file whose details come
+  back malformed as an ordinary attachment. `audio/opus` and `audio/x-ogg` are
+  read as Ogg and `audio/m4a` as MP4. The provider is sent `voice.<ext>` named
+  from the type, and a voice note posted in a thread before the bot joined is
+  named in the reply rather than transcribed. A bot whose agent is archived or
+  has nothing published transcribes nothing, since its turn is refused anyway. See
   [the voice message notes](docs/channels.md#what-every-channel-shares).
 - **Every transcription is recorded with its length and attribution (#1797).**
   `ml_service_calls` gains the provider and model, the surface (`chat`,
   `channel`, `api`), the agent and channel bot, and `audio_ms`
   (`0108_ml_call_attribution.py`); a transcription now counts seconds of audio,
   not characters. Channel voice notes write a row too, naming the linked
-  sender. The length comes from the provider (`whisper-1`, Groq, Mistral), the
+  sender while they are still a member. The length comes from the recording
+  itself for dictation, then the provider (`whisper-1`, Groq, Mistral), the
   platform (Telegram, Slack) or, for dictation, the browser's clamped figure.
-  `GET /api/v1/ml/calls` filters by agent, bot, surface and window, and
-  `GET /api/v1/ml/calls/summary` (`runs:view`) adds it up; the organization's
-  Voice card shows it in one line. See
+  `GET /api/v1/ml/calls` filters by agent, bot, surface and window - the first
+  three, and those columns, for `runs:view` only - and
+  `GET /api/v1/ml/calls/summary` (`runs:view`) adds up each row's own rounded
+  seconds, so it agrees with the listing; the organization's Voice card shows
+  it in one line. See
   [Transcriptions](docs/ml-services.md#transcriptions).
 - **Dictation on a hosted page and in the website widget (#1797).** Each has a
   `dictation` setting - Off, Browser or Server - and Server transcribes a
@@ -78,18 +84,23 @@ Two things are versioned separately from this file and worth knowing about:
   its own, WAV encoder and resampler included. Switching Server on is refused
   while no provider and credential resolve, and a page or widget whose provider
   goes away offers no microphone. Rows record surface `hosted` or `widget` and
-  no person. `RATE_LIMIT_EMBED_DICTATION_PER_MINUTE` (6, per address and per
+  no person. Before the provider is called, the server reads each recording's
+  length from its container (WAV, Ogg, WebM, MP4) and refuses one over the
+  organization's longest dictation as `too_large`; a page or widget also
+  refuses one whose length it cannot read (`unsupported_type`), so the link's
+  limit times the longest dictation bounds the spend rather than a byte cap
+  that low-bitrate Opus fits hours into. The composer's route applies the same
+  length check and accepts an unreadable length under its byte cap. `RATE_LIMIT_EMBED_DICTATION_PER_MINUTE` (6, per address and per
   `jwt` visitor) and `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` (10, per
   link) bound the spend. The recording format comes from the speech-to-text
   catalog, as `format` on `GET /api/v1/agents/{agent_id}/dictation` with
   `server_available` beside it. See
   [Dictation on a widget or a hosted page](docs/channels.md#dictation-on-a-widget-or-a-hosted-page).
-- **A Voice glow preference**: Vivid, Subtle (the default) or Off, per
-  browser, and no glow under reduced motion.
-- **An Appearance card under Settings → Profile** with the theme, the Voice glow
-  (moved out of the account menu) and a new per-browser **Motion** preference:
-  System follows the operating system, Reduce turns motion down without it, and
-  Full keeps it whatever the operating system says.
+- **An Appearance card under Settings → Profile** with the theme, a **Voice
+  glow** preference - Vivid, Subtle (the default) or Off, per browser, and no
+  glow under reduced motion - and a per-browser **Motion** preference: System
+  follows the operating system, Reduce turns motion down without it, and Full
+  keeps it whatever the operating system says.
 
 ### Changed
 
@@ -104,12 +115,13 @@ Two things are versioned separately from this file and worth knowing about:
   provider. Channel bots still answer "could not be transcribed" on any failure.
 - **An organization-visible vault key is a transcription credential.** With no
   model profile for the provider, transcription uses the first organization-wide
-  API key stored for it; a member's private key is never used. The
+  API key stored for it; that fallback never reads a member's private key. The
   speech-to-text catalog says per provider whether the organization has one
   (`credentialed`), so the Voice cards no longer need to read the vault.
 - **A null pair on a channel bot means inherit, not off.** `PATCH
   /channels/bots/{id}` turns transcription off with `transcribe_voice_notes:
-  false`, which clears the pair, and refuses an explicit `null` for it. A spec
+  false`, which clears the pair, and refuses an explicit `null` for it. A pair
+  sent together with `false` is refused, on create as on update. A spec
   carrying `speech_to_text` cannot be imported into a deployment older than it.
 
 ## [0.0.535] - 2026-10-09

@@ -233,9 +233,9 @@ async def test_the_summary_adds_up_and_orders_the_longest_first() -> None:
     bot = uuid.uuid4()
     session = _RecordingSession(
         _rows((None, 4, 4)),
-        _rows((first, "Billing", 1000, 1), (second, "Support", 9000, 2)),
+        _rows((first, "Billing", 1, 1), (second, "Support", 9, 2)),
         _rows((bot, "Front desk", None, 3)),
-        _rows(("chat", 10_000, 3), (None, None, 1)),
+        _rows(("chat", 10, 3), (None, None, 1)),
     )
     since = datetime(2026, 9, 13, tzinfo=UTC)
 
@@ -246,13 +246,16 @@ async def test_the_summary_adds_up_and_orders_the_longest_first() -> None:
         since=since,
     )
 
-    assert (summary.audio_ms, summary.count, summary.count_unknown_length) == (0, 4, 4)
+    assert (summary.seconds, summary.count, summary.count_unknown_length) == (0, 4, 4)
     assert [group.name for group in summary.by_agent] == ["Support", "Billing"]
-    assert summary.by_channel[0].audio_ms == 0
+    assert summary.by_channel[0].seconds == 0
     assert [group.surface for group in summary.by_surface] == ["chat", None]
     for statement in session.statements:
         params = statement.compile(dialect=postgresql.dialect()).params
         assert set(params.values()) >= {_ORG, "speech_to_text", "succeeded", since}
+        # The rows' own rounded-up seconds, so the summary is the sum of the
+        # listing rather than a second rounding of the milliseconds.
+        assert "sum(ml_service_calls.units)" in str(statement)
 
 
 def test_the_row_says_what_it_is() -> None:

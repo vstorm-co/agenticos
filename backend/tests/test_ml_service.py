@@ -20,6 +20,7 @@ import pytest
 
 from app.core.exceptions import (
     AppException,
+    AuthorizationError,
     BadRequestError,
     ConfigurationError,
     ExternalServiceError,
@@ -28,9 +29,10 @@ from app.core.exceptions import (
 from app.core.permissions import AuthContext, OrgRoleName
 from app.repositories.ml_service_call import CallFilters
 from app.services.ml import parsing
-from app.services.ml.facade import MLService
+from app.services.ml.facade import DICTATION_BYTES_PER_SECOND, DICTATION_GRACE_SECONDS, MLService
 from app.services.transcription import TranscriptionResult
 from app.services.transcription_usage import TranscriptionCall
+from tests.recordings import ogg_opus, pcm_wav
 
 pytestmark = pytest.mark.anyio
 
@@ -844,8 +846,9 @@ async def test_a_visitors_dictation_is_recorded_against_its_surface_and_no_perso
             call,
             organization=_speech_org(chat_dictation="off"),
             agent=_AGENT,
-            content=b"a",
-            mime_type="audio/webm",
+            content=pcm_wav(1.25),
+            mime_type="audio/wav",
+            accept_unmeasured=False,
         )
 
     assert text == "hello"
@@ -854,6 +857,124 @@ async def test_a_visitors_dictation_is_recorded_against_its_surface_and_no_perso
     assert (written["surface"], written["agent_id"]) == ("widget", _AGENT.id)
     assert written["requested_by_user_id"] is None
     assert (written["provider"], written["model"]) == ("openai", "gpt-4o-transcribe")
+    assert written["audio_ms"] == 1250
+
+
+async def test_a_visitors_recording_of_unknown_length_is_refused_before_the_provider(
+    recorded: Any,
+) -> None:
+    """On a public surface nothing but the length bounds a stranger's spend, so a
+    recording whose length cannot be read is not sent to be paid for."""
+    call = TranscriptionCall(organization_id=_ORG, surface="hosted", provider=None, model=None)
+    with (
+        patch(
+            "app.services.ml.facade.organization_repo.get_by_id",
+            new=AsyncMock(return_value=_speech_org()),
+        ),
+        patch(
+            "app.services.ml.facade.TranscriptionService.transcribe", new=AsyncMock()
+        ) as transcribe,
+        pytest.raises(BadRequestError) as refused,
+    ):
+        await MLService(_db()).transcribe_dictation(
+            call,
+            organization=_speech_org(),
+            agent=_AGENT,
+            content=b"not a container",
+            mime_type="audio/webm",
+            accept_unmeasured=False,
+        )
+
+    assert refused.value.details is not None
+    assert refused.value.details["reason"] == "unsupported_type"
+    transcribe.assert_not_awaited()
+    assert recorded.await_args.kwargs["status"] == "failed"
+
+
+async def test_a_members_recording_of_unknown_length_is_accepted_under_the_byte_cap(
+    recorded: Any,
+) -> None:
+    del recorded
+    with (
+        patch(
+            "app.services.ml.facade.organization_repo.get_by_id",
+            new=AsyncMock(return_value=_speech_org()),
+        ),
+        patch(
+            "app.services.ml.facade.TranscriptionService.transcribe",
+            new=AsyncMock(return_value=_heard("ok")),
+        ) as transcribe,
+    ):
+        text = await MLService(_db()).dictate(
+            _ctx(), agent=_AGENT, content=b"not a container", mime_type="audio/webm"
+        )
+
+    assert text == "ok"
+    transcribe.assert_awaited_once()
+
+
+@pytest.mark.parametrize("accept_unmeasured", [True, False], ids=["console", "embed"])
+async def test_a_recording_measured_over_the_limit_is_refused_before_the_provider(
+    recorded: Any, accept_unmeasured: bool
+) -> None:
+    """Low-bitrate Opus: far under the byte cap, far over the length. The
+    measured length refuses it on every surface, and says what the limit is."""
+    recording = ogg_opus(10 + DICTATION_GRACE_SECONDS + 1)
+    assert len(recording) < 10 * DICTATION_BYTES_PER_SECOND
+    call = TranscriptionCall(organization_id=_ORG, surface="chat", provider=None, model=None)
+    with (
+        patch(
+            "app.services.ml.facade.organization_repo.get_by_id",
+            new=AsyncMock(return_value=_speech_org()),
+        ),
+        patch(
+            "app.services.ml.facade.TranscriptionService.transcribe", new=AsyncMock()
+        ) as transcribe,
+        pytest.raises(BadRequestError) as refused,
+    ):
+        await MLService(_db()).transcribe_dictation(
+            call,
+            organization=_speech_org(dictation_max_seconds=10),
+            agent=_AGENT,
+            content=recording,
+            mime_type="audio/ogg",
+            accept_unmeasured=accept_unmeasured,
+        )
+
+    assert refused.value.details is not None
+    assert refused.value.details["reason"] == "too_large"
+    assert refused.value.details["limit_seconds"] == 10
+    transcribe.assert_not_awaited()
+    assert recorded.await_args.kwargs["audio_ms"] == (10 + DICTATION_GRACE_SECONDS + 1) * 1000
+
+
+async def test_a_recording_that_ran_a_tick_past_the_limit_is_transcribed(recorded: Any) -> None:
+    """The browser stops on a once-a-second tick, so a recording the limit stopped
+    is a little over it - and must not be refused for that."""
+    call = TranscriptionCall(organization_id=_ORG, surface="widget", provider=None, model=None)
+    with (
+        patch(
+            "app.services.ml.facade.organization_repo.get_by_id",
+            new=AsyncMock(return_value=_speech_org()),
+        ),
+        patch(
+            "app.services.ml.facade.TranscriptionService.transcribe",
+            new=AsyncMock(return_value=_heard("ok", 99.0)),
+        ),
+    ):
+        text = await MLService(_db()).transcribe_dictation(
+            call,
+            organization=_speech_org(dictation_max_seconds=10),
+            agent=_AGENT,
+            content=ogg_opus(10.9),
+            mime_type="audio/ogg",
+            reported_seconds=50.0,
+            accept_unmeasured=False,
+        )
+
+    assert text == "ok"
+    # Measured first: ahead of the provider's figure and the browser's.
+    assert recorded.await_args.kwargs["audio_ms"] == 10_900
 
 
 async def test_a_shut_gate_is_not_configured_and_resolves_nothing(recorded: Any) -> None:
@@ -863,7 +984,12 @@ async def test_a_shut_gate_is_not_configured_and_resolves_nothing(recorded: Any)
         pytest.raises(ConfigurationError) as refused,
     ):
         await MLService(_db()).transcribe_dictation(
-            call, organization=None, agent=_AGENT, content=b"a", mime_type="audio/webm"
+            call,
+            organization=None,
+            agent=_AGENT,
+            content=b"a",
+            mime_type="audio/webm",
+            accept_unmeasured=False,
         )
 
     assert refused.value.details == {"reason": "not_configured"}
@@ -886,6 +1012,25 @@ async def test_dictation_readiness_for_an_unpublished_agent_answers_from_the_org
         status = await MLService(_db()).dictation_status(_ctx(), agent=_AGENT)
 
     assert (status.ready, status.provider) == (True, "openai")
+
+
+async def test_an_archived_agent_is_never_ready_to_dictate_to() -> None:
+    agent, get_version = _published(None)
+    agent.status = "archived"
+    with (
+        patch(
+            "app.services.ml.facade.organization_repo.get_by_id",
+            new=AsyncMock(return_value=_speech_org()),
+        ),
+        patch(f"{_SETTINGS}.agent_repo.get_version", new=get_version),
+        patch(
+            "app.services.ml.facade.TranscriptionService.credentialed_providers",
+            new=AsyncMock(return_value=frozenset({"openai"})),
+        ),
+    ):
+        status = await MLService(_db()).dictation_status(_ctx(), agent=agent)
+
+    assert (status.ready, status.server_available) == (False, True)
 
 
 async def test_dictation_readiness_with_no_organization_is_not_found() -> None:
@@ -1190,8 +1335,37 @@ async def test_the_listing_pages_and_counts_inside_the_organization() -> None:
     assert counted.await_args.kwargs == {"organization_id": _ORG, "filters": filters}
 
 
+@pytest.mark.parametrize(
+    "narrowing",
+    [
+        {"agent_id": uuid.uuid4()},
+        {"channel_bot_id": uuid.uuid4()},
+        {"surface": "channel"},
+    ],
+    ids=["agent", "bot", "surface"],
+)
+async def test_filtering_by_attribution_without_runs_view_is_refused(
+    narrowing: dict[str, Any],
+) -> None:
+    """A Member holds `ml:invoke` and not `runs:view`: the per-agent count the
+    summary refuses them is not theirs one filter at a time either."""
+    member = AuthContext(
+        user_id=_CALLER, organization_id=_ORG, role=OrgRoleName.MEMBER.value, is_app_admin=False
+    )
+    with (
+        patch(f"{_REPO}.list_for", new=AsyncMock()) as listed,
+        pytest.raises(AuthorizationError) as refused,
+    ):
+        await MLService(_db()).call_records(member, service=None, skip=0, limit=10, **narrowing)
+
+    assert refused.value.details == {"required": ["runs:view"]}
+    listed.assert_not_awaited()
+    assert MLService.sees_attribution(member) is False
+    assert MLService.sees_attribution(_ctx()) is True
+
+
 async def test_the_summary_reads_the_callers_organization_over_the_window() -> None:
-    summary = SimpleNamespace(audio_ms=0)
+    summary = SimpleNamespace(seconds=0)
     with patch(f"{_REPO}.summarise", new=AsyncMock(return_value=summary)) as summarise:
         found = await MLService(_db()).usage_summary(_ctx(), service="speech_to_text", days=7)
 

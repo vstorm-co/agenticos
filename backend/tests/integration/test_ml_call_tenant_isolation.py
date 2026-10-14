@@ -194,9 +194,9 @@ class TestTranscriptionUsageStaysInItsOrganization:
             _ctx(acme, founder), service="speech_to_text", days=30
         )
 
-        assert (summary.audio_ms, summary.count, summary.count_unknown_length) == (140_000, 4, 1)
-        assert [(group.name, group.audio_ms, group.count) for group in summary.by_agent] == [
-            ("Support", 120_000, 3)
+        assert (summary.seconds, summary.count, summary.count_unknown_length) == (140, 4, 1)
+        assert [(group.name, group.seconds, group.count) for group in summary.by_agent] == [
+            ("Support", 120, 3)
         ]
         assert [(group.name, group.count) for group in summary.by_channel] == [("Front desk", 2)]
         assert {group.surface: group.count for group in summary.by_surface} == {
@@ -204,6 +204,23 @@ class TestTranscriptionUsageStaysInItsOrganization:
             "channel": 2,
             "api": 1,
         }
+
+    async def test_the_summary_is_the_sum_of_what_the_listing_says(self, db) -> None:
+        """Each row rounds its own length up to the second, and the summary adds
+        those up - two 1.2-second notes are 4 seconds in both, not 4 in the
+        listing and 2 in the summary."""
+        acme, founder = await _org(db, name="Acme")
+        await _heard(db, acme, seconds=1.2)
+        await _heard(db, acme, seconds=1.2)
+
+        summary = await MLService(db).usage_summary(
+            _ctx(acme, founder), service="speech_to_text", days=30
+        )
+        rows, _ = await MLService(db).call_records(
+            _ctx(acme, founder), service="speech_to_text", skip=0, limit=50
+        )
+
+        assert summary.seconds == sum(row.units for row in rows) == 4
 
     async def test_a_filter_on_another_tenants_agent_finds_nothing(self, db) -> None:
         acme, founder = await _org(db, name="Acme")

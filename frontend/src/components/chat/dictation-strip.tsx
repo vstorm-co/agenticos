@@ -89,11 +89,14 @@ const strong = (chunks: ReactNode) => (
 function StripButton({
   primary = false,
   disabled = false,
+  label,
   onClick,
   children,
 }: {
   primary?: boolean;
   disabled?: boolean;
+  /** A name that holds still while the visible text changes. */
+  label?: string;
   onClick: () => void;
   children: ReactNode;
 }) {
@@ -103,6 +106,7 @@ function StripButton({
       size="sm"
       variant={primary ? "default" : "ghost"}
       disabled={disabled}
+      aria-label={label}
       onClick={onClick}
       className="h-7 px-2.5 text-xs pointer-coarse:h-11"
     >
@@ -184,11 +188,16 @@ export function dictationHint(input: DictationHintInput, t: Translate): StripHin
     ),
     actions: (
       <>
-        <StripButton primary onClick={actions.retry} disabled={state.retryAfter !== null}>
-          {state.retryAfter === null
-            ? t("retry")
-            : t("retryCountdown", { seconds: state.retryAfter })}
-        </StripButton>
+        {/* Inside an alert, a label that ticks would be read out every second. */}
+        {state.retryAfter === null ? (
+          <StripButton primary onClick={actions.retry}>
+            {t("retry")}
+          </StripButton>
+        ) : (
+          <StripButton primary disabled label={t("retry")} onClick={actions.retry}>
+            <span aria-hidden="true">{t("retryCountdown", { seconds: state.retryAfter })}</span>
+          </StripButton>
+        )}
         <StripButton onClick={actions.dismiss}>{t("discard")}</StripButton>
       </>
     ),
@@ -229,11 +238,22 @@ export function dictationHint(input: DictationHintInput, t: Translate): StripHin
       key: "nearLimit",
       tone: "warn",
       icon: TriangleAlert,
-      message: t.rich("hint.nearLimit", {
-        strong,
-        remaining: clock(state.remaining),
-        limit: clock(maxSeconds),
-      }),
+      // The clock ticks every second inside a live region; what is read out is
+      // the sentence beside it, which holds still.
+      message: (
+        <>
+          <span aria-hidden="true">
+            {t.rich("hint.nearLimit", {
+              strong,
+              remaining: clock(state.remaining),
+              limit: clock(maxSeconds),
+            })}
+          </span>
+          <span className="sr-only">
+            {t.rich("hint.nearLimitSpoken", { strong, limit: clock(maxSeconds) })}
+          </span>
+        </>
+      ),
     };
   }
   if (state.phase === "recording" && state.silent) {
@@ -337,6 +357,22 @@ export function dictationHint(input: DictationHintInput, t: Translate): StripHin
             {dismiss}
           </>
         ),
+      };
+    case "signed_out":
+      return {
+        key: "signedOut",
+        tone: "error",
+        icon: Lock,
+        message: t.rich("hint.signedOut", { strong }),
+        actions: dismiss,
+      };
+    case "forbidden":
+      return {
+        key: "forbidden",
+        tone: "error",
+        icon: Lock,
+        message: t.rich("hint.forbidden", { strong }),
+        actions: dismiss,
       };
     case "too_large":
       return {

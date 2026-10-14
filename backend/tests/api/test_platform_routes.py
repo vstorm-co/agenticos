@@ -23,6 +23,7 @@ import re
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, Protocol
 from unittest.mock import AsyncMock, MagicMock
@@ -36,11 +37,13 @@ from app.api import deps
 from app.core.config import settings
 from app.core.exceptions import NotFoundError, RunExecutionError
 from app.core.permissions import ROLE_PERMS, AuthContext, OrgRoleName, Perm, Scope
+from app.db.models.ml_service_call import MLServiceCall
 from app.db.models.resource_grant import Visibility
 from app.main import app
 from app.repositories.agent_run import WindowAggregates, WindowBreakdown
 from app.schemas.agent import ParkedCall
 from app.services.agent_runner import RunSegment
+from app.services.ml import MLService
 from app.services.sharing import SharingService
 from app.services.stats import StatsService
 from app.services.transcript import RecordedToolCall
@@ -1333,6 +1336,78 @@ class TestStatsScopeIsDecidedInTheService:
             response = await client.get(_url("/stats/usage", "?scope=own&group_by=user"))
 
         assert response.status_code == 200
+
+
+class TestTheMLCallLogsAttribution:
+    """`GET /ml/calls` is `ml:invoke`, and the agent, bot and surface on it are
+    `runs:view` - the summary's gate, since filtering by agent is its breakdown
+    asked for one row at a time (#1797). A route gate cannot say "this half of
+    the answer needs more", so the service and the serializer do."""
+
+    _AGENT = uuid4()
+
+    @pytest.fixture
+    def logged(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        row = MLServiceCall(
+            id=uuid4(),
+            organization_id=_ORGANIZATION_ID,
+            service="speech_to_text",
+            status="succeeded",
+            input_bytes=10,
+            units=3,
+            unit="seconds",
+            duration_ms=900,
+            provider="openai",
+            model="whisper-1",
+            surface="chat",
+            agent_id=self._AGENT,
+            audio_ms=2500,
+            created_at=datetime.now(UTC),
+        )
+        repo = "app.services.ml.facade.ml_service_call_repo"
+        monkeypatch.setattr(f"{repo}.list_for", AsyncMock(return_value=[row]))
+        monkeypatch.setattr(f"{repo}.count_for", AsyncMock(return_value=1))
+        monkeypatch.setattr(f"{repo}.get", AsyncMock(return_value=row))
+
+    @staticmethod
+    def _service() -> dict[Callable[..., object], Provider]:
+        return {deps.get_ml_service: lambda: MLService(MagicMock())}
+
+    @pytest.mark.parametrize(
+        "query", ["agent_id=" + str(_SOME_ID), "channel_bot_id=" + str(_SOME_ID), "surface=chat"]
+    )
+    async def test_an_attribution_filter_without_runs_view_is_refused(
+        self, synthetic_roles: None, logged: None, as_role: ClientFactory, query: str
+    ) -> None:
+        async with as_role(all_but(Perm.RUNS_VIEW), self._service()) as client:
+            response = await client.get(_url("/ml/calls", f"?{query}"))
+
+        assert response.status_code == 403
+
+    async def test_ml_invoke_alone_reads_the_log_without_the_attribution(
+        self, synthetic_roles: None, logged: None, as_role: ClientFactory
+    ) -> None:
+        async with as_role(only(Perm.ML_INVOKE), self._service()) as client:
+            listed = await client.get(_url("/ml/calls"))
+            one = await client.get(_url("/ml/calls/{call_id}"))
+
+        assert listed.status_code == 200
+        (item,) = listed.json()["items"]
+        for read in (item, one.json()):
+            assert (read["agent_id"], read["channel_bot_id"], read["surface"]) == (None, None, None)
+            assert (read["provider"], read["audio_ms"]) == ("openai", 2500)
+
+    async def test_runs_view_reads_and_filters_by_the_attribution(
+        self, synthetic_roles: None, logged: None, as_role: ClientFactory
+    ) -> None:
+        async with as_role(all_but(Perm.CONNECTIONS_MANAGE), self._service()) as client:
+            listed = await client.get(_url("/ml/calls", f"?agent_id={self._AGENT}"))
+            one = await client.get(_url("/ml/calls/{call_id}"))
+
+        assert listed.status_code == 200
+        (item,) = listed.json()["items"]
+        assert (item["agent_id"], item["surface"]) == (str(self._AGENT), "chat")
+        assert one.json()["agent_id"] == str(self._AGENT)
 
 
 # -- the inverse guard, for routes that are deliberately open -----------------

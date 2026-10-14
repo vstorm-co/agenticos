@@ -1,7 +1,6 @@
 "use client";
 
 import { useId, useRef, useState } from "react";
-import Link from "next/link";
 import { MicOff } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -11,10 +10,8 @@ import type { DictationUnavailable as Why } from "./dictation-strip";
 
 interface DictationUnavailableProps {
   why: Why;
-  /** Where an `org:settings` holder sets dictation up; null for everyone else. */
-  voiceSettingsHref: string | null;
-  /** The selected agent's Voice card, for whoever may edit agents; null otherwise. */
-  agentVoiceHref: string | null;
+  /** Whether this person may set dictation up - for the organization or this agent. */
+  canSetUp: boolean;
   /** Opens or closes the same explanation in the strip under the composer. */
   onExplain: () => void;
 }
@@ -28,13 +25,12 @@ interface DictationUnavailableProps {
  * click or a tap opens the explanation in the strip under the composer instead,
  * because a touch screen has no hover and a popover there is one more thing to
  * close.
+ *
+ * The popover holds no links: it closes when the pointer leaves the button or
+ * focus leaves it, so nothing in it can be reached. Where to set dictation up
+ * is in the strip a press opens, and the popover says so.
  */
-export function DictationUnavailable({
-  why,
-  voiceSettingsHref,
-  agentVoiceHref,
-  onExplain,
-}: DictationUnavailableProps) {
+export function DictationUnavailable({ why, canSetUp, onExplain }: DictationUnavailableProps) {
   const t = useTranslations("chat.dictation");
   const tInput = useTranslations("chat.input");
   const [open, setOpen] = useState(false);
@@ -90,29 +86,11 @@ export function DictationUnavailable({
       >
         <p className="font-semibold">{title}</p>
         <p className="text-muted-foreground mt-0.5">{body}</p>
-        {why === "not_ready" &&
-          (voiceSettingsHref === null && agentVoiceHref === null ? (
-            <p className="text-muted-foreground mt-2">{t("askAdmin")}</p>
-          ) : (
-            <div className="mt-2 flex flex-col items-start gap-1">
-              {voiceSettingsHref !== null && (
-                <Link
-                  href={voiceSettingsHref}
-                  className="font-medium underline underline-offset-[3px]"
-                >
-                  {t("openVoiceSettings")}
-                </Link>
-              )}
-              {agentVoiceHref !== null && (
-                <Link
-                  href={agentVoiceHref}
-                  className="font-medium underline underline-offset-[3px]"
-                >
-                  {t("setForAgent")}
-                </Link>
-              )}
-            </div>
-          ))}
+        {why === "not_ready" && (
+          <p className="text-muted-foreground mt-2">
+            {canSetUp ? t("pressToSetUp") : t("askAdmin")}
+          </p>
+        )}
       </PopoverContent>
     </Popover>
   );

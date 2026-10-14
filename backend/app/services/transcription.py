@@ -89,6 +89,9 @@ RECORDING_TYPE_ALIASES: dict[str, str] = {
     "audio/x-wav": "audio/wav",
     "audio/wave": "audio/wav",
     "audio/x-m4a": "audio/mp4",
+    "audio/m4a": "audio/mp4",
+    "audio/opus": "audio/ogg",
+    "audio/x-ogg": "audio/ogg",
     "audio/mp3": "audio/mpeg",
 }
 """Other names clients and platforms use for the same containers."""
@@ -227,9 +230,12 @@ class TranscriptionService:
 
         A keyed profile first, in label order, then a keyless one, and an
         organization-visible vault key for the provider last - sent to the
-        catalog's address, since a vault key carries none of its own. A
-        member's private key is never one of them: the call is paid on
-        everybody's behalf (`OrganizationSecretService.transcription_key`). Keyed first is what keeps a bot that
+        catalog's address, since a vault key carries none of its own. That
+        last fallback reads organization-visible keys only, because the call is
+        paid on everybody's behalf (`OrganizationSecretService.transcription_key`);
+        a model profile is taken as configured, so one pointing at a member's
+        private key transcribes on it, as a chat run on that profile would
+        spend it. Keyed first is what keeps a bot that
         transcribes on OpenAI today on OpenAI once a keyless `openai` profile - a
         vLLM or LiteLLM proxy for chat, with no `/audio/transcriptions` - is added
         and happens to sort earlier. A keyless profile counts only with an address

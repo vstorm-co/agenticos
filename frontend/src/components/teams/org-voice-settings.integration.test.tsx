@@ -536,6 +536,39 @@ describe("OrgVoiceSettings", () => {
     expect(save).toBeDisabled();
   });
 
+  it("leaves the default pair as stored when Server was only passed through", async () => {
+    // Server fills in the first credentialed pair; leaving it again untouched
+    // must not save that pair as the organization's default.
+    await mount();
+
+    await userEvent.click(screen.getByRole("radio", { name: /^Server/ }));
+    expect(screen.getByRole("combobox", { name: "Model" })).toHaveTextContent("GPT-4o Transcribe");
+    await userEvent.click(screen.getByRole("radio", { name: /^Browser/ }));
+
+    expect(screen.getByRole("combobox", { name: "Provider" })).toHaveTextContent("None");
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled();
+  });
+
+  it("keeps a pair somebody changed on Server when the engine moves away", async () => {
+    vi.mocked(apiClient.patch).mockResolvedValue(org());
+    await mount();
+
+    await userEvent.click(screen.getByRole("radio", { name: /^Server/ }));
+    await choose("Model", "Whisper");
+    await userEvent.click(screen.getByRole("radio", { name: /^Browser/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() =>
+      expect(apiClient.patch).toHaveBeenCalledWith(`/orgs/${ORG_ID}`, {
+        chat_dictation: "browser",
+        speech_to_text_provider: "openai",
+        speech_to_text_model: "whisper-1",
+        speech_to_text_language: null,
+        dictation_max_seconds: 300,
+      }),
+    );
+  });
+
   it("warns when server dictation has no provider credentials left", async () => {
     await mount({
       chat_dictation: "server",

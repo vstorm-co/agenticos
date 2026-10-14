@@ -78,8 +78,6 @@ async def list_org_visible_by_purpose(
     Narrowed to one `kind` as well, because a purpose says which service and
     the kind says whether the value is something that service accepts.
     """
-    if not purposes:
-        return []
     result = await db.execute(
         select(OrganizationSecret)
         .where(

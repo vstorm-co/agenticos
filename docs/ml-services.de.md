@@ -1,5 +1,5 @@
 ---
-source_sha: "ccd0a3bcc61d"
+source_sha: "cb4976d8aeea"
 ---
 
 # Die ML-Dienste { #the-ml-services }
@@ -155,12 +155,17 @@ nie den `OPENAI_API_KEY` des Deployments. Schlüssel zuerst ist das, was einen
 Kanal-Bot bei OpenAI transkribieren lässt, nachdem jemand ein schlüsselloses
 `openai`-Profil für einen Chat-Proxy ohne `/audio/transcriptions` angelegt hat.
 
-Der Vault-Schlüssel ist immer nur einer, der **für die ganze Organisation
-sichtbar** ist. Der private Schlüssel eines Mitglieds wird nie für eine Aufnahme
-ausgegeben, denn was er bezahlen würde, gehört allen: eine Sprachnachricht in
-einem Kanal, ein Diktat im Chat eines anderen. Eine Organisation, die einen
-OpenAI-Schlüssel im Vault hält und kein OpenAI-Chatmodell betreibt, transkribiert
-also darauf, ohne ein model profile, das sie nicht braucht. Dieselbe Reihenfolge
+Der Rückgriff auf den Vault liest nur Schlüssel, die **für die ganze
+Organisation sichtbar** sind: Der private Schlüssel eines Mitglieds im Vault
+wird für eine Aufnahme nicht herangezogen, denn was er bezahlen würde, gehört
+allen - eine Sprachnachricht in einem Kanal, ein Diktat im Chat eines anderen.
+Eine Organisation, die einen OpenAI-Schlüssel im Vault hält und kein
+OpenAI-Chatmodell betreibt, transkribiert also darauf, ohne ein model profile,
+das sie nicht braucht.
+
+Ein model profile wird so verwendet, wie es eingerichtet ist: Ein Profil, das
+auf einen privaten Schlüssel zeigt, transkribiert also darauf, so wie ein
+Chat-Run auf diesem Profil ihn ausgibt. Dieselbe Reihenfolge
 gilt für diesen Endpunkt, das Diktieren und Sprachnachrichten aus Kanälen. Die
 Liste des Vaults mit den Agents, die einen Schlüssel benutzen, enthält diese
 Verwendung nicht, weil kein Agent den Schlüssel bindet.
@@ -174,8 +179,8 @@ Anfrage-URL samt Schlüssel in seine Meldung.
 |---|---|---|
 | `not_configured` | 503 | Keine brauchbaren Zugangsdaten für den Anbieter; beim Diktieren auch: Server-Diktat nicht eingerichtet |
 | `empty` | 400 | Die Engine hat keine Sprache gehört, oder die Aufnahme hat keine Bytes |
-| `unsupported_type` | 400 | Nur beim Diktieren: die Aufnahme ist kein WebM-, Ogg-, MP4- oder WAV-Audio |
-| `too_large` | 400 | Über 25 MB oder über der Diktatgrenze der Organisation |
+| `unsupported_type` | 400 | Nur beim Diktieren: die Aufnahme ist kein WebM-, Ogg-, MP4- oder WAV-Audio, oder - auf einer gehosteten Seite oder in einem Widget - ihre Länge lässt sich nicht lesen |
+| `too_large` | 400 | Über 25 MB oder über der Diktatgrenze der Organisation in Bytes oder in gemessener Länge; `details.limit_seconds` nennt die Grenze |
 | `provider_error` | 503 | Der Anbieter hat die Anfrage abgelehnt oder ist daran gescheitert |
 | `timeout` | 503 | Der Anbieter hat nicht innerhalb von 60 Sekunden geantwortet |
 
@@ -193,7 +198,7 @@ diktieren, den sie ausführen darf, ein Viewer mit einem
 antwortet mit 404, wie überall sonst.
 
 Was es aus der Organisation liest, eingestellt auf der
-[Voice-Karte](console.md#the-voice-card) von jemandem mit `org:settings`:
+[Karte Stimme (Voice)](console.md#the-voice-card) von jemandem mit `org:settings`:
 `chat_dictation` (`off`, `browser` oder `server`; alles außer `server` wird als
 `not_configured` abgelehnt), `speech_to_text_provider` und
 `speech_to_text_model` (ein Paar aus dem Speech-to-Text-Katalog),
@@ -207,7 +212,8 @@ Mikrofon funktionieren wird, bevor jemand aufnimmt: `engine`, `max_seconds`,
 `provider`, `format`, `ready` und `server_available`. `server_available`
 verlangt ein Paar, das sich für diesen Agent auflöst, einen Katalog, der es noch
 anbietet, und Zugangsdaten für seinen Anbieter in der Organisation - auf ihr
-Vorhandensein geprüft, nie geöffnet; `ready` ist das und die Engine `server`.
+Vorhandensein geprüft, nie geöffnet; `ready` ist das, die Engine `server` und
+ein Agent, der nicht archiviert ist.
 Das Embed-Formular liest `server_available`, denn eine
 [gehostete Seite oder ein Widget](channels.md#dictation-on-a-widget-or-a-hosted-page)
 hängt nicht an der Engine von `/chat`.
@@ -219,16 +225,27 @@ ohne veröffentlichte Version antwortet aus den Einstellungen der Organisation.
 
 Die Aufnahme muss `audio/webm`, `audio/ogg`, `audio/mp4` oder `audio/wav`
 sein, ein Codec-Suffix ist erlaubt, und `audio/x-wav` sowie `audio/wave` werden
-als `audio/wav` gelesen, `audio/x-m4a` als `audio/mp4`. Die ersten drei erzeugt `MediaRecorder` in Browsern;
+als `audio/wav` gelesen, `audio/x-m4a` und `audio/m4a` als `audio/mp4` und
+`audio/opus` sowie `audio/x-ogg` als `audio/ogg`. Die ersten drei erzeugt `MediaRecorder` in Browsern;
 WAV nimmt das Eingabefeld selbst auf, wenn `format` `wav` sagt, was der Katalog
 für Mistral sagt (siehe den Hinweis unten). Der Anbieter erhält die Aufnahme als `recording.webm`,
 `recording.ogg`, `recording.m4a` oder `recording.wav`, nach derselben Tabelle,
 die eine Sprachnotiz aus einem Kanal `voice.<ext>` nennt.
 
-Die Route liest höchstens 25 MB des Bodys; die eigene Grenze
-der Organisation, `dictation_max_seconds × 32 KB`, gilt für das Gelesene. Ein
-Body, den die Anfragegrenze des Deployments ablehnt, bevor die Route läuft,
-bekommt 413 ohne `reason`, was das Eingabefeld als `too_large` liest.
+Die Route liest höchstens 25 MB des Bodys; die Byte-Grenze der Organisation,
+`dictation_max_seconds × 32 KB`, gilt für das Gelesene. Ein Body, den die
+Anfragegrenze des Deployments ablehnt, bevor die Route läuft, bekommt 413 ohne
+`reason`, was das Eingabefeld als `too_large` liest.
+
+Dann wird **die Länge
+der Aufnahme aus ihrem Container gelesen** - dem WAV-Header, der letzten
+Ogg-Seite, den Zeitstempeln der WebM-Blöcke, den Movie- oder Fragment-Headern
+von MP4 -, und eine Aufnahme, die länger als `dictation_max_seconds` ist, wird
+als `too_large` abgelehnt, bevor der Provider aufgerufen wird, mit drei Sekunden
+Spielraum, weil das Eingabefeld im Sekundentakt stoppt. Eine Aufnahme, deren
+Länge sich nicht lesen lässt, wird hier innerhalb der Byte-Grenze angenommen;
+[eine gehostete Seite oder ein Widget](channels.md#what-it-costs-and-what-bounds-it)
+lehnt sie ab.
 
 Jede Person darf `RATE_LIMIT_DICTATION_PER_MINUTE`-mal pro Minute diktieren,
 standardmäßig 10, auf einem eigenen Zähler, sodass Diktieren nicht das
@@ -259,9 +276,9 @@ aufgezeichnet.
 #### Welche Engine eine Aufnahme erreicht { #which-engine-a-recording-reaches }
 
 Drei Stellen können eine Speech-to-Text-Engine nennen: die
-[Voice-Karte](console.md#the-voice-card) der Organisation, die
+[Karte Stimme (Voice)](console.md#the-voice-card) der Organisation, die
 [`speech_to_text`](reference/spec.md#speech-to-text)-Überschreibung eines Agents,
-eingestellt auf seiner eigenen [Voice-Karte](console.md#an-agents-own-engine)
+eingestellt auf seiner eigenen [Karte Stimme (Voice)](console.md#an-agents-own-engine)
 und live, sobald er veröffentlicht ist, und ein
 [Kanal-Bot](channels.md#what-every-channel-shares). Sie lösen sich in zwei
 Hälften auf:
@@ -361,14 +378,15 @@ Zeile: die API (`surface: api`), [Diktat](#dictation-in-chat) (`chat`) und die
 (`channel`). Die Zeile ergänzt `provider` und `model`, die `agent_id`, für die sie
 war - der Agent, in den diktiert wurde, oder der Agent, den der Bot bedient -,
 die `channel_bot_id` und `audio_ms`, die Länge der Aufnahme. Das `requested_by`
-einer Sprachnachricht ist die Person, mit der der Absender verknüpft ist, oder
-niemand. Erfasst wird nur eine Aufnahme, die dem Provider übergeben wurde; ein
+einer Sprachnachricht ist die Person, mit der der Absender verknüpft ist,
+solange sie Mitglied der Organisation ist, oder niemand. Erfasst wird nur eine Aufnahme, die dem Provider übergeben wurde; ein
 ausgeschalteter Bot oder einer ohne Engine zum Erben hat niemanden gefragt.
 
 Die Länge ist die erste bekannte von diesen:
 
 | Quelle | Wer sie liefert |
 |---|---|
+| Die Aufnahme selbst | Nur Diktat: die aus ihrem Container gelesene Länge, wie oben |
 | Die Antwort des Providers | OpenAI `whisper-1` (`usage.seconds`), Groq (`duration`, angefordert mit `response_format=verbose_json`), Mistral (`usage.prompt_audio_seconds`) |
 | Die Metadaten der Plattform | Eine Telegram-Sprachnachricht oder Audiodatei, ein Slack-Clip |
 | Der Browser | Nur Diktat: die `duration`, die das Eingabefeld schickt, begrenzt auf das längste Diktat der Organisation, weil es das Wort des Clients ist |
@@ -381,15 +399,18 @@ mit leerem `audio_ms` - ungemessen, nicht still.
 `GET /api/v1/ml/calls` filtert außer nach `ml_service` auch nach `agent_id`,
 `channel_bot_id`, `surface`, `since` und `until`, immer innerhalb der
 Organisation des Aufrufers: Die Agent-ID eines anderen Mandanten passt auf
-nichts.
+nichts. Agent, Bot und Weg - als Filter und als Spalten - verlangen `runs:view`,
+wie die Zusammenfassung unten. Mit `ml:invoke` allein wird ein Filter darauf mit
+403 abgelehnt, und die drei kommen in jeder Zeile als null zurück.
 
 `GET /api/v1/ml/calls/summary?days=30` summiert die erfolgreichen
-Transkriptionen über ein Zeitfenster: `seconds` und `count`,
-`count_unknown_length` für die Aufnahmen, die die Sekunden auslassen, und
+Transkriptionen über ein Zeitfenster: `seconds` - die eigenen `units` jeder
+Zeile, also die Aufnahme auf die Sekunde aufgerundet, addiert, damit die
+Zusammenfassung zur Liste passt - und `count`, `count_unknown_length` für die Aufnahmen, die die Sekunden auslassen, und
 dasselbe nach Agent, nach Kanal-Bot und nach Weg (`surface`). Es verlangt
 `runs:view`, wie [`GET /spend`](governance.md#what-the-cost-screen-shows), statt
 `ml:invoke`: Die Aufschlüsselung nennt Agents und Bots, die ein Member
-möglicherweise nicht sehen darf. Die [Voice-Karte](console.md#the-voice-card) der
+möglicherweise nicht sehen darf. Die [Karte Stimme (Voice)](console.md#the-voice-card) der
 Organisation zeigt es in einer Zeile.
 
 ## Grenzen { #limits }

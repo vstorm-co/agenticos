@@ -148,15 +148,19 @@ class TestWhichAttachmentsGoWhere:
         assert [a.filename for a in recordings] == ["note.mp3"]
         assert rest == []
 
-    def test_each_recording_is_logged_with_its_type_and_name(
+    def test_each_recording_is_logged_with_its_type_and_never_its_name(
         self, caplog: pytest.LogCaptureFixture
     ):
-        """The line a live failure is diagnosed from: what the platform called
-        the recording, and that it went to transcription."""
+        """The line a live failure is diagnosed from: what the platform typed the
+        recording, which message and which of its files - and not the name a
+        sender chose, which can be personal."""
+        incoming = _incoming(_voice("Call with Dr Kowalska.opus"), _document())
+        incoming.message_id = "m-42"
         with caplog.at_level("INFO", logger="app.services.channels.router"):
-            ChannelMessageRouter._split_recordings(_incoming(_voice("note.opus"), _document()))
+            ChannelMessageRouter._split_recordings(incoming)
 
-        assert "type=audio/ogg filename=note.opus" in caplog.text
+        assert "message=m-42 recording=0 type=audio/ogg" in caplog.text
+        assert "Kowalska" not in caplog.text
         assert "report.pdf" not in caplog.text
 
 

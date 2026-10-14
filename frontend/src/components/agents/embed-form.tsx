@@ -98,7 +98,8 @@ export function EmbedForm({
   const readiness = useDictationStatus(kind === "socket" ? null : agentId);
   const stored = embed?.config;
   const serverDictation: ServerDictationChoice = {
-    available: readiness === null ? null : readiness.server_available,
+    available: readiness.status === null ? null : readiness.status.server_available,
+    unchecked: readiness.failed,
     wasServer: stored !== undefined && stored.kind !== "socket" && stored.dictation === "server",
   };
 

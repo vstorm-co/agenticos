@@ -18,7 +18,7 @@ from uuid import UUID
 
 from pydantic import Field
 
-from app.db.models.ml_service_call import TranscriptionSurface
+from app.db.models.ml_service_call import MLServiceCall, TranscriptionSurface
 from app.db.models.organization import DictationEngine
 from app.schemas.base import BaseSchema, TimestampSchema
 from app.services.speech_to_text import RecordingFormat
@@ -136,15 +136,16 @@ class DictationStatusRead(BaseSchema):
     engine: DictationEngine = Field(description="The organization's dictation engine for `/chat`")
     ready: bool = Field(
         description=(
-            "The engine is `server`, a provider and model resolve for this agent, "
-            "the catalog offers them and the organization holds a credential for "
-            "the provider. Configured, not proven: a revoked key fails on the "
-            "first recording."
+            "The engine is `server`, the agent is not archived, a provider and model "
+            "resolve for it, the catalog offers them and the organization holds a "
+            "credential for the provider. Configured, not proven: a revoked key fails "
+            "on the first recording."
         )
     )
     server_available: bool = Field(
         description=(
-            "`ready` without the engine: a provider and model resolve for this agent, "
+            "`ready` without the engine or the archive check: a provider and model "
+            "resolve for this agent, "
             "the catalog offers them and a credential exists. What a hosted page or a "
             "widget set to `server` needs, since the `/chat` engine does not gate them."
         )
@@ -255,11 +256,24 @@ class MLServiceCallRead(BaseSchema, TimestampSchema):
     audio_ms: int | None = Field(
         default=None,
         description=(
-            "The recording's length in milliseconds: the provider's figure where it gives "
-            "one, else the platform's metadata, else the browser's for a dictation. Null "
-            "where nobody reported it"
+            "The recording's length in milliseconds. A dictation's is read from the "
+            "recording itself where its container states one; otherwise the provider's "
+            "figure, else the platform's metadata, else the browser's for a dictation. "
+            "Null where nobody reported it"
         ),
     )
+
+    @classmethod
+    def of(cls, row: MLServiceCall, *, attributed: bool) -> MLServiceCallRead:
+        """One record, with its agent, bot and surface only for a caller who may see them.
+
+        `attributed` is `MLService.sees_attribution`; without it the three are
+        null, as on a row written before they existed.
+        """
+        read = cls.model_validate(row)
+        if attributed:
+            return read
+        return read.model_copy(update={"agent_id": None, "channel_bot_id": None, "surface": None})
 
 
 class MLServiceCallList(BaseSchema):
@@ -272,7 +286,9 @@ class TranscriptionUsageByAgent(BaseSchema):
 
     agent_id: UUID
     name: str
-    seconds: int = Field(description="Audio seconds with a known length, rounded to the nearest")
+    seconds: int = Field(
+        description="Audio seconds, each recording rounded up as its call record's `units`"
+    )
     count: int = Field(description="Successful transcriptions, with a length or without")
 
 
@@ -302,8 +318,9 @@ class TranscriptionUsageSummary(BaseSchema):
     days: int
     seconds: int = Field(
         description=(
-            "Audio seconds across the recordings whose length is known. An under-count "
-            "whenever `count_unknown_length` is not 0"
+            "Audio seconds across the recordings whose length is known, each rounded up "
+            "to the second as its call record's `units`, so this is the sum of what "
+            "`GET /ml/calls` lists. An under-count whenever `count_unknown_length` is not 0"
         )
     )
     count: int = Field(description="Successful transcriptions in the window")
@@ -325,18 +342,18 @@ class TranscriptionUsageSummary(BaseSchema):
 
     @classmethod
     def of(cls, summary: UsageSummary, *, days: int) -> TranscriptionUsageSummary:
-        """Serialize a summary, its milliseconds as whole seconds, half rounding up."""
+        """Serialize a summary; its seconds are already whole, summed from `units`."""
         return cls(
             service="speech_to_text",
             days=days,
-            seconds=_seconds(summary.audio_ms),
+            seconds=summary.seconds,
             count=summary.count,
             count_unknown_length=summary.count_unknown_length,
             by_agent=[
                 TranscriptionUsageByAgent(
                     agent_id=group.id,
                     name=group.name,
-                    seconds=_seconds(group.audio_ms),
+                    seconds=group.seconds,
                     count=group.count,
                 )
                 for group in summary.by_agent
@@ -345,7 +362,7 @@ class TranscriptionUsageSummary(BaseSchema):
                 TranscriptionUsageByChannel(
                     channel_bot_id=group.id,
                     name=group.name,
-                    seconds=_seconds(group.audio_ms),
+                    seconds=group.seconds,
                     count=group.count,
                 )
                 for group in summary.by_channel
@@ -353,13 +370,9 @@ class TranscriptionUsageSummary(BaseSchema):
             by_surface=[
                 TranscriptionUsageBySurface(
                     surface=group.surface,
-                    seconds=_seconds(group.audio_ms),
+                    seconds=group.seconds,
                     count=group.count,
                 )
                 for group in summary.by_surface
             ],
         )
-
-
-def _seconds(audio_ms: int) -> int:
-    return (audio_ms + 500) // 1000

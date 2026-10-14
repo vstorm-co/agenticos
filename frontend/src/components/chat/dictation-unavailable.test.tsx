@@ -18,20 +18,9 @@ beforeAll(() => {
   }
 });
 
-function show(
-  why: "not_ready" | "no_agent" = "not_ready",
-  voiceSettingsHref: string | null = null,
-  agentVoiceHref: string | null = null,
-) {
+function show(why: "not_ready" | "no_agent" = "not_ready", canSetUp = false) {
   const onExplain = vi.fn();
-  render(
-    <DictationUnavailable
-      why={why}
-      voiceSettingsHref={voiceSettingsHref}
-      agentVoiceHref={agentVoiceHref}
-      onExplain={onExplain}
-    />,
-  );
+  render(<DictationUnavailable why={why} canSetUp={canSetUp} onExplain={onExplain} />);
   return { onExplain, button: screen.getByRole("button", { name: "Voice input" }) };
 }
 
@@ -81,38 +70,26 @@ describe("DictationUnavailable", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("links an org:settings holder to the Voice card", () => {
-    const { button } = show("not_ready", "/orgs/o1/members#org-voice");
+  it("points whoever may set it up at the press, with no link it could never reach", () => {
+    // The popover closes when the pointer or the focus leaves the button, so a
+    // link in it is one nobody can click; the strip a press opens has them.
+    const { button } = show("not_ready", true);
 
     fireEvent.focus(button);
 
-    expect(screen.getByRole("link", { name: "Open Voice settings" })).toHaveAttribute(
-      "href",
-      "/orgs/o1/members#org-voice",
-    );
+    const popover = screen.getByRole("dialog");
+    expect(popover).toHaveTextContent("Press the microphone to see where to set it up.");
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
     expect(screen.queryByText("Ask an admin to set it up.")).not.toBeInTheDocument();
   });
 
-  it("links an agent editor to this agent's Voice card, beside the organization's", () => {
-    const { button } = show("not_ready", "/orgs/o1/members#org-voice", "/agents/a1#agent-voice");
+  it("holds no link for a member either", () => {
+    const { button } = show();
 
-    fireEvent.focus(button);
+    fireEvent.pointerEnter(button, { pointerType: "mouse" });
 
-    expect(screen.getByRole("link", { name: "Set one for this agent" })).toHaveAttribute(
-      "href",
-      "/agents/a1#agent-voice",
-    );
-    expect(screen.getByRole("link", { name: "Open Voice settings" })).toBeInTheDocument();
-  });
-
-  it("links an agent editor without org settings to the agent alone", () => {
-    const { button } = show("not_ready", null, "/agents/a1#agent-voice");
-
-    fireEvent.focus(button);
-
-    expect(screen.getByRole("link", { name: "Set one for this agent" })).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Open Voice settings" })).not.toBeInTheDocument();
-    expect(screen.queryByText("Ask an admin to set it up.")).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toHaveTextContent("Ask an admin to set it up.");
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 
   it("opens on a mouse hover and closes when it leaves, but not for a finger", () => {

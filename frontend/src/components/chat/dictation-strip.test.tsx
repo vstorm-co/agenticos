@@ -313,6 +313,18 @@ describe("dictationHint", () => {
       ["Retry in 40 s", "Discard"],
     ],
     [
+      "a session that ended, keeping nothing",
+      { state: { phase: "failed", reason: "signed_out" } },
+      /^You're signed out\. Sign in again, then record again\./,
+      ["Dismiss"],
+    ],
+    [
+      "a person who may not dictate to this agent, keeping nothing",
+      { state: { phase: "failed", reason: "forbidden" } },
+      /^You're not allowed to dictate to this agent\. Ask an admin for access to it\./,
+      ["Dismiss"],
+    ],
+    [
       "a server not set up, to a member",
       { state: { phase: "failed", reason: "not_configured" } },
       /Dictation isn't set up yet\. .* Ask an admin to set it up\./,
@@ -517,10 +529,62 @@ describe("dictationHint", () => {
     expect(screen.queryByText(/Ask an admin/)).not.toBeInTheDocument();
   });
 
-  it("holds the rate-limited retry until the wait has passed", () => {
-    show({ state: { phase: "failed", reason: "rate_limited", canRetry: true, retryAfter: 12 } });
+  it("holds the rate-limited retry until the wait has passed, under a name that does not tick", () => {
+    const { rerender, actions } = show({
+      state: { phase: "failed", reason: "rate_limited", canRetry: true, retryAfter: 12 },
+    });
+    const retry = screen.getByRole("button", { name: "Retry" });
+    expect(retry).toBeDisabled();
+    expect(retry).toHaveTextContent("Retry in 12 s");
 
-    expect(screen.getByRole("button", { name: "Retry in 12 s" })).toBeDisabled();
+    const later = (
+      <Harness
+        state={dictationState({
+          phase: "failed",
+          reason: "rate_limited",
+          canRetry: true,
+          retryAfter: 11,
+        })}
+        actions={actions}
+        maxSeconds={300}
+        unavailable={null}
+        voiceSettingsHref={null}
+        agentVoiceHref={null}
+        closeExplanation={vi.fn()}
+      />
+    );
+    rerender(later);
+
+    // Inside the alert only the accessible name is read, and it held still.
+    expect(screen.getByRole("button", { name: "Retry" })).toHaveTextContent("Retry in 11 s");
+    expect(screen.getByText("Retry in 11 s")).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("reads the countdown out once: the ticking clock is hidden, the spoken sentence holds still", () => {
+    const at = (remaining: number) => (
+      <Harness
+        state={dictationState({ phase: "recording", remaining })}
+        actions={fakeActions()}
+        maxSeconds={300}
+        unavailable={null}
+        voiceSettingsHref={null}
+        agentVoiceHref={null}
+        closeExplanation={vi.fn()}
+      />
+    );
+    const { rerender } = render(at(22));
+    const spoken = () => screen.getByText(/The recording is about to stop\./).closest("span")!;
+    const before = spoken().textContent;
+
+    rerender(at(21));
+
+    expect(screen.getByText("0:21 left.").closest("[aria-hidden]")).toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
+    expect(spoken()).toHaveClass("sr-only");
+    expect(spoken().textContent).toBe(before);
+    expect(before).toBe("The recording is about to stop. At 5:00 it stops and is transcribed.");
   });
 
   it.each<[string, Partial<DictationState>, string, keyof DictationActions]>([
