@@ -23,11 +23,12 @@ vi.mock("@/hooks/use-message-rating", () => ({
 const datasets = vi.hoisted(() => ({
   granted: [] as string[],
   add: vi.fn(),
-  list: [
-    { id: "d1", name: "refunds", can_edit: true },
-    { id: "d2", name: "returns", can_edit: true },
-  ],
+  list: [] as { id: string; name: string; can_edit: boolean }[],
 }));
+const EDITABLE = [
+  { id: "d1", name: "refunds", can_edit: true },
+  { id: "d2", name: "returns", can_edit: true },
+];
 vi.mock("@/hooks/use-permissions", () => ({
   usePermissions: () => ({ can: (perm: string) => datasets.granted.includes(perm) }),
 }));
@@ -412,10 +413,19 @@ describe("adding a rated-down answer to a dataset", () => {
 
   beforeEach(() => {
     datasets.granted = [Perm.datasetsEdit];
+    datasets.list = EDITABLE;
+  });
+
+  it("is offered to a member whose role edits no dataset but a grant edits one", async () => {
+    datasets.granted = [Perm.datasetsView];
+    mount();
+    await userEvent.click(down());
+    expect(alsoAdd()).toBeInTheDocument();
   });
 
   it("is not offered to somebody who edits no dataset", async () => {
     datasets.granted = [Perm.datasetsView];
+    datasets.list = [{ id: "d3", name: "theirs", can_edit: false }];
     mount();
     await userEvent.click(down());
     expect(screen.queryByRole("checkbox", { name: "alsoAddToDataset" })).toBeNull();
@@ -526,6 +536,7 @@ describe("adding a rated-down answer to a dataset", () => {
 
   it("offers no add on a thumbs-up to somebody who edits no dataset", async () => {
     datasets.granted = [];
+    datasets.list = [];
     mount();
     await userEvent.click(up());
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("thankYouFeedback"));

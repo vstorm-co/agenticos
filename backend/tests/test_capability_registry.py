@@ -573,6 +573,48 @@ class TestReadOnlyDeclarations:
         assert (tool.name, tool.read_only) == ("look_up_note", True)
 
 
+class TestTestKeyIsolation:
+    """Which capabilities let a swapped vault key carry their writes into an eval.
+
+    The declaration is what lets a write execute in an isolated run, so it is
+    pinned: a capability gaining it fails here until somebody decides.
+    """
+
+    DECLARED: frozenset[str] = frozenset()
+
+    #: Config fields that name where a capability's calls go. A capability with
+    #: one can be pointed at production whatever key it holds.
+    _TARGET = re.compile(r"(url|host|endpoint)", re.IGNORECASE)
+
+    def test_the_declarations_are_the_ones_decided(self):
+        declared = {d.id for d in all_capabilities() if d.test_key_isolates}
+
+        assert declared == self.DECLARED
+
+    def test_a_capability_whose_config_names_a_target_never_declares_it(self):
+        """A test key next to a production URL still writes to production."""
+        offending = {
+            definition.id
+            for definition in all_capabilities()
+            if definition.test_key_isolates
+            and definition.config_schema is not None
+            and any(self._TARGET.search(name) for name in definition.config_schema.model_fields)
+        }
+
+        assert offending == set()
+
+    def test_the_config_check_sees_the_capabilities_it_exists_for(self):
+        """Without this the check above could pass by matching nothing."""
+        named = {
+            definition.id
+            for definition in all_capabilities()
+            if definition.config_schema is not None
+            and any(self._TARGET.search(name) for name in definition.config_schema.model_fields)
+        }
+
+        assert {"browser_choice", "browser_use", "memory_mem0"} <= named
+
+
 class TestProviderExecutedDeclarations:
     """What a capability says the model provider runs on its own side.
 

@@ -2623,6 +2623,8 @@
     "theOrganizations": "Die der Organisation",
     "toolSelectionSaved": "Tool-Auswahl gespeichert.",
     "tools": "Tools",
+    "trustReadOnlyHints": "Evals Tools aufrufen lassen, die dieser Server als nur lesend markiert",
+    "trustReadOnlyHintsHint": "Evals halten jeden Aufruf eines Produktionsservers an, solange Sie ihm nicht vertrauen: Die Markierung „nur lesend“ ist die eigene Angabe des Servers. {count, plural, =0 {Kein Tool hier beansprucht sie.} =1 {1 Tool hier beansprucht sie.} other {# Tools hier beanspruchen sie.}}",
     "toolsFrom": "Tools aus „{name}“",
     "toolsSelected": "{on} von {total} aktiv",
     "unreachable": "Nicht erreichbar",
@@ -5743,6 +5745,12 @@
     "importRowProblem": "Zeile {row}: {message}",
     "importRowFieldProblem": "Zeile {row}, {field}: {message}",
     "checkCount": "{count, plural, =1 {1 Prüfung} other {# Prüfungen}}",
-    "hasNote": "Notiz"
+    "hasNote": "Notiz",
+    "editDetails": "Details bearbeiten",
+    "editDetailsBody": "Wie das Dataset heißt und wofür es da ist. Eine Änderung erzeugt keine neue Version, weil sich kein Fall ändert.",
+    "saveDetails": "Speichern",
+    "detailsSaved": "Gespeichert",
+    "olderVersion": "Ältere Version Nr.",
+    "findDataset": "Dataset suchen"
   }
 }

@@ -1,5 +1,5 @@
 ---
-source_sha: "63bea32cff7a"
+source_sha: "2bec95c1a323"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -65,8 +65,15 @@ widziały te same pytania, więc różnica w wynikach pochodzi od agenta, a nie 
 testu. Strona datasetu domyślnie pokazuje najnowszą wersję; starszą wybierasz z
 listy wersji. Starsza wersja jest tylko do odczytu.
 
-Zmiana nazwy datasetu albo jego opisu nie tworzy wersji, bo żadna z nich nie
-zmienia przypadku.
+Zmiana nazwy datasetu albo jego opisu, przyciskiem **Edytuj szczegóły** na jego
+stronie, nie tworzy wersji, bo żadna z nich nie zmienia przypadku.
+
+Lista wersji pokazuje sto najnowszych; starszą otwiera się, wpisując jej numer.
+Każda wersja trzyma wiersz na przypadek, więc wersje jednej organizacji
+trzymają łącznie najwyżej `DATASET_MAX_VERSION_ROWS_PER_ORG` wierszy (domyślnie
+5 milionów, zobacz [Konfiguracja](configuration.md#datasets)). Zmiana ponad to
+jest odrzucana z podaniem, ile jest zajęte; usunięcie datasetu zwalnia jego
+wiersze.
 
 ## Dodawanie przypadków { #adding-cases }
 

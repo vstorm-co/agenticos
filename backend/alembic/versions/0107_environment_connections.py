@@ -14,7 +14,12 @@ from - or missing from - the original run's recording, and a call an approval
 gate would have held, which an isolated run cannot ask about. Trajectory scoring reads
 the arguments the agent meant to send from here.
 
-Both tables are new, so nothing is backfilled.
+`mcp_connections.trust_read_only_hints` says whether an isolated run believes a
+server's `readOnlyHint`. It defaults to false on every row: the hint is the
+server's own claim, so a tool it marks is held like any other until somebody
+chooses to trust that server.
+
+Both tables are new and the column has a default, so nothing is backfilled.
 
 Revision ID: 0107_environment_connections
 Revises: 0106_datasets
@@ -35,6 +40,15 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
+    op.add_column(
+        "mcp_connections",
+        sa.Column(
+            "trust_read_only_hints",
+            sa.Boolean(),
+            server_default=sa.text("false"),
+            nullable=False,
+        ),
+    )
     op.create_table(
         "agent_environment_connections",
         sa.Column("id", sa.UUID(), nullable=False),
@@ -152,3 +166,4 @@ def downgrade() -> None:
         table_name="agent_environment_connections",
     )
     op.drop_table("agent_environment_connections")
+    op.drop_column("mcp_connections", "trust_read_only_hints")

@@ -55,7 +55,7 @@ export function useDatasets({
   const tErrors = useTranslations("errors");
   const queryClient = useQueryClient();
 
-  const { data, isLoading, error, refetch } = useQuery({
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: qk.datasets.list({ search, sort, skip, limit }),
     queryFn: () => {
       const params = new URLSearchParams();
@@ -97,6 +97,7 @@ export function useDatasets({
     datasets: data?.items ?? [],
     total: data?.total ?? 0,
     isLoading,
+    isFetching,
     error,
     refetch,
     create,

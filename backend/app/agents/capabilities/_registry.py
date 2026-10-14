@@ -331,6 +331,15 @@ class CapabilityDef:
     capability nobody classified is blocked in an eval rather than allowed to
     send the e-mail it was written to send. A tool may override it either way.
     """
+    test_key_isolates: bool = False
+    """Whether a test key alone moves this capability's writes off production.
+
+    True only where the vault key *is* the target - a provider's test account,
+    as with Stripe's test keys - and no URL, host or endpoint in the config also
+    names one. An isolated run lets the writing tools of a binding whose key the
+    environment swapped execute only under this declaration; otherwise a swapped
+    key stands in for the credential while the writes are still recorded, not run.
+    """
 
     def needs_secret(self, config: BaseModel | None) -> bool:
         """Whether a binding with this configuration must name a secret.
@@ -434,6 +443,7 @@ def register(
     secret: SecretRequirement | None = None,
     provider_executed: ProviderExecuted | None = None,
     read_only: bool = False,
+    test_key_isolates: bool = False,
 ) -> Callable[[CapabilityBuilder], CapabilityBuilder]:
     """Register a capability builder.
 
@@ -463,6 +473,10 @@ def register(
     what lets them execute in an eval; see :attr:`CapabilityDef.read_only`. A
     tool that delegates to other tools counts as read-only, because each of
     those tools is held to its own declaration.
+
+    `test_key_isolates` declares that swapping the binding's vault key for a test
+    one moves every write to a test system; see
+    :attr:`CapabilityDef.test_key_isolates`.
 
     `tools` has no default on purpose. It is what the Builder offers per-tool
     approval for and what the approval gate matches on, so a capability that
@@ -495,6 +509,7 @@ def register(
             secret=secret,
             provider_executed=provider_executed,
             read_only=read_only,
+            test_key_isolates=test_key_isolates,
         )
         existing = REGISTRY.get(definition.id)
         if existing is not None and existing is not definition:

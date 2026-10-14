@@ -171,7 +171,7 @@ def build_agent(
     recorded_overhead: int | None = None,
     recorded_reminder_state: dict[str, Any] | None = None,
     isolation: RunIsolation | None = None,
-    test_secret_ids: frozenset[UUID] = frozenset(),
+    test_bindings: frozenset[str] = frozenset(),
 ) -> BuiltAgent:
     """Instantiate an agent from its spec.
 
@@ -232,9 +232,9 @@ def build_agent(
             environment's test connections execute, and everything else is
             recorded instead (see :mod:`app.agents.isolation`). An isolated agent
             has no approval channel, so a gated call is refused, never parked.
-        test_secret_ids: The secrets the run's environment swapped in for test
-            ones. A binding authenticating with one reaches a test system, so its
-            tools may write in an isolated run.
+        test_bindings: The capability bindings whose vault key the run's
+            environment swapped for a test one. Their tools may write in an
+            isolated run only where the capability declares `test_key_isolates`.
 
     Raises:
         BadRequestError: If the spec references an unknown tool, an invalid tool
@@ -364,7 +364,7 @@ def build_agent(
             else (
                 IsolationGuard(
                     isolation=isolation,
-                    tools=capability_tools(spec, test_secret_ids=test_secret_ids),
+                    tools=capability_tools(spec, test_bindings=test_bindings),
                     agent_id=agent_id,
                     approval=gate,
                 ),

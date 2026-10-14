@@ -156,10 +156,10 @@ function useOrgSnapshot(): {
       org: settled(orgs.isLoading, orgs.isFetching, orgs.data?.length ?? 0),
       group: settled(groups.isLoading, groups.isFetching, groups.groups.length),
       routine: settled(routines.isLoading, false, routines.total),
-      dataset: settled(datasets.isLoading, false, datasets.total),
+      dataset: settled(datasets.isLoading, datasets.isFetching, datasets.total),
       case: settled(
         recentDatasets.isLoading,
-        false,
+        recentDatasets.isFetching,
         recentDatasets.datasets.reduce((sum, dataset) => sum + dataset.case_count, 0),
       ),
     },

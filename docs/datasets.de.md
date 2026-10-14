@@ -1,5 +1,5 @@
 ---
-source_sha: "63bea32cff7a"
+source_sha: "2bec95c1a323"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -68,8 +68,17 @@ Ergebnissen vom Agent und nicht vom Test. Die Dataset-Seite zeigt standardmäßi
 die neueste Version; eine ältere wählen Sie in der Versionsliste. Eine ältere
 Version ist schreibgeschützt.
 
-Ein Dataset umzubenennen oder seine Beschreibung zu ändern erzeugt keine
-Version, weil keines von beiden einen Fall ändert.
+Ein Dataset mit **Details bearbeiten** auf seiner Seite umzubenennen oder seine
+Beschreibung zu ändern erzeugt keine Version, weil keines von beiden einen Fall
+ändert.
+
+Die Versionsliste zeigt die hundert neuesten Versionen; eine ältere öffnen Sie,
+indem Sie ihre Nummer eingeben. Jede Version hält eine Zeile pro Fall, daher
+halten die Versionen einer Organisation zusammen höchstens
+`DATASET_MAX_VERSION_ROWS_PER_ORG` Zeilen (standardmäßig 5 Millionen, siehe
+[Konfiguration](configuration.md#datasets)). Eine Änderung darüber wird
+abgelehnt und nennt, wie viele belegt sind; das Löschen eines Datasets gibt
+seine Zeilen frei.
 
 ## Fälle hinzufügen { #adding-cases }
 

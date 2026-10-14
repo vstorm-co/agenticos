@@ -78,7 +78,7 @@ changes nothing outside the run, or reaches a test connection of the
 [environment](../environments.md#in-an-eval). Each capability declares which of
 its tools only read — `read_only`, beside `side_effecting` — and a tool that
 declares nothing writes. These are the tools that write, and that an eval holds
-and records unless their capability's vault key is a test one:
+and records:
 
 | id | Tools that write |
 |---|---|
@@ -95,6 +95,14 @@ own tools are held to their own declarations. `side_effecting` and `read_only`
 answer different questions: the first is what approval asks about by default,
 the second what an eval may run, and an undeclared tool is ungated by the first
 and blocked by the second.
+
+An environment can swap a capability's vault key for a test one, but a swapped
+key does not make a write safe on its own: `browser_choice`'s key is for the
+model that decides, while its `cdp_url` still names the browser that clicks. A
+capability declares `test_key_isolates` only when the key alone picks where its
+writes go, and never with a URL, host or endpoint in its config. No shipped
+capability declares it, so in an eval every write above is recorded, not run,
+whatever key it holds.
 
 ## Knowledge search
 

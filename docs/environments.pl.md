@@ -1,5 +1,5 @@
 ---
-source_sha: "8bd34216f6f5"
+source_sha: "ad3053f2dd89"
 ---
 
 # Środowiska { #environments }
@@ -130,12 +130,20 @@ bezpieczne:
 
 | Narzędzie | Co się dzieje |
 |---|---|
-| Sięga do połączenia testowego środowiska | Działa, na systemie testowym |
+| Sięga do testowego połączenia MCP środowiska | Działa, na systemie testowym |
 | Tylko czyta | Działa na zwykłym połączeniu |
+| Zapisuje, na testowym kluczu z vault | Działa tylko wtedy, gdy jego capability deklaruje, że sam klucz wyznacza cel; inaczej **nie jest wykonywane** i jest zapisywane |
 | Zapisuje i nie ma połączenia testowego | **Nie jest wykonywane.** Zapisywane jako zamierzone wywołanie, z argumentami |
 
-Narzędzie MCP tylko czyta, gdy jego serwer mówi tak przez `readOnlyHint`.
-Narzędzie capability deklaruje to w rejestrze, a
+Klucz testowy zastępuje poświadczenie, ale URL albo host w konfiguracji
+capability nadal może kierować zapisy na produkcję. Dlatego podmieniony klucz
+pozwala capability zapisywać w evalu tylko wtedy, gdy deklaruje ona
+`test_key_isolates`, a [katalog](reference/capabilities.md#what-an-eval-runs)
+wymienia, które to robią.
+
+Narzędzie MCP liczy się jako czytające tylko wtedy, gdy serwer oznacza je
+`readOnlyHint`, a połączenie ma włączone zaufanie do tego oznaczenia. Domyślnie
+nie ma, bo oznaczenie to deklaracja samego serwera. Narzędzie capability deklaruje to w rejestrze, a
 [katalog](reference/capabilities.md#what-an-eval-runs) wymienia, które to robią.
 **Narzędzie, które niczego nie deklaruje, zapisuje.** Model dowiaduje się, że
 wywołanie nie zostało wysłane, a zamierzone wywołanie zostaje zachowane z runem

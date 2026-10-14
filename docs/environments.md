@@ -119,12 +119,20 @@ an eval runs — executes a tool only when that is safe:
 
 | The tool | What happens |
 |---|---|
-| Reaches a test connection of the environment | Runs, against the test system |
+| Reaches a test MCP connection of the environment | Runs, against the test system |
 | Only reads | Runs on the normal connection |
+| Writes, on a test vault key | Runs only if its capability declares that the key alone picks the target; otherwise **not executed** and recorded |
 | Writes, with no test connection | **Not executed.** Recorded as an intended call, with its arguments |
 
-An MCP tool reads only when its server says so with `readOnlyHint`. A
-capability's tool declares it in the registry, and the
+A test key stands in for a credential, but a URL or host in the capability's
+config can still point the writes at production. So a swapped key lets a
+capability write in an eval only when the capability declares
+`test_key_isolates`, and the [catalog](reference/capabilities.md#what-an-eval-runs)
+lists which do.
+
+An MCP tool counts as reading only when its server marks it `readOnlyHint` and
+the connection is set to trust that mark; by default it is not, because the mark
+is the server's own claim. A capability's tool declares it in the registry, and the
 [catalog](reference/capabilities.md#what-an-eval-runs) lists which do. **A tool
 that declares nothing writes.** The model is told the call was not sent, and
 the intended call is kept with the run for scoring.
