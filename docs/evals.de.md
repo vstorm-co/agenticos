@@ -1,5 +1,5 @@
 ---
-source_sha: "e84cec0e2d8e"
+source_sha: "a76406ae9df0"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Draft, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -19,6 +19,22 @@ Ein Run besteht aus vier Entscheidungen: der **Agent** und was davon läuft
 und optional **mehrere Modelle** nebeneinander. Im selben Run kann außerdem
 eine **Baseline** laufen - eine frühere Version -, damit beide Seiten am selben
 Tag auf denselben Provider treffen.
+
+## In der Konsole { #in-the-console }
+
+Der Tab **Evals** eines Agents listet seine Runs, die neuesten zuerst, mit der
+Bestehensquote jedes Kandidaten, den Kosten und dem Status. **Run evals** öffnet
+den Startdialog: Wähle das Dataset, was läuft, die Umgebung, die Modelle und ob
+die vorherige Version daneben läuft, dann **Estimate cost**. Der Run startet erst
+über den Button, der den geschätzten Betrag nennt, unter der Zeile, die sagt,
+was die Budgets des Agents und der Organisation danach behalten.
+
+Die Seite eines Runs zeigt seinen Fortschritt, solange er antwortet, die
+Ergebnisse jedes Arms nebeneinander, den Vergleich mit der Baseline und die
+Fälle - gefiltert nach Ergebnis oder Tag, jeder mit den Antworten, Aufrufen und
+Bewerterbegründungen jedes Arms. Die Karte **Eval runs** im Dashboard listet die
+neuesten Runs der Organisation, und ein in Activity als `eval` markierter Run
+verlinkt zurück zum Evals-Tab seines Agents.
 
 ## Einen Run starten { #starting-a-run }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "e84cec0e2d8e"
+source_sha: "a76406ae9df0"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -18,6 +18,23 @@ dataset**, el **entorno** cuyas conexiones de prueba usan los casos y,
 opcionalmente, **varios modelos** en paralelo. También puede ejecutar un
 **baseline** - una versión anterior - en el mismo run, para que ambos lados se
 encuentren con el mismo provider el mismo día.
+
+## En la consola { #in-the-console }
+
+La pestaña **Evals** de un agent lista sus runs, del más reciente al más
+antiguo, con la tasa de aprobados de cada candidato, el coste y el estado.
+**Run evals** abre el diálogo de inicio: elige el dataset, qué se ejecuta, el
+entorno, los modelos y si la versión anterior se ejecuta a su lado, y luego
+**Estimate cost**. El run solo empieza desde el botón que indica el importe
+estimado, bajo la línea que dice lo que conservan después los budgets del agent
+y de la organización.
+
+La página de un run muestra su progreso mientras responde, los resultados de
+cada brazo en paralelo, la comparación con su baseline y los casos - filtrados
+por resultado o etiqueta, cada uno con las respuestas, llamadas y motivos de los
+evaluadores de cada brazo. La tarjeta **Eval runs** del dashboard lista los runs
+más recientes de la organización, y un run marcado como `eval` en Activity
+enlaza con la pestaña Evals de su agent.
 
 ## Iniciar un run { #starting-a-run }
 

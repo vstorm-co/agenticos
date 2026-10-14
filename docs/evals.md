@@ -17,6 +17,21 @@ version, or the draft as it stands), the **dataset version**, the
 models** side by side. It can also run a **baseline** - an earlier version - in
 the same run, so the two meet the same provider on the same day.
 
+## In the console { #in-the-console }
+
+An agent's **Evals** tab lists its runs, newest first, with each candidate's
+pass rate, the cost and the status. **Run evals** opens the start dialog:
+choose the dataset, what runs, the environment, the models and whether the
+previous version runs beside it, then **Estimate cost**. The run starts only
+from the button that names the estimated amount, under the line that says what
+the agent's and the organization's budgets keep after it.
+
+A run's page shows its progress while it answers, every arm's results side by
+side, the comparison with its baseline, and the cases - filtered by outcome or
+tag, each opening onto every arm's answers, calls and scorer reasons. The
+dashboard's **Eval runs** card lists the organization's latest runs, and a run
+in Activity stamped `eval` links back to its agent's Evals tab.
+
 ## Starting a run { #starting-a-run }
 
 Starting is two calls, so nothing is spent before somebody has seen what it

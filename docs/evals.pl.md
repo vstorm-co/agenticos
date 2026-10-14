@@ -1,5 +1,5 @@
 ---
-source_sha: "e84cec0e2d8e"
+source_sha: "a76406ae9df0"
 title: "Eval runy"
 description: "Eval run odpowiada na każdy przypadek datasetu wersją agenta albo jego draftem, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -18,6 +18,22 @@ Run składa się z czterech wyborów: **agent** i to, co z niego się uruchamia
 **kilka modeli** obok siebie. W tym samym runie może też działać **baseline** -
 wcześniejsza wersja - żeby obie strony trafiły na tego samego providera tego
 samego dnia.
+
+## W konsoli { #in-the-console }
+
+Zakładka **Evals** agenta wymienia jego runy, od najnowszego, z odsetkiem
+zaliczeń każdego kandydata, kosztem i statusem. **Run evals** otwiera dialog
+startu: wybierz dataset, to, co się uruchamia, środowisko, modele i to, czy
+obok ma działać poprzednia wersja, a potem **Estimate cost**. Run startuje
+dopiero z przycisku z szacowaną kwotą, pod linijką mówiącą, ile zostanie w
+budżecie agenta i organizacji.
+
+Strona runa pokazuje postęp, gdy run odpowiada, wyniki każdego ramienia obok
+siebie, porównanie z baseline'em i przypadki - filtrowane po wyniku lub tagu,
+każdy z odpowiedziami, wywołaniami i uzasadnieniami oceniających dla każdego
+ramienia. Karta **Eval runs** na dashboardzie wymienia ostatnie runy
+organizacji, a run oznaczony w Activity jako `eval` linkuje do zakładki Evals
+swojego agenta.
 
 ## Uruchamianie runa { #starting-a-run }
 
