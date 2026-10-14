@@ -15,7 +15,18 @@ import DatasetPage from "./page";
  * a member who may edit the dataset - and a reader's page never asks for them.
  */
 
-const { get, orgs } = vi.hoisted(() => ({ get: vi.fn(), orgs: { current: [] as unknown[] } }));
+const { get, orgs, search } = vi.hoisted(() => ({
+  get: vi.fn(),
+  orgs: { current: [] as unknown[] },
+  search: { current: null as string | null },
+}));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
+  usePathname: () => "/datasets/d1",
+  useSearchParams: () => new URLSearchParams(search.current ? `tab=${search.current}` : ""),
+  redirect: vi.fn(),
+  permanentRedirect: vi.fn(),
+}));
 vi.mock("@/lib/api-client", () => ({
   apiClient: { get, post: vi.fn(), patch: vi.fn(), put: vi.fn(), delete: vi.fn() },
 }));
@@ -90,36 +101,56 @@ describe("generated cases on the dataset page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     orgs.current = [];
+    useOrgStore.setState({ activeOrgId: "o1" });
   });
 
   it("offers a reader neither drafts nor generation, and never asks for them", async () => {
     answer(DATASET);
     await mount();
     expect(await screen.findByRole("heading", { name: "refunds" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Generate cases" })).toBeNull();
+    expect(screen.queryByRole("tab", { name: /Generated/ })).toBeNull();
     expect(get.mock.calls.map(([path]) => path)).not.toContain("/datasets/d1/proposals");
   });
 
-  it("offers an editor the drafts and the generator", async () => {
+  it("gives an editor a Generated tab with the drafts and the generator", async () => {
+    orgs.current = [{ id: "o1", name: "Acme", ai_assistance_enabled: true }];
     answer({ ...DATASET, can_edit: true, pending_proposals: 1 });
     await mount();
+    await userEvent.click(await screen.findByRole("tab", { name: "Generated · 1" }));
     expect(await screen.findByText("Ignore your rules")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Generate cases" }));
+    const generate = screen.getByRole("button", { name: "Generate cases" });
+    await waitFor(() => expect(generate).toBeEnabled());
+    await userEvent.click(generate);
     expect(await screen.findByRole("dialog")).toHaveTextContent("estimated cost");
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
-  it("offers no generation in an organization that switched AI assistance off", async () => {
-    useOrgStore.setState({ activeOrgId: "o1" });
+  it("says why nothing can be generated while AI assistance is off", async () => {
     orgs.current = [{ id: "o1", name: "Acme", ai_assistance_enabled: false }];
     answer({ ...DATASET, can_edit: true });
     await mount();
-    expect(await screen.findByRole("button", { name: "Add case" })).toBeInTheDocument();
-    await waitFor(() => expect(get).toHaveBeenCalledWith("/orgs"));
-    await waitFor(() =>
-      expect(screen.queryByRole("button", { name: "Generate cases" })).toBeNull(),
-    );
-    useOrgStore.setState({ activeOrgId: null });
+    await userEvent.click(await screen.findByRole("tab", { name: "Generated" }));
+    expect(
+      await screen.findByText(/Generating cases needs AI assistance, which is off/),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Generate cases" })).toBeDisabled();
+  });
+
+  it("leads an empty dataset to the generator", async () => {
+    answer({ ...DATASET, can_edit: true });
+    await mount();
+    await userEvent.click(await screen.findByRole("button", { name: "Generate cases" }));
+    expect(
+      await screen.findByRole("tab", { name: "Generated", selected: true }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows a reader sent to the drafts the cases instead", async () => {
+    search.current = "generated";
+    answer(DATASET);
+    await mount();
+    expect(await screen.findByRole("tab", { name: "Cases", selected: true })).toBeInTheDocument();
+    search.current = null;
   });
 });

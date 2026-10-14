@@ -3274,7 +3274,7 @@
       },
       "datasets-generate": {
         "title": "Fälle entwerfen lassen",
-        "body": "Der Fallgenerator entwirft Fälle aus dem Agent, seiner Wissensbasis, echten Gesprächen oder Red Teaming. Sie sehen zuerst die geschätzten Kosten, und nichts gelangt in das Dataset, bevor Sie es annehmen."
+        "body": "Der Generator entwirft Fälle aus vier Quellen: den Anweisungen und Tools des Agents, seiner Wissensbasis, echten Gesprächen (nur aus dem Betrieb, nie aus Eval-Runs) und Red Teaming. Die geschätzten Kosten sehen Sie, bevor etwas ausgegeben wird."
       },
       "datasets-proposals": {
         "title": "Über die Entwürfe entscheiden",
@@ -3327,6 +3327,10 @@
       "flow-dataset-sources": {
         "title": "Woher die nächsten Fälle kommen",
         "body": "Schreiben Sie sie hier, oder importieren Sie hier eine CSV- oder JSONL-Datei. Bewerten Sie im Chat eine Antwort positiv oder negativ und fügen Sie sie hinzu - ein Daumen nach oben behält sie als Referenz, einer nach unten als Gegenbeispiel. In der Aktivität fügen Sie einen beliebigen Agent-Zug eines Runs hinzu."
+      },
+      "flow-dataset-generate": {
+        "title": "Oder lassen Sie sie entwerfen",
+        "body": "Wählen Sie einen Agent und die Quellen - den Agent selbst, seine Wissensbasis, echte Gespräche oder Red Teaming - und der Generator entwirft Fälle zur Prüfung. Nichts gelangt in das Dataset, bevor Sie es annehmen."
       }
     }
   },
@@ -5818,6 +5822,9 @@
     "saveDetails": "Speichern",
     "detailsSaved": "Gespeichert",
     "olderVersion": "Ältere Version Nr.",
-    "findDataset": "Dataset suchen"
+    "findDataset": "Dataset suchen",
+    "generatedTab": "{count, plural, =0 {Generiert} other {Generiert · #}}",
+    "generateIntro": "Der Fallgenerator entwirft Fälle für dieses Dataset aus den gewählten Quellen. Zuerst sehen Sie die geschätzten Kosten, und jeder Entwurf wartet hier, bis Sie ihn annehmen, bearbeiten oder verwerfen.",
+    "generateAiOff": "Fälle zu generieren braucht die KI-Unterstützung, die in dieser Organisation ausgeschaltet ist."
   }
 }

@@ -343,14 +343,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "datasets-generate",
     page: DATASET_DETAIL,
     target: "datasets-generate",
+    activate: "datasets-generated-tab",
     permission: Perm.datasetsEdit,
-    // Absent while the organization has AI assistance switched off.
-    optional: true,
   },
   {
     id: "datasets-proposals",
     page: DATASET_DETAIL,
     target: "datasets-proposals",
+    activate: "datasets-generated-tab",
     permission: Perm.datasetsEdit,
     optional: true,
   },

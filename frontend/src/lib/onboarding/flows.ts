@@ -801,6 +801,13 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
         target: "dataset-file-actions",
         permission: Perm.datasetsEdit,
       },
+      {
+        id: "flow-dataset-generate",
+        page: DATASET_DETAIL,
+        target: "datasets-generate",
+        activate: "datasets-generated-tab",
+        permission: Perm.datasetsEdit,
+      },
     ],
   },
   // Starting a routine. One step, and deliberately not two: the page's two buttons

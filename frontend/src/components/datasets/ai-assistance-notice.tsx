@@ -9,12 +9,13 @@ import { ROUTES } from "@/lib/constants";
 import { Perm } from "@/types/permissions";
 
 /**
- * Why the judge will not grade here, and the way to change that.
+ * Why a model will not help here, and the way to change that.
  *
  * Nothing while AI assistance is on. Off, somebody who may change the switch is
- * sent to it; anybody else is told who can.
+ * sent to it; anybody else is told who can. `body` says what is off; the judge's
+ * sentence when it is left out.
  */
-export function AiAssistanceNotice() {
+export function AiAssistanceNotice({ body }: { body?: string }) {
   const t = useTranslations("datasets.scoring.aiOff");
   const { activeOrg } = useOrganizations();
   const { can } = usePermissions();
@@ -22,7 +23,7 @@ export function AiAssistanceNotice() {
 
   return (
     <p className="bg-muted rounded-md px-3 py-2 text-xs">
-      {t("body")}{" "}
+      {body ?? t("body")}{" "}
       {can(Perm.orgSettings) ? (
         <Link href={ROUTES.ORG_MEMBERS(activeOrg.id)} className="font-medium underline">
           {t("enable")}

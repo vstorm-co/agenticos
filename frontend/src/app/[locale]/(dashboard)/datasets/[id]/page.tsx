@@ -11,6 +11,7 @@ import { draftOf, EMPTY_DRAFT, type CaseDraft } from "@/components/datasets/case
 import { CaseRow } from "@/components/datasets/case-row";
 import { DatasetFileActions } from "@/components/datasets/dataset-file-actions";
 import { EditDatasetDialog } from "@/components/datasets/edit-dataset-dialog";
+import { GeneratePanel } from "@/components/datasets/generate-panel";
 import { ScoresPanel } from "@/components/datasets/scores-panel";
 import { ScoringPanel } from "@/components/datasets/scoring-panel";
 import { VersionSelect } from "@/components/datasets/version-select";
@@ -37,7 +38,7 @@ interface PageProps {
   params: Promise<{ id: string }>;
 }
 
-const TABS = ["cases", "scoring", "scores"];
+const TABS = ["cases", "generated", "scoring", "scores"];
 
 /** What the case dialog is showing: a new case, or one from the list. */
 type Editing = { draft: CaseDraft; item: DatasetCase | null } | null;
@@ -58,6 +59,7 @@ export default function DatasetPage({ params }: PageProps) {
   const [page, setPage] = useState(0);
   const [editing, setEditing] = useState<Editing>(null);
   const [editingDetails, setEditingDetails] = useState(false);
+  const [tab, setTab] = useState(asked !== null && TABS.includes(asked) ? asked : "cases");
   const { dataset, error: datasetError, update } = useDataset(id);
   const { versions } = useDatasetVersions(id);
   const cases = useDatasetCases(id, { version, skip: page * PAGE_SIZE, limit: PAGE_SIZE });
@@ -74,6 +76,8 @@ export default function DatasetPage({ params }: PageProps) {
   }
 
   const editable = dataset.can_edit && version === null;
+  // A link to the drafts reaches a reader too, who has no such tab.
+  const shown = tab === "generated" && !dataset.can_edit ? "cases" : tab;
   const save = (content: DatasetCaseContent) =>
     editing?.item
       ? cases.update.mutateAsync({ caseId: editing.item.case_id, content })
@@ -113,12 +117,14 @@ export default function DatasetPage({ params }: PageProps) {
         }
       />
 
-      <Tabs
-        defaultValue={asked !== null && TABS.includes(asked) ? asked : "cases"}
-        className="space-y-4"
-      >
+      <Tabs value={shown} onValueChange={setTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="cases">{t("cases")}</TabsTrigger>
+          {dataset.can_edit && (
+            <TabsTrigger value="generated" data-tour="datasets-generated-tab">
+              {t("generatedTab", { count: dataset.pending_proposals })}
+            </TabsTrigger>
+          )}
           <TabsTrigger value="scoring" data-tour="datasets-scoring-tab">
             {t("scoring.title")}
           </TabsTrigger>
@@ -163,6 +169,11 @@ export default function DatasetPage({ params }: PageProps) {
                 icon={FlaskConical}
                 title={t("noCases")}
                 description={t("noCasesBody")}
+                cta={
+                  editable
+                    ? { label: t("generateCases"), onClick: () => setTab("generated") }
+                    : undefined
+                }
               />
             ) : (
               <div className="space-y-4">
@@ -188,6 +199,11 @@ export default function DatasetPage({ params }: PageProps) {
             )}
           </ListCard>
         </TabsContent>
+        {dataset.can_edit && (
+          <TabsContent value="generated">
+            <GeneratePanel datasetId={id} />
+          </TabsContent>
+        )}
         <TabsContent value="scoring">
           <ScoringPanel
             key={JSON.stringify(dataset.scoring)}

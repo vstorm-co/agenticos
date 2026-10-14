@@ -3411,7 +3411,7 @@
       },
       "datasets-generate": {
         "title": "Have cases drafted",
-        "body": "The case generator drafts cases from the agent, its knowledge base, real conversations or red teaming. You see the estimated cost first, and nothing reaches the dataset until you accept it."
+        "body": "The generator drafts cases from four sources: the agent's instructions and tools, its knowledge base, real conversations (production only, never eval runs), and red teaming. You see the estimated cost before anything is spent."
       },
       "datasets-proposals": {
         "title": "Decide the drafts",
@@ -3464,6 +3464,10 @@
       "flow-dataset-sources": {
         "title": "Where the next cases come from",
         "body": "Write them here, or import a CSV or JSONL file here. In chat, rate an answer up or down and add it - a thumbs-up keeps it as the reference, a thumbs-down as the counter-example. In Activity, add any agent turn of a run."
+      },
+      "flow-dataset-generate": {
+        "title": "Or let the generator draft them",
+        "body": "Pick an agent and the sources - the agent itself, its knowledge base, real conversations or red teaming - and the generator drafts cases for you to review. Nothing reaches the dataset until you accept it."
       }
     }
   },
@@ -5960,6 +5964,9 @@
     "saveDetails": "Save",
     "detailsSaved": "Saved",
     "olderVersion": "Older version #",
-    "findDataset": "Find a dataset"
+    "findDataset": "Find a dataset",
+    "generatedTab": "{count, plural, =0 {Generated} other {Generated · #}}",
+    "generateIntro": "The case generator drafts cases for this dataset from the sources you pick. You see the estimated cost first, and every draft waits here until you accept, edit or dismiss it.",
+    "generateAiOff": "Generating cases needs AI assistance, which is off for this organization."
   }
 }

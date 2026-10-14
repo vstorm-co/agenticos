@@ -1961,7 +1961,7 @@
       },
       "datasets-generate": {
         "title": "Wygeneruj przypadki",
-        "body": "Generator przygotowuje przypadki na podstawie agenta, jego bazy wiedzy, prawdziwych rozmów albo red teamingu. Najpierw widzisz szacowany koszt, a nic nie trafia do datasetu, dopóki tego nie zaakceptujesz."
+        "body": "Generator przygotowuje przypadki z czterech źródeł: instrukcji i narzędzi agenta, jego bazy wiedzy, prawdziwych rozmów (tylko produkcyjnych, nigdy z runów eval) i red teamingu. Szacowany koszt widzisz, zanim cokolwiek zostanie wydane."
       },
       "datasets-proposals": {
         "title": "Zdecyduj o propozycjach",
@@ -2014,6 +2014,10 @@
       "flow-dataset-sources": {
         "title": "Skąd biorą się kolejne przypadki",
         "body": "Pisz je tutaj albo importuj tu plik CSV lub JSONL. W czacie oceń odpowiedź łapką w górę albo w dół i dodaj ją - łapka w górę zachowuje ją jako wzorcową, łapka w dół jako kontrprzykład. W Aktywności dodaj dowolną turę agenta z runa."
+      },
+      "flow-dataset-generate": {
+        "title": "Albo zleć je generatorowi",
+        "body": "Wybierz agenta i źródła - samego agenta, jego bazę wiedzy, prawdziwe rozmowy albo red teaming - a generator przygotuje przypadki do przeglądu. Nic nie trafia do datasetu, dopóki tego nie zaakceptujesz."
       }
     }
   },
@@ -3578,6 +3582,9 @@
     "saveDetails": "Zapisz",
     "detailsSaved": "Zapisano",
     "olderVersion": "Starsza wersja nr",
-    "findDataset": "Znajdź dataset"
+    "findDataset": "Znajdź dataset",
+    "generatedTab": "{count, plural, =0 {Wygenerowane} other {Wygenerowane · #}}",
+    "generateIntro": "Generator przygotowuje przypadki do tego datasetu z wybranych źródeł. Najpierw widzisz szacowany koszt, a każda propozycja czeka tu, aż ją zaakceptujesz, edytujesz albo odrzucisz.",
+    "generateAiOff": "Generowanie przypadków wymaga wsparcia AI, które jest wyłączone w tej organizacji."
   }
 }
