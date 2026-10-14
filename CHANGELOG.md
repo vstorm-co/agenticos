@@ -473,6 +473,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **The README's videos show on a phone.** GitHub's mobile views drop a
+  `<video>` tag, so both demos were blank there; each is now its poster
+  with a Watch pill and its length, linked to the video, in all four
+  READMEs.
+
 - **The Architect's conversation list looks like the chat page's.** Rows
   were a grey chat icon over a title and a time; they now carry the
   agent's face and unread dot, "Architect · 4m ago" over the title, the

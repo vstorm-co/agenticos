@@ -1,4 +1,4 @@
-<!-- source_sha: 2b27930e7a92 -->
+<!-- source_sha: 7006489d91d0 -->
 
 <div align="center">
 
@@ -49,15 +49,11 @@ AgenticOS es una capa soberana y autoalojada para los agentes de IA de tu empres
 
 ## 📸 Míralo en acción
 
-<video src="https://github.com/user-attachments/assets/d9457e3a-94ef-4802-a78f-0e2069effc7c" controls playsinline width="100%" poster="docs/assets/screens/agenticos-intro-poster.webp">
-  <img src="docs/assets/screens/agenticos-intro-poster.webp" alt="AgenticOS: agentes de IA que todo tu equipo puede usar y mejorar, Sovereign Agentic AI Layer" width="100%">
-</video>
+<a href="https://github.com/user-attachments/assets/d9457e3a-94ef-4802-a78f-0e2069effc7c"><img src="docs/assets/screens/agenticos-intro-play.webp" alt="AgenticOS: agentes de IA que todo tu equipo puede usar y mejorar, Sovereign Agentic AI Layer" width="100%"></a>
 
 <p align="center"><sub><b>AgenticOS en 45 segundos.</b> Crea cualquier agente en el navegador, publícalo donde trabaja tu equipo, deja que funcione por su cuenta y somete cada solicitud a los mismos controles. Narrado con voz sintética. <a href="https://github.com/user-attachments/assets/d9457e3a-94ef-4802-a78f-0e2069effc7c">Ver (46 s, 4K)</a></sub></p>
 
-<video src="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512#t=1" controls playsinline width="100%" poster="docs/assets/screens/oss-launch-planner-poster.webp">
-  <img src="docs/assets/screens/oss-launch-planner-poster.webp" alt="Vstorm OSS Launch Planner: selección de audiencia, recomendación de proyecto y enlaces a las fuentes" width="100%">
-</video>
+<a href="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512"><img src="docs/assets/screens/oss-launch-planner-play.webp" alt="Vstorm OSS Launch Planner: selección de audiencia, recomendación de proyecto y enlaces a las fuentes" width="100%"></a>
 
 <p align="center"><sub><b>Brief → investigación → resultado compartido.</b> Un run grabado: un agente lee un brief de campaña en Notion, investiga repositorios en GitHub y publica un planificador interactivo. <a href="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512">Ver (37 s)</a></sub></p>
 

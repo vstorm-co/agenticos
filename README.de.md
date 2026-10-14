@@ -1,4 +1,4 @@
-<!-- source_sha: 2b27930e7a92 -->
+<!-- source_sha: 7006489d91d0 -->
 
 <div align="center">
 
@@ -49,15 +49,11 @@ AgenticOS ist eine souveräne, selbst gehostete Schicht für die KI-Agenten dein
 
 ## 📸 AgenticOS in Aktion
 
-<video src="https://github.com/user-attachments/assets/d9457e3a-94ef-4802-a78f-0e2069effc7c" controls playsinline width="100%" poster="docs/assets/screens/agenticos-intro-poster.webp">
-  <img src="docs/assets/screens/agenticos-intro-poster.webp" alt="AgenticOS: KI-Agenten, die Ihr ganzes Team nutzen und verbessern kann, Sovereign Agentic AI Layer" width="100%">
-</video>
+<a href="https://github.com/user-attachments/assets/d9457e3a-94ef-4802-a78f-0e2069effc7c"><img src="docs/assets/screens/agenticos-intro-play.webp" alt="AgenticOS: KI-Agenten, die Ihr ganzes Team nutzen und verbessern kann, Sovereign Agentic AI Layer" width="100%"></a>
 
 <p align="center"><sub><b>AgenticOS in 45 Sekunden.</b> Beliebige Agenten im Browser bauen, dort veröffentlichen, wo Ihr Team arbeitet, selbstständig laufen lassen, und jede Anfrage durchläuft dieselben Kontrollen. Mit synthetischer Stimme vertont. <a href="https://github.com/user-attachments/assets/d9457e3a-94ef-4802-a78f-0e2069effc7c">Ansehen (46 s, 4K)</a></sub></p>
 
-<video src="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512#t=1" controls playsinline width="100%" poster="docs/assets/screens/oss-launch-planner-poster.webp">
-  <img src="docs/assets/screens/oss-launch-planner-poster.webp" alt="Vstorm OSS Launch Planner: Zielgruppenauswahl, Projektempfehlung und Quellenlinks" width="100%">
-</video>
+<a href="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512"><img src="docs/assets/screens/oss-launch-planner-play.webp" alt="Vstorm OSS Launch Planner: Zielgruppenauswahl, Projektempfehlung und Quellenlinks" width="100%"></a>
 
 <p align="center"><sub><b>Briefing → Recherche → gemeinsames Ergebnis.</b> Ein aufgezeichneter Run: Ein Agent liest ein Kampagnen-Briefing in Notion, untersucht Repositories auf GitHub und veröffentlicht einen interaktiven Planer. <a href="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512">Ansehen (37 s)</a></sub></p>
 
