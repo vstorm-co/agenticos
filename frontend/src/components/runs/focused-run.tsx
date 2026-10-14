@@ -191,6 +191,14 @@ export function FocusedRun({
               <SurfaceIcon surface={run.surface} />
               {surfaceLabel(run.surface, t)}
             </span>
+            {run.surface === "eval" && can(Perm.agentsView) && (
+              <Link
+                href={`${ROUTES.AGENTS}/${run.agent_id}?tab=evals`}
+                className="text-muted-foreground hover:text-foreground text-sm underline-offset-4 hover:underline"
+              >
+                {t("openEvals")}
+              </Link>
+            )}
             <span className="flex items-center gap-1.5 font-mono text-xs">
               {run.provider !== null && (
                 <ProviderIcon provider={run.provider} className="h-3.5 w-3.5" />

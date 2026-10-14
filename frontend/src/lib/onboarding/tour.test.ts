@@ -45,6 +45,7 @@ const BUILDER_STEPS = [
   "agent-availability",
   "agent-history",
   "agent-test-connections",
+  "agent-evals",
   "agent-publish",
 ];
 
@@ -247,9 +248,11 @@ describe("stepsForPage", () => {
         (step) => step.id,
       ),
     ).toEqual(
-      // Both are agents:publish: publishing, and the test connections a
-      // publisher manages per environment.
-      BUILDER_STEPS.filter((id) => id !== "agent-publish" && id !== "agent-test-connections"),
+      // Two are agents:publish - publishing, and the test connections a
+      // publisher manages per environment - and the Evals tab is runs:view.
+      BUILDER_STEPS.filter(
+        (id) => id !== "agent-publish" && id !== "agent-test-connections" && id !== "agent-evals",
+      ),
     );
   });
 

@@ -358,6 +358,7 @@ const DEFAULT_SECTIONS: SectionDef[] = [
       // for review.
       { widget: "datasets", span: "s6", rows: "r4" },
       { widget: "review-queue", span: "s6", rows: "r4" },
+      { widget: "eval-runs", span: "s6", rows: "r4" },
     ],
   },
 ];

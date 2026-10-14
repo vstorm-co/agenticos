@@ -241,3 +241,14 @@ describe("the row being held while the next one loads", () => {
     expect(screen.queryByTestId("timeline")).toBeNull();
   });
 });
+
+describe("an eval run", () => {
+  it("points at the agent's evals, where its case and comparison are", () => {
+    serve({ run: run({ surface: "eval" }) });
+    renderRun();
+    expect(screen.getByRole("link", { name: /open the agent's evals/ })).toHaveAttribute(
+      "href",
+      expect.stringMatching(/\/agents\/.+\?tab=evals$/),
+    );
+  });
+});

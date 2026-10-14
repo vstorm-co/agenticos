@@ -1943,6 +1943,21 @@
           "manual": "{count} by hand",
           "synthetic": "{count} generated"
         }
+      },
+      "eval-runs": {
+        "title": "Eval runs",
+        "description": "The latest runs of agents over their datasets, with pass rates.",
+        "run": "{dataset} v{version}",
+        "empty": {
+          "title": "No eval runs yet",
+          "description": "Runs started from an agent's Evals tab appear here."
+        },
+        "count": {
+          "running": "{count} running",
+          "completed": "{count} completed",
+          "failed": "{count} failed",
+          "budget_exceeded": "{count} out of budget"
+        }
       }
     },
     "edit": {
@@ -3451,6 +3466,10 @@
       "flow-dataset-sources": {
         "title": "Where the next cases come from",
         "body": "Write them here, or import a CSV or JSONL file here. In chat, rate an answer up or down and add it - a thumbs-up keeps it as the reference, a thumbs-down as the counter-example. In Activity, add any agent turn of a run."
+      },
+      "agent-evals": {
+        "title": "Evals",
+        "body": "Run the agent over a dataset to see which cases it passes, what it costs, and whether a change made it better or worse than the version before."
       }
     }
   },
@@ -3798,7 +3817,8 @@
       "skills": "Skills",
       "categoriesHint": "Broad groups - support, finance, internal. The catalog filters by these.",
       "tagsHint": "Anything narrower you want to search by later.",
-      "labelCount": "{used} of {max}"
+      "labelCount": "{used} of {max}",
+      "evals": "Evals"
     },
     "auth": {
       "backSign": "Back to sign in",
@@ -4329,7 +4349,8 @@
       "whatYourAgentsDid2": "What your agents did, what it cost, and what is waiting on a person.",
       "whereTheMoneyWent": "Where the money went",
       "whoIsSpendingCouldNotBeRead": "Who is spending could not be read.",
-      "widenTheWindowAbove": "Nothing ran in the window above. Widen it, or run an agent."
+      "widenTheWindowAbove": "Nothing ran in the window above. Widen it, or run an agent.",
+      "openEvals": "Part of an eval run · open the agent's evals"
     },
     "sandboxes": {
       "addConnection": "Add connection",
@@ -5894,5 +5915,171 @@
     "detailsSaved": "Saved",
     "olderVersion": "Older version #",
     "findDataset": "Find a dataset"
+  },
+  "evals": {
+    "title": "Evals",
+    "description": "Every run of this agent over a dataset: how each case was answered and scored, and how it compares with an earlier version.",
+    "start": "Run evals",
+    "startTitle": "Run evals",
+    "startBody": "Choose what runs and on which dataset. You see what it costs before anything runs.",
+    "cancel": "Cancel",
+    "estimateCost": "Estimate cost",
+    "estimate": {
+      "arm": {
+        "candidate": "Candidate on {model}",
+        "baseline": "Baseline v{version} on {model}"
+      },
+      "basis": {
+        "fallback": "no history on this model, a rough guess",
+        "cached": "reused from a recent run"
+      },
+      "judge": "Judge",
+      "total": "{count, plural, =1 {1 case} other {# cases}} in total",
+      "reruns": "Cases that flip are rerun to confirm, which can add up to {amount}.",
+      "after": "After this run the agent keeps <b>{agent}</b> and the organization <b>{org}</b> of this month's budget.",
+      "noCap": "no cap",
+      "unaffordable": "This is more than a budget has left. Run fewer cases or models, or raise the budget."
+    },
+    "runFor": "Run for {amount}",
+    "runTitle": "{dataset} v{version} · {candidate}",
+    "runMeta": "{date} · spent {cost} of an estimated {estimate}",
+    "back": "Back to the agent's evals",
+    "cancelRun": "Stop",
+    "progress": "Cases answered",
+    "progressCount": "{done} of {total} answers",
+    "compareArm": "Compare this model",
+    "draft": "Draft",
+    "proposed": "Proposed changes",
+    "version": "v{version}",
+    "status": {
+      "queued": "Queued",
+      "running": "Running",
+      "completed": "Completed",
+      "cancelled": "Stopped",
+      "failed": "Failed",
+      "budget_exceeded": "Out of budget"
+    },
+    "empty": {
+      "noDatasetTitle": "Create a dataset first",
+      "noDatasetBody": "An eval runs the agent over the cases of a dataset. Add the questions it should answer well, then come back to run them.",
+      "createDataset": "Go to datasets",
+      "title": "No evals yet",
+      "body": "Run the agent over a dataset to see which cases it passes, what it costs, and how it compares with an earlier version."
+    },
+    "fields": {
+      "dataset": "Dataset",
+      "datasetPlaceholder": "Choose a dataset",
+      "datasetOption": "{name} · {count, plural, =1 {1 case} other {# cases}} · v{version}",
+      "candidate": "What runs",
+      "published": "Published version v{version}",
+      "draft": "The draft as it stands",
+      "environment": "Environment",
+      "noEnvironment": "None",
+      "environmentHint": "Cases use this environment's test connections. A tool that writes without one is held, not run.",
+      "models": "Models",
+      "modelsHint": "Leave all unchecked to run the agent's own model. Check several to compare them side by side.",
+      "pairedBaseline": "Run the previous version in the same run",
+      "pairedBaselineHint": "Both meet the same provider on the same day, so a regression is the agent's, not the provider's. It costs a second run of every case.",
+      "fromRecordings": "Answer tools from recordings",
+      "fromRecordingsHint": "Cases taken from conversations get the tool results the original run got."
+    },
+    "comparison": {
+      "title": "Against the baseline",
+      "noBaseline": "There is no earlier run of this dataset to compare with yet. Run the previous version, or run the baseline in the same run.",
+      "candidate": "Candidate",
+      "baselinePaired": "Baseline, in the same run",
+      "baselinePast": "Baseline, an earlier run",
+      "side": "{candidate} · {model} · dataset v{dataset} · {date}",
+      "unfinished": "not finished",
+      "version": "v{version}",
+      "source": {
+        "version": "Version",
+        "draft": "Draft",
+        "explicit": "Proposed changes"
+      },
+      "verdict": {
+        "better": "Better",
+        "worse": "Worse",
+        "no_difference": "No difference",
+        "inconclusive": "Sample too small",
+        "invalid": "Not comparable"
+      },
+      "explain": {
+        "better": "More confirmed fixes than regressions, more than chance would give.",
+        "worse": "More confirmed regressions than fixes, more than chance would give.",
+        "no_difference": "No case flipped and held when it was rerun.",
+        "inconclusive": "Some cases flipped, but too few to tell the two apart from noise."
+      },
+      "regressionsConfirmed": "Confirmed regressions",
+      "regressionsUnconfirmed": "Unconfirmed regressions",
+      "fixedConfirmed": "Confirmed fixes",
+      "fixedUnconfirmed": "Unconfirmed fixes",
+      "compared": "{compared, plural, =1 {1 case} other {# cases}} compared, {skipped} answered on one side only",
+      "metric": {
+        "cost_per_pass": "Cost per passed case",
+        "avg_tokens": "Tokens",
+        "p50_ms": "Median latency",
+        "p95_ms": "p95 latency"
+      },
+      "trend": {
+        "better": "better",
+        "worse": "worse",
+        "unchanged": "unchanged",
+        "unknown": "unknown"
+      }
+    },
+    "arms": {
+      "title": "Results",
+      "arm": "Arm",
+      "passRate": "Pass rate",
+      "undecided": "Undecided",
+      "costPerPass": "Cost per pass",
+      "tokens": "Tokens per case",
+      "latency": "Latency p50 / p95",
+      "role": {
+        "candidate": "Candidate on {model}",
+        "baseline": "Baseline on {model}"
+      },
+      "reused": "reused",
+      "p50p95": "{p50} / {p95}"
+    },
+    "cases": {
+      "title": "{count, plural, =1 {1 case} other {# cases}}",
+      "outcomeFilter": "Outcome",
+      "tagFilter": "Tag",
+      "allTags": "All tags",
+      "outcome": {
+        "all": "All outcomes",
+        "passed": "Passed",
+        "failed": "Failed",
+        "undecided": "Undecided"
+      },
+      "flip": {
+        "regression": "{confirmed, select, true {Confirmed regression} other {Regression, unconfirmed}}",
+        "fixed": "{confirmed, select, true {Confirmed fix} other {Fixed, unconfirmed}}",
+        "incomplete": "Undecided on a side"
+      }
+    },
+    "case": {
+      "firstAnswer": "Answer",
+      "rerun": "Rerun {n}",
+      "outcome": {
+        "true": "passed",
+        "false": "failed",
+        "null": "undecided"
+      },
+      "call": {
+        "executed": "ran",
+        "replayed": "from recording",
+        "blocked": "held, writes",
+        "divergent": "not in recording"
+      },
+      "scorer": {
+        "pass": "pass",
+        "fail": "fail",
+        "skipped": "skipped",
+        "error": "error"
+      }
+    }
   }
 }

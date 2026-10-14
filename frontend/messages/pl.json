@@ -574,7 +574,11 @@
       "description": "Wszystko, co Twoi agenci robią sami — według harmonogramu lub w reakcji na zdarzenie."
     },
     "runs": {
-      "decidedByStandingConsent": "pominięte z góry dla konwersacji"
+      "decidedByStandingConsent": "pominięte z góry dla konwersacji",
+      "openEvals": "Część eval runa · otwórz evale agenta"
+    },
+    "agents": {
+      "evals": "Evale"
     }
   },
   "rag": {
@@ -1192,6 +1196,21 @@
           "import": "{count} z importu",
           "manual": "{count} ręcznie",
           "synthetic": "{count} wygenerowane"
+        }
+      },
+      "eval-runs": {
+        "title": "Eval runy",
+        "description": "Ostatnie runy agentów na ich datasetach, z odsetkiem zaliczeń.",
+        "run": "{dataset} v{version}",
+        "empty": {
+          "title": "Brak eval runów",
+          "description": "Tu pojawiają się runy uruchomione z zakładki Evale agenta."
+        },
+        "count": {
+          "running": "{count} w toku",
+          "completed": "{count} zakończonych",
+          "failed": "{count} z błędem",
+          "budget_exceeded": "{count} bez budżetu"
         }
       }
     },
@@ -2001,6 +2020,10 @@
       "flow-dataset-sources": {
         "title": "Skąd biorą się kolejne przypadki",
         "body": "Pisz je tutaj albo importuj tu plik CSV lub JSONL. W czacie oceń odpowiedź łapką w górę albo w dół i dodaj ją - łapka w górę zachowuje ją jako wzorcową, łapka w dół jako kontrprzykład. W Aktywności dodaj dowolną turę agenta z runa."
+      },
+      "agent-evals": {
+        "title": "Evale",
+        "body": "Uruchom agenta na datasecie, żeby zobaczyć, które przypadki zalicza, ile to kosztuje i czy zmiana poprawiła go, czy pogorszyła względem poprzedniej wersji."
       }
     }
   },
@@ -3512,5 +3535,171 @@
     "detailsSaved": "Zapisano",
     "olderVersion": "Starsza wersja nr",
     "findDataset": "Znajdź dataset"
+  },
+  "evals": {
+    "title": "Evale",
+    "description": "Każdy run tego agenta na datasecie: jak odpowiedział na każdy przypadek, jak go oceniono i jak wypada na tle wcześniejszej wersji.",
+    "start": "Uruchom evale",
+    "startTitle": "Uruchom evale",
+    "startBody": "Wybierz, co się uruchamia i na jakim datasecie. Zanim cokolwiek ruszy, zobaczysz koszt.",
+    "cancel": "Anuluj",
+    "estimateCost": "Oszacuj koszt",
+    "estimate": {
+      "arm": {
+        "candidate": "Kandydat na {model}",
+        "baseline": "Baseline v{version} na {model}"
+      },
+      "basis": {
+        "fallback": "brak historii na tym modelu, zgrubny szacunek",
+        "cached": "wzięty z niedawnego runa"
+      },
+      "judge": "Sędzia",
+      "total": "Razem {count, plural, one {# przypadek} few {# przypadki} many {# przypadków} other {# przypadku}}",
+      "reruns": "Przypadki, które się odwrócą, są powtarzane dla potwierdzenia, co może dodać do {amount}.",
+      "after": "Po tym runie agentowi zostanie <b>{agent}</b>, a organizacji <b>{org}</b> z budżetu na ten miesiąc.",
+      "noCap": "bez limitu",
+      "unaffordable": "To więcej, niż zostało w budżecie. Uruchom mniej przypadków lub modeli albo podnieś budżet."
+    },
+    "runFor": "Uruchom za {amount}",
+    "runTitle": "{dataset} v{version} · {candidate}",
+    "runMeta": "{date} · wydano {cost} z szacowanych {estimate}",
+    "back": "Wróć do evali agenta",
+    "cancelRun": "Zatrzymaj",
+    "progress": "Odpowiedziane przypadki",
+    "progressCount": "{done} z {total} odpowiedzi",
+    "compareArm": "Porównaj ten model",
+    "draft": "Draft",
+    "proposed": "Proponowane zmiany",
+    "version": "v{version}",
+    "status": {
+      "queued": "W kolejce",
+      "running": "W toku",
+      "completed": "Zakończony",
+      "cancelled": "Zatrzymany",
+      "failed": "Błąd",
+      "budget_exceeded": "Brak budżetu"
+    },
+    "empty": {
+      "noDatasetTitle": "Najpierw utwórz dataset",
+      "noDatasetBody": "Eval uruchamia agenta na przypadkach z datasetu. Dodaj pytania, na które ma dobrze odpowiadać, i wróć tu, żeby je uruchomić.",
+      "createDataset": "Przejdź do datasetów",
+      "title": "Brak evali",
+      "body": "Uruchom agenta na datasecie, żeby zobaczyć, które przypadki zalicza, ile to kosztuje i jak wypada na tle wcześniejszej wersji."
+    },
+    "fields": {
+      "dataset": "Dataset",
+      "datasetPlaceholder": "Wybierz dataset",
+      "datasetOption": "{name} · {count, plural, one {# przypadek} few {# przypadki} many {# przypadków} other {# przypadku}} · v{version}",
+      "candidate": "Co się uruchamia",
+      "published": "Opublikowana wersja v{version}",
+      "draft": "Draft w obecnym stanie",
+      "environment": "Środowisko",
+      "noEnvironment": "Brak",
+      "environmentHint": "Przypadki używają testowych połączeń tego środowiska. Narzędzie, które zapisuje bez takiego połączenia, jest wstrzymywane, a nie uruchamiane.",
+      "models": "Modele",
+      "modelsHint": "Nie zaznaczaj nic, żeby uruchomić własny model agenta. Zaznacz kilka, żeby porównać je obok siebie.",
+      "pairedBaseline": "Uruchom poprzednią wersję w tym samym runie",
+      "pairedBaselineHint": "Obie trafiają na tego samego providera tego samego dnia, więc regresja jest winą agenta, a nie providera. Kosztuje drugi run każdego przypadku.",
+      "fromRecordings": "Odpowiadaj narzędziom z nagrań",
+      "fromRecordingsHint": "Przypadki wzięte z konwersacji dostają wyniki narzędzi, które dostał oryginalny run."
+    },
+    "comparison": {
+      "title": "Na tle baseline'u",
+      "noBaseline": "Nie ma jeszcze wcześniejszego runa tego datasetu do porównania. Uruchom poprzednią wersję albo baseline w tym samym runie.",
+      "candidate": "Kandydat",
+      "baselinePaired": "Baseline, w tym samym runie",
+      "baselinePast": "Baseline, wcześniejszy run",
+      "side": "{candidate} · {model} · dataset v{dataset} · {date}",
+      "unfinished": "niezakończony",
+      "version": "v{version}",
+      "source": {
+        "version": "Wersja",
+        "draft": "Draft",
+        "explicit": "Proponowane zmiany"
+      },
+      "verdict": {
+        "better": "Lepiej",
+        "worse": "Gorzej",
+        "no_difference": "Bez różnicy",
+        "inconclusive": "Za mała próba",
+        "invalid": "Nieporównywalne"
+      },
+      "explain": {
+        "better": "Więcej potwierdzonych napraw niż regresji, więcej, niż dałby przypadek.",
+        "worse": "Więcej potwierdzonych regresji niż napraw, więcej, niż dałby przypadek.",
+        "no_difference": "Żaden przypadek nie odwrócił się trwale po powtórce.",
+        "inconclusive": "Część przypadków się odwróciła, ale za mało, żeby odróżnić to od szumu."
+      },
+      "regressionsConfirmed": "Potwierdzone regresje",
+      "regressionsUnconfirmed": "Niepotwierdzone regresje",
+      "fixedConfirmed": "Potwierdzone naprawy",
+      "fixedUnconfirmed": "Niepotwierdzone naprawy",
+      "compared": "Porównano {compared, plural, one {# przypadek} few {# przypadki} many {# przypadków} other {# przypadku}}, {skipped} z odpowiedzią tylko po jednej stronie",
+      "metric": {
+        "cost_per_pass": "Koszt na zaliczony przypadek",
+        "avg_tokens": "Tokeny",
+        "p50_ms": "Mediana latencji",
+        "p95_ms": "Latencja p95"
+      },
+      "trend": {
+        "better": "lepiej",
+        "worse": "gorzej",
+        "unchanged": "bez zmian",
+        "unknown": "nieznane"
+      }
+    },
+    "arms": {
+      "title": "Wyniki",
+      "arm": "Ramię",
+      "passRate": "Zaliczone",
+      "undecided": "Nierozstrzygnięte",
+      "costPerPass": "Koszt na zaliczenie",
+      "tokens": "Tokeny na przypadek",
+      "latency": "Latencja p50 / p95",
+      "role": {
+        "candidate": "Kandydat na {model}",
+        "baseline": "Baseline na {model}"
+      },
+      "reused": "wzięty z wcześniejszego runa",
+      "p50p95": "{p50} / {p95}"
+    },
+    "cases": {
+      "title": "{count, plural, one {# przypadek} few {# przypadki} many {# przypadków} other {# przypadku}}",
+      "outcomeFilter": "Wynik",
+      "tagFilter": "Tag",
+      "allTags": "Wszystkie tagi",
+      "outcome": {
+        "all": "Wszystkie wyniki",
+        "passed": "Zaliczone",
+        "failed": "Niezaliczone",
+        "undecided": "Nierozstrzygnięte"
+      },
+      "flip": {
+        "regression": "{confirmed, select, true {Potwierdzona regresja} other {Regresja, niepotwierdzona}}",
+        "fixed": "{confirmed, select, true {Potwierdzona naprawa} other {Naprawione, niepotwierdzone}}",
+        "incomplete": "Nierozstrzygnięte po jednej stronie"
+      }
+    },
+    "case": {
+      "firstAnswer": "Odpowiedź",
+      "rerun": "Powtórka {n}",
+      "outcome": {
+        "true": "zaliczone",
+        "false": "niezaliczone",
+        "null": "nierozstrzygnięte"
+      },
+      "call": {
+        "executed": "uruchomione",
+        "replayed": "z nagrania",
+        "blocked": "wstrzymane, zapisuje",
+        "divergent": "brak w nagraniu"
+      },
+      "scorer": {
+        "pass": "zaliczone",
+        "fail": "niezaliczone",
+        "skipped": "pominięte",
+        "error": "błąd"
+      }
+    }
   }
 }

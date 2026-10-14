@@ -2,7 +2,7 @@
 
 import { use, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   AlertCircle,
   Archive,
@@ -53,6 +53,7 @@ import { PublishState } from "@/components/agents/publish-state";
 import { ModelSettingsForm } from "@/components/agents/model-settings-form";
 import { ThinkingSetting } from "@/components/agents/thinking-setting";
 import { EnvironmentsPanel } from "@/components/agents/environments-panel";
+import { EvalsPanel } from "@/components/evals/evals-panel";
 import { VersionHistory } from "@/components/agents/version-history";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { SharingPanel } from "@/components/sharing/sharing-panel";
@@ -169,6 +170,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const tErrors = useTranslations("errors");
   const { id } = use(params);
   const router = useRouter();
+  // A link back from an eval run lands on the Evals tab rather than on Build.
+  const openTab = useSearchParams().get("tab") ?? "build";
   const { agent, isLoading, saveDraft, validate, publish, rollback, setAvatar, setColor } =
     useAgent(id);
   const { environments, promote } = useAgentEnvironments(id);
@@ -1062,7 +1065,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
         disabled={!canEdit}
       />
 
-      <Tabs defaultValue="build">
+      <Tabs defaultValue={openTab}>
         <TabsList>
           <TabsTrigger value="build" data-tour="agent-tab-build">
             {t("build")}
@@ -1081,6 +1084,9 @@ export default function AgentBuilderPage({ params }: PageProps) {
           </TabsTrigger>
           <TabsTrigger value="history" data-tour="agent-tab-history">
             {t("history")}
+          </TabsTrigger>
+          <TabsTrigger value="evals" data-tour="agent-tab-evals">
+            {t("evals")}
           </TabsTrigger>
         </TabsList>
 
@@ -1433,6 +1439,19 @@ export default function AgentBuilderPage({ params }: PageProps) {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="evals" className="mt-6 space-y-6">
+          <EvalsPanel
+            agentId={id}
+            canStart={agent.can_run && can(Perm.datasetsRun)}
+            canRunDraft={canEdit}
+            currentVersion={
+              environments.find(
+                (environment) => environment.version_id === agent.current_version_id,
+              )?.version ?? null
+            }
+          />
+        </TabsContent>
       </Tabs>
     </div>
   );
@@ -1442,7 +1461,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
  * The Builder's own skeleton.
  *
  * None of the shared variants fit: this page is a breadcrumbed header with four
- * actions, a seven-tab strip, and a card whose body is dominated by a ten-row
+ * actions, an eight-tab strip, and a card whose body is dominated by a ten-row
  * textarea. Approximating that with a card grid would move the tab strip the
  * moment the agent arrived, which is the jump the skeleton exists to prevent.
  * `ConversationSkeleton` in `chat-container.tsx` is the same argument.
@@ -1473,7 +1492,7 @@ function BuilderSkeleton() {
           Keyed by position rather than by the width class: the classes repeat,
           which React reported as duplicate keys on every load of this page. */}
       <div className="bg-muted inline-flex h-9 items-center gap-1 rounded-lg p-1">
-        {["w-12", "w-20", "w-28", "w-16", "w-24", "w-16"].map((width, index) => (
+        {["w-12", "w-20", "w-28", "w-16", "w-24", "w-16", "w-12"].map((width, index) => (
           <div key={index} className={cn("bg-foreground/10 h-7 animate-pulse rounded-md", width)} />
         ))}
       </div>

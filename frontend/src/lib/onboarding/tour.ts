@@ -273,6 +273,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.agentsPublish,
     optional: true,
   },
+  // The Evals tab reads the agent's eval runs, which `runs:view` gates.
+  {
+    id: "agent-evals",
+    page: AGENT_BUILDER,
+    target: "agent-evals",
+    activate: "agent-tab-evals",
+    permission: Perm.runsView,
+  },
   {
     id: "agent-publish",
     page: AGENT_BUILDER,

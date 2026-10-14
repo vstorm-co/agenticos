@@ -296,6 +296,25 @@ export const qk = {
     reviewQueue: (query: { skip: number; limit: number }) =>
       ["datasets", "review-queue", query] as const,
   },
+  evalRuns: {
+    all: () => ["eval-runs"] as const,
+    forAgent: (agentId: string, query: { skip: number; limit: number }) =>
+      ["eval-runs", "agent", agentId, query] as const,
+    recent: (limit: number) => ["eval-runs", "recent", limit] as const,
+    detail: (id: string) => ["eval-runs", id] as const,
+    cases: (
+      id: string,
+      query: {
+        arm: string | null;
+        outcome: string | null;
+        tag: string | null;
+        skip: number;
+        limit: number;
+      },
+    ) => ["eval-runs", id, "cases", query] as const,
+    comparison: (id: string, query: { arm: string | null; baseline: string | null }) =>
+      ["eval-runs", id, "comparison", query] as const,
+  },
   context: {
     all: () => ["context"] as const,
     list: (query: { search: string; sort: string; skip: number; limit: number }) =>

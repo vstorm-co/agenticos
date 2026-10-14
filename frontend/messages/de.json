@@ -1929,6 +1929,21 @@
           "manual": "{count} von Hand",
           "synthetic": "{count} generiert"
         }
+      },
+      "eval-runs": {
+        "title": "Eval-Runs",
+        "description": "Die neuesten Runs von Agents über ihre Datasets, mit Bestehensquoten.",
+        "run": "{dataset} v{version}",
+        "empty": {
+          "title": "Noch keine Eval-Runs",
+          "description": "Runs, die im Evals-Tab eines Agents gestartet wurden, erscheinen hier."
+        },
+        "count": {
+          "running": "{count} laufen",
+          "completed": "{count} abgeschlossen",
+          "failed": "{count} fehlgeschlagen",
+          "budget_exceeded": "{count} ohne Budget"
+        }
       }
     },
     "edit": {
@@ -3314,6 +3329,10 @@
       "flow-dataset-sources": {
         "title": "Woher die nächsten Fälle kommen",
         "body": "Schreiben Sie sie hier, oder importieren Sie hier eine CSV- oder JSONL-Datei. Bewerten Sie im Chat eine Antwort positiv oder negativ und fügen Sie sie hinzu - ein Daumen nach oben behält sie als Referenz, einer nach unten als Gegenbeispiel. In der Aktivität fügen Sie einen beliebigen Agent-Zug eines Runs hinzu."
+      },
+      "agent-evals": {
+        "title": "Evals",
+        "body": "Lass den Agent über ein Dataset laufen, um zu sehen, welche Fälle er besteht, was es kostet und ob eine Änderung ihn gegenüber der vorherigen Version verbessert oder verschlechtert hat."
       }
     }
   },
@@ -3658,7 +3677,8 @@
       "youAreSupportCopilot": "Du bist Support-Copilot. Antworte aus dem Produkt-Wiki und nenne das Dokument, das du verwendet hast. Deckt das Wiki es nicht ab, sage das, statt zu raten.",
       "avatarColour": "Ersatzfarbe",
       "knowledge": "Wissen",
-      "skills": "Skills"
+      "skills": "Skills",
+      "evals": "Evals"
     },
     "auth": {
       "backSign": "Zurück zur Anmeldung",
@@ -4188,7 +4208,8 @@
       "whatYourAgentsDid2": "Was Ihre Agents getan haben, was es gekostet hat und was auf einen Menschen wartet.",
       "whereTheMoneyWent": "Wohin das Geld geflossen ist",
       "whoIsSpendingCouldNotBeRead": "Wer ausgibt, konnte nicht gelesen werden.",
-      "widenTheWindowAbove": "Im Zeitraum oben lief nichts. Weiten Sie ihn, oder führen Sie einen Agent aus."
+      "widenTheWindowAbove": "Im Zeitraum oben lief nichts. Weiten Sie ihn, oder führen Sie einen Agent aus.",
+      "openEvals": "Teil eines Eval-Runs · Evals des Agents öffnen"
     },
     "sandboxes": {
       "addConnection": "Verbindung hinzufügen",
@@ -5752,5 +5773,171 @@
     "detailsSaved": "Gespeichert",
     "olderVersion": "Ältere Version Nr.",
     "findDataset": "Dataset suchen"
+  },
+  "evals": {
+    "title": "Evals",
+    "description": "Jeder Run dieses Agents über ein Dataset: wie jeder Fall beantwortet und bewertet wurde und wie er im Vergleich zu einer früheren Version abschneidet.",
+    "start": "Evals starten",
+    "startTitle": "Evals starten",
+    "startBody": "Wähle aus, was läuft und auf welchem Dataset. Du siehst die Kosten, bevor etwas läuft.",
+    "cancel": "Abbrechen",
+    "estimateCost": "Kosten schätzen",
+    "estimate": {
+      "arm": {
+        "candidate": "Kandidat auf {model}",
+        "baseline": "Baseline v{version} auf {model}"
+      },
+      "basis": {
+        "fallback": "keine Historie auf diesem Modell, grobe Schätzung",
+        "cached": "aus einem aktuellen Run übernommen"
+      },
+      "judge": "Judge",
+      "total": "Insgesamt {count, plural, =1 {1 Fall} other {# Fälle}}",
+      "reruns": "Gekippte Fälle werden zur Bestätigung wiederholt, was bis zu {amount} hinzufügen kann.",
+      "after": "Nach diesem Run behält der Agent <b>{agent}</b> und die Organisation <b>{org}</b> vom Budget dieses Monats.",
+      "noCap": "kein Limit",
+      "unaffordable": "Das ist mehr, als einem Budget bleibt. Lass weniger Fälle oder Modelle laufen oder erhöhe das Budget."
+    },
+    "runFor": "Für {amount} starten",
+    "runTitle": "{dataset} v{version} · {candidate}",
+    "runMeta": "{date} · {cost} von geschätzten {estimate} ausgegeben",
+    "back": "Zurück zu den Evals des Agents",
+    "cancelRun": "Stoppen",
+    "progress": "Beantwortete Fälle",
+    "progressCount": "{done} von {total} Antworten",
+    "compareArm": "Dieses Modell vergleichen",
+    "draft": "Draft",
+    "proposed": "Vorgeschlagene Änderungen",
+    "version": "v{version}",
+    "status": {
+      "queued": "In der Warteschlange",
+      "running": "Läuft",
+      "completed": "Abgeschlossen",
+      "cancelled": "Gestoppt",
+      "failed": "Fehlgeschlagen",
+      "budget_exceeded": "Budget erschöpft"
+    },
+    "empty": {
+      "noDatasetTitle": "Lege zuerst ein Dataset an",
+      "noDatasetBody": "Ein Eval lässt den Agent über die Fälle eines Datasets laufen. Füge die Fragen hinzu, die er gut beantworten soll, und komm dann zurück, um sie laufen zu lassen.",
+      "createDataset": "Zu den Datasets",
+      "title": "Noch keine Evals",
+      "body": "Lass den Agent über ein Dataset laufen, um zu sehen, welche Fälle er besteht, was es kostet und wie er im Vergleich zu einer früheren Version abschneidet."
+    },
+    "fields": {
+      "dataset": "Dataset",
+      "datasetPlaceholder": "Dataset wählen",
+      "datasetOption": "{name} · {count, plural, =1 {1 Fall} other {# Fälle}} · v{version}",
+      "candidate": "Was läuft",
+      "published": "Veröffentlichte Version v{version}",
+      "draft": "Der Draft im aktuellen Stand",
+      "environment": "Umgebung",
+      "noEnvironment": "Keine",
+      "environmentHint": "Die Fälle nutzen die Testverbindungen dieser Umgebung. Ein Tool, das ohne eine solche schreibt, wird zurückgehalten, nicht ausgeführt.",
+      "models": "Modelle",
+      "modelsHint": "Lass alles leer, um das eigene Modell des Agents zu nutzen. Wähle mehrere, um sie nebeneinander zu vergleichen.",
+      "pairedBaseline": "Vorherige Version im selben Run laufen lassen",
+      "pairedBaselineHint": "Beide treffen am selben Tag auf denselben Provider, sodass eine Regression am Agent liegt, nicht am Provider. Es kostet einen zweiten Lauf jedes Falls.",
+      "fromRecordings": "Tools aus Aufzeichnungen beantworten",
+      "fromRecordingsHint": "Fälle aus Conversations bekommen die Tool-Ergebnisse, die der ursprüngliche Run bekommen hat."
+    },
+    "comparison": {
+      "title": "Gegen die Baseline",
+      "noBaseline": "Es gibt noch keinen früheren Run dieses Datasets zum Vergleich. Lass die vorherige Version laufen oder die Baseline im selben Run.",
+      "candidate": "Kandidat",
+      "baselinePaired": "Baseline, im selben Run",
+      "baselinePast": "Baseline, ein früherer Run",
+      "side": "{candidate} · {model} · Dataset v{dataset} · {date}",
+      "unfinished": "nicht abgeschlossen",
+      "version": "v{version}",
+      "source": {
+        "version": "Version",
+        "draft": "Draft",
+        "explicit": "Vorgeschlagene Änderungen"
+      },
+      "verdict": {
+        "better": "Besser",
+        "worse": "Schlechter",
+        "no_difference": "Kein Unterschied",
+        "inconclusive": "Stichprobe zu klein",
+        "invalid": "Nicht vergleichbar"
+      },
+      "explain": {
+        "better": "Mehr bestätigte Behebungen als Regressionen, mehr als der Zufall ergäbe.",
+        "worse": "Mehr bestätigte Regressionen als Behebungen, mehr als der Zufall ergäbe.",
+        "no_difference": "Kein Fall ist gekippt und hat bei der Wiederholung gehalten.",
+        "inconclusive": "Einige Fälle sind gekippt, aber zu wenige, um es vom Rauschen zu unterscheiden."
+      },
+      "regressionsConfirmed": "Bestätigte Regressionen",
+      "regressionsUnconfirmed": "Unbestätigte Regressionen",
+      "fixedConfirmed": "Bestätigte Behebungen",
+      "fixedUnconfirmed": "Unbestätigte Behebungen",
+      "compared": "{compared, plural, =1 {1 Fall} other {# Fälle}} verglichen, {skipped} nur auf einer Seite beantwortet",
+      "metric": {
+        "cost_per_pass": "Kosten pro bestandenem Fall",
+        "avg_tokens": "Tokens",
+        "p50_ms": "Median-Latenz",
+        "p95_ms": "p95-Latenz"
+      },
+      "trend": {
+        "better": "besser",
+        "worse": "schlechter",
+        "unchanged": "unverändert",
+        "unknown": "unbekannt"
+      }
+    },
+    "arms": {
+      "title": "Ergebnisse",
+      "arm": "Arm",
+      "passRate": "Bestehensquote",
+      "undecided": "Unentschieden",
+      "costPerPass": "Kosten pro Bestehen",
+      "tokens": "Tokens pro Fall",
+      "latency": "Latenz p50 / p95",
+      "role": {
+        "candidate": "Kandidat auf {model}",
+        "baseline": "Baseline auf {model}"
+      },
+      "reused": "wiederverwendet",
+      "p50p95": "{p50} / {p95}"
+    },
+    "cases": {
+      "title": "{count, plural, =1 {1 Fall} other {# Fälle}}",
+      "outcomeFilter": "Ergebnis",
+      "tagFilter": "Tag",
+      "allTags": "Alle Tags",
+      "outcome": {
+        "all": "Alle Ergebnisse",
+        "passed": "Bestanden",
+        "failed": "Nicht bestanden",
+        "undecided": "Unentschieden"
+      },
+      "flip": {
+        "regression": "{confirmed, select, true {Bestätigte Regression} other {Regression, unbestätigt}}",
+        "fixed": "{confirmed, select, true {Bestätigte Behebung} other {Behoben, unbestätigt}}",
+        "incomplete": "Auf einer Seite unentschieden"
+      }
+    },
+    "case": {
+      "firstAnswer": "Antwort",
+      "rerun": "Wiederholung {n}",
+      "outcome": {
+        "true": "bestanden",
+        "false": "nicht bestanden",
+        "null": "unentschieden"
+      },
+      "call": {
+        "executed": "ausgeführt",
+        "replayed": "aus Aufzeichnung",
+        "blocked": "zurückgehalten, schreibt",
+        "divergent": "nicht in der Aufzeichnung"
+      },
+      "scorer": {
+        "pass": "bestanden",
+        "fail": "nicht bestanden",
+        "skipped": "übersprungen",
+        "error": "Fehler"
+      }
+    }
   }
 }
