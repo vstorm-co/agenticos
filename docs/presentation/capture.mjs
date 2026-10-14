@@ -14,6 +14,9 @@
  * old one had its controls. `PREVIEW=1` also writes each picture with its areas
  * drawn on, into a temporary folder it names, to check them before a deck is opened.
  *
+ * The figures shared with the README come from its own render; run
+ * `../assets/readme/render.mjs` first when one of them changed.
+ *
  * What a screen shows is whatever the organization holds: run it against the demo
  * data you want presented. Playwright and ImageMagick come from the developer's
  * machine, like the README figures.
@@ -345,6 +348,47 @@ const SHOTS = [
   },
 ];
 
+/**
+ * Figures the decks share with the README: `../assets/readme/render.mjs` draws them
+ * from figures.html, and this copies the picture and measures the named parts of
+ * its section there, the same way it measures a screen.
+ */
+const FIGURES = [
+  {
+    name: "integrations-hub",
+    areas: {
+      models: ".hub > .top",
+      surfaces: ".hub .left > .tile:nth-child(1)",
+      starts: ".hub .left > .tile:nth-child(2)",
+      tools: ".hub > .right",
+      documents: ".hub > .bottom",
+    },
+  },
+];
+
+async function figures(browser) {
+  const readme = join(here, "../assets/readme");
+  const page = await browser.newPage({ viewport: { width: 1700, height: 1000 } });
+  await page.goto(`file://${join(readme, "figures.html")}`);
+  await page.waitForSelector("body[data-ready]");
+  for (const figure of FIGURES) {
+    if (only.size > 0 && !only.has(figure.name)) continue;
+    const section = page.locator(`section[data-figure="${figure.name}"]`);
+    const whole = await box(section);
+    const measured = {};
+    for (const [key, selector] of Object.entries(figure.areas)) {
+      const b = await box(section.locator(selector));
+      measured[key] = [(b.x - whole.x) / whole.width, (b.y - whole.y) / whole.height, b.width / whole.width, b.height / whole.height].map(
+        (n) => Math.round(n * 1000) / 1000,
+      );
+    }
+    areas[figure.name] = measured;
+    execFileSync("cp", [join(readme, `${figure.name}.webp`), join(media, `${figure.name}.webp`)]);
+    console.log(`media/${figure.name}.webp`, Object.keys(measured).join(" "));
+  }
+  await page.close();
+}
+
 /** Ids the routes need, looked up so the script works on any deployment. */
 async function lookUp(page) {
   const orgs = (await (await page.request.get(`${BASE}/api/orgs`)).json()).items;
@@ -373,6 +417,7 @@ const areas = existsSync(areasFile)
 const previews = PREVIEW ? mkdtempSync(join(tmpdir(), "deck-areas-")) : null;
 
 const browser = await chromium.launch();
+await figures(browser);
 for (const shot of SHOTS) {
   if (only.size > 0 && !only.has(shot.name)) continue;
   const height = shot.height ?? 900;
