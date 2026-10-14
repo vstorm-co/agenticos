@@ -78,7 +78,7 @@ describe("AgentAvatar", () => {
     await waitFor(() => expect(face(container)).not.toBeNull());
   });
 
-  it("draws the Architect's mark, in the theme's colours, while it wears it", () => {
+  it("draws the Architect's blueprint mark while it wears it", () => {
     // Its stored picture is one fixed image - dark on a dark page - so the mark is
     // drawn instead, for that agent only.
     useArchitectMarkStore.setState({ agentId: "architect-1" });
@@ -88,8 +88,8 @@ describe("AgentAvatar", () => {
     );
     const { container: other } = render(<AgentAvatar agentId="a1" slug="support" />);
 
-    expect(architect.querySelector('svg path[d^="M12 6.4"]')).not.toBeNull();
-    expect(architect.querySelector("span")).toHaveClass("bg-foreground");
+    expect(architect.querySelector('svg circle[fill="#2557d6"]')).not.toBeNull();
+    expect(architect.querySelector("span")).toHaveClass("rounded-full");
     expect(face(other)).not.toBeNull();
   });
 

@@ -534,6 +534,10 @@ Two things are versioned separately from this file and worth knowing about:
   agent's cursor moves to what it is about to click or type into and
   shows the click (`browser_pointer` frames).
 
+- **The Architect wears a blueprint.** Its mark is now a blueprint-blue
+  disc with a faint drafting grid and the two pill eyes every agent's face
+  has, in the console and in the avatar a new install uploads.
+
 - **An approval reads as a question, not a JSON document.** In the chat,
   in Activity and in Slack, Telegram and Mattermost a waiting call shows
   what it wants to do in words - "Allow Search in Notion?", with the
