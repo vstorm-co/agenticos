@@ -106,8 +106,9 @@ async def test_a_viewer_s_first_look_installs_it_and_a_model_publishes_it(
     assert {"ask_user", "web_research", "web_fetch", "skills"} <= {
         binding.id for binding in spec.capabilities
     }
-    # Its skills for building agents, installed with it (#2069).
-    assert len(spec.skill_ids) == 7
+    # Its skills for building agents, installed with it (#2069), and the guide
+    # to AgenticOS itself that its questions about the product are answered from.
+    assert len(spec.skill_ids) == 8
 
 
 async def test_one_organization_gets_one_assistant(db: AsyncSession) -> None:
