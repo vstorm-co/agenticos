@@ -152,14 +152,15 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     captionKey: "askingYou",
     displayNameKey: "askedYou",
   },
-  // artifacts - the published page is the answer, so its card opens where it lands.
+  // artifacts - the published page is the answer, so its card sits under the
+  // answer (`publishedApps` in `message-item.tsx`) and the step stays one line,
+  // which lets the work fold away like any other turn's.
   publish_artifact: {
     kind: "write",
     render: "artifact",
     captionKey: "publishingArtifact",
     displayNameKey: "publishArtifact",
-    opensWhenDone: true,
-    opensOnSight: true,
+    staysClosed: true,
   },
   read_artifact: {
     kind: "read",

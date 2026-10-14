@@ -422,9 +422,9 @@ describe("a tool call in the transcript", () => {
     );
   });
 
-  it("opens a published page on sight, linked to the version this run wrote", () => {
-    // The version and not the artifact: after the agent republishes, this
-    // conversation still opens what was published in it.
+  it("keeps a published page to one line, its card being under the answer", async () => {
+    // The card sits under the reply, so the step does not open over the work -
+    // which is what lets a turn that published an app fold away like any other.
     card({
       name: "publish_artifact",
       result: JSON.stringify({
@@ -436,7 +436,10 @@ describe("a tool call in the transcript", () => {
         unchanged: false,
       }),
     });
+    expect(screen.queryByRole("link", { name: /Weekly report/ })).toBeNull();
 
+    // Opened by hand, it still links the version this run wrote.
+    await userEvent.click(screen.getByRole("button", { name: /Published app/ }));
     expect(screen.getByRole("link", { name: /Weekly report/ })).toHaveAttribute(
       "href",
       "/apps/a1?version=v3",
