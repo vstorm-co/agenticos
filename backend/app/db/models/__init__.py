@@ -12,7 +12,6 @@ from app.db.models.sync_log import SyncLog
 from app.db.models.sync_source import SyncSource
 from app.db.models.conversation_favourite import ConversationFavourite
 from app.db.models.conversation_last_read import ConversationLastRead
-from app.db.models.browser_setting import BrowserSetting
 from app.db.models.browser_sign_in import BrowserSignIn
 from app.db.models.conversation_share import ConversationShare
 from app.db.models.channel_bot import ChannelBot
@@ -78,7 +77,6 @@ from app.db.models.artifact import (
 
 __all__ = [
     "ApiKey",
-    "BrowserSetting",
     "BrowserSignIn",
     "OrganizationAssistant",
     "ChannelPrompt",

@@ -936,16 +936,11 @@ include = [
     "app/services/live_browse.py",
     "app/services/browse_plans.py",
     "app/api/routes/v1/browse_live.py",
-    "app/db/models/browser_setting.py",
     "app/db/models/browser_sign_in.py",
-    "app/repositories/browser_setting.py",
     "app/repositories/browser_sign_in.py",
-    "app/schemas/browser_setting.py",
     "app/schemas/browser_sign_in.py",
-    "app/services/browser_setting.py",
     "app/services/browser_sign_in.py",
     "app/services/browser_sign_in_session.py",
-    "app/api/routes/v1/browser_settings.py",
     "app/api/routes/v1/browser_sign_ins.py",
 ]
 # Mirrors `[tool.coverage.run] omit` - one definition of "ours", asserted equal
@@ -1386,16 +1381,11 @@ include = [
     "app/services/live_browse.py",
     "app/services/browse_plans.py",
     "app/api/routes/v1/browse_live.py",
-    "app/db/models/browser_setting.py",
     "app/db/models/browser_sign_in.py",
-    "app/repositories/browser_setting.py",
     "app/repositories/browser_sign_in.py",
-    "app/schemas/browser_setting.py",
     "app/schemas/browser_sign_in.py",
-    "app/services/browser_setting.py",
     "app/services/browser_sign_in.py",
     "app/services/browser_sign_in_session.py",
-    "app/api/routes/v1/browser_settings.py",
     "app/api/routes/v1/browser_sign_ins.py",
 ]
 branch = true

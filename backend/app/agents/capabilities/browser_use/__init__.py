@@ -3,7 +3,7 @@
 from urllib.parse import urlsplit
 from uuid import UUID
 
-from pydantic import BaseModel, Field, JsonValue
+from pydantic import BaseModel, Field, JsonValue, field_validator
 from pydantic_ai.capabilities import AbstractCapability
 from pydantic_ai.models import Model
 
@@ -14,17 +14,22 @@ from app.agents.capabilities._registry import (
 )
 from app.agents.capabilities.browser_use._capability import WebBrowser
 from app.agents.capabilities.browser_use._elements import HARD_CANDIDATE_CAP
-from app.agents.capabilities.browser_use._route import BROWSER_ROUTE_RESOURCE, BrowserRoute
+from app.agents.capabilities.browser_use._route import (
+    Connection,
+    address_problem,
+    route_for,
+    timezone_problem,
+)
 from app.core.config import settings
 from app.core.sanitize import UrlRefusedError
+from app.core.secret_kinds import ApiKeySecret, SecretCondition, SecretKind, SecretRequirement
 
 __all__ = [
     "BROWSER_CAPABILITY_ID",
-    "BROWSER_ROUTE_RESOURCE",
     "BROWSER_STEP_MODEL_RESOURCE",
-    "BrowserRoute",
     "WebBrowser",
     "WebBrowserConfig",
+    "connection_problems",
     "validate_cdp_url",
 ]
 
@@ -65,6 +70,8 @@ def _cdp_url_form(schema: dict[str, JsonValue]) -> None:
     Read when the schema is generated rather than when this module is imported,
     because a deployment's allowlist is configuration and this file is code.
     """
+    # A hosted browser is its own endpoint, so the field says nothing there.
+    schema["x-visible-when"] = {"field": "connection", "equals": ["built_in", "proxy"]}
     hosts = [host.strip() for host in settings.BROWSER_CDP_ALLOWED_HOSTS if host.strip()]
     if not hosts:
         schema["x-placeholder"] = "Set BROWSER_CDP_ALLOWED_HOSTS first"
@@ -157,6 +164,75 @@ class WebBrowserConfig(BaseModel):
         ),
         json_schema_extra={"x-widget": "model-profile", "x-advanced": True},
     )
+    connection: Connection = Field(
+        title="How the browser reaches the web",
+        default="built_in",
+        description=(
+            "Built in uses the deployment's browser and its address. A proxy sends "
+            "the browses through an address of your own - a residential or regional "
+            "one sites block less. A hosted browser runs them in a browser service "
+            "you pay for, reached over CDP."
+        ),
+        json_schema_extra={
+            "x-enum-labels": {
+                "built_in": "Built in",
+                "proxy": "Through a proxy",
+                "hosted": "A hosted browser",
+            }
+        },
+    )
+    proxy_url: str = Field(
+        title="Proxy address",
+        default="",
+        description=(
+            "http://, https:// or socks5:// with the host and port. Its "
+            "username:password goes in the vault, picked below; Chromium cannot "
+            "sign in to a SOCKS proxy."
+        ),
+        json_schema_extra={
+            "x-placeholder": "http://proxy.example.com:8080",
+            "x-visible-when": {"field": "connection", "equals": ["proxy"]},
+        },
+    )
+    hosted_url: str = Field(
+        title="Hosted browser address",
+        default="",
+        description=(
+            "The service's wss:// CDP address. Its key goes in the vault, picked "
+            "below, and is added to the address's query when the browse connects."
+        ),
+        json_schema_extra={
+            "x-placeholder": "wss://connect.browserbase.com",
+            "x-visible-when": {"field": "connection", "equals": ["hosted"]},
+        },
+    )
+    hosted_key_param: str = Field(
+        title="Query parameter for the key",
+        default="apiKey",
+        min_length=1,
+        max_length=64,
+        description="What the hosted browser calls its key in the address's query.",
+        json_schema_extra={
+            "x-advanced": True,
+            "x-visible-when": {"field": "connection", "equals": ["hosted"]},
+        },
+    )
+    timezone: str | None = Field(
+        title="Time zone the browser reports",
+        default=None,
+        description=(
+            "An IANA time zone such as Europe/Warsaw. Set it to match the proxy's "
+            "region: a browser whose clock and address disagree reads as a bot."
+        ),
+        json_schema_extra={"x-advanced": True, "x-placeholder": "Europe/Warsaw"},
+    )
+    locale: str | None = Field(
+        title="Language the browser reports",
+        default=None,
+        max_length=35,
+        description="A language tag such as pl-PL, sent as Accept-Language and navigator.language.",
+        json_schema_extra={"x-advanced": True, "x-placeholder": "pl-PL"},
+    )
     preview_width: int = Field(
         title="Viewport width (pixels)",
         default=1024,
@@ -168,6 +244,41 @@ class WebBrowserConfig(BaseModel):
         ),
         json_schema_extra={"x-advanced": True},
     )
+
+    @field_validator("timezone", "locale", mode="before")
+    @classmethod
+    def _blank_is_unset(cls, value: object) -> object:
+        """An emptied field in the Builder arrives as `""`, which means none."""
+        return None if value == "" else value
+
+
+def connection_problems(config: WebBrowserConfig, *, has_secret: bool) -> list[str]:
+    """What is wrong with how this binding says its browses reach the web.
+
+    The addresses are checked on their face here; where they point is checked by
+    `_route.check_address` at publish and again as each browse starts.
+    """
+    problems: list[str] = []
+    if config.connection == "proxy":
+        if not config.proxy_url:
+            problems.append("Say which proxy the browser goes through")
+        elif (problem := address_problem(config.proxy_url, kind="proxy")) is not None:
+            problems.append(f"The proxy address cannot be used: {problem}")
+        elif has_secret and urlsplit(config.proxy_url).scheme == "socks5":
+            # Chromium has no way to sign in to a SOCKS proxy: the browse would
+            # fail on its first request, inside somebody's conversation.
+            problems.append(
+                "Chromium cannot sign in to a SOCKS proxy; use an HTTP proxy for one "
+                "that needs a password"
+            )
+    if config.connection == "hosted":
+        if not config.hosted_url:
+            problems.append("Say where the hosted browser is")
+        elif (problem := address_problem(config.hosted_url, kind="hosted")) is not None:
+            problems.append(f"The hosted browser's address cannot be used: {problem}")
+    if (problem := timezone_problem(config.timezone)) is not None:
+        problems.append(problem)
+    return problems
 
 
 def validate_cdp_url(config: WebBrowserConfig) -> None:
@@ -200,6 +311,9 @@ def validate_cdp_url(config: WebBrowserConfig) -> None:
         UrlRefusedError: The URL is missing, malformed, not a CDP scheme, or names
             a host this deployment does not allow.
     """
+    if config.connection == "hosted":
+        # The hosted browser is the endpoint; `connection_problems` checks it.
+        return
     if not config.cdp_url:
         raise UrlRefusedError(
             "Browser automation needs a cdp_url: the Chromium DevTools endpoint "
@@ -291,6 +405,14 @@ def validate_cdp_url(config: WebBrowserConfig) -> None:
     config_schema=WebBrowserConfig,
     side_effecting=True,
     scopes=("web:browse",),
+    secret=SecretRequirement(
+        kind=SecretKind.API_KEY,
+        description="The hosted browser's key, or the proxy's username:password",
+        # A hosted browser always authenticates; a proxy may or may not, so its
+        # credential is optional and the built-in browser takes none.
+        required_when=SecretCondition(field="connection", equals=("hosted",)),
+        optional_when=SecretCondition(field="connection", equals=("proxy",)),
+    ),
 )
 def _build(ctx: CapabilityBuildContext) -> AbstractCapability[object]:
     """Build the capability from the agent's config.
@@ -302,10 +424,20 @@ def _build(ctx: CapabilityBuildContext) -> AbstractCapability[object]:
     """
     config = ctx.config if isinstance(ctx.config, WebBrowserConfig) else WebBrowserConfig()
     step_model = ctx.resources.get(BROWSER_STEP_MODEL_RESOURCE)
-    route = ctx.resources.get(BROWSER_ROUTE_RESOURCE)
+    credential = (
+        ctx.secret.api_key.get_secret_value() if isinstance(ctx.secret, ApiKeySecret) else None
+    )
     return WebBrowser(
         step_model=step_model if isinstance(step_model, Model) else None,
-        route=route if isinstance(route, BrowserRoute) else None,
+        route=route_for(
+            connection=config.connection,
+            proxy_url=config.proxy_url,
+            hosted_url=config.hosted_url,
+            hosted_key_param=config.hosted_key_param,
+            timezone=config.timezone,
+            locale=config.locale,
+            credential=credential,
+        ),
         cdp_url=config.cdp_url,
         allowed_domains=config.allowed_domains,
         max_steps=config.max_steps,

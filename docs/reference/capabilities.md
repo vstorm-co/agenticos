@@ -663,6 +663,12 @@ it lasts an hour after the browse last did anything.
 | `preview` | `true` | send the viewport to the chat while the browse runs |
 | `preview_width` | 1024 | 320–1920; the viewport width, and so the width of the frames |
 | `step_model_profile_id` | empty | a model profile `browse_web` asks for each step instead of the agent's - a cheaper model makes a long browse cheaper, and quicker only where its provider answers quickly (Claude Haiku through OpenRouter took as long per step as Sonnet); empty uses the agent's model, and the agent's own browser tools always do |
+| `connection` | `built_in` | `built_in`, `proxy` or `hosted`: how the browser reaches the web |
+| `proxy_url` | empty | under `proxy`: `http://`, `https://` or `socks5://` with host and port; the binding's secret, when there is one, is its `username:password` |
+| `hosted_url` | empty | under `hosted`: the service's `wss://` CDP address; the binding's secret is its key and is required |
+| `hosted_key_param` | `apiKey` | what the hosted browser calls its key in the address's query |
+| `timezone` | empty | an IANA time zone the browser reports - set it to the proxy's region |
+| `locale` | empty | a language tag such as `pl-PL`, sent as `Accept-Language` and `navigator.language` |
 
 **The browser is one you run, and the operator says which.** There is no Chromium in
 the API image: `cdp_url` points at a browser service an operator runs and isolates.
@@ -671,22 +677,24 @@ browser up -d browser`, reached as `http://browser:9222`. The host must be on
 [`BROWSER_CDP_ALLOWED_HOSTS`](../configuration.md), and an empty allowlist — the
 default — refuses browser automation outright, at publish.
 
-**An organization chooses how its browses reach the web** (#2130), under Connections →
-Web browser, on `connections:manage`. *Built in* is the browser the agent's `cdp_url`
-names, from the deployment's own address. *Through a proxy* sends that browser's
-traffic through an `http://`, `https://` or `socks5://` proxy - a residential or
-regional address - with its `username:password` in the vault. *Hosted browser*
-attaches to a browser service over `wss://` instead - Browserbase, Steel or one of
-your own - its key in the vault and added to the address's query (`apiKey` unless the
-service reads another name). Each also says which time zone and language the browser
-has.
+**An agent chooses how its browses reach the web** (#2130), in the web browser's own
+settings, under the same `edit` on the agent as the rest of them. `connection` is
+`built_in` - the browser `cdp_url` names, from the deployment's own address - `proxy`
+or `hosted`, and `timezone` and `locale` say which time zone and language the browser
+reports whichever it is.
 
-The setting covers every browse in the organization, a delegate's and the sign-in
-browser's included. An address inside the deployment's network is refused, when it is
-saved and again when a browse starts, unless the operator listed the host in
-`BROWSER_CDP_ALLOWED_HOSTS`. Chromium cannot sign in to a SOCKS proxy, so one that
-needs a password has to be HTTP. A site that asks for a password is never handed the
-proxy's.
+A proxy (`proxy_url`) sends that browser's traffic through an `http://`, `https://`
+or `socks5://` address - a residential or regional one - and signs in with the
+binding's secret as `username:password` when it has one. A hosted browser
+(`hosted_url`) attaches to a browser service over `wss://` instead - Browserbase,
+Steel or one of your own - with the binding's secret as its key, added to the
+address's query under `hosted_key_param` (`apiKey` by default).
+
+An address inside the deployment's network is refused at publish and again when a
+browse starts, unless the operator listed the host in `BROWSER_CDP_ALLOWED_HOSTS`.
+Chromium cannot sign in to a SOCKS proxy, so one that needs a password has to be
+HTTP. A site that asks for a password is never handed the proxy's. The sign-in
+browser always runs in the deployment's own.
 
 **The compose browser reads as a desktop one.** It is a full Chromium with a window
 under a virtual display (`docker/browser`), with the fonts a desktop has and none of

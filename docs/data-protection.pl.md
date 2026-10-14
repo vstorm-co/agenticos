@@ -1,5 +1,5 @@
 ---
-source_sha: "fe8c1d7d8477"
+source_sha: "55662d778f21"
 ---
 
 # Ochrona danych { #data-protection }
@@ -122,7 +122,7 @@ lista celów, wraz z konfiguracją, która o każdym decyduje.
 | Model opisujący obrazy | Obrazy wewnątrz dokumentów | `image_description_model` kolekcji | Providera tego modelu |
 | Web research | Zapytanie wyszukiwania, które ułożył agent | `web_research.method` w specu: `duckduckgo` (bez klucza), `tavily`, `brave` albo `exa` (każde z sekretem `search`), albo `native`, gdzie szuka provider modelu czatowego | Dostawcy wyszukiwania albo providera modelu |
 | Pobieranie stron i przeglądarka | URL; dla przeglądarki to, co wpisuje na otwieranych stronach | Capability w specu; przeglądarka potrzebuje też endpointu CDP na `BROWSER_CDP_ALLOWED_HOSTS`, domyślnie pustej | Pobieranej strony; hosta przeglądarki i stron, które otwiera |
-| Proxy przeglądarki organizacji albo przeglądarka hostowana | Wszystko, co przeglądarka ładuje i wysyła, tak jak inaczej robiłaby to przeglądarka we wdrożeniu - strony, treść formularzy, ciasteczka, logowania - oraz własny zapis proxy albo usługi | Ustawienia, Connections → Web browser (#2130); domyślnie brak | Proxy albo usługa przeglądarki hostowanej (Browserbase, Steel lub inna), na umowie organizacji z nią |
+| Proxy przeglądarki agenta albo przeglądarka hostowana | Wszystko, co przeglądarka ładuje i wysyła, tak jak inaczej robiłaby to przeglądarka we wdrożeniu - strony, treść formularzy, ciasteczka, logowania - oraz własny zapis proxy albo usługi | `browser_use.connection` w spec (#2130); domyślnie `built_in` | Proxy albo usługa przeglądarki hostowanej (Browserbase, Steel lub inna), na umowie organizacji z nią |
 | Kroki przeglądarki | Każdy krok przeglądania idzie do modelu tego agenta: adres strony, jej tytuł, etykiety widocznych elementów i do 4000 znaków jej widocznego tekstu, plus zrzut ekranu przy włączonym `vision` — co może być zawartością systemu wewnętrznego. To, co zawiera pole, nie jest powtarzane: tabela elementów podaje tylko, że pole jest wypełnione | Capability `browser_use` w specu | Dostawcy modelu agenta, tak jak przy rozmowie |
 | Sandbox, ruch wychodzący | **Cokolwiek z workspace'u, do dowolnego hosta** — runtime `workbench` ma sieć, powłokę i `curl` | Capability `sandbox` i runtime z `needs_network`; zatwierdzanie komend bramkuje to, co się uruchamia, a nie to, dokąd się łączy | Dokądkolwiek poszła komenda. Kontrola ruchu wychodzącego to firewall hosta sandboksa, a nie ustawienie tutaj |
 | Serwer MCP | Argumenty i wyniki narzędzi | `mcp_connections.url`, per organizacja albo per osoba | Operatora serwera |

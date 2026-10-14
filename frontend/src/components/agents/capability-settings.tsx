@@ -44,7 +44,7 @@ import type {
   ToolOverride,
   ToolParameterSchema,
 } from "@/types/agents";
-import { secretIsRequired } from "@/types/secrets";
+import { secretIsOffered, secretIsRequired } from "@/types/secrets";
 import type { Secret, SecretRequirement } from "@/types/secrets";
 import { useTranslations } from "next-intl";
 
@@ -319,10 +319,11 @@ export function CapabilityDetail({
             names the configurations it applies to; asking for a key the server
             will not demand is as wrong as not asking for one it will. */}
       {definition.requires_secret !== null &&
-        secretIsRequired(definition.requires_secret, binding.config) && (
+        secretIsOffered(definition.requires_secret, binding.config) && (
           <SecretField
             binding={binding}
             requirement={definition.requires_secret}
+            optional={!secretIsRequired(definition.requires_secret, binding.config)}
             onChange={onChange}
             disabled={disabled}
           />
@@ -498,6 +499,8 @@ export function secretProblem(
 interface SecretFieldProps {
   binding: CapabilityBindingSpec;
   requirement: SecretRequirement;
+  /** This configuration can use a key but does not need one. */
+  optional: boolean;
   onChange: (binding: CapabilityBindingSpec) => void;
   disabled?: boolean;
 }
@@ -564,7 +567,10 @@ function fitsPurpose(secret: Secret, purpose: string | null, selectedId: string 
  * state that blocks publishing - but it is reached by not having chosen, never
  * by choosing, so offering it would be offering a way to break the agent.
  */
-function SecretField({ binding, requirement, onChange, disabled }: SecretFieldProps) {
+/** The picker's "no key" choice; Radix refuses an empty string as an item's value. */
+const NO_SECRET = "__none__";
+
+function SecretField({ binding, requirement, optional, onChange, disabled }: SecretFieldProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("agents");
   const { secrets, isLoading, listError } = useSecrets();
@@ -582,9 +588,11 @@ function SecretField({ binding, requirement, onChange, disabled }: SecretFieldPr
   // as deleted on every load.
   const vaultWasRead = state === "ready" || state === "empty";
   const problem =
-    binding.secret_id === null || vaultWasRead
-      ? secretProblem(requirement, binding.secret_id, secrets, t)
-      : null;
+    optional && binding.secret_id === null
+      ? null
+      : binding.secret_id === null || vaultWasRead
+        ? secretProblem(requirement, binding.secret_id, secrets, t)
+        : null;
 
   return (
     <div className="space-y-2">
@@ -599,9 +607,14 @@ function SecretField({ binding, requirement, onChange, disabled }: SecretFieldPr
         // deleted, wrong-kind or unreadable reference would leave the control
         // blank and silent. Falling back to the placeholder puts the state into
         // words, and the line below says which state it is.
-        value={usable.find((secret) => secret.id === binding.secret_id)?.id ?? ""}
+        value={
+          usable.find((secret) => secret.id === binding.secret_id)?.id ??
+          (optional && binding.secret_id === null ? NO_SECRET : "")
+        }
         disabled={disabled || state !== "ready"}
-        onValueChange={(secretId) => onChange({ ...binding, secret_id: secretId })}
+        onValueChange={(secretId) =>
+          onChange({ ...binding, secret_id: secretId === NO_SECRET ? null : secretId })
+        }
       >
         <SelectTrigger
           id={fieldId}
@@ -611,6 +624,7 @@ function SecretField({ binding, requirement, onChange, disabled }: SecretFieldPr
           <SelectValue placeholder={placeholderFor(state, requirement, t)} />
         </SelectTrigger>
         <SelectContent>
+          {optional && <SelectItem value={NO_SECRET}>{t("noSecret")}</SelectItem>}
           {usable.map((secret) => (
             <SelectItem key={secret.id} value={secret.id} textValue={secret.name}>
               {/* What the key is for is what `fitsPurpose` filtered on, and it

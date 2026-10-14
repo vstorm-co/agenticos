@@ -90,7 +90,7 @@ export function SchemaForm({
     // A field with exactly one legal value is not a question. Rendering it
     // would offer a control whose every other answer the server refuses, and
     // for a secret payload that control is the `kind` the caller already chose.
-    ([, property]) => property.const === undefined,
+    ([, property]) => property.const === undefined && visible(property, schema, value),
   );
   if (properties.length === 0) return null;
 
@@ -126,6 +126,23 @@ export function SchemaForm({
       )}
     </div>
   );
+}
+
+/**
+ * Whether a field marked `x-visible-when` applies to what the form holds now.
+ *
+ * The deciding field is read with its schema default, because the form shows a
+ * default without storing it until somebody changes it.
+ */
+function visible(
+  property: JsonSchemaProperty,
+  schema: JsonSchema,
+  value: Record<string, unknown>,
+): boolean {
+  const when = property["x-visible-when"];
+  if (when === undefined) return true;
+  const current = value[when.field] ?? schema.properties?.[when.field]?.default;
+  return when.equals.includes(String(current));
 }
 
 /**

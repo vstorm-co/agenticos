@@ -699,6 +699,12 @@ export interface JsonSchemaProperty {
    */
   "x-widget"?: "model-profile";
   /**
+   * Show this field only while another field of the same form holds one of
+   * these values - a proxy's address under "Through a proxy" and nowhere else.
+   * Hidden is not cleared: switching back finds what was typed.
+   */
+  "x-visible-when"?: { field: string; equals: string[] };
+  /**
    * What a `list[...]` holds. Only `{"type": "string"}` is rendered; anything
    * else is the richer editor the generated form deliberately does not grow.
    */

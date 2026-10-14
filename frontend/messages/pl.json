@@ -361,6 +361,7 @@
     "noProviderKeyAskSomebody": "Brak jeszcze klucza {provider} w vault, a zapisanie go wymaga uprawnienia, którego nie masz. Ktoś, kto może zarządzać vault tej organizacji, musi go dodać, zanim ten model zadziała.",
     "noSandboxConnectionRegistered": "Nie zarejestrowano połączenia sandbox",
     "noSecretOfKind": "Brak sekretu {kind} w vault",
+    "noSecret": "Bez sekretu",
     "noSecretSelected": "Nie wybrano sekretu. Ta capability potrzebuje sekretu rodzaju {kind}, a agenta nie można opublikować, dopóki go nie ma.",
     "noSignMarketingPage": "Bez logowania - strona marketingowa",
     "noSitesAllowedWidget": "Brak dozwolonych witryn - ten widget nie może się nigdzie otworzyć",
@@ -6488,6 +6489,30 @@
       "step_model_profile_id": {
         "title": "Model dla każdego kroku przeglądania",
         "description": "Profil modelu, o który `browse_web` pyta przy każdym kroku zamiast modelu agenta. Kroki to większość czasu i kosztu przeglądania, więc tańszy model obniża koszt długiego przeglądania, a przyspiesza je tam, gdzie jego dostawca szybko odpowiada - warto to zmierzyć, bo mały model przez wolną bramkę nie jest szybszy. Puste używa modelu agenta. Własne narzędzia przeglądarki agenta zawsze używają jego modelu."
+      },
+      "connection": {
+        "title": "Jak przeglądarka wychodzi do sieci",
+        "description": "Wbudowana używa przeglądarki wdrożenia i jego adresu. Proxy wysyła przeglądanie przez Twój własny adres - domowy albo regionalny, który strony blokują rzadziej. Hostowana przeglądarka uruchamia je w płatnej usłudze przeglądarki, z którą łączy się przez CDP."
+      },
+      "proxy_url": {
+        "title": "Adres proxy",
+        "description": "http://, https:// albo socks5:// z hostem i portem. Jego username:password trafia do vault i wybierasz go poniżej; Chromium nie umie zalogować się do proxy SOCKS."
+      },
+      "hosted_url": {
+        "title": "Adres hostowanej przeglądarki",
+        "description": "Adres CDP usługi, wss://. Jej klucz trafia do vault i wybierasz go poniżej; przy połączeniu jest dopisywany do zapytania w adresie."
+      },
+      "hosted_key_param": {
+        "title": "Parametr zapytania z kluczem",
+        "description": "Jak hostowana przeglądarka nazywa swój klucz w zapytaniu adresu."
+      },
+      "timezone": {
+        "title": "Strefa czasowa przeglądarki",
+        "description": "Strefa IANA, np. Europe/Warsaw. Ustaw ją zgodnie z regionem proxy: przeglądarka, której zegar i adres się nie zgadzają, wygląda jak bot."
+      },
+      "locale": {
+        "title": "Język przeglądarki",
+        "description": "Tag języka, np. pl-PL, wysyłany jako Accept-Language i navigator.language."
       }
     },
     "channel_tools": {

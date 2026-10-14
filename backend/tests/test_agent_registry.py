@@ -3410,6 +3410,41 @@ class TestBrowserRefusedAtPublish:
         )
         await _publishes(spec)
 
+    @pytest.mark.anyio
+    async def test_a_proxy_with_no_address_is_refused_in_words(self):
+        problems = await self._problems({"cdp_url": "http://browser:9222", "connection": "proxy"})
+        assert "Say which proxy the browser goes through" in problems
+
+    @pytest.mark.anyio
+    async def test_a_proxy_inside_the_network_is_refused(self):
+        problems = await self._problems(
+            {
+                "cdp_url": "http://browser:9222",
+                "connection": "proxy",
+                "proxy_url": "http://10.0.0.5:3128",
+            }
+        )
+        assert any(
+            problem.startswith("The browser's proxy address cannot be used") for problem in problems
+        )
+
+    @pytest.mark.anyio
+    async def test_a_hosted_browser_needs_a_key_but_no_cdp_url(self):
+        problems = await self._problems(
+            {"connection": "hosted", "hosted_url": "wss://93.184.216.34"}
+        )
+        assert not any("cdp_url" in problem for problem in problems)
+        assert any("needs a api_key secret" in problem for problem in problems)
+
+    @pytest.mark.anyio
+    async def test_a_public_proxy_with_no_password_publishes(self):
+        config = {
+            "cdp_url": "http://browser:9222",
+            "connection": "proxy",
+            "proxy_url": "http://93.184.216.34:8080",
+        }
+        await _publishes(_bound("browser_use", config))
+
 
 def _bound(capability_id: str, config: dict, **approval: object):
     """A one-capability spec, configured and gated as one binding says."""

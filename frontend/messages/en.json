@@ -361,6 +361,7 @@
     "noProviderKeyAskSomebody": "No {provider} key in the vault yet, and storing one needs a permission you do not hold. Somebody who can manage this organization's vault has to add it before this model will run.",
     "noSandboxConnectionRegistered": "No sandbox connection registered",
     "noSecretOfKind": "No {kind} secret in the vault",
+    "noSecret": "No secret",
     "noSecretSelected": "No secret selected. This capability needs one of kind {kind}, and the agent cannot be published until it has one.",
     "noSignMarketingPage": "No sign-in - a marketing page",
     "noSitesAllowedWidget": "No sites allowed - this widget cannot open anywhere",
@@ -6704,6 +6705,30 @@
       "step_model_profile_id": {
         "title": "Model for each browse step",
         "description": "A model profile `browse_web` asks for each step instead of the agent's own. Steps are most of a browse's time and cost, so a cheaper model here makes a long browse cheaper, and quicker where its provider answers quickly - measure it, since a small model through a slow gateway is no faster. Empty uses the agent's model. The agent's own browser tools always use it."
+      },
+      "connection": {
+        "title": "How the browser reaches the web",
+        "description": "Built in uses the deployment's browser and its address. A proxy sends the browses through an address of your own - a residential or regional one sites block less. A hosted browser runs them in a browser service you pay for, reached over CDP."
+      },
+      "proxy_url": {
+        "title": "Proxy address",
+        "description": "http://, https:// or socks5:// with the host and port. Its username:password goes in the vault, picked below; Chromium cannot sign in to a SOCKS proxy."
+      },
+      "hosted_url": {
+        "title": "Hosted browser address",
+        "description": "The service's wss:// CDP address. Its key goes in the vault, picked below, and is added to the address's query when the browse connects."
+      },
+      "hosted_key_param": {
+        "title": "Query parameter for the key",
+        "description": "What the hosted browser calls its key in the address's query."
+      },
+      "timezone": {
+        "title": "Time zone the browser reports",
+        "description": "An IANA time zone such as Europe/Warsaw. Set it to match the proxy's region: a browser whose clock and address disagree reads as a bot."
+      },
+      "locale": {
+        "title": "Language the browser reports",
+        "description": "A language tag such as pl-PL, sent as Accept-Language and navigator.language."
       }
     },
     "channel_tools": {

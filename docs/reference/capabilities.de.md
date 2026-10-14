@@ -1,5 +1,5 @@
 ---
-source_sha: "2c57650eb766"
+source_sha: "208d8a127f18"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -745,6 +745,12 @@ bestehen.
 | `preview` | `true` | sendet die Ansicht in den Chat, während das Browsen läuft |
 | `preview_width` | 1024 | 320–1920; die Breite der Ansicht und damit der Vorschaubilder |
 | `step_model_profile_id` | leer | ein Modellprofil, das `browse_web` bei jedem Schritt statt des Modells des Agents fragt - ein günstigeres Modell macht einen langen Browse günstiger und nur dort schneller, wo sein Anbieter schnell antwortet (Claude Haiku über OpenRouter brauchte pro Schritt so lange wie Sonnet); leer heißt das Modell des Agents, das seine eigenen Browser-Tools immer nutzen |
+| `connection` | `built_in` | `built_in`, `proxy` oder `hosted`: wie der Browser ins Netz geht |
+| `proxy_url` | leer | bei `proxy`: `http://`, `https://` oder `socks5://` mit Host und Port; das Secret des Bindings, falls vorhanden, ist sein `username:password` |
+| `hosted_url` | leer | bei `hosted`: die `wss://`-CDP-Adresse des Dienstes; das Secret des Bindings ist sein Schlüssel und Pflicht |
+| `hosted_key_param` | `apiKey` | wie der gehostete Browser seinen Schlüssel in der Query der Adresse nennt |
+| `timezone` | leer | eine IANA-Zeitzone, die der Browser meldet - passend zur Region des Proxys |
+| `locale` | leer | ein Sprach-Tag wie `pl-PL`, gesendet als `Accept-Language` und `navigator.language` |
 
 **Den Browser betreiben Sie, und der Betreiber sagt welchen.** Im API-Image ist kein
 Chromium: `cdp_url` zeigt auf einen Browser-Dienst, den ein Betreiber betreibt und
@@ -753,22 +759,26 @@ compose --profile browser up -d browser`, erreichbar als `http://browser:9222`. 
 muss auf [`BROWSER_CDP_ALLOWED_HOSTS`](../configuration.md) stehen, und eine leere
 Liste — der Standard — lehnt Browser-Automatisierung bei der Veröffentlichung ganz ab.
 
-**Eine Organisation wählt, wie ihre Browses ins Netz gehen** (#2130), unter Connections →
-Web browser, mit `connections:manage`. *Built in* ist der Browser, den das `cdp_url` des
-Agents nennt, von der eigenen Adresse des Deployments. *Through a proxy* schickt dessen
-Verkehr über einen `http://`-, `https://`- oder `socks5://`-Proxy - eine private oder
-regionale Adresse - mit `username:password` im Vault. *Hosted browser* verbindet sich
-stattdessen über `wss://` mit einem Browser-Dienst - Browserbase, Steel oder einem
-eigenen -, dessen Schlüssel im Vault liegt und an die Query der Adresse angehängt wird
-(`apiKey`, sofern der Dienst keinen anderen Namen liest). Jeder Modus sagt auch, welche
-Zeitzone und Sprache der Browser hat.
+**Ein Agent wählt, wie seine Browses ins Netz gehen** (#2130), in den Einstellungen
+des Browsers selbst, mit demselben `edit` auf den Agent wie der Rest. `connection` ist
+`built_in` - der Browser, den `cdp_url` nennt, von der eigenen Adresse des
+Deployments - `proxy` oder `hosted`, und `timezone` und `locale` sagen, welche
+Zeitzone und Sprache der Browser meldet, gleich in welchem Modus.
 
-Die Einstellung gilt für jeden Browse der Organisation, auch den eines Delegierten und
-den Anmelde-Browser. Eine Adresse im Netz des Deployments wird abgelehnt, beim Speichern
-und erneut beim Start eines Browse, es sei denn, der Betreiber hat den Host in
-`BROWSER_CDP_ALLOWED_HOSTS` eingetragen. Chromium kann sich an keinem SOCKS-Proxy
-anmelden, ein Proxy mit Passwort muss also HTTP sein. Eine Seite, die nach einem
-Passwort fragt, bekommt nie das des Proxys.
+Ein Proxy (`proxy_url`) schickt den Verkehr dieses Browsers über eine `http://`-,
+`https://`- oder `socks5://`-Adresse - eine private oder regionale - und meldet sich
+mit dem Secret des Bindings als `username:password` an, wenn es eines hat. Ein
+gehosteter Browser (`hosted_url`) verbindet sich stattdessen über `wss://` mit einem
+Browser-Dienst - Browserbase, Steel oder einem eigenen - mit dem Secret des Bindings
+als Schlüssel, an die Query der Adresse unter `hosted_key_param` angehängt
+(standardmäßig `apiKey`).
+
+Eine Adresse im Netz des Deployments wird beim Veröffentlichen und erneut beim Start
+eines Browses abgelehnt, es sei denn, der Operator hat den Host in
+`BROWSER_CDP_ALLOWED_HOSTS` eingetragen. Chromium kann sich nicht bei einem
+SOCKS-Proxy anmelden, also muss ein Proxy mit Passwort HTTP sein. Eine Website, die
+nach einem Passwort fragt, bekommt nie das des Proxys. Der Anmelde-Browser läuft immer
+im eigenen Browser des Deployments.
 
 **Der Compose-Browser wirkt wie ein Desktop-Browser.** Ein vollständiges Chromium
 mit Fenster auf einem virtuellen Bildschirm (`docker/browser`), mit den Schriften eines

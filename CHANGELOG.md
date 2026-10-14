@@ -19,13 +19,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
-- **An organization chooses how its browses reach the web** (#2130). Through a
-  proxy of its own - a residential or regional address, its password in the
-  vault - or in a hosted browser such as Browserbase or Steel reached over CDP,
-  plus the time zone and language the browser says it has. It covers every
-  browse in the organization, a delegate's and the sign-in browser's included;
-  an address inside the deployment's network is refused when saved and again
-  when a browse starts. Set through `PUT /api/v1/browser-settings` for now.
+- **An agent chooses how its browses reach the web** (#2130). In the web
+  browser's own settings: through a proxy - a residential or regional address,
+  its `username:password` in the vault - or in a hosted browser such as
+  Browserbase or Steel reached over CDP, its key in the vault, plus the time
+  zone and language the browser says it has. An address inside the
+  deployment's network is refused at publish and again when a browse starts.
+  The Builder's settings form now shows a field only for the choice it belongs
+  to, and offers a key a configuration can use but does not need.
 
 - **The web browser reads as a desktop one to sites that refuse bots** (#2130).
   Compose's `browser` profile now runs `ghcr.io/vstorm-co/agenticos-browser` - a

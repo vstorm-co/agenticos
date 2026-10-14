@@ -37,7 +37,12 @@ from app.agents.capabilities import (
 )
 from app.agents.capabilities import get as get_capability
 from app.agents.capabilities.approval import ungateable_tool_problems
-from app.agents.capabilities.browser_use import WebBrowserConfig, validate_cdp_url
+from app.agents.capabilities.browser_use import (
+    WebBrowserConfig,
+    connection_problems,
+    validate_cdp_url,
+)
+from app.agents.capabilities.browser_use._route import check_address
 from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.default_instructions import DEFAULT_INSTRUCTIONS
 from app.agents.mcp import PLATFORM_MCP_PREFIX, prefix_collisions
@@ -243,14 +248,15 @@ async def _sandbox_problems(db: AsyncSession, ctx: AuthContext, spec: AgentSpec)
     return problems
 
 
-def _browser_problems(config: BaseModel | None) -> list[str]:
-    """A `cdp_url` this deployment's operator has not vetted, or none at all.
+async def _browser_problems(config: BaseModel | None, *, has_secret: bool) -> list[str]:
+    """A `cdp_url` the operator has not vetted, or a proxy or hosted browser that cannot be used.
 
-    An exact match against `BROWSER_CDP_ALLOWED_HOSTS` that resolves no DNS, so
-    there is nothing to keep off the event loop. `validate_cdp_url` says why the
-    allowlist is the control here rather than the SSRF guard. Every binding passes
-    through here - a spec's own and each inline specialist's - so a specialist
-    cannot smuggle one past.
+    The `cdp_url` is an exact match against `BROWSER_CDP_ALLOWED_HOSTS`;
+    `validate_cdp_url` says why the allowlist is the control there rather than the
+    SSRF guard. A proxy or hosted browser is an address on the open internet, so
+    it gets the SSRF guard - off the event loop, since it resolves DNS. Every
+    binding passes through here - a spec's own and each inline specialist's - so
+    a specialist cannot smuggle one past.
     """
     if not isinstance(config, WebBrowserConfig):
         return []
@@ -258,6 +264,16 @@ def _browser_problems(config: BaseModel | None) -> list[str]:
         validate_cdp_url(config)
     except ValueError as exc:
         return [f"The web browser's endpoint cannot be used: {exc}."]
+    problems = connection_problems(config, has_secret=has_secret)
+    if problems:
+        return problems
+    try:
+        if config.connection == "proxy":
+            await check_address(config.proxy_url, kind="proxy")
+        elif config.connection == "hosted":
+            await check_address(config.hosted_url, kind="hosted")
+    except ValueError as exc:
+        return [f"The browser's {config.connection} address cannot be used: {exc}"]
     return []
 
 
@@ -1408,7 +1424,7 @@ class AgentRegistryService:
         except BadRequestError as exc:
             problems.merge(_config_problems(binding.id, exc))
         else:
-            problems.add(_browser_problems(config))
+            problems.add(await _browser_problems(config, has_secret=binding.secret_id is not None))
             if isinstance(config, WebBrowserConfig) and config.step_model_profile_id is not None:
                 problems.add(await self._model_profile_problems(ctx, config.step_model_profile_id))
             problems.add(ungateable_tool_problems(binding, definition, config))

@@ -1082,3 +1082,39 @@ describe("advanced settings (#2070)", () => {
     expect(screen.getByText("picked: none")).toBeInTheDocument();
   });
 });
+
+describe("a field shown only for some choices (#2130)", () => {
+  const schema: JsonSchema = {
+    type: "object",
+    properties: {
+      connection: {
+        type: "string",
+        title: "Connection",
+        enum: ["built_in", "proxy"],
+        default: "built_in",
+      },
+      proxy_url: {
+        type: "string",
+        title: "Proxy address",
+        "x-visible-when": { field: "connection", equals: ["proxy"] },
+      },
+    },
+  };
+
+  it("is hidden while the deciding field holds its default", () => {
+    render(<SchemaForm schema={schema} value={{}} onChange={vi.fn()} idPrefix="v" />);
+    expect(screen.queryByLabelText("Proxy address")).toBeNull();
+  });
+
+  it("appears for the choice that needs it", () => {
+    render(
+      <SchemaForm
+        schema={schema}
+        value={{ connection: "proxy" }}
+        onChange={vi.fn()}
+        idPrefix="v"
+      />,
+    );
+    expect(screen.getByLabelText("Proxy address")).toBeInTheDocument();
+  });
+});

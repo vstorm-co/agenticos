@@ -1,5 +1,5 @@
 ---
-source_sha: "2c57650eb766"
+source_sha: "208d8a127f18"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -704,6 +704,12 @@ przeglądania.
 | `preview` | `true` | wysyłaj widok przeglądarki do czatu w trakcie przeglądania |
 | `preview_width` | 1024 | 320–1920; szerokość widoku, a więc i klatek |
 | `step_model_profile_id` | puste | profil modelu, o który `browse_web` pyta w każdym kroku zamiast modelu agenta - tańszy model obniża koszt długiego browse, a przyspiesza go tylko tam, gdzie jego dostawca odpowiada szybko (Claude Haiku przez OpenRouter był na krok tak samo wolny jak Sonnet); puste to model agenta, a własne narzędzia przeglądarki agenta zawsze go używają |
+| `connection` | `built_in` | `built_in`, `proxy` albo `hosted`: jak przeglądarka wychodzi do sieci |
+| `proxy_url` | puste | przy `proxy`: `http://`, `https://` albo `socks5://` z hostem i portem; sekret bindingu, jeśli jest, to jego `username:password` |
+| `hosted_url` | puste | przy `hosted`: adres CDP usługi, `wss://`; sekret bindingu to jej klucz i jest wymagany |
+| `hosted_key_param` | `apiKey` | jak hostowana przeglądarka nazywa swój klucz w zapytaniu adresu |
+| `timezone` | puste | strefa IANA, którą podaje przeglądarka - ustaw ją na region proxy |
+| `locale` | puste | tag języka, np. `pl-PL`, wysyłany jako `Accept-Language` i `navigator.language` |
 
 **Przeglądarkę uruchamiasz ty, a operator mówi którą.** W obrazie API nie ma Chromium:
 `cdp_url` wskazuje usługę przeglądarki, którą operator uruchamia i izoluje. Pliki
@@ -712,20 +718,24 @@ browser`, osiągalną jako `http://browser:9222`. Host musi być na
 [`BROWSER_CDP_ALLOWED_HOSTS`](../configuration.md), a pusta lista — domyślna — odrzuca
 automatyzację przeglądarki całkowicie, przy publikacji.
 
-**Organizacja wybiera, jak jej przeglądanie wychodzi do sieci** (#2130), w Connections →
-Web browser, z uprawnieniem `connections:manage`. *Built in* to przeglądarka wskazana
-w `cdp_url` agenta, z adresu samego wdrożenia. *Through a proxy* puszcza ruch tej
-przeglądarki przez proxy `http://`, `https://` albo `socks5://` - adres domowy albo
-z wybranego kraju - z `username:password` w vault. *Hosted browser* zamiast tego
-podłącza się przez `wss://` do usługi przeglądarki - Browserbase, Steel albo własnej -
-z kluczem w vault, dopisywanym do zapytania w adresie (`apiKey`, chyba że usługa czyta
-inną nazwę). Każdy tryb mówi też, jaką strefę czasową i język ma przeglądarka.
+**Agent wybiera, jak jego przeglądanie wychodzi do sieci** (#2130), w ustawieniach
+samej przeglądarki, z tym samym `edit` na agencie co reszta. `connection` to
+`built_in` - przeglądarka wskazana w `cdp_url`, z adresu samego wdrożenia - `proxy`
+albo `hosted`, a `timezone` i `locale` mówią, jaką strefę czasową i język przeglądarka
+podaje, niezależnie od trybu.
 
-Ustawienie obejmuje każde przeglądanie w organizacji, także delegata i przeglądarkę do
-logowania. Adres wewnątrz sieci wdrożenia jest odrzucany, przy zapisie i ponownie przy
-starcie przeglądania, chyba że operator dopisał host do `BROWSER_CDP_ALLOWED_HOSTS`.
-Chromium nie umie zalogować się do proxy SOCKS, więc proxy z hasłem musi być HTTP.
-Strona, która prosi o hasło, nigdy nie dostaje hasła proxy.
+Proxy (`proxy_url`) puszcza ruch tej przeglądarki przez adres `http://`, `https://`
+albo `socks5://` - domowy albo z wybranego kraju - i loguje się sekretem bindingu jako
+`username:password`, jeśli binding go ma. Przeglądarka hostowana (`hosted_url`)
+zamiast tego podłącza się przez `wss://` do usługi przeglądarki - Browserbase, Steel
+albo własnej - z sekretem bindingu jako kluczem, dopisywanym do zapytania w adresie
+pod `hosted_key_param` (domyślnie `apiKey`).
+
+Adres wewnątrz sieci wdrożenia jest odrzucany przy publikacji i ponownie przy starcie
+przeglądania, chyba że operator dopisał host do `BROWSER_CDP_ALLOWED_HOSTS`. Chromium
+nie umie zalogować się do proxy SOCKS, więc proxy z hasłem musi być HTTP. Strona,
+która prosi o hasło, nigdy nie dostaje hasła proxy. Przeglądarka do logowania zawsze
+działa we własnej przeglądarce wdrożenia.
 
 **Przeglądarka z compose wygląda jak desktopowa.** To pełny Chromium z oknem na
 wirtualnym ekranie (`docker/browser`), z fontami jak na pulpicie i bez flag, które

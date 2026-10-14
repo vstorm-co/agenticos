@@ -28,7 +28,7 @@ from uuid import uuid4
 import anyio
 import httpx
 import pytest
-from pydantic import ValidationError
+from pydantic import SecretStr, ValidationError
 from pydantic_ai import BinaryContent
 from pydantic_ai._run_context import RunContext
 from pydantic_ai.messages import ModelMessage, ModelRequest, ModelResponse, ToolCallPart
@@ -40,14 +40,13 @@ from app.agents.browser_events import BrowserCommand, BrowserEvent, BrowserKey
 from app.agents.browser_sign_ins import SignIn
 from app.agents.capabilities import CapabilityBinding, CapabilityBuildContext, get
 from app.agents.capabilities.browser_use import (
-    BROWSER_ROUTE_RESOURCE,
     BROWSER_STEP_MODEL_RESOURCE,
-    BrowserRoute,
     WebBrowser,
     WebBrowserConfig,
     _loop,
     validate_cdp_url,
 )
+from app.agents.capabilities.browser_use import _route as _route_module
 from app.agents.capabilities.browser_use._decision import (
     INSTRUCTIONS,
     AskPerson,
@@ -118,6 +117,7 @@ from app.agents.capabilities.browser_use._plans import (
     record,
     replay,
 )
+from app.agents.capabilities.browser_use._route import BrowserRoute
 from app.agents.capabilities.browser_use._toolset import (
     NO_ENDPOINT,
     NO_TAB,
@@ -1883,9 +1883,9 @@ class TestRegistrationAndTheCapability:
             (tool_id, False) for tool_id in BROWSER_TOOLS
         ]
 
-    def test_it_needs_no_key_and_a_scope_granted_by_default(self):
+    def test_the_built_in_browser_needs_no_key_and_a_scope_granted_by_default(self):
         definition = get("browser_use")
-        assert definition.secret is None
+        assert not definition.needs_secret(definition.validate_config({}))
         assert set(definition.scopes) <= set(DEFAULT_GRANTED_SCOPES)
 
     def test_the_defaults_are_the_ones_the_docs_describe(self):
@@ -2623,31 +2623,59 @@ class TestTheBrowserReadsAsADesktopOne:
         assert metadata["brands"][0] == {"brand": "Chromium", "version": "0"}
 
 
-class TestTheOrganizationsRouteReachesTheBrowser:
-    """#2130: the runner's route is handed to the page opener of every browse."""
+class TestTheAgentsRouteReachesTheBrowser:
+    """#2130: the binding's route is handed to the page opener of every browse."""
 
-    def test_the_capability_keeps_the_route_it_was_given(self):
-        route = BrowserRoute(proxy_server="http://proxy.example.com:8080")
-
+    def test_the_capability_builds_the_route_from_its_settings(self):
         built = _build_capability(
-            {"cdp_url": "http://browser:9222"}, {BROWSER_ROUTE_RESOURCE: route}
+            {"cdp_url": "http://browser:9222", "timezone": "Europe/Warsaw", "locale": "pl-PL"}
         )
-        stray = _build_capability({"cdp_url": "http://browser:9222"}, {BROWSER_ROUTE_RESOURCE: "x"})
+        assert built.route == BrowserRoute(timezone="Europe/Warsaw", locale="pl-PL")
 
-        assert built.route is route
-        assert stray.route is None
-
-    async def test_the_tab_opens_with_it(self):
-        route = BrowserRoute(timezone="Europe/Warsaw")
+    async def test_the_tab_opens_with_it(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setattr(_route_module, "resolve_pinned_url", lambda url, allowed_schemes: None)
+        route = BrowserRoute(proxy_server="http://proxy.example.com:8080")
         opener = _Opener()
-        toolset = build_toolset(
-            cdp_url="http://browser:9222",
-            page_policy=PagePolicy(allowed_domains=None, candidate_cap=60, preview_width=1024),
-            loop_policy=_policy(),
-            page_factory=opener,
-            route=route,
-        )
-        async with toolset:
+        async with _routed(opener, route) as toolset:
             await _call(toolset)
 
         assert opener.opened[0]["route"] is route
+
+    async def test_a_hosted_browser_needs_no_cdp_url(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setattr(_route_module, "resolve_pinned_url", lambda url, allowed_schemes: None)
+        route = BrowserRoute(
+            remote_url=SecretStr("wss://h.example.com?apiKey=k"),
+            remote_address="wss://h.example.com",
+        )
+        opener = _Opener()
+        async with _routed(opener, route, cdp_url="") as toolset:
+            answer = await _call(toolset)
+
+        assert answer != NO_ENDPOINT
+        assert opener.opened[0]["route"] is route
+
+    async def test_an_address_that_now_points_inside_stops_the_browse(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        monkeypatch.setattr(settings, "BROWSER_CDP_ALLOWED_HOSTS", ["browser"])
+        opener = _Opener()
+        async with _routed(opener, BrowserRoute(proxy_server="http://10.0.0.5:3128")) as toolset:
+            answer = await _call(toolset)
+
+        assert "browser connection cannot be used" in answer
+        assert opener.opened == []
+
+
+@asynccontextmanager
+async def _routed(
+    opener: _Opener, route: BrowserRoute, *, cdp_url: str = "http://browser:9222"
+) -> AsyncGenerator[BrowserToolset]:
+    toolset = build_toolset(
+        cdp_url=cdp_url,
+        page_policy=PagePolicy(allowed_domains=None, candidate_cap=60, preview_width=1024),
+        loop_policy=_policy(),
+        page_factory=opener,
+        route=route,
+    )
+    async with toolset:
+        yield toolset

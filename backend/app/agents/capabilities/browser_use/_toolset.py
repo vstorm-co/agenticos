@@ -82,8 +82,9 @@ from app.agents.capabilities.browser_use._page import (
     open_page,
 )
 from app.agents.capabilities.browser_use._plans import plan_key
-from app.agents.capabilities.browser_use._route import BrowserRoute
+from app.agents.capabilities.browser_use._route import BrowserRoute, recheck
 from app.agents.deps import AgentDeps
+from app.core.sanitize import UrlRefusedError
 from app.services import browse_plans, browser_sign_in, live_browse
 
 PageFactory = Callable[..., AbstractAsyncContextManager[PageSession]]
@@ -343,7 +344,7 @@ def build_toolset(
         """
         # Refused at publish, so reaching this means an agent published before the
         # check or edited around it. A sentence the model can relay, not a raise.
-        if not cdp_url:
+        if not cdp_url and (route is None or route.remote_url is None):
             return NO_ENDPOINT
 
         call_id = ctx.tool_call_id or str(uuid4())
@@ -462,6 +463,11 @@ def build_toolset(
             if person is None
             else await browser_sign_in.load_for(person.organization_id, person.user_id)
         )
+        if route is not None:
+            try:
+                await recheck(route)
+            except UrlRefusedError as exc:
+                return f"This agent's browser connection cannot be used: {exc}"
         try:
             return await toolset.open(
                 open_browser,
@@ -478,7 +484,9 @@ def build_toolset(
             # can carry a token.
             logger.warning(
                 "Browser endpoint %s did not answer (%s)",
-                urlsplit(cdp_url).hostname,
+                urlsplit(
+                    route.remote_address if route and route.remote_address else cdp_url
+                ).hostname,
                 type(exc).__name__,
             )
             return UNREACHABLE
@@ -534,7 +542,7 @@ def build_toolset(
             The page's address and title, a numbered table of what can be acted
             on, and its text.
         """
-        if not cdp_url:
+        if not cdp_url and (route is None or route.remote_url is None):
             return NO_ENDPOINT
         try:
             if toolset.session is None:

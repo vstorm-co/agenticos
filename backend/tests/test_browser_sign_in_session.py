@@ -20,7 +20,6 @@ import pytest
 from app.agents.browser_events import BrowserCommand, BrowserEvent
 from app.agents.browser_sign_ins import SignIn
 from app.agents.capabilities.browser_use._elements import Snapshot
-from app.agents.capabilities.browser_use._route import BrowserRoute
 from app.api.routes.v1.browser_sign_ins import sign_in_browser, sign_in_to_a_site
 from app.core.config import settings
 from app.core.exceptions import AuthorizationError, BadRequestError, ConfigurationError
@@ -60,15 +59,13 @@ def deployment(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
         AsyncMock(side_effect=lambda run, call, event: published.append(event)),
     )
     monkeypatch.setattr(session_module, "validate_webhook_url", lambda url: url)
-    route = AsyncMock(return_value=None)
-    monkeypatch.setattr(session_module, "_route_for", route)
 
     def spawn(coro: Any, *, name: str) -> None:
         spawned.append(name)
         coro.close()
 
     monkeypatch.setattr(session_module, "spawn", spawn)
-    return {"published": published, "opened": opened, "spawned": spawned, "route": route}
+    return {"published": published, "opened": opened, "spawned": spawned}
 
 
 class TestWhetherItIsOffered:
@@ -162,11 +159,9 @@ class _Control:
         return None
 
 
-def _browser(page: _Page, opened_with: list[dict[str, Any]] | None = None) -> Any:
+def _browser(page: _Page) -> Any:
     @asynccontextmanager
     async def open_page(**kwargs: Any) -> AsyncIterator[_Page]:
-        if opened_with is not None:
-            opened_with.append(kwargs)
         yield page
 
     return open_page
@@ -243,48 +238,3 @@ class TestDriving:
         finished = deployment["published"][-1]
         assert (finished.kind, finished.outcome) == ("browser_finished", "failed")
         assert "not answering" in (finished.detail or "")
-
-
-class TestTheOrganizationsWayOut:
-    """#2130: the sign-in browser goes out the way the organization's browses do."""
-
-    async def test_the_route_is_read_once_and_reaches_the_browser(
-        self, deployment: dict[str, Any], monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        route = BrowserRoute(proxy_server="http://proxy.example.com:8080")
-        deployment["route"].return_value = route
-        driven: list[Any] = []
-
-        def spawn(coro: Any, *, name: str) -> None:
-            driven.append(coro)
-
-        monkeypatch.setattr(session_module, "spawn", spawn)
-        await session_module.begin(_ctx(), "https://www.notion.so/login", holder="Ada")
-
-        opened_with: list[dict[str, Any]] = []
-        monkeypatch.setattr(session_module.browser_sign_in, "load_for", AsyncMock(return_value=[]))
-        monkeypatch.setattr(session_module.browser_sign_in, "remember", AsyncMock())
-        monkeypatch.setattr(session_module, "open_page", _browser(_Page(), opened_with))
-        monkeypatch.setattr(
-            session_module.live_browse,
-            "LiveControl",
-            MagicMock(return_value=_Control(_give_back())),
-        )
-        await driven[0]
-
-        assert opened_with[0]["route"] is route
-
-    async def test_it_is_read_from_the_organization_s_setting(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        route = BrowserRoute(timezone="Europe/Warsaw")
-        resolve = AsyncMock(return_value=route)
-        monkeypatch.setattr(session_module.BrowserSettingService, "resolve", resolve)
-
-        @asynccontextmanager
-        async def database() -> AsyncIterator[Any]:
-            yield object()
-
-        monkeypatch.setattr(session_module, "get_db_context", database)
-
-        assert await session_module._route_for(_ctx()) is route

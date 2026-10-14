@@ -361,6 +361,7 @@
     "noProviderKeyAskSomebody": "Noch kein {provider}-Schlüssel im Vault, und einen zu speichern braucht eine Berechtigung, die Sie nicht haben. Jemand, der den Vault dieser Organisation verwalten darf, muss ihn hinzufügen, bevor dieses Modell läuft.",
     "noSandboxConnectionRegistered": "Keine Sandbox-Verbindung registriert",
     "noSecretOfKind": "Kein Secret der Art {kind} im Vault",
+    "noSecret": "Kein Secret",
     "noSecretSelected": "Kein Secret gewählt. Diese Capability braucht eines der Art {kind}, und der Agent lässt sich nicht veröffentlichen, bis er eines hat.",
     "noSignMarketingPage": "Keine Anmeldung – eine Marketingseite",
     "noSitesAllowedWidget": "Keine Sites erlaubt – dieses Widget kann nirgends öffnen",
@@ -6587,6 +6588,30 @@
       "step_model_profile_id": {
         "title": "Modell für jeden Browse-Schritt",
         "description": "Ein Modellprofil, das `browse_web` für jeden Schritt statt des eigenen Modells des Agents fragt. Schritte sind der Großteil der Zeit und Kosten eines Browse, also macht ein günstigeres Modell einen langen Browse günstiger und schneller, wo sein Anbieter schnell antwortet - messen Sie es, denn ein kleines Modell über ein langsames Gateway ist nicht schneller. Leer nutzt das Modell des Agents. Die eigenen Browser-Werkzeuge des Agents nutzen immer dessen Modell."
+      },
+      "connection": {
+        "title": "Wie der Browser ins Netz geht",
+        "description": "Eingebaut nutzt den Browser des Deployments und dessen Adresse. Ein Proxy schickt die Browses über eine eigene Adresse - eine private oder regionale, die Websites seltener sperren. Ein gehosteter Browser führt sie in einem bezahlten Browser-Dienst aus, erreicht über CDP."
+      },
+      "proxy_url": {
+        "title": "Proxy-Adresse",
+        "description": "http://, https:// oder socks5:// mit Host und Port. Sein username:password liegt im Vault und wird unten gewählt; Chromium kann sich nicht bei einem SOCKS-Proxy anmelden."
+      },
+      "hosted_url": {
+        "title": "Adresse des gehosteten Browsers",
+        "description": "Die wss://-CDP-Adresse des Dienstes. Sein Schlüssel liegt im Vault und wird unten gewählt; beim Verbinden wird er an die Query der Adresse angehängt."
+      },
+      "hosted_key_param": {
+        "title": "Query-Parameter für den Schlüssel",
+        "description": "Wie der gehostete Browser seinen Schlüssel in der Query der Adresse nennt."
+      },
+      "timezone": {
+        "title": "Zeitzone des Browsers",
+        "description": "Eine IANA-Zeitzone wie Europe/Warsaw. Passend zur Region des Proxys setzen: Ein Browser, dessen Uhr und Adresse nicht zusammenpassen, wirkt wie ein Bot."
+      },
+      "locale": {
+        "title": "Sprache des Browsers",
+        "description": "Ein Sprach-Tag wie pl-PL, gesendet als Accept-Language und navigator.language."
       }
     },
     "channel_tools": {
