@@ -12,6 +12,8 @@ export interface ConversationAgent {
   slug: string;
   name: string;
   has_avatar: boolean;
+  /** The colour its face was given; absent from an older backend. */
+  avatar_color?: number | null;
 }
 
 export interface Conversation {

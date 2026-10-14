@@ -340,6 +340,8 @@ class ConversationAgent(BaseSchema):
     slug: str
     name: str
     has_avatar: bool = False
+    # The colour its face was given, so a list draws the face its own page does.
+    avatar_color: int | None = None
 
 
 class ConversationRead(ConversationBase, TimestampSchema):

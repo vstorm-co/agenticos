@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime
 from decimal import Decimal
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
@@ -2494,3 +2495,19 @@ def test_a_conversation_opened_over_the_api_is_named_for_its_first_question() ->
     assert _api_title("refund window\nplease") == "refund window please"
     long = _api_title("x" * 200)
     assert len(long) == 80 and long.endswith("…")
+
+
+class TestConversationAgentFaces:
+    """A conversation list draws each agent with the face its own page does."""
+
+    @pytest.mark.anyio
+    async def test_a_listed_agent_keeps_the_colour_its_face_was_given(self) -> None:
+        conv = MockConversation()
+        agent = SimpleNamespace(
+            id=uuid4(), slug="support-desk", name="Support Desk", has_avatar=False, avatar_color=3
+        )
+        with patch("app.services.conversation.conversation_repo") as repo:
+            repo.agents_in_conversations = AsyncMock(return_value={conv.id: [agent]})
+            await ConversationService(AsyncMock())._attach_agents([conv])
+
+        assert conv.agents[0].avatar_color == 3

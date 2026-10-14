@@ -58,6 +58,7 @@ export function ConversationAgents({
             agentId={agent.id}
             slug={agent.slug}
             hasAvatar={agent.has_avatar}
+            colorSlot={agent.avatar_color}
             size={size}
             className={cn(
               "ring-background ring-2 transition-[margin] duration-200 ease-out motion-reduce:transition-none",

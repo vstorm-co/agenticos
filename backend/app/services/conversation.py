@@ -585,6 +585,7 @@ class ConversationService:
                     slug=agent.slug,
                     name=agent.name,
                     has_avatar=agent.has_avatar,
+                    avatar_color=agent.avatar_color,
                 )
                 for agent in by_conversation.get(conversation.id, [])
             ]
@@ -690,6 +691,7 @@ class ConversationService:
                         slug=agent.slug,
                         name=agent.name,
                         has_avatar=agent.has_avatar,
+                        avatar_color=agent.avatar_color,
                     )
                     for agent in by_conversation.get(conv.id, [])
                 ],
