@@ -10,16 +10,21 @@ const state = vi.hoisted(() => ({
   granted: [] as string[],
   mutate: vi.fn(),
   isPending: false,
-  saved: [] as { blob: Blob; name: string }[],
+  org: null as { id: string; ai_assistance_enabled: boolean } | null,
 }));
 vi.mock("@/hooks/use-permissions", () => ({
   usePermissions: () => ({ can: (perm: string) => state.granted.includes(perm) }),
 }));
+vi.mock("@/hooks/use-organizations", () => ({
+  useOrganizations: () => ({ activeOrg: state.org }),
+}));
 vi.mock("@/hooks/use-knowledge-gaps", () => ({
   useDraftKnowledgeGap: () => ({ mutate: state.mutate, isPending: state.isPending }),
 }));
-vi.mock("@/lib/file-access", () => ({
-  saveBlob: (blob: Blob, name: string) => state.saved.push({ blob, name }),
+vi.mock("./knowledge-gap-draft-card", () => ({
+  KnowledgeGapDraftCard: ({ draft }: { draft: { title: string } }) => (
+    <p>{`card ${draft.title}`}</p>
+  ),
 }));
 
 const TOPIC: KnowledgeGapTopicDetail = {
@@ -44,10 +49,10 @@ const DRAFTED: KnowledgeGapTopicDetail = {
   draft: {
     title: "Parental leave",
     content: "Parents may take [weeks] weeks.",
-    answers: [],
-    sources: ["benefits.pdf"],
+    sources: [],
+    unverified: 0,
     drafted_at: "2026-10-12T10:00:00Z",
-    run_id: "r9",
+    run_id: null,
   },
 };
 
@@ -56,7 +61,7 @@ describe("KnowledgeGapDraftPanel", () => {
     vi.clearAllMocks();
     state.granted = [];
     state.isPending = false;
-    state.saved = [];
+    state.org = { id: "o1", ai_assistance_enabled: true };
   });
 
   it("offers no drafting to a caller who may not run agents", () => {
@@ -71,35 +76,45 @@ describe("KnowledgeGapDraftPanel", () => {
     expect(state.mutate).toHaveBeenCalledWith("t1");
   });
 
-  it("says it is drafting while the run is in flight", () => {
+  it("says it is drafting while the run is in flight, beside the draft it will replace", () => {
     state.granted = [Perm.agentsRun];
     state.isPending = true;
     render(<KnowledgeGapDraftPanel topic={DRAFTED} />);
     expect(screen.getByRole("button", { name: "Drafting…" })).toBeDisabled();
+    expect(screen.getByText("card Parental leave")).toBeInTheDocument();
   });
 
-  it("shows a draft as a draft, with its sources and run, and downloads it as Markdown", async () => {
+  it("offers to draft again once a draft exists", () => {
     state.granted = [Perm.agentsRun];
     render(<KnowledgeGapDraftPanel topic={DRAFTED} />);
     expect(screen.getByRole("button", { name: "Draft again" })).toBeInTheDocument();
-    expect(screen.getByText("Draft: Parental leave")).toBeInTheDocument();
-    expect(screen.getByText(/Check every fact/)).toBeInTheDocument();
-    expect(screen.getByText("Uses: benefits.pdf")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Open the run" })).toHaveAttribute(
-      "href",
-      "/runs?run=r9",
-    );
-    await userEvent.click(screen.getByRole("button", { name: "Download .md" }));
-    expect(state.saved[0]?.name).toBe("knowledge-gap-draft.md");
-    expect(await state.saved[0]?.blob.text()).toBe(
-      "# Parental leave\n\nParents may take [weeks] weeks.\n",
-    );
   });
 
-  it("shows a draft with no sources or run without inventing them", () => {
-    const bare = { ...DRAFTED, draft: { ...DRAFTED.draft!, sources: [], run_id: null } };
-    render(<KnowledgeGapDraftPanel topic={bare} />);
-    expect(screen.queryByText(/Uses:/)).toBeNull();
-    expect(screen.queryByRole("link", { name: "Open the run" })).toBeNull();
+  it("with AI assistance off, sends somebody who may turn it on to the switch", () => {
+    state.granted = [Perm.agentsRun, Perm.orgSettings];
+    state.org = { id: "o1", ai_assistance_enabled: false };
+    render(<KnowledgeGapDraftPanel topic={DRAFTED} />);
+    expect(screen.queryByRole("button", { name: "Draft again" })).toBeNull();
+    expect(screen.getByText(/AI assistance is off/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Enable AI assistance" })).toHaveAttribute(
+      "href",
+      "/orgs/o1/members",
+    );
+    expect(screen.getByText("card Parental leave")).toBeInTheDocument();
+  });
+
+  it("with AI assistance off, tells anybody else who can turn it on", () => {
+    state.granted = [Perm.agentsRun];
+    state.org = { id: "o1", ai_assistance_enabled: false };
+    render(<KnowledgeGapDraftPanel topic={TOPIC} />);
+    expect(screen.queryByRole("link", { name: "Enable AI assistance" })).toBeNull();
+    expect(screen.getByText(/Ask an admin to turn it on/)).toBeInTheDocument();
+  });
+
+  it("says nothing about the switch before the organization is known", () => {
+    state.granted = [Perm.agentsRun];
+    state.org = null;
+    const { container } = render(<KnowledgeGapDraftPanel topic={TOPIC} />);
+    expect(container.querySelector("section")).toBeEmptyDOMElement();
   });
 });

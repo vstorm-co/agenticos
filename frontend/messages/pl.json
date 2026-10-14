@@ -1185,9 +1185,11 @@
         "description": "Pytania, dla których agenci najczęściej nie znaleźli nic w bazach wiedzy.",
         "asked": "{count, plural, one {zadane raz} few {zadane # razy} many {zadane # razy} other {zadane # razy}}",
         "empty": {
-          "title": "Brak luk w wiedzy",
-          "description": "Tu pojawiają się pytania, na które agenci nie znaleźli odpowiedzi w bazie wiedzy."
-        }
+          "title": "Na razie brak luk w wiedzy",
+          "description": "Gdy agent przeszukuje bazę wiedzy i nie znajduje nic bliskiego pytaniu, pytanie trafia tutaj, pogrupowane z podobnymi. Luki są grupowane co 15 minut."
+        },
+        "breakdown": "Tematy w bazach wiedzy",
+        "perCollection": "{name} · {count}"
       },
       "review-queue": {
         "title": "Do przeglądu",
@@ -3581,11 +3583,15 @@
     "draftAgain": "Napisz szkic ponownie",
     "drafting": "Piszę szkic…",
     "draftReady": "Szkic gotowy - sprawdź go, zanim go dodasz",
-    "draftTitle": "Szkic: {title}",
     "draftNotice": "Napisany przez model na podstawie pytań powyżej. Sprawdź każdy fakt i uzupełnij miejsca do wypełnienia, zanim dodasz go do kolekcji - nic nie zostanie dodane za ciebie.",
-    "draftSources": "Korzysta z: {sources}",
+    "draftSources": "Na czym się opiera",
     "openDraftRun": "Otwórz run",
     "downloadDraft": "Pobierz .md",
-    "hasDraft": "Szkic"
+    "hasDraft": "Szkic",
+    "draftLabel": "Szkic — sprawdź przed dodaniem",
+    "draftUnverified": "{count, plural, one {Jednego wskazanego źródła nie udało się zweryfikować i zostało pominięte.} few {# wskazanych źródeł nie udało się zweryfikować i zostały pominięte.} many {# wskazanych źródeł nie udało się zweryfikować i zostały pominięte.} other {# wskazanego źródła nie udało się zweryfikować i zostały pominięte.}}",
+    "aiOff": "Asystent AI jest wyłączony w tej organizacji, więc nie da się napisać szkicu. Wykrywanie i grupowanie luk działa dalej.",
+    "enableAi": "Włącz asystenta AI",
+    "askAdmin": "Poproś administratora o włączenie."
   }
 }

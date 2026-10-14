@@ -292,6 +292,8 @@ const DEFAULT_SECTIONS: SectionDef[] = [
       // this page (#594).
       { widget: "routines", span: "s6", rows: "r3" },
       { widget: "knowledge", span: "s6", rows: "r2" },
+      // What the knowledge bases could not answer sits beside how they are doing.
+      { widget: "knowledge-gaps", span: "s6", rows: "r3" },
     ],
   },
   {

@@ -24,6 +24,7 @@ function widget() {
 function answer(overrides: Record<string, unknown>) {
   useKnowledgeGapsMock.mockReturnValue({
     topics: [],
+    byKnowledgeBase: [],
     isLoading: false,
     error: null,
     refetch: vi.fn(),
@@ -45,6 +46,10 @@ describe("KnowledgeGapsWidget", () => {
           question_count: 6,
         },
       ],
+      byKnowledgeBase: [
+        { knowledge_base_id: "kb1", knowledge_base_name: "Handbook", topics: 3, questions: 9 },
+        { knowledge_base_id: "kb2", knowledge_base_name: "Policies", topics: 1, questions: 2 },
+      ],
     });
     widget();
     expect(useKnowledgeGapsMock).toHaveBeenCalledWith(
@@ -55,21 +60,26 @@ describe("KnowledgeGapsWidget", () => {
       "href",
       "/rag/kb1?tab=gaps",
     );
-    expect(screen.getByText("Handbook")).toBeInTheDocument();
     expect(screen.getByText("asked 6 times")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Policies · 1" })).toHaveAttribute(
+      "href",
+      "/rag/kb2?tab=gaps",
+    );
+    expect(screen.getByRole("link", { name: "Handbook · 3" })).toBeInTheDocument();
   });
 
   it("says what appears here when there is nothing yet", () => {
     answer({});
     widget();
-    expect(screen.getByText("No knowledge gaps")).toBeInTheDocument();
+    expect(screen.getByText("No knowledge gaps yet")).toBeInTheDocument();
+    expect(screen.getByText(/finds nothing close to the question/)).toBeInTheDocument();
   });
 
   it("offers a retry when the listing failed, rather than an empty card", async () => {
     const refetch = vi.fn();
     answer({ error: new Error("502"), refetch });
     widget();
-    expect(screen.queryByText("No knowledge gaps")).toBeNull();
+    expect(screen.queryByText("No knowledge gaps yet")).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: /retry/i }));
     expect(refetch).toHaveBeenCalled();
   });
@@ -77,6 +87,6 @@ describe("KnowledgeGapsWidget", () => {
   it("shows a skeleton while loading", () => {
     answer({ isLoading: true });
     widget();
-    expect(screen.queryByText("No knowledge gaps")).toBeNull();
+    expect(screen.queryByText("No knowledge gaps yet")).toBeNull();
   });
 });

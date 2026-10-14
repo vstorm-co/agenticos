@@ -29,9 +29,18 @@ export interface KnowledgeGapTopic {
   has_draft: boolean;
 }
 
+/** How many topics one knowledge base holds, under the list's filters. */
+export interface KnowledgeGapCollectionCount {
+  knowledge_base_id: string;
+  knowledge_base_name: string;
+  topics: number;
+  questions: number;
+}
+
 export interface KnowledgeGapTopicList {
   items: KnowledgeGapTopic[];
   total: number;
+  by_knowledge_base: KnowledgeGapCollectionCount[];
   /** Misses waiting for the next grouping pass, so in no topic yet. */
   ungrouped: number;
 }
@@ -53,14 +62,23 @@ export interface KnowledgeGapQuestion {
   asked_at: string;
 }
 
+/** What a draft rests on, verified when it was kept: a document, or one of the topic's questions. */
+export interface KnowledgeGapSource {
+  kind: "document" | "question";
+  id: string;
+  /** The document's file name, or the question as searched. */
+  label: string;
+}
+
 /** The passage a drafting agent proposed for a topic. Never added to a collection by itself. */
 export interface KnowledgeGapDraft {
   title: string;
   /** Markdown. */
   content: string;
-  /** The searches it says it answers. */
-  answers: string[];
-  sources: string[];
+  /** At most twelve, each verified, and only those that still exist. */
+  sources: KnowledgeGapSource[];
+  /** Sources the draft named that could not be verified, and were left out. */
+  unverified: number;
   drafted_at: string;
   /** The run that wrote it, in Activity. */
   run_id: string | null;

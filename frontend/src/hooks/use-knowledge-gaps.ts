@@ -54,6 +54,7 @@ export function useKnowledgeGaps(
   return {
     topics: data?.items ?? [],
     total: data?.total ?? 0,
+    byKnowledgeBase: data?.by_knowledge_base ?? [],
     ungrouped: data?.ungrouped ?? 0,
     isLoading,
     error,

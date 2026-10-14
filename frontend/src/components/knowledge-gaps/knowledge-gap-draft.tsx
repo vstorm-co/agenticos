@@ -1,93 +1,60 @@
 "use client";
 
 import Link from "next/link";
-import { Download, Sparkles } from "lucide-react";
-import { useLocale, useTranslations } from "next-intl";
+import { Sparkles } from "lucide-react";
+import { useTranslations } from "next-intl";
 
-import { CopyButton } from "@/components/chat/copy-button";
-import { Alert, AlertDescription, AlertTitle, Button } from "@/components/ui";
+import { Button } from "@/components/ui";
 import { useDraftKnowledgeGap } from "@/hooks/use-knowledge-gaps";
+import { useOrganizations } from "@/hooks/use-organizations";
 import { usePermissions } from "@/hooks/use-permissions";
 import { ROUTES } from "@/lib/constants";
-import { saveBlob } from "@/lib/file-access";
-import { timeAgo } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
 import type { KnowledgeGapTopicDetail } from "@/types/knowledge-gaps";
-
-function asMarkdown(title: string, content: string): string {
-  return `# ${title}\n\n${content}\n`;
-}
+import { KnowledgeGapDraftCard } from "./knowledge-gap-draft-card";
 
 /**
- * The passage a drafting agent proposed, and the control that asks for one.
+ * The control that asks a model to draft a topic's missing content, and the draft.
  *
- * Labelled a draft and offered only to copy or download: nothing here adds it to
- * the collection, because a person checks the facts and adds the document.
+ * Off by default: while the organization has AI assistance switched off there is
+ * no control, only why - with the way to the switch for somebody who may turn it
+ * on. A draft written earlier stays readable either way.
  */
 export function KnowledgeGapDraftPanel({ topic }: { topic: KnowledgeGapTopicDetail }) {
   const t = useTranslations("knowledgeGaps");
-  const tTime = useTranslations("time");
-  const locale = useLocale();
+  const { activeOrg } = useOrganizations();
   const { can } = usePermissions();
   const draft = useDraftKnowledgeGap();
-  const current = topic.draft;
-  const mayDraft = can(Perm.agentsRun);
+  const aiOn = activeOrg?.ai_assistance_enabled === true;
 
   return (
     <section className="space-y-3">
-      {mayDraft && (
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={draft.isPending}
-          onClick={() => draft.mutate(topic.id)}
-        >
-          <Sparkles className="h-3.5 w-3.5" aria-hidden />
-          {draft.isPending ? t("drafting") : current ? t("draftAgain") : t("draftContent")}
-        </Button>
+      {!aiOn && activeOrg ? (
+        <p className="bg-muted rounded-md px-3 py-2 text-xs">
+          {t("aiOff")}{" "}
+          {can(Perm.orgSettings) ? (
+            <Link href={ROUTES.ORG_MEMBERS(activeOrg.id)} className="font-medium underline">
+              {t("enableAi")}
+            </Link>
+          ) : (
+            t("askAdmin")
+          )}
+        </p>
+      ) : (
+        aiOn &&
+        can(Perm.agentsRun) && (
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={draft.isPending}
+            onClick={() => draft.mutate(topic.id)}
+          >
+            <Sparkles className="h-3.5 w-3.5" aria-hidden />
+            {draft.isPending ? t("drafting") : topic.draft ? t("draftAgain") : t("draftContent")}
+          </Button>
+        )
       )}
-      {current && (
-        <Alert>
-          <AlertTitle>{t("draftTitle", { title: current.title })}</AlertTitle>
-          <AlertDescription className="space-y-2">
-            <p className="text-xs">{t("draftNotice")}</p>
-            <p className="text-foreground text-sm whitespace-pre-wrap">{current.content}</p>
-            {current.sources.length > 0 && (
-              <p className="text-xs">
-                {t("draftSources", { sources: current.sources.join(", ") })}
-              </p>
-            )}
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-              <span>{timeAgo(current.drafted_at, tTime, locale)}</span>
-              {current.run_id && (
-                <Link href={`${ROUTES.RUNS}?run=${current.run_id}`} className="underline">
-                  {t("openDraftRun")}
-                </Link>
-              )}
-              <CopyButton
-                text={asMarkdown(current.title, current.content)}
-                className="opacity-100"
-              />
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 px-2"
-                onClick={() =>
-                  saveBlob(
-                    new Blob([asMarkdown(current.title, current.content)], {
-                      type: "text/markdown",
-                    }),
-                    "knowledge-gap-draft.md",
-                  )
-                }
-              >
-                <Download className="h-3.5 w-3.5" aria-hidden />
-                {t("downloadDraft")}
-              </Button>
-            </div>
-          </AlertDescription>
-        </Alert>
-      )}
+      {topic.draft && <KnowledgeGapDraftCard draft={topic.draft} />}
     </section>
   );
 }

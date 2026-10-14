@@ -1935,9 +1935,11 @@
         "description": "The questions agents most often found nothing for in their knowledge bases.",
         "asked": "{count, plural, =1 {asked once} other {asked # times}}",
         "empty": {
-          "title": "No knowledge gaps",
-          "description": "Questions agents could not answer from a knowledge base appear here."
-        }
+          "title": "No knowledge gaps yet",
+          "description": "When an agent searches a knowledge base and finds nothing close to the question, the question lands here, grouped with others like it. Gaps are grouped every 15 minutes."
+        },
+        "breakdown": "Topics per knowledge base",
+        "perCollection": "{name} · {count}"
       },
       "review-queue": {
         "title": "Awaiting review",
@@ -5963,11 +5965,15 @@
     "draftAgain": "Draft again",
     "drafting": "Drafting…",
     "draftReady": "Draft ready - check it before you add it",
-    "draftTitle": "Draft: {title}",
     "draftNotice": "Written by a model from the questions above. Check every fact and fill in the placeholders before you add it to the collection - nothing is added for you.",
-    "draftSources": "Uses: {sources}",
+    "draftSources": "What it rests on",
     "openDraftRun": "Open the run",
     "downloadDraft": "Download .md",
-    "hasDraft": "Draft"
+    "hasDraft": "Draft",
+    "draftLabel": "Draft — verify before adding",
+    "draftUnverified": "{count, plural, =1 {One source it named could not be verified and was left out.} other {# sources it named could not be verified and were left out.}}",
+    "aiOff": "AI assistance is off in this organization, so no draft can be written. Finding and grouping gaps still works.",
+    "enableAi": "Enable AI assistance",
+    "askAdmin": "Ask an admin to turn it on."
   }
 }
