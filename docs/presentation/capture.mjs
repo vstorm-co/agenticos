@@ -122,9 +122,10 @@ const SHOTS = [
   {
     name: "chat",
     path: (ids) => `/chat?id=${ids.conversation}`,
-    // The thread opens at its end; the slide starts at the published app.
+    // The thread opens at its end; the slide starts at the folded work above the
+    // answer - the steps, the published app among them, fold away once a turn ends.
     then: async (page) =>
-      page.getByText("Published app", { exact: true }).first().evaluate((element) => {
+      page.getByText(/^Worked for/).first().evaluate((element) => {
         element.scrollIntoView({ block: "start" });
         let scroller = element.parentElement;
         while (scroller && scroller.scrollHeight <= scroller.clientHeight) scroller = scroller.parentElement;
@@ -135,8 +136,8 @@ const SHOTS = [
         await box(page.getByText("The dashboard is published and private", { exact: false })),
         await box(page.getByText(/^\d+ sources$/)),
       );
-      // The plan's steps under the app card, as wide as the answer they lead to.
-      const steps = union(await box(page.getByText("Update Steps", { exact: true })), await box(page.getByText("Done", { exact: true })));
+      // The folded work above the answer, as wide as the answer it led to.
+      const steps = await box(page.getByText(/^Worked for/).first());
       return {
         steps: { ...steps, x: answer.x, width: answer.width },
         app: await box(card(page, "Ledgerly revenue dashboard - Jan to Sep 2026")),
@@ -271,8 +272,21 @@ const SHOTS = [
     path: () => "/runs",
     // Opening a run scrolls the page to its panel; the slide wants the page's top.
     then: async (page) => {
-      await page.locator("table tbody tr").first().click();
+      // The support run whose answer the slide reads - searched for rather than
+      // assumed first, since every later run pushes it down the list.
+      // Narrowed to that agent, so the opened row stays in view beside its panel.
+      await page.getByRole("combobox").filter({ hasText: "All agents" }).click();
+      await page.getByRole("option", { name: "Support Desk" }).click();
       await page.waitForTimeout(1500);
+      const rows = page.locator("table tbody tr", { hasText: "Support Desk" });
+      for (let i = 0; i < (await rows.count()); i += 1) {
+        await rows.nth(i).click();
+        await page.waitForTimeout(1500);
+        if (await page.getByText(/the support lead has to approve it/).count()) break;
+      }
+      // Clicking a lower row scrolls the page; the slide reads from its header.
+      await page.evaluate(() => document.querySelectorAll("*").forEach((el) => { if (el.scrollTop && !el.closest("[role=dialog], aside")) el.scrollTop = 0; }));
+      await page.evaluate(() => window.scrollTo(0, 0));
       await page.locator("main h1").first().evaluate((element) => element.scrollIntoView({ block: "start" }));
     },
     areas: async (page) => {

@@ -549,6 +549,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **A version's figures on the Runs page no longer overlap.** Each tile under
+  "By version" split its three figures into equal thirds, so beside an open
+  run "completed" ran into "per run". They now take the width they need and
+  wrap when the tile is narrow.
+
 - **The Architect answers in the person's language.** Its instructions said
   nothing about language, so a one-word "hej" was answered in Swedish. It now
   answers in the language the person writes in, and for a message too short to
