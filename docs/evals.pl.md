@@ -1,5 +1,5 @@
 ---
-source_sha: "e84cec0e2d8e"
+source_sha: "9f948efccb97"
 title: "Eval runy"
 description: "Eval run odpowiada na każdy przypadek datasetu wersją agenta albo jego draftem, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -34,7 +34,12 @@ Body wskazuje dataset (`dataset_id`, `dataset_version`), kandydata
 `environment_id`, `model_profile_ids` do porównania oraz `paired_baseline`.
 Szacunek to średni koszt runa agenta na każdym modelu, liczony z jego ostatnich
 zakończonych runów, razy liczba przypadków, plus jedno wywołanie sędziego na
-przypadek, gdy dataset ocenia sędzia.
+przypadek, gdy dataset ocenia sędzia, a AI assistance jest włączone.
+
+AI assistance jest wyłączone w organizacji, dopóki ktoś z `org:settings` go
+nie włączy. Gdy jest wyłączone, sędzia nie działa: przypadek rozstrzygają jego
+checki i oczekiwane wywołania narzędzi, kryteria sędziego są zapisywane jako
+pominięte, a szacunek nie liczy sędziego.
 
 Agent bez historii na danym modelu jest szacowany na
 `EVAL_FALLBACK_CASE_COST_USD` za przypadek, a szacunek mówi, że to zgadywanie
@@ -67,8 +72,9 @@ oszacowany:
 - ocenianie bez wymaganego oceniającego, który mógłby rozstrzygnąć którykolwiek
   przypadek wersji - bez checku do zastosowania, bez oczekiwanego wywołania
   narzędzia i bez sędziego. Gdy sędzia jest jedynym oceniającym, a AI assistance
-  jest wyłączone, odmowa to mówi: sędzia nie może działać, więc dodaj check albo
-  włącz AI assistance;
+  jest wyłączone, odmowa to mówi: sędzia potrzebuje AI assistance, które jest w
+  tej organizacji wyłączone, więc włącz je w ustawieniach organizacji albo dodaj
+  check;
 - agent, który nigdy nie został opublikowany, a poproszono o wersję - uruchom
   zamiast tego jego draft;
 - baseline dla pierwszej wersji, przed którą nic nie ma.

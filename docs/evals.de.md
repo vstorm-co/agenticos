@@ -1,5 +1,5 @@
 ---
-source_sha: "e84cec0e2d8e"
+source_sha: "9f948efccb97"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Draft, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -36,7 +36,13 @@ die `environment_id`, die zu vergleichenden `model_profile_ids` und
 `paired_baseline`. Die Schätzung ist der durchschnittliche Preis eines Runs des
 Agents auf jedem Modell, gemessen an seinen letzten abgeschlossenen Runs, mal
 die Zahl der Fälle, plus ein Judge-Aufruf pro Fall, wenn ein Judge das Dataset
-bewertet.
+bewertet und AI assistance eingeschaltet ist.
+
+AI assistance ist für eine Organisation ausgeschaltet, bis jemand mit
+`org:settings` es einschaltet. Solange es aus ist, läuft der Judge nicht: Ein
+Fall wird durch seine Checks und erwarteten Tool-Aufrufe entschieden, die
+Kriterien des Judges werden als übersprungen erfasst, und die Schätzung
+enthält keinen Judge.
 
 Ein Agent ohne Historie auf einem Modell wird mit
 `EVAL_FALLBACK_CASE_COST_USD` pro Fall geschätzt, und die Schätzung sagt, dass
@@ -69,8 +75,9 @@ wird:
 - ein Scoring ohne erforderlichen Bewerter, der irgendeinen Fall der Version
   entscheiden könnte - kein anwendbarer Check, kein erwarteter Tool-Aufruf und
   kein Judge. Ist der Judge der einzige Bewerter und AI assistance
-  ausgeschaltet, sagt die Ablehnung das: Der Judge kann nicht laufen, also füge
-  einen Check hinzu oder schalte AI assistance ein;
+  ausgeschaltet, sagt die Ablehnung das: Der Judge braucht AI assistance, das
+  für diese Organisation ausgeschaltet ist, also schalte es in den Einstellungen
+  der Organisation ein oder füge einen Check hinzu;
 - ein Agent, der nie veröffentlicht wurde, für den eine Version verlangt wird -
   starte stattdessen seinen Draft;
 - eine Baseline für eine erste Version, vor der es nichts gibt.

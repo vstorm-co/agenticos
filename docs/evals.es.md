@@ -1,5 +1,5 @@
 ---
-source_sha: "e84cec0e2d8e"
+source_sha: "9f948efccb97"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -34,7 +34,13 @@ El body indica el dataset (`dataset_id`, `dataset_version`), el candidato
 `environment_id`, los `model_profile_ids` que se comparan y `paired_baseline`.
 La estimación es el coste medio de un run del agent en cada modelo, según sus
 runs completados recientes, por el número de casos, más una llamada al juez por
-caso cuando un juez puntúa el dataset.
+caso cuando un juez puntúa el dataset y AI assistance está activado.
+
+AI assistance está desactivado en una organización hasta que alguien con
+`org:settings` lo activa. Mientras está desactivado el juez no se ejecuta: un
+caso se decide por sus checks y sus llamadas a herramientas esperadas, los
+criterios del juez se registran como omitidos y la estimación no cuenta el
+juez.
 
 Un agent sin historial en un modelo se estima en `EVAL_FALLBACK_CASE_COST_USD`
 por caso, y la estimación dice que es una suposición (`basis: "fallback"`). El
@@ -66,8 +72,9 @@ Un run que no podría decirle nada a nadie se rechaza antes de estimarse:
 - una puntuación sin ningún evaluador obligatorio que pueda decidir algún caso
   de la versión: ningún check que aplicar, ninguna llamada a herramienta
   esperada y ningún juez. Cuando el juez es el único evaluador y AI assistance
-  está desactivado, el rechazo lo dice: el juez no puede ejecutarse, así que
-  añade un check o activa AI assistance;
+  está desactivado, el rechazo lo dice: el juez necesita AI assistance, que está
+  desactivado en esta organización, así que actívalo en los ajustes de la
+  organización o añade un check;
 - un agent que nunca se publicó, para el que se pide una versión: ejecuta su
   borrador en su lugar;
 - un baseline para una primera versión, que no tiene nada antes.
