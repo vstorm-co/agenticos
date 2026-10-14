@@ -220,6 +220,51 @@ describe("the chat container - who a reopened thread is addressed to", () => {
     await vi.waitFor(() => expect(useAgentSelectionStore.getState().selectedAgentId).toBe("a-sup"));
   });
 
+  it("addresses a thread several agents answered to the one that answered last", async () => {
+    const base = get.getMockImplementation()!;
+    get.mockImplementation((url: string) =>
+      url.startsWith("/conversations?")
+        ? Promise.resolve({
+            items: [
+              {
+                id: "c-both",
+                title: "Revenue, then a customer email",
+                agents: [
+                  { id: "a-fin", name: "Finance Analyst" },
+                  { id: "a-sup", name: "Support Desk" },
+                ],
+              },
+            ],
+            total: 1,
+          })
+        : base(url),
+    );
+    useAgentSelectionStore.setState({ selectedAgentId: "a-architect" });
+    useConversationStore.getState().setCurrentConversationId("c-both");
+    // The transcript as the page loads it, the last answer the Support Desk's.
+    useConversationStore.getState().setCurrentMessages([
+      {
+        id: "m2",
+        conversation_id: "c-both",
+        role: "assistant",
+        content: "Here",
+        created_at: "2026-10-14T10:00:00Z",
+        agent_id: "a-fin",
+      },
+      {
+        id: "m4",
+        conversation_id: "c-both",
+        role: "assistant",
+        content: "Done",
+        created_at: "2026-10-14T10:05:00Z",
+        agent_id: "a-sup",
+      },
+    ] as never);
+    mount();
+
+    await vi.waitFor(() => expect(useAgentSelectionStore.getState().selectedAgentId).toBe("a-sup"));
+  });
+
   it("leaves a deliberate switch inside the thread alone", async () => {
     listThreads();
     useConversationStore.getState().setCurrentConversationId("c-fin");

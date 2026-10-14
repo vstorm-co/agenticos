@@ -158,18 +158,27 @@ export function ChatContainer({
   )?.agents;
   const soleAgentId = conversationAgents?.length === 1 ? conversationAgents[0]?.id : undefined;
 
-  // Opening a thread addresses the composer to the agent it was had with. The
-  // selection is global, so without this the next message in a Finance Analyst
-  // thread went to whichever agent was last picked somewhere else. Once per
-  // thread, so switching agents mid-conversation is not undone.
+  // Opening a thread addresses the composer to the agent it was had with - in a
+  // thread several agents answered, the one that answered last. The selection
+  // is global, so without this the next message in a Finance Analyst thread
+  // went to whichever agent was last picked somewhere else. Once per thread, so
+  // switching agents mid-conversation is not undone. Only this thread's rows are
+  // read: the store still holds the previous thread's until the new one loads.
+  const lastAnsweredBy = currentMessages.findLast(
+    (message) =>
+      message.conversation_id === currentConversationId &&
+      message.role === "assistant" &&
+      Boolean(message.agent_id),
+  )?.agent_id;
+  const threadAgentId = soleAgentId ?? lastAnsweredBy ?? undefined;
   const selectAgent = useAgentSelectionStore((state) => state.select);
   const addressedRef = useRef<string | null>(null);
   useEffect(() => {
-    if (agentFixed || !currentConversationId || !soleAgentId) return;
+    if (agentFixed || !currentConversationId || !threadAgentId) return;
     if (addressedRef.current === currentConversationId) return;
     addressedRef.current = currentConversationId;
-    selectAgent(soleAgentId);
-  }, [agentFixed, currentConversationId, soleAgentId, selectAgent]);
+    selectAgent(threadAgentId);
+  }, [agentFixed, currentConversationId, threadAgentId, selectAgent]);
 
   // The open conversation is read: when it is opened unread, and when an answer
   // arrives while it is open and the next listing calls it unread.
