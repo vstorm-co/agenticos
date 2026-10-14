@@ -22,6 +22,7 @@ export const qk = {
   organizations: {
     all: () => ["organizations"] as const,
     list: () => ["organizations", "list"] as const,
+    detail: (orgId: string) => ["organizations", orgId, "detail"] as const,
     members: (orgId: string) => ["organizations", orgId, "members"] as const,
     permissions: (orgId: string) => ["organizations", orgId, "permissions"] as const,
     roleCatalog: () => ["organizations", "role-catalog"] as const,

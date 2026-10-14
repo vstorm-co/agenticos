@@ -13,10 +13,13 @@ vi.mock("@/hooks/use-scoring", () => ({
 vi.mock("@/hooks/use-model-providers", () => ({
   useModelProviders: () => ({ profiles: [{ id: "p1", label: "Claude (prod)" }] }),
 }));
+const ai = vi.hoisted(() => ({ enabled: true as boolean | null, maySet: true }));
 vi.mock("@/hooks/use-organizations", () => ({
-  useOrganizations: () => ({ activeOrg: { id: "o1", ai_assistance_enabled: true } }),
+  useAiAssistance: () => ({ orgId: "o1", enabled: ai.enabled }),
 }));
-vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can: () => true }) }));
+vi.mock("@/hooks/use-permissions", () => ({
+  usePermissions: () => ({ can: () => ai.maySet }),
+}));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 import { toast } from "sonner";
 
@@ -38,6 +41,8 @@ const saved = () => state.save.mock.calls.at(-1)?.[0] as DatasetScoring;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  ai.enabled = true;
+  ai.maySet = true;
   state.save.mockResolvedValue({});
 });
 
@@ -74,6 +79,32 @@ describe("ScoringPanel", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Give the judge at least one criterion");
     await userEvent.click(screen.getByRole("button", { name: "Add criterion" }));
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    [true, "Enable AI assistance"],
+    [false, "Ask an admin to enable AI assistance."],
+  ])(
+    "with AI assistance off, locks the judge and the reference but not the rules (org:settings %s)",
+    (maySet, offer) => {
+      ai.enabled = false;
+      ai.maySet = maySet;
+      panel(JUDGED);
+
+      expect(screen.getByRole("status")).toHaveTextContent(offer);
+      expect(screen.getByRole("switch", { name: "Judge" })).toBeDisabled();
+      expect(screen.getByRole("switch", { name: "Reference answer" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Add criterion" })).toBeDisabled();
+      expect(screen.getByRole("switch", { name: "Checks" })).toBeEnabled();
+      expect(screen.getByRole("switch", { name: "Tool calls" })).toBeEnabled();
+    },
+  );
+
+  it("leaves the judge open and says nothing while AI assistance is on", () => {
+    panel(JUDGED);
+
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.getByRole("switch", { name: "Judge" })).toBeEnabled();
   });
 
   it("configures the judge: its model, its scale and its rubric", async () => {

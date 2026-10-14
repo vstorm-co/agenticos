@@ -5793,7 +5793,7 @@
       "aiOff": {
         "body": "AI assistance is off in this organization, so the judge and the reference comparison are skipped and only the rule-based scorers score.",
         "enable": "Enable AI assistance",
-        "askAdmin": "Ask an admin to turn it on."
+        "askAdmin": "Ask an admin to enable AI assistance."
       },
       "findDataset": "Find a dataset",
       "question": "Question",
