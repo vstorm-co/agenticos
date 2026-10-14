@@ -1,5 +1,5 @@
 ---
-source_sha: "eafbd4c0f952"
+source_sha: "b770e9d03e5d"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -84,8 +84,7 @@ no cambia nada fuera del run, o llega a una conexión de prueba del
 [entorno](../environments.md#in-an-eval). Cada capability declara cuáles de sus
 herramientas solo leen — `read_only`, junto a `side_effecting` — y una
 herramienta que no declara nada escribe. Estas son las herramientas que escriben,
-y que un eval retiene y registra salvo que la clave del vault de su capability
-sea de prueba:
+y que un eval retiene y registra:
 
 | id | Herramientas que escriben |
 |---|---|
@@ -103,6 +102,15 @@ herramientas propias de un delegado se rigen por sus propias declaraciones.
 sobre qué pregunta la aprobación por defecto, la segunda qué puede ejecutar un
 eval, y una herramienta sin declarar queda sin aprobación con la primera y
 bloqueada con la segunda.
+
+Un entorno puede sustituir la clave del vault de una capability por una de
+prueba, pero una clave sustituida no hace segura una escritura por sí sola: la
+clave de `browser_choice` es para el modelo que decide, mientras que su
+`cdp_url` sigue nombrando el navegador que hace clic. Una capability declara
+`test_key_isolates` solo cuando la clave por sí sola elige adónde van sus
+escrituras, y nunca con una URL, un host o un endpoint en su configuración.
+Ninguna capability incluida lo declara, así que en un eval cada escritura de
+arriba se registra, no se ejecuta, tenga la clave que tenga.
 
 ## Búsqueda de conocimiento { #knowledge-search }
 

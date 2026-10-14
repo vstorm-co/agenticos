@@ -8,6 +8,9 @@ entered - a mock of the handler cannot say that.
 
 from __future__ import annotations
 
+import dataclasses
+import datetime
+import json
 import uuid
 from typing import Any
 from unittest.mock import AsyncMock
@@ -25,11 +28,13 @@ from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.tools import ToolDefinition
 from pydantic_ai.toolsets import AbstractToolset, FunctionToolset
 
-from app.agents.capabilities import load_builtins
+from app.agents.capabilities import REGISTRY, load_builtins
+from app.agents.capabilities import get as get_capability
 from app.agents.capabilities.approval import ApprovalGate
 from app.agents.deps import AgentDeps
 from app.agents.factory import build_agent
 from app.agents.isolation import (
+    MAX_RECORDED_ARGS_CHARS,
     CallRow,
     IsolationGuard,
     RecordedCall,
@@ -39,6 +44,7 @@ from app.agents.isolation import (
     capability_tools,
     classify,
     normalized_args,
+    recorded_args,
     recorded_calls,
 )
 from app.agents.mcp import MCP_ORIGIN
@@ -114,6 +120,34 @@ async def _run(
     )
     result = await agent.run("go", deps=AgentDeps())
     return result.output
+
+
+class TestTheArgumentsAHeldCallKeeps:
+    async def test_they_are_what_the_model_sent_and_fit_a_json_column(self):
+        """Validated arguments hold a `date` here, which the JSONB write cannot
+        serialize - and losing that write loses the eval's whole trajectory."""
+        isolation = RunIsolation()
+        toolset: FunctionToolset[Any] = FunctionToolset()
+
+        def schedule(on: datetime.date, note: str = "") -> str:
+            raise AssertionError("a held call must not run")
+
+        toolset.add_function(schedule)
+
+        await _run(isolation, [toolset], _calls_then_answers(("schedule", {"on": "2026-10-14"})))
+
+        (held,) = isolation.intercepted
+        assert held.args == {"on": "2026-10-14"}
+        assert json.loads(json.dumps(held.args)) == held.args
+
+    def test_an_outsized_argument_list_is_kept_as_its_size(self):
+        call = ToolCallPart(
+            tool_name="send",
+            args={"body": "x" * MAX_RECORDED_ARGS_CHARS},
+            tool_call_id="c",
+        )
+
+        assert recorded_args(call) == {"truncated": True, "chars": MAX_RECORDED_ARGS_CHARS + 12}
 
 
 class TestWhatAnIsolatedRunExecutes:
@@ -336,15 +370,27 @@ class TestClassification:
         assert tools["look_up_note"] == ToolClass("capability:memory_files.read_memory", True)
         assert tools["write_memory"].read_only is False
 
-    def test_a_binding_on_a_test_key_reaches_a_test_system(self):
-        test_key, live_key = uuid.uuid4(), uuid.uuid4()
+    def test_a_swapped_key_reaches_a_test_system_only_where_the_capability_says_so(
+        self, monkeypatch
+    ):
+        """A key can stand in for a credential while a URL in the config still
+        points the writes at production, so the swap alone proves nothing."""
         spec = AgentSpec(
             name="Memory",
-            capabilities=[{"id": "memory_mem0", "config": {}, "secret_id": test_key}],
+            capabilities=[{"id": "memory_mem0", "config": {}, "secret_id": uuid.uuid4()}],
+        )
+        swapped = frozenset({"memory_mem0"})
+
+        assert not capability_tools(spec, test_bindings=swapped)["remember"].test
+
+        monkeypatch.setitem(
+            REGISTRY,
+            "memory_mem0",
+            dataclasses.replace(get_capability("memory_mem0"), test_key_isolates=True),
         )
 
-        assert capability_tools(spec, test_secret_ids=frozenset({test_key}))["remember"].test
-        assert not capability_tools(spec, test_secret_ids=frozenset({live_key}))["remember"].test
+        assert capability_tools(spec, test_bindings=swapped)["remember"].test
+        assert not capability_tools(spec, test_bindings=frozenset())["remember"].test
 
 
 class TestRecordings:

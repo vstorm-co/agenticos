@@ -46,6 +46,7 @@ from pydantic_ai import RunContext
 from pydantic_ai.capabilities import AbstractCapability, WrapToolExecuteHandler
 from pydantic_ai.messages import ToolCallPart
 from pydantic_ai.tools import ToolDefinition
+from pydantic_core import to_jsonable_python
 
 from app.agents.approval import refusal
 from app.agents.capabilities import LOAD_CAPABILITY
@@ -57,6 +58,10 @@ from app.agents.spec import AgentSpec
 from app.db.models.intercepted_tool_call import InterceptionOutcome, InterceptionReason
 
 logger = logging.getLogger(__name__)
+
+#: The most of a held call's arguments kept, serialized. A model can be told to
+#: paste a document into a call, and one row must not hold it whole.
+MAX_RECORDED_ARGS_CHARS = 32_000
 
 #: Framework tools that only read. Consulted after the spec's own, so a tool
 #: renamed onto one of these names keeps its own declaration.
@@ -81,19 +86,21 @@ class ToolClass:
 
 
 def capability_tools(
-    spec: AgentSpec, *, test_secret_ids: frozenset[UUID] = frozenset()
+    spec: AgentSpec, *, test_bindings: frozenset[str] = frozenset()
 ) -> dict[str, ToolClass]:
     """Every registry tool a spec offers, keyed by the name the model calls.
 
-    A binding whose secret is one of `test_secret_ids` authenticates against a
-    test system, so its tools count as reaching one.
+    `test_bindings` names the bindings whose vault key the environment swapped
+    for a test one. Their tools count as reaching a test system only where the
+    capability declares `test_key_isolates`: a key can stand in for a credential
+    while a URL in the config still points the writes at production.
     """
     tools: dict[str, ToolClass] = {}
     for binding in spec.capabilities:
         if not binding.enabled:
             continue
         definition = get_capability(binding.id)
-        test = binding.secret_id is not None and binding.secret_id in test_secret_ids
+        test = binding.id in test_bindings and definition.test_key_isolates
         for tool in definition.effective_tools(binding.tool_overrides):
             tools[tool.name] = ToolClass(
                 tool_id=f"capability:{binding.id}.{tool.id}",
@@ -126,6 +133,21 @@ def classify(tool_def: ToolDefinition, tools: Mapping[str, ToolClass]) -> ToolCl
     if known is not None:
         return known
     return ToolClass(tool_id=f"tool:{tool_def.name}", read_only=tool_def.name in _FRAMEWORK_READS)
+
+
+def recorded_args(call: ToolCallPart) -> dict[str, Any]:
+    """A held call's arguments as the model sent them, safe to store as JSON.
+
+    The model's own arguments rather than the validated ones: validation turns
+    them into dates and models a JSON column cannot hold, and adds defaults the
+    model never wrote. Over `MAX_RECORDED_ARGS_CHARS` they are replaced by their
+    size, so the trajectory still shows the call.
+    """
+    args = to_jsonable_python(call.args_as_dict(), fallback=str)
+    size = len(json.dumps(args, ensure_ascii=False))
+    if size > MAX_RECORDED_ARGS_CHARS:
+        return {"truncated": True, "chars": size}
+    return args
 
 
 def normalized_args(args: Mapping[str, Any]) -> str:
@@ -274,21 +296,18 @@ class IsolationGuard(AbstractCapability[AgentDeps]):
             # defaults it never wrote, and would never match.
             recorded = recording.answer(tool.tool_id, call.args_as_dict())
             if recorded is not None:
-                self._intercept(call, tool, args, InterceptionOutcome.REPLAYED)
+                self._intercept(call, tool, InterceptionOutcome.REPLAYED)
                 return recorded.result
             if not (tool.read_only and self.isolation.live_reads):
-                self._intercept(call, tool, args, InterceptionOutcome.DIVERGENT)
+                self._intercept(call, tool, InterceptionOutcome.DIVERGENT)
                 return _divergent_notice(tool_def.name)
         elif not (tool.read_only or tool.test):
-            self._intercept(
-                call, tool, args, InterceptionOutcome.BLOCKED, InterceptionReason.WRITES
-            )
+            self._intercept(call, tool, InterceptionOutcome.BLOCKED, InterceptionReason.WRITES)
             return _blocked_notice(tool_def.name)
         if self.approval is not None and self.approval.gates(tool_def):
             self._intercept(
                 call,
                 tool,
-                args,
                 InterceptionOutcome.BLOCKED,
                 InterceptionReason.NEEDS_APPROVAL,
             )
@@ -299,7 +318,6 @@ class IsolationGuard(AbstractCapability[AgentDeps]):
         self,
         call: ToolCallPart,
         tool: ToolClass,
-        args: dict[str, Any],
         outcome: InterceptionOutcome,
         reason: InterceptionReason | None = None,
     ) -> None:
@@ -310,7 +328,7 @@ class IsolationGuard(AbstractCapability[AgentDeps]):
                 tool_call_id=call.tool_call_id,
                 tool_name=call.tool_name,
                 tool_id=tool.tool_id,
-                args=dict(args),
+                args=recorded_args(call),
                 outcome=outcome,
                 reason=reason,
             )

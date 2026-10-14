@@ -1,5 +1,5 @@
 ---
-source_sha: "6272681ba405"
+source_sha: "ad3053f2dd89"
 ---
 
 # Umgebungen { #environments }
@@ -136,9 +136,16 @@ gestarteter Run — so läuft ein Eval — führt ein Tool nur aus, wenn das sic
 
 | Das Tool | Was passiert |
 |---|---|
-| Erreicht eine Testverbindung der Umgebung | Läuft, gegen das Testsystem |
+| Erreicht eine Test-MCP-Verbindung der Umgebung | Läuft, gegen das Testsystem |
 | Liest nur | Läuft auf der normalen Verbindung |
+| Schreibt, mit einem Test-Schlüssel aus dem Vault | Läuft nur, wenn seine Capability erklärt, dass der Schlüssel allein das Ziel bestimmt; sonst **nicht ausgeführt** und aufgezeichnet |
 | Schreibt, ohne Testverbindung | **Wird nicht ausgeführt.** Als beabsichtigter Aufruf mit seinen Argumenten aufgezeichnet |
+
+Ein Testschlüssel ersetzt eine Anmeldeinformation, aber eine URL oder ein Host
+in der Konfiguration der Capability kann die Schreibvorgänge weiterhin auf die
+Produktion lenken. Deshalb lässt ein getauschter Schlüssel eine Capability in
+einem Eval nur schreiben, wenn sie `test_key_isolates` erklärt, und der
+[Katalog](reference/capabilities.md#what-an-eval-runs) führt auf, welche das tun.
 
 Ein MCP-Tool gilt nur dann als lesend, wenn sein Server es mit `readOnlyHint`
 markiert und die Verbindung dieser Markierung vertraut. Standardmäßig tut sie das

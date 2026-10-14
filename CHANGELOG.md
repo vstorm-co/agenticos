@@ -30,8 +30,10 @@ Two things are versioned separately from this file and worth knowing about:
 - **Isolated runs, for evals.** A run started isolated executes only tools that
   read - capability tools declared `read_only` in the registry, and MCP tools
   marked `readOnlyHint` on a connection set to trust that mark (off by default,
-  audited when changed) - and calls that reach a test connection. A tool that writes
-  without one is not executed; the call and its arguments are kept in the new
+  audited when changed) - and calls that reach a test MCP connection. A swapped
+  vault key lets a capability write only where it declares `test_key_isolates`,
+  which none does yet. A tool that writes otherwise is not executed; the call
+  and its arguments, as the model sent them, are kept in the new
   `intercepted_tool_calls` table, as is a call the agent gates behind an
   approval, which an isolated run cannot ask for. An isolated run can also be
   answered from the calls an earlier run's transcript kept, matched by tool,

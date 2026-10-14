@@ -1,5 +1,5 @@
 ---
-source_sha: "6272681ba405"
+source_sha: "ad3053f2dd89"
 ---
 
 # Entornos { #environments }
@@ -129,9 +129,16 @@ que es como se ejecuta un eval — ejecuta una herramienta solo cuando es seguro
 
 | La herramienta | Qué pasa |
 |---|---|
-| Llega a una conexión de prueba del entorno | Se ejecuta, contra el sistema de prueba |
+| Llega a una conexión MCP de prueba del entorno | Se ejecuta, contra el sistema de prueba |
 | Solo lee | Se ejecuta en la conexión normal |
+| Escribe, con una clave de prueba del vault | Se ejecuta solo si su capability declara que la clave por sí sola elige el destino; si no, **no se ejecuta** y se registra |
 | Escribe, sin conexión de prueba | **No se ejecuta.** Se registra como llamada prevista, con sus argumentos |
+
+Una clave de prueba sustituye una credencial, pero una URL o un host en la
+configuración de la capability todavía puede dirigir las escrituras a
+producción. Por eso una clave sustituida solo deja escribir a una capability en
+un eval cuando declara `test_key_isolates`, y el
+[catálogo](reference/capabilities.md#what-an-eval-runs) indica cuáles lo hacen.
 
 Una herramienta MCP cuenta como de lectura solo cuando su servidor la marca con
 `readOnlyHint` y la conexión confía en esa marca. Por defecto no confía, porque

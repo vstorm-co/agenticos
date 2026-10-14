@@ -804,7 +804,7 @@ class TestAPublishedDelegate:
         assert toolsets.await_args_list[-1].kwargs["test_connections"] == {crm: sandbox}
         (binding,) = built["spec"].capabilities
         assert binding.secret_id == test_key
-        assert built["test_secret_ids"] == frozenset({test_key})
+        assert built["test_bindings"] == frozenset({"web_research"})
 
     async def test_an_isolated_runs_delegates_are_isolated_too(self):
         """An eval holding the parent's writes and not its delegate's would send

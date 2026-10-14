@@ -77,6 +77,7 @@ from app.services.agent_runner import (
     RunSegment,
     _connect_on_use,
     _with_personal_service_gaps,
+    _with_test_secrets,
     month_start,
     run_failure_summary,
 )
@@ -4593,7 +4594,7 @@ class TestAnIsolatedRun:
             prepared = await service.prepare(_ctx(), agent.id, isolation=isolation)
 
         assert build.call_args.kwargs["isolation"] is isolation
-        assert build.call_args.kwargs["test_secret_ids"] == frozenset()
+        assert build.call_args.kwargs["test_bindings"] == frozenset()
         assert prepared.isolation is isolation
 
     @pytest.mark.anyio
@@ -4798,3 +4799,53 @@ class TestARecordingOfAPastRun:
             recording = await service.tool_recording(_ctx(), uuid.uuid4())
 
         assert recording.answer("tool:look_up_note", {}) is not None
+
+
+class TestSwappingTestKeys:
+    """Which bindings an environment's test keys reach, and which they do not."""
+
+    def test_only_a_binding_that_held_the_production_key_counts_as_swapped(self):
+        """A binding that holds the test key in its own right was never swapped,
+        so nothing it does may be taken for a call to a test system."""
+        live, test = uuid.uuid4(), uuid.uuid4()
+        spec = AgentSpec(
+            name="Support",
+            capabilities=[
+                {"id": "web_research", "config": {"provider": "tavily"}, "secret_id": live},
+                {"id": "memory_mem0", "config": {}, "secret_id": test},
+            ],
+        )
+
+        swapped_spec, swapped = _with_test_secrets(spec, {live: test})
+
+        assert swapped == frozenset({"web_research"})
+        assert [binding.secret_id for binding in swapped_spec.capabilities] == [test, test]
+
+    def test_a_disabled_binding_is_neither_swapped_nor_refused(self):
+        """It builds nothing, so a test key deleted since is no reason to stop the run."""
+        live = uuid.uuid4()
+        spec = AgentSpec(
+            name="Support",
+            capabilities=[
+                {
+                    "id": "web_research",
+                    "config": {"provider": "tavily"},
+                    "secret_id": live,
+                    "enabled": False,
+                }
+            ],
+        )
+
+        assert _with_test_secrets(spec, {live: None}) == (spec, frozenset())
+
+    def test_an_enabled_binding_on_a_deleted_test_key_is_refused(self):
+        live = uuid.uuid4()
+        spec = AgentSpec(
+            name="Support",
+            capabilities=[
+                {"id": "web_research", "config": {"provider": "tavily"}, "secret_id": live}
+            ],
+        )
+
+        with pytest.raises(BadRequestError):
+            _with_test_secrets(spec, {live: None})
