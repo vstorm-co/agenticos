@@ -106,6 +106,7 @@ from app.agents.capabilities.browser_use._page import (
     DomainRefused,
     PagePolicy,
     StaleElement,
+    headful_user_agent,
     parse_snapshot,
 )
 from app.agents.capabilities.browser_use._plans import (
@@ -2578,3 +2579,43 @@ class TestAPersonsPlansAreTheirsAlone:
 
         assert plans["kept"] == []
         assert len(plans["forgotten"]) == 1
+
+
+class TestTheBrowserReadsAsADesktopOne:
+    """#2130: a headless shell's user agent loses `Headless`, a desktop one is left alone."""
+
+    def test_a_headless_shell_says_chrome_and_names_its_brand(self):
+        override = headful_user_agent(
+            {
+                "product": "HeadlessChrome/156.0.8078.12",
+                "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) HeadlessChrome/156.0.8078.12 Safari/537.36",
+            }
+        )
+
+        assert override is not None
+        assert "Headless" not in str(override["userAgent"])
+        assert "Chrome/156.0.8078.12" in str(override["userAgent"])
+        metadata = override["userAgentMetadata"]
+        assert isinstance(metadata, dict)
+        assert {"brand": "Chromium", "version": "156"} in metadata["brands"]
+        assert {"brand": "Chromium", "version": "156.0.8078.12"} in metadata["fullVersionList"]
+        assert metadata["mobile"] is False
+
+    def test_a_browser_with_a_window_is_left_as_it_is(self):
+        assert (
+            headful_user_agent(
+                {
+                    "product": "Chrome/155.0.7000.0",
+                    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) Chrome/155.0.0.0 Safari/537.36",
+                }
+            )
+            is None
+        )
+
+    def test_an_answer_with_no_version_still_names_a_brand(self):
+        override = headful_user_agent({"userAgent": "HeadlessChrome"})
+        assert override is not None
+        metadata = override["userAgentMetadata"]
+        assert isinstance(metadata, dict)
+        assert metadata["brands"][0] == {"brand": "Chromium", "version": "0"}

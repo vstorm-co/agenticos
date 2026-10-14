@@ -19,6 +19,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **The web browser reads as a desktop one to sites that refuse bots** (#2130).
+  Compose's `browser` profile now runs `ghcr.io/vstorm-co/agenticos-browser` - a
+  full Chromium with a window under Xvfb, desktop fonts and no automation flags -
+  in place of the headless shell sites rejected on sight, and `browser_use` no
+  longer turns on CDP's `Runtime` domain, drops `Headless` from a user agent and
+  hides a software WebGL renderer. BrowserScan's bot detection reads it as
+  *Normal* on every count. `BROWSER_TZ` and `BROWSER_LANG` set where and in which
+  language it says it is.
+
 - **A browse done before goes quicker the second time, for the same person.**
   When a browse acting for one person finishes, the steps that got it there are
   kept for them alone - what it pressed, never what it typed - and the next time

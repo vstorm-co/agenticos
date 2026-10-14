@@ -671,6 +671,21 @@ browser up -d browser`, reached as `http://browser:9222`. The host must be on
 [`BROWSER_CDP_ALLOWED_HOSTS`](../configuration.md), and an empty allowlist — the
 default — refuses browser automation outright, at publish.
 
+**The compose browser reads as a desktop one.** It is a full Chromium with a window
+under a virtual display (`docker/browser`), with the fonts a desktop has and none of
+the flags that tell a page it is driven - the headless shell it replaces said
+`HeadlessChrome` in its user agent, and sites that refuse bots refused it on sight.
+The capability also drops what a page could still read over CDP: it never turns on
+the `Runtime` domain, and it removes `Headless` from the user agent, `navigator.webdriver`
+and a `SwiftShader` WebGL renderer where a browser shows them - so a headless shell an
+operator keeps reads as a desktop browser too.
+
+Checked against BrowserScan's bot detection (*Normal* on every count) and
+Sannysoft's table (all passed). `BROWSER_TZ`
+and `BROWSER_LANG` in the environment set where and in which language it says it is;
+the defaults are `UTC` and `en-US`. A bot check is not a terms of service: what a site
+allows automated access to is for the operator to read before pointing agents at it.
+
 That is an allowlist rather than the SSRF check other tenant-supplied URLs go
 through, because `cdp_url` lives in a spec anyone with `edit` writes, and the SSRF
 guard is wrong for it in both directions: it refuses the isolated service on your own

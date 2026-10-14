@@ -19,7 +19,7 @@ import asyncio
 import ipaddress
 import json
 import logging
-from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
+from collections.abc import AsyncGenerator, Awaitable, Callable, Mapping, Sequence
 from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass
 from typing import Any
@@ -289,6 +289,83 @@ every element of some kind to fail its own identity check. It happened: the
 collector learned that a `contenteditable` div is a textbox and the verifier did
 not, and every rich-text editor was then refused as "now a div".
 """
+
+
+_STEALTH_JS = r"""
+(() => {
+  // A browser drawing WebGL in software names its renderer "SwiftShader", which
+  // no desktop has and bot checks look for. Only the two debug strings change,
+  // and only when they say so: a browser on a real GPU answers as itself.
+  const VENDOR = 0x9245, RENDERER = 0x9246;
+  const patch = (proto) => {
+    if (!proto) return;
+    const original = proto.getParameter;
+    const replacement = new Proxy(original, {
+      apply(target, self, args) {
+        const value = Reflect.apply(target, self, args);
+        if (args[0] !== VENDOR && args[0] !== RENDERER) return value;
+        // Both or neither: a vendor and a renderer that disagree are a tell too.
+        const renderer = Reflect.apply(target, self, [RENDERER]);
+        if (typeof renderer !== 'string' || !renderer.includes('SwiftShader')) return value;
+        return args[0] === VENDOR
+          ? 'Google Inc. (Intel)'
+          : 'ANGLE (Intel, Mesa Intel(R) UHD Graphics 620 (KBL GT2), OpenGL 4.6)';
+      },
+    });
+    Object.defineProperty(proto, 'getParameter', {value: replacement});
+  };
+  patch(window.WebGLRenderingContext && WebGLRenderingContext.prototype);
+  patch(window.WebGL2RenderingContext && WebGL2RenderingContext.prototype);
+  // A browser started for automation says so in `navigator.webdriver`. The image
+  // this repository ships is not, and reads `false` already; a headless shell
+  // reads `true`, and gets the getter a person's browser has.
+  if (navigator.webdriver === true) {
+    const getter = Object.getOwnPropertyDescriptor(Navigator.prototype, 'webdriver').get;
+    Object.defineProperty(Navigator.prototype, 'webdriver', {
+      get: new Proxy(getter, {apply: () => false}),
+      configurable: true,
+      enumerable: true,
+    });
+  }
+})()
+"""
+"""What a page reads to tell a browser drawing in software from a person's - see #2130.
+
+A Proxy rather than a replacement function, so `getParameter.toString()` still
+reads as native code.
+"""
+
+
+def headful_user_agent(version: Mapping[str, object]) -> dict[str, object] | None:
+    """The user agent override that drops `Headless`, or `None` where there is none.
+
+    A headless Chromium says so in its user agent and in its client hints, and
+    sites that refuse bots refuse that on sight. The browser image this repository
+    ships runs with a window and needs nothing; an operator who points `cdp_url`
+    at a headless shell still gets a browser that reads as a desktop one.
+
+    Args:
+        version: What `Browser.getVersion` answered.
+    """
+    agent = str(version.get("userAgent", ""))
+    if "Headless" not in agent:
+        return None
+    product = str(version.get("product", ""))
+    full = product.split("/", 1)[1] if "/" in product else ""
+    major = full.split(".", 1)[0] or "0"
+    brands = [{"brand": "Chromium", "version": major}, {"brand": "Not.A/Brand", "version": "99"}]
+    return {
+        "userAgent": agent.replace("HeadlessChrome", "Chrome"),
+        "userAgentMetadata": {
+            "brands": brands,
+            "fullVersionList": [{"brand": "Chromium", "version": full or major}, brands[1]],
+            "platform": "Linux",
+            "platformVersion": "",
+            "architecture": "x86",
+            "model": "",
+            "mobile": False,
+        },
+    }
 
 
 _SAME_TAB_JS = r"""
@@ -1100,10 +1177,20 @@ async def open_page(  # pragma: no cover - needs a live browser
             params={"targetId": target, "flatten": True}
         )
         session = attached["sessionId"]
-        # Neither takes parameters, and `Runtime.enable` is typed `params: None` -
-        # an empty dict is accepted at run time and is still the wrong call.
+        # `Page.enable` takes no parameters. `Runtime.enable` is deliberately not
+        # sent: nothing here reads its events, and a page can tell it was - the
+        # console serialises what is logged once it is on, which is the check bot
+        # detection runs for a driven browser (#2130).
         await client.send.Page.enable(session_id=session)
-        await client.send.Runtime.enable(session_id=session)
+        # Look like the browser a person runs: no `Headless` in the user agent of
+        # a headless shell, and no `SwiftShader` in the WebGL renderer of one
+        # drawing in software.
+        override = headful_user_agent(await client.send.Browser.getVersion())
+        if override is not None:
+            await client.send.Emulation.setUserAgentOverride(params=override, session_id=session)
+        await client.send.Page.addScriptToEvaluateOnNewDocument(
+            params={"source": _STEALTH_JS}, session_id=session
+        )
         # Keep every navigation in this tab. `CdpPage` is bound to one attached
         # session, so a `target="_blank"` link or a `window.open()` opens a target
         # the loop never sees: the next snapshot reads the unchanged opener, the

@@ -350,12 +350,16 @@ services:
   # because only an agent bound to `browser_use` needs one: `docker compose
   # --profile browser up -d browser`. Never published - the API reaches it on the
   # compose network as `http://browser:9222`, which `BROWSER_CDP_ALLOWED_HOSTS`
-  # has to name. A pinned Chromium build, so an upgrade is a decision; the
-  # headless shell listens on all interfaces and answers DevTools by address,
-  # which the capability resolves the name to (`pin_host`).
+  # has to name. A full Chromium with a window under a virtual display
+  # (`docker/browser`), so a site sees a desktop browser rather than a headless
+  # shell it refuses on sight (#2130). `TZ` and `BROWSER_LANG` are where and in
+  # which language it says it is.
   browser:
-    image: chromedp/headless-shell:156.0.8078.12
+    image: ghcr.io/vstorm-co/agenticos-browser:${AGENTICOS_VERSION:-latest}
     profiles: [browser]
+    environment:
+      - TZ=${BROWSER_TZ:-UTC}
+      - BROWSER_LANG=${BROWSER_LANG:-en-US}
     # Room for pages that use shared memory; the default 64 MB crashes tabs.
     shm_size: 1gb
     networks:

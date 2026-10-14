@@ -1,5 +1,5 @@
 ---
-source_sha: "6053a627229f"
+source_sha: "8022360cd53c"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -752,6 +752,23 @@ isoliert. Die Compose-Dateien enthalten einen hinter dem Profil `browser` — `d
 compose --profile browser up -d browser`, erreichbar als `http://browser:9222`. Der Host
 muss auf [`BROWSER_CDP_ALLOWED_HOSTS`](../configuration.md) stehen, und eine leere
 Liste — der Standard — lehnt Browser-Automatisierung bei der Veröffentlichung ganz ab.
+
+**Der Compose-Browser wirkt wie ein Desktop-Browser.** Ein vollständiges Chromium
+mit Fenster auf einem virtuellen Bildschirm (`docker/browser`), mit den Schriften eines
+Desktops und ohne die Flags, die einer Seite sagen, dass sie gesteuert wird - die
+Headless-Shell, die er ersetzt, hatte `HeadlessChrome` im User-Agent, und Seiten, die
+Bots ablehnen, lehnten sie sofort ab. Die Capability entfernt auch, was eine Seite
+noch über CDP lesen könnte: Sie schaltet die Domäne `Runtime` nie ein und ersetzt
+`Headless` im User-Agent, `navigator.webdriver` und einen WebGL-Renderer `SwiftShader`,
+wo ein Browser sie zeigt - so wirkt auch eine Headless-Shell, die ein Betreiber behält,
+wie ein Desktop-Browser.
+
+Geprüft gegen die Bot-Erkennung von BrowserScan (*Normal* in
+jedem Punkt) und die Tabelle von Sannysoft (alles bestanden). `BROWSER_TZ` und
+`BROWSER_LANG` in der Umgebung legen fest, wo und in welcher Sprache er sich ausgibt;
+Standard sind `UTC` und `en-US`. Eine Bot-Prüfung ist keine Nutzungsbedingung: Was
+eine Seite an automatisiertem Zugriff erlaubt, liest der Betreiber, bevor er Agents
+darauf ansetzt.
 
 Das ist eine Allowlist und nicht die SSRF-Prüfung, durch die andere vom Mandanten
 gelieferte URLs gehen, denn `cdp_url` steht in einer Spec, die jeder mit `edit`

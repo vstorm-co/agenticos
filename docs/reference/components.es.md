@@ -1,5 +1,5 @@
 ---
-source_sha: "d68ab617b471"
+source_sha: "70972598eb0c"
 ---
 
 # El inventario de componentes { #the-component-inventory }
@@ -21,7 +21,7 @@ desde un sistema de compilación.
     última sección explica cómo anotar esa mitad; esta página no puede
     escribirla por usted.
 
-El inventario legible por máquina se adjunta a cada versión como cuatro
+El inventario legible por máquina se adjunta a cada versión como seis
 documentos [CycloneDX](https://cyclonedx.org/) — uno por imagen **por
 arquitectura**, porque una etiqueta publicada es una lista de manifiestos y las
 dos variantes no contienen los mismos paquetes. La evidencia de licencia de cada
@@ -42,8 +42,10 @@ versión que ejecuta debería leer ambos desde la misma etiqueta y no desde `mai
 |---|---|---|
 | `sbom-api-amd64.cdx.json`, `sbom-api-arm64.cdx.json` | los recursos de la release de GitHub | la etiqueta `v*` a la que se adjuntan |
 | `sbom-frontend-amd64.cdx.json`, `sbom-frontend-arm64.cdx.json` | los mismos | lo mismo |
+| `sbom-browser-amd64.cdx.json`, `sbom-browser-arm64.cdx.json` | los mismos | lo mismo |
 | `ghcr.io/vstorm-co/agenticos-backend` | GHCR | `<version>`, `latest`, `edge`, `sha-<short>` |
 | `ghcr.io/vstorm-co/agenticos-frontend` | GHCR | lo mismo |
+| `ghcr.io/vstorm-co/agenticos-browser` | GHCR | lo mismo |
 | `THIRD_PARTY_NOTICES.md` | el repositorio, en esa etiqueta | los ficheros lock en ese commit |
 
 ## Componentes que escribe este proyecto { #components-this-project-writes }
@@ -86,14 +88,15 @@ resuelve `backend/uv.lock` y lo contrasta con la base de datos de avisos;
 |---|---|---|---|
 | `agenticos-backend` | una imagen de Python basada en Debian | la API, el worker, las migraciones, la CLI, el cierre de dependencias del backend, los textos de licencia | `backend/Dockerfile` |
 | `agenticos-frontend` | una imagen de Node basada en Debian | la compilación standalone de la consola, su cierre de dependencias de producción, las fuentes, los avisos por paquete | `frontend/Dockerfile` |
+| `agenticos-browser` | `debian:bookworm-slim` | Chromium con ventana bajo Xvfb, las fuentes de escritorio y `socat` hacia sus DevTools - lo que arranca el perfil `browser` de compose para la capability del navegador | `docker/browser/Dockerfile` |
 
-Ambas se compilan para `amd64` y `arm64`, se publican en GHCR y se escanean con
+Las tres se compilan para `amd64` y `arm64`, se publican en GHCR y se escanean con
 Trivy después de publicarse. Los paquetes Debian que instala cada imagen están
 registrados en `licenses/components.toml` con su posición de licencia y aparecen
 en los documentos CycloneDX, porque el generador lee la imagen publicada y no el
 árbol de fuentes.
 
-Los servicios que un despliegue ejecuta junto a estas dos — PostgreSQL con
+Los servicios que un despliegue ejecuta junto a estas tres — PostgreSQL con
 pgvector, Redis, un proxy inverso, un servidor de Prefect — los descarga el
 operador de sus propios editores. Están nombrados en los ficheros compose, no se
 compilan aquí y no están en el SBOM de este proyecto.
@@ -132,7 +135,7 @@ al inventario propio del despliegue.
 
 !!! warning "El SBOM de una imagen no es un inventario del sistema"
 
-    Los dos documentos CycloneDX describen dos imágenes. Un despliegue que
+    Los documentos CycloneDX describen tres imágenes. Un despliegue que
     conecta un modelo alojado, tres servidores MCP y un almacenamiento de objetos
     ejecuta componentes que ningún escaneo de esas imágenes puede ver. Tomar el
     SBOM de la versión por el inventario completo es la laguna que esta sección
@@ -142,7 +145,7 @@ al inventario propio del despliegue.
 
 | Artefacto | Lo produce | Cuándo |
 |---|---|---|
-| Los cuatro SBOM de la versión | el trabajo `sbom` en `.github/workflows/images.yml`, uno por imagen por arquitectura, a partir de los manifiestos publicados | en cada publicación; se adjuntan a la release con una etiqueta `v*`, y en otro caso quedan como artefacto del run |
+| Los seis SBOM de la versión | el trabajo `sbom` en `.github/workflows/images.yml`, uno por imagen por arquitectura, a partir de los manifiestos publicados | en cada publicación; se adjuntan a la release con una etiqueta `v*`, y en otro caso quedan como artefacto del run |
 | `THIRD_PARTY_NOTICES.md` | `make licenses` | cuando cambia un fichero lock; `make licenses-check` hace fallar la compilación si está desactualizado |
 | Esta página | a mano | cuando un componente se añade, se elimina o pasa de uno de los conjuntos anteriores a otro |
 
@@ -153,7 +156,7 @@ los grupos de dependencias de desarrollo y de documentación si están instalado
 y ninguna de las capas de debajo — ni imagen base, ni paquetes Debian, ni
 artefactos compilados. Útiles para leer un conjunto de dependencias sin
 descargar dos imágenes; inútiles como evidencia de lo que distribuye una
-versión, para lo cual están los cuatro documentos de arriba. Necesita
+versión, para lo cual están los seis documentos de arriba. Necesita
 [syft](https://github.com/anchore/syft) instalado y deliberadamente no forma
 parte de `make check`.
 

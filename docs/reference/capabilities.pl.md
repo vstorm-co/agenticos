@@ -1,5 +1,5 @@
 ---
-source_sha: "6053a627229f"
+source_sha: "8022360cd53c"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -711,6 +711,21 @@ compose mają ją za profilem `browser` — `docker compose --profile browser up
 browser`, osiągalną jako `http://browser:9222`. Host musi być na
 [`BROWSER_CDP_ALLOWED_HOSTS`](../configuration.md), a pusta lista — domyślna — odrzuca
 automatyzację przeglądarki całkowicie, przy publikacji.
+
+**Przeglądarka z compose wygląda jak desktopowa.** To pełny Chromium z oknem na
+wirtualnym ekranie (`docker/browser`), z fontami jak na pulpicie i bez flag, które
+mówią stronie, że jest sterowana - headless shell, który zastępuje, miał
+`HeadlessChrome` w user agencie, a strony odrzucające boty odrzucały go od razu.
+Capability usuwa też to, co strona mogłaby jeszcze odczytać przez CDP: nigdy nie
+włącza domeny `Runtime`, a `Headless` w user agencie, `navigator.webdriver` i renderer
+WebGL `SwiftShader` zastępuje tam, gdzie przeglądarka je pokazuje - więc headless
+shell, który operator zostawi, też wygląda jak desktopowy.
+
+Sprawdzone na wykrywaniu
+botów BrowserScan (*Normal* w każdej pozycji) i w tabeli Sannysoft (wszystko zaliczone).
+`BROWSER_TZ` i `BROWSER_LANG` w środowisku ustawiają, gdzie i w jakim języku się
+przedstawia; domyślnie `UTC` i `en-US`. Test botów to nie regulamin: co strona pozwala
+automatyzować, operator czyta, zanim skieruje tam agenty.
 
 To lista dozwolonych, a nie kontrola SSRF, przez którą przechodzą inne adresy podane
 przez najemcę, bo `cdp_url` jest w specu, który pisze każdy z prawem `edit`, a ochrona
