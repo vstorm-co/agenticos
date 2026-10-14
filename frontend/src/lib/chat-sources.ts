@@ -16,7 +16,8 @@ export interface SourceItem {
   collection?: string;
 }
 
-function getToolCalls(message: ChatMessage): ToolCall[] {
+/** A message's tool calls, from its ordered timeline where it has one. */
+export function toolCallsOf(message: ChatMessage): ToolCall[] {
   const fromParts = (message.parts ?? [])
     .filter((p) => p.type === "tool" && !!p.toolCall)
     .map((p) => p.toolCall!);
@@ -36,7 +37,7 @@ export function extractSources(message: ChatMessage, t: Translate): SourceItem[]
     return true;
   };
 
-  for (const tc of getToolCalls(message)) {
+  for (const tc of toolCallsOf(message)) {
     const result = typeof tc.result === "string" ? tc.result : "";
     if (!result) continue;
 

@@ -14,6 +14,9 @@ import type { ChatMessage, ChatMessageFile, MessagePart, ToolCall, TurnUsage } f
 // and hands them to each step, so a public surface can render the same step without
 // a session - the fetch would need one, and a query client to run it in.
 vi.mock("@/hooks", () => ({ useMcpToolServers: () => [] }));
+vi.mock("@/components/artifacts/artifact-thumbnail", () => ({
+  ArtifactThumbnail: ({ title }: { title: string }) => <span>thumbnail of {title}</span>,
+}));
 vi.mock("@/hooks/use-knowledge-bases", () => ({ useKnowledgeBaseFor: () => () => undefined }));
 vi.mock("./markdown-content", () => ({
   MarkdownContent: ({
@@ -485,6 +488,39 @@ describe("the ordered timeline", () => {
     item({ role: "user", thinking: "should not show", content: "How long?" });
 
     expect(screen.queryByText("should not show")).toBeNull();
+  });
+});
+
+describe("an app the turn published", () => {
+  const publishing = {
+    toolCalls: [
+      {
+        id: "tc-1",
+        name: "publish_artifact",
+        args: {},
+        status: "completed" as const,
+        result: JSON.stringify({
+          kind: "artifact",
+          artifact_id: "app-1",
+          version_id: "v-2",
+          version: 2,
+          title: "Revenue dashboard",
+        }),
+      },
+    ],
+  };
+
+  it("is a card under the answer, opening the version this turn wrote", () => {
+    item(publishing);
+
+    const card = screen.getByRole("link", { name: /Revenue dashboard/ });
+    expect(card).toHaveAttribute("href", "/apps/app-1?version=v-2");
+  });
+
+  it("waits for the turn to finish", () => {
+    item({ ...publishing, isStreaming: true });
+
+    expect(screen.queryByRole("link", { name: /Revenue dashboard/ })).toBeNull();
   });
 });
 

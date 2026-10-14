@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 
 import { ArtifactThumbnail } from "@/components/artifacts/artifact-thumbnail";
 import { ROUTES } from "@/lib/constants";
+import type { ToolCall } from "@/types";
 
 export interface PublishedArtifactPayload {
   artifactId: string;
@@ -42,6 +43,25 @@ export function parsePublishedArtifact(result: string): PublishedArtifactPayload
     /* not JSON - fall back to the raw renderer */
   }
   return null;
+}
+
+/**
+ * The apps a turn published, once each, at the last version it wrote.
+ *
+ * An agent that fixes its page publishes it again, and the version to open is
+ * the one the turn ended on - one card per app, not one per attempt.
+ */
+export function publishedApps(toolCalls: ToolCall[]): PublishedArtifactPayload[] {
+  const apps = new Map<string, PublishedArtifactPayload>();
+  for (const call of toolCalls) {
+    if (call.name !== "publish_artifact" || typeof call.result !== "string") continue;
+    const app = parsePublishedArtifact(call.result);
+    if (app) {
+      apps.delete(app.artifactId);
+      apps.set(app.artifactId, app);
+    }
+  }
+  return [...apps.values()];
 }
 
 /**

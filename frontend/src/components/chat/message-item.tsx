@@ -26,7 +26,8 @@ import { useAuthStore } from "@/stores";
 import { getFileUrl } from "@/lib/file-api";
 import { isRenderSafeImage } from "@/lib/file-kinds";
 import { FileCard } from "@/components/files";
-import { extractSources } from "@/lib/chat-sources";
+import { extractSources, toolCallsOf } from "@/lib/chat-sources";
+import { publishedApps, PublishedArtifactResult } from "./tool-results/artifact";
 
 interface MessageItemProps {
   message: ChatMessage;
@@ -116,6 +117,7 @@ export function MessageItem({
   const hasBody = Boolean(message.content) || (!isUser && (message.parts?.length ?? 0) > 0);
   const sources = !isUser ? extractSources(message, t) : [];
   const hasSources = sources.length > 0 && !message.isStreaming;
+  const apps = !isUser ? publishedApps(toolCallsOf(message)) : [];
   const onCiteClick = hasSources ? (index: number) => openSources(sources, index) : undefined;
 
   const avatar = (
@@ -266,6 +268,17 @@ export function MessageItem({
           endsTurn={endsTurn}
           onCiteClick={onCiteClick}
         />
+
+        {!isUser && !message.isStreaming && apps.length > 0 && (
+          // What the turn made, under what it said: the app is the answer to
+          // "build me a dashboard", and it used to be one line inside the folded
+          // work above the reply.
+          <div className="mt-1 max-w-xl space-y-2">
+            {apps.map((app) => (
+              <PublishedArtifactResult key={app.artifactId} data={app} />
+            ))}
+          </div>
+        )}
 
         {hasSources && !isUser && (
           <div className="mt-1">

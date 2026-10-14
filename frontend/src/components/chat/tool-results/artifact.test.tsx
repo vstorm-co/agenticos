@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { PublishedArtifactResult, parsePublishedArtifact } from "./artifact";
+import { PublishedArtifactResult, parsePublishedArtifact, publishedApps } from "./artifact";
 
 vi.mock("@/components/artifacts/artifact-thumbnail", () => ({
   ArtifactThumbnail: ({ artifactId, versionId }: { artifactId: string; versionId: string }) => (
@@ -81,5 +81,37 @@ describe("PublishedArtifactResult", () => {
       />,
     );
     expect(screen.getByText("Unchanged, still version 3 · open the page")).toBeInTheDocument();
+  });
+});
+
+describe("the apps a turn published", () => {
+  const published = (artifact: string, version: number) => ({
+    id: `${artifact}-${version}`,
+    name: "publish_artifact",
+    args: {},
+    status: "completed" as const,
+    result: JSON.stringify({
+      kind: "artifact",
+      artifact_id: artifact,
+      version_id: `${artifact}-v${version}`,
+      version,
+      title: `App ${artifact}`,
+    }),
+  });
+
+  it("keeps one card per app, at the last version the turn wrote", () => {
+    const apps = publishedApps([
+      published("a", 1),
+      published("b", 1),
+      published("a", 2),
+      { id: "x", name: "publish_artifact", args: {}, status: "completed", result: "refused" },
+      { id: "y", name: "web_search", args: {}, status: "completed", result: "{}" },
+      { id: "z", name: "publish_artifact", args: {}, status: "running" },
+    ]);
+
+    expect(apps.map((app) => [app.artifactId, app.version])).toEqual([
+      ["b", 1],
+      ["a", 2],
+    ]);
   });
 });
