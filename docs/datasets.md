@@ -197,10 +197,14 @@ scorers has anything to check on - nothing is kept and the judge is not called.
 
 `path` reads into an answer that is JSON: `items.0.name` is the first item's
 name. Without it, a rule reads the whole answer. Text rules are not case
-sensitive unless `case_sensitive` is true. A pattern is checked when the case is
-written, and a rule reads at most the first 100,000 characters of an answer. A
-pattern that takes longer than a tenth of a second on an answer stops and is
-recorded as an error, so one pattern cannot hold up scoring.
+sensitive unless `case_sensitive` is true.
+
+A pattern is checked when the case is written, and a rule reads at most the
+first 100,000 characters of an answer. A pattern that takes longer than a tenth
+of a second on an answer stops and is recorded as an error, so one pattern
+cannot hold up scoring. For the same reason a JSON Schema may not use `pattern`
+or `patternProperties` - a `regex` check with a `path` does the same under the
+deadline - and its `$ref` must point inside the schema.
 
 A `judge` check is a criterion for one case only, graded in the same judge run
 as the dataset's rubric. Use it for what a rule cannot express, such as "refuses

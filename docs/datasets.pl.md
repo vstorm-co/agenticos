@@ -1,5 +1,5 @@
 ---
-source_sha: "f8e8629eac20"
+source_sha: "2d84d20635a3"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -205,11 +205,14 @@ nic nie jest zapisywane, a sędzia nie jest wywoływany.
 
 `path` sięga do wnętrza odpowiedzi, która jest JSON-em: `items.0.name` to nazwa
 pierwszego elementu. Bez niego reguła czyta całą odpowiedź. Reguły tekstowe nie
-rozróżniają wielkości liter, chyba że `case_sensitive` ma wartość true. Wzorzec
-jest sprawdzany przy zapisie przypadku, a reguła czyta najwyżej pierwsze 100 000
-znaków odpowiedzi. Wzorzec, który na jakiejś odpowiedzi działa dłużej niż
-dziesiątą część sekundy, zostaje przerwany i zapisany jako błąd, więc jeden
-wzorzec nie może zatrzymać oceniania.
+rozróżniają wielkości liter, chyba że `case_sensitive` ma wartość true.
+
+Wzorzec jest sprawdzany przy zapisie przypadku, a reguła czyta najwyżej pierwsze
+100 000 znaków odpowiedzi. Wzorzec, który na jakiejś odpowiedzi działa dłużej
+niż dziesiątą część sekundy, zostaje przerwany i zapisany jako błąd, więc jeden
+wzorzec nie może zatrzymać oceniania. Z tego samego powodu JSON Schema nie może
+używać `pattern` ani `patternProperties` - to samo robi check `regex` z `path`,
+z tym samym limitem czasu - a jej `$ref` musi wskazywać wewnątrz schematu.
 
 Sprawdzenie `judge` to kryterium tylko dla jednego przypadku, oceniane w tym
 samym runie sędziego co rubryka datasetu. Używaj go do tego, czego reguła nie

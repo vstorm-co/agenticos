@@ -1,5 +1,5 @@
 ---
-source_sha: "f8e8629eac20"
+source_sha: "2d84d20635a3"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -218,11 +218,15 @@ hat - nichts wird gespeichert, und der Judge wird nicht aufgerufen.
 `path` liest in eine Antwort hinein, die JSON ist: `items.0.name` ist der Name
 des ersten Elements. Ohne ihn liest eine Regel die ganze Antwort. Textregeln
 unterscheiden nicht zwischen Groß- und Kleinschreibung, außer `case_sensitive`
-ist true. Ein Muster wird geprüft, wenn der Fall geschrieben wird, und eine Regel
-liest höchstens die ersten 100.000 Zeichen einer Antwort. Ein Muster, das auf
-einer Antwort länger als eine Zehntelsekunde braucht, wird abgebrochen und als
-Fehler festgehalten, damit ein einzelnes Muster das Scoring nicht aufhalten
-kann.
+ist true.
+
+Ein Muster wird geprüft, wenn der Fall geschrieben wird, und eine Regel liest
+höchstens die ersten 100.000 Zeichen einer Antwort. Ein Muster, das auf einer
+Antwort länger als eine Zehntelsekunde braucht, wird abgebrochen und als Fehler
+festgehalten, damit ein einzelnes Muster das Scoring nicht aufhalten kann. Aus
+demselben Grund darf ein JSON Schema weder `pattern` noch `patternProperties`
+verwenden - eine `regex`-Prüfung mit `path` leistet dasselbe unter derselben
+Frist -, und sein `$ref` muss innerhalb des Schemas zeigen.
 
 Eine `judge`-Prüfung ist ein Kriterium nur für einen Fall, bewertet im selben
 Judge-Run wie die Rubrik des Datasets. Verwenden Sie sie für das, was eine Regel

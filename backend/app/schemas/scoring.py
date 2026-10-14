@@ -61,8 +61,59 @@ class TextCheck(BaseSchema):
         return self
 
 
+_NAMED_SUBSCHEMAS = ("properties", "$defs", "definitions", "dependentSchemas")
+_SUBSCHEMAS = (
+    "items",
+    "prefixItems",
+    "allOf",
+    "anyOf",
+    "oneOf",
+    "not",
+    "if",
+    "then",
+    "else",
+    "additionalProperties",
+    "unevaluatedProperties",
+    "unevaluatedItems",
+    "additionalItems",
+    "contains",
+    "propertyNames",
+)
+
+
+def _refused_keyword(schema: JsonValue) -> str | None:
+    """The first keyword the schema check will not run, or `None`.
+
+    A pattern runs through `re` inside the validator, with no deadline, so it
+    belongs in a `regex` check; a reference outside the schema cannot be resolved.
+    """
+    if isinstance(schema, list):
+        return next((found for item in schema if (found := _refused_keyword(item))), None)
+    if not isinstance(schema, dict):
+        return None
+    for keyword in ("pattern", "patternProperties"):
+        if keyword in schema:
+            return keyword
+    for keyword in ("$ref", "$dynamicRef"):
+        reference = schema.get(keyword)
+        if reference is not None and not str(reference).startswith("#"):
+            return keyword
+    for keyword in _NAMED_SUBSCHEMAS:
+        named = schema.get(keyword)
+        if isinstance(named, dict) and (found := _refused_keyword(list(named.values()))):
+            return found
+    return next(
+        (found for keyword in _SUBSCHEMAS if (found := _refused_keyword(schema.get(keyword)))),
+        None,
+    )
+
+
 class JsonSchemaCheck(BaseSchema):
-    """The answer, or the value at `path`, is JSON matching a JSON Schema."""
+    """The answer, or the value at `path`, is JSON matching a JSON Schema.
+
+    `pattern` and `patternProperties` are refused - a `regex` check is the place
+    for a pattern - and so is a `$ref` outside the schema itself.
+    """
 
     type: Literal["json_schema"]
     json_schema: dict[str, JsonValue] = Field(alias="schema")
@@ -75,6 +126,11 @@ class JsonSchemaCheck(BaseSchema):
             Draft202012Validator.check_schema(schema)
         except SchemaError as exc:
             raise ValueError(f"Not a valid JSON Schema: {exc.message}") from exc
+        refused = _refused_keyword(schema)
+        if refused in ("pattern", "patternProperties"):
+            raise ValueError(f"`{refused}` is not supported here; use a regex check with a path")
+        if refused is not None:
+            raise ValueError(f"`{refused}` may only point inside the schema (start with #)")
         return schema
 
 
