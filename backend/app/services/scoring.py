@@ -29,6 +29,7 @@ from app.core.exceptions import (
     AiAssistanceDisabledError,
     BadRequestError,
     NotFoundError,
+    NothingToScoreError,
     SystemAgentOutputError,
     SystemAgentRunError,
     SystemAgentUnavailableError,
@@ -265,17 +266,14 @@ class ScoringService:
         already decided the caller may score this dataset.
 
         Raises:
-            BadRequestError: No configured scorer has anything to check on this
-                case - nothing is kept, and the judge is not called.
+            NothingToScoreError: No configured scorer has anything to check on
+                this case - nothing is kept, and the judge is not called.
         """
         config = scoring or DatasetScoring.model_validate(dataset.scoring)
         evaluation = await self.evaluate(ctx, _case_view(case), answer, config)
         results = evaluation.results
         if not results:
-            raise BadRequestError(
-                message=("Nothing to score: the dataset's scorers check nothing this case expects"),
-                details={"case_id": case.case_id},
-            )
+            raise NothingToScoreError(case_id=case.case_id)
         passed = case_passed(results)
         select = config.review.select
         waits = select == "all" or (select == "failed" and passed is not True)

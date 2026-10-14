@@ -23,7 +23,12 @@ from sqlalchemy import select
 from app.agents.model_resolver import ModelRequestSpec
 from app.agents.spec import AgentSpec
 from app.agents.system_agents import JUDGE
-from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
+from app.core.exceptions import (
+    AuthorizationError,
+    BadRequestError,
+    NotFoundError,
+    NothingToScoreError,
+)
 from app.core.permissions import AuthContext, OrgRoleName
 from app.core.secret_kinds import ApiKeySecret, SecretKind, seal_secret
 from app.core.vault import VaultScope
@@ -853,7 +858,7 @@ class TestRefusals:
         run = await _scored_run(db, tenant)
         scoring = ScoringService(db)
 
-        with pytest.raises(BadRequestError, match="Nothing to score"):
+        with pytest.raises(NothingToScoreError):
             await scoring.score_run(
                 tenant.ctx, dataset.id, bare.case_id, CaseScoreCreate(run_id=run.id)
             )
