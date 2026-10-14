@@ -124,7 +124,12 @@ async def test_an_edited_draft_lands_as_edited_and_redacted(db) -> None:
     await CaseGenerationService(db, vector_store=MagicMock()).accept(
         owner,
         dataset.id,
-        _accept(drafted[0].id, content=DatasetCaseContent(input=f"Use {key} please", tags=["x"])),
+        _accept(
+            drafted[0].id,
+            content=DatasetCaseContent(
+                input=f"Use {key} please", reference_answer="Never share a key.", tags=["x"]
+            ),
+        ),
     )
 
     (case,) = (await DatasetService(db).list_cases(owner, dataset.id)).items

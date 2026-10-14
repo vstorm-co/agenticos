@@ -432,7 +432,7 @@ async def test_a_queued_generation_runs_on_a_session_of_its_own(db, monkeypatch)
     monkeypatch.setattr(generation, "get_db_context", session)
     _answer(
         monkeypatch,
-        DraftedCases(cases=[DraftedCase(origin="agent", input="Q?")]),
+        DraftedCases(cases=[DraftedCase(origin="agent", input="Q?", reference_answer="A.")]),
         run=await _run_row(db, owner, agent),
     )
 

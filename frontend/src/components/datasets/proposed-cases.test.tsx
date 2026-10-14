@@ -35,7 +35,7 @@ function proposal(id: string, input: string): CaseProposal {
     origin: "agent",
     input,
     history: [],
-    reference_answer: null,
+    reference_answer: "An answer.",
     counter_example: null,
     expected_tool_calls: [],
     order_mode: "any",

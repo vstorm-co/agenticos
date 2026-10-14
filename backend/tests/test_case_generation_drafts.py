@@ -178,8 +178,18 @@ def test_a_conversation_case_must_vary_a_question_it_was_shown() -> None:
     material = _material()
     kept, dropped = keep(
         _drafts(
-            {"origin": "conversation", "input": "Where's order 12?", "question": "C1"},
-            {"origin": "conversation", "input": "Invented", "question": "C9"},
+            {
+                "origin": "conversation",
+                "input": "Where's order 12?",
+                "question": "C1",
+                "reference_answer": "Order 12 ships Friday.",
+            },
+            {
+                "origin": "conversation",
+                "input": "Invented",
+                "question": "C9",
+                "reference_answer": "x",
+            },
         ),
         material,
         quotas=_ALL,
@@ -218,9 +228,9 @@ def test_an_agent_case_keeps_only_the_tools_the_agent_has() -> None:
 def test_drafts_past_a_quota_an_unasked_origin_or_an_invalid_case_are_dropped() -> None:
     kept, dropped = keep(
         _drafts(
-            {"origin": "agent", "input": "one"},
-            {"origin": "agent", "input": "two"},
-            {"origin": "agent", "input": "three"},
+            {"origin": "agent", "input": "one", "reference_answer": "a"},
+            {"origin": "agent", "input": "two", "reference_answer": "a"},
+            {"origin": "agent", "input": "three", "reference_answer": "a"},
             {"origin": "red_team", "input": "unasked", "red_team_category": "out_of_scope"},
             {"origin": "agent", "input": "   "},
         ),
@@ -233,9 +243,14 @@ def test_drafts_past_a_quota_an_unasked_origin_or_an_invalid_case_are_dropped() 
 
 def test_a_case_breaking_a_dataset_rule_is_dropped() -> None:
     kept, dropped = keep(
-        _drafts({"origin": "agent", "input": "q", "tags": ["a,b"]}), _material(), quotas=_ALL
+        _drafts(
+            {"origin": "agent", "input": "q", "reference_answer": "a", "tags": ["a,b"]},
+            {"origin": "agent", "input": "Expects nothing"},
+        ),
+        _material(),
+        quotas=_ALL,
     )
-    assert (kept, dropped) == ([], 1)
+    assert (kept, dropped) == ([], 2)
 
 
 def test_the_prompt_asks_for_each_quota_and_fences_the_material() -> None:

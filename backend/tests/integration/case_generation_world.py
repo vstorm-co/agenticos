@@ -192,7 +192,7 @@ async def proposals(
             position=index,
             origin=origin.value,
             input=f"question {index}",
-            **fields,
+            **{"reference_answer": "An answer.", **fields},
         )
         for index in range(count)
     ]

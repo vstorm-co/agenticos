@@ -120,7 +120,14 @@ async def test_an_edited_draft_reaches_the_service_as_sent(
     async with client() as http:
         await http.post(
             _url("/proposals/accept"),
-            json={"items": [{"id": str(_PROPOSAL.id), "content": {"input": "Reworded?"}}]},
+            json={
+                "items": [
+                    {
+                        "id": str(_PROPOSAL.id),
+                        "content": {"input": "Reworded?", "reference_answer": "Yes."},
+                    }
+                ]
+            },
         )
 
     (item,) = service.accept.await_args.args[2].items
