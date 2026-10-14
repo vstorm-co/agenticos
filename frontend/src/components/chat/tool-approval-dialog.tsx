@@ -65,65 +65,75 @@ export function ToolApprovalDialog({
     // The answers sit beside the question rather than under it: under it, a
     // folded Details left a band of empty card between what was asked and the
     // buttons that answer it.
-    <div className="border-border bg-card flex flex-col gap-3 rounded-2xl border p-4 shadow-sm sm:flex-row sm:items-start">
-      <ul className="min-w-0 flex-1 space-y-4">
-        {actionRequests.map((action) => {
-          // The Architect's agent draft is decided as a draft, not as a JSON call (#1799).
-          const draft = action.tool_name === AGENT_DRAFT_TOOL ? draftArgs(action.args) : null;
-          const args = action.args ?? {};
-          const summary = draft === null ? callSummary(args) : null;
-          return (
-            <li key={action.id} className="flex gap-3">
-              <ToolMark toolName={action.tool_name} />
-              <div className="min-w-0 flex-1 space-y-1.5">
-                <p className="text-muted-foreground text-xs font-medium">
-                  {t("toolApprovalRequired")}
-                </p>
-                {/* The question, in the words the step above it uses - "Allow
-                    Search in Notion?" - rather than `notion_notion-search`. */}
-                <p className="text-foreground text-sm font-medium">
-                  {draft !== null
-                    ? t("draftProposalTitle")
-                    : t("approvalAsk", { action: phrase(action.tool_name) })}
-                </p>
-                {/* The one argument that says what the call is about. A command
-                    is read by its characters, so it keeps a code face. */}
-                {summary !== null && (
-                  <p
-                    className={cn(
-                      "text-foreground/80 truncate text-sm",
-                      "command" in args && "font-mono text-xs",
-                    )}
-                    title={summary}
-                  >
-                    {summary}
+    // Laid out by the card's own width, not the window's: in the Architect's
+    // widget the window is wide and the card is not, and buttons beside the
+    // question squeezed what was asked into a column a third of the card.
+    <div className="@container">
+      <div className="border-border bg-card flex flex-col gap-3 rounded-2xl border p-4 shadow-sm @xl:flex-row @xl:items-start">
+        <ul className="min-w-0 flex-1 space-y-4">
+          {actionRequests.map((action) => {
+            // The Architect's agent draft is decided as a draft, not as a JSON call (#1799).
+            const draft = action.tool_name === AGENT_DRAFT_TOOL ? draftArgs(action.args) : null;
+            const args = action.args ?? {};
+            const summary = draft === null ? callSummary(args) : null;
+            return (
+              <li key={action.id} className="flex gap-3">
+                <ToolMark toolName={action.tool_name} />
+                <div className="min-w-0 flex-1 space-y-1.5">
+                  <p className="text-muted-foreground text-xs font-medium">
+                    {t("toolApprovalRequired")}
                   </p>
-                )}
-                {draft !== null ? (
-                  <AgentDraftProposal draft={draft} />
-                ) : (
-                  <ApprovalDetails toolName={action.tool_name} args={args} />
-                )}
-              </div>
-            </li>
-          );
-        })}
-      </ul>
+                  {/* The question, in the words the step above it uses - "Allow
+                    Search in Notion?" - rather than `notion_notion-search`. */}
+                  <p className="text-foreground text-sm font-medium">
+                    {draft !== null
+                      ? t("draftProposalTitle")
+                      : t("approvalAsk", { action: phrase(action.tool_name) })}
+                  </p>
+                  {/* The one argument that says what the call is about. A command
+                    is read by its characters, so it keeps a code face. */}
+                  {summary !== null && (
+                    <p
+                      className={cn(
+                        "text-foreground/80 truncate text-sm",
+                        "command" in args && "font-mono text-xs",
+                      )}
+                      title={summary}
+                    >
+                      {summary}
+                    </p>
+                  )}
+                  {draft !== null ? (
+                    <AgentDraftProposal draft={draft} />
+                  ) : (
+                    <ApprovalDetails toolName={action.tool_name} args={args} />
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
 
-      {mayDecide ? (
-        <div className="flex shrink-0 justify-end gap-2 sm:pt-4">
-          <Button size="sm" variant="ghost" onClick={() => decideAll("reject")} disabled={disabled}>
-            {t("reject")}
-          </Button>
-          <Button size="sm" onClick={() => decideAll("approve")} disabled={disabled}>
-            {t("approve")}
-          </Button>
-        </div>
-      ) : (
-        <p className="text-muted-foreground max-w-56 shrink-0 text-xs sm:pt-4">
-          {t("decidingNeedsPermission")}
-        </p>
-      )}
+        {mayDecide ? (
+          <div className="flex shrink-0 justify-end gap-2 @xl:pt-4">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => decideAll("reject")}
+              disabled={disabled}
+            >
+              {t("reject")}
+            </Button>
+            <Button size="sm" onClick={() => decideAll("approve")} disabled={disabled}>
+              {t("approve")}
+            </Button>
+          </div>
+        ) : (
+          <p className="text-muted-foreground max-w-56 shrink-0 text-xs @xl:pt-4">
+            {t("decidingNeedsPermission")}
+          </p>
+        )}
+      </div>
     </div>
   );
 }

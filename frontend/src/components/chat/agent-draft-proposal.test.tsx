@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AgentDraftProposal, draftArgs } from "./agent-draft-proposal";
@@ -59,5 +59,23 @@ describe("an agent draft to approve (#1799)", () => {
 
     expect(screen.getByText("Created in this organization")).toBeInTheDocument();
     expect(screen.queryByText("What it may do")).not.toBeInTheDocument();
+  });
+
+  it("folds long instructions into a few lines, and opens them", () => {
+    render(
+      <AgentDraftProposal
+        draft={{
+          name: "Weekly Sales Report!",
+          description: null,
+          instructions: "Write the report.",
+          capabilities: [],
+        }}
+      />,
+    );
+
+    expect(screen.getByText("Write the report.")).toHaveClass("line-clamp-4");
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }));
+    expect(screen.getByText("Write the report.")).not.toHaveClass("line-clamp-4");
+    expect(screen.getByRole("button", { name: "Show less" })).toBeInTheDocument();
   });
 });
