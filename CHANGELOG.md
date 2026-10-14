@@ -19,6 +19,21 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **An answer's sources read as documents, and open.** The footer under an
+  answer stacks one mark per document - a file's kind, a service's logo for
+  a page on Notion or GitHub, a globe for the rest of the web - and opens
+  into the list of them. The sources panel gathers a file's passages under
+  the file, names its knowledge base, renders the passages as markdown and
+  opens the original; **Knowledge bases → Search** opens a result's file
+  the same way. A passage two searches both returned is cited once.
+- **A web search shows as cards**, each led by its site's mark, under the
+  query that was searched.
+- **The app a turn published is a card under its answer**, and the step
+  that published it stays one line, so the turn's work folds away. A link to
+  an app reads *Open the app*, and a link to a known service leads with its
+  logo.
+- **Copy a quote from an answer**, as a table is copied - a suggested reply
+  comes out as its paragraphs.
 - **Sign in to a site from Settings** (#2129). **Settings → Sign-ins** opens
   a browser on any site for you alone, held by you from the first frame: sign
   in, hand it back with *Keep me signed in*, and your agents' browses start
