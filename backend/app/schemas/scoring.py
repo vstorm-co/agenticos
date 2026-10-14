@@ -17,6 +17,7 @@ import regex
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
 from pydantic import (
+    AliasPath,
     Field,
     JsonValue,
     TypeAdapter,
@@ -283,13 +284,18 @@ class CaseScoreRead(BaseSchema):
     `passed` is what the scorers concluded; null means a required scorer could not
     run, so the case is unscored rather than passed. `human_passed` is a person's
     verdict, kept beside it. `outcome` is the one that counts: the person's when
-    there is one, the scorers' otherwise.
+    there is one, the scorers' otherwise. `question` and `reference_answer` are
+    the scored revision's, which a later edit of the case does not change.
     """
 
     id: UUID
     dataset_id: UUID
     case_id: UUID
     case_revision_id: UUID
+    question: str = Field(validation_alias=AliasPath("case_revision", "input"))
+    reference_answer: str | None = Field(
+        default=None, validation_alias=AliasPath("case_revision", "reference_answer")
+    )
     run_id: UUID | None = None
     results: list[ScorerResult]
     judge: JudgePin | None = None

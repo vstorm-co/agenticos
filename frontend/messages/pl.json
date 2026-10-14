@@ -3413,7 +3413,9 @@
         "enable": "Włącz wsparcie AI",
         "askAdmin": "Poproś administratora o włączenie."
       },
-      "findDataset": "Znajdź dataset"
+      "findDataset": "Znajdź dataset",
+      "question": "Pytanie",
+      "referenceAnswer": "Odpowiedź wzorcowa"
     },
     "title": "Datasety",
     "pageDescription": "Pytania, na których testujesz agentów. Każda zmiana przypadków w datasecie tworzy nową wersję, więc dwa runy eval na jednej wersji widziały te same pytania.",

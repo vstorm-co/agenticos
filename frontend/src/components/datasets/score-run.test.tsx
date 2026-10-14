@@ -62,6 +62,8 @@ const SCORE: CaseScore = {
   dataset_id: "d1",
   case_id: "c1",
   case_revision_id: "r1",
+  question: "How long is the refund window?",
+  reference_answer: null,
   run_id: "run-1",
   judge: null,
   results: [

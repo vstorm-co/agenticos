@@ -5653,7 +5653,9 @@
         "enable": "KI-Unterstützung einschalten",
         "askAdmin": "Bitten Sie einen Administrator, sie einzuschalten."
       },
-      "findDataset": "Dataset suchen"
+      "findDataset": "Dataset suchen",
+      "question": "Frage",
+      "referenceAnswer": "Referenzantwort"
     },
     "title": "Datasets",
     "pageDescription": "Die Fragen, an denen Ihre Agents getestet werden. Jede Änderung an den Fällen eines Datasets erzeugt eine neue Version, sodass zwei Eval-Runs auf einer Version dieselben Fragen gesehen haben.",

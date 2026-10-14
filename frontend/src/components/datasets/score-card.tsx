@@ -99,6 +99,19 @@ export function ScoreCard({ score, onVerdict, onReview, busy = false }: ScoreCar
         )}
       </header>
 
+      <dl className="bg-muted/40 space-y-1 rounded-md px-3 py-2 text-sm">
+        <div>
+          <dt className="text-muted-foreground text-xs">{t("question")}</dt>
+          <dd className="break-words whitespace-pre-wrap">{score.question}</dd>
+        </div>
+        {score.reference_answer && (
+          <div>
+            <dt className="text-muted-foreground text-xs">{t("referenceAnswer")}</dt>
+            <dd className="break-words whitespace-pre-wrap">{score.reference_answer}</dd>
+          </div>
+        )}
+      </dl>
+
       <ul className="divide-y">
         {score.results.map((result, index) => (
           <ResultRow key={`${result.scorer}:${result.name}:${index}`} result={result} />

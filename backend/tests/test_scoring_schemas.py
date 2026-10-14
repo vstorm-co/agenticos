@@ -119,6 +119,7 @@ class TestOutcome:
             "dataset_id": uuid.uuid4(),
             "case_id": uuid.uuid4(),
             "case_revision_id": uuid.uuid4(),
+            "question": "Refund window?",
             "results": [],
             "passed": False,
             "review_state": "none",

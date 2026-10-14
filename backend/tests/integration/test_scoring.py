@@ -328,6 +328,10 @@ class TestScoringARun:
         assert found[("judge", "tone")].reason == "2/5: Looks right"
         assert score.passed is False
         assert score.run_id == run.id
+        assert (score.question, score.reference_answer) == (
+            "How long do I have to return an order?",
+            "Thirty days.",
+        )
 
     async def test_a_score_pins_the_judge_that_graded_it(self, db, judge) -> None:
         tenant = await _tenant(db)

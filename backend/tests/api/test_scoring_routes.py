@@ -42,6 +42,7 @@ _SCORE = CaseScoreRead(
     dataset_id=_DATASET.id,
     case_id=uuid.uuid4(),
     case_revision_id=uuid.uuid4(),
+    question="Refund window?",
     results=[
         ScorerResult(scorer="judge", name="tone", required=True, status="fail", reason="2/5: curt")
     ],
