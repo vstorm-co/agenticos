@@ -76,23 +76,34 @@ export function ConnectedApps() {
         <h2 className="text-foreground text-sm font-semibold">{t("connectedTitle")}</h2>
         <p className="text-muted-foreground mt-1 text-xs">{t("connectedWhy")}</p>
       </header>
-      <div className="px-5 py-5">
-        <DataTable
-          columns={columns}
-          rows={apps}
-          getRowKey={(app) => app.id}
-          loading={isLoading}
-          error={
-            error ? (
-              <ErrorState
-                title={t("couldNotLoad")}
-                cta={{ label: tc("retry"), onClick: () => void refetch() }}
-              />
-            ) : undefined
-          }
-          empty={<EmptyState icon={PlugZap} title={t("emptyTitle")} description={t("emptyWhy")} />}
+      {/* Nothing connected is the usual state, and the card says so in a line
+          rather than inside a table frame inside the card - a box in a box with
+          a screen of empty space under the instructions above it. */}
+      {!isLoading && !error && apps.length === 0 ? (
+        <EmptyState
+          icon={PlugZap}
+          title={t("emptyTitle")}
+          description={t("emptyWhy")}
+          className="border-0 bg-transparent py-8"
         />
-      </div>
+      ) : (
+        <div className="px-5 py-5">
+          <DataTable
+            columns={columns}
+            rows={apps}
+            getRowKey={(app) => app.id}
+            loading={isLoading}
+            error={
+              error ? (
+                <ErrorState
+                  title={t("couldNotLoad")}
+                  cta={{ label: tc("retry"), onClick: () => void refetch() }}
+                />
+              ) : undefined
+            }
+          />
+        </div>
+      )}
       {leaving && (
         <ConfirmDialog
           open
