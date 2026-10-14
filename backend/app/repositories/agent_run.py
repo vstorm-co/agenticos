@@ -32,9 +32,11 @@ from app.db.models.agent_run import (
     RunOrder,
     RunRating,
     RunStatus,
+    RunSurface,
     ToolApproval,
 )
 from app.db.models.conversation import Conversation, Message
+from app.db.models.intercepted_tool_call import InterceptedToolCall
 from app.db.models.message_rating import MessageRating
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.user import User
@@ -600,6 +602,10 @@ async def questions_asked(
     is held twice, on the run and on the conversation, so neither column alone
     decides whose text this returns. `comment` is the newest comment left with a
     thumbs-down on that run's answers.
+
+    Production traffic only: an eval run, and any run that ran isolated (it left
+    intercepted tool calls), answered a test rather than a person, and a case
+    drafted from it would test the agent on its own earlier test.
     """
     rated_down = (
         select(MessageRating.id)
@@ -636,6 +642,10 @@ async def questions_asked(
             func.length(func.trim(Message.content)) > 0,
             AgentRun.agent_id == agent_id,
             AgentRun.organization_id == organization_id,
+            AgentRun.surface != RunSurface.EVAL.value,
+            ~select(InterceptedToolCall.id)
+            .where(InterceptedToolCall.run_id == AgentRun.id)
+            .exists(),
             Conversation.organization_id == organization_id,
         )
         .order_by(rated_down.desc(), Message.created_at.desc(), Message.id)

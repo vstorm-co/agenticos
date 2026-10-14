@@ -20,6 +20,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.db.models.case_generation import CaseProposal
+from app.db.models.intercepted_tool_call import InterceptedToolCall
 from app.db.models.rag_document import DocumentStatus
 from app.repositories import (
     agent_run_repo,
@@ -55,6 +56,37 @@ async def test_questions_come_back_rated_down_first_from_this_agent_only(db) -> 
     assert questions[0].comment == "Wrong window"
     assert questions[2].rated_down is False
     assert questions[2].comment is None
+
+
+async def test_questions_come_from_production_traffic_only(db) -> None:
+    """An eval answered a test, not a person: a case drafted from it tests the agent on itself."""
+    person = await world.user(db)
+    org = await world.org(db, person)
+    agent = await world.agent(db, org)
+    await world.asked(db, org, agent, person, "Asked by a person", minutes=1)
+    await world.asked(db, org, agent, person, "An eval case", minutes=2, rating=-1, surface="eval")
+    isolated, _, _ = await world.asked(
+        db, org, agent, person, "Run isolated", minutes=3, rating=-1, surface="api"
+    )
+    db.add(
+        InterceptedToolCall(
+            organization_id=org.id,
+            run_id=isolated.id,
+            sequence=0,
+            tool_call_id="call-1",
+            tool_name="send_email",
+            tool_id="email.send_email",
+            outcome="blocked",
+            reason="writes",
+        )
+    )
+    await db.flush()
+
+    questions = await agent_run_repo.questions_asked(
+        db, organization_id=org.id, agent_id=agent.id, limit=10
+    )
+
+    assert [q.content for q in questions] == ["Asked by a person"]
 
 
 async def test_questions_never_cross_into_another_organization(db) -> None:
