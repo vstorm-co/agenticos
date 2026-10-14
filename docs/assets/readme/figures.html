@@ -28,14 +28,14 @@
     --faint: rgba(21, 18, 31, 0.08);
     --violet: #2b2547;
     --blob: #bbd1ff;
-    --lav: #e6e1fb;
-    --mint: #d9f2ec;
-    --rose: #fbe4ee;
-    --butter: #fdf0cf;
-    --sage: #dff0d8;
-    --sky: #dcecfb;
-    --peach: #fde3d9;
-    --stone: #efece6;
+    --lav: #ddd5fb;
+    --mint: #cbeee3;
+    --rose: #f9d8e6;
+    --butter: #fce7b6;
+    --sage: #d3ecc6;
+    --sky: #cfe3fb;
+    --peach: #fcd6c5;
+    --stone: #ebe6dc;
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: #d6d6d6; font-family: Inter, system-ui, sans-serif; color: var(--ink); }
@@ -390,6 +390,30 @@
   fill("[data-icon]", A.icons, "icon");
   fill("[data-mark]", A.marks, "mark");
   fill("[data-face]", A.faces, "face");
+  // A character stands out from its tile: each pastel gets only blobs of a
+  // contrasting, saturated colour, taken in turn so neighbours differ. A pale
+  // blob on a pale tile of its own hue was a smudge.
+  const CAST = {
+    lav: ["agenticos", "pip", "momo"],
+    mint: ["atlas", "momo", "agenticos"],
+    rose: ["momo", "root", "tofu"],
+    butter: ["tide", "agenticos", "momo"],
+    sky: ["tofu", "agenticos", "pip"],
+    sage: ["pip", "tofu", "momo"],
+    peach: ["atlas", "root"],
+    stone: ["root", "agenticos", "atlas"],
+    dark: ["agenticos"],
+  };
+  const turn = {};
+  for (const cast of document.querySelectorAll(".tile > .cast, .core > .cast, .hubcore > .cast")) {
+    const host = cast.parentElement;
+    const tint = host.matches(".core, .hubcore")
+      ? "dark"
+      : Object.keys(CAST).find((name) => host.classList.contains(name));
+    if (!tint) continue;
+    const options = CAST[tint];
+    cast.dataset.bare = options[(turn[tint] = (turn[tint] ?? -1) + 1) % options.length];
+  }
   fill("[data-bare]", A.bare, "bare");
   for (const el of document.querySelectorAll("img[data-logo]")) el.src = A.logo;
   // The numbered outlines over each product screen, from capture.mjs.
