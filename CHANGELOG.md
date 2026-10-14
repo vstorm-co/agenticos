@@ -552,6 +552,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **A conversation's agent faces tuck together and fan out on hover.** Three
+  faces overlap more than two, so a row with several agents takes about the
+  room of two, and pointing at the stack spreads them so each face is seen
+  whole.
+
 - **Routines reads like a menu of what an agent could do on its own.** With
   nothing scheduled, the list's empty card no longer offers a "Pick an
   agent to schedule" button that only opened the agents list, and the ideas

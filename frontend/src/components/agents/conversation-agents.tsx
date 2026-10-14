@@ -9,6 +9,15 @@ import { useTranslations } from "next-intl";
 const MAX_SHOWN = 3;
 
 /**
+ * How far each face after the first tucks under the one before it, by how many
+ * share the stack - two overlap a little, three a lot, so a row of three faces
+ * takes about the room of two - and how far they stand apart once the stack is
+ * pointed at, so every face can be seen whole.
+ */
+const TUCK = { two: "-ml-1.5", more: "-ml-3.5" } as const;
+const SPREAD = "group-hover/stack:ml-0.5";
+
+/**
  * Who answered in a conversation, as a list view shows it.
  *
  * Plural on purpose. A conversation is not had with one agent - the picker can
@@ -42,15 +51,18 @@ export function ConversationAgents({
       className={cn("inline-flex min-w-0 items-center gap-1.5", className)}
       title={agents.map((agent) => agent.name).join(" → ")}
     >
-      <span className="flex shrink-0 -space-x-1.5">
-        {shown.map((agent) => (
+      <span className="group/stack flex shrink-0">
+        {shown.map((agent, index) => (
           <AgentAvatar
             key={agent.id}
             agentId={agent.id}
             slug={agent.slug}
             hasAvatar={agent.has_avatar}
             size={size}
-            className="ring-background ring-2"
+            className={cn(
+              "ring-background ring-2 transition-[margin] duration-200 ease-out motion-reduce:transition-none",
+              index > 0 && [shown.length > 2 ? TUCK.more : TUCK.two, SPREAD],
+            )}
           />
         ))}
       </span>
