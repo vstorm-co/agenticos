@@ -62,6 +62,14 @@ can switch it off entirely.**
 | 8 — the assistant also verifies | #2117 |
 | 9 — replay | #2112 (recordings), #2113 (draft runs, comparison) |
 | 10 — the organization switch | #2111, extended by #2114, #2117 and #2119 |
+| SoL-Pi 1 — paired baseline | #2113; used by #2116, #2117 and #2118 |
+| SoL-Pi 2 — pinned judge | #2111, #2113 |
+| SoL-Pi 3 — the improver never sees evals | #2117, #2118; the same exclusion in #2114 and #2119 |
+| SoL-Pi 4 — evidence overlap on the gate | #2116, from #2117's evidence and #2110's `case.source` |
+| SoL-Pi 5 — verified quotes | #2117, #2111, #2119 |
+| SoL-Pi 6 — two axes, quality first | #2113, #2115; the efficiency goal in #2118 |
+| SoL-Pi 7 — expected effect | #2117 |
+| SoL-Pi 8 — map-reduce over runs | #2117 |
 
 ### Proposal targets added by #52
 
@@ -99,6 +107,21 @@ beside Decision 3's, and #2119 defines `report_knowledge_gap`.
   and keeping the one that wins on held-out cases is future work, outside
   this milestone. It would build on eval runs (#2113) and scoring (#2111), and
   its output would still be a proposal a person accepts.
+- **SoL-Pi's automatic implementation.** The study lets its loop implement
+  and adopt changes without a person, and names autonomous recursive
+  self-improvement an open risk itself. That is the case for propose, never
+  write.
+- **"Must get cheaper" for every proposal.** Only a proposal that declares an
+  efficiency goal is held to it; see
+  [Adopted from SoL-Pi](#adopted-from-sol-pi-nvidia-arxiv-260920519), point 6.
+- **SoL-Pi's figures.** Its evidence is an A/B over 11 tasks with no
+  confidence intervals, and its "Performance" variant was chosen on the set
+  it is reported on. The rules are adopted; the percentages are not quoted.
+- **SoL-Pi's harness mechanisms** — ObservationPack, Online Context Compact,
+  Action Fusion, the Evidence-Preserving Reducer — are outside this
+  milestone. Measuring how much of our runs' input is re-sent tool output
+  comes first; a `pack` mode for `tool_output_limits` may follow as a
+  platform issue, tracked separately.
 
 ### Adopted from the engine write-up
 
@@ -112,6 +135,64 @@ beside Decision 3's, and #2119 defines `report_knowledge_gap`.
   it was fitted to.
 - **No separate growth cap.** A suite that wants one carries a length or cost
   ceiling check (#2111).
+
+### Adopted from SoL-Pi (NVIDIA, arXiv 2609.20519)
+
+SoL-Pi is an agent harness whose improvements were found by an auto-research
+loop: rollouts, trajectory analysis, a proposal, review and two validation
+gates, through which 4 of 152 ideas survived. This milestone takes its rules
+for measurement and isolation, not its mechanisms.
+
+1. **A paired baseline** (#2113; used by #2116, #2117's "Check with evals"
+   and #2118's model comparison). A gate runs a baseline arm in the same eval
+   run as the candidate, because providers drift between runs. A cached
+   baseline may stand in only when its baseline version, dataset version and
+   judge (point 2) all match and it is younger than a configured number of
+   hours. Cases whose outcome flipped are rerun, twice by default and
+   configurably, so the report separates confirmed regressions from
+   unconfirmed ones. A small sample is reported as uncertainty ("sample too
+   small"), not a verdict; there is no hard minimum. The baseline arm's cost
+   is in the estimate shown before consent. The default comparison on the
+   Evals tab stays cheap — the last run of the previous version — and shows
+   the date and the model on both sides.
+2. **A pinned judge** (#2111, #2113). A score snapshot records the judge's
+   model profile, its spec version and a hash of the rubric. A comparison
+   whose other side was scored by a different judge is marked invalid.
+3. **The improver never sees evals** (#2117, #2118; also #2114, #2119). The
+   improver's read tools (`read_runs`, `read_transcript`, `read_feedback`,
+   `read_manifest`) never return runs stamped `eval` or `case_scores`. There
+   is no proposal target for suites, thresholds, datasets, scorers or
+   environments, and a test asserts the target registry holds none of them.
+   A failed "Check with evals" reaches the improver only as the person's
+   decision, never as the content of the cases. The same exclusion of eval
+   runs applies to #2114's conversations source and to #2119's search log.
+   This deliberately departs from SoL-Pi, which shows its optimizer the dev
+   results and isolates only the held-out set; an opt-in dev dataset the
+   improver may read is future work.
+4. **Evidence overlap on the gate** (#2116, from #2117's evidence and
+   #2110's `case.source`). The promotion gate's report shows how many suite
+   cases come from conversations that were evidence for proposals accepted
+   into the version. It informs; it does not block.
+5. **Verified quotes** (#2117, #2111, #2119). A proposal's evidence — run
+   ids, quotes from transcripts and manifests — is checked deterministically
+   against the database; an item that does not verify is dropped and
+   flagged. At most 12 items of at most 600 characters each. The judge's
+   output may carry `quotes`; each must occur verbatim in the answer, and one
+   that does not is flagged in `reason` without changing the verdict. A
+   knowledge-gap draft cites its sources (document ids, questions), which
+   are verified the same way.
+6. **Two axes, quality first** (#2113, #2115). A suite's threshold is a
+   quality tolerance — a minimum pass rate and a maximum of confirmed
+   regressions — plus an optional efficiency ceiling: the largest allowed
+   rise in cost per passed case and in p95 latency. The report shows both
+   axes side by side. SoL-Pi's rule that at least one efficiency metric must
+   improve applies only to a proposal that declares an efficiency goal, such
+   as a model or capability change made to cut cost (#2118).
+7. **An expected effect** (#2117). A proposal states what it should change —
+   the cases it should flip, or the behaviour — and the "Check with evals"
+   report says whether that happened ("flipped 3 of 4 predicted").
+8. **Map-reduce over runs** (#2117), as an implementation note: one subagent
+   per run or conversation, and a reducer that assembles the evidence.
 
 ### What the code showed (`main` at 0.0.535, 2026-10-12)
 
@@ -398,6 +479,10 @@ itself improvable, by itself.
 | `propose_tool_description` | stages a tool-override entry |
 | `propose_skill` | stages a skill-body proposal with rationale + evidence |
 | `propose_agent` | mode 1: stages a new draft agent definition |
+
+None of the read tools returns a run stamped `eval` or a case score, so the
+improver is never fitted to the suites that check it — see
+[Adopted from SoL-Pi](#adopted-from-sol-pi-nvidia-arxiv-260920519), point 3.
 
 Two invariants carried over from the existing registry:
 
@@ -881,6 +966,11 @@ The synthetic-dataset harness was listed here; #52 moved it into scope
   improving them means writing to somebody else's catalog.
 - Scheduled/triggered improver runs (the heartbeat could fire one later; v1 is
   manual so the cost is a person's decision).
+- A dev dataset whose results the improver may read — future work; in this
+  milestone the improver sees no eval results at all.
+- SoL-Pi's harness mechanisms (ObservationPack, context compaction, Action
+  Fusion, the reducer) — see
+  [Considered after review, and rejected](#considered-after-review-and-rejected).
 
 ## Open product questions — answered
 
