@@ -1,5 +1,5 @@
 ---
-source_sha: "2d84d20635a3"
+source_sha: "7543460b5f15"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -246,7 +246,9 @@ Sędzia działa tylko tam, gdzie włączone jest [wsparcie AI](governance.md#ai-
 a jest ono wyłączone, dopóki administrator nie włączy go dla organizacji. Do
 tego czasu kryteria sędziego i odpowiedzi wzorcowej są zapisywane jako
 pominięte, oceniają tylko oceniacze oparte na regułach, a karta Scoring mówi o
-tym i podaje link do przełącznika temu, kto może go zmienić.
+tym i podaje link do przełącznika temu, kto może go zmienić. W tym czasie nie da
+się włączyć sędziego ani porównania z odpowiedzią wzorcową; już włączony zostaje
+włączony i jest pomijany.
 
 Każde kryterium jest oceniane od 1 do górnej granicy skali i zalicza na progu
 zaliczenia lub wyżej. Gdy sędzia nie może ocenić, jego kryteria są zapisywane

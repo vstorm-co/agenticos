@@ -1,5 +1,5 @@
 ---
-source_sha: "2d84d20635a3"
+source_sha: "7543460b5f15"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -262,7 +262,9 @@ eingeschaltet ist, und sie ist aus, bis ein Administrator sie für die
 Organisation einschaltet. Bis dahin werden die Kriterien des Judge und der
 Referenzantwort als übersprungen festgehalten, nur die regelbasierten Scorer
 bewerten, und der Tab Scoring sagt das, mit einem Link zum Schalter für den,
-der ihn ändern darf.
+der ihn ändern darf. Der Judge und der Vergleich mit der Referenzantwort lassen
+sich in dieser Zeit nicht einschalten; ein bereits eingeschalteter bleibt an und
+wird übersprungen.
 
 Jedes Kriterium wird von 1 bis zum oberen Ende der Skala bewertet und besteht ab
 der Bestehensgrenze. Kann der Judge nicht bewerten, werden seine Kriterien als

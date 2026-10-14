@@ -237,7 +237,8 @@ The judge runs only where [AI assistance](governance.md#ai-assistance) is on,
 and it is off until an admin turns it on for the organization. Until then the
 judge's and the reference answer's criteria are recorded as skipped, only the
 rule-based scorers score, and the Scoring tab says so with a link to the switch
-for whoever may change it.
+for whoever may change it. The judge and the reference comparison cannot be
+turned on meanwhile; one already on stays on, and is skipped.
 
 Each criterion is graded from 1 to the top of the scale and passes at the pass
 mark or above. When the judge cannot grade, its criteria are recorded as

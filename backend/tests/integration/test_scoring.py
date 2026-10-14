@@ -876,6 +876,41 @@ class TestRefusals:
 
         assert [problem["field"] for problem in refused.value.details["fields"]] == [field]
 
+    @pytest.mark.parametrize(
+        ("scoring", "field"),
+        [
+            (DatasetScoring(judge=JudgeScorer(enabled=True, criteria=RUBRIC)), "judge.enabled"),
+            (DatasetScoring(reference=ReferenceScorer(enabled=True)), "reference.enabled"),
+        ],
+    )
+    async def test_the_judge_cannot_be_turned_on_while_ai_assistance_is_off(
+        self, db, judge, scoring, field
+    ) -> None:
+        tenant = await _tenant(db)
+        dataset, _ = await _dataset(db, tenant, scoring=DatasetScoring())
+        tenant.organization.ai_assistance_enabled = False
+        await db.flush()
+
+        with pytest.raises(BadRequestError) as refused:
+            await ScoringService(db).set_scoring(tenant.ctx, dataset.id, scoring)
+
+        assert [problem["field"] for problem in refused.value.details["fields"]] == [field]
+        assert "AI assistance is off" in refused.value.message
+
+    async def test_a_judge_already_on_stays_while_the_rules_change_with_ai_off(
+        self, db, judge
+    ) -> None:
+        tenant = await _tenant(db)
+        dataset, _ = await _dataset(db, tenant, scoring=_rubric())
+        tenant.organization.ai_assistance_enabled = False
+        await db.flush()
+
+        saved = await ScoringService(db).set_scoring(
+            tenant.ctx, dataset.id, _rubric(trajectory=TrajectoryScorer(enabled=False))
+        )
+
+        assert (saved.scoring.judge.enabled, saved.scoring.trajectory.enabled) == (True, False)
+
     async def test_a_case_the_scorers_have_nothing_to_check_on_keeps_no_score(
         self, db, judge
     ) -> None:

@@ -63,6 +63,7 @@ from app.schemas.scoring import (
 )
 from app.services.access import DATASET, visible_resource_ids
 from app.services.agent_runner import AgentRunnerService
+from app.services.ai_assistance import AiAssistanceService
 from app.services.dataset import DatasetService
 from app.services.scorers import (
     CaseView,
@@ -150,9 +151,28 @@ class ScoringService:
         Raises:
             NotFoundError: The dataset is not one the caller may edit.
             BadRequestError: Every scorer is off, the judge is on with nothing to
-                grade, or the judge's model is not one of the organization's.
+                grade, the judge's model is not one of the organization's, or the
+                judge or the reference comparison is turned on while AI
+                assistance is off. One already on stays on, and is skipped.
         """
         dataset = await self.datasets.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
+        stored = DatasetScoring.model_validate(dataset.scoring)
+        turned_on = [
+            field
+            for field, now, before in (
+                ("judge.enabled", data.judge.enabled, stored.judge.enabled),
+                ("reference.enabled", data.reference.enabled, stored.reference.enabled),
+            )
+            if now and not before
+        ]
+        if turned_on and not await AiAssistanceService(self.db).is_enabled(
+            organization_id=ctx.organization_id
+        ):
+            raise refused_field(
+                turned_on[0],
+                "AI assistance is off in this organization, so the judge cannot be "
+                "turned on. Ask an admin to enable AI assistance.",
+            )
         scorers = (data.checks, data.trajectory, data.judge, data.reference)
         if not any(scorer.enabled for scorer in scorers):
             raise refused_field("checks.enabled", "Turn on at least one scorer")
