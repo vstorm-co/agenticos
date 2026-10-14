@@ -581,6 +581,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **A link to a deployment unfurls in the new colours.** The Open Graph
+  image drops the lime-on-black of the old brand for the mark's deep violet,
+  with the title's key word in the blob's blue and the mark drawn large
+  beside it - the same card as the repository's social preview.
+
 - **The AgenticOS mark moves in the README and on the docs' front page.**
   The blob floats, breathes, blinks and glances aside, from CSS inside the
   SVG that GitHub runs in an image; `gen-logo.ts` writes it from the same
