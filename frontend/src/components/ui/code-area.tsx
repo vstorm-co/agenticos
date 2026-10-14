@@ -53,7 +53,9 @@ const PIECE: Record<MdStyle, string> = {
   marker: "text-muted-foreground/70",
   strong: "text-foreground [-webkit-text-stroke:0.4px_currentColor]",
   emphasis: "italic",
-  code: "rounded-sm bg-foreground/[0.07] text-rose-700 dark:text-rose-300",
+  // Neutral, like code everywhere else in the console: a grey chip on ink. A
+  // red name read as an error in a page of instructions.
+  code: "rounded-sm bg-foreground/[0.07] text-foreground",
   link: "text-sky-700 underline decoration-sky-700/30 underline-offset-2 dark:text-sky-300",
   url: "text-muted-foreground",
   variable: "rounded-sm bg-violet-500/12 text-violet-700 dark:text-violet-300",
@@ -65,7 +67,7 @@ const LINE: Record<MdLineKind, string> = {
   list: "",
   quote: "text-foreground/70",
   fence: "",
-  code: "text-sky-800 dark:text-sky-300",
+  code: "text-foreground/80",
   rule: "",
   table: "",
 };

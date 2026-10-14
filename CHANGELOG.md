@@ -457,6 +457,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **`code` in the markdown editor is a grey chip, not red.** Tool names in
+  an agent's instructions read as errors in rose; inline code and fenced
+  lines are now drawn in the ink colour on the neutral tint.
+
 - **Agent templates' instructions are whole paragraphs.** Every shipped
   template, the Architect and Claude Code like among them, was hard-wrapped
   at the repository's 80 columns, so an installed agent's instructions read
