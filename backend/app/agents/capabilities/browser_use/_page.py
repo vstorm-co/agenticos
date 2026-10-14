@@ -88,6 +88,14 @@ STREAM_GAP = 0.08
 """Seconds between two streamed frames: about twelve a second, smooth to a reader
 and a tenth of what the browser can paint, so a page animating at sixty frames a
 second does not become sixty JPEGs a second over the socket."""
+
+FRAME_QUALITY = 80
+"""JPEG quality of the frames a person watches and the screenshots a step takes.
+
+60 smeared small text into blocks on a high-density panel, and the page is the
+whole point of the view; 80 keeps it legible for some more bytes a frame.
+"""
+
 _SETTLE_MS = 400
 _VIEWPORT_RATIO = 0.75
 """Viewport height as a fraction of its width - a 4:3 window, not a phone.
@@ -794,7 +802,7 @@ class CdpPage:
         shot = await self._client.send.Page.captureScreenshot(
             params={
                 "format": "jpeg",
-                "quality": 60,
+                "quality": FRAME_QUALITY,
                 "captureBeyondViewport": False,
                 "optimizeForSpeed": True,
             },
@@ -847,7 +855,7 @@ class CdpPage:
 
         self._client.register.Page.screencastFrame(on_frame)
         await self._client.send.Page.startScreencast(
-            params={"format": "jpeg", "quality": 60, "everyNthFrame": 1},
+            params={"format": "jpeg", "quality": FRAME_QUALITY, "everyNthFrame": 1},
             session_id=self._session,
         )
         task = asyncio.create_task(pump())

@@ -548,6 +548,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **The live browser view shows the page at the panel's size, sharply.** The
+  first step started before the watching window said its size, so it - and a
+  whole one-step browse - ran at 1024 px and was shown shrunk into the top of
+  the panel. The first step now waits up to a second for that size (it arrives
+  in about 60 ms), and frames are JPEG quality 80 instead of 60, which smeared
+  small text.
+
 - **A version's figures on the Runs page no longer overlap.** Each tile under
   "By version" split its three figures into equal thirds, so beside an open
   run "completed" ran into "per run". They now take the width they need and

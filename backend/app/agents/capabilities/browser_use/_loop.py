@@ -84,6 +84,18 @@ WAIT_FOR_PERSON = 600.0
 FRAME_EVERY = 1.0
 """Seconds between pictures while a person holds the browser and is not acting."""
 
+FIRST_FIT_WAIT = 1.0
+"""How long, in seconds, the first step waits for a watching window to say its size.
+
+The window connects when the browse opens and sends its size about 60 ms later
+(measured on the chat's split view); the first step used to start before that, so
+it - and a whole one-step browse - ran at the default width and was shown shrunk
+into a narrower panel. Bounded, because a browse nobody watches has nobody to wait for.
+"""
+
+_FIT_POLL = 0.05
+"""How often, in seconds, the first step looks for the window's size while it waits."""
+
 _DETAIL_LIMIT = 600
 """How much of a finished browse's answer the finish frame carries to the panel."""
 
@@ -301,7 +313,11 @@ async def run_browse(
             if control is not None:
                 # Between steps, never inside one: a person taking over waits for the
                 # action in flight to finish, so the tab is never driven by two at once.
-                waiting, resized = await between_steps(page, control)
+                waiting, resized = (
+                    await first_fit(page, control)
+                    if taken == 1 and previews_land
+                    else await between_steps(page, control)
+                )
                 if waiting is not None:
                     await held(
                         session, control, emit, call_id=call_id, by=waiting.by, remember=remember
@@ -693,6 +709,23 @@ async def between_steps(
             await _person_input(page, command)
             resized = True
     return None, resized
+
+
+async def first_fit(
+    page: PageSession, control: BrowserControl
+) -> tuple[BrowserCommand | None, bool]:
+    """`between_steps` for the first step, which waits briefly for the window's size.
+
+    Up to `FIRST_FIT_WAIT`, and only until something arrives: a size is applied
+    and the step starts at once, and a take-over is handed back as it would be
+    between any two steps.
+    """
+    deadline = time.monotonic() + FIRST_FIT_WAIT
+    while True:
+        waiting, resized = await between_steps(page, control)
+        if waiting is not None or resized or time.monotonic() >= deadline:
+            return waiting, resized
+        await anyio.sleep(_FIT_POLL)
 
 
 async def _person_input(page: PageSession, command: BrowserCommand) -> None:

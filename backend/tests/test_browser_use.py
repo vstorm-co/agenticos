@@ -905,6 +905,21 @@ class _Control:
         return None
 
 
+class _LateControl(_Control):
+    """A window whose first command arrives a few polls after the browse opened."""
+
+    def __init__(self, late: BrowserCommand, *, waited: BrowserCommand | None = None) -> None:
+        super().__init__(waited)
+        self._late = late
+        self._polls = 0
+
+    async def poll(self) -> BrowserCommand | None:
+        self._polls += 1
+        if self._polls == 3:
+            return self._late
+        return None
+
+
 TAKE = BrowserCommand(type="take_over", by="Ada")
 GIVE = BrowserCommand(type="give_back")
 ASK = _step(AskPerson(action="ask_person", reason="Sign in, then hand it back"))
@@ -931,6 +946,12 @@ async def _watched(
         remember=remember,
     )
     return result, session
+
+
+@pytest.fixture(autouse=True)
+def no_window_to_wait_for(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The first step looks once for a window's size; the tests that wait say so."""
+    monkeypatch.setattr(_loop, "FIRST_FIT_WAIT", 0.0)
 
 
 @pytest.fixture
@@ -1049,6 +1070,50 @@ class TestThePageIsTheSizeOfTheWindowWatchingIt:
         await _watched(page, _decider(DONE), control, frames)
 
         assert page.done == ["resize:700x700@1"]
+        assert frames.of("browser_held")[0].by == "Ada"
+
+    async def test_the_first_step_waits_for_the_window_that_opened_with_it(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        # The window connects as the browse opens and says its size a moment
+        # later; a first step that did not wait ran - and a one-step browse
+        # finished - at the default width, shown shrunk.
+        monkeypatch.setattr(_loop, "FIRST_FIT_WAIT", 1.0)
+        page = _FakePage(
+            _snapshot(url="https://example.test/before"),
+            _snapshot(url="https://example.test/after"),
+        )
+        frames = _Frames()
+        control = _LateControl(BrowserCommand(type="resize", width=551, height=952, scale=2))
+
+        await _watched(page, _decider(DONE), control, frames, preview=True)
+
+        assert [done for done in page.done if done.startswith("resize")] == ["resize:551x952@2"]
+        assert frames.of("browser_frame")[0].url == "https://example.test/after"
+
+    async def test_the_first_step_stops_waiting_for_a_window_that_never_says(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        monkeypatch.setattr(_loop, "FIRST_FIT_WAIT", 0.12)
+        page = _FakePage()
+
+        started = anyio.current_time()
+        result, _ = await _watched(page, _decider(DONE), _Control(), _Frames(), preview=True)
+
+        assert result.outcome == "done"
+        assert not [done for done in page.done if done.startswith("resize")]
+        assert anyio.current_time() - started >= 0.12
+
+    async def test_a_take_over_while_the_first_step_waits_is_handed_over(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        monkeypatch.setattr(_loop, "FIRST_FIT_WAIT", 1.0)
+        frames = _Frames()
+
+        await _watched(
+            _FakePage(), _decider(DONE), _LateControl(TAKE, waited=GIVE), frames, preview=True
+        )
+
         assert frames.of("browser_held")[0].by == "Ada"
 
     @pytest.mark.parametrize(
