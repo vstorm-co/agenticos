@@ -56,6 +56,9 @@ class LockScope(IntEnum):
     #: One person's concurrent voice calls (#54). Two starts at once each counted
     #: zero open calls and both connected - two billed sessions for one person.
     VOICE_CALLS_PER_USER = 8
+    #: One embed's concurrent voice calls (#54): the same race, from visitors
+    #: who have no account to count against.
+    VOICE_CALLS_PER_EMBED = 9
 
 
 def _key(subject: UUID) -> int:

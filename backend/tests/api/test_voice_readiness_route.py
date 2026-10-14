@@ -67,3 +67,20 @@ async def test_readiness_never_carries_a_key(client: AsyncClient, wired):
     assert resp.status_code == 200
     assert resp.json()["transport"] == "webrtc"
     assert "secret" not in resp.text and "sk-" not in resp.text
+    # `/chat` unless asked otherwise: the call button reads the console's own answer.
+    assert wired.voice.readiness.await_args.kwargs["surface"] == "web"
+
+
+async def test_the_embed_form_asks_about_the_embed_surface(client: AsyncClient, wired):
+    """A widget or a page has no `/chat` switch, so its voice switch asks for `embed`."""
+    resp = await client.get(f"{_V1}/agents/{uuid.uuid4()}/voice?surface=embed")
+
+    assert resp.status_code == 200
+    assert wired.voice.readiness.await_args.kwargs["surface"] == "embed"
+
+
+async def test_a_surface_that_does_not_exist_is_refused(client: AsyncClient, wired):
+    resp = await client.get(f"{_V1}/agents/{uuid.uuid4()}/voice?surface=telephone")
+
+    assert resp.status_code == 422
+    wired.voice.readiness.assert_not_awaited()

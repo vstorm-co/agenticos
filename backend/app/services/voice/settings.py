@@ -21,7 +21,7 @@ from app.db.models.organization import Organization
 from app.repositories import agent_repo, voice_call_repo
 from app.repositories import organization as organization_repo
 from app.services import realtime_models
-from app.services.realtime_models import RealtimeModelEntry
+from app.services.realtime_models import RealtimeModelEntry, Transport
 from app.services.spend import month_start
 from app.services.voice import limits
 
@@ -89,7 +89,7 @@ def resolve_voice(block: VoiceSpec | None) -> ResolvedVoice | None:
 class VoiceReadiness:
     available: bool
     unavailable: VoiceUnavailable | None
-    transport: str | None
+    transport: Transport | None
     provider: str | None
     model: str | None
     cap_seconds: int

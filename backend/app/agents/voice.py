@@ -54,22 +54,28 @@ class VoiceOptions:
 
     `on_deferred` resolves a gated call inline - the session cannot pause.
     `anonymous` is a widget or hosted-page visitor, who cannot approve, so gated
-    tools are left out of the session entirely (the issue's rule).
+    tools are left out of the session entirely (the issue's rule). `briefing` is
+    what a text turn on that embed would prepend to the visitor's words - the
+    operator's placement context and the page's supplied variables.
     """
 
     on_deferred: DeferredHandler
     anonymous: bool = False
     voice_note: str | None = None
     language: str | None = None
+    briefing: str | None = None
 
 
 def voice_instructions(instructions: str, options: VoiceOptions) -> str:
-    """The complete instructions a call is given: the spec's, the spoken style, the agent's note."""
+    """The complete instructions a call is given: the spec's, the spoken style, an embed's
+    briefing, the agent's note."""
     parts = [instructions.strip(), SPOKEN_STYLE]
     if options.language:
         parts.append(
             f"Speak in the language with ISO-639-1 code '{options.language}' unless the person asks otherwise."
         )
+    if options.briefing:
+        parts.append(options.briefing.strip())
     if options.voice_note:
         parts.append(options.voice_note.strip())
     return "\n\n".join(part for part in parts if part)

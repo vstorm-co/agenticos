@@ -35,7 +35,13 @@ from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.db.models.voice_call import VoiceEndReason
 from app.db.session import get_db_context
-from app.repositories import agent_repo, agent_run_repo, member_repo, voice_call_repo
+from app.repositories import (
+    agent_embed_repo,
+    agent_repo,
+    agent_run_repo,
+    member_repo,
+    voice_call_repo,
+)
 from app.repositories import organization as organization_repo
 from app.schemas.voice import (
     ApprovalFrame,
@@ -45,7 +51,7 @@ from app.schemas.voice import (
     PlayedFrame,
     StartFrame,
 )
-from app.services.access import AGENT, resolve_access
+from app.services.access import AGENT, publisher_context, resolve_access
 from app.services.voice import limits
 from app.services.voice.exceptions import VoiceRefused
 from app.services.voice.hangup import HangUpTarget, hang_up
@@ -105,6 +111,9 @@ async def still_allowed(
     agent's published state, and the organization's voice switches - the `/chat`
     one too, for a call from the console. The role comes back in the context, so
     the call can stop taking approvals from somebody who lost `approvals:decide`.
+    A visitor's call from an embed also needs that embed still active with its
+    voice switch on - pausing the page or switching calls off ends calls on it -
+    and runs under the publisher's role as it stands now (`publisher_context`).
     """
     if caller.auth_token is not None:
         try:
@@ -125,6 +134,15 @@ async def still_allowed(
             role=membership.role,
             is_app_admin=caller.ctx.is_app_admin,
         )
+    if caller.embed_id is not None:
+        embed = await agent_embed_repo.get(db, caller.embed_id, organization_id=organization_id)
+        if embed is None or not embed.is_active or not embed.config.get("voice_conversation"):
+            return None
+        # Re-derived as a text turn derives it, so a publisher deactivated or
+        # demoted mid-call stops lending the call their role.
+        ctx = await publisher_context(
+            db, organization_id=organization_id, publisher_user_id=embed.owner_user_id
+        )
     agent = await agent_repo.get(db, agent_id, organization_id=organization_id)
     if (
         agent is None
@@ -132,9 +150,7 @@ async def still_allowed(
         or agent.status == AgentStatus.ARCHIVED.value
     ):
         return None
-    if not caller.anonymous and not await resolve_access(
-        db, ctx, agent, Perm.AGENTS_RUN, resource_type=AGENT
-    ):
+    if not await resolve_access(db, ctx, agent, Perm.AGENTS_RUN, resource_type=AGENT):
         return None
     organization = await organization_repo.get_by_id(db, organization_id)
     if (

@@ -147,6 +147,20 @@ async def count_open_for_user(db: AsyncSession, *, user_id: UUID, fresh_since: d
     return int(result.scalar_one())
 
 
+async def count_open_for_embed(db: AsyncSession, *, embed_id: UUID, fresh_since: datetime) -> int:
+    """Calls still open on one embed, from every visitor together."""
+    result = await db.execute(
+        select(func.count())
+        .select_from(VoiceCall)
+        .where(
+            VoiceCall.embed_id == embed_id,
+            VoiceCall.ended_at.is_(None),
+            VoiceCall.heartbeat_at >= fresh_since,
+        )
+    )
+    return int(result.scalar_one())
+
+
 async def seconds_since(db: AsyncSession, *, organization_id: UUID, since: datetime) -> int:
     """Call seconds this organization used since `since`: to `ended_at`, else to the last heartbeat."""
     until = func.coalesce(VoiceCall.ended_at, VoiceCall.heartbeat_at)

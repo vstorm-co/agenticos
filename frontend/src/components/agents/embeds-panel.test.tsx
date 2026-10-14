@@ -46,6 +46,20 @@ vi.mock("@/hooks/use-dictation-status", () => ({
     return { status: readiness.current, failed: readiness.failed };
   },
 }));
+const calls = vi.hoisted(() => ({
+  current: { available: true, unavailable: null } as {
+    available: boolean;
+    unavailable: string | null;
+  } | null,
+  failed: false,
+  asked: [] as [string | null, string | undefined][],
+}));
+vi.mock("@/hooks/use-voice-readiness", () => ({
+  useVoiceReadiness: (agentId: string | null, surface?: string) => {
+    calls.asked.push([agentId, surface]);
+    return { readiness: calls.current, failed: calls.failed };
+  },
+}));
 vi.mock("@/hooks/use-copy-to-clipboard", () => ({
   useCopyToClipboard: () => ({ copy, copied: copied.value }),
 }));
@@ -90,6 +104,9 @@ beforeEach(() => {
   readiness.current = { server_available: true };
   readiness.failed = false;
   readiness.asked = [];
+  calls.current = { available: true, unavailable: null };
+  calls.failed = false;
+  calls.asked = [];
   state.embeds = [];
   state.isLoading = false;
   state.create = { mutate: vi.fn(), isPending: false };
@@ -975,5 +992,72 @@ describe("publishing a surface", () => {
     act(() => options.onSuccess());
 
     expect(screen.queryByRole("button", { name: "Publish" })).toBeNull();
+  });
+});
+
+describe("voice calls on an embed", () => {
+  it("asks whether a call would start from an embed, not from /chat", async () => {
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await pick("page");
+
+    expect(calls.asked).toContainEqual(["a-1", "embed"]);
+  });
+
+  it("publishes a widget with calls switched on", async () => {
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await pick("widget");
+    fireEvent.change(screen.getByLabelText("Allowed sites"), {
+      target: { value: "https://acme.com" },
+    });
+
+    await userEvent.click(screen.getByRole("switch", { name: "Voice calls" }));
+    await userEvent.click(screen.getByRole("button", { name: "Publish" }));
+
+    const [payload] = state.create.mutate.mock.calls.at(-1)!;
+    expect(payload.config).toMatchObject({ voice_conversation: true });
+  });
+
+  it("locks the switch where no call would start", async () => {
+    calls.current = { available: false, unavailable: "no_voice" };
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await pick("page");
+
+    expect(screen.getByRole("switch", { name: "Voice calls" })).toBeDisabled();
+  });
+
+  it("does not lock it for a month out of minutes, which the backend accepts", async () => {
+    calls.current = { available: false, unavailable: "minutes_exhausted" };
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await pick("page");
+
+    expect(screen.getByRole("switch", { name: "Voice calls" })).toBeEnabled();
+  });
+
+  it("keeps an embed already on editable after its agent lost its voice", async () => {
+    calls.current = { available: false, unavailable: "no_key" };
+    state.embeds = [page({ config: { ...DEFAULT_PAGE_CONFIG, voice_conversation: true } })];
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await userEvent.click(screen.getByRole("button", { name: "Edit Hosted page" }));
+
+    expect(screen.getByRole("switch", { name: "Voice calls" })).toBeEnabled();
+    expect(screen.getByText(/Visitors see no call button/)).toBeInTheDocument();
+  });
+
+  it("says the switch can't be checked while the readiness has not loaded", async () => {
+    calls.current = null;
+    calls.failed = true;
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await pick("widget");
+
+    expect(screen.getByRole("switch", { name: "Voice calls" })).toBeDisabled();
+    expect(screen.getByText(/Voice calls can't be checked right now/)).toBeInTheDocument();
+  });
+
+  it("asks nothing for a raw socket, which has no call to offer", async () => {
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await pick("socket");
+
+    expect(calls.asked.every(([agentId]) => agentId === null)).toBe(true);
+    expect(screen.queryByRole("switch", { name: "Voice calls" })).toBeNull();
   });
 });

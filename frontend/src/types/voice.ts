@@ -6,6 +6,9 @@
 
 export type VoiceTransport = "webrtc" | "relay";
 
+/** Where a call comes from: `/chat`, or a widget or hosted page. */
+export type VoiceCallSurface = "web" | "embed";
+
 /** Who is talking, or what the agent is doing - the server's `state` frame. */
 export type VoiceActivity =
   | "connecting"
@@ -39,6 +42,7 @@ export type VoiceEndReason =
   | "minutes_exhausted"
   | "not_priced"
   | "busy"
+  | "line_busy"
   | "no_start";
 
 /** Why the call button is crossed out. */

@@ -432,6 +432,61 @@ class TestStoringAFileIsCountedTwice:
         assert decision.allowed is False
 
 
+class TestAVisitorsCall:
+    """Every voice call is a paid realtime session (#54)."""
+
+    async def test_the_address_is_counted_first_then_the_link(self, monkeypatch):
+        monkeypatch.setattr(settings, "RATE_LIMIT_EMBED_VOICE_PER_MINUTE", 3)
+        monkeypatch.setattr(settings, "RATE_LIMIT_EMBED_VOICE_PER_LINK_PER_MINUTE", 6)
+        client = _redis([1, 1])
+        rate_limit.configure(client)
+
+        decision = await rate_limit.embed_voice_allowed(_connection(), public_key="pk_abc")
+
+        assert decision.allowed is True
+        counted = [call.args[0] for call in client.count_in_window.await_args_list]
+        assert counted == [
+            "ratelimit:embed_voice:ip:203.0.113.7",
+            "ratelimit:embed_voice:key:pk_abc",
+        ]
+
+    async def test_an_address_past_its_calls_never_spends_the_links_allowance(self, monkeypatch):
+        monkeypatch.setattr(settings, "RATE_LIMIT_EMBED_VOICE_PER_MINUTE", 3)
+        client = _redis([4])
+        rate_limit.configure(client)
+
+        decision = await rate_limit.embed_voice_allowed(_connection(), public_key="pk_abc")
+
+        assert decision.allowed is False
+        assert client.count_in_window.await_count == 1
+
+    async def test_rotating_addresses_still_meets_the_links_ceiling(self, monkeypatch):
+        """What bounds a leaked link: no visitor can vary the key in the path."""
+        monkeypatch.setattr(settings, "RATE_LIMIT_EMBED_VOICE_PER_MINUTE", 3)
+        monkeypatch.setattr(settings, "RATE_LIMIT_EMBED_VOICE_PER_LINK_PER_MINUTE", 6)
+        rate_limit.configure(_redis([1, 7]))
+
+        decision = await rate_limit.embed_voice_allowed(_connection(), public_key="pk_abc")
+
+        assert decision.allowed is False
+
+
+class TestASignedInVisitorsCalls:
+    async def test_a_signed_in_visitor_is_counted_by_their_subject(self, monkeypatch):
+        monkeypatch.setattr(settings, "RATE_LIMIT_EMBED_VOICE_PER_MINUTE", 3)
+        client = _redis([4])
+        rate_limit.configure(client)
+
+        decision = await rate_limit.embed_voice_visitor_allowed(
+            public_key="pk_abc", visitor="customer-42"
+        )
+
+        assert decision.allowed is False
+        assert client.count_in_window.await_args.args[0] == (
+            "ratelimit:embed_voice:key:pk_abc:visitor:customer-42"
+        )
+
+
 class TestAVisitorsDictation:
     """Every dictation is a paid call outside every model budget (#1797)."""
 

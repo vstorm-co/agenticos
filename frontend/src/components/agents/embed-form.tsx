@@ -4,7 +4,11 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { EmbedVariables } from "@/components/agents/embed-variables";
-import { PageFields, type ServerDictationChoice } from "@/components/agents/page-fields";
+import {
+  PageFields,
+  type EmbedVoiceChoice,
+  type ServerDictationChoice,
+} from "@/components/agents/page-fields";
 import { WidgetFields } from "@/components/agents/widget-fields";
 import {
   Button,
@@ -19,6 +23,7 @@ import {
   Textarea,
 } from "@/components/ui";
 import { useDictationStatus } from "@/hooks/use-dictation-status";
+import { useVoiceReadiness } from "@/hooks/use-voice-readiness";
 import {
   defaultConfigFor,
   type Embed,
@@ -102,6 +107,19 @@ export function EmbedForm({
     unchecked: readiness.failed,
     wasServer: stored !== undefined && stored.kind !== "socket" && stored.dictation === "server",
   };
+  // Whether a visitor's call would start - asked for the embed surface, which
+  // the organization's `/chat` switch does not gate. A month out of minutes is
+  // still a complete setup, which the backend accepts, so it does not lock the
+  // switch either.
+  const voice = useVoiceReadiness(kind === "socket" ? null : agentId, "embed");
+  const voiceCall: EmbedVoiceChoice = {
+    available:
+      voice.readiness === null
+        ? null
+        : voice.readiness.available || voice.readiness.unavailable === "minutes_exhausted",
+    unchecked: voice.failed,
+    wasOn: stored !== undefined && stored.kind !== "socket" && stored.voice_conversation === true,
+  };
 
   const originList = parseOrigins(origins);
   const missingOrigins = needsOrigins && originList.length === 0;
@@ -133,6 +151,7 @@ export function EmbedForm({
           config={config}
           disabled={pending}
           serverDictation={serverDictation}
+          voiceCall={voiceCall}
           onChange={setConfig}
         />
       )}
@@ -214,6 +233,7 @@ export function EmbedForm({
           hasCustomLogo={embed?.has_custom_logo ?? false}
           onUpload={embed && onUploadLogo ? onUploadLogo : undefined}
           serverDictation={serverDictation}
+          voiceCall={voiceCall}
           onChange={setConfig}
         />
       )}

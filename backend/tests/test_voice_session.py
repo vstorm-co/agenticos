@@ -339,12 +339,18 @@ async def test_a_heartbeat_rereads_the_budget_so_other_runs_spend_counts():
     assert repo.end.await_args.kwargs["reason"] is VoiceEndReason.BUDGET
 
 
+_PUBLISHER = AuthContext(user_id=uuid4(), organization_id=uuid4(), role="viewer")
+
+
 def _allowed_world(monkeypatch, broken: str | None):
     from app.core.exceptions import AuthenticationError
 
     agent = SimpleNamespace(current_version_id=uuid4(), status="published")
     org = SimpleNamespace(voice_conversations_enabled=True, voice_in_chat=True)
     member = SimpleNamespace(role="member")
+    embed = SimpleNamespace(
+        is_active=True, config={"kind": "page", "voice_conversation": True}, owner_user_id=uuid4()
+    )
     auth = AsyncMock()
     access = AsyncMock(return_value=broken != "grant")
     if broken == "token":
@@ -359,6 +365,14 @@ def _allowed_world(monkeypatch, broken: str | None):
         org.voice_conversations_enabled = False
     if broken == "chat_off":
         org.voice_in_chat = False
+    if broken == "embed_gone":
+        embed = None
+    if broken == "embed_paused":
+        embed.is_active = False
+    if broken == "embed_voice_off":
+        embed.config = {"kind": "page", "voice_conversation": False}
+    monkeypatch.setattr(f"{_M}.agent_embed_repo.get", AsyncMock(return_value=embed))
+    monkeypatch.setattr(f"{_M}.publisher_context", AsyncMock(return_value=_PUBLISHER))
     monkeypatch.setattr(f"{_M}.authenticate_socket_token", auth)
     monkeypatch.setattr(f"{_M}.member_repo.get", AsyncMock(return_value=member))
     monkeypatch.setattr(f"{_M}.agent_repo.get", AsyncMock(return_value=agent))
@@ -637,9 +651,45 @@ async def test_a_visitor_without_a_session_token_is_checked_on_the_agent_and_the
         agent_id=uuid4(),
         conversation_id=None,
     )
-    assert await still_allowed(MagicMock(), visitor, agent_id=uuid4()) is visitor.ctx
+    # The publisher's role as it stands now, not the one the call started under.
+    assert await still_allowed(MagicMock(), visitor, agent_id=uuid4()) is _PUBLISHER
     auth.assert_not_awaited()
     member.assert_not_awaited()
+
+
+def _visitor() -> VoiceCaller:
+    return VoiceCaller(
+        ctx=AuthContext(user_id=None, organization_id=uuid4(), role="member"),
+        user_id=None,
+        user_name=None,
+        surface="embed",
+        anonymous=True,
+        auth_token=None,
+        embed_id=uuid4(),
+        agent_id=uuid4(),
+        conversation_id=None,
+    )
+
+
+@pytest.mark.parametrize("broken", ["embed_gone", "embed_paused", "embed_voice_off"])
+async def test_a_visitors_call_ends_when_its_embed_is_paused_or_its_calls_switched_off(
+    monkeypatch, broken
+):
+    from app.services.voice.session import still_allowed
+
+    _allowed_world(monkeypatch, broken)
+    assert await still_allowed(MagicMock(), _visitor(), agent_id=uuid4()) is None
+
+
+async def test_a_visitors_call_ends_when_the_organization_switches_voice_off(monkeypatch):
+    """The embed surface has no `/chat` switch, but the organization's own one still ends it."""
+    from app.services.voice.session import still_allowed
+
+    _allowed_world(monkeypatch, "chat_off")
+    visitor = _visitor()
+    assert await still_allowed(MagicMock(), visitor, agent_id=uuid4()) is _PUBLISHER
+    _allowed_world(monkeypatch, "voice_off")
+    assert await still_allowed(MagicMock(), visitor, agent_id=uuid4()) is None
 
 
 async def test_an_answer_cut_off_by_the_end_is_still_booked():
@@ -855,3 +905,14 @@ async def test_a_relay_call_whose_audio_is_not_a_microphone_is_ended_and_says_wh
     assert repo.end.await_args.kwargs["reason"] is VoiceEndReason.ERROR
     assert socket.sent[-1] == {"type": "ended", "reason": "error", "message": FLOODED}
     assert started.runner.finish.await_args.kwargs["error"] == FLOODED
+
+
+@pytest.mark.security
+async def test_a_visitors_call_ends_when_the_publishers_role_no_longer_runs_the_agent(
+    monkeypatch,
+):
+    """A publisher deactivated mid-call falls back to `viewer`, which the agent may not admit."""
+    from app.services.voice.session import still_allowed
+
+    _allowed_world(monkeypatch, "grant")
+    assert await still_allowed(MagicMock(), _visitor(), agent_id=uuid4()) is None

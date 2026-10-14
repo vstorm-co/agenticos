@@ -1,5 +1,6 @@
 """Voice conversations (#54). Routes and workers import from here only."""
 
+from app.services.voice.embed import embed_caller as embed_voice_caller
 from app.services.voice.exceptions import VoiceRefused
 from app.services.voice.reaper import VoiceCallReaper
 from app.services.voice.registry import LIVE_CALLS
@@ -21,6 +22,7 @@ __all__ = [
     "VoiceReadiness",
     "VoiceRefused",
     "VoiceSettingsService",
+    "embed_voice_caller",
     "resolve_voice",
     "socket_caller",
 ]

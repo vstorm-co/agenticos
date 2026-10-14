@@ -18,6 +18,7 @@ const ENDED_KEYS: Partial<Record<VoiceEndReason, string>> = {
   shutdown: "shutdown",
   voice_off: "voiceOff",
   busy: "busy",
+  line_busy: "lineBusy",
   forbidden: "forbidden",
   no_agent: "forbidden",
   not_configured: "notConfigured",

@@ -61,7 +61,7 @@ import contextlib
 import logging
 import re
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from contextlib import AbstractAsyncContextManager
 from typing import Any
 from uuid import UUID
@@ -107,6 +107,77 @@ def _flatten(value: str) -> str:
     the whole thing this block is arranged to prevent.
     """
     return " ".join(value.replace("[", "(").replace("]", ")").split())
+
+
+def supplied_block(embed: AgentEmbed, supplied: Mapping[str, Any]) -> str:
+    """What the page told us about this visitor, as data the model may read.
+
+    Only what the embed *declared*. An undeclared key is dropped rather than
+    rendered: the page is something a visitor can edit, and without a
+    declaration any key they invented would become a line inside an agent's
+    instructions.
+
+    Never as an instruction, and it says so. These values arrive from a
+    browser - in `jwt` mode as much as in `public`, because the widget reads
+    them from `window.AgenticOSContext` either way - so nothing here may be
+    relied on to decide what the agent is allowed to do. The line above the
+    block is what tells the model that, and it is why this is a block rather
+    than substituted into the placement sentence, where it would read as
+    something the operator wrote.
+
+    A declared-and-missing value is left out and logged. `required` is a
+    promise between an integrator and themselves; enforcing it here would
+    cost a visitor their answer for somebody else's deployment mistake.
+    """
+    declared = [
+        EmbedVariable.model_validate(variable) for variable in (embed.context_variables or [])
+    ]
+    if embed.kind == "page":
+        # On a page of our own the only place a value can come from is the
+        # visitor's own URL, so `user_tier=premium` typed into the address bar
+        # has to be impossible unless somebody marked that one variable
+        # URL-safe. The narrowing is read off the row rather than passed in by
+        # whoever opened the socket, which is a flag a caller could get wrong
+        # in the direction that widens it (#517).
+        declared = [variable for variable in declared if variable.url_safe]
+    if not declared:
+        return ""
+
+    lines: list[str] = []
+    missing: list[str] = []
+    for variable in declared:
+        value = supplied.get(variable.name)
+        if value is None or str(value).strip() == "":
+            if variable.required:
+                missing.append(variable.name)
+            continue
+        lines.append(f"{variable.name}: {_flatten(str(value))}")
+
+    if missing:
+        logger.warning(
+            "embed_context_missing",
+            extra={"embed_id": str(embed.id), "missing": sorted(missing)},
+        )
+    if not lines:
+        return ""
+    return SUPPLIED_HEADER + "\n" + "\n".join(lines)
+
+
+def placement_preamble(embed: AgentEmbed, supplied: Mapping[str, Any]) -> list[str]:
+    """What the model is told about where it is and who it is talking to.
+
+    The operator's placement context, then the page's supplied variables
+    (`supplied_block`). A text turn prepends these to every prompt; a voice call
+    from an embed (#54) puts them in the call's instructions, so an agent knows
+    the same about a visitor on a call as in text.
+    """
+    parts: list[str] = []
+    if embed.context:
+        parts.append(f"[Context for this placement: {embed.context}]")
+    block = supplied_block(embed, supplied)
+    if block:
+        parts.append(block)
+    return parts
 
 
 # Rolling window per (widget, visitor). In-process on purpose: this stops one
@@ -507,12 +578,7 @@ class EmbedSession:
         # visitor's supplied variables with it. `self._supplied` is refreshed on
         # every frame, so a single-page app signing the visitor in on turn 2 is
         # reflected here, and a page that stops supplying a value stops sending it.
-        parts: list[str] = []
-        if self.embed.context:
-            parts.append(f"[Context for this placement: {self.embed.context}]")
-        supplied_block = self._supplied_block()
-        if supplied_block:
-            parts.append(supplied_block)
+        parts = placement_preamble(self.embed, self._supplied)
         prompt = "\n\n".join([*parts, text]) if parts else text
 
         # The same loop the dashboard's chat drives, through this surface's own
@@ -611,60 +677,6 @@ class EmbedSession:
         return await ConversationService(db).model_history(
             self.conversation_id, limit=HISTORY_MESSAGES
         )
-
-    def _supplied_block(self) -> str:
-        """What the page told us about this visitor, as data the model may read.
-
-        Only what the embed *declared*. An undeclared key is dropped rather than
-        rendered: the page is something a visitor can edit, and without a
-        declaration any key they invented would become a line inside an agent's
-        instructions.
-
-        Never as an instruction, and it says so. These values arrive from a
-        browser - in `jwt` mode as much as in `public`, because the widget reads
-        them from `window.AgenticOSContext` either way - so nothing here may be
-        relied on to decide what the agent is allowed to do. The line above the
-        block is what tells the model that, and it is why this is a block rather
-        than substituted into the placement sentence, where it would read as
-        something the operator wrote.
-
-        A declared-and-missing value is left out and logged. `required` is a
-        promise between an integrator and themselves; enforcing it here would
-        cost a visitor their answer for somebody else's deployment mistake.
-        """
-        declared = [
-            EmbedVariable.model_validate(variable)
-            for variable in (self.embed.context_variables or [])
-        ]
-        if self.embed.kind == "page":
-            # On a page of our own the only place a value can come from is the
-            # visitor's own URL, so `user_tier=premium` typed into the address bar
-            # has to be impossible unless somebody marked that one variable
-            # URL-safe. The narrowing is read off the row rather than passed in by
-            # whoever opened the socket, which is a flag a caller could get wrong
-            # in the direction that widens it (#517).
-            declared = [variable for variable in declared if variable.url_safe]
-        if not declared:
-            return ""
-
-        lines: list[str] = []
-        missing: list[str] = []
-        for variable in declared:
-            value = self._supplied.get(variable.name)
-            if value is None or str(value).strip() == "":
-                if variable.required:
-                    missing.append(variable.name)
-                continue
-            lines.append(f"{variable.name}: {_flatten(str(value))}")
-
-        if missing:
-            logger.warning(
-                "embed_context_missing",
-                extra={"embed_id": str(self.embed.id), "missing": sorted(missing)},
-            )
-        if not lines:
-            return ""
-        return SUPPLIED_HEADER + "\n" + "\n".join(lines)
 
     async def _context(self, db: AsyncSession) -> AuthContext:
         """The role this run carries: the member who published the widget.

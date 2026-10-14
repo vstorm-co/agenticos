@@ -42,7 +42,14 @@ describe("useVoiceReadiness", () => {
     const { result } = renderHook(() => useVoiceReadiness("a1"), { wrapper });
     await waitFor(() => expect(result.current.readiness).toEqual(READY));
     expect(result.current.failed).toBe(false);
-    expect(voiceReadiness).toHaveBeenCalledWith("a1");
+    expect(voiceReadiness).toHaveBeenCalledWith("a1", "web");
+  });
+
+  it("asks about the embed surface when the embed form does", async () => {
+    vi.mocked(voiceReadiness).mockResolvedValue(READY);
+    const { result } = renderHook(() => useVoiceReadiness("a1", "embed"), { wrapper });
+    await waitFor(() => expect(result.current.readiness).toEqual(READY));
+    expect(voiceReadiness).toHaveBeenCalledWith("a1", "embed");
   });
 
   it("says when the read failed rather than pretending a call is off", async () => {

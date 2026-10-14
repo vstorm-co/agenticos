@@ -110,3 +110,62 @@ async def test_two_starts_at_once_leave_one_call(engine):
         group.start_soon(start_one)
 
     assert sorted(outcomes) == ["busy", "started"]
+
+
+async def test_two_visitors_at_once_on_an_embed_at_its_limit_leave_one_call(engine, monkeypatch):
+    """The per-embed cap is a count under a lock too: two visitors racing for the
+    last line cannot both count it free (#54)."""
+    from app.db.models.agent_embed import AgentEmbed
+
+    monkeypatch.setattr("app.core.config.settings.VOICE_MAX_CALLS_PER_EMBED", 1)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    org, agent, run, user = await _rows(factory)
+    async with factory() as db:
+        embed = AgentEmbed(
+            organization_id=org.id,
+            agent_id=agent.id,
+            owner_user_id=user.id,
+            name="Help",
+            kind="widget",
+            public_key=uuid.uuid4().hex,
+            allowed_origins=["https://acme.test"],
+            config={"kind": "widget", "voice_conversation": True},
+        )
+        db.add(embed)
+        await db.commit()
+    now = datetime.now(UTC)
+    outcomes: list[str] = []
+
+    async def start_one() -> None:
+        async with factory() as db:
+            starter = VoiceCallStarter(db, sessions=factory, send=AsyncMock(), heard=lambda: None)
+            try:
+                await starter._claim_embed_slot(embed.id, now=now)
+                await voice_call_repo.create(
+                    db,
+                    organization_id=org.id,
+                    agent_id=agent.id,
+                    run_id=run.id,
+                    user_id=None,
+                    conversation_id=None,
+                    embed_id=embed.id,
+                    surface="embed",
+                    provider="openai",
+                    model="gpt-realtime",
+                    transport="webrtc",
+                    secret_id=None,
+                    worker_id="host:1",
+                    resume_of=None,
+                    started_at=now,
+                )
+                await db.commit()
+                outcomes.append("started")
+            except VoiceRefused as refused:
+                await db.rollback()
+                outcomes.append(refused.reason)
+
+    async with anyio.create_task_group() as group:
+        group.start_soon(start_one)
+        group.start_soon(start_one)
+
+    assert sorted(outcomes) == ["line_busy", "started"]

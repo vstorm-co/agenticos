@@ -44,12 +44,14 @@ from app.api.deps import (
 from app.api.embed_cors import allow_embed_origin
 from app.api.routes.v1._stored_bytes import stored_image_response
 from app.core.config import settings
+from app.core.exceptions import BadRequestError
 from app.db.session import get_db_context
 from app.schemas.agent_embed import PublicEmbedConfig, PublicPageConfig, PublicUpload
 from app.schemas.ml import DictationRead
 from app.services import rate_limit, transcription
 from app.services.agent_embed import AgentEmbedService, EmbedDenied
 from app.services.embed_session import WIDGET_JS, EmbedSession, continuity_key
+from app.services.voice import VoiceCallSession, embed_voice_caller
 
 logger = logging.getLogger(__name__)
 
@@ -438,3 +440,62 @@ async def embed_socket(
         await session.fail("Something went wrong. Please try again.")
     finally:
         await session.close()
+
+
+@router.websocket("/{public_key}/voice/ws")
+async def embed_voice_socket(
+    websocket: WebSocket,
+    public_key: str,
+    token: str | None = Query(default=None),
+    visitor: str | None = Query(default=None, max_length=64),
+) -> None:
+    """A visitor's voice call with an embedded agent (#54).
+
+    Admitted as the embed's own socket is - a widget by its allow-list and, in
+    `jwt` mode, the customer's token; a hosted page by this deployment's origin and
+    its continuity key in `visitor`, whose thread the call lands in; a socket
+    integration not at all - and only while the embed's `voice_conversation` is
+    on. Then the call's own protocol and refusals, exactly as `/ws/voice`
+    speaks them (`app.schemas.voice`).
+
+    **Every call is a paid realtime session**, so starting one is counted per
+    address and per link before the key is looked up (`rate_limit.embed_voice_allowed`,
+    `4029` past it, and per visitor for a `jwt` widget once the token is verified),
+    at most `VOICE_MAX_CALLS_PER_EMBED` calls are open on one embed at once
+    (refused on the socket as `line_busy`), and each call is bounded by the
+    organization's call cap, its monthly minutes and the agent's budget. The
+    embed's own `rate_limit_per_minute` counts messages, not calls. A visitor cannot approve anything:
+    tools that need an approval are left out of their calls. Refusals about the
+    embed all close with `4003`, without saying which.
+    """
+    if not (await rate_limit.embed_voice_allowed(websocket, public_key=public_key)).allowed:
+        await websocket.accept()
+        await websocket.close(code=WS_TOO_MANY, reason="Too many calls. Try again shortly.")
+        return
+    visitor_key = continuity_key(visitor)
+    async with get_db_context() as db:
+        try:
+            admission = await AgentEmbedService(db).admit_voice(
+                public_key,
+                origin=websocket.headers.get("origin"),
+                token=token,
+                visitor_key=visitor_key,
+            )
+        except (EmbedDenied, BadRequestError):
+            await websocket.accept()
+            await websocket.close(code=WS_DENIED, reason="Calls are not available here")
+            return
+        if (
+            admission.visitor is not None
+            and not (
+                await rate_limit.embed_voice_visitor_allowed(
+                    public_key=public_key, visitor=admission.visitor
+                )
+            ).allowed
+        ):
+            await websocket.accept()
+            await websocket.close(code=WS_TOO_MANY, reason="Too many calls. Try again shortly.")
+            return
+        caller = await embed_voice_caller(db, admission, visitor_key=visitor_key)
+    await websocket.accept()
+    await VoiceCallSession(websocket, caller).run()

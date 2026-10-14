@@ -198,6 +198,21 @@ def test_a_pinned_language_is_spoken_unless_the_caller_asks_otherwise():
     assert "ISO-639-1 code 'pl'" in instructions
 
 
+def test_an_embeds_briefing_reaches_the_call_before_the_agents_note():
+    """What a text turn on that embed would prepend, so a call knows the same about the visitor."""
+    instructions = voice_instructions(
+        "Help.",
+        VoiceOptions(
+            on_deferred=_deny,
+            briefing="[Context for this placement: pricing page]",
+            voice_note="Be brief.",
+        ),
+    )
+
+    assert "[Context for this placement: pricing page]" in instructions
+    assert instructions.index("pricing page") < instructions.index("Be brief.")
+
+
 def _stored_skill() -> SimpleNamespace:
     return SimpleNamespace(
         name="refunds", description="How refunds work", content="Step 1", resources=[]

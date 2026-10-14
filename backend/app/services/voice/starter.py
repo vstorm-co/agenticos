@@ -31,14 +31,21 @@ from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundErr
 from app.core.permissions import AuthContext, Perm
 from app.core.secret_kinds import StorableSecret
 from app.db.locks import LockScope, hold_subject
+from app.db.models.agent_embed import AgentEmbed
 from app.db.models.agent_run import RunStatus, RunSurface
 from app.db.models.voice_call import VoiceCall, VoiceEndReason
-from app.repositories import agent_run_repo, conversation_repo, voice_call_repo
+from app.repositories import (
+    agent_run_repo,
+    conversation_repo,
+    embed_visitor_repo,
+    voice_call_repo,
+)
 from app.repositories import organization as organization_repo
 from app.schemas.voice import StartFrame
 from app.services.agent_registry import AgentRegistryService
 from app.services.agent_runner import AgentRunnerService, PreparedRun, VoiceRun
 from app.services.conversation import ConversationService
+from app.services.embed_session import placement_preamble
 from app.services.organization_secret import OrganizationSecretService
 from app.services.voice import limits
 from app.services.voice.approvals import SendFrame, VoiceApprovalBridge
@@ -65,6 +72,12 @@ class VoiceCaller:
     embed_id: UUID | None
     agent_id: UUID | None
     conversation_id: UUID | None
+    visitor_key: str | None = None
+    """A hosted page visitor's continuity key, so a new thread is linked to it."""
+    conversation_title: str = "Voice call"
+    """What a conversation the call starts is called."""
+    embed: AgentEmbed | None = None
+    """The embed a visitor was admitted to: its placement context and declared variables."""
 
 
 @dataclass
@@ -143,7 +156,7 @@ class VoiceCallStarter:
             refuse_data_channel(frame.sdp_offer)
 
         conversation_id = await self._conversation(
-            caller, frame, organization_id=ctx.organization_id
+            caller, frame, organization_id=ctx.organization_id, agent_id=agent.id
         )
         chain_elapsed = await self._resume(
             caller, frame, agent_id=agent.id, conversation_id=conversation_id
@@ -204,6 +217,7 @@ class VoiceCallStarter:
                     anonymous=caller.anonymous,
                     voice_note=resolved.voice_note,
                     language=resolved.language,
+                    briefing=_briefing(caller, frame),
                 ),
                 model_label=resolved.label,
                 provider=resolved.provider,
@@ -241,6 +255,8 @@ class VoiceCallStarter:
         now = datetime.now(UTC)
         if caller.user_id is not None:
             await self._claim_slot(caller.user_id, now=now)
+        elif caller.embed_id is not None:
+            await self._claim_embed_slot(caller.embed_id, now=now)
         call = await voice_call_repo.create(
             self.db,
             organization_id=ctx.organization_id,
@@ -292,8 +308,12 @@ class VoiceCallStarter:
         )
 
     async def _conversation(
-        self, caller: VoiceCaller, frame: StartFrame, *, organization_id: UUID
+        self, caller: VoiceCaller, frame: StartFrame, *, organization_id: UUID, agent_id: UUID
     ) -> UUID:
+        if caller.surface == "embed":
+            return await self._embed_conversation(
+                caller, frame, organization_id=organization_id, agent_id=agent_id
+            )
         requested = caller.conversation_id or frame.conversation_id
         if requested is not None:
             try:
@@ -314,6 +334,53 @@ class VoiceCallStarter:
         )
         return conversation.id
 
+    async def _embed_conversation(
+        self, caller: VoiceCaller, frame: StartFrame, *, organization_id: UUID, agent_id: UUID
+    ) -> UUID:
+        """The thread an embed's call lands in (#54, slice 2).
+
+        Never the frame's: a visitor has no conversation to name, and an id a
+        stranger sends is not one they own. A hosted page's visitor calls into
+        the thread their continuity key holds (resolved at admission, by the
+        server). A widget's reconnect continues the thread of the call it
+        resumes - only a visitor's call on this same embed and agent, and
+        `_resume` then holds it to the ten-second window. Otherwise the call
+        starts one, and a page links it to the key conditionally, adopting
+        whichever thread won - the two-tab rule `EmbedSession._turn` follows,
+        `link_conversation` has the race.
+        """
+        if caller.conversation_id is not None:
+            return caller.conversation_id
+        if frame.resume_of is not None:
+            previous = await voice_call_repo.get(
+                self.db, frame.resume_of, organization_id=organization_id
+            )
+            if (
+                previous is not None
+                and previous.conversation_id is not None
+                and previous.embed_id is not None
+                and previous.embed_id == caller.embed_id
+                and previous.user_id is None
+                and previous.agent_id == agent_id
+            ):
+                return previous.conversation_id
+        conversation = await conversation_repo.create_conversation(
+            self.db,
+            organization_id=organization_id,
+            user_id=None,
+            title=caller.conversation_title,
+        )
+        if caller.embed_id is None or caller.visitor_key is None:
+            return conversation.id
+        visitor = await embed_visitor_repo.get(
+            self.db, embed_id=caller.embed_id, visitor_key=caller.visitor_key
+        )
+        if visitor is None:
+            return conversation.id
+        return await embed_visitor_repo.link_conversation(
+            self.db, db_visitor=visitor, conversation_id=conversation.id
+        )
+
     async def _resume(
         self, caller: VoiceCaller, frame: StartFrame, *, agent_id: UUID, conversation_id: UUID
     ) -> int:
@@ -333,6 +400,7 @@ class VoiceCallStarter:
         if (
             previous is None
             or previous.user_id != caller.user_id
+            or previous.embed_id != caller.embed_id
             or previous.agent_id != agent_id
             or previous.conversation_id != conversation_id
         ):
@@ -399,6 +467,25 @@ class VoiceCallStarter:
                 await anyio.sleep(0.25)
         return previous
 
+    async def _claim_embed_slot(self, embed_id: UUID, *, now: datetime) -> None:
+        """Refuse a visitor's call past the embed's concurrent-call limit, one start at a time.
+
+        Visitors have no account to count against, so without this one leaked
+        link could hold as many calls at once as its start rate allows and spend
+        the organization's monthly minutes - every member's calls with them - in
+        parallel. The same lock-then-count as `_claim_slot`.
+        """
+        await hold_subject(self.db, LockScope.VOICE_CALLS_PER_EMBED, embed_id)
+        open_calls = await voice_call_repo.count_open_for_embed(
+            self.db,
+            embed_id=embed_id,
+            fresh_since=now - timedelta(seconds=limits.STALE_AFTER_SECONDS),
+        )
+        if open_calls >= settings.VOICE_MAX_CALLS_PER_EMBED:
+            raise VoiceRefused(
+                "line_busy", "Too many calls are open here right now. Try again in a few minutes."
+            )
+
     async def _claim_slot(self, user_id: UUID, *, now: datetime) -> None:
         """Refuse a call past the person's concurrent-call limit, one start at a time.
 
@@ -414,3 +501,16 @@ class VoiceCallStarter:
         )
         if open_calls >= settings.VOICE_MAX_CALLS_PER_USER:
             raise VoiceRefused("busy", "You are already on a call. End it before starting another.")
+
+
+def _briefing(caller: VoiceCaller, frame: StartFrame) -> str | None:
+    """What a text turn on the caller's embed would prepend, or `None` off an embed.
+
+    The same preamble and the same narrowing (`placement_preamble`): only
+    variables the embed declares, only URL-safe ones on a hosted page, and as
+    unverified data about the visitor rather than instructions.
+    """
+    if caller.embed is None:
+        return None
+    parts = placement_preamble(caller.embed, frame.context or {})
+    return "\n\n".join(parts) if parts else None

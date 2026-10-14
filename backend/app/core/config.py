@@ -585,6 +585,14 @@ class Settings(BaseSettings):
     # minute. The ceiling on what a leaked or public link costs: this many
     # recordings a minute, each at most the organization's longest dictation.
     RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE: int = 10
+    # Voice calls one address may start on a hosted page or a widget, per minute
+    # (#54). Each is a paid realtime session, so it is counted before the key is
+    # looked up, the way dictation is.
+    RATE_LIMIT_EMBED_VOICE_PER_MINUTE: int = 3
+    # Voice calls one hosted page or widget accepts from everybody together, per
+    # minute. The ceiling on what a leaked link costs: this many calls a minute,
+    # each at most the organization's longest call, within its monthly minutes.
+    RATE_LIMIT_EMBED_VOICE_PER_LINK_PER_MINUTE: int = 6
     # Whether `X-Forwarded-For` names the caller. Off by default because the
     # header is set by whoever is calling, so trusting it unconditionally is a
     # per-IP limit anybody bypasses by varying one string. On costs the mirror
@@ -595,6 +603,11 @@ class Settings(BaseSettings):
     # Concurrent voice calls one person may hold (#54). One by default: a second
     # tab's call is almost always a mistake, and each is billed.
     VOICE_MAX_CALLS_PER_USER: int = 1
+    # Concurrent voice calls one hosted page or widget may hold, from everybody
+    # together (#54). Visitors have no account to count against, so this is what
+    # stops a leaked link from spending the organization's monthly minutes - and
+    # with them every member's calls - in parallel.
+    VOICE_MAX_CALLS_PER_EMBED: int = 3
 
     PREFECT_API_URL: str = "http://localhost:4200/api"
     PREFECT_API_KEY: str | None = None

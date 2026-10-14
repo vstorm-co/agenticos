@@ -1669,6 +1669,13 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # organization's provider, bounded per address, per link and, for a `jwt`
         # widget, per visitor.
         ("POST", f"{V1}/embed/{{public_key}}/dictation"),
+        # A visitor's voice call (#54). Admitted as the embed's own socket - a
+        # widget by its allow-list and token, a page by this deployment's origin
+        # and its continuity key - and only while that embed's voice switch is
+        # on. Each call is a paid realtime session: starts are bounded per address
+        # and per link, each call by the organization's call cap, monthly minutes
+        # and the agent's budget, and tools needing approval are left out.
+        ("WEBSOCKET", f"{V1}/embed/{{public_key}}/voice/ws"),
     }
 )
 

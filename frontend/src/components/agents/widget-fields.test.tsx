@@ -22,12 +22,23 @@ function fields(config: Partial<WidgetConfig> = {}) {
       config={{ ...DEFAULT_WIDGET_CONFIG, ...config }}
       disabled={false}
       serverDictation={{ available: true, unchecked: false, wasServer: false }}
+      voiceCall={{ available: true, unchecked: false, wasOn: false }}
       onChange={onChange}
     />,
   );
 }
 
 beforeEach(() => onChange.mockClear());
+
+describe("calls from the bubble", () => {
+  it("carries the voice switch into the config", async () => {
+    fields();
+
+    await userEvent.click(screen.getByRole("switch", { name: "Voice calls" }));
+
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ voice_conversation: true }));
+  });
+});
 
 describe("what the bubble says", () => {
   it("carries the header", async () => {

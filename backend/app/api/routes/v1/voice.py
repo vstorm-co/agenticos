@@ -1,9 +1,9 @@
 """Voice conversations (#54): whether an agent can take a call, and the call's socket."""
 
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, WebSocket
+from fastapi import APIRouter, Query, WebSocket
 
 from app.api.deps import ActiveOrgWS, AgentRegistrySvc, Auth, CurrentUserWS, VoiceSettingsSvc
 from app.core.permissions import Perm
@@ -15,7 +15,18 @@ router = APIRouter()
 
 @router.get("/agents/{agent_id}/voice", response_model=VoiceReadinessRead)
 async def voice_readiness(
-    agent_id: UUID, registry: AgentRegistrySvc, voice: VoiceSettingsSvc, ctx: Auth
+    agent_id: UUID,
+    registry: AgentRegistrySvc,
+    voice: VoiceSettingsSvc,
+    ctx: Auth,
+    surface: Literal["web", "embed"] = Query(
+        default="web",
+        description=(
+            "Where the call would come from: `web` for `/chat`, which the organization's "
+            "chat switch also gates, or `embed` for a widget or hosted page, which the "
+            "embed form reads before offering its voice switch"
+        ),
+    ),
 ) -> Any:
     """Whether a call to this agent would start, and why not.
 
@@ -25,7 +36,9 @@ async def voice_readiness(
     only to be refused.
     """
     agent = await registry.get(ctx, agent_id, perm=Perm.AGENTS_RUN)
-    readiness = await voice.readiness(organization_id=ctx.organization_id, agent=agent)
+    readiness = await voice.readiness(
+        organization_id=ctx.organization_id, agent=agent, surface=surface
+    )
     return VoiceReadinessRead(**readiness.__dict__)
 
 

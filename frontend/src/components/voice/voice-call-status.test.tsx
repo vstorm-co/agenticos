@@ -89,6 +89,7 @@ describe("VoiceCallStatus", () => {
     ["minutes_exhausted", "The call ended: this month's call minutes are used up"],
     ["no_agent", "This agent can't take your call"],
     ["busy", "You're already on a call"],
+    ["line_busy", "Too many calls are open here right now"],
     ["user", "The call ended"],
     ["reaped", "The call ended"],
   ] as const)("says why a call ended (%s)", (reason, text) => {

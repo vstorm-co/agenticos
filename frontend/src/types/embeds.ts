@@ -44,6 +44,8 @@ export interface WidgetConfig {
   position: "left" | "right";
   launcher_label: string;
   dictation: EmbedDictation;
+  /** Whether visitors are offered a voice call - see `PageConfig.voice_conversation`. */
+  voice_conversation: boolean;
 }
 
 /**
@@ -71,6 +73,15 @@ export interface PageConfig {
   accent: string;
   /** Whether, and how, the composer offers a microphone - see `EmbedDictation`. */
   dictation: EmbedDictation;
+  /**
+   * Whether visitors are offered a voice call with the agent (#54).
+   *
+   * Off by default and separate from dictation. Switching it on is refused while
+   * the organization's voice switch is off or the agent has no voice to call
+   * with. Visitors cannot approve, so tools that need approval are left out of
+   * their calls.
+   */
+  voice_conversation: boolean;
   /** Whether the visitor may start a fresh thread, which mints a new key. */
   allow_new_conversation: boolean;
   /**
@@ -187,6 +198,7 @@ export const DEFAULT_WIDGET_CONFIG: WidgetConfig = {
   position: "right",
   launcher_label: "Chat",
   dictation: "off",
+  voice_conversation: false,
 };
 
 export const DEFAULT_SOCKET_CONFIG: SocketConfig = { kind: "socket" };
@@ -197,6 +209,7 @@ export const DEFAULT_PAGE_CONFIG: PageConfig = {
   welcome: "",
   accent: "#4f46e5",
   dictation: "off",
+  voice_conversation: false,
   allow_new_conversation: true,
   allow_files: false,
   show_thinking: false,

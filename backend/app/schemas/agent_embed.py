@@ -15,6 +15,7 @@ from uuid import UUID
 from pydantic import Field, HttpUrl, field_validator, model_validator
 
 from app.schemas.base import BaseSchema, TimestampSchema
+from app.services.realtime_models import Transport
 from app.services.speech_to_text import RecordingFormat
 
 logger = logging.getLogger(__name__)
@@ -51,6 +52,14 @@ _DICTATION_DESCRIPTION = (
 )
 
 
+_VOICE_CONVERSATION_DESCRIPTION = (
+    "Offer visitors a voice call with the agent (#54). Off by default and separate from "
+    "dictation. Saving it on is refused while the organization's voice switch is off or "
+    "the agent has no voice it can call with. Visitors cannot approve anything, so tools "
+    "that need approval are left out of their calls."
+)
+
+
 class WidgetConfig(BaseSchema):
     """What the bubble in the corner of somebody else's page looks like.
 
@@ -68,6 +77,7 @@ class WidgetConfig(BaseSchema):
     position: Literal["left", "right"] = "right"
     launcher_label: str = Field(default="Chat", max_length=24)
     dictation: DictationMode = Field(default="off", description=_DICTATION_DESCRIPTION)
+    voice_conversation: bool = Field(default=False, description=_VOICE_CONVERSATION_DESCRIPTION)
 
 
 class SocketConfig(BaseSchema):
@@ -117,6 +127,7 @@ class PageConfig(BaseSchema):
     )
     accent: str = Field(default="#4f46e5", pattern=r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
     dictation: DictationMode = Field(default="off", description=_DICTATION_DESCRIPTION)
+    voice_conversation: bool = Field(default=False, description=_VOICE_CONVERSATION_DESCRIPTION)
     allow_new_conversation: bool = Field(
         default=True,
         description=(
@@ -404,6 +415,18 @@ class PublicEmbedConfig(BaseSchema):
             "from MediaRecorder where the deployment accepts compressed audio"
         ),
     )
+    voice_conversation: bool = Field(
+        default=False,
+        description=(
+            "Whether the visitor is offered a voice call. Sent true only while a call would "
+            "start - the organization's voice switch on and the agent's voice resolving - "
+            "and false otherwise, with nothing about why."
+        ),
+    )
+    voice_transport: Transport | None = Field(
+        default=None,
+        description="How a call carries audio, `webrtc` or `relay`; null while no call is offered",
+    )
 
     @field_validator("agent_name")
     @classmethod
@@ -442,6 +465,18 @@ class PublicPageConfig(BaseSchema):
     )
     dictation_max_seconds: int = 300
     dictation_format: RecordingFormat = "wav"
+    voice_conversation: bool = Field(
+        default=False,
+        description=(
+            "Whether the visitor is offered a voice call. Sent true only while a call would "
+            "start - the organization's voice switch on and the agent's voice resolving - "
+            "and false otherwise, with nothing about why."
+        ),
+    )
+    voice_transport: Transport | None = Field(
+        default=None,
+        description="How a call carries audio, `webrtc` or `relay`; null while no call is offered",
+    )
     allow_new_conversation: bool = True
     allow_files: bool = False
 

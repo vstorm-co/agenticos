@@ -34,6 +34,15 @@ class StartFrame(BaseSchema):
     resume_of: UUID | None = Field(
         default=None, description="The call this connection continues after a drop, within 10 s"
     )
+    context: dict[str, str | int | float | bool | None] | None = Field(
+        default=None,
+        max_length=64,
+        description=(
+            "On an embed's call, what the page says about the visitor - the `context` a text "
+            "message frame carries. Only variables the embed declares are read, as unverified "
+            "data; ignored on a console call"
+        ),
+    )
 
 
 class ApprovalFrame(BaseSchema):

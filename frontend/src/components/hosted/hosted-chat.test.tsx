@@ -121,6 +121,8 @@ function config(overrides: Partial<HostedPageConfig> = {}): HostedPageConfig {
     dictation: "off",
     dictation_max_seconds: 300,
     dictation_format: "webm",
+    voice_conversation: false,
+    voice_transport: null,
     allow_new_conversation: true,
     allow_files: false,
     ...overrides,
