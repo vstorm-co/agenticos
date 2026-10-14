@@ -1,5 +1,5 @@
 ---
-source_sha: "e9d1be9e102c"
+source_sha: "2f65cc805dab"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -252,6 +252,13 @@ geprüft, er wird vor dem Modellaufruf gegen sein eigenes Budget und das der
 Organisation geprüft, und sein Run erscheint in Activity unter der Oberfläche
 `eval`. Seine Anweisungen lassen sich wie die jedes Agents bearbeiten, und ein
 Dataset kann ein anderes Modell für ihn festlegen.
+
+Der Judge läuft nur, wo die [KI-Unterstützung](governance.md#ai-assistance)
+eingeschaltet ist, und sie ist aus, bis ein Administrator sie für die
+Organisation einschaltet. Bis dahin werden die Kriterien des Judge und der
+Referenzantwort als übersprungen festgehalten, nur die regelbasierten Scorer
+bewerten, und der Tab Scoring sagt das, mit einem Link zum Schalter für den,
+der ihn ändern darf.
 
 Jedes Kriterium wird von 1 bis zum oberen Ende der Skala bewertet und besteht ab
 der Bestehensgrenze. Kann der Judge nicht bewerten, werden seine Kriterien als

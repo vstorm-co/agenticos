@@ -229,6 +229,12 @@ against its own budget and the organization's before the model is called, and
 its run appears in Activity under the `eval` surface. Its instructions can be
 edited like any agent's, and a dataset can name another model for it.
 
+The judge runs only where [AI assistance](governance.md#ai-assistance) is on,
+and it is off until an admin turns it on for the organization. Until then the
+judge's and the reference answer's criteria are recorded as skipped, only the
+rule-based scorers score, and the Scoring tab says so with a link to the switch
+for whoever may change it.
+
 Each criterion is graded from 1 to the top of the scale and passes at the pass
 mark or above. When the judge cannot grade, its criteria are recorded as
 skipped or as errors, with a reason that names the cause: AI assistance is

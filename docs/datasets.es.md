@@ -1,5 +1,5 @@
 ---
-source_sha: "e9d1be9e102c"
+source_sha: "2f65cc805dab"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -242,6 +242,13 @@ comprueba contra su propio budget y el de la organización antes de llamar al
 modelo, y su run aparece en Activity bajo la superficie `eval`. Sus
 instrucciones se pueden editar como las de cualquier agent, y un dataset puede
 indicar otro modelo para él.
+
+El juez solo se ejecuta donde la [asistencia de IA](governance.md#ai-assistance)
+está activada, y está desactivada hasta que un administrador la activa para la
+organización. Hasta entonces, los criterios del juez y de la respuesta de
+referencia se registran como omitidos, solo puntúan los evaluadores basados en
+reglas, y la pestaña Scoring lo indica con un enlace al interruptor para quien
+pueda cambiarlo.
 
 Cada criterio se califica de 1 al máximo de la escala y aprueba en la nota de
 aprobado o por encima. Cuando el juez no puede calificar, sus criterios se

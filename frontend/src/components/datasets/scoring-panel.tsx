@@ -23,6 +23,7 @@ import { getErrorMessage } from "@/lib/api-error";
 import { scoringProblem } from "@/lib/scoring";
 import type { CaseCheck } from "@/types/datasets";
 import type { DatasetScoring, ReviewSelect } from "@/types/scoring";
+import { AiAssistanceNotice } from "./ai-assistance-notice";
 import { RubricEditor } from "./rubric-editor";
 
 const OWN_MODEL = "own";
@@ -177,6 +178,8 @@ export function ScoringPanel({ datasetId, scoring, canEdit }: ScoringPanelProps)
           onChange={(next) => set("trajectory", { ...draft.trajectory, ...next })}
           disabled={disabled}
         />
+
+        <AiAssistanceNotice />
 
         <ScorerRow
           label={t("scorer.judge")}

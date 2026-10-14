@@ -1,5 +1,5 @@
 ---
-source_sha: "e9d1be9e102c"
+source_sha: "2f65cc805dab"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -238,6 +238,12 @@ wywołaniem modelu sprawdzany jest jego własny budżet i budżet organizacji, a
 jego run pojawia się w Activity pod powierzchnią `eval`. Jego instrukcje można
 edytować jak instrukcje każdego agenta, a dataset może wskazać dla niego inny
 model.
+
+Sędzia działa tylko tam, gdzie włączone jest [wsparcie AI](governance.md#ai-assistance),
+a jest ono wyłączone, dopóki administrator nie włączy go dla organizacji. Do
+tego czasu kryteria sędziego i odpowiedzi wzorcowej są zapisywane jako
+pominięte, oceniają tylko oceniacze oparte na regułach, a karta Scoring mówi o
+tym i podaje link do przełącznika temu, kto może go zmienić.
 
 Każde kryterium jest oceniane od 1 do górnej granicy skali i zalicza na progu
 zaliczenia lub wyżej. Gdy sędzia nie może ocenić, jego kryteria są zapisywane

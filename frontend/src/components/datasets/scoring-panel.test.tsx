@@ -13,6 +13,10 @@ vi.mock("@/hooks/use-scoring", () => ({
 vi.mock("@/hooks/use-model-providers", () => ({
   useModelProviders: () => ({ profiles: [{ id: "p1", label: "Claude (prod)" }] }),
 }));
+vi.mock("@/hooks/use-organizations", () => ({
+  useOrganizations: () => ({ activeOrg: { id: "o1", ai_assistance_enabled: true } }),
+}));
+vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can: () => true }) }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 import { toast } from "sonner";
 
