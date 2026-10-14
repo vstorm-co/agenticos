@@ -6484,6 +6484,10 @@
       "preview_width": {
         "title": "Szerokość widoku (piksele)",
         "description": "Szerokość widoku przeglądarki w pikselach, a więc i klatek podglądu. Decyduje, co agent widzi bez przewijania."
+      },
+      "step_model_profile_id": {
+        "title": "Model dla każdego kroku przeglądania",
+        "description": "Profil modelu, o który `browse_web` pyta przy każdym kroku zamiast modelu agenta. Kroki to większość czasu i kosztu przeglądania, więc tańszy model obniża koszt długiego przeglądania, a przyspiesza je tam, gdzie jego dostawca szybko odpowiada - warto to zmierzyć, bo mały model przez wolną bramkę nie jest szybszy. Puste używa modelu agenta. Własne narzędzia przeglądarki agenta zawsze używają jego modelu."
       }
     },
     "channel_tools": {

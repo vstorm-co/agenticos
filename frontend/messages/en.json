@@ -6700,6 +6700,10 @@
       "preview_width": {
         "title": "Viewport width (pixels)",
         "description": "The browser's viewport width in pixels, which is also how wide the frames are. It decides what the agent can see without scrolling."
+      },
+      "step_model_profile_id": {
+        "title": "Model for each browse step",
+        "description": "A model profile `browse_web` asks for each step instead of the agent's own. Steps are most of a browse's time and cost, so a cheaper model here makes a long browse cheaper, and quicker where its provider answers quickly - measure it, since a small model through a slow gateway is no faster. Empty uses the agent's model. The agent's own browser tools always use it."
       }
     },
     "channel_tools": {

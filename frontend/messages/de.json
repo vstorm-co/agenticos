@@ -6583,6 +6583,10 @@
       "preview_width": {
         "title": "Breite der Ansicht (Pixel)",
         "description": "Die Breite der Browser-Ansicht in Pixeln und damit der Vorschaubilder. Sie entscheidet, was der Agent ohne Scrollen sieht."
+      },
+      "step_model_profile_id": {
+        "title": "Modell für jeden Browse-Schritt",
+        "description": "Ein Modellprofil, das `browse_web` für jeden Schritt statt des eigenen Modells des Agents fragt. Schritte sind der Großteil der Zeit und Kosten eines Browse, also macht ein günstigeres Modell einen langen Browse günstiger und schneller, wo sein Anbieter schnell antwortet - messen Sie es, denn ein kleines Modell über ein langsames Gateway ist nicht schneller. Leer nutzt das Modell des Agents. Die eigenen Browser-Werkzeuge des Agents nutzen immer dessen Modell."
       }
     },
     "channel_tools": {
