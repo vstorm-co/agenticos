@@ -16,6 +16,7 @@ parse what a browser answered and address it.
 from __future__ import annotations
 
 import asyncio
+import json
 import re
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -529,6 +530,28 @@ class TestPinningTheBrowserToItsAddress:
 
 class TestOneStep:
     """What the browsing model is shown, and how each answer is recorded."""
+
+    def test_the_step_schema_is_one_every_provider_accepts(self) -> None:
+        """Anthropic's structured output refuses `oneOf`, which a discriminated union
+        produces - every browse on Claude failed on its first step with a 400."""
+        assert "oneOf" not in json.dumps(Step.model_json_schema())
+
+    @pytest.mark.parametrize(
+        ("answer", "expected"),
+        [
+            ({"action": "type", "index": 3, "text": "hi"}, TypeText),
+            ({"action": "click", "index": 3}, Click),
+            ({"action": "done", "answer": "found it"}, Done),
+        ],
+    )
+    def test_each_action_still_validates_as_its_own_kind(
+        self, answer: dict[str, Any], expected: type
+    ) -> None:
+        step = Step.model_validate(
+            {"evaluation": "Start", "memory": "", "next_goal": "go", "action": answer}
+        )
+
+        assert isinstance(step.action, expected)
 
     def _step(self, action: Any) -> Step:
         return Step(evaluation="Start", memory="", next_goal="go", action=action)

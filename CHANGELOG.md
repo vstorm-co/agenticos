@@ -533,6 +533,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **The web browser works on Claude again.** Each browse step asked the model
+  for a decision whose schema was a `oneOf`, which Anthropic's structured output
+  refuses outright, so every browse on a Claude model failed on its first step
+  with "The browser could not be reached". The step's actions are now a plain
+  union. Each step also records how long reading the page, the model's decision,
+  the action and the settle took, in the run's trace.
+
 - **An agent's face keeps its colour in the conversation list** and a
   message's header, as it does in the picker and on its own page.
 - **Choosing whose account no longer switches an MCP server on.** In the

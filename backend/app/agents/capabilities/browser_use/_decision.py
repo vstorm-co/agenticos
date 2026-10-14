@@ -19,7 +19,7 @@ Nothing here reaches a browser; `_page.py` does that and hands a
 
 from __future__ import annotations
 
-from typing import Annotated, Literal
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -106,10 +106,12 @@ class AskPerson(BaseModel):
     )
 
 
-Action = Annotated[
-    Click | TypeText | Select | Scroll | Navigate | GoBack | Wait | Done | Blocked | AskPerson,
-    Field(discriminator="action"),
-]
+# A plain union, not a `discriminator`: a discriminated union's schema is a
+# `oneOf`, which Anthropic's structured output refuses outright ("Schema type
+# 'oneOf' is not supported") - every browse on Claude failed on its first step.
+# A union is an `anyOf`, which every provider takes, and each action's
+# `Literal` tag still makes exactly one variant validate.
+Action = Click | TypeText | Select | Scroll | Navigate | GoBack | Wait | Done | Blocked | AskPerson
 
 
 class Step(BaseModel):

@@ -27,6 +27,7 @@ something useful to say.
 
 from __future__ import annotations
 
+import time
 from collections.abc import Awaitable, Callable
 from contextlib import AbstractAsyncContextManager, nullcontext
 from dataclasses import dataclass
@@ -34,6 +35,7 @@ from hashlib import sha256
 from typing import Protocol
 
 import anyio
+import logfire
 
 from app.agents.browser_events import (
     BrowseOutcome,
@@ -305,12 +307,15 @@ async def run_browse(
                     held = True
             # A resized page has laid itself out again, so the first step's snapshot
             # - taken before the loop - would offer elements where they no longer are.
+            clock = _StepClock()
             if taken > 1 or held or resized:
                 snapshot = await page.snapshot()
+            clock.mark("snapshot")
 
             image: str | None = None
             if previews_land or policy.vision:
                 image = await page.screenshot()
+            clock.mark("screenshot")
             if previews_land and image is not None:
                 previews_land = await emit(
                     BrowserEvent(
@@ -326,6 +331,7 @@ async def run_browse(
             step = await decide(
                 task, snapshot, session.history, session.memory, image if policy.vision else None
             )
+            clock.mark("decide")
             session.memory = step.memory
             action = step.action
             element = _element_at(
@@ -360,6 +366,7 @@ async def run_browse(
                     )
 
             if isinstance(action, Done):
+                clock.log(step_no, _OPERATION[type(action)])
                 return await _finish(
                     emit,
                     session,
@@ -442,8 +449,11 @@ async def run_browse(
                 # model reads, not the end of the browse. The repeat guard is what
                 # stops a page that does this for ever.
                 result = f"refused: {refused}"
+            clock.mark("act")
             session.history += (f"step {step_no}: {step.next_goal} - {result}",)
             await page.settle()
+            clock.mark("settle")
+            clock.log(step_no, _OPERATION[type(action)])
 
         reason = (
             f"Stopped after {policy.max_steps} steps without finishing. Call again without "
@@ -508,6 +518,41 @@ def _signature(snapshot: Snapshot, step: Step) -> str:
     offered = "␟".join(f"{element.role}:{element.label}" for element in snapshot.elements)
     state = f"{snapshot.url}|{snapshot.scroll_y}|{offered}"
     return f"{sha256(state.encode()).hexdigest()}|{step.action.model_dump_json()}"
+
+
+class _StepClock:
+    """How long each part of one step took, logged once the step is done.
+
+    A browse that feels slow is slow somewhere specific - reading the page, the
+    model deciding, the action, or waiting for the page to settle - and which one
+    decides what to fix. One trace entry per step, in milliseconds, so a run's
+    trace reads as a profile of the browse.
+    """
+
+    def __init__(self) -> None:
+        self._last = time.perf_counter()
+        self._parts: dict[str, int] = {}
+
+    def mark(self, part: str) -> None:
+        now = time.perf_counter()
+        self._parts[part] = round((now - self._last) * 1000)
+        self._last = now
+
+    def log(self, step: int, operation: str) -> None:
+        # Into the trace beside the run's own spans, where the rest of a run's
+        # timing is read - the application's stdlib loggers stop at WARNING.
+        parts = self._parts
+        logfire.info(
+            "browse step {step} ({operation}): snapshot {snapshot_ms}ms, screenshot "
+            "{screenshot_ms}ms, decide {decide_ms}ms, act {act_ms}ms, settle {settle_ms}ms",
+            step=step,
+            operation=operation,
+            snapshot_ms=parts.get("snapshot"),
+            screenshot_ms=parts.get("screenshot"),
+            decide_ms=parts.get("decide"),
+            act_ms=parts.get("act"),
+            settle_ms=parts.get("settle"),
+        )
 
 
 def _element_at(snapshot: Snapshot, index: int | None) -> Element | None:
