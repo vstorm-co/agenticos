@@ -317,6 +317,7 @@ class ScoringService:
         return graded(
             criteria,
             result.output,
+            answer=answer.text,
             scale_max=scoring.judge.scale_max,
             pass_at=scoring.judge.pass_at,
             run_id=result.run.id,

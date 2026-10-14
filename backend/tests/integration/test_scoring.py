@@ -84,6 +84,7 @@ class Judge:
         self.calls = 0
         self.grades = grades or {}
         self.reason = reason
+        self.quotes: list[str] = []
 
     def model(self) -> FunctionModel:
         async def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
@@ -91,7 +92,12 @@ class Judge:
             prompt = str(messages[-1].parts[-1].content)  # type: ignore[union-attr]
             ids = re.findall(r"^- (\w+) \(", prompt, flags=re.MULTILINE)
             grades = [
-                {"id": item, "score": self.grades.get(item, 5), "reason": self.reason}
+                {
+                    "id": item,
+                    "score": self.grades.get(item, 5),
+                    "reason": self.reason,
+                    "quotes": self.quotes,
+                }
                 for item in ids
             ]
             return ModelResponse(parts=[TextPart(json.dumps({"grades": grades}))])
@@ -451,6 +457,23 @@ class TestScoringARun:
         [reference] = [r for r in score.results if r.scorer == "reference"]
         assert reference.status == "fail"
         assert score.passed is False
+
+    async def test_a_quote_the_answer_does_not_hold_is_flagged_on_a_kept_score(
+        self, db, judge
+    ) -> None:
+        tenant = await _tenant(db)
+        await _model(db, tenant)
+        dataset, case = await _dataset(db, tenant, scoring=_rubric())
+        run = await _scored_run(db, tenant)
+        judge.quotes = ['"days": 30', "ninety days"]
+
+        score = await ScoringService(db).score_run(
+            tenant.ctx, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
+        )
+
+        reasons = {r.reason for r in score.results if r.scorer == "judge"}
+        assert reasons == {'5/5: Looks right [not in the answer, unverified: "ninety days"]'}
+        assert score.passed is True
 
     @pytest.mark.security
     async def test_a_secret_the_judge_quotes_is_not_kept(self, db, judge) -> None:

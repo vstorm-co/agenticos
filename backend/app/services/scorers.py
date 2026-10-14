@@ -13,12 +13,12 @@ import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Any
+from typing import Annotated, Any
 from uuid import UUID
 
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import best_match
-from pydantic import BaseModel, JsonValue
+from pydantic import BaseModel, Field, JsonValue
 from pydantic import ValidationError as PydanticValidationError
 
 from app.schemas.scoring import (
@@ -31,6 +31,11 @@ from app.schemas.scoring import (
     ScorerResult,
     TextCheck,
 )
+
+MAX_QUOTES = 12
+MAX_QUOTE = 600
+MAX_REASON = 2000
+_QUOTE_SHOWN = 80
 
 # A pattern is bounded where it is written; bounding the text it reads keeps one
 # match's cost bounded whatever the agent said.
@@ -363,9 +368,19 @@ class JudgeCriterion:
 
 
 class JudgeGrade(BaseModel):
+    """One criterion's grade.
+
+    `quotes` are the passages of the answer the grade rests on, word for word.
+    Each is looked for in the answer; one that is not there is named in the
+    result's reason, and the grade stands.
+    """
+
     id: str
     score: int
     reason: str
+    quotes: list[Annotated[str, Field(min_length=1, max_length=MAX_QUOTE)]] = Field(
+        default_factory=list, max_length=MAX_QUOTES
+    )
 
 
 class JudgeVerdict(BaseModel):
@@ -435,21 +450,42 @@ def judge_prompt(
     listed = "\n".join(f"- {c.id} ({c.name}): {c.description}" for c in criteria)
     parts.append(
         f"Grade the answer on each criterion below, from 1 (does not meet it at all) to "
-        f"{scale_max} (fully meets it). Give exactly one grade per criterion id.\n{listed}"
+        f"{scale_max} (fully meets it). Give exactly one grade per criterion id. Where a "
+        f"grade rests on something the answer says, copy that passage word for word into "
+        f"the grade's quotes.\n{listed}"
     )
     return "\n\n".join(parts)
+
+
+def _unverified(quotes: Sequence[str], answer: str) -> str:
+    missing = [quote for quote in quotes if quote not in answer]
+    if not missing:
+        return ""
+    shown = ", ".join(
+        json.dumps(
+            quote if len(quote) <= _QUOTE_SHOWN else f"{quote[:_QUOTE_SHOWN]}…",
+            ensure_ascii=False,
+        )
+        for quote in missing
+    )
+    return f" [not in the answer, unverified: {shown}]"
 
 
 def graded(
     criteria: Sequence[JudgeCriterion],
     verdict: JudgeVerdict,
     *,
+    answer: str,
     scale_max: int,
     pass_at: int,
     run_id: UUID,
 ) -> list[ScorerResult]:
-    """The judge's grades as results; a criterion it skipped or misgraded is an error."""
+    """The judge's grades as results; a criterion it skipped or misgraded is an error.
+
+    A quote is checked against the part of `answer` the judge was shown.
+    """
     grades = {grade.id: grade for grade in verdict.grades}
+    shown = answer[:MAX_MATCH_TEXT]
     results = []
     for criterion in criteria:
         grade = grades.get(criterion.id)
@@ -466,6 +502,7 @@ def graded(
                 )
             )
             continue
+        flag = _unverified(grade.quotes, shown)
         results.append(
             ScorerResult(
                 scorer=criterion.scorer,
@@ -473,7 +510,8 @@ def graded(
                 required=criterion.required,
                 status="pass" if grade.score >= pass_at else "fail",
                 score=grade.score / scale_max,
-                reason=f"{grade.score}/{scale_max}: {grade.reason}"[:2000],
+                reason=f"{grade.score}/{scale_max}: {grade.reason}"[: MAX_REASON - len(flag)]
+                + flag,
                 judge_run_id=run_id,
             )
         )
