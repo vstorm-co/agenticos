@@ -4,16 +4,17 @@
 
 <h1>AgenticOS</h1>
 
-<h3>Sovereign Agentic AI Layer</h3>
+<h3>Open-source AI teammates for your company</h3>
 
 <p>
-  <b>AI agents your whole team can use and improve.</b><br>
-  Self-hosted on infrastructure you control, with budgets, approvals and a recorded run.<br>
+  <b>The self-hosted agent layer: build, run and govern AI agents on your own infrastructure.</b><br>
+  Chat, apps, a real browser, MCP and an API in one place, with budgets, approvals and a recorded run.<br>
   <sub>Apache-2.0 &middot; built on Pydantic AI</sub>
 </p>
 
 <p>
   <a href="#-see-it-in-action">See it</a> &middot;
+  <a href="#-highlights">Highlights</a> &middot;
   <a href="#-what-is-agenticos">What is it?</a> &middot;
   <a href="#-quick-start">Quick start</a> &middot;
   <a href="#-connect-the-apps-your-team-already-uses">Integrations</a> &middot;
@@ -41,11 +42,30 @@
 
 </div>
 
-<a href="docs/assets/screens/light/chat-hero.webp"><img src="docs/assets/screens/light/chat-hero.webp" alt="AgenticOS chat: the Finance Analyst asks how to chart an attached revenue CSV, gets the answers, runs Python and draws the chart, beside a list of threads with one to four agents each" width="100%"></a>
+<img src="docs/assets/readme/teammates-in-action.webp" alt="AgenticOS at work, in three scenes: a Chief of Staff agent hands a board-call brief to Support Desk and Sales Researcher and writes up their answers; a Sales Researcher drives a real browser beside the chat to read a GitHub release; a revenue dashboard an agent published as an app opens from the chat." width="100%">
 
-AgenticOS is a sovereign, self-hosted layer for your company's AI agents: they work with files, run code and use your company's tools and knowledge. Build and publish agents in the browser, share them with colleagues, and manage their access, cost and results in one place.
+<p align="center"><sub><b>Recorded live, sped up where the agents work.</b> A lead agent asks two colleagues and writes up their answers · an agent drives a real browser beside the chat · a dashboard an agent published opens as an app.</sub></p>
+
+AgenticOS gives every team AI teammates: agents that work with files, run code, browse the web and use your company's tools and knowledge. It is open source (Apache-2.0) and self-hosted, a layer you run on your own infrastructure. Build and publish agents in the browser, share them with colleagues, and manage their access, cost and results in one place.
 
 **New here?** Click through the [14-slide introduction](https://vstorm-co.github.io/agenticos/presentation/): the problem, the idea, the product on real screens, its controls and limits, and how to start. For every screen in detail, open the [44-slide product tour](https://vstorm-co.github.io/agenticos/presentation/tour/). Arrow keys step through either deck; `O` lists every slide.
+
+## ⚡ Highlights
+
+<table>
+<tr>
+<td width="50%"><a href="docs/assets/readme/highlight-subagents.webp"><img src="docs/assets/readme/highlight-subagents.webp" alt="A Chief of Staff agent's brief for a board call, written from what Support Desk and Sales Researcher answered, with the two agents named under it"></a><br><b>Agents that work as a team.</b> A lead agent hands parts of a task to colleagues and writes up what they found - you see who it asked, and what each said.</td>
+<td width="50%"><a href="docs/assets/readme/highlight-browser.webp"><img src="docs/assets/readme/highlight-browser.webp" alt="A Sales Researcher reading the Pydantic AI releases page in a live browser beside the chat, with a Take over button"></a><br><b>A real browser, beside the chat.</b> Watch it click through sites, take over when a sign-in needs you, point at a spot to comment.</td>
+</tr>
+<tr>
+<td><a href="docs/assets/screens/light/app-detail.webp"><img src="docs/assets/screens/light/app-detail.webp" alt="A revenue dashboard an agent built from a CSV and published as an app"></a><br><b>Apps, not just answers.</b> An agent publishes a dashboard or a report as a page with a stable link and versions.</td>
+<td><a href="docs/assets/readme/highlight-builder-test.webp"><img src="docs/assets/readme/highlight-builder-test.webp" alt="The Finance Analyst in the agent builder, its instructions on the left and a test chat answering on the right"></a><br><b>Build and test in one window.</b> Write the instructions, switch on tools, and try the draft in a chat beside the form before anyone else sees it.</td>
+</tr>
+<tr>
+<td><a href="docs/assets/screens/light/mcp-servers.webp"><img src="docs/assets/screens/light/mcp-servers.webp" alt="The MCP server gallery with connected servers and their sign-in method"></a><br><b>4,700+ MCP servers.</b> Connect Notion, GitHub, Jira or your own server, and choose which tools each agent may call. AgenticOS is an MCP server too - for Claude Code, Codex or Cursor.</td>
+<td><a href="docs/assets/readme/highlight-api.webp"><img src="docs/assets/readme/highlight-api.webp" alt="API settings with the base URL, a link to every endpoint and two keys narrowed to what they may do"></a><br><b>An API for everything.</b> Run agents, read runs and costs, fill knowledge bases - with keys narrowed to what each script may do.</td>
+</tr>
+</table>
 
 ## 📸 See it in action
 
@@ -296,6 +316,18 @@ Plus any tool from a connected MCP server, and capabilities your engineers add i
 - **Self-hosted:** Ollama and LiteLLM, plus vLLM and LM Studio through an OpenAI-compatible endpoint.
 
 </details>
+
+## 🆚 How it compares
+
+| | Where it runs | Source | Models |
+|---|---|---|---|
+| **AgenticOS** | **Your infrastructure** | **Apache-2.0** | **27 providers, including local ones** |
+| OpenAI dots | OpenAI's cloud | Proprietary | OpenAI only |
+| Grok Bot | xAI's cloud | Proprietary | Grok only |
+| Viktor | Viktor's cloud | Proprietary | OpenAI, Anthropic, Google, Kimi |
+| n8n | Self-hosted or n8n Cloud | Sustainable Use License | Many, including Ollama |
+
+AI teammates are arriving in every vendor's cloud. AgenticOS is the one you run yourself, on any model, with the source open. [Every comparison, in detail](https://vstorm-co.github.io/agenticos/about/comparison/).
 
 ## 🎯 Is AgenticOS the right fit?
 

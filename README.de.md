@@ -1,4 +1,4 @@
-<!-- source_sha: c69514cfbe34 -->
+<!-- source_sha: b2a0655fe91b -->
 
 <div align="center">
 
@@ -6,16 +6,17 @@
 
 <h1>AgenticOS</h1>
 
-<h3>Sovereign Agentic AI Layer</h3>
+<h3>Open-Source-KI-Teammates für dein Unternehmen</h3>
 
 <p>
-  <b>KI-Agenten, die dein ganzes Team nutzen und verbessern kann.</b><br>
-  Selbst gehostet auf Infrastruktur, die du kontrollierst, mit Budgets, Freigaben und einem aufgezeichneten Run.<br>
+  <b>Die selbst gehostete Agent-Schicht: KI-Agenten auf deiner eigenen Infrastruktur bauen, betreiben und steuern.</b><br>
+  Chat, Apps, ein echter Browser, MCP und eine API an einem Ort, mit Budgets, Freigaben und einem aufgezeichneten Run.<br>
   <sub>Apache-2.0 &middot; gebaut auf Pydantic AI</sub>
 </p>
 
 <p>
   <a href="#-agenticos-in-aktion">Ansehen</a> &middot;
+  <a href="#-highlights">Highlights</a> &middot;
   <a href="#-was-ist-agenticos">Was ist das?</a> &middot;
   <a href="#-schnellstart">Schnellstart</a> &middot;
   <a href="#-verbinde-die-apps-die-dein-team-bereits-nutzt">Integrationen</a> &middot;
@@ -43,11 +44,30 @@
 
 </div>
 
-<a href="docs/assets/screens/light/chat-hero.webp"><img src="docs/assets/screens/light/chat-hero.webp" alt="Chat in AgenticOS: Der Finance Analyst fragt, wie eine angehängte Umsatz-CSV dargestellt werden soll, erhält die Antworten, führt Python aus und zeichnet das Diagramm, daneben Unterhaltungen mit einem bis vier Agents" width="100%"></a>
+<img src="docs/assets/readme/teammates-in-action.webp" alt="AgenticOS bei der Arbeit, in drei Szenen: ein Chief-of-Staff-Agent gibt Fragen vor einer Vorstandssitzung an Support Desk und Sales Researcher weiter und fasst ihre Antworten zusammen; ein Sales Researcher steuert neben dem Chat einen echten Browser und liest ein Release auf GitHub; ein Umsatz-Dashboard, das ein Agent als App veröffentlicht hat, öffnet sich aus dem Chat." width="100%">
 
-AgenticOS ist eine souveräne, selbst gehostete Schicht für die KI-Agenten deines Unternehmens: Sie arbeiten mit Dateien, führen Code aus und nutzen die Werkzeuge und das Wissen deines Unternehmens. Erstelle und veröffentliche Agenten im Browser, teile sie mit Kollegen und verwalte Zugriff, Kosten und Ergebnisse an einem Ort.
+<p align="center"><sub><b>Live aufgenommen, beschleunigt, wo die Agents arbeiten.</b> Ein führender Agent fragt zwei Kollegen und fasst ihre Antworten zusammen · ein Agent steuert neben dem Chat einen echten Browser · ein von einem Agent veröffentlichtes Dashboard öffnet sich als App.</sub></p>
+
+AgenticOS gibt jedem Team KI-Teammates: Agents, die mit Dateien arbeiten, Code ausführen, im Web surfen und die Werkzeuge und das Wissen deines Unternehmens nutzen. Es ist Open Source (Apache-2.0) und selbst gehostet, eine Schicht, die du auf deiner eigenen Infrastruktur betreibst. Baue und veröffentliche Agents im Browser, teile sie mit Kollegen und steuere ihren Zugriff, ihre Kosten und Ergebnisse an einem Ort.
 
 **Neu hier?** Klicke dich durch die [Einführung in 14 Folien](https://vstorm-co.github.io/agenticos/presentation/) (auf Englisch): das Problem, die Idee, das Produkt auf echten Bildschirmen, seine Kontrollen und Grenzen und der Einstieg. Jeden Bildschirm im Detail zeigt die [Produkttour in 44 Folien](https://vstorm-co.github.io/agenticos/presentation/tour/). Die Pfeiltasten blättern in beiden, `O` zeigt alle Folien.
+
+## ⚡ Highlights
+
+<table>
+<tr>
+<td width="50%"><a href="docs/assets/readme/highlight-subagents.webp"><img src="docs/assets/readme/highlight-subagents.webp" alt="Das Briefing eines Chief-of-Staff-Agents für eine Vorstandssitzung, aus den Antworten von Support Desk und Sales Researcher, mit beiden Agents darunter genannt"></a><br><b>Agents, die als Team arbeiten.</b> Ein führender Agent gibt Teile einer Aufgabe an Kollegen weiter und fasst zusammen, was sie gefunden haben - du siehst, wen er gefragt hat und was jeder gesagt hat.</td>
+<td width="50%"><a href="docs/assets/readme/highlight-browser.webp"><img src="docs/assets/readme/highlight-browser.webp" alt="Ein Sales Researcher liest die Release-Seite von Pydantic AI in einem Live-Browser neben dem Chat, mit einem Take-over-Knopf"></a><br><b>Ein echter Browser, neben dem Chat.</b> Sieh zu, wie er sich durch Seiten klickt, übernimm, wenn eine Anmeldung dich braucht, zeig auf eine Stelle, um sie zu kommentieren.</td>
+</tr>
+<tr>
+<td><a href="docs/assets/screens/light/app-detail.webp"><img src="docs/assets/screens/light/app-detail.webp" alt="Ein Umsatz-Dashboard, das ein Agent aus einer CSV gebaut und als App veröffentlicht hat"></a><br><b>Apps, nicht nur Antworten.</b> Ein Agent veröffentlicht ein Dashboard oder einen Bericht als Seite mit festem Link und Versionen.</td>
+<td><a href="docs/assets/readme/highlight-builder-test.webp"><img src="docs/assets/readme/highlight-builder-test.webp" alt="Der Finance Analyst im Agent-Builder, links die Anweisungen, rechts antwortet ein Test-Chat"></a><br><b>Bauen und testen in einem Fenster.</b> Schreib die Anweisungen, schalte Werkzeuge ein und probiere den Entwurf in einem Chat neben dem Formular aus, bevor ihn jemand anderes sieht.</td>
+</tr>
+<tr>
+<td><a href="docs/assets/screens/light/mcp-servers.webp"><img src="docs/assets/screens/light/mcp-servers.webp" alt="Die MCP-Server-Galerie mit verbundenen Servern und ihrer Anmeldeart"></a><br><b>Über 4.700 MCP-Server.</b> Verbinde Notion, GitHub, Jira oder deinen eigenen Server und wähle, welche Werkzeuge jeder Agent nutzen darf. AgenticOS ist selbst auch ein MCP-Server - für Claude Code, Codex oder Cursor.</td>
+<td><a href="docs/assets/readme/highlight-api.webp"><img src="docs/assets/readme/highlight-api.webp" alt="API-Einstellungen mit der Basis-URL, einem Link zu jedem Endpoint und zwei Schlüsseln, beschränkt auf das, was sie dürfen"></a><br><b>Eine API für alles.</b> Agents starten, Runs und Kosten lesen, Wissensdatenbanken befüllen - mit Schlüsseln, die auf das beschränkt sind, was jedes Skript darf.</td>
+</tr>
+</table>
 
 ## 📸 AgenticOS in Aktion
 
@@ -298,6 +318,18 @@ Dazu jedes Werkzeug eines verbundenen MCP-Servers und Capabilities, die deine En
 - **Selbst gehostet:** Ollama und LiteLLM, dazu vLLM und LM Studio über einen OpenAI-kompatiblen Endpunkt.
 
 </details>
+
+## 🆚 Im Vergleich
+
+| | Wo es läuft | Quellcode | Modelle |
+|---|---|---|---|
+| **AgenticOS** | **Deine Infrastruktur** | **Apache-2.0** | **27 Anbieter, auch lokale** |
+| OpenAI dots | OpenAIs Cloud | Proprietär | Nur OpenAI |
+| Grok Bot | xAIs Cloud | Proprietär | Nur Grok |
+| Viktor | Viktors Cloud | Proprietär | OpenAI, Anthropic, Google, Kimi |
+| n8n | Selbst gehostet oder n8n Cloud | Sustainable Use License | Viele, auch Ollama |
+
+KI-Teammates kommen in die Cloud jedes Anbieters. AgenticOS ist der, den du selbst betreibst, auf jedem Modell, mit offenem Quellcode. [Alle Vergleiche im Detail](https://vstorm-co.github.io/agenticos/de/about/comparison/).
 
 ## 🎯 Passt AgenticOS zu deinem Team?
 

@@ -54,7 +54,9 @@ repos:
       # `mcp-registry-sync` is deterministic and works with no outbound access.
       - id: check-added-large-files
         args: [--maxkb=1024]
-        exclude: ^backend/app/core/catalog/mcp_registry\.json$
+        # The registry mirror, and the README's opening animation: 25 frames a
+        # second over three live scenes does not fit in a megabyte.
+        exclude: ^(backend/app/core/catalog/mcp_registry\.json|docs/assets/readme/teammates-in-action\.webp)$
       # A vault is not much use if a key reaches the repository beside it.
       - id: detect-private-key
 
