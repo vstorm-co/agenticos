@@ -581,6 +581,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **The Architect blinks, and watches you type.** Its mark blinks every few
+  seconds, and the large one over an empty conversation follows the caret
+  of the text box being typed in with its eyes; neither moves under reduced
+  motion.
+
 - **A conversation's agent faces tuck together and fan out on hover.** Three
   faces overlap more than two, so a row with several agents takes about the
   room of two, and pointing at the stack spreads them so each face is seen

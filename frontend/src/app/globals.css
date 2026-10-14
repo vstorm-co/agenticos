@@ -849,6 +849,18 @@
   animation: unread-halo 2.8s ease-out infinite;
 }
 /* The agent's click in the live browser: a ring that opens out and fades, once. */
+/* The Architect's blink: shut for a tenth of a second, about every five. */
+@keyframes architect-blink {
+  0%,
+  94%,
+  100% {
+    transform: scaleY(1);
+  }
+  97% {
+    transform: scaleY(0.12);
+  }
+}
+
 @keyframes agent-click {
   0% {
     transform: scale(0.35);
