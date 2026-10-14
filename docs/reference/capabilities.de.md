@@ -1,5 +1,5 @@
 ---
-source_sha: "5736c04d5593"
+source_sha: "962197938851"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -53,7 +53,7 @@ Agent nicht tun soll.
 | `conversation_search` | Frühere Gespräche | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — |
 | `web_research` | Websuche | research | `web_search` | `web:read` | für kostenpflichtige Dienste |
 | `web_fetch` | Webseiten lesen | research | `web_fetch` | `web:fetch` | — |
-| `browser_use` | Webbrowser | research | `browse_web` | `web:browse` | über das Extra `browser` |
+| `browser_use` | Webbrowser | research | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | über das Extra `browser` |
 | `code_execution` | Berechnungen | analysis | `run_python` | `code:execute` | — |
 | `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | für Daytona |
 | `charts` | Diagramme | analysis | `create_chart` | — | — |
@@ -662,6 +662,19 @@ Greifen Sie zu ihr, wenn eine Seite *bedient* werden muss — ein Formular, ein 
 eine Anmeldung, für die Zugangsdaten vorliegen, eine Suche, deren Ergebnisse einen
 Klick brauchen, ein Ablauf über mehrere Seiten. Für eine Seite, die nur gelesen werden
 muss, ist [Web-Abruf](#web-fetch) schneller und ohne Nebenwirkungen.
+
+**Oder der Agent steuert ihn selbst.** `browser_open`, `browser_read`, `browser_click`,
+`browser_type`, `browser_select`, `browser_scroll` und `browser_back` sind derselbe Tab
+in den Händen des Agents: eine Aktion je Aufruf, gewählt vom Modell des Runs in seinem
+eigenen Zug, und jede antwortet mit der Seite danach - Adresse, nummerierte Elemente und
+Text. Keine zweite Anfrage pro Schritt, und der Agent sagt zwischen den Aktionen im Chat,
+was er tut. Die Schritte erscheinen in einem Live-Panel neben dem Gespräch, dem, das das
+erste `browser_open` geöffnet hat, und eine Person kann den Tab zwischen zwei beliebigen
+Schritten übernehmen. Gemessen mit Claude über OpenRouter: ein Schritt von `browse_web`
+dauert 3,5-5 s, fast ganz die eigene Modellanfrage des Schritts; eine Aufgabe mit zwei
+Klicks, die der Agent selbst steuerte, dauerte 13 s, mit `browse_web` etwa 20. Die Tools
+eignen sich für kurze Aufgaben oder solche, die jemand verfolgen will, `browse_web` für
+eine lange Aufgabe, die ganz abgegeben wird.
 
 **Eine Aktion nennt eine Zeile, nie einen Selektor.** Jedes Element, auf das das Modell
 wirken kann, ist eine Zeile einer Tabelle, die auf dem Server aus dem lebenden DOM

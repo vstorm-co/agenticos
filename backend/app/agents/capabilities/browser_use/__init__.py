@@ -220,6 +220,45 @@ def validate_cdp_url(config: WebBrowserConfig) -> None:
             # operator who wants the gate sets `tool_approval` on the binding.
             side_effecting=False,
         ),
+        # The agent's own hands on the same tab: one action a call, chosen by
+        # the run's model in its own turn. Not held either, for the reason
+        # above - each is watched as it happens - and an operator gates one
+        # through `tool_approval` like any tool.
+        CapabilityToolInfo(
+            id="browser_open",
+            description="Open a page in this turn's browser tab and read it.",
+            side_effecting=False,
+        ),
+        CapabilityToolInfo(
+            id="browser_read",
+            description="Read the open page again - after waiting for it, or to see it as it is now.",
+            side_effecting=False,
+        ),
+        CapabilityToolInfo(
+            id="browser_click",
+            description="Click an element of the open page, by its number in the last page read.",
+            side_effecting=False,
+        ),
+        CapabilityToolInfo(
+            id="browser_type",
+            description="Type into a field of the open page, replacing what it held.",
+            side_effecting=False,
+        ),
+        CapabilityToolInfo(
+            id="browser_select",
+            description="Choose one of a dropdown's options on the open page.",
+            side_effecting=False,
+        ),
+        CapabilityToolInfo(
+            id="browser_scroll",
+            description="Scroll the open page by about one screen.",
+            side_effecting=False,
+        ),
+        CapabilityToolInfo(
+            id="browser_back",
+            description="Go back to the previous page in the open tab.",
+            side_effecting=False,
+        ),
     ),
     config_schema=WebBrowserConfig,
     side_effecting=True,

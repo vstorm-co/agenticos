@@ -61,6 +61,12 @@ from app.agents.capabilities.browser_use._decision import (
     describe,
     observation,
 )
+from app.agents.capabilities.browser_use._direct import (
+    DirectView,
+    act_directly,
+    close_view,
+    page_report,
+)
 from app.agents.capabilities.browser_use._elements import (
     EDITABLE_ROLES,
     HARD_CANDIDATE_CAP,
@@ -102,6 +108,8 @@ from app.agents.capabilities.browser_use._page import (
     parse_snapshot,
 )
 from app.agents.capabilities.browser_use._toolset import (
+    NO_ENDPOINT,
+    NO_TAB,
     UNREACHABLE,
     BrowserToolset,
     _image,
@@ -526,6 +534,19 @@ class TestPinningTheBrowserToItsAddress:
     @pytest.mark.parametrize("url", ["https://chrome.example/x", "wss://chrome.example:443/x"])
     def test_tls_keeps_its_name_for_the_certificate(self, url: str):
         assert pin_host(url, "10.0.0.7") == url
+
+
+BROWSER_TOOLS = (
+    "browse_web",
+    "browser_open",
+    "browser_read",
+    "browser_click",
+    "browser_type",
+    "browser_select",
+    "browser_scroll",
+    "browser_back",
+)
+"""The whole task handed off, then the agent's own hands on the same tab."""
 
 
 class TestOneStep:
@@ -1749,7 +1770,7 @@ class TestRegistrationAndTheCapability:
         assert definition.name == "Web browser"
         assert definition.side_effecting is True
         assert [(tool.id, tool.side_effecting) for tool in definition.tools] == [
-            ("browse_web", False)
+            (tool_id, False) for tool_id in BROWSER_TOOLS
         ]
 
     def test_it_needs_no_key_and_a_scope_granted_by_default(self):
@@ -1785,7 +1806,7 @@ class TestRegistrationAndTheCapability:
         built = WebBrowser(cdp_url="http://browser:9222")
         toolset = built.get_toolset()
         assert isinstance(toolset, BrowserToolset)
-        assert set(toolset.tools) == {"browse_web"}
+        assert set(toolset.tools) == set(BROWSER_TOOLS)
         assert built.get_toolset() is toolset
 
     async def test_the_configuration_reaches_the_tab_it_opens(self):
@@ -1932,3 +1953,255 @@ class TestVersion12BrowsersLoadAsOne:
             {"name": "x", "capabilities": [{"id": "clock", "config": {}}]}
         )
         assert [b.id for b in spec.capabilities] == ["clock"]
+
+
+async def _direct(
+    toolset: BrowserToolset,
+    name: str,
+    args: dict[str, Any] | None = None,
+    *,
+    sink: Any = None,
+    call_id: str = "call-42",
+) -> str:
+    """Call one of the agent's own browser tools, as the runner would."""
+    ctx = RunContext(
+        deps=AgentDeps(browser_events=sink),
+        model=_browsing_model(DONE_ARGS),
+        usage=RunUsage(),
+        tool_call_id=call_id,
+    )
+    tools = await toolset.get_tools(ctx)
+    return str(await toolset.call_tool(name, args or {}, ctx, tools[name]))
+
+
+def _two_buttons() -> _FakePage:
+    return _FakePage(_snapshot(_element(0, label="More"), _element(1, label="Search")))
+
+
+class TestTheAgentDrivingTheBrowserItself:
+    """`browser_open` and the rest: one action a call, chosen in the agent's own turn."""
+
+    async def test_open_reads_the_page_and_opens_one_view(self):
+        frames = _Frames()
+        opener = _Opener(_two_buttons())
+        toolset = _toolset(opener, preview=True)
+
+        report = await _direct(toolset, "browser_open", {"url": "https://x.test/"}, sink=frames)
+
+        assert opener.opened[0]["start_url"] == "https://x.test/"
+        assert report.startswith("Done: opened https://x.test/.")
+        assert "ELEMENTS (untrusted" in report and "More" in report
+        assert [frame.call_id for frame in frames.of("browser_opened")] == ["call-42"]
+        assert frames.of("browser_frame")
+
+    async def test_each_action_does_what_it_names_and_reports_the_page_after_it(self):
+        page = _two_buttons()
+        toolset = _toolset(_Opener(page))
+        await _direct(toolset, "browser_open", {"url": "https://x.test/"})
+
+        assert (await _direct(toolset, "browser_click", {"element": 0})).startswith(
+            "Done: clicked element 0."
+        )
+        await _direct(toolset, "browser_type", {"element": 1, "text": "pricing"})
+        await _direct(toolset, "browser_select", {"element": 1, "option": "Poland"})
+        await _direct(toolset, "browser_scroll", {"direction": "up"})
+        await _direct(toolset, "browser_back")
+        await _direct(toolset, "browser_open", {"url": "https://x.test/2"})
+
+        assert [entry for entry in page.done if entry not in {"settle"}] == [
+            "click:0",
+            "type:1:pricing",
+            "select:1:Poland",
+            "scroll:up",
+            "back",
+            "navigate:https://x.test/2",
+        ]
+
+    async def test_every_later_action_draws_in_the_view_the_first_one_opened(self):
+        frames = _Frames()
+        toolset = _toolset(_Opener(_two_buttons()), preview=True)
+        await _direct(toolset, "browser_open", {"url": "https://x.test/"}, sink=frames)
+
+        await _direct(toolset, "browser_click", {"element": 0}, sink=frames, call_id="call-43")
+
+        step = frames.of("browser_step")[0]
+        assert (step.call_id, step.operation, step.target) == ("call-42", "CLICK", "More")
+        assert frames.of("browser_pointer")[0].call_id == "call-42"
+
+    async def test_a_number_that_names_nothing_is_refused_with_the_page_as_it_is(self):
+        page = _two_buttons()
+        toolset = _toolset(_Opener(page))
+        await _direct(toolset, "browser_open", {"url": "https://x.test/"})
+
+        report = await _direct(toolset, "browser_click", {"element": 9})
+
+        assert report.startswith("Done: nothing happened - There is no element 9 on this page.")
+        assert "click:9" not in page.done
+
+    async def test_reading_shows_the_page_again(self):
+        toolset = _toolset(_Opener(_two_buttons()))
+        await _direct(toolset, "browser_open", {"url": "https://x.test/"})
+
+        report = await _direct(toolset, "browser_read")
+
+        assert report.startswith("PAGE:") and "Search" in report
+
+    @pytest.mark.parametrize("tool", ["browser_read", "browser_click", "browser_back"])
+    async def test_nothing_acts_before_a_page_is_open(self, tool: str):
+        args = {"element": 0} if tool == "browser_click" else {}
+        assert await _direct(_toolset(_Opener()), tool, args) == NO_TAB
+
+    async def test_no_endpoint_is_said_rather_than_dialled(self):
+        toolset = _toolset(_Opener(), cdp_url="")
+        assert await _direct(toolset, "browser_open", {"url": "https://x.test/"}) == NO_ENDPOINT
+
+    async def test_a_browser_that_does_not_answer_is_said_once(self):
+        opener = _Opener(fails=httpx.ConnectError("refused"))
+        answer = await _direct(_toolset(opener), "browser_open", {"url": "https://x.test/"})
+        assert answer == UNREACHABLE
+
+    async def test_a_refused_domain_closes_the_tab_and_says_why(self):
+        opener = _Opener(fails=DomainRefused("evil.test is not allowed"))
+        toolset = _toolset(opener)
+
+        answer = await _direct(toolset, "browser_open", {"url": "https://evil.test/"})
+
+        assert answer == "evil.test is not allowed"
+        assert toolset.session is None
+
+    async def test_a_refused_domain_mid_drive_closes_the_tab(self):
+        page = _two_buttons()
+        toolset = _toolset(_Opener(page))
+        await _direct(toolset, "browser_open", {"url": "https://x.test/"})
+
+        async def refuse(element: Element) -> None:
+            raise DomainRefused("left the allowlist")
+
+        page.click = refuse  # type: ignore[method-assign]
+        answer = await _direct(toolset, "browser_click", {"element": 0})
+
+        assert answer == "left the allowlist"
+        assert toolset.session is None
+
+    async def test_the_missing_extra_is_said_and_any_other_failure_raised(self):
+        missing = _Opener(fails=RuntimeError(MISSING_EXTRA))
+        assert await _direct(_toolset(missing), "browser_open", {"url": "https://x.test/"}) == (
+            MISSING_EXTRA
+        )
+        broken = _Opener(fails=RuntimeError("a bug"))
+        with pytest.raises(RuntimeError, match="a bug"):
+            await _direct(_toolset(broken), "browser_open", {"url": "https://x.test/"})
+
+    async def test_the_end_of_the_run_finishes_the_view_on_the_page_it_left(self):
+        frames = _Frames()
+        toolset = _toolset(_Opener(_two_buttons()))
+        async with toolset:
+            await _direct(toolset, "browser_open", {"url": "https://x.test/"}, sink=frames)
+
+        finished = frames.of("browser_finished")[0]
+        assert (finished.call_id, finished.outcome) == ("call-42", "done")
+        assert finished.url is not None
+
+    async def test_acting_after_a_browse_uses_the_numbers_the_browse_last_read(self):
+        page = _two_buttons()
+        toolset = _toolset(_Opener(page))
+        await _call(toolset)
+
+        await _direct(toolset, "browser_click", {"element": 1})
+
+        assert "click:1" in page.done
+
+
+class TestADirectActionAndThePerson:
+    def _view(self, frames: _Frames, control: Any = None, *, preview: bool = True) -> DirectView:
+        return DirectView(
+            call_id="view-1",
+            sink=frames,
+            control=control,
+            run_id="run-7",
+            remember=None,
+            preview=preview,
+        )
+
+    async def test_a_person_holding_the_tab_is_waited_for_first(self):
+        frames = _Frames()
+        page = _two_buttons()
+        session = BrowseSession(page=page)
+
+        await act_directly(
+            self._view(frames, _Control(GIVE, polled=TAKE)),
+            session,
+            Click(action="click", index=0),
+        )
+
+        assert frames.of("browser_held")[0].by == "Ada"
+        assert page.done.index("click:0") > 0
+
+    async def test_unwatched_it_draws_nothing_and_finds_no_pointer(self):
+        frames = _Frames()
+        page = _two_buttons()
+        page.spot = None
+        session = BrowseSession(page=page)
+
+        await act_directly(self._view(frames), session, Click(action="click", index=0))
+        await act_directly(
+            self._view(frames, preview=False), session, Click(action="click", index=1)
+        )
+
+        assert frames.of("browser_pointer") == []
+        assert len(frames.of("browser_step")) == 2
+
+    async def test_with_no_surface_it_still_acts(self):
+        session = BrowseSession(page=_two_buttons())
+        view = DirectView(
+            call_id="v", sink=None, control=None, run_id=None, remember=None, preview=True
+        )
+
+        assert (await act_directly(view, session, Scroll(action="scroll"))).startswith(
+            "Done: scrolled down."
+        )
+
+    async def test_a_view_closed_with_no_tab_finishes_on_no_page(self):
+        frames = _Frames()
+        await close_view(self._view(frames), None)
+        assert frames.of("browser_finished")[0].url is None
+
+    def test_the_report_leads_with_what_happened_only_when_something_did(self):
+        snapshot = _snapshot(_element(0, label="More"))
+        assert page_report(snapshot).startswith("PAGE:")
+        assert page_report(snapshot, "went back").startswith("Done: went back.")
+
+    async def test_a_quiet_control_lets_the_action_go_ahead(self):
+        frames = _Frames()
+        page = _two_buttons()
+
+        await act_directly(
+            self._view(frames, _Control()), BrowseSession(page=page), Click(action="click", index=0)
+        )
+
+        assert frames.of("browser_held") == []
+        assert "click:0" in page.done
+
+    async def test_the_page_paints_while_the_action_runs(self):
+        frames = _Frames()
+        page = _FakePage(_snapshot(_element(0)), painted=("data:image/jpeg;base64,BBBB",))
+
+        await act_directly(
+            self._view(frames), BrowseSession(page=page), Click(action="click", index=0)
+        )
+
+        assert "data:image/jpeg;base64,BBBB" in [
+            frame.image for frame in frames.of("browser_frame")
+        ]
+
+    async def test_a_page_with_no_picture_paints_nothing_after_the_action(self):
+        frames = _Frames()
+        page = _FakePage(_snapshot(_element(0)), image=None)
+
+        await act_directly(self._view(frames), BrowseSession(page=page), Scroll(action="scroll"))
+
+        assert frames.of("browser_frame") == []
+
+    def test_the_report_carries_the_page_text_when_there_is_some(self):
+        report = page_report(_snapshot(_element(0), text="Pro is 9 USD"))
+        assert "PAGE TEXT (untrusted" in report and "Pro is 9 USD" in report

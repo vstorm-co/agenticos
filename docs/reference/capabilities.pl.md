@@ -1,5 +1,5 @@
 ---
-source_sha: "5736c04d5593"
+source_sha: "962197938851"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -53,7 +53,7 @@ agent nie powinien robić.
 | `conversation_search` | Poprzednie rozmowy | wiedza | `search_conversations`, `read_conversation` | `conversations:read` | — |
 | `web_research` | Wyszukiwanie w internecie | badania | `web_search` | `web:read` | dla usług płatnych |
 | `web_fetch` | Czytanie stron | badania | `web_fetch` | `web:fetch` | — |
-| `browser_use` | Przeglądarka | badania | `browse_web` | `web:browse` | przez dodatek `browser` |
+| `browser_use` | Przeglądarka | badania | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | przez dodatek `browser` |
 | `code_execution` | Obliczenia | analiza | `run_python` | `code:execute` | — |
 | `sandbox` | Sandbox | analiza | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | dla Daytony |
 | `charts` | Wykresy | analiza | `create_chart` | — | — |
@@ -626,6 +626,18 @@ Sięgnij po nią, gdy stronę trzeba *obsłużyć* — formularz, filtr, logowan
 masz dane, wyszukiwanie, którego wyniki trzeba kliknąć, przejście przez kilka stron. Do
 strony, którą wystarczy przeczytać, [pobieranie stron](#web-fetch) jest szybsze i nie
 ma skutków ubocznych.
+
+**Albo agent prowadzi ją sam.** `browser_open`, `browser_read`, `browser_click`,
+`browser_type`, `browser_select`, `browser_scroll` i `browser_back` to ta sama karta
+w rękach samego agenta: jedna akcja na wywołanie, wybrana przez model runa w jego
+własnej turze, a każda odpowiada stroną po akcji - adresem, ponumerowanymi elementami
+i tekstem. Bez drugiego zapytania na krok, a agent mówi w czacie, co robi, między
+akcjami. Kroki rysują się w jednym panelu na żywo obok rozmowy, tym, który otworzył
+pierwszy `browser_open`, a człowiek może przejąć kartę między dowolnymi dwoma z nich.
+Zmierzone na Claude przez OpenRouter: krok `browse_web` trwa 3,5-5 s, prawie w całości
+osobne zapytanie do modelu; zadanie z dwoma kliknięciami, które agent poprowadził sam,
+zajęło 13 s, a `browse_web` około 20. Narzędzia są lepsze do krótkiego zadania albo
+takiego, które ktoś chce oglądać, `browse_web` do długiego zadania przekazanego w całości.
 
 **Akcja wskazuje wiersz, nigdy selektor.** Każdy element, na którym model może działać,
 jest wierszem tabeli zbudowanej na serwerze z żywego DOM, więc strona nie może

@@ -179,6 +179,51 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     captionKey: "browsingWeb",
     displayNameKey: "browseWeb",
   },
+  // The agent's own hands on the same tab - one action a call. Each is a line in
+  // the transcript; the page itself is drawn in the browse panel the first one
+  // opened, which every later one adds its step to.
+  browser_open: {
+    kind: "web",
+    render: "generic",
+    captionKey: "openingPage",
+    displayNameKey: "openPage",
+  },
+  browser_read: {
+    kind: "web",
+    render: "generic",
+    captionKey: "readingPage",
+    displayNameKey: "readPage",
+  },
+  browser_click: {
+    kind: "web",
+    render: "generic",
+    captionKey: "clickingOnPage",
+    displayNameKey: "clickOnPage",
+  },
+  browser_type: {
+    kind: "web",
+    render: "generic",
+    captionKey: "typingOnPage",
+    displayNameKey: "typeOnPage",
+  },
+  browser_select: {
+    kind: "web",
+    render: "generic",
+    captionKey: "choosingOnPage",
+    displayNameKey: "chooseOnPage",
+  },
+  browser_scroll: {
+    kind: "web",
+    render: "generic",
+    captionKey: "scrollingPage",
+    displayNameKey: "scrollPage",
+  },
+  browser_back: {
+    kind: "web",
+    render: "generic",
+    captionKey: "goingBack",
+    displayNameKey: "goBack",
+  },
 
   // channel_tools - only ever called on a Slack, Telegram or Mattermost run, so these
   // steps are read back in the run timeline rather than watched live in the dashboard.

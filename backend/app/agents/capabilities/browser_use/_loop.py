@@ -183,6 +183,8 @@ class BrowseSession:
     memory: str = ""
     steps: int = 0
     """Steps taken in this tab across every call, which is what the frames number."""
+    last: Snapshot | None = None
+    """The page as the agent last read it, whose element numbers a direct action names."""
 
     def restart(self) -> None:
         """Forget the task, keep the tab - for a call that starts a new one in it."""
@@ -294,22 +296,24 @@ async def run_browse(
         for taken in range(1, policy.max_steps + 1):
             session.steps += 1
             step_no = session.steps
-            held = False
+            was_held = False
             resized = False
             if control is not None:
                 # Between steps, never inside one: a person taking over waits for the
                 # action in flight to finish, so the tab is never driven by two at once.
-                waiting, resized = await _between_steps(page, control)
+                waiting, resized = await between_steps(page, control)
                 if waiting is not None:
-                    await _held(
+                    await held(
                         session, control, emit, call_id=call_id, by=waiting.by, remember=remember
                     )
-                    held = True
+                    was_held = True
             # A resized page has laid itself out again, so the first step's snapshot
             # - taken before the loop - would offer elements where they no longer are.
             clock = _StepClock()
-            if taken > 1 or held or resized:
+            if taken > 1 or was_held or resized:
                 snapshot = await page.snapshot()
+            # What a direct action after this browse would name by number.
+            session.last = snapshot
             clock.mark("snapshot")
 
             image: str | None = None
@@ -334,7 +338,7 @@ async def run_browse(
             clock.mark("decide")
             session.memory = step.memory
             action = step.action
-            element = _element_at(
+            element = element_at(
                 snapshot, action.index if isinstance(action, (Click, TypeText, Select)) else None
             )
             await emit(
@@ -344,8 +348,8 @@ async def run_browse(
                     step=step_no,
                     url=snapshot.url,
                     title=snapshot.title,
-                    operation=_OPERATION[type(action)],
-                    target=_target(action, element),
+                    operation=OPERATION[type(action)],
+                    target=target_of(action, element),
                     reason=step.next_goal,
                 )
             )
@@ -366,7 +370,7 @@ async def run_browse(
                     )
 
             if isinstance(action, Done):
-                clock.log(step_no, _OPERATION[type(action)])
+                clock.log(step_no, OPERATION[type(action)])
                 return await _finish(
                     emit,
                     session,
@@ -406,7 +410,7 @@ async def run_browse(
                         snapshot=snapshot,
                     )
                 session.history += (f"step {step_no}: {step.next_goal} - asked a person",)
-                await _held(
+                await held(
                     session, control, emit, call_id=call_id, by=arrived.by, remember=remember
                 )
                 continue
@@ -441,7 +445,7 @@ async def run_browse(
                 )
 
             try:
-                result = await _act(page, step, element)
+                result = await act(page, step, element)
             except StaleElement as refused:
                 # The page moved between the snapshot and the decision, or the number
                 # named nothing. The action did not happen and the next snapshot
@@ -453,7 +457,7 @@ async def run_browse(
             session.history += (f"step {step_no}: {step.next_goal} - {result}",)
             await page.settle()
             clock.mark("settle")
-            clock.log(step_no, _OPERATION[type(action)])
+            clock.log(step_no, OPERATION[type(action)])
 
         reason = (
             f"Stopped after {policy.max_steps} steps without finishing. Call again without "
@@ -471,7 +475,7 @@ async def run_browse(
         )
 
 
-_OPERATION: dict[type, str] = {
+OPERATION: dict[type, str] = {
     Click: "CLICK",
     TypeText: "TYPE_TEXT",
     Select: "SELECT",
@@ -486,7 +490,7 @@ _OPERATION: dict[type, str] = {
 """Each action as the frame names it - the vocabulary a surface already draws."""
 
 
-def _target(action: object, element: Element | None) -> str | None:
+def target_of(action: object, element: Element | None) -> str | None:
     """What a frame says the action applied to: the element's label, or the address."""
     if isinstance(action, Navigate):
         return action.url
@@ -555,7 +559,7 @@ class _StepClock:
         )
 
 
-def _element_at(snapshot: Snapshot, index: int | None) -> Element | None:
+def element_at(snapshot: Snapshot, index: int | None) -> Element | None:
     """The element a step named, or `None` when it named none or a number not on the page."""
     if index is None:
         return None
@@ -565,7 +569,7 @@ def _element_at(snapshot: Snapshot, index: int | None) -> Element | None:
     return None
 
 
-async def _act(page: PageSession, step: Step, element: Element | None) -> str:
+async def act(page: PageSession, step: Step, element: Element | None) -> str:
     """Carry out one step's action.
 
     Returns:
@@ -608,7 +612,7 @@ async def _await_person(control: BrowserControl) -> BrowserCommand | None:
     return None
 
 
-async def _held(
+async def held(
     session: BrowseSession,
     control: BrowserControl,
     emit: Callable[[BrowserEvent], Awaitable[bool]],
@@ -668,10 +672,10 @@ async def hand_over(
     Signing in to a site from Settings (#2129): the same hold a take-over is, from
     the first frame, and the same give-back that keeps the sign-in.
     """
-    await _held(session, control, emit, call_id=call_id, by=by, remember=remember)
+    await held(session, control, emit, call_id=call_id, by=by, remember=remember)
 
 
-async def _between_steps(
+async def between_steps(
     page: PageSession, control: BrowserControl
 ) -> tuple[BrowserCommand | None, bool]:
     """What arrived while the last step ran: the take-over, if any, and whether the page was resized.

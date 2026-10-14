@@ -338,7 +338,7 @@ export function TextBubble({
  * tools always has a first step, and a part of another kind always has the text that
  * earned it a run.
  */
-type PartRun =
+export type PartRun =
   | {
       kind: "tools";
       /** Never empty: the run exists because a call opened it. */
@@ -404,11 +404,19 @@ export function runsOf(parts: MessagePart[]): PartRun[] {
  * the same row the card reads to decide whether to open itself - so a tool is
  * described in one place and the rail and the card cannot disagree about it.
  */
-/** The `browse_web` calls in these runs, in the order they were made. */
-function browseCalls(runs: PartRun[]): ToolCall[] {
+/**
+ * The calls that open a browse panel in these runs, in the order they were made:
+ * every `browse_web`, and the `browser_open` that starts the agent driving the tab
+ * itself - its later clicks add their steps to that one panel.
+ */
+const OPENS_A_BROWSE: ReadonlySet<string> = new Set(["browse_web", "browser_open"]);
+
+export function browseCalls(runs: PartRun[]): ToolCall[] {
   return runs.flatMap((run) =>
     run.kind === "tools"
-      ? run.parts.flatMap((part) => (part.toolCall?.name === "browse_web" ? [part.toolCall] : []))
+      ? run.parts.flatMap((part) =>
+          part.toolCall && OPENS_A_BROWSE.has(part.toolCall.name) ? [part.toolCall] : [],
+        )
       : [],
   );
 }

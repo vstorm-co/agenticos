@@ -6,6 +6,14 @@ could act on, ask the run's own model for one step, carry the step out. It stops
 when the model says the task is done or cannot be done, or at the call's step
 ceiling - and a ceiling is a pause, not an end (#2127).
 
+Beside it, the agent's own hands on the same tab: `browser_open`, `browser_read`,
+`browser_click`, `browser_type`, `browser_select`, `browser_scroll` and
+`browser_back` (`_direct.py`). One action a call, chosen by the run's model in its
+own turn and answered with the page after it - no second request per step, which
+is where `browse_web` spends 85% of a step. They narrate exactly as a loop step
+does, under the live view the first direct call opened, so the panel grows instead
+of multiplying; the run's end finishes that view.
+
 ## Why the loop is this repository's
 
 There used to be two browsers. `browser_use` delegated to the `browser-use`

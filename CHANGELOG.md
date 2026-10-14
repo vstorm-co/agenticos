@@ -19,6 +19,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **The agent can drive the browser itself.** Beside `browse_web`, which hands a
+  whole task to a loop that asks the model for every step, the web browser now
+  gives the agent `browser_open`, `browser_read`, `browser_click`,
+  `browser_type`, `browser_select`, `browser_scroll` and `browser_back`: one
+  action a call, decided in the agent's own turn and narrated in the chat, drawn
+  in the same live side panel a person can take over. A two-click task took 13 s
+  this way where `browse_web` took about 20.
+
 - **The dashboard tells you what is easy to miss, and draws time at the right
   step.** Your own view gains **Discover AgenticOS**, one illustrated tile each
   for the platform's own MCP server, subagents, sandboxes, apps, routines, chat

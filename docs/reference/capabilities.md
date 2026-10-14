@@ -46,7 +46,7 @@ the template configures them. Its author switches off what it should not do.
 | `conversation_search` | Past conversations | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — |
 | `web_research` | Web search | research | `web_search` | `web:read` | for paid services |
 | `web_fetch` | Read web pages | research | `web_fetch` | `web:fetch` | — |
-| `browser_use` | Web browser | research | `browse_web` | `web:browse` | via the `browser` extra |
+| `browser_use` | Web browser | research | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | via the `browser` extra |
 | `code_execution` | Calculations | analysis | `run_python` | `code:execute` | — |
 | `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | for Daytona |
 | `charts` | Charts | analysis | `create_chart` | — | — |
@@ -586,6 +586,18 @@ back, wait, finish with an answer, ask a person, or report being blocked.
 Reach for it when a page has to be *operated* — a form, a filter, a sign-in you have
 details for, a search whose results need a click, a flow across several pages. For a
 page you only need to read, [web fetch](#web-fetch) is faster and has no side effects.
+
+**Or the agent drives it itself.** `browser_open`, `browser_read`, `browser_click`,
+`browser_type`, `browser_select`, `browser_scroll` and `browser_back` are the same tab
+in the agent's own hands: one action a call, chosen by the run's model in its own turn,
+each answered with the page after it - its address, the numbered elements and its
+text. No second request per step, and the agent says what it is doing in the chat
+between actions. The steps draw in one live panel beside the conversation, the one the
+first `browser_open` opened, and a person can take the tab over between any two of
+them. Measured on Claude through OpenRouter, a step of `browse_web` is 3.5-5 s, almost
+all of it the step's own model request; a two-click task the agent drove itself took
+13 s where `browse_web` took about 20. Prefer the tools for a short task or one a
+person wants to watch, `browse_web` for a long task handed off whole.
 
 **An action names a row, never a selector.** Every element the model can act on is a
 row of a table built on the server from the live DOM, so a page cannot offer an
