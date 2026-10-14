@@ -1,5 +1,5 @@
 ---
-source_sha: "de345fa10b17"
+source_sha: "1e91d2e2de69"
 ---
 
 # Governance { #governance }
@@ -1448,8 +1448,10 @@ niedostępny.
 Jeden przełącznik, w ustawieniach organizacji na jej stronie członków, decyduje,
 czy modele wspierają ewaluacje i tworzenie treści w organizacji: sędziego evali,
 który ocenia [wyniki datasetów](datasets.md#judge), oraz generator
-przypadków i asystenta tworzenia, które pojawią się po nim. Domyślnie jest
-włączony, a zmienia go ten, kto ma `org:settings`.
+przypadków, asystenta tworzenia i szkice luk w wiedzy, które pojawią się po
+nim. Domyślnie jest wyłączony, zarówno w organizacji, która istniała przed
+przełącznikiem, jak i w nowej: to, czy modele oceniają i piszą szkice, jest
+decyzją organizacji, a włącza go ten, kto ma `org:settings`.
 
 Gdy jest wyłączony, usługa, która uruchomiłaby taki run, odmawia go, niezależnie
 od tego, który klient o niego prosi - ukryta kontrolka nie jest granicą.
