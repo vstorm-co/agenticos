@@ -120,8 +120,8 @@ beside Decision 3's, and #2119 defines `report_knowledge_gap`.
 - **SoL-Pi's harness mechanisms** — ObservationPack, Online Context Compact,
   Action Fusion, the Evidence-Preserving Reducer — are outside this
   milestone. Measuring how much of our runs' input is re-sent tool output
-  comes first; a `pack` mode for `tool_output_limits` may follow as a
-  platform issue, tracked separately.
+  comes first (#2136); a `pack` mode for `tool_output_limits` may follow as a
+  platform change (#2137).
 
 ### Adopted from the engine write-up
 
