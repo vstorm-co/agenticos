@@ -499,6 +499,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Choosing whose account no longer switches an MCP server on.** In the
+  Builder's server settings, going to the organization's account and back
+  left an unused server bound; the choice now waits for the switch, which
+  binds the account chosen.
 - **A conversation waiting on an agent's question opens again.** A run that
   asked its person something stored its step as `awaiting_answer`, a status
   the transcript's read schema did not list, so reading the thread back
