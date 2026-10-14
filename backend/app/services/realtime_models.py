@@ -76,12 +76,6 @@ CATALOG: tuple[_CatalogEntry, ...] = catalog.load(
     "realtime_models.json", TypeAdapter(tuple[_CatalogEntry, ...])
 )
 
-RELAY_READY = False
-"""Whether this build can carry a relay call's audio. Until the relay lands
-(slice 1), a `relay` model is not offered, refused at publish and never started:
-a session with nobody streaming audio to it would connect and bill for nothing.
-The entries stay in the catalog, held to the library's profiles by the tests."""
-
 _EXCLUDED_PREFIXES = ("gpt-live",)
 """Never offered in v1: GPT-Live takes history only at start and cannot be
 reconfigured, so a reconnect could not be seeded (spec amendment 14)."""
@@ -102,17 +96,12 @@ def providers() -> tuple[RealtimeProvider, ...]:
     """Every provider the catalog offers that this deployment can reach.
 
     An entry is dropped where the platform does not know the provider or it
-    lists no models; a GPT-Live model is dropped by name, and a relay model
-    until the relay exists (`RELAY_READY`).
+    lists no models; a GPT-Live model is dropped by name.
     """
     found: list[RealtimeProvider] = []
     for entry in CATALOG:
         spec = PROVIDERS.get(entry.provider)
-        models = tuple(
-            m
-            for m in entry.models
-            if not m.id.startswith(_EXCLUDED_PREFIXES) and (RELAY_READY or m.transport != "relay")
-        )
+        models = tuple(m for m in entry.models if not m.id.startswith(_EXCLUDED_PREFIXES))
         if spec is None or not models:
             continue
         found.append(

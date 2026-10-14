@@ -40,6 +40,7 @@ from app.services.voice.guard import WITHHELD
 from app.services.voice.transcript import SpeechClock, SpokenToolCall, trim_to_played
 
 if TYPE_CHECKING:
+    from app.services.voice.relay import AudioRelay
     from app.services.voice.starter import StartedCall
 
 VoiceState = Literal[
@@ -60,11 +61,17 @@ class EventPump:
     """One call's realtime events, turned into frames, captions, saved turns and spend."""
 
     def __init__(
-        self, *, started: StartedCall, send: SendFrame, clock: SpeechClock | None = None
+        self,
+        *,
+        started: StartedCall,
+        send: SendFrame,
+        clock: SpeechClock | None = None,
+        relay: AudioRelay | None = None,
     ) -> None:
         self._started = started
         self._send = send
         self._clock = clock or SpeechClock()
+        self._relay = relay
         self._spoken: list[str] = []
         self._tools: dict[str, SpokenToolCall] = {}
         self._played_ms: int | None = None
@@ -105,23 +112,70 @@ class EventPump:
         await self._send("state", {"state": state})
 
     def note_played_ms(self, played_ms: int) -> None:
-        """The relay knows exactly how much of an answer was played; it overrides the heuristic."""
-        self._played_ms = played_ms
+        """How much of the answer in progress was heard; trims it when it is saved.
+
+        Only while that answer is still open: one already saved stays as it was
+        saved (history is append-only, as in the library), and a time noted
+        after it would otherwise trim - and mark interrupted - the *next* one.
+        Over the relay a finished answer is often still playing when the caller
+        cuts in, and over WebRTC the provider's playback outlasts the response.
+        """
+        if self._response_turn is not None:
+            self._played_ms = played_ms
+
+    async def _barge_in(self, relay: AudioRelay, session: RealtimeSession) -> bool:
+        """Over the relay, cut the answer being played off at what the caller heard.
+
+        `True` when something was cut. The time heard trims the saved answer -
+        unless the provider later marks the part with its own, exact, position.
+        """
+        played = await relay.barge_in(session)
+        if played is None:
+            return False
+        self.note_played_ms(played)
+        return True
+
+    async def _relay_part_start(
+        self, relay: AudioRelay, speaker: Literal["user", "assistant"], session: RealtimeSession
+    ) -> None:
+        """A speech part starting, as the relay needs to know it.
+
+        The first assistant part of a response is where its audio begins. A
+        caller's part starting while the browser still plays the agent is a
+        barge-in too: Gemini reports no speech start, and once an answer has
+        finished generating no interruption either - its transcript arriving is
+        the first sign the caller talked over it (later than a speech start, so
+        a little more of the answer is heard before it stops).
+        """
+        if speaker == "assistant":
+            if self._response_turn is None:
+                relay.answer_started()
+        elif relay.unheard and await self._barge_in(relay, session):
+            await self._state("interrupted")
 
     async def handle(self, event: object, session: RealtimeSession) -> None:
         """Act on one event from the session: a frame, a caption, a saved turn or a booking."""
         if isinstance(event, PartStartEvent) and isinstance(event.part, SpeechPart):
+            if self._relay is not None:
+                await self._relay_part_start(self._relay, event.part.speaker, session)
             self._turn(event.index, event.part.speaker)
             await self._state("user_speaking" if event.part.speaker == "user" else "agent_speaking")
         elif isinstance(event, PartDeltaEvent) and isinstance(event.delta, SpeechPartDelta):
+            if self._relay is not None and event.delta.audio_chunk:
+                await self._relay.forward(event.index, event.delta.audio_chunk)
             await self._delta(event.index, event.delta, session)
         elif isinstance(event, PartEndEvent) and isinstance(event.part, SpeechPart):
             await self._part_end(event.index, event.part)
         elif isinstance(event, RealtimeInputSpeechStartEvent):
-            played = self._clock.input_started()
-            if played is not None and self._played_ms is None:
-                self._played_ms = played
-                await self._state("interrupted")
+            if self._relay is not None:
+                if await self._barge_in(self._relay, session):
+                    await self._state("interrupted")
+            else:
+                played = self._clock.input_started()
+                if played is not None:
+                    if self._played_ms is None:
+                        self.note_played_ms(played)
+                    await self._state("interrupted")
             await self._state("user_speaking")
         elif isinstance(event, RealtimeInputSpeechEndEvent):
             await self._state("thinking")
@@ -133,6 +187,9 @@ class EventPump:
             self.output_done.set()
             await self._state("listening")
         elif isinstance(event, RealtimeResponseInterruptedEvent):
+            # Gemini's barge-in: it reports no speech start, only that it stopped.
+            if self._relay is not None:
+                await self._barge_in(self._relay, session)
             await self._state("interrupted")
         elif isinstance(event, FunctionToolCallEvent):
             part = event.part

@@ -444,7 +444,6 @@ async def test_a_previous_connection_whose_hang_up_failed_is_left_for_the_reaper
 async def test_a_relay_call_needs_no_offer_and_a_per_minute_model_no_token_price(
     world, monkeypatch
 ):
-    monkeypatch.setattr("app.services.realtime_models.RELAY_READY", True)
     from app.agents.spec import AgentSpec, VoiceSpec
 
     spec = AgentSpec(
@@ -460,6 +459,32 @@ async def test_a_relay_call_needs_no_offer_and_a_per_minute_model_no_token_price
     assert started.resolved.entry.transport == "relay"
     priced.assert_not_called()
     db.commit.assert_awaited_once()
+
+
+async def test_an_azure_call_is_metered_at_its_base_models_price(world, monkeypatch):
+    """The deployment's name prices nothing; the base model on OpenAI's list does. Fakes only."""
+    from pydantic_ai.usage import RunUsage
+
+    from app.agents.capabilities.budget import SpendLedger
+    from app.agents.spec import AgentSpec, VoiceSpec
+
+    spec = AgentSpec(
+        name="a",
+        voice=VoiceSpec(
+            provider="azure", deployment="rt-prod", base_model="gpt-realtime", secret_id=uuid4()
+        ),
+    )
+    monkeypatch.setattr(f"{_M}.VoiceSettingsService.published_spec", AsyncMock(return_value=spec))
+    world.prepared.built.ledger = SpendLedger()
+    starter, _ = _starter()
+
+    started = await starter.start(world.caller(), StartFrame(type="start", agent_id=world.agent.id))
+    usage = RunUsage(input_tokens=1000, output_tokens=1000)
+    started.meter.book_response(usage)
+
+    assert started.resolved.wire_model == "rt-prod"
+    assert started.meter.total_usd > 0
+    assert usage.cost == started.meter.total_usd
 
 
 async def test_a_connection_taken_over_on_a_dead_worker_closes_its_run_as_continued(

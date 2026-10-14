@@ -2,9 +2,11 @@
 
 The socket's lifetime is the call's lifetime on our side: four tasks in one
 anyio task group - the event pump, the socket reader, the heartbeat and the time
-cap - and nothing outlives the group. Every way out (the caller's `end`, the
-socket gone, a limit, an error, a revocation, a shutdown, a cancellation) goes
-through one shielded `finally`, which hangs the provider call up *first*, then
+cap - and nothing outlives the group. A relay call's audio rides on two of them:
+the socket reader passes the caller's to the provider, the pump forwards the
+agent's in event order. Every way out (the caller's `end`, the socket gone, a
+limit, an error, a revocation, a shutdown, a cancellation) goes through one
+shielded `finally`, which hangs the provider call up *first*, then
 records the call row, finishes the run (spend recorded on every path) and
 commits - the terminal commit of the run path (amendment 5).
 """
@@ -35,7 +37,14 @@ from app.db.models.voice_call import VoiceEndReason
 from app.db.session import get_db_context
 from app.repositories import agent_repo, agent_run_repo, member_repo, voice_call_repo
 from app.repositories import organization as organization_repo
-from app.schemas.voice import ApprovalFrame, ClientFrame, EndFrame, MuteFrame, PttFrame, StartFrame
+from app.schemas.voice import (
+    ApprovalFrame,
+    ClientFrame,
+    EndFrame,
+    MuteFrame,
+    PlayedFrame,
+    StartFrame,
+)
 from app.services.access import AGENT, resolve_access
 from app.services.voice import limits
 from app.services.voice.exceptions import VoiceRefused
@@ -43,11 +52,12 @@ from app.services.voice.hangup import HangUpTarget, hang_up
 from app.services.voice.limits import HEARTBEAT_SECONDS
 from app.services.voice.pump import EventPump
 from app.services.voice.registry import LIVE_CALLS
+from app.services.voice.relay import AudioRelay
 from app.services.voice.seed import seed_history, summariser
 from app.services.voice.settings import VoiceSettingsService
 from app.services.voice.starter import StartedCall, VoiceCaller, VoiceCallStarter
 from app.services.voice.transcript import SessionFactory
-from app.services.voice.transport import send_frame
+from app.services.voice.transport import send_audio_frame, send_frame
 from app.services.ws_auth import authenticate_socket_token
 
 logger = logging.getLogger(__name__)
@@ -56,6 +66,10 @@ Reauthorize = Callable[[AsyncSession], Awaitable[AuthContext | None]]
 """A heartbeat's re-check: the caller's context as it stands now, or `None` to end the call."""
 
 _FRAMES: TypeAdapter[ClientFrame] = TypeAdapter(ClientFrame)
+
+FLOODED = "The call's audio arrived far faster than anyone can speak, so it was ended."
+"""Why a relay call whose audio was not a microphone's ended. Stored as an `error`
+end: a reason of its own would need the `voice_calls` CHECK constraint widened."""
 
 NOTICE_WAIT_SECONDS = 8.0
 """How long a spoken limit notice may take before the call is ended anyway."""
@@ -186,6 +200,7 @@ class VoiceCallSession:
         self._heartbeat_seconds = heartbeat_seconds
         self._first_frame_seconds = first_frame_seconds
         self._reason: VoiceEndReason | None = None
+        self._message: str | None = None
         self._scope: anyio.CancelScope | None = None
         self._closed = anyio.Event()
         self._pump: EventPump | None = None
@@ -197,10 +212,15 @@ class VoiceCallSession:
     async def _send(self, kind: str, payload: dict[str, object]) -> None:
         await send_frame(self._ws, kind, payload)
 
-    def request_end(self, reason: VoiceEndReason) -> None:
-        """End the call for `reason`. The first reason wins; the teardown does the rest."""
+    def request_end(self, reason: VoiceEndReason, *, message: str | None = None) -> None:
+        """End the call for `reason`. The first reason wins; the teardown does the rest.
+
+        `message` says why in words, for a reason too broad to (an `error` that
+        is the caller's doing rather than ours); it goes with the first reason.
+        """
         if self._reason is None:
             self._reason = reason
+            self._message = message
         if self._scope is not None:
             self._scope.cancel()
 
@@ -208,13 +228,15 @@ class VoiceCallSession:
         """Return once the call has finished its teardown."""
         await self._closed.wait()
 
-    async def _receive(self) -> ClientFrame | None:
+    async def _receive(self) -> ClientFrame | bytes | None:
+        """The next frame: a client frame, the caller's audio (binary), or `None` for noise."""
         message = await self._ws.receive()
         if message.get("type") == "websocket.disconnect":
             raise WebSocketDisconnect(message.get("code", 1000))
         text = message.get("text")
         if text is None:
-            return None  # binary audio is the relay's (Task 35)
+            audio = message.get("bytes")
+            return audio if isinstance(audio, bytes) else None
         try:
             return _FRAMES.validate_python(json.loads(text))
         except (ValidationError, ValueError):
@@ -223,7 +245,7 @@ class VoiceCallSession:
     async def run(self) -> None:
         """Hold the call from its `start` frame to its teardown; returns when it is over."""
         LIVE_CALLS.add(self)
-        frame: ClientFrame | None = None
+        frame: ClientFrame | bytes | None = None
         try:
             with anyio.move_on_after(self._first_frame_seconds) as waited:
                 frame = await self._receive()
@@ -255,7 +277,18 @@ class VoiceCallSession:
         provider_call_id: str | None = None
         error: str | None = None
         self._started_at = time.monotonic()
-        pump = self._pump = EventPump(started=started, send=self._send)
+        entry = started.resolved.entry
+        relay = (
+            AudioRelay(
+                send_bytes=lambda data: send_audio_frame(self._ws, data),
+                send=self._send,
+                input_sample_rate=entry.input_sample_rate,
+                output_sample_rate=entry.output_sample_rate,
+            )
+            if entry.transport == "relay"
+            else None
+        )
+        pump = self._pump = EventPump(started=started, send=self._send, relay=relay)
         LIVE_CALLS.bind(started.call_id, self)
         try:
             # After the first commit, so inside this `try`: a failure here still
@@ -304,11 +337,12 @@ class VoiceCallSession:
             ):
                 self._scope = group.cancel_scope
                 self._session = session
+                started.meter.attach(session.usage)
                 self._group = group
                 if self._reason is not None:
                     group.cancel_scope.cancel()
                 group.start_soon(self._events, pump, session)
-                group.start_soon(self._socket, started)
+                group.start_soon(self._socket, started, session, relay)
                 group.start_soon(self._heartbeat, started, pump, session)
                 group.start_soon(self._cap, started, pump, session)
         except anyio.get_cancelled_exc_class():
@@ -340,7 +374,15 @@ class VoiceCallSession:
             return
         self.request_end(VoiceEndReason.ERROR)
 
-    async def _socket(self, started: StartedCall) -> None:
+    async def _socket(
+        self, started: StartedCall, session: RealtimeSession, relay: AudioRelay | None
+    ) -> None:
+        """Read the caller's frames until they hang up or the socket goes.
+
+        Over WebRTC the browser mutes its own track and the audio never passes
+        here, so mute, `played` and binary frames are the relay's. Push-to-talk
+        is the browser's alone on both transports: a disabled track is silence.
+        """
         while True:
             try:
                 frame = await self._receive()
@@ -352,8 +394,16 @@ class VoiceCallSession:
                 return
             if isinstance(frame, ApprovalFrame):
                 await self._decide(started, frame)
-            elif isinstance(frame, MuteFrame | PttFrame):
-                continue  # the browser mutes its own track; the relay gates audio in Task 35
+            elif relay is None:
+                continue
+            elif isinstance(frame, bytes):
+                if not await relay.inbound(session, frame):
+                    self.request_end(VoiceEndReason.ERROR, message=FLOODED)
+                    return
+            elif isinstance(frame, PlayedFrame):
+                relay.heard(frame.bytes)
+            elif isinstance(frame, MuteFrame):
+                relay.mute(frame.muted)
 
     async def _decide(self, started: StartedCall, frame: ApprovalFrame) -> None:
         """Hand a decision to the call's bridge; one it cannot take is answered, not fatal.
@@ -526,8 +576,13 @@ class VoiceCallSession:
         except Exception:
             logger.exception("voice_call_row_close_failed", extra={"call_id": call_id})
         try:
-            await started.runner.finish(started.prepared, status=_STATUS[reason], error=error)
+            await started.runner.finish(
+                started.prepared, status=_STATUS[reason], error=error or self._message
+            )
             await db.commit()
         except Exception:
             logger.exception("voice_run_finish_failed", extra={"call_id": call_id})
-        await self._send("ended", {"reason": reason.value})
+        ended: dict[str, object] = {"reason": reason.value}
+        if self._message is not None:
+            ended["message"] = self._message
+        await self._send("ended", ended)

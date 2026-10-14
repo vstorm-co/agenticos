@@ -88,3 +88,19 @@ async def test_sending_to_a_socket_that_is_gone_is_not_an_error():
     for gone in (WebSocketDisconnect(), RuntimeError("closed")):
         websocket = MagicMock(send_text=AsyncMock(side_effect=gone))
         assert await send_frame(websocket, "state", {}) is False
+
+
+@pytest.mark.anyio
+async def test_the_relays_audio_goes_as_binary_and_a_gone_socket_is_not_an_error():
+    from unittest.mock import AsyncMock, MagicMock
+
+    from fastapi import WebSocketDisconnect
+
+    from app.services.voice.transport import send_audio_frame
+
+    websocket = MagicMock(send_bytes=AsyncMock())
+    assert await send_audio_frame(websocket, b"\x00\x01")
+    websocket.send_bytes.assert_awaited_once_with(b"\x00\x01")
+    for gone in (WebSocketDisconnect(), RuntimeError("closed")):
+        websocket = MagicMock(send_bytes=AsyncMock(side_effect=gone))
+        assert await send_audio_frame(websocket, b"\x00\x01") is False

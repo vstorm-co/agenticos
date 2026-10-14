@@ -8,7 +8,44 @@ import { DEFAULT_PUBLIC_CONFIG } from "@/lib/public-config";
 import { useAuthStore, useOrgStore, useVoiceCallStore } from "@/stores";
 import type { VoiceServerFrame } from "@/types/voice";
 
+import { PLAYED_EVERY_MS } from "@/lib/voice/pcm";
+
 import { RECONNECT_DELAY_MS, RESUME_WINDOW_MS, useVoiceSession } from "./use-voice-session";
+
+/** The relay's audio, faked: what matters here is what the hook wires to what. */
+const relay = vi.hoisted(() => ({
+  context: { sampleRate: 48_000 } as unknown,
+  onChunk: null as ((pcm: ArrayBuffer) => void) | null,
+  onDrained: null as (() => void) | null,
+  played: 4800,
+  capture: { stop: () => {} },
+  player: {
+    stream: { id: "agent" },
+    enqueue: (_pcm: ArrayBuffer) => {},
+    playedBytes: () => relay.played,
+    clear: () => {},
+    close: () => {},
+  },
+}));
+
+vi.mock("voice-glow", async (original) => ({
+  ...(await original<typeof import("voice-glow")>()),
+  getAudioContext: vi.fn(() => relay.context),
+}));
+
+vi.mock("@/lib/voice/pcm", async (original) => ({
+  ...(await original<typeof import("@/lib/voice/pcm")>()),
+  createPcmCapture: vi.fn(
+    (_context: unknown, _stream: unknown, _rate: number, onChunk: (pcm: ArrayBuffer) => void) => {
+      relay.onChunk = onChunk;
+      return relay.capture;
+    },
+  ),
+  createPcmPlayer: vi.fn((_context: unknown, _rate: number, onDrained: () => void) => {
+    relay.onDrained = onDrained;
+    return relay.player;
+  }),
+}));
 
 /** A fake socket: what the hook must get right is which frames it sends, and when. */
 class FakeSocket {
@@ -18,7 +55,8 @@ class FakeSocket {
   static last = () => FakeSocket.instances[FakeSocket.instances.length - 1]!;
 
   onopen: (() => void) | null = null;
-  onmessage: ((event: { data: string }) => void) | null = null;
+  onmessage: ((event: { data: string | ArrayBuffer }) => void) | null = null;
+  binaryType = "blob";
   onclose: (() => void) | null = null;
   readyState = 0;
   sent: unknown[] = [];
@@ -33,8 +71,8 @@ class FakeSocket {
     FakeSocket.instances.push(this);
   }
 
-  send(data: string) {
-    this.sent.push(JSON.parse(data));
+  send(data: string | ArrayBuffer) {
+    this.sent.push(typeof data === "string" ? JSON.parse(data) : { binary: data.byteLength });
   }
 
   open() {
@@ -44,6 +82,10 @@ class FakeSocket {
 
   receive(frame: VoiceServerFrame) {
     this.onmessage?.({ data: JSON.stringify(frame) });
+  }
+
+  receiveAudio(pcm: ArrayBuffer) {
+    this.onmessage?.({ data: pcm });
   }
 
   drop() {
@@ -128,7 +170,12 @@ describe("useVoiceSession", () => {
     const onConversation = vi.fn();
     const { result } = renderHook(() => useVoiceSession({ onConversation }), { wrapper });
     await act(() =>
-      result.current.start({ kind: "console", agentId: "a1", conversationId: "conv0" }),
+      result.current.start({
+        kind: "console",
+        agentId: "a1",
+        conversationId: "conv0",
+        transport: "webrtc",
+      }),
     );
     const socket = FakeSocket.last();
     act(() => socket.open());
@@ -161,7 +208,12 @@ describe("useVoiceSession", () => {
     const onConversation = vi.fn();
     const { result } = renderHook(() => useVoiceSession({ onConversation }), { wrapper });
     await act(() =>
-      result.current.start({ kind: "console", agentId: "a1", conversationId: "conv1" }),
+      result.current.start({
+        kind: "console",
+        agentId: "a1",
+        conversationId: "conv1",
+        transport: "webrtc",
+      }),
     );
     act(() => {
       FakeSocket.last().open();
@@ -172,7 +224,14 @@ describe("useVoiceSession", () => {
 
   it("plays what the agent says through the remote stream", async () => {
     const { result } = renderHook(() => useVoiceSession(), { wrapper });
-    await act(() => result.current.start({ kind: "console", agentId: "a1", conversationId: null }));
+    await act(() =>
+      result.current.start({
+        kind: "console",
+        agentId: "a1",
+        conversationId: null,
+        transport: "webrtc",
+      }),
+    );
     const remote = {} as MediaStream;
     act(() => FakePc.last().ontrack?.({ streams: [remote] }));
     expect(result.current.remoteStream).toBe(remote);
@@ -189,7 +248,14 @@ describe("useVoiceSession", () => {
   ])("says why the microphone did not open (%s), and opens no socket", async (name, failure) => {
     stubMic(() => Promise.reject(Object.assign(new Error("no"), { name })));
     const { result } = renderHook(() => useVoiceSession(), { wrapper });
-    await act(() => result.current.start({ kind: "console", agentId: "a1", conversationId: null }));
+    await act(() =>
+      result.current.start({
+        kind: "console",
+        agentId: "a1",
+        conversationId: null,
+        transport: "webrtc",
+      }),
+    );
     expect(result.current.call.failure).toBe(failure);
     expect(FakeSocket.instances).toHaveLength(0);
   });
@@ -197,14 +263,28 @@ describe("useVoiceSession", () => {
   it("treats a thrown non-error as a busy microphone", async () => {
     stubMic(() => Promise.reject("nope"));
     const { result } = renderHook(() => useVoiceSession(), { wrapper });
-    await act(() => result.current.start({ kind: "console", agentId: "a1", conversationId: null }));
+    await act(() =>
+      result.current.start({
+        kind: "console",
+        agentId: "a1",
+        conversationId: null,
+        transport: "webrtc",
+      }),
+    );
     expect(result.current.call.failure).toBe("mic_busy");
   });
 
   it("says the page cannot ask for a microphone where the browser offers none", async () => {
     vi.stubGlobal("navigator", {});
     const { result } = renderHook(() => useVoiceSession(), { wrapper });
-    await act(() => result.current.start({ kind: "console", agentId: "a1", conversationId: null }));
+    await act(() =>
+      result.current.start({
+        kind: "console",
+        agentId: "a1",
+        conversationId: null,
+        transport: "webrtc",
+      }),
+    );
     expect(result.current.call.failure).toBe("mic_insecure");
     expect(viewState(result.current.call)).toBe("micblocked");
   });
@@ -212,7 +292,14 @@ describe("useVoiceSession", () => {
   it("refuses an offer carrying a data channel before any socket opens", async () => {
     offerSdp = "v=0\r\nm=audio 9 x\r\nm=application 9 x\r\n";
     const { result } = renderHook(() => useVoiceSession(), { wrapper });
-    await act(() => result.current.start({ kind: "console", agentId: "a1", conversationId: null }));
+    await act(() =>
+      result.current.start({
+        kind: "console",
+        agentId: "a1",
+        conversationId: null,
+        transport: "webrtc",
+      }),
+    );
     expect(FakeSocket.instances).toHaveLength(0);
     expect(viewState(result.current.call)).toBe("connfailed");
     expect(micTrack.stop).toHaveBeenCalled();
@@ -220,7 +307,14 @@ describe("useVoiceSession", () => {
 
   it("says the call could not connect when the socket closes before it is ready", async () => {
     const { result } = renderHook(() => useVoiceSession(), { wrapper });
-    await act(() => result.current.start({ kind: "console", agentId: "a1", conversationId: null }));
+    await act(() =>
+      result.current.start({
+        kind: "console",
+        agentId: "a1",
+        conversationId: null,
+        transport: "webrtc",
+      }),
+    );
     act(() => FakeSocket.last().drop());
     expect(viewState(result.current.call)).toBe("connfailed");
     expect(FakeSocket.instances).toHaveLength(1);
@@ -230,7 +324,14 @@ describe("useVoiceSession", () => {
   it("retries once, resuming the call, when a live socket drops", async () => {
     vi.useFakeTimers();
     const { result } = renderHook(() => useVoiceSession(), { wrapper });
-    await act(() => result.current.start({ kind: "console", agentId: "a1", conversationId: null }));
+    await act(() =>
+      result.current.start({
+        kind: "console",
+        agentId: "a1",
+        conversationId: null,
+        transport: "webrtc",
+      }),
+    );
     const first = FakeSocket.last();
     act(() => {
       first.open();
@@ -265,7 +366,14 @@ describe("useVoiceSession", () => {
   it("keeps trying the resumed socket until the window closes, then says the call dropped", async () => {
     vi.useFakeTimers();
     const { result } = renderHook(() => useVoiceSession(), { wrapper });
-    await act(() => result.current.start({ kind: "console", agentId: "a1", conversationId: null }));
+    await act(() =>
+      result.current.start({
+        kind: "console",
+        agentId: "a1",
+        conversationId: null,
+        transport: "webrtc",
+      }),
+    );
     act(() => {
       FakeSocket.last().open();
       FakeSocket.last().receive(READY);
@@ -289,7 +397,14 @@ describe("useVoiceSession", () => {
   it("tries again at once when the browser is back online", async () => {
     vi.useFakeTimers();
     const { result } = renderHook(() => useVoiceSession(), { wrapper });
-    await act(() => result.current.start({ kind: "console", agentId: "a1", conversationId: null }));
+    await act(() =>
+      result.current.start({
+        kind: "console",
+        agentId: "a1",
+        conversationId: null,
+        transport: "webrtc",
+      }),
+    );
     act(() => {
       FakeSocket.last().open();
       FakeSocket.last().receive(READY);
@@ -309,7 +424,14 @@ describe("useVoiceSession", () => {
   it("gives up when the retry cannot even build its offer", async () => {
     vi.useFakeTimers();
     const { result } = renderHook(() => useVoiceSession(), { wrapper });
-    await act(() => result.current.start({ kind: "console", agentId: "a1", conversationId: null }));
+    await act(() =>
+      result.current.start({
+        kind: "console",
+        agentId: "a1",
+        conversationId: null,
+        transport: "webrtc",
+      }),
+    );
     act(() => {
       FakeSocket.last().open();
       FakeSocket.last().receive(READY);
@@ -324,7 +446,14 @@ describe("useVoiceSession", () => {
 
   it("does not retry a call the server ended", async () => {
     const { result } = renderHook(() => useVoiceSession(), { wrapper });
-    await act(() => result.current.start({ kind: "console", agentId: "a1", conversationId: null }));
+    await act(() =>
+      result.current.start({
+        kind: "console",
+        agentId: "a1",
+        conversationId: null,
+        transport: "webrtc",
+      }),
+    );
     const socket = FakeSocket.last();
     act(() => {
       socket.open();
@@ -339,7 +468,14 @@ describe("useVoiceSession", () => {
 
   it("ignores the close of a socket it has already let go", async () => {
     const { result } = renderHook(() => useVoiceSession(), { wrapper });
-    await act(() => result.current.start({ kind: "console", agentId: "a1", conversationId: null }));
+    await act(() =>
+      result.current.start({
+        kind: "console",
+        agentId: "a1",
+        conversationId: null,
+        transport: "webrtc",
+      }),
+    );
     const socket = FakeSocket.last();
     act(() => result.current.end());
     act(() => socket.drop());
@@ -353,7 +489,12 @@ describe("useVoiceSession", () => {
     const { result } = renderHook(() => useVoiceSession(), { wrapper });
     let starting: Promise<void> = Promise.resolve();
     act(() => {
-      starting = result.current.start({ kind: "console", agentId: "a1", conversationId: null });
+      starting = result.current.start({
+        kind: "console",
+        agentId: "a1",
+        conversationId: null,
+        transport: "webrtc",
+      });
     });
     act(() => result.current.end());
     await act(async () => {
@@ -377,7 +518,12 @@ describe("useVoiceSession", () => {
     );
     let starting: Promise<void> = Promise.resolve();
     await act(async () => {
-      starting = result.current.start({ kind: "console", agentId: "a1", conversationId: null });
+      starting = result.current.start({
+        kind: "console",
+        agentId: "a1",
+        conversationId: null,
+        transport: "webrtc",
+      });
       await Promise.resolve();
     });
     act(() => result.current.end());
@@ -391,7 +537,14 @@ describe("useVoiceSession", () => {
 
   it("hangs up a live call by asking the server to end it", async () => {
     const { result } = renderHook(() => useVoiceSession(), { wrapper });
-    await act(() => result.current.start({ kind: "console", agentId: "a1", conversationId: null }));
+    await act(() =>
+      result.current.start({
+        kind: "console",
+        agentId: "a1",
+        conversationId: null,
+        transport: "webrtc",
+      }),
+    );
     act(() => {
       FakeSocket.last().open();
       FakeSocket.last().receive(READY);
@@ -411,7 +564,14 @@ describe("useVoiceSession", () => {
 
   it("ends a call still connecting without letting it start", async () => {
     const { result } = renderHook(() => useVoiceSession(), { wrapper });
-    await act(() => result.current.start({ kind: "console", agentId: "a1", conversationId: null }));
+    await act(() =>
+      result.current.start({
+        kind: "console",
+        agentId: "a1",
+        conversationId: null,
+        transport: "webrtc",
+      }),
+    );
     const socket = FakeSocket.last();
     act(() => result.current.end());
     expect(socket.close).toHaveBeenCalled();
@@ -423,7 +583,14 @@ describe("useVoiceSession", () => {
   it("cancels the pending retry when the call is ended while reconnecting", async () => {
     vi.useFakeTimers();
     const { result } = renderHook(() => useVoiceSession(), { wrapper });
-    await act(() => result.current.start({ kind: "console", agentId: "a1", conversationId: null }));
+    await act(() =>
+      result.current.start({
+        kind: "console",
+        agentId: "a1",
+        conversationId: null,
+        transport: "webrtc",
+      }),
+    );
     act(() => {
       FakeSocket.last().open();
       FakeSocket.last().receive(READY);
@@ -437,13 +604,27 @@ describe("useVoiceSession", () => {
 
   it("starts every call unmuted", async () => {
     const { result } = renderHook(() => useVoiceSession(), { wrapper });
-    await act(() => result.current.start({ kind: "console", agentId: "a1", conversationId: null }));
+    await act(() =>
+      result.current.start({
+        kind: "console",
+        agentId: "a1",
+        conversationId: null,
+        transport: "webrtc",
+      }),
+    );
     act(() => FakeSocket.last().open());
     act(() => result.current.setMuted(true));
     act(() => result.current.end());
 
     micTrack = { enabled: true, stop: vi.fn(), kind: "audio" };
-    await act(() => result.current.start({ kind: "console", agentId: "a1", conversationId: null }));
+    await act(() =>
+      result.current.start({
+        kind: "console",
+        agentId: "a1",
+        conversationId: null,
+        transport: "webrtc",
+      }),
+    );
     act(() => FakeSocket.last().open());
     expect(micTrack.enabled).toBe(true);
     expect(result.current.call.muted).toBe(false);
@@ -456,11 +637,21 @@ describe("useVoiceSession", () => {
     let first: Promise<void> = Promise.resolve();
     let second: Promise<void> = Promise.resolve();
     act(() => {
-      first = result.current.start({ kind: "console", agentId: "a1", conversationId: null });
+      first = result.current.start({
+        kind: "console",
+        agentId: "a1",
+        conversationId: null,
+        transport: "webrtc",
+      });
     });
     act(() => result.current.end());
     act(() => {
-      second = result.current.start({ kind: "console", agentId: "a1", conversationId: null });
+      second = result.current.start({
+        kind: "console",
+        agentId: "a1",
+        conversationId: null,
+        transport: "webrtc",
+      });
     });
     const firstTrack = { enabled: true, stop: vi.fn(), kind: "audio" };
     const firstStream = {
@@ -490,10 +681,20 @@ describe("useVoiceSession", () => {
     const { result } = renderHook(() => useVoiceSession(), { wrapper });
     let first: Promise<void> = Promise.resolve();
     act(() => {
-      first = result.current.start({ kind: "console", agentId: "a1", conversationId: null });
+      first = result.current.start({
+        kind: "console",
+        agentId: "a1",
+        conversationId: null,
+        transport: "webrtc",
+      });
     });
     act(() => {
-      void result.current.start({ kind: "console", agentId: "a1", conversationId: null });
+      void result.current.start({
+        kind: "console",
+        agentId: "a1",
+        conversationId: null,
+        transport: "webrtc",
+      });
     });
     await act(async () => {
       refusals[0]!(Object.assign(new Error("no"), { name: "NotAllowedError" }));
@@ -505,10 +706,24 @@ describe("useVoiceSession", () => {
 
   it("ends a live call before starting another", async () => {
     const { result } = renderHook(() => useVoiceSession(), { wrapper });
-    await act(() => result.current.start({ kind: "console", agentId: "a1", conversationId: null }));
+    await act(() =>
+      result.current.start({
+        kind: "console",
+        agentId: "a1",
+        conversationId: null,
+        transport: "webrtc",
+      }),
+    );
     const first = FakeSocket.last();
     act(() => first.open());
-    await act(() => result.current.start({ kind: "console", agentId: "a2", conversationId: null }));
+    await act(() =>
+      result.current.start({
+        kind: "console",
+        agentId: "a2",
+        conversationId: null,
+        transport: "webrtc",
+      }),
+    );
     expect(first.sent.at(-1)).toEqual({ type: "end" });
     expect(FakeSocket.instances).toHaveLength(2);
   });
@@ -519,7 +734,14 @@ describe("useVoiceSession", () => {
     const { result } = renderHook(() => useVoiceSession({ onConversation, onTurnSaved }), {
       wrapper,
     });
-    await act(() => result.current.start({ kind: "console", agentId: "a1", conversationId: null }));
+    await act(() =>
+      result.current.start({
+        kind: "console",
+        agentId: "a1",
+        conversationId: null,
+        transport: "webrtc",
+      }),
+    );
     const socket = FakeSocket.last();
     act(() => socket.open());
     act(() => result.current.end());
@@ -544,17 +766,38 @@ describe("useVoiceSession", () => {
 
   it("ignores frames from a socket a newer call replaced", async () => {
     const { result } = renderHook(() => useVoiceSession(), { wrapper });
-    await act(() => result.current.start({ kind: "console", agentId: "a1", conversationId: null }));
+    await act(() =>
+      result.current.start({
+        kind: "console",
+        agentId: "a1",
+        conversationId: null,
+        transport: "webrtc",
+      }),
+    );
     const old = FakeSocket.last();
     act(() => old.open());
-    await act(() => result.current.start({ kind: "console", agentId: "a2", conversationId: null }));
+    await act(() =>
+      result.current.start({
+        kind: "console",
+        agentId: "a2",
+        conversationId: null,
+        transport: "webrtc",
+      }),
+    );
     act(() => old.receive({ type: "ended", reason: "time_limit" }));
     expect(result.current.call.phase).toBe("connecting");
   });
 
   it("gives up a call whose answer the browser cannot apply", async () => {
     const { result } = renderHook(() => useVoiceSession(), { wrapper });
-    await act(() => result.current.start({ kind: "console", agentId: "a1", conversationId: null }));
+    await act(() =>
+      result.current.start({
+        kind: "console",
+        agentId: "a1",
+        conversationId: null,
+        transport: "webrtc",
+      }),
+    );
     const socket = FakeSocket.last();
     act(() => socket.open());
     FakePc.last().setRemoteDescription.mockRejectedValueOnce(new Error("bad sdp"));
@@ -570,7 +813,14 @@ describe("useVoiceSession", () => {
 
   it("does not give up a call already ended when a late answer fails to apply", async () => {
     const { result } = renderHook(() => useVoiceSession(), { wrapper });
-    await act(() => result.current.start({ kind: "console", agentId: "a1", conversationId: null }));
+    await act(() =>
+      result.current.start({
+        kind: "console",
+        agentId: "a1",
+        conversationId: null,
+        transport: "webrtc",
+      }),
+    );
     const socket = FakeSocket.last();
     act(() => socket.open());
     let reject: (error: Error) => void = () => undefined;
@@ -594,7 +844,14 @@ describe("useVoiceSession", () => {
 
   it("closes the peer connection and stops the microphone on pagehide", async () => {
     const { result } = renderHook(() => useVoiceSession(), { wrapper });
-    await act(() => result.current.start({ kind: "console", agentId: "a1", conversationId: null }));
+    await act(() =>
+      result.current.start({
+        kind: "console",
+        agentId: "a1",
+        conversationId: null,
+        transport: "webrtc",
+      }),
+    );
     act(() => FakeSocket.last().open());
     act(() => window.dispatchEvent(new Event("pagehide")));
     expect(FakePc.last().close).toHaveBeenCalled();
@@ -604,7 +861,14 @@ describe("useVoiceSession", () => {
 
   it("ends the call when the page that holds it goes away", async () => {
     const { result, unmount } = renderHook(() => useVoiceSession(), { wrapper });
-    await act(() => result.current.start({ kind: "console", agentId: "a1", conversationId: null }));
+    await act(() =>
+      result.current.start({
+        kind: "console",
+        agentId: "a1",
+        conversationId: null,
+        transport: "webrtc",
+      }),
+    );
     act(() => FakeSocket.last().open());
     unmount();
     expect(FakeSocket.last().sent.at(-1)).toEqual({ type: "end" });
@@ -614,7 +878,14 @@ describe("useVoiceSession", () => {
   it("holds the microphone closed in push-to-talk until the button is held", async () => {
     useVoiceCallStore.setState({ pushToTalk: true });
     const { result } = renderHook(() => useVoiceSession(), { wrapper });
-    await act(() => result.current.start({ kind: "console", agentId: "a1", conversationId: null }));
+    await act(() =>
+      result.current.start({
+        kind: "console",
+        agentId: "a1",
+        conversationId: null,
+        transport: "webrtc",
+      }),
+    );
     act(() => FakeSocket.last().open());
     expect(micTrack.enabled).toBe(false);
     act(() => result.current.pressToTalk(true));
@@ -630,7 +901,14 @@ describe("useVoiceSession", () => {
 
   it("mutes the microphone and tells the server", async () => {
     const { result } = renderHook(() => useVoiceSession(), { wrapper });
-    await act(() => result.current.start({ kind: "console", agentId: "a1", conversationId: null }));
+    await act(() =>
+      result.current.start({
+        kind: "console",
+        agentId: "a1",
+        conversationId: null,
+        transport: "webrtc",
+      }),
+    );
     act(() => FakeSocket.last().open());
     act(() => result.current.setMuted(true));
     expect(micTrack.enabled).toBe(false);
@@ -647,7 +925,14 @@ describe("useVoiceSession", () => {
 
   it("sends a decision for the approval on screen", async () => {
     const { result } = renderHook(() => useVoiceSession(), { wrapper });
-    await act(() => result.current.start({ kind: "console", agentId: "a1", conversationId: null }));
+    await act(() =>
+      result.current.start({
+        kind: "console",
+        agentId: "a1",
+        conversationId: null,
+        transport: "webrtc",
+      }),
+    );
     act(() => FakeSocket.last().open());
     act(() => result.current.decide("a9", true));
     expect(FakeSocket.last().sent.at(-1)).toEqual({
@@ -661,7 +946,14 @@ describe("useVoiceSession", () => {
 
   it("dismisses an approval the caller cannot give", async () => {
     const { result } = renderHook(() => useVoiceSession(), { wrapper });
-    await act(() => result.current.start({ kind: "console", agentId: "a1", conversationId: null }));
+    await act(() =>
+      result.current.start({
+        kind: "console",
+        agentId: "a1",
+        conversationId: null,
+        transport: "webrtc",
+      }),
+    );
     act(() => {
       FakeSocket.last().open();
       FakeSocket.last().receive(READY);
@@ -675,7 +967,14 @@ describe("useVoiceSession", () => {
   it("tells the chat a turn was saved", async () => {
     const onTurnSaved = vi.fn();
     const { result } = renderHook(() => useVoiceSession({ onTurnSaved }), { wrapper });
-    await act(() => result.current.start({ kind: "console", agentId: "a1", conversationId: null }));
+    await act(() =>
+      result.current.start({
+        kind: "console",
+        agentId: "a1",
+        conversationId: null,
+        transport: "webrtc",
+      }),
+    );
     act(() => {
       FakeSocket.last().open();
       FakeSocket.last().receive({
@@ -690,7 +989,14 @@ describe("useVoiceSession", () => {
     useAuthStore.setState({ accessToken: null });
     useOrgStore.setState({ activeOrgId: null });
     const { result } = renderHook(() => useVoiceSession(), { wrapper });
-    await act(() => result.current.start({ kind: "console", agentId: "a1", conversationId: null }));
+    await act(() =>
+      result.current.start({
+        kind: "console",
+        agentId: "a1",
+        conversationId: null,
+        transport: "webrtc",
+      }),
+    );
     expect(FakeSocket.last().url).toBe("wss://x/api/v1/ws/voice");
     expect(FakeSocket.last().protocols).toBeUndefined();
   });
@@ -698,12 +1004,220 @@ describe("useVoiceSession", () => {
   it("calls an embed by its public key, naming no agent and no conversation", async () => {
     const { result } = renderHook(() => useVoiceSession(), { wrapper });
     await act(() =>
-      result.current.start({ kind: "embed", publicKey: "pk", visitorKey: null, token: "t1" }),
+      result.current.start({
+        kind: "embed",
+        publicKey: "pk",
+        visitorKey: null,
+        token: "t1",
+        transport: "webrtc",
+      }),
     );
     const socket = FakeSocket.last();
     act(() => socket.open());
     expect(socket.url).toBe("wss://x/api/v1/embed/pk/voice/ws?token=t1");
     expect(socket.protocols).toBeUndefined();
     expect(socket.sent[0]).toEqual({ type: "start", sdp_offer: offerSdp });
+  });
+});
+
+describe("useVoiceSession over the relay (Gemini, xAI, Azure; fakes only, not verified live)", () => {
+  const RELAY_READY: VoiceServerFrame = {
+    ...READY,
+    transport: "relay",
+    input_sample_rate: 16_000,
+    output_sample_rate: 24_000,
+  } as VoiceServerFrame;
+
+  async function relayCall() {
+    const pcm = await import("@/lib/voice/pcm");
+    const hook = renderHook(() => useVoiceSession(), { wrapper });
+    await act(() =>
+      hook.result.current.start({
+        kind: "console",
+        agentId: "a1",
+        conversationId: null,
+        transport: "relay",
+      }),
+    );
+    const socket = FakeSocket.last();
+    return { ...hook, socket, pcm };
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    relay.onChunk = null;
+    relay.onDrained = null;
+    relay.played = 4800;
+    relay.capture.stop = vi.fn();
+    relay.player.enqueue = vi.fn();
+    relay.player.clear = vi.fn();
+    relay.player.close = vi.fn();
+    relay.context = { sampleRate: 48_000 };
+  });
+
+  it("opens no peer connection and starts without an offer", async () => {
+    const { socket } = await relayCall();
+    act(() => socket.open());
+
+    expect(FakePc.instances).toHaveLength(0);
+    expect(socket.binaryType).toBe("arraybuffer");
+    expect(socket.sent[0]).toEqual({ type: "start", agent_id: "a1", conversation_id: null });
+  });
+
+  it("captures and plays at the rates the server names, and sends the microphone as binary", async () => {
+    const { result, socket, pcm } = await relayCall();
+    act(() => socket.open());
+    // Audio before the call is set up has nowhere to go.
+    act(() => socket.receiveAudio(new ArrayBuffer(8)));
+    act(() => socket.receive(RELAY_READY));
+
+    expect(pcm.createPcmCapture).toHaveBeenCalledWith(
+      relay.context,
+      micStream,
+      16_000,
+      expect.any(Function),
+    );
+    expect(pcm.createPcmPlayer).toHaveBeenCalledWith(relay.context, 24_000, expect.any(Function));
+    expect(result.current.remoteStream).toBe(relay.player.stream);
+
+    relay.onChunk!(new ArrayBuffer(4096));
+    expect(socket.sent).toContainEqual({ binary: 4096 });
+
+    const agent = new ArrayBuffer(960);
+    act(() => socket.receiveAudio(agent));
+    expect(relay.player.enqueue).toHaveBeenCalledTimes(1);
+    expect(relay.player.enqueue).toHaveBeenCalledWith(agent);
+  });
+
+  it("reports what was played on a timer and drops the queue when the server says", async () => {
+    vi.useFakeTimers();
+    const { socket } = await relayCall();
+    act(() => {
+      socket.open();
+      socket.receive(RELAY_READY);
+    });
+
+    await act(() => vi.advanceTimersByTimeAsync(PLAYED_EVERY_MS));
+    expect(socket.sent).toContainEqual({ type: "played", bytes: 4800 });
+    // A position that did not move is not sent again.
+    await act(() => vi.advanceTimersByTimeAsync(PLAYED_EVERY_MS * 3));
+    expect(
+      socket.sent.filter((frame) => (frame as { type?: string }).type === "played"),
+    ).toHaveLength(1);
+    // The end of playback is reported at once, not at the next tick.
+    relay.played = 9600;
+    relay.onDrained!();
+    expect(socket.sent).toContainEqual({ type: "played", bytes: 9600 });
+
+    act(() => socket.receive({ type: "clear_playback" }));
+    expect(relay.player.clear).toHaveBeenCalled();
+  });
+
+  it("sends nothing into a socket that is closing", async () => {
+    vi.useFakeTimers();
+    const { socket } = await relayCall();
+    act(() => {
+      socket.open();
+      socket.receive(RELAY_READY);
+    });
+    const before = socket.sent.length;
+    socket.readyState = 2;
+
+    relay.onChunk!(new ArrayBuffer(16));
+    await act(() => vi.advanceTimersByTimeAsync(PLAYED_EVERY_MS));
+
+    expect(socket.sent).toHaveLength(before);
+  });
+
+  it("stops the capture, the player and the reports when the call ends", async () => {
+    vi.useFakeTimers();
+    const { result, socket } = await relayCall();
+    act(() => {
+      socket.open();
+      socket.receive(RELAY_READY);
+    });
+
+    act(() => result.current.end());
+    const sent = socket.sent.length;
+    await act(() => vi.advanceTimersByTimeAsync(PLAYED_EVERY_MS * 4));
+
+    expect(relay.capture.stop).toHaveBeenCalled();
+    expect(relay.player.close).toHaveBeenCalled();
+    expect(socket.sent).toHaveLength(sent);
+    expect(result.current.remoteStream).toBeNull();
+  });
+
+  it("starts fresh audio on the resumed connection after a drop", async () => {
+    vi.useFakeTimers();
+    const { socket, pcm } = await relayCall();
+    act(() => {
+      socket.open();
+      socket.receive(RELAY_READY);
+      socket.drop();
+    });
+    expect(relay.player.close).toHaveBeenCalledTimes(1);
+
+    await act(() => vi.advanceTimersByTimeAsync(RECONNECT_DELAY_MS));
+    const second = FakeSocket.last();
+    act(() => {
+      second.open();
+      second.receive({ ...RELAY_READY, call_id: "c2" } as VoiceServerFrame);
+    });
+    expect(second.sent[0]).toMatchObject({ type: "start", resume_of: "c1" });
+    expect(pcm.createPcmPlayer).toHaveBeenCalledTimes(2);
+  });
+
+  it("gives the call up in a browser without Web Audio", async () => {
+    relay.context = null;
+    const { result, socket } = await relayCall();
+    act(() => {
+      socket.open();
+      socket.receive(RELAY_READY);
+    });
+    // The call never carried audio: it could not connect, and its socket is closed.
+    expect(viewState(result.current.call)).toBe("connfailed");
+    expect(socket.close).toHaveBeenCalled();
+    expect(micTrack.stop).toHaveBeenCalled();
+  });
+
+  it("gives up when the server sets the call up on another transport", async () => {
+    const { result, socket, pcm } = await relayCall();
+    act(() => {
+      socket.open();
+      socket.receive({ ...RELAY_READY, transport: "webrtc" } as VoiceServerFrame);
+    });
+    expect(pcm.createPcmCapture).not.toHaveBeenCalled();
+    expect(socket.close).toHaveBeenCalled();
+    expect(viewState(result.current.call)).toBe("connfailed");
+  });
+
+  it("creates the audio context in the click that starts the call, not when it is ready", async () => {
+    const voiceGlow = await import("voice-glow");
+    stubMic(() => new Promise<MediaStream>(() => {}));
+    const { result } = renderHook(() => useVoiceSession(), { wrapper });
+    void act(() => {
+      void result.current.start({
+        kind: "console",
+        agentId: "a1",
+        conversationId: null,
+        transport: "relay",
+      });
+    });
+    expect(voiceGlow.getAudioContext).toHaveBeenCalledTimes(1);
+    expect(FakeSocket.instances).toHaveLength(0);
+  });
+
+  it("does not touch Web Audio for a WebRTC call", async () => {
+    const voiceGlow = await import("voice-glow");
+    const { result } = renderHook(() => useVoiceSession(), { wrapper });
+    await act(() =>
+      result.current.start({
+        kind: "console",
+        agentId: "a1",
+        conversationId: null,
+        transport: "webrtc",
+      }),
+    );
+    expect(voiceGlow.getAudioContext).not.toHaveBeenCalled();
   });
 });

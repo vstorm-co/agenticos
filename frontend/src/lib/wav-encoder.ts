@@ -29,18 +29,24 @@ export function mixToMono(channels: readonly Float32Array[]): Float32Array {
 }
 
 /**
- * A streaming resampler from `fromRate` to 16 kHz. Feed it consecutive chunks;
+ * A streaming resampler from `fromRate` to `toRate` - 16 kHz for dictation, the
+ * model's input rate for a relayed voice call (#54). Feed it consecutive chunks;
  * each call returns the output samples those chunks complete.
  *
  * Downsampling averages every source sample an output sample spans, which is a
- * crude low-pass: plain decimation would fold the band above 8 kHz back into the
- * speech. Upsampling (a context under 16 kHz, which no current browser opens)
- * repeats the nearest sample. Window edges are counted from the first sample
- * ever fed in, so chunk boundaries do not drift the rate. The few samples
- * that do not fill a last window are dropped - a fraction of a millisecond.
+ * crude low-pass: plain decimation would fold the band above half the target
+ * rate back into the speech. Upsampling - a context under the target rate, such
+ * as a Bluetooth headset's 16 kHz one feeding a 24 kHz model - repeats the
+ * nearest earlier sample: a crude hold, but the right length. Window edges are
+ * counted from the first sample ever fed in, so chunk boundaries do not drift
+ * the rate. The few samples that do not fill a last window are dropped - a
+ * fraction of a millisecond.
  */
-export function createResampler(fromRate: number): (chunk: Float32Array) => Float32Array {
-  const ratio = fromRate / WAV_SAMPLE_RATE;
+export function createResampler(
+  fromRate: number,
+  toRate: number = WAV_SAMPLE_RATE,
+): (chunk: Float32Array) => Float32Array {
+  const ratio = fromRate / toRate;
   /** Source samples already discarded, before `pending[0]`. */
   let consumed = 0;
   /** Output samples produced so far. */

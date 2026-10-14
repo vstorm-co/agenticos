@@ -54,7 +54,7 @@ class _Writer:
         return f"call:{self.count}:{role}"
 
 
-def _pump(*, guard=None, affordable=True):
+def _pump(*, guard=None, affordable=True, relay=None):
     frames: list[tuple[str, dict]] = []
 
     async def send(kind, payload):
@@ -72,7 +72,7 @@ def _pump(*, guard=None, affordable=True):
         ),
     )
     clock = _Clock()
-    pump = EventPump(started=started, send=send, clock=SpeechClock(now=clock))
+    pump = EventPump(started=started, send=send, clock=SpeechClock(now=clock), relay=relay)
     return pump, frames, started, clock
 
 
@@ -310,7 +310,6 @@ async def test_speech_while_nobody_is_talking_is_not_an_interruption():
 
 async def test_the_relays_exact_playback_wins_over_the_estimate():
     pump, _, started, _ = _pump()
-    pump.note_played_ms(2000)
     await pump.handle(
         PartEndEvent(
             index=9,
@@ -321,6 +320,7 @@ async def test_the_relays_exact_playback_wins_over_the_estimate():
         ),
         _SESSION,
     )
+    pump.note_played_ms(2000)
     await pump.flush()
     assert started.writer.assistant_turn.await_args.args[0] == "It is eighteen degrees and"
 
@@ -521,3 +521,228 @@ async def test_a_response_with_nothing_said_and_no_tools_saves_nothing():
     pump, _, started, _ = _pump()
     await pump.handle(RealtimeTurnCompleteEvent(), _SESSION)
     started.writer.assistant_turn.assert_not_awaited()
+
+
+_ANSWER = "It is eighteen degrees and cloudy in Warsaw, with rain expected by the evening."
+
+
+def _relay(played_ms):
+    return MagicMock(barge_in=AsyncMock(return_value=played_ms), answer_started=MagicMock())
+
+
+async def _spoken_answer(pump, index=4):
+    await pump.handle(
+        PartStartEvent(index=index, part=SpeechPart(speaker="assistant", transcript="")), _SESSION
+    )
+    await pump.handle(
+        PartEndEvent(index=index, part=SpeechPart(speaker="assistant", transcript=_ANSWER)),
+        _SESSION,
+    )
+
+
+async def test_over_the_relay_speaking_over_the_agent_cuts_at_what_the_browser_played():
+    """The relay's exact position, not the WebRTC estimate. Fakes only: not verified live."""
+    relay = _relay(2000)
+    pump, frames, started, _ = _pump(relay=relay)
+    await _spoken_answer(pump)
+    await pump.handle(
+        PartStartEvent(index=5, part=SpeechPart(speaker="assistant", transcript="")), _SESSION
+    )
+
+    await pump.handle(RealtimeInputSpeechStartEvent(item_id="i1"), _SESSION)
+    await pump.handle(RealtimeTurnCompleteEvent(), _SESSION)
+
+    relay.barge_in.assert_awaited_once_with(_SESSION)
+    relay.answer_started.assert_called_once()  # once per response, not per part
+    assert started.writer.assistant_turn.await_args.args[0] == "It is eighteen degrees and"
+    assert started.writer.assistant_turn.await_args.kwargs["interrupted"] is True
+    assert [p["state"] for k, p in frames if k == "state"][-2:] == ["interrupted", "user_speaking"]
+
+
+async def test_over_the_relay_speech_after_the_answer_was_heard_cuts_nothing():
+    pump, frames, started, _ = _pump(relay=_relay(None))
+    await _spoken_answer(pump)
+
+    await pump.handle(RealtimeInputSpeechStartEvent(item_id="i1"), _SESSION)
+    await pump.handle(RealtimeTurnCompleteEvent(), _SESSION)
+
+    assert started.writer.assistant_turn.await_args.args[0] == _ANSWER
+    assert started.writer.assistant_turn.await_args.kwargs["interrupted"] is False
+    assert ("state", {"state": "interrupted"}) not in frames
+
+
+async def test_geminis_own_interruption_flushes_the_relay():
+    """Gemini reports no speech start: its interruption event is the barge-in."""
+    from pydantic_ai.realtime import RealtimeResponseInterruptedEvent
+
+    relay = _relay(2000)
+    pump, frames, started, _ = _pump(relay=relay)
+    await _spoken_answer(pump)
+
+    await pump.handle(RealtimeResponseInterruptedEvent(), _SESSION)
+    await pump.handle(RealtimeTurnCompleteEvent(), _SESSION)
+
+    relay.barge_in.assert_awaited_once_with(_SESSION)
+    assert started.writer.assistant_turn.await_args.args[0] == "It is eighteen degrees and"
+    assert ("state", {"state": "interrupted"}) in frames
+
+
+def _real_relay(**profile):
+    from app.services.voice.relay import AudioRelay
+
+    sent: list[bytes] = []
+    frames: list[tuple[str, dict]] = []
+
+    async def send_bytes(data):
+        sent.append(data)
+        return True
+
+    async def send(kind, payload):
+        frames.append((kind, payload))
+
+    relay = AudioRelay(
+        send_bytes=send_bytes, send=send, input_sample_rate=24000, output_sample_rate=24000
+    )
+    session = SimpleNamespace(
+        usage=RunUsage(cost=Decimal("0.01")),
+        interrupt=AsyncMock(),
+        profile={"supports_interruption": True, "supports_output_truncation": True, **profile},
+    )
+    return relay, sent, frames, session
+
+
+_SECOND = 48_000
+
+
+async def _answer_with_audio(pump, session, index, seconds, *, complete=True):
+    await pump.handle(
+        PartStartEvent(index=index, part=SpeechPart(speaker="assistant", transcript="")), session
+    )
+    await pump.handle(
+        PartDeltaEvent(
+            index=index,
+            delta=SpeechPartDelta(
+                speaker="assistant", audio_chunk=b"\x00" * int(seconds * _SECOND)
+            ),
+        ),
+        session,
+    )
+    if complete:
+        await pump.handle(
+            PartEndEvent(index=index, part=SpeechPart(speaker="assistant", transcript=_ANSWER)),
+            session,
+        )
+        await pump.handle(RealtimeTurnCompleteEvent(), session)
+
+
+async def test_cutting_in_on_a_saved_answer_still_playing_trims_neither_it_nor_the_next():
+    """Review blocker 1: a barge-in after the answer was saved must not leak into the next one."""
+    relay, _, relay_frames, session = _real_relay()
+    pump, frames, started, _ = _pump(relay=relay)
+    await _answer_with_audio(pump, session, 4, 3)
+    assert started.writer.assistant_turn.await_args.args[0] == _ANSWER
+    relay.heard(_SECOND)
+
+    await pump.handle(RealtimeInputSpeechStartEvent(item_id="i1"), session)
+    await _answer_with_audio(pump, session, 6, 1)
+
+    assert relay_frames == [("clear_playback", {})]
+    assert ("state", {"state": "interrupted"}) in frames
+    assert started.writer.assistant_turn.await_args.args[0] == _ANSWER
+    assert started.writer.assistant_turn.await_args.kwargs["interrupted"] is False
+
+
+async def test_over_webrtc_speech_after_the_answer_was_saved_does_not_trim_the_next():
+    """The provider's playback outlasts the response: the same leak, on the heuristic's path."""
+    pump, frames, started, clock = _pump()
+    await pump.handle(RealtimeOutputSpeechStartEvent(), _SESSION)
+    await pump.handle(
+        PartEndEvent(index=3, part=SpeechPart(speaker="assistant", transcript=_ANSWER)), _SESSION
+    )
+    await pump.handle(RealtimeTurnCompleteEvent(), _SESSION)
+    clock.t += 2.0
+
+    await pump.handle(RealtimeInputSpeechStartEvent(item_id="i1"), _SESSION)
+    await pump.handle(
+        PartEndEvent(index=5, part=SpeechPart(speaker="assistant", transcript=_ANSWER)), _SESSION
+    )
+    await pump.handle(RealtimeTurnCompleteEvent(), _SESSION)
+
+    assert ("state", {"state": "interrupted"}) in frames
+    assert started.writer.assistant_turn.await_args.args[0] == _ANSWER
+    assert started.writer.assistant_turn.await_args.kwargs["interrupted"] is False
+
+
+async def test_the_answer_start_is_counted_in_event_order_not_when_the_pump_got_round_to_it():
+    """Review 2: audio is forwarded by the pump itself, so a slow write cannot shift the start."""
+    relay, sent, _, session = _real_relay()
+    pump, _, started, _ = _pump(relay=relay)
+    started.writer.user_turn = AsyncMock(side_effect=lambda *a, **k: None)
+    await _answer_with_audio(pump, session, 1, 1)
+    await _answer_with_audio(pump, session, 3, 3, complete=False)
+    relay.heard(_SECOND + 2 * _SECOND)  # the first answer, then two seconds of the second
+
+    await pump.handle(RealtimeInputSpeechStartEvent(item_id="i1"), session)
+    await pump.handle(
+        PartEndEvent(index=3, part=SpeechPart(speaker="assistant", transcript=_ANSWER)), session
+    )
+    await pump.handle(RealtimeTurnCompleteEvent(), session)
+
+    session.interrupt.assert_awaited_once_with(played_ms=2000)
+    assert started.writer.assistant_turn.await_args.args[0] == "It is eighteen degrees and"
+    assert sum(len(chunk) for chunk in sent) == 4 * _SECOND
+
+
+async def test_audio_of_the_part_a_barge_in_cut_never_reaches_the_browser():
+    relay, sent, _, session = _real_relay()
+    pump, _, _, _ = _pump(relay=relay)
+    await _answer_with_audio(pump, session, 2, 2, complete=False)
+    relay.heard(_SECOND)
+    await pump.handle(RealtimeInputSpeechStartEvent(item_id="i1"), session)
+
+    await pump.handle(
+        PartDeltaEvent(
+            index=2, delta=SpeechPartDelta(speaker="assistant", audio_chunk=b"\x00" * 960)
+        ),
+        session,
+    )
+
+    assert sum(len(chunk) for chunk in sent) == 2 * _SECOND
+
+
+async def test_on_gemini_the_callers_words_arriving_over_a_playing_answer_flush_it():
+    """Gemini reports no speech start, and no interruption once an answer finished generating."""
+    relay, _, relay_frames, session = _real_relay(
+        supports_interruption=False, supports_output_truncation=False
+    )
+    pump, frames, _, _ = _pump(relay=relay)
+    await _answer_with_audio(pump, session, 2, 2)
+
+    await pump.handle(
+        PartStartEvent(index=3, part=SpeechPart(speaker="user", transcript="")), session
+    )
+
+    session.interrupt.assert_not_awaited()
+    assert relay_frames == [("clear_playback", {})]
+    assert ("state", {"state": "interrupted"}) in frames
+    # Once flushed, the caller's next part is not a second barge-in.
+    await pump.handle(
+        PartStartEvent(index=5, part=SpeechPart(speaker="user", transcript="")), session
+    )
+    assert relay_frames == [("clear_playback", {})]
+
+
+async def test_the_providers_mark_wins_over_a_later_estimate():
+    pump, _, started, clock = _pump()
+    await pump.handle(RealtimeOutputSpeechStartEvent(), _SESSION)
+    await pump.handle(
+        PartEndEvent(
+            index=8,
+            part=SpeechPart(speaker="assistant", interrupted_at_ms=2000, transcript=_ANSWER),
+        ),
+        _SESSION,
+    )
+    clock.t += 30.0
+    await pump.handle(RealtimeInputSpeechStartEvent(item_id="i1"), _SESSION)
+    await pump.handle(RealtimeTurnCompleteEvent(), _SESSION)
+    assert started.writer.assistant_turn.await_args.args[0] == "It is eighteen degrees and"

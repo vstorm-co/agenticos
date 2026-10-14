@@ -16,8 +16,7 @@ pytestmark = pytest.mark.anyio
 _KEY = uuid4()
 
 
-def test_an_azure_section_resolves_to_its_deployment_and_base_model_entry(monkeypatch):
-    monkeypatch.setattr("app.services.realtime_models.RELAY_READY", True)
+def test_an_azure_section_resolves_to_its_deployment_and_base_model_entry():
     resolved = resolve_voice(
         VoiceSpec(provider="azure", deployment="rt-prod", base_model="gpt-realtime", secret_id=_KEY)
     )
@@ -104,10 +103,7 @@ async def test_an_embed_ignores_the_chat_switch():
     assert (await _readiness(_org(voice_in_chat=False), _READY, surface="embed")).available
 
 
-def test_a_provider_without_calls_or_an_azure_section_without_a_deployment_resolves_to_nothing(
-    monkeypatch,
-):
-    monkeypatch.setattr("app.services.realtime_models.RELAY_READY", True)
+def test_a_provider_without_calls_or_an_azure_section_without_a_deployment_resolves_to_nothing():
     assert resolve_voice(VoiceSpec(provider="anthropic", model="claude", secret_id=_KEY)) is None
     assert (
         resolve_voice(VoiceSpec(provider="azure", base_model="gpt-realtime", secret_id=_KEY))

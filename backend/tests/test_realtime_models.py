@@ -46,19 +46,6 @@ def _profile_value(profile, key: str):
     return profile[key] if isinstance(profile, dict) else getattr(profile, key)
 
 
-@pytest.fixture
-def relay_ready(monkeypatch):
-    monkeypatch.setattr(realtime_models, "RELAY_READY", True)
-
-
-def test_until_the_relay_exists_only_webrtc_models_are_offered():
-    """Nothing would stream a relay call's audio yet: it would connect and bill for nothing."""
-    offered = {p.provider: [m.transport for m in p.models] for p in realtime_models.providers()}
-    assert offered == {"openai": ["webrtc", "webrtc", "webrtc"]}
-    assert realtime_models.offered("xai", "grok-voice-latest") is None
-
-
-@pytest.mark.usefixtures("relay_ready")
 def test_the_four_providers_are_offered_with_their_credential_kinds():
     offered = {p.provider: p for p in realtime_models.providers()}
 
@@ -68,13 +55,11 @@ def test_the_four_providers_are_offered_with_their_credential_kinds():
     assert offered["openai"].secret_kind is SecretKind.API_KEY
 
 
-@pytest.mark.usefixtures("relay_ready")
 def test_gpt_live_is_not_offered():
     ids = {m.id for p in realtime_models.providers() for m in p.models}
     assert not any(model_id.startswith("gpt-live") for model_id in ids)
 
 
-@pytest.mark.usefixtures("relay_ready")
 def test_only_openai_answers_over_webrtc():
     for provider in realtime_models.providers():
         for model in provider.models:
@@ -86,7 +71,6 @@ def test_only_openai_answers_over_webrtc():
     ("provider", "model"),
     [(entry.provider, m.id) for entry in realtime_models.CATALOG for m in entry.models],
 )
-@pytest.mark.usefixtures("relay_ready")
 def test_each_entry_agrees_with_the_library_profile(provider: str, model: str):
     entry = realtime_models.offered(provider, model)
     assert entry is not None
@@ -101,7 +85,6 @@ def test_each_entry_agrees_with_the_library_profile(provider: str, model: str):
     assert entry.default_voice in entry.voices
 
 
-@pytest.mark.usefixtures("relay_ready")
 def test_every_entry_has_a_positive_worst_case_price():
     for provider in realtime_models.providers():
         for model in provider.models:
@@ -113,3 +96,19 @@ def test_every_entry_has_a_positive_worst_case_price():
 def test_a_model_outside_the_catalog_is_not_offered():
     assert realtime_models.offered("openai", "gpt-4o") is None
     assert realtime_models.offered("anthropic", "gpt-realtime") is None
+
+
+def test_a_provider_the_platform_does_not_know_or_with_only_gpt_live_is_not_offered(monkeypatch):
+    from dataclasses import replace
+
+    openai = next(entry for entry in realtime_models.CATALOG if entry.provider == "openai")
+    gpt_live = replace(openai.models[0], id="gpt-live-1")
+    monkeypatch.setattr(
+        realtime_models,
+        "CATALOG",
+        (
+            replace(openai, provider="nobody"),
+            replace(openai, models=(gpt_live,)),
+        ),
+    )
+    assert realtime_models.providers() == ()

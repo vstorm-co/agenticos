@@ -275,7 +275,10 @@ class VoiceCallStarter:
             bridge=bridge,
             guard=TranscriptGuard.for_spec(prepared.spec),
             meter=UsageMeter(
-                prepared.built.ledger, entry=resolved.entry, model_name=resolved.model
+                prepared.built.ledger,
+                entry=resolved.entry,
+                model_name=resolved.model,
+                price_as=price_provider if resolved.provider == "azure" else None,
             ),
             writer=TurnWriter(
                 sessions=self._sessions,

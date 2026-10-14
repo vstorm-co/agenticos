@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { getAudioContext } from "voice-glow";
 
 import { usePublicConfig } from "@/components/public-config/public-config-provider";
 import {
@@ -9,13 +10,38 @@ import {
   type CallState,
   type MicFailure,
 } from "@/lib/voice/call-reducer";
+import {
+  createPcmCapture,
+  createPcmPlayer,
+  PLAYED_EVERY_MS,
+  type PcmCapture,
+  type PcmPlayer,
+} from "@/lib/voice/pcm";
 import { audioOnlyOffer, consoleVoiceUrl, embedVoiceUrl } from "@/lib/voice/sdp";
 import { useAuthStore, useOrgStore, useVoiceCallStore } from "@/stores";
-import type { VoiceClientFrame, VoiceServerFrame } from "@/types/voice";
+import type { VoiceClientFrame, VoiceServerFrame, VoiceTransport } from "@/types/voice";
 
+/**
+ * Who to call, and how the call's audio travels - the agent's readiness says
+ * (`GET /agents/{id}/voice`): `webrtc` straight to the provider, `relay` through
+ * the voice socket.
+ */
 export type VoiceTarget =
-  | { kind: "console"; agentId: string; conversationId: string | null }
-  | { kind: "embed"; publicKey: string; visitorKey: string | null; token: string | null };
+  | { kind: "console"; agentId: string; conversationId: string | null; transport: VoiceTransport }
+  | {
+      kind: "embed";
+      publicKey: string;
+      visitorKey: string | null;
+      token: string | null;
+      transport: VoiceTransport;
+    };
+
+/** A relayed call's audio in this page: the capture, the player and its `played` reports. */
+interface RelayMedia {
+  capture: PcmCapture;
+  player: PcmPlayer;
+  timer: number;
+}
 
 /** How long the one automatic retry waits, so the old connection's teardown has finished. */
 export const RECONNECT_DELAY_MS = 1500;
@@ -67,7 +93,14 @@ export interface VoiceSession {
  * The socket is the call: when it closes, the peer connection is closed and the
  * microphone stopped. Closing them on `pagehide` and on unmount too is a
  * courtesy - the server's hang-up in its `finally` and its reaper are the
- * guarantee. Relay transport (Gemini, xAI, Azure) is added with slice 1.
+ * guarantee.
+ *
+ * A relayed call (Gemini, xAI, Azure; not verified live) has no peer
+ * connection: once the server is `ready` the microphone is sent as PCM at the
+ * model's input rate, the agent's audio is played from binary frames, how much
+ * of it was played is reported every {@link PLAYED_EVERY_MS}, and
+ * `clear_playback` drops what is queued - the browser's half of barge-in.
+ * Mute and push-to-talk disable the track, which captures as silence.
  *
  * A drop is retried once, as one logical retry: the resumed socket is opened
  * again until {@link RESUME_WINDOW_MS} after the drop (sooner when the browser
@@ -85,6 +118,7 @@ export function useVoiceSession(
 
   const socketRef = useRef<WebSocket | null>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
+  const relayRef = useRef<RelayMedia | null>(null);
   const micRef = useRef<MediaStream | null>(null);
   const callIdRef = useRef<string | null>(null);
   const conversationRef = useRef<string | null>(null);
@@ -124,19 +158,31 @@ export function useVoiceSession(
     cancelRetryRef.current = null;
   }, []);
 
+  /** Stop this connection's media: the peer connection, or the relay's capture and player. */
+  const closeMedia = useCallback(() => {
+    pcRef.current?.close();
+    pcRef.current = null;
+    const relay = relayRef.current;
+    relayRef.current = null;
+    if (relay) {
+      window.clearInterval(relay.timer);
+      relay.capture.stop();
+      relay.player.close();
+    }
+  }, []);
+
   /** Close the socket without its close handler deciding anything, and the media with it. */
   const closeAll = useCallback(() => {
     cancelRetry();
     const socket = socketRef.current;
     socketRef.current = null;
     socket?.close();
-    pcRef.current?.close();
-    pcRef.current = null;
+    closeMedia();
     micRef.current?.getTracks().forEach((track) => track.stop());
     micRef.current = null;
     setLocalStream(null);
     setRemoteStream(null);
-  }, [cancelRetry]);
+  }, [cancelRetry, closeMedia]);
 
   const giveUp = useCallback(() => {
     liveRef.current = false;
@@ -161,18 +207,61 @@ export function useVoiceSession(
     [cancelRetry, giveUp],
   );
 
+  /**
+   * Start a relayed call's audio once the server says at which rates. `false`
+   * when this browser has no Web Audio to capture or play with - the call is
+   * given up, and its socket closed, which ends it on the server.
+   */
+  const startRelay = useCallback(
+    (socket: WebSocket, frame: Extract<VoiceServerFrame, { type: "ready" }>): boolean => {
+      const context = getAudioContext();
+      if (context === null) {
+        giveUp();
+        return false;
+      }
+      const capture = createPcmCapture(
+        context,
+        micRef.current as MediaStream,
+        frame.input_sample_rate,
+        (pcm) => {
+          if (socket.readyState === WebSocket.OPEN) socket.send(pcm);
+        },
+      );
+      // Only a position that moved is sent: a quiet call sends nothing.
+      let reported = 0;
+      const report = () => {
+        const bytes = player.playedBytes();
+        if (bytes === reported || socket.readyState !== WebSocket.OPEN) return;
+        reported = bytes;
+        socket.send(JSON.stringify({ type: "played", bytes } satisfies VoiceClientFrame));
+      };
+      const player = createPcmPlayer(context, frame.output_sample_rate, report);
+      const timer = window.setInterval(report, PLAYED_EVERY_MS);
+      relayRef.current = { capture, player, timer };
+      setRemoteStream(player.stream);
+      return true;
+    },
+    [giveUp],
+  );
+
   const connect = useCallback(
     async (attempt: Attempt) => {
       const { target, generation, resume } = attempt;
-      const pc = new RTCPeerConnection();
-      pcRef.current = pc;
-      const mic = micRef.current as MediaStream;
-      mic.getAudioTracks().forEach((track) => pc.addTrack(track, mic));
-      pc.ontrack = (event) => setRemoteStream(event.streams[0] ?? null);
-      const sdp = await audioOnlyOffer(pc);
-      if (!current(generation)) {
-        pc.close();
-        return;
+      const relayed = target.transport === "relay";
+      let pc: RTCPeerConnection | null = null;
+      let sdp: string | null = null;
+      if (!relayed) {
+        const peer = new RTCPeerConnection();
+        pc = peer;
+        pcRef.current = peer;
+        const mic = micRef.current as MediaStream;
+        mic.getAudioTracks().forEach((track) => peer.addTrack(track, mic));
+        peer.ontrack = (event) => setRemoteStream(event.streams[0] ?? null);
+        sdp = await audioOnlyOffer(peer);
+        if (!current(generation)) {
+          peer.close();
+          return;
+        }
       }
       const url =
         target.kind === "console"
@@ -184,12 +273,14 @@ export function useVoiceSession(
           ? new WebSocket(url, [`access_token.${token}`, "voice"])
           : new WebSocket(url);
       socketRef.current = socket;
+      // The agent's audio arrives as binary frames; an ArrayBuffer is what the player takes.
+      if (relayed) socket.binaryType = "arraybuffer";
       // Whether this connection was set up; a resume that never was is tried again.
       let ready = false;
       socket.onopen = () => {
         const start: VoiceClientFrame = {
           type: "start",
-          sdp_offer: sdp,
+          ...(sdp !== null ? { sdp_offer: sdp } : {}),
           ...(target.kind === "console"
             ? { agent_id: target.agentId, conversation_id: conversationRef.current }
             : {}),
@@ -200,17 +291,29 @@ export function useVoiceSession(
       };
       socket.onmessage = (event: MessageEvent) => {
         if (generationRef.current !== generation) return;
-        const frame = JSON.parse(event.data as string) as VoiceServerFrame;
+        if (typeof event.data !== "string") {
+          relayRef.current?.player.enqueue(event.data as ArrayBuffer);
+          return;
+        }
+        const frame = JSON.parse(event.data) as VoiceServerFrame;
         // After End only the server's own account of the end, and the turns it
         // saved on the way out, still count; nothing may bring the call back.
         if (!liveRef.current && frame.type !== "ended" && frame.type !== "turn_saved") return;
-        if (frame.type === "answer") {
+        if (frame.type === "answer" && pc !== null) {
           pc.setRemoteDescription({ type: "answer", sdp: frame.sdp }).catch(() => {
             if (current(generation)) giveUp();
           });
         }
+        if (frame.type === "clear_playback") relayRef.current?.player.clear();
         if (frame.type === "ready") {
+          if (frame.transport !== target.transport) {
+            // The agent was re-published onto another transport between its
+            // readiness and this call: this connection cannot carry the audio.
+            giveUp();
+            return;
+          }
           ready = true;
+          if (relayed && relayRef.current === null && !startRelay(socket, frame)) return;
           callIdRef.current = frame.call_id;
           if (conversationRef.current !== frame.conversation_id) {
             conversationRef.current = frame.conversation_id;
@@ -224,7 +327,7 @@ export function useVoiceSession(
       socket.onclose = () => {
         if (socketRef.current !== socket) return;
         socketRef.current = null;
-        pc.close();
+        closeMedia();
         if (!liveRef.current) {
           closeAll();
           return;
@@ -247,7 +350,7 @@ export function useVoiceSession(
         );
       };
     },
-    [activeOrgId, applyTrack, closeAll, giveUp, scheduleResume, wsUrl],
+    [activeOrgId, applyTrack, closeAll, closeMedia, giveUp, scheduleResume, startRelay, wsUrl],
   );
 
   useEffect(() => {
@@ -262,8 +365,7 @@ export function useVoiceSession(
     if (socket?.readyState === WebSocket.OPEN) {
       // The server ends the call and closes the socket; its `ended` frame follows.
       socket.send(JSON.stringify({ type: "end" } satisfies VoiceClientFrame));
-      pcRef.current?.close();
-      pcRef.current = null;
+      closeMedia();
       micRef.current?.getTracks().forEach((track) => track.stop());
       micRef.current = null;
       setLocalStream(null);
@@ -273,10 +375,13 @@ export function useVoiceSession(
       closeAll();
     }
     dispatch({ type: "frame", frame: { type: "ended", reason: "user" }, now: Date.now() });
-  }, [cancelRetry, closeAll]);
+  }, [cancelRetry, closeAll, closeMedia]);
 
   const start = useCallback(
     async (target: VoiceTarget) => {
+      // Safari starts an AudioContext only inside the gesture that asked for it,
+      // and `ready` arrives long after the click: create (and resume) it now.
+      if (target.transport === "relay") getAudioContext();
       // One call at a time: a call still live is ended, and every await below
       // gives up if another `start` has run since.
       end();

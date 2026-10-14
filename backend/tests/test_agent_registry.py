@@ -1925,11 +1925,11 @@ class TestVoiceProblems:
     """The agent's Voice conversations section, refused at publish (#54)."""
 
     @pytest.mark.anyio
-    async def test_a_relay_provider_is_refused_until_the_relay_exists(self, service, ctx):
+    async def test_a_provider_without_realtime_models_is_refused(self, service, ctx):
         problems = await service._voice_problems(
-            ctx, VoiceSpec(provider="xai", model="grok-voice-latest", secret_id=uuid4())
+            ctx, VoiceSpec(provider="anthropic", model="claude", secret_id=uuid4())
         )
-        assert problems == ["Voice: xai cannot hold voice conversations on this deployment"]
+        assert problems == ["Voice: anthropic cannot hold voice conversations on this deployment"]
 
     @pytest.fixture
     def service(self) -> AgentRegistryService:
@@ -1938,10 +1938,6 @@ class TestVoiceProblems:
     @pytest.fixture
     def ctx(self) -> AuthContext:
         return _ctx()
-
-    @pytest.fixture
-    def relay_ready(self, monkeypatch):
-        monkeypatch.setattr("app.services.realtime_models.RELAY_READY", True)
 
     @pytest.fixture
     def keys_pass(self, monkeypatch):
@@ -1975,7 +1971,6 @@ class TestVoiceProblems:
 
     @pytest.mark.anyio
     @pytest.mark.usefixtures("keys_pass")
-    @pytest.mark.usefixtures("relay_ready")
     async def test_azure_needs_a_deployment_and_a_base_model(self, service, ctx):
         problems = await service._voice_problems(
             ctx, VoiceSpec(provider="azure", base_model="gpt-realtime", secret_id=uuid4())
@@ -1983,7 +1978,6 @@ class TestVoiceProblems:
         assert "Voice: name the Azure deployment that runs gpt-realtime" in problems
 
     @pytest.mark.anyio
-    @pytest.mark.usefixtures("relay_ready")
     async def test_a_key_of_the_wrong_kind_is_refused_by_the_shared_check(
         self, service, ctx, monkeypatch
     ):

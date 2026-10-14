@@ -35,3 +35,12 @@ async def send_frame(websocket: WebSocket, kind: str, payload: Mapping[str, obje
     except (WebSocketDisconnect, RuntimeError):
         return False
     return True
+
+
+async def send_audio_frame(websocket: WebSocket, data: bytes) -> bool:
+    """Send one binary frame of the agent's audio (the relay). `False` when the socket is gone."""
+    try:
+        await websocket.send_bytes(data)
+    except (WebSocketDisconnect, RuntimeError):
+        return False
+    return True

@@ -68,6 +68,11 @@ class FakeRealtime:
         self.usage = RunUsage(cost=Decimal("0.02"))
         self.sent: list[str] = []
         self.interrupt = AsyncMock()
+        self.audio_in: list[bytes] = []
+        self.profile = {"supports_interruption": True, "supports_output_truncation": True}
+
+    async def send_audio(self, data):
+        self.audio_in.append(data)
 
     async def send(self, content, *, respond=None):
         if self._send_raises is not None:
@@ -136,7 +141,9 @@ def _started(realtime: FakeRealtime, *, transport="webrtc", cap=600):
             total_usd=Decimal("0.02"), book_elapsed=MagicMock(), book_response=MagicMock()
         ),
         writer=SimpleNamespace(
-            user_turn=AsyncMock(return_value=None), assistant_turn=AsyncMock(return_value=None)
+            user_turn=AsyncMock(return_value=None),
+            assistant_turn=AsyncMock(return_value=None),
+            next_turn_id=lambda role: f"call:1:{role}",
         ),
         runner=SimpleNamespace(finish=AsyncMock()),
     )
@@ -777,3 +784,74 @@ async def test_a_second_limit_reached_during_a_notice_does_not_say_a_second_one(
 
     assert len(realtime.sent) == 1
     assert len([frame for frame in socket.sent if frame["type"] == "notice"]) == 1
+
+
+async def test_a_relay_call_carries_audio_both_ways_and_ends_by_closing_its_session():
+    """Slice 1: PCM through the socket. Fakes only - Gemini, xAI and Azure are not verified live."""
+    socket = FakeSocket(
+        [
+            _START,
+            {"type": "websocket.receive", "bytes": b"\x01\x02" * 80},
+            json.dumps({"type": "played", "bytes": 480}),
+            json.dumps({"type": "mute", "muted": True}),
+            {"type": "websocket.receive", "bytes": b"\x01\x02" * 80},
+            json.dumps({"type": "ptt", "state": "down"}),
+            0.05,
+            json.dumps({"type": "end"}),
+        ]
+    )
+    from pydantic_ai.messages import PartDeltaEvent, PartStartEvent, SpeechPart, SpeechPartDelta
+
+    audio = PartDeltaEvent(
+        index=1, delta=SpeechPartDelta(speaker="assistant", audio_chunk=b"\x00" * 960)
+    )
+    realtime = FakeRealtime(
+        [
+            PartStartEvent(index=1, part=SpeechPart(speaker="assistant", transcript="")),
+            audio,
+            audio,
+        ],
+        hold=True,
+    )
+    started = _started(realtime, transport="relay")
+
+    hung, repo = await _run(socket, started)
+
+    started.prepared.answer_offer.assert_not_awaited()
+    assert "answer" not in [frame["type"] for frame in socket.sent]
+    assert realtime.audio_in == [b"\x01\x02" * 80, b"\x00" * 160]
+    assert {"type": "binary", "size": 960} in socket.sent
+    assert hung.await_args.args[0].transport == "relay"
+    assert repo.end.await_args.kwargs["reason"] is VoiceEndReason.USER
+
+
+async def test_a_webrtc_call_ignores_audio_frames_on_its_socket():
+    """Over WebRTC the browser's audio goes to the provider, never through us."""
+    socket = FakeSocket(
+        [
+            _START,
+            {"type": "websocket.receive", "bytes": b"\x01\x02" * 80},
+            json.dumps({"type": "played", "bytes": 480}),
+            json.dumps({"type": "end"}),
+        ]
+    )
+    realtime = FakeRealtime(hold=True)
+    await _run(socket, _started(realtime))
+    assert realtime.audio_in == []
+
+
+async def test_a_relay_call_whose_audio_is_not_a_microphone_is_ended_and_says_why(monkeypatch):
+    """Review 4: audio far faster than real time ends the call; fakes only, not verified live."""
+    from app.services.voice.session import FLOODED
+
+    monkeypatch.setattr(
+        "app.services.voice.relay.AudioRelay.inbound", AsyncMock(return_value=False)
+    )
+    socket = FakeSocket([_START, {"type": "websocket.receive", "bytes": b"\x00\x00" * 80}])
+    started = _started(FakeRealtime(hold=True), transport="relay")
+
+    _, repo = await _run(socket, started)
+
+    assert repo.end.await_args.kwargs["reason"] is VoiceEndReason.ERROR
+    assert socket.sent[-1] == {"type": "ended", "reason": "error", "message": FLOODED}
+    assert started.runner.finish.await_args.kwargs["error"] == FLOODED
