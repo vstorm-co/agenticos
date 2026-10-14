@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { AnimatedAmount, AnimatedTally, Figure } from "@/components/ui";
 import { useUsageStats } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
+import { timelineOf } from "@/lib/dashboard/timeline";
 import { completedShare, formatCompletedShare, statusTally } from "@/lib/run-outcomes";
 import { formatUsd } from "../format";
 import { WidgetFrame } from "../widget-frame";
@@ -42,14 +43,14 @@ export function MySummaryWidget({ title, hint, period, seeAll, options }: Dashbo
             tone="indigo"
             label={t("runs")}
             value={<AnimatedTally value={usage?.total_runs ?? 0} />}
-            spark={(usage?.by_day ?? []).map((day) => day.runs)}
+            spark={timelineOf(usage).map((step) => step.runs)}
           />
           <Figure
             tone="teal"
             label={t("finished")}
             value={formatCompletedShare(completedShare(statusTally(usage?.by_status ?? [])))}
             caption={t("finishedOf", { total: usage?.total_runs ?? 0 })}
-            spark={(usage?.by_day ?? []).map((day) => day.completed)}
+            spark={timelineOf(usage).map((step) => step.completed)}
           />
           <Figure
             tone="amber"
@@ -77,7 +78,7 @@ export function MySummaryWidget({ title, hint, period, seeAll, options }: Dashbo
                 label={t("spentLabel", { amount: formatUsd(usage?.cost?.period_usd) })}
               />
             }
-            spark={(usage?.by_day ?? []).map((day) => Number(day.cost_usd))}
+            spark={timelineOf(usage).map((step) => Number(step.cost_usd))}
           />
         </div>
       )}

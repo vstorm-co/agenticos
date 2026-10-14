@@ -19,6 +19,17 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **The dashboard tells you what is easy to miss, and draws time at the right
+  step.** Your own view gains **Discover AgenticOS**, one illustrated tile each
+  for the platform's own MCP server, subagents, sandboxes, apps, routines, chat
+  apps, the browser, knowledge and skills, each leading to where it is switched
+  on. Charts over time pick their step from the data - minutes for one
+  afternoon, weeks for a quarter - instead of thirty days with the story in the
+  last pixel (`GET /stats/usage` returns a `timeline`). A group that ran nothing
+  says so once instead of eight empty cards; models show their provider's mark;
+  a handful of ratings is counted rather than drawn as a trend; and a card with
+  more rows than fit fades at the bottom instead of looking cut off.
+
 - **A new agent starts with the recommended capabilities.** The Toolbox marks
   Recommended what the starter agent (the Claude Code like template) has, and
   **New agent** switches exactly those on, configured as the template configures

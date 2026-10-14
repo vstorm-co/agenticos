@@ -2,6 +2,7 @@
 
 import { useLocale, useTranslations } from "next-intl";
 
+import { ProviderIcon } from "@/components/vault/provider-icon";
 import { resolveStyle } from "@/lib/dashboard/registry";
 import { runsHref } from "@/lib/runs/filter-params";
 import { Breakdown } from "../primitives/breakdown";
@@ -22,6 +23,11 @@ export function ModelMixWidget({ title, hint, period, seeAll, options }: Dashboa
           const rows = (usage.by_model ?? []).map((row) => ({
             label: row.model_label ?? t("notRecorded"),
             value: row.runs,
+            // The provider's mark beside the model, as Spend draws it, so
+            // `claude-sonnet-4-5` and `google/gemini-2.5-flash` read at a glance.
+            icon: row.provider ? (
+              <ProviderIcon provider={row.provider} className="size-4" />
+            ) : undefined,
             // A run that recorded no label cannot be asked for by one: the
             // filter matches the column, and "not recorded" is its absence.
             href: row.model_label

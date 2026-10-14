@@ -224,6 +224,50 @@ class TestDayBuckets:
         assert total == 2
 
 
+class TestTimelineBins:
+    async def test_runs_land_in_bins_aligned_to_the_start(self, db) -> None:
+        """`date_bin` and the service's zero-fill must agree on every bin's instant."""
+        organization, owner = await _org_with_owner(db, "Bins")
+        agent = await _agent(db, organization, owner)
+        for minute, cost in ((2, "0.10"), (14, "0.20"), (16, "0.40")):
+            await _run(
+                db,
+                organization=organization,
+                agent=agent,
+                started_at=START + timedelta(hours=9, minutes=minute),
+                cost=Decimal(cost),
+            )
+
+        bins = await agent_run_repo.runs_by_bin(
+            db,
+            organization_id=organization.id,
+            start=START,
+            end=END,
+            step=timedelta(minutes=15),
+        )
+
+        assert bins == [
+            (START + timedelta(hours=9), 2, 2, Decimal("0.30")),
+            (START + timedelta(hours=9, minutes=15), 1, 1, Decimal("0.40")),
+        ]
+
+    async def test_the_first_run_is_read_inside_the_window_only(self, db) -> None:
+        organization, owner = await _org_with_owner(db, "First")
+        agent = await _agent(db, organization, owner)
+        await _run(db, organization=organization, agent=agent, started_at=START - timedelta(days=1))
+        await _run(db, organization=organization, agent=agent, started_at=START + timedelta(days=3))
+
+        inside = await agent_run_repo.window_aggregates(
+            db, organization_id=organization.id, start=START, end=END
+        )
+        after = await agent_run_repo.window_aggregates(
+            db, organization_id=organization.id, start=END, end=END + timedelta(days=1)
+        )
+
+        assert inside.first_started_at == START + timedelta(days=3)
+        assert after.first_started_at is None
+
+
 class TestHourBuckets:
     async def test_a_cell_is_a_weekday_and_an_hour_in_utc(self, db) -> None:
         # 2026-07-01 is a Wednesday, which Postgres' `dow` calls 3.
@@ -644,7 +688,10 @@ class TestTheGroupingSetsBreakdown:
         # happens to be missing its surface: GROUPING tells the two apart.
         assert dict(breakdown.by_surface) == {"web": 1, "embed": 1}
         assert dict(breakdown.by_status) == {RunStatus.COMPLETED.value: 2}
-        assert dict(breakdown.by_model) == {None: 1, "claude-sonnet-5": 1}
+        assert {(model, provider): runs for model, provider, runs in breakdown.by_model} == {
+            (None, None): 1,
+            ("claude-sonnet-5", "anthropic"): 1,
+        }
         assert dict(breakdown.by_provider) == {None: Decimal("0.30"), "anthropic": Decimal("0.70")}
         assert breakdown.by_day == [(START.date(), 2, 2, Decimal("1.00"))]
 
@@ -678,8 +725,10 @@ class TestTheGroupingSetsBreakdown:
         self, db, engine
     ) -> None:
         """The acceptance criterion, and a guard on the next dimension added: the
-        composed answer is window_aggregates, window_totals, window_breakdown and
-        runs_by_agent - four scans of `agent_runs`, not one per card."""
+        composed answer is window_aggregates, window_totals, window_breakdown,
+        runs_by_agent and the timeline's runs_by_bin - five scans of `agent_runs`,
+        not one per card. The timeline is its own scan because its step is chosen
+        from the window's first run, which window_aggregates reads."""
         organization, owner = await _org_with_owner(db, "Budget")
         agent = await _agent(db, organization, owner)
         await _run(
@@ -705,7 +754,7 @@ class TestTheGroupingSetsBreakdown:
         finally:
             event.remove(engine.sync_engine, "before_cursor_execute", record)
 
-        assert len(run_queries) == 4, run_queries
+        assert len(run_queries) == 5, run_queries
 
 
 class TestScopedRatings:

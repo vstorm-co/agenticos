@@ -2,7 +2,7 @@
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any, cast
 from uuid import UUID
@@ -1232,6 +1232,8 @@ class WindowAggregates:
     distinct_users: int
     p50_ms: float | None
     p95_ms: float | None
+    first_started_at: datetime | None = None
+    """When the window's first run started - where its timeline begins."""
 
 
 async def window_aggregates(
@@ -1242,7 +1244,7 @@ async def window_aggregates(
     end: datetime,
     where: RunFilter | None = None,
 ) -> WindowAggregates:
-    """The five scalars over one window, in a single SELECT.
+    """The window's scalars, and when its first run started, in a single SELECT.
 
     `count_runs`, `sum_cost_window`, `count_distinct_users` and
     `latency_percentiles_ms` all read this window's exact same rows and WHERE, so
@@ -1263,15 +1265,17 @@ async def window_aggregates(
             func.count(func.distinct(AgentRun.user_id)),
             func.percentile_cont(0.5).within_group(duration_ms),
             func.percentile_cont(0.95).within_group(duration_ms),
+            func.min(AgentRun.started_at),
         ).where(*conditions)
     )
-    total, cost, distinct_users, p50, p95 = result.one()
+    total, cost, distinct_users, p50, p95, first_started_at = result.one()
     return WindowAggregates(
         total=int(total or 0),
         cost_usd=Decimal(cost or 0),
         distinct_users=int(distinct_users or 0),
         p50_ms=float(p50) if p50 is not None else None,
         p95_ms=float(p95) if p95 is not None else None,
+        first_started_at=first_started_at,
     )
 
 
@@ -1306,7 +1310,8 @@ async def window_totals(
 class WindowBreakdown:
     """The window's five keyed slices, read from one scan.
 
-    A day's runs, completed and cost; run counts by surface, status and model;
+    A day's runs, completed and cost; run counts by surface, status and model
+    (with the provider that served it);
     and spend by provider - the same window's same rows grouped five ways, which
     used to be five scans for one dashboard. One `GROUPING SETS` scan computes
     them together, and a `GROUPING` flag per set says which slice each row
@@ -1321,7 +1326,7 @@ class WindowBreakdown:
     by_day: list[tuple[date, int, int, Decimal]]
     by_surface: list[tuple[str | None, int]]
     by_status: list[tuple[str | None, int]]
-    by_model: list[tuple[str | None, int]]
+    by_model: list[tuple[str | None, str | None, int]]
     by_provider: list[tuple[str | None, Decimal]]
 
 
@@ -1369,7 +1374,7 @@ async def window_breakdown(
                 tuple_(day),
                 tuple_(AgentRun.surface),
                 tuple_(AgentRun.status),
-                tuple_(AgentRun.model_label),
+                tuple_(AgentRun.model_label, AgentRun.provider),
                 tuple_(AgentRun.provider),
             )
         )
@@ -1377,7 +1382,7 @@ async def window_breakdown(
     by_day: list[tuple[date, int, int, Decimal]] = []
     by_surface: list[tuple[str | None, int]] = []
     by_status: list[tuple[str | None, int]] = []
-    by_model: list[tuple[str | None, int]] = []
+    by_model: list[tuple[str | None, str | None, int]] = []
     by_provider: list[tuple[str | None, Decimal]] = []
     for row in result.all():
         g_day, g_surface, g_status, g_model, g_provider = row[0], row[1], row[2], row[3], row[4]
@@ -1390,7 +1395,7 @@ async def window_breakdown(
         elif g_status == 0:
             by_status.append((status, run_count))
         elif g_model == 0:
-            by_model.append((model_label, run_count))
+            by_model.append((model_label, provider, run_count))
         elif g_provider == 0:
             by_provider.append((provider, Decimal(cost_usd)))
     # Largest group first, ties broken by the label so the order is the same
@@ -1400,7 +1405,7 @@ async def window_breakdown(
     by_day.sort(key=lambda entry: entry[0])
     by_surface.sort(key=lambda entry: (-entry[1], entry[0] or ""))
     by_status.sort(key=lambda entry: (-entry[1], entry[0] or ""))
-    by_model.sort(key=lambda entry: (-entry[1], entry[0] or ""))
+    by_model.sort(key=lambda entry: (-entry[2], entry[0] or "", entry[1] or ""))
     by_provider.sort(key=lambda entry: (-entry[1], entry[0] or ""))
     return WindowBreakdown(
         by_day=by_day,
@@ -1409,6 +1414,38 @@ async def window_breakdown(
         by_model=by_model,
         by_provider=by_provider,
     )
+
+
+async def runs_by_bin(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    start: datetime,
+    end: datetime,
+    step: timedelta,
+    where: RunFilter | None = None,
+) -> list[tuple[datetime, int, int, Decimal]]:
+    """Runs, completions and cost per `step`-wide bin, ascending and sparse.
+
+    Bins are aligned to `start` with `date_bin`, so a caller zero-filling from
+    `start` in steps of `step` meets every bin this returns on the same instant.
+    """
+    bucket = func.date_bin(step, AgentRun.started_at, start)
+    conditions = _window_conditions(
+        organization_id=organization_id, start=start, end=end, where=where
+    )
+    result = await db.execute(
+        select(
+            bucket,
+            func.count(AgentRun.id),
+            func.count(AgentRun.id).filter(AgentRun.status == RunStatus.COMPLETED.value),
+            func.coalesce(func.sum(AgentRun.cost_usd), 0),
+        )
+        .where(*conditions)
+        .group_by(bucket)
+        .order_by(bucket)
+    )
+    return [(row[0], row[1], row[2], Decimal(row[3])) for row in result.all()]
 
 
 async def runs_by_hour(

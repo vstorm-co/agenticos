@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { AnimatedAmount, AnimatedTally, DeltaChip, Figure } from "@/components/ui";
 
 import { completedShare, formatCompletedShare, statusTally } from "@/lib/run-outcomes";
+import { timelineOf } from "@/lib/dashboard/timeline";
 import { deltaPercent, formatUsd } from "../format";
 import { WidgetFrame } from "../widget-frame";
 import type { DashboardWidgetProps } from "./types";
@@ -39,12 +40,13 @@ export function SummaryWidget({ title, hint, period, seeAll, options }: Dashboar
           const spend = Number(usage.cost?.period_usd ?? 0);
           const spendDelta = deltaPercent(spend, Number(usage.cost?.previous_period_usd ?? 0));
           const active = usage.active_users?.active ?? 0;
-          // Three of the four figures have a daily series behind them, from the
-          // same response - `by_day` carries runs, completed and cost per day.
+          // Three of the four figures have a series behind them, from the same
+          // response - `timeline` carries runs, completed and cost per step, at
+          // a step the server chose for how much there is.
           // The fourth does not: distinct people cannot be summed across days
           // without counting somebody twice, so it is drawn as the share of the
           // members it reached instead.
-          const days = usage.by_day ?? [];
+          const days = timelineOf(usage);
           return (
             // Stretching, not centred: three of the four figures carry a daily
             // series, and a series that fills the card is the shape this strip

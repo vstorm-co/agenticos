@@ -26,7 +26,7 @@ may open:
 |---|---|
 | **Me** | A greeting and your period in one sentence; your runs, how many finished, what is waiting on you and what it cost; then the calls waiting on you, your conversations, your agents and what was shared with you |
 | **Organization** | The arrangeable page below |
-| **Group** | One [group](departments.md)'s members - their runs, spend, models, when they work and who uses it most. Choose the group beside the switch |
+| **Group** | One [group](departments.md)'s members - their runs, spend, models, when they work and who uses it most. Choose the group beside the switch. A group whose members ran nothing in the period says so once, with a way to the group, rather than showing a page of empty cards |
 | **Deployment** | Only for a [deployment admin](permissions.md) — platform totals, health, busiest tenants, ratings |
 
 The organization's view shows the cards that answer with data, grouped into
@@ -35,7 +35,7 @@ members, sandboxes - wait in the catalog, one click away under **Customize**:
 
 | Band | Answers |
 |---|---|
-| *(untitled, at the top)* | The summary, runs day by day and how they ended |
+| *(untitled, at the top)* | The summary, runs over time and how they ended |
 | **Needs attention** | What is waiting: [approvals](governance.md#approvals), recent failures, budget headroom, your most recent [notifications](#the-bell) |
 | **Usage & cost** | Which agents are used, spend, when the work happens, where runs come from, model mix, latency, answer quality, who is using it |
 
@@ -44,6 +44,17 @@ of its steps is done: create an agent, publish it, give it a knowledge base, add
 departments, invite a teammate and - for whoever may - put an agent in a chat
 app. Each step is ticked from what exists, wherever it was done; closing the card
 hides it in that browser.
+
+Your own view also shows **Discover AgenticOS**: one tile each for what is easy to
+miss - this deployment's own MCP server for Claude Code, Codex or Cursor,
+subagents, sandboxes, apps, routines, chat apps, the web browser, knowledge bases
+and skills - each leading to where it is switched on, and only those you can use.
+Close a tile, or all of them; that too is kept in the browser.
+
+Charts over time pick their own step. The span from the period's first run to now
+is drawn in at most 48 points, at the finest step that fits - a minute, five,
+fifteen, an hour, three or six hours, a day, a week - so an afternoon's runs read
+in minutes and a quarter's in weeks rather than as one spike at the right edge.
 
 ### Rearranging it
 

@@ -62,4 +62,37 @@ describe("useScrollFade", () => {
 
     expect(screen.queryByTestId("strip")).toBeNull();
   });
+
+  it("marks a body with more below it, and watches the rows that arrive later", async () => {
+    function Body({ rows }: { rows: number }) {
+      const ref = useRef<HTMLDivElement>(null);
+      useScrollFade(ref, "y");
+      return (
+        <div ref={ref} data-testid="body">
+          {Array.from({ length: rows }, (_, index) => (
+            <p key={index}>row</p>
+          ))}
+        </div>
+      );
+    }
+    const { rerender } = render(<Body rows={1} />);
+    const body = screen.getByTestId("body");
+    const tall = (scroll: number) => {
+      Object.defineProperty(body, "scrollTop", { configurable: true, value: scroll });
+      Object.defineProperty(body, "clientHeight", { configurable: true, value: 100 });
+      Object.defineProperty(body, "scrollHeight", { configurable: true, value: 300 });
+    };
+
+    tall(0);
+    // A row arriving is a child added, which re-reads the geometry.
+    rerender(<Body rows={2} />);
+    await act(async () => {});
+    expect(body).toHaveAttribute("data-more");
+
+    tall(200);
+    act(() => {
+      fireEvent.scroll(body);
+    });
+    expect(body).not.toHaveAttribute("data-more");
+  });
 });

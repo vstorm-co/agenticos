@@ -80,6 +80,10 @@ const USAGE = {
   total_runs: 40,
   previous_total_runs: 31,
   by_day: [{ date: "2026-08-01", runs: 40 }],
+  timeline: {
+    step_seconds: 86400,
+    buckets: [{ start: "2026-08-01T00:00:00Z", runs: 40, completed: 36, cost_usd: "1.00" }],
+  },
   by_surface: [{ surface: "web", runs: 40 }],
   by_agent: [{ agent_id: "a1", name: "Support triage", runs: 40 }],
   by_status: [
@@ -88,7 +92,7 @@ const USAGE = {
     { status: "budget_exceeded", runs: 1 },
     { status: "awaiting_approval", runs: 1 },
   ],
-  by_model: [{ model_label: "claude-sonnet-5", runs: 40 }],
+  by_model: [{ model_label: "claude-sonnet-5", provider: "anthropic", runs: 40 }],
   latency_ms: { p50: 3200, p95: 14800 },
   cost: {
     period_usd: "1.64",

@@ -2215,7 +2215,9 @@
     },
     "ratings": {
       "likes": "Pomocne",
-      "dislikes": "Niepomocne"
+      "dislikes": "Niepomocne",
+      "likesCount": "{count, plural, one {1 pomocna} few {# pomocne} many {# pomocnych} other {# pomocnej}}",
+      "dislikesCount": "{count, plural, one {1 niepomocna} few {# niepomocne} many {# niepomocnych} other {# niepomocnej}}"
     },
     "styles": {
       "area": "Obszar",
@@ -2282,6 +2284,67 @@
       "afternoonNamed": "Dzień dobry, {name}",
       "eveningNamed": "Dobry wieczór, {name}",
       "summary": "Twoje agenty uruchomiono <b>{runs, plural, =0 {ani razu} =1 {raz} few {# razy} many {# razy} other {# razy}}</b> w tym okresie. {waiting, plural, =0 {Nic nie czeka na Ciebie.} =1 {<b>Jedno wywołanie</b> czeka na Ciebie.} few {<b># wywołania</b> czekają na Ciebie.} many {<b># wywołań</b> czeka na Ciebie.} other {<b># wywołań</b> czeka na Ciebie.}}"
+    },
+    "discover": {
+      "title": "Odkryj AgenticOS",
+      "subtitle": "Co potrafią twoje agenty, a łatwo to przeoczyć.",
+      "previous": "Poprzednie wskazówki",
+      "next": "Kolejne wskazówki",
+      "dismissAll": "Ukryj wskazówki",
+      "dismiss": "Ukryj wskazówkę {title}",
+      "tips": {
+        "mcp": {
+          "title": "Używaj go z Claude Code albo Cursora",
+          "body": "AgenticOS to też serwer MCP: podłącz Claude Code, Codex albo Cursora i twórz agenty, uruchamiaj je i czytaj wyniki, nie wychodząc z nich.",
+          "cta": "Podłącz aplikację"
+        },
+        "subagents": {
+          "title": "Niech agenty pracują zespołowo",
+          "body": "Daj agentowi Subagentów, a przekaże części zadania kolegom - badaczowi, recenzentowi - i zobaczysz, jak to omawiają.",
+          "cta": "Otwórz agenta"
+        },
+        "sandbox": {
+          "title": "Daj agentowi własny komputer",
+          "body": "W Sandboxie agent zapisuje pliki, uruchamia kod i zachowuje pracę między rozmowami - z dala od twoich systemów.",
+          "cta": "Włącz go"
+        },
+        "apps": {
+          "title": "Zamieniaj odpowiedzi w appki",
+          "body": "Agenty publikują raporty, dashboardy i małe narzędzia jako Apps, które ludzie otwierają z linku - i aktualizują je, gdy zmienią się liczby.",
+          "cta": "Zobacz appki"
+        },
+        "routines": {
+          "title": "Uruchamiaj agenty według planu",
+          "body": "Routines uruchamiają agenta co rano, na webhook albo gdy przyjdzie e-mail, i wysyłają wynik tam, gdzie czyta go zespół.",
+          "cta": "Utwórz routine"
+        },
+        "channels": {
+          "title": "Bądź tam, gdzie pisze zespół",
+          "body": "Wstaw agenta do Slacka, Telegrama albo Mattermosta, a ludzie zapytają go w wątku, w którym już są.",
+          "cta": "Dodaj komunikator"
+        },
+        "browser": {
+          "title": "Pozwól agentowi korzystać z przeglądarki",
+          "body": "Z przeglądarką agent klika, wypełnia formularze i czyta strony za logowaniem - a ty możesz przejąć w każdej chwili.",
+          "cta": "Daj mu przeglądarkę"
+        },
+        "knowledge": {
+          "title": "Odpowiedzi z twoich dokumentów",
+          "body": "Wgraj podręczniki, umowy albo cały dysk, a agenty odpowiedzą na ich podstawie i pokażą stronę, z której pochodzi każda odpowiedź.",
+          "cta": "Dodaj wiedzę"
+        },
+        "skills": {
+          "title": "Naucz sposobu pracy zespołu",
+          "body": "Skills to spisane instrukcje - szablon oferty, checklista wdrożenia - które agent wczytuje, gdy zadanie ich wymaga.",
+          "cta": "Napisz skill"
+        }
+      }
+    },
+    "quietGroup": {
+      "title": "Grupa {name} nic nie uruchomiła w tym okresie",
+      "body": "{count, plural, =0 {Nikogo w niej jeszcze nie ma - dodaj ludzi i udostępnij jej agenta.} one {Jej jedyny członek nie uruchomił agenta. Udostępnij agenta grupie, a pojawi się w jego czacie.} few {Żaden z # członków nie uruchomił agenta. Udostępnij agenta grupie, a pojawi się w ich czacie.} many {Żaden z # członków nie uruchomił agenta. Udostępnij agenta grupie, a pojawi się w ich czacie.} other {Żaden z # członków nie uruchomił agenta. Udostępnij agenta grupie, a pojawi się w ich czacie.}}",
+      "openGroup": "Otwórz grupę",
+      "widen": "Pokaż ostatnie 90 dni"
     }
   },
   "errors": {

@@ -27,6 +27,13 @@ function usage(overrides: Partial<UsageStats> = {}): UsageStats {
       { date: "2026-10-12", runs: 30, completed: 25, cost_usd: "2.00" },
       { date: "2026-10-13", runs: 43, completed: 38, cost_usd: "3.00" },
     ],
+    timeline: {
+      step_seconds: 86400,
+      buckets: [
+        { start: "2026-10-12T00:00:00Z", runs: 30, completed: 25, cost_usd: "2.00" },
+        { start: "2026-10-13T00:00:00Z", runs: 43, completed: 38, cost_usd: "3.00" },
+      ],
+    },
     by_surface: null,
     by_agent: null,
     by_status: [

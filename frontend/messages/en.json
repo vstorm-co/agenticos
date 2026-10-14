@@ -2215,7 +2215,9 @@
     },
     "ratings": {
       "likes": "Helpful",
-      "dislikes": "Not helpful"
+      "dislikes": "Not helpful",
+      "likesCount": "{count, plural, =1 {1 helpful} other {# helpful}}",
+      "dislikesCount": "{count, plural, =1 {1 not helpful} other {# not helpful}}"
     },
     "styles": {
       "area": "Area",
@@ -2282,6 +2284,67 @@
       "afternoonNamed": "Good afternoon, {name}",
       "eveningNamed": "Good evening, {name}",
       "summary": "Your agents ran <b>{runs, plural, =0 {nothing} =1 {once} other {# times}}</b> in this period. {waiting, plural, =0 {Nothing is waiting on you.} =1 {<b>One call</b> is waiting on you.} other {<b># calls</b> are waiting on you.}}"
+    },
+    "discover": {
+      "title": "Discover AgenticOS",
+      "subtitle": "What your agents can do that is easy to miss.",
+      "previous": "Previous tips",
+      "next": "More tips",
+      "dismissAll": "Hide tips",
+      "dismiss": "Hide the tip {title}",
+      "tips": {
+        "mcp": {
+          "title": "Use it from Claude Code or Cursor",
+          "body": "AgenticOS is an MCP server too: connect Claude Code, Codex or Cursor and build agents, run them and read results without leaving them.",
+          "cta": "Connect an app"
+        },
+        "subagents": {
+          "title": "Let agents work as a team",
+          "body": "Give an agent Subagents and it hands parts of a job to colleagues - a researcher, a reviewer - and you watch them talk it through.",
+          "cta": "Open an agent"
+        },
+        "sandbox": {
+          "title": "Give an agent its own computer",
+          "body": "With a Sandbox an agent writes files, runs code and keeps its work between conversations - safely away from your systems.",
+          "cta": "Turn it on"
+        },
+        "apps": {
+          "title": "Turn answers into apps",
+          "body": "Agents publish reports, dashboards and small tools as Apps people open by link - and update them when the numbers change.",
+          "cta": "See your apps"
+        },
+        "routines": {
+          "title": "Run agents on a schedule",
+          "body": "Routines start an agent every morning, on a webhook or when an email arrives, and send what it found where your team reads it.",
+          "cta": "Create a routine"
+        },
+        "channels": {
+          "title": "Meet your team where it chats",
+          "body": "Put an agent in Slack, Telegram or Mattermost, and people ask it right in the thread they are already in.",
+          "cta": "Add a chat app"
+        },
+        "browser": {
+          "title": "Let an agent use a browser",
+          "body": "With the Web browser an agent clicks, fills forms and reads pages behind a sign-in - and you can take over at any moment.",
+          "cta": "Give it a browser"
+        },
+        "knowledge": {
+          "title": "Answer from your documents",
+          "body": "Upload handbooks, contracts or a whole drive, and agents answer from them and show which page each answer came from.",
+          "cta": "Add knowledge"
+        },
+        "skills": {
+          "title": "Teach the way your team works",
+          "body": "Skills are written how-tos - a proposal template, an onboarding checklist - that an agent loads when the task needs it.",
+          "cta": "Write a skill"
+        }
+      }
+    },
+    "quietGroup": {
+      "title": "{name} ran nothing in this period",
+      "body": "{count, plural, =0 {Nobody is in it yet - add people and share an agent with it.} =1 {Its one member has not run an agent. Share an agent with the group and it shows up in their chat.} other {None of its # members ran an agent. Share an agent with the group and it shows up in their chat.}}",
+      "openGroup": "Open the group",
+      "widen": "Show the last 90 days"
     }
   },
   "errors": {

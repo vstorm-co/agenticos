@@ -1,5 +1,5 @@
 ---
-source_sha: "58db10206698"
+source_sha: "813c544b6c1e"
 ---
 
 # Konsola { #the-console }
@@ -31,7 +31,7 @@ możesz otworzyć:
 |---|---|
 | **Ja** | Powitanie i Twój okres w jednym zdaniu; Twoje runy, ile się skończyło, co na Ciebie czeka i ile to kosztowało; potem wywołania czekające na Ciebie, Twoje rozmowy, Twoi agenci i co Ci udostępniono |
 | **Organizacja** | Układalna strona opisana niżej |
-| **Grupa** | Członkowie jednej [grupy](departments.md) - ich runy, wydatki, modele, kiedy pracują i kto korzysta najwięcej. Grupę wybierasz obok przełącznika |
+| **Grupa** | Członkowie jednej [grupy](departments.md) - ich runy, wydatki, modele, kiedy pracują i kto korzysta najwięcej. Grupę wybierasz obok przełącznika. Grupa, której członkowie nic nie uruchomili w okresie, mówi to raz, z przejściem do grupy, zamiast strony pustych kart |
 | **Wdrożenie** | Tylko dla [admina deploymentu](permissions.md) — sumy platformy, kondycja, najbardziej obciążeni najemcy, oceny |
 
 Widok organizacji pokazuje karty, które odpowiadają danymi, pogrupowane w pasy.
@@ -40,7 +40,7 @@ sandboxy - czeka w katalogu, jedno kliknięcie dalej pod **Customize**:
 
 | Pas | Odpowiada na |
 |---|---|
-| *(bez tytułu, na górze)* | Podsumowanie, runy dzień po dniu i to, jak się skończyły |
+| *(bez tytułu, na górze)* | Podsumowanie, runy w czasie i to, jak się skończyły |
 | **Needs attention** | Co czeka: [zatwierdzenia](governance.md#approvals), ostatnie błędy, zapas w budżecie, twoje najnowsze [powiadomienia](#the-bell) |
 | **Usage & cost** | Których agentów się używa, wydatki, kiedy dzieje się praca, skąd przychodzą runy, miks modeli, opóźnienia, jakość odpowiedzi, kto z tego korzysta |
 
@@ -49,6 +49,18 @@ wykona wszystkich jej kroków: utworzyć agenta, opublikować go, dać mu bazę
 wiedzy, dodać działy, zaprosić kogoś z zespołu i - jeśli może - wstawić agenta do
 komunikatora. Każdy krok jest odhaczany na podstawie tego, co istnieje, gdziekolwiek
 go zrobiono; zamknięcie karty ukrywa ją w tej przeglądarce.
+
+Twój własny widok pokazuje też **Odkryj AgenticOS**: po jednym kafelku na to, co
+łatwo przeoczyć - własny serwer MCP tego wdrożenia dla Claude Code, Codex albo
+Cursora, subagentów, sandboxy, appki, routines, komunikatory, przeglądarkę, bazy
+wiedzy i skills - każdy prowadzi tam, gdzie się to włącza, i tylko te, z których
+możesz skorzystać. Zamknij kafelek albo wszystkie; to też zostaje w przeglądarce.
+
+Wykresy w czasie same dobierają krok. Odcinek od pierwszego runu w okresie do
+teraz jest rysowany w najwyżej 48 punktach, najdrobniejszym krokiem, który się
+mieści - minuta, pięć, piętnaście, godzina, trzy albo sześć godzin, dzień,
+tydzień - więc runy z jednego popołudnia czyta się w minutach, a kwartał w
+tygodniach, zamiast jednego skoku przy prawej krawędzi.
 
 ### Zmiana układu { #rearranging-it }
 

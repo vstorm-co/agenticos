@@ -2215,7 +2215,9 @@
     },
     "ratings": {
       "likes": "Hilfreich",
-      "dislikes": "Nicht hilfreich"
+      "dislikes": "Nicht hilfreich",
+      "likesCount": "{count, plural, =1 {1 hilfreich} other {# hilfreich}}",
+      "dislikesCount": "{count, plural, =1 {1 nicht hilfreich} other {# nicht hilfreich}}"
     },
     "styles": {
       "area": "Fläche",
@@ -2282,6 +2284,67 @@
       "afternoonNamed": "Guten Tag, {name}",
       "eveningNamed": "Guten Abend, {name}",
       "summary": "Ihre Agents liefen in diesem Zeitraum <b>{runs, plural, =0 {gar nicht} =1 {einmal} other {#-mal}}</b>. {waiting, plural, =0 {Nichts wartet auf Sie.} =1 {<b>Ein Aufruf</b> wartet auf Sie.} other {<b># Aufrufe</b> warten auf Sie.}}"
+    },
+    "discover": {
+      "title": "AgenticOS entdecken",
+      "subtitle": "Was Ihre Agents können und leicht übersehen wird.",
+      "previous": "Vorherige Tipps",
+      "next": "Weitere Tipps",
+      "dismissAll": "Tipps ausblenden",
+      "dismiss": "Tipp {title} ausblenden",
+      "tips": {
+        "mcp": {
+          "title": "Aus Claude Code oder Cursor heraus nutzen",
+          "body": "AgenticOS ist auch ein MCP-Server: Verbinden Sie Claude Code, Codex oder Cursor und bauen, starten und lesen Sie Agents, ohne sie zu verlassen.",
+          "cta": "App verbinden"
+        },
+        "subagents": {
+          "title": "Agents als Team arbeiten lassen",
+          "body": "Mit Subagents gibt ein Agent Teile einer Aufgabe an Kollegen ab - eine Recherche, ein Review - und Sie sehen zu, wie sie es besprechen.",
+          "cta": "Agent öffnen"
+        },
+        "sandbox": {
+          "title": "Einem Agent einen eigenen Rechner geben",
+          "body": "In einer Sandbox schreibt ein Agent Dateien, führt Code aus und behält seine Arbeit zwischen Gesprächen - getrennt von Ihren Systemen.",
+          "cta": "Einschalten"
+        },
+        "apps": {
+          "title": "Antworten zu Apps machen",
+          "body": "Agents veröffentlichen Berichte, Dashboards und kleine Tools als Apps, die man per Link öffnet - und aktualisieren sie, wenn sich Zahlen ändern.",
+          "cta": "Ihre Apps"
+        },
+        "routines": {
+          "title": "Agents nach Plan starten",
+          "body": "Routines starten einen Agent jeden Morgen, per Webhook oder bei einer E-Mail und senden das Ergebnis dorthin, wo Ihr Team liest.",
+          "cta": "Routine anlegen"
+        },
+        "channels": {
+          "title": "Dort sein, wo das Team schreibt",
+          "body": "Bringen Sie einen Agent in Slack, Telegram oder Mattermost, und Ihr Team fragt ihn direkt im Thread.",
+          "cta": "Chat-App hinzufügen"
+        },
+        "browser": {
+          "title": "Einen Agent den Browser nutzen lassen",
+          "body": "Mit dem Web-Browser klickt ein Agent, füllt Formulare aus und liest Seiten hinter einem Login - und Sie können jederzeit übernehmen.",
+          "cta": "Browser geben"
+        },
+        "knowledge": {
+          "title": "Antworten aus Ihren Dokumenten",
+          "body": "Laden Sie Handbücher, Verträge oder ein ganzes Laufwerk hoch, und Agents antworten daraus und zeigen die Seite jeder Antwort.",
+          "cta": "Wissen hinzufügen"
+        },
+        "skills": {
+          "title": "Die Arbeitsweise Ihres Teams beibringen",
+          "body": "Skills sind schriftliche Anleitungen - eine Angebotsvorlage, eine Onboarding-Checkliste -, die ein Agent bei Bedarf lädt.",
+          "cta": "Skill schreiben"
+        }
+      }
+    },
+    "quietGroup": {
+      "title": "{name} hat in diesem Zeitraum nichts ausgeführt",
+      "body": "{count, plural, =0 {Noch niemand ist darin - fügen Sie Personen hinzu und teilen Sie einen Agent mit der Gruppe.} =1 {Ihr einziges Mitglied hat keinen Agent ausgeführt. Teilen Sie einen Agent mit der Gruppe, dann erscheint er in seinem Chat.} other {Keines ihrer # Mitglieder hat einen Agent ausgeführt. Teilen Sie einen Agent mit der Gruppe, dann erscheint er in ihrem Chat.}}",
+      "openGroup": "Gruppe öffnen",
+      "widen": "Letzte 90 Tage zeigen"
     }
   },
   "errors": {

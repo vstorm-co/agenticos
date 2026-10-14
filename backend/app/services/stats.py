@@ -46,6 +46,8 @@ from app.schemas.stats import (
     ScopedRatingSummary,
     StatusCount,
     SurfaceCount,
+    TimeBucket,
+    Timeline,
     UsageStats,
     VersionUsageRow,
 )
@@ -110,6 +112,50 @@ def _each_day(first: date, last: date) -> Iterator[date]:
     while current <= last:
         yield current
         current += timedelta(days=1)
+
+
+# The steps a timeline may take, finest first, and how many points it aims for.
+_TIMELINE_STEPS = tuple(
+    timedelta(seconds=seconds)
+    for seconds in (60, 300, 900, 3600, 3 * 3600, 6 * 3600, 86400, 7 * 86400)
+)
+_TIMELINE_MAX_POINTS = 48
+_TIMELINE_MIN_POINTS = 12
+
+
+@dataclass(frozen=True)
+class TimelinePlan:
+    """The step a timeline is drawn at and the half-open range of bins it covers."""
+
+    step: timedelta
+    start: datetime
+    end: datetime
+
+
+def plan_timeline(window: Window, first_run: datetime | None, now: datetime) -> TimelinePlan:
+    """Choose the step and range that draw the window's runs legibly.
+
+    The span that matters runs from the window's first run to now, or to the
+    window's end when that is earlier. The finest step that draws it in at
+    most `_TIMELINE_MAX_POINTS` wins; the range then reaches back to show at
+    least `_TIMELINE_MIN_POINTS`, inside the window. Bins are aligned to the
+    window's start, so a day step lands on the same UTC days `by_day` does. A
+    window nothing ran in is drawn by day, the whole window.
+    """
+    end = min(window.end, max(now, window.start))
+    if first_run is None:
+        return TimelinePlan(step=timedelta(days=1), start=window.start, end=window.end)
+    span = end - first_run
+    step = next(
+        (each for each in _TIMELINE_STEPS if span / each <= _TIMELINE_MAX_POINTS),
+        _TIMELINE_STEPS[-1],
+    )
+    # `end` is exclusive, so the last bin drawn is the one holding the instant
+    # before it - a window ending on a step boundary gains no empty bin past it.
+    last_bin = window.start + ((end - timedelta(microseconds=1) - window.start) // step) * step
+    first_bin = window.start + ((first_run - window.start) // step) * step
+    start = max(window.start, min(first_bin, last_bin - (_TIMELINE_MIN_POINTS - 1) * step))
+    return TimelinePlan(step=step, start=start, end=last_bin + step)
 
 
 class StatsService:
@@ -230,13 +276,18 @@ class StatsService:
             for day in _each_day(window.from_date, window.to_date)
         ]
 
+        timeline = await self._timeline(org, window, where, current.first_started_at)
+
         by_surface = [
             SurfaceCount(surface=value or "", runs=runs) for value, runs in breakdown.by_surface
         ]
         by_status = [
             StatusCount(status=value or "", runs=runs) for value, runs in breakdown.by_status
         ]
-        by_model = [ModelCount(model_label=value, runs=runs) for value, runs in breakdown.by_model]
+        by_model = [
+            ModelCount(model_label=value, provider=provider, runs=runs)
+            for value, provider, runs in breakdown.by_model
+        ]
         by_agent = [
             AgentCount(agent_id=agent_id, name=name, runs=runs)
             for agent_id, name, runs in await agent_run_repo.runs_by_agent(
@@ -309,6 +360,7 @@ class StatsService:
             total_runs=total,
             previous_total_runs=previous_total,
             by_day=by_day,
+            timeline=timeline,
             by_surface=by_surface,
             by_agent=by_agent,
             by_status=by_status,
@@ -318,6 +370,32 @@ class StatsService:
             active_users=active_users,
             pending_approvals=pending_approvals,
         )
+
+    async def _timeline(
+        self, org: UUID, window: Window, where: RunFilter, first_run: datetime | None
+    ) -> Timeline:
+        """The window's runs at the step `plan_timeline` chooses, zero-filled."""
+        plan = plan_timeline(window, first_run, datetime.now(UTC))
+        rows = {
+            bin_start: (runs, completed, cost)
+            for bin_start, runs, completed, cost in await agent_run_repo.runs_by_bin(
+                self.db,
+                organization_id=org,
+                start=plan.start,
+                end=plan.end,
+                step=plan.step,
+                where=where,
+            )
+        }
+        buckets: list[TimeBucket] = []
+        bin_start = plan.start
+        while bin_start < plan.end:
+            runs, completed, cost = rows.get(bin_start, (0, 0, Decimal(0)))
+            buckets.append(
+                TimeBucket(start=bin_start, runs=runs, completed=completed, cost_usd=cost)
+            )
+            bin_start += plan.step
+        return Timeline(step_seconds=int(plan.step.total_seconds()), buckets=buckets)
 
     async def usage_by_hour(
         self,

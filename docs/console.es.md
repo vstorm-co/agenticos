@@ -1,5 +1,5 @@
 ---
-source_sha: "58db10206698"
+source_sha: "813c544b6c1e"
 ---
 
 # La consola { #the-console }
@@ -31,7 +31,7 @@ puedes abrir:
 |---|---|
 | **Me** | Un saludo y tu periodo en una frase; tus runs, cuántos terminaron, lo que te espera y lo que costó; después las llamadas que te esperan, tus conversaciones, tus agents y lo que han compartido contigo |
 | **Organization** | La página que se ordena, descrita abajo |
-| **Group** | Los miembros de un [grupo](departments.md) - sus runs, gasto, modelos, cuándo trabajan y quién lo usa más. El grupo se elige junto al selector |
+| **Group** | Los miembros de un [grupo](departments.md) - sus runs, gasto, modelos, cuándo trabajan y quién lo usa más. El grupo se elige junto al selector. Un grupo cuyos miembros no ejecutaron nada en el periodo lo dice una vez, con un enlace al grupo, en lugar de una página de tarjetas vacías |
 | **Deployment** | Solo para un [administrador del despliegue](permissions.md) — totales de la plataforma, salud, inquilinos más activos, valoraciones |
 
 La vista de la organización muestra las tarjetas que responden con datos,
@@ -41,7 +41,7 @@ clic bajo **Customize**:
 
 | Banda | Responde a |
 |---|---|
-| *(sin título, arriba del todo)* | El resumen, los runs día a día y cómo terminaron |
+| *(sin título, arriba del todo)* | El resumen, los runs en el tiempo y cómo terminaron |
 | **Needs attention** | Lo que está esperando: [aprobaciones](governance.md#approvals), fallos recientes, margen de budget, tus [notificaciones](#the-bell) más recientes |
 | **Usage & cost** | Qué agents se usan, gasto, cuándo ocurre el trabajo, de dónde vienen los runs, mezcla de modelos, latencia, calidad de respuesta, quién lo usa |
 
@@ -50,6 +50,19 @@ completar cada paso: crear un agent, publicarlo, darle una base de conocimiento,
 añadir departamentos, invitar a alguien del equipo y - quien pueda - poner un agent
 en una app de chat. Cada paso se marca a partir de lo que existe, se haya hecho
 donde se haya hecho; cerrar la tarjeta la oculta en ese navegador.
+
+Tu propia vista muestra además **Discover AgenticOS**: una tarjeta por cada cosa
+fácil de pasar por alto - el servidor MCP propio de este despliegue para Claude
+Code, Codex o Cursor, subagents, sandboxes, apps, routines, apps de chat, el
+navegador web, bases de conocimiento y skills -, cada una lleva a donde se activa,
+y solo las que puedes usar. Cierra una tarjeta o todas; también se guarda en el
+navegador.
+
+Los gráficos en el tiempo eligen su propio paso. El tramo desde el primer run del
+periodo hasta ahora se dibuja en 48 puntos como mucho, con el paso más fino que
+cabe - un minuto, cinco, quince, una hora, tres o seis horas, un día, una
+semana -, así que una tarde se lee en minutos y un trimestre en semanas en lugar
+de como un pico en el borde derecho.
 
 ### Reordenarlo { #rearranging-it }
 

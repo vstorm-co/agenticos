@@ -1,5 +1,5 @@
 ---
-source_sha: "58db10206698"
+source_sha: "813c544b6c1e"
 ---
 
 # Die Konsole { #the-console }
@@ -31,7 +31,7 @@ an, die Sie öffnen dürfen:
 |---|---|
 | **Ich** | Eine Begrüßung und Ihr Zeitraum in einem Satz; Ihre Runs, wie viele fertig wurden, was auf Sie wartet und was es gekostet hat; dann die Aufrufe, die auf Sie warten, Ihre Unterhaltungen, Ihre Agents und was mit Ihnen geteilt wurde |
 | **Organisation** | Die anordenbare Seite unten |
-| **Gruppe** | Die Mitglieder einer [Gruppe](departments.md) - ihre Runs, Ausgaben, Modelle, wann sie arbeiten und wer es am meisten nutzt. Die Gruppe wählen Sie neben dem Schalter |
+| **Gruppe** | Die Mitglieder einer [Gruppe](departments.md) - ihre Runs, Ausgaben, Modelle, wann sie arbeiten und wer es am meisten nutzt. Die Gruppe wählen Sie neben dem Schalter. Eine Gruppe, deren Mitglieder im Zeitraum nichts ausgeführt haben, sagt das einmal, mit einem Weg zur Gruppe, statt eine Seite leerer Karten zu zeigen |
 | **Deployment** | Nur für einen [Deployment-Admin](permissions.md) — Plattformsummen, Health, aktivste Tenants, Bewertungen |
 
 Die Ansicht der Organisation zeigt die Karten, die mit Daten antworten, in
@@ -40,7 +40,7 @@ Mitglieder, Sandboxes - wartet im Katalog, einen Klick entfernt unter **Customiz
 
 | Gruppe | Beantwortet |
 |---|---|
-| *(ohne Titel, ganz oben)* | Die Zusammenfassung, Runs Tag für Tag und wie sie ausgingen |
+| *(ohne Titel, ganz oben)* | Die Zusammenfassung, Runs im Zeitverlauf und wie sie ausgingen |
 | **Needs attention** | Was wartet: [Freigaben](governance.md#approvals), jüngste Fehlschläge, Budget-Spielraum, Ihre jüngsten [Benachrichtigungen](#the-bell) |
 | **Usage & cost** | Welche Agents genutzt werden, Ausgaben, wann gearbeitet wird, woher Runs kommen, Modellmix, Latenz, Antwortqualität, wer es nutzt |
 
@@ -50,6 +50,19 @@ Wissensbasis geben, Abteilungen hinzufügen, jemanden aus dem Team einladen und 
 wer darf - einen Agent in eine Chat-App bringen. Jeder Schritt wird nach dem
 abgehakt, was existiert, wo auch immer er erledigt wurde; wer die Karte schließt,
 blendet sie in diesem Browser aus.
+
+Ihre eigene Ansicht zeigt außerdem **AgenticOS entdecken**: je eine Kachel für das,
+was leicht übersehen wird - den eigenen MCP-Server dieses Deployments für Claude
+Code, Codex oder Cursor, Subagents, Sandboxes, Apps, Routines, Chat-Apps, den
+Web-Browser, Wissensbasen und Skills -, jede führt dorthin, wo es eingeschaltet
+wird, und nur die, die Sie nutzen können. Schließen Sie eine Kachel oder alle;
+auch das bleibt im Browser.
+
+Diagramme im Zeitverlauf wählen ihren Schritt selbst. Die Spanne vom ersten Run
+des Zeitraums bis jetzt wird in höchstens 48 Punkten gezeichnet, im feinsten
+Schritt, der passt - eine Minute, fünf, fünfzehn, eine Stunde, drei oder sechs
+Stunden, ein Tag, eine Woche -, sodass ein Nachmittag in Minuten und ein Quartal
+in Wochen lesbar ist statt als ein Ausschlag am rechten Rand.
 
 ### Sie neu anordnen { #rearranging-it }
 
