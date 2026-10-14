@@ -57,6 +57,13 @@ class CaseScore(Base):
         nullable=True,
         index=True,
     )
+    # The eval run that answered and scored this case; a score taken by hand has none.
+    eval_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("eval_runs.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
     scoring: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     results: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False)
     # Null when no judge graded the answer.

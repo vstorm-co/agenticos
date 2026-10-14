@@ -647,6 +647,16 @@ def get_scoring_service(db: DBSession) -> ScoringService:
 
 ScoringSvc = Annotated[ScoringService, Depends(get_scoring_service)]
 
+from app.services.eval_run import EvalRunService
+
+
+def get_eval_run_service(db: DBSession) -> EvalRunService:
+    """Create EvalRunService instance with database session."""
+    return EvalRunService(db)
+
+
+EvalRunSvc = Annotated[EvalRunService, Depends(get_eval_run_service)]
+
 from app.services.artifact import ArtifactService
 
 

@@ -32,6 +32,7 @@ from app.db.models.agent_run import (
     RunOrder,
     RunRating,
     RunStatus,
+    RunSurface,
     ToolApproval,
 )
 from app.db.models.conversation import Message
@@ -647,6 +648,54 @@ async def sum_cost_since(
         query = query.where(AgentRun.id != exclude_run_id)
     result = await db.scalar(query)
     return Decimal(result or 0)
+
+
+async def average_cost(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    agent_id: UUID,
+    model_label: str | None = None,
+    sample: int,
+) -> Decimal | None:
+    """What one of this agent's recent finished runs cost on average, or None with none.
+
+    Over its latest `sample` completed top-level runs, on one model when
+    `model_label` is given - the basis of an eval's estimate, which is asked
+    before anything runs and so can only lean on what already did.
+    """
+    recent = (
+        select(AgentRun.cost_usd)
+        .where(
+            AgentRun.organization_id == organization_id,
+            AgentRun.agent_id == agent_id,
+            AgentRun.parent_run_id.is_(None),
+            AgentRun.status == RunStatus.COMPLETED.value,
+            AgentRun.cost_usd.is_not(None),
+            *([AgentRun.model_label == model_label] if model_label is not None else []),
+        )
+        .order_by(AgentRun.started_at.desc())
+        .limit(sample)
+        .subquery()
+    )
+    average = await db.scalar(select(func.avg(recent.c.cost_usd)))
+    return Decimal(average) if average is not None else None
+
+
+async def cost_of_runs(
+    db: AsyncSession, run_ids: Sequence[UUID], *, organization_id: UUID
+) -> tuple[Decimal, bool]:
+    """What these runs cost together, and whether any price was missing."""
+    if not run_ids:
+        return Decimal(0), False
+    result = await db.execute(
+        select(
+            func.coalesce(func.sum(AgentRun.cost_usd), 0),
+            func.coalesce(func.bool_or(AgentRun.cost_is_partial), False),
+        ).where(AgentRun.id.in_(list(run_ids)), AgentRun.organization_id == organization_id)
+    )
+    total, partial = result.one()
+    return Decimal(total), bool(partial)
 
 
 async def cost_breakdown(
@@ -1384,7 +1433,9 @@ async def usage_by_version(
     Counts delegations, for the reason `list_runs` gives when narrowed to one
     agent: these are that agent's own runs, and a specialist that only ever
     executes as somebody's delegate would otherwise have nothing to compare
-    across versions. `avg_cost_usd` is safe here because it averages one
+    across versions. Leaves eval runs out: an eval of a draft is attributed to
+    no version and would read as "version deleted", and an eval of a version
+    is a test of it, not the use of it this strip reports. `avg_cost_usd` is safe here because it averages one
     agent's rows rather than summing a parent together with its children -
     unless an agent delegates to itself, which nothing in the product does and
     which would show up as one version's average, not as a double bill.
@@ -1409,7 +1460,9 @@ async def usage_by_version(
             func.avg(AgentRun.cost_usd),
         )
         .join(AgentVersion, AgentVersion.id == AgentRun.agent_version_id, isouter=True)
-        .where(*conditions, AgentRun.agent_id == agent_id)
+        .where(
+            *conditions, AgentRun.agent_id == agent_id, AgentRun.surface != RunSurface.EVAL.value
+        )
         .group_by(AgentRun.agent_version_id, AgentVersion.version)
         .order_by(AgentVersion.version.asc().nullsfirst())
     )

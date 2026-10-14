@@ -22,11 +22,13 @@ from app.core.exceptions import NotFoundError
 from app.repositories import (
     agent_environment_repo,
     agent_repo,
+    agent_run_repo,
     case_score_repo,
     channel_bot_repo,
     conversation_repo,
     credential_repo,
     dataset_repo,
+    eval_run_repo,
     intercepted_tool_call_repo,
     personal_data_repo,
 )
@@ -71,6 +73,30 @@ TENANT_REQUIRED = [
     (case_score_repo, "list_for_dataset"),
     (case_score_repo, "list_pending"),
     (case_score_repo, "pending_counts"),
+    (eval_run_repo, "create"),
+    (eval_run_repo, "add_cases"),
+    (eval_run_repo, "get"),
+    (eval_run_repo, "lock"),
+    (eval_run_repo, "list_arms"),
+    (eval_run_repo, "get_arm"),
+    (eval_run_repo, "list_for_agent"),
+    (eval_run_repo, "list_recent"),
+    (eval_run_repo, "list_cases"),
+    (eval_run_repo, "list_arm_cases"),
+    (eval_run_repo, "get_case"),
+    (eval_run_repo, "claim_next"),
+    (eval_run_repo, "count_by_status"),
+    (eval_run_repo, "skip_pending"),
+    (eval_run_repo, "latest_arm"),
+    (eval_run_repo, "referenced_ids"),
+    (eval_run_repo, "scores"),
+    (eval_run_repo, "revisions"),
+    (eval_run_repo, "datasets"),
+    (eval_run_repo, "dataset_version_numbers"),
+    (agent_repo, "get_version_by_number"),
+    (agent_repo, "version_before"),
+    (agent_run_repo, "average_cost"),
+    (agent_run_repo, "cost_of_runs"),
 ]
 
 # Deliberately unscoped, each documented at its definition.
@@ -79,6 +105,7 @@ CROSS_TENANT_BY_DESIGN = [
     (channel_bot_repo, "get_active_polling_bots"),
     (conversation_repo, "get_conversation_by_id"),
     (personal_data_repo, "unlink_dataset_cases_of"),
+    (eval_run_repo, "fail_abandoned"),
 ]
 
 

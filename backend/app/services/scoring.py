@@ -258,12 +258,14 @@ class ScoringService:
         case: DatasetCase,
         answer: ScoredAnswer,
         scoring: DatasetScoring | None = None,
+        eval_run_id: UUID | None = None,
     ) -> CaseScore:
         """Run every configured scorer on one answer to one case, and keep the score.
 
         The entry point for an eval run as much as for a single score: `scoring`
-        overrides the dataset's configuration, as a suite may. The caller has
-        already decided the caller may score this dataset.
+        overrides the dataset's configuration, as a suite may, and `eval_run_id`
+        names the eval run the score belongs to. The caller has already decided
+        the caller may score this dataset.
 
         Raises:
             NothingToScoreError: No configured scorer has anything to check on
@@ -284,6 +286,7 @@ class ScoringService:
             case_revision_id=case.id,
             case_id=case.case_id,
             run_id=answer.run_id,
+            eval_run_id=eval_run_id,
             scoring=config.model_dump(mode="json", by_alias=True),
             results=[
                 result.model_copy(update={"reason": _redact(result.reason)}).model_dump(mode="json")

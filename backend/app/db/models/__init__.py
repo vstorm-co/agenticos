@@ -48,6 +48,16 @@ from app.db.models.intercepted_tool_call import (
     InterceptionOutcome,
     InterceptionReason,
 )
+from app.db.models.eval_run import (
+    ArmRole,
+    ArmSource,
+    CaseAttemptStatus,
+    EvalRun,
+    EvalRunArm,
+    EvalRunCase,
+    EvalRunPurpose,
+    EvalRunStatus,
+)
 from app.db.models.ingestion_spend import IngestionSpend
 from app.db.models.ml_service_call import MLCallStatus, MLServiceCall
 from app.db.models.purged_run_spend import PurgedRunSpend
@@ -127,6 +137,14 @@ __all__ = [
     "AgentRun",
     "RunManifest",
     "InterceptedToolCall",
+    "EvalRun",
+    "EvalRunArm",
+    "EvalRunCase",
+    "EvalRunStatus",
+    "EvalRunPurpose",
+    "ArmRole",
+    "ArmSource",
+    "CaseAttemptStatus",
     "InterceptionOutcome",
     "InterceptionReason",
     "IngestionSpend",

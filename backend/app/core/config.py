@@ -294,6 +294,32 @@ class Settings(BaseSettings):
     # flipped back by its own terminal write, which lands later and wins.
     # Zero or below switches the sweep off.
     STALE_RUN_REAPED_AFTER_HOURS: float = 6.0
+    # Eval runs. A case is an ordinary agent run against the same caps and the
+    # same providers as live traffic, so how many run at once is bounded twice:
+    # per eval run, and per organization across all of its eval runs, so a
+    # 500-case dataset cannot take every slot a provider gives the organization.
+    EVAL_RUN_CONCURRENCY: int = 3
+    EVAL_ORG_CONCURRENCY: int = 6
+    # How many times a case whose outcome flipped against its baseline is rerun
+    # before the flip is called confirmed. Zero confirms nothing.
+    EVAL_RERUNS: int = 2
+    # How old a completed baseline arm may be and still stand in for running
+    # one, when its version, dataset version, model and judge all match.
+    # Providers drift, which is why the limit exists at all.
+    EVAL_BASELINE_CACHE_HOURS: float = 24.0
+    # The significance level of the test on confirmed flips: a p-value at or
+    # above it reports the difference as within noise rather than a verdict.
+    EVAL_SIGNIFICANCE: float = 0.05
+    # A relative change in cost, tokens or latency within this is "unchanged".
+    EVAL_EFFICIENCY_TOLERANCE: float = 0.05
+    # What one case is estimated to cost on a model this agent has no history
+    # on. The estimate says when it used this, because it is a guess.
+    EVAL_FALLBACK_CASE_COST_USD: Decimal = Decimal("0.05")
+    # How many of the agent's recent runs on a model the estimate averages.
+    EVAL_ESTIMATE_SAMPLE: int = 50
+    # A live eval run with no case started or finished for this long has lost
+    # its worker; the stale-run sweep fails it and frees its slots.
+    EVAL_ABANDONED_AFTER_MINUTES: float = 30.0
     ALGORITHM: str = "HS256"
     FRONTEND_URL: str = "http://localhost:3000"
     PUBLIC_BASE_URL: str = "http://localhost:8000"

@@ -778,6 +778,13 @@ class TestVersionRows:
             run.agent_version_id = v2.id
         # A run whose version was deleted afterwards: the id SET-NULLed.
         await _run(db, organization=organization, agent=agent, started_at=START)
+        # Evals - of a draft (no version) and of v2 - test the agent rather than
+        # use it, and must land in neither bucket.
+        await _run(db, organization=organization, agent=agent, started_at=START, surface="eval")
+        tested = await _run(
+            db, organization=organization, agent=agent, started_at=START, surface="eval"
+        )
+        tested.agent_version_id = v2.id
         await db.flush()
 
         rows = await agent_run_repo.usage_by_version(
