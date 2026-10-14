@@ -1,5 +1,5 @@
 ---
-source_sha: "fb4e0d1f5ab4"
+source_sha: "915b96e9fb24"
 ---
 
 # Die Konsole { #the-console }
@@ -305,6 +305,12 @@ Seite hinweg - eine Anmeldung, ein Captcha -, sagen die Zeile und der Browser *D
 braucht Sie* und wofür. Wer Runs sehen, aber den Agent nicht bearbeiten darf, kann
 zusehen, nicht steuern. Dasselbe Fenster öffnet sich über den Link eines Kanals auf
 einer eigenen Seite. Siehe [Webbrowser](reference/capabilities.md#browser-automation).
+
+**Auf die Seite zeigen.** Mit der Sprechblase in der Werkzeugleiste des Browsers
+klickst du auf eine Stelle der Seite und schreibst eine Notiz dazu - *dieser Knopf,
+nicht der andere*. **Add to message** legt die Seite als Bild mit markierter Stelle in
+deine Nachricht, mit deiner Notiz und der Adresse der Seite, zum Senden oder
+Weiterschreiben. Das geht auch bei einem beendeten Browse, auf seinem letzten Bild.
 
 **Angemeldet bleiben.** Wenn der Browse für dich handelt - dein eigener Chat, deine
 Direktnachricht, dein eigener Zeitplan -, bietet **Zurückgeben** *Anmeldung bei …

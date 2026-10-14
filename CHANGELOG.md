@@ -19,6 +19,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Point at the browser's page and say something about it.** A button in the
+  browser's toolbar lets you click a spot on the page and write a note; the page
+  goes into your message as a picture with the spot ringed, with the note and the
+  address, for you to send or keep writing - also on a finished browse.
+
 - **A separate model for `browse_web`'s steps.** The web browser's new
   `step_model_profile_id` names a model profile each browse step asks instead of
   the agent's own model - steps are most of a browse's time and cost - chosen in

@@ -270,6 +270,12 @@ and the browser say *The agent needs you* and what for. Someone who may view run
 not edit the agent can watch, not drive. The same window opens on a page of its own
 from a channel's link. See [Web browser](reference/capabilities.md#browser-automation).
 
+**Pointing at the page.** The speech-bubble button in the browser's toolbar lets you
+click a spot on the page and write a note about it - *this button, not that one*.
+**Add to message** puts the page into your message as a picture with the spot ringed,
+with your note and the page's address, for you to send or keep writing. It works on a
+finished browse too, from its last picture.
+
 **Staying signed in.** When the browse acts for you - your own chat, your direct
 message, your own schedule - **Hand it back** offers *Keep me signed in to* the site
 you are on. Tick it after signing in, and later browses acting for you start signed

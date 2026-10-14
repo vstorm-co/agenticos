@@ -1,5 +1,5 @@
 ---
-source_sha: "fb4e0d1f5ab4"
+source_sha: "915b96e9fb24"
 ---
 
 # Konsola { #the-console }
@@ -281,6 +281,12 @@ agent nie przejdzie strony sam - logowanie, captcha - linijka i przeglądarka m�
 cię potrzebuje* i po co. Ktoś, kto może oglądać runy, ale nie edytować agenta, może
 patrzeć, ale nie sterować. To samo okno otwiera się na osobnej stronie z linku z kanału.
 Zobacz [Przeglądarka](reference/capabilities.md#browser-automation).
+
+**Wskazywanie na stronie.** Przycisk z dymkiem w pasku przeglądarki pozwala kliknąć
+miejsce na stronie i dopisać do niego notatkę - *ten przycisk, nie tamten*. **Add to
+message** wkłada stronę do Twojej wiadomości jako obrazek z zaznaczonym miejscem, razem
+z notatką i adresem strony, do wysłania albo dopisania reszty. Działa też po skończonym
+przeglądaniu, na jego ostatnim obrazie.
 
 **Zostajesz zalogowany.** Gdy przeglądanie działa w Twoim imieniu - Twój czat, Twoja
 wiadomość prywatna, Twój własny harmonogram - **Oddaj** proponuje *Zapamiętaj moje

@@ -1,5 +1,5 @@
 ---
-source_sha: "fb4e0d1f5ab4"
+source_sha: "915b96e9fb24"
 ---
 
 # La consola { #the-console }
@@ -289,6 +289,12 @@ sesión, un captcha -, la línea y el navegador dicen *The agent needs you* y pa
 Quien puede ver runs pero no editar el agent puede mirar, no manejar. La misma ventana
 se abre en una página propia desde el enlace de un canal. Consulta el
 [navegador web](reference/capabilities.md#browser-automation).
+
+**Señalar en la página.** El botón del bocadillo en la barra del navegador te deja
+hacer clic en un punto de la página y escribir una nota sobre él - *este botón, no
+aquel*. **Add to message** pone la página en tu mensaje como una imagen con el punto
+marcado, con tu nota y la dirección de la página, para enviarlo o seguir escribiendo.
+Funciona también en un browse terminado, sobre su última imagen.
 
 **Seguir con la sesión iniciada.** Cuando el browse actúa por ti - tu propio chat, tu
 mensaje directo, tu propia programación -, **Devolver** ofrece *Mantener mi sesión en*

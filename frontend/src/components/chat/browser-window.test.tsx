@@ -422,3 +422,43 @@ describe("BrowserWindow - the first picture, at the window's own size", () => {
     expect(screen.getByRole("img")).toBeVisible();
   });
 });
+
+describe("BrowserWindow - commenting on the page", () => {
+  it("offers a comment where there is somewhere to send it, and lays the picker over the page", async () => {
+    const onComment = vi.fn();
+    const { rerender } = render(<BrowserWindow browse={browse()} control={null} />);
+    expect(screen.queryByRole("button", { name: "Comment on the page" })).toBeNull();
+
+    rerender(<BrowserWindow browse={browse()} control={null} onComment={onComment} />);
+    const button = screen.getByRole("button", { name: "Comment on the page" });
+    await userEvent.click(button);
+
+    expect(button).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText("Click the spot you mean")).toBeInTheDocument();
+    await userEvent.click(button);
+    expect(screen.queryByText("Click the spot you mean")).toBeNull();
+  });
+
+  it("puts the picker away once the comment is dropped", async () => {
+    render(<BrowserWindow browse={browse()} control={null} onComment={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: "Comment on the page" }));
+
+    const layer = screen.getByTestId("browser-comment-layer");
+    // jsdom lays nothing out; the spot is a fraction of the picture's box.
+    vi.spyOn(layer, "getBoundingClientRect").mockReturnValue({
+      left: 0,
+      top: 0,
+      width: 400,
+      height: 300,
+    } as DOMRect);
+    fireEvent.click(layer, { clientX: 5, clientY: 5 });
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByTestId("browser-comment-layer")).toBeNull();
+  });
+
+  it("offers none without a picture to point at", () => {
+    render(<BrowserWindow browse={browse({ image: null })} control={null} onComment={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: "Comment on the page" })).toBeNull();
+  });
+});

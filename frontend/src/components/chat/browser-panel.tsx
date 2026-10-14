@@ -11,6 +11,7 @@ import {
   MIN_PANEL_WIDTH,
   useBrowserPanelStore,
 } from "@/stores/browser-panel-store";
+import type { PageComment } from "./browser-comment";
 import { BrowserWindow } from "./browser-window";
 
 /** How much one arrow key moves the edge, for resizing without a pointer. */
@@ -99,7 +100,16 @@ function useOpenWhenBrowsing(browses: Browse[], docked: boolean) {
  * `docked` false is for a conversation in a small scope (the assistant widget),
  * where there is no column to give up and the panel always takes the screen.
  */
-export function BrowserPanel({ browses, docked = true }: { browses: Browse[]; docked?: boolean }) {
+export function BrowserPanel({
+  browses,
+  docked = true,
+  onComment,
+}: {
+  browses: Browse[];
+  docked?: boolean;
+  /** Where a comment on the page goes - the conversation's composer. */
+  onComment?: (comment: PageComment) => void;
+}) {
   const openCallId = useBrowserPanelStore((state) => state.openCallId);
   useOpenWhenBrowsing(browses, docked);
   // The browse somebody opened, by id - never "the running one". A panel that
@@ -108,11 +118,21 @@ export function BrowserPanel({ browses, docked = true }: { browses: Browse[]; do
   const streamed = browseById(browses, openCallId);
   // Mounted only with something to show, so a conversation that is not
   // browsing opens no live view and holds no socket for one.
-  return streamed === null ? null : <OpenBrowser streamed={streamed} docked={docked} />;
+  return streamed === null ? null : (
+    <OpenBrowser streamed={streamed} docked={docked} onComment={onComment} />
+  );
 }
 
 /** The panel with a browse in it, as the conversation's stream last drew it. */
-function OpenBrowser({ streamed, docked }: { streamed: Browse; docked: boolean }) {
+function OpenBrowser({
+  streamed,
+  docked,
+  onComment,
+}: {
+  streamed: Browse;
+  docked: boolean;
+  onComment?: (comment: PageComment) => void;
+}) {
   const mode = useBrowserPanelStore((state) => state.mode);
   const width = useBrowserPanelStore((state) => state.width);
   const open = useBrowserPanelStore((state) => state.open);
@@ -167,6 +187,7 @@ function OpenBrowser({ streamed, docked }: { streamed: Browse; docked: boolean }
           docked ? () => open(streamed.callId, mode === "full" ? "panel" : "full") : undefined
         }
         newTabHref={streamed.runId ? `/browse/${streamed.runId}/${streamed.callId}` : undefined}
+        onComment={onComment}
       />
     </aside>
   );

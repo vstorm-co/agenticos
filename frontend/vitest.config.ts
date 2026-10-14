@@ -124,6 +124,7 @@ export default defineConfig({
         "src/components/chat/usage-strip.tsx",
         "src/components/chat/attachment-card.tsx",
         "src/components/chat/browser-card.tsx",
+        "src/components/chat/browser-comment.tsx",
         "src/components/chat/browser-panel.tsx",
         "src/components/chat/browser-view.tsx",
         "src/components/chat/browser-window.tsx",

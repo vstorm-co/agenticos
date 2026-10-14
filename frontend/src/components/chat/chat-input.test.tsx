@@ -290,6 +290,31 @@ describe("ChatInput attachments", () => {
     await waitFor(() => expect(state.upload).toHaveBeenCalledTimes(2));
   });
 
+  it("writes words handed in after what is already typed", async () => {
+    // A comment pointed at the browser's page arrives with its note.
+    const shot = new File(["png"], "browser-comment.png", { type: "image/png" });
+    const { rerender } = render(<ChatInput onSend={vi.fn()} />);
+    await userEvent.type(screen.getByRole("textbox"), "Two things.");
+
+    rerender(
+      <ChatInput onSend={vi.fn()} incoming={{ id: 1, files: [shot], text: "This button" }} />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByRole("textbox")).toHaveValue("Two things.\nThis button"),
+    );
+    rerender(<ChatInput onSend={vi.fn()} incoming={{ id: 2, files: [shot], text: "And this" }} />);
+    await waitFor(() =>
+      expect(screen.getByRole("textbox")).toHaveValue("Two things.\nThis button\nAnd this"),
+    );
+  });
+
+  it("starts the message with words handed in to an empty box", async () => {
+    render(<ChatInput onSend={vi.fn()} incoming={{ id: 1, files: [], text: "This button" }} />);
+
+    await waitFor(() => expect(screen.getByRole("textbox")).toHaveValue("This button"));
+  });
+
   it("sends on Enter at a desk, and starts a new line on a touch keyboard", async () => {
     // A phone's keyboard has no Shift to hold for a line break, and the send
     // button is a thumb away (#2066).

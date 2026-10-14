@@ -120,10 +120,12 @@ interface ChatInputProps {
   incoming?: IncomingFiles | null;
 }
 
-/** Files to attach from outside the composer, once per `id`. */
+/** Files to attach from outside the composer, once per `id`, and words to go with them. */
 export interface IncomingFiles {
   id: number;
   files: File[];
+  /** Written into the message, after whatever is already being typed. */
+  text?: string;
 }
 
 /** Whether typing happens on a touch keyboard - a phone or a tablet. */
@@ -363,7 +365,16 @@ export function ChatInput({
     if (incoming === null || attachedIncoming.current === incoming.id) return;
     attachedIncoming.current = incoming.id;
     void uploadFiles(incoming.files);
+    if (incoming.text) textareaRef.current?.focus();
   }, [incoming, uploadFiles]);
+  // The words that came with them, once per hand-off and after whatever is
+  // already typed - written during render, as state that follows a prop is.
+  const [wroteIncoming, setWroteIncoming] = useState<number | null>(null);
+  if (incoming?.text && wroteIncoming !== incoming.id) {
+    const text = incoming.text;
+    setWroteIncoming(incoming.id);
+    setMessage((typed) => (typed.trim() ? `${typed.trimEnd()}\n${text}` : text));
+  }
 
   /**
    * A paste long enough to be a document becomes one.

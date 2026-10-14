@@ -8,6 +8,7 @@ import {
   ListChecks,
   Lock,
   Maximize2,
+  MessageSquarePlus,
   Minimize2,
   Undo2,
   X,
@@ -18,6 +19,7 @@ import type { BrowserCommand } from "@/hooks/use-live-browse";
 import { isRunning, type Browse } from "@/lib/browse";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores";
+import { BrowserCommentLayer, type PageComment } from "./browser-comment";
 import { OperationIcon, OUTCOME_TONE, StepTimeline } from "./browser-view";
 import { LiveViewport } from "./live-viewport";
 
@@ -298,6 +300,7 @@ export function BrowserWindow({
   onMaximize,
   newTabHref,
   waitForFit = false,
+  onComment,
 }: {
   browse: Browse;
   control: BrowseControl | null;
@@ -308,11 +311,14 @@ export function BrowserWindow({
   newTabHref?: string;
   /** Hold the picture back until a frame of this window's size arrives - see `useFitted`. */
   waitForFit?: boolean;
+  /** Where a comment on a spot of the page goes - the chat's composer; none, no button. */
+  onComment?: (comment: PageComment) => void;
 }) {
   const t = useTranslations("chat");
   const tb = useTranslations("browse");
   const [showSteps, setShowSteps] = useState(false);
   const [remember, setRemember] = useState(false);
+  const [commenting, setCommenting] = useState(false);
   const hold = useHold(browse, control);
   const running = isRunning(browse);
   const host = hostOf(browse.url);
@@ -320,6 +326,9 @@ export function BrowserWindow({
   const canDrive = running && control !== null && control.canControl;
   const { ref: pageRef, asked } = useFitPage(canDrive ? control : null);
   const fitted = useFitted(browse.image, asked, waitForFit && canDrive);
+  // Pointing at the page and driving it are two gestures on one picture; while
+  // somebody holds the tab, a click is theirs to send to it.
+  const canComment = onComment !== undefined && browse.image !== null && fitted && !hold.holding;
 
   return (
     <section
@@ -380,6 +389,15 @@ export function BrowserWindow({
               {hold.waiting ? tb("takingOver") : tb("takeOver")}
             </button>
           ))}
+        {canComment && (
+          <ChromeButton
+            label={t("browserComment")}
+            onClick={() => setCommenting((on) => !on)}
+            pressed={commenting}
+          >
+            <MessageSquarePlus className="size-4" />
+          </ChromeButton>
+        )}
         <ChromeButton
           label={t("browserShowSteps", { count: browse.steps.length })}
           onClick={() => setShowSteps((shown) => !shown)}
@@ -454,17 +472,30 @@ export function BrowserWindow({
       <div ref={pageRef} className="bg-background relative min-h-0 flex-1 overflow-hidden">
         <div className="h-full scrollbar-thin overflow-y-auto">
           {browse.image && fitted ? (
-            <LiveViewport
-              browse={browse}
-              holding={hold.holding}
-              onCommand={(command) => control?.send(command)}
-              flush
-              overlay={
-                running && browse.pointer && !hold.holding ? (
-                  <AgentCursor pointer={browse.pointer} />
-                ) : null
-              }
-            />
+            // The comment picker sits beside the remote screen rather than inside
+            // it: a form within `role="application"` is one a screen reader
+            // cannot reach.
+            <div className="relative">
+              <LiveViewport
+                browse={browse}
+                holding={hold.holding}
+                onCommand={(command) => control?.send(command)}
+                flush
+                overlay={
+                  running && browse.pointer && !hold.holding ? (
+                    <AgentCursor pointer={browse.pointer} />
+                  ) : null
+                }
+              />
+              {commenting && canComment && onComment && (
+                <BrowserCommentLayer
+                  image={browse.image}
+                  url={browse.url}
+                  onComment={onComment}
+                  onDone={() => setCommenting(false)}
+                />
+              )}
+            </div>
           ) : (
             <div className="text-muted-foreground flex h-full items-center justify-center p-6 text-center text-sm">
               {running ? t("browserWaitingForFrame") : t("browserNoPreview")}

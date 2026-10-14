@@ -9,6 +9,7 @@ import type { ChatTesting, SteerDraft } from "@/hooks/use-chat";
 import { AgentPicker } from "./agent-picker";
 import { ChatControls } from "./chat-controls";
 import { ChatEmptyState } from "./chat-empty-state";
+import type { PageComment } from "./browser-comment";
 import { ChatInput, type IncomingFiles } from "./chat-input";
 import { ComposerStatus } from "./composer-status";
 import { UsageMeter } from "./usage-meter";
@@ -618,6 +619,19 @@ function ChatUI({
   // its level. See `VoiceGlow` for why it is a second capture.
   const mic = useMicrophone();
   const [composerFocused, setComposerFocused] = useState(false);
+  // What the composer is handed from outside it: the caller's files, or a
+  // comment pointed at the browser's page. The newer wins, and a caller's new
+  // files replace a comment the way a comment replaces them.
+  const [incoming, setIncoming] = useState(incomingFiles);
+  const [handedIn, setHandedIn] = useState(incomingFiles);
+  if (handedIn !== incomingFiles) {
+    setHandedIn(incomingFiles);
+    setIncoming(incomingFiles);
+  }
+  const commentOnPage = useCallback(
+    ({ file, text }: PageComment) => setIncoming({ id: Date.now(), files: [file], text }),
+    [],
+  );
   // The Architect's window and the Builder's test panel: a narrow column beside
   // a page, with no room for the rail and no use for the full chat's spacing.
   const compact = useInChatScope();
@@ -899,7 +913,7 @@ function ChatUI({
                         slashContext={slashContext}
                         commands={slashCommands}
                         attachmentSlot={attachmentSlot}
-                        incoming={incomingFiles}
+                        incoming={incoming}
                         mic={mic}
                         // Who answers first and largest: it is the most
                         // consequential choice in the composer.
@@ -938,7 +952,7 @@ function ChatUI({
       {/* The agent's browser, docked beside the conversation on a wide screen
           and opened by itself when a browse starts. Draws nothing until then,
           so a conversation with no browsing costs nothing. */}
-      <BrowserPanel browses={browses} docked={!compact} />
+      <BrowserPanel browses={browses} docked={!compact} onComment={commentOnPage} />
       {/* Beside the transcript rather than under it: what the agent is holding is
           something you glance at while reading, and a list that pushed the input
           down would move the box you are typing in. Closed by default - it is a
