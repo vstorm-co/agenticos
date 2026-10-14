@@ -99,7 +99,7 @@ beforeEach(() => {
   urlParams = new URLSearchParams();
   window.history.replaceState({}, "", "/chat");
   useConversationStore.getState().reset();
-  useChatBandsStore.setState({ collapsed: [] });
+  useChatBandsStore.setState({ folded: [], opened: [] });
   mockAgents = [{ id: "a-1", name: "Analyst", status: "published", can_run: true }];
   serve([conversation("c-1", "Quarterly numbers")]);
 });
@@ -322,7 +322,7 @@ describe("the collapsed rail", () => {
     await userEvent.click(await within(rail).findByRole("button", { name: "Favourites" }));
 
     expect(within(rail).queryByRole("button", { name: "Quarterly numbers" })).toBeNull();
-    expect(useChatBandsStore.getState().collapsed).toContain("favourites");
+    expect(useChatBandsStore.getState().folded).toContain("favourites");
   });
 
   it("searches from the rail in the same window", async () => {
@@ -471,8 +471,45 @@ describe("the favourites band", () => {
     await waitFor(() => expect(listRequests().some((path) => path.includes("skip=30"))).toBe(true));
   });
 
+  it("keeps a short list open, older bands and all", async () => {
+    // Nothing from the last two days and eight older threads: the list used to
+    // open onto "Previous 30 days" and "Older", both folded, and no thread.
+    const old = (id: string, days: number) => ({
+      ...conversation(id, `Thread ${id}`),
+      updated_at: new Date(Date.now() - days * 86_400_000).toISOString(),
+    });
+    serve([old("a", 10), old("b", 12), old("c", 90)] as unknown as ReturnType<
+      typeof conversation
+    >[]);
+    mount();
+
+    expect(await within(list()).findByText("Thread a")).toBeVisible();
+    expect(within(list()).getByText("Thread c")).toBeVisible();
+  });
+
+  it("folds the older bands on a long list, but never the newest band", async () => {
+    const old = (id: string, days: number) => ({
+      ...conversation(id, `Thread ${id}`),
+      updated_at: new Date(Date.now() - days * 86_400_000).toISOString(),
+    });
+    serve(
+      Array.from({ length: 25 }, (_, i) => old(`m${i}`, i < 5 ? 10 : 90)) as unknown as ReturnType<
+        typeof conversation
+      >[],
+    );
+    mount();
+
+    // The newest band - Previous 30 days here - stays open; Older folds.
+    expect(await within(list()).findByText("Thread m0")).toBeVisible();
+    expect(within(list()).queryByText("Thread m10")).toBeNull();
+    expect(within(list()).getByRole("button", { name: /Older/ })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+  });
+
   it("opens the band the open conversation lands in, once", async () => {
-    useChatBandsStore.setState({ collapsed: ["today"] });
+    useChatBandsStore.setState({ folded: ["today"], opened: [] });
     useConversationStore.getState().setCurrentConversationId("c-1");
     serve([
       { ...conversation("c-1", "Just started"), updated_at: new Date().toISOString() },
@@ -480,7 +517,7 @@ describe("the favourites band", () => {
     mount();
 
     expect(await within(list()).findByText("Just started")).toBeInTheDocument();
-    expect(useChatBandsStore.getState().collapsed).toEqual([]);
+    expect(useChatBandsStore.getState().folded).toEqual([]);
 
     // Folding it again afterwards is the reader's choice, and it stays.
     await userEvent.click(within(list()).getByRole("button", { name: /Today/ }));

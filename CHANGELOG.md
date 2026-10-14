@@ -610,8 +610,11 @@ Two things are versioned separately from this file and worth knowing about:
   `code` and `{{variables}}` as tokens, and links, quotes, lists, tables
   and fenced blocks each marked - still the same plain Markdown saved.
 
-- **The chat list opens on Today and Yesterday,** with older bands folded,
-  and the third audience is called "Some people" instead of "Chosen groups
+- **The chat list keeps a short list open,** folding the older bands (last
+  7 and 30 days, Older) only when it holds more than twenty threads and
+  never the newest band, so a list with nothing recent no longer opens onto
+  folded headings alone; a band folded or opened by hand stays that way.
+  The third audience is called "Some people" instead of "Chosen groups
   or people".
 
 - **No tool waits for a person until its author asks.** A capability's

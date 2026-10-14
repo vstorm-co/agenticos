@@ -18,43 +18,55 @@ export const useChatSidebarStore = create<ChatSidebarState>((set) => ({
 }));
 
 interface ChatBandsState {
-  /** The bands of the conversation list folded to their heading, by key. */
-  collapsed: string[];
-  toggle: (band: string) => void;
+  /** Bands this reader folded by hand, by key. */
+  folded: string[];
+  /** Bands this reader opened by hand - a default fold they undid. */
+  opened: string[];
+  /** Record the reader's choice for `band`, from how it is drawn right now. */
+  toggle: (band: string, foldedNow: boolean) => void;
 }
 
 /**
- * Folded until opened: what is a week or more old is there to be found, not
- * read past on the way to today's threads, so a list starts with Today and
- * Yesterday open and the older bands at their headings.
+ * The bands that fold by default - but only on a long list, and never the
+ * newest band on it. What is a week or more old is there to be found rather
+ * than read past, which matters when there is a lot of it; on a short list the
+ * fold hid the only threads there were, and a person with nothing from the last
+ * two days opened Chats onto two headings and no conversation.
  */
 export const DEFAULT_COLLAPSED_BANDS = ["week", "month", "older"];
 
+/** How many threads make a list long enough for the older bands to fold. */
+export const LONG_LIST = 20;
+
 /**
  * Which bands of the conversation list - Unread, Favourites, Today and the rest
- * - this reader has folded. Kept in the browser: it is how one person likes the
- * list laid out on one screen, not something another device or anybody else
- * needs to know.
+ * - this reader has folded or opened by hand. Kept in the browser: it is how one
+ * person likes the list laid out on one screen, not something another device or
+ * anybody else needs to know. A band nobody chose for follows the default.
  *
- * Version 1 starts everybody from the default once: before it, every band
- * started open, and a list somebody had folded by hand kept Yesterday shut
- * above an open week.
+ * Version 2 starts everybody from the default once: version 1 stored the
+ * default folds as if they were the reader's, so they could not give way on a
+ * short list.
  */
 export const useChatBandsStore = create<ChatBandsState>()(
   persist(
     (set) => ({
-      collapsed: DEFAULT_COLLAPSED_BANDS,
-      toggle: (band) =>
+      folded: [],
+      opened: [],
+      toggle: (band, foldedNow) =>
         set((state) => ({
-          collapsed: state.collapsed.includes(band)
-            ? state.collapsed.filter((key) => key !== band)
-            : [...state.collapsed, band],
+          folded: foldedNow
+            ? state.folded.filter((key) => key !== band)
+            : [...state.folded.filter((key) => key !== band), band],
+          opened: foldedNow
+            ? [...state.opened.filter((key) => key !== band), band]
+            : state.opened.filter((key) => key !== band),
         })),
     }),
     {
       name: "chat-collapsed-bands",
-      version: 1,
-      migrate: () => ({ collapsed: DEFAULT_COLLAPSED_BANDS }),
+      version: 2,
+      migrate: () => ({ folded: [], opened: [] }),
     },
   ),
 );

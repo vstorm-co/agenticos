@@ -306,27 +306,37 @@ describe("the theme", () => {
 });
 
 describe("useChatBandsStore", () => {
-  it("starts with today and yesterday open and older bands folded", () => {
+  it("starts with no choice recorded, so every band follows the default", () => {
     expect(DEFAULT_COLLAPSED_BANDS).toEqual(["week", "month", "older"]);
-    expect(useChatBandsStore.getInitialState().collapsed).toEqual(DEFAULT_COLLAPSED_BANDS);
+    expect(useChatBandsStore.getInitialState().folded).toEqual([]);
+    expect(useChatBandsStore.getInitialState().opened).toEqual([]);
   });
 
-  it("resets a layout saved before the default existed", async () => {
+  it("drops a layout that stored the default folds as the reader's own", async () => {
     localStorage.setItem(
       "chat-collapsed-bands",
-      JSON.stringify({ state: { collapsed: ["yesterday"] }, version: 0 }),
+      JSON.stringify({ state: { collapsed: ["week", "month", "older"] }, version: 1 }),
     );
     await useChatBandsStore.persist.rehydrate();
-    expect(useChatBandsStore.getState().collapsed).toEqual(DEFAULT_COLLAPSED_BANDS);
+    expect(useChatBandsStore.getState().folded).toEqual([]);
+    expect(useChatBandsStore.getState().opened).toEqual([]);
   });
 
-  it("folds a band and opens it again, one band at a time", () => {
-    useChatBandsStore.setState({ collapsed: [] });
-    useChatBandsStore.getState().toggle("favourites");
-    useChatBandsStore.getState().toggle("today");
-    expect(useChatBandsStore.getState().collapsed).toEqual(["favourites", "today"]);
+  it("records a fold and an open as the reader's, from how the band is drawn", () => {
+    useChatBandsStore.setState({ folded: [], opened: [] });
+    useChatBandsStore.getState().toggle("today", false);
+    useChatBandsStore.getState().toggle("older", true);
+    expect(useChatBandsStore.getState().folded).toEqual(["today"]);
+    expect(useChatBandsStore.getState().opened).toEqual(["older"]);
 
-    useChatBandsStore.getState().toggle("favourites");
-    expect(useChatBandsStore.getState().collapsed).toEqual(["today"]);
+    useChatBandsStore.getState().toggle("today", true);
+    expect(useChatBandsStore.getState().folded).toEqual([]);
+    expect(useChatBandsStore.getState().opened).toEqual(["older", "today"]);
+
+    // Folding one the reader had opened moves it across, leaving the others.
+    useChatBandsStore.setState({ folded: ["week"], opened: ["older", "today"] });
+    useChatBandsStore.getState().toggle("older", false);
+    expect(useChatBandsStore.getState().folded).toEqual(["week", "older"]);
+    expect(useChatBandsStore.getState().opened).toEqual(["today"]);
   });
 });

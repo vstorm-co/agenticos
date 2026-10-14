@@ -11,6 +11,7 @@ import { IconButton } from "@/components/ui";
 import { ConversationAgents } from "@/components/agents/conversation-agents";
 import { cn, setUrlParam, timeAgo } from "@/lib/utils";
 import { useChatBandsStore, useChatSidebarStore } from "@/stores";
+import { DEFAULT_COLLAPSED_BANDS, LONG_LIST } from "@/stores/chat-sidebar-store";
 import {
   Archive,
   ArchiveRestore,
@@ -444,6 +445,27 @@ function useBands(
   }, [conversations, currentConversationId, isArchivedView, datedOrder, t, ts]);
 }
 
+/**
+ * Which bands are drawn folded, and how to flip one.
+ *
+ * A band somebody folded or opened by hand stays that way. One nobody chose for
+ * follows the default: the older bands (`DEFAULT_COLLAPSED_BANDS`) fold only on
+ * a long list, and never the newest band on it - a person with nothing from the
+ * last two days used to open Chats onto two folded headings and no thread.
+ */
+function useBandFolds(bands: Band[], loaded: number) {
+  const folded = useChatBandsStore((state) => state.folded);
+  const opened = useChatBandsStore((state) => state.opened);
+  const toggle = useChatBandsStore((state) => state.toggle);
+  const newest = bands.find((band) => band.heading !== null)?.key;
+  const isFolded = (key: string): boolean => {
+    if (folded.includes(key)) return true;
+    if (opened.includes(key)) return false;
+    return key !== newest && loaded > LONG_LIST && DEFAULT_COLLAPSED_BANDS.includes(key);
+  };
+  return { isFolded, flip: (key: string) => toggle(key, isFolded(key)) };
+}
+
 function ConversationList({
   conversations = [],
   total,
@@ -473,10 +495,12 @@ function ConversationList({
   };
 
   const isArchivedView = view === "archived";
-  const collapsedBands = useChatBandsStore((state) => state.collapsed);
-  const toggleBand = useChatBandsStore((state) => state.toggle);
-
   const bands = useBands(conversations, currentConversationId, isArchivedView, datedOrder);
+  const { isFolded, flip } = useBandFolds(bands, conversations.length);
+  const foldedKeys = bands
+    .filter((band) => isFolded(band.key))
+    .map((band) => band.key)
+    .join();
 
   // Scrolling to the foot is what asks for the next page, and a list with folded
   // bands, or a short first page, has no foot to scroll to - Yesterday then never
@@ -487,7 +511,7 @@ function ConversationList({
     const scroller = scrollerRef.current;
     if (scroller === null || isLoading) return;
     if (scroller.scrollHeight - scroller.clientHeight < 100) onLoadMore?.();
-  }, [conversations.length, collapsedBands, isLoading, onLoadMore]);
+  }, [conversations.length, foldedKeys, isLoading, onLoadMore]);
 
   // The band the open conversation lands in opens, once per conversation - a new
   // chat in a folded Today is otherwise a thread you are in that the list hides.
@@ -500,8 +524,8 @@ function ConversationList({
     );
     if (band === undefined) return;
     unfoldedFor.current = currentConversationId;
-    if (collapsedBands.includes(band.key)) toggleBand(band.key);
-  }, [bands, currentConversationId, collapsedBands, toggleBand]);
+    if (isFolded(band.key)) flip(band.key);
+  }, [bands, currentConversationId, isFolded, flip]);
 
   return (
     <>
@@ -595,26 +619,26 @@ function ConversationList({
                   // it says how many it holds, so nothing hidden goes unmentioned.
                   <button
                     type="button"
-                    aria-expanded={!collapsedBands.includes(key)}
-                    onClick={() => toggleBand(key)}
+                    aria-expanded={!isFolded(key)}
+                    onClick={() => flip(key)}
                     className="group/band text-muted-foreground hover:text-foreground flex w-full items-center gap-1.5 rounded-md px-2 pt-3 pb-1 text-left text-xs font-medium transition-colors"
                   >
                     {icon === "star" && <Star className="h-3.5 w-3.5" aria-hidden />}
                     {icon === "unread" && <Inbox className="h-3.5 w-3.5" aria-hidden />}
                     <span>{heading}</span>
-                    {collapsedBands.includes(key) && (
+                    {isFolded(key) && (
                       <span className="text-muted-foreground/70 tabular-nums">{rows.length}</span>
                     )}
                     <ChevronDown
                       className={cn(
                         "ml-auto h-3.5 w-3.5 opacity-0 transition-[transform,opacity] group-hover/band:opacity-100 group-focus-visible/band:opacity-100",
-                        collapsedBands.includes(key) && "-rotate-90 opacity-100",
+                        isFolded(key) && "-rotate-90 opacity-100",
                       )}
                       aria-hidden
                     />
                   </button>
                 )}
-                {!(heading !== null && collapsedBands.includes(key)) &&
+                {!(heading !== null && isFolded(key)) &&
                   rows.map((conversation) => (
                     <ConversationItem
                       key={conversation.id}
@@ -890,8 +914,7 @@ function CollapsedSidebar({
   const ts = useTranslations("chat.sidebar");
   const isArchivedView = view === "archived";
   const bands = useBands(conversations, currentConversationId, isArchivedView, datedOrder);
-  const collapsedBands = useChatBandsStore((state) => state.collapsed);
-  const toggleBand = useChatBandsStore((state) => state.toggle);
+  const { isFolded, flip } = useBandFolds(bands, conversations.length);
 
   return (
     <div className={cn("bg-sidebar hidden w-12 shrink-0 flex-col border-r md:flex", className)}>
@@ -930,7 +953,7 @@ function CollapsedSidebar({
           </span>
         )}
         {bands.map(({ key, heading, icon, rows }, index) => {
-          const folded = heading !== null && collapsedBands.includes(key);
+          const folded = heading !== null && isFolded(key);
           return (
             <div key={key} className="flex flex-col items-center gap-0.5">
               {heading !== null && (
@@ -942,7 +965,7 @@ function CollapsedSidebar({
                   aria-expanded={!folded}
                   aria-label={heading}
                   title={heading}
-                  onClick={() => toggleBand(key)}
+                  onClick={() => flip(key)}
                   className="text-muted-foreground hover:text-foreground flex h-7 w-10 items-center justify-center rounded-md transition-colors"
                 >
                   {icon === "star" ? (
