@@ -14,14 +14,19 @@ export interface DictationStatus {
   /**
    * The engine is `server`, a provider and model resolve for this agent - its
    * published override or the organization's - the catalog offers them, and
-   * the organization holds a credential for the provider.
+   * a usable key is named beside the pair.
    */
   ready: boolean;
   /**
-   * `ready` without the `/chat` engine: a provider, a model and a credential
-   * resolve for this agent. What a hosted page or a widget on `server` needs.
+   * `ready` without the `/chat` engine: a provider, a model and a key resolve
+   * for this agent. What a hosted page or a widget on `server` needs.
    */
   server_available: boolean;
+  /**
+   * Why `server_available` is false: no pair resolves, the catalog withdrew it,
+   * or no usable key is named beside it ("choose a key"). Null when available.
+   */
+  unavailable: "no_provider" | "not_offered" | "no_key" | null;
   max_seconds: number;
   /** Where a recording would go: the agent's override or the organization's. */
   provider: string | null;

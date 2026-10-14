@@ -503,9 +503,13 @@ class SpeechToTextSpec(BaseModel):
     change, and a validator on this model would refuse the draft between
     picking a provider and picking its model.
 
-    No credential is named. The recording runs on the organization's own key
-    for that provider - a model profile, or an organization-visible vault key -
-    which is what keeps a spec safe to export.
+    **The key travels with the pair.** `secret_id` names the vault key the
+    pair is sent with - an `api_key` whose purpose is the provider, which the
+    publisher must be able to view, since binding a key lends it to everyone
+    who can run the agent. A pair without a key is refused at publish; a key
+    without a pair would be a key for nothing. An agent that overrides only the
+    language names neither, and keeps the organization's pair *and* its key.
+    The spec carries the id, never the key, so it stays safe to export.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -526,6 +530,13 @@ class SpeechToTextSpec(BaseModel):
         description=(
             "An ISO-639-1 code to pin recordings to, e.g. `pl`. Null inherits the "
             "organization's language, and then the engine detects it."
+        ),
+    )
+    secret_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The vault key the pair is sent with: an API key whose purpose is the "
+            "provider. Set with the pair, and only with it."
         ),
     )
 

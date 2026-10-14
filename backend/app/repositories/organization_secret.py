@@ -5,7 +5,6 @@ the last thing that should leak across tenants, and a forgotten filter must not
 look like an ordinary call (see tests/test_org_scope_regression.py).
 """
 
-from collections.abc import Sequence
 from uuid import UUID
 
 from sqlalchemy import bindparam, false, or_, select, text
@@ -58,31 +57,6 @@ async def list_org_visible_by_kind(
         select(OrganizationSecret)
         .where(
             OrganizationSecret.organization_id == organization_id,
-            OrganizationSecret.kind == kind,
-            OrganizationSecret.visibility == Visibility.ORG.value,
-        )
-        .order_by(OrganizationSecret.name.asc())
-    )
-    return list(result.scalars().all())
-
-
-async def list_org_visible_by_purpose(
-    db: AsyncSession, *, organization_id: UUID, purposes: Sequence[str], kind: str
-) -> list[OrganizationSecret]:
-    """The organization-visible secrets stored for these services, ordered by name.
-
-    For a credential the platform spends on everybody's behalf without a binding
-    naming it - a voice note transcribed on the organization's OpenAI key. Only
-    `org`-visible rows, for the reason `list_org_visible_by_kind` gives: a
-    member's private key must never pay for the rest of the organization.
-    Narrowed to one `kind` as well, because a purpose says which service and
-    the kind says whether the value is something that service accepts.
-    """
-    result = await db.execute(
-        select(OrganizationSecret)
-        .where(
-            OrganizationSecret.organization_id == organization_id,
-            OrganizationSecret.purpose.in_(list(purposes)),
             OrganizationSecret.kind == kind,
             OrganizationSecret.visibility == Visibility.ORG.value,
         )

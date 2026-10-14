@@ -138,6 +138,16 @@ class MLServiceCall(Base, TimestampMixin):
     )
     """The bot a voice note arrived on."""
 
+    secret_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("organization_secrets.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    """The vault key a transcription was sent with, as `agent_runs.secret_id`
+    records a run's - so "which key costs most" has one answer across chat and
+    speech. SET NULL: deleting a key does not unmake what it paid for."""
+
     audio_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     """How long the recording was, in milliseconds, or null where nobody said.
 

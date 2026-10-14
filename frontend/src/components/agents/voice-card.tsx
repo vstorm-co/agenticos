@@ -5,6 +5,7 @@ import { Info } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { ChoiceGroup } from "@/components/settings/choice-group";
+import { SpeechKeyField, useSpeechKeyCheck } from "@/components/vault/speech-key-field";
 import {
   Card,
   CardContent,
@@ -42,12 +43,13 @@ interface VoiceCardProps {
  * the spec like every other card on the Build tab: it autosaves into the draft
  * and takes effect when the agent is published.
  *
- * **The provider and model move as a pair**, and the language on its own - so a
- * Polish agent can keep the organization's provider. The block is always written
- * with all three keys in the spec's order and explicit nulls, and an all-null
- * block is written as `null`, because the server stores it that way and the
- * Builder compares the draft as JSON: any other spelling would show as an
- * unpublished change that is not one.
+ * **The provider, model and key move as one**, and the language on its own - so
+ * a Polish agent can keep the organization's provider and its key. The key is
+ * any API key for the provider this person can see: publishing lends it to
+ * whoever runs the agent. The block is always written with all four keys in the
+ * spec's order and explicit nulls, and an all-null block is written as `null`,
+ * because the server stores it that way and the Builder compares the draft as
+ * JSON: any other spelling would show as an unpublished change that is not one.
  */
 export function VoiceCard({ value, onChange, disabled }: VoiceCardProps) {
   const t = useTranslations("agents");
@@ -60,29 +62,36 @@ export function VoiceCard({ value, onChange, disabled }: VoiceCardProps) {
   const provider = value?.provider ?? null;
   const model = value?.model ?? null;
   const language = value?.language ?? null;
+  const secretId = value?.secret_id ?? null;
   const mode: PairMode = provider !== null || model !== null ? "choose" : "inherit";
+  const hasKey = useSpeechKeyCheck(false);
 
   const write = (next: Partial<SpeechToTextSpec>) => {
     const block = {
       provider: next.provider !== undefined ? next.provider : provider,
       model: next.model !== undefined ? next.model : model,
       language: next.language !== undefined ? next.language : language,
+      secret_id: next.secret_id !== undefined ? next.secret_id : secretId,
     };
-    const empty = block.provider === null && block.model === null && block.language === null;
+    const empty =
+      block.provider === null &&
+      block.model === null &&
+      block.language === null &&
+      block.secret_id === null;
     onChange(empty ? null : block);
   };
 
   const choose = (next: PairMode) => {
     if (next === "inherit") {
-      write({ provider: null, model: null });
+      write({ provider: null, model: null, secret_id: null });
       return;
     }
-    // A pair at once, never half of one: the first provider this organization
-    // can send with, or the first offered when none can - the picker then says
-    // which lacks credentials. The group is disabled while the catalog is
-    // empty, so there is a first.
-    const first = providers.find((entry) => entry.credentialed) ?? providers[0]!;
-    write({ provider: first.provider, model: first.models[0]!.id });
+    // A pair at once, never half of one: the first provider with a key this
+    // person can choose, or the first offered when none has - the key field
+    // then offers to add one. The group is disabled while the catalog is
+    // empty, so there is a first. The key is chosen below, never carried.
+    const first = providers.find((entry) => hasKey(entry.provider)) ?? providers[0]!;
+    write({ provider: first.provider, model: first.models[0]!.id, secret_id: null });
   };
 
   // By id while the catalog is unread.
@@ -130,6 +139,8 @@ export function VoiceCard({ value, onChange, disabled }: VoiceCardProps) {
             providers={providers}
             provider={provider}
             model={model}
+            secretId={secretId}
+            hasKey={hasKey}
             disabled={disabled}
             onChange={write}
           />
@@ -213,12 +224,22 @@ interface PairFieldsProps {
   providers: SpeechToTextProvider[];
   provider: string | null;
   model: string | null;
+  secretId: string | null;
+  hasKey: (provider: string) => boolean;
   disabled?: boolean;
   onChange: (next: Partial<SpeechToTextSpec>) => void;
 }
 
-/** The provider and its model, from the speech-to-text catalog. */
-function PairFields({ providers, provider, model, disabled, onChange }: PairFieldsProps) {
+/** The provider and its model, from the speech-to-text catalog, and the key they go with. */
+function PairFields({
+  providers,
+  provider,
+  model,
+  secretId,
+  hasKey,
+  disabled,
+  onChange,
+}: PairFieldsProps) {
   const t = useTranslations("agents");
   const chosen = providers.find((entry) => entry.provider === provider);
   return (
@@ -232,9 +253,10 @@ function PairFields({ providers, provider, model, disabled, onChange }: PairFiel
           value={provider ?? undefined}
           disabled={disabled}
           onValueChange={(next) => {
-            // `next` is one of the options below, and each catalog entry has a model.
+            // `next` is one of the options below, and each catalog entry has a
+            // model. The key was the old provider's, so it goes with it.
             const entry = providers.find((candidate) => candidate.provider === next)!;
-            onChange({ provider: next, model: entry.models[0]!.id });
+            onChange({ provider: next, model: entry.models[0]!.id, secret_id: null });
           }}
         >
           <SelectTrigger id="agent-voice-provider">
@@ -242,16 +264,11 @@ function PairFields({ providers, provider, model, disabled, onChange }: PairFiel
           </SelectTrigger>
           <SelectContent>
             {providers.map((entry) => {
-              const label = entry.credentialed
+              const label = hasKey(entry.provider)
                 ? entry.name
-                : t("voiceProviderNoCredentials", { name: entry.name });
+                : t("voiceProviderNoKey", { name: entry.name });
               return (
-                <SelectItem
-                  key={entry.provider}
-                  value={entry.provider}
-                  disabled={!entry.credentialed && entry.provider !== provider}
-                  textValue={label}
-                >
+                <SelectItem key={entry.provider} value={entry.provider} textValue={label}>
                   {label}
                 </SelectItem>
               );
@@ -277,6 +294,17 @@ function PairFields({ providers, provider, model, disabled, onChange }: PairFiel
           </SelectContent>
         </Select>
       </FormField>
+      {chosen && (
+        <SpeechKeyField
+          id="agent-voice-key"
+          provider={chosen.provider}
+          providerName={chosen.name}
+          value={secretId}
+          orgVisibleOnly={false}
+          disabled={disabled}
+          onChange={(next) => onChange({ secret_id: next })}
+        />
+      )}
     </div>
   );
 }

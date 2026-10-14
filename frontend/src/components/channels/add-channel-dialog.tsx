@@ -103,6 +103,7 @@ export function AddChannelDialog({
             pair_source: "organization",
             language_source: org.speech_to_text_language ? "organization" : null,
             agent_name: null,
+            has_key: org.speech_to_text_secret_id !== null,
           }
         : null;
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -154,13 +155,14 @@ export function AddChannelDialog({
           : {}),
         ...(platform === "slack" && appToken.trim() ? { slack_app_token: appToken.trim() } : {}),
         // Inherit is the server's default, so it sends nothing; off is the
-        // switch; choose is both halves - the schema refuses one alone as a
-        // setting that cannot run.
+        // switch; choose is both halves and the key - the schema refuses one
+        // half alone as a setting that cannot run, and a pair with no key.
         ...(transcription.mode === "off" ? { transcribe_voice_notes: false } : {}),
         ...(transcription.mode === "choose" && transcription.provider && transcription.model
           ? {
               speech_to_text_provider: transcription.provider,
               speech_to_text_model: transcription.model,
+              speech_to_text_secret_id: transcription.secretId,
             }
           : {}),
       });
@@ -170,7 +172,7 @@ export function AddChannelDialog({
       const failure = submitFailure(
         error,
         {
-          fields: ["name", "token", "api_base_url", "webhook_secret"],
+          fields: ["name", "token", "api_base_url", "webhook_secret", "speech_to_text_secret_id"],
           identifiedBy: "name",
         },
         tErrors,
@@ -330,6 +332,7 @@ export function AddChannelDialog({
             inherited={inherited}
             value={transcription}
             onChange={setTranscription}
+            keyError={errors.speech_to_text_secret_id}
           />
         </div>
 

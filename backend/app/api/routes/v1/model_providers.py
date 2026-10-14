@@ -14,7 +14,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, status
 
-from app.api.deps import Auth, MLSvc, ModelProfileSvc, SecretSvc, require
+from app.api.deps import Auth, ModelProfileSvc, SecretSvc, require
 from app.core.permissions import Perm
 from app.schemas.model_profile import (
     ImageModelRead,
@@ -154,7 +154,7 @@ async def list_image_models() -> Any:
     response_model=SpeechToTextProviderList,
     dependencies=[Depends(require(Perm.AGENTS_VIEW))],
 )
-async def list_speech_to_text_models(ml: MLSvc, ctx: Auth) -> Any:
+async def list_speech_to_text_models() -> Any:
     """Which providers can transcribe a voice note, and with which models.
 
     The same shape and the same reasoning as `/image-models`: both halves are the
@@ -164,11 +164,10 @@ async def list_speech_to_text_models(ml: MLSvc, ctx: Auth) -> Any:
     client, is dropped, because a picker entry that fails when somebody sends a
     voice note is worse than one that is absent.
 
-    `credentialed` says whether this organization holds something to send with
-    for that provider - a model profile, or an organization-visible vault key -
-    checked for existence and never opened. Computed here rather than in the
-    console, because the person choosing an agent's engine may not hold
-    `secrets:view` and so cannot see the vault to work it out.
+    No credential is read. This says what the deployment can offer; the key a
+    pair is sent with is chosen beside it, from the vault keys whose purpose is
+    the provider, and the picker that offers them is what says a provider has
+    none.
 
     `languages` is the ISO-639-1 codes a recording may be pinned to, which an
     organization's dictation settings choose from.
@@ -177,13 +176,11 @@ async def list_speech_to_text_models(ml: MLSvc, ctx: Auth) -> Any:
     "speech-to-text-models" as a provider.
     """
     offered = speech_to_text_providers()
-    credentialed = await ml.speech_to_text_credentials(ctx)
     return SpeechToTextProviderList(
         items=[
             SpeechToTextProviderRead(
                 provider=entry.provider,
                 name=entry.name,
-                credentialed=entry.provider in credentialed,
                 models=[
                     SpeechToTextModelRead(
                         id=model.id, name=model.name, description=model.description

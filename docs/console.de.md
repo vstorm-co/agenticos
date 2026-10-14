@@ -1,5 +1,5 @@
 ---
-source_sha: "48e679cb5241"
+source_sha: "f997129511b8"
 ---
 
 # Die Konsole { #the-console }
@@ -197,7 +197,7 @@ oder **Verwerfen (Discard)** drücken.
 
 Hat die Organisation Server gewählt, aber für den
 ausgewählten Agent löst sich nichts auf - kein Provider auf dem Agent oder der
-Organisation, oder keine Zugangsdaten dafür -, oder ist kein Agent ausgewählt,
+Organisation, oder kein Schlüssel dafür gewählt -, oder ist kein Agent ausgewählt,
 ist das Mikrofon durchgestrichen und sagt, warum; wer `org:settings` hält, bekommt einen Link zur
 Karte Stimme (Voice), und wer Agents bearbeiten darf, einen Link zur Karte Stimme (Voice) dieses Agents.
 
@@ -226,14 +226,19 @@ von der Engine angezeigt, denn es ist auch das, wohin
 [Channel-Bots](channels.md#what-every-channel-shares), die auf Erben (Inherit)
 stehen, ihre Sprachnachrichten schicken; **Keiner (None)** leert es.
 
-Server sendet mit den eigenen Zugangsdaten der Organisation für diesen Provider:
-einem für die Organisation sichtbaren Schlüssel im Vault oder einem model
-profile, und ein schlüsselloses Profil, das auf einen selbst gehosteten Server
-zeigt, zählt auch. Ein Provider ohne beides wird angezeigt, lässt sich aber nicht
-wählen, und gibt es gar keinen, verlinkt die Karte auf den Vault. Ist Server
-gespeichert, kann aber nicht laufen — das Modell wurde aus dem Katalog genommen
-oder die Zugangsdaten sind weg —, sagt die Karte es, denn dann sieht jedes
-Mitglied ein durchgestrichenes Mikrofon.
+**Schlüssel (Key)** neben dem Provider ist der Vault-Schlüssel, mit dem die
+Voreinstellung gesendet wird. Die Liste zeigt die API-Schlüssel, deren Zweck
+dieser Provider ist und die die ganze Organisation sieht - die Plattform gibt
+diesen Schlüssel für das Diktat jedes Mitglieds und jeden erbenden Bot aus, daher
+wird der private Schlüssel eines Mitglieds nicht angeboten und abgelehnt, wenn er
+gesendet wird. Passt genau ein Schlüssel, wird er für Sie gewählt und in jedem
+Fall per ID gespeichert; zur Laufzeit wählt nichts einen Schlüssel. Ein Provider
+ohne Schlüssel ist mit **kein Schlüssel für diesen Provider** markiert, und die
+Auswahl verlinkt auf den Vault, um einen anzulegen. Ist Server gespeichert, kann
+aber nicht laufen — das Modell wurde aus dem Katalog genommen oder der Schlüssel
+gelöscht oder privat gemacht —, sagt die Karte es und bittet, **einen Schlüssel
+zu wählen**, wo dieser fehlt, denn dann sieht jedes Mitglied ein
+durchgestrichenes Mikrofon.
 
 Server ohne Standard-Provider ist eine Einstellung, kein Fehler: Die Karte weist darauf hin, dass nur Agents mit eigenem Provider diktieren. **Sprachgespräche (Voice conversations)** darunter ist
 noch nicht gebaut.
@@ -251,11 +256,16 @@ ist sie ausgeblendet. Die Zahlen stammen aus
 
 Der Tab **Build** eines Agents hat nach seinen Modelleinstellungen eine Karte
 **Stimme (Voice)**, für einen Agent, der anders transkribieren soll als seine
-Organisation. **Erben (Inherit)** behält Provider und Modell der Organisation und zeigt,
-welche es sind; **Auswählen (Choose)** wählt ein Paar aus dem Katalog, wobei sich ein
-Provider ohne Zugangsdaten nicht wählen lässt. Die Sprache wird für sich gewählt:
-die der Organisation erben oder eine festlegen - so kann ein polnischer Agent
-den Provider der Organisation behalten.
+Organisation. **Erben (Inherit)** behält Provider, Modell und Schlüssel der
+Organisation und zeigt, welche es sind; **Auswählen (Choose)** wählt ein Paar aus
+dem Katalog und den Schlüssel, mit dem es gesendet wird - einen API-Schlüssel für
+diesen Provider, den Sie sehen können, denn das Veröffentlichen leiht ihn jedem,
+der den Agent ausführen darf.
+
+Es ist nie der Schlüssel der Organisation: Ein
+Agent mit eigenem Paar benennt seinen eigenen Schlüssel. Die Sprache wird für
+sich gewählt: die der Organisation erben oder eine festlegen - so kann ein
+polnischer Agent Provider und Schlüssel der Organisation behalten.
 
 Die Überschreibung ist Teil des Specs, wird mit dem Entwurf gespeichert und ist
 live, sobald der Agent veröffentlicht ist, und sie gilt für [das Diktieren](#dictation) an diesen Agent und für Sprachnachrichten,

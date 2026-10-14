@@ -90,6 +90,13 @@ class OrganizationUpdate(BaseSchema):
         max_length=255,
         description="A model that provider offers; null clears it. Set with the provider.",
     )
+    speech_to_text_secret_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The vault key the pair is sent with: an organization-visible API key "
+            "whose purpose is the provider. Required with a pair; null clears it."
+        ),
+    )
     speech_to_text_language: str | None = Field(
         default=None,
         max_length=8,
@@ -121,14 +128,22 @@ class OrganizationRead(BaseSchema, TimestampSchema):
     chat_dictation: DictationEngine = "browser"
     speech_to_text_provider: str | None = None
     speech_to_text_model: str | None = None
+    speech_to_text_secret_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The vault key the pair is sent with, by id. Null with a pair means the "
+            "key was deleted, and dictation waits for another to be chosen."
+        ),
+    )
     speech_to_text_language: str | None = None
     dictation_max_seconds: int = 300
     chat_dictation_ready: bool = Field(
         default=False,
         description=(
             "Whether server dictation is configured: engine `server` with a catalog "
-            "pair. Read from settings alone, so a deleted credential still reads true "
-            "and is refused per recording as `not_configured`."
+            "pair and a key named for it. Read from settings alone, so a key made "
+            "private since still reads true and is refused per recording as "
+            "`not_configured`."
         ),
     )
 

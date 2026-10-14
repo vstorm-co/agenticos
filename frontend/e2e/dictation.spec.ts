@@ -39,6 +39,7 @@ interface SpeechSettings {
   chat_dictation: "off" | "browser" | "server";
   speech_to_text_provider: string | null;
   speech_to_text_model: string | null;
+  speech_to_text_secret_id: string | null;
   dictation_max_seconds: number;
 }
 
@@ -49,6 +50,7 @@ interface OrgRow extends SpeechSettings {
 
 let orgId = "";
 let original: SpeechSettings | null = null;
+let secretId: string | null = null;
 
 /**
  * An API context signed in as the seeded owner.
@@ -86,23 +88,38 @@ test.beforeAll(async ({ playwright }, testInfo) => {
     chat_dictation: org!.chat_dictation,
     speech_to_text_provider: org!.speech_to_text_provider,
     speech_to_text_model: org!.speech_to_text_model,
+    speech_to_text_secret_id: org!.speech_to_text_secret_id,
     dictation_max_seconds: org!.dictation_max_seconds,
   };
+  // A pair is saved with a key named beside it - an organization-wide one for
+  // its provider. Never used: the transcription is stubbed.
+  const secret = await request.post("/api/secrets", {
+    data: {
+      name: `e2e-dictation-${Date.now().toString(36)}`,
+      value: { kind: "api_key", api_key: "sk-e2eNOTAREALKEYatallZZ99" },
+      purpose: "openai",
+      visibility: "org",
+    },
+  });
+  expect(secret.ok(), `POST /api/secrets answered ${secret.status()}`).toBe(true);
+  secretId = ((await secret.json()) as { id: string }).id;
   // The shortest limit an organization may set, so the auto-stop is reached
   // in a test; the other recordings here last a second.
   await patchSpeech(request, {
     chat_dictation: "server",
     speech_to_text_provider: "openai",
     speech_to_text_model: "whisper-1",
+    speech_to_text_secret_id: secretId,
     dictation_max_seconds: 10,
   });
   await request.dispose();
 });
 
 test.afterAll(async ({ playwright }, testInfo) => {
-  if (original === null) return;
   const request = await ownerRequest(playwright.request, testInfo.project.use.baseURL);
-  await patchSpeech(request, original);
+  // The settings first: they may name the key, which goes after.
+  if (original !== null) await patchSpeech(request, original);
+  if (secretId !== null) await request.delete(`/api/secrets/${secretId}`);
   await request.dispose();
 });
 
@@ -144,8 +161,8 @@ function transcribed(text: string) {
  * `POST` is answered by `onPost`.
  *
  * The readiness is stubbed for the same reason the transcription is: it is
- * `ready` only where the organization holds a credential for the provider, and
- * a test deployment has no provider key.
+ * `ready` only where a usable key is named beside the pair, and the key this
+ * spec stores is not one any provider would accept.
  */
 async function stubDictation(page: Page, onPost: (route: Route) => Promise<void>): Promise<void> {
   await page.route("**/api/agents/*/dictation", async (route) => {
@@ -157,6 +174,7 @@ async function stubDictation(page: Page, onPost: (route: Route) => Promise<void>
           engine: "server",
           ready: true,
           server_available: true,
+          unavailable: null,
           max_seconds: 300,
           provider: "openai",
           // The default every deployment starts on: Web Audio samples written

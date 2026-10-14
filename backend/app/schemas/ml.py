@@ -21,7 +21,7 @@ from pydantic import Field
 from app.db.models.ml_service_call import MLServiceCall, TranscriptionSurface
 from app.db.models.organization import DictationEngine
 from app.schemas.base import BaseSchema, TimestampSchema
-from app.services.speech_to_text import RecordingFormat
+from app.services.speech_to_text import DictationUnavailable, RecordingFormat
 
 if TYPE_CHECKING:
     from app.repositories.ml_service_call import UsageSummary
@@ -137,18 +137,25 @@ class DictationStatusRead(BaseSchema):
     ready: bool = Field(
         description=(
             "The engine is `server`, the agent is not archived, a provider and model "
-            "resolve for it, the catalog offers them and the organization holds a "
-            "credential for the provider. Configured, not proven: a revoked key fails "
-            "on the first recording."
+            "resolve for it, the catalog offers them and a usable key is named beside "
+            "them. Configured, not proven: a revoked key fails on the first recording."
         )
     )
     server_available: bool = Field(
         description=(
             "`ready` without the engine or the archive check: a provider and model "
             "resolve for this agent, "
-            "the catalog offers them and a credential exists. What a hosted page or a "
+            "the catalog offers them and a usable key is named. What a hosted page or a "
             "widget set to `server` needs, since the `/chat` engine does not gate them."
         )
+    )
+    unavailable: DictationUnavailable | None = Field(
+        default=None,
+        description=(
+            "Why `server_available` is false: `no_provider` (no level names a pair), "
+            "`not_offered` (the catalog withdrew it) or `no_key` (no usable key is "
+            "named beside the pair - choose one). Null when it is available."
+        ),
     )
     max_seconds: int = Field(description="The organization's longest dictation, in seconds")
     provider: str | None = Field(

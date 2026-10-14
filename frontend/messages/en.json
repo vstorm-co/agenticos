@@ -667,8 +667,7 @@
     "voiceOrgPair": "{provider} · {model}",
     "voiceOrgNoPair": "The organization has no provider set, so there is nothing to inherit.",
     "voiceProvider": "Provider",
-    "voiceProviderHint": "Sent with this organization's credentials for the provider: a model profile or a vault key.",
-    "voiceProviderNoCredentials": "{name} (no credentials)",
+    "voiceProviderHint": "From the speech-to-text catalog. Sent with the key chosen below.",
     "voiceModel": "Model",
     "voiceLanguage": "Language",
     "voiceLanguageHint": "A fixed language is more accurate than auto-detect.",
@@ -687,7 +686,8 @@
     "embedDictationServerHint": "Recorded in the page and transcribed by this organization's speech-to-text provider, on the organization's bill. The audio isn't stored.",
     "embedDictationServerUnavailable": "Server needs a speech-to-text provider with a credential, chosen on the organization's Voice card or on this agent's.",
     "embedDictationServerDrift": "No speech-to-text provider answers for this agent right now, so visitors see no microphone until one does.",
-    "embedDictationServerUnchecked": "Server can't be checked right now: this agent's speech-to-text readiness didn't load. Reload the page to try again."
+    "embedDictationServerUnchecked": "Server can't be checked right now: this agent's speech-to-text readiness didn't load. Reload the page to try again.",
+    "voiceProviderNoKey": "{name} (no key yet)"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -1354,7 +1354,9 @@
         "notSetUpTitle": "Dictation isn't set up yet.",
         "notSetUpBody": "This organization transcribes on its own server, and no speech-to-text model is chosen for it or for this agent.",
         "noAgentTitle": "Pick an agent first.",
-        "noAgentBody": "A dictation is transcribed for the agent this conversation talks to."
+        "noAgentBody": "A dictation is transcribed for the agent this conversation talks to.",
+        "noKeyTitle": "Dictation needs a key.",
+        "noKeyBody": "A speech-to-text model is chosen, but no key for its provider."
       }
     }
   },
@@ -3904,10 +3906,11 @@
       "transcriptionInheritsFromOrg": "{pair}, from the organization",
       "transcriptionPair": "{provider} · {model}",
       "transcriptionEngine": "Provider",
-      "transcriptionProviderNoCredentials": "{name} (no credentials)",
       "transcriptionMistralFormat": "{platform, select, slack {Slack's desktop app records audio clips as WebM} other {Telegram sends voice messages as Ogg/Opus}}, which Mistral does not list as a format it accepts. They may fail to transcribe; choose another provider for this bot if they do.",
       "webhook": "Webhook",
-      "webhookToken": "No webhook token"
+      "webhookToken": "No webhook token",
+      "transcriptionProviderNoKey": "{name} (no key yet)",
+      "transcriptionInheritedNoKey": "No key is chosen where this pair comes from, so voice messages are not transcribed until one is."
     },
     "invitations": {
       "acceptInvitation": "Accept invitation",
@@ -5151,20 +5154,15 @@
           "hint": "Audio goes through this deployment to the provider you pick. Every browser."
         }
       },
-      "noCredentialsTitle": "Server needs provider credentials",
-      "noCredentialsBody": "Server transcription sends with this organization's own credentials: an organization-visible key in the vault, or a model profile. Add one for {providers}; a keyless profile pointing at a self-hosted server counts too.",
-      "addKey": "Add a key in the vault",
       "defaultTitle": "Default provider",
       "defaultDescription": "Used by dictation in chat and by voice messages sent to channel bots, unless an agent or a bot chooses its own.",
       "providerNone": "None",
       "notReadyTitle": "Dictation is unavailable in chat",
       "agentsOnlyTitle": "Only agents with their own provider can dictate",
       "agentsOnlyBody": "No default provider is chosen, so dictation in chat works only for agents that set their own speech-to-text provider in their Voice card. Other agents show a crossed-out microphone. Pick a default here to turn it on for every agent.",
-      "notReadyNoCredentials": "This organization has no {provider} credentials. Members see a crossed-out microphone until you add them, pick another provider, or switch the engine.",
       "notReadyWithdrawn": "The chosen model, {model}, is no longer offered. Members see a crossed-out microphone until you pick another model or switch the engine.",
       "provider": "Provider",
-      "providerHint": "Uses this organization's credentials for the provider; a self-hosted endpoint works if it accepts the catalog model name.",
-      "providerNoCredentials": "{name} (no credentials)",
+      "providerHint": "From the speech-to-text catalog. Sent with the key chosen below.",
       "model": "Model",
       "modelHint": "{provider} models in the speech-to-text catalog.",
       "language": "Language",
@@ -5180,8 +5178,7 @@
       "minutes": "minutes",
       "pathBrowser": "Browser",
       "pathDeployment": "This deployment",
-      "pathHost": "{provider} · {host}",
-      "pathNote": "Sent with this organization's {provider} credentials. The audio is discarded after transcription; only the text is kept.",
+      "pathNote": "Sent with the organization's {provider} key chosen below. The audio is discarded after transcription; only the text is kept.",
       "pathVendor": "Browser vendor's speech service",
       "browserNote": "The organization's provider is not used. Firefox shows no microphone.",
       "cancel": "Cancel",
@@ -5189,7 +5186,9 @@
       "saved": "Voice settings saved",
       "conversationsTitle": "Voice conversations",
       "conversationsDescription": "Talk to an agent and hear it answer.",
-      "comingSoon": "Coming soon"
+      "comingSoon": "Coming soon",
+      "providerNoKey": "{name} (no key yet)",
+      "notReadyNoKey": "No key is chosen for {provider}. Members see a crossed-out microphone until you choose one below or switch the engine."
     }
   },
   "theme": {
@@ -5319,7 +5318,19 @@
     "whichOne": "Which one",
     "whoCanUse": "Who can use it",
     "yoursAloneYouCan": "Yours alone. You can share it with named people afterwards.",
-    "zendeskApiToken": "Zendesk API token"
+    "zendeskApiToken": "Zendesk API token",
+    "speechKey": {
+      "label": "Key",
+      "choose": "Choose a key",
+      "option": "{name} (…{hint})",
+      "orgHint": "An organization-wide API key for this provider. It is spent for everybody, so a key only some people can see cannot be chosen here.",
+      "agentHint": "An API key for this provider that you can see. Publishing lends it to everyone who can run this agent.",
+      "stale": "The chosen key was deleted or can no longer be used here. Choose a key.",
+      "none": "No {provider} keys in the vault yet. Add one below.",
+      "noneOrg": "No organization-wide {provider} keys in the vault yet. Add one below, or share an existing one with the whole organization.",
+      "cannotList": "You cannot list the vault's keys, so a key cannot be chosen here. Ask someone who manages connections.",
+      "suggestedName": "{provider} speech to text"
+    }
   },
   "context": {
     "created": "Created {name}",

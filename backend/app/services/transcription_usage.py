@@ -62,6 +62,9 @@ class TranscriptionCall:
     platform account is linked to. `None` for an unlinked sender."""
     agent_id: UUID | None = None
     channel_bot_id: UUID | None = None
+    secret_id: UUID | None = None
+    """The vault key the recording was sent with - the one named next to the
+    pair - or `None` where the call was refused before one was chosen."""
 
 
 def failure_of(exc: AppException) -> tuple[str, str]:
@@ -127,6 +130,7 @@ async def record(
                 surface=call.surface,
                 agent_id=call.agent_id,
                 channel_bot_id=call.channel_bot_id,
+                secret_id=call.secret_id,
                 audio_ms=audio_ms,
             )
     except SQLAlchemyError:

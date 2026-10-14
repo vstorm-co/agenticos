@@ -8,8 +8,13 @@ constraint violation rather than a composer that fails on its first recording.
 
 Every existing organization gets `browser`, which is what its microphone already
 does - the Web Speech API - so nobody's audio moves to a new vendor on upgrade.
-The provider credential is not a column: it is the organization's model profile
-for that provider, resolved per recording, the same way channel bots transcribe.
+
+The key the pair is sent with is a column too, `speech_to_text_secret_id`: a
+named vault key rather than one looked up per recording, because with two keys
+for one provider a lookup is a guess about who pays. SET NULL on delete, like
+`knowledge_bases.embedding_secret_id` - a deleted key leaves the pair asking for
+a new one, and never takes the organization with it. A key needs a pair: one
+left behind by a cleared pair would ride along to the next provider chosen.
 
 Revision ID: 0106_org_speech_settings
 Revises: 0105_workspace_directories
@@ -19,6 +24,7 @@ Create Date: 2026-10-13
 from collections.abc import Sequence
 
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
@@ -44,6 +50,18 @@ def upgrade() -> None:
         "organizations",
         sa.Column("dictation_max_seconds", sa.Integer(), nullable=False, server_default="300"),
     )
+    op.add_column(
+        "organizations",
+        sa.Column("speech_to_text_secret_id", postgresql.UUID(as_uuid=True), nullable=True),
+    )
+    op.create_foreign_key(
+        op.f("organizations_speech_to_text_secret_id_fkey"),
+        "organizations",
+        "organization_secrets",
+        ["speech_to_text_secret_id"],
+        ["id"],
+        ondelete="SET NULL",
+    )
     op.create_check_constraint(
         op.f("organizations_ck_organization_chat_dictation_check"),
         "organizations",
@@ -59,9 +77,22 @@ def upgrade() -> None:
         "organizations",
         "dictation_max_seconds BETWEEN 10 AND 600",
     )
+    op.create_check_constraint(
+        op.f("organizations_ck_organization_speech_key_needs_pair_check"),
+        "organizations",
+        "speech_to_text_secret_id IS NULL OR speech_to_text_provider IS NOT NULL",
+    )
 
 
 def downgrade() -> None:
+    op.drop_constraint(
+        op.f("organizations_ck_organization_speech_key_needs_pair_check"),
+        "organizations",
+        type_="check",
+    )
+    op.drop_constraint(
+        op.f("organizations_speech_to_text_secret_id_fkey"), "organizations", type_="foreignkey"
+    )
     op.drop_constraint(
         op.f("organizations_ck_organization_dictation_max_seconds_check"),
         "organizations",
@@ -74,6 +105,7 @@ def downgrade() -> None:
         op.f("organizations_ck_organization_chat_dictation_check"), "organizations", type_="check"
     )
     for column in (
+        "speech_to_text_secret_id",
         "dictation_max_seconds",
         "speech_to_text_language",
         "speech_to_text_model",

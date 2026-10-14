@@ -19,6 +19,7 @@ function bot(overrides: Partial<ChannelBot> = {}): ChannelBot {
     transcribe_voice_notes: true,
     speech_to_text_provider: null,
     speech_to_text_model: null,
+    speech_to_text_secret_id: null,
     agents: [],
     created_at: "2026-08-31T09:00:00Z",
     ...overrides,
@@ -33,7 +34,7 @@ function draft(overrides: Partial<ChannelBotDraft> = {}): ChannelBotDraft {
     webhookSecret: "",
     signingSecret: "",
     appToken: "",
-    transcription: { mode: "inherit", provider: null, model: null },
+    transcription: { mode: "inherit", provider: null, model: null, secretId: null },
     ...overrides,
   };
 }
@@ -138,19 +139,27 @@ describe("the transcription half of an edited bot's patch", () => {
     const paired = bot({
       speech_to_text_provider: "groq",
       speech_to_text_model: "whisper-large-v3",
+      speech_to_text_secret_id: "key-groq",
     });
 
     expect(botPatch(bot(), draft())).toEqual({});
     expect(
       botPatch(
         paired,
-        draft({ transcription: { mode: "choose", provider: "groq", model: "whisper-large-v3" } }),
+        draft({
+          transcription: {
+            mode: "choose",
+            provider: "groq",
+            model: "whisper-large-v3",
+            secretId: "key-groq",
+          },
+        }),
       ),
     ).toEqual({});
     expect(
       botPatch(
         bot({ transcribe_voice_notes: false }),
-        draft({ transcription: { mode: "off", provider: null, model: null } }),
+        draft({ transcription: { mode: "off", provider: null, model: null, secretId: null } }),
       ),
     ).toEqual({});
   });
@@ -162,7 +171,10 @@ describe("the transcription half of an edited bot's patch", () => {
     });
 
     expect(
-      botPatch(paired, draft({ transcription: { mode: "off", provider: null, model: null } })),
+      botPatch(
+        paired,
+        draft({ transcription: { mode: "off", provider: null, model: null, secretId: null } }),
+      ),
     ).toEqual({ transcribe_voice_notes: false });
   });
 
@@ -189,28 +201,74 @@ describe("the transcription half of an edited bot's patch", () => {
     expect(
       botPatch(
         bot({ transcribe_voice_notes: false }),
-        draft({ transcription: { mode: "choose", provider: "openai", model: "whisper-1" } }),
+        draft({
+          transcription: {
+            mode: "choose",
+            provider: "openai",
+            model: "whisper-1",
+            secretId: "key-openai",
+          },
+        }),
       ),
     ).toEqual({
       transcribe_voice_notes: true,
       speech_to_text_provider: "openai",
       speech_to_text_model: "whisper-1",
+      speech_to_text_secret_id: "key-openai",
     });
   });
 
-  it("sends both halves when only the model moved", () => {
+  it("sends both halves and the key when only the model moved", () => {
     const paired = bot({
       speech_to_text_provider: "groq",
       speech_to_text_model: "whisper-large-v3",
+      speech_to_text_secret_id: "key-groq",
     });
 
     expect(
       botPatch(
         paired,
         draft({
-          transcription: { mode: "choose", provider: "groq", model: "whisper-large-v3-turbo" },
+          transcription: {
+            mode: "choose",
+            provider: "groq",
+            model: "whisper-large-v3-turbo",
+            secretId: "key-groq",
+          },
         }),
       ),
-    ).toEqual({ speech_to_text_provider: "groq", speech_to_text_model: "whisper-large-v3-turbo" });
+    ).toEqual({
+      speech_to_text_provider: "groq",
+      speech_to_text_model: "whisper-large-v3-turbo",
+      speech_to_text_secret_id: "key-groq",
+    });
+  });
+
+  it("sends the pair with a newly chosen key when only the key moved", () => {
+    // The key was deleted, so the stored pair has none; choosing one is a
+    // change the server checks against the pair.
+    const paired = bot({
+      speech_to_text_provider: "groq",
+      speech_to_text_model: "whisper-large-v3",
+      speech_to_text_secret_id: null,
+    });
+
+    expect(
+      botPatch(
+        paired,
+        draft({
+          transcription: {
+            mode: "choose",
+            provider: "groq",
+            model: "whisper-large-v3",
+            secretId: "key-groq",
+          },
+        }),
+      ),
+    ).toEqual({
+      speech_to_text_provider: "groq",
+      speech_to_text_model: "whisper-large-v3",
+      speech_to_text_secret_id: "key-groq",
+    });
   });
 });

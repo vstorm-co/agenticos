@@ -1,5 +1,5 @@
 ---
-source_sha: "f1f3406951be"
+source_sha: "1d9bfa9904d4"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -727,8 +727,9 @@ reconocer la voz, así que el audio va al fabricante del navegador - Google en
 Chrome, Apple en Safari - y nada llega a este despliegue. A un navegador sin
 reconocedor, Firefox entre ellos, no se le muestra micrófono. **`server`** graba
 en la página y envía el audio aquí, donde lo transcribe el provider de
-speech-to-text de la organización: la anulación del agent si la tiene, y si no,
-el predeterminado de la organización - la misma resolución que el
+speech-to-text de la organización: la anulación del agent y su clave si la tiene,
+y si no, el predeterminado de la organización y su clave - la misma resolución
+que el
 [dictado en el chat](ml-services.md#dictation-in-chat).
 
 El motor de la organización para `/chat` no influye en ninguna de las dos
@@ -737,7 +738,7 @@ navegador puede igualmente dar a una página pública el dictado `server`, y al
 revés.
 
 **Activar `server` se rechaza** mientras no se resuelva para el agent ningún
-provider con credencial, y el formulario del embed muestra la opción
+provider con una clave utilizable, y el formulario del embed muestra la opción
 desactivada junto con el motivo. Solo se comprueba el cambio, así que una página
 cuya clave se borró después todavía puede renombrarse. Mientras no se resuelva
 nada, su config pública dice `off` y los visitantes no ven micrófono, en vez de
@@ -1330,20 +1331,25 @@ así que la política no puede desviarse entre ellas.
     bot, después los de la organización, y el idioma del agent, después el de la
     organización ([el orden](ml-services.md#which-engine-a-recording-reaches)).
     **Choose** nombra el par propio del bot — un provider y uno de sus modelos, de
-    `app/core/catalog/speech_to_text_models.json`. **Off** no transcribe nunca,
-    digan lo que digan el agent o la organización. Junto a la elección, Inherit
-    nombra a qué se resuelve y cuál de los dos lo eligió.
+    `app/core/catalog/speech_to_text_models.json` — y la clave del vault con la
+    que se envía. **Off** no transcribe nunca, digan lo que digan el agent o la
+    organización. Junto a la elección, Inherit nombra a qué se resuelve, cuál de
+    los dos lo eligió y si ese nivel aún necesita una clave.
+
+    **El par propio de un bot necesita su propia clave**: una clave de API cuyo
+    propósito es el provider, y **visible para toda la organización**, porque las
+    notas de voz de un bot se pagan en nombre de quien le escriba. La clave
+    privada de un miembro se rechaza al guardar el bot, y una que se vuelve
+    privada después deja de usarse. El selector ofrece solo las claves que
+    encajan, dice cuándo un provider no tiene ninguna y enlaza al vault para
+    añadir una. Un bot que hereda toma la clave del nivel heredado junto con su
+    par, nunca una propia. Borrar la clave deja el par pidiendo otra, y el bot no
+    transcribe nada hasta que alguien la elige.
 
     Heredar no cuesta nada hasta que alguien configura un provider: sin ninguno en
     el agent ni en la organización no se transcribe nada, así que gastar el crédito
     de provider de la organización sigue siendo decisión de la organización. Un bot
     registrado desde la CLI, o por un cliente que no envía el interruptor, hereda.
-    La clave es la propia de la organización para ese provider — un perfil de
-    modelo, o una clave del vault visible para la organización — y no hay nada
-    nuevo que guardar. Un perfil con clave gana a uno sin clave, y un perfil sin
-    clave que apunta a un servidor propio solo se usa cuando el provider no tiene
-    ninguno con clave ([el orden](ml-services.md#speech-to-text)), así que añadir
-    un proxy de chat sin clave no saca a un bot del provider con el que transcribe.
 
     Un bot que no puede escuchar lo dice en vez de descartar la grabación, porque
     una nota de voz que no produce ninguna reacción es indistinguible de un bot roto
@@ -1368,6 +1374,14 @@ así que la política no puede desviarse entre ellas.
         vacía el par obtiene **inherit**, y **off** es
         `transcribe_voice_notes: false`, que también vacía el par. El idioma de la
         organización o del agent llega ahora también a un bot con su propio par.
+
+        Un bot con par transcribía hasta ahora con el primer perfil de modelo,
+        por etiqueta, que tuviera una clave para su provider. La misma migración
+        anota esa clave como la propia del bot, cuando es una clave de API del
+        provider visible para la organización y el perfil no tiene `base_url`
+        propio. Un bot sin un perfil así conserva su par sin clave: su
+        formulario dice «elige una clave» y no transcribe nada hasta que alguien
+        lo haga.
 
     Lo que cuenta como mensaje de voz se lee del tipo del fichero, y cada
     plataforma tipa sus ficheros a su manera. Una nota de voz o un fichero de

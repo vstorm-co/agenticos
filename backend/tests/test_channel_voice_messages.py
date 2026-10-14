@@ -60,6 +60,10 @@ def _incoming(*attachments: IncomingAttachment, text: str = "") -> IncomingMessa
     )
 
 
+_BOT_KEY = uuid4()
+_ORG_KEY = uuid4()
+
+
 def _bot(
     *,
     provider: str | None = "openai",
@@ -73,6 +77,7 @@ def _bot(
         transcribe_voice_notes=transcribe,
         speech_to_text_provider=provider,
         speech_to_text_model=model,
+        speech_to_text_secret_id=_BOT_KEY if provider else None,
     )
 
 
@@ -105,6 +110,7 @@ def world() -> Iterator[SimpleNamespace]:
         org=SimpleNamespace(
             speech_to_text_provider=None,
             speech_to_text_model=None,
+            speech_to_text_secret_id=_ORG_KEY,
             speech_to_text_language=None,
         ),
         spec={"name": "Support"},
@@ -390,6 +396,9 @@ class TestWhenItCannotListen:
         assert transcribe.await_args.kwargs["provider"] == "groq"
         assert transcribe.await_args.kwargs["model"] == "whisper-large-v3-turbo"
         assert transcribe.await_args.kwargs["organization_id"] == bot.organization_id
+        # The bot's own key, which is spent for everybody who writes to it.
+        sent = transcribe.await_args.kwargs
+        assert (sent["secret_id"], sent["shared_key"]) == (_BOT_KEY, True)
 
 
 class TestTheUsageRowAVoiceNoteLeaves:
@@ -432,6 +441,7 @@ class TestTheUsageRowAVoiceNoteLeaves:
         assert call.requested_by_user_id == person
         assert call.organization_id == bot.organization_id
         assert (call.provider, call.model) == ("groq", "whisper-large-v3-turbo")
+        assert call.secret_id == _BOT_KEY
         kwargs = usage.await_args.kwargs
         assert kwargs["audio_seconds"] == 2.5
         assert kwargs["input_bytes"] == len(b"ogg-bytes")
@@ -526,9 +536,15 @@ class TestWhichEngineAVoiceNoteReaches:
         never changes which engine heard the recording."""
         world.org.speech_to_text_provider = "openai"
         world.org.speech_to_text_model = "whisper-1"
+        agent_key = uuid4()
         world.spec = {
             "name": "Support",
-            "speech_to_text": {"provider": "groq", "model": "whisper-large-v3", "language": "pl"},
+            "speech_to_text": {
+                "provider": "groq",
+                "model": "whisper-large-v3",
+                "language": "pl",
+                "secret_id": str(agent_key),
+            },
         }
 
         asked = await self._asked(_bot(provider=None, model=None))
@@ -538,6 +554,8 @@ class TestWhichEngineAVoiceNoteReaches:
             "whisper-large-v3",
             "pl",
         )
+        # The agent's key comes with the agent's pair, lent by its publisher.
+        assert (asked["secret_id"], asked["shared_key"]) == (agent_key, False)
 
     async def test_a_bot_with_no_pair_and_no_agent_override_inherits_the_organizations(
         self, world: SimpleNamespace
@@ -553,6 +571,7 @@ class TestWhichEngineAVoiceNoteReaches:
             "gpt-4o-transcribe",
             "de",
         )
+        assert (asked["secret_id"], asked["shared_key"]) == (_ORG_KEY, True)
 
     async def test_the_agents_language_reaches_a_bot_with_its_own_pair(
         self, world: SimpleNamespace

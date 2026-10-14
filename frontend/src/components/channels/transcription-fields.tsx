@@ -4,6 +4,7 @@ import { TriangleAlert } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { ChoiceGroup } from "@/components/settings/choice-group";
+import { SpeechKeyField, useSpeechKeyCheck } from "@/components/vault/speech-key-field";
 import {
   FormField,
   Select,
@@ -17,27 +18,36 @@ import type { ChannelPlatform, InheritedSpeechToText } from "@/types/channels";
 
 export type TranscriptionMode = "inherit" | "choose" | "off";
 
-/** The value the picker edits: a mode, and under `choose` both halves of a pair. */
+/** The value the picker edits: a mode, and under `choose` a pair and its key. */
 export interface TranscriptionChoice {
   mode: TranscriptionMode;
   provider: string | null;
   model: string | null;
+  /** The vault key the bot's own pair is sent with; null while none is chosen. */
+  secretId: string | null;
 }
 
-export const INHERIT: TranscriptionChoice = { mode: "inherit", provider: null, model: null };
+export const INHERIT: TranscriptionChoice = {
+  mode: "inherit",
+  provider: null,
+  model: null,
+  secretId: null,
+};
 
 /** How a stored bot reads into the picker: off, its own pair, or inheriting. */
 export function choiceOf(bot: {
   transcribe_voice_notes: boolean;
   speech_to_text_provider: string | null;
   speech_to_text_model: string | null;
+  speech_to_text_secret_id: string | null;
 }): TranscriptionChoice {
-  if (!bot.transcribe_voice_notes) return { mode: "off", provider: null, model: null };
+  if (!bot.transcribe_voice_notes) return { ...INHERIT, mode: "off" };
   if (bot.speech_to_text_provider && bot.speech_to_text_model) {
     return {
       mode: "choose",
       provider: bot.speech_to_text_provider,
       model: bot.speech_to_text_model,
+      secretId: bot.speech_to_text_secret_id,
     };
   }
   return INHERIT;
@@ -54,6 +64,8 @@ interface TranscriptionFieldsProps {
    * is being read, which says nothing rather than something wrong.
    */
   inherited: InheritedSpeechToText | null | undefined;
+  /** The server's refusal of the key, if it named one. */
+  keyError?: string;
 }
 
 /**
@@ -69,12 +81,14 @@ interface TranscriptionFieldsProps {
  * those mean different things in the two places - set a value against replace one
  * that is never read back - and this means exactly one thing in both.
  *
- * **Both halves move together.** A provider with no model has nothing to call and
- * a model with no provider has nowhere to send it, so choosing a provider takes
- * its first model, and leaving Choose clears both. Choose starts on the first
- * provider the organization holds a credential for; one without is marked and
- * cannot be picked, unless the bot already names it. The server enforces the same
- * rule against the stored row; this is what stops somebody meeting it.
+ * **Both halves move together, with their key.** A provider with no model has
+ * nothing to call and a model with no provider has nowhere to send it, so
+ * choosing a provider takes its first model, and leaving Choose clears both and
+ * the key. The key is an organization-wide one for the provider - a bot's voice
+ * notes are paid for on everybody's behalf - and a provider change drops the
+ * old one, since a key never goes to another provider. Choose starts on the
+ * first provider with such a key; one without is marked, and the key field
+ * offers to add one.
  *
  * Absent when the deployment offers nothing - every provider it knows wants a
  * service account, say - because an empty picker is a control that reads as a
@@ -86,9 +100,11 @@ export function TranscriptionFields({
   idPrefix,
   platform,
   inherited,
+  keyError,
 }: TranscriptionFieldsProps) {
   const t = useTranslations("pages.channels");
   const { providers } = useSpeechToTextProviders();
+  const hasKey = useSpeechKeyCheck(true);
 
   if (providers.length === 0) return null;
 
@@ -97,13 +113,13 @@ export function TranscriptionFields({
 
   const setMode = (mode: TranscriptionMode) => {
     if (mode !== "choose") {
-      onChange({ mode, provider: null, model: null });
+      onChange({ ...INHERIT, mode });
       return;
     }
-    // The first provider this organization can send with, or the first offered
-    // when none can - the picker then says which lacks credentials.
-    const first = providers.find((entry) => entry.credentialed) ?? providers[0]!;
-    onChange({ mode, provider: first.provider, model: first.models[0]!.id });
+    // The first provider with a key a bot may use, or the first offered when
+    // none has - the key field then offers to add one.
+    const first = providers.find((entry) => hasKey(entry.provider)) ?? providers[0]!;
+    onChange({ mode, provider: first.provider, model: first.models[0]!.id, secretId: null });
   };
 
   // Telegram sends a voice note as Ogg/Opus and Slack's desktop app records a
@@ -136,6 +152,12 @@ export function TranscriptionFields({
               ? t("transcriptionProviderHint")
               : inheritHint(t, inherited, nameOf)}
         </p>
+        {value.mode === "inherit" && inherited && !inherited.has_key && (
+          <p className="text-warning flex gap-2 text-xs" role="note">
+            <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+            {t("transcriptionInheritedNoKey")}
+          </p>
+        )}
       </div>
 
       {value.mode === "choose" && (
@@ -146,7 +168,12 @@ export function TranscriptionFields({
               onValueChange={(next) => {
                 // `next` is one of the options below, and each catalog entry has a model.
                 const entry = providers.find((candidate) => candidate.provider === next)!;
-                onChange({ mode: "choose", provider: next, model: entry.models[0]!.id });
+                onChange({
+                  mode: "choose",
+                  provider: next,
+                  model: entry.models[0]!.id,
+                  secretId: null,
+                });
               }}
             >
               <SelectTrigger id={`${idPrefix}-stt-provider`}>
@@ -154,16 +181,11 @@ export function TranscriptionFields({
               </SelectTrigger>
               <SelectContent>
                 {providers.map((entry) => {
-                  const label = entry.credentialed
+                  const label = hasKey(entry.provider)
                     ? entry.name
-                    : t("transcriptionProviderNoCredentials", { name: entry.name });
+                    : t("transcriptionProviderNoKey", { name: entry.name });
                   return (
-                    <SelectItem
-                      key={entry.provider}
-                      value={entry.provider}
-                      disabled={!entry.credentialed && entry.provider !== value.provider}
-                      textValue={label}
-                    >
+                    <SelectItem key={entry.provider} value={entry.provider} textValue={label}>
                       {label}
                     </SelectItem>
                   );
@@ -182,9 +204,7 @@ export function TranscriptionFields({
           >
             <Select
               value={value.model ?? ""}
-              onValueChange={(next) =>
-                onChange({ mode: "choose", provider: value.provider, model: next })
-              }
+              onValueChange={(next) => onChange({ ...value, mode: "choose", model: next })}
             >
               <SelectTrigger id={`${idPrefix}-stt-model`}>
                 <SelectValue />
@@ -198,6 +218,17 @@ export function TranscriptionFields({
               </SelectContent>
             </Select>
           </FormField>
+          {chosen && (
+            <SpeechKeyField
+              id={`${idPrefix}-stt-key`}
+              provider={chosen.provider}
+              providerName={chosen.name}
+              value={value.secretId}
+              orgVisibleOnly
+              error={keyError}
+              onChange={(secretId) => onChange({ ...value, mode: "choose", secretId })}
+            />
+          )}
         </div>
       )}
 

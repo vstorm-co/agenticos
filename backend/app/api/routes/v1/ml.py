@@ -170,13 +170,20 @@ async def transcribe_recording(
     provider: str | None = Form(
         default=None,
         description=(
-            "The transcription provider to use. Omit for the deployment's first "
-            "offered one. The engine is whichever endpoint this organization's model "
-            "profile for that provider names, so a self-hosted server is reached the "
-            "same way a vendor is."
+            "The transcription provider to use. Omit, with the model, for the "
+            "organization's speech-to-text default, or the deployment's first offered "
+            "provider where it has none."
         ),
     ),
     model: str | None = Form(default=None, description="The model on that provider"),
+    secret_id: UUID | None = Form(
+        default=None,
+        description=(
+            "The vault key to send the recording with: an API key for the provider "
+            "that the caller can view. Omit to use the organization's default key, "
+            "which is only used for the provider it was chosen for."
+        ),
+    ),
 ) -> Any:
     """Turn a recording into text on the organization's own transcription engine."""
     transcript = await service.transcribe(
@@ -186,6 +193,7 @@ async def transcribe_recording(
         mime_type=file.content_type or "application/octet-stream",
         provider=provider,
         model=model,
+        secret_id=secret_id,
     )
     return TranscriptionRead(
         text=transcript.text, provider=transcript.provider, model=transcript.model

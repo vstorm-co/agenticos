@@ -18,7 +18,7 @@ beforeAll(() => {
   }
 });
 
-function show(why: "not_ready" | "no_agent" = "not_ready", canSetUp = false) {
+function show(why: "not_ready" | "no_key" | "no_agent" = "not_ready", canSetUp = false) {
   const onExplain = vi.fn();
   render(<DictationUnavailable why={why} canSetUp={canSetUp} onExplain={onExplain} />);
   return { onExplain, button: screen.getByRole("button", { name: "Voice input" }) };
@@ -43,6 +43,16 @@ describe("DictationUnavailable", () => {
     fireEvent.focus(button);
     expect(screen.getByRole("dialog")).toHaveTextContent("Pick an agent first.");
     expect(screen.queryByText("Ask an admin to set it up.")).not.toBeInTheDocument();
+  });
+
+  it("says a key is what is missing, and who can choose one", () => {
+    const { button } = show("no_key");
+
+    expect(button).toHaveAccessibleDescription(
+      "Dictation needs a key. A speech-to-text model is chosen, but no key for its provider.",
+    );
+    fireEvent.focus(button);
+    expect(screen.getByRole("dialog")).toHaveTextContent("Ask an admin to set it up.");
   });
 
   it("opens the explanation under the composer on a click, not a popover", () => {

@@ -91,6 +91,12 @@ export interface SpeechToTextSpec {
   model: string | null;
   /** ISO-639-1; null inherits the organization's, then the engine detects it. */
   language: string | null;
+  /**
+   * The vault key the pair is sent with: an API key whose purpose is the
+   * provider. Set with the pair and only with it; a language-only override
+   * keeps the organization's pair and key.
+   */
+  secret_id: string | null;
 }
 
 /** The agent's half of the two budget levels; the organization's cap is the other. */

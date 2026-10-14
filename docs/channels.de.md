@@ -1,5 +1,5 @@
 ---
-source_sha: "f1f3406951be"
+source_sha: "1d9bfa9904d4"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -770,8 +770,8 @@ geht - Google bei Chrome, Apple bei Safari - und nichts dieses Deployment
 erreicht. Einem Browser ohne Spracherkennung, Firefox darunter, wird kein
 Mikrofon gezeigt. **`server`** nimmt in der Seite auf und schickt das Audio
 hierher, wo der Speech-to-Text-Provider der Organisation es transkribiert: der
-Override des Agents, wenn er einen hat, sonst die Voreinstellung der
-Organisation - dieselbe Auflösung wie beim
+Override des Agents und sein Schlüssel, wenn er einen hat, sonst die
+Voreinstellung der Organisation und ihr Schlüssel - dieselbe Auflösung wie beim
 [Diktieren im Chat](ml-services.md#dictation-in-chat).
 
 Die Engine der Organisation für `/chat` hat über keine der beiden Oberflächen
@@ -780,7 +780,7 @@ des Browsers hält, kann einer öffentlichen Seite trotzdem `server`-Diktat gebe
 und umgekehrt.
 
 **Das Einschalten von `server` wird abgelehnt**, solange sich für den Agent kein
-Provider mit Zugangsdaten auflöst, und das Embed-Formular zeigt die Wahl
+Provider mit brauchbarem Schlüssel auflöst, und das Embed-Formular zeigt die Wahl
 deaktiviert, mit dem Grund. Geprüft wird nur das Umschalten, sodass eine Seite,
 deren Schlüssel später gelöscht wurde, sich weiterhin umbenennen lässt. Solange
 sich nichts auflöst, sagt ihre öffentliche Konfiguration `off`, und Besucher
@@ -1406,24 +1406,29 @@ auseinanderlaufen kann.
     dann die der Organisation, und die Sprache des Agents, dann die der
     Organisation ([die Reihenfolge](ml-services.md#which-engine-a-recording-reaches)).
     **Choose** nennt das eigene Paar des Bots - einen Provider und eines seiner
-    Modelle, aus `app/core/catalog/speech_to_text_models.json`. **Off**
-    transkribiert nie, was immer der Agent oder die Organisation sagen. Neben der
-    Auswahl nennt Inherit, worauf es sich auflöst, und welche der beiden Stellen
-    es gewählt hat.
+    Modelle, aus `app/core/catalog/speech_to_text_models.json` - und den
+    Vault-Schlüssel, mit dem es gesendet wird. **Off** transkribiert nie, was
+    immer der Agent oder die Organisation sagen. Neben der Auswahl nennt
+    Inherit, worauf es sich auflöst, welche der beiden Stellen es gewählt hat und
+    ob diese Ebene noch einen Schlüssel braucht.
+
+    **Das eigene Paar eines Bots braucht einen eigenen Schlüssel**: einen
+    API-Schlüssel, dessen Zweck der Provider ist, und zwar einen, der **für die
+    ganze Organisation sichtbar** ist, denn die Sprachnachrichten eines Bots
+    werden für jeden bezahlt, der ihm schreibt. Der private Schlüssel eines
+    Mitglieds wird beim Speichern des Bots abgelehnt, und einer, der später
+    privat wird, wird nicht mehr benutzt. Die Auswahl bietet nur passende
+    Schlüssel an, sagt, wenn ein Provider keinen hat, und verlinkt auf den Vault,
+    um einen anzulegen. Ein erbender Bot nimmt den Schlüssel der geerbten Ebene
+    zusammen mit deren Paar, nie einen eigenen. Wird der Schlüssel gelöscht,
+    fragt das Paar nach einem neuen, und der Bot transkribiert nichts, bis jemand
+    einen wählt.
 
     Erben kostet nichts, bis jemand einen Provider einrichtet: ist weder auf dem
     Agent noch auf der Organisation einer gesetzt, wird nichts transkribiert, und
     das Provider-Guthaben der Organisation auszugeben bleibt die Entscheidung der
     Organisation. Ein Bot, der über die CLI oder von einem Client ohne Schalter
-    registriert wird, erbt. Der Schlüssel ist der eigene der
-    Organisation für diesen Provider - ein Modellprofil oder ein für die
-    Organisation sichtbarer Schlüssel im Vault -, und es gibt nichts Neues zu
-    speichern. Ein Profil mit Schlüssel geht einem schlüssellosen vor, und ein
-    schlüsselloses Profil, das auf einen selbst gehosteten Server zeigt, wird nur
-    benutzt, wenn der Provider kein Profil mit Schlüssel hat
-    ([die Reihenfolge](ml-services.md#speech-to-text)) - ein schlüsselloser
-    Chat-Proxy bringt einen Bot also nicht von dem Provider ab, auf dem er
-    transkribiert.
+    registriert wird, erbt.
 
     Ein Bot, der nicht zuhören kann, sagt das, statt die Aufnahme fallen zu
     lassen, denn eine Sprachnotiz, die keine Reaktion erzeugt, ist von einem
@@ -1450,6 +1455,14 @@ auseinanderlaufen kann.
         **off** ist `transcribe_voice_notes: false`, was das Paar ebenfalls
         leert. Die Sprache der Organisation oder des Agents erreicht jetzt auch
         einen Bot mit eigenem Paar.
+
+        Ein Bot mit Paar transkribierte bisher auf dem ersten Modellprofil nach
+        Bezeichnung, das einen Schlüssel für seinen Provider hielt. Dieselbe
+        Migration schreibt diesen Schlüssel als den eigenen des Bots fest, sofern
+        er ein organisationsweit sichtbarer API-Schlüssel für den Provider ist und
+        das Profil keine eigene `base_url` hat. Ein Bot ohne solches Profil
+        behält sein Paar ohne Schlüssel: Sein Formular sagt „Schlüssel wählen“,
+        und er transkribiert nichts, bis jemand das tut.
 
     Was als Sprachnachricht zählt, wird am Typ der Datei abgelesen, und jede
     Plattform typisiert ihre Dateien anders. Eine Telegram-Sprachnotiz oder

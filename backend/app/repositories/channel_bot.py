@@ -114,6 +114,7 @@ async def create(
     transcribe_voice_notes: bool = True,
     speech_to_text_provider: str | None = None,
     speech_to_text_model: str | None = None,
+    speech_to_text_secret_id: UUID | None = None,
 ) -> ChannelBot:
     """Create a new channel bot owned by an organization."""
     bot = ChannelBot(
@@ -123,6 +124,7 @@ async def create(
         transcribe_voice_notes=transcribe_voice_notes,
         speech_to_text_provider=speech_to_text_provider,
         speech_to_text_model=speech_to_text_model,
+        speech_to_text_secret_id=speech_to_text_secret_id,
         token_encrypted=token_encrypted,
         secret_key_version=secret_key_version,
         webhook_mode=webhook_mode,

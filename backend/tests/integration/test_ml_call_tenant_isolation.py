@@ -290,6 +290,7 @@ class TestTheRowKeepsNoneOfWhatWasSubmitted:
             "surface",
             "agent_id",
             "channel_bot_id",
+            "secret_id",
             "audio_ms",
             "created_at",
             "updated_at",

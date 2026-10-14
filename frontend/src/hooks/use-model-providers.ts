@@ -217,12 +217,6 @@ export interface SpeechToTextProvider {
   provider: string;
   name: string;
   models: SpeechToTextModel[];
-  /**
-   * Whether this organization holds something to send with - a model profile
-   * for the provider, or an organization-visible vault key. The server's
-   * answer, because the person choosing may not be able to see the vault.
-   */
-  credentialed: boolean;
 }
 
 interface SpeechToTextProviderList {
@@ -240,9 +234,8 @@ interface SpeechToTextProviderList {
  * API shape has no client, never reaches here - a picker entry that fails when
  * somebody sends a voice note is worse than one that is absent.
  *
- * The models are the deployment's; `credentialed` on each entry is this
- * organization's, so the answer is refetched when a model profile or a vault key
- * changes (`invalidateSpeechSettings`) rather than held until a redeploy.
+ * A catalog, not a listing: no credential is read. Which keys a provider has is
+ * the key picker's to say (`SpeechKeyField`), from the vault itself.
  */
 export function useSpeechToTextProviders() {
   const { data, isLoading, isError } = useQuery({

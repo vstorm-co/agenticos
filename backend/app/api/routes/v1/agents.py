@@ -560,6 +560,7 @@ async def dictation_status(agent_id: UUID, registry: AgentRegistrySvc, ml: MLSvc
         engine=status.engine,
         ready=status.ready,
         server_available=status.server_available,
+        unavailable=status.unavailable,
         max_seconds=status.max_seconds,
         provider=status.provider,
         format=status.format,

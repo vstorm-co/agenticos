@@ -1829,10 +1829,19 @@ class TestSpeechToTextRefusedAtPublish:
 
     _NO_MODEL = "No model selected - pick one before publishing"
 
-    async def _problems(self, **block: str | None) -> list[str]:
+    _KEY = str(uuid.uuid4())
+
+    async def _problems(self, *, key_problem: str | None = None, **block: str | None) -> list[str]:
         spec = _spec(speech_to_text=block, model_profile_id=None)
-        with pytest.raises(BadRequestError) as refused:
+        with (
+            patch(
+                f"{REGISTRY_PATH}.SpeechToTextSettingsService.key_problem",
+                new=AsyncMock(return_value=key_problem),
+            ) as checked,
+            pytest.raises(BadRequestError) as refused,
+        ):
             await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+        self.checked = checked
         return [
             problem for problem in refused.value.details["problems"] if problem != self._NO_MODEL
         ]
@@ -1865,8 +1874,43 @@ class TestSpeechToTextRefusedAtPublish:
         ]
 
     @pytest.mark.anyio
-    async def test_a_catalog_pair_and_a_known_language_publish(self):
-        assert await self._problems(provider="openai", model="whisper-1", language="pl") == []
+    async def test_a_catalog_pair_its_key_and_a_known_language_publish(self):
+        assert (
+            await self._problems(
+                provider="openai", model="whisper-1", language="pl", secret_id=self._KEY
+            )
+            == []
+        )
+        # Checked as every key a spec names is: the publisher has to be able to
+        # view it, so the publisher's context goes with it.
+        assert str(self.checked.await_args.args[0]) == self._KEY
+        assert self.checked.await_args.kwargs["provider"] == "openai"
+        assert self.checked.await_args.kwargs["ctx"] is not None
+
+    @pytest.mark.anyio
+    async def test_a_pair_without_a_key_is_refused(self):
+        assert await self._problems(provider="openai", model="whisper-1") == [
+            "Speech to text: choose a key for openai to transcribe with"
+        ]
+
+    @pytest.mark.anyio
+    async def test_a_key_the_vault_check_refuses_is_refused(self):
+        """Another organization's, one the publisher cannot view, another kind or
+        another provider's: the check's own sentence, under this block's name."""
+        assert await self._problems(
+            key_problem="That key is not in this organization's vault",
+            provider="openai",
+            model="whisper-1",
+            secret_id=self._KEY,
+        ) == ["Speech to text: That key is not in this organization's vault"]
+
+    @pytest.mark.anyio
+    async def test_a_key_without_a_pair_is_refused(self):
+        problems = await self._problems(secret_id=self._KEY, language="pl")
+
+        assert len(problems) == 1
+        assert "a key goes with a provider and a model" in problems[0]
+        self.checked.assert_not_awaited()
 
     @pytest.mark.anyio
     async def test_a_language_alone_publishes(self):

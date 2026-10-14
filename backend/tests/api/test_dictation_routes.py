@@ -168,12 +168,13 @@ async def test_the_upload_is_read_no_further_than_transcription_accepts(
 async def test_readiness_is_answered_for_an_agent_the_caller_may_run(client: AsyncClient) -> None:
     """The same access as dictating, so a Viewer holding a run grant is told -
     and the format comes from the backend's catalog, not from a list each client
-    keeps of its own."""
+    keeps of its own. Not ready says why, so the composer can say "choose a key"."""
     agent_id = uuid.uuid4()
     status = DictationStatus(
         engine="server",
-        ready=True,
-        server_available=True,
+        ready=False,
+        server_available=False,
+        unavailable="no_key",
         max_seconds=120,
         provider="mistral",
         format="wav",
@@ -187,8 +188,9 @@ async def test_readiness_is_answered_for_an_agent_the_caller_may_run(client: Asy
     assert response.status_code == 200
     assert response.json() == {
         "engine": "server",
-        "ready": True,
-        "server_available": True,
+        "ready": False,
+        "server_available": False,
+        "unavailable": "no_key",
         "max_seconds": 120,
         "provider": "mistral",
         "format": "wav",

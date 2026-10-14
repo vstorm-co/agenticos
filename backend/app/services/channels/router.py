@@ -866,7 +866,7 @@ class ChannelMessageRouter:
         not make it, and the turn goes ahead with what did.
 
         The engine resolves through `speech_to_text_settings`: the bot's own
-        pair, then its exposed agent's published override, then the
+        pair and key, then its exposed agent's published override, then the
         organization's; the language from the agent, then the organization. The
         agent is the one this bot serves - never one an `@mention` names, since
         a handle said aloud cannot be routed and this runs before routing.
@@ -937,6 +937,7 @@ class ChannelMessageRouter:
                 requested_by_user_id=requested_by,
                 agent_id=settings.agent_id,
                 channel_bot_id=bot.id,
+                secret_id=resolved.secret_id,
             )
             started = time.monotonic()
             try:
@@ -945,6 +946,8 @@ class ChannelMessageRouter:
                     organization_id=bot.organization_id,
                     provider=resolved.provider,
                     model=resolved.model,
+                    secret_id=resolved.secret_id,
+                    shared_key=resolved.shared_key,
                     language=resolved.language,
                 )
             except AppException as exc:

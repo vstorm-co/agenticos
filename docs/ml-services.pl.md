@@ -1,5 +1,5 @@
 ---
-source_sha: "351a53639a63"
+source_sha: "e2efe341a181"
 ---
 
 # Usługi ML { #the-ml-services }
@@ -121,44 +121,39 @@ niż w ingestii, bo tutaj ktoś czeka, a na ingestię nie czeka nikt.
 
 ### Zamiana mowy na tekst { #speech-to-text }
 
-`POST /api/v1/ml/audio/transcriptions` transkrybuje nagranie na własnych
-poświadczeniach organizacji. `provider` i `model` nazywają, czego użyć; pominięcie **obu** bierze
-pierwszą oferowaną parę wdrożenia, a podanie dostawcy bez modelu bierze pierwszy
-model tego dostawcy. Czego nie robi nigdy, to nie wraca do domyślnego dostawcy,
-gdy dostawca został nazwany — tak właśnie nagranie przeznaczone dla własnego
-silnika trafia do vendora.
+`POST /api/v1/ml/audio/transcriptions` transkrybuje nagranie na kluczu z vaultu
+organizacji. `provider` i `model` nazywają, czego użyć; pominięcie **obu** bierze
+domyślne ustawienie zamiany mowy na tekst organizacji z
+[karty Głos (Voice)](console.md#the-voice-card), a gdy go nie ma — pierwszą
+oferowaną parę wdrożenia; podanie dostawcy bez modelu bierze pierwszy model tego
+dostawcy. Czego nie robi nigdy, to nie wraca do domyślnego dostawcy, gdy dostawca
+został nazwany.
 
 Nagranie podlega też własnemu limitowi 25 MB klienta transkrypcji, nawet gdy
 `ML_MAX_UPLOAD_SIZE_MB` jest wyższy, więc za duże nagranie zostaje odrzucone jako
-za duże, a nie dociera do silnika i wraca jako 503 o poświadczeniach.
+za duże, a nie dociera do silnika i wraca jako 503 o kluczu.
 
-Silnikiem jest ten endpoint, który nazywa model profile organizacji dla danego
-dostawcy. To jest odpowiedź dla wdrożenia, które nie może wysyłać dźwięku do
-dostawcy: skieruj profil na własny serwer mówiący tym samym API, a endpoint tutaj
-się nie zmieni. Organizacja bez użytecznych poświadczeń dostaje odmowę, która to
-mówi — nic nie jest zakładane jako istniejące, czego operator nie skonfigurował.
+**Klucz jest nazwany, nigdy wyszukiwany.** `secret_id` wskazuje klucz z vaultu,
+z którym nagranie zostanie wysłane: klucz API, którego przeznaczeniem jest
+dostawca i który wywołujący widzi. Bez niego używany jest domyślny klucz
+organizacji, ale tylko dla dostawcy, dla którego go wybrano; każdy inny dostawca
+bez `secret_id` dostaje odmowę `not_configured`. Klucz innego dostawcy, innego
+rodzaju albo taki, którego wywołujący nie widzi, jest odrzucany na polu
+`secret_id`. `OPENAI_API_KEY` wdrożenia nie jest używany nigdy.
 
-Które poświadczenie, gdy organizacja ma kilka dla jednego dostawcy: **najpierw
-profil z kluczem**, pierwszy w kolejności etykiet; potem profil bez klucza, tylko
-jeśli nazywa własny endpoint; a gdy brak obu, **klucz API zapisany w vaulcie**
-z tym dostawcą jako przeznaczeniem, pierwszy według nazwy, wysyłany pod adres z
-katalogu. Żądanie bez klucza nie niesie nagłówka `Authorization` i nigdy nie
-używa `OPENAI_API_KEY` wdrożenia. Pierwszeństwo klucza sprawia, że bot kanału
-dalej transkrybuje w OpenAI, gdy ktoś doda profil `openai` bez klucza dla proxy
-czatu, które nie obsługuje `/audio/transcriptions`.
+Każdy poziom konfigurujący zamianę mowy na tekst działa tak samo: model to wybór
+z katalogu zamiany mowy na tekst, a klucz to sekret z vaultu wskazany obok niego.
+Żaden profil modelu nie jest czytany — profile służą runom tekstowym — i nic nie
+wybiera klucza tylko dlatego, że jest jedynym dla danego dostawcy. Przy dwóch
+kluczach OpenAI w vaulcie płaci ten, który wskazano.
 
-Awaryjne sięgnięcie do vaultu czyta tylko klucze **widoczne dla całej
-organizacji**: prywatny klucz członka w vaulcie nie jest brany do nagrania, bo
-to, za co by płacił, należy do wszystkich — notatka głosowa na kanale,
-dyktowanie w czyimś czacie. Organizacja, która trzyma klucz OpenAI w vaulcie i nie używa żadnego
-modelu czatu OpenAI, transkrybuje więc na nim bez profilu modelu, którego nie
-potrzebuje.
+!!! note "Nie ma jeszcze własnego serwera zamiany mowy na tekst"
 
-Profil modelu jest używany tak, jak go skonfigurowano, więc profil wskazujący
-na klucz prywatny transkrybuje na nim, tak jak wydaje go run czatu na tym
-profilu. Ta sama kolejność obsługuje ten endpoint, dyktowanie i notatki
-głosowe z kanałów. Lista agentów używających klucza w vaulcie nie obejmuje tego
-użycia, bo żaden agent nie wiąże tego klucza.
+    Każdy dostawca z katalogu jest osiągany pod własnym adresem, z kluczem.
+    Serwer bez klucza w twojej sieci — Whisper za API zgodnym z OpenAI — nie
+    jest dziś osiągalny. To planowany kolejny krok:
+    [usługa lokalna](configuration.md) nowego rodzaju, `speech`, wskazywana
+    zamiast klucza, tak jak kolekcje wskazują już serwer embeddingów albo OCR.
 
 Odmowa mówi dlaczego w `details.reason`, tutaj i przy
 [dyktowaniu](#dictation-in-chat) tak samo. Własny tekst błędu dostawcy trafia do
@@ -167,7 +162,7 @@ URL żądania razem z kluczem.
 
 | `reason` | Status | Co się stało |
 |---|---|---|
-| `not_configured` | 503 | Brak użytecznych poświadczeń dla dostawcy; przy dyktowaniu także brak skonfigurowanego dyktowania na serwerze |
+| `not_configured` | 503 | Dla dostawcy nie wskazano użytecznego klucza — nie wybrano go, usunięto go albo ten poziom nie może go już używać; przy dyktowaniu także brak skonfigurowanego dyktowania na serwerze |
 | `empty` | 400 | Silnik nie usłyszał mowy albo nagranie nie ma bajtów |
 | `unsupported_type` | 400 | Tylko dyktowanie: nagranie nie jest WAV z 16-bitowym PCM 16 kHz mono — ani, gdy wdrożenie przyjmuje skompresowany dźwięk, WebM, Ogg czy MP4 — albo, na hostowanej stronie lub w widgecie, nie da się odczytać długości skompresowanego nagrania. `details.accepted` wymienia przyjmowane typy |
 | `too_large` | 400 | Ponad 25 MB albo ponad limit dyktowania organizacji w bajtach lub w zmierzonej długości; `details.limit_seconds` podaje limit |
@@ -198,11 +193,16 @@ i język.
 
 `GET /api/v1/agents/{agent_id}/dictation`, z tym samym dostępem, mówi, czy
 mikrofon zadziała, zanim ktokolwiek zacznie nagrywać: `engine`, `max_seconds`,
-`provider`, `format`, `ready` i `server_available`. `server_available` wymaga
-pary, która rozwiązuje się dla tego agenta, katalogu, który nadal ją oferuje,
-oraz poświadczenia dla jej dostawcy w organizacji — sprawdzanego pod kątem
-istnienia, nigdy nie otwieranego; `ready` to to samo plus silnik `server` i
-agent, który nie jest zarchiwizowany.
+`provider`, `format`, `ready`, `server_available` i `unavailable`.
+`server_available` wymaga pary, która rozwiązuje się dla tego agenta, katalogu,
+który nadal ją oferuje, oraz użytecznego klucza wskazanego obok pary —
+sprawdzanego pod kątem istnienia, nigdy nie otwieranego; `ready` to to samo plus
+silnik `server` i agent, który nie jest zarchiwizowany.
+
+Gdy jest fałszywe,
+`unavailable` mówi, czego brakuje: `no_provider` (żaden poziom nie wskazuje
+pary), `not_offered` (katalog ją wycofał) albo `no_key` (nie wskazano
+użytecznego klucza — wybierz go).
 Formularz embeda czyta `server_available`, bo
 [hostowana strona i widget](channels.md#dictation-on-a-widget-or-a-hosted-page)
 nie zależą od silnika `/chat`.
@@ -286,11 +286,29 @@ Rozwiązują się w dwóch połowach:
 
 | Co | Pochodzi z pierwszego, które to ustawia |
 |---|---|
-| Dostawca i model, jako para | Bot, potem agent, potem organizacja |
+| Dostawca, model i klucz, razem | Bot, potem agent, potem organizacja |
 | Język | Agent, potem organizacja, potem silnik sam go rozpoznaje |
 
+**Klucz podróżuje ze swoją parą.** Każdy poziom wskazuje klucz obok własnego
+dostawcy i modelu, a trójka rozwiązuje się jako całość: agent z własną parą
+wysyła ją z własnym kluczem, nigdy z kluczem organizacji. Klucz nigdy więc nie
+trafia do dostawcy, który go nie wydał. Jakie klucze może wskazać dany poziom:
+
+| Poziom | Klucz musi być |
+|---|---|
+| Domyślne ustawienie organizacji | Kluczem API dostawcy, **widocznym dla całej organizacji** — platforma wydaje go za wszystkich. Sprawdzane przy zapisie karty Głos i ponownie przy każdym nagraniu |
+| Własna para bota kanału | Tak samo: widocznym dla organizacji, bo za notatki głosowe bota płaci się w imieniu każdego, kto do niego pisze |
+| Nadpisanie agenta | Kluczem API dostawcy, który publikujący widzi — regułą, której podlega każdy klucz wskazany w specu agenta. Sprawdzane przy publikacji |
+
+Klucz, który po wybraniu na poziomie organizacji albo bota stał się prywatny,
+przestaje być używany, zamiast dalej płacić za cudze nagrania. Usunięty klucz
+czyści odwołanie na tych dwóch poziomach, a spec agenta zachowuje identyfikator
+do ponownej publikacji z innym: tak czy inaczej karta Głos i sprawdzenie
+gotowości mówią „wybierz klucz”, a nagrania są odrzucane jako `not_configured`,
+dopóki ktoś tego nie zrobi.
+
 Polski agent w organizacji skonfigurowanej dla angielskiego ustawia więc
-`language: pl` i zachowuje dostawcę organizacji. Bot nie ma własnego języka;
+`language: pl` i zachowuje dostawcę i klucz organizacji. Bot nie ma własnego języka;
 język agenta albo organizacji dotyczy także jego własnej pary. Gdy nic się nie
 rozwiązuje, nic nie jest transkrybowane: dyktowanie odpowiada `not_configured`,
 a bot mówi, że nie potrafi słuchać.
@@ -371,9 +389,14 @@ agenta.
 Do zamiany mowy na tekst prowadzą trzy drogi i każda zostawia ten sam wiersz: API
 (`surface: api`), [dyktowanie](#dictation-in-chat) (`chat`) i
 [wiadomości głosowe bota kanału](channels.md#what-every-channel-shares)
-(`channel`). Wiersz dodaje `provider` i `model`, `agent_id`, dla którego było
-nagranie - agenta, do którego dyktowano, albo agenta obsługiwanego przez bota -
-`channel_bot_id` oraz `audio_ms`, długość nagrania. `requested_by` wiadomości
+(`channel`). Wiersz dodaje `provider` i `model`, `secret_id` klucza z vaultu,
+z którym je wysłano — tak jak run zapisuje swój klucz, więc „który klucz kosztuje
+najwięcej” ma jedną odpowiedź — `agent_id`, dla którego było nagranie - agenta,
+do którego dyktowano, albo agenta obsługiwanego przez bota - `channel_bot_id`
+oraz `audio_ms`, długość nagrania.
+
+Usunięcie klucza zostawia wiersz i czyści
+jego `secret_id`. `requested_by` wiadomości
 głosowej to osoba, z którą powiązany jest nadawca, dopóki jest członkiem
 organizacji, albo nikt. Zapisywane jest
 tylko nagranie przekazane providerowi; bot wyłączony albo bez silnika do

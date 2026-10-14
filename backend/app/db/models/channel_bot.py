@@ -94,6 +94,21 @@ class ChannelBot(Base, TimestampMixin):
     the switch.
     """
 
+    speech_to_text_secret_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("organization_secrets.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    """The vault key this bot's own pair is sent with, or null with no pair.
+
+    An org-visible `api_key` whose purpose is the provider: a bot's voice notes
+    are paid for on behalf of whoever writes to it, so a member's private key
+    may not pay for them. Named rather than looked up, and it travels with the
+    pair - an inheriting bot takes the inherited level's key with its pair, and
+    never this one. SET NULL on delete: the bot keeps its pair and reads as
+    "choose a key" until somebody does.
+    """
+
     access_policy: Mapped[dict] = mapped_column(
         JSON,
         nullable=False,
@@ -104,6 +119,10 @@ class ChannelBot(Base, TimestampMixin):
         CheckConstraint(
             "(speech_to_text_provider IS NULL) = (speech_to_text_model IS NULL)",
             name="ck_channel_bot_speech_pair",
+        ),
+        CheckConstraint(
+            "speech_to_text_secret_id IS NULL OR speech_to_text_provider IS NOT NULL",
+            name="ck_channel_bot_speech_key_needs_pair",
         ),
     )
 

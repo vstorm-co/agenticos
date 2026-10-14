@@ -76,6 +76,7 @@ async def record(
     surface: TranscriptionSurface | None = None,
     agent_id: UUID | None = None,
     channel_bot_id: UUID | None = None,
+    secret_id: UUID | None = None,
     audio_ms: int | None = None,
 ) -> MLServiceCall:
     """Write one call's record."""
@@ -95,6 +96,7 @@ async def record(
         surface=surface,
         agent_id=agent_id,
         channel_bot_id=channel_bot_id,
+        secret_id=secret_id,
         audio_ms=audio_ms,
     )
     db.add(row)

@@ -1,5 +1,5 @@
 ---
-source_sha: "dfb14d9e1139"
+source_sha: "7bd19927933a"
 ---
 
 # Sekrety i vault { #secrets-and-the-vault }
@@ -108,6 +108,14 @@ użyte dla połączenia całej organizacji, a przy dwóch zapisanych aplikacjach
 widocznych dla organizacji łączenie zostaje odrzucone (z nazwaniem obu), zamiast
 zostać przypisane do tej, której nazwa sortuje się pierwsza.
 
+Ta sama reguła — **tylko widoczne dla organizacji** — obejmuje klucz API,
+z którym wysyłane są domyślne ustawienie zamiany mowy na tekst organizacji i
+własna para transkrypcji bota kanału: platforma wydaje go na dyktowanie każdego
+członka i każdą notatkę głosową, którą bot odbiera, więc prywatny klucz członka
+jest odrzucany przy zapisie każdego z nich, a klucz, który później stał się
+prywatny, przestaje być używany. W odróżnieniu od `github_oauth_app` te klucze
+są wskazywane po identyfikatorze, więc może ich być kilka obok siebie.
+
 `git_token` niesie swój host, bo źródło synchronizacji Git wysyła token pod adres
 URL wybrany przez tego, kto edytuje źródło. Związany z hostem, z którym został
 dodany, token nie może zostać skierowany na inny serwer przez edycję źródła
@@ -146,6 +154,17 @@ jest jeszcze otwarty.
 **Providerzy modeli.** Nazywani przez [profil modelu](models.md). Wydatek jest
 przypisywany do sekretu, do którego rozwiązał się dany run, i tak właśnie pytanie
 „który klucz kosztuje najwięcej" dostaje odpowiedź.
+
+**Zamiana mowy na tekst.** Klucz API, którego przeznaczeniem jest dostawca,
+wskazany po identyfikatorze obok dostawcy i modelu wszędzie tam, gdzie
+konfiguruje się zamianę mowy na tekst: w domyślnym ustawieniu organizacji,
+w nadpisaniu agenta i we własnej parze bota kanału. Nic nie wyszukuje klucza
+w czasie działania. Klucz organizacji i bota musi być widoczny dla organizacji;
+klucz agenta podlega regule pożyczania — publikujący musi go widzieć.
+[Zapis zużycia](ml-services.md#what-is-recorded) każdej transkrypcji wskazuje
+klucz, z którym ją wysłano. Zobacz
+[do którego silnika trafia nagranie](ml-services.md#which-engine-a-recording-reaches).
+Lista agentów używających klucza nie pokazuje tego użycia.
 
 **Capabilities.** Capability deklaruje, że potrzebuje poświadczenia danego
 *rodzaju* — nigdy konkretnej instancji. Kod mówi „potrzebuję klucza API";

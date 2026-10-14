@@ -23,6 +23,7 @@ from app.db.models.resource_grant import Visibility
 from app.db.models.user import User
 from app.repositories import organization_secret as organization_secret_repo
 from app.services.organization_secret import OrganizationSecretService
+from app.services.speech_to_text_settings import SpeechToTextSettingsService
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
@@ -165,44 +166,94 @@ class TestGetByKindReadsTheOrgsSecretOfThatKind:
 
 
 class TestATranscriptionKeyIsTheOrganizationsOwn:
-    async def test_only_an_org_visible_key_for_that_provider_in_this_org_is_spent(self, db) -> None:
-        """The vault fallback for a voice note (#1797), against real rows.
+    async def test_only_the_named_key_in_this_org_is_spent(self, db) -> None:
+        """The key named next to a speech-to-text pair (#1797), against real rows.
 
-        A member's private OpenAI key, named to sort first, is never spent for
-        everybody's transcription; another organization's key is not found; and a
-        key stored for another provider is not this one's.
+        The named key opens and no other: another organization cannot spend it
+        by naming its id, a key for another provider is not this one's, and a
+        member's private key is never spent on everybody's behalf - only lent
+        by an agent its owner published.
         """
         mine, mine_owner = await _org(db, name="Speakers")
-        theirs, theirs_owner = await _org(db, name="Listeners")
+        theirs, _ = await _org(db, name="Listeners")
         ctx = _ctx(mine, mine_owner)
         service = OrganizationSecretService(db)
 
-        await service.create(
+        private = await service.create(
             ctx,
             name="AAA my own key",
             value=ApiKeySecret(api_key="sk-private-1111"),
             purpose="openai",
             visibility=Visibility.PRIVATE,
         )
-        await service.create(
+        team = await service.create(
             ctx,
             name="Team OpenAI",
             value=ApiKeySecret(api_key="sk-team-2222"),
             purpose="openai",
         )
-        await service.create(
-            ctx, name="Team Groq", value=ApiKeySecret(api_key="gsk-team-3333"), purpose="groq"
+
+        assert (
+            await service.transcription_key(mine.id, team.id, provider="openai", shared=True)
+            == "sk-team-2222"
         )
-        await OrganizationSecretService(db).create(
-            _ctx(theirs, theirs_owner),
-            name="Their Mistral",
-            value=ApiKeySecret(api_key="mistral-4444"),
-            purpose="mistral",
+        assert (
+            await service.transcription_key(mine.id, team.id, provider="groq", shared=True) is None
+        )
+        assert (
+            await service.transcription_key(theirs.id, team.id, provider="openai", shared=False)
+            is None
+        )
+        assert (
+            await service.transcription_key(mine.id, private.id, provider="openai", shared=True)
+            is None
+        )
+        assert (
+            await service.transcription_key(mine.id, private.id, provider="openai", shared=False)
+            == "sk-private-1111"
         )
 
-        assert await service.transcription_key(mine.id, "openai") == "sk-team-2222"
-        assert await service.transcription_key(mine.id, "mistral") is None
-        assert await service.transcription_key(theirs.id, "openai") is None
-        assert await service.transcription_key_providers(
-            mine.id, ["openai", "groq", "mistral"]
-        ) == frozenset({"openai", "groq"})
+    async def test_a_level_may_only_name_a_key_it_is_allowed_to_spend(self, db) -> None:
+        """`key_problem` against real rows: the check every speech-to-text level
+        saves through. Another organization's key reads as missing; a member's
+        private key is refused where the platform spends it for everybody, and
+        allowed where its owner lends it to an agent; a key for another provider
+        is not this provider's."""
+        mine, mine_owner = await _org(db, name="Speakers")
+        theirs, theirs_owner = await _org(db, name="Listeners")
+        ctx = _ctx(mine, mine_owner)
+        service = OrganizationSecretService(db)
+        team = await service.create(
+            ctx, name="Team OpenAI", value=ApiKeySecret(api_key="sk-team-2222"), purpose="openai"
+        )
+        private = await service.create(
+            ctx,
+            name="Mine",
+            value=ApiKeySecret(api_key="sk-mine-1111"),
+            purpose="openai",
+            visibility=Visibility.PRIVATE,
+        )
+        foreign = await service.create(
+            _ctx(theirs, theirs_owner),
+            name="Theirs",
+            value=ApiKeySecret(api_key="sk-theirs-3333"),
+            purpose="openai",
+        )
+        settings = SpeechToTextSettingsService(db)
+
+        async def problem(secret_id: uuid.UUID, *, provider: str = "openai", lent: bool = False):
+            return await settings.key_problem(
+                secret_id,
+                organization_id=mine.id,
+                provider=provider,
+                ctx=ctx if lent else None,
+            )
+
+        assert await problem(team.id) is None
+        assert await problem(foreign.id) == "That key is not in this organization's vault"
+        assert (
+            await problem(foreign.id, lent=True) == "That key is not in this organization's vault"
+        )
+        assert "organization-wide" in (await problem(private.id) or "")
+        assert await problem(private.id, lent=True) is None
+        assert "is a key for openai" in (await problem(team.id, provider="groq") or "")

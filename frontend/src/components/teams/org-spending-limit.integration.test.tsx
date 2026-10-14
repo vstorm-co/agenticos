@@ -45,6 +45,7 @@ function org(overrides: Partial<Organization> = {}): Organization {
     chat_dictation: "browser",
     speech_to_text_provider: null,
     speech_to_text_model: null,
+    speech_to_text_secret_id: null,
     speech_to_text_language: null,
     dictation_max_seconds: 300,
     chat_dictation_ready: false,

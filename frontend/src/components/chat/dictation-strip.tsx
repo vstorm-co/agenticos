@@ -35,8 +35,11 @@ export interface StripHint {
   quiet?: boolean;
 }
 
-/** Why the crossed-out microphone is crossed out, when somebody asked. */
-export type DictationUnavailable = "not_ready" | "no_agent";
+/**
+ * Why the crossed-out microphone is crossed out, when somebody asked: nothing
+ * set up, a pair with no key chosen for it, or no agent to dictate to.
+ */
+export type DictationUnavailable = "not_ready" | "no_key" | "no_agent";
 
 export interface DictationHintInput {
   state: DictationState;
@@ -126,6 +129,7 @@ function notSetUp(
   orgHref: string | null,
   agentHref: string | null,
   visitor = false,
+  noKey = false,
 ): ReactNode {
   if (visitor) {
     return (
@@ -136,7 +140,8 @@ function notSetUp(
   }
   return (
     <>
-      {strong(t("hint.notSetUpTitle"))} {t("hint.notSetUpBody")}{" "}
+      {noKey ? strong(t("hint.noKeyTitle")) : strong(t("hint.notSetUpTitle"))}{" "}
+      {noKey ? t("hint.noKeyBody") : t("hint.notSetUpBody")}{" "}
       {orgHref === null && agentHref === null && t("askAdmin")}
       {orgHref !== null && (
         <Link href={orgHref} className={SETUP_LINK}>
@@ -216,12 +221,12 @@ export function dictationHint(input: DictationHintInput, t: Translate): StripHin
       actions: close,
     };
   }
-  if (unavailable === "not_ready") {
+  if (unavailable === "not_ready" || unavailable === "no_key") {
     return {
       key: "notReady",
       tone: "hint",
       icon: MicOff,
-      message: notSetUp(t, voiceSettingsHref, agentVoiceHref),
+      message: notSetUp(t, voiceSettingsHref, agentVoiceHref, false, unavailable === "no_key"),
       actions: close,
     };
   }

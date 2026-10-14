@@ -35,12 +35,12 @@ Two things are versioned separately from this file and worth knowing about:
 - **A Voice card on the organization's Members page.** For `org:settings`
   holders: the dictation engine (Off, Browser or Server), the provider and model
   from the speech-to-text catalog, a language and the longest recording, stored
-  in five new organization columns (`0106_org_speech_settings.py`). The provider,
-  model and language are shown whatever the engine, as the default channel bots
-  inherit too.
+  in six new organization columns (`0106_org_speech_settings.py`), the key
+  among them. The provider, model, key and language are shown whatever the
+  engine, as the default channel bots inherit too.
 - **An agent can transcribe on its own engine (#1797).** An optional
-  `speech_to_text` block on the agent spec (provider and model as a pair, the
-  language on its own), set on a Voice card on the Build tab and live once
+  `speech_to_text` block on the agent spec (provider, model and key together,
+  the language on its own), set on a Voice card on the Build tab and live once
   published. Speech resolves in one place: the pair from the bot, the agent,
   then the organization; the language from the agent, then the organization.
   `GET /api/v1/agents/{agent_id}/dictation` tells the composer whether
@@ -62,7 +62,7 @@ Two things are versioned separately from this file and worth knowing about:
   has nothing published transcribes nothing, since its turn is refused anyway. See
   [the voice message notes](docs/channels.md#what-every-channel-shares).
 - **Every transcription is recorded with its length and attribution (#1797).**
-  `ml_service_calls` gains the provider and model, the surface (`chat`,
+  `ml_service_calls` gains the provider and model, the key, the surface (`chat`,
   `channel`, `api`), the agent and channel bot, and `audio_ms`
   (`0108_ml_call_attribution.py`); a transcription now counts seconds of audio,
   not characters. Channel voice notes write a row too, naming the linked
@@ -82,7 +82,7 @@ Two things are versioned separately from this file and worth knowing about:
   widget by its allow-list and token, a page by its visitor key). The page uses
   the composer's recorder, hints and glow; the widget has a plain-JS recorder of
   its own, WAV encoder and resampler included. Switching Server on is refused
-  while no provider and credential resolve, and a page or widget whose provider
+  while no provider and key resolve, and a page or widget whose provider
   goes away offers no microphone. Rows record surface `hosted` or `widget` and
   no person. Before the provider is called, the server counts the recording's
   samples and refuses one over the organization's longest dictation as
@@ -122,16 +122,29 @@ Two things are versioned separately from this file and worth knowing about:
   `browser` and `false` as `off`, both on stored rows
   (`0109_embed_dictation.py`, reversible) and on any config still sent with the
   old field, so no page loses its microphone.
-- **Transcription prefers a keyed profile, and falls back to a keyless one.**
-  With several profiles for one provider, the first keyed one transcribes; a
-  keyless profile with its own endpoint is used only when there is no keyed
-  one, and is sent no `Authorization` header. A pinned language is passed to the
-  provider. Channel bots still answer "could not be transcribed" on any failure.
-- **An organization-visible vault key is a transcription credential.** With no
-  model profile for the provider, transcription uses the first organization-wide
-  API key stored for it; that fallback never reads a member's private key. The
-  speech-to-text catalog says per provider whether the organization has one
-  (`credentialed`), so the Voice cards no longer need to read the vault.
+- **Speech to text is sent with a key named beside its pair (#1797).** At
+  every level - the organization's default (`speech_to_text_secret_id`), an
+  agent's `speech_to_text.secret_id`, a channel bot's own pair
+  (`speech_to_text_secret_id`) - the model is a catalog pick and the key a vault
+  API key whose purpose is the provider. Provider, model and key resolve
+  together from the first level naming a pair, so a key never reaches another
+  provider; an agent that sets only a language keeps the organization's pair and
+  key. The organization's and a bot's key must be organization-visible, checked
+  when saved and per recording; an agent's must be viewable by its publisher,
+  checked at publish. Nothing is looked up at run time: model profiles are no
+  longer read for transcription, and the vault is not searched for a key by
+  provider. Deleting a key empties the reference, and readiness says `no_key`
+  (`unavailable` on `GET /api/v1/agents/{agent_id}/dictation`) until another is
+  chosen. `POST /api/v1/ml/audio/transcriptions` takes a `secret_id`, and with
+  none uses the organization's default key for its own provider; with no
+  provider named it uses the organization's default pair. Each usage row
+  records the key it was sent with (`secret_id`, SET NULL). Existing bots with a
+  pair get the key their first keyed profile held, where it is an
+  organization-visible API key for the provider; the rest show "choose a key".
+  The speech-to-text catalog no longer returns `credentialed`. A pinned language
+  is passed to the provider. Channel bots still answer "could not be
+  transcribed" on any failure. A self-hosted speech-to-text server cannot be
+  named yet; a local service of kind `speech` is the planned follow-up.
 - **A null pair on a channel bot means inherit, not off.** `PATCH
   /channels/bots/{id}` turns transcription off with `transcribe_voice_notes:
   false`, which clears the pair, and refuses an explicit `null` for it. A pair

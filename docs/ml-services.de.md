@@ -1,5 +1,5 @@
 ---
-source_sha: "351a53639a63"
+source_sha: "e2efe341a181"
 ---
 
 # Die ML-Dienste { #the-ml-services }
@@ -125,50 +125,43 @@ als bei der Ingestion, weil hier jemand wartet und auf eine Ingestion niemand.
 
 ### Spracherkennung { #speech-to-text }
 
-`POST /api/v1/ml/audio/transcriptions` transkribiert eine Aufnahme auf den
-eigenen Zugangsdaten der Organisation. `provider` und `model` benennen, was
-benutzt wird; lässt man **beide** weg, wird das erste angebotene Paar des
-Deployments genommen, und nennt man einen Anbieter ohne Modell, dessen erstes
-Modell. Was nie passiert: auf den Standardanbieter zurückzufallen, obwohl ein
-Anbieter genannt wurde — so landet eine Aufnahme, die für eine selbst gehostete
-Engine gedacht war, bei einem Anbieter.
+`POST /api/v1/ml/audio/transcriptions` transkribiert eine Aufnahme mit einem
+Schlüssel aus dem Vault der Organisation. `provider` und `model` benennen, was
+benutzt wird; lässt man **beide** weg, wird die Spracherkennungs-Voreinstellung
+der Organisation von der [Voice-Karte](console.md#the-voice-card) genommen, ohne
+eine solche das erste angebotene Paar des Deployments, und nennt man einen
+Anbieter ohne Modell, dessen erstes Modell. Was nie passiert: auf den
+Standardanbieter zurückzufallen, obwohl ein Anbieter genannt wurde.
 
 Eine Aufnahme unterliegt außerdem der eigenen 25-MB-Grenze des
 Transkriptionsclients, auch wenn `ML_MAX_UPLOAD_SIZE_MB` höher steht - eine zu
 große Aufnahme wird also als zu groß abgelehnt, statt die Engine zu erreichen und
-als 503 über Zugangsdaten zurückzukommen.
+als 503 über einen Schlüssel zurückzukommen.
 
-Die Engine ist jener Endpunkt, den das model profile der Organisation für diesen
-Anbieter benennt. Das ist die Antwort für ein Deployment, das kein Audio an einen
-Anbieter senden darf: das Profil auf einen selbst gehosteten Server richten, der
-dieselbe API spricht, und der Endpunkt hier bleibt unverändert. Eine Organisation
-ohne brauchbare Zugangsdaten wird abgelehnt, und die Ablehnung sagt es — nichts
-wird als vorhanden angenommen, was ein Betreiber nicht konfiguriert hat.
+**Der Schlüssel wird benannt, nie gesucht.** `secret_id` benennt den
+Vault-Schlüssel, mit dem die Aufnahme gesendet wird: einen API-Schlüssel, dessen
+Zweck der Anbieter ist und den der Aufrufer sehen kann. Fehlt er, wird der
+Standardschlüssel der Organisation benutzt, aber nur für den Anbieter, für den er
+gewählt wurde; jeder andere Anbieter ohne `secret_id` wird als `not_configured`
+abgelehnt. Ein Schlüssel für einen anderen Anbieter, einer anderen Art oder einer,
+den der Aufrufer nicht sieht, wird am Feld `secret_id` abgelehnt. Der
+`OPENAI_API_KEY` des Deployments wird nie benutzt.
 
-Welche Zugangsdaten, wenn die Organisation mehrere für einen Anbieter hat:
-**zuerst ein Profil mit Schlüssel**, das erste in der Reihenfolge der
-Bezeichnungen; dann eines ohne Schlüssel, nur wenn es einen eigenen Endpunkt
-nennt; und wenn beides fehlt, **ein im Vault gespeicherter API-Schlüssel** mit
-diesem Anbieter als Zweck, der erste nach Namen, an die Adresse aus dem Katalog
-geschickt. Eine Anfrage ohne Schlüssel trägt keinen `Authorization`-Header und
-nie den `OPENAI_API_KEY` des Deployments. Schlüssel zuerst ist das, was einen
-Kanal-Bot bei OpenAI transkribieren lässt, nachdem jemand ein schlüsselloses
-`openai`-Profil für einen Chat-Proxy ohne `/audio/transcriptions` angelegt hat.
+Jede Ebene, die Spracherkennung einrichtet, funktioniert gleich: Das Modell ist
+eine Wahl aus dem Spracherkennungskatalog, und der Schlüssel ist ein daneben
+benanntes Vault-Secret. Kein model profile wird gelesen - Profile sind das, was
+ein Text-Run nutzt -, und nichts wählt einen Schlüssel, nur weil er zufällig der
+einzige für einen Anbieter ist. Bei zwei OpenAI-Schlüsseln im Vault zahlt der
+benannte.
 
-Der Rückgriff auf den Vault liest nur Schlüssel, die **für die ganze
-Organisation sichtbar** sind: Der private Schlüssel eines Mitglieds im Vault
-wird für eine Aufnahme nicht herangezogen, denn was er bezahlen würde, gehört
-allen - eine Sprachnachricht in einem Kanal, ein Diktat im Chat eines anderen.
-Eine Organisation, die einen OpenAI-Schlüssel im Vault hält und kein
-OpenAI-Chatmodell betreibt, transkribiert also darauf, ohne ein model profile,
-das sie nicht braucht.
+!!! note "Noch kein selbst gehosteter Spracherkennungsserver"
 
-Ein model profile wird so verwendet, wie es eingerichtet ist: Ein Profil, das
-auf einen privaten Schlüssel zeigt, transkribiert also darauf, so wie ein
-Chat-Run auf diesem Profil ihn ausgibt. Dieselbe Reihenfolge
-gilt für diesen Endpunkt, das Diktieren und Sprachnachrichten aus Kanälen. Die
-Liste des Vaults mit den Agents, die einen Schlüssel benutzen, enthält diese
-Verwendung nicht, weil kein Agent den Schlüssel bindet.
+    Jeder Anbieter im Katalog wird unter seiner eigenen Adresse erreicht, mit
+    einem Schlüssel. Ein schlüsselloser Server im eigenen Netz - ein Whisper
+    hinter einer OpenAI-kompatiblen API - ist heute nicht erreichbar. Das ist ein
+    geplanter Folgeschritt: ein [lokaler Dienst](configuration.md) einer neuen
+    Art, `speech`, benannt anstelle eines Schlüssels, so wie Collections schon
+    einen Embedding- oder OCR-Server benennen.
 
 Eine Ablehnung sagt in `details.reason`, warum, hier wie beim
 [Diktieren](#dictation-in-chat). Der eigene Fehlertext des Anbieters wird
@@ -177,7 +170,7 @@ Anfrage-URL samt Schlüssel in seine Meldung.
 
 | `reason` | Status | Was passiert ist |
 |---|---|---|
-| `not_configured` | 503 | Keine brauchbaren Zugangsdaten für den Anbieter; beim Diktieren auch: Server-Diktat nicht eingerichtet |
+| `not_configured` | 503 | Für den Anbieter ist kein brauchbarer Schlüssel benannt - keiner gewählt, gelöscht oder auf dieser Ebene nicht mehr zulässig; beim Diktieren auch: Server-Diktat nicht eingerichtet |
 | `empty` | 400 | Die Engine hat keine Sprache gehört, oder die Aufnahme hat keine Bytes |
 | `unsupported_type` | 400 | Nur beim Diktieren: die Aufnahme ist kein WAV mit 16 kHz, Mono und 16-Bit-PCM - oder, wo das Deployment komprimiertes Audio annimmt, kein WebM, Ogg oder MP4 -, oder auf einer gehosteten Seite oder in einem Widget lässt sich die Länge einer komprimierten Aufnahme nicht lesen. `details.accepted` listet die angenommenen Typen |
 | `too_large` | 400 | Über 25 MB oder über der Diktatgrenze der Organisation in Bytes oder in gemessener Länge; `details.limit_seconds` nennt die Grenze |
@@ -209,11 +202,16 @@ Engine und das längste Diktat gehören immer der Organisation; der Agent kann n
 
 `GET /api/v1/agents/{agent_id}/dictation` sagt mit demselben Zugriff, ob das
 Mikrofon funktionieren wird, bevor jemand aufnimmt: `engine`, `max_seconds`,
-`provider`, `format`, `ready` und `server_available`. `server_available`
-verlangt ein Paar, das sich für diesen Agent auflöst, einen Katalog, der es noch
-anbietet, und Zugangsdaten für seinen Anbieter in der Organisation - auf ihr
-Vorhandensein geprüft, nie geöffnet; `ready` ist das, die Engine `server` und
-ein Agent, der nicht archiviert ist.
+`provider`, `format`, `ready`, `server_available` und `unavailable`.
+`server_available` verlangt ein Paar, das sich für diesen Agent auflöst, einen
+Katalog, der es noch anbietet, und einen brauchbaren Schlüssel, der neben dem
+Paar benannt ist - auf sein Vorhandensein geprüft, nie geöffnet; `ready` ist
+das, die Engine `server` und ein Agent, der nicht archiviert ist.
+
+Ist es falsch,
+sagt `unavailable`, was fehlt: `no_provider` (keine Ebene benennt ein Paar),
+`not_offered` (der Katalog hat es zurückgezogen) oder `no_key` (kein brauchbarer
+Schlüssel benannt - einen wählen).
 Das Embed-Formular liest `server_available`, denn eine
 [gehostete Seite oder ein Widget](channels.md#dictation-on-a-widget-or-a-hosted-page)
 hängt nicht an der Engine von `/chat`.
@@ -301,11 +299,30 @@ Hälften auf:
 
 | Was | Kommt von der ersten Stelle, die es setzt |
 |---|---|
-| Anbieter und Modell, als Paar | Der Bot, dann der Agent, dann die Organisation |
+| Anbieter, Modell und Schlüssel, zusammen | Der Bot, dann der Agent, dann die Organisation |
 | Sprache | Der Agent, dann die Organisation, dann erkennt die Engine sie |
 
+**Der Schlüssel reist mit seinem Paar.** Jede Ebene benennt einen Schlüssel neben
+ihrem eigenen Anbieter und Modell, und die drei lösen sich als Einheit auf: Ein
+Agent mit eigenem Paar sendet es mit seinem eigenen Schlüssel, nie mit dem der
+Organisation. Ein Schlüssel erreicht also nie einen Anbieter, der ihn nicht
+ausgestellt hat. Welche Schlüssel eine Ebene benennen darf:
+
+| Ebene | Der Schlüssel muss sein |
+|---|---|
+| Die Voreinstellung der Organisation | Ein API-Schlüssel für den Anbieter, **für die ganze Organisation sichtbar** - die Plattform gibt ihn für alle aus. Geprüft beim Speichern der Voice-Karte und erneut bei jeder Aufnahme |
+| Das eigene Paar eines Kanal-Bots | Ebenso: organisationsweit sichtbar, denn die Sprachnachrichten eines Bots werden für jeden bezahlt, der ihm schreibt |
+| Die Überschreibung eines Agents | Ein API-Schlüssel für den Anbieter, den der Veröffentlichende sehen kann - die Regel, der jeder Schlüssel in einer Agent-Spec folgt. Geprüft beim Veröffentlichen |
+
+Ein Schlüssel, der nach der Wahl auf Organisations- oder Bot-Ebene privat wird,
+wird nicht mehr benutzt, statt weiter für die Aufnahmen anderer zu zahlen. Ein
+gelöschter Schlüssel leert den Verweis auf diesen beiden Ebenen, und die Spec
+eines Agents behält die ID, bis sie mit einem anderen neu veröffentlicht wird:
+So oder so sagen die Voice-Karte und die Bereitschaftsprüfung „Schlüssel
+wählen“, und Aufnahmen werden als `not_configured` abgelehnt, bis jemand das tut.
+
 Ein polnischer Agent in einer auf Englisch eingerichteten Organisation legt also
-`language: pl` fest und behält den Anbieter der Organisation. Ein Bot hat keine
+`language: pl` fest und behält Anbieter und Schlüssel der Organisation. Ein Bot hat keine
 eigene Sprache; die des Agents oder der Organisation gilt auch für sein eigenes
 Paar. Löst sich nichts auf, wird nichts transkribiert: das Diktieren antwortet
 `not_configured`, und ein Bot sagt, dass er nicht zuhören kann.
@@ -391,9 +408,15 @@ Transkription ebenfalls nicht angerechnet.
 Sprache zu Text wird auf drei Wegen erreicht, und jeder hinterlässt dieselbe
 Zeile: die API (`surface: api`), [Diktat](#dictation-in-chat) (`chat`) und die
 [Sprachnachrichten eines Kanal-Bots](channels.md#what-every-channel-shares)
-(`channel`). Die Zeile ergänzt `provider` und `model`, die `agent_id`, für die sie
-war - der Agent, in den diktiert wurde, oder der Agent, den der Bot bedient -,
-die `channel_bot_id` und `audio_ms`, die Länge der Aufnahme. Das `requested_by`
+(`channel`). Die Zeile ergänzt `provider` und `model`, die `secret_id` des
+Vault-Schlüssels, mit dem sie gesendet wurde - so wie ein Run seinen Schlüssel
+festhält, damit „welcher Schlüssel kostet am meisten“ eine Antwort hat -, die
+`agent_id`, für die sie war - der Agent, in den diktiert wurde, oder der Agent,
+den der Bot bedient -, die `channel_bot_id` und `audio_ms`, die Länge der
+Aufnahme.
+
+Das Löschen des Schlüssels behält die Zeile und leert ihre
+`secret_id`. Das `requested_by`
 einer Sprachnachricht ist die Person, mit der der Absender verknüpft ist,
 solange sie Mitglied der Organisation ist, oder niemand. Erfasst wird nur eine Aufnahme, die dem Provider übergeben wurde; ein
 ausgeschalteter Bot oder einer ohne Engine zum Erben hat niemanden gefragt.

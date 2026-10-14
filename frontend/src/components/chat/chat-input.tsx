@@ -65,6 +65,8 @@ export interface ComposerDictation {
   ready: boolean;
   /** Whether there is an agent to send the recording through. */
   hasAgent: boolean;
+  /** Whether what is missing is only a key for the resolved pair ("choose a key"). */
+  noKey?: boolean;
   state: DictationState;
   actions: DictationActions;
   /** Where an `org:settings` holder sets dictation up; null for everyone else. */
@@ -631,7 +633,7 @@ export function ChatInput({
               </Button>
             ) : (
               <DictationUnavailable
-                why={server.hasAgent ? "not_ready" : "no_agent"}
+                why={server.hasAgent ? (server.noKey ? "no_key" : "not_ready") : "no_agent"}
                 canSetUp={server.voiceSettingsHref !== null || server.agentVoiceHref !== null}
                 onExplain={server.onExplain}
               />

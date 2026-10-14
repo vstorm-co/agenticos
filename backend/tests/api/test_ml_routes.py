@@ -173,6 +173,22 @@ async def test_a_transcription_answers_with_the_text_and_the_engine_that_read_it
         "model": "whisper-1",
     }
     assert called.await_args.kwargs["mime_type"] == "audio/ogg"
+    assert called.await_args.kwargs["secret_id"] is None
+
+
+async def test_a_transcription_may_name_the_key_it_is_sent_with(client: AsyncClient) -> None:
+    key = uuid.uuid4()
+    transcript = Transcript(text="hi", provider="groq", model="whisper-large-v3")
+    with patch(f"{_FACADE}.transcribe", new=AsyncMock(return_value=transcript)) as called:
+        response = await client.post(
+            f"{_V1}/ml/audio/transcriptions",
+            files={"file": ("voice.ogg", b"audio", "audio/ogg")},
+            data={"provider": "groq", "secret_id": str(key)},
+        )
+
+    assert response.status_code == 200
+    assert called.await_args.kwargs["secret_id"] == key
+    assert called.await_args.kwargs["provider"] == "groq"
 
 
 async def test_a_scan_answers_with_the_counts_and_the_redacted_text(

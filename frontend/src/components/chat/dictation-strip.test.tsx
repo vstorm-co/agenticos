@@ -521,6 +521,15 @@ describe("dictationHint", () => {
     expect(panel().textContent).toContain("Open Voice settings · Set one for this agent");
   });
 
+  it("says a key is what is missing when the pair has none, with the same links", () => {
+    show({ unavailable: "no_key", agentHref: "/agents/a1#agent-voice" });
+
+    expect(panel().textContent).toContain(
+      "Dictation needs a key. A speech-to-text model is chosen, but no key for its provider.",
+    );
+    expect(screen.getByRole("link", { name: "Set one for this agent" })).toBeInTheDocument();
+  });
+
   it("links an agent editor without org settings to the agent alone", () => {
     show({ unavailable: "not_ready", agentHref: "/agents/a1#agent-voice" });
 
@@ -602,7 +611,7 @@ describe("dictationHint", () => {
     expect(actions[action]).toHaveBeenCalledOnce();
   });
 
-  it.each<DictationUnavailable>(["no_agent", "not_ready"])(
+  it.each<DictationUnavailable>(["no_agent", "not_ready", "no_key"])(
     "closes the %s explanation on Dismiss",
     async (unavailable) => {
       const { actions, closeExplanation } = show({ unavailable });

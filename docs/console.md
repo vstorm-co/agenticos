@@ -172,7 +172,7 @@ to transcribe is kept until you press **Retry** or **Discard**.
 
 Where the organization has chosen Server but nothing resolves for
 the agent you picked - no provider on the agent or the organization, or no
-credential for it - or no agent is picked, the microphone is crossed out and
+key chosen for it - or no agent is picked, the microphone is crossed out and
 says why; somebody holding `org:settings` is offered a link to the Voice card,
 and somebody who can edit agents a link to this agent's own Voice card.
 
@@ -196,13 +196,17 @@ is more accurate). It is shown whatever the engine, because it is also what
 [channel bots](channels.md#what-every-channel-shares) set to inherit send their
 voice messages to; **None** clears it.
 
-Server sends with the organization's own credentials for that provider: an
-organization-visible key in the vault, or a model profile, and a keyless profile
-pointed at a self-hosted server counts. A provider with neither is shown but
-cannot be picked, and with none at all the card links to the vault. Where Server
-is stored but cannot run — the model was withdrawn from the catalog, or the
-credentials are gone — the card says so, because every member then sees a
-crossed-out microphone.
+**Key**, beside the provider, is the vault key the default is sent with. It
+lists the API keys whose purpose is that provider and that the whole
+organization can see - the platform spends this key for every member's
+dictation and every inheriting bot, so a member's private key is not offered and
+is refused if sent. With exactly one such key it is chosen for you, and saved by
+name either way; nothing picks a key at run time. A provider with no key is
+marked **no key for this provider** and the picker links to the vault to add
+one. Where Server is stored but cannot run — the model was withdrawn from the
+catalog, or the key was deleted or made private — the card says so, and asks to
+**choose a key** where that is what is missing, because every member then sees
+a crossed-out microphone.
 
 Server with no default provider is a setup rather than a fault: the card notes that only agents with their own provider dictate. **Voice conversations**, below it, is not built yet.
 
@@ -218,10 +222,15 @@ hidden while nothing has been transcribed. The figures come from
 
 An agent's **Build** tab has a **Voice** card after its model settings, for an
 agent that should transcribe differently from its organization. **Inherit**
-keeps the organization's provider and model and shows which they are; **Choose**
-picks a pair from the catalog, where a provider without credentials cannot be
-picked. The language is chosen on its own: inherit the organization's, or fix
-one - so a Polish agent can keep the organization's provider. It is part of the
+keeps the organization's provider, model and key and shows which they are;
+**Choose** picks a pair from the catalog and the key to send it with - an API key
+for that provider that you can view, since publishing lends it to everybody who
+can run the agent.
+
+The key is never the organization's: an agent with its own
+pair names its own key. The language is chosen on its own: inherit the
+organization's, or fix one - so a Polish agent can keep the organization's
+provider and key. It is part of the
 spec, saved with the draft and live once the agent is published, and it applies
 to [dictation](#dictation) into this agent and to voice messages its channel
 bots inherit. [The order](ml-services.md#which-engine-a-recording-reaches) has

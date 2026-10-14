@@ -35,6 +35,7 @@ from app.services import skill_library, speech_to_text
 from app.services.deployment_settings import DeploymentSettingsService
 from app.services.file_storage import avatar_filename, get_file_storage
 from app.services.skills import SkillService
+from app.services.speech_to_text_settings import SpeechToTextSettingsService
 
 if TYPE_CHECKING:
     from app.services.rag.vectorstore import BaseVectorStore
@@ -46,6 +47,7 @@ _SPEECH_FIELDS = frozenset(
         "chat_dictation",
         "speech_to_text_provider",
         "speech_to_text_model",
+        "speech_to_text_secret_id",
         "speech_to_text_language",
         "dictation_max_seconds",
     }
@@ -74,12 +76,14 @@ def _org_read(org: Organization, member_count: int, role: str) -> OrganizationRe
         chat_dictation=org.chat_dictation,
         speech_to_text_provider=org.speech_to_text_provider,
         speech_to_text_model=org.speech_to_text_model,
+        speech_to_text_secret_id=org.speech_to_text_secret_id,
         speech_to_text_language=org.speech_to_text_language,
         dictation_max_seconds=org.dictation_max_seconds,
         chat_dictation_ready=speech_to_text.dictation_ready(
             engine=org.chat_dictation,
             provider=org.speech_to_text_provider,
             model=org.speech_to_text_model,
+            secret_id=org.speech_to_text_secret_id,
         ),
         created_at=org.created_at,
         updated_at=org.updated_at,
@@ -353,16 +357,22 @@ class OrganizationService:
         """Merge the named speech fields over the stored ones, check the result, write it.
 
         Checked after the merge, because the rules span fields: a pair must be one
-        the catalog offers. `server` does not need a pair here, because an agent
-        may carry its own (`SpeechToTextSpec`); readiness is per agent. Only what the request
-        changes is checked: the pair when it names the provider or the model, the
-        engine when it names `server`, the language when it names one. A rename,
-        or a switch to `off` or `browser`, never trips over a pair that went stale
-        after its model was withdrawn from the catalog. A refusal names a field
-        the request sent.
+        the catalog offers, and it is sent with a key named beside it - an
+        organization-visible API key for that provider
+        (`SpeechToTextSettingsService.key_problem`), since the platform spends
+        it for everybody. `server` does not need a pair here, because an agent
+        may carry its own (`SpeechToTextSpec`); readiness is per agent.
 
-        `null` clears the provider, the model and the language; on the engine and
-        the length, which cannot be empty, it leaves the stored value alone.
+        Only what the request changes is checked: the pair and its key when it
+        names the provider, the model or the key, and when it names `server`.
+        A rename, or a switch to `off` or `browser`, never trips over a pair
+        that went stale after its model was withdrawn or its key deleted. A
+        refusal names a field the request sent.
+
+        `null` clears the provider, the model, the key and the language; on the
+        engine and the length, which cannot be empty, it leaves the stored value
+        alone. Clearing the pair clears its key with it - a key left behind
+        would ride along to whichever provider is chosen next.
         """
         named = data.model_fields_set
         engine = data.chat_dictation or org.chat_dictation
@@ -375,6 +385,11 @@ class OrganizationService:
             data.speech_to_text_model
             if "speech_to_text_model" in named
             else org.speech_to_text_model
+        )
+        secret_id = (
+            data.speech_to_text_secret_id
+            if "speech_to_text_secret_id" in named
+            else org.speech_to_text_secret_id
         )
         language = (
             data.speech_to_text_language
@@ -389,19 +404,35 @@ class OrganizationService:
             if "speech_to_text_provider" in named
             else None
         )
+        key_named = "speech_to_text_secret_id" in named
         asks_server = data.chat_dictation == "server"
-        if pair_field is not None or asks_server:
-            # The engine is named when the pair is not, so the field is one sent.
-            field = pair_field or "chat_dictation"
+        if pair_field is not None or key_named or asks_server:
+            # The engine is named when neither the pair nor the key is, so the
+            # field is one sent.
+            field = pair_field or ("speech_to_text_secret_id" if key_named else "chat_dictation")
+            key_field = "speech_to_text_secret_id" if key_named else field
             if provider is None or model is None:
                 if provider is not None or model is not None:
                     raise refused_field(
                         field, "Choose a provider and a model together, or clear both."
                     )
+                if key_named and secret_id is not None:
+                    raise refused_field(
+                        key_field, "A key goes with a provider and a model - choose those first."
+                    )
+                secret_id = None
             elif not speech_to_text.is_offered(provider, model):
                 raise refused_field(
                     field, "That provider does not offer this model for transcription."
                 )
+            elif secret_id is None:
+                raise refused_field(key_field, f"Choose a key for {provider} to transcribe with.")
+            else:
+                problem = await SpeechToTextSettingsService(self.db).key_problem(
+                    secret_id, organization_id=org.id, provider=provider, ctx=None
+                )
+                if problem is not None:
+                    raise refused_field(key_field, problem)
             # `server` with no pair here is allowed: an agent may carry its own,
             # and an agent without one shows a mic that explains it is not set up.
         if (
@@ -418,6 +449,7 @@ class OrganizationService:
             chat_dictation=engine,
             provider=provider,
             model=model,
+            secret_id=secret_id,
             language=language,
             max_seconds=max_seconds,
         )

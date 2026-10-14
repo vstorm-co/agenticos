@@ -14,14 +14,40 @@ const state = vi.hoisted(() => ({
   providers: [] as {
     provider: string;
     name: string;
-    credentialed: boolean;
     models: { id: string; name: string; description: string }[];
   }[],
+  /** Providers with an organization-wide key. */
+  keyed: new Set<string>(),
+  keyField: [] as { provider: string; value: string | null; orgVisibleOnly: boolean }[],
 }));
 
 vi.mock("@/hooks/use-model-providers", () => ({
   useSpeechToTextProviders: () => ({ providers: state.providers, languages: [] }),
 }));
+vi.mock("@/components/vault/speech-key-field", () => ({
+  useSpeechKeyCheck: () => (provider: string) => state.keyed.has(provider),
+  SpeechKeyField: (props: {
+    provider: string;
+    value: string | null;
+    orgVisibleOnly: boolean;
+    error?: string;
+    onChange: (id: string) => void;
+  }) => {
+    state.keyField.push(props);
+    return (
+      <>
+        <button type="button" onClick={() => props.onChange(`key-${props.provider}`)}>
+          choose key
+        </button>
+        {props.error && <p>{props.error}</p>}
+      </>
+    );
+  },
+}));
+
+function choose(provider: string, model: string, secretId: string | null = `key-${provider}`) {
+  return { mode: "choose" as const, provider, model, secretId };
+}
 
 const FROM_AGENT: InheritedSpeechToText = {
   provider: "openai",
@@ -30,6 +56,7 @@ const FROM_AGENT: InheritedSpeechToText = {
   pair_source: "agent",
   language_source: "agent",
   agent_name: "Support",
+  has_key: true,
 };
 
 function mount(
@@ -37,7 +64,12 @@ function mount(
   {
     platform = "slack",
     inherited = FROM_AGENT,
-  }: { platform?: ChannelPlatform; inherited?: InheritedSpeechToText | null | undefined } = {},
+    keyError,
+  }: {
+    platform?: ChannelPlatform;
+    inherited?: InheritedSpeechToText | null | undefined;
+    keyError?: string;
+  } = {},
 ) {
   const onChange = vi.fn();
   render(
@@ -47,6 +79,7 @@ function mount(
       onChange={onChange}
       platform={platform}
       inherited={inherited}
+      keyError={keyError}
     />,
   );
   return { onChange };
@@ -57,7 +90,6 @@ beforeEach(() => {
     {
       provider: "openai",
       name: "OpenAI",
-      credentialed: true,
       models: [
         { id: "gpt-4o-transcribe", name: "GPT-4o Transcribe", description: "Accurate." },
         { id: "whisper-1", name: "Whisper", description: "" },
@@ -66,10 +98,11 @@ beforeEach(() => {
     {
       provider: "mistral",
       name: "Mistral",
-      credentialed: true,
       models: [{ id: "voxtral-mini-latest", name: "Voxtral Mini", description: "" }],
     },
   ];
+  state.keyed = new Set(["openai", "mistral"]);
+  state.keyField = [];
 });
 
 describe("a bot's three-way transcription choice", () => {
@@ -79,6 +112,7 @@ describe("a bot's three-way transcription choice", () => {
         transcribe_voice_notes: false,
         speech_to_text_provider: null,
         speech_to_text_model: null,
+        speech_to_text_secret_id: null,
       }).mode,
     ).toBe("off");
     expect(
@@ -86,13 +120,15 @@ describe("a bot's three-way transcription choice", () => {
         transcribe_voice_notes: true,
         speech_to_text_provider: "openai",
         speech_to_text_model: "whisper-1",
+        speech_to_text_secret_id: "key-openai",
       }),
-    ).toEqual({ mode: "choose", provider: "openai", model: "whisper-1" });
+    ).toEqual(choose("openai", "whisper-1"));
     expect(
       choiceOf({
         transcribe_voice_notes: true,
         speech_to_text_provider: null,
         speech_to_text_model: null,
+        speech_to_text_secret_id: null,
       }),
     ).toEqual(INHERIT);
   });
@@ -110,6 +146,14 @@ describe("a bot's three-way transcription choice", () => {
     expect(
       screen.getByText("OpenAI · gpt-4o-transcribe, from the organization"),
     ).toBeInTheDocument();
+  });
+
+  it("warns that an inherited pair with no key transcribes nothing", () => {
+    mount(INHERIT, { inherited: { ...FROM_AGENT, has_key: false } });
+
+    expect(screen.getByRole("note")).toHaveTextContent(
+      /No key is chosen where this pair comes from/,
+    );
   });
 
   it("says there is nothing to inherit when nothing resolves", () => {
@@ -132,86 +176,78 @@ describe("a bot's three-way transcription choice", () => {
     expect(screen.getByText(/Uses the agent this bot serves/)).toBeInTheDocument();
   });
 
-  it("choosing takes a whole pair at once", async () => {
+  it("choosing takes a whole pair at once, with its key still to choose", async () => {
     const { onChange } = mount();
 
     await userEvent.click(screen.getByRole("radio", { name: "Choose" }));
 
-    expect(onChange).toHaveBeenCalledWith({
-      mode: "choose",
+    expect(onChange).toHaveBeenCalledWith(choose("openai", "gpt-4o-transcribe", null));
+  });
+
+  it("choosing starts on the first provider with an organization-wide key", async () => {
+    state.keyed.delete("openai");
+    const { onChange } = mount();
+
+    await userEvent.click(screen.getByRole("radio", { name: "Choose" }));
+
+    expect(onChange).toHaveBeenCalledWith(choose("mistral", "voxtral-mini-latest", null));
+  });
+
+  it("choosing still takes a whole pair when no provider has a key", async () => {
+    state.keyed.clear();
+    const { onChange } = mount();
+
+    await userEvent.click(screen.getByRole("radio", { name: "Choose" }));
+
+    expect(onChange).toHaveBeenCalledWith(choose("openai", "gpt-4o-transcribe", null));
+  });
+
+  it("offers only organization-wide keys for the bot's own pair", async () => {
+    const { onChange } = mount(choose("openai", "gpt-4o-transcribe", null), {
+      keyError: "Choose a key for openai to transcribe with",
+    });
+
+    expect(state.keyField.at(-1)).toMatchObject({
       provider: "openai",
-      model: "gpt-4o-transcribe",
+      value: null,
+      orgVisibleOnly: true,
     });
+    expect(screen.getByText("Choose a key for openai to transcribe with")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "choose key" }));
+
+    expect(onChange).toHaveBeenCalledWith(choose("openai", "gpt-4o-transcribe"));
   });
 
-  it("choosing starts on the first provider with credentials", async () => {
-    state.providers[0]!.credentialed = false;
-    const { onChange } = mount();
-
-    await userEvent.click(screen.getByRole("radio", { name: "Choose" }));
-
-    expect(onChange).toHaveBeenCalledWith({
-      mode: "choose",
-      provider: "mistral",
-      model: "voxtral-mini-latest",
-    });
-  });
-
-  it("choosing still takes a whole pair when no provider has credentials", async () => {
-    state.providers.forEach((entry) => (entry.credentialed = false));
-    const { onChange } = mount();
-
-    await userEvent.click(screen.getByRole("radio", { name: "Choose" }));
-
-    expect(onChange).toHaveBeenCalledWith({
-      mode: "choose",
-      provider: "openai",
-      model: "gpt-4o-transcribe",
-    });
-  });
-
-  it("marks a provider without credentials and keeps it unselectable, unless it is the bot's", async () => {
-    state.providers[1]!.credentialed = false;
-    mount({ mode: "choose", provider: "openai", model: "gpt-4o-transcribe" });
+  it("marks a provider without a key and still lets it be chosen", async () => {
+    state.keyed.delete("mistral");
+    mount(choose("openai", "gpt-4o-transcribe"));
 
     await userEvent.click(screen.getByLabelText("Provider"));
 
-    expect(screen.getByRole("option", { name: "Mistral (no credentials)" })).toHaveAttribute(
-      "aria-disabled",
-      "true",
-    );
-    expect(screen.getByRole("option", { name: "OpenAI" })).not.toHaveAttribute("aria-disabled");
-  });
-
-  it("keeps a stored provider that lost its credentials selectable", async () => {
-    state.providers[0]!.credentialed = false;
-    mount({ mode: "choose", provider: "openai", model: "gpt-4o-transcribe" });
-
-    await userEvent.click(screen.getByLabelText("Provider"));
-
-    expect(screen.getByRole("option", { name: "OpenAI (no credentials)" })).not.toHaveAttribute(
+    expect(screen.getByRole("option", { name: "Mistral (no key yet)" })).not.toHaveAttribute(
       "aria-disabled",
     );
+    expect(screen.getByRole("option", { name: "OpenAI" })).toBeInTheDocument();
   });
 
-  it("off and inherit both clear the pair", async () => {
-    const { onChange } = mount({ mode: "choose", provider: "openai", model: "gpt-4o-transcribe" });
+  it("off and inherit both clear the pair and its key", async () => {
+    const { onChange } = mount(choose("openai", "gpt-4o-transcribe"));
 
     await userEvent.click(screen.getByRole("radio", { name: "Off" }));
     await userEvent.click(screen.getByRole("radio", { name: "Inherit" }));
 
-    expect(onChange).toHaveBeenNthCalledWith(1, { mode: "off", provider: null, model: null });
+    expect(onChange).toHaveBeenNthCalledWith(1, { ...INHERIT, mode: "off" });
     expect(onChange).toHaveBeenNthCalledWith(2, INHERIT);
   });
 
   it("says what off means", () => {
-    mount({ mode: "off", provider: null, model: null });
+    mount({ ...INHERIT, mode: "off" });
 
     expect(screen.getByText(/are not transcribed; the sender is told/)).toBeInTheDocument();
   });
 
-  it("switching provider takes its first model, and the model can change alone", async () => {
-    const { onChange } = mount({ mode: "choose", provider: "openai", model: "gpt-4o-transcribe" });
+  it("switching provider takes its first model and drops the key; the model changes alone", async () => {
+    const { onChange } = mount(choose("openai", "gpt-4o-transcribe"));
 
     expect(screen.getByText("Accurate.")).toBeInTheDocument();
     await userEvent.click(screen.getByLabelText("Provider"));
@@ -219,16 +255,8 @@ describe("a bot's three-way transcription choice", () => {
     await userEvent.click(screen.getByLabelText("Transcription model"));
     await userEvent.click(screen.getByRole("option", { name: "Whisper" }));
 
-    expect(onChange).toHaveBeenNthCalledWith(1, {
-      mode: "choose",
-      provider: "mistral",
-      model: "voxtral-mini-latest",
-    });
-    expect(onChange).toHaveBeenNthCalledWith(2, {
-      mode: "choose",
-      provider: "openai",
-      model: "whisper-1",
-    });
+    expect(onChange).toHaveBeenNthCalledWith(1, choose("mistral", "voxtral-mini-latest", null));
+    expect(onChange).toHaveBeenNthCalledWith(2, choose("openai", "whisper-1"));
   });
 
   it("warns a Telegram bot inheriting Mistral that its Ogg notes may fail", () => {
@@ -241,15 +269,12 @@ describe("a bot's three-way transcription choice", () => {
   });
 
   it("warns a Telegram bot choosing Mistral", () => {
-    mount(
-      { mode: "choose", provider: "mistral", model: "voxtral-mini-latest" },
-      { platform: "telegram" },
-    );
+    mount(choose("mistral", "voxtral-mini-latest"), { platform: "telegram" });
     expect(screen.getByRole("note")).toBeInTheDocument();
   });
 
   it("warns a Slack bot on Mistral that its WebM clips may fail", () => {
-    mount({ mode: "choose", provider: "mistral", model: "voxtral-mini-latest" });
+    mount(choose("mistral", "voxtral-mini-latest"));
 
     expect(screen.getByRole("note")).toHaveTextContent(/WebM/);
   });
@@ -258,7 +283,7 @@ describe("a bot's three-way transcription choice", () => {
     const { unmount } = render(
       <TranscriptionFields
         idPrefix="a"
-        value={{ mode: "choose", provider: "mistral", model: "voxtral-mini-latest" }}
+        value={choose("mistral", "voxtral-mini-latest")}
         onChange={vi.fn()}
         platform="mattermost"
         inherited={null}
@@ -267,8 +292,32 @@ describe("a bot's three-way transcription choice", () => {
     expect(screen.queryByRole("note")).not.toBeInTheDocument();
     unmount();
 
-    mount({ mode: "off", provider: null, model: null }, { platform: "telegram" });
+    mount({ ...INHERIT, mode: "off" }, { platform: "telegram" });
     expect(screen.queryByRole("note")).not.toBeInTheDocument();
+  });
+
+  it("copes with a stored provider the catalog no longer offers", () => {
+    mount(
+      { mode: "choose", provider: "deepgram", model: null, secretId: null },
+      { inherited: { ...FROM_AGENT, provider: "deepgram" } },
+    );
+
+    expect(screen.getByText("Which of that provider's models to use.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "choose key" })).not.toBeInTheDocument();
+  });
+
+  it("shows Choose with nothing picked yet as an empty pair", () => {
+    mount({ mode: "choose", provider: null, model: null, secretId: null });
+
+    expect(screen.getByLabelText("Provider")).toBeInTheDocument();
+  });
+
+  it("names an inherited provider the catalog no longer offers by its id", () => {
+    mount(INHERIT, { inherited: { ...FROM_AGENT, provider: "deepgram" } });
+
+    expect(
+      screen.getByText("deepgram · gpt-4o-transcribe, from agent Support"),
+    ).toBeInTheDocument();
   });
 
   it("renders nothing while the deployment offers no provider", () => {

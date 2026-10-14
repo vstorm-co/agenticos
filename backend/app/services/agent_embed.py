@@ -121,7 +121,7 @@ in would be a query for nothing.
 """
 
 _SERVER_DICTATION_UNAVAILABLE = (
-    "Server dictation needs a speech-to-text provider with a credential, set for this "
+    "Server dictation needs a speech-to-text provider and a key for it, set for this "
     "agent or for the organization. Set one up on the Voice card, or choose Browser or Off."
 )
 

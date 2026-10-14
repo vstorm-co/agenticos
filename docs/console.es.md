@@ -1,5 +1,5 @@
 ---
-source_sha: "48e679cb5241"
+source_sha: "f997129511b8"
 ---
 
 # La consola { #the-console }
@@ -180,7 +180,7 @@ hasta que pulsas **Retry** o **Discard**.
 
 Si la organización eligió Server pero
 nada se resuelve para el agent que elegiste —ningún proveedor en el agent ni en
-la organización, o ninguna credencial para él—, o no hay ningún agent elegido, el
+la organización, o ninguna clave elegida para él—, o no hay ningún agent elegido, el
 micrófono aparece tachado y dice por qué; quien tiene `org:settings` recibe un
 enlace a la tarjeta Voice, y quien puede editar agents, un enlace a la tarjeta Voice
 de ese agent.
@@ -205,13 +205,18 @@ preciso). Se muestra sea cual sea el motor, porque es también a donde envían s
 mensajes de voz los [bots de canal](channels.md#what-every-channel-shares)
 configurados para heredar; **None** lo vacía.
 
-Server envía con las credenciales propias de la organización para ese proveedor:
-una clave del vault visible para la organización, o un model profile, y un
-profile sin clave que apunta a un servidor propio también cuenta. Un proveedor
-sin ninguna de las dos se muestra pero no se puede elegir, y sin ninguna en
-absoluto la tarjeta enlaza al vault. Cuando Server está guardado pero no puede
-funcionar —el modelo se retiró del catálogo o las credenciales ya no están—, la
-tarjeta lo dice, porque entonces todos los miembros ven un micrófono tachado.
+**Key**, junto al proveedor, es la clave del vault con la que se envía la
+configuración por defecto. Lista las claves de API cuyo propósito es ese
+proveedor y que ve toda la organización: la plataforma gasta esta clave en el
+dictado de cada miembro y en cada bot que hereda, así que la clave privada de un
+miembro no se ofrece y se rechaza si se envía. Con exactamente una clave que
+encaje se elige por ti, y se guarda por su id en cualquier caso; nada elige una
+clave en tiempo de ejecución. Un proveedor sin clave aparece marcado **no hay
+clave para este proveedor**, y el selector enlaza al vault para añadir una.
+Cuando Server está guardado pero no puede funcionar —el modelo se retiró del
+catálogo, o la clave se borró o se hizo privada—, la tarjeta lo dice y pide
+**elegir una clave** cuando eso es lo que falta, porque entonces todos los
+miembros ven un micrófono tachado.
 
 Server sin proveedor predeterminado es una configuración, no un fallo: la tarjeta indica que solo dictan los agents con su propio proveedor.
 **Voice conversations**, debajo, todavía no está construido.
@@ -228,11 +233,15 @@ cifras salen de [`GET /ml/calls/summary`](ml-services.md#what-is-recorded).
 
 La pestaña **Build** de un agent tiene una tarjeta **Voice** después de sus
 ajustes de modelo, para un agent que deba transcribir de forma distinta a su
-organización. **Inherit** conserva el proveedor y el modelo de la organización y
-muestra cuáles son; **Choose** elige un par del catálogo, donde un proveedor sin
-credenciales no se puede elegir. El idioma se elige aparte: heredar el de la
-organización, o fijar uno —así un agent en polaco puede conservar el proveedor de
-la organización—.
+organización. **Inherit** conserva el proveedor, el modelo y la clave de la
+organización y muestra cuáles son; **Choose** elige un par del catálogo y la
+clave con la que se envía —una clave de API de ese proveedor que puedas ver,
+porque publicar la presta a todos los que pueden ejecutar el agent—.
+
+Nunca es la
+clave de la organización: un agent con par propio nombra su propia clave. El
+idioma se elige aparte: heredar el de la organización, o fijar uno —así un agent
+en polaco puede conservar el proveedor y la clave de la organización—.
 
 Lo que elige forma parte del spec: se guarda con el borrador, entra en vigor cuando se
 publica el agent, y se aplica al [dictado](#dictation) dirigido a este

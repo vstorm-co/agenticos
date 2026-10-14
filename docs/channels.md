@@ -698,14 +698,15 @@ the audio goes to the browser's vendor - Google for Chrome, Apple for Safari -
 and nothing reaches this deployment. A browser without a recogniser, Firefox
 among them, is shown no microphone. **`server`** records in the page and sends
 the audio here, where the organization's speech-to-text provider transcribes it:
-the agent's override if it has one, the organization's default otherwise - the
-same resolution as [dictation in chat](ml-services.md#dictation-in-chat).
+the agent's override and its key if it has one, the organization's default and
+its key otherwise - the same resolution as
+[dictation in chat](ml-services.md#dictation-in-chat).
 
 The organization's engine for `/chat` has no say over either surface. An
 organization that keeps its members on the browser's recogniser can still give
 a public page `server` dictation, and the other way round.
 
-**Switching `server` on is refused** while no provider with a credential
+**Switching `server` on is refused** while no provider with a usable key
 resolves for the agent, and the embed form shows the choice disabled with the
 reason. Only the switch is checked, so a page whose key was deleted later can
 still be renamed. While nothing resolves, its public config says `off` and
@@ -1278,20 +1279,25 @@ serves all three platforms, so the policy cannot drift between them.
     organization's, and the language of the agent, then the organization's
     ([the order](ml-services.md#which-engine-a-recording-reaches)). **Choose**
     names the bot's own pair - a provider and one of its models, from
-    `app/core/catalog/speech_to_text_models.json`. **Off** never transcribes,
-    whatever the agent or the organization say. Inherit beside the choice names
-    what it resolves to, and which of the two chose it.
+    `app/core/catalog/speech_to_text_models.json` - and the vault key it is sent
+    with. **Off** never transcribes, whatever the agent or the organization say.
+    Inherit beside the choice names what it resolves to, which of the two chose
+    it, and whether that level still needs a key.
+
+    **The bot's own pair needs its own key**: an API key whose purpose is the
+    provider, and one **visible to the whole organization**, because a bot's
+    voice notes are paid for on behalf of whoever writes to it. A member's
+    private key is refused when the bot is saved, and one made private later
+    stops being used. The picker offers only keys that fit, says when a
+    provider has none, and links to the vault to add one. An inheriting bot
+    takes the inherited level's key together with its pair, never a key of its
+    own. Deleting the key leaves the pair asking for another, and the bot
+    transcribes nothing until somebody chooses one.
 
     Inheriting costs nothing until somebody sets a provider up: with none on the
     agent or the organization, nothing is transcribed, so spending the
     organization's provider credit stays the organization's decision. A bot
-    registered from the CLI, or by a client that sends no switch, inherits. The
-    key is the organization's own for that provider - a model profile, or an
-    organization-visible key in the vault - and there is nothing new to store. A
-    keyed profile wins over a keyless one, and a keyless profile pointed at a
-    self-hosted server is used only when the provider has no keyed one
-    ([the order](ml-services.md#speech-to-text)), so adding a keyless chat proxy
-    does not move a bot off the provider it transcribes on.
+    registered from the CLI, or by a client that sends no switch, inherits.
 
     A bot that cannot listen says so rather than dropping the recording, because
     a voice note that produces no reaction is indistinguishable from a broken
@@ -1316,6 +1322,13 @@ serves all three platforms, so the policy cannot drift between them.
         gets **inherit**, and **off** is `transcribe_voice_notes: false`, which
         also clears the pair. The organization's or the agent's language now
         reaches a bot with its own pair too.
+
+        A bot with a pair used to transcribe on the first model profile, by
+        label, holding a key for its provider. The same migration writes that
+        key down as the bot's own, where it is an organization-visible API key
+        for the provider and the profile has no `base_url` of its own. A bot
+        with no such profile keeps its pair with no key: its form says "choose
+        a key", and it transcribes nothing until somebody does.
 
     What counts as a voice message is read off the file's type, and each
     platform types its files differently. A Telegram voice note or audio file

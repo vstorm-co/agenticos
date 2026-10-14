@@ -5,12 +5,22 @@ channel bot it arrived on. This is the one place that decides between them, so
 the composer's dictation, a channel voice note and the Voice cards showing what
 is inherited cannot each grow their own idea of the order.
 
-**The pair and the language resolve separately.** The provider and model go
-together - a model is only meaningful on its provider - and come from the first
-of bot, agent, organization that names one. The language comes from the agent,
-then the organization, then nobody (the engine detects it). A bot has no
-language of its own. So an agent that pins `pl` in an organization transcribing
-on OpenAI in English gets OpenAI in Polish, which is the issue's own example.
+**The pair and the language resolve separately.** The provider, the model and
+the vault key go together - a model is only meaningful on its provider, and a
+key only at the provider it was issued by - and come from the first of bot,
+agent, organization that names a pair. A key never carries over from one level
+to another, so it can never be sent to a provider it was not issued for. The
+language comes from the agent, then the organization, then nobody (the engine
+detects it). A bot has no language of its own. So an agent that pins `pl` in an
+organization transcribing on OpenAI in English gets OpenAI in Polish, on the
+organization's key, which is the issue's own example.
+
+**The key is named, never found.** Every level stores the key next to its pair,
+and nothing here looks one up: with two keys for one provider, a lookup is a
+guess about who pays. Which keys a level may name is `key_problem`'s to say -
+an organization's and a bot's only organization-visible ones, because the
+platform spends them for everybody; an agent's any its publisher can view, the
+lending rule every other key in a spec follows.
 
 **A bot resolves through its own agent**, the one its exposure serves - never
 an agent somebody `@mentions`. Transcription runs before mention routing, and a
@@ -33,12 +43,21 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.spec import SpeechToTextSpec
+from app.core.permissions import AuthContext, Perm
+from app.core.secret_kinds import SecretKind
 from app.db.models.agent import Agent, AgentStatus
 from app.db.models.agent_exposure import AgentExposure
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.organization import Organization
-from app.repositories import agent_environment_repo, agent_exposure_repo, agent_repo
+from app.db.models.resource_grant import Visibility
+from app.repositories import (
+    agent_environment_repo,
+    agent_exposure_repo,
+    agent_repo,
+    organization_secret_repo,
+)
 from app.repositories import organization as organization_repo
+from app.services.access import SECRET, resolve_access
 
 PairSource = Literal["bot", "agent", "organization"]
 LanguageSource = Literal["agent", "organization"]
@@ -50,11 +69,23 @@ class ResolvedSpeechToText:
 
     provider: str
     model: str
+    secret_id: UUID | None
+    """The key the pair's level named, or `None` where it names none yet - a
+    deleted key, or a pair saved before one was chosen. Never another level's."""
     language: str | None
     """An ISO-639-1 code, or `None` for the engine to detect."""
     pair_source: PairSource
     language_source: LanguageSource | None
     """`None` when nobody pinned a language."""
+
+    @property
+    def shared_key(self) -> bool:
+        """Whether the key is spent on everybody's behalf, so must be organization-visible.
+
+        An organization's default and a bot's key are; an agent's is lent by its
+        publisher, which publish validation checked.
+        """
+        return self.pair_source != "agent"
 
 
 @dataclass(frozen=True)
@@ -89,15 +120,21 @@ def resolve(
     if bot is not None and not bot.transcribe_voice_notes:
         return None
 
-    pair: tuple[str, str, PairSource] | None = None
+    pair: tuple[str, str, UUID | None, PairSource] | None = None
     if bot is not None and bot.speech_to_text_provider and bot.speech_to_text_model:
-        pair = (bot.speech_to_text_provider, bot.speech_to_text_model, "bot")
+        pair = (
+            bot.speech_to_text_provider,
+            bot.speech_to_text_model,
+            bot.speech_to_text_secret_id,
+            "bot",
+        )
     elif agent is not None and agent.provider and agent.model:
-        pair = (agent.provider, agent.model, "agent")
+        pair = (agent.provider, agent.model, agent.secret_id, "agent")
     elif organization.speech_to_text_provider and organization.speech_to_text_model:
         pair = (
             organization.speech_to_text_provider,
             organization.speech_to_text_model,
+            organization.speech_to_text_secret_id,
             "organization",
         )
     if pair is None:
@@ -110,10 +147,11 @@ def resolve(
     elif organization.speech_to_text_language:
         language, language_source = organization.speech_to_text_language, "organization"
 
-    provider, model, pair_source = pair
+    provider, model, secret_id, pair_source = pair
     return ResolvedSpeechToText(
         provider=provider,
         model=model,
+        secret_id=secret_id,
         language=language,
         pair_source=pair_source,
         language_source=language_source,
@@ -121,7 +159,7 @@ def resolve(
 
 
 class SpeechToTextSettingsService:
-    """Loads what `resolve` needs, for the three places that ask."""
+    """Loads what `resolve` needs, for the three places that ask, and checks a named key."""
 
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
@@ -174,6 +212,52 @@ class SpeechToTextSettingsService:
         return BotSpeechToText(
             exposed=True, agent_name=agent.name, agent_id=agent.id, resolved=resolved
         )
+
+    async def key_problem(
+        self,
+        secret_id: UUID,
+        *,
+        organization_id: UUID,
+        provider: str,
+        ctx: AuthContext | None,
+    ) -> str | None:
+        """What is wrong with naming this key next to a `provider` pair, or `None`.
+
+        The one check every level saves through - the organization's settings,
+        a channel bot, an agent's publish, a caller of the ML API - so the rules
+        cannot drift apart between them:
+
+        - the key is in this organization's vault. With `ctx`, the caller must
+          also be able to view it: an agent's key is lent to everyone who can
+          run the agent, so the publisher has to be able to reach it, as with
+          every other key a spec names. A key they cannot view reads like one
+          that does not exist, so a refusal cannot enumerate the vault.
+        - without `ctx`, the key is organization-visible. The organization's
+          default and a bot's key are spent by the platform for everybody, and
+          a member's private key must not pay for that - the rule
+          `github_oauth_app` follows.
+        - it is an API key, and its purpose is the provider: a key sent to a
+          service it was not issued by is refused there, and is somebody's
+          credential in somebody else's logs.
+        """
+        row = await organization_secret_repo.get(
+            self.db, secret_id, organization_id=organization_id
+        )
+        if row is None or (
+            ctx is not None
+            and not await resolve_access(self.db, ctx, row, Perm.SECRETS_VIEW, resource_type=SECRET)
+        ):
+            return "That key is not in this organization's vault"
+        if ctx is None and row.visibility != Visibility.ORG.value:
+            return (
+                f"'{row.name}' is not visible to the whole organization. A key used here "
+                "is spent for everybody, so only an organization-wide key can be chosen"
+            )
+        if row.kind != SecretKind.API_KEY.value:
+            return f"'{row.name}' holds a {row.kind}, and speech to text needs an API key"
+        if row.purpose != provider:
+            return f"'{row.name}' is a key for {row.purpose}, and this transcribes on {provider}"
+        return None
 
     async def _organization(self, organization_id: UUID) -> Organization | None:
         return await organization_repo.get_by_id(self.db, organization_id)

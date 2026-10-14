@@ -1,5 +1,5 @@
 ---
-source_sha: "48e679cb5241"
+source_sha: "f997129511b8"
 ---
 
 # Konsola { #the-console }
@@ -180,7 +180,7 @@ albo **Odrzuć (Discard)**.
 
 Gdy organizacja
 wybrała Server, ale dla wybranego agenta nic się nie rozwiązuje — brak providera
-na agencie i w organizacji albo brak poświadczenia do niego — albo nie wybrano
+na agencie i w organizacji albo nie wybrano do niego klucza — albo nie wybrano
 agenta, mikrofon jest przekreślony i mówi dlaczego; osoba z `org:settings`
 dostaje link do karty Głos (Voice), a osoba, która może edytować agenty — link do
 karty Głos (Voice) tego agenta.
@@ -207,12 +207,17 @@ pokazywany niezależnie od silnika, bo to także tam
 [boty kanałów](channels.md#what-every-channel-shares) ustawione na dziedziczenie
 wysyłają swoje wiadomości głosowe; **Brak (None)** go czyści.
 
-Server wysyła z własnymi poświadczeniami organizacji dla tego providera: kluczem
-w vaulcie widocznym dla całej organizacji albo profilem modelu, a profil bez
-klucza wskazujący na własny serwer też się liczy. Provider bez żadnego z nich jest
-pokazany, ale nie da się go wybrać, a gdy nie ma żadnego, karta linkuje do
-vaulta. Gdy zapisano Server, ale nie może działać — model wycofano z katalogu
-albo zniknęły poświadczenia — karta to mówi, bo każdy członek widzi wtedy
+**Klucz (Key)**, obok providera, to klucz z vaultu, z którym wysyłane jest
+ustawienie domyślne. Lista pokazuje klucze API, których przeznaczeniem jest ten
+provider i które widzi cała organizacja — platforma wydaje ten klucz na
+dyktowanie każdego członka i na każdego dziedziczącego bota, więc prywatny klucz
+członka nie jest oferowany i zostaje odrzucony, jeśli go wysłać. Gdy pasuje
+dokładnie jeden klucz, jest wybierany za ciebie, a i tak zapisywany po
+identyfikatorze; nic nie wybiera klucza w czasie działania. Provider bez klucza
+jest oznaczony **brak klucza dla tego providera**, a wybór linkuje do vaultu, by
+go dodać. Gdy zapisano Server, ale nie może działać — model wycofano z katalogu
+albo klucz usunięto lub uczyniono prywatnym — karta to mówi i prosi o
+**wybranie klucza**, gdy to jego brakuje, bo każdy członek widzi wtedy
 przekreślony mikrofon.
 
 Server bez domyślnego providera to ustawienie, a nie usterka: karta zaznacza, że dyktować mogą tylko agenty z własnym providerem. **Rozmowy głosowe (Voice conversations)**, pod nią, nie jest jeszcze
@@ -230,10 +235,14 @@ brakuje; jest ukryta, dopóki niczego nie przetranskrybowano. Liczby pochodzą z
 
 Zakładka **Build** agenta ma kartę **Głos (Voice)** po ustawieniach modelu, dla agenta,
 który ma transkrybować inaczej niż jego organizacja. **Dziedzicz (Inherit)** zachowuje
-providera i model organizacji i pokazuje, które to są; **Wybierz (Choose)** wybiera parę z
-katalogu, przy czym providera bez poświadczeń nie da się wybrać. Język wybiera
-się osobno: odziedzicz język organizacji albo ustal jeden — więc polski agent
-może zachować providera organizacji. To część speca, zapisywana z wersją
+providera, model i klucz organizacji i pokazuje, które to są; **Wybierz (Choose)**
+wybiera parę z katalogu i klucz, z którym jest wysyłana — klucz API dla tego
+providera, który widzisz, bo publikacja pożycza go każdemu, kto może uruchomić
+agenta.
+
+To nigdy nie jest klucz organizacji: agent z własną parą wskazuje własny
+klucz. Język wybiera się osobno: odziedzicz język organizacji albo ustal jeden —
+więc polski agent może zachować providera i klucz organizacji. To część speca, zapisywana z wersją
 roboczą i działająca, gdy agent zostanie opublikowany, i dotyczy
 [dyktowania](#dictation) do tego agenta oraz wiadomości głosowych, które
 dziedziczą jego boty kanałów. Resztę opisuje

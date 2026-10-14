@@ -122,6 +122,14 @@ class ChannelBotCreate(BaseSchema):
         max_length=255,
         description="Which of that provider's transcription models to use.",
     )
+    speech_to_text_secret_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The vault key the bot's own pair is sent with: an organization-visible "
+            "API key whose purpose is the provider. Required with a pair, refused "
+            "without one."
+        ),
+    )
 
     @model_validator(mode="after")
     def _transcription_is_a_pair_the_catalog_lists(self) -> ChannelBotCreate:
@@ -146,6 +154,11 @@ class ChannelBotCreate(BaseSchema):
         if provider is not None and model is not None and not is_offered(provider, model):
             raise ValueError(
                 f"'{model}' is not a transcription model this deployment offers for {provider}"
+            )
+        if provider is None and self.speech_to_text_secret_id is not None:
+            raise ValueError(
+                "A transcription key goes with the bot's own provider and model - "
+                "an inheriting bot uses the key of the level it inherits from"
             )
         return self
 
@@ -201,6 +214,7 @@ class ChannelBotUpdate(BaseSchema):
     transcribe_voice_notes: bool | None = None
     speech_to_text_provider: str | None = Field(default=None, max_length=32)
     speech_to_text_model: str | None = Field(default=None, max_length=255)
+    speech_to_text_secret_id: UUID | None = None
 
     @model_validator(mode="after")
     def _a_named_transcription_model_is_one_that_exists(self) -> ChannelBotUpdate:
@@ -232,12 +246,15 @@ class InheritedSpeechToTextRead(BaseSchema):
     """What a bot's voice notes go to when it inherits rather than names a pair.
 
     For the hint beside "Inherit" in the bot's form: which provider and model,
-    and whether the bot's agent or its organization chose them. Never a
-    credential - the key is the organization's and is not named.
+    and whether the bot's agent or its organization chose them. The key is
+    the inherited level's own and is not named - only whether one is usable,
+    so the form can say the level still needs one.
     """
 
     provider: str
     model: str
+    has_key: bool = False
+    """Whether the inherited level names a key that is still usable for it."""
     language: str | None = None
     pair_source: Literal["agent", "organization"]
     language_source: Literal["agent", "organization"] | None = None
@@ -285,9 +302,11 @@ class ChannelBotRead(BaseSchema):
     """Which model transcribes voice notes here, or null to inherit one.
 
     Read back plainly: a provider id and a model id are choices somebody made,
-    not credentials. The key they run on is the organization's own and is never
-    named here.
+    not credentials.
     """
+    speech_to_text_secret_id: UUID | None = None
+    """The vault key the bot's own pair is sent with, by id - never its value.
+    Null with a pair means the key was deleted, and voice notes wait for another."""
 
     inherited_speech_to_text: InheritedSpeechToTextRead | None = None
     """What "inherit" resolves to for this bot, on the single-bot read only.

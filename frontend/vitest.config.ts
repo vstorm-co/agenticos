@@ -139,6 +139,9 @@ export default defineConfig({
         // The deployment's switch for compressed dictation audio (#1797), new and
         // so inside the gate, like the Voice card above.
         "src/components/admin/dictation-audio-card.tsx",
+        // The one key field every speech-to-text level names its key with
+        // (#1797), new and so inside the gate.
+        "src/components/vault/speech-key-field.tsx",
       ],
       exclude: [
         "node_modules",

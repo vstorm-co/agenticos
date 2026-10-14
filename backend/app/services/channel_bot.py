@@ -39,6 +39,7 @@ from app.services.channels import (
 from app.services.channels.supervisor import close_inbound_stream, open_inbound_stream
 from app.services.speech_to_text import is_offered as stt_is_offered
 from app.services.speech_to_text_settings import SpeechToTextSettingsService
+from app.services.transcription import TranscriptionService
 
 logger = logging.getLogger(__name__)
 
@@ -120,6 +121,15 @@ def _transcription_is_off() -> BadRequestError:
     )
 
 
+def _key_without_pair() -> BadRequestError:
+    """The refusal for a transcription key named with no pair of the bot's own."""
+    return refused_field(
+        "speech_to_text_secret_id",
+        "A transcription key goes with the bot's own provider and model - an "
+        "inheriting bot uses the key of the level it inherits from",
+    )
+
+
 class ChannelBotService:
     """Service for channel bot management.
 
@@ -198,10 +208,14 @@ class ChannelBotService:
                 stored as a pair that can never run.
         """
         self._check_slack_fields(data.platform, data.slack_signing_secret, data.slack_app_token)
-        if not data.transcribe_voice_notes and data.speech_to_text_provider is not None:
-            # The schema has already made the pair whole, so the provider stands
-            # for both halves.
-            raise _transcription_is_off()
+        if data.speech_to_text_provider is not None:
+            # The schema has already made the pair whole, and refused a key
+            # without one, so the provider stands for all three.
+            if not data.transcribe_voice_notes:
+                raise _transcription_is_off()
+            await self._check_key(
+                data.speech_to_text_secret_id, provider=data.speech_to_text_provider
+            )
         sealed = seal_bot_token(data.token, organization_id=self._org_id)
         webhook_secret = self._initial_webhook_secret(data)
         bot = await channel_bot_repo.create(
@@ -225,6 +239,7 @@ class ChannelBotService:
             transcribe_voice_notes=data.transcribe_voice_notes,
             speech_to_text_provider=data.speech_to_text_provider,
             speech_to_text_model=data.speech_to_text_model,
+            speech_to_text_secret_id=data.speech_to_text_secret_id,
         )
         self._reopen_stream(bot)
         return bot
@@ -266,9 +281,8 @@ class ChannelBotService:
             value, scope=VaultScope.organization(self._org_id), key_version=key_version
         ).ciphertext
 
-    @staticmethod
-    def _check_transcription(bot: ChannelBot, update_data: dict[str, Any]) -> None:
-        """Both halves of the transcription pair, against what is already stored.
+    async def _check_transcription(self, bot: ChannelBot, update_data: dict[str, Any]) -> None:
+        """The transcription pair and its key, against what is already stored.
 
         The schema can only see the request, and a patch legitimately carries one
         field: somebody switching model keeps the provider. So the pairing is
@@ -277,25 +291,29 @@ class ChannelBotService:
         either alone is a setting that reads as configured and does nothing. That
         is the state somebody debugs by sending voice notes into silence.
 
-        Clearing is a pair too: both fields null, not a provider left pointing at
-        nothing. Null is "inherit" since #1797; "off" is `transcribe_voice_notes`,
-        and switching it off clears the pair here so an off bot never carries an
-        engine it will not use. A pair named for a bot that is switched off in
-        the same request, or that stays off, is refused for the same reason
-        rather than dropped or stored - the answer `create` gives too.
+        A pair goes with a key named beside it (`_check_key`). Changing the
+        provider without naming a key is refused rather than keeping the old
+        one: a key never carries over to another provider.
+
+        Clearing is a pair too: both fields null, and the key with them, not a
+        provider left pointing at nothing. Null is "inherit" since #1797; "off"
+        is `transcribe_voice_notes`, and switching it off clears the pair and
+        the key here so an off bot never carries an engine it will not use. A
+        pair or a key named for a bot that is switched off in the same request,
+        or that stays off, is refused for the same reason rather than dropped or
+        stored - the answer `create` gives too.
         """
+        fields = ("speech_to_text_provider", "speech_to_text_model", "speech_to_text_secret_id")
         if update_data.get("transcribe_voice_notes") is False:
-            if (
-                update_data.get("speech_to_text_provider") is not None
-                or update_data.get("speech_to_text_model") is not None
-            ):
+            if any(update_data.get(field) is not None for field in fields):
                 raise _transcription_is_off()
-            update_data["speech_to_text_provider"] = None
-            update_data["speech_to_text_model"] = None
+            for field in fields:
+                update_data[field] = None
             return
         provider_given = "speech_to_text_provider" in update_data
         model_given = "speech_to_text_model" in update_data
-        if not provider_given and not model_given:
+        key_given = "speech_to_text_secret_id" in update_data
+        if not provider_given and not model_given and not key_given:
             return
         provider = (
             update_data["speech_to_text_provider"]
@@ -303,6 +321,9 @@ class ChannelBotService:
             else bot.speech_to_text_provider
         )
         model = update_data["speech_to_text_model"] if model_given else bot.speech_to_text_model
+        secret_id = (
+            update_data["speech_to_text_secret_id"] if key_given else bot.speech_to_text_secret_id
+        )
         if (provider is None) != (model is None):
             raise BadRequestError(
                 message=(
@@ -311,15 +332,36 @@ class ChannelBotService:
                 ),
                 details={"fields": ["speech_to_text_provider", "speech_to_text_model"]},
             )
-        if provider is not None and model is not None and not stt_is_offered(provider, model):
+        if provider is None:
+            if key_given and secret_id is not None:
+                raise _key_without_pair()
+            update_data["speech_to_text_secret_id"] = None
+            return
+        if model is not None and not stt_is_offered(provider, model):
             raise refused_field(
                 "speech_to_text_model",
                 f"'{model}' is not a transcription model this deployment offers for {provider}",
             )
-        if provider is not None and not update_data.get(
-            "transcribe_voice_notes", bot.transcribe_voice_notes
-        ):
+        if not update_data.get("transcribe_voice_notes", bot.transcribe_voice_notes):
             raise _transcription_is_off()
+        await self._check_key(secret_id, provider=provider)
+
+    async def _check_key(self, secret_id: UUID | None, *, provider: str) -> None:
+        """Refuse a bot pair with no key, or with one a bot may not be saved with.
+
+        A bot's voice notes are paid for on behalf of whoever writes to it, so
+        its key is held to the organization's rule - organization-visible, an
+        API key for this provider (`SpeechToTextSettingsService.key_problem`).
+        """
+        if secret_id is None:
+            raise refused_field(
+                "speech_to_text_secret_id", f"Choose a key for {provider} to transcribe with"
+            )
+        problem = await SpeechToTextSettingsService(self.db).key_problem(
+            secret_id, organization_id=self._org_id, provider=provider, ctx=None
+        )
+        if problem is not None:
+            raise refused_field("speech_to_text_secret_id", problem)
 
     @staticmethod
     def _check_server_url(platform: str, api_base_url: str | None) -> None:
@@ -391,6 +433,12 @@ class ChannelBotService:
             else InheritedSpeechToTextRead(
                 provider=resolved.provider,
                 model=resolved.model,
+                has_key=await TranscriptionService(self.db).has_key(
+                    bot.organization_id,
+                    provider=resolved.provider,
+                    secret_id=resolved.secret_id,
+                    shared_key=resolved.shared_key,
+                ),
                 language=resolved.language,
                 pair_source=resolved.pair_source,
                 language_source=resolved.language_source,
@@ -477,7 +525,7 @@ class ChannelBotService:
         update_data = writable(data, over=ChannelBot)
         if "api_base_url" in update_data:
             self._check_server_url(bot.platform, update_data["api_base_url"])
-        self._check_transcription(bot, update_data)
+        await self._check_transcription(bot, update_data)
         if "slack_signing_secret" in update_data or "slack_app_token" in update_data:
             self._check_slack_fields(
                 bot.platform,

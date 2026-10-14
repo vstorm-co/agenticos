@@ -266,18 +266,21 @@ async def set_speech_settings(
     chat_dictation: DictationEngine,
     provider: str | None,
     model: str | None,
+    secret_id: UUID | None,
     language: str | None,
     max_seconds: int,
 ) -> Organization:
-    """Write all five speech settings at once (#1797).
+    """Write all six speech settings at once (#1797).
 
-    One setter for the five because they are validated together - the pair is
-    both-or-neither and must be one the catalog offers - and because :func:`update` skips a
-    `None` argument, so it cannot clear a provider or a language.
+    One setter for the six because they are validated together - the pair is
+    both-or-neither and must be one the catalog offers, and its key goes with
+    it - and because :func:`update` skips a `None` argument, so it cannot clear
+    a provider, a key or a language.
     """
     org.chat_dictation = chat_dictation
     org.speech_to_text_provider = provider
     org.speech_to_text_model = model
+    org.speech_to_text_secret_id = secret_id
     org.speech_to_text_language = language
     org.dictation_max_seconds = max_seconds
     await db.flush()

@@ -1,13 +1,13 @@
 "use client";
 
 import { Fragment, useMemo, useState } from "react";
-import Link from "next/link";
-import { ArrowRight, Ban, Globe, Info, Loader2, Plus, Server, TriangleAlert } from "lucide-react";
+import { ArrowRight, Ban, Globe, Info, Loader2, Server, TriangleAlert } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { SettingsSection } from "@/components/settings/settings-section";
 import { OrgVoiceUsage } from "@/components/teams/org-voice-usage";
+import { SpeechKeyField, useSpeechKeyCheck } from "@/components/vault/speech-key-field";
 import {
   Alert,
   AlertDescription,
@@ -25,13 +25,11 @@ import {
 import { FormField } from "@/components/ui/form-field";
 import { useOrganizations, usePermissions } from "@/hooks";
 import { useChanged } from "@/hooks/use-changed";
-import { useModelProviders, useSpeechToTextProviders } from "@/hooks/use-model-providers";
+import { useSpeechToTextProviders } from "@/hooks/use-model-providers";
 import type { SpeechToTextProvider } from "@/hooks/use-model-providers";
 import { NO_FAILURE, submitFailure, type SubmitFailure } from "@/lib/api-error";
-import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import type { DictationEngine, Organization, VoiceSettingsUpdate } from "@/types";
-import type { ModelProfile } from "@/types/providers";
 import { Perm } from "@/types/permissions";
 
 /** The fields a refusal can name, so each message lands under its control. */
@@ -39,6 +37,7 @@ const FIELDS = [
   "chat_dictation",
   "speech_to_text_provider",
   "speech_to_text_model",
+  "speech_to_text_secret_id",
   "speech_to_text_language",
   "dictation_max_seconds",
 ] as const;
@@ -56,6 +55,8 @@ interface Draft {
   engine: DictationEngine;
   provider: string | null;
   model: string | null;
+  /** The organization-wide vault key the pair is sent with. */
+  secretId: string | null;
   language: string | null;
   /** The length as typed, in `unit`. */
   amount: string;
@@ -69,14 +70,15 @@ function draftOf(org: Organization): Draft {
     engine: org.chat_dictation,
     provider: org.speech_to_text_provider,
     model: org.speech_to_text_model,
+    secretId: org.speech_to_text_secret_id,
     language: org.speech_to_text_language,
     amount: String(minutes ? seconds / 60 : seconds),
     unit: minutes ? "min" : "s",
   };
 }
 
-/** A provider and model, the pair Server records with. */
-type Pair = Pick<Draft, "provider" | "model">;
+/** A provider and model, the pair Server records with, and the key it goes with. */
+type Pair = Pick<Draft, "provider" | "model" | "secretId">;
 
 /** The typed length in seconds, or `null` when it is not one the server takes. */
 function secondsOf(draft: Draft): number | null {
@@ -87,26 +89,12 @@ function secondsOf(draft: Draft): number | null {
 }
 
 /**
- * The profile a recording for `provider` is sent with, as the server picks it:
- * the first keyed profile by label, and only when there is none the first
- * keyless one that names an endpoint. `undefined` when neither exists.
- */
-function profileFor(profiles: ModelProfile[], provider: string): ModelProfile | undefined {
-  const own = profiles
-    .filter((profile) => profile.provider === provider)
-    .sort((a, b) => a.label.localeCompare(b.label));
-  return (
-    own.find((profile) => profile.secret_id !== null) ?? own.find((profile) => !!profile.base_url)
-  );
-}
-
-/**
  * How people in this organization talk to agents: dictation in the chat today,
  * voice conversations later.
  *
  * Three engines, each saying where the audio goes, because that is the decision
  * an administrator is actually making - the browser vendor's speech service, or
- * this deployment and a provider the organization already holds credentials for.
+ * this deployment and a provider, on an organization-wide key chosen here.
  *
  * Rendered only for `org:settings`, which is what the PATCH checks. Hidden
  * rather than disabled, like the spending limit beside it: a section that could
@@ -114,7 +102,7 @@ function profileFor(profiles: ModelProfile[], provider: string): ModelProfile | 
  */
 export function OrgVoiceSettings({ org }: { org: Organization }) {
   const { can } = usePermissions();
-  // A separate component so that its catalog and profile reads are never issued
+  // A separate component so that its catalog and vault reads are never issued
   // for somebody who may not change them.
   return can(Perm.orgSettings) ? <VoiceForm org={org} /> : null;
 }
@@ -166,12 +154,18 @@ function useVoiceDraft(org: Organization) {
       speech_to_text_language: draft.language,
       dictation_max_seconds: seconds,
     };
-    // The pair only when it changed: naming it asks the server to check it
-    // against the catalog, and a model withdrawn since must not stop somebody
-    // switching the engine to the browser.
-    if (draft.provider !== stored.provider || draft.model !== stored.model) {
+    // The pair and its key only when one changed: naming them asks the server
+    // to check them against the catalog and the vault, and a model withdrawn
+    // since must not stop somebody switching the engine to the browser. All
+    // three together, because the key is checked against the provider.
+    if (
+      draft.provider !== stored.provider ||
+      draft.model !== stored.model ||
+      draft.secretId !== stored.secretId
+    ) {
       settings.speech_to_text_provider = draft.provider;
       settings.speech_to_text_model = draft.model;
+      settings.speech_to_text_secret_id = draft.secretId;
     }
     setSaving(true);
     try {
@@ -205,7 +199,10 @@ function useVoiceDraft(org: Organization) {
       edit({ engine });
       return;
     }
-    setAutoPair({ filled: first, replaced: { provider: draft.provider, model: draft.model } });
+    setAutoPair({
+      filled: first,
+      replaced: { provider: draft.provider, model: draft.model, secretId: draft.secretId },
+    });
     edit({ engine, ...first });
   };
 
@@ -230,33 +227,24 @@ function useVoiceDraft(org: Organization) {
 function VoiceForm({ org }: { org: Organization }) {
   const t = useTranslations("teams");
   const { providers, languages } = useSpeechToTextProviders();
-  // Read for the path line's host alone: which providers can send is the
-  // catalog's `credentialed`, answered by the server from the profiles and the
-  // vault together - a vault key is invisible in the profile list.
-  const { profiles } = useModelProviders();
+  // Only organization-wide keys: the platform spends this one for everybody.
+  const hasKey = useSpeechKeyCheck(true);
   const form = useVoiceDraft(org);
   const { draft, failure } = form;
 
-  // While the catalog is unread nothing is marked as lacking credentials - it is
-  // empty until read, and for good when the read fails, and neither is a
-  // missing credential; a provider greyed out for a frame reads as a glitch.
-  const credentialed = (provider: string) =>
-    providers.length === 0 ||
-    (providers.find((entry) => entry.provider === provider)?.credentialed ?? false);
-  const anyCredentials = providers.length === 0 || providers.some((entry) => entry.credentialed);
-
   const chooseEngine = (engine: DictationEngine) => {
-    // Server with nothing picked yet takes the first provider that can answer,
-    // so the form never sits on a choice the server would refuse. None while
-    // the catalog is unread: the pair stays empty and the save names it.
+    // Server with nothing picked yet takes the first provider with a key to
+    // send with; its key is chosen in the key field, which picks the only one
+    // by itself. None while the catalog is unread, or when no provider has a
+    // key: the pair stays empty, which still dictates for agents with their own.
     const first =
       engine === "server" && draft.provider === null
-        ? providers.find((entry) => credentialed(entry.provider))
+        ? providers.find((entry) => hasKey(entry.provider))
         : undefined;
     // The server drops a catalog entry with no models, so each has a first one.
     form.chooseEngine(
       engine,
-      first ? { provider: first.provider, model: first.models[0]!.id } : undefined,
+      first ? { provider: first.provider, model: first.models[0]!.id, secretId: null } : undefined,
     );
   };
 
@@ -266,14 +254,12 @@ function VoiceForm({ org }: { org: Organization }) {
         <h3 className="text-sm font-semibold">{t("voice.sttTitle")}</h3>
         <p className="text-muted-foreground mt-0.5 mb-4 text-sm">{t("voice.sttDescription")}</p>
         <OrgVoiceUsage />
-        <NotReady org={org} credentialed={credentialed} providers={providers} />
+        <NotReady org={org} providers={providers} />
         <EngineChoice
           value={draft.engine}
-          serverDisabled={!anyCredentials && draft.engine !== "server"}
           error={failure.fields.chat_dictation}
           onChange={chooseEngine}
         />
-        {!anyCredentials && <NoCredentials providers={providers} />}
         {draft.engine === "browser" && (
           <div className="mt-4">
             <AudioPath hops={[t("voice.pathVendor")]} note={t("voice.browserNote")} />
@@ -284,8 +270,7 @@ function VoiceForm({ org }: { org: Organization }) {
             draft={draft}
             providers={providers}
             languages={languages}
-            profiles={profiles}
-            credentialed={credentialed}
+            hasKey={hasKey}
             failure={failure}
             lengthInvalid={form.lengthInvalid}
             onChange={form.edit}
@@ -295,8 +280,7 @@ function VoiceForm({ org }: { org: Organization }) {
           draft={draft}
           providers={providers}
           languages={languages}
-          profiles={profiles}
-          credentialed={credentialed}
+          hasKey={hasKey}
           failure={failure}
           lengthInvalid={form.lengthInvalid}
           onChange={form.edit}
@@ -329,7 +313,6 @@ const ENGINES: { value: DictationEngine; icon: typeof Ban }[] = [
 
 interface EngineChoiceProps {
   value: DictationEngine;
-  serverDisabled: boolean;
   error: string | undefined;
   onChange: (engine: DictationEngine) => void;
 }
@@ -341,7 +324,7 @@ interface EngineChoiceProps {
  * a native group already has the arrow-key behaviour a hand-rolled one would
  * have to reimplement.
  */
-function EngineChoice({ value, serverDisabled, error, onChange }: EngineChoiceProps) {
+function EngineChoice({ value, error, onChange }: EngineChoiceProps) {
   const t = useTranslations("teams");
   return (
     <fieldset
@@ -351,34 +334,29 @@ function EngineChoice({ value, serverDisabled, error, onChange }: EngineChoicePr
       aria-describedby={error ? "org-voice-engine-err" : undefined}
     >
       <div className="grid gap-2 sm:grid-cols-3">
-        {ENGINES.map(({ value: engine, icon: Icon }) => {
-          const disabled = engine === "server" && serverDisabled;
-          return (
-            <label
-              key={engine}
-              className={cn(
-                "border-border bg-card focus-within:ring-ring relative grid cursor-pointer grid-cols-[auto_1fr] gap-x-2.5 gap-y-0.5 rounded-xl border p-3 transition-colors focus-within:ring-2",
-                "has-[:checked]:border-foreground has-[:checked]:bg-muted",
-                disabled && "cursor-not-allowed opacity-55",
-              )}
-            >
-              <input
-                type="radio"
-                name="org-voice-engine"
-                value={engine}
-                checked={value === engine}
-                disabled={disabled}
-                onChange={() => onChange(engine)}
-                className="pointer-events-none absolute opacity-0"
-              />
-              <Icon className="text-muted-foreground mt-0.5 h-4 w-4" aria-hidden />
-              <span className="text-sm font-semibold">{t(`voice.engines.${engine}.label`)}</span>
-              <span className="text-muted-foreground col-start-2 text-xs">
-                {t(`voice.engines.${engine}.hint`)}
-              </span>
-            </label>
-          );
-        })}
+        {ENGINES.map(({ value: engine, icon: Icon }) => (
+          <label
+            key={engine}
+            className={cn(
+              "border-border bg-card focus-within:ring-ring relative grid cursor-pointer grid-cols-[auto_1fr] gap-x-2.5 gap-y-0.5 rounded-xl border p-3 transition-colors focus-within:ring-2",
+              "has-[:checked]:border-foreground has-[:checked]:bg-muted",
+            )}
+          >
+            <input
+              type="radio"
+              name="org-voice-engine"
+              value={engine}
+              checked={value === engine}
+              onChange={() => onChange(engine)}
+              className="pointer-events-none absolute opacity-0"
+            />
+            <Icon className="text-muted-foreground mt-0.5 h-4 w-4" aria-hidden />
+            <span className="text-sm font-semibold">{t(`voice.engines.${engine}.label`)}</span>
+            <span className="text-muted-foreground col-start-2 text-xs">
+              {t(`voice.engines.${engine}.hint`)}
+            </span>
+          </label>
+        ))}
       </div>
       {error && (
         <p id="org-voice-engine-err" className="text-destructive mt-2 text-xs">
@@ -389,95 +367,46 @@ function EngineChoice({ value, serverDisabled, error, onChange }: EngineChoicePr
   );
 }
 
-/** The providers as one phrase - "OpenAI, Groq or Mistral" - in the reader's language. */
-function useProviderList(providers: SpeechToTextProvider[]): string {
-  const locale = useLocale();
-  return new Intl.ListFormat(locale, { type: "disjunction" }).format(
-    providers.map((entry) => entry.name),
-  );
-}
-
-/** Why Server cannot be chosen: no provider here has a key or a profile to send with. */
-function NoCredentials({ providers }: { providers: SpeechToTextProvider[] }) {
-  const t = useTranslations("teams");
-  const names = useProviderList(providers);
-  return (
-    <div className="border-input mt-3 grid grid-cols-[auto_1fr] gap-x-2.5 gap-y-0.5 rounded-xl border border-dashed p-3 text-sm">
-      <Server className="text-muted-foreground mt-0.5 h-4 w-4" aria-hidden />
-      <strong className="font-semibold">{t("voice.noCredentialsTitle")}</strong>
-      <p className="text-muted-foreground col-start-2 text-xs">
-        {t("voice.noCredentialsBody", { providers: names })}
-      </p>
-      <Button asChild variant="outline" size="sm" className="col-start-2 mt-2 justify-self-start">
-        <Link href={ROUTES.VAULT}>
-          <Plus className="h-4 w-4" aria-hidden />
-          {t("voice.addKey")}
-        </Link>
-      </Button>
-    </div>
-  );
-}
-
 interface NotReadyProps {
   org: Organization;
-  credentialed: (provider: string) => boolean;
   providers: SpeechToTextProvider[];
 }
 
 /**
  * The stored settings ask for server dictation the chat cannot do: no pair, a
- * pair whose model the catalog has withdrawn, or a pair whose provider has lost
- * its credentials. Members then see a crossed microphone, so the person who can
- * fix it is told here.
+ * pair with no key named for it (never chosen, or deleted since), or a pair
+ * whose model the catalog has withdrawn. Members then see a crossed microphone,
+ * so the person who can fix it is told here - and both are fixed in this form.
  */
-function NotReady({ org, credentialed, providers }: NotReadyProps) {
+function NotReady({ org, providers }: NotReadyProps) {
   const t = useTranslations("teams");
-  if (org.chat_dictation !== "server") return null;
-  // Ready means a stored pair, so the provider is only read where it is one.
-  const provider = org.speech_to_text_provider as string;
+  if (org.chat_dictation !== "server" || org.chat_dictation_ready) return null;
   const model = org.speech_to_text_model;
-  let reason: string;
-  // A withdrawn model is fixed in this form; the other two need a profile.
-  let needsProfile = true;
-  if (!org.chat_dictation_ready) {
-    // No default pair is a setup, not a fault: agents that choose their own
-    // provider still dictate. Said as a note, with nothing to go and fix.
-    if (model === null) {
-      return (
-        <Alert className="mb-4">
-          <Info className="h-4 w-4" aria-hidden />
-          <AlertTitle>{t("voice.agentsOnlyTitle")}</AlertTitle>
-          <AlertDescription>{t("voice.agentsOnlyBody")}</AlertDescription>
-        </Alert>
-      );
-    }
-    // The server's readiness is a stored pair whose model the catalog still
-    // offers, so a stored model it calls unready is one withdrawn since.
-    reason = t("voice.notReadyWithdrawn", { model });
-    needsProfile = false;
-  } else if (credentialed(provider)) {
-    return null;
-  } else {
-    // Only reached with the catalog read - unread, nothing lacks credentials -
-    // and a ready pair is one the catalog offers, so the provider is in it.
-    const name = providers.find((entry) => entry.provider === provider)!.name;
-    reason = t("voice.notReadyNoCredentials", { provider: name });
+  // No default pair is a setup, not a fault: agents that choose their own
+  // provider still dictate. Said as a note, with nothing to go and fix.
+  if (model === null) {
+    return (
+      <Alert className="mb-4">
+        <Info className="h-4 w-4" aria-hidden />
+        <AlertTitle>{t("voice.agentsOnlyTitle")}</AlertTitle>
+        <AlertDescription>{t("voice.agentsOnlyBody")}</AlertDescription>
+      </Alert>
+    );
   }
+  // A stored model means a stored provider - the pair is both or neither.
+  const provider = org.speech_to_text_provider as string;
+  const name = providers.find((entry) => entry.provider === provider)?.name ?? provider;
+  // The server's readiness is a stored pair the catalog still offers with a
+  // key named beside it, so a pair with a key it calls unready was withdrawn.
+  const reason =
+    org.speech_to_text_secret_id === null
+      ? t("voice.notReadyNoKey", { provider: name })
+      : t("voice.notReadyWithdrawn", { model });
   return (
     <Alert variant="warning" className="mb-4">
       <TriangleAlert className="h-4 w-4" aria-hidden />
       <AlertTitle>{t("voice.notReadyTitle")}</AlertTitle>
-      <AlertDescription>
-        {reason}
-        {needsProfile && (
-          <>
-            {" "}
-            <Link href={ROUTES.VAULT} className="text-foreground font-medium underline">
-              {t("voice.addKey")}
-            </Link>
-          </>
-        )}
-      </AlertDescription>
+      <AlertDescription>{reason}</AlertDescription>
     </Alert>
   );
 }
@@ -486,8 +415,7 @@ interface FieldsProps {
   draft: Draft;
   providers: SpeechToTextProvider[];
   languages: string[];
-  profiles: ModelProfile[];
-  credentialed: (provider: string) => boolean;
+  hasKey: (provider: string) => boolean;
   failure: SubmitFailure;
   lengthInvalid: boolean;
   onChange: (next: Partial<Draft>) => void;
@@ -495,18 +423,14 @@ interface FieldsProps {
 
 /** Where a Server recording goes, and the longest one - only for the Server engine. */
 function ServerFields(props: FieldsProps) {
-  const { draft, providers, profiles } = props;
+  const { draft, providers } = props;
   const t = useTranslations("teams");
   const chosen = providers.find((entry) => entry.provider === draft.provider);
-  const host = chosen ? hostOf(profileFor(profiles, chosen.provider)?.base_url) : null;
   return (
     <div className="mt-4 space-y-4">
       {chosen && (
         <AudioPath
-          hops={[
-            t("voice.pathDeployment"),
-            host ? t("voice.pathHost", { provider: chosen.name, host }) : chosen.name,
-          ]}
+          hops={[t("voice.pathDeployment"), chosen.name]}
           note={t("voice.pathNote", { provider: chosen.name })}
         />
       )}
@@ -525,7 +449,7 @@ function ServerFields(props: FieldsProps) {
  * the provider a bot set to inherit is sending audio to (#1797).
  */
 function DefaultFields(props: FieldsProps) {
-  const { draft, providers, credentialed, failure, onChange } = props;
+  const { draft, providers, hasKey, failure, onChange } = props;
   const t = useTranslations("teams");
   const chosen = providers.find((entry) => entry.provider === draft.provider);
   return (
@@ -543,12 +467,13 @@ function DefaultFields(props: FieldsProps) {
             value={draft.provider ?? NO_PROVIDER}
             onValueChange={(next) => {
               if (next === NO_PROVIDER) {
-                onChange({ provider: null, model: null });
+                onChange({ provider: null, model: null, secretId: null });
                 return;
               }
-              // `next` is one of the options below, and each catalog entry has a model.
+              // `next` is one of the options below, and each catalog entry has a
+              // model. The key was the old provider's, so it goes with it.
               const entry = providers.find((candidate) => candidate.provider === next)!;
-              onChange({ provider: next, model: entry.models[0]!.id });
+              onChange({ provider: next, model: entry.models[0]!.id, secretId: null });
             }}
           >
             <SelectTrigger id="org-voice-provider">
@@ -559,17 +484,11 @@ function DefaultFields(props: FieldsProps) {
                 {t("voice.providerNone")}
               </SelectItem>
               {providers.map((entry) => {
-                const usable = credentialed(entry.provider);
-                const label = usable
+                const label = hasKey(entry.provider)
                   ? entry.name
-                  : t("voice.providerNoCredentials", { name: entry.name });
+                  : t("voice.providerNoKey", { name: entry.name });
                 return (
-                  <SelectItem
-                    key={entry.provider}
-                    value={entry.provider}
-                    disabled={!usable && entry.provider !== draft.provider}
-                    textValue={label}
-                  >
+                  <SelectItem key={entry.provider} value={entry.provider} textValue={label}>
                     {label}
                   </SelectItem>
                 );
@@ -598,20 +517,21 @@ function DefaultFields(props: FieldsProps) {
             </Select>
           </FormField>
         )}
+        {chosen && (
+          <SpeechKeyField
+            id="org-voice-key"
+            provider={chosen.provider}
+            providerName={chosen.name}
+            value={draft.secretId}
+            orgVisibleOnly
+            error={failure.fields.speech_to_text_secret_id}
+            onChange={(secretId) => onChange({ secretId })}
+          />
+        )}
         <LanguageField {...props} />
       </div>
     </div>
   );
-}
-
-/** The host a self-hosted profile points at, for the path line. */
-function hostOf(baseUrl: string | null | undefined): string | null {
-  if (!baseUrl) return null;
-  try {
-    return new URL(baseUrl).host;
-  } catch {
-    return null;
-  }
 }
 
 /**

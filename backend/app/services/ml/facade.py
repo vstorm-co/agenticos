@@ -53,7 +53,7 @@ from app.services.deployment_settings import DeploymentSettingsService
 from app.services.local_service import LocalServiceService
 from app.services.ml import audio_duration, parsing, pcm_wav, pii
 from app.services.ml.catalog import SERVICE_CATALOG, MLServiceEntry
-from app.services.speech_to_text import RecordingFormat
+from app.services.speech_to_text import DictationUnavailable, RecordingFormat
 from app.services.speech_to_text_settings import SpeechToTextSettingsService
 from app.services.transcription import Recording, TranscriptionService
 from app.services.transcription_usage import TranscriptionCall
@@ -117,6 +117,9 @@ class ServerDictation:
     """Whether a recording for one agent would reach a provider, and in what format."""
 
     available: bool
+    unavailable: DictationUnavailable | None
+    """Why not, where it is not: no pair resolves, the catalog withdrew it, or
+    no usable key is named beside it."""
     provider: str | None
     format: RecordingFormat
 
@@ -128,6 +131,7 @@ class DictationStatus:
     engine: DictationEngine
     ready: bool
     server_available: bool
+    unavailable: DictationUnavailable | None
     max_seconds: int
     provider: str | None
     format: RecordingFormat
@@ -236,16 +240,26 @@ class MLService:
         mime_type: str,
         provider: str | None,
         model: str | None,
+        secret_id: UUID | None = None,
     ) -> Transcript:
         """Turn a recording into text on the organization's own engine (FA-072).
 
+        With no provider or model named, the organization's default pair is
+        used, or the deployment's first offered one where it has none. The key
+        is named, never looked up: `secret_id`, which the caller must be able to
+        view and which must be an API key for the provider, or - with none
+        named - the organization's default key, when the provider is the one it
+        names that key for.
+
         Raises:
             BadRequestError: If the deployment offers no transcription at all,
-                the provider and model named are not a pair it offers, the
-                recording is over the size limit (`reason="too_large"`), or the
-                engine heard nothing in it (`reason="empty"`).
-            ConfigurationError: `reason="not_configured"` - the organization has
-                no usable credential for the provider.
+                the provider and model named are not a pair it offers, the key
+                named is not one the caller may use for it, the recording is
+                over the size limit (`reason="too_large"`), or the engine heard
+                nothing in it (`reason="empty"`).
+            ConfigurationError: `reason="not_configured"` - no key is named and
+                the organization has no default key for the provider, or the
+                one named is no longer usable.
             ExternalServiceError: `reason="provider_error"` or `reason="timeout"`.
                 The client's own text stays in the log, where it cannot carry a key.
         """
@@ -259,13 +273,19 @@ class MLService:
         )
         try:
             _refuse_oversized(content, ceiling=transcription.MAX_BYTES)
-            chosen = self._transcription_choice(provider, model)
-            call = replace(call, provider=chosen[0], model=chosen[1])
+            org = await organization_repo.get_by_id(self.db, ctx.organization_id)
+            chosen = self._transcription_choice(provider, model, organization=org)
+            key, shared = await self._transcription_key(
+                ctx, provider=chosen[0], secret_id=secret_id, organization=org
+            )
+            call = replace(call, provider=chosen[0], model=chosen[1], secret_id=key)
             result = await TranscriptionService(self.db).transcribe(
                 Recording(content=content, filename=filename, mime_type=mime_type),
                 organization_id=ctx.organization_id,
                 provider=chosen[0],
                 model=chosen[1],
+                secret_id=key,
+                shared_key=shared,
             )
         except AppException as exc:
             await self._record_transcription_failure(
@@ -303,7 +323,7 @@ class MLService:
 
         Raises:
             ConfigurationError: `reason="not_configured"` - the engine is not
-                `server`, no pair resolves, or the provider has no credential here.
+                `server`, no pair resolves, or no usable key is named beside it.
             BadRequestError: `reason` `empty`, `unsupported_type` or `too_large`.
             ExternalServiceError: `reason` `provider_error` or `timeout`.
         """
@@ -389,7 +409,7 @@ class MLService:
 
         Raises:
             ConfigurationError: `reason="not_configured"` - the gate is shut, no
-                pair resolves, or the provider has no credential here.
+                pair resolves, or no usable key is named beside it.
             BadRequestError: `reason` `empty`, `unsupported_type` (a type or a
                 WAV this does not accept, or a compressed length that cannot
                 be read, unless `accept_unmeasured`) or `too_large`, the latter
@@ -410,7 +430,12 @@ class MLService:
                     message="Server dictation is not set up for this agent.",
                     details={"reason": "not_configured"},
                 )
-            call = replace(call, provider=resolved.provider, model=resolved.model)
+            call = replace(
+                call,
+                provider=resolved.provider,
+                model=resolved.model,
+                secret_id=resolved.secret_id,
+            )
             if not content:
                 raise BadRequestError(
                     message="The recording is empty.", details={"reason": "empty"}
@@ -468,6 +493,8 @@ class MLService:
                 organization_id=call.organization_id,
                 provider=resolved.provider,
                 model=resolved.model,
+                secret_id=resolved.secret_id,
+                shared_key=resolved.shared_key,
                 language=resolved.language,
             )
         except AppException as exc:
@@ -518,6 +545,7 @@ class MLService:
                 and agent.status != AgentStatus.ARCHIVED.value
             ),
             server_available=server.available,
+            unavailable=server.unavailable,
             max_seconds=org.dictation_max_seconds,
             provider=server.provider,
             format=server.format,
@@ -527,11 +555,13 @@ class MLService:
         """Whether a recording for `agent` would reach a provider, whatever the gate.
 
         `available` needs a pair that resolves for this agent, the catalog still
-        offering it, and the organization holding a credential for its provider -
-        checked for existence, never opened. Configured, not proven: a revoked
-        key fails on the first recording. The provider and the format are
-        returned whether or not it is available, because a browser records in
-        the format they say.
+        offering it, and a usable key named beside the pair - checked for
+        existence, never opened (`TranscriptionService.has_key`). Configured,
+        not proven: a revoked key fails on the first recording. Where it is not
+        available, `unavailable` says which of the three is missing, so a card
+        can say "choose a key" rather than "not set up". The provider and the
+        format are returned whether or not it is available, because a browser
+        records in the format they say.
 
         The format is `wav` - 16 kHz mono 16-bit PCM - unless the deployment
         accepts compressed audio *and* the catalog says this provider takes
@@ -541,26 +571,28 @@ class MLService:
         page, so the organization is the agent's own and never a caller's.
         """
         resolved = await SpeechToTextSettingsService(self.db).for_agent(agent)
+        unavailable: DictationUnavailable | None
+        if resolved is None:
+            unavailable = "no_provider"
+        elif not speech_to_text.is_offered(resolved.provider, resolved.model):
+            unavailable = "not_offered"
+        elif not await TranscriptionService(self.db).has_key(
+            agent.organization_id,
+            provider=resolved.provider,
+            secret_id=resolved.secret_id,
+            shared_key=resolved.shared_key,
+        ):
+            unavailable = "no_key"
+        else:
+            unavailable = None
         provider = resolved.provider if resolved is not None else None
-        available = (
-            resolved is not None
-            and speech_to_text.is_offered(resolved.provider, resolved.model)
-            and resolved.provider
-            in await TranscriptionService(self.db).credentialed_providers(agent.organization_id)
-        )
         compressed = await DeploymentSettingsService(self.db).accepts_compressed_dictation()
         return ServerDictation(
-            available=available,
+            available=unavailable is None,
+            unavailable=unavailable,
             provider=provider,
             format=speech_to_text.recording_format(provider) if compressed else "wav",
         )
-
-    async def speech_to_text_credentials(self, ctx: AuthContext) -> frozenset[str]:
-        """Which transcription providers this organization holds a credential for.
-
-        Existence only, never opened - see `TranscriptionService.credentialed_providers`.
-        """
-        return await TranscriptionService(self.db).credentialed_providers(ctx.organization_id)
 
     async def detect_personal_data(
         self, ctx: AuthContext, *, text: str, categories: Sequence[str] | None
@@ -691,16 +723,26 @@ class MLService:
         return row.base_url
 
     @staticmethod
-    def _transcription_choice(provider: str | None, model: str | None) -> tuple[str, str]:
+    def _transcription_choice(
+        provider: str | None, model: str | None, *, organization: Organization | None
+    ) -> tuple[str, str]:
         """The provider and model to transcribe with, refusing a pair nobody serves.
 
-        A caller who names a provider and no model gets *that provider's* first
-        model, never the deployment's default pair. Falling back to the default
-        when half the choice was made is how a recording meant for a self-hosted
-        engine is sent to a vendor instead - the caller said which engine, and
-        the only thing they left open was which of its models.
+        Naming neither takes the organization's default pair, or the
+        deployment's first offered one where it has none. A caller who names a
+        provider and no model gets *that provider's* first model, never a
+        default pair. Falling back to the default when half the choice was made
+        is how a recording meant for one vendor is sent to another - the caller
+        said which engine, and the only thing they left open was which of its
+        models.
         """
         if provider is None and model is None:
+            if (
+                organization is not None
+                and organization.speech_to_text_provider is not None
+                and organization.speech_to_text_model is not None
+            ):
+                return organization.speech_to_text_provider, organization.speech_to_text_model
             chosen = speech_to_text.default_choice()
             if chosen is None:
                 raise refused_field(
@@ -725,6 +767,48 @@ class MLService:
                 "model", f"{provider} does not offer {model} for transcription here."
             )
         return provider, model
+
+    async def _transcription_key(
+        self,
+        ctx: AuthContext,
+        *,
+        provider: str,
+        secret_id: UUID | None,
+        organization: Organization | None,
+    ) -> tuple[UUID, bool]:
+        """The key an ML API transcription is sent with, and whether it is shared.
+
+        A key the caller names is checked as an agent's would be - they must be
+        able to view it, and it must be an API key for this provider - and is
+        theirs to spend, not shared. With none named, the organization's
+        default key is taken, but only for the provider it was named beside: a
+        key never carries over to another provider.
+
+        Raises:
+            BadRequestError: The named key is not one the caller may use here.
+            ConfigurationError: `reason="not_configured"` - nothing is named and
+                the organization has no default key for this provider.
+        """
+        if secret_id is not None:
+            problem = await SpeechToTextSettingsService(self.db).key_problem(
+                secret_id, organization_id=ctx.organization_id, provider=provider, ctx=ctx
+            )
+            if problem is not None:
+                raise refused_field("secret_id", problem)
+            return secret_id, False
+        if (
+            organization is None
+            or organization.speech_to_text_provider != provider
+            or organization.speech_to_text_secret_id is None
+        ):
+            raise ConfigurationError(
+                message=(
+                    f"No key is chosen for {provider}: name one with `secret_id`, or set "
+                    "this organization's speech-to-text default and its key."
+                ),
+                details={"reason": "not_configured", "provider": provider},
+            )
+        return organization.speech_to_text_secret_id, True
 
     async def _record(
         self,

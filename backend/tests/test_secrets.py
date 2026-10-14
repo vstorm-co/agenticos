@@ -707,77 +707,107 @@ class TestTheKeyThatAsksAProviderForItsCatalog:
 
 
 class TestTheKeyATranscriptionIsPaidWith:
-    """`transcription_key`: the vault's fallback for a voice note (#1797).
+    """`transcription_key`: the key named next to a speech-to-text pair (#1797).
 
-    Narrower than `listing_key` in the one way that matters: what leaves is a
-    paid call on everybody's behalf, so only organization-visible keys qualify.
-    The visibility filter itself is in the query, held against a real database
-    in `tests/integration/test_secret_tenant_isolation.py`.
+    It opens the one key it is given and chooses none: no lookup by provider,
+    no "first by name". A key that is gone, of another kind, for another
+    provider, or - where the platform spends it for everybody - no longer
+    organization-visible, is not usable, and nothing is opened in its place.
+    The organization filter is held against a real database in
+    `tests/integration/test_secret_tenant_isolation.py`.
     """
 
+    @staticmethod
+    def _speech_row(ctx, *, purpose="openai", visibility="org", value=None):
+        row = _row(ctx, value or ApiKeySecret(api_key="sk-named-4242"), name="Speech")
+        row.purpose = purpose
+        row.visibility = visibility
+        return row
+
     @pytest.mark.anyio
-    async def test_the_first_organization_visible_api_key_is_opened(self):
+    async def test_the_named_key_is_opened_for_its_provider(self):
         ctx = _ctx()
-        rows = [
-            _row(ctx, ApiKeySecret(api_key="sk-first-4242"), name="a"),
-            _row(ctx, ApiKeySecret(api_key="sk-second-4242"), name="b"),
-        ]
+        row = self._speech_row(ctx)
 
         with patch(
-            "app.services.organization_secret.organization_secret_repo.list_org_visible_by_purpose",
-            new=AsyncMock(return_value=rows),
-        ) as listed:
+            "app.services.organization_secret.organization_secret_repo.get",
+            new=AsyncMock(return_value=row),
+        ) as got:
             key = await OrganizationSecretService(_db()).transcription_key(
-                ctx.organization_id, "openai"
+                ctx.organization_id, row.id, provider="openai", shared=True
             )
 
-        assert key == "sk-first-4242"
-        assert listed.await_args.kwargs == {
-            "organization_id": ctx.organization_id,
-            "purposes": ["openai"],
-            "kind": "api_key",
-        }
+        assert key == "sk-named-4242"
+        assert got.await_args.args[1] == row.id
+        assert got.await_args.kwargs == {"organization_id": ctx.organization_id}
 
     @pytest.mark.anyio
-    async def test_no_such_key_is_not_an_error(self):
-        with patch(
-            "app.services.organization_secret.organization_secret_repo.list_org_visible_by_purpose",
-            new=AsyncMock(return_value=[]),
+    @pytest.mark.parametrize(
+        ("change", "shared"),
+        [
+            ({"purpose": "groq"}, False),
+            ({"kind": "azure_openai"}, False),
+            ({"visibility": "private"}, True),
+            ({"visibility": "team"}, True),
+            ("missing", False),
+        ],
+        ids=["another-provider", "another-kind", "private-shared", "team-shared", "gone"],
+    )
+    async def test_a_key_that_is_not_usable_is_not_opened(self, change, shared: bool):
+        ctx = _ctx()
+        row = self._speech_row(ctx)
+        if change == "missing":
+            row = None
+        else:
+            for field, value in change.items():
+                setattr(row, field, value)
+
+        with (
+            patch(
+                "app.services.organization_secret.organization_secret_repo.get",
+                new=AsyncMock(return_value=row),
+            ),
+            patch("app.services.organization_secret.unseal_secret") as unseal,
         ):
-            key = await OrganizationSecretService(_db()).transcription_key(uuid.uuid4(), "groq")
+            key = await OrganizationSecretService(_db()).transcription_key(
+                ctx.organization_id, uuid.uuid4(), provider="openai", shared=shared
+            )
 
         assert key is None
+        unseal.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_a_private_key_lent_by_an_agent_is_usable(self):
+        """Not shared: its publisher could view it, which publish checked."""
+        ctx = _ctx()
+        row = self._speech_row(ctx, visibility="private")
+
+        with patch(
+            "app.services.organization_secret.organization_secret_repo.get",
+            new=AsyncMock(return_value=row),
+        ):
+            found = await OrganizationSecretService(_db()).usable_transcription_key(
+                ctx.organization_id, row.id, provider="openai", shared=False
+            )
+
+        assert found is row
 
     @pytest.mark.anyio
     @pytest.mark.security
     async def test_a_key_sealed_for_another_organization_does_not_open(self):
         """Cryptographic, not a filter: the envelope is bound to its owner."""
-        foreign = _row(_ctx(), ApiKeySecret(api_key="sk-theirs-4242"))
+        foreign = self._speech_row(_ctx())
 
         with (
             patch(
-                "app.services.organization_secret.organization_secret_repo.list_org_visible_by_purpose",
-                new=AsyncMock(return_value=[foreign]),
+                "app.services.organization_secret.organization_secret_repo.get",
+                new=AsyncMock(return_value=foreign),
             ),
             pytest.raises(BadRequestError),
         ):
-            await OrganizationSecretService(_db()).transcription_key(uuid.uuid4(), "openai")
-
-    @pytest.mark.anyio
-    async def test_which_providers_have_a_key_is_answered_without_opening_one(self):
-        ctx = _ctx()
-        rows = [MagicMock(purpose="openai"), MagicMock(purpose="openai")]
-
-        with patch(
-            "app.services.organization_secret.organization_secret_repo.list_org_visible_by_purpose",
-            new=AsyncMock(return_value=rows),
-        ) as listed:
-            found = await OrganizationSecretService(_db()).transcription_key_providers(
-                ctx.organization_id, ["openai", "groq"]
+            await OrganizationSecretService(_db()).transcription_key(
+                uuid.uuid4(), foreign.id, provider="openai", shared=True
             )
-
-        assert found == frozenset({"openai"})
-        assert listed.await_args.kwargs["purposes"] == ["openai", "groq"]
 
 
 class TestTheGithubOAuthAppReader:

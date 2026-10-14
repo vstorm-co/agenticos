@@ -6,15 +6,14 @@ keep one. Four methods unseal, and each hands what it opened straight to the thi
 that had to have it: :meth:`OrganizationSecretService.resolve_for_bindings`, called
 by the runner; :meth:`OrganizationSecretService.listing_key`, which returns a
 bearer token for one outbound catalog request;
-:meth:`OrganizationSecretService.transcription_key`, which returns one for a
-transcription request; and :meth:`OrganizationSecretService.oauth_app`, which hands
+:meth:`OrganizationSecretService.transcription_key`, which returns the key a
+transcription request names; and :meth:`OrganizationSecretService.oauth_app`, which hands
 an OAuth client's secret to the provider's own token endpoint inside the connect
 flow and to nowhere else.
 """
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from typing import cast
 from uuid import UUID
 
@@ -389,60 +388,62 @@ class OrganizationSecretService:
                 return value.api_key.get_secret_value()
         return None
 
-    async def transcription_key(self, organization_id: UUID, provider: str) -> str | None:
-        """A bearer token for transcribing on one provider, from the vault alone.
+    async def usable_transcription_key(
+        self, organization_id: UUID, secret_id: UUID, *, provider: str, shared: bool
+    ) -> OrganizationSecret | None:
+        """The named key, if a recording on `provider` may be sent with it - never opened.
 
-        The last place `TranscriptionService` looks, after the organization's
-        model profiles: an organization that stores an OpenAI key in the vault
-        and has no OpenAI chat model can still transcribe on it. The plaintext
+        Usable means it is still in this organization's vault, it is an API key,
+        and its purpose is the provider - a key is never sent to a service it
+        was not issued by. A `shared` key, one the platform spends for everybody
+        (an organization's default, a bot's), must also still be
+        organization-visible: a key made private after it was chosen stops
+        paying for other people's recordings rather than going on doing so.
+
+        Existence only, so a readiness check can ask without a plaintext
+        leaving the vault.
+        """
+        row = await organization_secret_repo.get(
+            self.db, secret_id, organization_id=organization_id
+        )
+        if row is None or row.kind != SecretKind.API_KEY.value or row.purpose != provider:
+            return None
+        if shared and row.visibility != Visibility.ORG.value:
+            return None
+        return row
+
+    async def transcription_key(
+        self, organization_id: UUID, secret_id: UUID, *, provider: str, shared: bool
+    ) -> str | None:
+        """The bearer token a transcription request is sent with, for the key it names.
+
+        The key is the one the speech-to-text settings named next to the pair
+        (`speech_to_text_settings`); nothing here chooses one. The plaintext
         goes to the provider with the recording and nowhere else.
-
-        **Organization-visible keys only**, unlike :meth:`listing_key`. What
-        leaves here is a paid call on everybody's behalf - a voice note in a
-        channel, a dictation in somebody else's chat - and a member's private
-        key must not pay for those. Several keys for one provider is not an
-        error: the first by name is taken, as `listing_key` does.
 
         Takes an organization id rather than an `AuthContext`, because a channel
         bot transcribes before there is a sender to build one for.
 
         Returns:
-            The key, or `None` when the organization keeps no such key.
+            The key, or `None` when it is not usable
+            (:meth:`usable_transcription_key`) - gone, of another kind or
+            purpose, or no longer organization-visible where it has to be.
         """
-        secrets = await organization_secret_repo.list_org_visible_by_purpose(
-            self.db,
-            organization_id=organization_id,
-            purposes=[provider],
-            kind=SecretKind.API_KEY.value,
+        row = await self.usable_transcription_key(
+            organization_id, secret_id, provider=provider, shared=shared
         )
-        if not secrets:
+        if row is None:
             return None
-        first = secrets[0]
         value = unseal_secret(
-            first.sealed_secret,
+            row.sealed_secret,
             kind=SecretKind.API_KEY,
             scope=VaultScope.organization(organization_id),
-            key_version=first.key_version,
+            key_version=row.key_version,
         )
-        # The query asked for API keys and `unseal_secret` refuses an envelope
-        # whose kind is not the one named, so this is one - the cast says so.
+        # `usable_transcription_key` only answers with API keys, and
+        # `unseal_secret` refuses an envelope whose kind is not the one named,
+        # so this is one - the cast says so.
         return cast(ApiKeySecret, value).api_key.get_secret_value()
-
-    async def transcription_key_providers(
-        self, organization_id: UUID, providers: Sequence[str]
-    ) -> frozenset[str]:
-        """Which of these providers :meth:`transcription_key` would find a key for.
-
-        Existence only - nothing is unsealed - so a form can say which providers
-        are usable without a plaintext leaving the vault to answer it.
-        """
-        secrets = await organization_secret_repo.list_org_visible_by_purpose(
-            self.db,
-            organization_id=organization_id,
-            purposes=providers,
-            kind=SecretKind.API_KEY.value,
-        )
-        return frozenset(secret.purpose for secret in secrets)
 
     async def oauth_app(self, ctx: AuthContext, *, kind: SecretKind) -> OAuthAppSecret:
         """Unseal the organization's OAuth client credentials for a token exchange.

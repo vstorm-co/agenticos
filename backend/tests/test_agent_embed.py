@@ -1506,7 +1506,12 @@ def _published_agent(**overrides) -> MagicMock:
 
 
 def _server(available: bool = True, fmt: str = "wav") -> ServerDictation:
-    return ServerDictation(available=available, provider="openai", format=fmt)
+    return ServerDictation(
+        available=available,
+        unavailable=None if available else "no_key",
+        provider="openai",
+        format=fmt,
+    )
 
 
 class TestAStoredAllowVoiceIsReadAsDictation:

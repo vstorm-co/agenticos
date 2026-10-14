@@ -357,7 +357,9 @@
         "notSetUpTitle": "Dyktowanie nie jest jeszcze skonfigurowane.",
         "notSetUpBody": "Ta organizacja przepisuje mowę na własnym serwerze, a nie wybrano modelu mowy na tekst ani dla niej, ani dla tego agenta.",
         "noAgentTitle": "Najpierw wybierz agenta.",
-        "noAgentBody": "Dyktowanie jest przepisywane dla agenta, z którym toczy się ta rozmowa."
+        "noAgentBody": "Dyktowanie jest przepisywane dla agenta, z którym toczy się ta rozmowa.",
+        "noKeyTitle": "Dyktowanie wymaga klucza.",
+        "noKeyBody": "Model zamiany mowy na tekst jest wybrany, ale brakuje klucza dla jego providera."
       }
     },
     "input": {
@@ -654,10 +656,11 @@
       "transcriptionInheritsFromOrg": "{pair}, od organizacji",
       "transcriptionPair": "{provider} · {model}",
       "transcriptionEngine": "Provider",
-      "transcriptionProviderNoCredentials": "{name} (brak poświadczeń)",
       "transcriptionMistralFormat": "{platform, select, slack {Aplikacja desktopowa Slacka nagrywa klipy audio jako WebM} other {Telegram wysyła wiadomości głosowe jako Ogg/Opus}}, a Mistral nie wymienia tego formatu wśród akceptowanych. Transkrypcja może się nie udać; jeśli tak się stanie, wybierz dla tego bota innego providera.",
       "webhook": "Webhook",
-      "webhookToken": "Brak tokenu webhooka"
+      "webhookToken": "Brak tokenu webhooka",
+      "transcriptionProviderNoKey": "{name} (brak klucza)",
+      "transcriptionInheritedNoKey": "Na poziomie, z którego pochodzi ta para, nie wybrano klucza, więc wiadomości głosowe nie są transkrybowane, dopóki ktoś go nie wybierze."
     },
     "kb": {
       "search": "Szukaj",
@@ -2426,7 +2429,19 @@
     "whichOne": "Który",
     "whoCanUse": "Kto może go używać",
     "yoursAloneYouCan": "Tylko Twój. Możesz go potem udostępnić wskazanym osobom.",
-    "zendeskApiToken": "Token API Zendesk"
+    "zendeskApiToken": "Token API Zendesk",
+    "speechKey": {
+      "label": "Klucz",
+      "choose": "Wybierz klucz",
+      "option": "{name} (…{hint})",
+      "orgHint": "Klucz API tego providera widoczny dla całej organizacji. Jest wydawany w imieniu wszystkich, więc nie można tu wybrać klucza widocznego tylko dla części osób.",
+      "agentHint": "Klucz API tego providera, który widzisz. Publikacja udostępnia go każdemu, kto może uruchomić tego agenta.",
+      "stale": "Wybrany klucz został usunięty albo nie może już być tu użyty. Wybierz klucz.",
+      "none": "W vaulcie nie ma jeszcze kluczy {provider}. Dodaj klucz poniżej.",
+      "noneOrg": "W vaulcie nie ma jeszcze kluczy {provider} widocznych dla całej organizacji. Dodaj klucz poniżej albo udostępnij istniejący całej organizacji.",
+      "cannotList": "Nie możesz wyświetlić kluczy z vaulta, więc nie wybierzesz tu klucza. Poproś osobę, która zarządza połączeniami.",
+      "suggestedName": "{provider} – zamiana mowy na tekst"
+    }
   },
   "triggers": {
     "cadence": {
@@ -3188,8 +3203,7 @@
     "voiceOrgPair": "{provider} · {model}",
     "voiceOrgNoPair": "Organizacja nie ma ustawionego providera, więc nie ma czego dziedziczyć.",
     "voiceProvider": "Provider",
-    "voiceProviderHint": "Wysyłane z poświadczeniami organizacji dla tego providera: profilem modelu albo kluczem z vaulta.",
-    "voiceProviderNoCredentials": "{name} (brak poświadczeń)",
+    "voiceProviderHint": "Z katalogu zamiany mowy na tekst. Wysyłane z kluczem wybranym poniżej.",
     "voiceModel": "Model",
     "voiceLanguage": "Język",
     "voiceLanguageHint": "Stały język jest dokładniejszy niż automatyczne wykrywanie.",
@@ -3208,7 +3222,8 @@
     "embedDictationServerHint": "Nagrywane na stronie i transkrybowane przez providera mowy na tekst tej organizacji, na jej koszt. Dźwięk nie jest przechowywany.",
     "embedDictationServerUnavailable": "Serwer wymaga providera mowy na tekst z poświadczeniem, wybranego na karcie Głos organizacji albo tego agenta.",
     "embedDictationServerDrift": "Dla tego agenta nie odpowiada teraz żaden provider mowy na tekst, więc odwiedzający nie widzą mikrofonu, dopóki któryś nie zacznie.",
-    "embedDictationServerUnchecked": "Nie można teraz sprawdzić opcji Serwer: gotowość mowy na tekst dla tego agenta się nie wczytała. Odśwież stronę, aby spróbować ponownie."
+    "embedDictationServerUnchecked": "Nie można teraz sprawdzić opcji Serwer: gotowość mowy na tekst dla tego agenta się nie wczytała. Odśwież stronę, aby spróbować ponownie.",
+    "voiceProviderNoKey": "{name} (brak klucza)"
   },
   "steps": {
     "skills-gallery": {
@@ -3507,20 +3522,15 @@
           "hint": "Dźwięk przechodzi przez to wdrożenie do wybranego providera. Działa w każdej przeglądarce."
         }
       },
-      "noCredentialsTitle": "Serwer wymaga poświadczeń providera",
-      "noCredentialsBody": "Transkrypcja na serwerze korzysta z własnych poświadczeń organizacji: klucza w vaulcie widocznego dla całej organizacji albo profilu modelu. Dodaj go dla {providers}; profil bez klucza wskazujący na serwer self-hosted też się liczy.",
-      "addKey": "Dodaj klucz w vaulcie",
       "defaultTitle": "Domyślny provider",
       "defaultDescription": "Używany przez dyktowanie w czacie i wiadomości głosowe wysyłane do botów kanałowych, chyba że agent albo bot wybierze własny.",
       "providerNone": "Brak",
       "notReadyTitle": "Dyktowanie jest niedostępne w czacie",
       "agentsOnlyTitle": "Dyktować mogą tylko agenty z własnym providerem",
       "agentsOnlyBody": "Nie wybrano domyślnego providera, więc dyktowanie w czacie działa tylko dla agentów, które mają własnego providera mowy na tekst w karcie „Głos”. Pozostałe agenty pokazują przekreślony mikrofon. Wybierz tu domyślnego, aby włączyć dyktowanie dla wszystkich agentów.",
-      "notReadyNoCredentials": "Ta organizacja nie ma poświadczeń dla providera {provider}. Członkowie widzą przekreślony mikrofon, dopóki ich nie dodasz, nie wybierzesz innego providera albo nie zmienisz silnika.",
       "notReadyWithdrawn": "Wybrany model, {model}, nie jest już oferowany. Członkowie widzą przekreślony mikrofon, dopóki nie wybierzesz innego modelu albo nie zmienisz silnika.",
       "provider": "Provider",
-      "providerHint": "Używa poświadczeń tej organizacji dla wybranego providera; własny endpoint zadziała, jeśli przyjmuje nazwę modelu z katalogu.",
-      "providerNoCredentials": "{name} (brak poświadczeń)",
+      "providerHint": "Z katalogu zamiany mowy na tekst. Wysyłane z kluczem wybranym poniżej.",
       "model": "Model",
       "modelHint": "Modele providera {provider} z katalogu mowy na tekst.",
       "language": "Język",
@@ -3536,8 +3546,7 @@
       "minutes": "minuty",
       "pathBrowser": "Przeglądarka",
       "pathDeployment": "To wdrożenie",
-      "pathHost": "{provider} · {host}",
-      "pathNote": "Wysyłane z poświadczeniami tej organizacji dla providera {provider}. Dźwięk jest usuwany po transkrypcji; zostaje tylko tekst.",
+      "pathNote": "Wysyłane z kluczem {provider} organizacji wybranym poniżej. Dźwięk jest usuwany po transkrypcji; zostaje tylko tekst.",
       "pathVendor": "Usługa rozpoznawania mowy producenta przeglądarki",
       "browserNote": "Provider organizacji nie jest używany. Firefox nie pokazuje mikrofonu.",
       "cancel": "Anuluj",
@@ -3545,7 +3554,9 @@
       "saved": "Zapisano ustawienia głosu",
       "conversationsTitle": "Rozmowy głosowe",
       "conversationsDescription": "Mów do agenta i słuchaj, jak odpowiada.",
-      "comingSoon": "Wkrótce"
+      "comingSoon": "Wkrótce",
+      "providerNoKey": "{name} (brak klucza)",
+      "notReadyNoKey": "Nie wybrano klucza dla {provider}. Członkowie widzą przekreślony mikrofon, dopóki nie wybierzesz klucza poniżej albo nie zmienisz silnika."
     }
   },
   "voiceGlow": {

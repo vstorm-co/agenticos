@@ -3497,8 +3497,8 @@ class TestDictationReadinessFollowsTheAgent:
     """`GET /agents/{id}/dictation` against real rows (#1797).
 
     Nothing stubbed but the auth context: the grant decides who may ask, the
-    agent's *published* override decides the provider, and an
-    organization-visible vault key is what makes it ready. This is the agent
+    agent's *published* override decides the provider, and the key named beside
+    it is what makes it ready. This is the agent
     override making server dictation work in an organization with no provider
     of its own.
     """
@@ -3515,32 +3515,37 @@ class TestDictationReadinessFollowsTheAgent:
             yield bind
         app.dependency_overrides.clear()
 
-    async def _set_up(self, db, name: str) -> tuple[Tenant, Agent]:
+    async def _set_up(
+        self, db, name: str, *, visibility: Visibility = Visibility.ORG
+    ) -> tuple[Tenant, Agent, uuid.UUID]:
+        """An organization with no provider of its own, and an agent publishing
+        a Groq override with a Groq key named beside it."""
         tenant = await _tenant(db, name=name)
         tenant.organization.chat_dictation = "server"
         await _default_model(db, tenant)
+        key = await OrganizationSecretService(db).create(
+            tenant.ctx,
+            name="Team Groq",
+            value=ApiKeySecret(api_key="gsk-team-1234"),
+            purpose="groq",
+            visibility=visibility,
+        )
         agent = await _published_agent(
             db,
             tenant,
             spec=AgentSpec(
                 name="Polish desk",
                 speech_to_text=SpeechToTextSpec(
-                    provider="groq", model="whisper-large-v3", language="pl"
+                    provider="groq", model="whisper-large-v3", language="pl", secret_id=key.id
                 ),
             ),
         )
-        return tenant, agent
+        return tenant, agent, key.id
 
     async def test_a_viewer_with_a_use_grant_is_ready_on_the_agents_provider(
         self, db, as_caller
     ) -> None:
-        tenant, agent = await self._set_up(db, "Spoken")
-        await OrganizationSecretService(db).create(
-            tenant.ctx,
-            name="Team Groq",
-            value=ApiKeySecret(api_key="gsk-team-1234"),
-            purpose="groq",
-        )
+        tenant, agent, _ = await self._set_up(db, "Spoken")
         viewer = await _join(db, tenant, OrgRoleName.VIEWER)
         await SharingService(db).share(
             tenant.ctx,
@@ -3557,6 +3562,7 @@ class TestDictationReadinessFollowsTheAgent:
             "engine": "server",
             "ready": True,
             "server_available": True,
+            "unavailable": None,
             "max_seconds": 300,
             "provider": "groq",
             # Raw PCM until the deployment accepts compressed audio.
@@ -3568,7 +3574,7 @@ class TestDictationReadinessFollowsTheAgent:
     ) -> None:
         """The format is the deployment's setting and the catalog's together:
         Groq takes WebM, so once the deployment accepts it the browser records it."""
-        tenant, agent = await self._set_up(db, "Compressed")
+        tenant, agent, _ = await self._set_up(db, "Compressed")
         await deployment_settings_repo.upsert(db, update_data={"dictation_compressed_audio": True})
 
         response = await as_caller(tenant.ctx).get(
@@ -3577,28 +3583,36 @@ class TestDictationReadinessFollowsTheAgent:
 
         assert response.json()["format"] == "webm"
 
-    async def test_a_private_key_does_not_make_the_agent_ready(self, db, as_caller) -> None:
-        """A member's own Groq key never pays for somebody else's dictation."""
-        tenant, agent = await self._set_up(db, "Private")
-        await OrganizationSecretService(db).create(
-            tenant.ctx,
-            name="Mine",
-            value=ApiKeySecret(api_key="gsk-mine-1234"),
-            purpose="groq",
-            visibility=Visibility.PRIVATE,
+    async def test_a_private_key_its_publisher_lent_makes_the_agent_ready(
+        self, db, as_caller
+    ) -> None:
+        """An agent's key follows the lending rule, not the organization's: the
+        publisher could view it, so the agent may spend it for whoever runs it."""
+        tenant, agent, _ = await self._set_up(db, "Lent", visibility=Visibility.PRIVATE)
+
+        response = await as_caller(tenant.ctx).get(
+            f"{settings.API_V1_STR}/agents/{agent.id}/dictation"
         )
+
+        assert response.json()["ready"] is True
+
+    async def test_a_deleted_key_leaves_the_agent_asking_for_one(self, db, as_caller) -> None:
+        """The spec still names it, but nothing is opened in its place."""
+        tenant, agent, key_id = await self._set_up(db, "Deleted")
+        await OrganizationSecretService(db).delete(tenant.ctx, key_id)
 
         response = await as_caller(tenant.ctx).get(
             f"{settings.API_V1_STR}/agents/{agent.id}/dictation"
         )
 
         assert response.json()["ready"] is False
+        assert response.json()["unavailable"] == "no_key"
         assert response.json()["provider"] == "groq"
 
     @pytest.mark.security
     async def test_another_organizations_agent_is_not_found(self, db, as_caller) -> None:
         ours = await _tenant(db, name="Ours")
-        _, agent = await self._set_up(db, "Theirs")
+        _, agent, _ = await self._set_up(db, "Theirs")
 
         response = await as_caller(ours.ctx).get(
             f"{settings.API_V1_STR}/agents/{agent.id}/dictation"

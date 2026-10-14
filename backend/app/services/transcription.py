@@ -1,20 +1,19 @@
-"""Turning a voice note into text, on the organization's own credential.
+"""Turning a voice note into text, on the key named for it.
 
 A voice message is the one attachment an agent cannot be handed as a file: a
 model reads a PDF and looks at a screenshot, and an `audio/ogg` blob is a byte
 count. So a bot that receives one has three options - ignore it, tell the sender
 it cannot listen, or transcribe it. This is the third.
 
-**Where the credential comes from, and why not a new one.** Transcription happens
-to a voice note before an agent is involved, so there is no spec to seal a key
-into. It runs instead on the model profile the organization already configured for
-that provider, resolved through `ModelProfileService.resolve_credential` - the one
-place that knows how the vault and the legacy credential store join. Failing a
-profile, an organization-visible vault key stored for that provider will do
-(#1797): an organization that keeps an OpenAI key and runs no OpenAI chat model
-should not have to invent one to transcribe. Choosing "OpenAI" for transcription
-therefore needs nothing new configured, and the deployment's own environment key
-is never used.
+**Which key, and why it is never chosen here.** The key is named next to the
+pair, wherever the pair was chosen - the organization's default, an agent's
+override, a channel bot's own - and arrives here as a `secret_id`
+(`speech_to_text_settings`). This only opens it: no model profile is scanned
+and no vault key is looked up by provider, because with two keys for one
+provider either lookup is a guess about who pays. A key that is gone, is for
+another provider, or - where the platform spends it for everybody - is no
+longer organization-visible, is refused as `not_configured`. The deployment's
+own environment key is never used.
 
 **One API shape.** Every catalogued provider serves OpenAI's
 `POST /audio/transcriptions`: multipart in, `{"text": ...}` out. That is what
@@ -40,13 +39,8 @@ from uuid import UUID
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.model_resolver import get_provider
 from app.core.exceptions import BadRequestError, ConfigurationError, ExternalServiceError
-from app.core.secret_kinds import ApiKeySecret, NoSecret
-from app.db.models.credential import ModelProfile
-from app.repositories import credential as credential_repo
 from app.services import speech_to_text
-from app.services.model_profile import ModelProfileService
 from app.services.organization_secret import OrganizationSecretService
 
 logger = logging.getLogger(__name__)
@@ -169,16 +163,21 @@ class TranscriptionService:
         organization_id: UUID,
         provider: str,
         model: str,
+        secret_id: UUID | None,
+        shared_key: bool,
         language: str | None = None,
     ) -> TranscriptionResult:
         """The words in this recording, and its length where the provider states it.
 
-        `language` is an ISO-639-1 code to pin the recording to; `None` leaves the
-        engine to detect it.
+        `secret_id` is the vault key named next to the pair, and `shared_key`
+        whether it is spent on everybody's behalf (`ResolvedSpeechToText.shared_key`),
+        which then requires it to be organization-visible. `language` is an
+        ISO-639-1 code to pin the recording to; `None` leaves the engine to
+        detect it.
 
         Raises:
-            ConfigurationError: `reason="not_configured"` - the pair is not offered, or
-                this organization has no usable profile for the provider.
+            ConfigurationError: `reason="not_configured"` - the pair is not offered,
+                no key is named, or the named key is not usable for the provider.
             BadRequestError: `reason="too_large"` over `MAX_BYTES`, or `reason="empty"`
                 when the engine heard nothing.
             ExternalServiceError: `reason="timeout"` or `reason="provider_error"`. The
@@ -205,17 +204,22 @@ class TranscriptionService:
                 details={"reason": "too_large", "limit_bytes": MAX_BYTES, **context},
             )
 
-        endpoint = await self._credential(organization_id, provider)
-        if endpoint is None:
-            logger.warning("No %s credential in this organization to transcribe with", provider)
+        api_key = (
+            None
+            if secret_id is None
+            else await OrganizationSecretService(self.db).transcription_key(
+                organization_id, secret_id, provider=provider, shared=shared_key
+            )
+        )
+        if api_key is None:
+            logger.warning("No usable %s key is named to transcribe with", provider)
             raise ConfigurationError(
-                message=f"This organization has no {provider} credentials to transcribe with.",
+                message=f"No usable {provider} key is chosen for transcription here.",
                 details={"reason": "not_configured", **context},
             )
-        api_key, base_url = endpoint
         return await self._post(
             recording,
-            base_url=base_url or entry.base_url,
+            base_url=entry.base_url,
             api_key=api_key,
             model=model,
             language=language,
@@ -223,95 +227,28 @@ class TranscriptionService:
             context=context,
         )
 
-    async def _credential(
-        self, organization_id: UUID, provider: str
-    ) -> tuple[str | None, str | None] | None:
-        """`(api_key, base_url)` for one provider, or `None` when there is none.
+    async def has_key(
+        self, organization_id: UUID, *, provider: str, secret_id: UUID | None, shared_key: bool
+    ) -> bool:
+        """Whether `transcribe` would find the named key usable - read, never opened.
 
-        A keyed profile first, in label order, then a keyless one, and an
-        organization-visible vault key for the provider last - sent to the
-        catalog's address, since a vault key carries none of its own. That
-        last fallback reads organization-visible keys only, because the call is
-        paid on everybody's behalf (`OrganizationSecretService.transcription_key`);
-        a model profile is taken as configured, so one pointing at a member's
-        private key transcribes on it, as a chat run on that profile would
-        spend it. Keyed first is what keeps a bot that
-        transcribes on OpenAI today on OpenAI once a keyless `openai` profile - a
-        vLLM or LiteLLM proxy for chat, with no `/audio/transcriptions` - is added
-        and happens to sort earlier. A keyless profile counts only with an address
-        of its own, and returns `api_key=None`: the request then carries no
-        `Authorization` header at all, and never the deployment's environment key.
-
-        A profile whose secret was deleted is skipped rather than fatal, because
-        the next one may be fine and refusing on the first would make
-        transcription depend on row order.
+        So a readiness check can say "choose a key" without a plaintext leaving
+        the vault. "Usable", not "works": a key revoked at the provider is still
+        found here, and is reported when a recording arrives as `provider_error`.
         """
-        profiles = [
-            profile
-            for profile in await credential_repo.list_profiles(
-                self.db, organization_id=organization_id
-            )
-            if profile.provider == provider
-        ]
-        service = ModelProfileService(self.db)
-        keyless: tuple[str | None, str | None] | None = None
-        for profile in profiles:
-            try:
-                resolved = await service.resolve_credential(organization_id, profile)
-            except Exception:
-                logger.info(
-                    "Skipping model profile %s while looking for a %s key",
-                    profile.id,
-                    provider,
-                    exc_info=True,
-                )
-                continue
-            if isinstance(resolved.secret, ApiKeySecret):
-                return resolved.secret.api_key.get_secret_value(), resolved.base_url
-            if keyless is None and isinstance(resolved.secret, NoSecret) and resolved.base_url:
-                keyless = (None, resolved.base_url)
-        if keyless is not None:
-            return keyless
-        key = await OrganizationSecretService(self.db).transcription_key(organization_id, provider)
-        return None if key is None else (key, None)
-
-    async def credentialed_providers(self, organization_id: UUID) -> frozenset[str]:
-        """Which catalogued providers this organization could transcribe on.
-
-        The same three sources `_credential` tries, read for existence and never
-        unsealed: a profile with a key, a keyless profile with an address, or an
-        organization-visible vault key. So a picker can grey out a provider
-        without a plaintext leaving the vault, and without the reader holding
-        `secrets:view` - a Builder choosing an agent's engine may not.
-
-        "Has one", not "it works": a key revoked at the provider is still found
-        here, and is reported when a recording arrives as `provider_error`.
-        """
-        offered = {entry.provider for entry in speech_to_text.providers()}
-        found = {
-            profile.provider
-            for profile in await credential_repo.list_profiles(
-                self.db, organization_id=organization_id
-            )
-            if profile.provider in offered
-            and (profile.secret_id is not None or self._keyless_with_address(profile))
-        }
-        found |= await OrganizationSecretService(self.db).transcription_key_providers(
-            organization_id, sorted(offered - found)
+        if secret_id is None:
+            return False
+        row = await OrganizationSecretService(self.db).usable_transcription_key(
+            organization_id, secret_id, provider=provider, shared=shared_key
         )
-        return frozenset(found)
-
-    @staticmethod
-    def _keyless_with_address(profile: ModelProfile) -> bool:
-        """A self-hosted profile `resolve_credential` would answer with no key."""
-        return get_provider(profile.provider).keyless and bool(profile.base_url)
+        return row is not None
 
     @staticmethod
     async def _post(
         recording: Recording,
         *,
         base_url: str,
-        api_key: str | None,
+        api_key: str,
         model: str,
         language: str | None,
         response_format: str | None,
@@ -323,7 +260,7 @@ class TranscriptionService:
         chat or a composer as part of an answer, and a provider client puts the
         failing request URL - key in the query string - in its message.
         """
-        headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+        headers = {"Authorization": f"Bearer {api_key}"}
         data = {"model": model}
         if language is not None:
             data["language"] = language

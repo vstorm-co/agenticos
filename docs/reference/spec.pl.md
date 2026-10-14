@@ -1,5 +1,5 @@
 ---
-source_sha: "be354afc92ae"
+source_sha: "02ec08e2ff51"
 ---
 
 # Spec agenta { #the-agent-spec }
@@ -45,8 +45,9 @@ konfiguracji samej [capability `subagents`](capabilities.md#delegation).
 
 ## Mowa na tekst { #speech-to-text }
 
-Provider, model i język, którymi transkrybowane są dyktowanie do agenta i
+Provider, model, klucz i język, którymi transkrybowane są dyktowanie do agenta i
 dziedziczone notatki głosowe z kanałów, tam gdzie różnią się od tych organizacji.
+Klucz to identyfikator sekretu z vaultu, nigdy sam klucz.
 [Usługi ML](../ml-services.md#which-engine-a-recording-reaches) opisują
 kolejność, w jakiej się rozwiązują. Speca z tym blokiem nie da się zaimportować
 do wdrożenia starszego niż ten blok: jego spec odrzuca pola, których nie zna.

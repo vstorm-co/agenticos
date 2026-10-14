@@ -118,45 +118,40 @@ ingestion.
 
 ### Speech to text
 
-`POST /api/v1/ml/audio/transcriptions` transcribes a recording on the
-organization's own credential. `provider` and `model` name what to use; omitting
-**both** takes the deployment's first offered pair, and naming a provider without
-a model takes that provider's first model. What it never does is fall back to the
-default provider when a provider was named — that is how a recording meant for a
-self-hosted engine ends up at a vendor.
+`POST /api/v1/ml/audio/transcriptions` transcribes a recording on a key from the
+organization's vault. `provider` and `model` name what to use; omitting
+**both** takes the organization's speech-to-text default from the
+[Voice card](console.md#the-voice-card), or the deployment's first offered pair
+where it has none, and naming a provider without a model takes that provider's
+first model. What it never does is fall back to the default provider when a
+provider was named.
 
 A recording is also held to the transcription client's own 25 MB ceiling even
 where `ML_MAX_UPLOAD_SIZE_MB` is higher, so an over-large recording is refused as
 being over-large rather than reaching the engine and coming back as a 503 about a
-credential.
+key.
 
-The engine is whichever endpoint the organization's model profile for that
-provider names. That is the answer to a deployment that may send no audio to a
-vendor: point the profile at a self-hosted server speaking the same API and the
-endpoint here is unchanged. An organization with no usable credential is
-refused, saying so — nothing is assumed to exist that an operator has not
-configured.
+**The key is named, never looked up.** `secret_id` names the vault key to send
+the recording with: an API key whose purpose is the provider, which the caller
+can view. Omit it and the organization's default key is used, but only for the
+provider that key was chosen for; any other provider without a `secret_id` is
+refused as `not_configured`. A key named for another provider, of another kind,
+or one the caller cannot see is refused on the `secret_id` field. The
+deployment's own `OPENAI_API_KEY` is never used.
 
-Which credential, when the organization has several for one provider: **a
-keyed profile first**, the first in label order; then a keyless one, only if it
-names an endpoint of its own; and, failing both, **an API key stored in the
-vault** with that provider as its purpose, the first by name, sent to the
-catalog's address. A keyless request carries no `Authorization` header, and
-never the deployment's `OPENAI_API_KEY`. Keyed first is what keeps a channel bot
-transcribing on OpenAI after somebody adds a keyless `openai` profile for a chat
-proxy that serves no `/audio/transcriptions`.
+Every level that sets up speech to text works the same way: the model is a pick
+from the speech-to-text catalog, and the key is a vault secret named beside it.
+No model profile is read - profiles are what a text run uses - and nothing picks
+a key because it happens to be the only one for a provider. With two OpenAI keys
+in the vault, the one named is the one that pays.
 
-The vault fallback reads only keys **visible to the whole organization**: a
-member's private key in the vault is not picked up for a recording, because
-what it would pay for is everybody's - a voice note in a channel, a dictation
-in somebody else's chat. So an organization that keeps an OpenAI key in the
-vault and runs no OpenAI chat model transcribes on it without a model profile
-it does not need.
+!!! note "No self-hosted speech-to-text server yet"
 
-A model profile is used as configured, so a profile that points at a private
-key transcribes on it, as a chat run on that profile spends it. The same order serves this endpoint, dictation and channel voice notes. The
-vault's list of the agents using a key does not include this use, because no
-agent binds the key.
+    Every catalogued provider is reached at its own address, with a key. A
+    keyless server on your own network - a Whisper behind an OpenAI-compatible
+    API - is not reachable today. It is a planned follow-up: a
+    [local service](configuration.md) of a new kind, `speech`, named in place of
+    a key, as collections already name an embedding or an OCR server.
 
 A refusal says why in `details.reason`, here and on
 [dictation](#dictation-in-chat) alike. The provider's own error text is logged
@@ -165,7 +160,7 @@ all, in its message.
 
 | `reason` | Status | What happened |
 |---|---|---|
-| `not_configured` | 503 | No usable credential for the provider; for dictation, also server dictation not set up |
+| `not_configured` | 503 | No usable key is named for the provider - none chosen, deleted, or no longer one that level may use; for dictation, also server dictation not set up |
 | `empty` | 400 | The engine heard no speech, or the recording has no bytes |
 | `unsupported_type` | 400 | Dictation only: the recording is not 16 kHz mono 16-bit PCM WAV - or, where the deployment accepts compressed audio, WebM, Ogg or MP4 - or, on a hosted page or a widget, a compressed recording's length cannot be read. `details.accepted` lists the types accepted |
 | `too_large` | 400 | Over 25 MB, or over the organization's dictation cap in bytes or in measured length; `details.limit_seconds` names the limit |
@@ -195,10 +190,15 @@ organization's; the agent can only change which provider, model and language.
 
 `GET /api/v1/agents/{agent_id}/dictation`, with the same access, says whether
 the microphone will work before anybody records: `engine`, `max_seconds`,
-`provider`, `format`, `ready` and `server_available`. `server_available` needs a
-pair that resolves for this agent, the catalog still offering it, and a
-credential for its provider in the organization - checked for existence, never
-opened; `ready` is that, the `server` engine and the agent not being archived. The embed form reads
+`provider`, `format`, `ready`, `server_available` and `unavailable`.
+`server_available` needs a pair that resolves for this agent, the catalog still
+offering it, and a usable key named beside the pair - checked for existence,
+never opened; `ready` is that, the `server` engine and the agent not being
+archived.
+
+Where it is false, `unavailable` says which half is missing:
+`no_provider` (no level names a pair), `not_offered` (the catalog withdrew it) or
+`no_key` (no usable key is named - choose one). The embed form reads
 `server_available`, because a [hosted page or a widget](channels.md#dictation-on-a-widget-or-a-hosted-page)
 is not gated by the `/chat` engine.
 
@@ -276,11 +276,29 @@ Three places can name a speech-to-text engine: the organization's
 
 | What | Comes from the first that sets it |
 |---|---|
-| Provider and model, as a pair | The bot, then the agent, then the organization |
+| Provider, model and key, together | The bot, then the agent, then the organization |
 | Language | The agent, then the organization, then the engine detects it |
 
+**The key travels with its pair.** Each level names a key next to its own
+provider and model, and the three resolve as one: an agent that sets its own
+pair sends it with its own key, and never with the organization's. So a key is
+never sent to a provider it was not issued by. Which keys a level may name:
+
+| Level | The key must be |
+|---|---|
+| The organization's default | An API key for the provider, **visible to the whole organization** - the platform spends it for everybody. Checked when the Voice card is saved, and again per recording |
+| A channel bot's own pair | The same: organization-visible, because a bot's voice notes are paid for on behalf of whoever writes to it |
+| An agent's override | An API key for the provider that the publisher can view, the rule every key an agent spec names follows. Checked at publish |
+
+A key made private after it was chosen at the organization or on a bot stops
+being used, rather than going on paying for other people's recordings. A
+deleted key empties the reference at those two levels, and an agent's spec
+keeps the id until it is republished with another: either way the Voice card
+and the readiness check say "choose a key", and recordings are refused as
+`not_configured` until somebody does.
+
 So a Polish agent in an organization set up for English pins `language: pl` and
-keeps the organization's provider. A bot has no language of its own; the
+keeps the organization's provider and key. A bot has no language of its own; the
 agent's or the organization's applies to its own pair too. Nothing resolving
 means nothing is transcribed: dictation answers `not_configured`, and a bot says
 it cannot listen.
@@ -360,9 +378,12 @@ honest unit count. Transcription is not counted against an agent's
 Speech to text is reached three ways, and each leaves the same row: the API
 (`surface: api`), [dictation](#dictation-in-chat) (`chat`) and a
 [channel bot's voice messages](channels.md#what-every-channel-shares)
-(`channel`). The row adds the `provider` and `model`, the `agent_id` it was for -
-the dictated-to agent, or the agent the bot serves - the `channel_bot_id`, and
-`audio_ms`, the recording's length. A voice message's `requested_by` is the
+(`channel`). The row adds the `provider` and `model`, the `secret_id` of the
+vault key it was sent with - as a run records its key, so "which key costs most"
+has one answer - the `agent_id` it was for - the dictated-to agent, or the agent
+the bot serves - the `channel_bot_id`, and `audio_ms`, the recording's length.
+
+Deleting the key leaves the row and empties its `secret_id`. A voice message's `requested_by` is the
 person the sender is linked to while that person is still a member of the
 organization, or nobody. Only a recording handed to the
 provider is recorded; a bot switched off, or one with no engine to inherit,

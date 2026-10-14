@@ -968,6 +968,34 @@ class TestOrganizationSpeechConstraints:
 
         assert (org.chat_dictation, org.speech_to_text_model) == ("server", "gpt-4o-transcribe")
 
+    async def test_a_key_with_no_pair_is_refused(self, db):
+        """A key left behind by a cleared pair would ride along to the next provider."""
+        org = await _org(db)
+        secret = _secret(org.id)
+        db.add(secret)
+        await db.flush()
+        org.speech_to_text_secret_id = secret.id
+
+        with pytest.raises(IntegrityError):
+            await db.flush()
+
+    async def test_deleting_the_key_leaves_the_pair_asking_for_one(self, db):
+        """SET NULL: the organization keeps its pair and reads as "choose a key"."""
+        org = await _org(db)
+        secret = _secret(org.id)
+        db.add(secret)
+        await db.flush()
+        org.speech_to_text_provider = "openai"
+        org.speech_to_text_model = "whisper-1"
+        org.speech_to_text_secret_id = secret.id
+        await db.flush()
+
+        await db.delete(secret)
+        await db.flush()
+        await db.refresh(org)
+
+        assert (org.speech_to_text_provider, org.speech_to_text_secret_id) == ("openai", None)
+
 
 class TestChannelBotSpeechConstraints:
     """A bot's transcription switch and pair (#1797)."""
@@ -987,6 +1015,34 @@ class TestChannelBotSpeechConstraints:
 
         with pytest.raises(IntegrityError):
             await db.flush()
+
+    async def test_a_key_without_a_pair_of_the_bots_own_is_refused(self, db):
+        org = await _org(db)
+        bot = await _bot(db, org)
+        secret = _secret(org.id)
+        db.add(secret)
+        await db.flush()
+        bot.speech_to_text_secret_id = secret.id
+
+        with pytest.raises(IntegrityError):
+            await db.flush()
+
+    async def test_deleting_the_key_keeps_the_bot_and_its_pair(self, db):
+        org = await _org(db)
+        bot = await _bot(db, org)
+        secret = _secret(org.id)
+        db.add(secret)
+        await db.flush()
+        bot.speech_to_text_provider = "openai"
+        bot.speech_to_text_model = "whisper-1"
+        bot.speech_to_text_secret_id = secret.id
+        await db.flush()
+
+        await db.delete(secret)
+        await db.flush()
+        await db.refresh(bot)
+
+        assert (bot.speech_to_text_provider, bot.speech_to_text_secret_id) == ("openai", None)
 
 
 class TestIngestionSpend:

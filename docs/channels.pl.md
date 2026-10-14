@@ -1,5 +1,5 @@
 ---
-source_sha: "f1f3406951be"
+source_sha: "1d9bfa9904d4"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -721,9 +721,10 @@ rozpoznawania mowy, więc audio trafia do dostawcy przeglądarki — Google dla
 Chrome'a, Apple dla Safari — i nic nie dociera do tego deploymentu.
 Przeglądarce bez rozpoznawania mowy, w tym Firefoksowi, nie jest pokazywany
 żaden mikrofon. **`server`** nagrywa na stronie i wysyła audio tutaj, gdzie
-transkrybuje je provider speech-to-text organizacji: nadpisanie agenta, jeśli
-je ma, a w przeciwnym razie domyślny provider organizacji — to samo
-rozwiązywanie co w [dyktowaniu w czacie](ml-services.md#dictation-in-chat).
+transkrybuje je provider speech-to-text organizacji: nadpisanie agenta i jego
+klucz, jeśli je ma, a w przeciwnym razie domyślny provider organizacji i jej
+klucz — to samo rozwiązywanie co w
+[dyktowaniu w czacie](ml-services.md#dictation-in-chat).
 
 Silnik organizacji dla `/chat` nie ma nic do powiedzenia na żadnej z tych
 powierzchni. Organizacja, która trzyma swoich członków na rozpoznawaniu mowy
@@ -731,7 +732,7 @@ w przeglądarce, nadal może dać publicznej stronie dyktowanie `server`, i na
 odwrót.
 
 **Włączenie `server` jest odrzucane**, dopóki dla agenta nie rozwiązuje się
-żaden provider z poświadczeniem, a formularz embeda pokazuje ten wybór jako
+żaden provider z użytecznym kluczem, a formularz embeda pokazuje ten wybór jako
 wyłączony, z powodem. Sprawdzane jest tylko samo przełączenie, więc stronie,
 której klucz usunięto później, nadal można zmienić nazwę. Dopóki nic się nie
 rozwiązuje, jej publiczna konfiguracja mówi `off`, a odwiedzający nie widzą
@@ -1317,21 +1318,27 @@ może się między nimi rozjechać.
     organizacji, oraz język agenta, potem organizacji
     ([kolejność](ml-services.md#which-engine-a-recording-reaches)). **Choose**
     wskazuje własną parę bota — providera i jeden z jego modeli,
-    z `app/core/catalog/speech_to_text_models.json`. **Off** nigdy nie
-    transkrybuje, cokolwiek mówią agent czy organizacja. Obok wyboru Inherit
-    pokazuje, do czego się rozwiązuje i które z tych dwojga je wybrało.
+    z `app/core/catalog/speech_to_text_models.json` — oraz klucz z vaultu,
+    z którym jest wysyłana. **Off** nigdy nie transkrybuje, cokolwiek mówią
+    agent czy organizacja. Obok wyboru Inherit pokazuje, do czego się
+    rozwiązuje, które z tych dwojga je wybrało i czy ten poziom nadal
+    potrzebuje klucza.
+
+    **Własna para bota potrzebuje własnego klucza**: klucza API, którego
+    przeznaczeniem jest provider, **widocznego dla całej organizacji**, bo za
+    notatki głosowe bota płaci się w imieniu każdego, kto do niego pisze.
+    Prywatny klucz członka jest odrzucany przy zapisie bota, a klucz, który
+    później stał się prywatny, przestaje być używany. Wybór pokazuje tylko
+    pasujące klucze, mówi, gdy provider nie ma żadnego, i linkuje do vaultu, by
+    go dodać. Bot dziedziczący bierze klucz dziedziczonego poziomu razem z jego
+    parą, nigdy własny. Usunięcie klucza zostawia parę, która prosi o nowy, a
+    bot nie transkrybuje niczego, dopóki ktoś go nie wybierze.
 
     Dziedziczenie nic nie kosztuje, dopóki ktoś nie skonfiguruje providera: gdy
     nie ma go ani na agencie, ani w organizacji, nic nie jest transkrybowane, więc
     wydawanie kredytu providera organizacji pozostaje decyzją organizacji. Bot
     zarejestrowany z CLI albo przez klienta, który nie wysyła przełącznika,
-    dziedziczy. Kluczem jest własny klucz organizacji dla tego providera — profil
-    modelu albo widoczny dla całej organizacji klucz w vaulcie — i nie ma nic
-    nowego do zapisania. Profil z kluczem wygrywa z profilem bez klucza, a profil
-    bez klucza wskazujący na własny serwer jest używany tylko wtedy, gdy provider
-    nie ma profilu z kluczem ([kolejność](ml-services.md#speech-to-text)), więc
-    dodanie proxy czatu bez klucza nie przenosi bota z providera, na którym
-    transkrybuje.
+    dziedziczy.
 
     Bot, który nie może słuchać, mówi to zamiast porzucać nagranie, bo notatka
     głosowa, która nie wywołuje żadnej reakcji, jest nie do odróżnienia od
@@ -1356,6 +1363,13 @@ może się między nimi rozjechać.
         dostaje **inherit**, a **off** to `transcribe_voice_notes: false`, co
         również czyści parę. Język organizacji albo agenta dociera teraz także do
         bota z własną parą.
+
+        Bot z parą transkrybował dotąd na pierwszym według etykiety profilu
+        modelu z kluczem dla swojego providera. Ta sama migracja zapisuje ten
+        klucz jako własny klucz bota, o ile jest widocznym dla organizacji
+        kluczem API dla providera, a profil nie ma własnego `base_url`. Bot bez
+        takiego profilu zachowuje parę bez klucza: jego formularz mówi „wybierz
+        klucz” i bot nie transkrybuje niczego, dopóki ktoś tego nie zrobi.
 
     To, co liczy się jako wiadomość głosowa, jest odczytywane z typu pliku,
     a każda platforma typuje pliki po swojemu. Notatka głosowa albo plik audio

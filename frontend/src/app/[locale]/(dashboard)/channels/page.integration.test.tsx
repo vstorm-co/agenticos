@@ -45,43 +45,69 @@ function bot(overrides: Partial<ChannelBot> = {}): ChannelBot {
     transcribe_voice_notes: true,
     speech_to_text_provider: null,
     speech_to_text_model: null,
+    speech_to_text_secret_id: null,
     agents: [{ id: "a1", name: "Support", slug: "support", has_avatar: false }],
     created_at: "2026-08-09T18:00:00Z",
     ...overrides,
   };
 }
 
+/** The vault as the key field reads it: one organization-wide OpenAI key, one private. */
+const SECRETS = [
+  {
+    id: "team-openai",
+    name: "Team OpenAI",
+    kind: "api_key",
+    hint: "abcd",
+    purpose: "openai",
+    visibility: "org",
+  },
+  {
+    id: "mine-openai",
+    name: "My OpenAI",
+    kind: "api_key",
+    hint: "wxyz",
+    purpose: "openai",
+    visibility: "private",
+  },
+];
+
 function serve(bots: ChannelBot[]) {
-  // By URL: the dialogs now also fetch the speech-to-text catalog, and a single
-  // resolved value would answer that with a list of bots.
+  // By URL: the dialogs now also fetch the speech-to-text catalog and the
+  // vault, and a single resolved value would answer those with a list of bots.
   vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
-    path.startsWith("/providers/speech-to-text-models")
-      ? {
-          items: [
-            {
-              provider: "openai",
-              name: "OpenAI",
-              models: [
-                { id: "whisper-1", name: "Whisper", description: "Widest language coverage." },
+    path === "/secrets"
+      ? { items: SECRETS, total: SECRETS.length }
+      : path === "/secrets/kinds"
+        ? { items: [] }
+        : path.startsWith("/providers/speech-to-text-models")
+          ? {
+              items: [
+                {
+                  provider: "openai",
+                  name: "OpenAI",
+                  models: [
+                    { id: "whisper-1", name: "Whisper", description: "Widest language coverage." },
+                  ],
+                },
               ],
-            },
-          ],
-          total: 1,
-        }
-      : path.startsWith("/channels/bots/")
-        ? // The edit form reads its one bot for what "inherit" resolves to.
-          {
-            ...bots.find((candidate) => path.endsWith(`/${candidate.id}`)),
-            inherited_speech_to_text: {
-              provider: "openai",
-              model: "whisper-1",
-              language: null,
-              pair_source: "agent",
-              language_source: null,
-              agent_name: "Support",
-            },
-          }
-        : { items: bots, total: bots.length },
+              total: 1,
+            }
+          : path.startsWith("/channels/bots/")
+            ? // The edit form reads its one bot for what "inherit" resolves to.
+              {
+                ...bots.find((candidate) => path.endsWith(`/${candidate.id}`)),
+                inherited_speech_to_text: {
+                  provider: "openai",
+                  model: "whisper-1",
+                  language: null,
+                  pair_source: "agent",
+                  language_source: null,
+                  agent_name: "Support",
+                  has_key: true,
+                },
+              }
+            : { items: bots, total: bots.length },
   );
 }
 
@@ -262,7 +288,15 @@ describe("the channels page", () => {
 
     for (const [choice, sent] of [
       ["Off", { transcribe_voice_notes: false }],
-      ["Choose", { speech_to_text_provider: "openai", speech_to_text_model: "whisper-1" }],
+      [
+        "Choose",
+        {
+          speech_to_text_provider: "openai",
+          speech_to_text_model: "whisper-1",
+          // The one organization-wide key, picked by itself and sent explicitly.
+          speech_to_text_secret_id: "team-openai",
+        },
+      ],
     ] as const) {
       await userEvent.click(await screen.findByRole("button", { name: "Register a channel" }));
       await userEvent.type(screen.getByLabelText(/Name/), "Acme Support");
@@ -481,8 +515,33 @@ describe("the channels page", () => {
       expect(apiClient.patch).toHaveBeenCalledWith(`/channels/bots/${jarvis.id}`, {
         speech_to_text_provider: "openai",
         speech_to_text_model: "whisper-1",
+        speech_to_text_secret_id: "team-openai",
       }),
     );
+  });
+
+  it("shows a refused key under the key field", async () => {
+    const jarvis = bot({ platform: "telegram", name: "Jarvis", api_base_url: null });
+    serve([jarvis]);
+    const { ApiError } = await import("@/lib/api-error");
+    vi.mocked(apiClient.patch).mockRejectedValue(
+      new ApiError(400, "That key is for groq", {
+        error: {
+          code: "BAD_REQUEST",
+          message: "That key is for groq",
+          details: {
+            fields: [{ field: "speech_to_text_secret_id", message: "That key is for groq" }],
+          },
+        },
+      }),
+    );
+    await mount();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Edit Jarvis" }));
+    await userEvent.click(await screen.findByRole("radio", { name: "Choose" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(await screen.findByText("That key is for groq")).toBeVisible();
   });
 
   it("says what inheriting resolves to, from the bot's own read", async () => {
@@ -503,6 +562,7 @@ describe("the channels page", () => {
       api_base_url: null,
       speech_to_text_provider: "openai",
       speech_to_text_model: "whisper-1",
+      speech_to_text_secret_id: "team-openai",
     });
     serve([listening]);
     vi.mocked(apiClient.patch).mockResolvedValue(listening);
@@ -527,6 +587,7 @@ describe("the channels page", () => {
       api_base_url: null,
       speech_to_text_provider: "openai",
       speech_to_text_model: "whisper-1",
+      speech_to_text_secret_id: "team-openai",
     });
     serve([listening]);
     vi.mocked(apiClient.patch).mockResolvedValue(listening);

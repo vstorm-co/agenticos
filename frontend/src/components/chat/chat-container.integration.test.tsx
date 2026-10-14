@@ -119,6 +119,7 @@ const readiness = vi.hoisted(() => ({
     engine: "server",
     ready: true,
     server_available: true,
+    unavailable: null,
     max_seconds: 300,
     provider: "openai",
     format: "wav",
@@ -416,6 +417,26 @@ describe("the chat container - server dictation", () => {
         description: /^Dictation isn't set up yet\./,
       }),
     ).toBeInTheDocument();
+  });
+
+  it("says a key is what is missing when the agent's pair has none", async () => {
+    readiness.current = {
+      ...readiness.current,
+      ready: false,
+      server_available: false,
+      unavailable: "no_key",
+    };
+    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
+    mount();
+
+    const mic = await screen.findByRole("button", {
+      name: "Voice input",
+      description: /^Dictation needs a key\./,
+    });
+    fireEvent.click(mic);
+    expect(screen.getByTestId("dictation-strip")).toHaveTextContent(
+      "Dictation needs a key. A speech-to-text model is chosen, but no key for its provider.",
+    );
   });
 
   it("asks no agent about readiness while the organization dictates in the browser", async () => {

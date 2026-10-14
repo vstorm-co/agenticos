@@ -15,16 +15,17 @@ because the field is what says how to call it and there is no second shape yet.
 When there is, it arrives as another `api` value and another branch, not as a
 special case wired into the caller.
 
-The difference from `image_models` is where the credential comes from. Drawing is
-a capability on an agent, so it seals its own key into the spec. Transcribing is
-something a *channel bot* does to a voice note before there is an agent involved,
-so it runs on the credential the organization already configured for that provider
-- a model profile, or an organization-visible key in the vault
-(`TranscriptionService._credential` has the order). Nothing new to configure.
+The key works the way `image_models`' does: the pair is a pick from this
+catalog and the key is a vault secret named beside it, whose purpose is the
+provider. Speech to text is configured at three levels rather than on one
+binding - the organization, an agent, a channel bot - and each level names its
+own key next to its own pair (`speech_to_text_settings`). Model profiles are not
+read: they are what a text run uses.
 """
 
 from dataclasses import dataclass
 from typing import Literal
+from uuid import UUID
 
 from pydantic import TypeAdapter
 
@@ -38,6 +39,15 @@ RecordingFormat = Literal["webm", "wav"]
 `webm` is whatever `MediaRecorder` makes - WebM or Ogg Opus, or MP4 on Safari.
 `wav` is 16 kHz mono 16-bit PCM the page builds itself, for a provider that
 documents neither WebM nor Opus.
+"""
+
+DictationUnavailable = Literal["no_provider", "not_offered", "no_key"]
+"""Why a recording for an agent would not reach a provider.
+
+`no_provider`: no level names a pair. `not_offered`: the pair named was
+withdrawn from the catalog. `no_key`: no usable key is named beside the pair -
+it was never chosen, was deleted, or stopped being one that level may use - so
+the fix is "choose a key".
 """
 
 
@@ -59,9 +69,8 @@ class SpeechToTextEntry:
     """Where this provider serves the endpoint.
 
     In the file because nothing else knows it: `ProviderSpec` carries no address -
-    the SDK holds those, and this does not go through the SDK - and a `base_url`
-    on the organization's model profile overrides it, which is how a proxy or a
-    self-hosted server is reached.
+    the SDK holds those, and this does not go through the SDK. Every recording
+    for this provider goes here; a self-hosted server is not reachable yet.
     """
 
     models: tuple[SpeechToTextModel, ...]
@@ -255,17 +264,21 @@ answers with its own error text.
 """
 
 
-def dictation_ready(*, engine: str, provider: str | None, model: str | None) -> bool:
+def dictation_ready(
+    *, engine: str, provider: str | None, model: str | None, secret_id: UUID | None
+) -> bool:
     """Whether `/chat` dictation would reach a server engine, from settings alone.
 
     "Configured", not "working": it reads the organization's columns and this
-    catalog and never the vault, because it is computed for every organization in
-    a member's list. A credential deleted since is caught when a recording arrives,
-    as `not_configured`.
+    catalog and never opens the vault, because it is computed for every
+    organization in a member's list. The key counts as named while its column
+    holds one - a deleted key sets it null - and a key that went private since
+    is caught when a recording arrives, as `not_configured`.
     """
     return (
         engine == "server"
         and provider is not None
         and model is not None
+        and secret_id is not None
         and is_offered(provider, model)
     )

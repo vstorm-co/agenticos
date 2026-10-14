@@ -58,6 +58,7 @@ test.use({
 interface SpeechPair {
   speech_to_text_provider: string | null;
   speech_to_text_model: string | null;
+  speech_to_text_secret_id: string | null;
 }
 
 interface OrgRow extends SpeechPair {
@@ -99,12 +100,10 @@ test.beforeAll(async ({ playwright }, testInfo) => {
   original = {
     speech_to_text_provider: org!.speech_to_text_provider,
     speech_to_text_model: org!.speech_to_text_model,
+    speech_to_text_secret_id: org!.speech_to_text_secret_id,
   };
-  await patchSpeech(request, {
-    speech_to_text_provider: "groq",
-    speech_to_text_model: "whisper-large-v3-turbo",
-  });
 
+  // The organization's pair is saved with its key named beside it.
   const secret = await request.post("/api/secrets", {
     data: {
       name: `e2e-embed-dictation-${Date.now().toString(36)}`,
@@ -115,6 +114,11 @@ test.beforeAll(async ({ playwright }, testInfo) => {
   });
   expect(secret.ok(), `POST /api/secrets answered ${secret.status()}`).toBe(true);
   secretId = ((await secret.json()) as { id: string }).id;
+  await patchSpeech(request, {
+    speech_to_text_provider: "groq",
+    speech_to_text_model: "whisper-large-v3-turbo",
+    speech_to_text_secret_id: secretId,
+  });
 
   // Published, because a recording for an agent nobody runs is refused - and
   // its public config says `off` - before anything is paid for.
@@ -131,8 +135,9 @@ test.beforeAll(async ({ playwright }, testInfo) => {
 test.afterAll(async ({ playwright }, testInfo) => {
   const request = await ownerRequest(playwright.request, testInfo.project.use.baseURL);
   for (const id of published) await request.delete(`/api/agents/embeds/${id}`);
-  if (secretId !== null) await request.delete(`/api/secrets/${secretId}`);
+  // The settings first: they name the key, which goes after.
   if (original !== null) await patchSpeech(request, original);
+  if (secretId !== null) await request.delete(`/api/secrets/${secretId}`);
   await request.dispose();
 });
 

@@ -44,7 +44,10 @@ pytestmark = pytest.mark.anyio
 
 _ORG = uuid.uuid4()
 _CALLER = uuid.uuid4()
+_ORG_KEY = uuid.uuid4()
 _REPO = "app.services.ml.facade.ml_service_call_repo"
+_CALLER_KEY = uuid.uuid4()
+_KEY_CHECK = "app.services.ml.facade.SpeechToTextSettingsService.key_problem"
 
 
 def _heard(text: str, seconds: float | None = None) -> TranscriptionResult:
@@ -76,6 +79,25 @@ def recorded() -> Any:
     """Capture what the facade writes, without a database under it."""
     with patch(f"{_REPO}.record", new=AsyncMock()) as record:
         yield record
+
+
+@pytest.fixture(autouse=True)
+def api_org() -> Any:
+    """The caller's organization: a default pair of `openai`/`whisper-1` and its key.
+
+    A test about dictation patches the organization it needs over this one.
+    """
+    with patch(
+        "app.repositories.organization.get_by_id",
+        new=AsyncMock(
+            return_value=SimpleNamespace(
+                speech_to_text_provider="openai",
+                speech_to_text_model="whisper-1",
+                speech_to_text_secret_id=_ORG_KEY,
+            )
+        ),
+    ) as get:
+        yield get
 
 
 def _db() -> MagicMock:
@@ -359,16 +381,17 @@ async def test_another_tenants_ocr_server_is_not_found() -> None:
 
 
 async def test_a_recording_is_transcribed_and_recorded(recorded: Any) -> None:
+    """Naming nothing takes the organization's default pair and its key."""
     service = MLService(_db())
     with (
         patch(
             "app.services.ml.facade.speech_to_text.default_choice",
-            return_value=("openai", "whisper-1"),
+            return_value=("groq", "whisper-large-v3"),
         ),
         patch(
             "app.services.ml.facade.TranscriptionService.transcribe",
             new=AsyncMock(return_value=_heard("hello there", 2.2)),
-        ),
+        ) as transcribe,
     ):
         transcript = await service.transcribe(
             _ctx(),
@@ -393,6 +416,9 @@ async def test_a_recording_is_transcribed_and_recorded(recorded: Any) -> None:
     )
     assert written["agent_id"] is None
     assert written["channel_bot_id"] is None
+    assert written["secret_id"] == _ORG_KEY
+    sent = transcribe.await_args.kwargs
+    assert (sent["secret_id"], sent["shared_key"]) == (_ORG_KEY, True)
 
 
 async def test_a_recording_with_no_stated_length_counts_zero_seconds(recorded: Any) -> None:
@@ -432,10 +458,11 @@ async def test_a_pair_named_by_the_caller_is_checked_against_the_catalog(
     with (
         patch("app.services.ml.facade.speech_to_text.by_provider", return_value=offered),
         patch("app.services.ml.facade.speech_to_text.is_offered", return_value=True),
+        patch(f"{_KEY_CHECK}", new=AsyncMock(return_value=None)) as checked,
         patch(
             "app.services.ml.facade.TranscriptionService.transcribe",
             new=AsyncMock(return_value=_heard("hello")),
-        ),
+        ) as transcribe,
         patch(f"{_REPO}.record", new=AsyncMock()),
     ):
         transcript = await service.transcribe(
@@ -445,9 +472,15 @@ async def test_a_pair_named_by_the_caller_is_checked_against_the_catalog(
             mime_type="audio/ogg",
             provider="groq",
             model="whisper-large-v3",
+            secret_id=_CALLER_KEY,
         )
 
     assert (transcript.provider, transcript.model) == ("groq", "whisper-large-v3")
+    # Checked as an agent's key is - the caller has to be able to view it.
+    assert checked.await_args.kwargs["provider"] == "groq"
+    assert checked.await_args.kwargs["ctx"] is not None
+    sent = transcribe.await_args.kwargs
+    assert (sent["secret_id"], sent["shared_key"]) == (_CALLER_KEY, False)
 
 
 async def test_naming_only_a_provider_uses_that_providers_first_model() -> None:
@@ -469,6 +502,7 @@ async def test_naming_only_a_provider_uses_that_providers_first_model() -> None:
             "app.services.ml.facade.TranscriptionService.transcribe",
             new=AsyncMock(return_value=_heard("hello")),
         ),
+        patch(f"{_KEY_CHECK}", new=AsyncMock(return_value=None)),
         patch(f"{_REPO}.record", new=AsyncMock()),
     ):
         transcript = await service.transcribe(
@@ -478,6 +512,7 @@ async def test_naming_only_a_provider_uses_that_providers_first_model() -> None:
             mime_type="audio/ogg",
             provider="groq",
             model=None,
+            secret_id=_CALLER_KEY,
         )
 
     assert (transcript.provider, transcript.model) == ("groq", "whisper-large-v3")
@@ -562,7 +597,10 @@ async def test_a_provider_and_model_the_catalog_does_not_offer_is_refused() -> N
     assert caught.value.details["fields"][0]["field"] == "model"
 
 
-async def test_a_deployment_that_offers_no_transcription_says_so() -> None:
+async def test_a_deployment_that_offers_no_transcription_says_so(api_org: AsyncMock) -> None:
+    api_org.return_value = SimpleNamespace(
+        speech_to_text_provider=None, speech_to_text_model=None, speech_to_text_secret_id=None
+    )
     service = MLService(_db())
     with (
         patch("app.services.ml.facade.speech_to_text.default_choice", return_value=None),
@@ -611,6 +649,113 @@ async def test_an_engine_failure_is_recorded_and_re_raised(recorded: Any) -> Non
     assert caught.value is failure
     assert recorded.await_args.kwargs["status"] == "failed"
     assert recorded.await_args.kwargs["failure_stage"] == "engine"
+
+
+async def test_an_organization_with_no_default_falls_back_to_the_deployments_first(
+    api_org: AsyncMock, recorded: Any
+) -> None:
+    """With no pair of its own, the deployment's first offered one - and the
+    key has to be named, since there is no default key for it."""
+    del recorded
+    api_org.return_value = SimpleNamespace(
+        speech_to_text_provider=None, speech_to_text_model=None, speech_to_text_secret_id=None
+    )
+    with (
+        patch(
+            "app.services.ml.facade.speech_to_text.default_choice",
+            return_value=("groq", "whisper-large-v3"),
+        ),
+        patch(f"{_KEY_CHECK}", new=AsyncMock(return_value=None)),
+        patch(
+            "app.services.ml.facade.TranscriptionService.transcribe",
+            new=AsyncMock(return_value=_heard("hi")),
+        ) as transcribe,
+    ):
+        transcript = await MLService(_db()).transcribe(
+            _ctx(),
+            content=b"audio",
+            filename="voice.ogg",
+            mime_type="audio/ogg",
+            provider=None,
+            model=None,
+            secret_id=_CALLER_KEY,
+        )
+
+    assert (transcript.provider, transcript.model) == ("groq", "whisper-large-v3")
+    assert transcribe.await_args.kwargs["secret_id"] == _CALLER_KEY
+
+
+async def test_another_provider_with_no_key_named_is_not_configured(recorded: Any) -> None:
+    """The organization's key is for the provider it was chosen beside, and
+    never carries over to another one."""
+    offered = SimpleNamespace(models=(SimpleNamespace(id="whisper-large-v3"),))
+    with (
+        patch("app.services.ml.facade.speech_to_text.by_provider", return_value=offered),
+        patch(
+            "app.services.ml.facade.TranscriptionService.transcribe", new=AsyncMock()
+        ) as transcribe,
+        pytest.raises(ConfigurationError) as caught,
+    ):
+        await MLService(_db()).transcribe(
+            _ctx(),
+            content=b"audio",
+            filename="voice.ogg",
+            mime_type="audio/ogg",
+            provider="groq",
+            model=None,
+        )
+
+    assert caught.value.details["reason"] == "not_configured"
+    transcribe.assert_not_awaited()
+    written = recorded.await_args.kwargs
+    assert (written["status"], written["secret_id"]) == ("failed", None)
+
+
+async def test_an_organization_pair_whose_key_was_deleted_is_not_configured(
+    api_org: AsyncMock, recorded: Any
+) -> None:
+    del recorded
+    api_org.return_value = SimpleNamespace(
+        speech_to_text_provider="openai",
+        speech_to_text_model="whisper-1",
+        speech_to_text_secret_id=None,
+    )
+    with pytest.raises(ConfigurationError) as caught:
+        await MLService(_db()).transcribe(
+            _ctx(),
+            content=b"audio",
+            filename="voice.ogg",
+            mime_type="audio/ogg",
+            provider=None,
+            model=None,
+        )
+
+    assert caught.value.details["reason"] == "not_configured"
+
+
+async def test_a_named_key_the_caller_may_not_use_is_refused_on_its_field(
+    recorded: Any,
+) -> None:
+    del recorded
+    with (
+        patch(f"{_KEY_CHECK}", new=AsyncMock(return_value="That key is not in this vault")),
+        patch(
+            "app.services.ml.facade.TranscriptionService.transcribe", new=AsyncMock()
+        ) as transcribe,
+        pytest.raises(BadRequestError) as caught,
+    ):
+        await MLService(_db()).transcribe(
+            _ctx(),
+            content=b"audio",
+            filename="voice.ogg",
+            mime_type="audio/ogg",
+            provider=None,
+            model=None,
+            secret_id=_CALLER_KEY,
+        )
+
+    assert caught.value.details["fields"][0]["field"] == "secret_id"
+    transcribe.assert_not_awaited()
 
 
 # -- dictation into the composer (#1797) ---------------------------------------
@@ -665,11 +810,28 @@ def _speech_org(**overrides: object) -> SimpleNamespace:
         "chat_dictation": "server",
         "speech_to_text_provider": "openai",
         "speech_to_text_model": "gpt-4o-transcribe",
+        "speech_to_text_secret_id": _ORG_KEY,
         "speech_to_text_language": "pl",
         "dictation_max_seconds": 300,
     }
     fields.update(overrides)
     return SimpleNamespace(**fields)
+
+
+def _has_key(keyed: set[str]) -> AsyncMock:
+    """`TranscriptionService.has_key` answering yes for these providers' named keys."""
+
+    async def has_key(
+        _organization_id: uuid.UUID,
+        *,
+        provider: str,
+        secret_id: uuid.UUID | None,
+        shared_key: bool,
+    ) -> bool:
+        del shared_key
+        return secret_id is not None and provider in keyed
+
+    return AsyncMock(side_effect=has_key)
 
 
 async def test_a_dictation_is_transcribed_with_the_org_settings_and_recorded(
@@ -700,8 +862,10 @@ async def test_a_dictation_is_transcribed_with_the_org_settings_and_recorded(
     assert sent.kwargs["organization_id"] == _ORG
     assert (sent.kwargs["provider"], sent.kwargs["model"]) == ("openai", "gpt-4o-transcribe")
     assert sent.kwargs["language"] == "pl"
+    assert (sent.kwargs["secret_id"], sent.kwargs["shared_key"]) == (_ORG_KEY, True)
     written = recorded.await_args.kwargs
     assert written["service"] == "speech_to_text"
+    assert written["secret_id"] == _ORG_KEY
     assert (written["surface"], written["agent_id"]) == ("chat", _AGENT.id)
     assert (written["provider"], written["model"]) == ("openai", "gpt-4o-transcribe")
     assert written["requested_by_user_id"] == _CALLER
@@ -713,8 +877,14 @@ async def test_a_dictation_uses_the_agents_published_override(recorded: Any) -> 
     """A Polish agent in an organization set up for another engine: the agent's
     pair and language, from the version `/chat` runs."""
     del recorded
+    agent_key = uuid.uuid4()
     agent, get_version = _published(
-        {"provider": "groq", "model": "whisper-large-v3", "language": "de"}
+        {
+            "provider": "groq",
+            "model": "whisper-large-v3",
+            "language": "de",
+            "secret_id": str(agent_key),
+        }
     )
     with (
         patch(
@@ -733,6 +903,8 @@ async def test_a_dictation_uses_the_agents_published_override(recorded: Any) -> 
 
     sent = transcribe.await_args.kwargs
     assert (sent["provider"], sent["model"], sent["language"]) == ("groq", "whisper-large-v3", "de")
+    # The agent's own key, lent by its publisher - never the organization's.
+    assert (sent["secret_id"], sent["shared_key"]) == (agent_key, False)
     assert get_version.await_args.args[1] == agent.current_version_id
     assert get_version.await_args.kwargs["organization_id"] == _ORG
 
@@ -765,25 +937,34 @@ async def test_an_agent_override_makes_dictation_work_where_the_org_has_no_pair(
 
 
 @pytest.mark.parametrize(
-    ("org", "agent_override", "credentialed", "ready", "provider"),
+    ("org", "agent_override", "keyed", "ready", "provider", "unavailable"),
     [
-        (_speech_org(), None, {"openai"}, True, "openai"),
-        (_speech_org(), None, set(), False, "openai"),
-        (_speech_org(chat_dictation="browser"), None, {"openai"}, False, "openai"),
-        (_speech_org(speech_to_text_model="withdrawn"), None, {"openai"}, False, "openai"),
+        (_speech_org(), None, {"openai"}, True, "openai", None),
+        (_speech_org(), None, set(), False, "openai", "no_key"),
+        (_speech_org(chat_dictation="browser"), None, {"openai"}, False, "openai", None),
+        (
+            _speech_org(speech_to_text_model="withdrawn"),
+            None,
+            {"openai"},
+            False,
+            "openai",
+            "not_offered",
+        ),
         (
             _speech_org(speech_to_text_provider=None, speech_to_text_model=None),
             None,
             {"openai"},
             False,
             None,
+            "no_provider",
         ),
         (
             _speech_org(speech_to_text_provider=None, speech_to_text_model=None),
-            {"provider": "mistral", "model": "voxtral-mini-latest"},
+            {"provider": "mistral", "model": "voxtral-mini-latest", "secret_id": str(_ORG_KEY)},
             {"mistral"},
             True,
             "mistral",
+            None,
         ),
         (
             _speech_org(),
@@ -791,28 +972,33 @@ async def test_an_agent_override_makes_dictation_work_where_the_org_has_no_pair(
             {"openai"},
             False,
             "mistral",
+            "no_key",
         ),
+        (_speech_org(), {"language": "de"}, {"openai"}, True, "openai", None),
     ],
     ids=[
         "org-pair",
-        "no-credential",
+        "no-key",
         "browser-engine",
         "withdrawn-model",
         "no-pair",
         "agent-pair-without-org-pair",
-        "agent-pair-without-its-credential",
+        "agent-pair-without-its-key",
+        "language-only-keeps-the-org-key",
     ],
 )
 async def test_dictation_readiness_follows_the_resolved_pair(
     org: SimpleNamespace,
     agent_override: dict[str, str] | None,
-    credentialed: set[str],
+    keyed: set[str],
     ready: bool,
     provider: str | None,
+    unavailable: str | None,
 ) -> None:
     """Ready needs the server engine, a pair that resolves for this agent, the
-    catalog still offering it and a credential for its provider. The provider is
-    returned regardless, because the composer records in its format."""
+    catalog still offering it and a usable key named beside it. The provider is
+    returned regardless, because the composer records in its format, and
+    `unavailable` says which of the three is missing."""
     agent, get_version = _published(agent_override)
     with (
         patch(
@@ -820,13 +1006,13 @@ async def test_dictation_readiness_follows_the_resolved_pair(
         ),
         patch(f"{_SETTINGS}.agent_repo.get_version", new=get_version),
         patch(
-            "app.services.ml.facade.TranscriptionService.credentialed_providers",
-            new=AsyncMock(return_value=frozenset(credentialed)),
+            "app.services.ml.facade.TranscriptionService.has_key",
+            new=_has_key(keyed),
         ),
     ):
         status = await MLService(_db()).dictation_status(_ctx(), agent=agent)
 
-    assert (status.ready, status.provider) == (ready, provider)
+    assert (status.ready, status.provider, status.unavailable) == (ready, provider, unavailable)
     assert status.engine == org.chat_dictation
     assert status.max_seconds == org.dictation_max_seconds
 
@@ -846,8 +1032,8 @@ async def test_the_embed_form_learns_availability_without_the_chat_engine() -> N
             ),
         ),
         patch(
-            "app.services.ml.facade.TranscriptionService.credentialed_providers",
-            new=AsyncMock(return_value=frozenset({"mistral"})),
+            "app.services.ml.facade.TranscriptionService.has_key",
+            new=_has_key({"mistral"}),
         ),
     ):
         status = await MLService(_db()).dictation_status(_ctx(), agent=_AGENT)
@@ -881,8 +1067,8 @@ async def test_the_format_a_browser_records_in_follows_the_deployment_and_the_ca
             ),
         ),
         patch(
-            "app.services.ml.facade.TranscriptionService.credentialed_providers",
-            new=AsyncMock(return_value=frozenset({provider})),
+            "app.services.ml.facade.TranscriptionService.has_key",
+            new=_has_key({provider}),
         ),
     ):
         status = await MLService(_db()).dictation_status(_ctx(), agent=_AGENT)
@@ -1079,8 +1265,8 @@ async def test_dictation_readiness_for_an_unpublished_agent_answers_from_the_org
             new=AsyncMock(return_value=_speech_org()),
         ),
         patch(
-            "app.services.ml.facade.TranscriptionService.credentialed_providers",
-            new=AsyncMock(return_value=frozenset({"openai"})),
+            "app.services.ml.facade.TranscriptionService.has_key",
+            new=_has_key({"openai"}),
         ),
     ):
         status = await MLService(_db()).dictation_status(_ctx(), agent=_AGENT)
@@ -1098,8 +1284,8 @@ async def test_an_archived_agent_is_never_ready_to_dictate_to() -> None:
         ),
         patch(f"{_SETTINGS}.agent_repo.get_version", new=get_version),
         patch(
-            "app.services.ml.facade.TranscriptionService.credentialed_providers",
-            new=AsyncMock(return_value=frozenset({"openai"})),
+            "app.services.ml.facade.TranscriptionService.has_key",
+            new=_has_key({"openai"}),
         ),
     ):
         status = await MLService(_db()).dictation_status(_ctx(), agent=agent)
@@ -1115,17 +1301,6 @@ async def test_dictation_readiness_with_no_organization_is_not_found() -> None:
         pytest.raises(NotFoundError),
     ):
         await MLService(_db()).dictation_status(_ctx(), agent=_AGENT)
-
-
-async def test_the_credentialed_providers_are_the_callers_organizations() -> None:
-    with patch(
-        "app.services.ml.facade.TranscriptionService.credentialed_providers",
-        new=AsyncMock(return_value=frozenset({"groq"})),
-    ) as credentialed:
-        found = await MLService(_db()).speech_to_text_credentials(_ctx())
-
-    assert found == frozenset({"groq"})
-    assert credentialed.await_args.args[0] == _ORG
 
 
 @pytest.mark.parametrize(
@@ -1502,9 +1677,10 @@ async def test_a_refused_dictation_keeps_the_length_the_browser_reported(
 
 
 async def test_a_transcription_refusal_that_cannot_be_committed_still_reaches_the_caller(
-    recorded: Any,
+    recorded: Any, api_org: AsyncMock
 ) -> None:
     """The bookkeeping fails on its own: rolled back and logged, the refusal unchanged."""
+    api_org.return_value = None
     db = _db()
     db.commit = AsyncMock(side_effect=RuntimeError("no database"))
     with (

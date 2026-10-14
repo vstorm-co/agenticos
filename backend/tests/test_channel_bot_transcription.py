@@ -13,6 +13,7 @@ from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic import ValidationError
 
 from app.core.exceptions import BadRequestError
 from app.db.models.channel_bot import ChannelBot
@@ -22,12 +23,25 @@ from app.services.speech_to_text_settings import BotSpeechToText, ResolvedSpeech
 
 pytestmark = pytest.mark.anyio
 
+KEY = uuid.uuid4()
+
+
+@pytest.fixture(autouse=True)
+def key_check() -> object:
+    """Every key passes the vault check, unless a test says what is wrong with it."""
+    with patch(
+        "app.services.channel_bot.SpeechToTextSettingsService.key_problem",
+        new=AsyncMock(return_value=None),
+    ) as checked:
+        yield checked
+
 
 def _row(
     *,
     transcribe: bool = True,
     provider: str | None = None,
     model: str | None = None,
+    secret_id: uuid.UUID | None = None,
 ) -> ChannelBot:
     return ChannelBot(
         id=uuid.uuid4(),
@@ -39,6 +53,7 @@ def _row(
         transcribe_voice_notes=transcribe,
         speech_to_text_provider=provider,
         speech_to_text_model=model,
+        speech_to_text_secret_id=secret_id,
     )
 
 
@@ -111,15 +126,51 @@ class TestCreating:
         assert created["speech_to_text_provider"] is None
         assert created["speech_to_text_model"] is None
 
-    async def test_a_bot_created_with_its_own_pair_keeps_it(self):
+    async def test_a_bot_created_with_its_own_pair_keeps_it_and_its_key(self, key_check):
         created = await _created(
-            speech_to_text_provider="groq", speech_to_text_model="whisper-large-v3"
+            speech_to_text_provider="groq",
+            speech_to_text_model="whisper-large-v3",
+            speech_to_text_secret_id=KEY,
         )
 
-        assert (created["speech_to_text_provider"], created["speech_to_text_model"]) == (
-            "groq",
-            "whisper-large-v3",
-        )
+        assert (
+            created["speech_to_text_provider"],
+            created["speech_to_text_model"],
+            created["speech_to_text_secret_id"],
+        ) == ("groq", "whisper-large-v3", KEY)
+        # Held to the organization's rule: no `ctx`, so organization-visible only.
+        assert key_check.await_args.args[0] == KEY
+        assert key_check.await_args.kwargs["provider"] == "groq"
+        assert key_check.await_args.kwargs["ctx"] is None
+
+    async def test_a_bot_created_with_a_pair_and_no_key_is_refused(self):
+        with pytest.raises(BadRequestError) as refused:
+            await _created(speech_to_text_provider="groq", speech_to_text_model="whisper-large-v3")
+
+        assert refused.value.details["fields"][0]["field"] == "speech_to_text_secret_id"
+
+    async def test_a_key_the_vault_check_refuses_is_refused_on_its_field(self, key_check):
+        key_check.return_value = "'Mine' is not visible to the whole organization"
+
+        with pytest.raises(BadRequestError) as refused:
+            await _created(
+                speech_to_text_provider="groq",
+                speech_to_text_model="whisper-large-v3",
+                speech_to_text_secret_id=KEY,
+            )
+
+        problem = refused.value.details["fields"][0]
+        assert problem == {
+            "field": "speech_to_text_secret_id",
+            "message": "'Mine' is not visible to the whole organization",
+        }
+
+    async def test_a_key_without_a_pair_of_the_bots_own_is_refused(self):
+        """An inheriting bot uses the inherited level's key, never one of its own."""
+        with pytest.raises(ValidationError):
+            ChannelBotCreate(
+                platform="telegram", name="bot", token="t" * 20, speech_to_text_secret_id=KEY
+            )
 
 
 class TestUpdating:
@@ -133,6 +184,7 @@ class TestUpdating:
             "transcribe_voice_notes": False,
             "speech_to_text_provider": None,
             "speech_to_text_model": None,
+            "speech_to_text_secret_id": None,
         }
 
     @pytest.mark.parametrize(
@@ -140,10 +192,11 @@ class TestUpdating:
         [
             {"speech_to_text_provider": "openai", "speech_to_text_model": "whisper-1"},
             {"speech_to_text_model": "whisper-1"},
+            {"speech_to_text_secret_id": KEY},
         ],
-        ids=["both", "model-alone"],
+        ids=["both", "model-alone", "key-alone"],
     )
-    async def test_a_pair_sent_with_switching_off_is_refused(self, pair: dict[str, str]):
+    async def test_a_pair_sent_with_switching_off_is_refused(self, pair: dict[str, object]):
         with pytest.raises(BadRequestError) as refused:
             await _updated(_row(), ChannelBotUpdate(transcribe_voice_notes=False, **pair))
 
@@ -163,13 +216,19 @@ class TestUpdating:
 
     async def test_clearing_the_pair_now_means_inherit(self):
         """The meaning change the API documents: a null pair keeps the bot on."""
-        bot = _row(provider="openai", model="whisper-1")
+        bot = _row(provider="openai", model="whisper-1", secret_id=KEY)
 
         changes = await _updated(
             bot, ChannelBotUpdate(speech_to_text_provider=None, speech_to_text_model=None)
         )
 
-        assert changes == {"speech_to_text_provider": None, "speech_to_text_model": None}
+        # The key goes with the pair: left behind it would ride along to the
+        # next provider chosen.
+        assert changes == {
+            "speech_to_text_provider": None,
+            "speech_to_text_model": None,
+            "speech_to_text_secret_id": None,
+        }
 
     async def test_turning_on_with_a_pair_stores_both(self):
         bot = _row(transcribe=False)
@@ -180,11 +239,56 @@ class TestUpdating:
                 transcribe_voice_notes=True,
                 speech_to_text_provider="openai",
                 speech_to_text_model="whisper-1",
+                speech_to_text_secret_id=KEY,
             ),
         )
 
         assert changes["transcribe_voice_notes"] is True
         assert changes["speech_to_text_model"] == "whisper-1"
+        assert changes["speech_to_text_secret_id"] == KEY
+
+    async def test_a_new_provider_is_checked_against_the_key_already_stored(self, key_check):
+        """A key never carries over to another provider: the stored one is
+        checked against the new provider, and refused there for its purpose."""
+        bot = _row(provider="openai", model="whisper-1", secret_id=KEY)
+        key_check.return_value = "'Team OpenAI' is a key for openai, and this transcribes on groq"
+
+        with pytest.raises(BadRequestError) as refused:
+            await _updated(
+                bot,
+                ChannelBotUpdate(
+                    speech_to_text_provider="groq", speech_to_text_model="whisper-large-v3"
+                ),
+            )
+
+        assert refused.value.details["fields"][0]["field"] == "speech_to_text_secret_id"
+        assert key_check.await_args.args[0] == KEY
+        assert key_check.await_args.kwargs["provider"] == "groq"
+
+    async def test_a_new_key_alone_is_checked_against_the_stored_pair(self, key_check):
+        other = uuid.uuid4()
+        bot = _row(provider="openai", model="whisper-1", secret_id=KEY)
+
+        changes = await _updated(bot, ChannelBotUpdate(speech_to_text_secret_id=other))
+
+        assert changes == {"speech_to_text_secret_id": other}
+        assert key_check.await_args.args[0] == other
+        assert key_check.await_args.kwargs["provider"] == "openai"
+
+    async def test_a_pair_whose_key_was_deleted_is_asked_for_one(self):
+        bot = _row(provider="openai", model="whisper-1", secret_id=None)
+
+        with pytest.raises(BadRequestError) as refused:
+            await _updated(bot, ChannelBotUpdate(speech_to_text_model="gpt-4o-transcribe"))
+
+        assert refused.value.details["fields"][0]["field"] == "speech_to_text_secret_id"
+
+    async def test_a_key_for_an_inheriting_bot_is_refused(self, key_check):
+        with pytest.raises(BadRequestError) as refused:
+            await _updated(_row(), ChannelBotUpdate(speech_to_text_secret_id=KEY))
+
+        assert refused.value.details["fields"][0]["field"] == "speech_to_text_secret_id"
+        key_check.assert_not_awaited()
 
     async def test_a_pair_for_a_bot_that_stays_off_is_refused(self):
         bot = _row(transcribe=False)
@@ -227,11 +331,17 @@ def _readable(bot: ChannelBot) -> None:
 class TestWhatInheritingWouldGive:
     """The single-bot read carries what "Inherit" resolves to, for its hint."""
 
-    async def _read(self, bot: ChannelBot, settings: BotSpeechToText) -> ChannelBotRead:
+    async def _read(
+        self, bot: ChannelBot, settings: BotSpeechToText, *, has_key: bool = True
+    ) -> ChannelBotRead:
         with (
             patch(
                 "app.services.channel_bot.channel_bot_repo.get_for_org",
                 new=AsyncMock(return_value=bot),
+            ),
+            patch(
+                "app.services.channel_bot.TranscriptionService.has_key",
+                new=AsyncMock(return_value=has_key),
             ),
             patch(
                 "app.services.channel_bot.SpeechToTextSettingsService.for_bot",
@@ -250,6 +360,7 @@ class TestWhatInheritingWouldGive:
         resolved = ResolvedSpeechToText(
             provider="groq",
             model="whisper-large-v3",
+            secret_id=KEY,
             language="pl",
             pair_source="agent",
             language_source="agent",
@@ -263,6 +374,7 @@ class TestWhatInheritingWouldGive:
         assert read.inherited_speech_to_text.model_dump() == {
             "provider": "groq",
             "model": "whisper-large-v3",
+            "has_key": True,
             "language": "pl",
             "pair_source": "agent",
             "language_source": "agent",
@@ -270,6 +382,28 @@ class TestWhatInheritingWouldGive:
         }
         # The bot's own pair is still what it is set to.
         assert read.speech_to_text_provider == "openai"
+
+    async def test_an_inherited_pair_with_no_usable_key_says_so(self):
+        """For the hint: the level it inherits from still has to choose a key."""
+        bot = _row()
+        _readable(bot)
+        resolved = ResolvedSpeechToText(
+            provider="openai",
+            model="whisper-1",
+            secret_id=None,
+            language=None,
+            pair_source="organization",
+            language_source=None,
+        )
+
+        read = await self._read(
+            bot,
+            BotSpeechToText(exposed=True, agent_name="Support", resolved=resolved),
+            has_key=False,
+        )
+
+        assert read.inherited_speech_to_text is not None
+        assert read.inherited_speech_to_text.has_key is False
 
     async def test_nothing_to_inherit_reads_as_null(self):
         bot = _row()

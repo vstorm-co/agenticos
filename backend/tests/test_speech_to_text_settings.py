@@ -17,6 +17,7 @@ import pytest
 
 from app.agents.spec import SpeechToTextSpec
 from app.services.speech_to_text_settings import (
+    PairSource,
     ResolvedSpeechToText,
     SpeechToTextSettingsService,
     resolve,
@@ -25,6 +26,9 @@ from app.services.speech_to_text_settings import (
 pytestmark = pytest.mark.anyio
 
 _ORG_ID = uuid.uuid4()
+_ORG_KEY = uuid.uuid4()
+_AGENT_KEY = uuid.uuid4()
+_BOT_KEY = uuid.uuid4()
 _MODULE = "app.services.speech_to_text_settings"
 
 
@@ -32,17 +36,23 @@ def _org(
     provider: str | None = "openai",
     model: str | None = "gpt-4o-transcribe",
     language: str | None = "en",
+    secret_id: uuid.UUID | None = _ORG_KEY,
 ) -> SimpleNamespace:
     return SimpleNamespace(
         id=_ORG_ID,
         speech_to_text_provider=provider,
         speech_to_text_model=model,
+        speech_to_text_secret_id=secret_id if provider else None,
         speech_to_text_language=language,
     )
 
 
 def _bot(
-    *, transcribe: bool = True, provider: str | None = None, model: str | None = None
+    *,
+    transcribe: bool = True,
+    provider: str | None = None,
+    model: str | None = None,
+    secret_id: uuid.UUID | None = None,
 ) -> SimpleNamespace:
     return SimpleNamespace(
         id=uuid.uuid4(),
@@ -50,6 +60,7 @@ def _bot(
         transcribe_voice_notes=transcribe,
         speech_to_text_provider=provider,
         speech_to_text_model=model,
+        speech_to_text_secret_id=secret_id,
     )
 
 
@@ -70,6 +81,7 @@ class TestThePair:
         assert resolved == ResolvedSpeechToText(
             provider="openai",
             model="gpt-4o-transcribe",
+            secret_id=_ORG_KEY,
             language="en",
             pair_source="organization",
             language_source="organization",
@@ -143,6 +155,116 @@ class TestThePair:
             )
             is None
         )
+
+
+class TestTheKeyGoesWithThePair:
+    """A key is named at the level that names the pair, and never carries over."""
+
+    def test_each_level_brings_its_own_key(self):
+        agent = SpeechToTextSpec(provider="groq", model="whisper-large-v3", secret_id=_AGENT_KEY)
+        bot = _bot(provider="mistral", model="voxtral-mini-latest", secret_id=_BOT_KEY)
+
+        from_org = resolve(organization=_org(), agent=None)
+        from_agent = resolve(organization=_org(), agent=agent)
+        from_bot = resolve(organization=_org(), agent=agent, bot=bot)
+
+        assert from_org is not None and from_agent is not None and from_bot is not None
+        assert (from_org.secret_id, from_agent.secret_id, from_bot.secret_id) == (
+            _ORG_KEY,
+            _AGENT_KEY,
+            _BOT_KEY,
+        )
+
+    def test_a_pair_with_no_key_does_not_borrow_another_levels(self):
+        """A key reaches only the provider it was chosen for - so an agent's
+        Groq pair with no key yet is not sent with the organization's OpenAI key."""
+        resolved = resolve(
+            organization=_org(), agent=SpeechToTextSpec(provider="groq", model="whisper-large-v3")
+        )
+
+        assert resolved is not None
+        assert (resolved.provider, resolved.secret_id) == ("groq", None)
+
+    def test_a_language_only_override_keeps_the_organizations_pair_and_key(self):
+        resolved = resolve(organization=_org(), agent=SpeechToTextSpec(language="pl"))
+
+        assert resolved is not None
+        assert (resolved.provider, resolved.secret_id, resolved.language) == (
+            "openai",
+            _ORG_KEY,
+            "pl",
+        )
+
+    @pytest.mark.parametrize(
+        ("source", "shared"), [("organization", True), ("bot", True), ("agent", False)]
+    )
+    def test_only_an_agents_key_is_lent_rather_than_shared(self, source: PairSource, shared: bool):
+        resolved = ResolvedSpeechToText(
+            provider="openai",
+            model="whisper-1",
+            secret_id=_ORG_KEY,
+            language=None,
+            pair_source=source,
+            language_source=None,
+        )
+
+        assert resolved.shared_key is shared
+
+
+def _secret(**overrides: object) -> SimpleNamespace:
+    row = {"name": "Team OpenAI", "kind": "api_key", "purpose": "openai", "visibility": "org"}
+    row.update(overrides)
+    return SimpleNamespace(**row)
+
+
+class TestWhichKeyALevelMayName:
+    """`key_problem`: the one check every level saves a key through."""
+
+    async def _problem(self, row: object, *, ctx: object = None, access: bool = True) -> str | None:
+        with (
+            patch(f"{_MODULE}.organization_secret_repo.get", new=AsyncMock(return_value=row)),
+            patch(f"{_MODULE}.resolve_access", new=AsyncMock(return_value=access)) as checked,
+        ):
+            problem = await SpeechToTextSettingsService(MagicMock()).key_problem(
+                uuid.uuid4(), organization_id=_ORG_ID, provider="openai", ctx=ctx
+            )
+        if ctx is None:
+            checked.assert_not_awaited()
+        return problem
+
+    async def test_an_organization_visible_api_key_for_the_provider_is_accepted(self):
+        assert await self._problem(_secret()) is None
+
+    async def test_a_key_in_no_vault_of_this_organization_is_refused(self):
+        assert await self._problem(None) == "That key is not in this organization's vault"
+
+    @pytest.mark.parametrize("visibility", ["private", "team"])
+    async def test_a_shared_level_refuses_a_key_not_everybody_can_see(self, visibility: str):
+        problem = await self._problem(_secret(visibility=visibility))
+
+        assert problem is not None
+        assert "organization-wide" in problem
+
+    async def test_a_key_of_another_kind_is_refused(self):
+        problem = await self._problem(_secret(kind="azure_openai"))
+
+        assert problem is not None
+        assert "needs an API key" in problem
+
+    async def test_a_key_for_another_provider_is_refused(self):
+        problem = await self._problem(_secret(purpose="groq"))
+
+        assert problem is not None
+        assert "is a key for groq" in problem
+
+    async def test_an_agents_key_may_be_private_when_the_publisher_can_view_it(self):
+        assert await self._problem(_secret(visibility="private"), ctx=MagicMock()) is None
+
+    async def test_a_key_the_publisher_cannot_view_reads_as_missing(self):
+        """So a refusal cannot be used to enumerate somebody else's vault."""
+        problem = await self._problem(_secret(), ctx=MagicMock(), access=False)
+
+        assert problem == "That key is not in this organization's vault"
 
 
 class TestTheLanguage:

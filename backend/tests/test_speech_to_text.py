@@ -9,13 +9,11 @@ not the person waiting for an answer.
 from __future__ import annotations
 
 from dataclasses import replace
-from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
 
 from app.agents.model_resolver import PROVIDERS
-from app.core.permissions import AuthContext, OrgRoleName
 from app.core.secret_kinds import SecretKind
 from app.services import speech_to_text
 
@@ -132,28 +130,34 @@ class TestDictationSettings:
         assert {"en", "pl", "de", "es"} <= set(speech_to_text.LANGUAGES)
 
     @pytest.mark.parametrize(
-        ("engine", "pair", "ready"),
+        ("engine", "pair", "keyed", "ready"),
         [
-            ("server", "offered", True),
-            ("server", None, False),
-            ("server", "withdrawn", False),
-            ("browser", "offered", False),
-            ("off", "offered", False),
+            ("server", "offered", True, True),
+            ("server", "offered", False, False),
+            ("server", None, False, False),
+            ("server", "withdrawn", True, False),
+            ("browser", "offered", True, False),
+            ("off", "offered", True, False),
         ],
     )
-    def test_dictation_is_ready_only_on_the_server_with_an_offered_pair(
-        self, engine: str, pair: str | None, ready: bool
+    def test_dictation_is_ready_only_on_the_server_with_an_offered_pair_and_its_key(
+        self, engine: str, pair: str | None, keyed: bool, ready: bool
     ):
-        """A model withdrawn from the catalog since it was chosen reads as not
-        ready, so the composer disables the mic instead of failing on a recording."""
+        """A model withdrawn from the catalog since it was chosen, or a key
+        deleted since, reads as not ready, so the composer disables the mic
+        instead of failing on a recording."""
         entry = speech_to_text.providers()[0]
         provider, model = {
             "offered": (entry.provider, entry.models[0].id),
             "withdrawn": (entry.provider, "a-model-nobody-offers"),
             None: (None, None),
         }[pair]
+        secret_id = uuid4() if keyed else None
         assert (
-            speech_to_text.dictation_ready(engine=engine, provider=provider, model=model) is ready
+            speech_to_text.dictation_ready(
+                engine=engine, provider=provider, model=model, secret_id=secret_id
+            )
+            is ready
         )
 
 
@@ -163,33 +167,20 @@ class TestTheCatalogRoute:
         """The Voice card's language select reads this rather than a copy of it."""
         from app.api.routes.v1.model_providers import list_speech_to_text_models
 
-        result = await list_speech_to_text_models(_ml(frozenset()), _CTX)
+        result = await list_speech_to_text_models()
 
         assert result.languages == list(speech_to_text.LANGUAGES)
         assert "pl" in result.languages
 
     @pytest.mark.anyio
-    async def test_each_provider_says_whether_this_organization_can_use_it(self):
-        """Answered by the server, so a Builder without `secrets:view` sees the
-        same greyed-out providers an administrator does (#1797)."""
+    async def test_the_catalog_says_nothing_about_keys(self):
+        """Which keys a provider has is the key picker's to say, from the vault
+        keys the person choosing may name - never a guess made here (#1797)."""
         from app.api.routes.v1.model_providers import list_speech_to_text_models
 
-        ml = _ml(frozenset({"groq"}))
-        result = await list_speech_to_text_models(ml, _CTX)
+        result = await list_speech_to_text_models()
 
-        assert {item.provider: item.credentialed for item in result.items} == {
-            entry.provider: entry.provider == "groq" for entry in speech_to_text.providers()
-        }
-        assert ml.speech_to_text_credentials.await_args.args == (_CTX,)
-
-
-_CTX = AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.BUILDER)
-
-
-def _ml(credentialed: frozenset[str]) -> MagicMock:
-    ml = MagicMock()
-    ml.speech_to_text_credentials = AsyncMock(return_value=credentialed)
-    return ml
+        assert all("credentialed" not in item.model_dump() for item in result.items)
 
 
 @pytest.mark.parametrize(

@@ -85,15 +85,16 @@ export function botPatch(bot: ChannelBot, draft: ChannelBotDraft): ChannelBotUpd
 }
 
 /**
- * The transcription half of the patch: the switch, and the pair, each only
- * where it moved.
+ * The transcription half of the patch: the switch, and the pair with its key,
+ * each only where it moved.
  *
- * Off is the switch alone - the server clears the pair with it. Inherit is the
- * switch back on where it was off, and a null pair where the bot had its own;
- * a null pair no longer means off (#1797). Choose is the switch on and both
- * halves whenever either moved, because the server pairs them against the
- * stored row: sending a provider alone would be refused as a setting that
- * cannot run.
+ * Off is the switch alone - the server clears the pair and the key with it.
+ * Inherit is the switch back on where it was off, and a null pair where the
+ * bot had its own; a null pair no longer means off (#1797), and the server
+ * clears the key with it. Choose is the switch on and both halves and the key
+ * whenever any of them moved, because the server checks them together against
+ * the stored row: a provider alone would be refused as a setting that cannot
+ * run, and a new provider without its key as a pair with nothing to pay with.
  */
 function transcriptionPatch(bot: ChannelBot, choice: TranscriptionChoice): ChannelBotUpdate {
   if (choice.mode === "off") {
@@ -102,10 +103,15 @@ function transcriptionPatch(bot: ChannelBot, choice: TranscriptionChoice): Chann
   const patch: ChannelBotUpdate = bot.transcribe_voice_notes
     ? {}
     : { transcribe_voice_notes: true };
-  const { provider, model } = choice;
-  if (provider !== bot.speech_to_text_provider || model !== bot.speech_to_text_model) {
+  const { provider, model, secretId } = choice;
+  if (
+    provider !== bot.speech_to_text_provider ||
+    model !== bot.speech_to_text_model ||
+    (choice.mode === "choose" && secretId !== bot.speech_to_text_secret_id)
+  ) {
     patch.speech_to_text_provider = provider;
     patch.speech_to_text_model = model;
+    if (choice.mode === "choose") patch.speech_to_text_secret_id = secretId;
   }
   return patch;
 }
@@ -167,7 +173,14 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
       const failure = submitFailure(
         error,
         {
-          fields: ["name", "token", "api_base_url", "webhook_secret", "transcribe_voice_notes"],
+          fields: [
+            "name",
+            "token",
+            "api_base_url",
+            "webhook_secret",
+            "transcribe_voice_notes",
+            "speech_to_text_secret_id",
+          ],
           identifiedBy: "name",
         },
         tErrors,
@@ -295,6 +308,7 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
           inherited={inherited}
           value={draft.transcription}
           onChange={(transcription) => setDraft((current) => ({ ...current, transcription }))}
+          keyError={errors.speech_to_text_secret_id}
         />
       </div>
 

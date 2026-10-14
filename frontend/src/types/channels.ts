@@ -57,11 +57,15 @@ export interface ChannelBot {
    *
    * A pair that moves together: a provider with no model has nothing to call and
    * a model with no provider has nowhere to send it. Read back plainly - these
-   * are choices somebody made, not credentials; the key they run on is the
-   * organization's own and is never named here.
+   * are choices somebody made, not credentials.
    */
   speech_to_text_provider: string | null;
   speech_to_text_model: string | null;
+  /**
+   * The vault key the bot's own pair is sent with, by id: an organization-visible
+   * API key for the provider. Null with a pair means it was deleted.
+   */
+  speech_to_text_secret_id: string | null;
   /**
    * What "inherit" resolves to for this bot. On the single-bot read only - the
    * listing leaves it out - and null where nothing resolves.
@@ -89,6 +93,8 @@ export interface InheritedSpeechToText {
   language_source: "agent" | "organization" | null;
   /** The agent the bot serves. */
   agent_name: string | null;
+  /** Whether the level the pair comes from names a key that is still usable. */
+  has_key: boolean;
 }
 
 /** The state of the inbound socket a polling bot receives on. */
@@ -136,6 +142,8 @@ export interface ChannelBotCreate {
   transcribe_voice_notes?: boolean;
   speech_to_text_provider?: string | null;
   speech_to_text_model?: string | null;
+  /** Required with a pair, refused without one. */
+  speech_to_text_secret_id?: string | null;
 }
 
 /**
@@ -168,4 +176,6 @@ export interface ChannelBotUpdate {
    */
   speech_to_text_provider?: string | null;
   speech_to_text_model?: string | null;
+  /** The key goes with the pair: sent whenever the pair or the key moved. */
+  speech_to_text_secret_id?: string | null;
 }

@@ -574,10 +574,15 @@ function ChatUI({
   if (useChanged(dictationReady)) setExplaining(false);
   // Without an agent there is nothing to ask readiness of, so choosing one is
   // the first thing to say.
+  // A pair with no key is told apart, because the fix is "choose a key", not
+  // "set dictation up".
+  const noKey = status?.unavailable === "no_key";
   const unavailable =
     engine === "server" && explaining && !dictationReady
       ? hasAgent
-        ? ("not_ready" as const)
+        ? noKey
+          ? ("no_key" as const)
+          : ("not_ready" as const)
         : ("no_agent" as const)
       : null;
   const dictationStrip =
@@ -840,6 +845,7 @@ function ChatUI({
                           engine,
                           ready: dictationReady,
                           hasAgent,
+                          noKey,
                           state: dictationState,
                           actions: dictationActions,
                           voiceSettingsHref,
