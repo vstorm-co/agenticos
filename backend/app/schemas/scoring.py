@@ -285,7 +285,8 @@ class CaseScoreRead(BaseSchema):
     run, so the case is unscored rather than passed. `human_passed` is a person's
     verdict, kept beside it. `outcome` is the one that counts: the person's when
     there is one, the scorers' otherwise. `question` and `reference_answer` are
-    the scored revision's, which a later edit of the case does not change.
+    the scored revision's, which a later edit of the case does not change;
+    `run_model` is the model the scored run answered on.
     """
 
     id: UUID
@@ -297,6 +298,7 @@ class CaseScoreRead(BaseSchema):
         default=None, validation_alias=AliasPath("case_revision", "reference_answer")
     )
     run_id: UUID | None = None
+    run_model: str | None = Field(default=None, validation_alias=AliasPath("run", "model_label"))
     results: list[ScorerResult]
     judge: JudgePin | None = None
     passed: bool | None = None

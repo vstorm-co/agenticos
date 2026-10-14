@@ -18,6 +18,7 @@ import {
   Textarea,
 } from "@/components/ui";
 import { useModelProviders } from "@/hooks/use-model-providers";
+import { useAiAssistance } from "@/hooks/use-organizations";
 import { useSetScoring } from "@/hooks/use-scoring";
 import { getErrorMessage } from "@/lib/api-error";
 import { scoringProblem } from "@/lib/scoring";
@@ -105,7 +106,11 @@ export function ScoringPanel({ datasetId, scoring, canEdit }: ScoringPanelProps)
     scoring.checks.defaults.length ? JSON.stringify(scoring.checks.defaults, null, 2) : "",
   );
   const [problem, setProblem] = useState<string | null>(null);
+  const { enabled: aiEnabled } = useAiAssistance();
   const disabled = !canEdit || save.isPending;
+  // The judge and the reference comparison are model runs, so they stay as stored
+  // and cannot be changed while the organization has AI assistance off.
+  const modelBacked = disabled || aiEnabled === false;
   const unusable = scoringProblem(draft);
   const set = <K extends keyof DatasetScoring>(key: K, value: DatasetScoring[K]) =>
     setDraft((current) => ({ ...current, [key]: value }));
@@ -144,6 +149,7 @@ export function ScoringPanel({ datasetId, scoring, canEdit }: ScoringPanelProps)
       }
     >
       <div className="space-y-4" data-tour="datasets-scoring">
+        <AiAssistanceNotice />
         {canEdit && unusable !== null && (
           <p role="alert" className="text-destructive text-sm">
             {t(unusable)}
@@ -179,14 +185,12 @@ export function ScoringPanel({ datasetId, scoring, canEdit }: ScoringPanelProps)
           disabled={disabled}
         />
 
-        <AiAssistanceNotice />
-
         <ScorerRow
           label={t("scorer.judge")}
           hint={t("judgeHint")}
           enabled={draft.judge.enabled}
           onChange={({ enabled }) => set("judge", { ...draft.judge, enabled })}
-          disabled={disabled}
+          disabled={modelBacked}
         >
           <div className="grid gap-3 sm:grid-cols-3">
             <FormField htmlFor="scoring-judge-model" label={t("judgeModel")}>
@@ -198,7 +202,7 @@ export function ScoringPanel({ datasetId, scoring, canEdit }: ScoringPanelProps)
                     model_profile_id: value === OWN_MODEL ? null : value,
                   })
                 }
-                disabled={disabled}
+                disabled={modelBacked}
               >
                 <SelectTrigger id="scoring-judge-model">
                   <SelectValue />
@@ -223,7 +227,7 @@ export function ScoringPanel({ datasetId, scoring, canEdit }: ScoringPanelProps)
                 onChange={(event) =>
                   set("judge", { ...draft.judge, scale_max: Number(event.target.value) })
                 }
-                disabled={disabled}
+                disabled={modelBacked}
               />
             </FormField>
             <FormField htmlFor="scoring-pass-at" label={t("passAt")}>
@@ -236,14 +240,14 @@ export function ScoringPanel({ datasetId, scoring, canEdit }: ScoringPanelProps)
                 onChange={(event) =>
                   set("judge", { ...draft.judge, pass_at: Number(event.target.value) })
                 }
-                disabled={disabled}
+                disabled={modelBacked}
               />
             </FormField>
           </div>
           <RubricEditor
             criteria={draft.judge.criteria}
             onChange={(criteria) => set("judge", { ...draft.judge, criteria })}
-            disabled={disabled}
+            disabled={modelBacked}
           />
         </ScorerRow>
 
@@ -253,7 +257,7 @@ export function ScoringPanel({ datasetId, scoring, canEdit }: ScoringPanelProps)
           enabled={draft.reference.enabled}
           required={draft.reference.required}
           onChange={(next) => set("reference", { ...draft.reference, ...next })}
-          disabled={disabled}
+          disabled={modelBacked}
         />
 
         <FormField htmlFor="scoring-review" label={t("reviewSelect")}>

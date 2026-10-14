@@ -160,7 +160,15 @@ export function ScoreRunDialog({ open, onOpenChange, runId }: ScoreRunDialogProp
             <FormField htmlFor="score-case" label={td("case")} error={failure}>
               <Select value={target} onValueChange={setCaseId} disabled={cases.length === 0}>
                 <SelectTrigger id="score-case">
-                  <SelectValue placeholder={t("noCaseToScore")} />
+                  <SelectValue
+                    placeholder={
+                      chosen === ""
+                        ? t("pickDatasetFirst")
+                        : listing.isLoading
+                          ? t("loadingCases")
+                          : t("noCaseToScore")
+                    }
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   {cases.map((item) => (

@@ -10,6 +10,25 @@ import { useOrgStore } from "@/stores";
 import type { Organization, OrganizationList, CreateOrganizationInput } from "@/types";
 
 /**
+ * Whether AI assistance is on in the active organization: `null` until it is known.
+ *
+ * Read from the organization itself rather than the cached list, and again on
+ * focus: the switch may be changed from another tab or by another admin, and a
+ * page that offers the judge on a stale "on" offers something the server refuses.
+ */
+export function useAiAssistance(): { orgId: string | null; enabled: boolean | null } {
+  const orgId = useOrgStore((s) => s.activeOrgId);
+  const { data } = useQuery({
+    queryKey: qk.organizations.detail(orgId ?? ""),
+    queryFn: () => apiClient.get<Organization>(`/orgs/${orgId}`),
+    enabled: orgId !== null,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+  });
+  return { orgId, enabled: data?.ai_assistance_enabled ?? null };
+}
+
+/**
  * Every organization the caller belongs to.
  *
  * Split out because it is the one request that survives a broken selection:
@@ -199,9 +218,10 @@ export function useOrganizations() {
         ai_assistance_enabled: enabled,
       });
       writeCache((prev) => prev.map((o) => (o.id === id ? updated : o)));
+      queryClient.setQueryData(qk.organizations.detail(id), updated);
       return updated;
     },
-    [writeCache],
+    [writeCache, queryClient],
   );
 
   const deleteOrg = useCallback(

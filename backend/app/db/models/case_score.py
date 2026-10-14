@@ -21,6 +21,7 @@ from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
+from app.db.models.agent_run import AgentRun
 from app.db.models.dataset import DatasetCase
 
 
@@ -61,6 +62,7 @@ class CaseScore(Base):
         nullable=True,
         index=True,
     )
+    run: Mapped[AgentRun | None] = relationship(lazy="selectin")
     scoring: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     results: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False)
     # Null when no judge graded the answer.
