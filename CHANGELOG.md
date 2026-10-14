@@ -19,6 +19,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Capabilities as illustrated cards, on trial.** The Toolbox can show every
+  capability as a card with its own animated scene - in an isometric diorama or
+  a "blob crew" style - shelved by category in sideways carousels, with a
+  capability's settings opening in a panel from the right. A small switch above
+  the search flips between the list and the two styles; the choice is kept in
+  the browser while one style is picked.
+
 - **An answer's sources read as documents, and open.** The footer under an
   answer stacks one mark per document - a file's kind, a service's logo for
   a page on Notion or GitHub, a globe for the rest of the web - and opens
@@ -685,6 +692,10 @@ Two things are versioned separately from this file and worth knowing about:
   (#1930).
 
 ### Changed
+
+- **Delegation is called Subagents.** The capability that lets an agent hand
+  work to another agent reads "Subagents" in the console and the docs; its id,
+  `subagents`, and its configuration are unchanged.
 
 - **`AGENTS.md` is the one instruction file for coding agents.** `CLAUDE.md`
   is gone - Claude Code reads `AGENTS.md` when a repository has no

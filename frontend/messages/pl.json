@@ -202,7 +202,7 @@
     "delegatesDetail": "Opublikowani agenci, którym ten może przekazać pracę, każdy zamrożony na wersji.",
     "delegatesHeading": "Delegaty",
     "delegatingNeedsRunPermission": "Delegowanie wymaga uprawnienia do uruchamiania agentów, którego tutaj nie masz. Publikowanie sprawdza każdego delegata względem własnego dostępu publikującego, więc to ta sama odmowa, tylko wcześniej.",
-    "delegation": "Delegacja",
+    "delegation": "Subagenci",
     "delegationModeAsync": "Uruchom i działaj dalej",
     "delegationModeAsyncDetail": "Rodzic pracuje dalej i odbiera odpowiedź później. Warto dla jednego wolnego specjalisty, ale to kiepskie ustawienie domyślne.",
     "delegationModeAuto": "Pozwól modelowi zdecydować",
@@ -771,7 +771,17 @@
     "disconnectOwnNamed": "Odłącz {name}",
     "confirmDisconnectOwn": "Odłącz na dobre",
     "manageOwnAccounts": "Zmień nazwę lub wybierz główne konto w MCP servers",
-    "signInOwn": "Zaloguj"
+    "signInOwn": "Zaloguj",
+    "capabilityView": "Widok Toolboxa",
+    "capabilityView_list": "Lista",
+    "capabilityView_isometric": "Izometria",
+    "capabilityView_crew": "Bloby",
+    "capabilitySettingsTitle": "Ustawienia: {name}",
+    "capabilityOpenSettings": "Ustawienia",
+    "capabilityShelfEnabled": "Włączone: {enabled} z {total}",
+    "capabilityShelfPrevious": "Wcześniej w: {shelf}",
+    "capabilityShelfNext": "Więcej w: {shelf}",
+    "capabilityToolCount": "{count, plural, =0 {Wbudowana, bez narzędzi} =1 {1 narzędzie} few {# narzędzia} many {# narzędzi} other {# narzędzia}}"
   },
   "auth": {
     "agreeToTerms": "Tworząc konto, akceptujesz nasz <terms>Regulamin</terms> i <privacy>Politykę prywatności</privacy>.",
@@ -6277,7 +6287,7 @@
       "never": "Nigdy nie zmienia skilla; agent tylko go czyta."
     },
     "subagents": {
-      "name": "Delegowanie",
+      "name": "Subagenci",
       "does": "Agent przekazuje część pracy innemu agentowi i korzysta z jego odpowiedzi.",
       "example1": "Agent recepcji, który przekazuje pytania prawne agentowi prawnemu",
       "example2": "Zbadać kilka tematów równolegle",

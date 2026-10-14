@@ -202,7 +202,7 @@
     "delegatesDetail": "Veröffentlichte Agents, an die dieser Arbeit übergeben darf, jeder auf einer Version festgesetzt.",
     "delegatesHeading": "Delegaten",
     "delegatingNeedsRunPermission": "Zu delegieren braucht die Berechtigung, Agents auszuführen, die Sie hier nicht haben. Das Veröffentlichen prüft jeden Delegaten gegen den Zugriff des Veröffentlichenden, dies ist also dieselbe Ablehnung, nur früher.",
-    "delegation": "Delegation",
+    "delegation": "Subagents",
     "delegationModeAsync": "Starten und weiterarbeiten",
     "delegationModeAsyncDetail": "Der Eltern-Agent arbeitet weiter und holt die Antwort später ab. Lohnt sich für einen langsamen Spezialisten und ist ein schlechter Standard.",
     "delegationModeAuto": "Das Modell entscheiden lassen",
@@ -771,7 +771,17 @@
     "disconnectOwnNamed": "{name} trennen",
     "confirmDisconnectOwn": "Endgültig trennen",
     "manageOwnAccounts": "Umbenennen oder Hauptkonto wählen unter MCP servers",
-    "signInOwn": "Anmelden"
+    "signInOwn": "Anmelden",
+    "capabilityView": "Toolbox-Ansicht",
+    "capabilityView_list": "Liste",
+    "capabilityView_isometric": "Isometrisch",
+    "capabilityView_crew": "Blob-Crew",
+    "capabilitySettingsTitle": "Einstellungen: {name}",
+    "capabilityOpenSettings": "Einstellungen",
+    "capabilityShelfEnabled": "{enabled} von {total} an",
+    "capabilityShelfPrevious": "Zurück in {shelf}",
+    "capabilityShelfNext": "Mehr in {shelf}",
+    "capabilityToolCount": "{count, plural, =0 {Eingebaut, keine Werkzeuge} =1 {1 Werkzeug} other {# Werkzeuge}}"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -6386,7 +6396,7 @@
       "never": "Ändert nie einen Skill; der Agent liest ihn nur."
     },
     "subagents": {
-      "name": "Delegation",
+      "name": "Subagents",
       "does": "Der Agent gibt einen Teil der Arbeit an einen anderen Agenten ab und nutzt dessen Antwort.",
       "example1": "Ein Empfangsagent, der Rechtsfragen an den Rechtsagenten weitergibt",
       "example2": "Mehrere Themen parallel recherchieren",

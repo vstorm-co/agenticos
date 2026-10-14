@@ -806,3 +806,44 @@ describe("image generation, whose model is a provider and a model", () => {
     expect(onToggle).toHaveBeenCalledWith("image_generation");
   });
 });
+
+describe("the workbench as illustrated cards", () => {
+  it("shelves the catalog by category and opens settings in a panel", async () => {
+    localStorage.setItem("capability-view", "crew");
+    const PORTALS = { ...CHARTS, id: "portals", name: "Portals", category: "teleportation" };
+    renderWorkbench({ catalog: [CHARTS, CONTEXT, PORTALS], selected: [binding("charts")] });
+
+    expect(screen.getByRole("region", { name: "Work with data" })).toBeInTheDocument();
+    // A category the console has no words for yet keeps the registry's own.
+    expect(screen.getByRole("region", { name: "teleportation" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Knowledge and memory" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Context settings" }));
+    const panel = screen.getByRole("dialog");
+    expect(within(panel).getByRole("heading", { name: "Context settings" })).toBeInTheDocument();
+    expect(within(panel).getByRole("switch", { name: "Context enabled" })).toBeInTheDocument();
+
+    await userEvent.click(within(panel).getByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("says when a search matches nothing", async () => {
+    localStorage.setItem("capability-view", "crew");
+    renderWorkbench();
+
+    await userEvent.type(screen.getByPlaceholderText("Search capabilities…"), "teleport");
+
+    expect(screen.getByText(/teleport/)).toBeInTheDocument();
+    expect(screen.queryByRole("region")).not.toBeInTheDocument();
+  });
+
+  it("goes back to the list from the switch", async () => {
+    localStorage.setItem("capability-view", "isometric");
+    renderWorkbench();
+
+    await userEvent.click(screen.getByRole("radio", { name: "List" }));
+
+    expect(screen.queryByRole("region", { name: "Work with data" })).not.toBeInTheDocument();
+  });
+});

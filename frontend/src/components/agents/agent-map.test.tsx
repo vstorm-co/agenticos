@@ -241,7 +241,7 @@ describe("AgentMap delegation", () => {
       />,
     );
 
-    const group = screen.getByRole("region", { name: "Delegation" });
+    const group = screen.getByRole("region", { name: "Subagents" });
     expect(within(group).getByRole("button", { name: "Researcher" })).toBeInTheDocument();
     expect(within(group).getByRole("button", { name: "triage" })).toBeInTheDocument();
   });
@@ -264,7 +264,7 @@ describe("AgentMap delegation", () => {
     // which is noise, not the finding an empty capability box is.
     render(<AgentMap agentName="Support" instructions="Be brief." nodes={[node()]} />);
 
-    expect(screen.queryByRole("region", { name: "Delegation" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Subagents" })).not.toBeInTheDocument();
   });
 });
 
@@ -681,7 +681,7 @@ describe("AgentMap recursive tree", () => {
       <AgentMap agentName="Support" instructions="Be brief." nodes={[]} delegates={[tree()]} />,
     );
 
-    const group = screen.getByRole("region", { name: "Delegation" });
+    const group = screen.getByRole("region", { name: "Subagents" });
     expect(within(group).getByRole("button", { name: "Researcher" })).toBeInTheDocument();
     expect(within(group).getByRole("button", { name: "Editor" })).toBeInTheDocument();
     expect(within(group).getByRole("button", { name: "summariser" })).toBeInTheDocument();
@@ -870,7 +870,7 @@ describe("AgentMap recursive tree", () => {
     );
 
     expect(
-      within(screen.getByRole("region", { name: "Delegation" })).getByText(
+      within(screen.getByRole("region", { name: "Subagents" })).getByText(
         "The full delegation tree could not be loaded, so only direct delegates are shown.",
       ),
     ).toBeInTheDocument();

@@ -202,7 +202,7 @@
     "delegatesDetail": "Published agents this one may hand work to, each frozen at a version.",
     "delegatesHeading": "Delegates",
     "delegatingNeedsRunPermission": "Delegating needs permission to run agents, which you do not have here. Publishing checks each delegate against the publisher's own access, so this is the same refusal, earlier.",
-    "delegation": "Delegation",
+    "delegation": "Subagents",
     "delegationModeAsync": "Start it and carry on",
     "delegationModeAsyncDetail": "The parent keeps working and collects the answer later. Worth it for one slow specialist, and a poor default.",
     "delegationModeAuto": "Let the model decide",
@@ -771,7 +771,17 @@
     "disconnectOwnNamed": "Disconnect {name}",
     "confirmDisconnectOwn": "Disconnect for good",
     "manageOwnAccounts": "Rename or choose your main account in MCP servers",
-    "signInOwn": "Sign in"
+    "signInOwn": "Sign in",
+    "capabilityView": "Toolbox view",
+    "capabilityView_list": "List",
+    "capabilityView_isometric": "Isometric",
+    "capabilityView_crew": "Blob crew",
+    "capabilitySettingsTitle": "{name} settings",
+    "capabilityOpenSettings": "Settings",
+    "capabilityShelfEnabled": "{enabled} of {total} on",
+    "capabilityShelfPrevious": "Earlier in {shelf}",
+    "capabilityShelfNext": "More in {shelf}",
+    "capabilityToolCount": "{count, plural, =0 {Built in, no tools} =1 {1 tool} other {# tools}}"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -6503,7 +6513,7 @@
       "never": "Never changes a skill; the agent only reads it."
     },
     "subagents": {
-      "name": "Delegation",
+      "name": "Subagents",
       "does": "Lets the agent hand part of a job to another agent and use its answer.",
       "example1": "A front-desk agent that passes legal questions to the legal agent",
       "example2": "Research several topics side by side",

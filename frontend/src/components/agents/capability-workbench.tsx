@@ -14,6 +14,11 @@ import {
 import { SubagentsSection } from "@/components/agents/subagents-section";
 import { WorkspaceSection } from "@/components/agents/workspace-section";
 import { SearchInput, Switch } from "@/components/ui";
+import {
+  CapabilityViewSwitch,
+  useCapabilityView,
+} from "@/components/agents/capability-art/capability-card";
+import { CapabilityGallery } from "@/components/agents/capability-art/capability-gallery";
 import { ClearAgentMemory } from "@/components/memory/clear-agent-memory";
 import {
   IMAGE_GENERATION_ID,
@@ -135,6 +140,9 @@ export function CapabilityWorkbench({
   const enabled = new Set(selected.filter((binding) => binding.enabled).map((b) => b.id));
   const [focusedId, setFocusedId] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [view, setView] = useCapabilityView();
+  // Which card's settings panel is open; the list view shows its detail inline.
+  const [openedId, setOpenedId] = useState<string | null>(null);
 
   // Filtered, not paged: this column is navigation, and a capability that moved
   // to page two of its own picker is one nobody finds. The tools are searched
@@ -183,6 +191,148 @@ export function CapabilityWorkbench({
 
   if (catalog.length === 0) return null;
 
+  // No scroller of its own: the page is the one scrollbar a reader should meet,
+  // and a panel holding a gallery of collections is taller than any frame worth
+  // fixing.
+  const detail = (
+    <div className="min-w-0">
+      {focused && (
+        <div className="space-y-3">
+          {/* The workspace's configuration is a choice between three
+                backends and who shares them, not a set of fields - and one of
+                those scopes shares files between people, which a generated form
+                cannot warn about. Enablement is still the switch above, the same
+                one every capability has. */}
+          {focused.id === SANDBOX_ID ? (
+            <WorkspaceSection
+              definition={focused}
+              binding={bound}
+              onToggleEnabled={() => onToggle(focused.id)}
+              onChange={onChange}
+              disabled={disabled || !isOn}
+              readOnly={disabled}
+            />
+          ) : /* Delegation is three decisions, only one of which is a set of
+                  fields: a list of other agents pinned to versions, a list of
+                  specialists that are not versioned at all, and the policy
+                  bounding both. The pins are the reason - a delegate that has
+                  moved on is stale, and staleness nothing surfaces is a bug
+                  frozen in place under a published parent. */
+          /* Which model draws is a provider and a model, not one string of a
+               schema's making: OpenAI and Google each ship several image models
+               and the server says which. */
+          focused.id === IMAGE_GENERATION_ID ? (
+            <ImageGenerationSection
+              definition={focused}
+              binding={bound ?? unboundBinding(focused.id)}
+              onToggleEnabled={() => onToggle(focused.id)}
+              onChange={onChange}
+              configProblems={configProblems}
+              disabled={disabled || !isOn}
+              readOnly={disabled}
+            />
+          ) : focused.id === SUBAGENTS_ID ? (
+            <SubagentsSection
+              definition={focused}
+              binding={bound}
+              onToggleEnabled={() => onToggle(focused.id)}
+              catalog={catalog}
+              parentCapabilities={selected}
+              parentModelProfileId={modelProfileId}
+              subagents={subagents}
+              onChange={onChange}
+              onSubagentsChange={onSubagentsChange}
+              disabled={disabled || !isOn}
+              readOnly={disabled}
+            />
+          ) : (
+            <CapabilityDetail
+              binding={bound ?? unboundBinding(focused.id)}
+              definition={focused}
+              onChange={onChange}
+              onToggleEnabled={() => onToggle(focused.id)}
+              configProblems={configProblems}
+              // What this capability reads of the organization's, where it
+              // reads anything: the files, the collections, the skills. It gets
+              // the first tab and the panel opens on it.
+              resources={panelResources(focused.id, t, () => (
+                <CapabilityResources
+                  capabilityId={focused.id}
+                  enabled={isOn}
+                  resources={resources}
+                  disabled={disabled || !isOn}
+                />
+              ))}
+              // The one action on this panel that is not configuration: the
+              // agent's notes are emptied from inside the capability that keeps
+              // them, because nothing anywhere else in the console reads or
+              // writes them.
+              settingsFooter={
+                focused.id === MEMORY_FILES_ID && isOn ? (
+                  <ClearAgentMemory
+                    agentId={agentId}
+                    usesMem0={selected.some(
+                      (binding) => binding.id === MEMORY_MEM0_ID && binding.enabled !== false,
+                    )}
+                    disabled={disabled}
+                  />
+                ) : undefined
+              }
+              // A capability nobody granted has nothing to configure yet, so
+              // its controls are shown at their real values and left inert.
+              // The alternative - live controls writing to a binding that does
+              // not exist - would make reading a capability grant it by
+              // accident.
+              disabled={disabled || !isOn}
+              readOnly={disabled}
+            />
+          )}
+        </div>
+      )}
+    </div>
+  );
+
+  // Under trial: the capabilities as illustrated cards, in four styles, beside
+  // the list they would replace - a shelf per category, settings in a panel.
+  if (view !== "list") {
+    return (
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <SearchInput
+            value={query}
+            onChange={setQuery}
+            placeholder={t("searchCapabilities")}
+            className="w-full sm:w-72"
+          />
+          <CapabilityViewSwitch value={view} onChange={setView} className="sm:ml-auto" />
+        </div>
+        {categories.length === 0 ? (
+          <p className="text-muted-foreground px-1 py-6 text-sm">
+            {t("noCapabilityOrToolMatches", { query })}
+          </p>
+        ) : (
+          <CapabilityGallery
+            shelves={categories.map((category) => ({
+              ...category,
+              label: tc.has(category.name) ? tc(category.name) : category.name,
+            }))}
+            artStyle={view}
+            enabled={enabled}
+            openedId={openedId}
+            disabled={disabled}
+            onOpen={(id) => {
+              setFocusedId(id);
+              setOpenedId(id);
+            }}
+            onClose={() => setOpenedId(null)}
+            onToggle={onToggle}
+            detail={detail}
+          />
+        )}
+      </div>
+    );
+  }
+
   return (
     // The panel grows with what it holds; only the list is a bounded, scrolling
     // column. It was a fixed 36rem frame with *both* columns scrolling inside it,
@@ -201,6 +351,7 @@ export function CapabilityWorkbench({
           screen is filled by the catalog itself. On a tall screen the whole list
           fits, so its own scrollbar stops appearing too. */}
       <div className="flex flex-col gap-3 lg:sticky lg:top-4 lg:max-h-[calc(100vh-8rem)]">
+        <CapabilityViewSwitch value={view} onChange={setView} />
         {catalog.length > 8 && (
           <SearchInput
             value={query}
@@ -282,108 +433,7 @@ export function CapabilityWorkbench({
         </div>
       </div>
 
-      {/* Scrolls in its own pane rather than lengthening the page. Without this
-          the workspace panel - the one capability with tiles, two selects, a
-          warning and a nested settings form - set the height of the whole
-          Builder. */}
-      {/* No scroller of its own: the page is the one scrollbar a reader should
-          meet, and a panel holding a gallery of collections is taller than any
-          frame worth fixing. */}
-      <div className="min-w-0">
-        {focused && (
-          <div className="space-y-3">
-            {/* The workspace's configuration is a choice between three
-                backends and who shares them, not a set of fields - and one of
-                those scopes shares files between people, which a generated form
-                cannot warn about. Enablement is still the switch above, the same
-                one every capability has. */}
-            {focused.id === SANDBOX_ID ? (
-              <WorkspaceSection
-                definition={focused}
-                binding={bound}
-                onToggleEnabled={() => onToggle(focused.id)}
-                onChange={onChange}
-                disabled={disabled || !isOn}
-                readOnly={disabled}
-              />
-            ) : /* Delegation is three decisions, only one of which is a set of
-                  fields: a list of other agents pinned to versions, a list of
-                  specialists that are not versioned at all, and the policy
-                  bounding both. The pins are the reason - a delegate that has
-                  moved on is stale, and staleness nothing surfaces is a bug
-                  frozen in place under a published parent. */
-            /* Which model draws is a provider and a model, not one string of a
-               schema's making: OpenAI and Google each ship several image models
-               and the server says which. */
-            focused.id === IMAGE_GENERATION_ID ? (
-              <ImageGenerationSection
-                definition={focused}
-                binding={bound ?? unboundBinding(focused.id)}
-                onToggleEnabled={() => onToggle(focused.id)}
-                onChange={onChange}
-                configProblems={configProblems}
-                disabled={disabled || !isOn}
-                readOnly={disabled}
-              />
-            ) : focused.id === SUBAGENTS_ID ? (
-              <SubagentsSection
-                definition={focused}
-                binding={bound}
-                onToggleEnabled={() => onToggle(focused.id)}
-                catalog={catalog}
-                parentCapabilities={selected}
-                parentModelProfileId={modelProfileId}
-                subagents={subagents}
-                onChange={onChange}
-                onSubagentsChange={onSubagentsChange}
-                disabled={disabled || !isOn}
-                readOnly={disabled}
-              />
-            ) : (
-              <CapabilityDetail
-                binding={bound ?? unboundBinding(focused.id)}
-                definition={focused}
-                onChange={onChange}
-                onToggleEnabled={() => onToggle(focused.id)}
-                configProblems={configProblems}
-                // What this capability reads of the organization's, where it
-                // reads anything: the files, the collections, the skills. It gets
-                // the first tab and the panel opens on it.
-                resources={panelResources(focused.id, t, () => (
-                  <CapabilityResources
-                    capabilityId={focused.id}
-                    enabled={isOn}
-                    resources={resources}
-                    disabled={disabled || !isOn}
-                  />
-                ))}
-                // The one action on this panel that is not configuration: the
-                // agent's notes are emptied from inside the capability that keeps
-                // them, because nothing anywhere else in the console reads or
-                // writes them.
-                settingsFooter={
-                  focused.id === MEMORY_FILES_ID && isOn ? (
-                    <ClearAgentMemory
-                      agentId={agentId}
-                      usesMem0={selected.some(
-                        (binding) => binding.id === MEMORY_MEM0_ID && binding.enabled !== false,
-                      )}
-                      disabled={disabled}
-                    />
-                  ) : undefined
-                }
-                // A capability nobody granted has nothing to configure yet, so
-                // its controls are shown at their real values and left inert.
-                // The alternative - live controls writing to a binding that does
-                // not exist - would make reading a capability grant it by
-                // accident.
-                disabled={disabled || !isOn}
-                readOnly={disabled}
-              />
-            )}
-          </div>
-        )}
-      </div>
+      {detail}
     </div>
   );
 }
