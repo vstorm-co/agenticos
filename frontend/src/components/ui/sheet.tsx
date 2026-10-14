@@ -31,6 +31,16 @@ export function Sheet({ open, onOpenChange, children }: SheetProps) {
     };
   }, [open]);
 
+  // Escape closes it, as it closes every other modal panel in the console.
+  React.useEffect(() => {
+    if (!open) return;
+    const close = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !event.defaultPrevented) onOpenChange(false);
+    };
+    document.addEventListener("keydown", close);
+    return () => document.removeEventListener("keydown", close);
+  }, [open, onOpenChange]);
+
   if (!open) return null;
 
   // On `body`, not where it is declared: a sheet opened from inside a panel that

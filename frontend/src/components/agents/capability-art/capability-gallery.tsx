@@ -9,7 +9,6 @@ import { SCROLL_FADE, useScrollFade } from "@/components/ui/scroll-fade";
 import { cn } from "@/lib/utils";
 import type { CapabilityCatalogEntry } from "@/types/agents";
 
-import type { CapabilityArtStyle } from "./art.generated";
 import { CapabilityArt, CapabilityCard } from "./capability-card";
 
 /** One shelf of the gallery: a category's label and the capabilities under it. */
@@ -29,7 +28,6 @@ export interface CapabilityShelf {
  */
 export function CapabilityGallery({
   shelves,
-  artStyle,
   enabled,
   openedId,
   disabled,
@@ -39,7 +37,6 @@ export function CapabilityGallery({
   detail,
 }: {
   shelves: CapabilityShelf[];
-  artStyle: CapabilityArtStyle;
   enabled: ReadonlySet<string>;
   openedId: string | null;
   disabled?: boolean;
@@ -57,7 +54,6 @@ export function CapabilityGallery({
         <Shelf
           key={shelf.name}
           shelf={shelf}
-          artStyle={artStyle}
           enabled={enabled}
           openedId={openedId}
           disabled={disabled}
@@ -75,7 +71,7 @@ export function CapabilityGallery({
               <SheetClose onClick={onClose} />
             </div>
             <div className="mx-auto max-w-md px-4 pt-4 sm:px-5">
-              <CapabilityArt id={opened.id} name={opened.name} artStyle={artStyle} />
+              <CapabilityArt id={opened.id} name={opened.name} />
             </div>
             <div className="p-4 sm:p-5">{detail}</div>
           </SheetContent>
@@ -87,7 +83,6 @@ export function CapabilityGallery({
 
 function Shelf({
   shelf,
-  artStyle,
   enabled,
   openedId,
   disabled,
@@ -95,7 +90,6 @@ function Shelf({
   onToggle,
 }: {
   shelf: CapabilityShelf;
-  artStyle: CapabilityArtStyle;
   enabled: ReadonlySet<string>;
   openedId: string | null;
   disabled?: boolean;
@@ -148,7 +142,6 @@ function Shelf({
           <div key={entry.id} className="flex w-[64%] shrink-0 snap-start sm:w-[13.5rem]">
             <CapabilityCard
               entry={entry}
-              artStyle={artStyle}
               enabled={enabled.has(entry.id)}
               focused={openedId === entry.id}
               disabled={disabled}

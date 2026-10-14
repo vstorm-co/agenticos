@@ -103,11 +103,9 @@ describe("the dashboard's discover tips", () => {
     expect(scrollBy.mock.calls.map(([options]) => options.left)).toEqual([340, -340]);
   });
 
-  it("draws in the Toolbox style the reader picked", () => {
-    window.localStorage.setItem("capability-view", "crew");
+  it("draws its tiles in the Toolbox's isometric style", () => {
     const { container } = render(<DiscoverTips />);
 
-    expect(container.querySelector(".v-F")).not.toBeNull();
-    expect(container.querySelector(".v-B")).toBeNull();
+    expect(container.querySelector(".v-B svg")).not.toBeNull();
   });
 });

@@ -36,7 +36,7 @@ Two things are versioned separately from this file and worth knowing about:
   this way where `browse_web` took about 20.
 
 - **The dashboard tells you what is easy to miss, and draws time at the right
-  step.** Your own view gains **Discover AgenticOS**, one illustrated tile each
+  step.** Everybody opens on their own view, which gains **Discover AgenticOS**, one illustrated tile each
   for the platform's own MCP server, subagents, sandboxes, apps, routines, chat
   apps, the browser, knowledge and skills, each leading to where it is switched
   on. Charts over time pick their step from the data - minutes for one
@@ -52,12 +52,11 @@ Two things are versioned separately from this file and worth knowing about:
   them - asking, planning, a sandbox, subagents, web search and the rest - where
   it used to start with Ask the user alone.
 
-- **Capabilities as illustrated cards, on trial.** The Toolbox can show every
-  capability as a card with its own animated scene - in an isometric diorama or
-  a "blob crew" style - shelved by category in sideways carousels, with a
-  capability's settings opening in a panel from the right. A small switch above
-  the search flips between the list and the two styles; the choice is kept in
-  the browser while one style is picked.
+- **Capabilities as illustrated cards.** The Toolbox shows every capability as
+  a card with its own animated isometric scene, shelved by category in
+  sideways carousels, and a capability's settings open in a panel from the
+  right - Escape closes it, as it now closes every side panel. The cards
+  replace the list and its detail column.
 
 - **An answer's sources read as documents, and open.** The footer under an
   answer stacks one mark per document - a file's kind, a service's logo for

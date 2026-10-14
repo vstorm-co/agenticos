@@ -140,7 +140,9 @@ export default function DashboardPage() {
     if (option === "deployment") return isAppAdmin;
     return true;
   });
-  const fallbackView: DashboardView = available.includes("org") ? "org" : "me";
+  // Everybody opens on their own view - the greeting, their activity and the
+  // tips - and switches to the organization's from there.
+  const fallbackView: DashboardView = "me";
   const view: DashboardView = available.includes(viewParam as DashboardView)
     ? (viewParam as DashboardView)
     : fallbackView;

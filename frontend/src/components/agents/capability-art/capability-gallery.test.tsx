@@ -1,17 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { act, render, renderHook, screen, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import type { CapabilityCatalogEntry } from "@/types/agents";
 
 import { CAPABILITY_ART } from "./art.generated";
-import {
-  CapabilityArt,
-  CapabilityCard,
-  CapabilityViewSwitch,
-  useCapabilityView,
-} from "./capability-card";
+import { CapabilityArt, CapabilityCard } from "./capability-card";
 import { CapabilityGallery, type CapabilityShelf } from "./capability-gallery";
 
 const CHARTS: CapabilityCatalogEntry = {
@@ -55,7 +50,7 @@ const BINDING = {
   enabled: true,
 };
 
-/** Every capability the registry ships, which each style has to draw. */
+/** Every capability the registry ships, each of which has a scene. */
 const REGISTERED = [
   "artifacts",
   "ask_user",
@@ -90,75 +85,23 @@ afterEach(() => {
 });
 
 describe("the capability art", () => {
-  it("draws every registered capability in every style", () => {
-    for (const style of ["isometric", "crew"] as const) {
-      expect(Object.keys(CAPABILITY_ART[style]).sort()).toEqual(REGISTERED);
-    }
+  it("draws every registered capability", () => {
+    expect(Object.keys(CAPABILITY_ART).sort()).toEqual(REGISTERED);
   });
 
   it("renders the scene for a capability it has one for", () => {
-    const { container } = render(<CapabilityArt id="charts" name="Charts" artStyle="crew" />);
+    const { container } = render(<CapabilityArt id="charts" name="Charts" />);
 
-    expect(container.querySelector(".v-F svg")).not.toBeNull();
+    expect(container.querySelector(".v-B svg")).not.toBeNull();
     expect(container.querySelector(".cap-art")).not.toHaveClass("is-off");
   });
 
   it("falls back to an initial for a capability added after the art", () => {
-    const { container } = render(
-      <CapabilityArt id="teleport" name="Teleport" artStyle="isometric" off />,
-    );
+    const { container } = render(<CapabilityArt id="teleport" name="Teleport" off />);
 
     expect(screen.getByText("T")).toBeInTheDocument();
     expect(container.querySelector(".cap-art")).toHaveClass("is-off");
     expect(container.querySelector(".v-B")).not.toBeNull();
-  });
-});
-
-describe("the view switch", () => {
-  it("opens on the list and remembers a choice", () => {
-    const { result } = renderHook(() => useCapabilityView());
-    expect(result.current[0]).toBe("list");
-
-    act(() => result.current[1]("isometric"));
-
-    expect(result.current[0]).toBe("isometric");
-    expect(localStorage.getItem("capability-view")).toBe("isometric");
-  });
-
-  it("reads back a remembered view and ignores one it does not know", () => {
-    localStorage.setItem("capability-view", "crew");
-    expect(renderHook(() => useCapabilityView()).result.current[0]).toBe("crew");
-
-    localStorage.setItem("capability-view", "holograms");
-    expect(renderHook(() => useCapabilityView()).result.current[0]).toBe("list");
-  });
-
-  it("still switches where storage is refused", () => {
-    vi.spyOn(window.localStorage, "getItem").mockImplementation(() => {
-      throw new Error("denied");
-    });
-    vi.spyOn(window.localStorage, "setItem").mockImplementation(() => {
-      throw new Error("denied");
-    });
-    const { result } = renderHook(() => useCapabilityView());
-    expect(result.current[0]).toBe("list");
-
-    act(() => result.current[1]("crew"));
-
-    expect(result.current[0]).toBe("crew");
-  });
-
-  it("offers each style as a radio", async () => {
-    const onChange = vi.fn();
-    render(<CapabilityViewSwitch value="isometric" onChange={onChange} />);
-
-    expect(screen.getByRole("radio", { name: "Isometric" })).toHaveAttribute(
-      "aria-checked",
-      "true",
-    );
-    await userEvent.click(screen.getByRole("radio", { name: "Blob crew" }));
-
-    expect(onChange).toHaveBeenCalledWith("crew");
   });
 });
 
@@ -169,7 +112,6 @@ describe("a capability card", () => {
     render(
       <CapabilityCard
         entry={CHARTS}
-        artStyle="isometric"
         enabled={false}
         focused={false}
         onFocus={onFocus}
@@ -194,7 +136,7 @@ describe("a capability card", () => {
   });
 
   it("marks a capability that acts on the world, and one being read", () => {
-    renderCard({ entry: SANDBOX, enabled: true, focused: true, artStyle: "isometric" });
+    renderCard({ entry: SANDBOX, enabled: true, focused: true });
 
     expect(screen.getByLabelText("acts on the world")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Sandbox" })[0]!).toHaveAttribute(
@@ -216,13 +158,8 @@ describe("a capability card", () => {
     expect(screen.queryByText("Recommended")).not.toBeInTheDocument();
   });
 
-  it("shapes its frame to the style", () => {
-    renderCard({ artStyle: "crew" });
-    expect(screen.getAllByRole("button", { name: "Charts" })[0]!).toHaveClass("rounded-xl");
-  });
-
   it("frames the isometric diorama with a rule", () => {
-    renderCard({ artStyle: "isometric" });
+    renderCard();
     expect(screen.getAllByRole("button", { name: "Charts" })[0]!).toHaveClass("border-b");
   });
 });
@@ -238,7 +175,6 @@ describe("the capability gallery", () => {
     render(
       <CapabilityGallery
         shelves={SHELVES}
-        artStyle="crew"
         enabled={new Set(["charts"])}
         openedId={null}
         detail={<p>the detail</p>}

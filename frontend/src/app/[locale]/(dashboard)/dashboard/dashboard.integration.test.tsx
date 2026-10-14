@@ -337,6 +337,11 @@ beforeEach(() => {
 });
 
 describe("the steward's dashboard", () => {
+  // Everybody opens on their own view; these are about the organization's.
+  beforeEach(() => {
+    params.set("view", "org");
+  });
+
   it("renders the organization's sections and reads org-scoped usage", async () => {
     render(<DashboardPage />, { wrapper });
 
@@ -459,15 +464,21 @@ describe("the app admin's dashboard", () => {
 });
 
 describe("the view switcher", () => {
-  it("moves to the reader's own view and writes it to the URL", async () => {
+  it("opens a steward on their own view, not the organization's", () => {
+    render(<DashboardPage />, { wrapper });
+
+    expect(screen.getByText("dashboard.views.me.description")).toBeInTheDocument();
+    expect(screen.queryByText("dashboard.edit.customize")).not.toBeInTheDocument();
+  });
+
+  it("moves to the organization's view and writes it to the URL", async () => {
     const replaceState = vi.spyOn(window.history, "replaceState");
     render(<DashboardPage />, { wrapper });
 
-    await userEvent.click(screen.getByText("dashboard.views.me.label"));
+    await userEvent.click(screen.getByText("dashboard.views.org.label"));
 
-    expect(await screen.findByText("dashboard.widgets.my-agents.title")).toBeInTheDocument();
-    expect(screen.queryByText("dashboard.edit.customize")).not.toBeInTheDocument();
-    expect(String(replaceState.mock.calls.at(-1)?.[2])).toContain("view=me");
+    expect(await screen.findByText("dashboard.edit.customize")).toBeInTheDocument();
+    expect(String(replaceState.mock.calls.at(-1)?.[2])).toContain("view=org");
   });
 
   it("offers no deployment view to an organization admin", () => {
@@ -564,6 +575,11 @@ describe("the member's dashboard", () => {
 });
 
 describe("the arrangeable dashboard", () => {
+  // Everybody opens on their own view; these are about the organization's.
+  beforeEach(() => {
+    params.set("view", "org");
+  });
+
   it("drops a widget a stored layout names but the caller may no longer see", async () => {
     // The test the feature rests on: a person arranged their page as an admin,
     // was demoted to member, and their saved layout still names the approvals
@@ -687,6 +703,11 @@ describe("the arrangeable dashboard", () => {
 });
 
 describe("the saved-dashboards switcher", () => {
+  // Everybody opens on their own view; these are about the organization's.
+  beforeEach(() => {
+    params.set("view", "org");
+  });
+
   it("applies a preset by writing its entries as the active arrangement", async () => {
     presets = {
       items: [

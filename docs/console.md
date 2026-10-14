@@ -20,7 +20,7 @@ only that you are signed in. An empty band disappears with its heading rather
 than sitting there empty.
 
 A switch at the top says whose dashboard it is, and offers only the views you
-may open:
+may open. Everybody opens on **Me**:
 
 | View | Answers |
 |---|---|

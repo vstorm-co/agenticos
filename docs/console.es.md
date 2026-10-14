@@ -1,5 +1,5 @@
 ---
-source_sha: "896b890809b3"
+source_sha: "fb4e0d1f5ab4"
 ---
 
 # La consola { #the-console }
@@ -25,7 +25,7 @@ sesión. Una banda vacía desaparece junto con su título en lugar de quedarse a
 vacía.
 
 Un selector arriba dice de quién es el dashboard, y ofrece solo las vistas que
-puedes abrir:
+puedes abrir. Todos empiezan en **Me**:
 
 | Vista | Responde a |
 |---|---|

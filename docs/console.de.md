@@ -1,5 +1,5 @@
 ---
-source_sha: "896b890809b3"
+source_sha: "fb4e0d1f5ab4"
 ---
 
 # Die Konsole { #the-console }
@@ -25,7 +25,7 @@ angemeldet sind. Eine leere Gruppe verschwindet samt ihrer Überschrift, statt
 leer dazustehen.
 
 Ein Schalter oben sagt, wessen Dashboard es ist, und bietet nur die Ansichten
-an, die Sie öffnen dürfen:
+an, die Sie öffnen dürfen. Alle starten in der Ansicht **Ich**:
 
 | Ansicht | Beantwortet |
 |---|---|

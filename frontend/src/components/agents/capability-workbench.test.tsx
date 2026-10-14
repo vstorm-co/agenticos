@@ -6,7 +6,6 @@ import userEvent from "@testing-library/user-event";
 import { CapabilityWorkbench } from "./capability-workbench";
 import type { AgentResources } from "./capability-resources";
 import { jsonSchemaType } from "./capability-settings";
-import { newSpecialist } from "@/lib/agent-spec";
 import type { CapabilityBindingSpec, CapabilityCatalogEntry } from "@/types/agents";
 
 import type { ContextFileSummary } from "@/types/providers";
@@ -159,6 +158,11 @@ async function openTools() {
   await userEvent.click(screen.getByRole("tab", { name: "Tools" }));
 }
 
+/** Open a capability's settings panel from its card. */
+async function openCapability(name: string) {
+  await userEvent.click(screen.getByRole("button", { name: `${name} settings` }));
+}
+
 function renderWorkbench(props: Partial<Parameters<typeof CapabilityWorkbench>[0]> = {}) {
   return render(
     <CapabilityWorkbench
@@ -187,7 +191,7 @@ describe("the capability workbench", () => {
       selected: [binding("memory_files")],
     });
 
-    await userEvent.click(screen.getByRole("button", { name: /^Memory files/ }));
+    await openCapability("Memory files");
 
     expect(screen.getByText("Clear this agent's memory")).toBeInTheDocument();
   });
@@ -200,7 +204,7 @@ describe("the capability workbench", () => {
       selected: [binding("memory_files"), binding("memory_mem0")],
     });
 
-    await userEvent.click(screen.getByRole("button", { name: /^Memory files/ }));
+    await openCapability("Memory files");
 
     expect(screen.getByText(/does not reach/)).toBeInTheDocument();
   });
@@ -208,7 +212,7 @@ describe("the capability workbench", () => {
   it("offers no clear for a capability that keeps nothing", async () => {
     renderWorkbench({ selected: [binding("charts")] });
 
-    await userEvent.click(screen.getByRole("button", { name: /^Charts/ }));
+    await openCapability("Charts");
 
     expect(screen.queryByText("Clear this agent's memory")).not.toBeInTheDocument();
   });
@@ -218,24 +222,15 @@ describe("the capability workbench", () => {
     // a live destructive button.
     renderWorkbench({ catalog: [MEMORY_FILES], selected: [] });
 
-    await userEvent.click(screen.getByRole("button", { name: /^Memory files/ }));
+    await openCapability("Memory files");
 
     expect(screen.queryByText("Clear this agent's memory")).not.toBeInTheDocument();
-  });
-
-  it("says in the list what each capability lets the agent do", async () => {
-    // What somebody scanning the list decides on; a tool count told a person who
-    // is not a developer nothing (#2070). The count is on the Tools tab.
-    renderWorkbench();
-
-    const row = screen.getByRole("button", { name: /^Charts/ });
-    expect(within(row).getByText(CHARTS.description)).toBeInTheDocument();
   });
 
   it("explains a capability it has words for: uses, needs and what it never does", async () => {
     renderWorkbench();
 
-    await userEvent.click(screen.getByRole("button", { name: /^Charts/ }));
+    await openCapability("Charts");
 
     expect(screen.getByText("For example")).toBeInTheDocument();
     expect(screen.getByText("Sales this month by region, as bars")).toBeInTheDocument();
@@ -244,6 +239,7 @@ describe("the capability workbench", () => {
 
   it("explains nothing more for a capability the console has no words for", async () => {
     renderWorkbench({ catalog: [{ ...CHARTS, id: "from_a_plugin", name: "Plugin" }] });
+    await openCapability("Plugin");
 
     expect((await screen.findAllByText(CHARTS.description)).length).toBeGreaterThan(0);
     expect(screen.queryByText("For example")).not.toBeInTheDocument();
@@ -260,7 +256,7 @@ describe("the capability workbench", () => {
     // Otherwise the only way to learn what granting it does is to grant it.
     renderWorkbench();
 
-    await userEvent.click(screen.getByRole("button", { name: /^Context/ }));
+    await openCapability("Context");
     await openTools();
 
     expect(screen.getByText("list_context")).toBeInTheDocument();
@@ -274,7 +270,7 @@ describe("the capability workbench", () => {
     // left out, so they are what this asserts.
     renderWorkbench();
 
-    await userEvent.click(screen.getByRole("button", { name: /^Charts/ }));
+    await openCapability("Charts");
 
     expect(screen.getByLabelText("Human approval")).toBeInTheDocument();
     await openTools();
@@ -289,7 +285,7 @@ describe("the capability workbench", () => {
     // does not exist would make opening a capability configure it by accident.
     renderWorkbench();
 
-    await userEvent.click(screen.getByRole("button", { name: /^Charts/ }));
+    await openCapability("Charts");
     await openTools();
 
     expect(screen.getByLabelText("Description the model reads")).toBeDisabled();
@@ -301,6 +297,7 @@ describe("the capability workbench", () => {
     const onToggle = vi.fn();
     renderWorkbench({ onToggle });
 
+    await openCapability("Charts");
     await userEvent.click(screen.getByRole("switch", { name: "Charts enabled" }));
 
     expect(onToggle).toHaveBeenCalledWith("charts");
@@ -313,6 +310,7 @@ describe("the capability workbench", () => {
     // was already inert, and clicking it dirtied a spec they cannot save.
     const onToggle = vi.fn();
     renderWorkbench({ onToggle, disabled: true });
+    await openCapability("Charts");
 
     const panelSwitch = screen.getByRole("switch", { name: "Charts enabled" });
     expect(panelSwitch).toBeDisabled();
@@ -327,6 +325,7 @@ describe("the capability workbench", () => {
     const onToggle = vi.fn();
     renderWorkbench({ onToggle });
 
+    await openCapability("Charts");
     await userEvent.click(screen.getByRole("switch", { name: "Charts enabled" }));
 
     expect(onToggle).toHaveBeenCalledWith("charts");
@@ -336,7 +335,7 @@ describe("the capability workbench", () => {
     const onToggle = vi.fn();
     renderWorkbench({ onToggle });
 
-    await userEvent.click(screen.getByRole("button", { name: /^Context/ }));
+    await openCapability("Context");
 
     expect(onToggle).not.toHaveBeenCalled();
   });
@@ -355,6 +354,7 @@ describe("the capability workbench", () => {
     // five enabled capabilities produced five panels, none of them beside the
     // switch that created it.
     renderWorkbench({ selected: [binding("charts"), binding("context")] });
+    await openCapability("Charts");
 
     const panel = screen.getByRole("group", { name: "Charts" });
     expect(within(panel).getByText("charts")).toBeInTheDocument();
@@ -366,6 +366,7 @@ describe("the capability workbench", () => {
     // replaces everything the model is told, so editing a summary-only field
     // would silently drop the rest.
     renderWorkbench({ selected: [binding("charts")] });
+    await openCapability("Charts");
     await openTools();
 
     expect(screen.getByLabelText("Description the model reads")).toHaveValue(
@@ -375,6 +376,7 @@ describe("the capability workbench", () => {
 
   it("names the arguments the model has to fill in", async () => {
     renderWorkbench({ selected: [binding("charts")] });
+    await openCapability("Charts");
     await openTools();
 
     await userEvent.click(screen.getByText("Arguments (3)"));
@@ -386,46 +388,9 @@ describe("the capability workbench", () => {
   });
 });
 
-describe("the frame the two panes sit in", () => {
-  it("lets the panel grow rather than fixing the frame's height", () => {
-    // It was `lg:h-[36rem]`, to stop a shorter panel leaving the page scrolled
-    // past its own content - which the browser clamps anyway: measured on this
-    // page, switching away from the workspace panel at the bottom moves scrollTop
-    // 2080 -> 0. What the fixed frame did leave was 400px of empty card under a
-    // short panel, and a scrollbar inside the page beside the page's own.
-    const { container } = renderWorkbench({ catalog: [CHARTS] });
-
-    expect(container.querySelector(".grid")?.className).not.toContain("lg:h-[36rem]");
-  });
-
-  it("scrolls the list alone, so the page keeps one scrollbar", () => {
-    // The list is a catalog of thirty and has to stay reachable beside a long
-    // panel, so it is the one bounded column - sticky, capped, scrolling. The
-    // panel is not: a gallery of collections is taller than any frame worth
-    // fixing, and a wheel over it should move the page.
-    const { container } = renderWorkbench({ catalog: [CHARTS] });
-
-    expect(container.querySelectorAll('[class*="overflow-y-auto"]').length).toBe(1);
-  });
-
-  it("caps the list at the viewport, not at a fixed 36rem", () => {
-    // Sticky and 36rem tall left a void beside a long panel - measured 532px of
-    // empty gutter next to the image capability's 1108px panel. A column the
-    // height of the screen is filled by the catalog instead, and on a tall screen
-    // the whole list fits, so its own scrollbar stops appearing too.
-    const { container } = renderWorkbench({ catalog: [CHARTS] });
-    const list = container.querySelector(".grid")?.firstElementChild;
-
-    expect(list?.className).toContain("lg:sticky");
-    expect(list?.className).toContain("lg:max-h-[calc(100vh-8rem)]");
-    expect(list?.className).not.toContain("lg:max-h-[36rem]");
-  });
-});
-
 describe("jsonSchemaType", () => {
   it("searches the tools too, because that is what somebody is looking for", async () => {
-    // Nobody knows which capability owns `create_chart`, and the search box only
-    // appears once the list is long enough that scrolling it is worse.
+    // Nobody knows which capability owns `create_chart`.
     const filler = Array.from({ length: 8 }, (_, index) => ({
       ...CONTEXT,
       id: `filler-${index}`,
@@ -437,8 +402,8 @@ describe("jsonSchemaType", () => {
 
     await userEvent.type(screen.getByLabelText("Search capabilities…"), "create_chart");
 
-    expect(screen.getByRole("button", { name: /^Charts/ })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /^Filler 0/ })).toBeNull();
+    expect(screen.getByRole("button", { name: "Charts settings" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Filler 0 settings" })).toBeNull();
   });
 
   it("says nothing matched rather than showing an empty column", async () => {
@@ -464,34 +429,15 @@ describe("jsonSchemaType", () => {
       contracts: [],
     };
 
-    it("folds them below the rest until asked for", async () => {
-      // Each answers a problem met only once an agent works; a list opening on
+    it("shelves them last, after everything an agent needs to start", () => {
+      // Each answers a problem met only once an agent works; a page opening on
       // them reads as homework before starting (#2070).
-      renderWorkbench({ catalog: [CHARTS, COMPACTION] });
+      renderWorkbench({ catalog: [COMPACTION, CHARTS] });
 
-      expect(screen.queryByRole("button", { name: /^Long conversations/ })).toBeNull();
-      await userEvent.click(screen.getByRole("button", { name: "Show 1 advanced capability" }));
-      expect(screen.getByText("Advanced")).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /^Long conversations/ })).toBeVisible();
-
-      await userEvent.click(screen.getByRole("button", { name: "Hide advanced capabilities" }));
-      expect(screen.queryByRole("button", { name: /^Long conversations/ })).toBeNull();
-    });
-
-    it("never folds one that is switched on", async () => {
-      renderWorkbench({ catalog: [CHARTS, COMPACTION], selected: [binding("compaction")] });
-
-      expect(screen.getByRole("button", { name: /^Long conversations/ })).toBeVisible();
-      expect(screen.queryByRole("button", { name: /advanced capabilit/ })).toBeNull();
-    });
-
-    it("never folds a match while searching", async () => {
-      const many = Array.from({ length: 8 }, (_, n) => ({ ...CHARTS, id: `c${n}`, name: `C${n}` }));
-      renderWorkbench({ catalog: [...many, COMPACTION] });
-
-      await userEvent.type(screen.getByPlaceholderText(/Search/), "Long");
-
-      expect(screen.getByRole("button", { name: /^Long conversations/ })).toBeVisible();
+      const shelves = screen
+        .getAllByRole("region")
+        .map((shelf) => shelf.getAttribute("aria-label"));
+      expect(shelves).toEqual(["Work with data", "Advanced"]);
     });
   });
 
@@ -541,7 +487,7 @@ describe("jsonSchemaType", () => {
   });
 });
 
-describe("the workspace, which is a row like the rest and a detail unlike it", () => {
+describe("the workspace, which is a card like the rest and a detail unlike it", () => {
   const SANDBOX: CapabilityCatalogEntry = {
     ...CHARTS,
     id: "sandbox",
@@ -564,37 +510,12 @@ describe("the workspace, which is a row like the rest and a detail unlike it", (
     return renderWorkbench({ catalog: [SANDBOX, CHARTS], selected });
   }
 
-  it("says what the workspace gives the agent, not how many tools it has", async () => {
-    // "2 tools" is the least useful thing to say about it in a list; whether
-    // there is a shell is what somebody is scanning for. *Where* it runs is on
-    // the connection rather than the spec, so the row does not claim to know.
-    renderSandbox([binding("sandbox", { config: { backend: "service" } })]);
-
-    expect(await screen.findByText("Files and a shell.")).toBeInTheDocument();
-  });
-
-  it("says what it is for while the agent has no workspace at all", async () => {
-    renderSandbox();
-
-    const row = screen.getByRole("button", { name: /^Sandbox/ });
-    expect(within(row).getByText(SANDBOX.description)).toBeInTheDocument();
-  });
-
-  it.each([
-    [{ backend: "state" }, "Files only, no shell."],
-    [{ backend: "service" }, "Files and a shell."],
-    [{}, "Files only, no shell."],
-  ])("names the backend in the row (%o)", async (config, expected) => {
-    renderSandbox([binding("sandbox", { config })]);
-
-    expect(await screen.findByText(expected)).toBeInTheDocument();
-  });
-
   it("offers the backends and the scope instead of a generated form", async () => {
     // The objection this answers: "which backend, and who shares it" is not the
     // same kind of decision as switching on a chart tool. Enablement still is,
     // and it is the switch on the panel's own title row.
     renderSandbox([binding("sandbox", { config: { backend: "state" } })]);
+    await openCapability("Sandbox");
 
     expect(await screen.findByRole("button", { name: /^Container/ })).toBeVisible();
     expect(screen.getByRole("combobox", { name: "Who shares it by default" })).toBeVisible();
@@ -606,6 +527,7 @@ describe("the workspace, which is a row like the rest and a detail unlike it", (
     // panels included - it was a card above them, and a card is what went.
     const onToggle = vi.fn();
     renderWorkbench({ catalog: [SANDBOX, CHARTS], onToggle });
+    await openCapability("Sandbox");
 
     await userEvent.click(screen.getByRole("switch", { name: "Sandbox enabled" }));
 
@@ -615,11 +537,11 @@ describe("the workspace, which is a row like the rest and a detail unlike it", (
   it("keeps the panel's own switch for every other capability", async () => {
     // The switch used to be a card above the panel, headed "Charts is on" with a
     // sentence under it - two lines of chrome per capability for one control that
-    // is also in the row you clicked. The card went; the switch moved onto the
-    // panel's title row, because the list scrolls and the row can be off screen.
+    // is also on the card you opened it from. The card went; the switch moved
+    // onto the panel's title row.
     renderSandbox();
 
-    await userEvent.click(screen.getByRole("button", { name: /Charts/ }));
+    await openCapability("Charts");
 
     expect(screen.getByRole("switch", { name: "Charts enabled" })).toBeVisible();
   });
@@ -628,11 +550,10 @@ describe("the workspace, which is a row like the rest and a detail unlike it", (
 /**
  * Delegation, which is the second capability with a panel of its own.
  *
- * The workbench's job here is only the routing and the row: what the panel then
- * shows is `subagents-section`'s own test file. What matters at this level is
- * that a capability whose configuration is partly *not* in its config blob still
- * reaches an editor, and that the list says who the agent hands work to rather
- * than how many tools delegation contributes.
+ * The workbench's job here is only the routing: what the panel then shows is
+ * `subagents-section`'s own test file. What matters at this level is that a
+ * capability whose configuration is partly *not* in its config blob still
+ * reaches an editor.
  */
 describe("delegation, the other capability with a panel of its own", () => {
   const DELEGATION: CapabilityCatalogEntry = {
@@ -646,28 +567,10 @@ describe("delegation, the other capability with a panel of its own", () => {
     config_schema: null,
   };
 
-  it("says who the agent hands work to, not how many tools delegation has", async () => {
-    renderWorkbench({
-      catalog: [DELEGATION, CHARTS],
-      selected: [
-        binding("subagents", { config: { inline: [{ ...newSpecialist(), name: "summariser" }] } }),
-      ],
-      subagents: [{ agent_id: "a1", agent_version_id: "v1" }],
-    });
-
-    expect(await screen.findByText("2 subagents")).toBeInTheDocument();
-  });
-
-  it("says so when it hands work to nobody", async () => {
-    renderWorkbench({ catalog: [DELEGATION, CHARTS] });
-
-    expect(await screen.findByText("nobody to delegate to")).toBeInTheDocument();
-  });
-
   it("opens the delegation panel rather than the generated form", async () => {
     renderWorkbench({ catalog: [DELEGATION, CHARTS], selected: [binding("subagents")] });
 
-    await userEvent.click(screen.getByRole("button", { name: /^Delegation/ }));
+    await openCapability("Delegation");
 
     expect(screen.getByText("Delegates")).toBeVisible();
     expect(screen.getByText("Inline specialists")).toBeVisible();
@@ -676,7 +579,7 @@ describe("delegation, the other capability with a panel of its own", () => {
   it("leaves the panel inert until the capability is switched on", async () => {
     renderWorkbench({ catalog: [DELEGATION, CHARTS] });
 
-    await userEvent.click(screen.getByRole("button", { name: /^Delegation/ }));
+    await openCapability("Delegation");
 
     expect(screen.getByRole("button", { name: "Add a specialist" })).toBeDisabled();
   });
@@ -685,7 +588,7 @@ describe("delegation, the other capability with a panel of its own", () => {
     const onToggle = vi.fn();
     renderWorkbench({ catalog: [DELEGATION, CHARTS], onToggle });
 
-    await userEvent.click(screen.getByRole("button", { name: /^Delegation/ }));
+    await openCapability("Delegation");
     await userEvent.click(screen.getByRole("switch", { name: "Delegation enabled" }));
 
     expect(onToggle).toHaveBeenCalledWith("subagents");
@@ -732,7 +635,7 @@ describe("context, the capability that reads the files", () => {
       resources: { ...NO_RESOURCES, contextFiles: [FILE], contextTotal: 1 },
     });
 
-    await userEvent.click(screen.getByRole("button", { name: /^Context/ }));
+    await openCapability("Context");
 
     expect(screen.getByRole("tab", { name: "Context files" })).toHaveAttribute(
       "aria-selected",
@@ -745,7 +648,7 @@ describe("context, the capability that reads the files", () => {
     // Which is most of them: no resources tab at all, rather than an empty one.
     renderWorkbench({ catalog: [CONTEXT, CHARTS], selected: [binding("charts")] });
 
-    await userEvent.click(screen.getByRole("button", { name: /^Charts/ }));
+    await openCapability("Charts");
 
     expect(screen.getByRole("tab", { name: "Settings" })).toHaveAttribute("aria-selected", "true");
     expect(screen.queryByRole("tab", { name: "Context files" })).toBeNull();
@@ -791,7 +694,7 @@ describe("image generation, whose model is a provider and a model", () => {
   it("opens its own panel rather than the generated form", async () => {
     renderWorkbench({ catalog: [IMAGE, CHARTS], selected: [binding("image_generation")] });
 
-    await userEvent.click(screen.getByRole("button", { name: /^Image generation/ }));
+    await openCapability("Image generation");
 
     expect(screen.getByLabelText("Provider")).toBeVisible();
     expect(screen.getByLabelText("Model")).toBeVisible();
@@ -801,7 +704,7 @@ describe("image generation, whose model is a provider and a model", () => {
     const onToggle = vi.fn();
     renderWorkbench({ catalog: [IMAGE, CHARTS], onToggle });
 
-    await userEvent.click(screen.getByRole("button", { name: /^Image generation/ }));
+    await openCapability("Image generation");
     await userEvent.click(screen.getByRole("switch", { name: "Image generation enabled" }));
 
     expect(onToggle).toHaveBeenCalledWith("image_generation");
@@ -810,7 +713,6 @@ describe("image generation, whose model is a provider and a model", () => {
 
 describe("the workbench as illustrated cards", () => {
   it("shelves the catalog by category and opens settings in a panel", async () => {
-    localStorage.setItem("capability-view", "crew");
     const PORTALS = { ...CHARTS, id: "portals", name: "Portals", category: "teleportation" };
     renderWorkbench({ catalog: [CHARTS, CONTEXT, PORTALS], selected: [binding("charts")] });
 
@@ -830,7 +732,6 @@ describe("the workbench as illustrated cards", () => {
   });
 
   it("says when a search matches nothing", async () => {
-    localStorage.setItem("capability-view", "crew");
     renderWorkbench();
 
     await userEvent.type(screen.getByPlaceholderText("Search capabilities…"), "teleport");
@@ -839,16 +740,7 @@ describe("the workbench as illustrated cards", () => {
     expect(screen.queryByRole("region")).not.toBeInTheDocument();
   });
 
-  it("goes back to the list from the switch", async () => {
-    localStorage.setItem("capability-view", "isometric");
-    renderWorkbench();
-
-    await userEvent.click(screen.getByRole("radio", { name: "List" }));
-
-    expect(screen.queryByRole("region", { name: "Work with data" })).not.toBeInTheDocument();
-  });
-
-  it("marks a recommended capability in the list as well", () => {
+  it("marks a recommended capability on its card", () => {
     renderWorkbench({
       catalog: [
         {

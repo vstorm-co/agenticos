@@ -1,5 +1,5 @@
 ---
-source_sha: "896b890809b3"
+source_sha: "fb4e0d1f5ab4"
 ---
 
 # Konsola { #the-console }
@@ -25,7 +25,7 @@ był zalogowany. Pusty pas znika razem ze swoim nagłówkiem, zamiast stać tam
 pusty.
 
 Przełącznik na górze mówi, czyj to dashboard, i oferuje tylko widoki, które
-możesz otworzyć:
+możesz otworzyć. Każdy zaczyna od widoku **Ja**:
 
 | Widok | Odpowiada na |
 |---|---|

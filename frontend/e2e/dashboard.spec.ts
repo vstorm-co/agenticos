@@ -15,7 +15,8 @@ test.use({ storageState: AUTH_STATE });
  */
 test.describe("Dashboard", () => {
   test("shows the owner their sections, with data where the seed has any", async ({ page }) => {
-    await page.goto("/dashboard");
+    // The sections are the organization's view; everybody opens on their own.
+    await page.goto("/dashboard?view=org");
 
     await expect(pageHeading(page, "Dashboard")).toBeVisible();
     await expect(page.getByRole("heading", { name: "Needs attention" })).toBeVisible();

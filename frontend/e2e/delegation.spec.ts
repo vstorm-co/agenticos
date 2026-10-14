@@ -125,7 +125,7 @@ test("an agent delegates to another, and both runs are recorded", async ({ page 
   // Switching a capability on deliberately does not open its panel - reading what
   // a capability offers and granting it are different gestures - so the panel has
   // to be asked for.
-  await page.getByRole("button", { name: /^Subagents\b/ }).click();
+  await page.getByRole("button", { name: "Subagents settings", exact: true }).click();
   await page.getByRole("button", { name: "Add a delegate" }).click();
   await page.getByRole("menuitem", { name: new RegExp(delegateName) }).click();
 
@@ -149,6 +149,10 @@ test("an agent delegates to another, and both runs are recorded", async ({ page 
   await row.getByLabel("When it hands back").click();
   await page.getByRole("option", { name: "Wait for it" }).click();
 
+  // The settings sheet covers the page; Publish is behind it.
+  const settings = page.getByRole("dialog");
+  await settings.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(settings).toBeHidden();
   await publish(page);
 
   // 4. running it

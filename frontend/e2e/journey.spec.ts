@@ -191,7 +191,7 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
   await page.getByRole("tab", { name: "Toolbox" }).click();
   const toolbox = page.getByRole("tabpanel");
 
-  // A switch, labelled "Give this agent <name>" in the list on the left. A new
+  // A switch, labelled "Give this agent <name>" on the capability's card. A new
   // agent starts with the recommended capabilities on - Calculations among them -
   // so the one configured here is already granted rather than clicked on.
   const capability = toolbox.getByRole("switch", { name: "Give this agent Calculations" });
@@ -199,7 +199,9 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
     test.skip(true, "the capability catalog is empty in this environment");
   }
   await expect(capability).toHaveAttribute("aria-checked", "true");
-  await toolbox.getByRole("button", { name: /^Calculations/ }).click();
+  await toolbox.getByRole("button", { name: "Calculations settings", exact: true }).click();
+  // The settings open in a sheet beside the page, outside the tab panel.
+  const settings = page.getByRole("dialog");
 
   // Configure it. A side-effecting capability parks its first call in the
   // approval queue by default, which would leave the run below waiting on a
@@ -209,11 +211,13 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
   // The panel is rendered for a capability whether or not it is on, with its
   // controls inert until it is - so this runs after the switch above, not
   // before.
-  const approval = toolbox.getByLabel("Human approval");
+  const approval = settings.getByLabel("Human approval");
   if (await approval.isVisible()) {
     await approval.click();
     await page.getByRole("option", { name: "Never ask" }).click();
   }
+  await settings.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(settings).toBeHidden();
 
   // 5. publishing
   const publish = page.getByRole("button", { name: "Publish" });

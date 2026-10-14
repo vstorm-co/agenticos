@@ -129,7 +129,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
   { id: "dashboard-filters", page: ROUTES.DASHBOARD, target: "dashboard-filters", inTour: true },
   // "?"-only: arranging the dashboard is detail the exhaustive walk covers, not a
   // first-run essential. Ungated — the layout is the reader's own, not org-scoped.
-  { id: "dashboard-customize", page: ROUTES.DASHBOARD, target: "dashboard-customize" },
+  // Optional, because only the organization's view is arranged and everybody
+  // opens on their own.
+  {
+    id: "dashboard-customize",
+    page: ROUTES.DASHBOARD,
+    target: "dashboard-customize",
+    optional: true,
+  },
   // The bell itself sits in the sidebar, not this page, and is mounted on every
   // page alike - but a `TourStep` needs a `page` to ever reach `stepsForPage`
   // (see its own docstring), so it is anchored here the way `dashboard-customize`

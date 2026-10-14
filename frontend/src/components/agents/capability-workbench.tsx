@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { ShieldAlert } from "lucide-react";
 
 import { CapabilityDetail } from "@/components/agents/capability-settings";
 import { ImageGenerationSection } from "@/components/agents/image-generation-section";
@@ -13,25 +12,18 @@ import {
 } from "@/components/agents/capability-resources";
 import { SubagentsSection } from "@/components/agents/subagents-section";
 import { WorkspaceSection } from "@/components/agents/workspace-section";
-import { SearchInput, Switch } from "@/components/ui";
-import {
-  CapabilityViewSwitch,
-  RecommendedBadge,
-  useCapabilityView,
-} from "@/components/agents/capability-art/capability-card";
+import { SearchInput } from "@/components/ui";
 import { CapabilityGallery } from "@/components/agents/capability-art/capability-gallery";
 import { ClearAgentMemory } from "@/components/memory/clear-agent-memory";
 import {
   IMAGE_GENERATION_ID,
   MEMORY_FILES_ID,
   MEMORY_MEM0_ID,
-  readSubagentsConfig,
   SANDBOX_ID,
   SUBAGENTS_ID,
   unboundBinding,
 } from "@/lib/agent-spec";
 import type { FieldProblem } from "@/lib/api-error";
-import { cn } from "@/lib/utils";
 import type { CapabilityBindingSpec, CapabilityCatalogEntry, SubagentRef } from "@/types/agents";
 import { useTranslations } from "next-intl";
 
@@ -103,9 +95,9 @@ interface CapabilityWorkbenchProps {
 /**
  * Choose what an agent can do, and configure the one you are looking at.
  *
- * Master-detail rather than a grid of checkboxes over a pile of settings cards.
- * The pile was the problem: switching on five capabilities produced five
- * configuration panels stacked below the grid, each one separated from the
+ * Cards that open their settings in a panel, rather than a grid of checkboxes
+ * over a pile of settings cards. The pile was the problem: switching on five
+ * capabilities produced five configuration panels stacked below the grid, each one separated from the
  * checkbox that created it by everything else somebody had switched on. The
  * settings were not missing - a tool's name and description have been editable
  * per agent all along - they were simply somewhere nobody looked.
@@ -139,10 +131,7 @@ export function CapabilityWorkbench({
   const t = useTranslations("agents");
   const tc = useTranslations("capabilityCategories");
   const enabled = new Set(selected.filter((binding) => binding.enabled).map((b) => b.id));
-  const [focusedId, setFocusedId] = useState<string | null>(null);
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [view, setView] = useCapabilityView();
-  // Which card's settings panel is open; the list view shows its detail inline.
+  // Which card's settings panel is open.
   const [openedId, setOpenedId] = useState<string | null>(null);
 
   // Filtered, not paged: this column is navigation, and a capability that moved
@@ -169,24 +158,8 @@ export function CapabilityWorkbench({
       entries: matching.filter((entry) => groupOf(entry) === name),
     }));
   }, [catalog, query]);
-  const advancedCount = catalog.filter((entry) => ADVANCED_CAPABILITIES.has(entry.id)).length;
-  // Never folded over something switched on or being read, nor while searching:
-  // a match the reader cannot see is a search that found nothing.
-  const advancedForced =
-    query.trim() !== "" ||
-    catalog.some(
-      (entry) =>
-        ADVANCED_CAPABILITIES.has(entry.id) && (enabled.has(entry.id) || entry.id === focusedId),
-    );
-  const advancedOpen = showAdvanced || advancedForced;
-  const sandboxSubtitle = (key: ReturnType<typeof backendLabel>) => (key ? t(key) : undefined);
 
-  // Falls back to the first thing on the list rather than to nothing: an empty
-  // right-hand column on first load reads as a panel that failed to render.
-  const focused =
-    catalog.find((entry) => entry.id === focusedId) ??
-    catalog.find((entry) => enabled.has(entry.id)) ??
-    catalog[0];
+  const focused = catalog.find((entry) => entry.id === openedId);
   const bound = selected.find((entry) => entry.id === focused?.id);
   const isOn = focused !== undefined && enabled.has(focused.id);
 
@@ -293,231 +266,40 @@ export function CapabilityWorkbench({
     </div>
   );
 
-  // Under trial: the capabilities as illustrated cards, in four styles, beside
-  // the list they would replace - a shelf per category, settings in a panel.
-  if (view !== "list") {
-    return (
-      <div className="space-y-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <SearchInput
-            value={query}
-            onChange={setQuery}
-            placeholder={t("searchCapabilities")}
-            className="w-full sm:w-72"
-          />
-          <CapabilityViewSwitch value={view} onChange={setView} className="sm:ml-auto" />
-        </div>
-        {categories.length === 0 ? (
-          <p className="text-muted-foreground px-1 py-6 text-sm">
-            {t("noCapabilityOrToolMatches", { query })}
-          </p>
-        ) : (
-          <CapabilityGallery
-            shelves={categories.map((category) => ({
-              ...category,
-              label: tc.has(category.name) ? tc(category.name) : category.name,
-            }))}
-            artStyle={view}
-            enabled={enabled}
-            openedId={openedId}
-            disabled={disabled}
-            onOpen={(id) => {
-              setFocusedId(id);
-              setOpenedId(id);
-            }}
-            onClose={() => setOpenedId(null)}
-            onToggle={onToggle}
-            detail={detail}
-          />
-        )}
-      </div>
-    );
-  }
-
+  // A shelf of illustrated cards per category; a card's settings open in a
+  // panel beside the page rather than below a list.
   return (
-    // The panel grows with what it holds; only the list is a bounded, scrolling
-    // column. It was a fixed 36rem frame with *both* columns scrolling inside it,
-    // for a reason that no longer holds: choosing a shorter capability was said to
-    // leave "the document scrolled past its own content, hundreds of pixels of
-    // nothing below the MCP section", and the browser in fact clamps that -
-    // measured on this page, switching from the workspace panel at the bottom of
-    // the page moves scrollTop 2080 -> 0, and paging the server catalog 2080 ->
-    // 400, neither overshooting. What the frame did cost was real: a scrollbar
-    // inside the page beside the page's own, which is what a picker in a panel now
-    // meets every time, and 400px of dead card under a short panel.
-    <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]">
-      {/* Capped to the viewport rather than to 36rem. Sticky and 36rem tall left
-          a void beside a long panel - measured 532px of empty gutter next to the
-          image capability's 1108px panel - where a column the height of the
-          screen is filled by the catalog itself. On a tall screen the whole list
-          fits, so its own scrollbar stops appearing too. */}
-      <div className="flex flex-col gap-3 lg:sticky lg:top-4 lg:max-h-[calc(100vh-8rem)]">
-        <CapabilityViewSwitch value={view} onChange={setView} />
-        {catalog.length > 8 && (
-          <SearchInput
-            value={query}
-            onChange={setQuery}
-            placeholder={t("searchCapabilities")}
-            className="w-full sm:w-full"
-          />
-        )}
-
-        {/* The one bounded column: a catalog of thirty has to stay reachable
-            beside a long panel, so it is capped and scrolls, and the column is
-            sticky so it does not leave with the page. */}
-        <div className="min-h-0 scrollbar-thin space-y-4 lg:flex-1 lg:overflow-y-auto lg:pr-1">
-          {categories.length === 0 && (
-            <p className="text-muted-foreground px-1 py-6 text-sm">
-              {t("noCapabilityOrToolMatches", { query })}
-            </p>
-          )}
-          {categories.map((category) => (
-            <div key={category.name} className="space-y-1">
-              {category.name === ADVANCED && !advancedForced && (
-                <button
-                  type="button"
-                  aria-expanded={advancedOpen}
-                  onClick={() => setShowAdvanced((open) => !open)}
-                  className="text-muted-foreground hover:text-foreground px-1 text-xs underline-offset-2 hover:underline"
-                >
-                  {advancedOpen
-                    ? t("hideAdvancedCapabilities")
-                    : t("showAdvancedCapabilities", { count: advancedCount })}
-                </button>
-              )}
-              {(category.name !== ADVANCED || advancedOpen) && (
-                <p className="text-muted-foreground px-1 text-xs font-medium tracking-wide uppercase">
-                  {/* A category the console has no words for yet - one added in
-                      Python first - keeps the registry's own. */}
-                  {tc.has(`${category.name}`) ? tc(`${category.name}`) : category.name}
-                </p>
-              )}
-              {(category.name !== ADVANCED || advancedOpen) &&
-                category.entries.map((entry) => (
-                  <CapabilityRow
-                    key={entry.id}
-                    entry={entry}
-                    enabled={enabled.has(entry.id)}
-                    focused={focused?.id === entry.id}
-                    disabled={disabled}
-                    // "7 tools" is the least useful thing to say about the
-                    // workspace in a list: which backend it runs is what somebody
-                    // is scanning for, and it is the only capability whose row can
-                    // answer that.
-                    subtitle={
-                      entry.id === SANDBOX_ID
-                        ? sandboxSubtitle(
-                            backendLabel(
-                              selected.find((binding) => binding.id === entry.id),
-                              enabled.has(entry.id),
-                            ),
-                          )
-                        : entry.id === SUBAGENTS_ID
-                          ? // Who it hands work to, which is the only thing about
-                            // delegation worth scanning a list for. "10 tools" is
-                            // true of every agent that has it.
-                            t("delegateCount", {
-                              count:
-                                subagents.length +
-                                readSubagentsConfig(
-                                  selected.find((binding) => binding.id === entry.id),
-                                ).inline.length,
-                            })
-                          : undefined
-                    }
-                    onFocus={() => setFocusedId(entry.id)}
-                    onToggle={() => onToggle(entry.id)}
-                  />
-                ))}
-            </div>
-          ))}
-        </div>
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <SearchInput
+          value={query}
+          onChange={setQuery}
+          placeholder={t("searchCapabilities")}
+          className="w-full sm:w-72"
+        />
       </div>
-
-      {detail}
-    </div>
-  );
-}
-
-/**
- * What the workspace row says it gives the agent, once it gives anything.
- *
- * A catalog key: before it is switched on the row says what the capability is
- * for, like every other row.
- */
-function backendLabel(
-  binding: CapabilityBindingSpec | undefined,
-  enabled: boolean,
-): "workspaceFilesAndShell" | "workspaceFilesOnly" | undefined {
-  if (!enabled) return undefined;
-  const backend = (binding?.config as { backend?: string } | undefined)?.backend ?? "state";
-  // The kind of host - a container service or Daytona - belongs to the
-  // connection rather than the spec, so the row says what the agent gets and not
-  // where it runs. "Where" is on the connection, which the detail panel names.
-  if (backend === "service") return "workspaceFilesAndShell";
-  return "workspaceFilesOnly";
-}
-
-function CapabilityRow({
-  entry,
-  enabled,
-  focused,
-  disabled,
-  subtitle,
-  onFocus,
-  onToggle,
-}: {
-  entry: CapabilityCatalogEntry;
-  enabled: boolean;
-  focused: boolean;
-  disabled?: boolean;
-  subtitle?: string;
-  onFocus: () => void;
-  onToggle: () => void;
-}) {
-  const t = useTranslations("agents");
-  return (
-    <div
-      // Addressable per capability, because the walkthrough points at three of
-      // these rows: what an agent may search, read and load is picked inside the
-      // panel a row opens, and the row is the bounded thing a spotlight can sit
-      // on. The panel itself only exists once one has been clicked.
-      data-tour={`capability-${entry.id}`}
-      className={cn(
-        "flex items-start gap-2 rounded-lg border px-2 py-2 transition-colors",
-        focused ? "border-foreground/25 bg-accent" : "hover:bg-accent/50 border-transparent",
+      {categories.length === 0 ? (
+        <p className="text-muted-foreground px-1 py-6 text-sm">
+          {t("noCapabilityOrToolMatches", { query })}
+        </p>
+      ) : (
+        <CapabilityGallery
+          shelves={categories.map((category) => ({
+            ...category,
+            // A category the console has no words for yet - one added in
+            // Python first - keeps the registry's own. The key is the
+            // registry's, so it is read as a pattern over the namespace.
+            label: tc.has(`${category.name}`) ? tc(`${category.name}`) : category.name,
+          }))}
+          enabled={enabled}
+          openedId={openedId}
+          disabled={disabled}
+          onOpen={setOpenedId}
+          onClose={() => setOpenedId(null)}
+          onToggle={onToggle}
+          detail={detail}
+        />
       )}
-    >
-      <button
-        type="button"
-        onClick={onFocus}
-        aria-current={focused ? "true" : undefined}
-        className="min-w-0 flex-1 text-left"
-      >
-        <span className="flex flex-wrap items-center gap-1.5">
-          <span className="text-sm font-medium">{entry.name}</span>
-          {entry.recommended && <RecommendedBadge />}
-          {entry.side_effecting && (
-            <ShieldAlert className="text-muted-foreground h-3 w-3" aria-label={t("actsWorld")} />
-          )}
-        </span>
-        {/* What it lets the agent do, which is what somebody scanning the list is
-            deciding on; how many tools that takes is on the Tools tab. */}
-        <span className="text-muted-foreground mt-0.5 line-clamp-2 block text-xs">
-          {subtitle ?? entry.description}
-        </span>
-      </button>
-
-      {/* Its own control, not the row. Reading what a capability offers must not
-          be the same gesture as granting it - and a switch says "on or off",
-          which is what this is, where a checkbox says "one of a set". */}
-      <Switch
-        checked={enabled}
-        disabled={disabled}
-        aria-label={t("giveThisAgent", { name: entry.name })}
-        onCheckedChange={onToggle}
-        className="mt-0.5 shrink-0"
-      />
     </div>
   );
 }

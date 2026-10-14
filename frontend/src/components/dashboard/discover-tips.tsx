@@ -5,11 +5,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useRef, useState } from "react";
 
-import type { CapabilityArtStyle } from "@/components/agents/capability-art/art.generated";
-import {
-  CapabilityArt,
-  useCapabilityView,
-} from "@/components/agents/capability-art/capability-card";
+import { CapabilityArt } from "@/components/agents/capability-art/capability-card";
 import { BrandIcon, type BrandName } from "@/components/icons/brand-icon";
 import { Button, Card, CardContent } from "@/components/ui";
 import { SCROLL_FADE, useScrollFade } from "@/components/ui/scroll-fade";
@@ -82,16 +78,12 @@ function readDismissed(): ReadonlySet<string> {
 export function DiscoverTips() {
   const t = useTranslations("dashboard.discover");
   const { can } = usePermissions();
-  const [view] = useCapabilityView();
   const [dismissed, setDismissed] = useState(readDismissed);
   const strip = useRef<HTMLDivElement>(null);
   useScrollFade(strip);
 
   const tips = TIPS.filter((tip) => !dismissed.has(tip.id) && (!tip.gate || can(tip.gate)));
   if (tips.length === 0) return null;
-  // The Toolbox's illustrated style where the reader has picked one, else the
-  // isometric one: the list view has no art to borrow.
-  const artStyle: CapabilityArtStyle = view === "crew" ? "crew" : "isometric";
 
   const dismiss = (ids: readonly string[]) => {
     const next = new Set([...dismissed, ...ids]);
@@ -154,12 +146,7 @@ export function DiscoverTips() {
           )}
         >
           {tips.map((tip) => (
-            <TipTile
-              key={tip.id}
-              tip={tip}
-              artStyle={artStyle}
-              onDismiss={() => dismiss([tip.id])}
-            />
+            <TipTile key={tip.id} tip={tip} onDismiss={() => dismiss([tip.id])} />
           ))}
         </div>
       </CardContent>
@@ -167,15 +154,7 @@ export function DiscoverTips() {
   );
 }
 
-function TipTile({
-  tip,
-  artStyle,
-  onDismiss,
-}: {
-  tip: Tip;
-  artStyle: CapabilityArtStyle;
-  onDismiss: () => void;
-}) {
+function TipTile({ tip, onDismiss }: { tip: Tip; onDismiss: () => void }) {
   const t = useTranslations("dashboard.discover");
   const title = t(`tips.${tip.id}.title`);
   return (
@@ -184,7 +163,7 @@ function TipTile({
       className="group bg-card relative flex w-[72%] shrink-0 snap-start flex-col overflow-hidden rounded-xl border sm:w-60"
     >
       {tip.art ? (
-        <CapabilityArt id={tip.art} name={title} artStyle={artStyle} />
+        <CapabilityArt id={tip.art} name={title} />
       ) : (
         <div className="from-muted to-muted/40 flex aspect-video items-center justify-center gap-3 bg-gradient-to-br">
           {tip.brands?.map((brand) => (

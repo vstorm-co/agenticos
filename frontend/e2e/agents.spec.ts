@@ -26,27 +26,23 @@ import {
 } from "./helpers";
 
 /**
- * The entry for one capability in the Builder's list, which is what opens its
- * panel.
+ * The button on one capability's card that opens its settings panel.
  *
- * Anchored to the start of the accessible name because the entry prints its
- * tool count after the name ("Knowledge search 1 tool"). It is the only *button*
- * bearing the capability's name - the two controls that grant it are switches,
- * named "Give this agent Knowledge search" and "Knowledge search enabled".
+ * The card's art and its name open the panel too, but both are named by the
+ * capability alone; this one says what it does ("Knowledge search settings"),
+ * and the two controls that grant the capability are switches, named "Give this
+ * agent Knowledge search" and "Knowledge search enabled".
  */
 function capabilityEntry(page: Page, name: string): Locator {
-  return page.getByRole("button", { name: new RegExp(`^${name}\\b`) });
+  return page.getByRole("button", { name: `${name} settings`, exact: true });
 }
 
 /**
- * The panel the Builder shows for one capability, opened first.
+ * The panel the Builder shows for one capability, opened from its card.
  *
- * The Builder is master–detail now: one panel at a time, for whichever
- * capability is focused, and switching a capability on deliberately does not
- * focus it — reading what a capability offers and granting it are different
- * gestures. Nothing is focused after a reload either, so the click is what
- * makes the panel below the one a spec means rather than whichever one the
- * component's fallback happened to pick.
+ * One panel at a time, in a sheet beside the page, and switching a capability
+ * on deliberately does not open it - reading what a capability offers and
+ * granting it are different gestures.
  */
 async function capabilityPanel(page: Page, name: string): Promise<Locator> {
   await capabilityEntry(page, name).click();
@@ -107,7 +103,7 @@ async function findServer(page: Page, name: string): Promise<Locator> {
 }
 
 /**
- * The switch that grants one capability, in the list it is picked from.
+ * The switch that grants one capability, on the card it is picked from.
  *
  * A switch rather than a checkbox: this is one capability being on or off, not
  * one of a set. The panel on the right carries a second switch for the same

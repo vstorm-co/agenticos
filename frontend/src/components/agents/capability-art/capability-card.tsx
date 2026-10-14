@@ -2,95 +2,14 @@
 
 import { Settings2, ShieldAlert } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useState, type CSSProperties } from "react";
+import type { CSSProperties } from "react";
 
 import { Badge, Switch } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import type { CapabilityCatalogEntry } from "@/types/agents";
 
-import { CAPABILITY_ART, CAPABILITY_HUE, type CapabilityArtStyle } from "./art.generated";
+import { CAPABILITY_ART, CAPABILITY_HUE } from "./art.generated";
 import "./capability-art.css";
-
-/** The Toolbox's views while the illustrated cards are on trial: today's list, or one style. */
-export type CapabilityView = "list" | CapabilityArtStyle;
-
-const VIEWS: readonly CapabilityView[] = ["list", "isometric", "crew"];
-const VIEW_KEY = "capability-view";
-
-/** Each style's stage class in the stylesheet the canvas generated. */
-const STAGE: Record<CapabilityArtStyle, string> = {
-  isometric: "v-B",
-  crew: "v-F",
-};
-
-/**
- * Which view the reader last chose, kept in this browser only.
- *
- * A trial switch, not a setting: it decides nothing for anybody else, and goes
- * once one style is picked.
- */
-export function useCapabilityView(): [CapabilityView, (view: CapabilityView) => void] {
-  // Read once, on the first render: the Toolbox renders after the agent loads,
-  // in the browser, so there is no server render for this to disagree with.
-  const [view, setView] = useState<CapabilityView>(() => {
-    try {
-      const stored = window.localStorage.getItem(VIEW_KEY);
-      return stored !== null && (VIEWS as readonly string[]).includes(stored)
-        ? (stored as CapabilityView)
-        : "list";
-    } catch {
-      // Storage refused (a private window): the list it opens on is the default.
-      return "list";
-    }
-  });
-  const choose = (next: CapabilityView) => {
-    setView(next);
-    try {
-      window.localStorage.setItem(VIEW_KEY, next);
-    } catch {
-      // Remembered for this visit only.
-    }
-  };
-  return [view, choose];
-}
-
-/** A small segmented control to try each card style on the real Toolbox. */
-export function CapabilityViewSwitch({
-  value,
-  onChange,
-  className,
-}: {
-  value: CapabilityView;
-  onChange: (view: CapabilityView) => void;
-  className?: string;
-}) {
-  const t = useTranslations("agents");
-  return (
-    <div
-      role="radiogroup"
-      aria-label={t("capabilityView")}
-      className={cn("bg-foreground/[0.05] inline-flex w-fit gap-0.5 rounded-lg p-0.5", className)}
-    >
-      {VIEWS.map((view) => (
-        <button
-          key={view}
-          type="button"
-          role="radio"
-          aria-checked={value === view}
-          onClick={() => onChange(view)}
-          className={cn(
-            "rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors",
-            value === view
-              ? "bg-background text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          {t(`capabilityView_${view}`)}
-        </button>
-      ))}
-    </div>
-  );
-}
 
 /** A hue for a capability the canvas drew nothing for, steady across renders. */
 function hueOf(id: string): number {
@@ -100,23 +19,21 @@ function hueOf(id: string): number {
 }
 
 /**
- * What a capability does, drawn: the canvas's scene for it in one style, or -
- * for a capability the canvas has no scene for - its initial on the same stage.
+ * What a capability does, drawn: the canvas's isometric scene for it, or - for
+ * a capability the canvas has no scene for - its initial on the same stage.
  */
 export function CapabilityArt({
   id,
   name,
-  artStyle,
   off = false,
 }: {
   id: string;
   name: string;
-  artStyle: CapabilityArtStyle;
   off?: boolean;
 }) {
-  const svg = CAPABILITY_ART[artStyle][id];
+  const svg = CAPABILITY_ART[id];
   const style = { "--h": CAPABILITY_HUE[id] ?? hueOf(id) } as CSSProperties;
-  const stage = cn("stage aspect-video", STAGE[artStyle]);
+  const stage = "stage v-B aspect-video";
   return (
     <div className={cn("cap-art", off && "is-off")} style={style}>
       {svg !== undefined ? (
@@ -148,7 +65,6 @@ export function RecommendedBadge({ className }: { className?: string }) {
 /** One capability as a card: its scene, its name and switch, what it does, how many tools. */
 export function CapabilityCard({
   entry,
-  artStyle,
   enabled,
   focused,
   disabled,
@@ -156,7 +72,6 @@ export function CapabilityCard({
   onToggle,
 }: {
   entry: CapabilityCatalogEntry;
-  artStyle: CapabilityArtStyle;
   enabled: boolean;
   focused: boolean;
   disabled?: boolean;
@@ -168,8 +83,7 @@ export function CapabilityCard({
     <div
       data-tour={`capability-${entry.id}`}
       className={cn(
-        "group bg-card flex w-full flex-col overflow-hidden border transition-colors",
-        artStyle === "crew" ? "rounded-2xl" : "rounded-xl",
+        "group bg-card flex w-full flex-col overflow-hidden rounded-xl border transition-colors",
         focused ? "border-foreground/40" : "hover:border-foreground/25",
       )}
     >
@@ -178,13 +92,9 @@ export function CapabilityCard({
         onClick={onFocus}
         aria-current={focused ? "true" : undefined}
         aria-label={entry.name}
-        className={cn(
-          "relative block overflow-hidden text-left",
-          artStyle === "crew" && "m-2 mb-0 rounded-xl",
-          artStyle === "isometric" && "border-b",
-        )}
+        className="relative block overflow-hidden border-b text-left"
       >
-        <CapabilityArt id={entry.id} name={entry.name} artStyle={artStyle} off={!enabled} />
+        <CapabilityArt id={entry.id} name={entry.name} off={!enabled} />
         {entry.recommended && (
           <RecommendedBadge className="bg-background/90 absolute top-2 left-2 shadow-sm backdrop-blur" />
         )}
