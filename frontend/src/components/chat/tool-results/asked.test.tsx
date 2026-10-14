@@ -18,6 +18,7 @@ function call(result: unknown): ToolCall {
         { header: "Plans to include", question: "Which plans?", options: [] },
         { question: "Anything else?" },
         "not a question",
+        { header: "A header with no question" },
       ],
     },
     result,
@@ -52,6 +53,21 @@ describe("what an ask_user_question step shows", () => {
 
     expect(screen.getByText("How do you want it shown?")).toBeInTheDocument();
     expect(screen.getAllByText("Not answered yet")).toHaveLength(3);
+  });
+
+  it("shows each answer as the labels that were chosen", () => {
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <AskedResult
+          asked={parseAsked(call(JSON.stringify({ "Plans to include": ["Starter", "Growth"] })))!}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.getByText("Starter")).toBeInTheDocument();
+    expect(screen.getByText("Growth")).toBeInTheDocument();
+    // The other three were never answered, and say so.
+    expect(screen.getAllByText("Not answered yet")).toHaveLength(2);
   });
 
   it("is not a question list when the arguments carry none", () => {

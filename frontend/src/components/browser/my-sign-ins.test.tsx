@@ -121,6 +121,33 @@ describe("signing in to a site from here", () => {
     expect(signing.start).toHaveBeenCalledWith("https://github.com/login");
   });
 
+  it("does nothing with an empty address", () => {
+    signing.available = true;
+    mount();
+
+    fireEvent.click(screen.getByRole("button", { name: "Sign in to a site" }));
+    fireEvent.submit(screen.getByPlaceholderText("linkedin.com/login").closest("form")!);
+
+    expect(signing.start).not.toHaveBeenCalled();
+  });
+
+  it("says in a toast what went wrong when it is not the address", async () => {
+    const { ApiError } = await import("@/lib/api-error");
+    const { toast } = await import("sonner");
+    signing.available = true;
+    signing.start.mockRejectedValue(new ApiError(503, "Unavailable", null));
+    mount();
+
+    fireEvent.click(screen.getByRole("button", { name: "Sign in to a site" }));
+    fireEvent.change(screen.getByPlaceholderText("linkedin.com/login"), {
+      target: { value: "https://github.com/login" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Open browser" }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(signing.push).not.toHaveBeenCalled();
+  });
+
   it("puts a refused address under the field, and closes on Cancel", async () => {
     const { ApiError } = await import("@/lib/api-error");
     signing.available = true;
