@@ -541,6 +541,62 @@ class SpeechToTextSpec(BaseModel):
     )
 
 
+class VoiceSpec(BaseModel):
+    """How this agent holds a spoken conversation (#54).
+
+    A pick from the realtime catalog and the vault key it is held with - the
+    same A+ shape as speech to text. For Azure, `deployment` is the deployment
+    name (free text) and `base_model` the catalog model it runs, which decides
+    the voices and the price; the endpoint and API version come from the
+    `azure_openai` secret.
+
+    **Every rule that spans fields is checked at publish, not here**, for the
+    reason `SpeechToTextSpec` gives: the Builder autosaves a draft between
+    picking a provider and picking its model.
+
+    Capabilities that cannot run by voice do not block publishing; they are
+    unavailable in calls and the Builder lists them.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    provider: str | None = Field(
+        default=None, max_length=32, description="A provider from the realtime catalog"
+    )
+    model: str | None = Field(
+        default=None, max_length=255, description="A realtime model of that provider"
+    )
+    deployment: str | None = Field(
+        default=None, max_length=255, description="Azure only: the deployment name calls go to"
+    )
+    base_model: str | None = Field(
+        default=None,
+        max_length=255,
+        description="Azure only: the catalog model the deployment runs",
+    )
+    secret_id: UUID | None = Field(
+        default=None,
+        description="The vault key calls are held with: its purpose is the provider, and its kind the provider's",
+    )
+    voice: str | None = Field(
+        default=None, max_length=64, description="One of the model's voices; null is its default"
+    )
+    language: str | None = Field(
+        default=None,
+        max_length=8,
+        description="An ISO-639-1 code the agent speaks; null follows the caller",
+    )
+    max_call_seconds: int | None = Field(
+        default=None,
+        ge=60,
+        le=3000,
+        description="The longest call; at most the organization's maximum",
+    )
+    voice_note: str | None = Field(
+        default=None, max_length=1000, description="Extra spoken-style guidance appended in calls"
+    )
+
+
 class ModelSettingsSpec(BaseModel):
     """How this agent asks its model to behave.
 
@@ -1110,6 +1166,11 @@ class AgentSpec(BaseModel):
         ),
     )
 
+    voice: VoiceSpec | None = Field(
+        default=None,
+        description="Hold voice conversations: the realtime model, its key, the voice and limits. Null: no calls",
+    )
+
     @property
     def trace_content(self) -> TraceContent:
         """How much of a run this agent's spans may carry.
@@ -1256,6 +1317,14 @@ class AgentSpec(BaseModel):
         draft that went there and back compares equal to the version it started
         from rather than showing as an unpublished change.
         """
+        if value is None or value.model_dump(exclude_none=True):
+            return value
+        return None
+
+    @field_validator("voice")
+    @classmethod
+    def _an_empty_voice_block_is_no_voice(cls, value: VoiceSpec | None) -> VoiceSpec | None:
+        """One spelling for "no voice section", for the reason `speech_to_text` has one."""
         if value is None or value.model_dump(exclude_none=True):
             return value
         return None

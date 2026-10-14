@@ -27,10 +27,14 @@ from app.schemas.model_profile import (
     ProviderInfo,
     ProviderModelList,
     ProviderModelRead,
+    RealtimeModelRead,
+    RealtimeProviderList,
+    RealtimeProviderRead,
     SpeechToTextModelRead,
     SpeechToTextProviderList,
     SpeechToTextProviderRead,
 )
+from app.services import realtime_models
 from app.services.image_models import image_providers
 from app.services.model_catalog import models_for
 from app.services.model_profile import provider_catalog
@@ -192,6 +196,47 @@ async def list_speech_to_text_models() -> Any:
         ],
         total=len(offered),
         languages=list(SPEECH_TO_TEXT_LANGUAGES),
+    )
+
+
+@router.get(
+    "/realtime-models",
+    response_model=RealtimeProviderList,
+    dependencies=[Depends(require(Perm.AGENTS_VIEW))],
+)
+async def list_realtime_models() -> Any:
+    """Which providers can hold a voice conversation, with which models and voices.
+
+    The same shape and reasoning as `/speech-to-text-models`. No credential is
+    read; the key is chosen beside the pair, from vault keys whose purpose is
+    the provider. Declared before `/{provider}/models`.
+    """
+    offered = realtime_models.providers()
+    return RealtimeProviderList(
+        items=[
+            RealtimeProviderRead(
+                provider=entry.provider,
+                name=entry.name,
+                secret_kind=entry.secret_kind.value,
+                deployment=entry.deployment,
+                models=[
+                    RealtimeModelRead(
+                        id=model.id,
+                        name=model.name,
+                        description=model.description,
+                        transport=model.transport,
+                        voices=list(model.voices),
+                        default_voice=model.default_voice,
+                        supports_thinking=model.supports_thinking,
+                        input_sample_rate=model.input_sample_rate,
+                        output_sample_rate=model.output_sample_rate,
+                    )
+                    for model in entry.models
+                ],
+            )
+            for entry in offered
+        ],
+        total=len(offered),
     )
 
 

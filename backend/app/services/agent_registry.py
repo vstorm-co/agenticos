@@ -55,6 +55,7 @@ from app.agents.spec import (
     SpecialistSpec,
     SpeechToTextSpec,
     SubagentRef,
+    VoiceSpec,
 )
 from app.core.audit import record_audit
 from app.core.exceptions import (
@@ -83,6 +84,7 @@ from app.repositories import (
     sandbox_connection_repo,
     skill_repo,
 )
+from app.repositories import organization as organization_repo
 from app.schemas.agent import (
     MAX_CATEGORIES,
     MAX_TAGS,
@@ -97,7 +99,14 @@ from app.schemas.agent import (
     TemplateInstallResult,
     normalize_labels_query,
 )
-from app.services import agent_templates, mcp_catalog, skill_library, speech_to_text
+from app.services import (
+    agent_templates,
+    mcp_catalog,
+    provider_keys,
+    realtime_models,
+    skill_library,
+    speech_to_text,
+)
 from app.services.access import (
     AGENT,
     COLLECTION,
@@ -1331,6 +1340,7 @@ class AgentRegistryService:
         problems.add(await self._mcp_problems(ctx, spec.mcp_servers))
         problems.add(await self._observability_problems(ctx, spec))
         problems.add(await self._speech_to_text_problems(ctx, spec.speech_to_text))
+        problems.add(await self._voice_problems(ctx, spec.voice))
 
         problems.add(await _sandbox_problems(self.db, ctx, spec))
         problems.merge(await self._delegation_problems(ctx, spec, agent_id=agent_id))
@@ -1714,6 +1724,61 @@ class AgentRegistryService:
             problems.append(
                 f"Speech to text: '{override.language}' is not a language transcription accepts"
             )
+        return problems
+
+    async def _voice_problems(self, ctx: AuthContext, voice: VoiceSpec | None) -> list[str]:
+        """Everything wrong with an agent's Voice conversations section (#54).
+
+        Refused at publish so a broken voice section is a red field, never a
+        call that fails while somebody is talking: the pair is in the realtime
+        catalog, the voice is one of the model's, the key passes the shared
+        check (`provider_keys.key_problem`) with the kind its provider needs, and
+        the longest call fits the organization's maximum.
+        """
+        if voice is None:
+            return []
+        if voice.provider is None:
+            return ["Voice: choose a provider and a model, or remove the voice section"]
+        provider = realtime_models.by_provider(voice.provider)
+        if provider is None:
+            return [f"Voice: {voice.provider} cannot hold voice conversations on this deployment"]
+        problems: list[str] = []
+        catalog_model = voice.base_model if provider.deployment else voice.model
+        if catalog_model is None:
+            return [f"Voice: choose a model for {voice.provider}"]
+        entry = realtime_models.offered(voice.provider, catalog_model)
+        if entry is None:
+            return [
+                f"Voice: '{catalog_model}' is not a realtime model this deployment offers for {voice.provider}"
+            ]
+        if provider.deployment and not voice.deployment:
+            problems.append(f"Voice: name the Azure deployment that runs {catalog_model}")
+        if voice.voice is not None and voice.voice not in entry.voices:
+            problems.append(f"Voice: {catalog_model} has no voice called '{voice.voice}'")
+        if voice.secret_id is None:
+            problems.append(f"Voice: choose a key for {voice.provider} to hold calls with")
+        else:
+            problem = await provider_keys.key_problem(
+                self.db,
+                voice.secret_id,
+                organization_id=ctx.organization_id,
+                provider=voice.provider,
+                kind=provider.secret_kind,
+                feature="voice conversations",
+                ctx=ctx,
+            )
+            if problem is not None:
+                problems.append(f"Voice: {problem}")
+        if voice.language is not None and voice.language not in speech_to_text.LANGUAGES:
+            problems.append(f"Voice: '{voice.language}' is not a language code calls accept")
+        if voice.max_call_seconds is not None:
+            organization = await organization_repo.get_by_id(self.db, ctx.organization_id)
+            ceiling = organization.voice_max_call_seconds if organization is not None else 3000
+            if voice.max_call_seconds > ceiling:
+                problems.append(
+                    f"Voice: the longest call is {voice.max_call_seconds} s, and this organization "
+                    f"allows at most {ceiling} s"
+                )
         return problems
 
     async def _delegation_problems(

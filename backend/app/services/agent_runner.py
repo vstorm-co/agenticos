@@ -66,11 +66,20 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 from pydantic_ai import Agent as PydanticAgent
+from pydantic_ai.agent import AgentRealtime
 from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter, UserContent
+from pydantic_ai.realtime import (
+    RealtimeModel,
+    RealtimeModelSettings,
+    RealtimeProviderSession,
+    RealtimeSession,
+    WebRTCAnswer,
+)
 from pydantic_ai.run import AgentRun as AgentIteration
 from pydantic_ai.run import AgentRunResult
 from pydantic_ai.tools import DeferredToolRequests, DeferredToolResults, ToolApproved
 from pydantic_ai.toolsets import AbstractToolset
+from pydantic_ai.usage import UsageLimits
 from pydantic_ai.workspaces import Workspace
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -149,6 +158,7 @@ from app.agents.subagent_runtime import (
     ResumedDelegation,
     SubagentRuntime,
 )
+from app.agents.voice import VoiceOptions, without_voice_unavailable
 from app.core.config import settings
 from app.core.exceptions import (
     AuthorizationError,
@@ -176,8 +186,10 @@ from app.repositories import (
     message_rating_repo,
     organization_repo,
     run_manifest_repo,
+    voice_call_repo,
 )
 from app.repositories.agent_run import AgentSpendRow, RunFilters
+from app.repositories.voice_call import VoiceChain
 from app.schemas.agent import ParkedCall
 from app.services.agent_registry import (
     DEFAULT_GRANTED_SCOPES,
@@ -1027,6 +1039,22 @@ class RecordedDelegation:
     error: str | None = None
 
 
+@dataclass(frozen=True)
+class VoiceRun:
+    """What makes a prepared run a voice call (#54).
+
+    The run row records the realtime model, provider and key, not the chat
+    profile's: those are what the call spends. The chat profile is still
+    resolved - it prices nothing in a call, but it writes the long-history
+    summary a reconnect may need.
+    """
+
+    options: VoiceOptions
+    model_label: str
+    provider: str
+    secret_id: UUID
+
+
 @dataclass
 class PreparedRun:
     """An agent ready to execute, with its run row already open.
@@ -1231,6 +1259,56 @@ class PreparedRun:
                 workspace=self._workspace(),
             ) as iteration:
                 yield iteration
+
+    def realtime(
+        self,
+        model: RealtimeModel,
+        *,
+        settings: RealtimeModelSettings,
+        message_history: Sequence[ModelMessage],
+        cost_limit: Decimal | None,
+    ) -> AgentRealtime[AgentDeps]:
+        """This run's agent as a realtime session factory (#54).
+
+        `request_limit=None`, never `built.usage_limits`: a session counts every
+        response, and a text run's 50-100 requests would end a call after a few
+        minutes of talking. The budget is the limit, as a cost.
+        """
+        return self.built.agent.realtime(
+            model,
+            deps=self.built.deps,
+            model_settings=settings,
+            usage_limits=UsageLimits(cost_limit=cost_limit, request_limit=None),
+            message_history=message_history,
+            run_id=str(self.run.id),
+            conversation_id=(
+                None if self.run.conversation_id is None else str(self.run.conversation_id)
+            ),
+        )
+
+    async def answer_offer(
+        self, realtime: AgentRealtime[AgentDeps], sdp_offer: str
+    ) -> WebRTCAnswer:
+        """Answer a browser's SDP offer, metered: it resolves the tools, MCP included, once."""
+        with guarded_by(self.built.budget), metered_by(self.built.ledger):
+            return await realtime.answer_webrtc_offer(sdp_offer)
+
+    @asynccontextmanager
+    async def realtime_session(
+        self,
+        realtime: AgentRealtime[AgentDeps],
+        *,
+        provider_session: RealtimeProviderSession | None,
+    ) -> AsyncIterator[RealtimeSession]:
+        """The call's session, metered and guarded like `iterate` (#54).
+
+        `transcript_only`: no audio is kept, in memory or anywhere else.
+        """
+        with guarded_by(self.built.budget), metered_by(self.built.ledger):
+            async with realtime.session(
+                provider_session=provider_session, audio_retention="transcript_only"
+            ) as session:
+                yield session
 
     def _workspace(self) -> Workspace | None:
         """The workspace this run works in: the one the runner opened, if any.
@@ -1981,6 +2059,7 @@ class AgentRunnerService:
         approval_mode: ApprovalMode = ApprovalMode.FOLLOW_AGENT,
         on_compaction: CompactionSink | None = None,
         request_connection: ConnectionCallback | None = None,
+        voice: VoiceRun | None = None,
     ) -> PreparedRun:
         """Assemble everything a run needs and open its row.
 
@@ -2025,6 +2104,10 @@ class AgentRunnerService:
                 binding they have not connected is offered to the model as
                 `connect_account` rather than briefed as unavailable - so nobody
                 is asked to connect a service the agent never reaches for.
+            voice: A voice call (#54). The spec is stripped of what a call
+                cannot run *before* assembly, so no sandbox opens and no
+                delegate resolves; the row is stamped `modality='voice'` with
+                the realtime model and its key.
 
         Raises:
             BadRequestError: If the agent is unpublished, archived, or its spec
@@ -2041,6 +2124,8 @@ class AgentRunnerService:
         )
         spec = await _with_exposure_prompt(spec, exposure, channel_directory)
         spec = _with_channel_tools(spec, exposure)
+        if voice is not None:
+            spec = without_voice_unavailable(spec)
         prepared = await self._assemble(
             ctx,
             agent=agent,
@@ -2066,6 +2151,7 @@ class AgentRunnerService:
             # Passed in rather than set on the built deps like `on_compaction`:
             # whether a gap is briefed or offered as a tool decides what is built.
             request_connection=request_connection,
+            voice=voice,
         )
         if on_compaction is not None:
             # Set on the built deps rather than passed into `_assemble`: it is a
@@ -2153,6 +2239,7 @@ class AgentRunnerService:
         environment_id: UUID | None = None,
         plan_items: list[dict[str, Any]] | None = None,
         request_connection: ConnectionCallback | None = None,
+        voice: VoiceRun | None = None,
     ) -> PreparedRun:
         """Build the agent for a run, opening its row unless one is being resumed.
 
@@ -2333,9 +2420,11 @@ class AgentRunnerService:
                 exposure_id=exposure.id if exposure else None,
                 channel_identity_id=ctx.channel_identity_id,
                 surface=surface.value,
-                model_label=model_spec.label,
-                provider=model_spec.provider,
-                secret_id=model_spec.secret_id,
+                # A call spends on its realtime model and key, not the chat profile's.
+                model_label=voice.model_label if voice is not None else model_spec.label,
+                provider=voice.provider if voice is not None else model_spec.provider,
+                secret_id=voice.secret_id if voice is not None else model_spec.secret_id,
+                modality="voice" if voice is not None else "text",
                 started_at=datetime.now(UTC),
             )
 
@@ -2517,6 +2606,7 @@ class AgentRunnerService:
             # advanced, so it counts across turns rather than resetting each one.
             recorded_overhead=recorded.overhead,
             recorded_reminder_state=recorded.reminder_state,
+            voice=None if voice is None else voice.options,
         )
 
         # Both only assignable now, and both before the run starts. The guard and
@@ -4391,6 +4481,20 @@ class AgentRunnerService:
         """
         return await agent_run_repo.down_rated_run_ids(
             self.db, organization_id=ctx.organization_id, run_ids=run_ids
+        )
+
+    async def voice_chains(
+        self, ctx: AuthContext, run_ids: Sequence[UUID]
+    ) -> dict[UUID, VoiceChain]:
+        """Each listed call, every connection of it summed - Activity's one row per call (#54).
+
+        Nothing to ask for a page with no calls on it. Scoped to the caller's
+        organization like every read here.
+        """
+        if not run_ids:
+            return {}
+        return await voice_call_repo.chains_for_runs(
+            self.db, list(run_ids), organization_id=ctx.organization_id
         )
 
     async def get_run(self, ctx: AuthContext, run_id: UUID) -> AgentRun:

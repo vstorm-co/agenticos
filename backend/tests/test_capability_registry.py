@@ -918,3 +918,14 @@ class TestFrontendToolCatalog:
             f"{CATALOG_PATH.name} has a row for a tool no capability registers; "
             "nothing will ever render it"
         )
+
+
+def test_exactly_the_four_capabilities_that_cannot_run_in_a_call_say_so():
+    """#54: a realtime session cannot carry these; the Builder lists them as unavailable by voice."""
+    load_builtins()
+    assert {d.id for d in all_capabilities() if not d.voice} == {
+        "sandbox",
+        "browser_use",
+        "browser_choice",
+        "subagents",
+    }

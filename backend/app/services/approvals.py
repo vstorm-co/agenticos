@@ -25,7 +25,7 @@ from app.core.config import settings
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, ToolApproval
-from app.repositories import agent_run_repo
+from app.repositories import agent_run_repo, voice_call_repo
 from app.repositories.agent_run import ApprovalFilters, ApprovalRow
 from app.services.transcript import TranscriptService
 
@@ -148,13 +148,20 @@ class ApprovalService:
         *,
         approved: bool,
         note: str | None = None,
+        via_call: bool = False,
     ) -> ToolApproval:
         """Approve or reject a parked tool call.
+
+        `via_call` is the voice bridge: a call's approval is decided by the
+        person on the call, through its socket, and nowhere else - the queue
+        refuses it while the call is live (#54).
 
         Raises:
             NotFoundError: If the approval is not in this organization.
             BadRequestError: If it was already decided. Deciding twice would
                 make the audit trail ambiguous about who authorised the action.
+                Also when it belongs to a live voice call and this is not that
+                call deciding it.
         """
         approval = await agent_run_repo.get_approval(
             self.db, approval_id, organization_id=ctx.organization_id, for_update=True
@@ -168,6 +175,11 @@ class ApprovalService:
                 message=f"This request was already {approval.status}",
                 details={"approval_id": str(approval_id), "status": approval.status},
             )
+        if not via_call and await voice_call_repo.is_live_run(self.db, approval.run_id):
+            raise BadRequestError(
+                message="This approval belongs to a live voice call and is decided in the call",
+                details={"approval_id": str(approval_id)},
+            )
 
         status = ApprovalStatus.APPROVED if approved else ApprovalStatus.REJECTED
         decided = await agent_run_repo.decide_approval(
@@ -180,6 +192,29 @@ class ApprovalService:
         )
         await self._record_decision(approval, status, actor_user_id=ctx.subject_id, note=note)
         return decided
+
+    async def expire_now(
+        self, approval_id: UUID, *, organization_id: UUID, note: str | None = None
+    ) -> None:
+        """Expire one pending approval nobody decided - a call's 60 s ran out, or it ended (#54).
+
+        `expired` with no decider, as `expire_stale` writes, and audited the
+        same way: a decision nobody made. A row already decided is left alone.
+        """
+        approval = await agent_run_repo.get_approval(
+            self.db, approval_id, organization_id=organization_id, for_update=True
+        )
+        if approval is None or approval.status != ApprovalStatus.PENDING.value:
+            return
+        await agent_run_repo.decide_approval(
+            self.db,
+            approval=approval,
+            status=ApprovalStatus.EXPIRED.value,
+            decided_by_user_id=None,
+            decided_at=datetime.now(UTC),
+            note=note,
+        )
+        await self._record_decision(approval, ApprovalStatus.EXPIRED, actor_user_id=None, note=note)
 
     async def expire_stale(self) -> int:
         """Deny by timeout every parked call nobody decided in time.

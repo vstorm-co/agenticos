@@ -124,6 +124,7 @@ class SandboxConfig(BaseModel):
 
 @register(
     id="sandbox",
+    voice=False,
     name="Files & shell",
     category="analysis",
     description="Read, write and run things in a workspace that persists between turns.",

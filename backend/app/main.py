@@ -44,6 +44,7 @@ from app.services.channels import dedupe as channel_dedupe
 from app.services.channels import connection_state as channel_connection_state
 from app.services.channels import membership as channel_membership
 from app.services.channels.supervisor import allow_intake, begin_shutdown, open_inbound_stream
+from app.services.voice import LIVE_CALLS, VoiceCallReaper
 
 logger = logging.getLogger(__name__)
 
@@ -116,6 +117,28 @@ async def _start_channel_polling(channel: str) -> None:
     logger.info(
         "%s: polling started for %d of %d bot(s)", channel.capitalize(), started, len(_bots)
     )
+
+
+async def _reap_voice_calls() -> None:
+    """Hang up the calls a previous life of this worker left on the provider's bill (#54)."""
+    async with get_db_context() as db:
+        await VoiceCallReaper(db).reap()
+
+
+async def _shutdown_voice_then_drain() -> None:
+    """Hang up this worker's calls, then drain background work (#54).
+
+    Calls first: a call's `finally` hangs up the provider and records its cost,
+    and both need the database and the event loop this shutdown is about to
+    take away. In practice uvicorn closes every WebSocket before lifespan
+    shutdown runs, so each call's shielded teardown has usually hung up already;
+    this covers a call still draining and a server that cancels rather than
+    closes. The reaper is the net if the process dies before either runs.
+    """
+    ended = await LIVE_CALLS.end_all(timeout=10.0)
+    if ended:
+        logger.info("Ended %d voice call(s) for shutdown", ended)
+    await background.drain()
 
 
 @asynccontextmanager
@@ -214,6 +237,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     # its own process, which each stack's supervisor - or Docker's restart
     # policy on the dev stack - already replaces. Startup is deliberately not
     # watched; app/core/watchdog.py says why.
+    # A worker that restarted after a crash reaps first: its own calls died with it (#54).
+    background.spawn(_reap_voice_calls(), name="voice-call-reap-on-start")
     watchdog.start()
     yield state
     # Decline new intake before anything else: a bot activated moments ago left a
@@ -238,7 +263,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     # it has to finish (or be cancelled) before they are disposed, or a document
     # is left stuck in `processing` forever (#417 is the same row, from the other
     # end).
-    await background.drain()
+    await _shutdown_voice_then_drain()
     # Close each adapter's reused HTTP client now that no polling task or drained
     # background turn can still be mid-request on it (#952).
     for _adapter in (_telegram_adapter, _mattermost_adapter, _slack_adapter):

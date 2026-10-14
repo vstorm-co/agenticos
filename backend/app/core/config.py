@@ -592,6 +592,9 @@ class Settings(BaseSettings):
     # bucket. Turn it on when a proxy is the only thing that can reach this
     # deployment - see `docs/configuration.md`.
     RATE_LIMIT_TRUST_FORWARDED_FOR: bool = False
+    # Concurrent voice calls one person may hold (#54). One by default: a second
+    # tab's call is almost always a mistake, and each is billed.
+    VOICE_MAX_CALLS_PER_USER: int = 1
 
     PREFECT_API_URL: str = "http://localhost:4200/api"
     PREFECT_API_KEY: str | None = None

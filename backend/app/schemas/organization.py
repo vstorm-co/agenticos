@@ -105,6 +105,23 @@ class OrganizationUpdate(BaseSchema):
     dictation_max_seconds: int | None = Field(
         default=None, ge=10, le=600, description="Longest dictation, in seconds (10-600)."
     )
+    voice_conversations_enabled: bool | None = Field(
+        default=None, description="Whether members may call agents. Omit to leave it alone."
+    )
+    voice_in_chat: bool | None = Field(
+        default=None, description="Whether /chat offers a call once voice is on."
+    )
+    voice_max_call_seconds: int | None = Field(
+        default=None, ge=60, le=3000, description="The longest call, 60-3000 s."
+    )
+    voice_monthly_minutes: int | None = Field(
+        default=None,
+        gt=0,
+        description=(
+            "Call minutes a month across the organization, or null for budgets only. "
+            "Needs 'budgets:manage'."
+        ),
+    )
 
 
 class OrganizationRead(BaseSchema, TimestampSchema):
@@ -145,6 +162,12 @@ class OrganizationRead(BaseSchema, TimestampSchema):
             "private since still reads true and is refused per recording as "
             "`not_configured`."
         ),
+    )
+    voice_conversations_enabled: bool = False
+    voice_in_chat: bool = True
+    voice_max_call_seconds: int = 600
+    voice_monthly_minutes: int | None = Field(
+        default=600, description="Call minutes a month, or null when only the budgets bound calls."
     )
 
 

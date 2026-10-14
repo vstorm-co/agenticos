@@ -916,3 +916,55 @@ class TestTheGithubOAuthAppReader:
             await OrganizationSecretService(_db()).oauth_app(ctx, kind=SecretKind.GITHUB_OAUTH_APP)
         assert excinfo.value.details["names"] == ["aaa", "bbb"]
         assert "s1" not in str(excinfo.value.details)
+
+
+class TestTheKeyACallIsHungUpWith:
+    """`voice_call_key`: the key a voice call was held with, opened only to hang it up (#54)."""
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        "value",
+        [
+            ApiKeySecret(api_key="sk-voice-4242"),
+            AzureOpenAISecret(
+                api_key="azure-voice-4242",
+                azure_endpoint="https://x.openai.azure.com",
+                api_version="2025-04-01-preview",
+            ),
+        ],
+        ids=["api-key", "azure"],
+    )
+    async def test_a_voice_key_unseals_only_in_its_own_organization(self, value):
+        ctx = _ctx()
+        row = _row(ctx, value, name="Voice")
+
+        with patch(
+            "app.services.organization_secret.organization_secret_repo.get",
+            new=AsyncMock(return_value=row),
+        ) as got:
+            opened = await OrganizationSecretService(_db()).voice_call_key(
+                ctx.organization_id, row.id
+            )
+
+        assert opened == value
+        assert got.await_args.kwargs == {"organization_id": ctx.organization_id}
+
+        with (
+            patch(
+                "app.services.organization_secret.organization_secret_repo.get",
+                new=AsyncMock(return_value=row),
+            ),
+            pytest.raises(BadRequestError),
+        ):
+            await OrganizationSecretService(_db()).voice_call_key(uuid.uuid4(), row.id)
+
+    @pytest.mark.anyio
+    async def test_a_deleted_voice_key_reads_as_none(self):
+        with patch(
+            "app.services.organization_secret.organization_secret_repo.get",
+            new=AsyncMock(return_value=None),
+        ):
+            assert (
+                await OrganizationSecretService(_db()).voice_call_key(uuid.uuid4(), uuid.uuid4())
+                is None
+            )

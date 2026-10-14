@@ -17,6 +17,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -157,6 +158,15 @@ class Message(Base, TimestampMixin):
     __table_args__ = (
         Index("messages_conversation_id_ordinal_idx", "conversation_id", "ordinal"),
         Index("messages_search_vector_idx", "search_vector", postgresql_using="gin"),
+        # A spoken turn lands once per conversation (#54). Partial: typed turns have
+        # no `turn_id`, and the index would otherwise cover the whole table.
+        Index(
+            "uq_messages_conversation_turn",
+            "conversation_id",
+            "turn_id",
+            unique=True,
+            postgresql_where=text("turn_id IS NOT NULL"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -238,6 +248,14 @@ class Message(Base, TimestampMixin):
         ForeignKey("agent_runs.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
+    )
+    # A spoken turn's identity within its call (#54): `<call id>:<n>:<role>`. A
+    # reconnect replays nothing, and a retried write must not double a turn, so
+    # (conversation_id, turn_id) is unique. Null for everything typed.
+    turn_id: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    # An answer the caller talked over, trimmed to roughly what was heard.
+    interrupted: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
     )
     # The turn's timeline, in the order it happened: reasoning, the text the model
     # wrote, and the tools it called, interleaved as they occurred. See

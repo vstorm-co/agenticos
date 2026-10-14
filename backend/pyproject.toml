@@ -56,9 +56,9 @@ dependencies = [
     # whatever is current, which is fine as long as the lock resolves to at least
     # as new: this group's bump once locked 2.30.0 while `main` already held
     # 2.31.0, and the image installs the lock verbatim (`uv sync --frozen`).
-    "pydantic-ai-slim[openrouter,anthropic,google,duckduckgo,web-fetch,groq,mistral,cohere,huggingface,xai]>=2.52.0",
+    "pydantic-ai-slim[openrouter,anthropic,google,duckduckgo,web-fetch,groq,mistral,cohere,huggingface,xai,openai-realtime,google-realtime,xai-realtime]>=2.54.0",
     "genai-prices>=0.1.4",
-    "pydantic-ai-slim[mcp]>=2.52.0",
+    "pydantic-ai-slim[mcp]>=2.54.0",
     # The MCP SDK. Uncapped since #1820 moved the one path where our code and
     # the SDK exchange HTTP objects onto `httpx2`, which 2.0 migrated the whole
     # SDK to: `PinnedAsyncClient` (`app/core/pinned_http.py`) and the MCP OAuth
@@ -244,7 +244,7 @@ dependencies = [
 # there is no path where one library checks and the other requests.
 browser = [
     "cdp-use==1.4.5",
-    "pydantic-ai-slim[typesafe]>=2.52.0",
+    "pydantic-ai-slim[typesafe]>=2.54.0",
 ]
 # Integrated Windows sign-in (SPNEGO), the `KERBEROS_ENABLED` half of #1773.
 # `gssapi` publishes no Linux wheel: it compiles against the system Kerberos
@@ -776,6 +776,14 @@ include = [
     "app/services/mcp_registry.py",
     "app/services/speech_to_text.py",
     "app/services/speech_to_text_settings.py",
+    "app/services/realtime_models.py",
+    "app/services/provider_keys.py",
+    "app/repositories/voice_call.py",
+    "app/services/voice/**",
+    "app/api/routes/v1/voice.py",
+    "app/worker/tasks/voice_tasks.py",
+    "app/db/models/voice_call.py",
+    "app/schemas/voice.py",
     "app/services/transcription.py",
     "app/services/transcription_usage.py",
     # The rest of `app/services/rag/` came with the template and is reported
@@ -1174,6 +1182,14 @@ include = [
     "app/services/mcp_registry.py",
     "app/services/speech_to_text.py",
     "app/services/speech_to_text_settings.py",
+    "app/services/realtime_models.py",
+    "app/services/provider_keys.py",
+    "app/repositories/voice_call.py",
+    "app/services/voice/**",
+    "app/api/routes/v1/voice.py",
+    "app/worker/tasks/voice_tasks.py",
+    "app/db/models/voice_call.py",
+    "app/schemas/voice.py",
     "app/services/transcription.py",
     "app/services/transcription_usage.py",
     # The rest of `app/services/rag/` came with the template and is reported

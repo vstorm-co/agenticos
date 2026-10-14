@@ -53,6 +53,9 @@ class LockScope(IntEnum):
     #: just ingested, because the older one never saw it (#987). Session-scoped,
     #: unlike the rest: a sync spans many transactions.
     SYNC_SOURCE_RUN = 7
+    #: One person's concurrent voice calls (#54). Two starts at once each counted
+    #: zero open calls and both connected - two billed sessions for one person.
+    VOICE_CALLS_PER_USER = 8
 
 
 def _key(subject: UUID) -> int:

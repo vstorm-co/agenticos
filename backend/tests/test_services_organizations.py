@@ -4,7 +4,7 @@ import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import pytest
 from pydantic import ValidationError
@@ -45,6 +45,10 @@ def _org_row(*, name: str) -> Organization:
         chat_may_waive_approvals=False,
         chat_dictation="browser",
         dictation_max_seconds=300,
+        voice_conversations_enabled=False,
+        voice_in_chat=True,
+        voice_max_call_seconds=600,
+        voice_monthly_minutes=600,
         created_at=datetime(2026, 7, 31, tzinfo=UTC),
         updated_at=None,
     )
@@ -1099,3 +1103,95 @@ class TestTeardownWiring:
             if hasattr(meta, "dependency")
         ]
         assert get_organization_teardown_service in wired
+
+
+class TestVoiceSettings:
+    """The organization's voice conversations section (#54): who may change what."""
+
+    @pytest.fixture
+    def service(self):
+        db = MagicMock()
+        db.flush = AsyncMock()
+        db.refresh = AsyncMock()
+        return OrganizationService(db)
+
+    @pytest.fixture
+    def org(self):
+        return MagicMock(
+            voice_conversations_enabled=False, voice_in_chat=True, voice_max_call_seconds=600
+        )
+
+    @pytest.fixture
+    def repo(self, org):
+        with (
+            patch(
+                "app.services.organization.organization_repo.set_voice_settings",
+                new=AsyncMock(return_value=org),
+            ) as settings_write,
+            patch(
+                "app.services.organization.organization_repo.set_voice_monthly_minutes",
+                new=AsyncMock(return_value=org),
+            ) as minutes_write,
+            patch(
+                "app.services.organization.organization_repo.update",
+                new=AsyncMock(return_value=org),
+            ),
+        ):
+            yield MagicMock(
+                set_voice_settings=settings_write, set_voice_monthly_minutes=minutes_write
+            )
+
+    def _as(self, service, org, role: str):
+        return patch.object(
+            service, "get_for_user", new=AsyncMock(return_value=(org, MagicMock(role=role)))
+        )
+
+    @pytest.mark.anyio
+    async def test_switching_voice_on_needs_org_settings(self, service, org, repo):
+        with self._as(service, org, "builder"), pytest.raises(AuthorizationError):
+            await service.update(
+                uuid.uuid4(), OrganizationUpdate(voice_conversations_enabled=True), uuid.uuid4()
+            )
+
+        repo.set_voice_settings.assert_not_awaited()
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    async def test_the_monthly_minutes_need_budgets_manage_not_org_settings(
+        self, service, org, repo, monkeypatch
+    ):
+        """The minutes bound spend, so they are a budget manager's to move, like the cap."""
+        from app.core.permissions import ROLE_PERMS, Perm, Scope
+
+        monkeypatch.setitem(ROLE_PERMS, "test:settings-only", {Perm.ORG_SETTINGS: Scope.ALL})
+        with (
+            self._as(service, org, "test:settings-only"),
+            pytest.raises(AuthorizationError, match="budgets:manage"),
+        ):
+            await service.update(
+                uuid.uuid4(), OrganizationUpdate(voice_monthly_minutes=1200), uuid.uuid4()
+            )
+
+        repo.set_voice_monthly_minutes.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_clearing_the_monthly_minutes_leaves_only_the_budgets(self, service, org, repo):
+        with self._as(service, org, "owner"):
+            await service.update(
+                uuid.uuid4(), OrganizationUpdate(voice_monthly_minutes=None), uuid.uuid4()
+            )
+
+        repo.set_voice_monthly_minutes.assert_awaited_once_with(ANY, org, minutes=None)
+        repo.set_voice_settings.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_naming_a_voice_field_leaves_the_others_alone(self, service, org, repo):
+        with self._as(service, org, "owner"):
+            await service.update(
+                uuid.uuid4(), OrganizationUpdate(voice_conversations_enabled=True), uuid.uuid4()
+            )
+
+        repo.set_voice_settings.assert_awaited_once_with(
+            ANY, org, enabled=True, in_chat=True, max_call_seconds=600
+        )
+        repo.set_voice_monthly_minutes.assert_not_awaited()

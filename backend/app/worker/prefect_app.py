@@ -56,6 +56,7 @@ from app.worker.tasks.trigger_tasks import (
     run_scheduled_trigger_flow,
     sweep_sandbox_operations_flow,
 )
+from app.worker.tasks.voice_tasks import voice_call_sweep_flow
 
 logger = logging.getLogger(__name__)
 
@@ -164,6 +165,14 @@ async def main() -> None:
         await stale_run_sweep_flow.ato_deployment(
             name="stale-run-sweep",
             schedules=[_every(3600)],
+        )
+    )
+    # Every minute: a call a dead worker left is billed by the minute, and its
+    # heartbeat goes stale 45 s after the worker died (#54).
+    deployments.append(
+        await voice_call_sweep_flow.ato_deployment(
+            name="voice-call-sweep",
+            schedules=[_every(60)],
         )
     )
     # Hourly, against a threshold measured in hours: a teardown reservation whose

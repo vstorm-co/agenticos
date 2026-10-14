@@ -101,6 +101,7 @@ def validate_cdp_url(config: BrowserUseConfig) -> None:
 
 @register(
     id="browser_use",
+    voice=False,
     name="Browser automation",
     category="research",
     description="Delegate an open-ended web task to an autonomous browser agent.",

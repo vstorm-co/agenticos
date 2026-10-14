@@ -65,6 +65,8 @@ def _message(*, run_id, content: str) -> Message:
         role="assistant",
         content=content,
         created_at=datetime(2026, 8, 6, 9, 0, tzinfo=UTC),
+        # Set explicitly: a column default is applied on flush, and this row never is.
+        interrupted=False,
     )
     message.tool_calls = []
     message.files = []

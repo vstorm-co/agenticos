@@ -1,0 +1,230 @@
+"""One realtime session's events, as frames, captions, saved turns and spend (#54).
+
+Captions come from the transcript deltas of both sides (about 175 a minute in
+the spike) and are replaced by the saved message when a turn finishes. Each
+finished response is booked on the run's ledger and checked against the budget
+before the next one; `UsageLimits.cost_limit` is the hard stop under that, and
+can overshoot by at most one response.
+"""
+
+from __future__ import annotations
+
+import re
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Literal
+
+import anyio
+from pydantic_ai.messages import (
+    DeferredToolRequestsEvent,
+    FunctionToolCallEvent,
+    FunctionToolResultEvent,
+    PartDeltaEvent,
+    PartEndEvent,
+    PartStartEvent,
+    SpeechPart,
+    SpeechPartDelta,
+)
+from pydantic_ai.realtime import (
+    RealtimeInputSpeechEndEvent,
+    RealtimeInputSpeechStartEvent,
+    RealtimeOutputSpeechEndEvent,
+    RealtimeOutputSpeechStartEvent,
+    RealtimeResponseInterruptedEvent,
+    RealtimeSession,
+    RealtimeSessionErrorEvent,
+    RealtimeTurnCompleteEvent,
+)
+
+from app.services.voice.approvals import SendFrame
+from app.services.voice.guard import WITHHELD
+from app.services.voice.transcript import SpeechClock, SpokenToolCall, trim_to_played
+
+if TYPE_CHECKING:
+    from app.services.voice.starter import StartedCall
+
+VoiceState = Literal[
+    "connecting",
+    "listening",
+    "user_speaking",
+    "thinking",
+    "agent_speaking",
+    "interrupted",
+    "tool_running",
+    "awaiting_approval",
+]
+
+_SENTENCE_END = re.compile(r"[.!?]\s*$")
+
+
+class EventPump:
+    """One call's realtime events, turned into frames, captions, saved turns and spend."""
+
+    def __init__(
+        self, *, started: StartedCall, send: SendFrame, clock: SpeechClock | None = None
+    ) -> None:
+        self._started = started
+        self._send = send
+        self._clock = clock or SpeechClock()
+        self._spoken: list[str] = []
+        self._tools: dict[str, SpokenToolCall] = {}
+        self._played_ms: int | None = None
+        self._live_text: dict[int, str] = {}
+        self._withheld: set[int] = set()
+        self._part_turn: dict[int, str] = {}
+        self._response_turn: str | None = None
+        self.heard: str | None = None
+        self.output_done = anyio.Event()
+        self.budget_exhausted = False
+
+    def _turn(self, index: int, role: Literal["user", "assistant"]) -> str:
+        """The saved message's `turn_id` for a speech part, allocated when it is first seen.
+
+        The caller's every utterance is a turn of its own; the agent's parts in
+        one response are one turn, saved when the response completes. Captions
+        carry this id, so the call view replaces them with the `turn_saved`
+        message that has it.
+        """
+        known = self._part_turn.get(index)
+        if known is not None:
+            return known
+        if role == "user":
+            turn_id = self._started.writer.next_turn_id("user")
+        else:
+            if self._response_turn is None:
+                self._response_turn = self._started.writer.next_turn_id("assistant")
+            turn_id = self._response_turn
+        self._part_turn[index] = turn_id
+        return turn_id
+
+    def _caption(
+        self, index: int, role: Literal["user", "assistant"], **text: str
+    ) -> dict[str, object]:
+        return {"role": role, "turn_id": self._turn(index, role), "part": index, **text}
+
+    async def _state(self, state: VoiceState) -> None:
+        await self._send("state", {"state": state})
+
+    def note_played_ms(self, played_ms: int) -> None:
+        """The relay knows exactly how much of an answer was played; it overrides the heuristic."""
+        self._played_ms = played_ms
+
+    async def handle(self, event: object, session: RealtimeSession) -> None:
+        """Act on one event from the session: a frame, a caption, a saved turn or a booking."""
+        if isinstance(event, PartStartEvent) and isinstance(event.part, SpeechPart):
+            self._turn(event.index, event.part.speaker)
+            await self._state("user_speaking" if event.part.speaker == "user" else "agent_speaking")
+        elif isinstance(event, PartDeltaEvent) and isinstance(event.delta, SpeechPartDelta):
+            await self._delta(event.index, event.delta, session)
+        elif isinstance(event, PartEndEvent) and isinstance(event.part, SpeechPart):
+            await self._part_end(event.index, event.part)
+        elif isinstance(event, RealtimeInputSpeechStartEvent):
+            played = self._clock.input_started()
+            if played is not None and self._played_ms is None:
+                self._played_ms = played
+                await self._state("interrupted")
+            await self._state("user_speaking")
+        elif isinstance(event, RealtimeInputSpeechEndEvent):
+            await self._state("thinking")
+        elif isinstance(event, RealtimeOutputSpeechStartEvent):
+            self._clock.output_started()
+            await self._state("agent_speaking")
+        elif isinstance(event, RealtimeOutputSpeechEndEvent):
+            self._clock.output_ended()
+            self.output_done.set()
+            await self._state("listening")
+        elif isinstance(event, RealtimeResponseInterruptedEvent):
+            await self._state("interrupted")
+        elif isinstance(event, FunctionToolCallEvent):
+            part = event.part
+            self._tools[part.tool_call_id] = SpokenToolCall(
+                tool_call_id=part.tool_call_id,
+                tool_name=part.tool_name,
+                args=part.args_as_dict(),
+                started_at=datetime.now(UTC),
+            )
+            await self._state("tool_running")
+            await self._send("tool", {"name": part.tool_name, "status": "running"})
+        elif isinstance(event, FunctionToolResultEvent):
+            tool = self._tools.get(event.part.tool_call_id)
+            if tool is not None:
+                tool.result = str(event.part.content)
+                tool.completed_at = datetime.now(UTC)
+                await self._send("tool", {"name": tool.tool_name, "status": "done"})
+        elif isinstance(event, DeferredToolRequestsEvent):
+            await self._state("awaiting_approval")
+        elif isinstance(event, RealtimeTurnCompleteEvent):
+            await self._finish_response(session)
+        elif isinstance(event, RealtimeSessionErrorEvent):
+            await self._send("notice", {"kind": "provider_error"})
+
+    async def _delta(self, index: int, delta: SpeechPartDelta, session: RealtimeSession) -> None:
+        piece = delta.transcript_delta
+        # A delta carrying only audio has nothing to caption.
+        if index in self._withheld or not piece:
+            return
+        # A delta that names no speaker is the agent's: only the agent's speech is
+        # streamed without a part the caller started.
+        role: Literal["user", "assistant"] = delta.speaker or "assistant"
+        if role == "assistant" and self._started.guard.screens_agent:
+            # With an output guardrail the agent's captions wait for each sentence to
+            # pass it: a blocked term split across deltas ("Fal" + "con") must never
+            # reach the screen in pieces, and a redacted one must reach it redacted.
+            # Redaction changes the length, so each frame replaces the whole caption
+            # with the screened text so far rather than appending a delta.
+            text = self._live_text.get(index, "") + piece
+            self._live_text[index] = text
+            if not _SENTENCE_END.search(text):
+                return
+            screened = self._started.guard.screen(text, speaker="assistant")
+            if screened.blocked:
+                self._withheld.add(index)
+                await session.interrupt()
+                await self._send("notice", {"kind": "guardrail"})
+                return
+            await self._send("caption", self._caption(index, "assistant", text=screened.text))
+            return
+        await self._send("caption", self._caption(index, role, delta=piece))
+
+    async def _part_end(self, index: int, part: SpeechPart) -> None:
+        self._live_text.pop(index, None)
+        if index in self._withheld:
+            # Already screened, counted and cut off in `_delta`: not a second hit.
+            text = WITHHELD
+        else:
+            text = self._started.guard.screen(part.transcript or "", speaker=part.speaker).text
+        await self._send("caption", self._caption(index, part.speaker, final=text))
+        if part.speaker == "user":
+            self.heard = text
+            saved = await self._started.writer.user_turn(text, turn_id=self._turn(index, "user"))
+            if saved is not None:
+                await self._send("turn_saved", {"message": saved.model_dump(mode="json")})
+        else:
+            if part.interrupted_at_ms is not None:
+                # The provider says where the answer stopped: exact, so it wins over
+                # the heuristic's estimate from speech start (amendment 10).
+                self._played_ms = part.interrupted_at_ms
+            self._spoken.append(text)
+
+    async def _finish_response(self, session: RealtimeSession) -> None:
+        self._started.meter.book_response(session.usage)
+        await self.flush()
+        if not await self._started.prepared.built.budget.can_afford_next_request():
+            self.budget_exhausted = True
+
+    async def flush(self) -> None:
+        """Save the agent's answer in progress, trimmed when it was talked over."""
+        text = " ".join(part for part in self._spoken if part).strip()
+        interrupted = self._played_ms is not None
+        if interrupted:
+            text = trim_to_played(text, self._played_ms or 0)
+        tools = list(self._tools.values())
+        if not text and not tools:
+            self._spoken, self._played_ms = [], None
+            return
+        turn_id = self._response_turn or self._started.writer.next_turn_id("assistant")
+        self._spoken, self._tools, self._played_ms, self._response_turn = [], {}, None, None
+        saved = await self._started.writer.assistant_turn(
+            text, turn_id=turn_id, interrupted=interrupted, tools=tools
+        )
+        if saved is not None:
+            await self._send("turn_saved", {"message": saved.model_dump(mode="json")})
