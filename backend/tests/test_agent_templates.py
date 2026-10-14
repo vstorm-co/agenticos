@@ -77,6 +77,55 @@ class TestReadingTheCatalog:
         assert agent_templates.get("legal/missing") is None
 
 
+class TestTheStarterTemplate:
+    def test_its_bindings_are_keyed_by_capability(self, tmp_path, monkeypatch):
+        """What the Toolbox recommends, and what a new agent starts with."""
+        monkeypatch.setattr(agent_templates, "TEMPLATES_ROOT", tmp_path)
+        folder, name = agent_templates.STARTER_TEMPLATE.split("/")
+        _write(
+            tmp_path,
+            folder,
+            name,
+            "---\nname: Starter\ndescription: d\ncapabilities:\n- clock\n"
+            "- id: sandbox\n  config:\n    include_execute: true\n---\n\nYou work.\n",
+        )
+
+        assert agent_templates.starter_capabilities() == {
+            "clock": {"id": "clock"},
+            "sandbox": {"id": "sandbox", "config": {"include_execute": True}},
+        }
+
+    def test_an_image_without_it_recommends_nothing(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(agent_templates, "TEMPLATES_ROOT", tmp_path)
+
+        assert agent_templates.starter_capabilities() == {}
+
+    def test_the_shipped_starter_binds_only_registered_capabilities(self):
+        """A typo in the manifest would recommend a switch the Toolbox never shows."""
+        from app.agents.capabilities import all_capabilities
+
+        registered = {definition.id for definition in all_capabilities()}
+        starter = agent_templates.starter_capabilities()
+
+        assert starter
+        assert set(starter) <= registered
+
+    @pytest.mark.anyio
+    async def test_the_capability_catalog_carries_the_starters_binding(self):
+        """Marked Recommended in the Toolbox, config and all, and nothing else is."""
+        from app.api.routes.v1.agents import list_capability_catalog
+
+        catalog = await list_capability_catalog()
+        starter = agent_templates.starter_capabilities()
+        by_id = {entry.id: entry for entry in catalog.items}
+
+        sandbox = by_id["sandbox"].recommended
+        assert sandbox is not None
+        assert sandbox.config == starter["sandbox"].get("config", {})
+        assert by_id["guardrails"].recommended is None
+        assert {i for i, e in by_id.items() if e.recommended} == set(starter) & set(by_id)
+
+
 class TestWhatAManifestMayCarry:
     def test_the_folder_name_is_the_fallback_name(self, tmp_path, monkeypatch):
         monkeypatch.setattr(agent_templates, "TEMPLATES_ROOT", tmp_path)

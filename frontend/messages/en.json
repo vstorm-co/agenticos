@@ -776,6 +776,8 @@
     "capabilityView_list": "List",
     "capabilityView_isometric": "Isometric",
     "capabilityView_crew": "Blob crew",
+    "startsWithRecommended": "{count, plural, =0 {Starts with no tools} =1 {Starts with 1 recommended tool} other {Starts with # recommended tools}}",
+    "capabilityRecommended": "Recommended",
     "capabilitySettingsTitle": "{name} settings",
     "capabilityOpenSettings": "Settings",
     "capabilityShelfEnabled": "{enabled} of {total} on",

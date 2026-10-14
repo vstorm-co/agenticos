@@ -19,6 +19,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **A new agent starts with the recommended capabilities.** The Toolbox marks
+  Recommended what the starter agent (the Claude Code like template) has, and
+  **New agent** switches exactly those on, configured as the template configures
+  them - asking, planning, a sandbox, subagents, web search and the rest - where
+  it used to start with Ask the user alone.
+
 - **Capabilities as illustrated cards, on trial.** The Toolbox can show every
   capability as a card with its own animated scene - in an isometric diorama or
   a "blob crew" style - shelved by category in sideways carousels, with a

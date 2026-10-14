@@ -39,6 +39,7 @@ vi.mock("@/hooks", () => ({
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const CHARTS: CapabilityCatalogEntry = {
+  recommended: null,
   id: "charts",
   name: "Charts",
   category: "analysis",

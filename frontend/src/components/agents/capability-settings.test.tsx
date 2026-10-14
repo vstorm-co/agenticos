@@ -25,6 +25,7 @@ const words = (key: string, values?: Record<string, string>): string => {
 };
 
 const KNOWLEDGE: CapabilityCatalogEntry = {
+  recommended: null,
   id: "knowledge",
   name: "Knowledge search",
   category: "knowledge",
@@ -49,6 +50,7 @@ const KNOWLEDGE: CapabilityCatalogEntry = {
 };
 
 const CLOCK: CapabilityCatalogEntry = {
+  recommended: null,
   id: "clock",
   name: "Date and time",
   category: "utility",
@@ -62,6 +64,7 @@ const CLOCK: CapabilityCatalogEntry = {
 };
 
 const SEND_EMAIL: CapabilityCatalogEntry = {
+  recommended: null,
   id: "send_email",
   name: "Send email",
   category: "action",
@@ -80,6 +83,7 @@ const SEND_EMAIL: CapabilityCatalogEntry = {
  * gating nothing would let it send.
  */
 const EMAIL: CapabilityCatalogEntry = {
+  recommended: null,
   id: "email",
   name: "Email",
   category: "action",

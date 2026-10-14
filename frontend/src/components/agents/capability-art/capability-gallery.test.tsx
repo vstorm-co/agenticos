@@ -15,6 +15,7 @@ import {
 import { CapabilityGallery, type CapabilityShelf } from "./capability-gallery";
 
 const CHARTS: CapabilityCatalogEntry = {
+  recommended: null,
   id: "charts",
   name: "Charts",
   category: "analysis",
@@ -42,6 +43,16 @@ const CLOCK: CapabilityCatalogEntry = {
   name: "Date and time",
   category: "utility",
   tools: [],
+};
+
+const BINDING = {
+  id: "",
+  config: {},
+  approval: "default" as const,
+  tool_approval: {},
+  tool_overrides: {},
+  secret_id: null,
+  enabled: true,
 };
 
 /** Every capability the registry ships, which each style has to draw. */
@@ -191,6 +202,18 @@ describe("a capability card", () => {
       "true",
     );
     expect(screen.getByText("Built in, no tools")).toBeInTheDocument();
+  });
+
+  it("marks a capability the starter agent has as recommended", () => {
+    renderCard({ entry: { ...CHARTS, recommended: { ...BINDING, id: "charts" } } });
+
+    expect(screen.getByText("Recommended")).toBeInTheDocument();
+  });
+
+  it("recommends nothing the starter agent leaves out", () => {
+    renderCard();
+
+    expect(screen.queryByText("Recommended")).not.toBeInTheDocument();
   });
 
   it("shapes its frame to the style", () => {

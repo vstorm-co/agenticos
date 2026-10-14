@@ -36,6 +36,11 @@ TEMPLATES_ROOT = Path(__file__).resolve().parent.parent / "core" / "catalog" / "
 
 MANIFEST = "AGENT.md"
 
+# The general-purpose agent a fresh organization starts with, beside the
+# Architect - and the capabilities it binds are the ones the Toolbox recommends
+# and a new agent starts with, so "what a good agent has" is written once.
+STARTER_TEMPLATE = "general/claude-code-like"
+
 
 @dataclass(frozen=True, slots=True)
 class AgentTemplate:
@@ -111,6 +116,18 @@ def get(key: str) -> AgentTemplate | None:
         (t for industry in catalog() for t in industry.templates if t.key == key),
         None,
     )
+
+
+def starter_capabilities() -> dict[str, dict[str, Any]]:
+    """The starter template's capability bindings, keyed by capability id.
+
+    Empty where the template is missing from this image, which recommends
+    nothing rather than failing the catalog that asks.
+    """
+    starter = get(STARTER_TEMPLATE)
+    if starter is None:
+        return {}
+    return {binding["id"]: binding for binding in starter.capabilities}
 
 
 def _read(folder: Path, *, industry: str) -> AgentTemplate:

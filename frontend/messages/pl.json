@@ -776,6 +776,8 @@
     "capabilityView_list": "Lista",
     "capabilityView_isometric": "Izometria",
     "capabilityView_crew": "Bloby",
+    "startsWithRecommended": "{count, plural, =0 {Startuje bez narzędzi} one {Startuje z 1 polecanym narzędziem} few {Startuje z # polecanymi narzędziami} many {Startuje z # polecanymi narzędziami} other {Startuje z # polecanymi narzędziami}}",
+    "capabilityRecommended": "Polecane",
     "capabilitySettingsTitle": "Ustawienia: {name}",
     "capabilityOpenSettings": "Ustawienia",
     "capabilityShelfEnabled": "Włączone: {enabled} z {total}",

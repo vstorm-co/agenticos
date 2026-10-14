@@ -10,7 +10,7 @@ from pydantic import Field, field_validator
 
 from app.agents.ask_user import QuestionItem
 from app.agents.capabilities import CapabilityToolInfo
-from app.agents.spec import AgentSpec, DelegationMode, SpecialistSpec
+from app.agents.spec import AgentSpec, CapabilityBindingSpec, DelegationMode, SpecialistSpec
 from app.core.secret_kinds import SecretRequirement
 from app.schemas.base import BaseSchema
 from app.schemas.resource_grant import AudienceChoice
@@ -517,6 +517,14 @@ class CapabilityCatalogEntry(BaseSchema):
             "A binding picks which of the organization's secrets of that kind to use "
             "and stores its id in secret_id; the value itself never reaches the spec, "
             "the API or the model."
+        ),
+    )
+    recommended: CapabilityBindingSpec | None = Field(
+        default=None,
+        description=(
+            "How the starter agent (the Claude Code like template) binds this "
+            "capability, or null where it does not. The console marks these "
+            "Recommended and switches them on for a new agent."
         ),
     )
 

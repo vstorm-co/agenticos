@@ -72,7 +72,7 @@ from app.schemas.agent import (
     TemplateInstallRequest,
     TemplateInstallResult,
 )
-from app.services import mcp_listing
+from app.services import agent_templates, mcp_listing
 from app.services.attachments import load_attached_files
 from app.services.capability_contracts import tool_contracts
 
@@ -102,6 +102,7 @@ async def list_prompt_variables() -> Any:
 async def list_capability_catalog() -> Any:
     """Every capability an agent can be given, with the schema its form is built from."""
     contracts = await tool_contracts()
+    starter = agent_templates.starter_capabilities()
     items = [
         CapabilityCatalogEntry(
             id=definition.id,
@@ -121,6 +122,7 @@ async def list_capability_catalog() -> Any:
             ],
             config_schema=definition.config_json_schema(),
             requires_secret=definition.secret,
+            recommended=starter.get(definition.id),
         )
         # `selectable` only. A capability a spec may not bind is a switch the
         # Toolbox cannot honestly offer: `channel_tools` is chosen per bound bot

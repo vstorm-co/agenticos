@@ -1,5 +1,5 @@
 ---
-source_sha: "1560889ec943"
+source_sha: "5736c04d5593"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -34,6 +34,12 @@ nie zacznie szukać albo nie włączy jednej z nich.
 W ustawieniach capability limity, czasy życia cache, prompty i inne strojenie są
 zwinięte pod **Ustawieniami zaawansowanymi**, które otwierają się same, gdy
 któreś z nich zostało ustawione.
+
+Capabilities, które ma agent startowy - szablon **Claude Code like**, który świeża
+organizacja dostaje przy pierwszym uruchomieniu - mają odznakę **Polecane**, a
+agent utworzony przez **New agent** startuje dokładnie z nimi włączonymi i
+skonfigurowanymi tak, jak konfiguruje je szablon. Jego autor wyłącza to, czego
+agent nie powinien robić.
 
 ## Co jest dostarczane { #what-ships }
 

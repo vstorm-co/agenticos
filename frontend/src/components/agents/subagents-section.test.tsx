@@ -85,6 +85,7 @@ const CONFIG_SCHEMA: JsonSchema = {
 };
 
 const DELEGATION: CapabilityCatalogEntry = {
+  recommended: null,
   id: "subagents",
   name: "Delegation",
   category: "orchestration",

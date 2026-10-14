@@ -30,6 +30,7 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
  * capability, and that capability is a weather lookup behind an API key.
  */
 const WEATHER: CapabilityCatalogEntry = {
+  recommended: null,
   id: "weather",
   name: "Weather",
   category: "utility",

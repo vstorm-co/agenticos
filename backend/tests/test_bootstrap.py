@@ -18,7 +18,6 @@ from app.agents.model_resolver import PROVIDERS
 from app.commands import bootstrap as bootstrap_cmd
 from app.commands.bootstrap import (
     DEFAULT_MODELS,
-    STARTER_TEMPLATE,
     _resolve_model,
     _resolve_organization,
     _resolve_starter_agents,
@@ -26,6 +25,7 @@ from app.commands.bootstrap import (
 from app.core.exceptions import BadRequestError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.resource_grant import Visibility
+from app.services.agent_templates import STARTER_TEMPLATE
 
 
 def _ctx() -> AuthContext:

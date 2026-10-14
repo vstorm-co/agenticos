@@ -43,11 +43,6 @@ from app.services.organization_secret import OrganizationSecretService
 from app.services.sandbox_connection import SandboxConnectionService
 from app.services.user import UserService
 
-# The general-purpose agent a fresh organization starts with, beside the
-# Architect. A shipped template rather than a prompt written here, so what a new
-# install gets is exactly what Agents -> New from template offers.
-STARTER_TEMPLATE = "general/claude-code-like"
-
 # Model ids for the providers bootstrap offers, so the demo agent runs without
 # the operator having to look one up. Namespaced for OpenRouter, which rejects a
 # bare id. This is a shortlist, not the catalog: bootstrap exists to get one
@@ -265,16 +260,20 @@ async def _resolve_starter_agents(db, ctx: AuthContext, profile_id: uuid.UUID | 
     else:
         info(f"The {assistant.name} is installed - it publishes once there is a model")
 
-    template = agent_templates.get(STARTER_TEMPLATE)
+    template = agent_templates.get(agent_templates.STARTER_TEMPLATE)
     if template is None:  # pragma: no cover - the template ships with the image
-        warning(f"Template {STARTER_TEMPLATE} is missing; no starter agent installed")
+        warning(
+            f"Template {agent_templates.STARTER_TEMPLATE} is missing; no starter agent installed"
+        )
         return
     slug = slugify(template.name)
     if await agent_repo.get_by_slug(db, slug, organization_id=ctx.organization_id):
         info(f"Agent @{slug} already exists")
         return
     registry = AgentRegistryService(db)
-    installed = await registry.install_template(ctx, STARTER_TEMPLATE, visibility=Visibility.ORG)
+    installed = await registry.install_template(
+        ctx, agent_templates.STARTER_TEMPLATE, visibility=Visibility.ORG
+    )
     if profile_id is None:
         info(f"Agent @{slug} saved as a draft - add a model, then publish it")
         return

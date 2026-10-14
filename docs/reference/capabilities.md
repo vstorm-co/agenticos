@@ -29,6 +29,11 @@ In a capability's settings, limits, cache lifetimes, prompts and other tuning si
 folded under **Advanced settings**, which opens by itself wherever one of them was
 set.
 
+The capabilities the starter agent binds - the **Claude Code like** template, which
+a fresh organization gets on its first run - carry a **Recommended** badge, and an
+agent made with **New agent** starts with exactly those switched on, configured as
+the template configures them. Its author switches off what it should not do.
+
 ## What ships
 
 | id | Name | Category | Tools | Scope | Key |

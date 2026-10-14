@@ -584,6 +584,11 @@ export interface CapabilityCatalogEntry {
    * catalog, the spec or the model; only the agent runner ever reads one.
    */
   requires_secret: SecretRequirement | null;
+  /**
+   * How the starter agent (the Claude Code like template) binds this capability,
+   * or null where it does not. Marked Recommended, and what a new agent starts with.
+   */
+  recommended: CapabilityBindingSpec | null;
 }
 
 export interface CapabilityCatalog {

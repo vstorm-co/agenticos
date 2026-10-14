@@ -4,7 +4,7 @@ import { Settings2, ShieldAlert } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useState, type CSSProperties } from "react";
 
-import { Switch } from "@/components/ui";
+import { Badge, Switch } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import type { CapabilityCatalogEntry } from "@/types/agents";
 
@@ -135,6 +135,16 @@ export function CapabilityArt({
   );
 }
 
+/** Marks a capability the starter agent has, which a new agent starts with. */
+export function RecommendedBadge({ className }: { className?: string }) {
+  const t = useTranslations("agents");
+  return (
+    <Badge variant="success" className={cn("px-1.5 py-0 text-[10px] leading-4", className)}>
+      {t("capabilityRecommended")}
+    </Badge>
+  );
+}
+
 /** One capability as a card: its scene, its name and switch, what it does, how many tools. */
 export function CapabilityCard({
   entry,
@@ -169,12 +179,15 @@ export function CapabilityCard({
         aria-current={focused ? "true" : undefined}
         aria-label={entry.name}
         className={cn(
-          "block overflow-hidden text-left",
+          "relative block overflow-hidden text-left",
           artStyle === "crew" && "m-2 mb-0 rounded-xl",
           artStyle === "isometric" && "border-b",
         )}
       >
         <CapabilityArt id={entry.id} name={entry.name} artStyle={artStyle} off={!enabled} />
+        {entry.recommended && (
+          <RecommendedBadge className="bg-background/90 absolute top-2 left-2 shadow-sm backdrop-blur" />
+        )}
       </button>
       <div className="flex flex-1 flex-col gap-1 px-3 py-2.5">
         <div className="flex items-start gap-2">

@@ -1,5 +1,5 @@
 ---
-source_sha: "1560889ec943"
+source_sha: "5736c04d5593"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -34,6 +34,12 @@ sucht oder eine davon einschaltet.
 In den Einstellungen einer Capability liegen Grenzwerte, Cache-Lebensdauern,
 Prompts und andere Feinabstimmung eingeklappt unter **Erweiterte Einstellungen**,
 die sich von selbst öffnen, wo eines davon gesetzt wurde.
+
+Die Capabilities, die der Starter-Agent bindet - die Vorlage **Claude Code like**,
+die eine neue Organisation beim ersten Start bekommt - tragen das Abzeichen
+**Empfohlen**, und ein mit **New agent** angelegter Agent startet mit genau diesen
+eingeschaltet, so konfiguriert wie in der Vorlage. Sein Autor schaltet ab, was der
+Agent nicht tun soll.
 
 ## Was ausgeliefert wird { #what-ships }
 

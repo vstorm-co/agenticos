@@ -1,5 +1,5 @@
 ---
-source_sha: "1560889ec943"
+source_sha: "5736c04d5593"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -34,6 +34,12 @@ hasta que alguien abre el grupo, busca o activa una de ellas.
 En los ajustes de una capability, los límites, la vida de la caché, los prompts y
 el resto del ajuste fino quedan plegados en **Ajustes avanzados**, que se abren
 solos donde alguno se haya establecido.
+
+Las capabilities que tiene el agente inicial - la plantilla **Claude Code like**,
+que una organización nueva recibe en su primer arranque - llevan la insignia
+**Recommended**, y un agente creado con **New agent** empieza con exactamente esas
+activadas, configuradas como las configura la plantilla. Su autor desactiva lo que
+el agente no deba hacer.
 
 ## Qué se entrega { #what-ships }
 

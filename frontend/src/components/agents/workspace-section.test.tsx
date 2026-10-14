@@ -34,6 +34,7 @@ vi.mock("@/hooks", () => ({
 }));
 
 const SANDBOX: CapabilityCatalogEntry = {
+  recommended: null,
   id: "sandbox",
   name: "Sandbox",
   category: "analysis",

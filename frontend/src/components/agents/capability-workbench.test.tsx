@@ -50,6 +50,7 @@ vi.mock("@/hooks", () => ({
 }));
 
 const CHARTS: CapabilityCatalogEntry = {
+  recommended: null,
   id: "charts",
   name: "Charts",
   category: "analysis",
@@ -845,5 +846,27 @@ describe("the workbench as illustrated cards", () => {
     await userEvent.click(screen.getByRole("radio", { name: "List" }));
 
     expect(screen.queryByRole("region", { name: "Work with data" })).not.toBeInTheDocument();
+  });
+
+  it("marks a recommended capability in the list as well", () => {
+    renderWorkbench({
+      catalog: [
+        {
+          ...CHARTS,
+          recommended: {
+            id: "charts",
+            config: {},
+            approval: "default",
+            tool_approval: {},
+            tool_overrides: {},
+            secret_id: null,
+            enabled: true,
+          },
+        },
+        CONTEXT,
+      ],
+    });
+
+    expect(screen.getAllByText("Recommended")).toHaveLength(1);
   });
 });

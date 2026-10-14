@@ -100,11 +100,41 @@ describe("CreateAgentDialog", () => {
     );
   });
 
-  it("starts every agent able to ask the person a question (#2064)", async () => {
+  it("starts every agent with the starter agent's recommended capabilities", async () => {
+    // What the Claude Code like template binds, config and all - ask_user among
+    // them (#2064) - and nothing the catalog does not recommend.
+    const sandbox = {
+      id: "sandbox",
+      config: { include_execute: true },
+      approval: "default",
+      tool_approval: {},
+      tool_overrides: {},
+      secret_id: null,
+      enabled: true,
+    };
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+      path === "/agents/capabilities"
+        ? {
+            items: [
+              { id: "sandbox", name: "Sandbox", description: "", recommended: sandbox },
+              {
+                id: "ask_user",
+                name: "Ask",
+                description: "",
+                recommended: { ...sandbox, id: "ask_user", config: {} },
+              },
+              { id: "guardrails", name: "Guardrails", description: "", recommended: null },
+            ],
+            total: 3,
+          }
+        : { items: [], total: 0 },
+    );
     vi.mocked(apiClient.post).mockResolvedValue({ id: "a1", name: "Support Copilot" });
     open();
 
     await userEvent.type(name(), "Support Copilot");
+    expect(await screen.findByText("Starts with 2 recommended tools")).toBeInTheDocument();
+    await waitFor(() => expect(create()).toBeEnabled());
     await userEvent.click(create());
 
     await waitFor(() =>
@@ -112,7 +142,14 @@ describe("CreateAgentDialog", () => {
         "/agents",
         expect.objectContaining({
           spec: expect.objectContaining({
-            capabilities: [expect.objectContaining({ id: "ask_user", enabled: true })],
+            capabilities: [
+              expect.objectContaining({
+                id: "sandbox",
+                enabled: true,
+                config: { include_execute: true },
+              }),
+              expect.objectContaining({ id: "ask_user", enabled: true }),
+            ],
           }),
         }),
       ),

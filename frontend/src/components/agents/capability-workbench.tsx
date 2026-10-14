@@ -16,6 +16,7 @@ import { WorkspaceSection } from "@/components/agents/workspace-section";
 import { SearchInput, Switch } from "@/components/ui";
 import {
   CapabilityViewSwitch,
+  RecommendedBadge,
   useCapabilityView,
 } from "@/components/agents/capability-art/capability-card";
 import { CapabilityGallery } from "@/components/agents/capability-art/capability-gallery";
@@ -495,6 +496,7 @@ function CapabilityRow({
       >
         <span className="flex flex-wrap items-center gap-1.5">
           <span className="text-sm font-medium">{entry.name}</span>
+          {entry.recommended && <RecommendedBadge />}
           {entry.side_effecting && (
             <ShieldAlert className="text-muted-foreground h-3 w-3" aria-label={t("actsWorld")} />
           )}

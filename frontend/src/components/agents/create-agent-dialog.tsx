@@ -24,14 +24,13 @@ import {
   MoreOptions,
   Textarea,
 } from "@/components/ui";
-import { useAgents } from "@/hooks";
+import { useAgents, useCapabilityCatalog } from "@/hooks";
 import { submitFailure } from "@/lib/api-error";
 import type { Agent } from "@/types/agents";
 import { useTranslations } from "next-intl";
 import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import { MAX_AGENT_CATEGORIES, MAX_AGENT_TAGS } from "@/lib/agent-labels";
-import { ASK_USER_ID, unboundBinding } from "@/lib/agent-spec";
 
 /** What the backend will accept, so a longer name is refused before it is sent. */
 const MAX_NAME = 128;
@@ -78,6 +77,13 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
   const t = useTranslations("agents");
   const tAgents = useTranslations("pages.agents");
   const { create, categoryOptions, tagOptions } = useAgents();
+  // A new agent starts with what the starter agent has - the Claude Code like
+  // template - so it can ask, plan, search, work in a sandbox and delegate from
+  // its first run; its author switches off what it should not do.
+  const { capabilities: catalog, isLoading: catalogLoading } = useCapabilityCatalog();
+  const starter = catalog.flatMap((entry) =>
+    entry.recommended ? [{ ...entry.recommended, enabled: true }] : [],
+  );
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   // Organization by default. An agent is a thing a company builds, and one
@@ -106,9 +112,7 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
           instructions: "",
           model_profile_id: null,
           model_settings: {},
-          // Every new agent can ask the person a question rather than guess
-          // (#2064); its author can switch it off in the Builder.
-          capabilities: [{ ...unboundBinding(ASK_USER_ID), enabled: true }],
+          capabilities: starter,
           collection_ids: [],
           skill_ids: [],
           context_ids: [],
@@ -234,11 +238,17 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
             </div>
           </MoreOptions>
         </div>
-        <DialogFooter>
+        <DialogFooter className="items-center">
+          <p className="text-muted-foreground mr-auto hidden text-xs sm:block">
+            {t("startsWithRecommended", { count: starter.length })}
+          </p>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("cancel2")}
           </Button>
-          <Button onClick={handleCreate} disabled={!name.trim() || create.isPending}>
+          <Button
+            onClick={handleCreate}
+            disabled={!name.trim() || create.isPending || catalogLoading}
+          >
             {t("create")}
           </Button>
         </DialogFooter>
