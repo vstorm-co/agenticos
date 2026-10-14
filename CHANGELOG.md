@@ -473,6 +473,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **A conversation waiting on an agent's question opens again.** A run that
+  asked its person something stored its step as `awaiting_answer`, a status
+  the transcript's read schema did not list, so reading the thread back
+  answered 500 and the conversation opened empty - with the question, and
+  the card that answers it, out of reach.
+- **The voice transcription picker shows each provider's mark**, and a
+  muted microphone beside "Do not transcribe", like every other provider
+  picker in the console.
 - **An agent remembers a file after the turn it arrived in.** The history a
   later turn is given was rebuilt from what people typed, so a file attached
   earlier was gone from it: an agent without a workspace had read the file
