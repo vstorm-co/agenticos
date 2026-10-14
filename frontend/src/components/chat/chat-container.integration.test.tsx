@@ -188,3 +188,51 @@ describe("the chat container - where an empty conversation is scrolled", () => {
     scrollTo.mockRestore();
   });
 });
+
+describe("the chat container - who a reopened thread is addressed to", () => {
+  /** Two threads, each had with one agent, as the listing reports them. */
+  function listThreads() {
+    const base = get.getMockImplementation()!;
+    get.mockImplementation((url: string) =>
+      url.startsWith("/conversations?")
+        ? Promise.resolve({
+            items: [
+              { id: "c-fin", title: "Revenue", agents: [{ id: "a-fin", name: "Finance Analyst" }] },
+              { id: "c-sup", title: "Refund", agents: [{ id: "a-sup", name: "Support Desk" }] },
+            ],
+            total: 2,
+          })
+        : base(url),
+    );
+  }
+
+  it("addresses the composer to the agent the opened thread was had with", async () => {
+    // The report: open a Finance Analyst thread with the Architect picked last,
+    // and the composer said Architect - the next message would have gone to it.
+    listThreads();
+    useAgentSelectionStore.setState({ selectedAgentId: "a-architect" });
+    useConversationStore.getState().setCurrentConversationId("c-fin");
+    mount();
+
+    await vi.waitFor(() => expect(useAgentSelectionStore.getState().selectedAgentId).toBe("a-fin"));
+
+    act(() => useConversationStore.getState().setCurrentConversationId("c-sup"));
+    await vi.waitFor(() => expect(useAgentSelectionStore.getState().selectedAgentId).toBe("a-sup"));
+  });
+
+  it("leaves a deliberate switch inside the thread alone", async () => {
+    listThreads();
+    useConversationStore.getState().setCurrentConversationId("c-fin");
+    mount();
+    await vi.waitFor(() => expect(useAgentSelectionStore.getState().selectedAgentId).toBe("a-fin"));
+
+    act(() => useAgentSelectionStore.getState().select("a-sup"));
+    // A later listing of the same thread - a turn saved, a refetch - must not
+    // take the composer back from the agent somebody just chose.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+
+    expect(useAgentSelectionStore.getState().selectedAgentId).toBe("a-sup");
+  });
+});

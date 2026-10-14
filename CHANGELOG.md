@@ -473,6 +473,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Reopening a conversation addresses its agent.** The composer kept
+  whichever agent was picked last, anywhere, so opening a Finance Analyst
+  thread with the Architect last chosen sent the next message to the
+  Architect. A thread had with one agent now addresses that agent when it is
+  opened - once, so choosing another agent mid-thread still sticks.
+- **A just-published agent no longer reads "Draft differs".** Publish
+  stamps the deployment's spec version on the frozen copy but left the draft
+  at the number it was saved with, so an imported agent, or one saved before
+  a spec version bump, was shown as differing from the version it had just
+  become. The draft now takes the stamped copy too.
 - **The browser tab shows the new mark.** The favicon and home-screen icon
   were served at an unchanging `/icon`, and browsers keep a favicon long past
   any cache header, so a tab that had ever opened the console went on showing
