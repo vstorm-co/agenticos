@@ -1361,6 +1361,7 @@
       "artifactUnchanged": "Bez zmian, nadal wersja {version} · otwórz stronę",
       "askingYou": "Czekam na twoją odpowiedź",
       "askedYou": "Zapytał cię",
+      "notAnsweredYet": "Jeszcze bez odpowiedzi",
       "listMemory": "Lista wspomnień",
       "readMemory": "Odczyt wspomnienia",
       "writeMemory": "Zapis do pamięci",

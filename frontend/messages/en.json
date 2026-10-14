@@ -1361,6 +1361,7 @@
       "artifactUnchanged": "Unchanged, still version {version} · open the page",
       "askingYou": "Waiting for your answer",
       "askedYou": "Asked you",
+      "notAnsweredYet": "Not answered yet",
       "listMemory": "List memories",
       "readMemory": "Read a memory",
       "writeMemory": "Save to memory",

@@ -14,6 +14,7 @@ import { GeneratedImageResult, parseGeneratedImage } from "./tool-results/genera
 import { LoadSkillResult, LoadedSkillResult } from "./tool-results/skills";
 import { ContextListResult, SkillListResult } from "./tool-results/catalogs";
 import { PlanToolResult } from "./tool-results/plan";
+import { AskedResult, parseAsked } from "./tool-results/asked";
 import { GenericToolResult, RawToolView } from "./tool-results/generic";
 import { RunPythonResult } from "./tool-results/run-python";
 import { WorkspaceToolResult } from "./tool-results/workspace";
@@ -94,6 +95,11 @@ export function ToolCallCard({
         ? parseChartResult(toolCall.result)
         : null,
     [renderer, toolCall.status, toolCall.result],
+  );
+  // The questions an `ask_user_question` call put, beside the answers it got.
+  const asked = useMemo(
+    () => (renderer === "asked" ? parseAsked(toolCall) : null),
+    [renderer, toolCall],
   );
   // A chart is the one entry whose payoff can fail to arrive: `create_chart` that
   // came back as an error string has nothing to show, so opening it would put a
@@ -225,6 +231,8 @@ export function ToolCallCard({
         <ContextListResult resultText={resultText} />
       ) : renderer === "plan" ? (
         <PlanToolResult toolCall={toolCall} resultText={resultText} />
+      ) : asked !== null ? (
+        <AskedResult asked={asked} />
       ) : renderer === "workspace" ? (
         <WorkspaceToolResult
           toolCall={toolCall}

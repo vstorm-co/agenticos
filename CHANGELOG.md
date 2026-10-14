@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **An agent's questions read as questions in the transcript.** The "Asked
+  you" step opened onto the JSON the call carried; it now shows each
+  question under its heading with the answer chosen, or that it is still
+  open while the run waits.
 - **Stay signed in to a site your agents browse for you (#2129).** Handing
   the browser back now offers *Keep me signed in to* the site, to the
   person the browse acts for; the live view says which site was kept, and

@@ -68,6 +68,7 @@ export type ToolRenderer =
   | "skill-list"
   | "context-list"
   | "plan"
+  | "asked"
   | "workspace"
   | "generic";
 
@@ -147,7 +148,7 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
   // ask_user - multiple-choice questions to the person running the agent (#2064).
   ask_user_question: {
     kind: "read",
-    render: "generic",
+    render: "asked",
     captionKey: "askingYou",
     displayNameKey: "askedYou",
   },
