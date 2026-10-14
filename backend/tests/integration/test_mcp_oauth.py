@@ -457,6 +457,24 @@ class TestTheServerDirectly:
             row = (await db.execute(select(model).limit(1))).scalar_one_or_none()
             assert row is None or repr(row).startswith(f"<{model.__name__}(")
 
+    async def test_a_client_holds_only_its_newest_requests(self, db: AsyncSession) -> None:
+        """`/authorize` needs no credential; one client cannot fill the table."""
+        from app.db.models.oauth import OAuthAuthorizationRequest
+        from app.services.oauth_server import PENDING_REQUESTS_PER_CLIENT
+
+        service = OAuthServerService(db)
+        await service.register(
+            "client-f", {"client_id": "client-f", "client_name": "F", "redirect_uris": [REDIRECT]}
+        )
+        urls = [
+            await service.start("client-f", {"redirect_uri": REDIRECT, "state": str(n)})
+            for n in range(PENDING_REQUESTS_PER_CLIENT + 3)
+        ]
+        held = (await db.execute(select(OAuthAuthorizationRequest.id))).scalars().all()
+        newest = uuid.UUID(parse_qs(urlparse(urls[-1]).query)["request"][0])
+        assert len(held) == PENDING_REQUESTS_PER_CLIENT
+        assert newest in held
+
     async def test_an_expired_or_unknown_consent_request_is_not_found(
         self, db: AsyncSession
     ) -> None:
@@ -588,6 +606,23 @@ async def test_registration_is_limited_per_address(served: None) -> None:
     assert refused.headers["retry-after"] == "60"
     assert refused.json()["error"] == "temporarily_unavailable"
     assert denied.await_args.kwargs["surface"] == "oauth_register"
+
+
+@pytest.mark.security
+async def test_authorization_requests_are_limited_per_address(served: None) -> None:
+    """Each `/authorize` writes a row and needs no credential, like registration."""
+    from unittest.mock import AsyncMock, patch
+
+    from app.services.rate_limit import Decision
+
+    denied = AsyncMock(return_value=Decision(allowed=False, retry_after_seconds=30))
+    with patch("app.services.platform_mcp.rate_limit.consume", new=denied):
+        async with _http() as http:
+            refused = await http.get("/authorize", params={"client_id": "anyone"})
+
+    assert refused.status_code == 429
+    assert refused.json()["error"] == "temporarily_unavailable"
+    assert denied.await_args.kwargs["surface"] == "oauth_authorize"
 
 
 async def test_a_client_nobody_signed_in_with_is_swept_on_the_next_registration(

@@ -66,6 +66,22 @@ async def get_grant(db: AsyncSession, grant_id: UUID) -> OAuthGrant | None:
     return await db.get(OAuthGrant, grant_id)
 
 
+async def lock_grant(db: AsyncSession, grant_id: UUID) -> OAuthGrant | None:
+    """The grant, re-read and locked until the transaction ends.
+
+    An exchange holds it while it issues, and a revocation takes the same lock
+    when it marks the grant, so neither can slip between the other's check and
+    write.
+    """
+    result = await db.execute(
+        select(OAuthGrant)
+        .where(OAuthGrant.id == grant_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    return result.scalar_one_or_none()
+
+
 async def get_grant_in_org(
     db: AsyncSession, grant_id: UUID, *, organization_id: UUID
 ) -> OAuthGrant | None:
@@ -95,8 +111,14 @@ async def list_grants(
 
 
 async def revoke_grant(db: AsyncSession, grant: OAuthGrant, *, at: datetime) -> None:
-    """Revoke a grant and every access token issued under it."""
+    """Revoke a grant and every access token issued under it.
+
+    The grant is written first: the row lock that takes waits for an exchange
+    holding :func:`lock_grant`, so the keys revoked below include the one it
+    issued.
+    """
     grant.revoked_at = at
+    await db.flush()
     await db.execute(
         sql_update(ApiKey)
         .where(ApiKey.oauth_grant_id == grant.id, ApiKey.revoked_at.is_(None))
@@ -211,6 +233,22 @@ async def delete_unclaimed_clients(db: AsyncSession, *, before: datetime) -> Non
     await db.execute(
         delete(OAuthClient).where(
             OAuthClient.created_at < before, OAuthClient.client_id.not_in(claimed)
+        )
+    )
+
+
+async def delete_surplus_requests(db: AsyncSession, *, client_id: str, keep: int) -> None:
+    """Delete all but the newest `keep` requests still held for `client_id`."""
+    newest = (
+        select(OAuthAuthorizationRequest.id)
+        .where(OAuthAuthorizationRequest.client_id == client_id)
+        .order_by(OAuthAuthorizationRequest.created_at.desc())
+        .limit(keep)
+    )
+    await db.execute(
+        delete(OAuthAuthorizationRequest).where(
+            OAuthAuthorizationRequest.client_id == client_id,
+            OAuthAuthorizationRequest.id.not_in(newest),
         )
     )
 

@@ -65,6 +65,18 @@ describe("useRemoteDraft", () => {
     expect(view.result.current.held).toBe(false);
   });
 
+  it("keeps an edit typed while the refetch was in flight", () => {
+    const view = mount({ local: kept, stored: kept, fetchedAt: 1 });
+
+    act(() => announceChange(change()));
+    view.rerender({ local: mine, stored: kept, fetchedAt: 1 });
+    view.rerender({ local: mine, stored: theirs, fetchedAt: 2 });
+
+    expect(adopt).not.toHaveBeenCalled();
+    expect(view.result.current.conflict).not.toBeNull();
+    expect(view.result.current.held).toBe(true);
+  });
+
   it("holds saving from the event until the refetch, then adopts a clean draft silently", () => {
     const view = mount({ local: kept, stored: kept, fetchedAt: 1 });
 

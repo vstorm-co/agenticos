@@ -30,8 +30,6 @@ interface RemoteDraft {
   keepMine: () => void;
 }
 
-const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
-
 /**
  * Keep an editor that saves on its own from overwriting a change made elsewhere
  * (#2061).
@@ -55,7 +53,6 @@ export function useRemoteDraft<T>({
     event: MadeChange;
     since: number;
     stored: string;
-    edited: boolean;
   } | null>(null);
   const [conflict, setConflict] = useState<MadeChange | null>(null);
   // Read when an event arrives rather than subscribed to, so typing does not
@@ -78,7 +75,6 @@ export function useRemoteDraft<T>({
           event,
           since: now.fetchedAt,
           stored: JSON.stringify(now.stored),
-          edited: now.local !== null && !same(now.local, now.stored),
         });
       }),
     [resource, id],
@@ -90,7 +86,10 @@ export function useRemoteDraft<T>({
   if (waiting !== null && fetchedAt > waiting.since) {
     setWaiting(null);
     if (stored != null && JSON.stringify(stored) !== waiting.stored) {
-      if (waiting.edited) setConflict(waiting.event);
+      // Compared now, not when the event came: typing while the refetch was in
+      // flight is an edit too, and adopting would silently drop it.
+      const edited = local !== null && JSON.stringify(local) !== waiting.stored;
+      if (edited) setConflict(waiting.event);
       else adopt(stored);
     }
   }

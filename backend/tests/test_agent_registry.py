@@ -59,6 +59,15 @@ def _shared_with_no_group(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
+def _no_agent_is_the_assistant(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`TestTheAssistantIsSettings` makes one; the mocked database answers anything."""
+    monkeypatch.setattr(
+        "app.services.agent_registry.organization_assistant_repo.for_agent",
+        AsyncMock(return_value=None),
+    )
+
+
+@pytest.fixture(autouse=True)
 def _builtins_loaded():
     load_builtins()
 
@@ -4076,3 +4085,39 @@ def _named_connection(name: str) -> MagicMock:
     connection = MagicMock(visibility="org")
     connection.name = name
     return connection
+
+
+class TestTheAssistantIsSettings:
+    """Codex on #2062: a Builder's `agents:edit` must not reach the corner assistant."""
+
+    @staticmethod
+    def _service(monkeypatch: pytest.MonkeyPatch, agent: MagicMock) -> AgentRegistryService:
+        monkeypatch.setattr(f"{REGISTRY_PATH}.agent_repo.get", AsyncMock(return_value=agent))
+        monkeypatch.setattr(f"{REGISTRY_PATH}.resolve_access", AsyncMock(return_value=True))
+        monkeypatch.setattr(
+            f"{REGISTRY_PATH}.organization_assistant_repo.for_agent",
+            AsyncMock(return_value=MagicMock()),
+        )
+        return AgentRegistryService(_db())
+
+    @pytest.mark.anyio
+    async def test_a_builder_may_run_it_but_not_change_it(self, monkeypatch: pytest.MonkeyPatch):
+        agent = MagicMock(id=uuid.uuid4())
+        service = self._service(monkeypatch, agent)
+        builder = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="builder")
+
+        assert await service.get(builder, agent.id, perm=Perm.AGENTS_RUN) is agent
+        with pytest.raises(AuthorizationError):
+            await service.get(builder, agent.id, perm=Perm.AGENTS_EDIT)
+        with pytest.raises(AuthorizationError):
+            await service.get(builder, agent.id, perm=Perm.AGENTS_PUBLISH)
+
+    @pytest.mark.anyio
+    async def test_an_owner_changes_it_but_cannot_archive_it(self, monkeypatch: pytest.MonkeyPatch):
+        agent = MagicMock(id=uuid.uuid4())
+        service = self._service(monkeypatch, agent)
+        owner = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="owner")
+
+        assert await service.get(owner, agent.id, perm=Perm.AGENTS_EDIT) is agent
+        with pytest.raises(BadRequestError, match="Switch the AI Architect off"):
+            await service.archive(owner, agent.id)

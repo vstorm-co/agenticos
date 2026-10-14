@@ -51,6 +51,13 @@ REFRESH_TOKEN_LIFETIME = timedelta(days=30)
 CODE_LIFETIME = timedelta(minutes=10)
 REQUEST_LIFETIME = timedelta(minutes=10)
 UNCLAIMED_CLIENT_LIFETIME = timedelta(days=1)
+PENDING_REQUESTS_PER_CLIENT = 10
+"""How many `/authorize` requests one client may hold waiting for consent.
+
+Registration and `/authorize` need no credential, so a client could otherwise
+fill the table within one `REQUEST_LIFETIME`. A person consents to the newest;
+the older ones are dropped rather than the new one refused, so an attacker
+holding a client cannot lock it out of anything but its own requests."""
 """How long a self-registered client may sit without anybody signing in with it."""
 
 CONSENT_PATH = "/oauth/consent"
@@ -119,6 +126,9 @@ class OAuthServerService:
         """Hold an `/authorize` request for consent; the URL of the consent page."""
         now = datetime.now(UTC)
         await oauth_repo.delete_expired_requests(self.db, before=now)
+        await oauth_repo.delete_surplus_requests(
+            self.db, client_id=client_id, keep=PENDING_REQUESTS_PER_CLIENT - 1
+        )
         request = await oauth_repo.create_request(
             self.db, client_id=client_id, params=params, expires_at=now + REQUEST_LIFETIME
         )
@@ -315,8 +325,12 @@ class OAuthServerService:
             BadRequestError: Revoked, another client's, expired, or already spent.
         """
         now = datetime.now(UTC)
+        # Locked and re-read: a revocation committed since the grant was loaded
+        # is seen here, and one starting now waits until this exchange has issued.
+        locked = await oauth_repo.lock_grant(self.db, grant.id)
         if (
-            grant.revoked_at is not None
+            locked is None
+            or grant.revoked_at is not None
             or grant.client_id != client.client_id
             or row.expires_at <= now
         ):

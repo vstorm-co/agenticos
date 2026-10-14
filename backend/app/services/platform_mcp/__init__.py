@@ -109,6 +109,21 @@ async def serve_platform_mcp(app: ASGIApp, state: object) -> AsyncGenerator[None
             setattr(state, "platform_mcp", None)  # noqa: B010
 
 
+_UNAUTHENTICATED_LIMITS: dict[tuple[str, str], tuple[str, str]] = {
+    (REGISTER_PATH, "POST"): ("oauth_register", "Too many registrations. Try again shortly."),
+    ("/authorize", "GET"): (
+        "oauth_authorize",
+        "Too many authorization requests. Try again shortly.",
+    ),
+    ("/authorize", "POST"): (
+        "oauth_authorize",
+        "Too many authorization requests. Try again shortly.",
+    ),
+}
+"""The OAuth endpoints anyone may call without a credential, each writing a row:
+limited per address, beside the per-client bound `start` keeps on requests."""
+
+
 class _Forward:
     """The ASGI endpoint for :data:`ROUTE_PATHS`: hand the request to the running server.
 
@@ -117,19 +132,18 @@ class _Forward:
     """
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["path"] == REGISTER_PATH and scope.get("method") == "POST":
+        limited = _UNAUTHENTICATED_LIMITS.get((scope["path"], scope.get("method", "")))
+        if limited is not None:
+            surface, message = limited
             decision = await rate_limit.consume(
-                surface="oauth_register",
+                surface=surface,
                 caller=f"ip:{rate_limit.caller_ip(HTTPConnection(scope))}",
                 limit=rate_limit.auth_limit(),
             )
             if not decision.allowed:
-                # RFC 6749's error shape, which is what a registering client parses.
+                # RFC 6749's error shape, which is what an OAuth client parses.
                 refused = JSONResponse(
-                    {
-                        "error": "temporarily_unavailable",
-                        "error_description": "Too many registrations. Try again shortly.",
-                    },
+                    {"error": "temporarily_unavailable", "error_description": message},
                     status_code=429,
                     headers={"Retry-After": str(decision.retry_after_seconds)},
                 )

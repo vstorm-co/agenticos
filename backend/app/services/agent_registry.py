@@ -248,6 +248,10 @@ async def _sandbox_problems(db: AsyncSession, ctx: AuthContext, spec: AgentSpec)
     return problems
 
 
+_READ_PERMS = frozenset({Perm.AGENTS_VIEW, Perm.AGENTS_RUN})
+"""What `get` may be asked for on the assistant by anyone who reaches it."""
+
+
 async def _browser_problems(config: BaseModel | None, *, has_secret: bool) -> list[str]:
     """A `cdp_url` the operator has not vetted, or a proxy or hosted browser that cannot be used.
 
@@ -761,7 +765,26 @@ class AgentRegistryService:
         allowed = await resolve_access(self.db, ctx, agent, perm, resource_type=AGENT)
         if not allowed:
             raise NotFoundError(message="Agent not found", details={"agent_id": str(agent_id)})
+        if perm not in _READ_PERMS and not ctx.has(Perm.ORG_SETTINGS):
+            await self._refuse_the_assistant(agent)
         return agent
+
+    async def _refuse_the_assistant(self, agent: Agent) -> None:
+        """Refuse changing the organization's assistant without `org:settings`.
+
+        It is installed as an ordinary organization-wide agent, so a Builder's
+        `agents:edit` reaches it through the generic routes - and everybody who
+        opens the corner widget runs it with their own authority. Its spec is
+        the assistant settings' to change, behind the gate `/assistant` has.
+
+        Raises:
+            AuthorizationError: The agent is the organization's assistant.
+        """
+        if await organization_assistant_repo.for_agent(self.db, agent.id) is not None:
+            raise AuthorizationError(
+                message="The AI Architect is changed in Settings, by an administrator",
+                details={"agent_id": agent.id},
+            )
 
     async def may_run(self, ctx: AuthContext, agent: Agent) -> bool:
         """Whether this caller may run this agent - the floor to create a trigger on it.
@@ -2146,6 +2169,13 @@ class AgentRegistryService:
         keep the trail. Real deletion is a separate, deliberate act.
         """
         agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_EDIT)
+        if await organization_assistant_repo.for_agent(self.db, agent.id) is not None:
+            # Archived, it would still read as ready in the corner and refuse every
+            # run; switching it off is the way to retire it.
+            raise BadRequestError(
+                message="Switch the AI Architect off in Settings instead of archiving it",
+                details={"agent_id": agent.id},
+            )
         updated = await agent_repo.update(
             self.db, agent=agent, update_data={"status": AgentStatus.ARCHIVED.value}
         )
