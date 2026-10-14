@@ -5,8 +5,7 @@ import { useTranslations } from "next-intl";
 
 import { TriggerRow } from "@/components/triggers/trigger-row";
 import { ErrorState, LoadingState } from "@/components/states";
-import { SectionGlyph } from "@/components/states/section-glyph";
-import { ListCard, Pager, SearchInput, useListControls } from "@/components/ui";
+import { ListCard, ListCardEmpty, Pager, SearchInput, useListControls } from "@/components/ui";
 import { useOrgTriggers } from "@/hooks/use-org-triggers";
 import { getErrorMessage } from "@/lib/api-error";
 
@@ -23,11 +22,10 @@ import { getErrorMessage } from "@/lib/api-error";
  * The page header already says what the list is, so the card's own header is a
  * toolbar - how many there are, and the search box.
  *
- * Nothing scheduled is not a card. An empty box half a screen tall, with a
- * button that sent the reader to the agents list to work out what to do there,
- * stood between the page and the ideas that answer "what could this be for" -
- * so the empty state is one quiet line over them, and the header's own New
- * schedule is the way in.
+ * Nothing scheduled says so in the card every list page keeps, with no button
+ * of its own: the one it had sent the reader to the agents list to work out
+ * what to do there, where the header's New schedule and the ideas card under
+ * this one are the way in.
  *
  * Searched and paged on this side, because the request already holds the whole
  * list: `useOrgTriggers` walks every page of `GET /triggers` into one array so a
@@ -51,23 +49,12 @@ export function ScheduledTab() {
       ),
   });
 
-  if (!isLoading && !isError && triggers.length === 0) {
-    return (
-      <div className="flex flex-col items-center px-6 py-10 text-center">
-        <SectionGlyph icon={CalendarClock} />
-        <p className="text-foreground mt-4 text-sm font-medium">{t("activityEmptyTitle")}</p>
-        <p className="text-muted-foreground mt-1 max-w-sm text-sm">
-          {t("activityEmptyDescription")}
-        </p>
-      </div>
-    );
-  }
-
   return (
     <ListCard
       namedByPage
       title={t("activityTitle")}
       counted={isLoading ? null : t("routineCount", { count: triggers.length })}
+      empty={!isLoading && !isError && triggers.length === 0}
       contentClassName="p-0"
       controls={
         triggers.length > 0 && (
@@ -84,6 +71,12 @@ export function ScheduledTab() {
         <LoadingState variant="skeleton-table" columns={1} rows={4} className="m-5" />
       ) : isError ? (
         <ErrorState description={getErrorMessage(error, tErrors)} className="m-5" />
+      ) : triggers.length === 0 ? (
+        <ListCardEmpty
+          icon={CalendarClock}
+          title={t("activityEmptyTitle")}
+          description={t("activityEmptyDescription")}
+        />
       ) : (
         <div className="space-y-3 p-5">
           {list.visible.length === 0 ? (

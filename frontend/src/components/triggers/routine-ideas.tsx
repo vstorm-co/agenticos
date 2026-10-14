@@ -3,6 +3,7 @@
 import { Clock } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { ListCard } from "@/components/ui";
 import { useTriggerTemplates } from "@/hooks/use-trigger-templates";
 import { templateIcon } from "@/lib/trigger-template-icons";
 import { cadenceText } from "@/lib/trigger-format";
@@ -29,12 +30,13 @@ export function RoutineIdeas({ onPick }: { onPick: (template: TriggerTemplate) =
   if (ideas.length === 0) return null;
 
   return (
-    <section className="space-y-4" data-tour="routines-ideas">
-      <div className="border-border border-t border-dashed pt-6">
-        <h2 className="text-sm font-semibold">{t("ideasTitle")}</h2>
-        <p className="text-muted-foreground text-sm">{t("ideasHint")}</p>
-      </div>
-      <ul className="grid gap-x-6 gap-y-1 md:grid-cols-2">
+    <ListCard
+      title={t("ideasTitle")}
+      counted={t("ideasHint")}
+      data-tour="routines-ideas"
+      contentClassName="p-2 sm:p-3"
+    >
+      <ul className="grid gap-x-4 gap-y-1 md:grid-cols-2">
         {ideas.map((template) => {
           const Icon = templateIcon(template.key);
           const cadence = template.suggested_cadence!;
@@ -71,6 +73,6 @@ export function RoutineIdeas({ onPick }: { onPick: (template: TriggerTemplate) =
           );
         })}
       </ul>
-    </section>
+    </ListCard>
   );
 }

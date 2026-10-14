@@ -541,10 +541,10 @@ Two things are versioned separately from this file and worth knowing about:
 ### Changed
 
 - **Routines reads like a menu of what an agent could do on its own.** With
-  nothing scheduled, the page no longer draws a half-screen empty card with
-  a "Pick an agent to schedule" button that only opened the agents list:
-  one quiet line says nothing runs yet, and the ideas follow as rows - a
-  mark, a name, one sentence, when it would run. Six ideas for anyone lead
+  nothing scheduled, the list's empty card no longer offers a "Pick an
+  agent to schedule" button that only opened the agents list, and the ideas
+  sit in a card of their own as rows - a mark, a name, one sentence, when
+  it would run - rather than a box each. Six ideas for anyone lead
   the list (daily briefing, inbox triage, meeting prep, weekly review,
   content ideas, monitor a topic) ahead of the engineering ones, whose
   names lose the cadence the line under them already states. Picking one
