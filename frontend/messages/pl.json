@@ -1806,7 +1806,7 @@
         "title": "Ostatnie niepowodzenia",
         "unknownAgent": "Nieznany agent",
         "description": "Uruchomienia, które zawiodły lub wyczerpały budżet, od najnowszych.",
-        "timesFailed": "× {count}"
+        "timesFailed": "{count, plural, other {# razy}}"
       },
       "runs": {
         "delta": "vs poprzedni okres",

@@ -1806,7 +1806,7 @@
         "title": "Recent failures",
         "unknownAgent": "Unknown agent",
         "description": "Runs that failed or ran out of budget, most recent first.",
-        "timesFailed": "× {count}"
+        "timesFailed": "{count, plural, other {# times}}"
       },
       "runs": {
         "delta": "vs the previous period",

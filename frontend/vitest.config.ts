@@ -63,6 +63,7 @@ export default defineConfig({
         "src/components/dashboard/widgets/sandbox-*.tsx",
         // The routines card, held to the gate by #594's own "done when".
         "src/components/dashboard/widgets/routines.tsx",
+        "src/components/dashboard/widgets/recent-failures.tsx",
         // The notifications card (#1598).
         "src/components/dashboard/widgets/notifications.tsx",
         // The colour pass (2026-10-13): a person's four figures, and the cards

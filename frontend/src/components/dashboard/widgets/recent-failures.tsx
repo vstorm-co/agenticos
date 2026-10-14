@@ -134,23 +134,18 @@ export function RecentFailuresWidget({ title, hint, seeAll, options }: Dashboard
             <li key={group.key} className="flex items-center gap-3 text-sm">
               <AgentFace agentId={group.agentId} className="size-8" />
               <span className="min-w-0 flex-1">
-                <span className="flex min-w-0 items-center gap-1.5">
-                  <span className="text-foreground truncate font-medium">
-                    {names.get(group.agentId) ?? t("unknownAgent")}
-                  </span>
-                  {/* The count is the whole point of grouping, so it is on the
-                      agent's line rather than buried in the message beneath. */}
-                  {group.count > 1 ? (
-                    <span className="border-destructive/35 bg-destructive/10 text-foreground shrink-0 rounded-full border px-1.5 py-px font-mono text-xs tabular-nums">
-                      {t("timesFailed", { count: group.count })}
-                    </span>
-                  ) : null}
+                <span className="text-foreground block truncate font-medium">
+                  {names.get(group.agentId) ?? t("unknownAgent")}
                 </span>
+                {/* How many times sits in the line that says what happened, as
+                    words: a red pill beside the agent's name shouted an alarm
+                    over a row the card already files under failures. */}
                 <span
                   className="text-muted-foreground block truncate text-xs"
                   title={group.message}
                 >
                   {headline(group.message)}
+                  {group.count > 1 ? ` · ${t("timesFailed", { count: group.count })}` : ""}
                   {group.startedAt ? ` · ${timeAgo(group.startedAt, tTime, locale)}` : ""}
                 </span>
               </span>

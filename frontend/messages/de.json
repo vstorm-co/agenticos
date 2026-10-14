@@ -1806,7 +1806,7 @@
         "title": "Letzte Fehlschläge",
         "unknownAgent": "Unbekannter Agent",
         "description": "Runs, die fehlgeschlagen sind oder kein Budget mehr hatten, neueste zuerst.",
-        "timesFailed": "× {count}"
+        "timesFailed": "{count, plural, other {#-mal}}"
       },
       "runs": {
         "delta": "gegenüber dem Vorzeitraum",

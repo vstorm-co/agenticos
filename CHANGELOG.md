@@ -457,6 +457,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Recent failures says "4 times" instead of a red "× 4" pill.** The
+  count of a repeated failure moves from a red badge beside the agent's
+  name into the line that says what happened, as words ("4 times", "4
+  razy", "4-mal").
+
 - **"Thought about it" no longer wears the working orb.** While a turn ran,
   "Working for 9s…" and the reasoning under it showed the same orb one
   above the other. The reasoning row now has a bulb in the step slot, like
