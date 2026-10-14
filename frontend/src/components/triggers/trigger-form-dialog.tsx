@@ -284,12 +284,18 @@ export function TriggerFormDialog({
     );
   }
 
+  // The name a template wrote, so picking another replaces it and Start from
+  // scratch clears it - while a name somebody typed is theirs and stays.
+  const [templateName, setTemplateName] = useState<string | null>(null);
+
   /** Prefill what the template's mode can use, still editable below: the
-   *  message always, the cadence only from a schedule template - an event
-   *  template has none. */
+   *  message and the name always, the cadence only from a schedule template -
+   *  an event template has none. */
   function applyTemplate(template: TriggerTemplate) {
     setTemplateKey(template.key);
     setPrompt(template.prompt);
+    if (name.trim() === "" || name === templateName) setName(template.label);
+    setTemplateName(template.label);
     const cadence = template.suggested_cadence;
     if (!cadence) return;
     setCadenceTouched(true);
@@ -322,6 +328,8 @@ export function TriggerFormDialog({
   function scratchTemplate() {
     setTemplateKey(null);
     setPrompt("");
+    if (name === templateName) setName("");
+    setTemplateName(null);
   }
 
   /** Set the cadence controls to a quick preset; they stay editable below it. */

@@ -29,12 +29,12 @@ export function RoutineIdeas({ onPick }: { onPick: (template: TriggerTemplate) =
   if (ideas.length === 0) return null;
 
   return (
-    <section className="space-y-3" data-tour="routines-ideas">
-      <div>
+    <section className="space-y-4" data-tour="routines-ideas">
+      <div className="border-border border-t border-dashed pt-6">
         <h2 className="text-sm font-semibold">{t("ideasTitle")}</h2>
-        <p className="text-muted-foreground text-xs">{t("ideasHint")}</p>
+        <p className="text-muted-foreground text-sm">{t("ideasHint")}</p>
       </div>
-      <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+      <ul className="grid gap-x-6 gap-y-1 md:grid-cols-2">
         {ideas.map((template) => {
           const Icon = templateIcon(template.key);
           const cadence = template.suggested_cadence!;
@@ -43,17 +43,17 @@ export function RoutineIdeas({ onPick }: { onPick: (template: TriggerTemplate) =
               <button
                 type="button"
                 onClick={() => onPick(template)}
-                className="border-border hover:border-foreground/25 hover:bg-accent/40 flex h-full w-full items-start gap-3 rounded-xl border p-3.5 text-left transition-colors"
+                className="hover:bg-accent/60 focus-visible:ring-ring flex h-full w-full items-start gap-3.5 rounded-xl p-3 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none"
               >
                 <span className="bg-muted grid size-9 shrink-0 place-items-center rounded-lg">
-                  <Icon className="text-foreground/70 h-4 w-4" aria-hidden />
+                  <Icon className="text-foreground/75 h-4 w-4" aria-hidden />
                 </span>
-                <span className="min-w-0 flex-1 space-y-1">
+                <span className="min-w-0 flex-1 space-y-0.5">
                   <span className="block text-sm font-medium">{template.label}</span>
-                  <span className="text-muted-foreground line-clamp-2 block text-xs">
+                  <span className="text-muted-foreground block text-sm leading-snug">
                     {template.description}
                   </span>
-                  <span className="text-muted-foreground flex items-center gap-1 text-xs">
+                  <span className="text-muted-foreground flex items-center gap-1.5 pt-1 text-xs">
                     <Clock className="h-3 w-3" aria-hidden />
                     {cadenceText(
                       {

@@ -443,7 +443,7 @@ describe("TriggersPanel", () => {
     ]);
     await mount();
 
-    await waitFor(() => expect(screen.getByText("At 09:00 UTC on Mon, Tue")).toBeVisible());
+    await waitFor(() => expect(screen.getByText("Every Mon, Tue at 09:00 UTC")).toBeVisible());
     expect(screen.queryByText("Cron 0 9 * * 1,2 (UTC)")).toBeNull();
   });
 

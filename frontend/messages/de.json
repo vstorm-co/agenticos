@@ -5436,8 +5436,8 @@
       "everyDays": "{count, plural, =1 {Jeden Tag} other {Alle # Tage}}",
       "cron": "Cron {expression} (UTC)",
       "cronDaily": "Täglich um {time} UTC",
-      "cronWeekly": "Um {time} UTC an {days}",
-      "cronMonthly": "Monatlich am {day}. um {time} UTC",
+      "cronWeekly": "Wöchentlich ({days}) um {time} UTC",
+      "cronMonthly": "Am {day}. jedes Monats um {time} UTC",
       "cronWeekdays": "Werktags um {time} UTC"
     },
     "event": {
@@ -5592,8 +5592,7 @@
     "presetWeekdays9": "Werktags 09:00",
     "stepConfigure": "Konfigurieren",
     "stepMessage": "Nachricht",
-    "templateScratchHelpEvent": "Schreiben Sie Ihre eigene Nachricht.",
-    "activityEmptyAction": "Einen Agent zum Planen auswählen"
+    "templateScratchHelpEvent": "Schreiben Sie Ihre eigene Nachricht."
   },
   "portals": {
     "title": "Portale",

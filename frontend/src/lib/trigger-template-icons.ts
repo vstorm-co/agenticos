@@ -18,17 +18,27 @@
 
 import {
   Bell,
+  Binoculars,
+  CalendarClock,
   CalendarDays,
   ClipboardList,
   FileText,
   GitPullRequest,
+  Inbox,
+  Lightbulb,
   ListChecks,
   Sparkles,
+  Sunrise,
   Users,
   type LucideIcon,
 } from "lucide-react";
 
 const ICONS: Record<string, LucideIcon> = {
+  daily_briefing: Sunrise,
+  inbox_triage: Inbox,
+  meeting_prep: CalendarClock,
+  content_ideas: Lightbulb,
+  monitor_topic: Binoculars,
   pr_digest_weekday_mornings: GitPullRequest,
   triage_new_issues_daily: ListChecks,
   standup_prep_weekdays: Users,

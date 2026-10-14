@@ -5323,8 +5323,8 @@
       "everyDays": "{count, plural, =1 {Codziennie} other {Co # dni}}",
       "cron": "Cron {expression} (UTC)",
       "cronDaily": "Codziennie o {time} UTC",
-      "cronWeekly": "O {time} UTC w {days}",
-      "cronMonthly": "Co miesiąc {day}. dnia o {time} UTC",
+      "cronWeekly": "Co tydzień ({days}) o {time} UTC",
+      "cronMonthly": "{day}. dnia każdego miesiąca o {time} UTC",
       "cronWeekdays": "W dni robocze o {time} UTC"
     },
     "event": {
@@ -5482,7 +5482,6 @@
     "stepConfigure": "Konfiguracja",
     "stepMessage": "Wiadomość",
     "templateScratchHelpEvent": "Napisz własną wiadomość.",
-    "activityEmptyAction": "Wybierz agenta do zaplanowania",
     "sourceEmail": "Przychodzącym e-mailu",
     "sourceHelpEmail": "Skieruj przekaźnik poczty przychodzącej na ten webhook. Przekaźnik musi podpisać każdą dostawę (HMAC) - Zapier i Make potrafią to tylko przez krok z kodem; zwykła akcja webhooka bez kodu przychodzi niepodpisana i jest odrzucana."
   },

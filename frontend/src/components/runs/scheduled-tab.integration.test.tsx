@@ -90,8 +90,10 @@ describe("ScheduledTab", () => {
     render(<ScheduledTab />, { wrapper });
 
     expect(await screen.findByText("Nothing runs on its own yet")).toBeVisible();
-    await userEvent.click(screen.getByRole("button", { name: "Pick an agent to schedule" }));
-    expect(push).toHaveBeenCalledWith("/agents");
+    // No button off to the agents list - the header's New schedule and the ideas
+    // under this line are the way in - and no card to frame the absence.
+    expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.queryByRole("searchbox")).toBeNull();
   });
 
   it("says a failed request out loud instead of as an empty list", async () => {

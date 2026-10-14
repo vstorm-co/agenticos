@@ -540,6 +540,17 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **Routines reads like a menu of what an agent could do on its own.** With
+  nothing scheduled, the page no longer draws a half-screen empty card with
+  a "Pick an agent to schedule" button that only opened the agents list:
+  one quiet line says nothing runs yet, and the ideas follow as rows - a
+  mark, a name, one sentence, when it would run. Six ideas for anyone lead
+  the list (daily briefing, inbox triage, meeting prep, weekly review,
+  content ideas, monitor a topic) ahead of the engineering ones, whose
+  names lose the cadence the line under them already states. Picking one
+  fills in the schedule's name too, and cadences read as "Every Fri at
+  16:00 UTC" and "On day 1 of each month at 09:00 UTC".
+
 - **The agent's browser opens beside the chat, like a desktop agent's.**
   When a browse starts, its window docks to the right of the conversation
   on a wide screen: a tab named after the page, the address, the page, and
