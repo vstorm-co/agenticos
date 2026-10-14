@@ -255,6 +255,14 @@ and the browser say *The agent needs you* and what for. Someone who may view run
 not edit the agent can watch, not drive. The same window opens on a page of its own
 from a channel's link. See [Web browser](reference/capabilities.md#browser-automation).
 
+**Staying signed in.** When the browse acts for you - your own chat, your direct
+message, your own schedule - **Hand it back** offers *Keep me signed in to* the site
+you are on. Tick it after signing in, and later browses acting for you start signed
+in there: the site's cookies and storage are sealed in the vault for you alone, never
+shown, and never used for a widget visitor, a shared room, an API key or an event
+trigger. **Settings → Sign-ins** lists the sites you kept, and **Forget** makes the
+next browse start signed out.
+
 ## What each area is for
 
 The sidebar groups them. **Build** holds Agents, Routines, Apps and Activity;

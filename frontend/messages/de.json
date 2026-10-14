@@ -2959,7 +2959,8 @@
     "mcpClients": "MCP-Clients",
     "connections": "Verbindungen",
     "organization": "Organisation",
-    "documents": "Dokumente"
+    "documents": "Dokumente",
+    "signIns": "Anmeldungen"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -3546,6 +3547,10 @@
       "routines-ideas": {
         "title": "Oder mit einer Idee beginnen",
         "body": "Fertige Routinen - ein Morgenüberblick, eine Wochenzusammenfassung, eine stündliche Prüfung - jeweils mit der Uhrzeit, zu der sie liefe. Wählen Sie eine, und der neue Zeitplan öffnet sich bereits ausgefüllt."
+      },
+      "my-sign-ins": {
+        "title": "Seiten, auf denen du angemeldet bleibst",
+        "body": "Wenn du dich während eines Browses anmeldest und die Anmeldung behältst, startet der Browser deiner Agents dort beim nächsten Mal angemeldet. Vergiss eine Seite, und der nächste Browse startet abgemeldet."
       }
     },
     "chooseLanguage": "Sprache"
@@ -4691,6 +4696,15 @@
       "description": "Alles, was Ihre Agents von allein tun - nach Zeitplan oder auf ein Ereignis.",
       "ideasTitle": "Ideen zum Starten",
       "ideasHint": "Wählen Sie eine, und sie öffnet sich als neuer Zeitplan, schon ausgefüllt - Agent wählen, anpassen, speichern."
+    },
+    "signIns": {
+      "title": "Browser-Anmeldungen",
+      "description": "Seiten, auf denen der Browser deiner Agents angemeldet startet, wenn er für dich handelt. Nur behalten, wenn du den Browser mit Angemeldet bleiben zurückgibst.",
+      "empty": "Keine Anmeldungen behalten",
+      "emptyHint": "Übernimm den Browser während eines Browses, melde dich an und gib ihn mit Angemeldet bleiben zurück - die Seite erscheint hier.",
+      "saved": "Gespeichert {saved}",
+      "savedAndUsed": "Gespeichert {saved} · zuletzt genutzt {used}",
+      "forget": "Vergessen"
     }
   },
   "profile": {
@@ -6887,6 +6901,8 @@
     "forbiddenTitle": "Sie können dieses Browsen nicht ansehen",
     "forbiddenBody": "Es gehört zu einem Run, den Sie nicht sehen dürfen.",
     "unavailableTitle": "Live-Ansicht nicht verfügbar",
-    "unavailableBody": "Dieses Deployment hat kein Redis für Live-Ansichten. Versuchen Sie es gleich noch einmal."
+    "unavailableBody": "Dieses Deployment hat kein Redis für Live-Ansichten. Versuchen Sie es gleich noch einmal.",
+    "rememberSignIn": "Anmeldung bei {site} für spätere Browses behalten",
+    "signInKept": "Deine Anmeldung bei {site} bleibt für spätere Browses erhalten - verwalten unter Einstellungen → Anmeldungen."
   }
 }

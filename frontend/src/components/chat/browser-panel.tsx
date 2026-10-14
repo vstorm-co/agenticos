@@ -154,9 +154,12 @@ function OpenBrowser({ streamed, docked }: { streamed: Browse; docked: boolean }
     >
       {!full && <ResizeHandle width={width} onResize={setWidth} />}
       <BrowserWindow
+        waitForFit
         browse={browse}
         control={
-          mine && live.status === "live" ? { canControl: live.canControl, send: live.send } : null
+          mine && live.status === "live"
+            ? { canControl: live.canControl, canRemember: live.canRemember, send: live.send }
+            : null
         }
         onClose={close}
         maximized={mode === "full"}

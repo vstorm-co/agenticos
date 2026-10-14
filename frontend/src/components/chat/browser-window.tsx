@@ -25,6 +25,8 @@ import { LiveViewport } from "./live-viewport";
 export interface BrowseControl {
   /** Whether this person may drive the browser at all - the server's answer. */
   canControl: boolean;
+  /** Whether a sign-in they make while holding it may be kept for later browses (#2129). */
+  canRemember?: boolean;
   send: (command: BrowserCommand) => void;
 }
 
@@ -102,9 +104,9 @@ function useHold(browse: Browse, control: BrowseControl | null) {
       setAsked(true);
       control?.send({ type: "take_over" });
     },
-    giveBack: () => {
+    giveBack: (remember: boolean) => {
       setAsked(false);
-      control?.send({ type: "give_back" });
+      control?.send({ type: "give_back", remember });
     },
   };
 }
@@ -257,23 +259,23 @@ const FIRST_FIT_MS = 6000;
  * difference between a browser opening and a thumbnail being swapped. Latched:
  * once shown, a later frame of another size (the window resized) shows too.
  */
-function useFitted(image: string | null, asked: number | null): boolean {
-  const [fitted, setFitted] = useState(asked === null);
+function useFitted(image: string | null, asked: number | null, waiting: boolean): boolean {
+  const [fitted, setFitted] = useState(false);
   useEffect(() => {
-    if (fitted || asked === null) return;
+    if (!waiting || fitted) return;
     const timer = setTimeout(() => setFitted(true), FIRST_FIT_MS);
     return () => clearTimeout(timer);
-  }, [fitted, asked]);
+  }, [waiting, fitted]);
   useEffect(() => {
-    if (fitted || asked === null || !image) return;
+    if (!waiting || fitted || asked === null || !image) return;
     const probe = new Image();
     probe.onload = () => {
       // Within a couple of pixels: a scrollbar or rounding is not a wrong size.
       if (Math.abs(probe.naturalWidth - asked) <= 2) setFitted(true);
     };
     probe.src = image;
-  }, [image, asked, fitted]);
-  return fitted || asked === null;
+  }, [image, asked, waiting, fitted]);
+  return fitted || !waiting;
 }
 
 /**
@@ -296,6 +298,7 @@ export function BrowserWindow({
   maximized,
   onMaximize,
   newTabHref,
+  waitForFit = false,
 }: {
   browse: Browse;
   control: BrowseControl | null;
@@ -304,17 +307,20 @@ export function BrowserWindow({
   onMaximize?: () => void;
   /** Where the same browse opens on a page of its own, where that is somewhere else. */
   newTabHref?: string;
+  /** Hold the picture back until a frame of this window's size arrives - see `useFitted`. */
+  waitForFit?: boolean;
 }) {
   const t = useTranslations("chat");
   const tb = useTranslations("browse");
   const [showSteps, setShowSteps] = useState(false);
+  const [remember, setRemember] = useState(false);
   const hold = useHold(browse, control);
   const running = isRunning(browse);
   const host = hostOf(browse.url);
   const secure = browse.url?.startsWith("https:") ?? false;
   const canDrive = running && control !== null && control.canControl;
   const { ref: pageRef, asked } = useFitPage(canDrive ? control : null);
-  const fitted = useFitted(browse.image, asked);
+  const fitted = useFitted(browse.image, asked, waitForFit && canDrive);
 
   return (
     <section
@@ -357,7 +363,7 @@ export function BrowserWindow({
           (hold.holding ? (
             <button
               type="button"
-              onClick={hold.giveBack}
+              onClick={() => hold.giveBack(remember)}
               className="bg-foreground text-background hover:bg-foreground/90 flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm font-medium"
             >
               <Undo2 className="size-4" aria-hidden />
@@ -411,6 +417,24 @@ export function BrowserWindow({
         )}
       </div>
 
+      {/* While holding: keep the sign-in made here for later browses, offered
+          only to the person the run acts for - the server says who that is. */}
+      {hold.holding && control?.canRemember && host && (
+        <label className="border-border flex cursor-pointer items-center gap-2 border-b px-3 py-2 text-sm">
+          <input
+            type="checkbox"
+            checked={remember}
+            onChange={(event) => setRemember(event.target.checked)}
+            className="accent-foreground size-4"
+          />
+          <span>{tb("rememberSignIn", { site: host })}</span>
+        </label>
+      )}
+      {browse.kept && !hold.holding && (
+        <p className="text-muted-foreground border-border border-b px-3 py-1.5 text-xs">
+          {tb("signInKept", { site: browse.kept })}
+        </p>
+      )}
       {browse.needs && running && (
         <div className="border-border border-b bg-amber-500/15 px-3 py-2 text-sm">
           <span className="font-medium text-amber-800 dark:text-amber-300">{tb("needsYou")}</span>{" "}

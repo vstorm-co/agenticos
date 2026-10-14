@@ -2847,7 +2847,8 @@
     "mcpClients": "Klienci MCP",
     "connections": "Połączenia",
     "organization": "Organizacja",
-    "documents": "Dokumenty"
+    "documents": "Dokumenty",
+    "signIns": "Logowania"
   },
   "navigation": {
     "dashboard": "Panel",
@@ -3434,6 +3435,10 @@
       "routines-ideas": {
         "title": "Albo zacznij od pomysłu",
         "body": "Gotowe rutyny - poranny przegląd, tygodniowe podsumowanie, cogodzinna kontrola - każda z porą, o której by działała. Wybierz jedną, a nowy harmonogram otworzy się już wypełniony."
+      },
+      "my-sign-ins": {
+        "title": "Strony, na których zostajesz zalogowany",
+        "body": "Gdy zalogujesz się podczas przeglądania i zapamiętasz logowanie, przeglądarka Twoich agentów następnym razem startuje tam zalogowana. Zapomnij stronę, a kolejne przeglądanie zacznie się wylogowane."
       }
     },
     "chooseLanguage": "Język"
@@ -4579,6 +4584,15 @@
       "description": "Wszystko, co Twoi agenci robią sami - według harmonogramu lub w reakcji na zdarzenie.",
       "ideasTitle": "Pomysły na start",
       "ideasHint": "Wybierz jeden, a otworzy się jako nowy harmonogram, już wypełniony - wybierz agenta, popraw co chcesz, zapisz."
+    },
+    "signIns": {
+      "title": "Logowania w przeglądarce",
+      "description": "Strony, na których przeglądarka Twoich agentów startuje zalogowana, gdy działa w Twoim imieniu. Zapamiętywane tylko wtedy, gdy oddajesz przeglądarkę z zaznaczonym Zapamiętaj logowanie.",
+      "empty": "Brak zapamiętanych logowań",
+      "emptyHint": "Przejmij przeglądarkę podczas przeglądania, zaloguj się i oddaj ją z zaznaczonym Zapamiętaj logowanie - strona pojawi się tutaj.",
+      "saved": "Zapisano {saved}",
+      "savedAndUsed": "Zapisano {saved} · ostatnio użyto {used}",
+      "forget": "Zapomnij"
     }
   },
   "profile": {
@@ -6788,6 +6802,8 @@
     "forbiddenTitle": "Nie możesz oglądać tego przeglądania",
     "forbiddenBody": "Należy do runu, którego nie możesz zobaczyć.",
     "unavailableTitle": "Podgląd na żywo jest niedostępny",
-    "unavailableBody": "To wdrożenie nie ma Redisa do podglądów. Spróbuj za chwilę."
+    "unavailableBody": "To wdrożenie nie ma Redisa do podglądów. Spróbuj za chwilę.",
+    "rememberSignIn": "Zapamiętaj moje logowanie do {site} na kolejne przeglądania",
+    "signInKept": "Twoje logowanie do {site} zostało zapamiętane na kolejne przeglądania - zarządzasz nim w Ustawieniach → Logowania."
   }
 }

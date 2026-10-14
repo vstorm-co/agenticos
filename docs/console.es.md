@@ -1,5 +1,5 @@
 ---
-source_sha: "64823e56c5cd"
+source_sha: "02538249fce4"
 ---
 
 # La consola { #the-console }
@@ -272,6 +272,15 @@ sesión, un captcha -, la línea y el navegador dicen *The agent needs you* y pa
 Quien puede ver runs pero no editar el agent puede mirar, no manejar. La misma ventana
 se abre en una página propia desde el enlace de un canal. Consulta el
 [navegador web](reference/capabilities.md#browser-automation).
+
+**Seguir con la sesión iniciada.** Cuando el browse actúa por ti - tu propio chat, tu
+mensaje directo, tu propia programación -, **Devolver** ofrece *Mantener mi sesión en*
+el sitio en el que estás. Márcalo después de iniciar sesión y los browses posteriores
+que actúen por ti empiezan con la sesión iniciada allí: las cookies y el almacenamiento
+del sitio quedan sellados en el vault solo para ti, nunca se muestran y nunca se usan
+para un visitante del widget, una sala compartida, una clave de API ni un disparador de
+eventos. **Ajustes → Inicios de sesión** lista los sitios que guardaste, y **Olvidar**
+hace que el siguiente browse empiece sin sesión.
 
 ## Para qué sirve cada área { #what-each-area-is-for }
 

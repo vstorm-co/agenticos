@@ -3077,7 +3077,8 @@
     "mcpClients": "MCP clients",
     "connections": "Connections",
     "organization": "Organization",
-    "documents": "Documents"
+    "documents": "Documents",
+    "signIns": "Sign-ins"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -3664,6 +3665,10 @@
       "routines-ideas": {
         "title": "Or start from an idea",
         "body": "Ready-made routines - a morning digest, a weekly summary, an hourly check - each with the time it would run. Pick one and the new schedule opens already filled in."
+      },
+      "my-sign-ins": {
+        "title": "Sites you stay signed in to",
+        "body": "When you sign in during a browse and keep the sign-in, your agents' browser starts signed in there next time. Forget a site and the next browse starts signed out."
       }
     },
     "chooseLanguage": "Language"
@@ -4809,6 +4814,15 @@
       "description": "Everything your agents do on their own - on a schedule, or on an event.",
       "ideasTitle": "Ideas to start from",
       "ideasHint": "Pick one and it opens as a new schedule, filled in - choose the agent, adjust anything, save."
+    },
+    "signIns": {
+      "title": "Browser sign-ins",
+      "description": "Sites your agents' browser starts signed in to when it acts for you. Kept only when you hand the browser back with Keep me signed in ticked.",
+      "empty": "No sign-ins kept",
+      "emptyHint": "Take the browser over during a browse, sign in, and hand it back with Keep me signed in ticked - the site appears here.",
+      "saved": "Saved {saved}",
+      "savedAndUsed": "Saved {saved} · last used {used}",
+      "forget": "Forget"
     }
   },
   "profile": {
@@ -7004,6 +7018,8 @@
     "forbiddenTitle": "You cannot watch this browse",
     "forbiddenBody": "It belongs to a run you cannot view.",
     "unavailableTitle": "Live view is unavailable",
-    "unavailableBody": "This deployment has no Redis for live views. Try again shortly."
+    "unavailableBody": "This deployment has no Redis for live views. Try again shortly.",
+    "rememberSignIn": "Keep me signed in to {site} for later browses",
+    "signInKept": "Your sign-in to {site} is kept for later browses - manage it in Settings → Sign-ins."
   }
 }

@@ -19,6 +19,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Stay signed in to a site your agents browse for you (#2129).** Handing
+  the browser back now offers *Keep me signed in to* the site, to the
+  person the browse acts for; the live view says which site was kept, and
+  **Settings → Sign-ins** lists the kept sites with **Forget**. The window
+  also waits for a frame of its own size before showing the page. Documented
+  under the console's browser section.
+
 - **The Architect answers questions about AgenticOS from its documentation.**
   Asked whether AgenticOS works from Claude Code, it searched the web, when
   `docs/mcp.md` gives the exact command. A new gallery skill,

@@ -654,6 +654,8 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // written something - and an unmarked step waits four seconds for an element
   // an empty store never mounts (#1594).
   { id: "my-memory", page: SETTINGS_DETAIL, target: "my-memory", optional: true },
+  // Optional for the same reason: the list renders only once a sign-in is kept.
+  { id: "my-sign-ins", page: SETTINGS_DETAIL, target: "my-sign-ins", optional: true },
   // Optional for the same reason: the card is on one settings page of five, and
   // the stop is offered from whichever one help was opened on.
   { id: "settings-api-usage", page: SETTINGS_DETAIL, target: "api-usage", optional: true },

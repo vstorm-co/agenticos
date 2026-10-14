@@ -18,6 +18,10 @@ export const qk = {
   publicApi: {
     openapi: () => ["public-api", "openapi"] as const,
   },
+  browserSignIns: {
+    /** The caller's kept browser sign-ins in one organization (#2129). */
+    mine: (orgId: string) => ["browser-sign-ins", orgId] as const,
+  },
   memory: {
     /** Every page of one organization's notes, for invalidating after a write. */
     all: (orgId: string) => ["memory", orgId] as const,

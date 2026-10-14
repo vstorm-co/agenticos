@@ -11,7 +11,7 @@ import type { BrowserFrame } from "@/types/chat";
 /** What a person watching a browse may ask of it (#2128) - `BrowserCommand` on the server. */
 export type BrowserCommand =
   | { type: "take_over" }
-  | { type: "give_back" }
+  | { type: "give_back"; remember?: boolean }
   | { type: "click"; x: number; y: number }
   | { type: "type"; text: string }
   | { type: "key"; key: string }
@@ -25,6 +25,8 @@ interface Snapshot {
   type: "browser_snapshot";
   task: string;
   can_control: boolean;
+  /** Whether this viewer may keep the sign-in they make here - their own browse (#2129). */
+  can_remember?: boolean;
   trace: BrowserFrame[];
   frame: BrowserFrame | null;
 }
@@ -52,6 +54,7 @@ export function useLiveBrowse(runId: string, callId: string, enabled = true) {
   const [browses, setBrowses] = useState<Browse[]>([]);
   const [task, setTask] = useState("");
   const [canControl, setCanControl] = useState(false);
+  const [canRemember, setCanRemember] = useState(false);
   const [status, setStatus] = useState<LiveBrowseStatus>("connecting");
 
   const url = useMemo(
@@ -72,6 +75,7 @@ export function useLiveBrowse(runId: string, callId: string, enabled = true) {
       setBrowses(next);
       setTask(data.task);
       setCanControl(data.can_control);
+      setCanRemember(data.can_remember === true);
       setStatus("live");
       return;
     }
@@ -101,5 +105,5 @@ export function useLiveBrowse(runId: string, callId: string, enabled = true) {
 
   const send = useCallback((command: BrowserCommand) => sendMessage(command), [sendMessage]);
 
-  return { browse: browses[0] ?? null, task, canControl, status, send };
+  return { browse: browses[0] ?? null, task, canControl, canRemember, status, send };
 }

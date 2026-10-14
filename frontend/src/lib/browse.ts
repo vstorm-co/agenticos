@@ -51,6 +51,8 @@ export interface Browse {
   imageStep: number;
   outcome: BrowseOutcome | null;
   detail: string | null;
+  /** The site a person kept their sign-in to when they handed the browser back (#2129). */
+  kept?: string | null;
   /**
    * Where the agent is about to press, as fractions of the viewport - the
    * cursor a person watches move across the page - and the step it belongs to,
@@ -117,7 +119,8 @@ function applyTo(browse: Browse, frame: BrowserFrame): Browse {
     case "browser_held":
       return { ...browse, needs: null, heldBy: frame.by ?? null, pointer: null };
     case "browser_released":
-      return { ...browse, heldBy: null };
+      // A give-back that kept the sign-in says which site (#2129).
+      return { ...browse, heldBy: null, kept: frame.detail ?? browse.kept ?? null };
     case "browser_finished":
       return {
         ...browse,

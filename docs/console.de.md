@@ -1,5 +1,5 @@
 ---
-source_sha: "64823e56c5cd"
+source_sha: "02538249fce4"
 ---
 
 # Die Konsole { #the-console }
@@ -287,6 +287,15 @@ Seite hinweg - eine Anmeldung, ein Captcha -, sagen die Zeile und der Browser *D
 braucht Sie* und wofür. Wer Runs sehen, aber den Agent nicht bearbeiten darf, kann
 zusehen, nicht steuern. Dasselbe Fenster öffnet sich über den Link eines Kanals auf
 einer eigenen Seite. Siehe [Webbrowser](reference/capabilities.md#browser-automation).
+
+**Angemeldet bleiben.** Wenn der Browse für dich handelt - dein eigener Chat, deine
+Direktnachricht, dein eigener Zeitplan -, bietet **Zurückgeben** *Anmeldung bei …
+behalten* für die Seite an, auf der du bist. Hake es nach der Anmeldung an, und
+spätere Browses für dich starten dort angemeldet: Cookies und Speicher der Seite
+liegen versiegelt im Vault, nur für dich, werden nie angezeigt und nie für einen
+Widget-Besucher, einen geteilten Raum, einen API-Schlüssel oder einen Ereignis-Trigger
+genutzt. **Einstellungen → Anmeldungen** listet die behaltenen Seiten, und
+**Vergessen** lässt den nächsten Browse abgemeldet starten.
 
 ## Wofür jeder Bereich da ist { #what-each-area-is-for }
 

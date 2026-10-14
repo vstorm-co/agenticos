@@ -26,7 +26,7 @@ interface PageProps {
 export default function LiveBrowsePage({ params }: PageProps) {
   const { runId, callId } = use(params);
   const t = useTranslations("browse");
-  const { browse, task, canControl, status, send } = useLiveBrowse(runId, callId);
+  const { browse, task, canControl, canRemember, status, send } = useLiveBrowse(runId, callId);
 
   if (status === "gone" || status === "forbidden" || status === "unavailable") {
     return (
@@ -49,7 +49,7 @@ export default function LiveBrowsePage({ params }: PageProps) {
         )}
       </div>
       <div className="ring-foreground/10 min-h-0 flex-1 overflow-hidden rounded-2xl ring-1">
-        <BrowserWindow browse={browse} control={{ canControl, send }} />
+        <BrowserWindow waitForFit browse={browse} control={{ canControl, canRemember, send }} />
       </div>
     </div>
   );

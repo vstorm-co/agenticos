@@ -163,7 +163,36 @@ describe("BrowserWindow - the agent's browser, drawn as a browser", () => {
     expect(live.send).toHaveBeenCalledWith({ type: "click", x: 10, y: 20 });
 
     await userEvent.click(screen.getByRole("button", { name: /Hand it back/ }));
-    expect(live.send).toHaveBeenCalledWith({ type: "give_back" });
+    expect(live.send).toHaveBeenCalledWith({ type: "give_back", remember: false });
+  });
+
+  it("offers the person the browse acts for to keep the sign-in they made", async () => {
+    const live = { ...control(), canRemember: true };
+    render(
+      <BrowserWindow
+        browse={browse({ heldBy: "Ada", url: "https://portal.example.test/home" })}
+        control={live}
+      />,
+    );
+
+    await userEvent.click(
+      screen.getByRole("checkbox", { name: /Keep me signed in to portal.example.test/ }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: /Hand it back/ }));
+
+    expect(live.send).toHaveBeenCalledWith({ type: "give_back", remember: true });
+  });
+
+  it("does not offer to keep a sign-in to someone the browse does not act for", () => {
+    render(<BrowserWindow browse={browse({ heldBy: "Ada" })} control={control()} />);
+
+    expect(screen.queryByRole("checkbox")).toBeNull();
+  });
+
+  it("says which site's sign-in was kept once the browser is handed back", () => {
+    render(<BrowserWindow browse={browse({ kept: "portal.example.test" })} control={control()} />);
+
+    expect(screen.getByText(/Your sign-in to portal.example.test is kept/)).toBeVisible();
   });
 
   it("names someone else holding the browser, and offers nothing to take", () => {
@@ -319,5 +348,61 @@ describe("BrowserWindow - the page laid out for the window showing it", () => {
 
     expect(watching.send).not.toHaveBeenCalled();
     expect(over.send).not.toHaveBeenCalled();
+  });
+});
+
+describe("BrowserWindow - the first picture, at the window's own size", () => {
+  /** An image whose decoded width the test chooses, since jsdom decodes nothing. */
+  function decodesAt(width: number) {
+    class Decoded {
+      onload: (() => void) | null = null;
+      naturalWidth = width;
+      set src(_value: string) {
+        queueMicrotask(() => this.onload?.());
+      }
+    }
+    vi.stubGlobal("Image", Decoded);
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it("holds a frame of the default size back, and shows the first of its own", async () => {
+    // The window asks for 320 CSS px at density 1 in jsdom, which lays nothing out.
+    decodesAt(1280);
+    const { rerender } = render(<BrowserWindow browse={browse()} control={control()} waitForFit />);
+    await act(async () => {});
+    expect(screen.queryByRole("img")).toBeNull();
+    expect(screen.getByText("Waiting for the first view of the page…")).toBeVisible();
+
+    decodesAt(320);
+    rerender(
+      <BrowserWindow
+        browse={browse({ image: "data:image/jpeg;base64,FITTED" })}
+        control={control()}
+        waitForFit
+      />,
+    );
+    await act(async () => {});
+    expect(screen.getByRole("img")).toBeVisible();
+  });
+
+  it("shows what it has once waiting for its own size has taken too long", () => {
+    vi.useFakeTimers();
+    decodesAt(1280);
+    render(<BrowserWindow browse={browse()} control={control()} waitForFit />);
+    expect(screen.queryByRole("img")).toBeNull();
+
+    act(() => vi.advanceTimersByTime(6000));
+
+    expect(screen.getByRole("img")).toBeVisible();
+  });
+
+  it("does not wait where nobody drives the page to its size", () => {
+    render(<BrowserWindow browse={browse()} control={null} waitForFit />);
+
+    expect(screen.getByRole("img")).toBeVisible();
   });
 });

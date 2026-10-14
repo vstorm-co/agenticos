@@ -1,5 +1,5 @@
 ---
-source_sha: "64823e56c5cd"
+source_sha: "02538249fce4"
 ---
 
 # Konsola { #the-console }
@@ -265,6 +265,15 @@ agent nie przejdzie strony sam - logowanie, captcha - linijka i przeglądarka m�
 cię potrzebuje* i po co. Ktoś, kto może oglądać runy, ale nie edytować agenta, może
 patrzeć, ale nie sterować. To samo okno otwiera się na osobnej stronie z linku z kanału.
 Zobacz [Przeglądarka](reference/capabilities.md#browser-automation).
+
+**Zostajesz zalogowany.** Gdy przeglądanie działa w Twoim imieniu - Twój czat, Twoja
+wiadomość prywatna, Twój własny harmonogram - **Oddaj** proponuje *Zapamiętaj moje
+logowanie do* strony, na której jesteś. Zaznacz to po zalogowaniu, a kolejne
+przeglądania w Twoim imieniu startują tam zalogowane: ciasteczka i dane strony są
+zapieczętowane w vault tylko dla Ciebie, nigdy nie są pokazywane i nie są używane dla
+odwiedzającego widget, wspólnego kanału, klucza API ani wyzwalacza zdarzeń.
+**Ustawienia → Logowania** pokazują zapamiętane strony, a **Zapomnij** sprawia, że
+następne przeglądanie zaczyna się wylogowane.
 
 ## Do czego służy każdy obszar { #what-each-area-is-for }
 

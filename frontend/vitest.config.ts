@@ -99,6 +99,7 @@ export default defineConfig({
         "src/components/live-updates/**/*.tsx",
         // The AI Architect in the corner of every page, and its settings (#2063).
         "src/components/assistant/**/*.tsx",
+        "src/components/browser/**/*.tsx",
         "src/components/orgs/**/*.tsx",
         "src/components/public-config/**/*.tsx",
         "src/components/runs/**/*.tsx",
