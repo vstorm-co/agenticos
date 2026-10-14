@@ -876,6 +876,21 @@ async def test_editing_another_field_keeps_a_check_scoring_no_longer_knows(db) -
     assert edited.checks[0].type == "rubric"
 
 
+async def test_a_check_scoring_no_longer_knows_still_counts_as_what_a_case_expects(db) -> None:
+    ctx, service, dataset_id, case_id = await _case_with_an_older_check(db)
+    row = await db.scalar(select(DatasetCase).where(DatasetCase.case_id == case_id))
+    assert row is not None
+    row.reference_answer = None
+    await db.flush()
+
+    kept = await service.update_case(ctx, dataset_id, case_id, DatasetCaseUpdate(note="n"))
+    assert (kept.reference_answer, kept.checks[0].type) == (None, "rubric")
+
+    with pytest.raises(InvalidCaseError) as refused:
+        await service.update_case(ctx, dataset_id, case_id, DatasetCaseUpdate(checks=[]))
+    assert [problem["field"] for problem in refused.value.details["fields"]] == ["reference_answer"]
+
+
 async def _case_from_someone(db) -> tuple[AuthContext, AuthContext, uuid.UUID]:
     """An owner's dataset holding a case taken from a member's rated-down answer."""
     owner = await _owner(db)
