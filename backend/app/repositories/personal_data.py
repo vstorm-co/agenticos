@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent_run import AgentRun
 from app.db.models.agent_workspace import AgentWorkspace
+from app.db.models.case_score import CaseScore
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Conversation, Message, ToolCall
@@ -114,6 +115,16 @@ async def ratings_of(db: AsyncSession, user_id: UUID) -> list[MessageRating]:
         select(MessageRating)
         .where(MessageRating.user_id == user_id)
         .order_by(MessageRating.created_at.desc())
+    )
+    return list(result.scalars().all())
+
+
+async def verdicts_of(db: AsyncSession, user_id: UUID) -> list[CaseScore]:
+    """Eval scores they decided, whose verdict and note are an opinion they expressed."""
+    result = await db.execute(
+        select(CaseScore)
+        .where(CaseScore.reviewed_by_user_id == user_id)
+        .order_by(CaseScore.reviewed_at.desc())
     )
     return list(result.scalars().all())
 

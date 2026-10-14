@@ -36,6 +36,40 @@ class TestChecks:
         with pytest.raises(ValidationError, match="Not a valid JSON Schema"):
             CHECK.validate_python({"type": "json_schema", "schema": {"type": "lots"}})
 
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        "schema",
+        [
+            {"type": "string", "pattern": "^(a|a)*$"},
+            {"type": "object", "patternProperties": {"^x": {"type": "integer"}}},
+            {"properties": {"name": {"type": "string", "pattern": "^a"}}},
+            {"anyOf": [{"type": "integer"}, {"type": "string", "pattern": "^a"}]},
+            {"items": {"$defs": {"x": {"pattern": "a"}}}},
+            {"$defs": {"code": {"pattern": "^[A-Z]+$"}}, "$ref": "#/$defs/code"},
+        ],
+    )
+    def test_a_schema_that_runs_a_pattern_is_refused(self, schema) -> None:
+        with pytest.raises(ValidationError, match="use a regex check"):
+            CHECK.validate_python({"type": "json_schema", "schema": schema})
+
+    @pytest.mark.parametrize(
+        "schema",
+        [
+            {"$ref": "https://example.com/schema.json"},
+            {"properties": {"a": {"$dynamicRef": "other.json#node"}}},
+        ],
+    )
+    def test_a_reference_outside_the_schema_is_refused(self, schema) -> None:
+        with pytest.raises(ValidationError, match="only point inside the schema"):
+            CHECK.validate_python({"type": "json_schema", "schema": schema})
+
+    def test_a_property_named_like_a_keyword_is_not_one(self) -> None:
+        schema = {"properties": {"pattern": {"type": "string"}}, "$ref": "#/properties"}
+
+        check = CHECK.validate_python({"type": "json_schema", "schema": schema})
+
+        assert check.model_dump(by_alias=True)["schema"] == schema
+
     def test_a_negative_ceiling_is_refused(self) -> None:
         with pytest.raises(ValidationError):
             CHECK.validate_python({"type": "max_cost_usd", "value": -1})
@@ -85,6 +119,7 @@ class TestOutcome:
             "dataset_id": uuid.uuid4(),
             "case_id": uuid.uuid4(),
             "case_revision_id": uuid.uuid4(),
+            "question": "Refund window?",
             "results": [],
             "passed": False,
             "review_state": "none",

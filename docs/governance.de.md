@@ -1,5 +1,5 @@
 ---
-source_sha: "a5e00e82c50b"
+source_sha: "055f94a8d5a9"
 ---
 
 # Governance { #governance }
@@ -1543,7 +1543,9 @@ den Entwerfer, der den Inhalt schreibt, der einer
 Fall-Generator und den Authoring-Assistenten, die nach ihnen kommen. Er ist
 standardmäßig aus, für eine Organisation, die es vor dem Schalter gab, wie für
 eine neue: Ob Modelle bewerten und entwerfen, entscheidet die Organisation, und
-wer `org:settings` hat, schaltet ihn ein.
+wer `org:settings` hat, schaltet ihn ein. Jede Änderung wird im
+[Audit-Trail](#audit) als `organization.ai_assistance` festgehalten, mit dem,
+der sie vorgenommen hat.
 
 Ist er aus, lehnt der Service, der einen solchen Run starten würde, ihn ab,
 gleich welcher Client fragt - ein ausgeblendetes Bedienelement ist nicht die

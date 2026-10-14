@@ -1,5 +1,5 @@
 ---
-source_sha: "a5e00e82c50b"
+source_sha: "055f94a8d5a9"
 ---
 
 # Governance { #governance }
@@ -1447,13 +1447,14 @@ niedostępny.
 
 Jeden przełącznik, w ustawieniach organizacji na jej stronie członków, decyduje,
 czy modele wspierają ewaluacje i tworzenie treści w organizacji: sędziego evali,
-który ocenia [wyniki datasetów](datasets.md#judge), agenta piszącego
-szkic treści, której brakuje przy
-[luce w wiedzy](knowledge-gaps.md#drafting-the-missing-content), oraz generator
+który ocenia [wyniki datasetów](datasets.md#judge), agenta piszącego szkic
+treści, której brakuje przy [luce w
+wiedzy](knowledge-gaps.md#drafting-the-missing-content), oraz generator
 przypadków i asystenta tworzenia, które pojawią się po nich. Domyślnie jest
 wyłączony, zarówno w organizacji, która istniała przed przełącznikiem, jak i w
 nowej: to, czy modele oceniają i piszą szkice, jest decyzją organizacji, a
-włącza go ten, kto ma `org:settings`.
+włącza go ten, kto ma `org:settings`. Każda zmiana jest zapisywana w [dzienniku
+audytu](#audit) jako `organization.ai_assistance`, z autorem zmiany.
 
 Gdy jest wyłączony, usługa, która uruchomiłaby taki run, odmawia go, niezależnie
 od tego, który klient o niego prosi - ukryta kontrolka nie jest granicą.
