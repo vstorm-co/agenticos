@@ -17,9 +17,13 @@ vi.mock("@/hooks/use-permissions", () => ({
   usePermissions: () => ({ can: (perm: string) => state.granted.includes(perm) }),
 }));
 vi.mock("@/hooks/use-datasets", () => ({
-  useDatasets: (query: unknown) => {
+  // The server's `editable` filter, as the listing applies it.
+  useDatasets: (query: { editable?: boolean }) => {
     state.lastQuery = query;
-    return { datasets: state.datasets, total: state.total, isLoading: state.isLoading };
+    const rows = query.editable
+      ? state.datasets.filter((dataset) => dataset.can_edit)
+      : state.datasets;
+    return { datasets: rows, total: state.total || rows.length, isLoading: state.isLoading };
   },
   useAddToDataset: () => ({ mutateAsync: state.add, isPending: false }),
 }));
@@ -55,6 +59,13 @@ describe("Add to dataset", () => {
     await open();
     await userEvent.click(screen.getByRole("button", { name: "Add" }));
     await waitFor(() => expect(state.add).toHaveBeenCalled());
+  });
+
+  it("asks the server for any one dataset the caller may edit, not a page of recent ones", () => {
+    state.granted = [Perm.datasetsView];
+    render(<AddToDatasetButton messageId="m1" ratedDown />);
+    expect(state.lastQuery).toEqual({ limit: 1, editable: true, enabled: true });
+    expect(screen.getByRole("button", { name: "Add to dataset" })).toBeInTheDocument();
   });
 
   it("searches every dataset once the list stops short of them all", async () => {

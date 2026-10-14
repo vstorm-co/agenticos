@@ -1,5 +1,5 @@
 ---
-source_sha: "d95ab4372b95"
+source_sha: "79e39797658c"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -211,8 +211,9 @@ comprobar: no se guarda nada y no se llama al juez.
 primer elemento. Sin él, una regla lee la respuesta entera. Las reglas de texto
 no distinguen mayúsculas de minúsculas salvo que `case_sensitive` sea true. Un
 patrón se comprueba al escribir el caso, y una regla lee como máximo los
-primeros 100.000 caracteres de una respuesta, así que un patrón no puede volver
-lenta la puntuación.
+primeros 100.000 caracteres de una respuesta. Un patrón que tarda más de una
+décima de segundo en una respuesta se detiene y se registra como error, así que
+un patrón no puede bloquear la puntuación.
 
 Una comprobación `judge` es un criterio solo para un caso, calificado en el
 mismo run del juez que la rúbrica del dataset. Úsala para lo que una regla no
@@ -241,6 +242,13 @@ comprueba contra su propio budget y el de la organización antes de llamar al
 modelo, y su run aparece en Activity bajo la superficie `eval`. Sus
 instrucciones se pueden editar como las de cualquier agent, y un dataset puede
 indicar otro modelo para él.
+
+El juez solo se ejecuta donde la [asistencia de IA](governance.md#ai-assistance)
+está activada, y está desactivada hasta que un administrador la activa para la
+organización. Hasta entonces, los criterios del juez y de la respuesta de
+referencia se registran como omitidos, solo puntúan los evaluadores basados en
+reglas, y la pestaña Scoring lo indica con un enlace al interruptor para quien
+pueda cambiarlo.
 
 Cada criterio se califica de 1 al máximo de la escala y aprueba en la nota de
 aprobado o por encima. Cuando el juez no puede calificar, sus criterios se

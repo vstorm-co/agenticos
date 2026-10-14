@@ -1,5 +1,5 @@
 ---
-source_sha: "ad98623460be"
+source_sha: "ac18e36a4b2a"
 ---
 
 # Governance { #governance }
@@ -1428,8 +1428,11 @@ debe fallar otra vez porque SMTP estuviera caído.
 Un interruptor, en los ajustes de la organización en su página de miembros,
 decide si los modelos asisten en las evals y la autoría de la organización: el
 juez de evals que califica las [puntuaciones de datasets](datasets.md#judge), y
-el generador de casos y el asistente de autoría que vienen después. Está
-activado por defecto y lo cambia quien tenga `org:settings`.
+el generador de casos, el asistente de autoría y los borradores de lagunas de
+conocimiento que vienen después. Está desactivado por defecto, tanto en una
+organización que existía antes del interruptor como en una nueva: si los
+modelos califican y redactan es una decisión de la organización, y lo activa
+quien tenga `org:settings`.
 
 Cuando está desactivado, el servicio que iniciaría un run así lo rechaza, sea
 cual sea el cliente que lo pida: un control oculto no es la frontera. La

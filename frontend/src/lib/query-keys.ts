@@ -281,8 +281,13 @@ export const qk = {
   },
   datasets: {
     all: () => ["datasets"] as const,
-    list: (query: { search: string; sort: string; skip: number; limit: number }) =>
-      ["datasets", "list", query] as const,
+    list: (query: {
+      search: string;
+      sort: string;
+      skip: number;
+      limit: number;
+      editable: boolean;
+    }) => ["datasets", "list", query] as const,
     detail: (id: string) => ["datasets", id] as const,
     versions: (id: string) => ["datasets", id, "versions"] as const,
     cases: (id: string, query: { version: number | null; skip: number; limit: number }) =>

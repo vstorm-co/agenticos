@@ -29,6 +29,8 @@ export interface DatasetQuery {
   sort?: DatasetSort;
   skip?: number;
   limit?: number;
+  /** Only the datasets the caller may change, by role or by a grant. */
+  editable?: boolean;
   /** False holds the request until it is needed, as a picker behind a checkbox is. */
   enabled?: boolean;
 }
@@ -49,6 +51,7 @@ export function useDatasets({
   sort = "name",
   skip = 0,
   limit = PAGE_SIZE,
+  editable = false,
   enabled = true,
 }: DatasetQuery = {}) {
   const t = useTranslations("datasets");
@@ -56,10 +59,11 @@ export function useDatasets({
   const queryClient = useQueryClient();
 
   const { data, isLoading, isFetching, error, refetch } = useQuery({
-    queryKey: qk.datasets.list({ search, sort, skip, limit }),
+    queryKey: qk.datasets.list({ search, sort, skip, limit, editable }),
     queryFn: () => {
       const params = new URLSearchParams();
       if (search) params.set("q", search);
+      if (editable) params.set("editable", "true");
       params.set("sort", sort);
       params.set("skip", String(skip));
       params.set("limit", String(limit));

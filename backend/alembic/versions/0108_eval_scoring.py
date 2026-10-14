@@ -9,9 +9,9 @@ No existing agent becomes a system agent: one is seeded the first time something
 needs it.
 
 `organizations.ai_assistance_enabled` is the one switch for every model-backed
-eval and authoring feature. On by default, because an organization that has
-changed nothing should get the features the release adds; one that does not want
-models judging or drafting turns it off, and the services refuse from then on.
+eval and authoring feature. Off by default, for every organization the migration
+finds as for every new one: whether models judge and draft here is the
+organization's decision, so nothing model-backed runs until an admin turns it on.
 
 `datasets.scoring` holds how a dataset's cases are scored. It is not versioned
 with the cases - how a team grades is not what it asks - so `case_scores` keeps
@@ -49,7 +49,7 @@ def upgrade() -> None:
             "ai_assistance_enabled",
             sa.Boolean(),
             nullable=False,
-            server_default=sa.text("true"),
+            server_default=sa.text("false"),
         ),
     )
     op.add_column("agents", sa.Column("system_key", sa.String(length=64), nullable=True))

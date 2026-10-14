@@ -134,6 +134,17 @@ async def test_each_route_answers_with_its_status(client: OpenClient) -> None:
     assert deleted.status_code == 204
 
 
+async def test_the_listing_narrows_to_what_the_caller_may_edit_when_asked(
+    client: OpenClient, service: MagicMock
+) -> None:
+    async with client() as http:
+        await http.get(_url("?editable=true&limit=1"))
+        await http.get(_url())
+    asked, plain = service.list_readable.await_args_list
+    assert (asked.kwargs["editable"], asked.kwargs["limit"]) == (True, 1)
+    assert plain.kwargs["editable"] is False
+
+
 async def test_a_case_that_expects_nothing_is_refused_naming_the_field(
     client: OpenClient, service: MagicMock
 ) -> None:

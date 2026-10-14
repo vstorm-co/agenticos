@@ -46,13 +46,11 @@ export function useDatasetTarget({ enabled = true }: { enabled?: boolean } = {})
   const userId = useAuthStore((state) => state.user?.id ?? null);
   const [search, setSearch] = useState("");
   const query = useDebounced(search);
-  const { datasets, total, isLoading } = useDatasets({
-    search: query,
-    sort: "updated",
-    limit: PICKER_SIZE,
-    enabled,
-  });
-  const editable = datasets.filter((dataset) => dataset.can_edit);
+  const {
+    datasets: editable,
+    total,
+    isLoading,
+  } = useDatasets({ search: query, sort: "updated", limit: PICKER_SIZE, editable: true, enabled });
   const [chosen, setChosen] = useState<string | null>(null);
   const preferred = chosen ?? rememberedDataset(userId);
   const target: Dataset | undefined =
@@ -62,7 +60,7 @@ export function useDatasetTarget({ enabled = true }: { enabled?: boolean } = {})
     isLoading,
     // Offered only once the listing stops short, so a short list stays a plain choice.
     search:
-      total > datasets.length || search !== "" ? { value: search, onChange: setSearch } : null,
+      total > editable.length || search !== "" ? { value: search, onChange: setSearch } : null,
     target,
     choose: setChosen,
     remember: (dataset: Dataset) => rememberDataset(userId, dataset.id),
@@ -72,13 +70,14 @@ export function useDatasetTarget({ enabled = true }: { enabled?: boolean } = {})
 /**
  * Whether to offer adding an answer to a dataset at all.
  *
- * The role's `datasets:edit` is enough, and so is an edit grant on one dataset -
- * a Viewer an owner shared a dataset with for editing may add to it, so the
- * listing's `can_edit` is asked when the role alone says no.
+ * The role's `datasets:edit` is enough, and so is an edit grant on any one
+ * dataset, however old - a Viewer an owner shared a dataset with for editing may
+ * add to it. When the role alone says no, the server is asked for one dataset the
+ * caller may edit, so the answer never depends on which page a listing reached.
  */
 export function useCanAddToDataset(): boolean {
   const { can } = usePermissions();
   const byRole = can(Perm.datasetsEdit);
-  const { datasets } = useDatasets({ sort: "updated", limit: PICKER_SIZE, enabled: !byRole });
-  return byRole || datasets.some((dataset) => dataset.can_edit);
+  const { total } = useDatasets({ limit: 1, editable: true, enabled: !byRole });
+  return byRole || total > 0;
 }

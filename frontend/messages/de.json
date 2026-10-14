@@ -1895,7 +1895,7 @@
           "description": "Hier erscheinen Berichte und Dashboards, die ein Agent veröffentlicht."
         }
       },
-      "reviewQueue": {
+      "review-queue": {
         "title": "Wartet auf Prüfung",
         "description": "Eval-Ergebnisse, die auf das Urteil eines Menschen warten.",
         "waiting": "{count, plural, =1 {1 Ergebnis wartet} other {# Ergebnisse warten}} auf ein Urteil",
@@ -3257,7 +3257,7 @@
       },
       "dataset-scoring": {
         "title": "Wie Fälle bewertet werden",
-        "body": "Wählen Sie die Bewertungen: regelbasierte Prüfungen, die erwarteten Tool-Aufrufe und den Eval-Bewerter mit einer Rubrik oder der Referenzantwort. Legen Sie fest, welche ein Fall bestehen muss."
+        "body": "Wählen Sie die Bewertungen: regelbasierte Prüfungen, die erwarteten Tool-Aufrufe und den Eval-Bewerter mit einer Rubrik oder der Referenzantwort. Legen Sie fest, welche ein Fall bestehen muss. Der Eval-Bewerter braucht die KI-Unterstützung, die ein Administrator für die Organisation einschaltet."
       },
       "dataset-scores": {
         "title": "Ergebnisse und Prüfung",
@@ -4898,7 +4898,7 @@
   "teams": {
     "acmeCom": "acme.com",
     "aiAssistance": "KI-Unterstützung",
-    "aiAssistanceDescription": "Ob Modelle Eval-Antworten bewerten, Testfälle entwerfen und Änderungen an Agenten vorschlagen dürfen.",
+    "aiAssistanceDescription": "Aus, bis jemand sie einschaltet. Sie lässt Modelle Eval-Antworten bewerten, Testfälle entwerfen, Änderungen an Agenten vorschlagen und Inhalte für Wissenslücken entwerfen; jede Nutzung ist ein abgerechneter Run innerhalb der Budgets des Agents und der Organisation.",
     "aiAssistanceHint": "Ist sie aus, ruft hier nichts ein Modell zum Bewerten, Erzeugen oder Vorschlagen auf: der Eval-Bewerter, der Fallgenerator und der Authoring-Assistent werden abgelehnt. Deterministische Prüfungen und Urteile von Menschen funktionieren weiter.",
     "aiAssistanceOn": "KI-Unterstützung ist an",
     "aiAssistanceOff": "KI-Unterstützung ist aus",
@@ -5646,7 +5646,12 @@
         "noCriterion": "Geben Sie dem Eval-Bewerter mindestens ein Kriterium oder schalten Sie ihn aus – er hat nichts zu bewerten."
       },
       "willRun": "Wendet an: {scorers}.",
-      "judgeSpends": "Die Benotung durch den Eval-Bewerter ist ein eigener Run, der aus seinem Budget bezahlt wird."
+      "judgeSpends": "Die Benotung durch den Eval-Bewerter ist ein eigener Run, der aus seinem Budget bezahlt wird.",
+      "aiOff": {
+        "body": "Die KI-Unterstützung ist in dieser Organisation ausgeschaltet, daher werden der Eval-Bewerter und der Vergleich mit der Referenzantwort übersprungen, und nur die regelbasierten Bewertungen zählen.",
+        "enable": "KI-Unterstützung einschalten",
+        "askAdmin": "Bitten Sie einen Administrator, sie einzuschalten."
+      }
     },
     "title": "Datasets",
     "pageDescription": "Die Fragen, an denen Ihre Agents getestet werden. Jede Änderung an den Fällen eines Datasets erzeugt eine neue Version, sodass zwei Eval-Runs auf einer Version dieselben Fragen gesehen haben.",

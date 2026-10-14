@@ -101,11 +101,11 @@ class OrganizationRead(BaseSchema, TimestampSchema):
         ),
     )
     ai_assistance_enabled: bool = Field(
-        default=True,
+        default=False,
         description=(
-            "Whether models may assist evals and authoring here. Off, the services "
-            "that would start such a run refuse it; deterministic checks and a "
-            "person's verdicts stay available."
+            "Whether models may assist evals and authoring here. Off until an admin "
+            "turns it on; off, the services that would start such a run refuse it, "
+            "and deterministic checks and a person's verdicts stay available."
         ),
     )
 
