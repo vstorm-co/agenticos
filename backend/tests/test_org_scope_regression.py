@@ -95,6 +95,7 @@ CROSS_TENANT_BY_DESIGN = [
     (conversation_repo, "get_conversation_by_id"),
     (personal_data_repo, "unlink_dataset_cases_of"),
     (personal_data_repo, "delete_case_proposals_of"),
+    (personal_data_repo, "case_proposals_from"),
 ]
 
 

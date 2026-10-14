@@ -134,6 +134,29 @@ async def runs_started_by(db: AsyncSession, user_id: UUID) -> list[AgentRun]:
     return list(result.scalars().all())
 
 
+async def case_proposals_from(db: AsyncSession, user_id: UUID) -> list[CaseProposal]:
+    """Drafted dataset cases taken from their conversations or runs, still waiting.
+
+    Unscoped by organization on purpose, like every read of an export: it is
+    about one person, in every organization they were in.
+    """
+    result = await db.execute(
+        select(CaseProposal)
+        .where(
+            or_(
+                CaseProposal.source_conversation_id.in_(
+                    select(Conversation.id).where(Conversation.user_id == user_id)
+                ),
+                CaseProposal.source_run_id.in_(
+                    select(AgentRun.id).where(AgentRun.user_id == user_id)
+                ),
+            )
+        )
+        .order_by(CaseProposal.created_at.desc(), CaseProposal.id)
+    )
+    return list(result.scalars().all())
+
+
 async def memory_about(db: AsyncSession, owner_key: str) -> list[AgentMemoryFile]:
     """What every agent in every organization has written down about them."""
     result = await db.execute(

@@ -302,3 +302,18 @@ async def test_deleting_the_conversation_takes_its_drafts_and_erasure_takes_a_pe
         await CaseGenerationService(db, vector_store=MagicMock()).list_proposals(owner, dataset.id)
     ).items
     assert [item.source_conversation_id for item in remaining] == [kept.id]
+
+
+async def test_a_person_s_export_carries_the_drafts_taken_from_them(db) -> None:
+    owner, org, agent, dataset = await _setup(db)
+    person = await world.user(db)
+    _, theirs, _ = await world.asked(db, org, agent, person, "Mine", minutes=1)
+    await world.proposals(db, org, dataset, agent, 1, source_conversation_id=theirs.id)
+    _, other, _ = await world.asked(db, org, agent, await world.user(db), "Not mine", minutes=2)
+    await world.proposals(db, org, dataset, agent, 1, source_conversation_id=other.id)
+
+    export = await PersonalDataService(db).export(person.id, actor_user_id=person.id)
+
+    assert [row["source_conversation_id"] for row in export.case_proposals] == [theirs.id]
+    assert export.case_proposals[0]["input"] == "question 0"
+    del owner

@@ -33,12 +33,14 @@ async def user(db) -> User:
     return user
 
 
-async def org(db, owner: User) -> Organization:
+async def org(db, owner: User, *, ai_assistance: bool = True) -> Organization:
+    """An organization; AI assistance on, unlike a real one's default, so generation can run."""
     org = Organization(
         id=uuid.uuid4(),
         name="Acme",
         slug=f"acme-{uuid.uuid4().hex[:8]}",
         created_by_user_id=owner.id,
+        ai_assistance_enabled=ai_assistance,
     )
     db.add(org)
     await db.flush()
@@ -71,6 +73,7 @@ async def asked(
     minutes: int,
     rating: int | None = None,
     comment: str | None = None,
+    surface: str = "web",
 ) -> tuple[AgentRun, Conversation, Message]:
     """A conversation in which `person` asked `agent` one question and got an answer."""
     conversation = Conversation(
@@ -85,6 +88,7 @@ async def asked(
         user_id=person.id,
         conversation_id=conversation.id,
         status="completed",
+        surface=surface,
         started_at=START + timedelta(minutes=minutes),
     )
     db.add(run)

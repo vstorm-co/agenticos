@@ -60,6 +60,16 @@ _NOTIFICATION_FIELDS = (
     "created_at",
 )
 _NOTIFICATION_PREFERENCE_FIELDS = ("event_type", "channel", "enabled", "updated_at")
+_CASE_PROPOSAL_FIELDS = (
+    "id",
+    "dataset_id",
+    "origin",
+    "input",
+    "reference_answer",
+    "note",
+    "source_conversation_id",
+    "created_at",
+)
 
 #: The account's own values, as an export hands them over.
 #:
@@ -161,6 +171,10 @@ class PersonalDataService:
             notification_preferences=personal_data_repo.as_rows(
                 await personal_data_repo.notification_preferences_of(self.db, user_id),
                 _NOTIFICATION_PREFERENCE_FIELDS,
+            ),
+            case_proposals=personal_data_repo.as_rows(
+                await personal_data_repo.case_proposals_from(self.db, user_id),
+                _CASE_PROPOSAL_FIELDS,
             ),
         )
 

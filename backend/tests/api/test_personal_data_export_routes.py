@@ -74,6 +74,7 @@ def _export() -> PersonalDataExport:
         dashboard_layouts=[],
         notifications=[],
         notification_preferences=[],
+        case_proposals=[],
     )
 
 

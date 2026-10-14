@@ -7,10 +7,10 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, field_validator
 
 from app.schemas.base import BaseSchema
-from app.schemas.dataset import CaseCheck, DatasetCaseContent
+from app.schemas.dataset import DatasetCaseContent, StoredCaseContent
 
 CaseOriginLiteral = Literal["agent", "knowledge", "conversation", "red_team"]
 GenerationStatusLiteral = Literal["running", "ready", "failed"]
@@ -22,7 +22,7 @@ MAX_GENERATED = 50
 CASE_ORIGINS: tuple[CaseOriginLiteral, ...] = ("agent", "knowledge", "conversation", "red_team")
 
 
-class CaseProposalRead(DatasetCaseContent):
+class CaseProposalRead(StoredCaseContent):
     """A drafted case waiting for a decision, with what it was drafted from."""
 
     id: UUID
@@ -33,21 +33,6 @@ class CaseProposalRead(DatasetCaseContent):
     source_conversation_id: UUID | None = None
     source_message_id: UUID | None = None
     created_at: datetime
-
-    @field_validator("tags", mode="before")
-    @classmethod
-    def _tags(cls, tags: list[str]) -> list[str]:
-        # Validated when the proposal was stored; see `DatasetCaseRead`.
-        return tags
-
-    @field_validator("checks")
-    @classmethod
-    def _checks(cls, checks: list[CaseCheck]) -> list[CaseCheck]:
-        return checks
-
-    @model_validator(mode="after")
-    def _expects_something(self) -> CaseProposalRead:
-        return self
 
 
 class CaseProposalList(BaseSchema):

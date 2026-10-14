@@ -63,6 +63,12 @@ class PersonalDataExport(BaseModel):
     notification_preferences: list[dict[str, Any]] = Field(
         description="Which events they chose to hear about, per channel."
     )
+    case_proposals: list[dict[str, Any]] = Field(
+        description=(
+            "Test cases drafted from their conversations and still waiting for a "
+            "decision - a paraphrase of what they asked is still about them."
+        )
+    )
 
 
 class PersonalDataPurge(BaseModel):
