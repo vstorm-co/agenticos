@@ -43,7 +43,12 @@ from app.db.models.agent import AgentStatus
 from app.db.models.resource_grant import GrantLevel, Visibility
 from app.schemas.agent import AgentCreate
 from app.schemas.deployment_settings import DeploymentLimits
-from app.services.agent_registry import AgentRegistryService, slugify
+from app.services.agent_registry import (
+    AgentRegistryService,
+    PublishedCandidate,
+    UnpublishedCandidate,
+    slugify,
+)
 
 REGISTRY_PATH = "app.services.agent_registry"
 
@@ -2693,6 +2698,121 @@ class TestGetRunnableSpec:
             pytest.raises(BadRequestError, match="points at a missing version"),
         ):
             await AgentRegistryService(_db()).get_runnable_spec(ctx, agent.id)
+
+
+class TestGetCandidateSpec:
+    @pytest.mark.anyio
+    async def test_a_published_candidate_runs_its_version_not_the_environments(self):
+        """An eval names the version it measures; the environment only lends
+        its connections, so a staging pin must not swap the spec under it."""
+        ctx = _ctx()
+        agent = _agent(ctx, status=AgentStatus.PUBLISHED.value, current_version_id=uuid.uuid4())
+        older = _version(agent.id, number=6, spec=_spec("Support", instructions="v6 wording"))
+        environment = MagicMock(agent_id=agent.id, version_id=uuid.uuid4())
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get", new=AsyncMock(return_value=agent)),
+            patch(
+                f"{REGISTRY_PATH}.agent_environment_repo.get",
+                new=AsyncMock(return_value=environment),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.get_version", new=AsyncMock(return_value=older)
+            ) as versions,
+        ):
+            _, spec, version_id = await AgentRegistryService(_db()).get_candidate_spec(
+                ctx, agent.id, PublishedCandidate(older.id), environment_id=environment.id
+            )
+
+        assert versions.call_args.args[1] == older.id
+        assert spec.instructions == "v6 wording"
+        assert version_id == older.id
+
+    @pytest.mark.anyio
+    async def test_another_agents_version_is_refused(self):
+        """Otherwise one agent's run would execute, and be booked as, another's spec."""
+        ctx = _ctx()
+        agent = _agent(ctx, status=AgentStatus.PUBLISHED.value, current_version_id=uuid.uuid4())
+        foreign = _version(uuid.uuid4())
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get", new=AsyncMock(return_value=agent)),
+            patch(f"{REGISTRY_PATH}.agent_repo.get_version", new=AsyncMock(return_value=foreign)),
+            pytest.raises(BadRequestError, match="not one of agent"),
+        ):
+            await AgentRegistryService(_db()).get_candidate_spec(
+                ctx, agent.id, PublishedCandidate(foreign.id)
+            )
+
+    @pytest.mark.anyio
+    async def test_a_draft_is_validated_for_the_caller_and_attributed_to_no_version(self):
+        """A draft never passed publish validation, and its answers must not
+        count as the published version's."""
+        ctx = _ctx()
+        agent = _agent(ctx, status=AgentStatus.PUBLISHED.value, current_version_id=uuid.uuid4())
+        draft = _spec("Support", instructions="Being edited")
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get", new=AsyncMock(return_value=agent)),
+            patch.object(AgentRegistryService, "validate_spec", new=AsyncMock()) as validate,
+        ):
+            _, spec, version_id = await AgentRegistryService(_db()).get_candidate_spec(
+                ctx, agent.id, UnpublishedCandidate(draft)
+            )
+
+        validate.assert_awaited_once_with(ctx, draft, agent_id=agent.id)
+        assert spec is draft
+        assert version_id is None
+
+    @pytest.mark.anyio
+    async def test_a_draft_the_caller_could_not_publish_is_refused(self):
+        """Running it would exercise a collection, skill or secret the caller
+        could never bind through publish."""
+        ctx = _ctx()
+        agent = _agent(ctx, status=AgentStatus.PUBLISHED.value, current_version_id=uuid.uuid4())
+        refusal = BadRequestError(message="Collection not found", details={})
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get", new=AsyncMock(return_value=agent)),
+            patch.object(AgentRegistryService, "validate_spec", new=AsyncMock(side_effect=refusal)),
+            pytest.raises(BadRequestError, match="Collection not found"),
+        ):
+            await AgentRegistryService(_db()).get_candidate_spec(
+                ctx, agent.id, UnpublishedCandidate(_spec("Support"))
+            )
+
+    @pytest.mark.anyio
+    async def test_a_candidate_on_another_agents_environment_is_reported_as_missing(self):
+        """The environment decides which test connections answer; another
+        agent's would route this agent's calls to systems nobody chose for it."""
+        ctx = _ctx()
+        agent = _agent(ctx, status=AgentStatus.PUBLISHED.value, current_version_id=uuid.uuid4())
+        foreign = MagicMock(agent_id=uuid.uuid4(), version_id=uuid.uuid4())
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get", new=AsyncMock(return_value=agent)),
+            patch(
+                f"{REGISTRY_PATH}.agent_environment_repo.get",
+                new=AsyncMock(return_value=foreign),
+            ),
+            pytest.raises(NotFoundError, match="Environment"),
+        ):
+            await AgentRegistryService(_db()).get_candidate_spec(
+                ctx, agent.id, UnpublishedCandidate(_spec("Support")), environment_id=foreign.id
+            )
+
+    @pytest.mark.anyio
+    async def test_an_archived_agent_runs_no_candidate_either(self):
+        ctx = _ctx()
+        agent = _agent(ctx, status=AgentStatus.ARCHIVED.value, current_version_id=uuid.uuid4())
+
+        with (
+            patch(f"{REGISTRY_PATH}.agent_repo.get", new=AsyncMock(return_value=agent)),
+            pytest.raises(BadRequestError, match="is archived"),
+        ):
+            await AgentRegistryService(_db()).get_candidate_spec(
+                ctx, agent.id, UnpublishedCandidate(_spec("Support"))
+            )
 
 
 @pytest.fixture(autouse=True)

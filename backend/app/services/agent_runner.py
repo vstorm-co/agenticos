@@ -194,6 +194,7 @@ from app.services.agent_registry import (
     DEFAULT_GRANTED_SCOPES,
     DELEGATION_CAPABILITY_ID,
     AgentRegistryService,
+    Candidate,
     delegation_binding,
 )
 from app.services.approvals import ApprovalService
@@ -2056,6 +2057,7 @@ class AgentRunnerService:
         on_compaction: CompactionSink | None = None,
         request_connection: ConnectionCallback | None = None,
         isolation: RunIsolation | None = None,
+        candidate: Candidate | None = None,
     ) -> PreparedRun:
         """Assemble everything a run needs and open its row.
 
@@ -2104,6 +2106,12 @@ class AgentRunnerService:
                 environment's test connections execute, everything else is held
                 and recorded, and a recording - when given - answers calls
                 instead. See :mod:`app.agents.isolation`.
+            candidate: Run this instead of the version the environment pins -
+                how an eval runs a given version, or a draft. The environment
+                then supplies only the connections and the tracing. An
+                unpublished candidate is validated against the caller's access
+                and the run is attributed to no version, so a draft's answers
+                never count as a published version's.
 
         Raises:
             BadRequestError: If the agent is unpublished, archived, or its spec
@@ -2112,9 +2120,15 @@ class AgentRunnerService:
         effective_environment_id = environment_id or (
             exposure.environment_id if exposure is not None else None
         )
-        agent, spec, version_id = await self.registry.get_runnable_spec(
-            ctx, agent_id, environment_id=effective_environment_id
-        )
+        version_id: UUID | None
+        if candidate is None:
+            agent, spec, version_id = await self.registry.get_runnable_spec(
+                ctx, agent_id, environment_id=effective_environment_id
+            )
+        else:
+            agent, spec, version_id = await self.registry.get_candidate_spec(
+                ctx, agent_id, candidate, environment_id=effective_environment_id
+            )
         spec = await self._with_environment_observability(
             ctx, spec, environment_id=effective_environment_id
         )
@@ -2417,7 +2431,7 @@ class AgentRunnerService:
                 self.db,
                 organization_id=ctx.organization_id,
                 agent_id=agent.id,
-                agent_version_id=version_id or agent.current_version_id,
+                agent_version_id=version_id,
                 user_id=ctx.user_id,
                 initiated_by_publisher_fallback=initiated_by_publisher_fallback,
                 conversation_id=conversation_id,
@@ -3856,6 +3870,7 @@ class AgentRunnerService:
         stream: RunStream | None = None,
         on_compaction: CompactionSink | None = None,
         isolation: RunIsolation | None = None,
+        candidate: Candidate | None = None,
     ) -> tuple[str, AgentRun]:
         """Run an agent to completion and return its answer.
 
@@ -3865,7 +3880,8 @@ class AgentRunnerService:
         `environment_id` runs the version that environment pins - the API's way
         of exercising a dev environment before promoting it. With `isolation` it
         is how an eval runs: on that environment's test connections, with every
-        other write held and recorded.
+        other write held and recorded. `candidate` names what the eval runs
+        instead of the version the environment pins; see :meth:`prepare`.
 
         `attachments` are files that arrived with the message. They are routed
         here rather than by the caller because where an attachment *goes* depends
@@ -3904,6 +3920,7 @@ class AgentRunnerService:
             environment_id=environment_id,
             on_compaction=on_compaction,
             isolation=isolation,
+            candidate=candidate,
         )
         # `str | list[Any]`, not `str`: an attached image is folded in as
         # `BinaryContent` beside the text, and narrowing that back to a string

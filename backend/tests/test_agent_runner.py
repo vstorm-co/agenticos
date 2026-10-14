@@ -66,6 +66,7 @@ from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_environment import AgentEnvironmentConnection
 from app.db.models.agent_run import ApprovalStatus, RunStatus, RunSurface
 from app.db.models.intercepted_tool_call import InterceptionOutcome, InterceptionReason
+from app.services.agent_registry import UnpublishedCandidate
 from app.services.agent_runner import (
     AgentRunnerService,
     ApprovalChannel,
@@ -3507,6 +3508,55 @@ class TestARunThatArrivedThroughABinding:
             await service.prepare(_ctx(), agent.id, exposure=exposure)
 
         return create_run.call_args.kwargs, build.call_args.kwargs
+
+    @pytest.mark.anyio
+    async def test_a_draft_candidate_runs_unattributed_on_the_environments_connections(self):
+        """An eval of a draft: the draft answers, the environment lends only its
+        connections, and the run row names no version - so the draft's answers
+        never count as the published version's."""
+        ctx = _ctx()
+        environment_id = uuid.uuid4()
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        draft = AgentSpec(name="Support", instructions="Being edited")
+        candidate = UnpublishedCandidate(draft)
+
+        with (
+            patch.object(service.registry, "get_runnable_spec") as published,
+            patch.object(
+                service.registry,
+                "get_candidate_spec",
+                new=AsyncMock(return_value=(agent, draft, None)),
+            ) as resolve,
+            patch(
+                "app.services.agent_runner.agent_environment_repo.get",
+                new=AsyncMock(return_value=None),
+            ),
+            patch(
+                "app.services.agent_runner.agent_environment_repo.list_connections",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ) as create_run,
+            patch("app.services.agent_runner.build_agent"),
+        ):
+            prepared = await service.prepare(
+                ctx, agent.id, environment_id=environment_id, candidate=candidate
+            )
+
+        published.assert_not_called()
+        assert resolve.call_args.args == (ctx, agent.id, candidate)
+        assert resolve.call_args.kwargs["environment_id"] == environment_id
+        assert prepared.spec.instructions == "Being edited"
+        opened = create_run.call_args.kwargs
+        assert opened["agent_version_id"] is None
+        assert opened["environment_id"] == environment_id
 
     @pytest.mark.anyio
     async def test_the_bindings_environment_decides_the_version_and_is_recorded(self):
