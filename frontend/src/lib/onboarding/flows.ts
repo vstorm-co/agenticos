@@ -935,6 +935,7 @@ export function flowForPage(pageId: string): FlowId | null {
     case ROUTES.ROUTINES:
       return "create-routine";
     case ROUTES.DATASETS:
+    case DATASET_DETAIL:
       return "create-dataset";
     case ROUTES.ORGS:
     case ORG_MEMBERS:

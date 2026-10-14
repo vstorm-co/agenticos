@@ -104,6 +104,12 @@ class Organization(Base, TimestampMixin):
         Boolean, nullable=False, default=False, server_default="false"
     )
 
+    # Off is enforced by the service that would start each model-backed run, not
+    # by the client; deterministic checks and people's verdicts stay available.
+    ai_assistance_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
+
     # How long this organization's data lives, per class, in days. `None` on the
     # column means it has never had an opinion and takes the deployment's
     # defaults; a class absent from the mapping means the same for that class

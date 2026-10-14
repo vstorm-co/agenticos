@@ -36,7 +36,7 @@ class TestEveryMemberIsAssignedBySomething:
     design documents a paragraph each explaining the omission.
     """
 
-    def test_the_vocabulary_is_exactly_the_seven_surfaces_that_exist(self):
+    def test_the_vocabulary_is_exactly_the_eight_surfaces_that_exist(self):
         assert {surface.value for surface in RunSurface} == {
             "web",
             "embed",
@@ -45,7 +45,13 @@ class TestEveryMemberIsAssignedBySomething:
             "telegram",
             "mattermost",
             "schedule",
+            "eval",
         }
+
+    def test_eval_has_a_writer(self):
+        """The system agent runner stamps every judge run `eval` (that it is
+        written is proven in `tests/test_system_agent_runner.py`)."""
+        assert RunSurface.EVAL.value == "eval"
 
     def test_playground_is_absent_but_schedule_now_has_a_writer(self):
         """`playground` stays gone - nothing runs an agent in one, so a filter

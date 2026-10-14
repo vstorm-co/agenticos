@@ -90,6 +90,18 @@ describe("AgentCard", () => {
     expect(container.querySelector("[data-beam]")).not.toBeNull();
   });
 
+  it("marks an agent the platform seeded as a system agent", () => {
+    mount({ system_key: "eval_judge", name: "Eval judge" });
+
+    expect(screen.getByText("System")).toBeInTheDocument();
+  });
+
+  it("marks nothing on an agent a person made", () => {
+    mount();
+
+    expect(screen.queryByText("System")).toBeNull();
+  });
+
   it("opens the builder from anywhere on the card", () => {
     mount();
 

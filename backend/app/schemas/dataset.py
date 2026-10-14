@@ -11,6 +11,7 @@ from pydantic_core import InitErrorDetails, PydanticCustomError
 
 from app.schemas.base import BaseSchema
 from app.schemas.resource_grant import VisibilityLiteral
+from app.schemas.scoring import CHECK, DatasetScoring
 
 CaseSourceLiteral = Literal["manual", "import", "conversation", "synthetic"]
 DatasetChangeLiteral = Literal["add", "edit", "remove", "import"]
@@ -54,8 +55,8 @@ class CaseCheck(BaseSchema):
 
     Only the shape is fixed here: an object with a `type`, and that rule's own
     parameters beside it. Which types exist and what each requires belongs to
-    scoring, which reads these - and whatever it later refuses, it must still
-    accept the checks datasets already hold.
+    scoring (`app.schemas.scoring.Check`), checked when a case is written - and a
+    stored check it no longer accepts is still read, and scored as an error.
     """
 
     model_config = ConfigDict(
@@ -64,6 +65,13 @@ class CaseCheck(BaseSchema):
     __pydantic_extra__: dict[str, JsonValue] = Field(init=False)
 
     type: str = Field(min_length=1, max_length=64)
+
+
+def _known_checks(checks: list[CaseCheck]) -> list[CaseCheck]:
+    """Refuse a check scoring does not know, or one whose parameters it would refuse."""
+    for check in checks:
+        CHECK.validate_python(check.model_dump(by_alias=True))
+    return checks
 
 
 def _clean_tags(tags: list[str]) -> list[str]:
@@ -121,6 +129,11 @@ class DatasetCaseContent(BaseSchema):
     def _tags(cls, tags: list[str]) -> list[str]:
         return _clean_tags(tags)
 
+    @field_validator("checks")
+    @classmethod
+    def _checks(cls, checks: list[CaseCheck]) -> list[CaseCheck]:
+        return _known_checks(checks)
+
     @model_validator(mode="after")
     def _expects_something(self) -> DatasetCaseContent:
         """Refuse a case with only an input: nothing could score the answer to it.
@@ -164,8 +177,44 @@ class DatasetCaseUpdate(BaseSchema):
     def _tags(cls, tags: list[str] | None) -> list[str] | None:
         return None if tags is None else _clean_tags(tags)
 
+    @field_validator("checks")
+    @classmethod
+    def _checks(cls, checks: list[CaseCheck] | None) -> list[CaseCheck] | None:
+        return None if checks is None else _known_checks(checks)
 
-class DatasetCaseRead(DatasetCaseContent):
+
+class EditedCaseContent(DatasetCaseContent):
+    """An edit merged onto a stored case.
+
+    The stored tags and checks are kept as they were written, so a rule that
+    tightened since does not refuse an edit to another field; the case as a whole
+    must still expect something.
+    """
+
+    @field_validator("tags", mode="before")
+    @classmethod
+    def _tags(cls, tags: list[str]) -> list[str]:
+        # Stored tags were cleaned on the way in; re-cleaning on the way out
+        # would turn a later tightening of the rule into a listing that 500s.
+        return tags
+
+    @field_validator("checks")
+    @classmethod
+    def _checks(cls, checks: list[CaseCheck]) -> list[CaseCheck]:
+        # The same reason: a check stored before a rule tightened is still read.
+        return checks
+
+
+class StoredCaseContent(EditedCaseContent):
+    """A case's content as a stored revision holds it, read without re-judging it."""
+
+    @model_validator(mode="after")
+    def _expects_something(self) -> StoredCaseContent:
+        # Cases stored before a case had to expect something still list and export.
+        return self
+
+
+class DatasetCaseRead(StoredCaseContent):
     """One case as a version holds it.
 
     `case_id` is the case across its edits; `id` is this revision of it, which is
@@ -180,18 +229,6 @@ class DatasetCaseRead(DatasetCaseContent):
     source_message_id: UUID | None = None
     created_by_user_id: UUID | None = None
     created_at: datetime
-
-    @field_validator("tags", mode="before")
-    @classmethod
-    def _tags(cls, tags: list[str]) -> list[str]:
-        # Stored tags were cleaned on the way in; re-cleaning on the way out
-        # would turn a later tightening of the rule into a listing that 500s.
-        return tags
-
-    @model_validator(mode="after")
-    def _expects_something(self) -> DatasetCaseRead:
-        # Cases stored before a case had to expect something still list and export.
-        return self
 
 
 class DatasetCaseList(BaseSchema):
@@ -246,6 +283,9 @@ class DatasetRead(BaseSchema):
     case_count: int
     can_edit: bool = Field(
         default=False, description="Whether the caller may change this dataset's cases"
+    )
+    scoring: DatasetScoring = Field(
+        default_factory=DatasetScoring, description="How this dataset's cases are scored"
     )
     stats: DatasetStats = Field(default_factory=DatasetStats)
     created_at: datetime

@@ -1,5 +1,5 @@
 ---
-source_sha: "c070f50e41ec"
+source_sha: "de345fa10b17"
 ---
 
 # Governance { #governance }
@@ -1411,6 +1411,28 @@ que ningún informe, porque los dos números parecen autoritativos.
 
 El envío nunca bloquea y nunca lanza hacia quien llama: un run que ya ha terminado no
 debe fallar otra vez porque SMTP estuviera caído.
+
+## Asistencia de IA { #ai-assistance }
+
+Un interruptor, en los ajustes de la organización en su página de miembros,
+decide si los modelos asisten en las evals y la autoría de la organización: el
+juez de evals que califica las [puntuaciones de datasets](datasets.md#judge), y
+el generador de casos y el asistente de autoría que vienen después. Está
+activado por defecto y lo cambia quien tenga `org:settings`.
+
+Cuando está desactivado, el servicio que iniciaría un run así lo rechaza, sea
+cual sea el cliente que lo pida: un control oculto no es la frontera. La
+puntuación sigue ejecutando sus comprobaciones basadas en reglas y la
+comparación de llamadas a herramientas, registra los criterios del juez como
+omitidos con el motivo, y deja sin puntuar, en lugar de aprobado, un caso cuyo
+juez era obligatorio. Los veredictos de las personas siguen disponibles.
+
+Estas funciones se ejecutan como [agents del sistema](concepts.md#system-agents).
+Cada run es un run normal: se comprueba contra el budget mensual propio del
+agent y el de la organización antes de cada llamada al modelo, su coste se
+registra y aparece en Activity bajo la superficie `eval`. Un agent del sistema
+empieza con un budget propio (el del juez es de $5 al mes), que se puede cambiar
+como el de cualquier agent.
 
 ## Auditoría { #audit }
 

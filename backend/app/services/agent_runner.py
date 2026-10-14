@@ -3874,6 +3874,7 @@ class AgentRunnerService:
         tool_calls: list[RecordedToolCall] | None = None,
         stream: RunStream | None = None,
         on_compaction: CompactionSink | None = None,
+        model_profile_id: UUID | None = None,
         isolation: RunIsolation | None = None,
         candidate: Candidate | None = None,
     ) -> tuple[str, AgentRun]:
@@ -3887,6 +3888,8 @@ class AgentRunnerService:
         is how an eval runs: on that environment's test connections, with every
         other write held and recorded. `candidate` names what the eval runs
         instead of the version the environment pins; see :meth:`prepare`.
+
+        `model_profile_id` runs it on another model, as :meth:`prepare` describes.
 
         `attachments` are files that arrived with the message. They are routed
         here rather than by the caller because where an attachment *goes* depends
@@ -3924,6 +3927,7 @@ class AgentRunnerService:
             exposure=exposure,
             environment_id=environment_id,
             on_compaction=on_compaction,
+            model_profile_id=model_profile_id,
             isolation=isolation,
             candidate=candidate,
         )

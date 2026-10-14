@@ -38,6 +38,7 @@ import { SandboxSessionsWidget } from "./sandbox-sessions";
 import { SharedWithYouWidget } from "./shared-with-you";
 import { ArtifactsWidget } from "./artifacts";
 import { DatasetsWidget } from "./datasets";
+import { ReviewQueueWidget } from "./review-queue";
 import { SpendWidget } from "./spend";
 import { ActivityRhythmWidget } from "./activity-rhythm";
 import { ChannelsWidget } from "./channels";
@@ -84,6 +85,7 @@ export const WIDGET_COMPONENTS: Record<WidgetId, ComponentType<DashboardWidgetPr
   "shared-with-you": SharedWithYouWidget,
   artifacts: ArtifactsWidget,
   datasets: DatasetsWidget,
+  "review-queue": ReviewQueueWidget,
   "sandbox-capacity": SandboxCapacityWidget,
   "sandbox-sessions": SandboxSessionsWidget,
   "sandbox-policy": SandboxPolicyWidget,

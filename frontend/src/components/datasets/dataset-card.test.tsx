@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+import { DEFAULT_SCORING } from "@/lib/scoring";
 import type { Dataset } from "@/types/datasets";
 import { DatasetCard } from "./dataset-card";
 
@@ -14,6 +15,7 @@ const DATASET: Dataset = {
   latest_version: 3,
   case_count: 12,
   can_edit: true,
+  scoring: DEFAULT_SCORING,
   stats: {
     with_reference: 0,
     with_counter_example: 0,

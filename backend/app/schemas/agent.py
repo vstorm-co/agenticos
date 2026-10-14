@@ -123,6 +123,14 @@ class AgentRead(BaseSchema):
     visibility: str
     owner_user_id: UUID | None = None
     current_version_id: UUID | None = None
+    system_key: str | None = Field(
+        default=None,
+        description=(
+            "Set on an agent the platform seeded and starts itself - `eval_judge` for "
+            "the eval judge. It is edited and shared like any agent; the key is how "
+            "the console marks it as a system agent."
+        ),
+    )
     has_avatar: bool = Field(
         default=False,
         description=(

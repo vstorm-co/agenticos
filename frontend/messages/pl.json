@@ -1159,6 +1159,20 @@
           "description": "Tu pojawią się raporty i dashboardy opublikowane przez agenta."
         }
       },
+      "reviewQueue": {
+        "title": "Do przeglądu",
+        "description": "Wyniki ewaluacji czekające na werdykt człowieka.",
+        "waiting": "{count, plural, one {# wynik czeka} few {# wyniki czekają} many {# wyników czeka} other {# wyniku czeka}} na werdykt",
+        "empty": {
+          "title": "Nic do przeglądu",
+          "description": "Tu pojawią się wyniki, które dataset wysyła do przeglądu."
+        },
+        "outcome": {
+          "failed": "{count, plural, one {# niezaliczony} few {# niezaliczone} many {# niezaliczonych} other {# niezaliczonego}}",
+          "unscored": "{count} bez oceny",
+          "passed": "{count, plural, one {# zaliczony} few {# zaliczone} many {# zaliczonych} other {# zaliczonego}}"
+        }
+      },
       "datasets": {
         "title": "Datasety",
         "description": "Ostatnio zmieniane datasety i to, z czym ich przypadki porównują odpowiedź.",
@@ -1923,6 +1937,18 @@
       "datasets-new": {
         "title": "Zbieraj przypadki testowe",
         "body": "Dataset zawiera pytania, na których testujesz agenta. Utwórz go tutaj, a potem dodawaj przypadki ręcznie, z pliku, z odpowiedzi ocenionej w czacie łapką w górę albo w dół, albo z tury w Aktywności."
+      },
+      "runs-score-against-case": {
+        "title": "Oceń ten run",
+        "body": "Sprawdź odpowiedź tego runu względem przypadku z datasetu: jego sprawdzenia, oczekiwane wywołania narzędzi i, jeśli skonfigurowano, sędziego ewaluacji. Wynik zostaje zapisany w datasecie."
+      },
+      "dataset-scoring": {
+        "title": "Jak oceniane są przypadki",
+        "body": "Wybierz oceniaczy: sprawdzenia oparte na regułach, oczekiwane wywołania narzędzi i sędziego ewaluacji z rubryką lub odpowiedzią wzorcową. Zaznacz, które przypadek musi zaliczyć."
+      },
+      "dataset-scores": {
+        "title": "Wyniki i przegląd",
+        "body": "Każdy wynik zapisany dla tego datasetu, z uzasadnieniem każdego oceniacza. Pokaż tylko czekające na przegląd i zmień ocenę sędziego, gdy się myli - jego opinia zostaje zapisana."
       },
       "datasets-list": {
         "title": "Twoje datasety",
@@ -2790,6 +2816,8 @@
     "newEnvironment": "Nowe środowisko",
     "noCapabilityOrToolMatches": "Żadna capability ani narzędzie nie pasuje do „{query}”.",
     "noDelegatesYet": "Brak delegatów. Tylko opublikowany agent może nim być - jest wtedy wersja do przypięcia.",
+    "systemAgent": "Systemowy",
+    "systemAgentHint": "Dodany przez platformę i przez nią uruchamiany, np. do oceniania odpowiedzi w ewaluacjach. Możesz go edytować jak każdego agenta.",
     "noDescription": "Brak opisu.",
     "noInstructionsWritten": "Nie napisano instrukcji",
     "noKey": "brak klucza",
@@ -3295,6 +3323,91 @@
     "mappingDeleted": "Mapowanie usunięte"
   },
   "datasets": {
+    "scoring": {
+      "title": "Ocenianie",
+      "description": "Jak oceniane są przypadki tego datasetu. Sprawdzenia oparte na regułach nic nie kosztują; sędzia ewaluacji wydaje z własnego budżetu i nie działa, gdy asystent AI jest wyłączony.",
+      "save": "Zapisz ocenianie",
+      "saved": "Zapisano ocenianie",
+      "required": "Wymagane",
+      "optional": "opcjonalne",
+      "scorer": {
+        "check": "Sprawdzenia",
+        "trajectory": "Wywołania narzędzi",
+        "judge": "Sędzia",
+        "reference": "Odpowiedź wzorcowa"
+      },
+      "checksHint": "Sprawdzenia każdego przypadku oraz poniższe domyślne dla wszystkich: contains, not_contains, equals, regex, json_schema, max_cost_usd, max_latency_ms i kryteria dla sędziego.",
+      "defaults": "Sprawdzenia dla każdego przypadku",
+      "defaultsNotJson": "Zapisz sprawdzenia jako listę JSON",
+      "trajectoryHint": "Narzędzia wywołane przez agenta w porównaniu z oczekiwanymi wywołaniami przypadku, w trybie kolejności przypadku.",
+      "judgeHint": "Sędzia ewaluacji ocenia każdą odpowiedź według poniższej rubryki. Każda ocena to run w Activity.",
+      "judgeModel": "Model sędziego",
+      "judgeOwnModel": "Własny model agenta-sędziego",
+      "scaleMax": "Górna granica skali",
+      "passAt": "Zalicza od",
+      "criterionName": "Nazwa kryterium",
+      "criterionNamePlaceholder": "poprawność",
+      "criterionDescription": "Czego wymaga kryterium",
+      "criterionDescriptionPlaceholder": "Termin zwrotu i warunki są podane poprawnie",
+      "addCriterion": "Dodaj kryterium",
+      "removeCriterion": "Usuń kryterium",
+      "referenceHint": "Sędzia porównuje odpowiedź z odpowiedzią wzorcową przypadku, jeśli przypadek ją ma.",
+      "reviewSelect": "Wysyłaj do kolejki przeglądu",
+      "review": {
+        "none": "Nic, dopóki ktoś nie wyśle",
+        "failed": "Wyniki, które nie zaliczyły",
+        "all": "Każdy wynik"
+      },
+      "scores": "Wyniki",
+      "scoreCount": "{count, plural, one {# wynik} few {# wyniki} many {# wyników} other {# wyniku}}",
+      "onlyAwaitingReview": "Tylko czekające na przegląd",
+      "noScores": "Brak wyników",
+      "nothingAwaitingReview": "Nic nie czeka na przegląd",
+      "noScoresBody": "Otwórz run w <link>Activity</link> i oceń go względem przypadku - wynik zostanie zapisany tutaj.",
+      "passed": "Zaliczony",
+      "failed": "Niezaliczony",
+      "unscored": "Bez oceny",
+      "status": {
+        "pass": "Zaliczone",
+        "fail": "Niezaliczone",
+        "skipped": "Pominięte",
+        "error": "Błąd"
+      },
+      "decidedByPerson": "Zdecydował człowiek",
+      "awaitingReview": "Czeka na przegląd",
+      "scoredRun": "Oceniany run",
+      "judgeRun": "Run sędziego",
+      "verdictNote": "Notatka",
+      "verdictNotePlaceholder": "Dlaczego, dla kolejnej osoby, która to przeczyta (opcjonalnie)",
+      "markPassed": "Oznacz jako zaliczony",
+      "markFailed": "Oznacz jako niezaliczony",
+      "withdrawVerdict": "Wycofaj werdykt",
+      "verdictSaved": "Zapisano werdykt",
+      "verdictWithdrawn": "Wycofano werdykt",
+      "sendToReview": "Wyślij do przeglądu",
+      "sentToReview": "Wysłano do kolejki przeglądu",
+      "reason": {
+        "aiAssistanceOff": "Asystent AI jest wyłączony w tej organizacji, więc sędzia nie został uruchomiony.",
+        "judgeUnpublished": "Sędzia ewaluacji nie ma opublikowanej wersji. Wybierz jego model i opublikuj go.",
+        "judgeArchived": "Sędzia ewaluacji jest zarchiwizowany. Przywróć go, żeby znowu oceniał.",
+        "judgeNoAccess": "Nie możesz uruchomić sędziego ewaluacji. Poproś o dostęp.",
+        "judgeNotSeeded": "Nie udało się utworzyć sędziego ewaluacji w tej organizacji.",
+        "judgeBudget": "Budżet sędziego ewaluacji się wyczerpał, więc nie został uruchomiony."
+      },
+      "scoreRun": "Oceń względem przypadku",
+      "scoreRunBody": "Uruchom na odpowiedzi tego runu wszystkie oceniacze skonfigurowane w datasecie. Wynik zostanie zapisany w datasecie.",
+      "noDatasetToScore": "Nie ma jeszcze datasetu do oceniania. <link>Utwórz go</link> i dodaj przypadek.",
+      "noCaseToScore": "Ten dataset nie ma jeszcze przypadku",
+      "score": "Oceń",
+      "scoring": "Ocenianie…",
+      "close": "Zamknij",
+      "problem": {
+        "noScorer": "Włącz co najmniej jednego oceniacza - gdy wszystkie są wyłączone, żadnego przypadku nie da się ocenić.",
+        "noCriterion": "Daj sędziemu co najmniej jedno kryterium albo go wyłącz - nie ma czego oceniać."
+      },
+      "willRun": "Uruchamia: {scorers}.",
+      "judgeSpends": "Ocena sędziego to run sędziego ewaluacji, rozliczany z jego budżetu."
+    },
     "title": "Datasety",
     "pageDescription": "Pytania, na których testujesz agentów. Każda zmiana przypadków w datasecie tworzy nową wersję, więc dwa runy eval na jednej wersji widziały te same pytania.",
     "newDataset": "Nowy dataset",

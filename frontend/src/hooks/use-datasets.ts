@@ -154,6 +154,8 @@ export function useDatasetCases(
       if (version !== null) params.set("version", String(version));
       return apiClient.get<DatasetCaseList>(`/datasets/${datasetId}/cases?${params}`);
     },
+    // A picker asks before a dataset is chosen; there is nothing to read until one is.
+    enabled: datasetId !== "",
     placeholderData: (previous) => previous,
   });
 

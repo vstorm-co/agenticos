@@ -1,5 +1,5 @@
 ---
-source_sha: "c070f50e41ec"
+source_sha: "de345fa10b17"
 ---
 
 # Governance { #governance }
@@ -1442,6 +1442,28 @@ wyglądają wiarygodnie.
 Wysyłka nigdy nie blokuje i nigdy nie podnosi wyjątku do wołającego: run, który
 już się skończył, nie może przewrócić się ponownie dlatego, że SMTP był
 niedostępny.
+
+## Wsparcie AI { #ai-assistance }
+
+Jeden przełącznik, w ustawieniach organizacji na jej stronie członków, decyduje,
+czy modele wspierają ewaluacje i tworzenie treści w organizacji: sędziego evali,
+który ocenia [wyniki datasetów](datasets.md#judge), oraz generator
+przypadków i asystenta tworzenia, które pojawią się po nim. Domyślnie jest
+włączony, a zmienia go ten, kto ma `org:settings`.
+
+Gdy jest wyłączony, usługa, która uruchomiłaby taki run, odmawia go, niezależnie
+od tego, który klient o niego prosi - ukryta kontrolka nie jest granicą.
+Ocenianie nadal wykonuje sprawdzenia oparte na regułach i dopasowanie wywołań
+narzędzi, zapisuje kryteria sędziego jako pominięte z podaniem przyczyny i
+zostawia przypadek, którego sędzia był wymagany, jako nieoceniony, a nie
+zaliczony. Werdykty ludzi pozostają dostępne.
+
+Te funkcje działają jako [agenci systemowi](concepts.md#system-agents). Każdy
+run jest zwykłym runem: przed każdym wywołaniem modelu jest sprawdzany względem
+własnego miesięcznego budżetu agenta i budżetu organizacji, jego koszt jest
+zapisywany, a on sam jest widoczny w Activity pod powierzchnią `eval`. Agent
+systemowy startuje z własnym budżetem - budżet sędziego to $5 miesięcznie -
+który można zmienić jak budżet każdego agenta.
 
 ## Audyt { #audit }
 

@@ -15,7 +15,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 
-from app.api.deps import Auth, DatasetSvc, require
+from app.api.deps import Auth, DatasetSvc, ScoringSvc, require
 from app.api.responses import csv_response, jsonl_response
 from app.core.permissions import Perm
 from app.schemas.dataset import (
@@ -32,6 +32,14 @@ from app.schemas.dataset import (
     DatasetUpdate,
     DatasetVersionList,
     DatasetVersionRead,
+)
+from app.schemas.scoring import (
+    CaseScoreCreate,
+    CaseScoreList,
+    CaseScoreRead,
+    CaseVerdict,
+    DatasetScoring,
+    ReviewQueue,
 )
 from app.services.dataset_files import MAX_IMPORT_BYTES
 
@@ -54,6 +62,21 @@ async def list_datasets(
     return await service.list_readable(
         ctx, shared_with_me=shared_with_me, search=q, sort=sort, skip=skip, limit=limit
     )
+
+
+@router.get(
+    "/review-queue",
+    response_model=ReviewQueue,
+    dependencies=[Depends(require(Perm.DATASETS_VIEW))],
+)
+async def list_review_queue(
+    service: ScoringSvc,
+    ctx: Auth,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+) -> Any:
+    """Scores waiting for a person's verdict, oldest first, across the datasets the caller sees."""
+    return await service.review_queue(ctx, skip=skip, limit=limit)
 
 
 @router.post(
@@ -186,3 +209,64 @@ async def export_dataset_cases(
     """One version's cases as a file that imports back unchanged."""
     result = await service.export(ctx, dataset_id, version=version, fmt=fmt)
     return jsonl_response(result) if fmt == "jsonl" else csv_response(result)
+
+
+@router.put("/{dataset_id}/scoring", response_model=DatasetRead)
+async def set_dataset_scoring(
+    dataset_id: UUID, data: DatasetScoring, service: ScoringSvc, ctx: Auth
+) -> Any:
+    """Replace how the dataset's cases are scored. Scores already kept are unchanged."""
+    return await service.set_scoring(ctx, dataset_id, data)
+
+
+@router.post(
+    "/{dataset_id}/cases/{case_id}/scores",
+    response_model=CaseScoreRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def score_dataset_case(
+    dataset_id: UUID, case_id: UUID, data: CaseScoreCreate, service: ScoringSvc, ctx: Auth
+) -> Any:
+    """Score a recorded run's answer against this case, with every configured scorer.
+
+    The judge, when configured, runs as the caller: it is budget-checked and
+    appears in Activity. A judge that cannot run is recorded as skipped, and the
+    case is then unscored rather than passed.
+    """
+    return await service.score_run(ctx, dataset_id, case_id, data)
+
+
+@router.get("/{dataset_id}/scores", response_model=CaseScoreList)
+async def list_dataset_scores(
+    dataset_id: UUID,
+    service: ScoringSvc,
+    ctx: Auth,
+    case_id: UUID | None = Query(None, description="Only this case's scores"),
+    pending: bool = Query(False, description="Only scores waiting for a person's verdict"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+) -> Any:
+    """The dataset's scores, newest first."""
+    return await service.list_scores(
+        ctx, dataset_id, case_id=case_id, pending=pending, skip=skip, limit=limit
+    )
+
+
+@router.put("/{dataset_id}/scores/{score_id}/verdict", response_model=CaseScoreRead)
+async def set_case_score_verdict(
+    dataset_id: UUID, score_id: UUID, data: CaseVerdict, service: ScoringSvc, ctx: Auth
+) -> Any:
+    """Record a person's verdict, or withdraw it with `passed: null`.
+
+    The verdict decides the outcome; the scorers' results, the judge's among
+    them, are kept as they were.
+    """
+    return await service.set_verdict(ctx, dataset_id, score_id, data)
+
+
+@router.post("/{dataset_id}/scores/{score_id}/review", response_model=CaseScoreRead)
+async def request_case_score_review(
+    dataset_id: UUID, score_id: UUID, service: ScoringSvc, ctx: Auth
+) -> Any:
+    """Put a score in the review queue."""
+    return await service.request_review(ctx, dataset_id, score_id)

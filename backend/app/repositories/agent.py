@@ -74,6 +74,14 @@ async def get_by_slug(db: AsyncSession, slug: str, *, organization_id: UUID) -> 
     return result.scalar_one_or_none()
 
 
+async def get_system(db: AsyncSession, *, organization_id: UUID, key: str) -> Agent | None:
+    """The organization's seeded agent registered under `key`, if it has one."""
+    result = await db.execute(
+        select(Agent).where(Agent.organization_id == organization_id, Agent.system_key == key)
+    )
+    return result.scalar_one_or_none()
+
+
 async def list_slugs(db: AsyncSession, *, organization_id: UUID) -> set[str]:
     """Every agent slug in this organization.
 
