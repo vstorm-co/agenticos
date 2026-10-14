@@ -1,5 +1,5 @@
 ---
-source_sha: "8022360cd53c"
+source_sha: "2c57650eb766"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -711,6 +711,21 @@ compose mają ją za profilem `browser` — `docker compose --profile browser up
 browser`, osiągalną jako `http://browser:9222`. Host musi być na
 [`BROWSER_CDP_ALLOWED_HOSTS`](../configuration.md), a pusta lista — domyślna — odrzuca
 automatyzację przeglądarki całkowicie, przy publikacji.
+
+**Organizacja wybiera, jak jej przeglądanie wychodzi do sieci** (#2130), w Connections →
+Web browser, z uprawnieniem `connections:manage`. *Built in* to przeglądarka wskazana
+w `cdp_url` agenta, z adresu samego wdrożenia. *Through a proxy* puszcza ruch tej
+przeglądarki przez proxy `http://`, `https://` albo `socks5://` - adres domowy albo
+z wybranego kraju - z `username:password` w vault. *Hosted browser* zamiast tego
+podłącza się przez `wss://` do usługi przeglądarki - Browserbase, Steel albo własnej -
+z kluczem w vault, dopisywanym do zapytania w adresie (`apiKey`, chyba że usługa czyta
+inną nazwę). Każdy tryb mówi też, jaką strefę czasową i język ma przeglądarka.
+
+Ustawienie obejmuje każde przeglądanie w organizacji, także delegata i przeglądarkę do
+logowania. Adres wewnątrz sieci wdrożenia jest odrzucany, przy zapisie i ponownie przy
+starcie przeglądania, chyba że operator dopisał host do `BROWSER_CDP_ALLOWED_HOSTS`.
+Chromium nie umie zalogować się do proxy SOCKS, więc proxy z hasłem musi być HTTP.
+Strona, która prosi o hasło, nigdy nie dostaje hasła proxy.
 
 **Przeglądarka z compose wygląda jak desktopowa.** To pełny Chromium z oknem na
 wirtualnym ekranie (`docker/browser`), z fontami jak na pulpicie i bez flag, które

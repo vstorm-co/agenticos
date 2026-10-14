@@ -101,6 +101,7 @@ from app.agents.capabilities.approval import (
 )
 from app.agents.capabilities.browser_use import (
     BROWSER_CAPABILITY_ID,
+    BROWSER_ROUTE_RESOURCE,
     BROWSER_STEP_MODEL_RESOURCE,
     WebBrowserConfig,
 )
@@ -224,6 +225,7 @@ from app.services.agent_registry import (
 from app.services.api_key import mint_for_run
 from app.services.approvals import ApprovalService
 from app.services.attachments import AttachmentRouter
+from app.services.browser_setting import BrowserSettingService
 from app.services.channel_link import mcp_servers_link
 from app.services.channels.attachments import files_written, workspace_snapshot
 from app.services.channels.base import OutgoingAttachment
@@ -2083,6 +2085,13 @@ def failed_run_error(run: AgentRun, exc: Exception) -> RunFailedError:
     )
 
 
+def _browses(spec: AgentSpec) -> bool:
+    """Whether the agent has the web browser switched on."""
+    return any(
+        binding.id == BROWSER_CAPABILITY_ID and binding.enabled for binding in spec.capabilities
+    )
+
+
 def _browser_step_profile(spec: AgentSpec) -> UUID | None:
     """The model profile the agent named for `browse_web`'s steps, if it named one."""
     for binding in spec.capabilities:
@@ -2540,6 +2549,12 @@ class AgentRunnerService:
             resources[BROWSER_STEP_MODEL_RESOURCE] = (
                 await self.models.resolve(ctx, profile_id=step_profile)
             ).build()
+        if _browses(spec):
+            # Where the organization sends its browses - a proxy, a hosted browser
+            # (#2130) - resolved here for the reason the step model is: the vault.
+            route = await BrowserSettingService(self.db).resolve(ctx)
+            if route is not None:
+                resources[BROWSER_ROUTE_RESOURCE] = route
 
         # Unsealed here and handed straight to the factory, which hands them to
         # the capability instances that declared them. They are kept out of
@@ -3444,6 +3459,12 @@ class AgentRunnerService:
             # filesystem must record its handles where the workspace's close can
             # delete them (#803).
             resources[SPILL_LOG_RESOURCE] = parent_resources.get(SPILL_LOG_RESOURCE)
+        if _browses(spec):
+            # A delegate browses the way its organization does, or a proxy the
+            # organization chose would be one delegation away from being skipped.
+            route = await BrowserSettingService(self.db).resolve(ctx)
+            if route is not None:
+                resources[BROWSER_ROUTE_RESOURCE] = route
         return resources
 
     @staticmethod

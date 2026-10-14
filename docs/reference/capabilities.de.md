@@ -1,5 +1,5 @@
 ---
-source_sha: "8022360cd53c"
+source_sha: "2c57650eb766"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -752,6 +752,23 @@ isoliert. Die Compose-Dateien enthalten einen hinter dem Profil `browser` — `d
 compose --profile browser up -d browser`, erreichbar als `http://browser:9222`. Der Host
 muss auf [`BROWSER_CDP_ALLOWED_HOSTS`](../configuration.md) stehen, und eine leere
 Liste — der Standard — lehnt Browser-Automatisierung bei der Veröffentlichung ganz ab.
+
+**Eine Organisation wählt, wie ihre Browses ins Netz gehen** (#2130), unter Connections →
+Web browser, mit `connections:manage`. *Built in* ist der Browser, den das `cdp_url` des
+Agents nennt, von der eigenen Adresse des Deployments. *Through a proxy* schickt dessen
+Verkehr über einen `http://`-, `https://`- oder `socks5://`-Proxy - eine private oder
+regionale Adresse - mit `username:password` im Vault. *Hosted browser* verbindet sich
+stattdessen über `wss://` mit einem Browser-Dienst - Browserbase, Steel oder einem
+eigenen -, dessen Schlüssel im Vault liegt und an die Query der Adresse angehängt wird
+(`apiKey`, sofern der Dienst keinen anderen Namen liest). Jeder Modus sagt auch, welche
+Zeitzone und Sprache der Browser hat.
+
+Die Einstellung gilt für jeden Browse der Organisation, auch den eines Delegierten und
+den Anmelde-Browser. Eine Adresse im Netz des Deployments wird abgelehnt, beim Speichern
+und erneut beim Start eines Browse, es sei denn, der Betreiber hat den Host in
+`BROWSER_CDP_ALLOWED_HOSTS` eingetragen. Chromium kann sich an keinem SOCKS-Proxy
+anmelden, ein Proxy mit Passwort muss also HTTP sein. Eine Seite, die nach einem
+Passwort fragt, bekommt nie das des Proxys.
 
 **Der Compose-Browser wirkt wie ein Desktop-Browser.** Ein vollständiges Chromium
 mit Fenster auf einem virtuellen Bildschirm (`docker/browser`), mit den Schriften eines

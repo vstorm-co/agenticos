@@ -40,7 +40,11 @@ from pydantic_ai_harness.planning import PlanItem
 from app.agents.ask_user import park_the_question
 from app.agents.audience import RunAudience
 from app.agents.capabilities.approval import ApprovalGranted, ApprovalRejected
-from app.agents.capabilities.browser_use import BROWSER_STEP_MODEL_RESOURCE
+from app.agents.capabilities.browser_use import (
+    BROWSER_ROUTE_RESOURCE,
+    BROWSER_STEP_MODEL_RESOURCE,
+    BrowserRoute,
+)
 from app.agents.capabilities.budget import (
     BudgetExceeded,
     BudgetScope,
@@ -4107,7 +4111,9 @@ class TestTheBrowsersStepModel:
     """A fast model for `browse_web`'s steps reaches the capability built, not the run."""
 
     @staticmethod
-    async def _built(spec: AgentSpec) -> tuple[dict[str, Any], AsyncMock]:
+    async def _built(
+        spec: AgentSpec, route: BrowserRoute | None = None
+    ) -> tuple[dict[str, Any], AsyncMock]:
         service = AgentRunnerService(_db())
         agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
         step_model = MagicMock(name="fast-model")
@@ -4127,6 +4133,10 @@ class TestTheBrowsersStepModel:
             patch(
                 "app.services.agent_runner.agent_run_repo.create_run",
                 new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch(
+                "app.services.agent_runner.BrowserSettingService.resolve",
+                new=AsyncMock(return_value=route),
             ),
             patch("app.services.agent_runner.build_agent") as build,
         ):
@@ -4176,6 +4186,69 @@ class TestTheBrowsersStepModel:
         resources, _ = await self._built(AgentSpec(name="Researcher", capabilities=capabilities))
 
         assert BROWSER_STEP_MODEL_RESOURCE not in resources
+
+
+class TestTheOrganizationsBrowserRoute:
+    """#2130: a run that browses goes out the way its organization chose."""
+
+    BROWSING = AgentSpec(
+        name="Researcher",
+        capabilities=[{"id": "browser_use", "config": {"cdp_url": "http://browser:9222"}}],
+    )
+
+    @pytest.mark.anyio
+    async def test_the_route_reaches_the_browser(self):
+        route = BrowserRoute(proxy_server="http://proxy.example.com:8080")
+
+        resources, _ = await TestTheBrowsersStepModel._built(self.BROWSING, route)
+
+        assert resources[BROWSER_ROUTE_RESOURCE] is route
+
+    @pytest.mark.anyio
+    async def test_the_default_hands_nothing(self):
+        resources, _ = await TestTheBrowsersStepModel._built(self.BROWSING, None)
+
+        assert BROWSER_ROUTE_RESOURCE not in resources
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        ("spec", "route", "handed"),
+        [
+            (BROWSING, BrowserRoute(timezone="UTC"), True),
+            (BROWSING, None, False),
+            (AgentSpec(name="Writer"), BrowserRoute(timezone="UTC"), False),
+        ],
+    )
+    async def test_a_delegate_browses_the_way_its_organization_does(
+        self, spec: AgentSpec, route: BrowserRoute | None, handed: bool
+    ):
+        service = AgentRunnerService(_db())
+        with (
+            patch.object(service, "_collection_names", new=AsyncMock(return_value=[])),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch.object(service.context, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.BrowserSettingService.resolve",
+                new=AsyncMock(return_value=route),
+            ),
+        ):
+            resources = await service._delegate_resources(
+                _ctx(), spec, shared=[], parent_resources={}
+            )
+
+        assert (
+            (resources.get(BROWSER_ROUTE_RESOURCE) is route)
+            if handed
+            else (BROWSER_ROUTE_RESOURCE not in resources)
+        )
+
+    @pytest.mark.anyio
+    async def test_an_agent_that_does_not_browse_is_not_asked(self):
+        route = BrowserRoute(timezone="UTC")
+
+        resources, _ = await TestTheBrowsersStepModel._built(AgentSpec(name="Writer"), route)
+
+        assert BROWSER_ROUTE_RESOURCE not in resources
 
 
 class TestTheDownRatedMarker:

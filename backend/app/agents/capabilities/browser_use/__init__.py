@@ -14,12 +14,15 @@ from app.agents.capabilities._registry import (
 )
 from app.agents.capabilities.browser_use._capability import WebBrowser
 from app.agents.capabilities.browser_use._elements import HARD_CANDIDATE_CAP
+from app.agents.capabilities.browser_use._route import BROWSER_ROUTE_RESOURCE, BrowserRoute
 from app.core.config import settings
 from app.core.sanitize import UrlRefusedError
 
 __all__ = [
     "BROWSER_CAPABILITY_ID",
+    "BROWSER_ROUTE_RESOURCE",
     "BROWSER_STEP_MODEL_RESOURCE",
+    "BrowserRoute",
     "WebBrowser",
     "WebBrowserConfig",
     "validate_cdp_url",
@@ -299,8 +302,10 @@ def _build(ctx: CapabilityBuildContext) -> AbstractCapability[object]:
     """
     config = ctx.config if isinstance(ctx.config, WebBrowserConfig) else WebBrowserConfig()
     step_model = ctx.resources.get(BROWSER_STEP_MODEL_RESOURCE)
+    route = ctx.resources.get(BROWSER_ROUTE_RESOURCE)
     return WebBrowser(
         step_model=step_model if isinstance(step_model, Model) else None,
+        route=route if isinstance(route, BrowserRoute) else None,
         cdp_url=config.cdp_url,
         allowed_domains=config.allowed_domains,
         max_steps=config.max_steps,

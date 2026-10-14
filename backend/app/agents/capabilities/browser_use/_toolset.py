@@ -82,6 +82,7 @@ from app.agents.capabilities.browser_use._page import (
     open_page,
 )
 from app.agents.capabilities.browser_use._plans import plan_key
+from app.agents.capabilities.browser_use._route import BrowserRoute
 from app.agents.deps import AgentDeps
 from app.services import browse_plans, browser_sign_in, live_browse
 
@@ -304,6 +305,7 @@ def build_toolset(
     loop_policy: LoopPolicy,
     page_factory: PageFactory | None = None,
     step_model: Model | None = None,
+    route: BrowserRoute | None = None,
 ) -> BrowserToolset:
     """`browse_web` and the agent's own browser tools, bound to the browser seam."""
     open_browser = page_factory if page_factory is not None else open_page
@@ -462,7 +464,12 @@ def build_toolset(
         )
         try:
             return await toolset.open(
-                open_browser, cdp_url=cdp_url, start_url=url, policy=page_policy, sign_ins=sign_ins
+                open_browser,
+                cdp_url=cdp_url,
+                start_url=url,
+                policy=page_policy,
+                sign_ins=sign_ins,
+                route=route,
             )
         except (httpx.HTTPError, OSError) as exc:
             # Only while opening: the browser was never reached - a name that does

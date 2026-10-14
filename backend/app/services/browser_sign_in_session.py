@@ -27,13 +27,16 @@ from app.agents.capabilities.browser_use import WebBrowserConfig, validate_cdp_u
 from app.agents.capabilities.browser_use._endpoint import EndpointError
 from app.agents.capabilities.browser_use._loop import BrowseSession, PageSession, hand_over
 from app.agents.capabilities.browser_use._page import PagePolicy, open_page
+from app.agents.capabilities.browser_use._route import BrowserRoute
 from app.core.background import spawn
 from app.core.config import settings
 from app.core.exceptions import AuthorizationError, ConfigurationError
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext
 from app.core.sanitize import SSRFBlockedError, UrlRefusedError, validate_webhook_url
+from app.db.session import get_db_context
 from app.services import browser_sign_in, live_browse
+from app.services.browser_setting import BrowserSettingService
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +92,7 @@ async def begin(ctx: AuthContext, url: str, *, holder: str) -> SignInSession:
         validate_webhook_url(url)
     except (SSRFBlockedError, UrlRefusedError) as exc:
         raise refused_field("url", str(exc)) from exc
+    route = await _route_for(ctx)
     run_id = f"sign-in-{uuid4().hex}"
     site = urlsplit(url).hostname or url
     await live_browse.open_view(
@@ -105,13 +109,32 @@ async def begin(ctx: AuthContext, url: str, *, holder: str) -> SignInSession:
         ),
     )
     spawn(
-        drive(ctx.organization_id, user_id, run_id, url, holder),
+        drive(ctx.organization_id, user_id, run_id, url, holder, route=route),
         name="browser_sign_in_session",
     )
     return SignInSession(run_id=run_id, call_id=CALL_ID)
 
 
-async def drive(organization_id: UUID, user_id: UUID, run_id: str, url: str, holder: str) -> None:
+async def _route_for(ctx: AuthContext) -> BrowserRoute | None:
+    """The organization's way out (#2130), for the sign-in browser too.
+
+    A sign-in made from one address and used from another is a session some sites
+    end on sight, so the browser a person signs in with goes out the way the
+    organization's browses do.
+    """
+    async with get_db_context() as db:
+        return await BrowserSettingService(db).resolve(ctx)
+
+
+async def drive(
+    organization_id: UUID,
+    user_id: UUID,
+    run_id: str,
+    url: str,
+    holder: str,
+    *,
+    route: BrowserRoute | None = None,
+) -> None:
     """Hold the browser for its person until they give it back, keeping what they ask.
 
     Starts from the sign-ins they already kept, so signing in again to a site
@@ -138,7 +161,7 @@ async def drive(organization_id: UUID, user_id: UUID, run_id: str, url: str, hol
         validate_cdp_url(WebBrowserConfig(cdp_url=cdp_url))
         sign_ins = await browser_sign_in.load_for(organization_id, user_id)
         async with open_page(
-            cdp_url=cdp_url, start_url=url, policy=_POLICY, sign_ins=sign_ins
+            cdp_url=cdp_url, start_url=url, policy=_POLICY, sign_ins=sign_ins, route=route
         ) as page:
             snapshot = await page.snapshot()
             await emit(

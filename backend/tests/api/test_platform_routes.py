@@ -495,6 +495,10 @@ CALLS: tuple[Call, ...] = (
     Call("GET", "/ml/calls", Perm.ML_INVOKE),
     Call("GET", "/ml/calls/{call_id}", Perm.ML_INVOKE),
     Call("DELETE", "/local-services/{service_id}", Perm.CONNECTIONS_MANAGE),
+    # Where every browse in the organization sends its traffic (#2130): read on
+    # the view permission, written on the one that edits the other places agents run.
+    Call("GET", "/browser-settings", Perm.CONNECTIONS_VIEW),
+    Call("PUT", "/browser-settings", Perm.CONNECTIONS_MANAGE, body={}),
     Call("GET", "/sandbox-connections", Perm.CONNECTIONS_VIEW),
     Call(
         "POST",

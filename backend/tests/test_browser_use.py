@@ -40,7 +40,9 @@ from app.agents.browser_events import BrowserCommand, BrowserEvent, BrowserKey
 from app.agents.browser_sign_ins import SignIn
 from app.agents.capabilities import CapabilityBinding, CapabilityBuildContext, get
 from app.agents.capabilities.browser_use import (
+    BROWSER_ROUTE_RESOURCE,
     BROWSER_STEP_MODEL_RESOURCE,
+    BrowserRoute,
     WebBrowser,
     WebBrowserConfig,
     _loop,
@@ -2619,3 +2621,33 @@ class TestTheBrowserReadsAsADesktopOne:
         metadata = override["userAgentMetadata"]
         assert isinstance(metadata, dict)
         assert metadata["brands"][0] == {"brand": "Chromium", "version": "0"}
+
+
+class TestTheOrganizationsRouteReachesTheBrowser:
+    """#2130: the runner's route is handed to the page opener of every browse."""
+
+    def test_the_capability_keeps_the_route_it_was_given(self):
+        route = BrowserRoute(proxy_server="http://proxy.example.com:8080")
+
+        built = _build_capability(
+            {"cdp_url": "http://browser:9222"}, {BROWSER_ROUTE_RESOURCE: route}
+        )
+        stray = _build_capability({"cdp_url": "http://browser:9222"}, {BROWSER_ROUTE_RESOURCE: "x"})
+
+        assert built.route is route
+        assert stray.route is None
+
+    async def test_the_tab_opens_with_it(self):
+        route = BrowserRoute(timezone="Europe/Warsaw")
+        opener = _Opener()
+        toolset = build_toolset(
+            cdp_url="http://browser:9222",
+            page_policy=PagePolicy(allowed_domains=None, candidate_cap=60, preview_width=1024),
+            loop_policy=_policy(),
+            page_factory=opener,
+            route=route,
+        )
+        async with toolset:
+            await _call(toolset)
+
+        assert opener.opened[0]["route"] is route

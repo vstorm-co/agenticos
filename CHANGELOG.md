@@ -19,6 +19,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **An organization chooses how its browses reach the web** (#2130). Through a
+  proxy of its own - a residential or regional address, its password in the
+  vault - or in a hosted browser such as Browserbase or Steel reached over CDP,
+  plus the time zone and language the browser says it has. It covers every
+  browse in the organization, a delegate's and the sign-in browser's included;
+  an address inside the deployment's network is refused when saved and again
+  when a browse starts. Set through `PUT /api/v1/browser-settings` for now.
+
 - **The web browser reads as a desktop one to sites that refuse bots** (#2130).
   Compose's `browser` profile now runs `ghcr.io/vstorm-co/agenticos-browser` - a
   full Chromium with a window under Xvfb, desktop fonts and no automation flags -

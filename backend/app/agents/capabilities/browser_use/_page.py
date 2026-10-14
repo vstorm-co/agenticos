@@ -51,6 +51,7 @@ from app.agents.capabilities.browser_use._endpoint import (
     version_url,
     websocket_url,
 )
+from app.agents.capabilities.browser_use._route import BrowserRoute
 
 MISSING_EXTRA = (
     "Browser automation is bound to this agent but the 'browser' extra is not "
@@ -366,6 +367,50 @@ def headful_user_agent(version: Mapping[str, object]) -> dict[str, object] | Non
             "mobile": False,
         },
     }
+
+
+def user_agent_override(
+    version: Mapping[str, object], locale: str | None
+) -> dict[str, object] | None:
+    """What `Emulation.setUserAgentOverride` is sent, or `None` for nothing to change.
+
+    The headful user agent where the browser is headless, and the organization's
+    language as `Accept-Language` where it set one - a page reads both from the
+    same override, so one call carries them.
+    """
+    override = headful_user_agent(version)
+    if locale is None:
+        return override
+    base = override or {"userAgent": str(version.get("userAgent", ""))}
+    return {**base, "acceptLanguage": locale}
+
+
+def context_params(route: BrowserRoute | None) -> dict[str, object]:
+    """`Target.createBrowserContext`'s parameters: the proxy, where the organization set one."""
+    if route is None or route.proxy_server is None:
+        return {}
+    return {"proxyServer": route.proxy_server, "proxyBypassList": "<-loopback>"}
+
+
+def auth_reply(event: Mapping[str, object], route: BrowserRoute | None) -> dict[str, object]:
+    """The answer to `Fetch.authRequired`: the proxy's credentials, and nothing else's.
+
+    Only a challenge from the proxy is answered. A site that asks for a password
+    is told no rather than handed the proxy's - the credential is the
+    organization's, and the site is somebody else's.
+    """
+    challenge = event.get("authChallenge")
+    from_proxy = isinstance(challenge, Mapping) and challenge.get("source") == "Proxy"
+    if from_proxy and route is not None and route.proxy_username is not None:
+        password = route.proxy_password.get_secret_value() if route.proxy_password else ""
+        response: dict[str, object] = {
+            "response": "ProvideCredentials",
+            "username": route.proxy_username,
+            "password": password,
+        }
+    else:
+        response = {"response": "CancelAuth"}
+    return {"requestId": event.get("requestId"), "authChallengeResponse": response}
 
 
 _SAME_TAB_JS = r"""
@@ -1039,8 +1084,10 @@ class CdpPage:
         if site is None:
             return None
         raw = await self._evaluate(_STORAGE_JS)
+        # A hosted browser's default context has no id to name, and is the
+        # browse's own (see `open_page`).
         answer = await self._client.send.Storage.getCookies(
-            params={"browserContextId": self._context}
+            params={"browserContextId": self._context} if self._context else {}
         )
         return SignIn(
             site=site,
@@ -1097,6 +1144,52 @@ async def _resolve(cdp_url: str) -> str | None:  # pragma: no cover - needs a re
     return None
 
 
+async def _answer_proxy_auth(  # pragma: no cover - needs a live browser
+    client: Any, session: str, route: BrowserRoute
+) -> None:
+    """Sign the browse in to its proxy whenever the proxy asks.
+
+    Chromium takes a proxy's address per context but has no way to be handed its
+    password, so the challenge is answered over CDP - `auth_reply` decides what
+    each one is told. Enabling auth handling pauses every request, so each is
+    continued as it arrives; the handlers run inside the client's receive loop
+    and only schedule their answers.
+    """
+    pending: set[asyncio.Task[object]] = set()
+
+    def later(command: Awaitable[object]) -> None:
+        task = asyncio.ensure_future(command)
+        pending.add(task)
+        # A request whose tab closed under it fails to continue; that is the
+        # tab closing, not a browse failing.
+        task.add_done_callback(
+            lambda done: pending.discard(done) or done.cancelled() or done.exception()
+        )
+
+    def paused(event: dict[str, Any], session_id: str | None) -> None:
+        if session_id == session:
+            later(
+                client.send.Fetch.continueRequest(
+                    params={"requestId": event["requestId"]}, session_id=session
+                )
+            )
+
+    def challenged(event: dict[str, Any], session_id: str | None) -> None:
+        if session_id == session:
+            later(
+                client.send.Fetch.continueWithAuth(
+                    params=auth_reply(event, route), session_id=session
+                )
+            )
+
+    client.register.Fetch.requestPaused(paused)
+    client.register.Fetch.authRequired(challenged)
+    await client.send.Fetch.enable(
+        params={"handleAuthRequests": True, "patterns": [{"urlPattern": "*"}]},
+        session_id=session,
+    )
+
+
 @asynccontextmanager
 async def open_page(  # pragma: no cover - needs a live browser
     *,
@@ -1104,6 +1197,7 @@ async def open_page(  # pragma: no cover - needs a live browser
     start_url: str,
     policy: PagePolicy,
     sign_ins: Sequence[SignIn] = (),
+    route: BrowserRoute | None = None,
 ) -> AsyncGenerator[CdpPage, None]:
     """Attach to a browser, open one tab on `start_url`, and close it again.
 
@@ -1114,6 +1208,10 @@ async def open_page(  # pragma: no cover - needs a live browser
     `sign_ins` are put into the browse's own context before the first request,
     so a site the person kept a sign-in to sees a signed-in browser from the
     start (#2129); they leave with the context when it is disposed.
+
+    `route` is the organization's choice (#2130): a hosted browser to attach to
+    instead of `cdp_url`, a proxy the context reaches sites through, and the time
+    zone and language the browser says it has.
 
     Raises:
         RuntimeError: The `browser` extra is not installed.
@@ -1140,7 +1238,10 @@ async def open_page(  # pragma: no cover - needs a live browser
     # Resolving the operator-vetted name once and connecting to the address
     # satisfies that check without a forwarder, and it pins the connection to
     # what the name meant when the browse began.
-    endpoint = pin_host(cdp_url, await _resolve(cdp_url))
+    remote = route.remote_url.get_secret_value() if route and route.remote_url else None
+    # A hosted browser's address was checked where it was resolved, and it keeps
+    # its name: it is TLS, and the name is what its certificate is for.
+    endpoint = remote or pin_host(cdp_url, await _resolve(cdp_url))
     if endpoint.startswith(("ws://", "wss://")):
         socket = endpoint
     else:
@@ -1163,14 +1264,26 @@ async def open_page(  # pragma: no cover - needs a live browser
         #
         # No fallback if the browser refuses one: falling back to the default
         # context is exactly the leak this exists to prevent.
-        context = await client.send.Target.createBrowserContext(params={})
-        context_id = context["browserContextId"]
+        #
+        # The one exception is a hosted browser, which is a browser of its own for
+        # each connection - its default context is shared with nobody, and some
+        # services refuse a second one.
+        try:
+            context = await client.send.Target.createBrowserContext(params=context_params(route))
+            context_id = context["browserContextId"]
+        except RuntimeError:
+            if remote is None:
+                raise
+            context_id = None
         # The tab is created empty and navigated afterwards, which is not a
         # detail: `createTarget` with a URL starts navigating before there is a
         # session to attach, so the first command lands in an execution context
         # the navigation has already destroyed. Measured against a live Chromium.
         created = await client.send.Target.createTarget(
-            params={"url": "about:blank", "browserContextId": context_id}
+            params={
+                "url": "about:blank",
+                **({"browserContextId": context_id} if context_id else {}),
+            }
         )
         target = created["targetId"]
         attached = await client.send.Target.attachToTarget(
@@ -1185,9 +1298,20 @@ async def open_page(  # pragma: no cover - needs a live browser
         # Look like the browser a person runs: no `Headless` in the user agent of
         # a headless shell, and no `SwiftShader` in the WebGL renderer of one
         # drawing in software.
-        override = headful_user_agent(await client.send.Browser.getVersion())
+        locale = route.locale if route else None
+        override = user_agent_override(await client.send.Browser.getVersion(), locale)
         if override is not None:
             await client.send.Emulation.setUserAgentOverride(params=override, session_id=session)
+        if locale is not None:
+            await client.send.Emulation.setLocaleOverride(
+                params={"locale": locale.replace("-", "_")}, session_id=session
+            )
+        if route is not None and route.timezone is not None:
+            await client.send.Emulation.setTimezoneOverride(
+                params={"timezoneId": route.timezone}, session_id=session
+            )
+        if route is not None and route.proxy_username is not None:
+            await _answer_proxy_auth(client, session, route)
         await client.send.Page.addScriptToEvaluateOnNewDocument(
             params={"source": _STEALTH_JS}, session_id=session
         )
@@ -1218,13 +1342,16 @@ async def open_page(  # pragma: no cover - needs a live browser
         cookies = cookie_params([cookie for sign_in in sign_ins for cookie in sign_in.cookies])
         if cookies:
             await client.send.Storage.setCookies(
-                params={"cookies": cookies, "browserContextId": context_id}
+                params={
+                    "cookies": cookies,
+                    **({"browserContextId": context_id} if context_id else {}),
+                }
             )
         if any(sign_in.local_storage for sign_in in sign_ins):
             await client.send.Page.addScriptToEvaluateOnNewDocument(
                 params={"source": restore_script(list(sign_ins))}, session_id=session
             )
-        page = CdpPage(client, session, policy, context_id=context_id)
+        page = CdpPage(client, session, policy, context_id=context_id or "")
         await client.send.Page.navigate(params={"url": start_url}, session_id=session)
         # `leaving` is what makes this a wait rather than a formality: the tab is
         # on `about:blank`, which is ready the instant it is asked.

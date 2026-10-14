@@ -671,6 +671,23 @@ browser up -d browser`, reached as `http://browser:9222`. The host must be on
 [`BROWSER_CDP_ALLOWED_HOSTS`](../configuration.md), and an empty allowlist — the
 default — refuses browser automation outright, at publish.
 
+**An organization chooses how its browses reach the web** (#2130), under Connections →
+Web browser, on `connections:manage`. *Built in* is the browser the agent's `cdp_url`
+names, from the deployment's own address. *Through a proxy* sends that browser's
+traffic through an `http://`, `https://` or `socks5://` proxy - a residential or
+regional address - with its `username:password` in the vault. *Hosted browser*
+attaches to a browser service over `wss://` instead - Browserbase, Steel or one of
+your own - its key in the vault and added to the address's query (`apiKey` unless the
+service reads another name). Each also says which time zone and language the browser
+has.
+
+The setting covers every browse in the organization, a delegate's and the sign-in
+browser's included. An address inside the deployment's network is refused, when it is
+saved and again when a browse starts, unless the operator listed the host in
+`BROWSER_CDP_ALLOWED_HOSTS`. Chromium cannot sign in to a SOCKS proxy, so one that
+needs a password has to be HTTP. A site that asks for a password is never handed the
+proxy's.
+
 **The compose browser reads as a desktop one.** It is a full Chromium with a window
 under a virtual display (`docker/browser`), with the fonts a desktop has and none of
 the flags that tell a page it is driven - the headless shell it replaces said

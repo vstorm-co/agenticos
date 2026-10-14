@@ -82,6 +82,7 @@ Redis = Annotated[RedisClient, Depends(get_redis)]
 
 
 from app.services.personal_data import PersonalDataService
+from app.services.browser_setting import BrowserSettingService
 from app.services.browser_sign_in import BrowserSignInService
 from app.services.user import UserService
 from app.services.session import SessionService
@@ -769,6 +770,14 @@ def get_browser_sign_in_service(db: DBSession) -> BrowserSignInService:
 
 
 BrowserSignInSvc = Annotated[BrowserSignInService, Depends(get_browser_sign_in_service)]
+
+
+def get_browser_setting_service(db: DBSession) -> BrowserSettingService:
+    """Create BrowserSettingService instance with database session."""
+    return BrowserSettingService(db)
+
+
+BrowserSettingSvc = Annotated[BrowserSettingService, Depends(get_browser_setting_service)]
 
 
 def get_skill_proposal_service(db: DBSession) -> SkillProposalService:

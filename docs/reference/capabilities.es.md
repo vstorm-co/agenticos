@@ -1,5 +1,5 @@
 ---
-source_sha: "8022360cd53c"
+source_sha: "2c57650eb766"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -720,6 +720,22 @@ Los ficheros de compose traen uno tras el perfil `browser` — `docker compose -
 browser up -d browser`, accesible como `http://browser:9222`. El host tiene que estar en
 [`BROWSER_CDP_ALLOWED_HOSTS`](../configuration.md), y una lista vacía — la de por defecto
 — rechaza la automatización del navegador al publicar.
+
+**Una organización elige cómo salen a la web sus navegaciones** (#2130), en Connections →
+Web browser, con `connections:manage`. *Built in* es el navegador que nombra el `cdp_url`
+del agente, desde la propia dirección del despliegue. *Through a proxy* envía su tráfico
+por un proxy `http://`, `https://` o `socks5://` - una dirección residencial o regional -
+con su `username:password` en el vault. *Hosted browser* se conecta en su lugar por
+`wss://` a un servicio de navegador - Browserbase, Steel o uno propio -, con su clave en
+el vault añadida a la query de la dirección (`apiKey` salvo que el servicio lea otro
+nombre). Cada modo dice también qué zona horaria e idioma tiene el navegador.
+
+El ajuste cubre cada navegación de la organización, incluidas la de un delegado y el
+navegador de inicio de sesión. Una dirección dentro de la red del despliegue se rechaza,
+al guardarla y otra vez al empezar una navegación, salvo que el operador haya puesto el
+host en `BROWSER_CDP_ALLOWED_HOSTS`. Chromium no sabe iniciar sesión en un proxy SOCKS,
+así que uno con contraseña tiene que ser HTTP. Un sitio que pida una contraseña nunca
+recibe la del proxy.
 
 **El navegador de compose se ve como uno de escritorio.** Es un Chromium completo con
 ventana en una pantalla virtual (`docker/browser`), con las fuentes de un escritorio y

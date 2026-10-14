@@ -20,6 +20,7 @@ from pydantic_ai.toolsets import AbstractToolset
 
 from app.agents.capabilities.browser_use._loop import LoopPolicy
 from app.agents.capabilities.browser_use._page import PagePolicy
+from app.agents.capabilities.browser_use._route import BrowserRoute
 from app.agents.capabilities.browser_use._toolset import PageFactory, build_toolset
 
 _INSTRUCTIONS = (
@@ -82,6 +83,9 @@ class WebBrowser(AbstractCapability[AgentDepsT]):
     a different size would show a person a page the model was not shown.
     """
 
+    route: BrowserRoute | None = field(default=None, repr=False, compare=False)
+    """Where the organization sends its browses (#2130), resolved by the runner."""
+
     page_factory: PageFactory | None = field(default=None, repr=False, compare=False)
     """The browser seam; `None` reaches the real `cdp-use`. A test substitutes it."""
 
@@ -108,5 +112,6 @@ class WebBrowser(AbstractCapability[AgentDepsT]):
                 ),
                 page_factory=self.page_factory,
                 step_model=self.step_model,
+                route=self.route,
             )
         return self._toolset
