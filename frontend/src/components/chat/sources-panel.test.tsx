@@ -187,3 +187,20 @@ describe("the sources panel", () => {
     expect(useSourcesPanelStore.getState().isOpen).toBe(false);
   });
 });
+
+describe("where the panel opens", () => {
+  it("covers the conversation it belongs to inside a widget, not the page's edge", () => {
+    useSourcesPanelStore.getState().open([web(1)]);
+    const { container } = render(<SourcesPanel contained />);
+
+    const panel = container.firstElementChild!;
+    expect(panel).toHaveClass("absolute", "inset-0");
+    expect(panel).not.toHaveClass("fixed");
+  });
+
+  it("stays at the page's right edge on the chat page", () => {
+    const { container } = open([web(1)]);
+
+    expect(container.firstElementChild).toHaveClass("fixed", "right-0");
+  });
+});

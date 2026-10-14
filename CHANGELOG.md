@@ -457,6 +457,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **An answer's sources open inside the Architect's widget.** The Sources
+  panel was fixed to the page's right edge, so from the widget in the
+  corner it opened beside it, over the page underneath; in the widget it
+  now covers the conversation it belongs to.
+
 - **The browser window reads as a browser.** One toolbar instead of a tab
   strip over an address bar: the address with its lock, host and path and
   a Live mark, then Take over as a solid button and the window's controls

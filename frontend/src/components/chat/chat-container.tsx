@@ -671,7 +671,7 @@ function ChatUI({
     return () => observer.disconnect();
   }, []);
   return (
-    <div className="flex h-full w-full">
+    <div className="relative flex h-full w-full">
       {/* The column no longer carries the width. The scroller does, and the
           content is centred inside it - so the scrollbar sits at the edge of the
           pane where a scrollbar belongs, rather than a hundred pixels to the
@@ -904,7 +904,7 @@ function ChatUI({
         </div>
       </div>
       <FilePreviewDialog />
-      <SourcesPanel />
+      <SourcesPanel contained={compact} />
       {/* The agent's browser, docked beside the conversation on a wide screen
           and opened by itself when a browse starts. Draws nothing until then,
           so a conversation with no browsing costs nothing. */}

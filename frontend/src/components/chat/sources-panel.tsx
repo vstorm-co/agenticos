@@ -112,7 +112,14 @@ function WebSourceRow({ item, highlighted }: { item: SourceItem; highlighted: bo
   return inner;
 }
 
-export function SourcesPanel() {
+/**
+ * The sources of an answer, over the side of the conversation they belong to.
+ *
+ * `contained` keeps it inside the conversation's own box - the Architect's
+ * widget - instead of the page's right edge, where it opened beside a widget in
+ * the corner, over whatever page that was.
+ */
+export function SourcesPanel({ contained = false }: { contained?: boolean }) {
   const t = useTranslations("chat");
   const { isOpen, sources, highlightedIndex, close } = useSourcesPanelStore();
 
@@ -131,7 +138,14 @@ export function SourcesPanel() {
   const webSources = sources.filter((s) => s.type === "web");
 
   return (
-    <div className="bg-background border-border fixed top-0 right-0 z-50 flex h-full w-[360px] flex-col border-l shadow-xl">
+    <div
+      className={cn(
+        "bg-background border-border flex flex-col",
+        contained
+          ? "absolute inset-0 z-40"
+          : "fixed top-0 right-0 z-50 h-full w-[360px] border-l shadow-xl",
+      )}
+    >
       {/* Header */}
       <div className="border-foreground/8 flex items-center justify-between border-b px-4 py-3">
         <h2 className="text-foreground text-sm font-semibold">
