@@ -85,7 +85,7 @@ function servePermissions(permissions: readonly string[]) {
   vi.mocked(apiClient.get).mockImplementation((path: string) => {
     if (path === "/agents") {
       return Promise.resolve({
-        items: [{ id: "agent-1", slug: "getting-started", name: "Getting Started" }],
+        items: [{ id: "agent-1", slug: "claude-code-like", name: "Claude Code like" }],
         total: 1,
       });
     }

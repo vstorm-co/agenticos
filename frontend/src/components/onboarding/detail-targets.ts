@@ -89,7 +89,7 @@ export function useDetailTargets(enabled: boolean): Record<string, ResolvedDetai
     enabled,
   });
   const agentId =
-    agents.data?.items.find((agent) => agent.slug === "getting-started")?.id ??
+    agents.data?.items.find((agent) => agent.slug === "claude-code-like")?.id ??
     agents.data?.items[0]?.id ??
     null;
 
