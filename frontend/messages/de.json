@@ -5632,7 +5632,8 @@
         "judgeArchived": "Der Eval-Bewerter ist archiviert. Stellen Sie ihn wieder her, damit er wieder bewertet.",
         "judgeNoAccess": "Sie dürfen den Eval-Bewerter nicht ausführen. Fragen Sie nach Zugriff.",
         "judgeNotSeeded": "Der Eval-Bewerter konnte in dieser Organisation nicht eingerichtet werden.",
-        "judgeBudget": "Das Budget des Eval-Bewerters ist aufgebraucht, daher lief er nicht."
+        "judgeBudget": "Das Budget des Eval-Bewerters ist aufgebraucht, daher lief er nicht.",
+        "judgeNoModel": "Das Modell des Eval-Bewerters ist entfernt oder hat keinen Schlüssel. Wählen Sie ein anderes Modell für ihn."
       },
       "scoreRun": "Gegen einen Fall bewerten",
       "scoreRunBody": "Alle im Dataset konfigurierten Bewertungen auf die Antwort dieses Runs anwenden. Das Ergebnis wird im Dataset gespeichert.",

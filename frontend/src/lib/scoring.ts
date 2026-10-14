@@ -34,6 +34,7 @@ const REASON_KEYS = {
   judge_unpublished: "reason.judgeUnpublished",
   judge_archived: "reason.judgeArchived",
   judge_no_access: "reason.judgeNoAccess",
+  judge_no_model: "reason.judgeNoModel",
   judge_not_seeded: "reason.judgeNotSeeded",
   judge_budget: "reason.judgeBudget",
 } as const;

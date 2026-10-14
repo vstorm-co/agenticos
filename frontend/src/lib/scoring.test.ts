@@ -20,6 +20,7 @@ describe("reasonKey", () => {
   it("names each cause the judge did not run for on its own", () => {
     expect(reasonKey(result("ai_assistance_off"))).toBe("reason.aiAssistanceOff");
     expect(reasonKey(result("judge_budget"))).toBe("reason.judgeBudget");
+    expect(reasonKey(result("judge_no_model"))).toBe("reason.judgeNoModel");
   });
 
   it("leaves a code this build does not know, and no code, to the server's sentence", () => {

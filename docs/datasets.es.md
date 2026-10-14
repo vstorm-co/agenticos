@@ -1,5 +1,5 @@
 ---
-source_sha: "2f65cc805dab"
+source_sha: "f8e8629eac20"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -254,7 +254,8 @@ Cada criterio se califica de 1 al máximo de la escala y aprueba en la nota de
 aprobado o por encima. Cuando el juez no puede calificar, sus criterios se
 registran como omitidos o como errores, con un motivo que nombra la causa: la
 asistencia de IA está desactivada, el juez no tiene una versión publicada, está
-archivado, la persona no puede ejecutarlo o su budget se ha agotado. Los
+archivado, su modelo ya no existe o no tiene clave, la persona no puede
+ejecutarlo o su budget se ha agotado. Los
 evaluadores basados en reglas siguen puntuando.
 
 Una calificación puede citar la respuesta, hasta 12 fragmentos; una cita que la

@@ -25,6 +25,8 @@ from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import (
+    BadRequestError,
+    NotFoundError,
     SystemAgentOutputError,
     SystemAgentRunError,
     SystemAgentUnavailableError,
@@ -32,9 +34,11 @@ from app.core.exceptions import (
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import AgentStatus
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
+from app.repositories import agent_repo
 from app.services.access import AGENT, resolve_access
 from app.services.agent_runner import AgentRunnerService
 from app.services.ai_assistance import AiAssistanceService
+from app.services.model_profile import ModelProfileService
 from app.services.system_agents import SystemAgentService
 
 _FENCE = re.compile(r"^```[a-zA-Z]*\s*\n?|\n?```\s*$")
@@ -106,7 +110,8 @@ class SystemAgentRunner:
         Raises:
             AiAssistanceDisabledError: The organization switched AI assistance off.
             SystemAgentUnavailableError: The agent cannot run - `not_seeded`,
-                `unpublished`, `archived`, or `no_access` for this caller.
+                `unpublished`, `archived`, `no_access` for this caller, or
+                `no_model` when the model it would run on is gone or has no key.
             SystemAgentRunError: The run was recorded but ended without an answer:
                 a budget refusal, a guardrail block, a failure, a parked approval.
             SystemAgentOutputError: The agent answered in a shape that does not
@@ -132,6 +137,7 @@ class SystemAgentRunner:
                 key=key,
                 reason="no_access",
             )
+        await self._require_model(ctx, agent.name, agent.current_version_id, key, model_profile_id)
 
         text, run = await AgentRunnerService(self.db).execute(
             ctx,
@@ -157,3 +163,31 @@ class SystemAgentRunner:
                 run_id=run.id,
             ) from exc
         return SystemAgentResult(output=output, run=run)
+
+    async def _require_model(
+        self,
+        ctx: AuthContext,
+        name: str,
+        version_id: UUID,
+        key: str,
+        model_profile_id: UUID | None,
+    ) -> None:
+        """Refuse before any run when the model the agent would run on cannot be reached.
+
+        A deleted profile, or one whose key is gone, is a fact about the
+        organization's configuration rather than a failed run, so it answers the
+        way an unpublished agent does.
+        """
+        version = await agent_repo.get_version(
+            self.db, version_id, organization_id=ctx.organization_id
+        )
+        published = None if version is None else version.spec.get("model_profile_id")
+        profile_id = model_profile_id or (None if published is None else UUID(str(published)))
+        try:
+            await ModelProfileService(self.db).resolve(ctx, profile_id=profile_id)
+        except (NotFoundError, BadRequestError) as exc:
+            raise SystemAgentUnavailableError(
+                message=f"'{name}' cannot reach its model: {exc.message}",
+                key=key,
+                reason="no_model",
+            ) from exc

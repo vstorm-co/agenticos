@@ -1,5 +1,5 @@
 ---
-source_sha: "2f65cc805dab"
+source_sha: "f8e8629eac20"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -264,8 +264,9 @@ Jedes Kriterium wird von 1 bis zum oberen Ende der Skala bewertet und besteht ab
 der Bestehensgrenze. Kann der Judge nicht bewerten, werden seine Kriterien als
 übersprungen oder als Fehler festgehalten, mit einer Begründung, die die
 Ursache nennt: KI-Unterstützung ist ausgeschaltet, der Judge hat keine
-veröffentlichte Version, er ist archiviert, die Person darf ihn nicht ausführen,
-oder sein Budget ist aufgebraucht. Die regelbasierten Scorer bewerten trotzdem.
+veröffentlichte Version, er ist archiviert, sein Modell ist entfernt oder hat
+keinen Schlüssel, die Person darf ihn nicht ausführen, oder sein Budget ist
+aufgebraucht. Die regelbasierten Scorer bewerten trotzdem.
 
 Eine Bewertung darf die Antwort zitieren, bis zu 12 Stellen; ein Zitat, das die
 Antwort nicht wörtlich enthält, wird in der Begründung als nicht verifiziert

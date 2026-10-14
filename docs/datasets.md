@@ -238,8 +238,8 @@ for whoever may change it.
 Each criterion is graded from 1 to the top of the scale and passes at the pass
 mark or above. When the judge cannot grade, its criteria are recorded as
 skipped or as errors, with a reason that names the cause: AI assistance is
-switched off, the judge has no published version, it is archived, the person
-may not run it, or its budget is spent. The rule-based scorers still score.
+switched off, the judge has no published version, it is archived, its model
+is gone or has no key, the person may not run it, or its budget is spent. The rule-based scorers still score.
 
 A grade may quote the answer, up to 12 passages; a quote the answer does not
 contain word for word is named in the reason as unverified, and the grade

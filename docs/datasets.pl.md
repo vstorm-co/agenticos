@@ -1,5 +1,5 @@
 ---
-source_sha: "2f65cc805dab"
+source_sha: "f8e8629eac20"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -249,7 +249,8 @@ Każde kryterium jest oceniane od 1 do górnej granicy skali i zalicza na progu
 zaliczenia lub wyżej. Gdy sędzia nie może ocenić, jego kryteria są zapisywane
 jako pominięte albo jako błędy, z uzasadnieniem podającym przyczynę: wsparcie
 AI jest wyłączone, sędzia nie ma opublikowanej wersji, jest zarchiwizowany,
-osoba nie może go uruchomić albo jego budżet się wyczerpał. Oceniacze oparte na
+jego model został usunięty albo nie ma klucza, osoba nie może go uruchomić albo
+jego budżet się wyczerpał. Oceniacze oparte na
 regułach nadal oceniają.
 
 Ocena może cytować odpowiedź, do 12 fragmentów; cytat, którego odpowiedź nie
