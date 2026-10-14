@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.repositories import agent_run_repo
+from app.repositories import agent_run_repo, eval_run_repo
 from app.services import run_reaper
 from app.services.run_reaper import RunReaperService
 from app.worker.tasks.run_tasks import stale_run_sweep_flow
@@ -75,7 +75,9 @@ class TestWhatTheRowIsTold:
 
 class TestTheFlow:
     async def test_the_sweep_runs_the_reaper_on_a_session_of_its_own(self):
-        service = MagicMock(reap_stale=AsyncMock(return_value=3))
+        service = MagicMock(
+            reap_stale=AsyncMock(return_value=3), reap_abandoned_evals=AsyncMock(return_value=0)
+        )
         with (
             patch("app.worker.tasks.run_tasks.get_worker_db_context") as ctx,
             patch("app.worker.tasks.run_tasks.RunReaperService", return_value=service),
@@ -85,3 +87,42 @@ class TestTheFlow:
             assert await stale_run_sweep_flow() == 3
 
         service.reap_stale.assert_awaited_once()
+
+    async def test_abandoned_evals_are_failed_by_the_same_sweep(self, caplog):
+        service = MagicMock(
+            reap_stale=AsyncMock(return_value=0), reap_abandoned_evals=AsyncMock(return_value=2)
+        )
+        with (
+            patch("app.worker.tasks.run_tasks.get_worker_db_context") as ctx,
+            patch("app.worker.tasks.run_tasks.RunReaperService", return_value=service),
+            caplog.at_level("WARNING", logger="app.worker.tasks.run_tasks"),
+        ):
+            ctx.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
+            ctx.return_value.__aexit__ = AsyncMock(return_value=False)
+            assert await stale_run_sweep_flow() == 0
+
+        assert any("2 abandoned eval run(s)" in r.message for r in caplog.records)
+
+
+class TestAbandonedEvals:
+    async def test_a_run_idle_past_the_setting_is_failed(self, monkeypatch):
+        fail = AsyncMock(return_value=1)
+        monkeypatch.setattr(eval_run_repo, "fail_abandoned", fail)
+        monkeypatch.setattr(run_reaper.settings, "EVAL_ABANDONED_AFTER_MINUTES", 30.0)
+
+        before = datetime.now(UTC)
+        assert await RunReaperService(MagicMock()).reap_abandoned_evals() == 1
+        after = datetime.now(UTC)
+
+        asked = fail.await_args.kwargs
+        window = timedelta(minutes=30)
+        assert before - window <= asked["idle_since"] <= after - window
+        assert before <= asked["now"] <= after
+
+    async def test_zero_switches_it_off(self, monkeypatch):
+        fail = AsyncMock()
+        monkeypatch.setattr(eval_run_repo, "fail_abandoned", fail)
+        monkeypatch.setattr(run_reaper.settings, "EVAL_ABANDONED_AFTER_MINUTES", 0.0)
+
+        assert await RunReaperService(MagicMock()).reap_abandoned_evals() == 0
+        fail.assert_not_awaited()

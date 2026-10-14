@@ -1,0 +1,276 @@
+"""Schemas for eval runs: starting one, its estimate, its results and its comparison."""
+
+from __future__ import annotations
+
+from datetime import datetime
+from decimal import Decimal
+from typing import Any, Literal
+from uuid import UUID
+
+from pydantic import Field, field_validator
+
+from app.db.models.eval_run import (
+    ArmRole,
+    ArmSource,
+    CaseAttemptStatus,
+    EvalRunPurpose,
+    EvalRunStatus,
+)
+from app.schemas.base import BaseSchema
+from app.schemas.scoring import CaseScoreRead
+
+CallOutcomeLiteral = Literal["executed", "blocked", "replayed", "divergent"]
+FlipLiteral = Literal["regression", "fixed", "unchanged", "incomplete"]
+VerdictLiteral = Literal["better", "worse", "no_difference", "inconclusive", "invalid"]
+TrendLiteral = Literal["better", "worse", "unchanged", "unknown"]
+EstimateBasisLiteral = Literal["history", "fallback", "cached"]
+
+MAX_MODELS = 4
+MAX_RERUNS = 5
+
+
+class EvalRunRequest(BaseSchema):
+    """What to run, as a person asks for it - the same body estimates and starts.
+
+    Attributes:
+        dataset_id: The dataset whose cases are answered.
+        dataset_version: Which version of it; the latest when omitted.
+        environment_id: The agent's environment whose test connections the
+            cases run on. Only the connections and the tracing are taken from
+            it - never the version it pins.
+        candidate: Run a published version, or the agent's draft as it is now.
+        version: The published version to run; the current one when omitted.
+        model_profile_ids: Run the candidate on each of these models side by
+            side. Empty runs it on the model its spec names.
+        paired_baseline: Run a baseline in this same run, so both sides meet
+            the same provider on the same day. A recent enough matching
+            baseline is reused instead of run again.
+        baseline_version: The version the candidate is measured against. The
+            published version for a draft, the one before it for a version.
+        from_recordings: Answer tool calls from the run each case was taken
+            from, where there is one, instead of calling anything.
+        live_reads: With recordings, let a call the recording cannot answer
+            run when the isolation allows it to read.
+        reruns: How many times a flipped case is rerun to confirm the flip.
+    """
+
+    dataset_id: UUID
+    dataset_version: int | None = Field(default=None, ge=1)
+    environment_id: UUID | None = None
+    candidate: Literal["version", "draft"] = "version"
+    version: int | None = Field(default=None, ge=1)
+    model_profile_ids: list[UUID] = Field(default_factory=list, max_length=MAX_MODELS)
+    paired_baseline: bool = False
+    baseline_version: int | None = Field(default=None, ge=1)
+    from_recordings: bool = False
+    live_reads: bool = False
+    reruns: int | None = Field(default=None, ge=0, le=MAX_RERUNS)
+
+    @field_validator("model_profile_ids")
+    @classmethod
+    def _distinct(cls, value: list[UUID]) -> list[UUID]:
+        if len(set(value)) != len(value):
+            raise ValueError("Name each model once")
+        return value
+
+
+class ArmEstimate(BaseSchema):
+    """What one arm is expected to cost, and what the number rests on."""
+
+    role: ArmRole
+    source: ArmSource
+    version_number: int | None
+    model_profile_id: UUID | None
+    model_label: str
+    cost_per_case_usd: Decimal
+    cost_usd: Decimal
+    basis: EstimateBasisLiteral
+    cached_from_run_id: UUID | None = None
+    cached_at: datetime | None = None
+
+
+class EvalRunEstimate(BaseSchema):
+    """The spend a run asks consent for, against what is left to spend.
+
+    `total_usd` is what the run costs if no case flips. `rerun_ceiling_usd` is
+    the most the confirmation reruns can add on top, which only happens to the
+    cases that flip. The `*_after_usd` fields are what the agent's and the
+    organization's monthly budgets keep for live traffic once `total_usd` is
+    spent; `None` where there is no cap.
+    """
+
+    cases: int
+    arms: list[ArmEstimate]
+    judge_usd: Decimal
+    total_usd: Decimal
+    rerun_ceiling_usd: Decimal
+    agent_remaining_usd: Decimal | None
+    org_remaining_usd: Decimal | None
+    agent_after_usd: Decimal | None
+    org_after_usd: Decimal | None
+    affordable: bool
+
+
+class ArmSummaryRead(BaseSchema):
+    """Both axes for one arm over its first attempts."""
+
+    cases: int
+    passed: int
+    failed: int
+    incomplete: int
+    pass_rate: float | None
+    cost_usd: Decimal
+    cost_per_pass_usd: Decimal | None
+    avg_tokens: float | None
+    p50_ms: float | None
+    p95_ms: float | None
+
+
+class EvalRunArmRead(BaseSchema):
+    id: UUID
+    role: ArmRole
+    position: int
+    source: ArmSource
+    agent_version_id: UUID | None
+    version_number: int | None
+    model_profile_id: UUID | None
+    model_label: str
+    reused_from_arm_id: UUID | None
+    summary: ArmSummaryRead
+    by_tag: dict[str, ArmSummaryRead]
+
+
+class EvalRunRead(BaseSchema):
+    """One eval run, with each arm's results so far."""
+
+    id: UUID
+    agent_id: UUID
+    dataset_id: UUID
+    dataset_name: str
+    dataset_version: int
+    environment_id: UUID | None
+    status: EvalRunStatus
+    purpose: EvalRunPurpose
+    paired: bool
+    from_recordings: bool
+    live_reads: bool
+    reruns: int
+    estimate_usd: Decimal
+    cost_usd: Decimal
+    cost_is_partial: bool
+    attempts_done: int
+    attempts_total: int
+    error: str | None
+    created_by_user_id: UUID | None
+    created_at: datetime
+    started_at: datetime | None
+    ended_at: datetime | None
+    arms: list[EvalRunArmRead]
+
+
+class EvalRunList(BaseSchema):
+    items: list[EvalRunRead]
+    total: int
+
+
+class EvalCallRead(BaseSchema):
+    """One call an attempt made, and what isolation did with it."""
+
+    tool: str
+    args: dict[str, Any]
+    outcome: CallOutcomeLiteral
+    reason: str | None = None
+
+
+class EvalAttemptRead(BaseSchema):
+    id: UUID
+    arm_id: UUID
+    attempt: int
+    status: CaseAttemptStatus
+    agent_run_id: UUID | None
+    answer: str | None
+    calls: list[EvalCallRead]
+    cost_usd: Decimal | None
+    cost_is_partial: bool
+    input_tokens: int | None
+    output_tokens: int | None
+    latency_ms: int | None
+    error: str | None
+    outcome: bool | None
+    score: CaseScoreRead | None
+
+
+class EvalCaseRead(BaseSchema):
+    """One case of the run, with every attempt every arm made at it."""
+
+    case_id: UUID
+    case_revision_id: UUID
+    position: int
+    input: str
+    tags: list[str]
+    attempts: list[EvalAttemptRead]
+
+
+class EvalCaseList(BaseSchema):
+    items: list[EvalCaseRead]
+    total: int
+
+
+class ComparisonSide(BaseSchema):
+    """Which run and arm one side of a comparison is, labelled the way it is shown."""
+
+    run_id: UUID
+    arm_id: UUID
+    role: ArmRole
+    source: ArmSource
+    version_number: int | None
+    model_label: str
+    dataset_version: int
+    finished_at: datetime | None
+
+
+class CaseFlipRead(BaseSchema):
+    case_id: UUID
+    flip: FlipLiteral
+    confirmed: bool
+    baseline: bool | None
+    candidate: bool | None
+    baseline_reruns: list[bool | None]
+    candidate_reruns: list[bool | None]
+    tags: list[str]
+
+
+class EfficiencyRead(BaseSchema):
+    cost_per_pass: TrendLiteral
+    avg_tokens: TrendLiteral
+    p50_ms: TrendLiteral
+    p95_ms: TrendLiteral
+
+
+class EvalComparisonRead(BaseSchema):
+    """A candidate arm against its baseline, quality first and efficiency beside it.
+
+    `baseline` is null when there is nothing to compare with yet - the agent's
+    previous version was never run on this dataset. `verdict` is `invalid` when
+    the two sides were scored by different scoring or a different judge, and
+    `inconclusive` when the confirmed flips are too few to tell the two apart.
+    `paired` says whether the baseline ran in the same eval run.
+    """
+
+    candidate: ComparisonSide
+    baseline: ComparisonSide | None
+    paired: bool
+    verdict: VerdictLiteral | None
+    p_value: float | None
+    invalid_reason: str | None
+    regressions_confirmed: int
+    regressions_unconfirmed: int
+    fixed_confirmed: int
+    fixed_unconfirmed: int
+    compared: int
+    not_compared: int
+    candidate_summary: ArmSummaryRead
+    baseline_summary: ArmSummaryRead | None
+    efficiency: EfficiencyRead | None
+    cases: list[CaseFlipRead]
+    flips_by_tag: dict[str, dict[FlipLiteral, int]]
