@@ -8,13 +8,14 @@ ungranted fails while a person is looking at a form rather than mid-run.
 import re
 import subprocess
 import sys
+from collections.abc import Iterable
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
-from pydantic import ValidationError
+from pydantic import ValidationError, create_model
 from pydantic_ai import Agent as PydanticAgent
 from pydantic_ai.models.test import TestModel
 
@@ -584,7 +585,19 @@ class TestTestKeyIsolation:
 
     #: Config fields that name where a capability's calls go. A capability with
     #: one can be pointed at production whatever key it holds.
-    _TARGET = re.compile(r"(url|host|endpoint)", re.IGNORECASE)
+    _TARGET = re.compile(
+        r"url|uri|host|endpoint|base|server|dsn|address|domain|port", re.IGNORECASE
+    )
+
+    @classmethod
+    def _offending(cls, definitions: Iterable[CapabilityDef]) -> set[str]:
+        return {
+            definition.id
+            for definition in definitions
+            if definition.test_key_isolates
+            and definition.config_schema is not None
+            and any(cls._TARGET.search(name) for name in definition.config_schema.model_fields)
+        }
 
     def test_the_declarations_are_the_ones_decided(self):
         declared = {d.id for d in all_capabilities() if d.test_key_isolates}
@@ -593,15 +606,38 @@ class TestTestKeyIsolation:
 
     def test_a_capability_whose_config_names_a_target_never_declares_it(self):
         """A test key next to a production URL still writes to production."""
-        offending = {
-            definition.id
-            for definition in all_capabilities()
-            if definition.test_key_isolates
-            and definition.config_schema is not None
-            and any(self._TARGET.search(name) for name in definition.config_schema.model_fields)
-        }
+        assert self._offending(all_capabilities()) == set()
 
-        assert offending == set()
+    @pytest.mark.parametrize(
+        "field",
+        [
+            "cdp_url",
+            "api_base",
+            "base_url",
+            "server_uri",
+            "Hostname",
+            "smtp_server",
+            "dsn",
+            "ip_address",
+            "domain",
+            "port",
+            "endpoint",
+        ],
+    )
+    def test_a_declaration_beside_any_field_naming_a_target_is_refused(self, field):
+        config = create_model("Config", **{field: (str, "x")})
+        definition = CapabilityDef(
+            id="mailer",
+            name="Mailer",
+            category="test",
+            description="Sends mail.",
+            builder=lambda _ctx: None,
+            tools=(),
+            config_schema=config,
+            test_key_isolates=True,
+        )
+
+        assert self._offending([definition]) == {"mailer"}
 
     def test_the_config_check_sees_the_capabilities_it_exists_for(self):
         """Without this the check above could pass by matching nothing."""
