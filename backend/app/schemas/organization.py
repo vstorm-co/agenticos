@@ -9,7 +9,7 @@ from uuid import UUID
 from pydantic import AfterValidator, EmailStr, Field, field_validator
 
 from app.core.permissions import OrgRoleName
-from app.db.models.organization import MembershipSourceLiteral
+from app.db.models.organization import DictationEngine, MembershipSourceLiteral
 from app.schemas.base import BaseSchema, TimestampSchema
 from app.schemas.user import UserRead
 
@@ -72,6 +72,39 @@ class OrganizationUpdate(BaseSchema):
             "name."
         ),
     )
+    chat_dictation: DictationEngine | None = Field(
+        default=None,
+        description=(
+            "How /chat dictation transcribes: off, the browser's own speech service, "
+            "or a speech-to-text provider on the server. Omit to leave it alone. "
+            "`server` with no pair here dictates only for agents that set their own."
+        ),
+    )
+    speech_to_text_provider: str | None = Field(
+        default=None,
+        max_length=32,
+        description="A provider from the speech-to-text catalog; null clears it.",
+    )
+    speech_to_text_model: str | None = Field(
+        default=None,
+        max_length=255,
+        description="A model that provider offers; null clears it. Set with the provider.",
+    )
+    speech_to_text_secret_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The vault key the pair is sent with: an organization-visible API key "
+            "whose purpose is the provider. Required with a pair; null clears it."
+        ),
+    )
+    speech_to_text_language: str | None = Field(
+        default=None,
+        max_length=8,
+        description="ISO-639-1 code to pin recordings to, or null to auto-detect.",
+    )
+    dictation_max_seconds: int | None = Field(
+        default=None, ge=10, le=600, description="Longest dictation, in seconds (10-600)."
+    )
 
 
 class OrganizationRead(BaseSchema, TimestampSchema):
@@ -90,6 +123,27 @@ class OrganizationRead(BaseSchema, TimestampSchema):
             "Whether a chat session here may grant standing consent to gated tool "
             "calls. The chat reads it to decide whether to offer the control at "
             "all; who may then use it is `approvals:decide`."
+        ),
+    )
+    chat_dictation: DictationEngine = "browser"
+    speech_to_text_provider: str | None = None
+    speech_to_text_model: str | None = None
+    speech_to_text_secret_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The vault key the pair is sent with, by id. Null with a pair means the "
+            "key was deleted, and dictation waits for another to be chosen."
+        ),
+    )
+    speech_to_text_language: str | None = None
+    dictation_max_seconds: int = 300
+    chat_dictation_ready: bool = Field(
+        default=False,
+        description=(
+            "Whether server dictation is configured: engine `server` with a catalog "
+            "pair and a key named for it. Read from settings alone, so a key made "
+            "private since still reads true and is refused per recording as "
+            "`not_configured`."
         ),
     )
 

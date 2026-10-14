@@ -365,6 +365,7 @@ from app.core.exceptions import (
     RateLimitError,
 )
 from app.services import rate_limit
+from app.api.embed_cors import allow_embed_origin
 from app.core.security import encode_untrusted, verify_token
 from app.db.models.user import User
 
@@ -760,6 +761,21 @@ async def limit_ml_call(ctx: Auth) -> None:
     _refuse_if_over(decision, "Too many ML service calls in the last minute. Wait and try again.")
 
 
+async def limit_dictation(ctx: Auth) -> None:
+    """Refuse a person dictating more than their share - each one is a paid call.
+
+    Its own bucket rather than `limit_ml_call`'s, so a person dictating into the
+    composer and an integration calling the ML surface do not spend each other's
+    allowance.
+    """
+    decision = await rate_limit.consume(
+        surface="dictation",
+        caller=f"user:{ctx.subject_id}",
+        limit=rate_limit.dictation_limit(),
+    )
+    _refuse_if_over(decision, "Too many dictations in the last minute. Wait and try again.")
+
+
 def _refuse_if_over(decision: rate_limit.Decision, message: str) -> None:
     """Turn a rate limiter's refusal into this API's own 429.
 
@@ -907,6 +923,20 @@ async def limit_embed_upload(
         ),
         "Too many uploads. Try again shortly.",
     )
+
+
+async def limit_embed_dictation(request: Request, public_key: str) -> None:
+    """Refuse a caller sending recordings to a hosted page or a widget too fast.
+
+    Per address and then per link, both before the key is looked up - see
+    `rate_limit.embed_dictation_allowed`, which also says why the link has a
+    ceiling of its own. A refusal is readable by the site that asked: it runs
+    before admission and says the same to every origin (`app.api.embed_cors`).
+    """
+    decision = await rate_limit.embed_dictation_allowed(request, public_key=public_key)
+    if not decision.allowed:
+        allow_embed_origin(request, request.headers.get("origin"))
+    _refuse_if_over(decision, "Too many dictations in the last minute. Wait and try again.")
 
 
 class RequireOrgRole:

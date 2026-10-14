@@ -1,18 +1,32 @@
+import { REDUCED_MOTION_QUERY, resolveReducedMotion } from "@/lib/motion-preference";
+import { useMotionStore } from "@/stores/motion-store";
+
+/**
+ * The operating system's reduced-motion query, or `null` where there is no
+ * `matchMedia` to ask (the server, and a test environment without one).
+ */
+export function reducedMotionQuery(): MediaQueryList | null {
+  return typeof window !== "undefined" && typeof window.matchMedia === "function"
+    ? window.matchMedia(REDUCED_MOTION_QUERY)
+    : null;
+}
+
 /**
  * Whether this reader has asked for less movement, and what to do about it.
  *
- * One place, because the answer was being worked out in three - the dashboard's
- * FLIP, the onboarding spotlight and the theme swap each carried their own copy
- * of the same media query, and a fourth was about to be added for the run
- * detail. The query is read at the moment it is needed rather than subscribed
- * to: nothing here animates for long enough that a preference changed mid-glide
- * would be worth a listener.
+ * One place, because the answer was being worked out in several - the
+ * dashboard's FLIP, the onboarding spotlight, the theme swap and the streaming
+ * text each carried their own copy of the same media query. It is the person's
+ * Motion preference (Settings → Profile → Appearance) resolved against the
+ * operating system's, read at the moment it is needed rather than subscribed to:
+ * nothing here animates for long enough that a preference changed mid-glide
+ * would be worth a listener. A component that renders differently subscribes
+ * through `useReducedMotion` instead.
  */
 export function prefersReducedMotion(): boolean {
-  return (
-    typeof window !== "undefined" &&
-    typeof window.matchMedia === "function" &&
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  return resolveReducedMotion(
+    useMotionStore.getState().motion,
+    reducedMotionQuery()?.matches === true,
   );
 }
 

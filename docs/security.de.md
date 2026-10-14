@@ -1,5 +1,5 @@
 ---
-source_sha: "3b62656f6e5b"
+source_sha: "27ed479dcdc5"
 ---
 
 # Sicherheit { #security }
@@ -58,6 +58,7 @@ fragen wird.
 | MCP-Server | Tool-Aufrufe und ihre Argumente | Nur für die Tools, an die ein Agent gebunden ist |
 | Ein Websuche-Anbieter (Tavily, DuckDuckGo) | Die Suchanfrage | Nur wenn die Such-Capability gewährt ist |
 | Ein Embedding-Provider | Dokumenttext, beim Ingest | Nur für eine Wissensbasis, deren Provider entfernt ist |
+| Ein Speech-to-Text-Provider | Eine Aufnahme: eine Sprachnachricht aus einem Kanal, ein Diktat in `/chat` oder die eines Besuchers auf einer gehosteten Seite oder einem Widget, die auf `server` stehen | Immer wenn eine transkribiert wird. Das Diktat eines Besuchers ist anonym und liegt außerhalb jedes Modell-Budgets, begrenzt wird es also durch das Rate-Limit des Links mal das längste Diktat. Standardmäßig ist ein Diktat rohes PCM, dessen Samples gezählt und über dem Limit vor dem Senden abgelehnt werden, diese Grenze ist also exakt; ein Deployment, das [komprimiertes Audio annimmt](deployment.md#what-a-dictation-may-be-uploaded-as), liest die Länge stattdessen aus dem Header der Datei, den eine von Hand gebaute Datei zu kurz angeben kann - [Kanäle](channels.md#dictation-on-a-widget-or-a-hosted-page) rechnet den schlimmsten Fall in beiden Fällen durch. Bei `browser` schickt der Browser des Besuchers das Audio stattdessen an seinen eigenen Anbieter, und nichts geht hier durch |
 
 ## Was wo verschlüsselt ist { #what-is-encrypted-where }
 
@@ -247,6 +248,7 @@ SOC 2 CC6–CC8.
 | HTTPS und HSTS | Am Reverse Proxy terminiert — die mitgelieferte `nginx/nginx.conf` setzt HSTS; die Anwendung bewusst nicht | Sache des Deployments; siehe die Härtungs-Checkliste |
 | Von Agents verfasste Seiten können die Konsole nicht erreichen | Ein veröffentlichtes [Artefakt](artifacts.md) wird von einer Route ohne Cookies hinter einem kurzlebigen signierten Token ausgeliefert, unter `Content-Security-Policy: sandbox` ohne `allow-same-origin` — ein opaker Origin — und ohne `allow-popups`, plus `connect-src 'none'`, keine entfernte Quelle außer dem eigenen Bibliothekspfad des Deployments und `frame-ancestors`, das nur die Konsole nennt (und für eine einbettbare öffentliche Seite das Einbettungsdokument und die gelisteten Sites); ein Link in der Seite öffnet erst, nachdem eine Person seine Adresse bestätigt hat; optional von einer eigenen registrierbaren Domain (`ARTIFACT_ORIGIN`) | `test_artifact_routes.py::TestTheContentRoute`, `test_artifact_service.py::TestThePolicy`, `test_artifact_pages.py`, `artifacts.test.tsx`, `csp.test.ts` |
 | Rate-Limits auf öffentlichen Oberflächen | Redis-gestützte Limits auf der Run-API, dem Embed-Widget, den gehosteten Seiten, öffentlichen Artefakt-Links und deren signierten Inhaltsadressen (`app/services/rate_limit.py`); Limits pro Absender auf Kanal-Bots (`app/services/channels/router.py`) | `test_rate_limited_surfaces.py`; das Limit der Kanal-Bots ist implementiert, aber dünn getestet |
+| Ein Diktat kostet höchstens die längste Diktatdauer | Standardmäßig nur WAV mit 16 kHz, Mono und 16-Bit-PCM: streng geparst, seine Samples gezählt und über `dictation_max_seconds` abgelehnt, bevor der Provider aufgerufen wird, und hinter einem Header gesendet, den der Server baut (`app/services/ml/pcm_wav.py`, `MLService.transcribe_dictation`). WebM, Ogg und MP4 erst, wenn ein App-Admin `dictation_compressed_audio` einschaltet, hinter einem Dialog, der das Risiko benennt | `test_pcm_wav.py`, `test_ml_service.py`, `dictation-audio-card.integration.test.tsx` |
 
 ### Die Refusals als Menge { #the-refusals-as-a-set }
 

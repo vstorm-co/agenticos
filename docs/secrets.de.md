@@ -1,5 +1,5 @@
 ---
-source_sha: "dfb14d9e1139"
+source_sha: "7bd19927933a"
 ---
 
 # Secrets und der Vault { #secrets-and-the-vault }
@@ -115,6 +115,15 @@ und bei zwei gespeicherten org-sichtbaren Apps wird die Verbindung abgelehnt
 (unter Nennung beider), statt an denjenigen Namen gebunden zu werden, der zuerst
 sortiert.
 
+Dieselbe Regel - **nur organisationsweit sichtbar** - gilt für den
+API-Schlüssel, mit dem die Spracherkennungs-Voreinstellung der Organisation und
+das eigene Transkriptionspaar eines Kanal-Bots gesendet werden: Die Plattform
+gibt ihn für das Diktat jedes Mitglieds und jede Sprachnachricht aus, die ein
+Bot empfängt, daher wird der private Schlüssel eines Mitglieds beim Speichern
+beider abgelehnt, und ein Schlüssel, der danach privat wird, wird nicht mehr
+benutzt. Anders als `github_oauth_app` werden diese Schlüssel per ID benannt,
+sodass mehrere nebeneinander gespeichert sein dürfen.
+
 `git_token` trägt seinen Host, weil eine Git-Sync-Quelle das Token an eine URL
 sendet, die wählt, wer die Quelle bearbeitet. An den Host gebunden, mit dem es
 abgelegt wurde, lässt sich das Token durch Bearbeiten der Quelle nicht auf einen
@@ -153,6 +162,17 @@ außerdem eine abgeschnittene Einfügung ab, solange das Formular noch offen ist
 **Model-Provider.** Benannt von einem [Model-Profil](models.md). Ausgaben werden
 dem Secret zugerechnet, auf das der Run aufgelöst hat, und so bekommt "welcher
 Key kostet am meisten" eine Antwort.
+
+**Spracherkennung.** Ein API-Schlüssel, dessen Zweck der Anbieter ist, per ID
+neben Anbieter und Modell benannt, wo immer Spracherkennung eingerichtet wird:
+in der Voreinstellung der Organisation, in der Überschreibung eines Agents und
+im eigenen Paar eines Kanal-Bots. Zur Laufzeit wird kein Schlüssel gesucht. Der
+Schlüssel der Organisation und eines Bots muss organisationsweit sichtbar sein;
+der eines Agents folgt der Leihregel - der Veröffentlichende muss ihn sehen
+können. Der [Nutzungseintrag](ml-services.md#what-is-recorded) jeder
+Transkription nennt den Schlüssel, mit dem sie gesendet wurde. Siehe
+[welche Engine eine Aufnahme erreicht](ml-services.md#which-engine-a-recording-reaches).
+Die Liste der Agents, die einen Schlüssel nutzen, zeigt diese Verwendung nicht.
 
 **Capabilities.** Eine Capability erklärt, dass sie Zugangsdaten einer
 bestimmten *Art* braucht — nie eine Instanz. Der Code sagt "ich brauche einen API

@@ -1,5 +1,5 @@
 ---
-source_sha: "c0858ab0af15"
+source_sha: "1d9bfa9904d4"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -117,6 +117,9 @@ wählen:
   nie die eigenen Instruktionen des Agents, die zur veröffentlichten Version
   gehören.
 - **Rate limit** — Nachrichten pro Besucher pro Minute.
+- **Voice input** — `off`, `browser` oder `server`; das entscheidet, wohin die
+  Stimme eines Besuchers geht. Siehe
+  [Diktat im Widget oder auf einer gehosteten Seite](#dictation-on-a-widget-or-a-hosted-page).
 
 !!! danger "Eine leere Origin-Liste erlaubt nichts, und das ist Absicht"
 
@@ -551,20 +554,21 @@ jemandem keine Seite ist, die nicht lädt.
 
 ### Was sie anbietet { #what-it-offers }
 
-Zwei Schalter, und beide gehören dem Betreiber und nicht der Seite — eine
+Drei Einstellungen, und jede gehört dem Betreiber und nicht der Seite — eine
 Capability, die eine Seite für sich selbst einschaltet, wäre eine, die niemand
 ausschalten könnte.
 
 - **Eine Schaltfläche, um einen frischen Thread zu beginnen**, standardmäßig an.
   Sie prägt einen neuen Kontinuitätsschlüssel, sodass der alte Thread nicht
   gelöscht wird: er ist nur nicht mehr der, den dieser Browser wieder aufnimmt.
-- **Ein Mikrofon im Eingabefeld**, standardmäßig aus. Es diktiert in das Feld
-  über den *Browser des Besuchers selbst*, sodass kein Audio dieses Deployment
-  erreicht und hier nichts transkribiert wird — aber ein Browser, der
-  Spracherkennung anbietet, übergibt das Audio seinem Anbieter, und das ist die
-  Hälfte, die es sich vor dem Einschalten für die Öffentlichkeit zu lesen lohnt.
-  Einem Browser ohne Spracherkennung wird kein Mikrofon gezeigt statt einer
-  Schaltfläche, die nichts tut.
+- **Spracheingabe**, standardmäßig aus: `browser` diktiert über den eigenen
+  Browser des Besuchers, `server` über den Speech-to-Text-Provider der
+  Organisation. Welche von beiden es ist, entscheidet, wohin die Stimme eines
+  Besuchers geht - siehe
+  [Diktat im Widget oder auf einer gehosteten Seite](#dictation-on-a-widget-or-a-hosted-page).
+  Eine Seite, die veröffentlicht wurde, bevor es diese Wahl gab, behält, was sie
+  hatte: ihr altes *Mikrofon im Eingabefeld* wurde zu `browser`, und kein
+  Mikrofon wurde zu `off`.
 - **Eine Möglichkeit, eine Datei anzuhängen**, standardmäßig aus. Siehe unten: es
   ist das Einzige auf dieser Oberfläche, das einen Fremden etwas *speichern*
   lässt.
@@ -754,6 +758,137 @@ ausgeliefert statt als Skript.
 
 Die Seite ist `noindex`. Ein geheimer Link ist keine Seite, die indexiert werden
 soll, und ein Crawler, der einem folgt, hat ihn veröffentlicht.
+
+---
+
+## Diktat im Widget oder auf einer gehosteten Seite { #dictation-on-a-widget-or-a-hosted-page }
+
+Ein Widget und eine gehostete Seite haben jeweils eine Einstellung `dictation`:
+`off`, `browser` oder `server`. **`browser`** lässt den eigenen Browser des
+Besuchers die Sprache erkennen, sodass das Audio an den Anbieter des Browsers
+geht - Google bei Chrome, Apple bei Safari - und nichts dieses Deployment
+erreicht. Einem Browser ohne Spracherkennung, Firefox darunter, wird kein
+Mikrofon gezeigt. **`server`** nimmt in der Seite auf und schickt das Audio
+hierher, wo der Speech-to-Text-Provider der Organisation es transkribiert: der
+Override des Agents und sein Schlüssel, wenn er einen hat, sonst die
+Voreinstellung der Organisation und ihr Schlüssel - dieselbe Auflösung wie beim
+[Diktieren im Chat](ml-services.md#dictation-in-chat).
+
+Die Engine der Organisation für `/chat` hat über keine der beiden Oberflächen
+etwas zu sagen. Eine Organisation, die ihre Mitglieder bei der Spracherkennung
+des Browsers hält, kann einer öffentlichen Seite trotzdem `server`-Diktat geben,
+und umgekehrt.
+
+**Das Einschalten von `server` wird abgelehnt**, solange sich für den Agent kein
+Provider mit brauchbarem Schlüssel auflöst, und das Embed-Formular zeigt die Wahl
+deaktiviert, mit dem Grund. Geprüft wird nur das Umschalten, sodass eine Seite,
+deren Schlüssel später gelöscht wurde, sich weiterhin umbenennen lässt. Solange
+sich nichts auflöst, sagt ihre öffentliche Konfiguration `off`, und Besucher
+sehen kein Mikrofon statt eines, das scheitert. Der Agent muss außerdem
+veröffentlicht sein: eine Aufnahme für einen Agent, den niemand ausführt, wird
+abgelehnt, bevor irgendetwas bezahlt wird.
+
+**Die gehostete Seite** benutzt den eigenen Recorder des Eingabefelds der
+Konsole: die Aufnahmeleiste mit Wellenform und Timer, die Hinweise unter dem Feld
+und das Voice-Glow. Ihre Texte folgen der Sprache des Besuchers und nennen
+keinen Administrator und keine Einstellung. **Das Widget** hat einen eigenen
+Recorder in reinem JavaScript: eine Mikrofon-Schaltfläche, einen Pegelbalken in
+der Akzentfarbe, einen Timer, Stop und Cancel und eine Zeile unter dem Feld,
+wenn etwas schiefgeht. Seine Texte sind Englisch, wie der Rest des Widgets, und
+es hat kein Glow. Auf beiden landet der Text im Feld und wird nie von selbst
+gesendet; Enter beendet eine Aufnahme, und Escape verwirft sie.
+
+Beide nehmen in dem Format auf, das der Server im `dictation_format` der
+öffentlichen Konfiguration ankündigt: WAV mit 16 kHz, Mono und 16-Bit-PCM, aus
+den Samples des Mikrofons gebaut, es sei denn, das Deployment
+[nimmt komprimiertes Audio an](deployment.md#what-a-dictation-may-be-uploaded-as)
+und der Provider nimmt, was `MediaRecorder` erzeugt - WebM, Ogg oder MP4.
+Mistral, das weder WebM noch Opus dokumentiert, bekommt in jedem Fall WAV.
+
+### Der Endpoint { #the-endpoint }
+
+`POST /api/v1/embed/{public_key}/dictation` nimmt ein Multipart-`file` und eine
+optionale `duration` und antwortet mit `{"text": ...}`. Die Zulassung folgt der
+Oberfläche. Ein **Widget** wird so zugelassen wie sein Socket: der `Origin` muss
+auf seiner Allow-Liste stehen, und im `jwt`-Modus reist das Token des Besuchers
+als Formularfeld namens `token` - nie in der URL, die in Zugriffslogs landet,
+und nie in einem Header, der einen CORS-Preflight bräuchte, den die Website
+eines anderen nicht besteht. Eine **gehostete Seite** schickt ihren
+Kontinuitätsschlüssel in `X-Visitor-Key`, einem eigenen Header, den nur der
+eigene Origin dieses Deployments senden darf. Ein **rohes Socket** hat nichts,
+in das es diktieren könnte, und bekommt 404.
+
+Ablehnungen tragen denselben `details.reason` wie die
+[Route des Eingabefelds](ml-services.md#dictation-in-chat): 400 `empty`,
+`unsupported_type` oder `too_large`, 503 `not_configured`, `provider_error` oder
+`timeout`. Anders als die Route des Eingabefelds lehnt diese eine komprimierte
+Aufnahme, deren Länge sich nicht lesen lässt, als `unsupported_type` ab
+([unten](#what-it-costs-and-what-bounds-it)). Alles, was das Embed selbst betrifft - unbekannt, pausiert, nicht auf
+`server`, ein Origin, den es nicht erlaubt -, ist 404. Sobald ein Widget
+zugelassen ist, trägt jede Antwort seinen Origin in
+`Access-Control-Allow-Origin`, Ablehnungen eingeschlossen; sonst verbirgt ein
+Browser den Grund, und eine zu lange Aufnahme sähe für den Besucher so aus, als
+wäre er offline.
+
+### Was es kostet und was es begrenzt { #what-it-costs-and-what-bounds-it }
+
+Eine Transkription liegt **außerhalb jedes Modell-Budgets**: das Budget des
+Embeds zählt die Runs, nicht die Diktate. Was die Ausgaben eines Fremden
+begrenzt, sind zwei Rate-Limits und das längste Diktat der Organisation. Jede
+Adresse darf `RATE_LIMIT_EMBED_DICTATION_PER_MINUTE` Aufnahmen pro Minute senden
+(standardmäßig 6), und ebenso jeder Besucher eines `jwt`-Widgets, nach dem
+Subject seines Tokens. Jede Seite und jedes Widget nimmt
+`RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` pro Minute an (standardmäßig 10),
+von allen zusammen, durch wie viele Adressen ein Skript auch rotiert.
+
+Beide Zähler werden verbraucht, bevor der Link nachgeschlagen oder der Besucher
+zugelassen wird, also zählt auch eine abgelehnte Anfrage: Wer den Link hat, kann
+seine zehn pro Minute aufbrauchen, und die Besucher der Seite werden für den
+Rest dieser Minute abgewiesen. Die Organisation kostet das nichts, weil kein
+Provider aufgerufen wird, aber es ist ein Weg, das Mikrofon einer Seite
+scheitern zu lassen.
+
+**Die Länge wird gemessen, bevor der Provider aufgerufen wird**, und eine
+Aufnahme, die länger als `dictation_max_seconds` ist, wird als `too_large`
+abgelehnt, mit drei Sekunden Spielraum dafür, dass der Browser nur einmal pro
+Sekunde stoppt. Standardmäßig ist eine Aufnahme rohes PCM, und ihre Länge ist
+ihre Größe - der Server zählt die Samples, also kann die Zahl nur stimmen. Wo
+das Deployment komprimiertes Audio annimmt, wird die Länge einer WebM-, Ogg-
+oder MP4-Aufnahme aus ihrem eigenen Header gelesen - der letzten Ogg-Seite, den
+Zeitstempeln der WebM-Blöcke, den Movie- oder Fragment-Headern von MP4 -, und
+eine, deren Länge sich nicht lesen lässt, wird als `unsupported_type`
+abgelehnt. Eine Byte-Grenze allein reicht nicht: Opus mit niedriger Bitrate
+bringt Stunden in den Bytes einer fünfminütigen Aufnahme unter.
+
+!!! danger "Der schlimmste Fall für einen geleakten oder öffentlichen Link"
+
+    Das Limit des Links mal das längste Diktat: 10 Aufnahmen pro Minute zu je
+    bis zu 300 Sekunden sind 50 Minuten Audio pro Minute. Bei etwa
+    0,006 $ pro Minute, dem Listenpreis von `whisper-1`, sind das fast 0,30 $ pro
+    Minute, 18 $ pro Stunde oder 430 $ pro Tag, abgerechnet über das
+    Provider-Konto der Organisation. Senken Sie `dictation_max_seconds` oder das
+    Limit des Links, pausieren Sie das Embed, oder bleiben Sie bei `browser`, wo
+    das zu viel ist.
+
+    Mit dem Standard, rohem PCM, ist das exakt: Keine Datei kann mehr Sekunden
+    enthalten, als ihre Größe sagt. Wo das Deployment komprimiertes Audio
+    annimmt, gilt es nur für eine Datei, deren Header ihre wahre Länge angibt,
+    wie es jeder Browser tut. Eine von Hand gebaute Datei, die ihre Länge zu kurz
+    angibt, begrenzt stattdessen die Byte-Grenze - `dictation_max_seconds` plus
+    drei Sekunden zu 32.000 Bytes pro Sekunde -, die Audio mit niedriger Bitrate
+    mit bis zu etwa vierzigmal so vielen Sekunden füllen kann. Das ist das
+    Risiko, das der Administrator beim Einschalten in Kauf nimmt.
+
+Jeder Versuch, der den Provider erreicht, hinterlässt einen Nutzungsdatensatz mit
+der Oberfläche (`hosted` oder `widget`) und dem Agent, und **ohne Person**: ein
+Besucher ist kein Mitglied, und der Aufruf gehört nicht dem, der veröffentlicht
+hat. Das Audio wird nie gespeichert.
+
+**Die Mikrofon-Abfrage gehört der Website des Kunden.** Der Browser fragt im
+Namen der Seite, auf der das Widget läuft, also blockiert sie eine Website, die
+`Permissions-Policy: microphone=()` sendet, ein `<iframe>` ohne
+`allow="microphone"` oder reines HTTP. Das Widget sagt das unter seinem Feld,
+statt stillschweigend zu scheitern.
 
 ---
 
@@ -1250,7 +1385,7 @@ auseinanderlaufen kann.
     und lässt den Chat sagen, mit welchem Agent er spricht, was kein Routing kann.
     `@slug` wird weiterhin geparst — als Alias für den Agent hinter diesem Bot,
     abgelehnt, wenn es irgendeinen anderen nennt.
-- **Eine Sprachnachricht wird transkribiert, wo ein Bot ein Modell bekommen hat.**
+- **Eine Sprachnachricht wird transkribiert, außer der Bot ist ausgeschaltet.**
   Sie ist der eine Anhang, den man einem Agent nicht als Datei übergeben kann: er
   liest ein PDF und sieht sich einen Screenshot an, und ein `audio/ogg`-Blob ist
   eine Byte-Zahl.
@@ -1266,15 +1401,105 @@ auseinanderlaufen kann.
     Bildunterschrift bleibt eine Nachricht, denn das ist es, was jemand geschickt
     hat.
 
-    Welches Modell, ist ein **Paar auf dem Bot** — ein Provider und eines seiner
-    Modelle, aus `app/core/catalog/speech_to_text_models.json` —, gewählt unter
-    **Channels**, und standardmäßig null: Transkription gibt bei jeder Aufnahme
-    das Provider-Guthaben der Organisation aus, also wird sie bewusst aktiviert.
-    Der Schlüssel ist der, der für diesen Provider ohnehin in den Modellprofilen
-    der Organisation konfiguriert ist; es gibt nichts Neues zu speichern. Ein Bot
-    ohne gewähltes Modell sagt, dass er nicht zuhören kann, statt die Aufnahme
-    fallen zu lassen, denn eine Sprachnotiz, die keine Reaktion erzeugt, ist von
-    einem kaputten Bot nicht zu unterscheiden.
+    Das Formular jedes Bots unter **Channels** bietet drei Antworten. **Inherit**,
+    die Voreinstellung, nimmt Provider und Modell des Agents, den der Bot bedient,
+    dann die der Organisation, und die Sprache des Agents, dann die der
+    Organisation ([die Reihenfolge](ml-services.md#which-engine-a-recording-reaches)).
+    **Choose** nennt das eigene Paar des Bots - einen Provider und eines seiner
+    Modelle, aus `app/core/catalog/speech_to_text_models.json` - und den
+    Vault-Schlüssel, mit dem es gesendet wird. **Off** transkribiert nie, was
+    immer der Agent oder die Organisation sagen. Neben der Auswahl nennt
+    Inherit, worauf es sich auflöst, welche der beiden Stellen es gewählt hat und
+    ob diese Ebene noch einen Schlüssel braucht.
+
+    **Das eigene Paar eines Bots braucht einen eigenen Schlüssel**: einen
+    API-Schlüssel, dessen Zweck der Provider ist, und zwar einen, der **für die
+    ganze Organisation sichtbar** ist, denn die Sprachnachrichten eines Bots
+    werden für jeden bezahlt, der ihm schreibt. Der private Schlüssel eines
+    Mitglieds wird beim Speichern des Bots abgelehnt, und einer, der später
+    privat wird, wird nicht mehr benutzt. Die Auswahl bietet nur passende
+    Schlüssel an, sagt, wenn ein Provider keinen hat, und verlinkt auf den Vault,
+    um einen anzulegen. Ein erbender Bot nimmt den Schlüssel der geerbten Ebene
+    zusammen mit deren Paar, nie einen eigenen. Wird der Schlüssel gelöscht,
+    fragt das Paar nach einem neuen, und der Bot transkribiert nichts, bis jemand
+    einen wählt.
+
+    Erben kostet nichts, bis jemand einen Provider einrichtet: ist weder auf dem
+    Agent noch auf der Organisation einer gesetzt, wird nichts transkribiert, und
+    das Provider-Guthaben der Organisation auszugeben bleibt die Entscheidung der
+    Organisation. Ein Bot, der über die CLI oder von einem Client ohne Schalter
+    registriert wird, erbt.
+
+    Ein Bot, der nicht zuhören kann, sagt das, statt die Aufnahme fallen zu
+    lassen, denn eine Sprachnotiz, die keine Reaktion erzeugt, ist von einem
+    kaputten Bot nicht zu unterscheiden - und er sagt, aus welchem Grund, weil
+    jeweils jemand anderes ihn behebt: der Bot ist ausgeschaltet, oder niemand hat
+    einen Provider eingerichtet. Ein Bot ohne gebundenen Agent, oder dessen Agent
+    archiviert ist oder keine Version zum Ausführen hat, transkribiert gar
+    nichts, da die Nachricht ohnehin abgelehnt wird.
+
+    Jede an den Provider geschickte Aufnahme hinterlässt einen
+    [Nutzungsdatensatz](ml-services.md#what-is-recorded), der den Bot, seinen
+    Agent und die Person nennt, mit der das Konto des Absenders verknüpft ist -
+    solange sie noch Mitglied der Organisation ist -, mit der Länge der Aufnahme,
+    wo Telegram, Slack oder der Provider sie angibt.
+
+    !!! note "Upgrade: ein Bot, der nicht transkribiert hat, tut es weiterhin nicht"
+
+        Bevor es diesen Schalter gab, war ein Bot ohne Paar ein Bot, der nicht
+        transkribierte, und die API leerte das Paar, um die Transkription
+        abzuschalten. Die Migration `0107_bot_transcription_switch.py` schaltet
+        jeden solchen Bot auf **off**, sodass keiner von ihnen beim Upgrade
+        anfängt, Audio an einen Provider zu schicken; ein Bot mit Paar behält es.
+        Von da an bekommt ein Client, der das Paar leert, **inherit**, und
+        **off** ist `transcribe_voice_notes: false`, was das Paar ebenfalls
+        leert. Die Sprache der Organisation oder des Agents erreicht jetzt auch
+        einen Bot mit eigenem Paar.
+
+        Ein Bot mit Paar transkribierte bisher auf dem ersten Modellprofil nach
+        Bezeichnung, das einen Schlüssel für seinen Provider hielt. Dieselbe
+        Migration schreibt diesen Schlüssel als den eigenen des Bots fest, sofern
+        er ein organisationsweit sichtbarer API-Schlüssel für den Provider ist und
+        das Profil keine eigene `base_url` hat. Ein Bot ohne solches Profil
+        behält sein Paar ohne Schlüssel: Sein Formular sagt „Schlüssel wählen“,
+        und er transkribiert nichts, bis jemand das tut.
+
+    Was als Sprachnachricht zählt, wird am Typ der Datei abgelesen, und jede
+    Plattform typisiert ihre Dateien anders. Eine Telegram-Sprachnotiz oder
+    -Audiodatei zählt immer. In Slack zählt ein im Eingabefeld aufgenommener
+    Audioclip, welchen Typ Slack ihm auch gibt - ein Clip aus der Handy-App kann
+    als `video/mp4` ankommen -, und ebenso jede hochgeladene Audiodatei. Eine
+    Datei, der die Plattform keinen Typ gegeben hat, zählt, wenn ihre Endung
+    Audio bezeichnet: `.m4a`, `.mp3`, `.ogg`, `.oga`, `.opus`, `.webm` oder
+    `.wav`. Eine untypisierte `.mp4`, die Slack nicht als Clip markiert hat,
+    bleibt eine gewöhnliche Datei: Sie ist weit öfter ein Video, und sie zu
+    transkribieren hieße, eine Tonspur zu bezahlen.
+
+    In Mattermost zählt jede hochgeladene Audiodatei, nach Typ oder Endung. Ein
+    Outgoing Webhook schickt von jeder Datei nur die ID, also schlägt der Router
+    für einen Bot im Webhook-Modus die Datei zuerst mit
+    `GET /api/v4/files/{id}/info` nach; schlägt das fehl, bleibt sie ein
+    gewöhnlicher Anhang. Ein Slack-Clip, der ankommt, bevor Slack ihn fertig
+    verarbeitet hat, hat noch keine Download-URL und wird übersprungen, da der
+    Bot das darauf folgende Ereignis `file_shared` nicht abonniert. Das Backend
+    protokolliert beides und jede an die Transkription geleitete Aufnahme mit
+    Typ und Dateinamen - die Zeile, die man liest, wenn eine nicht gehört wurde.
+
+    Der Provider erhält die Aufnahme als `voice.<ext>`, benannt nach ihrem Typ
+    statt danach, wie jemand die Datei genannt hat: OpenAI und Groq wählen den
+    Decoder nach dem Namen und lehnen `.opus` oder einen Namen ohne Endung für
+    Audio ab, das sie lesen könnten. Eine Telegram-Sprachnotiz ist Ogg/Opus und
+    ein in der Desktop-App von Slack aufgenommener Clip WebM, und Mistral führt
+    keines davon als akzeptiertes Format auf, also kann ein Telegram- oder
+    Slack-Bot, der Mistral erreicht - gewählt oder geerbt -, beim Transkribieren
+    scheitern; das Formular sagt es.
+
+    Sprachnachrichten, die in einem Thread gepostet wurden, bevor der Bot ihm
+    beitrat, werden nicht transkribiert. Die erste Erwähnung liest die früheren
+    Dateien des Threads, und jede Aufnahme darunter zu transkribieren hieße, das
+    Audio eines ganzen Threads für eine Frage abzurechnen. Jede wird stattdessen
+    in der Antwort genannt: „Voice messages sent before I joined this thread are
+    not transcribed - send it again here."
 
     Drei Provider sind dabei: OpenAI, Groq und Mistral, die alle OpenAIs
     `POST /audio/transcriptions` bedienen. Ein Modell hinzuzufügen ist ein Eintrag

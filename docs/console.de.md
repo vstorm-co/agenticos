@@ -1,5 +1,5 @@
 ---
-source_sha: "e7e0d166cfc5"
+source_sha: "f997129511b8"
 ---
 
 # Die Konsole { #the-console }
@@ -156,6 +156,127 @@ warum es das Panel statt eines Spinners gibt — ein Durchlauf, der auf einer Au
 von 0,31 gehandelt hat, ist einen Blick wert. Es bleibt stehen, wenn der Durchlauf
 endet, denn *von der Seite blockiert* ist eine Antwort über die Seite. Schließen Sie
 es, bleibt es für diesen Durchlauf geschlossen.
+
+### Diktieren { #dictation }
+
+Das Mikrofon im Eingabefeld macht aus Sprache Text im Feld und sendet ihn nie:
+Was Sie sagen, landet dort, wo die Einfügemarke stand, als Sie das Mikrofon
+gedrückt haben, bereit zum Bearbeiten, und geht nirgendwohin, bis Sie auf Senden
+drücken. Wie transkribiert wird, entscheidet die Organisation auf
+[der Karte Stimme (Voice)](#the-voice-card):
+
+- **Aus (Off)** — kein Mikrofon.
+- **Browser** — die eigene Spracherkennung des Browsers, das Audio geht also an
+  den Browserhersteller (Google, Apple). Firefox hat keine: sein Mikrofon
+  sagt das, wenn man es drückt.
+- **Server** — der Browser nimmt auf, und dieses Deployment schickt die Aufnahme
+  an den Speech-to-Text-Provider der Organisation oder an
+  [den eigenen des Agents](#an-agents-own-engine), wo er einen nennt. Es
+  funktioniert in jedem Browser, der aufnehmen kann. Den Endpunkt, seine Grenzen
+  und was aufgezeichnet wird, beschreibt
+  [Diktieren im Chat](ml-services.md#dictation-in-chat).
+
+Bei **Server** ersetzt ein Druck auf das Mikrofon die Steuerelemente durch eine
+Aufnahmeleiste: Abbrechen, den Pegel, einen Timer und Stopp. **Enter** stoppt
+und transkribiert, **Escape** bricht ab, und nichts, was während einer laufenden
+Aufnahme oder ihrer Transkription getippt oder gedrückt wird, wird gesendet. Die
+Aufnahme stoppt von selbst beim längsten Diktat der Organisation und wird
+transkribiert, und ein Mikrofon, das mittendrin abgezogen wird, beendet sie
+genauso, statt sie zu verwerfen. Dauert das Hochladen länger als eine Sekunde,
+zeigt die Leiste, wie viel davon schon hochgeladen ist; danach zeigt sie **Wird
+transkribiert**, bis der Text ankommt.
+
+Alles, was das Diktieren zu sagen hat, erscheint in einem Streifen, der unter dem
+Eingabefeld hängt: die Berechtigungsabfrage, ein blockiertes oder fehlendes
+Mikrofon, die letzten 30 Sekunden, fünf Sekunden ohne Ton, eine Aufnahme unter
+einer Sekunde (nicht gesendet), eine Aufnahme, die am Limit gestoppt hat, wie
+viele Wörter eingefügt wurden, und jeder Fehlschlag. Die Wortzahl verschwindet
+nach ein paar Sekunden oder bei Ihrer nächsten Taste. Eine Aufnahme, deren
+Transkription fehlgeschlagen ist, bleibt erhalten, bis Sie **Erneut versuchen (Retry)**
+oder **Verwerfen (Discard)** drücken.
+
+Hat die Organisation Server gewählt, aber für den
+ausgewählten Agent löst sich nichts auf - kein Provider auf dem Agent oder der
+Organisation, oder kein Schlüssel dafür gewählt -, oder ist kein Agent ausgewählt,
+ist das Mikrofon durchgestrichen und sagt, warum; wer `org:settings` hält, bekommt einen Link zur
+Karte Stimme (Voice), und wer Agents bearbeiten darf, einen Link zur Karte Stimme (Voice) dieses Agents.
+
+Das Leuchten unter dem Eingabefeld, während Sie sprechen, folgt
+**Diktieranimation (Voice glow)** unter **Einstellungen → Profil → Darstellung
+(Settings → Profile → Appearance)**, neben Design und **Bewegung (Motion)**:
+**Kräftig (Vivid)**, **Dezent (Subtle)** (der Standard) oder **Aus (Off)**. Es
+wird pro Browser gespeichert. **Bewegung** bestimmt, wie viel Bewegung die ganze
+Konsole zeigt: **System** (der Standard) folgt der Einstellung für reduzierte
+Bewegung im Betriebssystem, **Reduziert (Reduce)** reduziert die Bewegung auch
+ohne sie, und **Voll (Full)** behält sie, was auch immer das Betriebssystem
+sagt. Solange die Bewegung
+reduziert ist, gibt es gar kein Leuchten, der Streifen erscheint ohne Gleiten,
+und der Pegel ist eine fünfstufige Anzeige.
+
+### Die Karte Stimme (Voice) { #the-voice-card }
+
+Auf der Seite **Members** der Organisation, für jemanden mit `org:settings`.
+**Sprache zu Text (Speech to text)** wählt die Engine — Aus, Browser oder Server
+(Off, Browser, Server), jede mit der Angabe, wohin das Audio geht — und für
+Server die längste Aufnahme, von 10 Sekunden bis 10 Minuten. **Standard-Provider
+(Default provider)** darunter ist der Provider und
+das Modell aus dem Speech-to-Text-Katalog und eine Sprache (automatische
+Erkennung oder eine feste Sprache, was genauer ist). Das Feld wird unabhängig
+von der Engine angezeigt, denn es ist auch das, wohin
+[Channel-Bots](channels.md#what-every-channel-shares), die auf Erben (Inherit)
+stehen, ihre Sprachnachrichten schicken; **Keiner (None)** leert es.
+
+**Schlüssel (Key)** neben dem Provider ist der Vault-Schlüssel, mit dem die
+Voreinstellung gesendet wird. Die Liste zeigt die API-Schlüssel, deren Zweck
+dieser Provider ist und die die ganze Organisation sieht - die Plattform gibt
+diesen Schlüssel für das Diktat jedes Mitglieds und jeden erbenden Bot aus, daher
+wird der private Schlüssel eines Mitglieds nicht angeboten und abgelehnt, wenn er
+gesendet wird. Passt genau ein Schlüssel, wird er für Sie gewählt und in jedem
+Fall per ID gespeichert; zur Laufzeit wählt nichts einen Schlüssel. Ein Provider
+ohne Schlüssel ist mit **kein Schlüssel für diesen Provider** markiert, und die
+Auswahl verlinkt auf den Vault, um einen anzulegen. Ist Server gespeichert, kann
+aber nicht laufen — das Modell wurde aus dem Katalog genommen oder der Schlüssel
+gelöscht oder privat gemacht —, sagt die Karte es und bittet, **einen Schlüssel
+zu wählen**, wo dieser fehlt, denn dann sieht jedes Mitglied ein
+durchgestrichenes Mikrofon.
+
+Server ohne Standard-Provider ist eine Einstellung, kein Fehler: Die Karte weist darauf hin, dass nur Agents mit eigenem Provider diktieren. **Sprachgespräche (Voice conversations)** darunter ist
+noch nicht gebaut.
+
+Wer zusätzlich `runs:view` hat, sieht oben auf der Karte eine Zeile dazu, wie viel
+die Organisation in den letzten 30 Tagen transkribiert hat — „42 Min. · 118
+Aufnahmen (30 ohne Länge)“ — aus Diktat, Sprachnachrichten in Kanälen und der
+API zusammen. **Aufschlüsselung anzeigen** listet es nach Agent und nach
+Kanal-Bot auf. Die Minuten zählen nur Aufnahmen, deren Länge gemeldet wurde,
+daher sagt die Zeile, wie viele ohne sind; solange nichts transkribiert wurde,
+ist sie ausgeblendet. Die Zahlen stammen aus
+[`GET /ml/calls/summary`](ml-services.md#what-is-recorded).
+
+### Die eigene Engine eines Agents { #an-agents-own-engine }
+
+Der Tab **Build** eines Agents hat nach seinen Modelleinstellungen eine Karte
+**Stimme (Voice)**, für einen Agent, der anders transkribieren soll als seine
+Organisation. **Erben (Inherit)** behält Provider, Modell und Schlüssel der
+Organisation und zeigt, welche es sind; **Auswählen (Choose)** wählt ein Paar aus
+dem Katalog und den Schlüssel, mit dem es gesendet wird - einen API-Schlüssel für
+diesen Provider, den Sie sehen können, denn das Veröffentlichen leiht ihn jedem,
+der den Agent ausführen darf.
+
+Es ist nie der Schlüssel der Organisation: Ein
+Agent mit eigenem Paar benennt seinen eigenen Schlüssel. Die Sprache wird für
+sich gewählt: die der Organisation erben oder eine festlegen - so kann ein
+polnischer Agent Provider und Schlüssel der Organisation behalten.
+
+Die Überschreibung ist Teil des Specs, wird mit dem Entwurf gespeichert und ist
+live, sobald der Agent veröffentlicht ist, und sie gilt für [das Diktieren](#dictation) an diesen Agent und für Sprachnachrichten,
+die seine Channel-Bots erben.
+[Die Reihenfolge](ml-services.md#which-engine-a-recording-reaches) erklärt den
+Rest.
+
+Die Karte sagt, wann die Überschreibung weniger ändert, als es aussieht: steht
+die Engine der Organisation auf Off oder Browser, erreicht sie nur
+Sprachnachrichten aus Channels, und ohne Provider der Organisation ist sie das,
+worauf das Diktieren an diesen Agent läuft.
 
 ## Wofür jeder Bereich da ist { #what-each-area-is-for }
 

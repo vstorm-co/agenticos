@@ -1819,6 +1819,106 @@ class TestValidateSpec:
             )
 
 
+class TestSpeechToTextRefusedAtPublish:
+    """The agent's speech-to-text override, checked where the Builder can show it.
+
+    The spec model accepts a half-made block so autosave never 422s between two
+    clicks; publish is where it has to be whole. Each spec here names no model
+    profile too, so the problems asserted are that line plus this block's own.
+    """
+
+    _NO_MODEL = "No model selected - pick one before publishing"
+
+    _KEY = str(uuid.uuid4())
+
+    async def _problems(self, *, key_problem: str | None = None, **block: str | None) -> list[str]:
+        spec = _spec(speech_to_text=block, model_profile_id=None)
+        with (
+            patch(
+                f"{REGISTRY_PATH}.SpeechToTextSettingsService.key_problem",
+                new=AsyncMock(return_value=key_problem),
+            ) as checked,
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+        self.checked = checked
+        return [
+            problem for problem in refused.value.details["problems"] if problem != self._NO_MODEL
+        ]
+
+    @pytest.mark.anyio
+    async def test_a_provider_without_a_model_is_refused(self):
+        assert await self._problems(provider="openai") == [
+            "Speech to text needs a provider and a model together - choose both, or "
+            "inherit the organization's"
+        ]
+
+    @pytest.mark.anyio
+    async def test_a_model_without_a_provider_is_refused(self):
+        problems = await self._problems(model="whisper-1")
+
+        assert len(problems) == 1
+        assert "together" in problems[0]
+
+    @pytest.mark.anyio
+    async def test_a_pair_the_catalog_does_not_offer_is_refused(self):
+        assert await self._problems(provider="openai", model="whisper-9") == [
+            "Speech to text: 'whisper-9' is not a transcription model this deployment "
+            "offers for openai"
+        ]
+
+    @pytest.mark.anyio
+    async def test_a_language_transcription_does_not_accept_is_refused(self):
+        assert await self._problems(language="xx") == [
+            "Speech to text: 'xx' is not a language transcription accepts"
+        ]
+
+    @pytest.mark.anyio
+    async def test_a_catalog_pair_its_key_and_a_known_language_publish(self):
+        assert (
+            await self._problems(
+                provider="openai", model="whisper-1", language="pl", secret_id=self._KEY
+            )
+            == []
+        )
+        # Checked as every key a spec names is: the publisher has to be able to
+        # view it, so the publisher's context goes with it.
+        assert str(self.checked.await_args.args[0]) == self._KEY
+        assert self.checked.await_args.kwargs["provider"] == "openai"
+        assert self.checked.await_args.kwargs["ctx"] is not None
+
+    @pytest.mark.anyio
+    async def test_a_pair_without_a_key_is_refused(self):
+        assert await self._problems(provider="openai", model="whisper-1") == [
+            "Speech to text: choose a key for openai to transcribe with"
+        ]
+
+    @pytest.mark.anyio
+    async def test_a_key_the_vault_check_refuses_is_refused(self):
+        """Another organization's, one the publisher cannot view, another kind or
+        another provider's: the check's own sentence, under this block's name."""
+        assert await self._problems(
+            key_problem="That key is not in this organization's vault",
+            provider="openai",
+            model="whisper-1",
+            secret_id=self._KEY,
+        ) == ["Speech to text: That key is not in this organization's vault"]
+
+    @pytest.mark.anyio
+    async def test_a_key_without_a_pair_is_refused(self):
+        problems = await self._problems(secret_id=self._KEY, language="pl")
+
+        assert len(problems) == 1
+        assert "a key goes with a provider and a model" in problems[0]
+        self.checked.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_language_alone_publishes(self):
+        """The organization's provider, this agent's language - the Polish agent
+        in an English organization the issue describes."""
+        assert await self._problems(language="pl") == []
+
+
 class TestSkillValidation:
     """Binding a skill lends it, so publish checks the publisher can read it.
 

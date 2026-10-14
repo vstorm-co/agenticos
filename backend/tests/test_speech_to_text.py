@@ -9,6 +9,7 @@ not the person waiting for an answer.
 from __future__ import annotations
 
 from dataclasses import replace
+from uuid import uuid4
 
 import pytest
 
@@ -116,3 +117,78 @@ def test_the_providers_this_shipped_with_stay_offered(provider: str):
     what the feature was built and documented against, so losing one to a typo or
     a provider rename should fail here rather than in somebody's chat."""
     assert speech_to_text.by_provider(provider) is not None
+
+
+class TestDictationSettings:
+    def test_the_language_list_is_two_letter_codes_and_includes_the_console_locales(self):
+        """Every code is what a provider's `language` field takes, and the
+        console's own languages are among them."""
+        assert all(
+            len(code) == 2 and code.isalpha() and code.islower()
+            for code in speech_to_text.LANGUAGES
+        )
+        assert {"en", "pl", "de", "es"} <= set(speech_to_text.LANGUAGES)
+
+    @pytest.mark.parametrize(
+        ("engine", "pair", "keyed", "ready"),
+        [
+            ("server", "offered", True, True),
+            ("server", "offered", False, False),
+            ("server", None, False, False),
+            ("server", "withdrawn", True, False),
+            ("browser", "offered", True, False),
+            ("off", "offered", True, False),
+        ],
+    )
+    def test_dictation_is_ready_only_on_the_server_with_an_offered_pair_and_its_key(
+        self, engine: str, pair: str | None, keyed: bool, ready: bool
+    ):
+        """A model withdrawn from the catalog since it was chosen, or a key
+        deleted since, reads as not ready, so the composer disables the mic
+        instead of failing on a recording."""
+        entry = speech_to_text.providers()[0]
+        provider, model = {
+            "offered": (entry.provider, entry.models[0].id),
+            "withdrawn": (entry.provider, "a-model-nobody-offers"),
+            None: (None, None),
+        }[pair]
+        secret_id = uuid4() if keyed else None
+        assert (
+            speech_to_text.dictation_ready(
+                engine=engine, provider=provider, model=model, secret_id=secret_id
+            )
+            is ready
+        )
+
+
+class TestTheCatalogRoute:
+    @pytest.mark.anyio
+    async def test_the_catalog_route_lists_the_languages_a_recording_may_be_pinned_to(self):
+        """The Voice card's language select reads this rather than a copy of it."""
+        from app.api.routes.v1.model_providers import list_speech_to_text_models
+
+        result = await list_speech_to_text_models()
+
+        assert result.languages == list(speech_to_text.LANGUAGES)
+        assert "pl" in result.languages
+
+    @pytest.mark.anyio
+    async def test_the_catalog_says_nothing_about_keys(self):
+        """Which keys a provider has is the key picker's to say, from the vault
+        keys the person choosing may name - never a guess made here (#1797)."""
+        from app.api.routes.v1.model_providers import list_speech_to_text_models
+
+        result = await list_speech_to_text_models()
+
+        assert all("credentialed" not in item.model_dump() for item in result.items)
+
+
+@pytest.mark.parametrize(
+    ("provider", "recorded_as"),
+    [("mistral", "wav"), ("openai", "webm"), ("groq", "webm"), (None, "webm"), ("nobody", "webm")],
+)
+def test_the_recording_format_is_the_catalogs_to_say(provider: str | None, recorded_as: str):
+    """One answer for the composer, the hosted page and the widget alike (#1797):
+    Mistral documents WAV and never WebM or Opus. A provider that does not resolve
+    gets a format a browser can make - its recording is refused anyway."""
+    assert speech_to_text.recording_format(provider) == recorded_as

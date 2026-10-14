@@ -137,6 +137,109 @@ acted on a 0.31 pick is one worth looking into. It stays up when the browse ends
 because *blocked by the page* is an answer about the page. Close it and it stays
 closed for that browse.
 
+### Dictation
+
+The microphone in the composer turns speech into text in the box, and never
+sends it: what you said lands where the caret was when you pressed the
+microphone, ready to edit, and goes nowhere until you press Send. How it
+transcribes is the organization's choice, made on [the Voice card](#the-voice-card):
+
+- **Off** — no microphone.
+- **Browser** — the browser's own speech recognition, so the audio goes to the
+  browser vendor (Google, Apple). Firefox has none: its microphone says so
+  when pressed.
+- **Server** — the browser records, and this deployment sends the recording to
+  the organization's speech-to-text provider, or to
+  [the agent's own](#an-agents-own-engine) where it names one. It works in every
+  browser that can record. See [Dictation in chat](ml-services.md#dictation-in-chat)
+  for the endpoint, its limits and what is recorded.
+
+With **Server**, pressing the microphone replaces the controls with a recording
+bar: Cancel, the level, a timer and Stop. **Enter** stops and transcribes,
+**Escape** cancels, and nothing typed or pressed while a recording is running or
+being transcribed is sent. The recording stops by itself at the organization's
+longest dictation and is transcribed, and a microphone unplugged mid-way ends it
+the same way rather than discarding it. While the recording uploads, the bar
+shows how much of it has gone up, once that takes longer than a second; after
+that it says **Transcribing** until the text arrives.
+
+Everything dictation has to say appears in a strip attached under the composer:
+the permission prompt, a blocked or missing microphone, the last 30 seconds, five
+seconds without sound, a recording under a second (not sent), a recording that
+stopped at the limit, how many words were inserted, and every failure. The word
+count goes away after a few seconds or at your next key. A recording that failed
+to transcribe is kept until you press **Retry** or **Discard**.
+
+Where the organization has chosen Server but nothing resolves for
+the agent you picked - no provider on the agent or the organization, or no
+key chosen for it - or no agent is picked, the microphone is crossed out and
+says why; somebody holding `org:settings` is offered a link to the Voice card,
+and somebody who can edit agents a link to this agent's own Voice card.
+
+The glow beneath the composer while you speak follows **Voice glow** under
+**Settings → Profile → Appearance**, beside the theme and **Motion**: **Vivid**,
+**Subtle** (the default) or **Off**. It is remembered per browser. **Motion**
+decides how much the whole console moves: **System** (the default) follows the
+operating system's reduced-motion setting, **Reduce** turns motion down without
+it, and **Full** keeps it whatever the operating system says. While motion is
+reduced there is no glow at all, the strip appears without sliding, and the level
+is a five-step indicator.
+
+### The Voice card
+
+On the organization's **Members** page, for somebody holding `org:settings`.
+**Speech to text** chooses the engine — Off, Browser or Server, each saying where
+the audio goes — and, for Server, the longest recording, from 10 seconds to 10
+minutes. **Default provider**, below it, is the provider and model from the
+speech-to-text catalog and a language (auto-detect, or one fixed language, which
+is more accurate). It is shown whatever the engine, because it is also what
+[channel bots](channels.md#what-every-channel-shares) set to inherit send their
+voice messages to; **None** clears it.
+
+**Key**, beside the provider, is the vault key the default is sent with. It
+lists the API keys whose purpose is that provider and that the whole
+organization can see - the platform spends this key for every member's
+dictation and every inheriting bot, so a member's private key is not offered and
+is refused if sent. With exactly one such key it is chosen for you, and saved by
+name either way; nothing picks a key at run time. A provider with no key is
+marked **no key for this provider** and the picker links to the vault to add
+one. Where Server is stored but cannot run — the model was withdrawn from the
+catalog, or the key was deleted or made private — the card says so, and asks to
+**choose a key** where that is what is missing, because every member then sees
+a crossed-out microphone.
+
+Server with no default provider is a setup rather than a fault: the card notes that only agents with their own provider dictate. **Voice conversations**, below it, is not built yet.
+
+For somebody who also holds `runs:view`, the card opens with one line on what
+the organization transcribed in the last 30 days — "42 min · 118 recordings (30
+without a length)" — across dictation, channel voice messages and the API.
+**Show breakdown** lists it by agent and by channel bot. The minutes count only
+recordings whose length was reported, so the line says how many were not; it is
+hidden while nothing has been transcribed. The figures come from
+[`GET /ml/calls/summary`](ml-services.md#what-is-recorded).
+
+### An agent's own engine
+
+An agent's **Build** tab has a **Voice** card after its model settings, for an
+agent that should transcribe differently from its organization. **Inherit**
+keeps the organization's provider, model and key and shows which they are;
+**Choose** picks a pair from the catalog and the key to send it with - an API key
+for that provider that you can view, since publishing lends it to everybody who
+can run the agent.
+
+The key is never the organization's: an agent with its own
+pair names its own key. The language is chosen on its own: inherit the
+organization's, or fix one - so a Polish agent can keep the organization's
+provider and key. It is part of the
+spec, saved with the draft and live once the agent is published, and it applies
+to [dictation](#dictation) into this agent and to voice messages its channel
+bots inherit. [The order](ml-services.md#which-engine-a-recording-reaches) has
+the rest.
+
+The card says when the override changes less than it looks like: with the
+organization's engine on Off or Browser it reaches only channel voice messages,
+and with no organization provider it is what dictation to this agent runs on.
+
 ## What each area is for
 
 | Area | It holds | Read |

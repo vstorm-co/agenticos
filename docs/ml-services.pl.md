@@ -1,5 +1,5 @@
 ---
-source_sha: "f761c7242a73"
+source_sha: "e2efe341a181"
 ---
 
 # Usługi ML { #the-ml-services }
@@ -121,22 +121,204 @@ niż w ingestii, bo tutaj ktoś czeka, a na ingestię nie czeka nikt.
 
 ### Zamiana mowy na tekst { #speech-to-text }
 
-`POST /api/v1/ml/audio/transcriptions` transkrybuje nagranie na własnych
-poświadczeniach organizacji. `provider` i `model` nazywają, czego użyć; pominięcie **obu** bierze
-pierwszą oferowaną parę wdrożenia, a podanie dostawcy bez modelu bierze pierwszy
-model tego dostawcy. Czego nie robi nigdy, to nie wraca do domyślnego dostawcy,
-gdy dostawca został nazwany — tak właśnie nagranie przeznaczone dla własnego
-silnika trafia do vendora.
+`POST /api/v1/ml/audio/transcriptions` transkrybuje nagranie na kluczu z vaultu
+organizacji. `provider` i `model` nazywają, czego użyć; pominięcie **obu** bierze
+domyślne ustawienie zamiany mowy na tekst organizacji z
+[karty Głos (Voice)](console.md#the-voice-card), a gdy go nie ma — pierwszą
+oferowaną parę wdrożenia; podanie dostawcy bez modelu bierze pierwszy model tego
+dostawcy. Czego nie robi nigdy, to nie wraca do domyślnego dostawcy, gdy dostawca
+został nazwany.
 
 Nagranie podlega też własnemu limitowi 25 MB klienta transkrypcji, nawet gdy
 `ML_MAX_UPLOAD_SIZE_MB` jest wyższy, więc za duże nagranie zostaje odrzucone jako
-za duże, a nie dociera do silnika i wraca jako 503 o poświadczeniach.
+za duże, a nie dociera do silnika i wraca jako 503 o kluczu.
 
-Silnikiem jest ten endpoint, który nazywa model profile organizacji dla danego
-dostawcy. To jest odpowiedź dla wdrożenia, które nie może wysyłać dźwięku do
-dostawcy: skieruj profil na własny serwer mówiący tym samym API, a endpoint tutaj
-się nie zmieni. Organizacja bez użytecznych poświadczeń dostaje odmowę, która to
-mówi — nic nie jest zakładane jako istniejące, czego operator nie skonfigurował.
+**Klucz jest nazwany, nigdy wyszukiwany.** `secret_id` wskazuje klucz z vaultu,
+z którym nagranie zostanie wysłane: klucz API, którego przeznaczeniem jest
+dostawca i który wywołujący widzi. Bez niego używany jest domyślny klucz
+organizacji, ale tylko dla dostawcy, dla którego go wybrano; każdy inny dostawca
+bez `secret_id` dostaje odmowę `not_configured`. Klucz innego dostawcy, innego
+rodzaju albo taki, którego wywołujący nie widzi, jest odrzucany na polu
+`secret_id`. `OPENAI_API_KEY` wdrożenia nie jest używany nigdy.
+
+Każdy poziom konfigurujący zamianę mowy na tekst działa tak samo: model to wybór
+z katalogu zamiany mowy na tekst, a klucz to sekret z vaultu wskazany obok niego.
+Żaden profil modelu nie jest czytany — profile służą runom tekstowym — i nic nie
+wybiera klucza tylko dlatego, że jest jedynym dla danego dostawcy. Przy dwóch
+kluczach OpenAI w vaulcie płaci ten, który wskazano.
+
+!!! note "Nie ma jeszcze własnego serwera zamiany mowy na tekst"
+
+    Każdy dostawca z katalogu jest osiągany pod własnym adresem, z kluczem.
+    Serwer bez klucza w twojej sieci — Whisper za API zgodnym z OpenAI — nie
+    jest dziś osiągalny. To planowany kolejny krok:
+    [usługa lokalna](configuration.md) nowego rodzaju, `speech`, wskazywana
+    zamiast klucza, tak jak kolekcje wskazują już serwer embeddingów albo OCR.
+
+Odmowa mówi dlaczego w `details.reason`, tutaj i przy
+[dyktowaniu](#dictation-in-chat) tak samo. Własny tekst błędu dostawcy trafia do
+logu i nigdy nie jest zwracany, bo klient dostawcy wkłada do swojego komunikatu
+URL żądania razem z kluczem.
+
+| `reason` | Status | Co się stało |
+|---|---|---|
+| `not_configured` | 503 | Dla dostawcy nie wskazano użytecznego klucza — nie wybrano go, usunięto go albo ten poziom nie może go już używać; przy dyktowaniu także brak skonfigurowanego dyktowania na serwerze |
+| `empty` | 400 | Silnik nie usłyszał mowy albo nagranie nie ma bajtów |
+| `unsupported_type` | 400 | Tylko dyktowanie: nagranie nie jest WAV z 16-bitowym PCM 16 kHz mono — ani, gdy wdrożenie przyjmuje skompresowany dźwięk, WebM, Ogg czy MP4 — albo, na hostowanej stronie lub w widgecie, nie da się odczytać długości skompresowanego nagrania. `details.accepted` wymienia przyjmowane typy |
+| `too_large` | 400 | Ponad 25 MB albo ponad limit dyktowania organizacji w bajtach lub w zmierzonej długości; `details.limit_seconds` podaje limit |
+| `provider_error` | 503 | Dostawca odrzucił żądanie albo nie zdołał go obsłużyć |
+| `timeout` | 503 | Dostawca nie odpowiedział w ciągu 60 sekund |
+
+#### Dyktowanie w czacie { #dictation-in-chat }
+
+`POST /api/v1/agents/{agent_id}/dictation` to mikrofon w
+[polu wiadomości `/chat`](console.md#dictation), gdy organizacja transkrybuje na
+serwerze. Przyjmuje jedno nagranie jako `file` i odpowiada `{"text": "..."}`,
+które pole wiadomości wstawia do edycji; nic nie zostaje wysłane, dopóki osoba
+nie naciśnie Wyślij. Wywołujący nie nazywa dostawcy, modelu ani języka —
+[rozwiązują się](#which-engine-a-recording-reaches) z agenta i organizacji — a
+osoba może dyktować do każdego agenta, którego może
+uruchomić, łącznie z osobą z rolą Viewer, która ma na nim grant `use`. Agent, którego
+nie może uruchomić, odpowiada 404, jak wszędzie indziej.
+
+Co odczytuje z organizacji, ustawione na
+[karcie Głos (Voice)](console.md#the-voice-card) przez kogoś z `org:settings`:
+`chat_dictation` (`off`, `browser` albo `server`; wszystko poza `server` zostaje
+odrzucone jako `not_configured`), `speech_to_text_provider` i
+`speech_to_text_model` (para z katalogu speech-to-text),
+`speech_to_text_language` (kod ISO-639-1 albo null, by silnik sam go rozpoznał)
+oraz `dictation_max_seconds` (od 10 do 600, domyślnie 300). Silnik i najdłuższe
+dyktowanie zawsze należą do organizacji; agent może zmienić tylko dostawcę, model
+i język.
+
+`GET /api/v1/agents/{agent_id}/dictation`, z tym samym dostępem, mówi, czy
+mikrofon zadziała, zanim ktokolwiek zacznie nagrywać: `engine`, `max_seconds`,
+`provider`, `format`, `ready`, `server_available` i `unavailable`.
+`server_available` wymaga pary, która rozwiązuje się dla tego agenta, katalogu,
+który nadal ją oferuje, oraz użytecznego klucza wskazanego obok pary —
+sprawdzanego pod kątem istnienia, nigdy nie otwieranego; `ready` to to samo plus
+silnik `server` i agent, który nie jest zarchiwizowany.
+
+Gdy jest fałszywe,
+`unavailable` mówi, czego brakuje: `no_provider` (żaden poziom nie wskazuje
+pary), `not_offered` (katalog ją wycofał) albo `no_key` (nie wskazano
+użytecznego klucza — wybierz go).
+Formularz embeda czyta `server_available`, bo
+[hostowana strona i widget](channels.md#dictation-on-a-widget-or-a-hosted-page)
+nie zależą od silnika `/chat`.
+
+`provider` to ten, do którego trafiłoby nagranie, a `format` to, w czym dla
+niego nagrywać: `wav`, chyba że wdrożenie
+[przyjmuje skompresowany dźwięk](deployment.md#what-a-dictation-may-be-uploaded-as),
+a katalog speech-to-text mówi, że dostawca przyjmuje to, co tworzy
+`MediaRecorder` — wtedy `webm`. Rozstrzygane tutaj, więc żaden klient nie trzyma
+własnej listy. Agent bez niczego opublikowanego odpowiada według ustawień
+organizacji.
+
+**Domyślnie dyktowanie to surowy PCM**: `audio/wav` (albo `audio/x-wav`,
+`audio/wave`) z 16-bitowym całkowitoliczbowym PCM 16 kHz mono, który każda
+przeglądarka nagrywa przez Web Audio. Plik jest czytany ściśle — jeden fragment
+`fmt ` mówiący dokładnie to, jeden fragment `data` z pełnymi próbkami, rozmiary
+zgodne z plikiem — a każdy inny WAV, także stereo, 48 kHz, 24-bitowy czy
+zmiennoprzecinkowy, jest odrzucany jako `unsupported_type`. Dostawca dostaje
+policzone próbki za nagłówkiem zbudowanym przez serwer, nigdy nagłówek
+wywołującego ani inny fragment, który plik zawierał, jako `recording.wav`.
+
+Gdy wdrożenie przyjmuje skompresowany dźwięk, przyjmowane są też `audio/webm`,
+`audio/ogg` i `audio/mp4`, z dopuszczalnym sufiksem kodeka, a `audio/x-m4a`
+i `audio/m4a` są czytane jako `audio/mp4`, a `audio/opus` i `audio/x-ogg` jako
+`audio/ogg`. To właśnie tworzy `MediaRecorder` przeglądarek, a dostawca
+otrzymuje je jako `recording.webm`, `recording.ogg` albo `recording.m4a`, według
+tej samej tabeli, która nazywa notatkę głosową z kanału `voice.<ext>`.
+
+Trasa czyta najwyżej 25 MB treści żądania; limit bajtów organizacji — tyle
+bajtów, ile zajmuje PCM przez `dictation_max_seconds` plus trzy sekundy, 32 000
+na sekundę, i 4 KB na kontener — jest stosowany do tego, co przeczytano. Treść,
+którą limit żądań wdrożenia odrzuca, zanim trasa ruszy, dostaje 413 bez
+`reason`, co pole wiadomości odczytuje jako `too_large`.
+
+Potem **długość jest mierzona**, zanim dostawca zostanie wywołany, a nagranie
+dłuższe niż `dictation_max_seconds` jest odrzucane jako `too_large`, z trzema
+sekundami zapasu, bo pole wiadomości zatrzymuje nagranie przy takcie co sekundę.
+Dla PCM długość to policzone próbki, dokładnie. Długość skompresowanego
+nagrania jest odczytywana z jego własnego nagłówka — ostatniej strony Ogg,
+znaczników czasu bloków WebM, nagłówków filmu albo fragmentów MP4 — który plik
+zbudowany ręcznie może zaniżyć. Nagranie, którego długości nie da się odczytać,
+jest tu przyjmowane w granicach limitu bajtów;
+[hostowana strona i widget](channels.md#what-it-costs-and-what-bounds-it) je
+odrzucają.
+
+Każda osoba może dyktować `RATE_LIMIT_DICTATION_PER_MINUTE` razy na minutę,
+domyślnie 10, na osobnym liczniku, więc dyktowanie nie zużywa limitu usług ML
+integracji. Każde dyktowanie zostawia jeden [zapis wywołania](#what-is-recorded),
+pod `speech_to_text`, liczony w sekundach dźwięku — dla PCM w policzonej
+długości. Pole wiadomości wysyła długość, którą nagrało, jako pole formularza
+`duration` obok `file`, używane tylko dla skompresowanego nagrania, którego
+długości nie podaje nic innego.
+
+**Dźwięk nigdy nie jest przechowywany**: zostaje odrzucony, gdy wywołanie się
+kończy, a tekst istnieje tylko w odpowiedzi. Anulowanie w przeglądarce nie anuluje nagrania już
+wysłanego — dostawca i tak je transkrybuje, obciąża za nie konto organizacji, a
+wywołanie zostaje zapisane.
+
+!!! note "W Mistralu przeglądarka zawsze nagrywa WAV, a transkrybowanych języków jest mniej"
+
+    Mistral dokumentuje dla Voxtrala wejście WAV i MP3, a nie WebM ani Opus,
+    które nagrywają Chrome i Firefox. Dlatego gdy dostawcą, do którego
+    rozwiązuje się nagranie, jest Mistral, pole wiadomości w każdej przeglądarce nagrywa
+    WAV 16 kHz, mono, 16 bitów, nawet gdy wdrożenie przyjmuje skompresowany
+    dźwięk. Przesyłany PCM jest mniej więcej dwa razy większy niż WebM, który
+    zastępuje — 32 000 bajtów na sekundę — a limit długości jest ten sam.
+
+    Lista języków pochodzi z Whispera, którą akceptują OpenAI i Groq. Mistral
+    podaje 13 języków dla Voxtrala, więc ustalony język, którego nie przyjmuje,
+    wraca jako `provider_error`. W Mistralu zostaw język na automatycznym
+    wykrywaniu i wypróbuj nagranie, zanim zaczniesz na nim polegać.
+
+#### Do którego silnika trafia nagranie { #which-engine-a-recording-reaches }
+
+Silnik zamiany mowy na tekst mogą wskazać trzy miejsca:
+[karta Głos (Voice)](console.md#the-voice-card) organizacji, nadpisanie
+[`speech_to_text`](reference/spec.md#speech-to-text) agenta, ustawiane na jego
+własnej [karcie Głos (Voice)](console.md#an-agents-own-engine) i działające po
+opublikowaniu, oraz [bot kanału](channels.md#what-every-channel-shares).
+Rozwiązują się w dwóch połowach:
+
+| Co | Pochodzi z pierwszego, które to ustawia |
+|---|---|
+| Dostawca, model i klucz, razem | Bot, potem agent, potem organizacja |
+| Język | Agent, potem organizacja, potem silnik sam go rozpoznaje |
+
+**Klucz podróżuje ze swoją parą.** Każdy poziom wskazuje klucz obok własnego
+dostawcy i modelu, a trójka rozwiązuje się jako całość: agent z własną parą
+wysyła ją z własnym kluczem, nigdy z kluczem organizacji. Klucz nigdy więc nie
+trafia do dostawcy, który go nie wydał. Jakie klucze może wskazać dany poziom:
+
+| Poziom | Klucz musi być |
+|---|---|
+| Domyślne ustawienie organizacji | Kluczem API dostawcy, **widocznym dla całej organizacji** — platforma wydaje go za wszystkich. Sprawdzane przy zapisie karty Głos i ponownie przy każdym nagraniu |
+| Własna para bota kanału | Tak samo: widocznym dla organizacji, bo za notatki głosowe bota płaci się w imieniu każdego, kto do niego pisze |
+| Nadpisanie agenta | Kluczem API dostawcy, który publikujący widzi — regułą, której podlega każdy klucz wskazany w specu agenta. Sprawdzane przy publikacji |
+
+Klucz, który po wybraniu na poziomie organizacji albo bota stał się prywatny,
+przestaje być używany, zamiast dalej płacić za cudze nagrania. Usunięty klucz
+czyści odwołanie na tych dwóch poziomach, a spec agenta zachowuje identyfikator
+do ponownej publikacji z innym: tak czy inaczej karta Głos i sprawdzenie
+gotowości mówią „wybierz klucz”, a nagrania są odrzucane jako `not_configured`,
+dopóki ktoś tego nie zrobi.
+
+Polski agent w organizacji skonfigurowanej dla angielskiego ustawia więc
+`language: pl` i zachowuje dostawcę i klucz organizacji. Bot nie ma własnego języka;
+język agenta albo organizacji dotyczy także jego własnej pary. Gdy nic się nie
+rozwiązuje, nic nie jest transkrybowane: dyktowanie odpowiada `not_configured`,
+a bot mówi, że nie potrafi słuchać.
+
+Dyktowanie czyta domyślną opublikowaną wersję agenta, tę, którą uruchamia
+`/chat`. Bot czyta agenta, którego obsługuje jego powiązanie — nigdy agenta,
+o którym ktoś wspomni przez `@slug`, bo nagranie jest transkrybowane, zanim
+wzmianki zostaną przekierowane — w wersji, którą przypina środowisko tego
+powiązania, tej, której użyje run. Agent w wersji roboczej albo zarchiwizowany
+nie ma wersji, którą ktokolwiek uruchamia, i odpowiada sama organizacja.
 
 ### Wykrywanie danych osobowych { #personal-data-detection }
 
@@ -195,10 +377,60 @@ wywołania innej organizacji jest nie do znalezienia, tak samo jak każdy inny
 wiersz na tym API.
 
 Zużycie liczy się w jednostce, w której pracuje usługa — strony przy parsowaniu,
-znaki przy skanowaniu — a nie w pieniądzu. Dostarczone usługi działają albo na
-maszynach samego operatora, gdzie nie ma ceny dostawcy, albo na własnym koncie
-dostawcy organizacji, które rozlicza ją wprost. Liczba, której nikt nie pogodzi z
-fakturą, jest gorsza niż uczciwe zliczenie jednostek.
+znaki przy skanowaniu, sekundy dźwięku przy transkrypcji — a nie w pieniądzu.
+Dostarczone usługi działają albo na maszynach samego operatora, gdzie nie ma ceny
+dostawcy, albo na własnym koncie dostawcy organizacji, które rozlicza ją wprost.
+Liczba, której nikt nie pogodzi z fakturą, jest gorsza niż uczciwe zliczenie
+jednostek. Transkrypcja nie wlicza się też do [budgetu](governance.md#budgets)
+agenta.
+
+### Transkrypcje { #transcriptions }
+
+Do zamiany mowy na tekst prowadzą trzy drogi i każda zostawia ten sam wiersz: API
+(`surface: api`), [dyktowanie](#dictation-in-chat) (`chat`) i
+[wiadomości głosowe bota kanału](channels.md#what-every-channel-shares)
+(`channel`). Wiersz dodaje `provider` i `model`, `secret_id` klucza z vaultu,
+z którym je wysłano — tak jak run zapisuje swój klucz, więc „który klucz kosztuje
+najwięcej” ma jedną odpowiedź — `agent_id`, dla którego było nagranie - agenta,
+do którego dyktowano, albo agenta obsługiwanego przez bota - `channel_bot_id`
+oraz `audio_ms`, długość nagrania.
+
+Usunięcie klucza zostawia wiersz i czyści
+jego `secret_id`. `requested_by` wiadomości
+głosowej to osoba, z którą powiązany jest nadawca, dopóki jest członkiem
+organizacji, albo nikt. Zapisywane jest
+tylko nagranie przekazane providerowi; bot wyłączony albo bez silnika do
+odziedziczenia nikogo nie pytał.
+
+Długość to pierwsze znane z poniższych:
+
+| Źródło | Kto ją podaje |
+|---|---|
+| Samo nagranie | Tylko dyktowanie: długość odczytana z kontenera, jak wyżej |
+| Odpowiedź providera | OpenAI `whisper-1` (`usage.seconds`), Groq (`duration`, o które prosi `response_format=verbose_json`), Mistral (`usage.prompt_audio_seconds`) |
+| Metadane platformy | Notatka głosowa albo plik audio z Telegrama, klip ze Slacka |
+| Przeglądarka | Tylko dyktowanie: `duration` wysłane przez pole wiadomości, przycięte do najdłuższego dyktowania organizacji, bo to słowo klienta |
+
+`gpt-4o-transcribe` i `gpt-4o-mini-transcribe` od OpenAI podają tokeny, nie
+sekundy, a Mattermost nie podaje długości, więc wiadomość głosowa tam na tych
+modelach jej nie ma. Udany wiersz liczy wtedy `0` sekund przy pustym `audio_ms` -
+niezmierzone, a nie ciche.
+
+`GET /api/v1/ml/calls` zawęża też po `agent_id`, `channel_bot_id`, `surface`,
+`since` i `until`, a nie tylko po `ml_service`, zawsze w organizacji
+wywołującego: id agenta innej organizacji nie pasuje do niczego. Agent, bot
+i droga — jako filtry i jako kolumny — wymagają `runs:view`, jak podsumowanie
+niżej. Z samym `ml:invoke` filtr po nich jest odrzucany z 403, a w każdym
+wierszu wszystkie trzy wracają jako null.
+
+`GET /api/v1/ml/calls/summary?days=30` sumuje udane transkrypcje w oknie
+czasu: `seconds` — własne `units` każdego wiersza, czyli nagranie zaokrąglone
+w górę do sekundy, zsumowane, więc podsumowanie zgadza się z listą — oraz
+`count`, `count_unknown_length` dla nagrań, których sekundy nie obejmują, oraz to samo według agenta, bota kanału i drogi (`surface`).
+Wymaga `runs:view`, jak [`GET /spend`](governance.md#what-the-cost-screen-shows),
+a nie `ml:invoke`: podział wymienia agentów i boty, których Member może nie
+widzieć. [Karta Głos (Voice)](console.md#the-voice-card) organizacji pokazuje to w
+jednej linijce.
 
 ## Limity { #limits }
 

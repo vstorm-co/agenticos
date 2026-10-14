@@ -13,6 +13,7 @@ from app.core.exceptions import (
     ConcurrentChangeError,
     NotFoundError,
 )
+from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, OrgRoleName, Perm, role_has
 from app.db.locks import LockScope, hold_name, hold_subject, try_hold_name
 from app.db.models.knowledge_base import KnowledgeBase
@@ -30,15 +31,28 @@ from app.schemas.organization import (
     OrganizationRead,
     OrganizationUpdate,
 )
-from app.services import skill_library
+from app.services import skill_library, speech_to_text
 from app.services.deployment_settings import DeploymentSettingsService
 from app.services.file_storage import avatar_filename, get_file_storage
 from app.services.skills import SkillService
+from app.services.speech_to_text_settings import SpeechToTextSettingsService
 
 if TYPE_CHECKING:
     from app.services.rag.vectorstore import BaseVectorStore
 
 logger = logging.getLogger(__name__)
+
+_SPEECH_FIELDS = frozenset(
+    {
+        "chat_dictation",
+        "speech_to_text_provider",
+        "speech_to_text_model",
+        "speech_to_text_secret_id",
+        "speech_to_text_language",
+        "dictation_max_seconds",
+    }
+)
+"""The `/chat` dictation settings (#1797), validated together when any is named."""
 
 
 def _org_read(org: Organization, member_count: int, role: str) -> OrganizationRead:
@@ -59,6 +73,18 @@ def _org_read(org: Organization, member_count: int, role: str) -> OrganizationRe
         role=role,
         monthly_budget_usd=org.monthly_budget_usd,
         chat_may_waive_approvals=org.chat_may_waive_approvals,
+        chat_dictation=org.chat_dictation,
+        speech_to_text_provider=org.speech_to_text_provider,
+        speech_to_text_model=org.speech_to_text_model,
+        speech_to_text_secret_id=org.speech_to_text_secret_id,
+        speech_to_text_language=org.speech_to_text_language,
+        dictation_max_seconds=org.dictation_max_seconds,
+        chat_dictation_ready=speech_to_text.dictation_ready(
+            engine=org.chat_dictation,
+            provider=org.speech_to_text_provider,
+            model=org.speech_to_text_model,
+            secret_id=org.speech_to_text_secret_id,
+        ),
         created_at=org.created_at,
         updated_at=org.updated_at,
     )
@@ -275,6 +301,10 @@ class OrganizationService:
         decision about the approval queue, and somebody who may not decide one
         approval should not be able to switch the queue off for every
         conversation (#925).
+
+        The `/chat` dictation fields fall under `org:settings` with the metadata,
+        and are validated only when one of them is named - so a rename never
+        trips over a dictation setup that went stale (#1797).
         """
         org, membership = await self.get_for_user(org_id, requester_id)
         wants_budget = "monthly_budget_usd" in data.model_fields_set
@@ -311,11 +341,117 @@ class OrganizationService:
                 self.db, org, allowed=data.chat_may_waive_approvals
             )
 
+        if data.model_fields_set & _SPEECH_FIELDS:
+            org = await self._apply_speech_settings(org, data)
+
         return await organization_repo.update(
             self.db,
             org,
             name=data.name,
             avatar_url=data.avatar_url,
+        )
+
+    async def _apply_speech_settings(
+        self, org: Organization, data: OrganizationUpdate
+    ) -> Organization:
+        """Merge the named speech fields over the stored ones, check the result, write it.
+
+        Checked after the merge, because the rules span fields: a pair must be one
+        the catalog offers, and it is sent with a key named beside it - an
+        organization-visible API key for that provider
+        (`SpeechToTextSettingsService.key_problem`), since the platform spends
+        it for everybody. `server` does not need a pair here, because an agent
+        may carry its own (`SpeechToTextSpec`); readiness is per agent.
+
+        Only what the request changes is checked: the pair and its key when it
+        names the provider, the model or the key, and when it names `server`.
+        A rename, or a switch to `off` or `browser`, never trips over a pair
+        that went stale after its model was withdrawn or its key deleted. A
+        refusal names a field the request sent.
+
+        `null` clears the provider, the model, the key and the language; on the
+        engine and the length, which cannot be empty, it leaves the stored value
+        alone. Clearing the pair clears its key with it - a key left behind
+        would ride along to whichever provider is chosen next.
+        """
+        named = data.model_fields_set
+        engine = data.chat_dictation or org.chat_dictation
+        provider = (
+            data.speech_to_text_provider
+            if "speech_to_text_provider" in named
+            else org.speech_to_text_provider
+        )
+        model = (
+            data.speech_to_text_model
+            if "speech_to_text_model" in named
+            else org.speech_to_text_model
+        )
+        secret_id = (
+            data.speech_to_text_secret_id
+            if "speech_to_text_secret_id" in named
+            else org.speech_to_text_secret_id
+        )
+        language = (
+            data.speech_to_text_language
+            if "speech_to_text_language" in named
+            else org.speech_to_text_language
+        )
+        max_seconds = data.dictation_max_seconds or org.dictation_max_seconds
+        pair_field = (
+            "speech_to_text_model"
+            if "speech_to_text_model" in named
+            else "speech_to_text_provider"
+            if "speech_to_text_provider" in named
+            else None
+        )
+        key_named = "speech_to_text_secret_id" in named
+        asks_server = data.chat_dictation == "server"
+        if pair_field is not None or key_named or asks_server:
+            # The engine is named when neither the pair nor the key is, so the
+            # field is one sent.
+            field = pair_field or ("speech_to_text_secret_id" if key_named else "chat_dictation")
+            key_field = "speech_to_text_secret_id" if key_named else field
+            if provider is None or model is None:
+                if provider is not None or model is not None:
+                    raise refused_field(
+                        field, "Choose a provider and a model together, or clear both."
+                    )
+                if key_named and secret_id is not None:
+                    raise refused_field(
+                        key_field, "A key goes with a provider and a model - choose those first."
+                    )
+                secret_id = None
+            elif not speech_to_text.is_offered(provider, model):
+                raise refused_field(
+                    field, "That provider does not offer this model for transcription."
+                )
+            elif secret_id is None:
+                raise refused_field(key_field, f"Choose a key for {provider} to transcribe with.")
+            else:
+                problem = await SpeechToTextSettingsService(self.db).key_problem(
+                    secret_id, organization_id=org.id, provider=provider, ctx=None
+                )
+                if problem is not None:
+                    raise refused_field(key_field, problem)
+            # `server` with no pair here is allowed: an agent may carry its own,
+            # and an agent without one shows a mic that explains it is not set up.
+        if (
+            "speech_to_text_language" in named
+            and language is not None
+            and language not in speech_to_text.LANGUAGES
+        ):
+            raise refused_field(
+                "speech_to_text_language", "Transcription does not accept that language code."
+            )
+        return await organization_repo.set_speech_settings(
+            self.db,
+            org,
+            chat_dictation=engine,
+            provider=provider,
+            model=model,
+            secret_id=secret_id,
+            language=language,
+            max_seconds=max_seconds,
         )
 
     async def delete(self, org_id: UUID, requester_id: UUID) -> None:

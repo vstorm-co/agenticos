@@ -1,5 +1,5 @@
 ---
-source_sha: "e7e0d166cfc5"
+source_sha: "f997129511b8"
 ---
 
 # Konsola { #the-console }
@@ -144,6 +144,114 @@ wybrał. Ta liczba jest powodem, dla którego panel istnieje zamiast spinnera �
 przeglądanie, które zadziałało na wyborze 0.31, warto sprawdzić. Panel zostaje po
 zakończeniu, bo *zablokowane przez stronę* to odpowiedź o stronie. Zamknij go, a
 zostanie zamknięty dla tego przeglądania.
+
+### Dyktowanie { #dictation }
+
+Mikrofon w kompozytorze zamienia mowę na tekst w polu i nigdy go nie wysyła: to,
+co powiesz, trafia tam, gdzie był kursor w chwili naciśnięcia mikrofonu, gotowe
+do edycji, i nie idzie nigdzie, dopóki nie naciśniesz Wyślij. Sposób
+transkrypcji wybiera organizacja, na [karcie Głos (Voice)](#the-voice-card):
+
+- **Wyłączone (Off)** — brak mikrofonu.
+- **Przeglądarka (Browser)** — własne rozpoznawanie mowy przeglądarki, więc dźwięk trafia do jej
+  producenta (Google, Apple). Firefox go nie ma: jego mikrofon mówi o tym po
+  naciśnięciu.
+- **Serwer (Server)** — przeglądarka nagrywa, a to wdrożenie wysyła nagranie do providera
+  speech-to-text organizacji albo do
+  [własnego providera agenta](#an-agents-own-engine), jeśli agent go wskazuje. Działa w każdej przeglądarce, która potrafi nagrywać. Endpoint, jego limity i to, co jest zapisywane, opisuje
+  [Dyktowanie w czacie](ml-services.md#dictation-in-chat).
+
+Przy ustawieniu **Serwer** naciśnięcie mikrofonu zastępuje kontrolki paskiem nagrywania:
+Anuluj, poziom dźwięku, licznik czasu i Stop. **Enter** zatrzymuje i
+transkrybuje, **Escape** anuluje, a nic, co zostanie wpisane albo naciśnięte w
+trakcie nagrywania lub transkrypcji, nie jest wysyłane. Nagranie zatrzymuje się
+samo na najdłuższym dyktowaniu organizacji i zostaje przetranskrybowane, a
+mikrofon odłączony w trakcie kończy je tak samo, zamiast je odrzucić. Gdy
+wysyłanie nagrania trwa dłużej niż sekundę, pasek pokazuje, jaka jego część już
+poszła; potem pokazuje **Przepisywanie**, dopóki nie przyjdzie tekst.
+
+Wszystko, co dyktowanie ma do powiedzenia, pojawia się w pasku przyczepionym pod
+kompozytorem: prośba o uprawnienie, zablokowany albo brakujący mikrofon, ostatnie
+30 sekund, pięć sekund bez dźwięku, nagranie krótsze niż sekunda (niewysłane),
+nagranie zatrzymane na limicie, liczba wstawionych słów i każda porażka. Liczba
+słów znika po kilku sekundach albo przy następnym klawiszu. Nagranie, którego nie
+udało się przetranskrybować, jest zachowywane, dopóki nie naciśniesz **Ponów (Retry)**
+albo **Odrzuć (Discard)**.
+
+Gdy organizacja
+wybrała Server, ale dla wybranego agenta nic się nie rozwiązuje — brak providera
+na agencie i w organizacji albo nie wybrano do niego klucza — albo nie wybrano
+agenta, mikrofon jest przekreślony i mówi dlaczego; osoba z `org:settings`
+dostaje link do karty Głos (Voice), a osoba, która może edytować agenty — link do
+karty Głos (Voice) tego agenta.
+
+Poświata pod kompozytorem, gdy mówisz, idzie za ustawieniem **Animacja
+dyktowania (Voice glow)** w **Ustawienia → Profil → Wygląd (Settings → Profile →
+Appearance)**, obok motywu i ustawienia **Animacje (Motion)**: **Wyrazista
+(Vivid)**, **Subtelna (Subtle)** (domyślnie) albo **Wyłączona (Off)**. Jest
+zapamiętywana dla każdej przeglądarki. **Animacje** decydują, ile ruchu pokazuje
+cała konsola: **Systemowe (System)** (domyślnie) idą za ustawieniem ograniczenia
+ruchu w systemie operacyjnym, **Ograniczone (Reduce)** ograniczają ruch bez
+niego, a **Pełne (Full)** zachowują ruch niezależnie od systemu operacyjnego. Gdy ruch jest ograniczony, nie ma żadnej poświaty, pasek
+pojawia się bez wysuwania, a poziom dźwięku to pięciostopniowy wskaźnik.
+
+### Karta Głos (Voice) { #the-voice-card }
+
+Na stronie **Members** organizacji, dla kogoś z `org:settings`. **Mowa na tekst
+(Speech to text)** wybiera silnik — Wyłączone, Przeglądarka albo Serwer (Off,
+Browser, Server), każdy z informacją, dokąd idzie dźwięk — a dla Serwera
+najdłuższe nagranie, od 10 sekund do 10 minut. **Domyślny provider (Default
+provider)**, pod nim, to provider i model z katalogu speech-to-text oraz język
+(automatyczne wykrywanie albo jeden ustalony język, co jest dokładniejsze). Jest
+pokazywany niezależnie od silnika, bo to także tam
+[boty kanałów](channels.md#what-every-channel-shares) ustawione na dziedziczenie
+wysyłają swoje wiadomości głosowe; **Brak (None)** go czyści.
+
+**Klucz (Key)**, obok providera, to klucz z vaultu, z którym wysyłane jest
+ustawienie domyślne. Lista pokazuje klucze API, których przeznaczeniem jest ten
+provider i które widzi cała organizacja — platforma wydaje ten klucz na
+dyktowanie każdego członka i na każdego dziedziczącego bota, więc prywatny klucz
+członka nie jest oferowany i zostaje odrzucony, jeśli go wysłać. Gdy pasuje
+dokładnie jeden klucz, jest wybierany za ciebie, a i tak zapisywany po
+identyfikatorze; nic nie wybiera klucza w czasie działania. Provider bez klucza
+jest oznaczony **brak klucza dla tego providera**, a wybór linkuje do vaultu, by
+go dodać. Gdy zapisano Server, ale nie może działać — model wycofano z katalogu
+albo klucz usunięto lub uczyniono prywatnym — karta to mówi i prosi o
+**wybranie klucza**, gdy to jego brakuje, bo każdy członek widzi wtedy
+przekreślony mikrofon.
+
+Server bez domyślnego providera to ustawienie, a nie usterka: karta zaznacza, że dyktować mogą tylko agenty z własnym providerem. **Rozmowy głosowe (Voice conversations)**, pod nią, nie jest jeszcze
+zbudowane.
+
+Komuś, kto ma także `runs:view`, karta zaczyna się jedną linijką o tym, ile
+organizacja przetranskrybowała w ostatnich 30 dniach — „42 min · 118 nagrań (30
+bez długości)” — łącznie z dyktowania, wiadomości głosowych z kanałów i API.
+**Pokaż podział** rozpisuje to według agenta i według bota kanału. Minuty liczą
+tylko nagrania, których długość została podana, więc linijka mówi, ilu jej
+brakuje; jest ukryta, dopóki niczego nie przetranskrybowano. Liczby pochodzą z
+[`GET /ml/calls/summary`](ml-services.md#what-is-recorded).
+
+### Własny silnik agenta { #an-agents-own-engine }
+
+Zakładka **Build** agenta ma kartę **Głos (Voice)** po ustawieniach modelu, dla agenta,
+który ma transkrybować inaczej niż jego organizacja. **Dziedzicz (Inherit)** zachowuje
+providera, model i klucz organizacji i pokazuje, które to są; **Wybierz (Choose)**
+wybiera parę z katalogu i klucz, z którym jest wysyłana — klucz API dla tego
+providera, który widzisz, bo publikacja pożycza go każdemu, kto może uruchomić
+agenta.
+
+To nigdy nie jest klucz organizacji: agent z własną parą wskazuje własny
+klucz. Język wybiera się osobno: odziedzicz język organizacji albo ustal jeden —
+więc polski agent może zachować providera i klucz organizacji. To część speca, zapisywana z wersją
+roboczą i działająca, gdy agent zostanie opublikowany, i dotyczy
+[dyktowania](#dictation) do tego agenta oraz wiadomości głosowych, które
+dziedziczą jego boty kanałów. Resztę opisuje
+[kolejność](ml-services.md#which-engine-a-recording-reaches).
+
+Karta mówi, kiedy nadpisanie zmienia mniej, niż się wydaje: gdy silnik
+organizacji jest na Off albo Browser, dociera tylko do wiadomości głosowych z
+kanałów, a gdy organizacja nie ma providera, to na nim działa dyktowanie do tego
+agenta.
 
 ## Do czego służy każdy obszar { #what-each-area-is-for }
 

@@ -34,6 +34,18 @@ const copied = { value: false };
 const copy = vi.fn();
 
 vi.mock("@/hooks", () => ({ useEmbeds: () => state }));
+const readiness = vi.hoisted(() => ({
+  current: { server_available: true } as { server_available: boolean } | null,
+  /** Whether the read of it failed. */
+  failed: false,
+  asked: [] as (string | null)[],
+}));
+vi.mock("@/hooks/use-dictation-status", () => ({
+  useDictationStatus: (agentId: string | null) => {
+    readiness.asked.push(agentId);
+    return { status: readiness.current, failed: readiness.failed };
+  },
+}));
 vi.mock("@/hooks/use-copy-to-clipboard", () => ({
   useCopyToClipboard: () => ({ copy, copied: copied.value }),
 }));
@@ -75,6 +87,9 @@ function page(overrides: Partial<Embed> = {}): Embed {
 }
 
 beforeEach(() => {
+  readiness.current = { server_available: true };
+  readiness.failed = false;
+  readiness.asked = [];
   state.embeds = [];
   state.isLoading = false;
   state.create = { mutate: vi.fn(), isPending: false };
@@ -737,11 +752,11 @@ describe("what a hosted page is allowed to offer", () => {
     render(<EmbedsPanel agentId="a-1" canManage />);
     await pick("page");
 
-    await userEvent.click(screen.getByRole("checkbox", { name: /A microphone in the composer/ }));
+    await userEvent.click(screen.getByRole("radio", { name: /Browser/ }));
     await userEvent.click(screen.getByRole("button", { name: "Publish" }));
 
     const [payload] = state.create.mutate.mock.calls.at(-1)!;
-    expect(payload.config).toMatchObject({ allow_voice: true, allow_new_conversation: true });
+    expect(payload.config).toMatchObject({ dictation: "browser", allow_new_conversation: true });
   });
 
   it("says a fresh thread does not delete the old one", async () => {
@@ -759,7 +774,29 @@ describe("what a hosted page is allowed to offer", () => {
     render(<EmbedsPanel agentId="a-1" canManage />);
     await pick("page");
 
-    expect(screen.getByText(/hands the audio to its vendor/)).toBeInTheDocument();
+    expect(screen.getByText(/sends the audio to its vendor/)).toBeInTheDocument();
+  });
+
+  it("asks the agent whether server dictation would be accepted, and offers it only then", async () => {
+    // The engine-free half of the agent's readiness: a page is not gated by the
+    // organization's `/chat` engine, and a choice the backend would refuse is
+    // not offered.
+    readiness.current = { server_available: false };
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await pick("page");
+
+    expect(readiness.asked).toContain("a-1");
+    expect(screen.getByRole("radio", { name: /Server/ })).toBeDisabled();
+  });
+
+  it("says server can't be checked when the agent's readiness did not load", async () => {
+    readiness.current = null;
+    readiness.failed = true;
+    render(<EmbedsPanel agentId="a-1" canManage />);
+    await pick("widget");
+
+    expect(screen.getByRole("radio", { name: /Server/ })).toBeDisabled();
+    expect(screen.getByText(/Server can't be checked right now/)).toBeInTheDocument();
   });
 
   it("publishes a page that narrates its work and keeps the rest to itself", async () => {

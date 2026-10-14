@@ -1,0 +1,490 @@
+"use client";
+
+import type { ReactNode } from "react";
+import Link from "next/link";
+import { AnimatePresence, motion } from "motion/react";
+import {
+  Check,
+  CircleAlert,
+  Info,
+  Lock,
+  Mic,
+  MicOff,
+  TriangleAlert,
+  type LucideIcon,
+} from "lucide-react";
+import type { useTranslations } from "next-intl";
+
+import { Button } from "@/components/ui";
+import { wordCount, type DictationActions, type DictationState } from "@/hooks/use-dictation";
+import { useReducedMotion } from "@/hooks/use-reduced-motion";
+import { cn } from "@/lib/utils";
+
+import { clock } from "./dictation-bar";
+
+/** One hint, prompt or error under the composer. */
+export interface StripHint {
+  /** Which hint this is: a new key cross-fades the text inside an open strip. */
+  key: string;
+  tone: "hint" | "warn" | "error";
+  icon: LucideIcon;
+  /** The whole message, emphasis and links included. It wraps; it is never cut. */
+  message: ReactNode;
+  actions?: ReactNode;
+  /** Already said aloud elsewhere, so the strip shows it without reading it out again. */
+  quiet?: boolean;
+}
+
+/**
+ * Why the crossed-out microphone is crossed out, when somebody asked: nothing
+ * set up, a pair with no key chosen for it, or no agent to dictate to.
+ */
+export type DictationUnavailable = "not_ready" | "no_key" | "no_agent";
+
+export interface DictationHintInput {
+  state: DictationState;
+  actions: DictationActions;
+  /** The organization's longest recording, for the countdown's sentence. */
+  maxSeconds: number;
+  /** Set while the explanation of a crossed-out microphone is open. */
+  unavailable: DictationUnavailable | null;
+  /** Where an `org:settings` holder sets dictation up; null for everyone else. */
+  voiceSettingsHref: string | null;
+  /** The selected agent's Voice card, for whoever may edit agents; null otherwise. */
+  agentVoiceHref: string | null;
+  /** Closes the explanation of a crossed-out microphone. */
+  closeExplanation: () => void;
+  /**
+   * A hosted page's visitor rather than a member: nobody to ask and nowhere to
+   * go, so "not set up" says what to do instead and names no admin or setting.
+   * `t` is then the visitor's own namespace, whose copy says nothing about
+   * this organization or its console.
+   */
+  visitor?: boolean;
+  /**
+   * The composer announces an insertion itself, in words this strip would
+   * repeat; the note then stays out of the live region. A hosted page has no
+   * announcement of its own, and the strip is it.
+   */
+  insertAnnounced?: boolean;
+}
+
+type Translate = ReturnType<typeof useTranslations>;
+
+/** Keys that change nothing by themselves, so pressing one is not moving on. */
+const MODIFIER_KEYS: ReadonlySet<string> = new Set(["Shift", "Control", "Alt", "Meta"]);
+
+/**
+ * Whether a key pressed in the box ends "Inserted N words": the next real key
+ * is the person working with the text, and the note has done its job.
+ */
+export function movesOn(key: string): boolean {
+  return !MODIFIER_KEYS.has(key);
+}
+
+/** The curve the strip slides on: quick out from behind the box, soft landing. */
+const EASE_OUT = [0.22, 1, 0.36, 1] as const;
+
+const strong = (chunks: ReactNode) => (
+  <strong className="text-foreground font-semibold">{chunks}</strong>
+);
+
+function StripButton({
+  primary = false,
+  disabled = false,
+  label,
+  onClick,
+  children,
+}: {
+  primary?: boolean;
+  disabled?: boolean;
+  /** A name that holds still while the visible text changes. */
+  label?: string;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <Button
+      type="button"
+      size="sm"
+      variant={primary ? "default" : "ghost"}
+      disabled={disabled}
+      aria-label={label}
+      onClick={onClick}
+      className="h-7 px-2.5 text-xs pointer-coarse:h-11"
+    >
+      {children}
+    </Button>
+  );
+}
+
+const SETUP_LINK = "text-foreground font-medium underline underline-offset-[3px]";
+
+/**
+ * The explanation for an engine that is on but not set up: whom to ask, or
+ * where to go - the organization's default, this agent's own, or both.
+ */
+function notSetUp(
+  t: Translate,
+  orgHref: string | null,
+  agentHref: string | null,
+  visitor = false,
+  noKey = false,
+): ReactNode {
+  if (visitor) {
+    return (
+      <>
+        {strong(t("hint.notSetUpTitle"))} {t("hint.notSetUpBody")}
+      </>
+    );
+  }
+  return (
+    <>
+      {noKey ? strong(t("hint.noKeyTitle")) : strong(t("hint.notSetUpTitle"))}{" "}
+      {noKey ? t("hint.noKeyBody") : t("hint.notSetUpBody")}{" "}
+      {orgHref === null && agentHref === null && t("askAdmin")}
+      {orgHref !== null && (
+        <Link href={orgHref} className={SETUP_LINK}>
+          {t("openVoiceSettings")}
+        </Link>
+      )}
+      {orgHref !== null && agentHref !== null && " · "}
+      {agentHref !== null && (
+        <Link href={agentHref} className={SETUP_LINK}>
+          {t("setForAgent")}
+        </Link>
+      )}
+    </>
+  );
+}
+
+/**
+ * What the strip under the composer says, or `null` when it is shut.
+ *
+ * In priority order: the explanation somebody asked for, the browser's
+ * permission prompt, the near-limit countdown, the silence hint, the auto-stop
+ * at the limit while that recording is transcribed, the words a transcript
+ * inserted, then whatever ended the last attempt. Pure, so every branch is a
+ * table row in the test.
+ */
+export function dictationHint(input: DictationHintInput, t: Translate): StripHint | null {
+  const {
+    state,
+    actions,
+    maxSeconds,
+    unavailable,
+    voiceSettingsHref,
+    agentVoiceHref,
+    closeExplanation,
+    visitor = false,
+    insertAnnounced = false,
+  } = input;
+  const dismiss = <StripButton onClick={actions.dismiss}>{t("dismiss")}</StripButton>;
+  const close = <StripButton onClick={closeExplanation}>{t("dismiss")}</StripButton>;
+  const keep = (reason: string, sentence: ReactNode): StripHint => ({
+    key: reason,
+    tone: "error",
+    icon: CircleAlert,
+    message: (
+      <>
+        {strong(t("hint.failedTitle"))} {sentence}{" "}
+        {t("hint.keptBody", { duration: clock(state.elapsed) })}
+      </>
+    ),
+    actions: (
+      <>
+        {/* Inside an alert, a label that ticks would be read out every second. */}
+        {state.retryAfter === null ? (
+          <StripButton primary onClick={actions.retry}>
+            {t("retry")}
+          </StripButton>
+        ) : (
+          <StripButton primary disabled label={t("retry")} onClick={actions.retry}>
+            <span aria-hidden="true">{t("retryCountdown", { seconds: state.retryAfter })}</span>
+          </StripButton>
+        )}
+        <StripButton onClick={actions.dismiss}>{t("discard")}</StripButton>
+      </>
+    ),
+  });
+
+  if (unavailable === "no_agent") {
+    return {
+      key: "noAgent",
+      tone: "hint",
+      icon: MicOff,
+      message: (
+        <>
+          {strong(t("hint.noAgentTitle"))} {t("hint.noAgentBody")}
+        </>
+      ),
+      actions: close,
+    };
+  }
+  if (unavailable === "not_ready" || unavailable === "no_key") {
+    return {
+      key: "notReady",
+      tone: "hint",
+      icon: MicOff,
+      message: notSetUp(t, voiceSettingsHref, agentVoiceHref, false, unavailable === "no_key"),
+      actions: close,
+    };
+  }
+  if (state.phase === "requesting") {
+    return {
+      key: "requesting",
+      tone: "hint",
+      icon: Lock,
+      message: t.rich("hint.requesting", { strong }),
+    };
+  }
+  if (state.phase === "recording" && state.remaining !== null) {
+    return {
+      key: "nearLimit",
+      tone: "warn",
+      icon: TriangleAlert,
+      // The clock ticks every second inside a live region; what is read out is
+      // the sentence beside it, which holds still.
+      message: (
+        <>
+          <span aria-hidden="true">
+            {t.rich("hint.nearLimit", {
+              strong,
+              remaining: clock(state.remaining),
+              limit: clock(maxSeconds),
+            })}
+          </span>
+          <span className="sr-only">
+            {t.rich("hint.nearLimitSpoken", { strong, limit: clock(maxSeconds) })}
+          </span>
+        </>
+      ),
+    };
+  }
+  if (state.phase === "recording" && state.silent) {
+    return {
+      key: "silent",
+      tone: "hint",
+      icon: MicOff,
+      message: t.rich("hint.silent", { strong }),
+    };
+  }
+  if (state.phase === "transcribing" && state.stoppedAtLimit) {
+    return {
+      key: "stoppedAtLimit",
+      tone: "hint",
+      icon: Info,
+      message: t.rich("hint.stoppedAtLimit", { strong, limit: clock(maxSeconds) }),
+    };
+  }
+  if (state.inserted) {
+    return {
+      // Per transcript, so a second insertion cross-fades rather than sitting still.
+      key: `inserted-${state.transcript!.id}`,
+      tone: "hint",
+      icon: Check,
+      message: strong(t("announceInserted", { count: wordCount(state.transcript!.text) })),
+      quiet: insertAnnounced,
+    };
+  }
+  if (state.phase === "too_short") {
+    return {
+      key: "tooShort",
+      tone: "hint",
+      icon: Info,
+      message: t.rich("hint.tooShort", { strong }),
+      actions: dismiss,
+    };
+  }
+  if (state.phase !== "failed") return null;
+
+  switch (state.reason) {
+    case "mic_denied":
+      return {
+        key: "micDenied",
+        tone: "error",
+        icon: Lock,
+        message: t.rich("hint.micDenied", { strong }),
+        actions: (
+          <>
+            <StripButton primary onClick={() => void actions.start()}>
+              {t("tryAgain")}
+            </StripButton>
+            {dismiss}
+          </>
+        ),
+      };
+    case "mic_insecure":
+      return {
+        key: "micInsecure",
+        tone: "hint",
+        icon: Info,
+        message: t.rich("hint.micInsecure", { strong }),
+        actions: dismiss,
+      };
+    case "mic_not_found":
+    case "mic_busy":
+      return {
+        key: state.reason === "mic_busy" ? "micBusy" : "micNotFound",
+        tone: "hint",
+        icon: MicOff,
+        message: t.rich(state.reason === "mic_busy" ? "hint.micBusy" : "hint.micNotFound", {
+          strong,
+        }),
+        actions: (
+          <>
+            <StripButton primary onClick={() => void actions.start()}>
+              {t("tryAgain")}
+            </StripButton>
+            {dismiss}
+          </>
+        ),
+      };
+    case "not_configured":
+      return {
+        key: "notConfigured",
+        tone: "hint",
+        icon: MicOff,
+        message: notSetUp(t, voiceSettingsHref, agentVoiceHref, visitor),
+        actions: dismiss,
+      };
+    case "empty":
+      return {
+        key: "empty",
+        tone: "hint",
+        icon: Mic,
+        message: t.rich("hint.empty", { strong }),
+        actions: (
+          <>
+            <StripButton primary onClick={() => void actions.start()}>
+              {t("recordAgain")}
+            </StripButton>
+            {dismiss}
+          </>
+        ),
+      };
+    case "signed_out":
+      return {
+        key: "signedOut",
+        tone: "error",
+        icon: Lock,
+        message: t.rich("hint.signedOut", { strong }),
+        actions: dismiss,
+      };
+    case "forbidden":
+      return {
+        key: "forbidden",
+        tone: "error",
+        icon: Lock,
+        message: t.rich("hint.forbidden", { strong }),
+        actions: dismiss,
+      };
+    case "too_large":
+      return {
+        key: "tooLarge",
+        tone: "error",
+        icon: CircleAlert,
+        message: t.rich("hint.tooLarge", { strong }),
+        actions: dismiss,
+      };
+    case "unsupported_type":
+      return {
+        key: "unsupported",
+        tone: "error",
+        icon: CircleAlert,
+        message: t.rich("hint.unsupported", { strong }),
+        actions: dismiss,
+      };
+    case "timeout":
+      return keep("timeout", t("hint.timeoutBody"));
+    case "rate_limited":
+      return keep("rateLimited", t("hint.rateLimitedBody"));
+    case "offline":
+      return keep("offline", t("hint.offlineBody"));
+    default:
+      return keep("providerError", t("hint.providerErrorBody"));
+  }
+}
+
+/**
+ * The strip under the composer: attached to the box, sharing its border, and
+ * sliding out from behind it.
+ *
+ * It sits below the box in the stack and is clipped by its own wrapper, so on
+ * the way in it comes out from under the box's bottom edge and on the way out
+ * goes back under it. Swapping one hint for another inside an open strip
+ * cross-fades the text rather than sliding again. Under reduced motion it
+ * appears and disappears at once.
+ *
+ * The text wraps and the strip grows: a hint that only fits in English is a
+ * hint a German reader does not get.
+ *
+ * The polite live region around it is always mounted, empty while the strip is
+ * shut: a region inserted already holding its text is not read out by most
+ * screen readers, so the silence hint would go unheard. An error is its own
+ * `alert`, inserted with each new message, and the region is switched off
+ * around it so it is not read twice; so is a quiet hint, which the page has
+ * already announced.
+ */
+export function DictationStrip({ hint }: { hint: StripHint | null }) {
+  const reduced = useReducedMotion();
+  const slide = reduced ? { duration: 0 } : { duration: 0.23, ease: EASE_OUT };
+  const fade = reduced ? { duration: 0 } : { duration: 0.18, ease: "linear" as const };
+  const error = hint?.tone === "error";
+
+  return (
+    <div data-testid="dictation-strip" aria-live={error || hint?.quiet ? "off" : "polite"}>
+      <AnimatePresence initial={false}>
+        {hint && (
+          <motion.div
+            key="strip"
+            className="relative z-0 overflow-hidden"
+            initial={{ height: 0 }}
+            animate={{ height: "auto" }}
+            exit={{ height: 0 }}
+            transition={slide}
+          >
+            <motion.div
+              data-testid="dictation-strip-panel"
+              initial={{ y: "-100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "-100%" }}
+              transition={slide}
+              className={cn(
+                "border-border text-muted-foreground relative rounded-b-2xl border border-t-0 px-3.5 py-2.5 text-[12.5px] leading-[1.45] break-words transition-colors",
+                error ? "bg-destructive/10" : "bg-muted",
+              )}
+            >
+              <AnimatePresence mode="popLayout" initial={false}>
+                <motion.div
+                  key={hint.key}
+                  role={error ? "alert" : undefined}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={fade}
+                  className="flex flex-wrap items-start gap-x-2.5 gap-y-1.5"
+                >
+                  <hint.icon
+                    aria-hidden="true"
+                    className={cn(
+                      "mt-0.5 h-3.5 w-3.5 shrink-0",
+                      hint.tone === "error" && "text-destructive",
+                      hint.tone === "warn" && "text-warning",
+                    )}
+                  />
+                  <p data-testid="dictation-strip-text" className="min-w-0 flex-[1_1_200px]">
+                    {hint.message}
+                  </p>
+                  {hint.actions && (
+                    <div className="ml-auto flex flex-wrap gap-1.5">{hint.actions}</div>
+                  )}
+                </motion.div>
+              </AnimatePresence>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}

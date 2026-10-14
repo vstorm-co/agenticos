@@ -52,7 +52,7 @@ const KB_STEPS = ["kb-header", "kb-documents", "kb-ingestion", "kb-sync"];
 
 // The organization detail walk: the members page (profile, then the list), then
 // across into the roles matrix. None are inTour — orgs is a "?"-only section.
-const ORG_STEPS = ["org-profile", "org-members", "org-roles"];
+const ORG_STEPS = ["org-profile", "org-voice", "org-members", "org-roles"];
 
 describe("pageKey", () => {
   it("collapses every concrete builder route onto the one builder identity", () => {
@@ -202,10 +202,12 @@ describe("stepsForPage", () => {
 
   it("gives Settings and a workspace their own '?' stop, from any of their routes", () => {
     // Settings collapses its five tabs onto one identity, so help opened on any of
-    // them lands the same stops; a workspace detail has its own. The memory stop
-    // is optional - its card renders only where an agent has written something.
+    // them lands the same stops; a workspace detail has its own. The Appearance
+    // stop is optional - its card is on the profile tab only - and so is the
+    // memory stop, whose card renders only where an agent has written something.
     expect(stepsForPage(ROUTES.SETTINGS_NOTIFICATIONS, () => true).map((s) => s.id)).toEqual([
       "settings-tabs",
+      "settings-appearance",
       "my-memory",
     ]);
     expect(stepsForPage("/workspaces/some-id", () => true).map((s) => s.id)).toEqual([
@@ -288,6 +290,15 @@ describe("stepsForPage", () => {
     expect(stepsForPage("/orgs/some-id/members", () => true).map((step) => step.id)).toEqual(
       ORG_STEPS,
     );
+  });
+
+  it("skips the Voice stop for somebody who may not change organization settings", () => {
+    // The card is hidden from them, and an ungated step would wait on it.
+    expect(
+      stepsForPage("/orgs/some-id/members", (permission) => permission !== Perm.orgSettings).map(
+        (step) => step.id,
+      ),
+    ).toEqual(["org-profile", "org-members", "org-roles"]);
   });
 
   it("walks only the roles matrix from a roles route — the last page of the flow", () => {

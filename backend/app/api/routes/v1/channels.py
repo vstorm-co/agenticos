@@ -59,8 +59,12 @@ async def get_bot(
     bot_id: UUID,
     service: OrgChannelBotSvc,
 ) -> Any:
-    """Get a channel bot by ID."""
-    return await service.get(bot_id)
+    """Get a channel bot by ID.
+
+    Carries `inherited_speech_to_text` - what the bot's voice notes would go to
+    if it inherited its transcription engine - which the listing leaves out.
+    """
+    return await service.read(bot_id)
 
 
 @router.patch(

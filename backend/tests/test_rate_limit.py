@@ -430,3 +430,56 @@ class TestStoringAFileIsCountedTwice:
         )
 
         assert decision.allowed is False
+
+
+class TestAVisitorsDictation:
+    """Every dictation is a paid call outside every model budget (#1797)."""
+
+    async def test_the_address_is_counted_first_then_the_link(self, monkeypatch):
+        monkeypatch.setattr(settings, "RATE_LIMIT_EMBED_DICTATION_PER_MINUTE", 6)
+        monkeypatch.setattr(settings, "RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE", 30)
+        client = _redis([1, 1])
+        rate_limit.configure(client)
+
+        decision = await rate_limit.embed_dictation_allowed(_connection(), public_key="pk_abc")
+
+        assert decision.allowed is True
+        counted = [call.args[0] for call in client.count_in_window.await_args_list]
+        assert counted == [
+            "ratelimit:embed_dictation:ip:203.0.113.7",
+            "ratelimit:embed_dictation:key:pk_abc",
+        ]
+
+    async def test_a_refused_address_never_spends_the_links_allowance(self, monkeypatch):
+        monkeypatch.setattr(settings, "RATE_LIMIT_EMBED_DICTATION_PER_MINUTE", 6)
+        client = _redis([7])
+        rate_limit.configure(client)
+
+        decision = await rate_limit.embed_dictation_allowed(_connection(), public_key="pk_abc")
+
+        assert decision.allowed is False
+        assert client.count_in_window.await_count == 1
+
+    async def test_rotating_addresses_still_meets_the_links_ceiling(self, monkeypatch):
+        """What bounds a leaked link: no visitor can vary the key in the path."""
+        monkeypatch.setattr(settings, "RATE_LIMIT_EMBED_DICTATION_PER_MINUTE", 6)
+        monkeypatch.setattr(settings, "RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE", 30)
+        rate_limit.configure(_redis([1, 31]))
+
+        decision = await rate_limit.embed_dictation_allowed(_connection(), public_key="pk_abc")
+
+        assert decision.allowed is False
+
+    async def test_a_signed_in_visitor_is_counted_by_their_subject(self, monkeypatch):
+        monkeypatch.setattr(settings, "RATE_LIMIT_EMBED_DICTATION_PER_MINUTE", 6)
+        client = _redis([7])
+        rate_limit.configure(client)
+
+        decision = await rate_limit.embed_dictation_visitor_allowed(
+            public_key="pk_abc", visitor="customer-42"
+        )
+
+        assert decision.allowed is False
+        assert client.count_in_window.await_args.args[0] == (
+            "ratelimit:embed_dictation:key:pk_abc:visitor:customer-42"
+        )

@@ -55,7 +55,15 @@ async def update_organization(
     service: OrganizationSvc,
     user: CurrentUser,
 ) -> Any:
-    """Update organization name or avatar. Requires Admin or Owner role."""
+    """Update organization name, avatar or `/chat` voice settings. Requires Admin or Owner role.
+
+    The voice settings - `chat_dictation`, `speech_to_text_provider`,
+    `speech_to_text_model`, `speech_to_text_language` and
+    `dictation_max_seconds` - are checked together, and only when one of them is
+    in the request: the pair is both or neither and one the speech-to-text
+    catalog offers, and the language must be one transcription accepts.
+    `server` needs no pair here, because an agent may carry its own. A refusal names the field it is about.
+    """
     org = await service.update(org_id, data, requester_id=user.id)
     return await service.read_for_user(org.id, user.id)
 

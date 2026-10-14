@@ -1,9 +1,9 @@
 """How often one caller may reach a public surface.
 
-Eight of this platform's surfaces are reachable without a session: the public run
+Ten of this platform's surfaces are reachable without a session: the public run
 API, the widget's script, its config endpoint, its socket, a hosted page's config,
-that page's logo, a public artifact link and the signed address an artifact's page
-is served from. Every one of them reads at least one row before it decides
+that page's logo and its file upload, the dictation a page and a widget share, a
+public artifact link and the signed address an artifact's page is served from. Every one of them reads at least one row before it decides
 anything, and between them and somebody else's model budget there was, until #39,
 nothing at all - a limiter was constructed in `app/core/rate_limit.py`,
 registered on the app, and used by no route, while a second Redis-backed one sat
@@ -174,6 +174,11 @@ def ml_limit() -> Limit:
     return Limit(attempts=settings.RATE_LIMIT_ML_PER_MINUTE)
 
 
+def dictation_limit() -> Limit:
+    """What one person may dictate into the composer, per minute."""
+    return Limit(attempts=settings.RATE_LIMIT_DICTATION_PER_MINUTE)
+
+
 def export_limit() -> Limit:
     """What one caller may ask for a personal-data export, per hour.
 
@@ -315,6 +320,59 @@ async def embed_upload_allowed(
         return by_address
     return await consume(
         surface="embed_upload", caller=f"key:{public_key}:visitor:{visitor}", limit=limit
+    )
+
+
+async def embed_dictation_allowed(connection: HTTPConnection, *, public_key: str) -> Decision:
+    """Whether this caller may send another dictation to this page or widget now.
+
+    **Every dictation is a paid call** to the organization's speech-to-text
+    provider, and it is not part of any model budget - so this is the whole of
+    what bounds a stranger's spend on it. Two counters, both before the key is
+    looked up, and both have to allow it.
+
+    The address first, because it is the one a stranger cannot vary for free.
+    Then the link, which no visitor can vary at all: whatever addresses a script
+    rotates through, one page or widget accepts at most
+    `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` recordings a minute from
+    everybody together, and that number times the organization's longest
+    dictation is the worst a leaked link can cost - `docs/channels.md` works it
+    through. A `jwt` widget also counts per visitor once the token is verified
+    (`embed_dictation_visitor_allowed`), so one signed-in visitor can take at
+    most `RATE_LIMIT_EMBED_DICTATION_PER_MINUTE` of the link's allowance (6 of
+    10 by default) - fewer than all of it, not none of it.
+
+    Both counters are spent here, before the key is looked up or the visitor
+    admitted, so a refused request spends the link's allowance too: anybody
+    with the link can exhaust its minute for everybody else. That costs the
+    organization nothing - no provider is called - and is the price of
+    counting before the database read rather than after it.
+    """
+    by_address = await consume(
+        surface="embed_dictation",
+        caller=f"ip:{caller_ip(connection)}",
+        limit=Limit(attempts=settings.RATE_LIMIT_EMBED_DICTATION_PER_MINUTE),
+    )
+    if not by_address.allowed:
+        return by_address
+    return await consume(
+        surface="embed_dictation",
+        caller=f"key:{public_key}",
+        limit=Limit(attempts=settings.RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE),
+    )
+
+
+async def embed_dictation_visitor_allowed(*, public_key: str, visitor: str) -> Decision:
+    """Whether this verified `jwt` visitor may send another dictation now.
+
+    Keyed on the token's subject, which the customer's backend signed and a
+    visitor cannot mint - unlike a hosted page's continuity key, which is why a
+    page has no counter of this kind.
+    """
+    return await consume(
+        surface="embed_dictation",
+        caller=f"key:{public_key}:visitor:{visitor}",
+        limit=Limit(attempts=settings.RATE_LIMIT_EMBED_DICTATION_PER_MINUTE),
     )
 
 

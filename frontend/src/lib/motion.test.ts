@@ -1,4 +1,6 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { useMotionStore } from "@/stores/motion-store";
 
 import { glideOrJump, prefersReducedMotion } from "./motion";
 
@@ -7,10 +9,14 @@ import { glideOrJump, prefersReducedMotion } from "./motion";
  *
  * A surface that hardcodes `"smooth"` moves the page under somebody who has said
  * at the operating system that motion makes them ill, and the browser applies no
- * preference to `scrollIntoView` on its own.
+ * preference to `scrollIntoView` on its own. The person's own Motion setting
+ * decides first; the operating system only when it is left on System.
  */
 
 const original = window.matchMedia;
+beforeEach(() => {
+  useMotionStore.setState({ motion: "system" });
+});
 afterEach(() => {
   window.matchMedia = original;
 });
@@ -32,6 +38,20 @@ describe("what the reader asked for", () => {
 
     expect(prefersReducedMotion()).toBe(true);
     expect(glideOrJump()).toBe("auto");
+  });
+
+  it("jumps when the console was told Reduce, whatever the OS says", () => {
+    asking(false);
+    useMotionStore.setState({ motion: "reduce" });
+
+    expect(prefersReducedMotion()).toBe(true);
+  });
+
+  it("glides when the console was told Full, whatever the OS says", () => {
+    asking(true);
+    useMotionStore.setState({ motion: "full" });
+
+    expect(prefersReducedMotion()).toBe(false);
   });
 
   it("assumes nothing where there is no browser to ask", () => {

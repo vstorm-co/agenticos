@@ -21,7 +21,7 @@ private variant, which is what keeps "the Builder is just another client" true.
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Query, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile, status
 
 from app.agents.capabilities import all_capabilities
 from app.agents.spec import AgentSpec
@@ -30,7 +30,9 @@ from app.api.deps import (
     AgentRunnerSvc,
     Auth,
     DBSession,
+    MLSvc,
     limit_agent_run,
+    limit_dictation,
     require,
 )
 from app.api.routes.v1._stored_bytes import stored_image_response
@@ -65,7 +67,8 @@ from app.schemas.agent import (
     TemplateInstallRequest,
     TemplateInstallResult,
 )
-from app.services import mcp_catalog, mcp_listing
+from app.schemas.ml import DictationRead, DictationStatusRead
+from app.services import mcp_catalog, mcp_listing, transcription
 from app.services.attachments import load_attached_files
 from app.services.capability_contracts import tool_contracts
 
@@ -535,6 +538,89 @@ async def unarchive_agent(agent_id: UUID, service: AgentRegistrySvc, ctx: Auth) 
 async def delete_agent(agent_id: UUID, service: AgentRegistrySvc, ctx: Auth) -> None:
     """Permanently remove an agent, its versions and its shares."""
     await service.delete(ctx, agent_id)
+
+
+@router.get("/{agent_id}/dictation", response_model=DictationStatusRead)
+async def dictation_status(agent_id: UUID, registry: AgentRegistrySvc, ml: MLSvc, ctx: Auth) -> Any:
+    """Whether the composer can dictate to this agent, and on which provider (#1797).
+
+    The same access as dictating: anyone who may run the agent, a grant included,
+    and a 404 for an agent the caller may not run. Read before the microphone is
+    offered, so nobody records only to be refused, and for the format to record
+    in - WAV, unless the deployment accepts compressed audio and the provider
+    takes WebM. `server_available` is the same answer without the `/chat`
+    engine, for the embed form.
+
+    An agent with nothing published answers from the organization's settings,
+    never with a refusal.
+    """
+    agent = await registry.get(ctx, agent_id, perm=Perm.AGENTS_RUN)
+    status = await ml.dictation_status(ctx, agent=agent)
+    return DictationStatusRead(
+        engine=status.engine,
+        ready=status.ready,
+        server_available=status.server_available,
+        unavailable=status.unavailable,
+        max_seconds=status.max_seconds,
+        provider=status.provider,
+        format=status.format,
+    )
+
+
+@router.post(
+    "/{agent_id}/dictation",
+    response_model=DictationRead,
+    # A rate limit, not a permission gate: access is per agent and decided by the
+    # registry below, which reads the caller's grants on it.
+    dependencies=[Depends(limit_dictation)],
+)
+async def dictate_into_composer(
+    agent_id: UUID,
+    registry: AgentRegistrySvc,
+    ml: MLSvc,
+    ctx: Auth,
+    file: UploadFile = File(
+        ...,
+        description=(
+            "The recording: WAV holding 16 kHz mono 16-bit PCM, or - where the deployment "
+            "accepts compressed audio - WebM, Ogg or MP4 as the browser's MediaRecorder made it"
+        ),
+    ),
+    duration: float | None = Form(
+        default=None,
+        ge=0,
+        description=(
+            "How many seconds the browser recorded. Client-reported: used for the usage "
+            "record only where the provider states no length, and clamped to the "
+            "organization's longest dictation"
+        ),
+    ),
+) -> Any:
+    """Turn a composer recording into text on the organization's own engine (#1797).
+
+    Anyone who may run this agent may dictate to it, a Viewer with a `use` grant
+    included - so this is a per-resource check, not a role gate - and an agent the
+    caller may not run answers 404, as everywhere else. The engine is the
+    organization's; the provider, model and language are the agent's published
+    speech-to-text override where it has one and the organization's otherwise.
+    The caller names none.
+
+    The audio is not stored; the text comes back for the person to edit before
+    sending. Refusals carry `details.reason`: 400 `empty`, `unsupported_type` or
+    `too_large`; 503 `not_configured`, `provider_error` or `timeout`; 429 past
+    `RATE_LIMIT_DICTATION_PER_MINUTE`.
+    """
+    agent = await registry.get(ctx, agent_id, perm=Perm.AGENTS_RUN)
+    text = await ml.dictate(
+        ctx,
+        agent=agent,
+        # One byte past the ceiling, so an oversized body is never copied whole
+        # and the service can still name the limit it is over.
+        content=await file.read(transcription.MAX_BYTES + 1),
+        mime_type=file.content_type or "application/octet-stream",
+        reported_seconds=duration,
+    )
+    return DictationRead(text=text)
 
 
 @router.post(

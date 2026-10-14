@@ -135,6 +135,73 @@ class TestSpecContract:
             AgentSpec(name="x", budget={"max_per_run_usd": 1})
 
 
+class TestSpeechToTextOverride:
+    """The agent's optional speech-to-text block (#1797).
+
+    An optional field with a default, so no `SPEC_VERSION` bump: the free row of
+    the agent-spec skill's table. What is guarded is that it stays free.
+    """
+
+    def test_a_spec_stored_before_the_field_existed_loads_with_no_override(self):
+        """A verbatim document from before the field - not one built from the
+        current model, which could not fail."""
+        stored = {
+            "spec_version": 12,
+            "name": "Support",
+            "instructions": "Be brief.",
+            "model_settings": {},
+            "capabilities": [],
+            "collection_ids": [],
+            "skill_ids": [],
+            "context_ids": [],
+            "mcp_servers": [],
+            "subagents": [],
+            "budget": None,
+            "observability": None,
+        }
+
+        assert AgentSpec.model_validate(stored).speech_to_text is None
+
+    def test_the_override_survives_a_yaml_round_trip(self):
+        spec = AgentSpec(
+            name="Support",
+            speech_to_text={"provider": "openai", "model": "whisper-1", "language": "pl"},
+        )
+
+        assert AgentSpec.from_yaml(spec.to_yaml()) == spec
+        assert spec.speech_to_text is not None
+        assert spec.speech_to_text.language == "pl"
+
+    def test_a_language_alone_is_a_valid_draft(self):
+        """The organization's provider, this agent's language."""
+        spec = AgentSpec(name="Support", speech_to_text={"language": "pl"})
+
+        assert spec.speech_to_text is not None
+        assert spec.speech_to_text.provider is None
+
+    def test_a_half_chosen_pair_is_still_a_draft_that_saves(self):
+        """The pair rule is publish's, so a draft between two clicks is not a 422."""
+        spec = AgentSpec(name="Support", speech_to_text={"provider": "openai"})
+
+        assert spec.speech_to_text is not None
+        assert spec.speech_to_text.model is None
+
+    def test_a_block_with_nothing_in_it_is_stored_as_absent(self):
+        """One spelling for "inherit everything", so a card returned to inherit
+        does not read as an unpublished change."""
+        spec = AgentSpec(
+            name="Support",
+            speech_to_text={"provider": None, "model": None, "language": None},
+        )
+
+        assert spec.speech_to_text is None
+
+    def test_an_unknown_key_in_the_block_is_refused(self):
+        """`extra="forbid"`, like every other block: a typo must not be dropped."""
+        with pytest.raises(ValidationError):
+            AgentSpec(name="Support", speech_to_text={"lang": "pl"})
+
+
 class TestFactory:
     def test_builds_an_agent_with_its_tools(self):
         spec = AgentSpec(

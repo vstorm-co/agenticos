@@ -1,3 +1,6 @@
+import type { EmbedDictation } from "@/types/embeds";
+import type { RecordingFormat } from "@/types/organization";
+
 /**
  * What a hosted page is told about itself before anybody says anything.
  *
@@ -37,9 +40,15 @@ export interface HostedPageConfig {
    * What the page may offer, as the operator set it.
    *
    * Sent rather than decided here: a capability the page turned on for itself
-   * would be one the operator cannot turn off.
+   * would be one the operator cannot turn off. `server` arrives only while a
+   * provider and credential resolve; otherwise the backend sends `off`, so a
+   * visitor gets no microphone rather than a broken one.
    */
-  allow_voice: boolean;
+  dictation: EmbedDictation;
+  /** The organization's longest dictation; the recording stops itself there. */
+  dictation_max_seconds: number;
+  /** What to record in for `server`, from the backend's speech-to-text catalog. */
+  dictation_format: RecordingFormat;
   allow_new_conversation: boolean;
   /**
    * Whether the composer offers to attach a file.

@@ -14,6 +14,24 @@ export type OrgRole = "owner" | "admin" | "builder" | "operator" | "member" | "v
  */
 export type MembershipSource = "manual" | "directory";
 
+/**
+ * How dictation in `/chat` turns speech into text.
+ *
+ * `off` hides the microphone, `browser` uses the browser vendor's own speech
+ * service (absent in Firefox), and `server` records the audio and sends it
+ * through this deployment to the organization's speech-to-text provider.
+ */
+export type DictationEngine = "off" | "browser" | "server";
+
+/**
+ * What the browser records a dictation in: `wav` is 16 kHz mono 16-bit PCM the
+ * page builds itself, and the default; `webm` is whatever `MediaRecorder` makes,
+ * sent only where the deployment accepts compressed audio and the provider
+ * takes it. The backend decides which, so the composer, the hosted page and the
+ * widget never keep a list of their own.
+ */
+export type RecordingFormat = "webm" | "wav";
+
 export interface Organization {
   id: string;
   name: string;
@@ -42,9 +60,52 @@ export interface Organization {
    * take it is `approvals:decide`, which is a different question.
    */
   chat_may_waive_approvals: boolean;
+  /** Which engine the chat composer's microphone uses. */
+  chat_dictation: DictationEngine;
+  /** A provider from the speech-to-text catalog, for the `server` engine. */
+  speech_to_text_provider: string | null;
+  /** A model that provider offers in the catalog. Set and cleared with the provider. */
+  speech_to_text_model: string | null;
+  /**
+   * The vault key the pair is sent with, by id: an organization-visible API key
+   * whose purpose is the provider. Null with a pair means it was deleted, and
+   * dictation waits for another to be chosen.
+   */
+  speech_to_text_secret_id: string | null;
+  /** An ISO-639-1 code recordings are pinned to, or `null` to auto-detect. */
+  speech_to_text_language: string | null;
+  /** The longest dictation in seconds (10-600); the composer's timer stops there. */
+  dictation_max_seconds: number;
+  /**
+   * Whether server dictation is configured: engine `server` with a catalog pair
+   * and a key named for it.
+   *
+   * Read from the settings alone, so a key made private since still reads
+   * `true` here and is refused per recording as `not_configured`.
+   */
+  chat_dictation_ready: boolean;
   created_at: string;
   updated_at: string | null;
 }
+
+/**
+ * The speech settings the Voice card saves in one PATCH.
+ *
+ * The provider, model and key are optional and travel together: naming them
+ * asks the server to check the pair against the catalog and the key against the
+ * provider, so the card sends them only when one changed - a model withdrawn
+ * since must not stop an engine switch.
+ */
+export type VoiceSettingsUpdate = Pick<
+  Organization,
+  "chat_dictation" | "speech_to_text_language" | "dictation_max_seconds"
+> &
+  Partial<
+    Pick<
+      Organization,
+      "speech_to_text_provider" | "speech_to_text_model" | "speech_to_text_secret_id"
+    >
+  >;
 
 export interface OrganizationMember {
   id: string;

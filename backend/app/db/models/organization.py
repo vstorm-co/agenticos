@@ -50,6 +50,14 @@ Declared beside the CHECK constraints that make it true, the way
 the same place the database enforces them.
 """
 
+DictationEngine = Literal["off", "browser", "server"]
+"""How `/chat` dictation transcribes (#1797): not at all, in the browser's own
+speech service, or on the organization's provider through this deployment.
+
+Declared beside `ck_organization_chat_dictation`, which makes it true, for the
+reason `MembershipSourceLiteral` is.
+"""
+
 
 class InvitationStatus(enum.StrEnum):
     PENDING = "pending"
@@ -104,6 +112,36 @@ class Organization(Base, TimestampMixin):
         Boolean, nullable=False, default=False, server_default="false"
     )
 
+    # How `/chat` dictation turns speech into text (#1797). `browser` is today's
+    # Web Speech API and the default, so an upgrade changes nobody's microphone;
+    # `server` sends the recording through this deployment to the provider below.
+    chat_dictation: Mapped[DictationEngine] = mapped_column(
+        String(16), nullable=False, default="browser", server_default="browser"
+    )
+    # A pair from the speech-to-text catalog, both or neither, and the default an
+    # agent or a channel bot inherits.
+    speech_to_text_provider: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    speech_to_text_model: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # The vault key the pair above is sent with: an org-visible `api_key` whose
+    # purpose is the provider, because the platform spends it for everybody.
+    # Named, never looked up - with two keys for one provider, guessing which
+    # one pays is a bill nobody chose. SET NULL on delete, so a deleted key
+    # reads as "choose a key" rather than taking the organization with it.
+    # `use_alter`, because `organization_secrets` points back at this table:
+    # `create_all` and `drop_all` cannot order a cycle and add this constraint
+    # after both tables exist instead.
+    speech_to_text_secret_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("organization_secrets.id", ondelete="SET NULL", use_alter=True),
+        nullable=True,
+    )
+    # ISO-639-1, or NULL to let the engine detect it.
+    speech_to_text_language: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    # The composer stops a recording here; the server's byte cap derives from it.
+    dictation_max_seconds: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=300, server_default="300"
+    )
+
     # How long this organization's data lives, per class, in days. `None` on the
     # column means it has never had an opinion and takes the deployment's
     # defaults; a class absent from the mapping means the same for that class
@@ -133,6 +171,24 @@ class Organization(Base, TimestampMixin):
         CheckConstraint(
             "monthly_budget_usd IS NULL OR monthly_budget_usd > 0",
             name="ck_organization_budget_positive",
+        ),
+        CheckConstraint(
+            "chat_dictation IN ('off', 'browser', 'server')",
+            name="ck_organization_chat_dictation",
+        ),
+        CheckConstraint(
+            "(speech_to_text_provider IS NULL) = (speech_to_text_model IS NULL)",
+            name="ck_organization_speech_pair",
+        ),
+        CheckConstraint(
+            "dictation_max_seconds BETWEEN 10 AND 600",
+            name="ck_organization_dictation_max_seconds",
+        ),
+        # A key belongs to the pair beside it; with no pair it would be a key
+        # for nothing, carried over to whichever provider is chosen next.
+        CheckConstraint(
+            "speech_to_text_secret_id IS NULL OR speech_to_text_provider IS NOT NULL",
+            name="ck_organization_speech_key_needs_pair",
         ),
     )
 

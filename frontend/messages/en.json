@@ -405,8 +405,6 @@
     "pageAllowFilesHint": "The only thing here that lets a stranger store something on this deployment. The file goes through the same checks and parser a member's upload does, under a smaller cap and a limit per visitor - and the agent reads it the way it reads any attachment.",
     "pageAllowNewConversation": "A button to start a fresh thread",
     "pageAllowNewConversationHint": "The old thread is not deleted. It stops being the one this browser resumes.",
-    "pageAllowVoice": "A microphone in the composer",
-    "pageAllowVoiceHint": "Dictation using the visitor's own browser. No audio reaches this deployment and nothing is transcribed here - but a browser that offers it hands the audio to its vendor, so this is off unless you turn it on.",
     "pageCapabilities": "What the page offers",
     "pageShowThinking": "The agent's reasoning",
     "pageShowThinkingHint": "What the model says to itself before it answers. It is not written for anybody to read and it is not an answer you can stand behind.",
@@ -659,7 +657,37 @@
     "whoCanFindIt": "Who can find it",
     "visibilityOrgHint": "Everyone in the organization. A draft still cannot run.",
     "visibilityPrivateHint": "You, and whoever you share it with afterwards.",
-    "preview": "Preview"
+    "preview": "Preview",
+    "voiceTitle": "Voice",
+    "voiceDescription": "How this agent's dictation in chat and its channel voice notes are turned into text. Takes effect when the agent is published.",
+    "voicePair": "Provider and model",
+    "voicePairInherit": "Inherit",
+    "voicePairChoose": "Choose",
+    "voiceInherits": "From the organization: {pair}",
+    "voiceOrgPair": "{provider} · {model}",
+    "voiceOrgNoPair": "The organization has no provider set, so there is nothing to inherit.",
+    "voiceProvider": "Provider",
+    "voiceProviderHint": "From the speech-to-text catalog. Sent with the key chosen below.",
+    "voiceModel": "Model",
+    "voiceLanguage": "Language",
+    "voiceLanguageHint": "A fixed language is more accurate than auto-detect.",
+    "voiceLanguageInherit": "Inherit ({language})",
+    "voiceLanguageAuto": "auto-detect",
+    "voiceLanguageOption": "{name} ({code})",
+    "voiceNoteChannelsOnly": "{engine, select, off {Dictation in chat is off in this organization} other {Chat dictation in this organization runs in the browser}}, so this only changes how voice notes sent to this agent's channel bots are transcribed.",
+    "voiceNoteNoProvider": "The organization has no speech-to-text provider, so dictation to this agent is unavailable until you choose one here.",
+    "voiceNoteOwnProvider": "The organization has no provider of its own; dictation to this agent runs on the one chosen here.",
+    "embedDictation": "Voice input",
+    "embedDictationOff": "Off",
+    "embedDictationOffHint": "No microphone.",
+    "embedDictationBrowser": "Browser",
+    "embedDictationBrowserHint": "The visitor's browser transcribes and sends the audio to its vendor - Google, Apple and others. Nothing reaches this deployment, and not every browser offers it.",
+    "embedDictationServer": "Server",
+    "embedDictationServerHint": "Recorded in the page and transcribed by this organization's speech-to-text provider, on the organization's bill. The audio isn't stored.",
+    "embedDictationServerUnavailable": "Server needs a speech-to-text provider with a credential, chosen on the organization's Voice card or on this agent's.",
+    "embedDictationServerDrift": "No speech-to-text provider answers for this agent right now, so visitors see no microphone until one does.",
+    "embedDictationServerUnchecked": "Server can't be checked right now: this agent's speech-to-text readiness didn't load. Reload the page to try again.",
+    "voiceProviderNoKey": "{name} (no key yet)"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -1276,7 +1304,61 @@
     "browserOpenPanel": "Open in the side panel",
     "browserOpenFull": "Open full screen",
     "conversationActions": "Conversation actions",
-    "imageNotLoaded": "Image (not loaded)"
+    "imageNotLoaded": "Image (not loaded)",
+    "dictation": {
+      "cancel": "Cancel dictation",
+      "cancelTranscription": "Cancel transcription",
+      "cancelTitle": "Cancel (Esc)",
+      "stop": "Stop and transcribe",
+      "stopTitle": "Stop and transcribe (Enter)",
+      "timerLabel": "Recording time",
+      "transcribing": "Transcribing",
+      "ofAudio": "{duration} of audio",
+      "uploading": "Uploading {percent}%",
+      "dismiss": "Dismiss",
+      "discard": "Discard",
+      "retry": "Retry",
+      "retryCountdown": "Retry in {seconds} s",
+      "tryAgain": "Try again",
+      "recordAgain": "Record again",
+      "askAdmin": "Ask an admin to set it up.",
+      "pressToSetUp": "Press the microphone to see where to set it up.",
+      "openVoiceSettings": "Open Voice settings",
+      "setForAgent": "Set one for this agent",
+      "announceRecording": "Recording",
+      "announceTranscribing": "Transcribing",
+      "announceLeft": "{count, plural, =1 {1 second left} other {# seconds left}}",
+      "announceInserted": "{count, plural, =1 {Inserted 1 word} other {Inserted # words}}",
+      "hint": {
+        "requesting": "<strong>Allow the microphone</strong> in your browser's prompt to start recording.",
+        "micDenied": "<strong>Microphone blocked for this site.</strong> Click the icon left of the address bar, set Microphone to Allow, then try again.",
+        "micInsecure": "<strong>This page can't use the microphone.</strong> Browsers open the microphone only on HTTPS or on localhost. Ask your administrator to serve the console over HTTPS.",
+        "micNotFound": "<strong>No microphone found.</strong> The browser sees no input device, so it can't ask for one. Connect a microphone, or check that your system lets the browser use it (on Windows: Settings → Privacy & security → Microphone), then try again.",
+        "micBusy": "<strong>The microphone didn't start.</strong> Another app may be using it, or your system is blocking the browser. Close the other app or check your system's microphone settings, then try again.",
+        "nearLimit": "<strong>{remaining} left.</strong> At {limit} the recording stops and is transcribed.",
+        "nearLimitSpoken": "<strong>The recording is about to stop.</strong> At {limit} it stops and is transcribed.",
+        "stoppedAtLimit": "<strong>Stopped at the {limit} limit.</strong> Transcribing everything up to here.",
+        "silent": "<strong>Can't hear you — is your microphone muted?</strong> Recording continues.",
+        "tooShort": "<strong>That was under a second,</strong> so nothing was sent. Press the microphone, speak, then press Stop.",
+        "empty": "<strong>No speech in that recording.</strong> Check the microphone isn't muted, then record again.",
+        "tooLarge": "<strong>Recording too large to transcribe.</strong> Keep dictations shorter, and attach long audio as a file.",
+        "signedOut": "<strong>You're signed out.</strong> Sign in again, then record again.",
+        "forbidden": "<strong>You're not allowed to dictate to this agent.</strong> Ask an admin for access to it.",
+        "unsupported": "<strong>This browser's recording isn't in a format the server accepts.</strong> Update the browser, or try Chrome or Firefox.",
+        "failedTitle": "Transcription didn't finish.",
+        "providerErrorBody": "The speech-to-text provider answered with an error.",
+        "timeoutBody": "The speech-to-text provider didn't answer in time.",
+        "offlineBody": "The server couldn't be reached.",
+        "rateLimitedBody": "Too many dictations in a minute.",
+        "keptBody": "Your {duration} recording is kept until you retry or discard it.",
+        "notSetUpTitle": "Dictation isn't set up yet.",
+        "notSetUpBody": "This organization transcribes on its own server, and no speech-to-text model is chosen for it or for this agent.",
+        "noAgentTitle": "Pick an agent first.",
+        "noAgentBody": "A dictation is transcribed for the agent this conversation talks to.",
+        "noKeyTitle": "Dictation needs a key.",
+        "noKeyBody": "A speech-to-text model is chosen, but no key for its provider."
+      }
+    }
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",
@@ -2077,7 +2159,41 @@
     "attach": "Attach a file",
     "removeAttachment": "Remove {name}",
     "uploadFailed": "That file could not be attached.",
-    "uploading": "Attaching…"
+    "uploading": "Attaching…",
+    "dictation": {
+      "dismiss": "Dismiss",
+      "discard": "Discard",
+      "retry": "Retry",
+      "retryCountdown": "Retry in {seconds} s",
+      "tryAgain": "Try again",
+      "recordAgain": "Record again",
+      "announceInserted": "{count, plural, =1 {Inserted 1 word} other {Inserted # words}}",
+      "hint": {
+        "requesting": "<strong>Allow the microphone</strong> in your browser's prompt to start recording.",
+        "micDenied": "<strong>Microphone blocked for this site.</strong> Click the icon left of the address bar, set Microphone to Allow, then try again.",
+        "micInsecure": "<strong>This page can't use the microphone.</strong> Browsers open the microphone only on secure (HTTPS) pages. Please type your message instead.",
+        "micNotFound": "<strong>No microphone found.</strong> Connect one, or check that your system lets the browser use it, then try again.",
+        "micBusy": "<strong>The microphone didn't start.</strong> Another app may be using it. Close it, then try again.",
+        "nearLimit": "<strong>{remaining} left.</strong> At {limit} the recording stops and is transcribed.",
+        "nearLimitSpoken": "<strong>The recording is about to stop.</strong> At {limit} it stops and is transcribed.",
+        "stoppedAtLimit": "<strong>Stopped at the {limit} limit.</strong> Transcribing everything up to here.",
+        "silent": "<strong>Can't hear you - is your microphone muted?</strong> Recording continues.",
+        "tooShort": "<strong>That was under a second,</strong> so nothing was sent. Press the microphone, speak, then press Stop.",
+        "empty": "<strong>No speech in that recording.</strong> Check the microphone isn't muted, then record again.",
+        "tooLarge": "<strong>That recording is too long to transcribe.</strong> Try a shorter one.",
+        "signedOut": "<strong>This page's session has ended.</strong> Reload the page, then try again.",
+        "forbidden": "<strong>Voice input isn't allowed here.</strong> Please type your message instead.",
+        "unsupported": "<strong>This browser records audio in a format we can't accept.</strong> Try a recent Chrome or Firefox.",
+        "failedTitle": "Transcription didn't finish.",
+        "providerErrorBody": "The transcription service answered with an error.",
+        "timeoutBody": "The transcription service didn't answer in time.",
+        "offlineBody": "The server couldn't be reached.",
+        "rateLimitedBody": "Too many recordings in a minute.",
+        "keptBody": "Your {duration} recording is kept until you retry or discard it.",
+        "notSetUpTitle": "Voice input isn't available right now.",
+        "notSetUpBody": "Please type your message instead."
+      }
+    }
   },
   "invitations": {
     "acceptSuccess": "Joined organization!",
@@ -3279,6 +3395,10 @@
         "title": "Your settings",
         "body": "Your profile, sign-in and security, notifications, and slash-commands all live behind these tabs — switch between them here."
       },
+      "settings-appearance": {
+        "title": "Appearance",
+        "body": "Pick the theme, how the chat box glows while you dictate, and how much the console moves. Each choice applies at once, in this browser."
+      },
       "skills-list": {
         "title": "Your skills",
         "body": "The skills you've written or installed. An agent picks the ones it needs from its Skills tab, and the same skill can serve several agents at once."
@@ -3322,6 +3442,10 @@
       "artifacts-list": {
         "title": "Published pages",
         "body": "Reports and dashboards your agents published. Open one to see it, pick an earlier version, share it with colleagues or give it a public link."
+      },
+      "org-voice": {
+        "title": "Voice",
+        "body": "Choose how dictation in chat turns speech into text: the browser's own service, or your provider through this deployment."
       }
     }
   },
@@ -3349,6 +3473,21 @@
     "you": "(you)"
   },
   "pages": {
+    "adminDictation": {
+      "title": "Dictation audio",
+      "hint": "What a dictation may be uploaded as, in every organization's composer, hosted pages and widgets.",
+      "toggle": "Accept compressed recordings (WebM, Ogg, MP4)",
+      "toggleHint": "Off, browsers record 16 kHz mono PCM WAV. Its length is its size, so the longest dictation bounds what one recording costs. On, uploads are about half the size, at the risks turning it on lists.",
+      "dialogTitle": "Accept compressed recordings?",
+      "dialogIntro": "Raw PCM is the only format whose length cannot be faked. Read what changes before you turn this on.",
+      "riskLength": "A compressed recording's length is read from the file's own header. A crafted file can understate it, so one dictation can carry far more audio than the maximum length - up to about 40 times as much within the size cap.",
+      "riskPublic": "On public widgets and hosted pages, anyone holding the link can send such files. Transcription is billed to the organization's provider account and is outside agent budgets, so the per-link rate limit no longer bounds the cost to the documented worst case.",
+      "riskScope": "It applies to every organization on this deployment.",
+      "benefit": "The benefit: recordings upload at about an eighth of the size. Turning this off again needs no confirmation.",
+      "acknowledge": "I understand that a dictation's cost is no longer bounded by its maximum length, in any organization.",
+      "cancel": "Keep PCM only",
+      "confirm": "Accept compressed recordings"
+    },
     "retention": {
       "title": "Data retention",
       "description": "How long this organization keeps each class of data, and what the deployment allows.",
@@ -3755,11 +3894,23 @@
       "tokenTooShort": "A token this short is not one the platform issued",
       "transcriptionModel": "Transcription model",
       "transcriptionModelHint": "Which of that provider's models to use.",
-      "transcriptionOff": "Do not transcribe",
       "transcriptionProvider": "Voice transcription",
-      "transcriptionProviderHint": "Which provider turns a voice message into text before the agent reads it.",
+      "transcriptionProviderHint": "This bot's own provider, whatever its agent or the organization use.",
+      "transcriptionInherit": "Inherit",
+      "transcriptionChoose": "Choose",
+      "transcriptionOff": "Off",
+      "transcriptionOffHint": "Voice messages are not transcribed; the sender is told this bot does not listen to them.",
+      "transcriptionInheritHint": "Uses the agent this bot serves, then the organization.",
+      "transcriptionInheritsNothing": "Nothing to inherit: neither the agent nor the organization has a provider, so voice messages are not transcribed.",
+      "transcriptionInheritsFromAgent": "{pair}, from agent {agent}",
+      "transcriptionInheritsFromOrg": "{pair}, from the organization",
+      "transcriptionPair": "{provider} · {model}",
+      "transcriptionEngine": "Provider",
+      "transcriptionMistralFormat": "{platform, select, slack {Slack's desktop app records audio clips as WebM} other {Telegram sends voice messages as Ogg/Opus}}, which Mistral does not list as a format it accepts. They may fail to transcribe; choose another provider for this bot if they do.",
       "webhook": "Webhook",
-      "webhookToken": "No webhook token"
+      "webhookToken": "No webhook token",
+      "transcriptionProviderNoKey": "{name} (no key yet)",
+      "transcriptionInheritedNoKey": "No key is chosen where this pair comes from, so voice messages are not transcribed until one is."
     },
     "invitations": {
       "acceptInvitation": "Accept invitation",
@@ -4969,7 +5120,76 @@
     "waiverAllowed": "Conversations may now waive approvals",
     "waiverFailed": "Could not change whether chats may waive approvals",
     "waiverForbidden": "Conversations may no longer waive approvals",
-    "you": "(you)"
+    "you": "(you)",
+    "voice": {
+      "title": "Voice",
+      "description": "How people in this organization talk to agents.",
+      "sttTitle": "Speech to text",
+      "sttDescription": "Dictation in the chat composer. Text lands in the box for editing; nothing is sent until the person presses Send.",
+      "usage": {
+        "label": "Transcription usage",
+        "summary": "{days, plural, one {Last day} other {Last # days}}: {duration} · {count, plural, one {# recording} other {# recordings}}",
+        "unknown": "({count, plural, one {# without a length} other {# without a length}})",
+        "minutes": "{minutes} min",
+        "underMinute": "under 1 min",
+        "show": "Show breakdown",
+        "hide": "Hide breakdown",
+        "byAgent": "By agent",
+        "byChannel": "By channel bot",
+        "rowStats": "{duration} · {count, plural, one {# recording} other {# recordings}}",
+        "unknownNote": "Minutes count only recordings with a known length. GPT-4o transcription models and Mattermost voice notes report none."
+      },
+      "engineLabel": "Dictation engine",
+      "engines": {
+        "off": {
+          "label": "Off",
+          "hint": "No microphone in chat."
+        },
+        "browser": {
+          "label": "Browser",
+          "hint": "Audio goes to the browser vendor (Google, Apple). Not in Firefox."
+        },
+        "server": {
+          "label": "Server",
+          "hint": "Audio goes through this deployment to the provider you pick. Every browser."
+        }
+      },
+      "defaultTitle": "Default provider",
+      "defaultDescription": "Used by dictation in chat and by voice messages sent to channel bots, unless an agent or a bot chooses its own.",
+      "providerNone": "None",
+      "notReadyTitle": "Dictation is unavailable in chat",
+      "agentsOnlyTitle": "Only agents with their own provider can dictate",
+      "agentsOnlyBody": "No default provider is chosen, so dictation in chat works only for agents that set their own speech-to-text provider in their Voice card. Other agents show a crossed-out microphone. Pick a default here to turn it on for every agent.",
+      "notReadyWithdrawn": "The chosen model, {model}, is no longer offered. Members see a crossed-out microphone until you pick another model or switch the engine.",
+      "provider": "Provider",
+      "providerHint": "From the speech-to-text catalog. Sent with the key chosen below.",
+      "model": "Model",
+      "modelHint": "{provider} models in the speech-to-text catalog.",
+      "language": "Language",
+      "languageAuto": "Auto-detect",
+      "languageHint": "Auto-detect suits mixed teams. A fixed language is more accurate.",
+      "languageHintMistral": "Mistral transcribes fewer languages than this list offers and does not say which recording formats it accepts. Leave it on Auto-detect and try a recording before relying on it.",
+      "languageOption": "{name} ({code})",
+      "maxLength": "Max recording length",
+      "maxLengthHint": "10 s to 10 min. The composer's timer counts to this and stops there.",
+      "maxLengthInvalid": "Enter a length between 10 seconds and 10 minutes.",
+      "unit": "Unit",
+      "seconds": "seconds",
+      "minutes": "minutes",
+      "pathBrowser": "Browser",
+      "pathDeployment": "This deployment",
+      "pathNote": "Sent with the organization's {provider} key chosen below. The audio is discarded after transcription; only the text is kept.",
+      "pathVendor": "Browser vendor's speech service",
+      "browserNote": "The organization's provider is not used. Firefox shows no microphone.",
+      "cancel": "Cancel",
+      "save": "Save changes",
+      "saved": "Voice settings saved",
+      "conversationsTitle": "Voice conversations",
+      "conversationsDescription": "Talk to an agent and hear it answer.",
+      "comingSoon": "Coming soon",
+      "providerNoKey": "{name} (no key yet)",
+      "notReadyNoKey": "No key is chosen for {provider}. Members see a crossed-out microphone until you choose one below or switch the engine."
+    }
   },
   "theme": {
     "darkMode": "Dark mode",
@@ -5098,7 +5318,19 @@
     "whichOne": "Which one",
     "whoCanUse": "Who can use it",
     "yoursAloneYouCan": "Yours alone. You can share it with named people afterwards.",
-    "zendeskApiToken": "Zendesk API token"
+    "zendeskApiToken": "Zendesk API token",
+    "speechKey": {
+      "label": "Key",
+      "choose": "Choose a key",
+      "option": "{name} (…{hint})",
+      "orgHint": "An organization-wide API key for this provider. It is spent for everybody, so a key only some people can see cannot be chosen here.",
+      "agentHint": "An API key for this provider that you can see. Publishing lends it to everyone who can run this agent.",
+      "stale": "The chosen key was deleted or can no longer be used here. Choose a key.",
+      "none": "No {provider} keys in the vault yet. Add one below.",
+      "noneOrg": "No organization-wide {provider} keys in the vault yet. Add one below, or share an existing one with the whole organization.",
+      "cannotList": "You cannot list the vault's keys, so a key cannot be chosen here. Ask someone who manages connections.",
+      "suggestedName": "{provider} speech to text"
+    }
   },
   "context": {
     "created": "Created {name}",
@@ -5567,5 +5799,22 @@
     "add": "Add",
     "mappingAdded": "Mapping added",
     "mappingDeleted": "Mapping deleted"
+  },
+  "voiceGlow": {
+    "title": "Voice glow",
+    "vivid": "Vivid",
+    "subtle": "Subtle",
+    "off": "Off",
+    "reducedMotion": "Off while reduced motion is on"
+  },
+  "appearance": {
+    "description": "How the console looks and moves for you. Kept in this browser and applied at once.",
+    "theme": "Theme",
+    "voiceGlowHint": "How the chat box reacts to your voice while dictating",
+    "motion": "Motion",
+    "system": "System",
+    "reduce": "Reduce",
+    "full": "Full",
+    "motionHint": "System follows your operating system's setting. Reduce turns off the voice glow and slide animations."
   }
 }

@@ -16,8 +16,18 @@ import {
   MarkdownEditor,
   SelectValue,
 } from "@/components/ui";
+import { EmbedDictationField } from "@/components/agents/embed-dictation-field";
 import type { EmbedVariable, HostedLogo, PageConfig } from "@/types/embeds";
 import { useRef } from "react";
+
+/** Whether `server` dictation would be accepted for this agent, and whether it is on already. */
+export interface ServerDictationChoice {
+  /** Null while the agent's readiness is still loading, or when it could not be read. */
+  available: boolean | null;
+  /** The readiness read failed, so `available` stays null and is not on its way. */
+  unchecked: boolean;
+  wasServer: boolean;
+}
 
 const MAX_TITLE = 80;
 const MAX_WELCOME = 600;
@@ -42,6 +52,7 @@ export function PageFields({
   disabled,
   hasCustomLogo,
   onUpload,
+  serverDictation,
   onChange,
 }: {
   config: PageConfig;
@@ -58,6 +69,8 @@ export function PageFields({
    * result.
    */
   onUpload?: (file: File) => void;
+  /** What `EmbedDictationField` needs to offer `server` honestly. */
+  serverDictation: ServerDictationChoice;
   onChange: (config: PageConfig) => void;
 }) {
   const t = useTranslations("agents");
@@ -148,17 +161,6 @@ export function PageFields({
         </Label>
         <Label className="flex items-start gap-2 font-normal">
           <Checkbox
-            checked={config.allow_voice}
-            disabled={disabled}
-            onCheckedChange={(checked) => onChange({ ...config, allow_voice: checked === true })}
-          />
-          <span>
-            <span className="text-sm">{t("pageAllowVoice")}</span>
-            <span className="text-muted-foreground block text-xs">{t("pageAllowVoiceHint")}</span>
-          </span>
-        </Label>
-        <Label className="flex items-start gap-2 font-normal">
-          <Checkbox
             checked={config.allow_files}
             disabled={disabled}
             onCheckedChange={(checked) => onChange({ ...config, allow_files: checked === true })}
@@ -169,6 +171,16 @@ export function PageFields({
           </span>
         </Label>
       </div>
+
+      <EmbedDictationField
+        name="page-dictation"
+        value={config.dictation}
+        disabled={disabled}
+        serverAvailable={serverDictation.available}
+        serverUnchecked={serverDictation.unchecked}
+        wasServer={serverDictation.wasServer}
+        onChange={(dictation) => onChange({ ...config, dictation })}
+      />
 
       <div className="space-y-2">
         <Label>{t("pageShows")}</Label>

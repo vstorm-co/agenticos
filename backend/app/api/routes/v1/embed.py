@@ -19,9 +19,11 @@ from fastapi import (
     APIRouter,
     Depends,
     File,
+    Form,
     Header,
     HTTPException,
     Query,
+    Request,
     Response,
     UploadFile,
     WebSocket,
@@ -33,16 +35,19 @@ from app.api.deps import (
     DBSession,
     EmbedSvc,
     limit_embed_admission,
+    limit_embed_dictation,
     limit_embed_script,
     limit_embed_upload,
     limit_hosted_config,
     limit_hosted_logo,
 )
+from app.api.embed_cors import allow_embed_origin
 from app.api.routes.v1._stored_bytes import stored_image_response
 from app.core.config import settings
 from app.db.session import get_db_context
 from app.schemas.agent_embed import PublicEmbedConfig, PublicPageConfig, PublicUpload
-from app.services import rate_limit
+from app.schemas.ml import DictationRead
+from app.services import rate_limit, transcription
 from app.services.agent_embed import AgentEmbedService, EmbedDenied
 from app.services.embed_session import WIDGET_JS, EmbedSession, continuity_key
 
@@ -264,6 +269,92 @@ async def embed_upload(
     except EmbedDenied:
         raise HTTPException(status_code=404, detail="This page is not available") from None
     return PublicUpload(id=stored.id, filename=stored.filename)
+
+
+@router.post(
+    "/{public_key}/dictation",
+    response_model=DictationRead,
+    dependencies=[Depends(limit_embed_dictation)],
+)
+async def embed_dictation(
+    public_key: str,
+    request: Request,
+    response: Response,
+    service: EmbedSvc,
+    file: Annotated[
+        UploadFile,
+        File(
+            description=(
+                "The recording: WAV holding 16 kHz mono 16-bit PCM, or - where the deployment "
+                "accepts compressed audio - WebM, Ogg or MP4 from MediaRecorder"
+            )
+        ),
+    ],
+    duration: Annotated[
+        float | None,
+        Form(
+            ge=0,
+            description=(
+                "How many seconds the browser recorded. Client-reported, used for the usage "
+                "record only where the provider states no length, and clamped"
+            ),
+        ),
+    ] = None,
+    token: Annotated[
+        str | None,
+        Form(max_length=4096, description="A `jwt` widget's visitor token, as on the socket"),
+    ] = None,
+    visitor: Annotated[str | None, Header(alias="X-Visitor-Key", max_length=64)] = None,
+    origin: Annotated[str | None, Header()] = None,
+) -> Any:
+    """Turn a visitor's recording into text, on a page or a widget set to `server` (#1797).
+
+    Admission follows the surface - see `AgentEmbedService.admit_dictation`: a
+    widget by its allow-list and, in `jwt` mode, the customer's token; a page by
+    its continuity key in `X-Visitor-Key`; a socket not at all. Then the embed's
+    own `dictation` has to be `server` and its agent published. The organization's
+    `/chat` engine has no say here - it is about the console's composer.
+
+    **The widget sends no custom header**, so its request is a simple one with no
+    preflight, and the token travels as a form field: never in the query string,
+    which lands in access logs, and never in a header, which would need a preflight
+    the global CORS policy refuses for somebody else's site. The visitor's origin
+    is what this answers to instead - on success and on every refusal after
+    admission (`app.api.embed_cors`), so a recording too long or a provider timing
+    out reaches the widget as what it is rather than as a network error.
+
+    The audio is not stored, and the text is the visitor's to edit before sending.
+    Refusals carry `details.reason` exactly as `POST /agents/{id}/dictation` does:
+    400 `empty`, `unsupported_type`, `too_large`; 503 `not_configured`,
+    `provider_error`, `timeout`. 404 for every refusal about the embed, and 429
+    past the per-address, per-link or per-visitor limit. Each attempt that reaches
+    the provider is a paid call outside every model budget, which is what those
+    limits are for - `docs/channels.md` gives the worst case for a leaked link.
+    """
+    try:
+        admission = await service.admit_dictation(
+            public_key, origin=origin, token=token, visitor_key=continuity_key(visitor)
+        )
+    except EmbedDenied:
+        raise HTTPException(status_code=404, detail="Dictation is not available here") from None
+    if admission.embed.kind == "widget":
+        # Admitted against the allow-list, so this origin may read what follows.
+        allow_embed_origin(request, origin)
+        if origin:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Vary"] = "Origin"
+    try:
+        text = await service.dictate(
+            admission,
+            # One byte past the ceiling, so an oversized body is never copied whole
+            # and the service can still name the limit it is over.
+            content=await file.read(transcription.MAX_BYTES + 1),
+            mime_type=file.content_type or "application/octet-stream",
+            reported_seconds=duration,
+        )
+    except EmbedDenied:
+        raise HTTPException(status_code=404, detail="Dictation is not available here") from None
+    return DictationRead(text=text)
 
 
 @router.websocket("/{public_key}/ws")

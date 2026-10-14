@@ -1,5 +1,5 @@
 ---
-source_sha: "130cbafc773f"
+source_sha: "c34546b8f0ba"
 ---
 
 # Configuración { #configuration }
@@ -1099,7 +1099,7 @@ Validación en producción: `CORS_ORIGINS` no puede contener `"*"` con
 Se aplican a las superficies que un desconocido puede alcanzar, y solo a ellas: la API
 pública de runs, el script del widget, su configuración, el handshake del socket de
 cualquiera de las dos superficies, la configuración y el logo de una página alojada, y
-la subida de un visitante. Las rutas propias de la consola están detrás de una sesión
+la subida y el dictado de un visitante. Las rutas propias de la consola están detrás de una sesión
 y no se miden — si toda la API debería llevar un techo es una decisión aparte, no
 esta.
 
@@ -1111,6 +1111,9 @@ esta.
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | La configuración de una página alojada, **por página** — y su logo, en un contador propio. Ver más abajo |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Archivos que un visitante puede guardar en una página alojada. Se cuenta **por dirección y por clave de visitante**, y las dos tienen que permitirlo — la clave la acuña el navegador, así que contar solo esa no acota nada |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | Los [servicios de ML](ml-services.md), por llamante. Estos endpoints hacen su trabajo de forma síncrona, así que un llamante sin límite ocupa el pool de parseo en vez de un presupuesto |
+| `RATE_LIMIT_DICTATION_PER_MINUTE` | `10` | [Dictado en el chat](ml-services.md#dictation-in-chat), por persona, en un contador propio para que dictar y una integración que llama a los servicios de ML no se gasten la cuota el uno al otro. Cada dictado es una llamada al provider de pago de la organización |
+| `RATE_LIMIT_EMBED_DICTATION_PER_MINUTE` | `6` | [Dictado en un widget o en una página alojada](channels.md#dictation-on-a-widget-or-a-hosted-page), por dirección, y por visitante en un widget `jwt`. Cada dictado es una llamada al provider de pago de la organización, fuera de todo budget de modelo |
+| `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` | `10` | Lo mismo, por página o widget, de todos los visitantes a la vez - el techo de lo que cuesta un enlace filtrado: este número de grabaciones por minuto, cada una de hasta el dictado más largo de la organización |
 | `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Si `X-Forwarded-For` nombra a quien llama |
 
 **Lo que recibe un llamante rechazado** es el sobre de error propio de esta API con

@@ -48,6 +48,7 @@ from app.agents.capabilities.channel_tools import (
 from app.core.security import encode_untrusted
 from app.db.session import get_db_context
 from app.services.channels import connection_state
+from app.services.channels.attachments import routed_type
 from app.services.channels.base import (
     ChannelAdapter,
     IncomingAttachment,
@@ -65,6 +66,8 @@ logger = logging.getLogger(__name__)
 # Mattermost closes an idle socket; the client is expected to keep it warm.
 _PING_SECONDS = 30.0
 _HTTP_TIMEOUT = 20.0
+_FILE_INFO_CONCURRENCY = 4
+"""How many `GET /files/{id}/info` lookups one webhook post runs at once."""
 
 
 def _posted_at(create_at: Any) -> datetime | None:
@@ -893,10 +896,15 @@ class MattermostAdapter(ChannelAdapter):
         found: list[IncomingAttachment] = []
         for file_id in file_ids:
             entry = described.get(str(file_id), {})
+            name = entry.get("name") or str(file_id)
             found.append(
                 IncomingAttachment(
-                    filename=entry.get("name") or str(file_id),
-                    mime_type=entry.get("mime_type") or "application/octet-stream",
+                    filename=name,
+                    # Typed from the extension when the server sent none, so an
+                    # untyped `.mp3` is heard rather than stored (`routed_type`).
+                    mime_type=routed_type(
+                        entry.get("mime_type"), name, extension=entry.get("extension")
+                    ),
                     size=int(entry.get("size") or 0),
                     handle=f"{base_url}/api/v4/files/{file_id}" if base_url else "",
                 )
@@ -920,6 +928,81 @@ class MattermostAdapter(ChannelAdapter):
             response = await client.get(attachment.handle, headers=self._headers(bot_token))
         response.raise_for_status()
         return response.content
+
+    async def describe_attachments(
+        self, bot_token: str, attachments: list[IncomingAttachment]
+    ) -> list[IncomingAttachment]:
+        """Look up the files an outgoing webhook named by id alone.
+
+        The webhook body carries `file_ids` and nothing about them, so the
+        parser could only call each file by its id and claim no type - and an
+        untyped file is never taken for a voice note. `GET /files/{id}/info`
+        answers the name, extension, size and type the socket would have sent.
+        Only files the parser could not describe are asked about, which on the
+        event stream is none.
+
+        A lookup that fails keeps the file as parsed: it is still delivered as
+        an ordinary attachment, exactly as before this existed, and the log says
+        why it was not recognised. An answer that is not the object it should
+        be - a list, a `size` that is not a number - is a failed lookup too,
+        rather than an exception that would drop the whole turn.
+
+        The lookups run together, at most `_FILE_INFO_CONCURRENCY` at a time:
+        a post carries up to ten files, and asking about them one by one put
+        ten round trips in front of the answer.
+        """
+        gate = asyncio.Semaphore(_FILE_INFO_CONCURRENCY)
+        async with self._client() as client:
+            return list(
+                await asyncio.gather(
+                    *(
+                        self._describe_one(client, gate, bot_token, attachment)
+                        for attachment in attachments
+                    )
+                )
+            )
+
+    async def _describe_one(
+        self,
+        client: httpx.AsyncClient,
+        gate: asyncio.Semaphore,
+        bot_token: str,
+        attachment: IncomingAttachment,
+    ) -> IncomingAttachment:
+        """One file's details from `GET /files/{id}/info`, or the file as parsed."""
+        # `_attachments` names a file with no metadata after its id, which
+        # is the last segment of its handle.
+        if not attachment.handle or not attachment.handle.endswith(f"/{attachment.filename}"):
+            return attachment
+        try:
+            async with gate:
+                response = await client.get(
+                    f"{attachment.handle}/info", headers=self._headers(bot_token)
+                )
+            response.raise_for_status()
+            info = response.json()
+            name = str(info.get("name") or attachment.filename)
+            claimed, extension = info.get("mime_type"), info.get("extension")
+            return IncomingAttachment(
+                filename=name,
+                mime_type=routed_type(
+                    claimed if isinstance(claimed, str) else None,
+                    name,
+                    extension=extension if isinstance(extension, str) else None,
+                ),
+                size=int(info.get("size") or 0),
+                handle=attachment.handle,
+            )
+        # Beside the transport's own failures: an answer that is not an object
+        # has no `.get` (AttributeError), and a `size` that is a word, a list or
+        # not finite does not convert (ValueError, TypeError, OverflowError).
+        except (httpx.HTTPError, ValueError, TypeError, OverflowError, AttributeError):
+            logger.warning(
+                "Could not look up a Mattermost file's details: file=%s",
+                attachment.filename,
+                exc_info=True,
+            )
+            return attachment
 
     def _from_webhook(self, payload: dict[str, Any], bot_id: str) -> IncomingMessage | None:
         """Normalise one outgoing-webhook body.

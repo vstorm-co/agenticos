@@ -1059,7 +1059,7 @@ Production validation: `CORS_ORIGINS` cannot contain `"*"` in
 
 Applied to the surfaces a stranger can reach, and only those: the public run API,
 the widget's script, its config, either surface's socket handshake, a hosted
-page's config and logo, and a visitor's upload. The console's own routes are
+page's config and logo, and a visitor's upload and dictation. The console's own routes are
 behind a session and are not metered — whether the whole API should carry a
 ceiling is a separate decision, not this one.
 
@@ -1071,6 +1071,9 @@ ceiling is a separate decision, not this one.
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | A hosted page's config, **per page** — and its logo, on a counter of its own. See below |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Files a visitor may store on a hosted page. Counted **per address and per visitor key**, and both have to allow it — the key is minted by the browser, so counting only that bounds nothing |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | The [ML services](ml-services.md), per caller. These endpoints do their work synchronously, so an unbounded caller occupies the parsing pool rather than a budget |
+| `RATE_LIMIT_DICTATION_PER_MINUTE` | `10` | [Dictation in chat](ml-services.md#dictation-in-chat), per person, on its own counter so dictating and an integration calling the ML services do not spend each other's allowance. Each one is a call to the organization's paid provider |
+| `RATE_LIMIT_EMBED_DICTATION_PER_MINUTE` | `6` | [Dictation on a widget or a hosted page](channels.md#dictation-on-a-widget-or-a-hosted-page), per address, and per visitor on a `jwt` widget. Each one is a call to the organization's paid provider, outside every model budget |
+| `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` | `10` | The same, per page or widget, from every visitor together - the ceiling on what a leaked link costs: this many recordings a minute, each up to the organization's longest dictation |
 | `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Whether `X-Forwarded-For` names the caller |
 
 **What a refused caller gets** is this API's own error envelope with

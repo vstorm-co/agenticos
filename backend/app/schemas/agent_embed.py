@@ -8,12 +8,16 @@ is why `config` is one discriminated union rather than three columns with two of
 them inert on every row.
 """
 
-from typing import Annotated, Literal
+import logging
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import Field, HttpUrl, field_validator
+from pydantic import Field, HttpUrl, field_validator, model_validator
 
 from app.schemas.base import BaseSchema, TimestampSchema
+from app.services.speech_to_text import RecordingFormat
+
+logger = logging.getLogger(__name__)
 
 AuthMode = Literal["public", "jwt"]
 
@@ -25,6 +29,26 @@ changeable either: every tag already pasted, every client already written and
 every link already sent names this row, and turning a widget into a page would
 change what all three do without touching any of them.
 """
+
+
+DictationMode = Literal["off", "browser", "server"]
+"""How a visitor's microphone turns speech into text on a public surface (#1797).
+
+`off` offers no microphone. `browser` uses the browser's own speech recognition,
+which hands the audio to the browser's vendor and never to this deployment.
+`server` records in the page and sends the audio to the organization's own
+speech-to-text provider - the agent's override or the organization's - which is
+billed to the organization and counted against nothing a model run is.
+"""
+
+_DICTATION_DESCRIPTION = (
+    "How a visitor dictates: `off`, `browser` (the browser's own speech recognition - "
+    "the audio goes to the browser's vendor, and nothing reaches this deployment) or "
+    "`server` (recorded in the page and transcribed by the organization's own "
+    "speech-to-text provider, on the organization's bill). `server` is refused when it "
+    "is switched on while no provider and credential resolve for the agent; a page or "
+    "widget whose provider goes away later offers no microphone rather than a broken one."
+)
 
 
 class WidgetConfig(BaseSchema):
@@ -43,6 +67,7 @@ class WidgetConfig(BaseSchema):
     accent: str = Field(default="#4f46e5", pattern=r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
     position: Literal["left", "right"] = "right"
     launcher_label: str = Field(default="Chat", max_length=24)
+    dictation: DictationMode = Field(default="off", description=_DICTATION_DESCRIPTION)
 
 
 class SocketConfig(BaseSchema):
@@ -91,17 +116,7 @@ class PageConfig(BaseSchema):
         ),
     )
     accent: str = Field(default="#4f46e5", pattern=r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
-    allow_voice: bool = Field(
-        default=False,
-        description=(
-            "Whether the composer offers a microphone. It dictates into the box "
-            "using the browser's own speech recognition - the same one the "
-            "dashboard's composer uses - so no audio reaches this deployment and "
-            "nothing is transcribed server-side. Off by default because a "
-            "browser that has one hands the audio to its vendor, which is a "
-            "sentence somebody should read before turning it on."
-        ),
-    )
+    dictation: DictationMode = Field(default="off", description=_DICTATION_DESCRIPTION)
     allow_new_conversation: bool = Field(
         default=True,
         description=(
@@ -163,6 +178,32 @@ class PageConfig(BaseSchema):
             "operator-supplied image is one more thing to make safe."
         ),
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _allow_voice_withdrawn(cls, data: Any) -> Any:
+        """Read a stored `allow_voice` as the `dictation` it meant (#1797).
+
+        `allow_voice: true` was the browser's own speech recognition, so it is
+        `browser`; `false` is `off`. A row that already names `dictation` keeps it
+        and the old key is dropped, which makes this idempotent. Without it a page
+        published before the change would silently lose its microphone - the
+        schema does not forbid extra keys - and the next re-dump of its config
+        (a logo upload rewrites it) would erase the setting for good.
+        `0109_embed_dictation` rewrites the stored rows; this covers anything
+        that reaches the model without passing through that, a YAML or an API
+        client written against the old field included.
+        """
+        if not isinstance(data, dict) or "allow_voice" not in data:
+            return data
+        migrated = {key: value for key, value in data.items() if key != "allow_voice"}
+        if "dictation" not in migrated:
+            migrated["dictation"] = "browser" if data["allow_voice"] is True else "off"
+            logger.warning(
+                "embed_allow_voice_withdrawn",
+                extra={"dictation": migrated["dictation"]},
+            )
+        return migrated
 
 
 EmbedConfig = Annotated[WidgetConfig | SocketConfig | PageConfig, Field(discriminator="kind")]
@@ -345,6 +386,24 @@ class PublicEmbedConfig(BaseSchema):
     launcher_label: str
     requires_token: bool
     agent_name: str
+    dictation: DictationMode = Field(
+        default="off",
+        description=(
+            "What the widget's microphone does. `server` is sent only while a provider "
+            "and credential resolve, and `off` otherwise - a visitor gets no microphone "
+            "rather than a broken one, and no account of the operator's setup."
+        ),
+    )
+    dictation_max_seconds: int = Field(
+        default=300, description="The organization's longest dictation; the recording stops there"
+    )
+    dictation_format: RecordingFormat = Field(
+        default="wav",
+        description=(
+            "What to record in for `server`: `wav` (16 kHz mono 16-bit PCM), or `webm` "
+            "from MediaRecorder where the deployment accepts compressed audio"
+        ),
+    )
 
     @field_validator("agent_name")
     @classmethod
@@ -374,7 +433,15 @@ class PublicPageConfig(BaseSchema):
     # What the page may offer, decided by the operator and sent rather than
     # inferred. A capability the page decided for itself would be one the
     # operator cannot turn off.
-    allow_voice: bool = False
+    dictation: DictationMode = Field(
+        default="off",
+        description=(
+            "What the page's microphone does. `server` is sent only while a provider "
+            "and credential resolve, and `off` otherwise - see `PublicEmbedConfig`."
+        ),
+    )
+    dictation_max_seconds: int = 300
+    dictation_format: RecordingFormat = "wav"
     allow_new_conversation: bool = True
     allow_files: bool = False
 

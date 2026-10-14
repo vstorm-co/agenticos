@@ -573,6 +573,18 @@ class Settings(BaseSettings):
     # so the ceiling is about what one integration can do to a worker, not about
     # what a stranger can reach: this surface is authenticated.
     RATE_LIMIT_ML_PER_MINUTE: int = 30
+    # Composer dictations per person per minute (#1797). Its own bucket so a person
+    # dictating does not spend an integration's ML quota, or the other way round.
+    RATE_LIMIT_DICTATION_PER_MINUTE: int = 10
+    # Dictations a visitor may send from a hosted page or a widget, per minute
+    # (#1797). Counted per address first, then - for a `jwt` widget - per visitor
+    # by the token's subject. Each one is a paid call to the organization's
+    # speech-to-text provider, outside every model budget.
+    RATE_LIMIT_EMBED_DICTATION_PER_MINUTE: int = 6
+    # Dictations one hosted page or widget accepts from everybody together, per
+    # minute. The ceiling on what a leaked or public link costs: this many
+    # recordings a minute, each at most the organization's longest dictation.
+    RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE: int = 10
     # Whether `X-Forwarded-For` names the caller. Off by default because the
     # header is set by whoever is calling, so trusting it unconditionally is a
     # per-IP limit anybody bypasses by varying one string. On costs the mirror

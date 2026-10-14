@@ -1,5 +1,7 @@
 import { driver, type Driver } from "driver.js";
 
+import { prefersReducedMotion } from "@/lib/motion";
+
 /**
  * A driver.js instance configured for the tour, so the rest of the feature never
  * touches the library's config directly.
@@ -32,7 +34,7 @@ import { driver, type Driver } from "driver.js";
  * so the caption holds still while only the light moves.
  *
  * A reader who asks for reduced motion gets `animate: false` — the cut-out snaps
- * rather than glides — matching the click flourish, which the same media query
+ * rather than glides — matching the click flourish, which the same preference
  * turns off in `globals.css`.
  *
  * Lives under `components/onboarding`, not in a hook: it is DOM and third-party
@@ -40,10 +42,7 @@ import { driver, type Driver } from "driver.js";
  * could only meet by asserting on driver.js's internals.
  */
 export function createTourDriver(): Driver {
-  const reducedMotion =
-    typeof window !== "undefined" &&
-    typeof window.matchMedia === "function" &&
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const reducedMotion = prefersReducedMotion();
   return driver({
     allowClose: false,
     overlayColor: "#0a0a0a",

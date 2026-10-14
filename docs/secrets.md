@@ -100,6 +100,13 @@ never silently used for the whole organization's connection, and with two org-vi
 apps stored the connect is refused (naming both) rather than keyed to whichever name
 sorts first.
 
+The same rule - **org-visible only** - covers the API key the organization's
+speech-to-text default and a channel bot's own transcription pair are sent with:
+the platform spends it for every member's dictation and every voice note a bot
+receives, so a member's private key is refused when either is saved, and a key
+made private afterwards stops being used. Unlike `github_oauth_app`, these keys
+are named by id, so several may be stored side by side.
+
 `git_token` carries its host because a Git sync source sends the token to a URL
 whoever edits the source chooses. Bound to the host the token was added with, the
 token cannot be aimed at another server by editing the source, and no other key
@@ -134,6 +141,15 @@ the floor also catches a truncated paste while the form is still open.
 **Model providers.** Named by a [model profile](models.md). Spend is attributed to
 the secret the run resolved to, which is how "which key is costing the most" gets
 an answer.
+
+**Speech to text.** An API key whose purpose is the provider, named by id next to
+the provider and model wherever speech to text is set up: the organization's
+default, an agent's override and a channel bot's own pair. Nothing looks a key
+up at run time. The organization's and a bot's key must be org-visible; an
+agent's follows the lending rule - the publisher must be able to view it. Each
+transcription's [usage record](ml-services.md#what-is-recorded) names the key it
+was sent with. See [which engine a recording reaches](ml-services.md#which-engine-a-recording-reaches).
+A key's list of the agents using it does not show this use.
 
 **Capabilities.** A capability declares that it needs a credential of a given
 *kind* — never an instance. Code says "I need an API key"; a binding's `secret_id`

@@ -1,5 +1,5 @@
 ---
-source_sha: "e7e0d166cfc5"
+source_sha: "f997129511b8"
 ---
 
 # La consola { #the-console }
@@ -143,6 +143,115 @@ con la que el motor lo eligió. Ese número es la razón de que exista el panel 
 de un indicador de carga: un recorrido que actuó sobre una elección de 0,31 merece
 una mirada. Se queda cuando el recorrido termina, porque *bloqueado por la página* es
 una respuesta sobre la página. Ciérralo y seguirá cerrado para ese recorrido.
+
+### Dictado { #dictation }
+
+El micrófono del compositor convierte la voz en texto en el cuadro y nunca lo
+envía: lo que dices aparece donde estaba el cursor cuando pulsaste el micrófono,
+listo para editar, y no va a ninguna parte hasta que pulsas Enviar. Cómo se
+transcribe lo elige la organización, en [la tarjeta Voice](#the-voice-card):
+
+- **Off** — sin micrófono.
+- **Browser** — el reconocimiento de voz del propio navegador, así que el audio va
+  al fabricante del navegador (Google, Apple). Firefox no lo tiene: su
+  micrófono lo indica al pulsarlo.
+- **Server** — el navegador graba, y este despliegue envía la grabación al
+  proveedor de speech-to-text de la organización, o al
+  [del propio agent](#an-agents-own-engine) cuando este nombra uno. Funciona en
+  cualquier navegador que pueda grabar. El endpoint, sus límites y lo que queda
+  registrado están en [Dictado en el chat](ml-services.md#dictation-in-chat).
+
+Con **Server**, pulsar el micrófono sustituye los controles por una barra de
+grabación: Cancelar, el nivel, un temporizador y Detener. **Enter** detiene y
+transcribe, **Escape** cancela, y nada de lo que se escriba o pulse mientras una
+grabación está en curso o transcribiéndose se envía. La grabación se detiene sola
+al llegar al dictado más largo de la organización y se transcribe, y un micrófono
+desconectado a mitad la termina igual en vez de descartarla. Si la subida tarda
+más de un segundo, la barra muestra cuánto se ha subido ya; después muestra
+**Transcribing** hasta que llega el texto.
+
+Todo lo que el dictado tiene que decir aparece en una franja unida bajo el
+compositor: la petición de permiso, un micrófono bloqueado o ausente, los últimos
+30 segundos, cinco segundos sin sonido, una grabación de menos de un segundo (no
+se envía), una grabación que se detuvo en el límite, cuántas palabras se
+insertaron y cada fallo. El recuento de palabras desaparece a los pocos segundos
+o con tu siguiente tecla. Una grabación que no se pudo transcribir se conserva
+hasta que pulsas **Retry** o **Discard**.
+
+Si la organización eligió Server pero
+nada se resuelve para el agent que elegiste —ningún proveedor en el agent ni en
+la organización, o ninguna clave elegida para él—, o no hay ningún agent elegido, el
+micrófono aparece tachado y dice por qué; quien tiene `org:settings` recibe un
+enlace a la tarjeta Voice, y quien puede editar agents, un enlace a la tarjeta Voice
+de ese agent.
+
+El brillo debajo del compositor mientras hablas sigue a **Voice glow** en
+**Settings → Profile → Appearance**, junto al tema y a **Motion**: **Vivid**,
+**Subtle** (por defecto) u **Off**. Se recuerda por navegador. **Motion** decide
+cuánto se mueve toda la consola: **System** (por defecto) sigue el ajuste de
+movimiento reducido del sistema operativo, **Reduce** reduce el movimiento sin
+él y **Full** lo mantiene diga lo que diga el sistema operativo. Mientras el
+movimiento está reducido no hay brillo alguno, la franja aparece sin deslizarse
+y el nivel es un indicador de cinco pasos.
+
+### La tarjeta Voice { #the-voice-card }
+
+En la página **Members** de la organización, para quien tiene `org:settings`.
+**Speech to text** elige el motor —Off, Browser o Server, cada uno diciendo a
+dónde va el audio— y, para Server, la grabación más larga, de 10 segundos a 10
+minutos. **Default provider**, debajo, es el proveedor y el modelo del catálogo
+de speech-to-text y un idioma (detección automática, o un idioma fijo, que es más
+preciso). Se muestra sea cual sea el motor, porque es también a donde envían sus
+mensajes de voz los [bots de canal](channels.md#what-every-channel-shares)
+configurados para heredar; **None** lo vacía.
+
+**Key**, junto al proveedor, es la clave del vault con la que se envía la
+configuración por defecto. Lista las claves de API cuyo propósito es ese
+proveedor y que ve toda la organización: la plataforma gasta esta clave en el
+dictado de cada miembro y en cada bot que hereda, así que la clave privada de un
+miembro no se ofrece y se rechaza si se envía. Con exactamente una clave que
+encaje se elige por ti, y se guarda por su id en cualquier caso; nada elige una
+clave en tiempo de ejecución. Un proveedor sin clave aparece marcado **no hay
+clave para este proveedor**, y el selector enlaza al vault para añadir una.
+Cuando Server está guardado pero no puede funcionar —el modelo se retiró del
+catálogo, o la clave se borró o se hizo privada—, la tarjeta lo dice y pide
+**elegir una clave** cuando eso es lo que falta, porque entonces todos los
+miembros ven un micrófono tachado.
+
+Server sin proveedor predeterminado es una configuración, no un fallo: la tarjeta indica que solo dictan los agents con su propio proveedor.
+**Voice conversations**, debajo, todavía no está construido.
+
+Para quien además tiene `runs:view`, la tarjeta empieza con una línea sobre lo que
+la organización transcribió en los últimos 30 días — «42 min · 118 grabaciones
+(30 sin duración)» — sumando el dictado, los mensajes de voz de los canales y la
+API. **Show breakdown** lo desglosa por agent y por bot de canal. Los minutos
+cuentan solo las grabaciones cuya duración se informó, así que la línea dice
+cuántas no la tienen; queda oculta mientras no se haya transcrito nada. Las
+cifras salen de [`GET /ml/calls/summary`](ml-services.md#what-is-recorded).
+
+### El motor propio de un agent { #an-agents-own-engine }
+
+La pestaña **Build** de un agent tiene una tarjeta **Voice** después de sus
+ajustes de modelo, para un agent que deba transcribir de forma distinta a su
+organización. **Inherit** conserva el proveedor, el modelo y la clave de la
+organización y muestra cuáles son; **Choose** elige un par del catálogo y la
+clave con la que se envía —una clave de API de ese proveedor que puedas ver,
+porque publicar la presta a todos los que pueden ejecutar el agent—.
+
+Nunca es la
+clave de la organización: un agent con par propio nombra su propia clave. El
+idioma se elige aparte: heredar el de la organización, o fijar uno —así un agent
+en polaco puede conservar el proveedor y la clave de la organización—.
+
+Lo que elige forma parte del spec: se guarda con el borrador, entra en vigor cuando se
+publica el agent, y se aplica al [dictado](#dictation) dirigido a este
+agent y a los mensajes de voz que heredan sus bots de canal.
+[El orden](ml-services.md#which-engine-a-recording-reaches) cuenta el resto.
+
+La tarjeta avisa cuando la anulación cambia menos de lo que parece: con el motor
+de la organización en Off o Browser solo alcanza a los mensajes de voz de los
+canales, y sin proveedor en la organización es aquello con lo que funciona el
+dictado a este agent.
 
 ## Para qué sirve cada área { #what-each-area-is-for }
 

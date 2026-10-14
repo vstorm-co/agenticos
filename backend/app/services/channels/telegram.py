@@ -424,6 +424,9 @@ class TelegramAdapter(ChannelAdapter):
         largest, which is the one worth having - the rest are thumbnails Telegram
         generated. It also sends no MIME type for one, so a JPEG is stated rather
         than guessed from bytes nobody has yet.
+
+        A voice note or an audio file states its `duration` in whole seconds,
+        which is kept as the recording's length for the usage record (#1797).
         """
         found: list[IncomingAttachment] = []
 
@@ -431,12 +434,16 @@ class TelegramAdapter(ChannelAdapter):
             media = msg_data.get(field)
             if not isinstance(media, dict) or not media.get("file_id"):
                 continue
+            duration = media.get("duration")
             found.append(
                 IncomingAttachment(
                     filename=media.get("file_name") or fallback_name,
                     mime_type=media.get("mime_type") or fallback_mime,
                     size=int(media.get("file_size") or 0),
                     handle=str(media["file_id"]),
+                    duration_seconds=(
+                        float(duration) if isinstance(duration, int | float) else None
+                    ),
                 )
             )
 

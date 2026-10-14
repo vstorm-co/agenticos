@@ -1,5 +1,5 @@
 ---
-source_sha: "130cbafc773f"
+source_sha: "c34546b8f0ba"
 ---
 
 # Konfiguration { #configuration }
@@ -1154,8 +1154,8 @@ Prüfung für die Produktion: `CORS_ORIGINS` darf bei `ENVIRONMENT=production` k
 
 Wird auf die Oberflächen angewandt, die eine fremde Person erreichen kann, und
 nur auf diese: die öffentliche Run-API, das Skript des Widgets, dessen Config, den
-Socket-Handshake beider Oberflächen, Config und Logo einer Hosted Page und den
-Upload einer besuchenden Person. Die Routen der Konsole selbst liegen hinter einer
+Socket-Handshake beider Oberflächen, Config und Logo einer Hosted Page sowie den
+Upload und das Diktat einer besuchenden Person. Die Routen der Konsole selbst liegen hinter einer
 Session und werden nicht gemessen — ob die ganze API eine Obergrenze tragen
 sollte, ist eine eigene Entscheidung und nicht diese.
 
@@ -1167,6 +1167,9 @@ sollte, ist eine eigene Entscheidung und nicht diese.
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | Die Config einer Hosted Page, **je Seite** — und ihr Logo, auf einem eigenen Zähler. Siehe unten |
 | `RATE_LIMIT_EMBED_UPLOAD_PER_MINUTE` | `5` | Dateien, die eine besuchende Person auf einer Hosted Page ablegen darf. Gezählt **je Adresse und je Visitor Key**, und beide müssen es zulassen — der Key wird vom Browser erzeugt, nur ihn zu zählen begrenzt also nichts |
 | `RATE_LIMIT_ML_PER_MINUTE` | `30` | Die [ML-Dienste](ml-services.md), pro Aufrufer. Diese Endpunkte erledigen ihre Arbeit synchron, ein unbegrenzter Aufrufer belegt also den Parsing-Pool statt eines Budgets |
+| `RATE_LIMIT_DICTATION_PER_MINUTE` | `10` | [Diktieren im Chat](ml-services.md#dictation-in-chat), pro Person, auf einem eigenen Zähler, damit Diktieren und eine Integration, die die ML-Dienste aufruft, einander nicht das Kontingent verbrauchen. Jedes Diktat ist ein Aufruf beim kostenpflichtigen Provider der Organisation |
+| `RATE_LIMIT_EMBED_DICTATION_PER_MINUTE` | `6` | [Diktat in einem Widget oder auf einer Hosted Page](channels.md#dictation-on-a-widget-or-a-hosted-page), pro Adresse und bei einem `jwt`-Widget pro besuchender Person. Jedes Diktat ist ein Aufruf beim kostenpflichtigen Provider der Organisation, außerhalb jedes Modell-Budgets |
+| `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` | `10` | Dasselbe, pro Seite oder Widget, von allen Besuchenden zusammen - die Obergrenze dessen, was ein geleakter Link kostet: so viele Aufnahmen pro Minute, jede bis zum längsten Diktat der Organisation |
 | `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Ob `X-Forwarded-For` die aufrufende Seite benennt |
 
 **Was eine abgelehnte aufrufende Seite bekommt**, ist der eigene Fehlerumschlag

@@ -1,5 +1,5 @@
 ---
-source_sha: "11e8f02699df"
+source_sha: "c1baa442db48"
 ---
 
 # El despliegue en sí { #the-deployment-itself }
@@ -512,6 +512,32 @@ El schema rechaza el cero: una cuenta que no puede poseer ninguna organización 
 una cuenta que no se puede crear, ya que el registro da a cada una su propia
 organización personal.
 
+## En qué formato puede subirse un dictado { #what-a-dictation-may-be-uploaded-as }
+
+`dictation_compressed_audio`, **desactivado por defecto**, decide el formato de
+todo [dictado](ml-services.md#dictation-in-chat) del despliegue - el composer de
+`/chat`, las páginas alojadas y los widgets, en todas las organizaciones.
+Desactivado, el servidor acepta un único formato: WAV con PCM de 16 bits, mono y
+16 kHz, que graba cualquier navegador. Su duración es su tamaño, 32.000 bytes por
+segundo, así que el servidor cuenta las muestras y el dictado más largo limita
+con exactitud lo que cuesta una grabación.
+
+Activado, se aceptan además WebM, Ogg y MP4, y las subidas pesan más o menos una
+octava parte. Su duración se lee de la propia cabecera del archivo, que un archivo hecho
+a mano puede declarar por debajo: un dictado puede llevar entonces hasta unas
+cuarenta veces el dictado más largo dentro del límite de tamaño. En una
+[página o un widget públicos](channels.md#what-it-costs-and-what-bounds-it)
+cualquiera que tenga el enlace puede enviar uno, cobrado a la cuenta del provider
+de la organización y fuera de todo budget.
+
+Por eso el interruptor de `/admin/settings` pregunta antes. Activarlo abre un
+diálogo que nombra esos riesgos y solo habilita su botón de confirmar cuando se
+marca una casilla que dice que se han leído; desactivarlo no pregunta nada. En
+ambos casos se guarda con el resto del formulario y se audita como cualquier otro
+campo. Los navegadores lo siguen la próxima vez que una página pregunta: el
+formato en que graban es el que anuncia el servidor, nunca una lista guardada en
+el cliente.
+
 ## La fila { #the-row }
 
 Una sola fila para toda la instalación, custodiada por la base de datos y no por
@@ -575,5 +601,8 @@ módulo desaparece.
   en el portapapeles, nombrada en una franja, terminada por el administrador, por
   la persona al cerrar sesión en todas partes, o por la hora. Si se avisa a la
   persona es `notify_impersonated_users`, desactivado por defecto.
+- El dictado es **PCM en crudo salvo que `dictation_compressed_audio` esté
+  activado**, y un administrador solo lo activa tras un diálogo que nombra lo que
+  cuesta.
 - Cada rechazo de este despliegue tiene el mismo aspecto, sea cual sea la capa que
   lo produjo.

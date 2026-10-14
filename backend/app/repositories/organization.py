@@ -11,7 +11,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import OrgRoleName
 from app.db.models.agent import Agent
-from app.db.models.organization import Organization, OrganizationMember, OrgRole
+from app.db.models.organization import (
+    DictationEngine,
+    Organization,
+    OrganizationMember,
+    OrgRole,
+)
 from app.db.models.user import User
 from app.repositories._search import contains_ci
 
@@ -249,6 +254,35 @@ async def set_chat_approval_waiver(
     argument and so cannot express a boolean somebody deliberately set to false.
     """
     org.chat_may_waive_approvals = allowed
+    await db.flush()
+    await db.refresh(org)
+    return org
+
+
+async def set_speech_settings(
+    db: AsyncSession,
+    org: Organization,
+    *,
+    chat_dictation: DictationEngine,
+    provider: str | None,
+    model: str | None,
+    secret_id: UUID | None,
+    language: str | None,
+    max_seconds: int,
+) -> Organization:
+    """Write all six speech settings at once (#1797).
+
+    One setter for the six because they are validated together - the pair is
+    both-or-neither and must be one the catalog offers, and its key goes with
+    it - and because :func:`update` skips a `None` argument, so it cannot clear
+    a provider, a key or a language.
+    """
+    org.chat_dictation = chat_dictation
+    org.speech_to_text_provider = provider
+    org.speech_to_text_model = model
+    org.speech_to_text_secret_id = secret_id
+    org.speech_to_text_language = language
+    org.dictation_max_seconds = max_seconds
     await db.flush()
     await db.refresh(org)
     return org

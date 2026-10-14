@@ -1,5 +1,5 @@
 ---
-source_sha: "3b62656f6e5b"
+source_sha: "27ed479dcdc5"
 ---
 
 # Bezpieczeństwo { #security }
@@ -53,6 +53,7 @@ skonfigurowało, i każde jest granicą, o którą przegląd u klienta zapyta.
 | Serwery MCP | Wywołania narzędzi i ich argumenty | Tylko dla narzędzi, do których agent jest podpięty |
 | Dostawca web search (Tavily, DuckDuckGo) | Zapytanie wyszukiwania | Tylko gdy przyznana jest capability wyszukiwania |
 | Provider embeddingów | Tekst dokumentu, przy ingest | Tylko dla bazy wiedzy, której provider jest zdalny |
+| Provider speech-to-text | Nagranie: notatka głosowa z kanału, dyktowanie w `/chat` albo nagranie odwiedzającego na hostowanej stronie lub w widgecie ustawionych na `server` | Zawsze, gdy któreś jest transkrybowane. Dyktowanie odwiedzającego jest anonimowe i poza każdym budżetem modelu, więc ogranicza je rate limit linku razy najdłuższe dyktowanie. Domyślnie dyktowanie to surowy PCM, którego próbki są liczone, a nagranie ponad limit odrzucane przed wysłaniem, więc to ograniczenie jest dokładne; wdrożenie, które [przyjmuje skompresowany dźwięk](deployment.md#what-a-dictation-may-be-uploaded-as), odczytuje zamiast tego długość z nagłówka pliku, który ręcznie zbudowany plik może zaniżyć - [kanały](channels.md#dictation-on-a-widget-or-a-hosted-page) rozpisują najgorszy przypadek w obu wariantach. Przy `browser` przeglądarka odwiedzającego wysyła zamiast tego dźwięk do własnego dostawcy i nic nie przechodzi tędy |
 
 ## Co jest gdzie szyfrowane { #what-is-encrypted-where }
 
@@ -234,6 +235,7 @@ w mocy. Ujęte względem zabezpieczeń technicznych HIPAA §164.312 i SOC 2 CC6�
 | HTTPS i HSTS | Terminowane na reverse proxy — dołączony `nginx/nginx.conf` ustawia HSTS; aplikacja z założenia nie | Sprawa wdrożenia; zobacz listę kontrolną hardeningu |
 | Strony pisane przez agentów nie mogą dosięgnąć konsoli | Opublikowany [artefakt](artifacts.md) jest serwowany z trasy bez ciasteczek, za krótkożyjącym podpisanym tokenem, pod `Content-Security-Policy: sandbox` bez `allow-same-origin` — nieprzezroczysty origin — i bez `allow-popups`, plus `connect-src 'none'`, bez zdalnego źródła poza własną ścieżką bibliotek wdrożenia, i `frame-ancestors` wymieniające tylko konsolę (a dla publicznej strony, którą można osadzić, dokument osadzenia i wskazane witryny); link na stronie otwiera się dopiero, gdy człowiek potwierdzi jego adres; opcjonalnie z własnej domeny rejestrowalnej (`ARTIFACT_ORIGIN`) | `test_artifact_routes.py::TestTheContentRoute`, `test_artifact_service.py::TestThePolicy`, `test_artifact_pages.py`, `artifacts.test.tsx`, `csp.test.ts` |
 | Limity zapytań na publicznych powierzchniach | Limity oparte o Redis na API runów, widgecie embed, stronach hostowanych, publicznych linkach artefaktów i ich podpisanych adresach treści (`app/services/rate_limit.py`); limity per nadawca na botach kanałów (`app/services/channels/router.py`) | `test_rate_limited_surfaces.py`; limit bota kanału jest zaimplementowany, ale cienko przetestowany |
+| Dyktowanie kosztuje najwyżej tyle, ile jego najdłuższa długość | Domyślnie tylko WAV z 16-bitowym PCM 16 kHz mono: parsowany ściśle, z policzonymi próbkami, odrzucany ponad `dictation_max_seconds`, zanim dostawca zostanie wywołany, i wysyłany za nagłówkiem zbudowanym przez serwer (`app/services/ml/pcm_wav.py`, `MLService.transcribe_dictation`). WebM, Ogg i MP4 dopiero wtedy, gdy app admin włączy `dictation_compressed_audio`, za oknem dialogowym, które nazywa ryzyko | `test_pcm_wav.py`, `test_ml_service.py`, `dictation-audio-card.integration.test.tsx` |
 
 ### Odmowy jako zbiór { #the-refusals-as-a-set }
 

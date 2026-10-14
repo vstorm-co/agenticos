@@ -7,6 +7,7 @@ import { toast } from "sonner";
 
 import { getErrorMessage } from "@/lib/api-error";
 import { apiClient } from "@/lib/api-client";
+import { invalidateSpeechSettings } from "@/lib/dictation-api";
 import { qk } from "@/lib/query-keys";
 import type {
   NewSecret,
@@ -58,6 +59,9 @@ export function useSecrets() {
     // Cancelling first forces a genuinely new post-commit fetch.
     await queryClient.cancelQueries({ queryKey: qk.secrets.list() });
     await queryClient.invalidateQueries({ queryKey: qk.secrets.list() });
+    // An organization-visible key is one of the credentials speech to text is
+    // sent with, so which providers are usable can change with it.
+    await invalidateSpeechSettings(queryClient);
   }, [queryClient]);
 
   // Neither writing mutation toasts its failure: a name already in use is the

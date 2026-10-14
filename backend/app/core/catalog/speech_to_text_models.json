@@ -24,6 +24,7 @@
   {
     "provider": "groq",
     "api": "transcriptions",
+    "response_format": "verbose_json",
     "base_url": "https://api.groq.com/openai/v1",
     "models": [
       {
@@ -41,6 +42,7 @@
   {
     "provider": "mistral",
     "api": "transcriptions",
+    "recording_format": "wav",
     "base_url": "https://api.mistral.ai/v1",
     "models": [
       {

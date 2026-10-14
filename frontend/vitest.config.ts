@@ -79,6 +79,15 @@ export default defineConfig({
         "src/components/files/**/*.tsx",
         "src/components/ui/doc-peek.tsx",
         "src/components/ui/text-peek.tsx",
+        // The composer's glow, the account menu's theme and language, and the
+        // Appearance card that picks the glow's style and the Motion preference,
+        // with what applies that preference app-wide (#1797).
+        "src/components/ui/voice-glow.tsx",
+        "src/components/layout/account-preferences.tsx",
+        "src/components/settings/appearance-settings.tsx",
+        "src/components/settings/choice-group.tsx",
+        "src/components/theme/motion-provider.tsx",
+        "src/components/theme/motion-script.tsx",
         "src/components/chat/usage-strip.tsx",
         "src/components/chat/attachment-card.tsx",
         "src/components/chat/browser-card.tsx",
@@ -94,6 +103,11 @@ export default defineConfig({
         "src/components/chat/conversation-filters.tsx",
         "src/components/chat/copy-button.tsx",
         "src/components/chat/delegation-panel.tsx",
+        // The composer's dictation: the recording bar, the strip under the box
+        // and the crossed-out mic (#1797).
+        "src/components/chat/dictation-bar.tsx",
+        "src/components/chat/dictation-strip.tsx",
+        "src/components/chat/dictation-unavailable.tsx",
         "src/components/chat/file-preview-panel.tsx",
         "src/components/chat/markdown-content.impl.tsx",
         "src/components/chat/markdown-content.tsx",
@@ -119,6 +133,15 @@ export default defineConfig({
         "src/components/skills/**/*.tsx",
         "src/components/context/**/*.tsx",
         "src/components/memory/**/*.tsx",
+        // The organization's Voice card (#1797). The rest of `teams/` predates
+        // the gate; this file is new, so it starts inside.
+        "src/components/teams/org-voice-settings.tsx",
+        // The deployment's switch for compressed dictation audio (#1797), new and
+        // so inside the gate, like the Voice card above.
+        "src/components/admin/dictation-audio-card.tsx",
+        // The one key field every speech-to-text level names its key with
+        // (#1797), new and so inside the gate.
+        "src/components/vault/speech-key-field.tsx",
       ],
       exclude: [
         "node_modules",

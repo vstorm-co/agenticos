@@ -18,10 +18,13 @@ exactly the failure the feature exists to fix.
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import anyio
+import httpx
 import pytest
 from aiogram.types import Chat
 from aiogram.types import Message as AiogramMessage
@@ -108,6 +111,34 @@ class TestTelegramReceiving:
 
         assert parsed is not None
         assert parsed.text == "what is in here?"
+
+    @pytest.mark.parametrize(
+        ("field", "media", "seconds"),
+        [
+            ("voice", {"file_id": "v", "duration": 7}, 7.0),
+            ("audio", {"file_id": "a", "duration": 184, "mime_type": "audio/mpeg"}, 184.0),
+            ("voice", {"file_id": "v"}, None),
+            ("voice", {"file_id": "v", "duration": "7"}, None),
+        ],
+        ids=["voice", "audio", "no-duration", "not-a-number"],
+    )
+    def test_a_recordings_stated_length_is_kept_for_the_usage_record(
+        self, field: str, media: dict[str, object], seconds: float | None
+    ):
+        """Telegram states a voice note's `duration` in whole seconds (#1797)."""
+        parsed = TelegramAdapter().parse_incoming(
+            {
+                "message": {
+                    "chat": {"id": 1, "type": "private"},
+                    "from": {"id": 2},
+                    field: media,
+                }
+            },
+            "bot-1",
+        )
+
+        assert parsed is not None
+        assert parsed.attachments[0].duration_seconds == seconds
 
     def test_the_largest_photo_is_the_one_worth_having(self):
         """Telegram sends the same image in several sizes; the rest are thumbnails
@@ -474,6 +505,155 @@ class TestSlackReceiving:
             )
 
 
+def _slack_clip(**overrides: Any) -> dict[str, Any]:
+    """An audio clip recorded in Slack's composer, as Slack's file object has it.
+
+    Shaped from the documented `file` object: `subtype: "slack_audio"` and
+    `media_display_type: "audio"` mark the clip, `duration_ms` its length.
+    Desktop clips are WebM; a phone's are MP4 and may be typed `video/mp4`.
+    """
+    clip: dict[str, Any] = {
+        "id": "F0CLIP",
+        "name": "audio_message.webm",
+        "title": "audio_message.webm",
+        "mimetype": "audio/webm",
+        "filetype": "webm",
+        "pretty_type": "WebM",
+        "subtype": "slack_audio",
+        "media_display_type": "audio",
+        "duration_ms": 4120,
+        "size": 45123,
+        "mode": "hosted",
+        "url_private": "https://files.slack.com/files-pri/T1-F0CLIP/audio_message.webm",
+        "url_private_download": (
+            "https://files.slack.com/files-pri/T1-F0CLIP/download/audio_message.webm"
+        ),
+    }
+    clip.update(overrides)
+    return clip
+
+
+def _slack_files(*files: dict[str, Any]) -> list[IncomingAttachment]:
+    parsed = SlackAdapter().parse_incoming(
+        {
+            "event": {
+                "type": "message",
+                "subtype": "file_share",
+                "user": "U1",
+                "channel": "D1",
+                "channel_type": "im",
+                "ts": "1.0",
+                "files": list(files),
+            }
+        },
+        "bot-1",
+    )
+    assert parsed is not None
+    return parsed.attachments
+
+
+class TestSlackVoiceClips:
+    """Which Slack files the router will send to transcription.
+
+    It routes on `audio/*`, so the type an attachment leaves the parser with
+    decides whether a clip is heard or turned away as a file nobody can open.
+    """
+
+    def test_a_desktop_clip_is_audio_and_carries_its_length(self):
+        (clip,) = _slack_files(_slack_clip())
+
+        assert clip.mime_type == "audio/webm"
+        assert clip.duration_seconds == pytest.approx(4.12)
+
+    def test_a_phone_clip_typed_as_video_is_still_heard(self):
+        """The failure the signal exists for: a recording Slack itself calls
+        audio, sent with a `video/*` type the router would have stored."""
+        (clip,) = _slack_files(
+            _slack_clip(name="audio_message.mp4", mimetype="video/mp4", filetype="mp4")
+        )
+
+        assert clip.mime_type == "audio/mp4"
+
+    @pytest.mark.parametrize(
+        "marker", [{"media_display_type": "audio"}, {"subtype": "slack_audio"}]
+    )
+    def test_an_untyped_clip_named_mp4_is_heard_on_either_marker(self, marker: dict[str, str]):
+        clip = _slack_clip(name="audio_message.mp4", mimetype="", filetype="mp4")
+        del clip["subtype"], clip["media_display_type"]
+        clip.update(marker)
+
+        (parsed,) = _slack_files(clip)
+
+        assert parsed.mime_type == "audio/mp4"
+
+    def test_an_untyped_mp4_that_is_not_a_clip_is_not_transcribed(self):
+        """Most likely a video: transcribing it is a billed call for a soundtrack."""
+        (video,) = _slack_files(
+            {
+                "name": "standup.mp4",
+                "mimetype": "application/octet-stream",
+                "size": 900,
+                "url_private_download": "https://files.slack.com/files-pri/T1-F1/standup.mp4",
+            }
+        )
+
+        assert video.mime_type == "application/octet-stream"
+        assert video.duration_seconds is None
+
+    def test_a_typed_video_that_is_not_a_clip_stays_a_video(self):
+        (video,) = _slack_files(
+            {
+                "name": "demo.mp4",
+                "mimetype": "video/mp4",
+                "size": 900,
+                "url_private_download": "https://files.slack.com/files-pri/T1-F1/demo.mp4",
+            }
+        )
+
+        assert video.mime_type == "video/mp4"
+
+    def test_an_uploaded_audio_file_keeps_the_type_slack_gave_it(self):
+        (upload,) = _slack_files(
+            {
+                "name": "memo.mp3",
+                "mimetype": "audio/mpeg",
+                "filetype": "mp3",
+                "size": 900,
+                "url_private_download": "https://files.slack.com/files-pri/T1-F1/memo.mp3",
+            }
+        )
+
+        assert upload.mime_type == "audio/mpeg"
+
+    def test_an_untyped_m4a_upload_is_typed_from_its_extension(self):
+        (upload,) = _slack_files(
+            {
+                "name": "memo.m4a",
+                "mimetype": "application/octet-stream",
+                "size": 900,
+                "url_private_download": "https://files.slack.com/files-pri/T1-F1/memo.m4a",
+            }
+        )
+
+        assert upload.mime_type == "audio/mp4"
+
+    def test_a_clip_with_no_download_url_is_skipped_and_logged(
+        self, caplog: pytest.LogCaptureFixture
+    ):
+        """Never answered, so the log line is the only trace it arrived."""
+        clip = _slack_clip()
+        del clip["url_private"], clip["url_private_download"]
+
+        with caplog.at_level("INFO", logger="app.services.channels.slack"):
+            parsed = SlackAdapter().parse_incoming(
+                {"event": {"type": "message", "user": "U1", "channel": "D1", "files": [clip]}},
+                "bot-1",
+            )
+
+        assert parsed is None
+        assert "file=F0CLIP recording=True" in caplog.text
+
+
 class TestSlackSending:
     async def test_files_and_the_answer_are_one_message(self):
         client = MagicMock(files_upload_v2=AsyncMock(), chat_postMessage=AsyncMock())
@@ -627,6 +807,193 @@ class TestMattermostReceiving:
         assert (
             client_factory.return_value.get.await_args.args[0] == "https://mm.test/api/v4/files/f1"
         )
+
+
+class TestMattermostVoiceFiles:
+    """Mattermost types most uploads itself; an untyped one is typed here."""
+
+    @staticmethod
+    def _parsed(entry: dict[str, Any]) -> IncomingAttachment:
+        adapter = MattermostAdapter()
+        adapter.remember_server("bot-1", "https://mm.test")
+        post = {
+            "id": "p1",
+            "user_id": "u1",
+            "channel_id": "c1",
+            "message": "",
+            "file_ids": ["f1"],
+            "metadata": {"files": [{"id": "f1", "size": 2048, **entry}]},
+        }
+        parsed = adapter.parse_incoming(
+            {"event": "posted", "data": {"channel_type": "D", "post": json.dumps(post)}},
+            "bot-1",
+        )
+        assert parsed is not None
+        return parsed.attachments[0]
+
+    def test_a_typed_audio_file_keeps_its_type(self):
+        upload = self._parsed({"name": "memo.m4a", "extension": "m4a", "mime_type": "audio/x-m4a"})
+
+        assert upload.mime_type == "audio/x-m4a"
+
+    def test_an_octet_stream_mp3_is_heard(self):
+        upload = self._parsed(
+            {"name": "memo.mp3", "extension": "mp3", "mime_type": "application/octet-stream"}
+        )
+
+        assert upload.mime_type == "audio/mpeg"
+
+    def test_a_name_with_no_extension_is_typed_from_the_extension_field(self):
+        upload = self._parsed({"name": "voice note", "extension": "ogg", "mime_type": ""})
+
+        assert upload.mime_type == "audio/ogg"
+
+    def test_an_untyped_file_with_no_audio_extension_stays_untyped(self):
+        upload = self._parsed({"name": "dump.bin", "extension": "bin"})
+
+        assert upload.mime_type == "application/octet-stream"
+
+
+class TestMattermostWebhookFiles:
+    """An outgoing webhook names its files by id; the details are looked up."""
+
+    @staticmethod
+    def _webhook_files() -> list[IncomingAttachment]:
+        adapter = MattermostAdapter()
+        adapter.remember_server("bot-1", "https://mm.test")
+        parsed = adapter.parse_incoming(
+            {"user_id": "u1", "user_name": "ada", "channel_id": "c1", "file_ids": "f1"},
+            "bot-1",
+        )
+        assert parsed is not None
+        return parsed.attachments
+
+    async def test_a_file_named_by_id_alone_is_described_and_heard(self):
+        response = MagicMock()
+        response.raise_for_status = MagicMock()
+        response.json = MagicMock(
+            return_value={
+                "id": "f1",
+                "name": "memo.mp3",
+                "extension": "mp3",
+                "mime_type": "application/octet-stream",
+                "size": 2048,
+            }
+        )
+        attachments = self._webhook_files()
+
+        with patch("httpx.AsyncClient", return_value=_http_client(response)) as client_factory:
+            (described,) = await MattermostAdapter().describe_attachments("token", attachments)
+
+        assert (described.filename, described.mime_type, described.size) == (
+            "memo.mp3",
+            "audio/mpeg",
+            2048,
+        )
+        assert described.handle == "https://mm.test/api/v4/files/f1"
+        get = client_factory.return_value.get.await_args
+        assert get.args[0] == "https://mm.test/api/v4/files/f1/info"
+        assert get.kwargs["headers"]["Authorization"] == "Bearer token"
+
+    async def test_a_lookup_that_fails_keeps_the_file_as_an_ordinary_attachment(self):
+        attachments = self._webhook_files()
+        client = _http_client(None)
+        client.get = AsyncMock(side_effect=httpx.ConnectError("down"))
+
+        with patch("httpx.AsyncClient", return_value=client):
+            described = await MattermostAdapter().describe_attachments("token", attachments)
+
+        assert described == attachments
+
+    @pytest.mark.parametrize(
+        "answer",
+        [
+            ["not", "an", "object"],
+            {"name": "memo.mp3", "mime_type": "audio/mpeg", "size": "large"},
+            {"name": "memo.mp3", "mime_type": "audio/mpeg", "size": [2048]},
+            {"name": "memo.mp3", "mime_type": "audio/mpeg", "size": float("inf")},
+        ],
+        ids=["a-list", "size-a-word", "size-a-list", "size-not-finite"],
+    )
+    async def test_a_malformed_answer_keeps_the_file_rather_than_dropping_the_turn(
+        self, answer: object
+    ):
+        response = MagicMock()
+        response.raise_for_status = MagicMock()
+        response.json = MagicMock(return_value=answer)
+        attachments = self._webhook_files()
+
+        with patch("httpx.AsyncClient", return_value=_http_client(response)):
+            described = await MattermostAdapter().describe_attachments("token", attachments)
+
+        assert described == attachments
+
+    async def test_a_type_or_extension_that_is_not_text_is_not_trusted(self):
+        response = MagicMock()
+        response.raise_for_status = MagicMock()
+        response.json = MagicMock(
+            return_value={"name": "memo.mp3", "mime_type": 7, "extension": ["mp3"], "size": 9}
+        )
+
+        with patch("httpx.AsyncClient", return_value=_http_client(response)):
+            (described,) = await MattermostAdapter().describe_attachments(
+                "token", self._webhook_files()
+            )
+
+        # Typed from the name alone, as an untyped upload is.
+        assert (described.mime_type, described.size) == ("audio/mpeg", 9)
+
+    async def test_several_files_are_looked_up_together_and_kept_in_order(self):
+        adapter = MattermostAdapter()
+        adapter.remember_server("bot-1", "https://mm.test")
+        parsed = adapter.parse_incoming(
+            {"user_id": "u1", "user_name": "ada", "channel_id": "c1", "file_ids": "f1,f2,f3"},
+            "bot-1",
+        )
+        assert parsed is not None
+        in_flight = 0
+        widest = 0
+
+        async def info(url: str, **_: object) -> MagicMock:
+            nonlocal in_flight, widest
+            in_flight += 1
+            widest = max(widest, in_flight)
+            await anyio.sleep(0.01)
+            in_flight -= 1
+            file_id = url.rsplit("/", 2)[-2]
+            response = MagicMock()
+            response.raise_for_status = MagicMock()
+            response.json = MagicMock(
+                return_value={"name": f"{file_id}.ogg", "mime_type": "audio/ogg", "size": 1}
+            )
+            return response
+
+        client = _http_client(None)
+        client.get = AsyncMock(side_effect=info)
+        with patch("httpx.AsyncClient", return_value=client):
+            described = await MattermostAdapter().describe_attachments("token", parsed.attachments)
+
+        assert [one.filename for one in described] == ["f1.ogg", "f2.ogg", "f3.ogg"]
+        assert widest > 1
+
+    async def test_a_file_the_event_described_is_not_asked_about(self):
+        described = IncomingAttachment(
+            filename="memo.mp3",
+            mime_type="audio/mpeg",
+            size=10,
+            handle="https://mm.test/api/v4/files/f1",
+        )
+
+        with patch("httpx.AsyncClient", return_value=_http_client(None)) as client_factory:
+            found = await MattermostAdapter().describe_attachments("token", [described])
+
+        assert found == [described]
+        client_factory.return_value.get.assert_not_awaited()
+
+    async def test_a_platform_that_sends_the_details_keeps_them(self):
+        clip = IncomingAttachment(filename="a.webm", mime_type="audio/webm", size=1, handle="h")
+
+        assert await SlackAdapter().describe_attachments("token", [clip]) == [clip]
 
 
 class TestMattermostSending:

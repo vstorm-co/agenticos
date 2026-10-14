@@ -1,5 +1,5 @@
 ---
-source_sha: "11e8f02699df"
+source_sha: "c1baa442db48"
 ---
 
 # Samo wdrożenie { #the-deployment-itself }
@@ -504,6 +504,32 @@ Zero jest odrzucane przez schemat: konto, które nie może posiadać żadnej
 organizacji, to konto, którego nie da się utworzyć, skoro rejestracja daje każdemu
 z nich organizację osobistą.
 
+## W jakim formacie można wgrać dyktowanie { #what-a-dictation-may-be-uploaded-as }
+
+`dictation_compressed_audio`, **domyślnie wyłączone**, rozstrzyga format każdego
+[dyktowania](ml-services.md#dictation-in-chat) na wdrożeniu — w composerze
+`/chat`, na hostowanych stronach i w widgetach, w każdej organizacji. Wyłączone
+sprawia, że serwer przyjmuje jeden format: WAV z 16-bitowym PCM 16 kHz mono,
+który nagrywa każda przeglądarka. Jego długość to jego rozmiar, 32 000 bajtów na
+sekundę, więc serwer liczy próbki, a najdłuższe dyktowanie dokładnie ogranicza
+koszt jednego nagrania.
+
+Włączone dopuszcza dodatkowo WebM, Ogg i MP4, a przesyłane pliki są mniej więcej
+ośmiokrotnie mniejsze. Ich długość jest odczytywana z własnego nagłówka pliku, który
+plik zbudowany ręcznie może zaniżyć: jedno dyktowanie może wtedy nieść w ramach
+limitu rozmiaru nawet około czterdziestokrotność najdłuższego dyktowania. Na
+[publicznej stronie albo w widgecie](channels.md#what-it-costs-and-what-bounds-it)
+każdy, kto ma link, może takie wysłać, na rachunek konta organizacji u providera
+i poza każdym budżetem.
+
+Dlatego przełącznik na `/admin/settings` najpierw pyta. Włączenie otwiera okno
+dialogowe, które nazywa te ryzyka, a jego przycisk potwierdzenia staje się
+aktywny dopiero po zaznaczeniu pola z oświadczeniem, że zostały przeczytane;
+wyłączenie o nic nie pyta. Tak czy inaczej zmiana jest zapisywana razem z resztą
+formularza i audytowana jak każde inne pole. Przeglądarki stosują się do niej,
+gdy strona następnym razem zapyta: format, w którym nagrywają, to ten, który
+ogłasza serwer, nigdy lista trzymana w kliencie.
+
 ## Ten wiersz { #the-row }
 
 Jeden wiersz na całą instalację, pilnowany przez bazę danych, a nie przez
@@ -568,5 +594,8 @@ moduł znika.
   w schowku, nazwana w banerze, kończona przez administratora, przez wylogowanie
   się danej osoby wszędzie albo przez upływ godziny. To, czy ta osoba zostanie
   poinformowana, rozstrzyga `notify_impersonated_users`, domyślnie wyłączone.
+- Dyktowanie to **surowy PCM, chyba że `dictation_compressed_audio` jest
+  włączone**, a administrator włącza je dopiero po oknie dialogowym, które nazywa,
+  ile to kosztuje.
 - Każde odrzucenie z tego wdrożenia wygląda tak samo, niezależnie od tego, która
   warstwa je wyprodukowała.

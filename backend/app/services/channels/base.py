@@ -183,6 +183,14 @@ class IncomingAttachment:
     handle: str
     """Opaque to everything but the adapter that made it."""
 
+    duration_seconds: float | None = None
+    """How long a recording is, where the platform says (Slack's `duration_ms`,
+    Telegram's `duration`; Mattermost states none).
+
+    Metadata, not a measurement, and absent on most files. Read so that a
+    voice note's length can be recorded with its transcription without
+    decoding the audio, which nothing in the image can do."""
+
 
 @dataclass(frozen=True)
 class OutgoingAttachment:
@@ -355,6 +363,20 @@ class ChannelAdapter(ABC):
                 an attachment looks like a bot that read it.
         """
         raise NotImplementedError(f"{self.platform} attachments cannot be downloaded yet")
+
+    async def describe_attachments(
+        self, bot_token: str, attachments: list[IncomingAttachment]
+    ) -> list[IncomingAttachment]:
+        """The attachments with what the parser could not know filled in.
+
+        Called by the router before it decides which attachments are voice
+        notes, since that decision reads the type. Most platforms put the name,
+        size and type on the event, so the default returns the list unchanged.
+        An adapter whose payload can carry a bare id - a Mattermost outgoing
+        webhook - looks the rest up here, where an HTTP call is allowed and a
+        synchronous parser's is not.
+        """
+        return attachments
 
     #
     # The implementation half of `app.agents.capabilities.channel_tools`: the

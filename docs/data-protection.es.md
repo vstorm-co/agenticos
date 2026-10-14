@@ -1,5 +1,5 @@
 ---
-source_sha: "3f7ecae57bcf"
+source_sha: "49c9d57fd407"
 ---
 
 # Protección de datos { #data-protection }
@@ -40,7 +40,7 @@ configura así y el software coopera:
 | Trazas | Deja `LOGFIRE_TOKEN` sin definir y no vincules ningún token `observability` a un spec ni a un entorno. Los runs siguen registrando localmente un id de traza |
 | Búsqueda, navegación, memoria, herramientas | No vincules ningún secreto `search`, ninguna capability `web_fetch`, `browser_use` ni `memory_mem0`, ninguna conexión MCP. `browser_choice` puede quedarse, con `decision_base_url` apuntando a un modelo de decisión que alojes tú |
 | Correo | Tu propio relay SMTP |
-| Voz e imágenes | Perfiles en un provider que alojes tú, o ningún perfil de ese tipo |
+| Voz e imágenes | Para la voz, ningún provider: deja el dictado en `off` o `browser` y los bots de canal desactivados, porque todavía no se puede nombrar un servidor propio de voz a texto (un paso previsto). Para las imágenes, perfiles en un provider que alojes tú, o ningún perfil de ese tipo |
 
 Los embeddings incluidos: el catálogo nombra OpenRouter y OpenAI, a los que una
 colección llega con una clave del vault, y `ollama`, al que una colección llega a
@@ -91,7 +91,7 @@ cuelga, y leerla pasa por la comprobación del padre.
 | `notification_preferences`, `announcements` | Interruptores de canal por evento, y las difusiones propias del app admin | Un id de usuario por interruptor; el remitente de una difusión, su cuerpo y las organizaciones y el rol a los que iba dirigida — nunca la lista resuelta de destinatarios, que solo se puede reconstruir a partir de `notifications` hasta que esa fila caduca en [el barrido de retención de notificaciones](governance.md#alerts) — después de lo cual la entrada de audit detrás de ella conserva solo un recuento, nunca los destinatarios | Exclusión voluntaria, y el registro propio de quien la escribió |
 | `embed_visitors`, `channel_identities`, `channel_sessions` | Desconocidos en una página alojada y personas en Slack, Telegram o Mattermost | Una clave de visitante aleatoria; un id de usuario de la plataforma, nombre de usuario y nombre visible; el id del chat | Retomar el hilo correcto |
 | `message_ratings` | Pulgares y comentarios sobre las respuestas | Quien valora y su comentario | Revisión de calidad |
-| `ml_service_calls` | Cada llamada a los [servicios de ML](ml-services.md) | La organización, quién pidió, qué servicio, recuentos de bytes y unidades, la duración y cómo terminó - **nada de lo que se envió y nada de lo que volvió** | Informe de uso, y la vista de un operador sobre una integración que falla |
+| `ml_service_calls` | Cada llamada a los [servicios de ML](ml-services.md) y cada transcripción: dictado, un mensaje de voz de un canal, la API, el dictado de un visitante en una página alojada o un widget | La organización, quién pidió, qué servicio, recuentos de bytes y unidades, la duración y cómo terminó; en una transcripción también el proveedor y el modelo, el id de la clave del vault con la que se envió, por dónde llegó, el agent y el bot de canal para los que fue y la duración de la grabación. La fila de un mensaje de voz de un canal nombra a la persona con la que está vinculada la cuenta del remitente, y a nadie si el remitente no está vinculado. La fila de un visitante no nombra a nadie - ni al visitante, que no tiene cuenta, ni a quien publicó la página. Borrar a la persona, el agent, el bot o la clave quita el vínculo y conserva la fila - **nada de lo que se envió y nada de lo que volvió** | Informe de uso, y la vista de un operador sobre una integración que falla |
 | `agent_workspaces`, `sandbox_operations` | Archivos sobre los que trabajó un agent y el registro de lo que ejecutó | Para el backend `state`, los propios archivos, en JSON; para un contenedor, el id de sesión y cada comando, destino y resumen del resultado | La sandbox. Consulta [La sandbox](sandbox.md#what-was-done-in-one-and-where-that-record-lives) |
 | `organization_secrets`, `model_profiles`, `mcp_connections`, `channel_bots` | Credenciales y hacia dónde apuntan | Solo el cifrado sellado, con una pista; el provider, el modelo y la `base_url` en claro | Llegar a los providers. Consulta [Secretos](secrets.md) |
 
@@ -130,7 +130,7 @@ lista completa de destinos, con la configuración que decide cada uno.
 | Un servidor MCP | Argumentos y resultados de herramientas | `mcp_connections.url`, por organización o por persona | La del operador del servidor |
 | mem0 | Los recuerdos escritos para una persona o un chat | La `base_url` de la capability `memory_mem0`, que tiene que estar en `MEM0_ALLOWED_HOSTS` | La del host de mem0 que permitas |
 | Logfire | Spans de cada petición y cada run | `LOGFIRE_TOKEN` a nivel de deployment; un token `observability` en un spec, o `logfire_token_secret_id` en un entorno, redirige esos runs a otro proyecto. `LOGFIRE_BASE_URL` elige el deployment de EE. UU. o el de la UE. Sin definir en ninguna parte, no se envía nada | La de Pydantic, EE. UU. o UE |
-| Voz a texto, generación de imágenes | La nota de voz; el prompt | Un perfil para `groq`, `mistral` u `openai`; un perfil para `google` u `openai` | La del provider |
+| Voz a texto, generación de imágenes | Una nota de voz de un canal, una grabación dictada en `/chat`, o la grabación de un visitante anónimo en una página alojada o un widget; el prompt | El provider al que se resuelve una grabación - el par propio del bot, la anulación del agent o el predeterminado de la organización, que un bot hereda salvo que esté desactivado - enviado con la clave del vault nombrada junto a ese par - una clave de API de `groq`, `mistral` u `openai`, visible para la organización en la organización y en un bot; para el dictado en `/chat`, además, el motor de la organización en `server`, y para una página o un widget su propio `dictation: server`. Un perfil para `google` u `openai` para las imágenes. El audio de un dictado no se guarda aquí. Con `browser` en una página o un widget, el navegador del visitante envía el audio a su fabricante y nada de él pasa por este despliegue | La del provider, o tu propio host para las imágenes; con `browser`, la del fabricante del navegador |
 | Slack, Telegram, Mattermost | Las respuestas del agent | Una fila `channel_bots` con su token en el vault | El proveedor de mensajería ya tiene el chat |
 | Inicio de sesión con Google | Nada hacia fuera; Google devuelve el correo, el nombre, la foto y el id de la cuenta | `GOOGLE_CLIENT_ID` | La de Google |
 | Tu relay SMTP | El correo de arriba | `SMTP_HOST`, `SMTP_TLS` | La tuya |

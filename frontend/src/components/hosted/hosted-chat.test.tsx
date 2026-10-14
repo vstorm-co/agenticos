@@ -5,7 +5,51 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { HostedChat } from "./hosted-chat";
+import type { DictationState } from "@/hooks/use-dictation";
+import type { DictationSend } from "@/lib/dictation-api";
 import type { HostedPageConfig } from "@/types/hosted";
+
+/**
+ * The recorder, as a phase each test sets. What is under test here is what the
+ * page hands it and draws for a phase; the recording itself is
+ * `use-dictation.test.ts`, shared with the console's composer.
+ */
+const dictation = vi.hoisted(() => ({
+  state: null as Partial<DictationState> | null,
+  options: null as { send: DictationSend | null; maxSeconds: number; format: string } | null,
+  actions: {
+    start: vi.fn(),
+    stop: vi.fn(),
+    cancel: vi.fn(),
+    retry: vi.fn(),
+    dismiss: vi.fn(),
+    dismissInserted: vi.fn(),
+  },
+}));
+vi.mock("@/hooks/use-dictation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/use-dictation")>()),
+  useDictation: (options: { send: DictationSend | null; maxSeconds: number; format: string }) => {
+    dictation.options = options;
+    return {
+      state: {
+        phase: "idle",
+        elapsed: 3,
+        remaining: null,
+        silent: false,
+        level: 0,
+        reason: null,
+        canRetry: false,
+        retryAfter: null,
+        transcript: null,
+        upload: null,
+        stoppedAtLimit: false,
+        inserted: false,
+        ...dictation.state,
+      },
+      actions: dictation.actions,
+    };
+  },
+}));
 
 // The real renderer is loaded with `next/dynamic` and `ssr: false`, so under
 // jsdom it renders its own placeholder and every assertion on an answer's words
@@ -24,7 +68,12 @@ vi.mock("@/components/chat/markdown-content", () => ({
  */
 function render(ui: ReactElement) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return renderBare(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+  // A wrapper rather than a parent, so `rerender` keeps the page mounted.
+  return renderBare(ui, {
+    wrapper: ({ children }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    ),
+  });
 }
 
 /**
@@ -69,7 +118,9 @@ function config(overrides: Partial<HostedPageConfig> = {}): HostedPageConfig {
     logo_url: null,
     agent_name: "Refund helper",
     variables: [],
-    allow_voice: false,
+    dictation: "off",
+    dictation_max_seconds: 300,
+    dictation_format: "webm",
     allow_new_conversation: true,
     allow_files: false,
     ...overrides,
@@ -81,6 +132,9 @@ beforeEach(() => {
   // without one renders no microphone would pass or fail on ordering.
   vi.unstubAllGlobals();
   window.localStorage.clear();
+  dictation.state = null;
+  dictation.options = null;
+  for (const action of Object.values(dictation.actions)) action.mockReset();
   FakeSocket.last = null;
   vi.stubGlobal("WebSocket", FakeSocket);
   window.localStorage.clear();
@@ -315,7 +369,7 @@ describe("what the operator lets the page offer", () => {
   });
 
   it("offers no microphone unless the operator turned it on", () => {
-    render(<HostedChat config={config({ allow_voice: false })} />);
+    render(<HostedChat config={config({ dictation: "off" })} />);
 
     expect(screen.queryByRole("button", { name: "Dictate" })).toBeNull();
   });
@@ -323,7 +377,7 @@ describe("what the operator lets the page offer", () => {
   it("offers no microphone in a browser that has none, even when allowed", () => {
     // A control that cannot work is not rendered - the same rule the dashboard
     // applies to a permission somebody lacks.
-    render(<HostedChat config={config({ allow_voice: true })} />);
+    render(<HostedChat config={config({ dictation: "browser" })} />);
 
     expect(screen.queryByRole("button", { name: "Dictate" })).toBeNull();
   });
@@ -350,7 +404,7 @@ describe("what the operator lets the page offer", () => {
       }),
     );
 
-    render(<HostedChat config={config({ allow_voice: true })} />);
+    render(<HostedChat config={config({ dictation: "browser" })} />);
     await userEvent.click(screen.getByRole("button", { name: "Dictate" }));
 
     expect(recognition.start).toHaveBeenCalled();
@@ -362,6 +416,145 @@ describe("what the operator lets the page offer", () => {
 
     expect(await screen.findByDisplayValue("where is my order")).toBeInTheDocument();
     expect(FakeSocket.last!.sent).toEqual([]);
+  });
+});
+
+describe("server dictation on the page", () => {
+  const server = (overrides: Partial<HostedPageConfig> = {}) =>
+    config({
+      dictation: "server",
+      dictation_max_seconds: 90,
+      dictation_format: "wav",
+      ...overrides,
+    });
+
+  it("records in the format and to the limit the backend sent", async () => {
+    render(<HostedChat config={server()} />);
+    await userEvent.click(screen.getByRole("button", { name: "Dictate" }));
+
+    expect(dictation.actions.start).toHaveBeenCalledOnce();
+    expect(dictation.options).toMatchObject({ maxSeconds: 90, format: "wav" });
+  });
+
+  it("has nowhere to send a recording on a page that is not on server", () => {
+    render(<HostedChat config={config({ dictation: "browser" })} />);
+
+    expect(dictation.options!.send).toBeNull();
+  });
+
+  it("posts a recording to its own route with the visitor's key, never in the URL", async () => {
+    // By XMLHttpRequest, the one way to hear how much of it has gone up.
+    const sent: { url: string; headers: Record<string, string> }[] = [];
+    class Xhr {
+      upload = { onprogress: null, onload: null as (() => void) | null };
+      onload: (() => void) | null = null;
+      status = 200;
+      statusText = "OK";
+      responseText = JSON.stringify({ text: "where is my order" });
+      private request = { url: "", headers: {} as Record<string, string> };
+      open(_method: string, url: string) {
+        this.request.url = url;
+      }
+      setRequestHeader(name: string, value: string) {
+        this.request.headers[name] = value;
+      }
+      getAllResponseHeaders() {
+        return "";
+      }
+      send() {
+        sent.push(this.request);
+        this.upload.onload?.();
+        this.onload?.();
+      }
+    }
+    vi.stubGlobal("XMLHttpRequest", Xhr);
+    const progress = vi.fn();
+    render(<HostedChat config={server()} />);
+
+    const text = await dictation.options!.send!(
+      new Blob(["a"], { type: "audio/wav" }),
+      2,
+      new AbortController().signal,
+      progress,
+    );
+
+    expect(text).toBe("where is my order");
+    expect(progress).toHaveBeenCalledWith(1);
+    const [{ url, headers }] = sent as [(typeof sent)[number]];
+    expect(url).toMatch(/\/api\/v1\/embed\/pk_abc\/dictation$/);
+    const visitor = window.localStorage.getItem("agenticos:visitor:pk_abc");
+    expect(headers["x-visitor-key"]).toBe(visitor);
+  });
+
+  it("swaps the box for the recording bar while a recording is open, and Esc cancels", async () => {
+    dictation.state = { phase: "recording" };
+    render(<HostedChat config={server()} />);
+
+    expect(screen.queryByRole("textbox")).toBeNull();
+    const stop = screen.getByRole("button", { name: "Stop and transcribe" });
+    await userEvent.type(stop, "{Shift}");
+    expect(dictation.actions.cancel).not.toHaveBeenCalled();
+    await userEvent.type(stop, "{Escape}");
+
+    expect(dictation.actions.cancel).toHaveBeenCalledOnce();
+  });
+
+  it("puts the transcript in the box and sends nothing", async () => {
+    const view = render(<HostedChat config={server()} />);
+    await userEvent.type(screen.getByRole("textbox"), "Hello");
+
+    dictation.state = { transcript: { id: 1, text: "where is my order" } };
+    view.rerender(<HostedChat config={server()} />);
+
+    expect(await screen.findByDisplayValue("Hello where is my order")).toBeInTheDocument();
+    expect(FakeSocket.last!.sent).toEqual([]);
+  });
+
+  it("says the words landed, aloud as well, and lets the next key put it away", async () => {
+    // The page has no status region of its own: the strip is the announcement.
+    dictation.state = { inserted: true, transcript: { id: 1, text: "where is my order" } };
+    render(<HostedChat config={server()} />);
+
+    expect(screen.getByTestId("dictation-strip-text")).toHaveTextContent("Inserted 4 words");
+    expect(screen.getByTestId("dictation-strip")).toHaveAttribute("aria-live", "polite");
+    const box = screen.getByRole("textbox");
+    await userEvent.type(box, "{Shift}");
+    expect(dictation.actions.dismissInserted).not.toHaveBeenCalled();
+    await userEvent.type(box, "?");
+    expect(dictation.actions.dismissInserted).toHaveBeenCalled();
+  });
+
+  it("leaves the draft's keys alone when nothing was just inserted", async () => {
+    render(<HostedChat config={server()} />);
+
+    await userEvent.type(screen.getByRole("textbox"), "hi");
+
+    expect(dictation.actions.dismissInserted).not.toHaveBeenCalled();
+  });
+
+  it("counts the upload in the bar while it is going up", () => {
+    dictation.state = { phase: "transcribing", upload: 42 };
+    render(<HostedChat config={server()} />);
+
+    expect(screen.getByText("Uploading 42%")).toBeInTheDocument();
+  });
+
+  it("says the recording stopped at the page's limit while it is transcribed", () => {
+    dictation.state = { phase: "transcribing", stoppedAtLimit: true };
+    render(<HostedChat config={server()} />);
+
+    expect(screen.getByTestId("dictation-strip-text")).toHaveTextContent(
+      "Stopped at the 1:30 limit. Transcribing everything up to here.",
+    );
+  });
+
+  it("tells a visitor what to do when it is not set up, naming no admin", () => {
+    dictation.state = { phase: "failed", reason: "not_configured" };
+    render(<HostedChat config={server()} />);
+
+    const strip = screen.getByTestId("dictation-strip-text");
+    expect(strip).toHaveTextContent("Voice input isn't available right now.");
+    expect(strip).not.toHaveTextContent(/admin|organization/i);
   });
 });
 

@@ -4,7 +4,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { toast } from "sonner";
 
-import { ChatInput } from "./chat-input";
+import { ChatInput, type ComposerDictation } from "./chat-input";
+import type { DictationState } from "@/hooks/use-dictation";
 import { PublicConfigProvider } from "@/components/public-config/public-config-provider";
 import type { FileUploadResponse } from "@/lib/file-api";
 import { DEFAULT_PUBLIC_CONFIG } from "@/lib/public-config";
@@ -276,5 +277,354 @@ describe("ChatInput attachments", () => {
 
     expect(toast.error).toHaveBeenCalledWith("export.csv: File too large. Maximum 1MB.");
     expect(state.upload).not.toHaveBeenCalled();
+  });
+});
+
+function dictationState(overrides: Partial<DictationState> = {}): DictationState {
+  return {
+    phase: "idle",
+    elapsed: 0,
+    remaining: null,
+    silent: false,
+    level: 0,
+    reason: null,
+    canRetry: false,
+    retryAfter: null,
+    transcript: null,
+    upload: null,
+    stoppedAtLimit: false,
+    inserted: false,
+    ...overrides,
+  };
+}
+
+/** The page's half of server dictation: plain state, and actions to watch. */
+function serverDictation(
+  overrides: Partial<Omit<ComposerDictation, "state">> = {},
+  state: Partial<DictationState> = {},
+): ComposerDictation {
+  return {
+    engine: "server",
+    ready: true,
+    hasAgent: true,
+    state: dictationState(state),
+    actions: {
+      start: vi.fn(async () => {}),
+      stop: vi.fn(),
+      cancel: vi.fn(),
+      retry: vi.fn(),
+      dismiss: vi.fn(),
+      dismissInserted: vi.fn(),
+    },
+    voiceSettingsHref: null,
+    agentVoiceHref: null,
+    onExplain: vi.fn(),
+    ...overrides,
+  };
+}
+
+/** The same dictation, a step further on. */
+function moved(dictation: ComposerDictation, state: Partial<DictationState>): ComposerDictation {
+  return { ...dictation, state: { ...dictation.state, ...state } };
+}
+
+describe("ChatInput dictation engines", () => {
+  it("draws no microphone when the organization turned dictation off", () => {
+    render(<ChatInput onSend={vi.fn()} dictation={serverDictation({ engine: "off" })} />);
+
+    expect(screen.queryByRole("button", { name: "Voice input" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the browser's own speech recognition for the browser engine", async () => {
+    render(<ChatInput onSend={vi.fn()} dictation={serverDictation({ engine: "browser" })} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Voice input" }));
+
+    // jsdom has no Web Speech API: the browser engine's own refusal, unchanged.
+    expect(toast.info).toHaveBeenCalledWith(
+      "Voice input is only supported in Chrome. Use Chrome for speech-to-text.",
+    );
+  });
+
+  it("starts recording on the server engine's mic", async () => {
+    const dictation = serverDictation();
+    render(<ChatInput onSend={vi.fn()} dictation={dictation} />);
+
+    const mic = screen.getByRole("button", { name: "Voice input" });
+    expect(mic).not.toHaveAttribute("aria-disabled");
+    await userEvent.click(mic);
+
+    expect(dictation.actions.start).toHaveBeenCalledOnce();
+    expect(toast.info).not.toHaveBeenCalled();
+  });
+
+  it("crosses the mic out when the server engine is not set up", async () => {
+    const dictation = serverDictation({ ready: false });
+    render(<ChatInput onSend={vi.fn()} dictation={dictation} />);
+
+    const mic = screen.getByRole("button", { name: "Voice input" });
+    expect(mic).toHaveAttribute("aria-disabled", "true");
+    expect(mic).toHaveAccessibleDescription(/^Dictation isn't set up yet\./);
+    await userEvent.click(mic);
+    expect(dictation.actions.start).not.toHaveBeenCalled();
+    expect(dictation.onExplain).toHaveBeenCalledOnce();
+  });
+
+  it("crosses the mic out when there is no agent to send the recording through", () => {
+    render(<ChatInput onSend={vi.fn()} dictation={serverDictation({ hasAgent: false })} />);
+
+    expect(screen.getByRole("button", { name: "Voice input" })).toHaveAccessibleDescription(
+      /^Pick an agent first\./,
+    );
+  });
+});
+
+describe("ChatInput while dictating", () => {
+  it.each(["recording", "transcribing"] as const)(
+    "while %s the box is read-only and nothing can be sent",
+    async (phase) => {
+      const onSend = vi.fn();
+      const dictation = serverDictation();
+      const { rerender, container } = render(
+        <ChatInput
+          onSend={onSend}
+          dictation={dictation}
+          isProcessing
+          onStop={vi.fn()}
+          controlsSlot={<span data-testid="agent-picker" />}
+        />,
+      );
+      const textarea = screen.getByRole("textbox");
+      await userEvent.type(textarea, "draft");
+
+      const busy = moved(dictation, { phase });
+      rerender(
+        <ChatInput
+          onSend={onSend}
+          dictation={busy}
+          isProcessing
+          onStop={vi.fn()}
+          controlsSlot={<span data-testid="agent-picker" />}
+        />,
+      );
+
+      expect(textarea).toHaveAttribute("readonly");
+      fireEvent.keyDown(textarea, { key: "Enter" });
+      fireEvent.submit(container.querySelector("form")!);
+      expect(onSend).not.toHaveBeenCalled();
+      expect(busy.actions.stop).toHaveBeenCalledTimes(phase === "recording" ? 1 : 0);
+      // The row with the picker, stop-generating and Send stays mounted, hidden
+      // and inert: the model override on it is state of its own.
+      expect(screen.getByTestId("agent-picker").closest("[inert]")).not.toBeNull();
+      expect(
+        screen.getByRole("button", { name: "Stop generating" }).closest("[inert]"),
+      ).toHaveClass("hidden");
+
+      fireEvent.keyDown(textarea, { key: "Escape" });
+      expect(busy.actions.cancel).toHaveBeenCalledOnce();
+      await userEvent.type(textarea, "more");
+      expect(textarea).toHaveValue("draft");
+    },
+  );
+
+  it("cancels on Escape from the bar too, and leaves Escape alone once idle", () => {
+    const dictation = serverDictation({}, { phase: "recording" });
+    const { rerender } = render(<ChatInput onSend={vi.fn()} dictation={dictation} />);
+
+    fireEvent.keyDown(screen.getByRole("button", { name: "Stop and transcribe" }), {
+      key: "Escape",
+    });
+    expect(dictation.actions.cancel).toHaveBeenCalledOnce();
+
+    const idle = moved(dictation, { phase: "idle" });
+    rerender(<ChatInput onSend={vi.fn()} dictation={idle} />);
+    fireEvent.keyDown(screen.getByRole("textbox"), { key: "Escape" });
+    expect(idle.actions.cancel).toHaveBeenCalledOnce();
+  });
+
+  it("moves focus to Stop when the recording is live", () => {
+    const dictation = serverDictation({}, { phase: "requesting" });
+    const { rerender } = render(<ChatInput onSend={vi.fn()} dictation={dictation} />);
+
+    rerender(<ChatInput onSend={vi.fn()} dictation={moved(dictation, { phase: "recording" })} />);
+
+    expect(screen.getByRole("button", { name: "Stop and transcribe" })).toHaveFocus();
+  });
+
+  it("keeps Escape cancelling once Stop is pressed, by handing focus to Cancel", () => {
+    const dictation = serverDictation({}, { phase: "requesting" });
+    const { rerender, container } = render(<ChatInput onSend={vi.fn()} dictation={dictation} />);
+    rerender(<ChatInput onSend={vi.fn()} dictation={moved(dictation, { phase: "recording" })} />);
+    expect(screen.getByRole("button", { name: "Stop and transcribe" })).toHaveFocus();
+
+    const busy = moved(dictation, { phase: "transcribing" });
+    rerender(<ChatInput onSend={vi.fn()} dictation={busy} />);
+
+    const focused = document.activeElement as HTMLElement;
+    expect(container.querySelector("form")).toContainElement(focused);
+    fireEvent.keyDown(focused, { key: "Escape" });
+    expect(busy.actions.cancel).toHaveBeenCalledOnce();
+  });
+
+  it("brings focus back to the box when dictation ends in a failure", () => {
+    const dictation = serverDictation({}, { phase: "requesting" });
+    const { rerender } = render(<ChatInput onSend={vi.fn()} dictation={dictation} />);
+    const step = (state: Partial<DictationState>) =>
+      rerender(<ChatInput onSend={vi.fn()} dictation={moved(dictation, state)} />);
+    step({ phase: "recording" });
+    step({ phase: "transcribing" });
+
+    step({ phase: "failed", reason: "provider_error", canRetry: true });
+
+    expect(screen.getByRole("textbox")).toHaveFocus();
+  });
+
+  it("announces each step once, politely", () => {
+    const dictation = serverDictation();
+    const { rerender, container } = render(<ChatInput onSend={vi.fn()} dictation={dictation} />);
+    const status = container.querySelector('[role="status"][aria-live="polite"]')!;
+    const step = (state: Partial<DictationState>) =>
+      rerender(<ChatInput onSend={vi.fn()} dictation={moved(dictation, state)} />);
+
+    step({ phase: "recording" });
+    expect(status).toHaveTextContent("Recording");
+    step({ phase: "recording", remaining: 30 });
+    expect(status).toHaveTextContent("30 seconds left");
+    step({ phase: "recording", remaining: 29 });
+    expect(status).toHaveTextContent("30 seconds left");
+    step({ phase: "transcribing" });
+    expect(status).toHaveTextContent("Transcribing");
+    step({ phase: "failed" });
+    expect(status).toHaveTextContent("Transcribing");
+  });
+});
+
+describe("ChatInput inserting a transcript", () => {
+  /** Type, put the caret or selection somewhere, press the mic, and get the text back. */
+  async function dictateInto(
+    typed: string,
+    selection: [number, number] | null,
+    text: string,
+  ): Promise<HTMLTextAreaElement> {
+    const dictation = serverDictation();
+    const { rerender } = render(<ChatInput onSend={vi.fn()} dictation={dictation} />);
+    const textarea = screen.getByRole<HTMLTextAreaElement>("textbox");
+    if (typed) await userEvent.type(textarea, typed);
+    if (selection) textarea.setSelectionRange(...selection);
+    fireEvent.click(screen.getByRole("button", { name: "Voice input" }));
+
+    rerender(
+      <ChatInput onSend={vi.fn()} dictation={moved(dictation, { phase: "transcribing" })} />,
+    );
+    const done = moved(dictation, { phase: "idle", transcript: { id: 1, text } });
+    rerender(<ChatInput onSend={vi.fn()} dictation={done} />);
+    // The same transcript again is not a second insertion.
+    rerender(<ChatInput onSend={vi.fn()} dictation={{ ...done }} />);
+    return textarea;
+  }
+
+  it("lands at the caret saved when the mic was pressed, and leaves the caret after it", async () => {
+    const textarea = await dictateInto("Summarise the board pack and ", null, "focus on churn");
+
+    expect(textarea).toHaveValue("Summarise the board pack and focus on churn");
+    await waitFor(() => expect(textarea).toHaveFocus());
+    expect(textarea.selectionStart).toBe(textarea.value.length);
+    expect(textarea.selectionEnd).toBe(textarea.value.length);
+  });
+
+  it("replaces a selection", async () => {
+    const textarea = await dictateInto("Summarise the board pack", [0, 9], "Shorten");
+
+    expect(textarea).toHaveValue("Shorten the board pack");
+    await waitFor(() => expect(textarea.selectionStart).toBe(7));
+  });
+
+  it("adds a joining space after a word", async () => {
+    const textarea = await dictateInto("Summarise", null, "the board pack");
+
+    expect(textarea).toHaveValue("Summarise the board pack");
+  });
+
+  it("adds a space after the transcript when a word follows the caret, and leaves the caret past it", async () => {
+    const textarea = await dictateInto("Summarise pack", [10, 10], "the board");
+
+    expect(textarea).toHaveValue("Summarise the board pack");
+    await waitFor(() => expect(textarea.selectionStart).toBe("Summarise the board ".length));
+  });
+
+  it("fills an empty box without a leading space", async () => {
+    const textarea = await dictateInto("", null, "hello there");
+
+    expect(textarea).toHaveValue("hello there");
+  });
+
+  it("says how many words landed", async () => {
+    await dictateInto("", null, "focus on   churn");
+
+    expect(document.querySelector('[role="status"][aria-live="polite"]')).toHaveTextContent(
+      "Inserted 3 words",
+    );
+  });
+
+  it("counts words the way the strip does, which spaces alone would not", async () => {
+    await dictateInto("", null, "我们明天开会");
+
+    expect(document.querySelector('[role="status"][aria-live="polite"]')).toHaveTextContent(
+      "Inserted 3 words",
+    );
+  });
+
+  it("puts the note away on the next key, but not on a modifier alone", async () => {
+    const dictation = serverDictation({}, { inserted: true, transcript: { id: 1, text: "hi" } });
+    render(<ChatInput onSend={vi.fn()} dictation={dictation} />);
+    const textarea = screen.getByRole("textbox");
+
+    fireEvent.keyDown(textarea, { key: "Shift" });
+    expect(dictation.actions.dismissInserted).not.toHaveBeenCalled();
+    fireEvent.keyDown(textarea, { key: "a" });
+
+    expect(dictation.actions.dismissInserted).toHaveBeenCalledOnce();
+  });
+
+  it("has nothing to put away when nothing was just inserted", () => {
+    const dictation = serverDictation();
+    render(<ChatInput onSend={vi.fn()} dictation={dictation} />);
+
+    fireEvent.keyDown(screen.getByRole("textbox"), { key: "a" });
+
+    expect(dictation.actions.dismissInserted).not.toHaveBeenCalled();
+  });
+
+  it("goes at the end, joined by a space, when the text was edited while a failure waited", async () => {
+    const dictation = serverDictation();
+    const { rerender } = render(<ChatInput onSend={vi.fn()} dictation={dictation} />);
+    const textarea = screen.getByRole<HTMLTextAreaElement>("textbox");
+    const step = (state: Partial<DictationState>) =>
+      rerender(<ChatInput onSend={vi.fn()} dictation={moved(dictation, state)} />);
+    fireEvent.click(screen.getByRole("button", { name: "Voice input" }));
+    step({ phase: "transcribing" });
+    step({ phase: "failed", reason: "provider_error", canRetry: true });
+
+    await userEvent.type(textarea, "Hello");
+    // Retry, from the strip under the box: the mic was not pressed again.
+    step({ phase: "transcribing" });
+    step({ phase: "idle", transcript: { id: 1, text: "focus on churn" } });
+
+    expect(textarea).toHaveValue("Hello focus on churn");
+    await waitFor(() => expect(textarea.selectionStart).toBe(textarea.value.length));
+  });
+
+  it("inserts nothing for a transcript nobody pressed the mic for", () => {
+    const dictation = serverDictation();
+    const { rerender } = render(<ChatInput onSend={vi.fn()} dictation={dictation} />);
+
+    rerender(
+      <ChatInput
+        onSend={vi.fn()}
+        dictation={moved(dictation, { transcript: { id: 4, text: "stray" } })}
+      />,
+    );
+
+    expect(screen.getByRole("textbox")).toHaveValue("");
   });
 });

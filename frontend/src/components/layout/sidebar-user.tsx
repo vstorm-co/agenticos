@@ -102,7 +102,7 @@ export function SidebarUser({ compact = false }: { compact?: boolean }) {
             the column from the name it belongs to. */}
         <OrganizationMenuItems />
         <DropdownMenuSeparator />
-        {/* How this looks and what language it is in. They were two unlabelled
+        {/* How this looks and what language it is in. Both were unlabelled
             glyphs in a strip at the foot of the column; here they are named,
             each showing its current value, in the menu that already answers
             "who am I and how do I want this". */}

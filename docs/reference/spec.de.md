@@ -1,5 +1,5 @@
 ---
-source_sha: "74ed632657e1"
+source_sha: "02ec08e2ff51"
 ---
 
 # Der Agent-Spec { #the-agent-spec }
@@ -43,3 +43,16 @@ selbst.
 ## Observability { #observability }
 
 ::: app.agents.spec.ObservabilitySpec
+
+## Spracherkennung { #speech-to-text }
+
+Der Anbieter, das Modell, der Schlüssel und die Sprache, mit denen das Diktieren
+an einen Agent und die von ihm geerbten Sprachnachrichten aus Kanälen
+transkribiert werden, wo sie von denen der Organisation abweichen. Der Schlüssel
+ist die ID eines Vault-Secrets, nie der Schlüssel selbst.
+[ML-Dienste](../ml-services.md#which-engine-a-recording-reaches) nennt die
+Reihenfolge, in der sie sich auflösen. Ein Spec, der diesen Block trägt, lässt
+sich nicht in ein Deployment importieren, das älter ist als der Block: dessen
+Spec lehnt Felder ab, die er nicht kennt.
+
+::: app.agents.spec.SpeechToTextSpec

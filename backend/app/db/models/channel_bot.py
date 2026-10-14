@@ -2,7 +2,7 @@
 
 import uuid
 
-from sqlalchemy import JSON, Boolean, ForeignKey, Integer, String
+from sqlalchemy import JSON, Boolean, CheckConstraint, ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -56,30 +56,74 @@ class ChannelBot(Base, TimestampMixin):
     slack_signing_secret_encrypted: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     slack_app_token_encrypted: Mapped[str | None] = mapped_column(String(1000), nullable=True)
 
+    transcribe_voice_notes: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
+    """Whether this bot transcribes voice notes at all (#1797).
+
+    Off means never, whatever the agent or the organization configure. On, the
+    pair below decides: this bot's own, or - with none - the one its agent or
+    its organization resolves to (`app/services/speech_to_text_settings.py`).
+
+    A switch of its own rather than "null pair is off", because null now has a
+    job: it is what inherits. On by default, so a bot registered from the CLI
+    or by an older API client inherits too; cost stays the organization's to
+    decide, because with no provider on the agent or the organization nothing
+    is transcribed. `0107_bot_transcription_switch.py` turned it off for every
+    bot that had no pair before, so none of them started transcribing on
+    upgrade.
+    """
+
     speech_to_text_provider: Mapped[str | None] = mapped_column(String(32), nullable=True)
     speech_to_text_model: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    """Which model turns a voice note into text, or null for "do not transcribe".
+    """Which model turns a voice note into text here, or null to inherit one.
 
     A pair rather than one string, because the provider decides where the request
     goes and the model decides what answers - the same split
     `ImageGenerationConfig` settled on after carrying an SDK prefix in one
-    enumerated field and needing a migration to take it apart again.
+    enumerated field and needing a migration to take it apart again. Both or
+    neither, which `ck_channel_bot_speech_pair` holds.
 
     Two columns rather than a key in `access_policy`: this is not a policy, and a
     JSONB field is the place a value goes when nobody wants to write a migration -
     which is how a rule ends up being narrowed on a column that already holds rows
     that break it.
 
-    Null is the default and is off. Transcription spends somebody's provider
-    credit on every voice note, so it is opted into rather than out of - and a
-    deployment whose providers all want service accounts can offer nothing here,
-    which a nullable pair says and a non-null default could not.
+    Null inherits the agent's or the organization's pair, and only while
+    `transcribe_voice_notes` is on. It used to mean off; that meaning moved to
+    the switch.
+    """
+
+    speech_to_text_secret_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("organization_secrets.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    """The vault key this bot's own pair is sent with, or null with no pair.
+
+    An org-visible `api_key` whose purpose is the provider: a bot's voice notes
+    are paid for on behalf of whoever writes to it, so a member's private key
+    may not pay for them. Named rather than looked up, and it travels with the
+    pair - an inheriting bot takes the inherited level's key with its pair, and
+    never this one. SET NULL on delete: the bot keeps its pair and reads as
+    "choose a key" until somebody does.
     """
 
     access_policy: Mapped[dict] = mapped_column(
         JSON,
         nullable=False,
         default=lambda: dict(DEFAULT_ACCESS_POLICY),
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "(speech_to_text_provider IS NULL) = (speech_to_text_model IS NULL)",
+            name="ck_channel_bot_speech_pair",
+        ),
+        CheckConstraint(
+            "speech_to_text_secret_id IS NULL OR speech_to_text_provider IS NOT NULL",
+            name="ck_channel_bot_speech_key_needs_pair",
+        ),
     )
 
     @property

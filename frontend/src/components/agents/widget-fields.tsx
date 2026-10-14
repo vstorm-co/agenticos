@@ -12,6 +12,8 @@ import {
   SelectValue,
   Textarea,
 } from "@/components/ui";
+import { EmbedDictationField } from "@/components/agents/embed-dictation-field";
+import type { ServerDictationChoice } from "@/components/agents/page-fields";
 import type { WidgetConfig } from "@/types/embeds";
 
 const MAX_TITLE = 80;
@@ -41,10 +43,13 @@ const MAX_LAUNCHER = 24;
 export function WidgetFields({
   config,
   disabled,
+  serverDictation,
   onChange,
 }: {
   config: WidgetConfig;
   disabled: boolean;
+  /** What `EmbedDictationField` needs to offer `server` honestly. */
+  serverDictation: ServerDictationChoice;
   onChange: (config: WidgetConfig) => void;
 }) {
   const t = useTranslations("agents");
@@ -149,6 +154,18 @@ export function WidgetFields({
           </Select>
         </div>
       </div>
+
+      {/* The widget's own copy is English whatever this form's locale - the
+          bubble's voice messages included - so only the choice is made here. */}
+      <EmbedDictationField
+        name="widget-dictation"
+        value={config.dictation}
+        disabled={disabled}
+        serverAvailable={serverDictation.available}
+        serverUnchecked={serverDictation.unchecked}
+        wasServer={serverDictation.wasServer}
+        onChange={(dictation) => onChange({ ...config, dictation })}
+      />
     </div>
   );
 }

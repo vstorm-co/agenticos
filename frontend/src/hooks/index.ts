@@ -17,6 +17,7 @@ export { useOrganizations, useOrganizationList, preferredOrg } from "./use-organ
 export { useActiveOrganizationRecovery } from "./use-active-organization";
 export { useMembers } from "./use-members";
 export { useMounted } from "./use-mounted";
+export { useReducedMotion } from "./use-reduced-motion";
 export { useUrlState } from "./use-url-state";
 export { useInvitations } from "./use-invitations";
 export { useKnowledgeBases, useKBDetail } from "./use-knowledge-bases";
@@ -116,3 +117,10 @@ export { useAgentEnvironments } from "./use-agent-environments";
 export { useExposures } from "./use-exposures";
 export { usePollWhileIngesting, type IngestingDocument } from "./use-poll-while-ingesting";
 export { useResizablePanel, type ResizablePanel } from "./use-resizable-panel";
+export { useDictationStatus } from "./use-dictation-status";
+export {
+  useDictation,
+  type DictationActions,
+  type DictationPhase,
+  type DictationState,
+} from "./use-dictation";

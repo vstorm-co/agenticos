@@ -16,8 +16,10 @@ function bot(overrides: Partial<ChannelBot> = {}): ChannelBot {
     has_slack_signing_secret: false,
     has_slack_app_token: false,
     connection: null,
+    transcribe_voice_notes: true,
     speech_to_text_provider: null,
     speech_to_text_model: null,
+    speech_to_text_secret_id: null,
     agents: [],
     created_at: "2026-08-31T09:00:00Z",
     ...overrides,
@@ -32,7 +34,7 @@ function draft(overrides: Partial<ChannelBotDraft> = {}): ChannelBotDraft {
     webhookSecret: "",
     signingSecret: "",
     appToken: "",
-    transcription: { provider: null, model: null },
+    transcription: { mode: "inherit", provider: null, model: null, secretId: null },
     ...overrides,
   };
 }
@@ -129,5 +131,144 @@ describe("the patch an edited bot sends", () => {
     );
 
     expect(patch).toEqual({ token: "111:AAA-replacement" });
+  });
+});
+
+describe("the transcription half of an edited bot's patch", () => {
+  it("sends nothing while the choice is what the bot already does", () => {
+    const paired = bot({
+      speech_to_text_provider: "groq",
+      speech_to_text_model: "whisper-large-v3",
+      speech_to_text_secret_id: "key-groq",
+    });
+
+    expect(botPatch(bot(), draft())).toEqual({});
+    expect(
+      botPatch(
+        paired,
+        draft({
+          transcription: {
+            mode: "choose",
+            provider: "groq",
+            model: "whisper-large-v3",
+            secretId: "key-groq",
+          },
+        }),
+      ),
+    ).toEqual({});
+    expect(
+      botPatch(
+        bot({ transcribe_voice_notes: false }),
+        draft({ transcription: { mode: "off", provider: null, model: null, secretId: null } }),
+      ),
+    ).toEqual({});
+  });
+
+  it("turns a bot off with the switch alone, which clears its pair on the server", () => {
+    const paired = bot({
+      speech_to_text_provider: "groq",
+      speech_to_text_model: "whisper-large-v3",
+    });
+
+    expect(
+      botPatch(
+        paired,
+        draft({ transcription: { mode: "off", provider: null, model: null, secretId: null } }),
+      ),
+    ).toEqual({ transcribe_voice_notes: false });
+  });
+
+  it("returns a bot with its own pair to inherit by clearing the pair", () => {
+    // A null pair means inherit now; it used to mean off.
+    const paired = bot({
+      speech_to_text_provider: "groq",
+      speech_to_text_model: "whisper-large-v3",
+    });
+
+    expect(botPatch(paired, draft())).toEqual({
+      speech_to_text_provider: null,
+      speech_to_text_model: null,
+    });
+  });
+
+  it("turns an off bot back on to inherit", () => {
+    expect(botPatch(bot({ transcribe_voice_notes: false }), draft())).toEqual({
+      transcribe_voice_notes: true,
+    });
+  });
+
+  it("turns an off bot on with a pair of its own in one patch", () => {
+    expect(
+      botPatch(
+        bot({ transcribe_voice_notes: false }),
+        draft({
+          transcription: {
+            mode: "choose",
+            provider: "openai",
+            model: "whisper-1",
+            secretId: "key-openai",
+          },
+        }),
+      ),
+    ).toEqual({
+      transcribe_voice_notes: true,
+      speech_to_text_provider: "openai",
+      speech_to_text_model: "whisper-1",
+      speech_to_text_secret_id: "key-openai",
+    });
+  });
+
+  it("sends both halves and the key when only the model moved", () => {
+    const paired = bot({
+      speech_to_text_provider: "groq",
+      speech_to_text_model: "whisper-large-v3",
+      speech_to_text_secret_id: "key-groq",
+    });
+
+    expect(
+      botPatch(
+        paired,
+        draft({
+          transcription: {
+            mode: "choose",
+            provider: "groq",
+            model: "whisper-large-v3-turbo",
+            secretId: "key-groq",
+          },
+        }),
+      ),
+    ).toEqual({
+      speech_to_text_provider: "groq",
+      speech_to_text_model: "whisper-large-v3-turbo",
+      speech_to_text_secret_id: "key-groq",
+    });
+  });
+
+  it("sends the pair with a newly chosen key when only the key moved", () => {
+    // The key was deleted, so the stored pair has none; choosing one is a
+    // change the server checks against the pair.
+    const paired = bot({
+      speech_to_text_provider: "groq",
+      speech_to_text_model: "whisper-large-v3",
+      speech_to_text_secret_id: null,
+    });
+
+    expect(
+      botPatch(
+        paired,
+        draft({
+          transcription: {
+            mode: "choose",
+            provider: "groq",
+            model: "whisper-large-v3",
+            secretId: "key-groq",
+          },
+        }),
+      ),
+    ).toEqual({
+      speech_to_text_provider: "groq",
+      speech_to_text_model: "whisper-large-v3",
+      speech_to_text_secret_id: "key-groq",
+    });
   });
 });
