@@ -196,6 +196,7 @@ dependencies = [
     "phonenumberslite>=9.0.40",
     "jsonschema>=4.26.0",
     "regex>=2026.9.10",
+    "referencing>=0.37.0",
 ]
 
 # No `[project.optional-dependencies]` entry for the `browser_use` capability's

@@ -18,9 +18,10 @@ from typing import Any
 from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
+from app.db.models.dataset import DatasetCase
 
 
 class CaseScore(Base):
@@ -48,6 +49,9 @@ class CaseScore(Base):
         nullable=False,
         index=True,
     )
+    # Loaded with the score: a reviewer judges the answer against what this
+    # revision asked, which a newer revision of the case may no longer say.
+    case_revision: Mapped[DatasetCase] = relationship(lazy="selectin")
     case_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False, index=True)
     # `SET NULL`: the score outlives the run it read - a deleted conversation or
     # person takes the run, and the verdict on the case stays.

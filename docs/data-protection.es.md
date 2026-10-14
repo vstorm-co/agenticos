@@ -1,5 +1,5 @@
 ---
-source_sha: "47c40ac1122e"
+source_sha: "847f165f0105"
 ---
 
 # Protección de datos { #data-protection }
@@ -82,7 +82,7 @@ cuelga, y leerla pasa por la comprobación del padre.
 | `chat_files` | Adjuntos de un mensaje | Nombre de archivo, tipo, tamaño, el texto extraído (`parsed_content`) y la ruta de los bytes en disco | Responder sobre un archivo |
 | `context_files` | Conocimiento permanente que un builder escribió para los agents | Lo que el autor pusiera ahí — y llega al prompt literalmente. Consulta [Archivos de contexto](context.md) | Instrucciones y hechos que un agent debe saber siempre |
 | `datasets`, `dataset_cases` | Casos de prueba para evals | Preguntas y respuestas copiadas de conversaciones cuando alguien eligió "Añadir al dataset", y lo que contenía un archivo importado. Las credenciales se ocultan antes de guardar un caso. Consulta [Datasets](datasets.md#personal-data) | Comprobar si un agent mejoró |
-| `case_scores` | Lo que la puntuación determinó sobre la respuesta de un run a un caso | Los motivos del juez de evals, que pueden citar la respuesta que calificó; el veredicto y la nota de una persona, y quién lo dio. Las credenciales se ocultan antes de guardar una puntuación. Consulta [Datasets](datasets.md#review) | Decidir si la respuesta de un agent aprobó |
+| `case_scores` | Lo que la puntuación determinó sobre la respuesta de un run a un caso | Los motivos del juez de evals, que pueden citar la respuesta que calificó; el veredicto y la nota de una persona, y quién lo dio. Los veredictos que dio una persona vuelven en su exportación (`GET /me/data/export`). Las credenciales se ocultan antes de guardar una puntuación. Consulta [Datasets](datasets.md#review) | Decidir si la respuesta de un agent aprobó |
 | `eval_runs`, `eval_run_arms`, `eval_run_cases` | Lo que un agent respondió a cada caso de un eval run | La respuesta y los argumentos de cada llamada que hizo: lo que preguntaba el caso y, en un caso respondido desde una grabación, lo que devolvió la conversación de la que se tomó; el spec del borrador que congeló el run. Se borra con su run, y un run con su agent o su dataset. Consulta [Eval runs](evals.md#what-a-run-keeps) | Comparar las versiones de un agent |
 | `artifacts`, `artifact_versions` y sus archivos | Páginas que los agents publicaron — informes, dashboards | Lo que muestre la página, que el run construyó con lo que podía leer; el propietario, el run que escribió cada versión y, cuando hay uno activo, la clave del enlace público, sus ajustes (una contraseña como hash bcrypt) y cuántas veces se abrió — un número y una hora, nada sobre el visitante. Consulta [Artefactos](artifacts.md) | Compartir un resultado bajo un enlace estable |
 | `agent_memory_files` | Notas que un agent escribió sobre una persona o un chat de grupo | Lo que el agent decidiera que valía la pena recordar, con clave `person:<user_id>` o una sala de chat | Continuidad entre conversaciones |

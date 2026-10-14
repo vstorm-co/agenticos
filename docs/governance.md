@@ -1358,7 +1358,8 @@ grades [dataset scores](datasets.md#judge), and the case generator, the
 authoring assistant and the knowledge-gap drafts that come after it. It is off
 by default, for an organization that existed before the switch as for a new
 one: whether models judge and draft is the organization's decision, and
-whoever holds `org:settings` turns it on.
+whoever holds `org:settings` turns it on. Each change is recorded in the
+[audit trail](#audit) as `organization.ai_assistance`, with who made it.
 
 When it is off, the service that would start such a run refuses it, whichever
 client asks - a hidden control is not the boundary. Scoring still runs its

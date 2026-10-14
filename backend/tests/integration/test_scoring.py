@@ -328,6 +328,10 @@ class TestScoringARun:
         assert found[("judge", "tone")].reason == "2/5: Looks right"
         assert score.passed is False
         assert score.run_id == run.id
+        assert (score.question, score.reference_answer) == (
+            "How long do I have to return an order?",
+            "Thirty days.",
+        )
 
     async def test_a_score_pins_the_judge_that_graded_it(self, db, judge) -> None:
         tenant = await _tenant(db)
@@ -578,6 +582,29 @@ class TestWhenTheJudgeCannotRun:
         assert score.judge is None
         assert judge.calls == 0
         assert await _eval_runs(db, tenant) == []
+
+    async def test_a_deleted_judge_model_skips_the_judge_and_the_checks_still_score(
+        self, db, judge
+    ) -> None:
+        tenant = await _tenant(db)
+        profile = await _model(db, tenant)
+        dataset, case = await _dataset(db, tenant, scoring=_rubric())
+        run = await _scored_run(db, tenant)
+        await SystemAgentService(db).ensure(organization_id=tenant.organization.id, key=JUDGE.key)
+        await db.delete(profile)
+        await db.flush()
+
+        score = await ScoringService(db).score_run(
+            tenant.ctx, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
+        )
+
+        by_scorer = {r.scorer: r for r in score.results}
+        assert by_scorer["check"].status == "pass"
+        assert by_scorer["trajectory"].status == "pass"
+        judged = [r for r in score.results if r.scorer == "judge"]
+        assert {(r.status, r.reason_code) for r in judged} == {("skipped", "judge_no_model")}
+        assert judge.calls == 0
+        assert score.passed is None
 
     async def test_an_unpublished_judge_says_so(self, db, judge) -> None:
         tenant = await _tenant(db)

@@ -3392,7 +3392,8 @@
         "judgeArchived": "Sędzia ewaluacji jest zarchiwizowany. Przywróć go, żeby znowu oceniał.",
         "judgeNoAccess": "Nie możesz uruchomić sędziego ewaluacji. Poproś o dostęp.",
         "judgeNotSeeded": "Nie udało się utworzyć sędziego ewaluacji w tej organizacji.",
-        "judgeBudget": "Budżet sędziego ewaluacji się wyczerpał, więc nie został uruchomiony."
+        "judgeBudget": "Budżet sędziego ewaluacji się wyczerpał, więc nie został uruchomiony.",
+        "judgeNoModel": "Model sędziego ewaluacji został usunięty albo nie ma klucza. Wybierz dla niego inny model."
       },
       "scoreRun": "Oceń względem przypadku",
       "scoreRunBody": "Uruchom na odpowiedzi tego runu wszystkie oceniacze skonfigurowane w datasecie. Wynik zostanie zapisany w datasecie.",
@@ -3411,7 +3412,10 @@
         "body": "Wsparcie AI jest wyłączone w tej organizacji, więc sędzia i porównanie z odpowiedzią wzorcową są pomijane, a oceniają tylko oceniacze oparte na regułach.",
         "enable": "Włącz wsparcie AI",
         "askAdmin": "Poproś administratora o włączenie."
-      }
+      },
+      "findDataset": "Znajdź dataset",
+      "question": "Pytanie",
+      "referenceAnswer": "Odpowiedź wzorcowa"
     },
     "title": "Datasety",
     "pageDescription": "Pytania, na których testujesz agentów. Każda zmiana przypadków w datasecie tworzy nową wersję, więc dwa runy eval na jednej wersji widziały te same pytania.",

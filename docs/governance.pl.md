@@ -1,5 +1,5 @@
 ---
-source_sha: "ac18e36a4b2a"
+source_sha: "4a4c8a2d19db"
 ---
 
 # Governance { #governance }
@@ -1462,7 +1462,9 @@ który ocenia [wyniki datasetów](datasets.md#judge), oraz generator
 przypadków, asystenta tworzenia i szkice luk w wiedzy, które pojawią się po
 nim. Domyślnie jest wyłączony, zarówno w organizacji, która istniała przed
 przełącznikiem, jak i w nowej: to, czy modele oceniają i piszą szkice, jest
-decyzją organizacji, a włącza go ten, kto ma `org:settings`.
+decyzją organizacji, a włącza go ten, kto ma `org:settings`. Każda zmiana jest
+zapisywana w [dzienniku audytu](#audit) jako `organization.ai_assistance`, z
+autorem zmiany.
 
 Gdy jest wyłączony, usługa, która uruchomiłaby taki run, odmawia go, niezależnie
 od tego, który klient o niego prosi - ukryta kontrolka nie jest granicą.

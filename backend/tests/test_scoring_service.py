@@ -22,6 +22,7 @@ from app.schemas.scoring import (
     RubricCriterion,
     TrajectoryScorer,
 )
+from app.services import scoring
 from app.services.ai_assistance import AiAssistanceService
 from app.services.scorers import CaseView, ScoredAnswer, ScoredCall, judge_criteria
 from app.services.scoring import Evaluation, ScoringService
@@ -116,3 +117,20 @@ class TestJudgePin:
             version_id,
             None,
         )
+
+
+async def test_a_long_run_is_scored_on_its_last_answer(monkeypatch) -> None:
+    """The transcript reads oldest first, so a run longer than a page reads its tail."""
+    run = MagicMock(id=uuid.uuid4(), started_at=None, ended_at=None, cost_usd=None)
+    turns = [MagicMock(role="assistant", content=f"answer {n}") for n in range(150)]
+
+    async def transcript(self, ctx, run_id, *, skip=0, limit=100):
+        return run, turns[skip : skip + limit], len(turns)
+
+    monkeypatch.setattr(scoring.AgentRunnerService, "get_run_transcript", transcript)
+    service = ScoringService(AsyncMock())
+    monkeypatch.setattr(service, "_calls_of", AsyncMock(return_value=()))
+
+    answer = await service.answer_of(_ctx(), run.id)
+
+    assert answer.text == "answer 149"

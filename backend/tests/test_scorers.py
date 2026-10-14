@@ -156,6 +156,13 @@ class TestSchemaChecks:
 
         assert _check(check, _answer('{"days": 30}')).status == "pass"
 
+    def test_a_reference_to_a_part_the_schema_lacks_is_an_error(self) -> None:
+        check = {"type": "json_schema", "schema": {"$ref": "#/$defs/missing"}}
+
+        result = _check(check, _answer("{}"))
+
+        assert (result.status, result.reason_code) == ("error", "schema_unresolvable")
+
 
 class TestCeilings:
     def test_a_cost_under_the_ceiling_passes(self) -> None:
