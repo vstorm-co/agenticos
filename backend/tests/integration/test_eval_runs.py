@@ -911,6 +911,7 @@ async def test_a_flip_against_a_baseline_in_the_same_run_reruns_both_sides(db) -
 
 async def test_the_estimate_counts_the_judge_and_the_agents_own_cap(db) -> None:
     ctx = await _owner(db)
+    await _assist(db, ctx, on=True)
     agent, versions = await _agent(db, ctx)
     versions[7].spec = {"name": "Clerk", "budget": {"monthly_usd": 2}}
     dataset = await _dataset(db, ctx, cases=4)
@@ -930,8 +931,24 @@ async def test_the_estimate_counts_the_judge_and_the_agents_own_cap(db) -> None:
     assert estimate.rerun_ceiling_usd == Decimal("0.80")
 
 
-async def test_a_cached_baseline_must_have_been_graded_by_the_current_judge(db) -> None:
+async def _assist(db: AsyncSession, ctx: AuthContext, *, on: bool) -> None:
+    org = await db.get(Organization, ctx.organization_id)
+    assert org is not None
+    org.ai_assistance_enabled = on
+    await db.flush()
+
+
+async def _pin(db: AsyncSession, run_id, judge: dict[str, Any] | None) -> None:
+    for score in (
+        await db.execute(select(CaseScore).where(CaseScore.eval_run_id == run_id))
+    ).scalars():
+        score.judge = judge
+    await db.flush()
+
+
+async def test_a_cached_baseline_must_have_been_graded_by_the_judge_that_grades_now(db) -> None:
     ctx = await _owner(db)
+    await _assist(db, ctx, on=True)
     agent, _ = await _agent(db, ctx)
     dataset = await _dataset(db, ctx, cases=1)
     dataset.scoring = {
@@ -943,16 +960,41 @@ async def test_a_cached_baseline_must_have_been_graded_by_the_current_judge(db) 
     first = await service.start(ctx, agent.id, request)
     await _run_to_end(db, Model(db), first.id, ctx)
 
-    def baseline_basis(estimate) -> str:
+    async def baseline_basis() -> str:
+        estimate = await service.estimate(ctx, agent.id, request)
         return next(arm.basis for arm in estimate.arms if arm.role == "baseline")
 
-    assert baseline_basis(await service.estimate(ctx, agent.id, request)) == "cached"
-    for score in (
-        await db.execute(select(CaseScore).where(CaseScore.eval_run_id == first.id))
-    ).scalars():
-        score.judge = {"agent_version_id": str(uuid.uuid4()), "rubric_hash": "a"}
+    # No judge is published in this organization, so that is the judge now.
+    await _pin(db, first.id, {"agent_version_id": None, "rubric_hash": "a"})
+    assert await baseline_basis() == "cached"
+    await _pin(db, first.id, {"agent_version_id": str(uuid.uuid4()), "rubric_hash": "a"})
+    assert await baseline_basis() == "history"
+    # Graded by no judge at all, where a judge would grade now.
+    await _pin(db, first.id, None)
+    assert await baseline_basis() == "history"
+
+    # With AI assistance off no judge grades now, so only an ungraded arm stands in.
+    await _assist(db, ctx, on=False)
+    assert await baseline_basis() == "cached"
+    await _pin(db, first.id, {"agent_version_id": None, "rubric_hash": "a"})
+    assert await baseline_basis() == "history"
+
+
+async def test_with_ai_assistance_off_the_estimate_has_no_judge(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=4)
+    dataset.scoring = {
+        "judge": {"enabled": True, "criteria": [{"name": "Tone", "description": "Polite"}]}
+    }
     await db.flush()
-    assert baseline_basis(await service.estimate(ctx, agent.id, request)) == "history"
+
+    estimate = await EvalRunService(db).estimate(
+        ctx, agent.id, EvalRunRequest(dataset_id=dataset.id)
+    )
+
+    assert estimate.judge_usd == Decimal(0)
+    assert estimate.total_usd == Decimal("0.20")
 
 
 async def test_what_cannot_run_is_refused_before_anything_is_estimated(db) -> None:
