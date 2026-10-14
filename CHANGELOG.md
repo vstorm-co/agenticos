@@ -19,6 +19,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **The Architect answers questions about AgenticOS from its documentation.**
+  Asked whether AgenticOS works from Claude Code, it searched the web, when
+  `docs/mcp.md` gives the exact command. A new gallery skill,
+  `agenticos-guide`, carries the glossary, features, concepts, MCP and API
+  pages - copied by `scripts/gen_architect_guide.py` and checked against
+  `docs/` by a test - and maps every other topic to its page on the
+  documentation site; the Architect template installs it and is told to
+  answer product questions from it rather than from a search.
+
 - **Spend over time, and each row's share.** The Activity page's Spend tab
   draws a bar per day of the window, gives every breakdown a share column
   and shows an agent's month against its cap. `GET /spend` gains `by_day`,
