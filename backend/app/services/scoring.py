@@ -36,9 +36,15 @@ from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent_run import RunStatus
 from app.db.models.case_score import CaseScore
-from app.db.models.conversation import Message, ToolCall
 from app.db.models.dataset import Dataset, DatasetCase
-from app.repositories import case_score_repo, credential_repo, dataset_repo
+from app.db.models.intercepted_tool_call import InterceptionOutcome
+from app.repositories import (
+    case_score_repo,
+    conversation_repo,
+    credential_repo,
+    dataset_repo,
+    intercepted_tool_call_repo,
+)
 from app.schemas.dataset import DatasetRead
 from app.schemas.scoring import (
     CaseScoreCreate,
@@ -93,34 +99,6 @@ def _case_view(case: DatasetCase) -> CaseView:
         order_mode=case.order_mode,
         checks=case.checks,
     )
-
-
-def _ordered_calls(messages: list[Message]) -> tuple[ScoredCall, ...]:
-    """A run's tool calls in the order it made them.
-
-    Turns are in order already. Inside one, every call is written at one instant,
-    so the turn's `parts` - which record the order things happened in - decide,
-    and the provider's call id breaks what is left.
-    """
-    calls: list[ScoredCall] = []
-    for message in messages:
-        positions = [
-            part.get("tool_call_id") for part in message.parts or [] if part.get("type") == "tool"
-        ]
-
-        def key(call: ToolCall, positions: list[object] = positions) -> tuple[datetime, int, str]:
-            at = (
-                positions.index(call.tool_call_id)
-                if call.tool_call_id in positions
-                else len(positions)
-            )
-            return call.started_at, at, call.tool_call_id
-
-        calls.extend(
-            ScoredCall(tool=call.tool_name, args=call.args or {})
-            for call in sorted(message.tool_calls, key=key)
-        )
-    return tuple(calls)
 
 
 class ScoringService:
@@ -203,10 +181,35 @@ class ScoringService:
         )
         return ScoredAnswer(
             text=answers[-1].content,
-            calls=_ordered_calls(messages),
+            calls=await self._calls_of(ctx, run.id),
             cost_usd=run.cost_usd,
             latency_ms=latency,
             run_id=run.id,
+        )
+
+    async def _calls_of(self, ctx: AuthContext, run_id: UUID) -> tuple[ScoredCall, ...]:
+        """A run's tool calls in the order it made them, with the writes it was kept from.
+
+        A call an isolated run held back still has its row in the transcript, so
+        it is joined by its call id. Only the run's own calls are read: a
+        delegate's calls belong to the delegate's run.
+        """
+        calls = await conversation_repo.list_tool_calls_for_run(
+            self.db, run_id=run_id, organization_id=ctx.organization_id
+        )
+        held = await intercepted_tool_call_repo.list_for_run(
+            self.db, run_id=run_id, organization_id=ctx.organization_id
+        )
+        blocked = {
+            call.tool_call_id for call in held if call.outcome == InterceptionOutcome.BLOCKED
+        }
+        return tuple(
+            ScoredCall(
+                tool=call.tool_name,
+                args=call.args or {},
+                blocked=call.tool_call_id in blocked,
+            )
+            for call, _ in calls
         )
 
     async def score_case(

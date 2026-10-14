@@ -30,10 +30,21 @@ from app.core.vault import VaultScope
 from app.db.models.agent import AgentStatus
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.credential import ModelProfile
+from app.db.models.intercepted_tool_call import (
+    InterceptedToolCall,
+    InterceptionOutcome,
+    InterceptionReason,
+)
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.user import User
-from app.repositories import agent_repo, agent_run_repo, conversation_repo, dataset_repo
+from app.repositories import (
+    agent_repo,
+    agent_run_repo,
+    conversation_repo,
+    dataset_repo,
+    intercepted_tool_call_repo,
+)
 from app.schemas.dataset import DatasetCaseCreate, DatasetCreate, ExpectedToolCall
 from app.schemas.scoring import (
     CaseScoreCreate,
@@ -382,6 +393,47 @@ class TestScoringARun:
         assert [call.tool for call in answer.calls] == ["search_kb", "lookup_order"]
         assert answer.latency_ms == 1500
         assert answer.cost_usd == Decimal("0.004")
+
+    async def test_a_write_the_isolated_run_blocked_still_meets_the_expected_call(
+        self, db, judge
+    ) -> None:
+        tenant = await _tenant(db)
+        dataset, case = await _dataset(db, tenant, scoring=DatasetScoring())
+        run = await _scored_run(db, tenant)
+        await intercepted_tool_call_repo.add_many(
+            db,
+            run_id=run.id,
+            organization_id=tenant.organization.id,
+            calls=[
+                InterceptedToolCall(
+                    tool_call_id="call-lookup",
+                    tool_name="lookup_order",
+                    tool_id="tool:lookup_order",
+                    args={"order": 7},
+                    outcome=InterceptionOutcome.BLOCKED,
+                    reason=InterceptionReason.WRITES,
+                ),
+                InterceptedToolCall(
+                    tool_call_id="call-search",
+                    tool_name="search_kb",
+                    tool_id="tool:search_kb",
+                    args={"query": "refunds", "limit": 5},
+                    outcome=InterceptionOutcome.REPLAYED,
+                ),
+            ],
+        )
+
+        score = await ScoringService(db).score_run(
+            tenant.ctx, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
+        )
+
+        [trajectory] = [r for r in score.results if r.scorer == "trajectory"]
+        assert trajectory.status == "pass"
+        assert (
+            trajectory.reason
+            == "Called search_kb, lookup_order (lookup_order blocked, not executed)"
+        )
+        assert score.passed is True
 
     async def test_a_reference_answer_is_graded_by_the_judge(self, db, judge) -> None:
         tenant = await _tenant(db)
