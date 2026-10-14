@@ -32,7 +32,7 @@ from app.core.exceptions import (
     SystemAgentUnavailableError,
 )
 from app.core.permissions import AuthContext, Perm
-from app.db.models.agent import AgentStatus
+from app.db.models.agent import Agent, AgentStatus
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.repositories import agent_repo
 from app.services.access import AGENT, resolve_access
@@ -117,27 +117,7 @@ class SystemAgentRunner:
             SystemAgentOutputError: The agent answered in a shape that does not
                 validate. Not retried.
         """
-        await AiAssistanceService(self.db).require_enabled(organization_id=ctx.organization_id)
-        agent = await self.agents.ensure(organization_id=ctx.organization_id, key=key)
-        if agent.status == AgentStatus.ARCHIVED.value:
-            raise SystemAgentUnavailableError(
-                message=f"'{agent.name}' is archived. Restore it to use it again.",
-                key=key,
-                reason="archived",
-            )
-        if agent.current_version_id is None:
-            raise SystemAgentUnavailableError(
-                message=f"'{agent.name}' has no published version. Pick a model and publish it.",
-                key=key,
-                reason="unpublished",
-            )
-        if not await resolve_access(self.db, ctx, agent, Perm.AGENTS_RUN, resource_type=AGENT):
-            raise SystemAgentUnavailableError(
-                message=f"You may not run '{agent.name}'. Ask for access to it.",
-                key=key,
-                reason="no_access",
-            )
-        await self._require_model(ctx, agent.name, agent.current_version_id, key, model_profile_id)
+        agent = await self.require_runnable(ctx, key=key, model_profile_id=model_profile_id)
 
         text, run = await AgentRunnerService(self.db).execute(
             ctx,
@@ -163,6 +143,43 @@ class SystemAgentRunner:
                 run_id=run.id,
             ) from exc
         return SystemAgentResult(output=output, run=run)
+
+    async def require_runnable(
+        self, ctx: AuthContext, *, key: str, model_profile_id: UUID | None = None
+    ) -> Agent:
+        """The system agent `key`, once it is known the caller could run it now.
+
+        Every refusal :meth:`run` makes before the model is called, without the
+        run: for a caller that must refuse in the request before handing the
+        work to the background.
+
+        Raises:
+            AiAssistanceDisabledError: The organization switched AI assistance off.
+            SystemAgentUnavailableError: `not_seeded`, `unpublished`, `archived`,
+                `no_access` for this caller, or `no_model`.
+        """
+        await AiAssistanceService(self.db).require_enabled(organization_id=ctx.organization_id)
+        agent = await self.agents.ensure(organization_id=ctx.organization_id, key=key)
+        if agent.status == AgentStatus.ARCHIVED.value:
+            raise SystemAgentUnavailableError(
+                message=f"'{agent.name}' is archived. Restore it to use it again.",
+                key=key,
+                reason="archived",
+            )
+        if agent.current_version_id is None:
+            raise SystemAgentUnavailableError(
+                message=f"'{agent.name}' has no published version. Pick a model and publish it.",
+                key=key,
+                reason="unpublished",
+            )
+        if not await resolve_access(self.db, ctx, agent, Perm.AGENTS_RUN, resource_type=AGENT):
+            raise SystemAgentUnavailableError(
+                message=f"You may not run '{agent.name}'. Ask for access to it.",
+                key=key,
+                reason="no_access",
+            )
+        await self._require_model(ctx, agent.name, agent.current_version_id, key, model_profile_id)
+        return agent
 
     async def _require_model(
         self,
