@@ -5,9 +5,11 @@ import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { apiClient } from "@/lib/api-client";
-import { useBrowserSignIns } from "./use-browser-sign-ins";
+import { useBrowserSignIns, useSignInToSite } from "./use-browser-sign-ins";
 
-vi.mock("@/lib/api-client", () => ({ apiClient: { get: vi.fn(), delete: vi.fn() } }));
+vi.mock("@/lib/api-client", () => ({
+  apiClient: { get: vi.fn(), delete: vi.fn(), post: vi.fn() },
+}));
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
 
@@ -62,5 +64,32 @@ describe("the caller's kept browser sign-ins", () => {
 
     expect(toast.error).toHaveBeenCalled();
     expect(result.current.signIns).toEqual([PORTAL]);
+  });
+});
+
+describe("signing in to a site from Settings", () => {
+  it("is offered only once the deployment says it has a browser for it", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ available: true });
+    const { result } = renderHook(() => useSignInToSite(), { wrapper });
+
+    expect(result.current.available).toBe(false);
+    await waitFor(() => expect(result.current.available).toBe(true));
+    expect(apiClient.get).toHaveBeenCalledWith("/browser-sign-ins/browser");
+  });
+
+  it("opens the browser on the address and answers where to watch it", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ available: true });
+    vi.mocked(apiClient.post).mockResolvedValue({ run_id: "sign-in-1", call_id: "sign-in" });
+    const { result } = renderHook(() => useSignInToSite(), { wrapper });
+
+    let session: unknown;
+    await act(async () => {
+      session = await result.current.start("https://github.com/login");
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith("/browser-sign-ins/sessions", {
+      url: "https://github.com/login",
+    });
+    expect(session).toEqual({ run_id: "sign-in-1", call_id: "sign-in" });
   });
 });

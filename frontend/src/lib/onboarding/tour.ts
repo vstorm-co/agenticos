@@ -655,6 +655,8 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // an empty store never mounts (#1594).
   { id: "my-memory", page: SETTINGS_DETAIL, target: "my-memory", optional: true },
   // Optional for the same reason: the list renders only once a sign-in is kept.
+  // Optional: offered only where the deployment names a browser to sign in with.
+  { id: "sign-in-to-site", page: SETTINGS_DETAIL, target: "sign-in-to-site", optional: true },
   { id: "my-sign-ins", page: SETTINGS_DETAIL, target: "my-sign-ins", optional: true },
   // Optional for the same reason: the card is on one settings page of five, and
   // the stop is offered from whichever one help was opened on.

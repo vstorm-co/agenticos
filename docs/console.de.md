@@ -1,5 +1,5 @@
 ---
-source_sha: "02538249fce4"
+source_sha: "58db10206698"
 ---
 
 # Die Konsole { #the-console }
@@ -295,7 +295,11 @@ spätere Browses für dich starten dort angemeldet: Cookies und Speicher der Sei
 liegen versiegelt im Vault, nur für dich, werden nie angezeigt und nie für einen
 Widget-Besucher, einen geteilten Raum, einen API-Schlüssel oder einen Ereignis-Trigger
 genutzt. **Einstellungen → Anmeldungen** listet die behaltenen Seiten, und
-**Vergessen** lässt den nächsten Browse abgemeldet starten.
+**Vergessen** lässt den nächsten Browse abgemeldet starten. **Bei einer Website
+anmelden** öffnet dort einen Browser auf einer beliebigen Seite, nur für dich, bevor ein
+Agent ihn braucht: anmelden, mit angehaktem Feld zurückgeben, und die Anmeldung wird
+genauso behalten. Dafür braucht das Deployment seinen Anmelde-Browser
+([`BROWSER_SIGN_IN_CDP_URL`](configuration.md)).
 
 ## Wofür jeder Bereich da ist { #what-each-area-is-for }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "02538249fce4"
+source_sha: "58db10206698"
 ---
 
 # La consola { #the-console }
@@ -280,7 +280,11 @@ que actúen por ti empiezan con la sesión iniciada allí: las cookies y el alma
 del sitio quedan sellados en el vault solo para ti, nunca se muestran y nunca se usan
 para un visitante del widget, una sala compartida, una clave de API ni un disparador de
 eventos. **Ajustes → Inicios de sesión** lista los sitios que guardaste, y **Olvidar**
-hace que el siguiente browse empiece sin sesión.
+hace que el siguiente browse empiece sin sesión. **Iniciar sesión en un sitio** abre ahí
+un navegador en cualquier sitio solo para ti, antes de que un agent lo necesite: inicia
+sesión, devuélvelo con la casilla marcada y la sesión se guarda igual. Necesita el
+navegador de inicio de sesión del despliegue
+([`BROWSER_SIGN_IN_CDP_URL`](configuration.md)).
 
 ## Para qué sirve cada área { #what-each-area-is-for }
 

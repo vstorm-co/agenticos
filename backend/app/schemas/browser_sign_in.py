@@ -28,3 +28,28 @@ class BrowserSignInList(BaseSchema):
 
     items: list[BrowserSignInRead]
     total: int
+
+
+class SignInBrowserRead(BaseSchema):
+    """Whether this deployment can open a browser to sign in from Settings."""
+
+    available: bool = Field(
+        description="False when the deployment names no browser for it; the option is hidden."
+    )
+
+
+class SignInSessionCreate(BaseSchema):
+    """The site to sign in to."""
+
+    url: str = Field(
+        min_length=1,
+        max_length=2048,
+        description="The page to open - usually the site's own sign-in page. Public http(s) only.",
+    )
+
+
+class SignInSessionRead(BaseSchema):
+    """Where the opened browser is watched and driven: the live view of this run and call."""
+
+    run_id: str
+    call_id: str

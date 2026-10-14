@@ -261,7 +261,10 @@ you are on. Tick it after signing in, and later browses acting for you start sig
 in there: the site's cookies and storage are sealed in the vault for you alone, never
 shown, and never used for a widget visitor, a shared room, an API key or an event
 trigger. **Settings → Sign-ins** lists the sites you kept, and **Forget** makes the
-next browse start signed out.
+next browse start signed out. **Sign in to a site** there opens a browser on any site for
+you alone, before an agent needs it: sign in, hand it back with the box ticked, and it
+is kept the same way. It needs the deployment's sign-in browser
+([`BROWSER_SIGN_IN_CDP_URL`](configuration.md)).
 
 ## What each area is for
 

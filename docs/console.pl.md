@@ -1,5 +1,5 @@
 ---
-source_sha: "02538249fce4"
+source_sha: "58db10206698"
 ---
 
 # Konsola { #the-console }
@@ -273,7 +273,11 @@ przeglądania w Twoim imieniu startują tam zalogowane: ciasteczka i dane strony
 zapieczętowane w vault tylko dla Ciebie, nigdy nie są pokazywane i nie są używane dla
 odwiedzającego widget, wspólnego kanału, klucza API ani wyzwalacza zdarzeń.
 **Ustawienia → Logowania** pokazują zapamiętane strony, a **Zapomnij** sprawia, że
-następne przeglądanie zaczyna się wylogowane.
+następne przeglądanie zaczyna się wylogowane. **Zaloguj się do strony** otwiera tam
+przeglądarkę na dowolnej stronie tylko dla Ciebie, zanim agent będzie jej potrzebował:
+zaloguj się, oddaj ją z zaznaczonym polem, a logowanie zostanie zapamiętane tak samo.
+Wymaga przeglądarki wdrożenia do logowania
+([`BROWSER_SIGN_IN_CDP_URL`](configuration.md)).
 
 ## Do czego służy każdy obszar { #what-each-area-is-for }
 

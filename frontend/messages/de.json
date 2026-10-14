@@ -3549,6 +3549,10 @@
         "title": "Oder mit einer Idee beginnen",
         "body": "Fertige Routinen - ein Morgenüberblick, eine Wochenzusammenfassung, eine stündliche Prüfung - jeweils mit der Uhrzeit, zu der sie liefe. Wählen Sie eine, und der neue Zeitplan öffnet sich bereits ausgefüllt."
       },
+      "sign-in-to-site": {
+        "title": "Bei einer Website anmelden",
+        "body": "Öffne einen Browser auf einer Website nur für dich, melde dich an und gib ihn mit Keep me signed in zurück - der Browser deiner Agents startet dort ab dann angemeldet."
+      },
       "my-sign-ins": {
         "title": "Seiten, auf denen du angemeldet bleibst",
         "body": "Wenn du dich während eines Browses anmeldest und die Anmeldung behältst, startet der Browser deiner Agents dort beim nächsten Mal angemeldet. Vergiss eine Seite, und der nächste Browse startet abgemeldet."
@@ -4699,13 +4703,20 @@
       "ideasHint": "Wählen Sie eine, und sie öffnet sich als neuer Zeitplan, schon ausgefüllt - Agent wählen, anpassen, speichern."
     },
     "signIns": {
-      "title": "Browser-Anmeldungen",
+      "cancel": "Abbrechen",
       "description": "Seiten, auf denen der Browser deiner Agents angemeldet startet, wenn er für dich handelt. Nur behalten, wenn du den Browser mit Angemeldet bleiben zurückgibst.",
       "empty": "Keine Anmeldungen behalten",
-      "emptyHint": "Übernimm den Browser während eines Browses, melde dich an und gib ihn mit Angemeldet bleiben zurück - die Seite erscheint hier.",
+      "emptyHint": "Melden Sie sich hier bei einer Website an, oder übernehmen Sie den Browser während eines Browse und geben Sie ihn mit Keep me signed in zurück - die Website erscheint dann hier.",
+      "forget": "Vergessen",
+      "openBrowser": "Browser öffnen",
       "saved": "Gespeichert {saved}",
       "savedAndUsed": "Gespeichert {saved} · zuletzt genutzt {used}",
-      "forget": "Vergessen"
+      "signInDescription": "Öffnet einen Browser auf der Website, nur für Sie. Melden Sie sich an und geben Sie ihn mit Keep me signed in zurück - die Browser Ihrer Agents starten dort dann angemeldet.",
+      "signInTitle": "Bei einer Website anmelden",
+      "signInToSite": "Bei einer Website anmelden",
+      "siteLabel": "Website",
+      "sitePlaceholder": "linkedin.com/login",
+      "title": "Browser-Anmeldungen"
     }
   },
   "profile": {

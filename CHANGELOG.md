@@ -19,6 +19,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Sign in to a site from Settings** (#2129). **Settings → Sign-ins** opens
+  a browser on any site for you alone, held by you from the first frame: sign
+  in, hand it back with *Keep me signed in*, and your agents' browses start
+  signed in there - the same keeping a take-over does, before an agent needs
+  it. The deployment names the browser in `BROWSER_SIGN_IN_CDP_URL`; the
+  address has to be public, and nobody but the person who opened it may
+  watch, whatever they may do with runs.
 - **An agent's questions read as questions in the transcript.** The "Asked
   you" step opened onto the JSON the call carried; it now shows each
   question under its heading with the answer chosen, or that it is still

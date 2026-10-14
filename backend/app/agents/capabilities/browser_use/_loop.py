@@ -609,6 +609,23 @@ async def _held(
     )
 
 
+async def hand_over(
+    session: BrowseSession,
+    control: BrowserControl,
+    emit: Callable[[BrowserEvent], Awaitable[bool]],
+    *,
+    call_id: str,
+    by: str,
+    remember: RememberSignIn,
+) -> None:
+    """Give a person a tab with no agent in it, until they hand it back.
+
+    Signing in to a site from Settings (#2129): the same hold a take-over is, from
+    the first frame, and the same give-back that keeps the sign-in.
+    """
+    await _held(session, control, emit, call_id=call_id, by=by, remember=remember)
+
+
 async def _between_steps(
     page: PageSession, control: BrowserControl
 ) -> tuple[BrowserCommand | None, bool]:

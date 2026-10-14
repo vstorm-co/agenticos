@@ -143,6 +143,23 @@ class TestWhoMayOnlyWatch:
 
 class TestWhoMayNotWatch:
     @pytest.mark.security
+    async def test_a_sign_in_from_settings_is_seen_by_its_person_alone(
+        self, db: AsyncSession
+    ) -> None:
+        """Its pictures are somebody typing a password. Viewing runs, or owning
+        the organization, is not a reason to watch."""
+        owner = await _person(db)
+        organization = await _organization(db, owner)
+        member = await _join(db, organization, OrgRoleName.MEMBER)
+        await db.commit()
+        meta = _meta(organization, None, member).model_copy(update={"personal": True})
+
+        mine = await live_browse.access_for(meta, _token(member))
+
+        assert mine is not None and mine.own and mine.control
+        assert await live_browse.access_for(meta, _token(owner)) is None
+
+    @pytest.mark.security
     async def test_a_member_with_nothing_to_do_with_the_run_sees_nothing(
         self, db: AsyncSession
     ) -> None:

@@ -5,7 +5,14 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { getErrorMessage } from "@/lib/api-error";
-import { forgetSignIn, getMySignIns, type BrowserSignIn } from "@/lib/browser-sign-ins-api";
+import {
+  forgetSignIn,
+  getMySignIns,
+  getSignInBrowser,
+  startSignIn,
+  type BrowserSignIn,
+  type SignInSession,
+} from "@/lib/browser-sign-ins-api";
 import { qk } from "@/lib/query-keys";
 import { useOrgStore } from "@/stores";
 
@@ -43,5 +50,25 @@ export function useBrowserSignIns(): {
     forget: async (id) => {
       await forgetting.mutateAsync(id).catch(() => undefined);
     },
+  };
+}
+
+/**
+ * Opening a browser to sign in to a site from Settings, where the deployment has one.
+ *
+ * `available` is false until the deployment says otherwise, so the option is
+ * never offered by a deployment that would refuse it.
+ */
+export function useSignInToSite(): {
+  available: boolean;
+  start: (url: string) => Promise<SignInSession>;
+  isStarting: boolean;
+} {
+  const { data } = useQuery({ queryKey: qk.browserSignIns.browser(), queryFn: getSignInBrowser });
+  const starting = useMutation({ mutationFn: startSignIn });
+  return {
+    available: data?.available === true,
+    start: (url) => starting.mutateAsync(url),
+    isStarting: starting.isPending,
   };
 }

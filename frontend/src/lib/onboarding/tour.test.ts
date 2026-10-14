@@ -210,6 +210,7 @@ describe("stepsForPage", () => {
     expect(stepsForPage(ROUTES.SETTINGS_NOTIFICATIONS, () => true).map((s) => s.id)).toEqual([
       "settings-tabs",
       "my-memory",
+      "sign-in-to-site",
       "my-sign-ins",
       "settings-api-usage",
       "settings-api-keys",

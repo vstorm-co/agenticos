@@ -70,6 +70,11 @@ class BrowseMeta(BaseModel):
     remembers: bool = False
     """Whether the person the run acts for may keep a sign-in from it (#2129)."""
 
+    personal: bool = False
+    """A browse only its person may see: signing in to a site from Settings, where
+    the pictures show them typing a password. Nobody else watches, whatever they
+    may do with runs."""
+
     task: str
     started_at: datetime
 
@@ -222,6 +227,8 @@ async def access_for(meta: BrowseMeta, auth_token: str) -> _Access | None:
         edits = agent is not None and await resolve_access(
             db, ctx, agent, Perm.AGENTS_EDIT, resource_type=AGENT
         )
+    if meta.personal and not own:
+        return None
     if not (own or edits or ctx.has(Perm.RUNS_VIEW)):
         return None
     return _Access(

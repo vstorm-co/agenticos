@@ -732,6 +732,13 @@ class Settings(BaseSettings):
     # as `MEM0_ALLOWED_HOSTS` does. Empty refuses browser automation outright.
     BROWSER_CDP_ALLOWED_HOSTS: list[str] = []
 
+    # The browser a person signs in to a site with from Settings (#2129). An
+    # agent's browser is named in its spec; signing in from Settings involves no
+    # agent, so the deployment names the one it runs - the compose `browser`
+    # service, `http://browser:9222`. Its host has to be in
+    # `BROWSER_CDP_ALLOWED_HOSTS` like any agent's. Empty hides the option.
+    BROWSER_SIGN_IN_CDP_URL: str = ""
+
     @field_validator("CORS_ORIGINS")
     @classmethod
     def validate_cors_origins(cls, v: list[str], info: ValidationInfo) -> list[str]:

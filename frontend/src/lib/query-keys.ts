@@ -21,6 +21,8 @@ export const qk = {
   browserSignIns: {
     /** The caller's kept browser sign-ins in one organization (#2129). */
     mine: (orgId: string) => ["browser-sign-ins", orgId] as const,
+    /** Whether the deployment names a browser to sign in with from Settings. */
+    browser: () => ["browser-sign-ins", "browser"] as const,
   },
   memory: {
     /** Every page of one organization's notes, for invalidating after a write. */

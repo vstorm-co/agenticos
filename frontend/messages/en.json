@@ -3667,6 +3667,10 @@
         "title": "Or start from an idea",
         "body": "Ready-made routines - a morning digest, a weekly summary, an hourly check - each with the time it would run. Pick one and the new schedule opens already filled in."
       },
+      "sign-in-to-site": {
+        "title": "Sign in to a site",
+        "body": "Open a browser on a site for you alone, sign in, and hand it back with Keep me signed in - your agents' browser starts signed in there from then on."
+      },
       "my-sign-ins": {
         "title": "Sites you stay signed in to",
         "body": "When you sign in during a browse and keep the sign-in, your agents' browser starts signed in there next time. Forget a site and the next browse starts signed out."
@@ -4817,13 +4821,20 @@
       "ideasHint": "Pick one and it opens as a new schedule, filled in - choose the agent, adjust anything, save."
     },
     "signIns": {
-      "title": "Browser sign-ins",
+      "cancel": "Cancel",
       "description": "Sites your agents' browser starts signed in to when it acts for you. Kept only when you hand the browser back with Keep me signed in ticked.",
       "empty": "No sign-ins kept",
-      "emptyHint": "Take the browser over during a browse, sign in, and hand it back with Keep me signed in ticked - the site appears here.",
+      "emptyHint": "Sign in to a site here, or take the browser over during a browse and hand it back with Keep me signed in ticked - the site appears here.",
+      "forget": "Forget",
+      "openBrowser": "Open browser",
       "saved": "Saved {saved}",
       "savedAndUsed": "Saved {saved} · last used {used}",
-      "forget": "Forget"
+      "signInDescription": "Opens a browser on the site for you alone. Sign in, then hand it back with Keep me signed in ticked, and your agents' browses start signed in there.",
+      "signInTitle": "Sign in to a site",
+      "signInToSite": "Sign in to a site",
+      "siteLabel": "Site",
+      "sitePlaceholder": "linkedin.com/login",
+      "title": "Browser sign-ins"
     }
   },
   "profile": {

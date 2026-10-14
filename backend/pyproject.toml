@@ -939,6 +939,7 @@ include = [
     "app/repositories/browser_sign_in.py",
     "app/schemas/browser_sign_in.py",
     "app/services/browser_sign_in.py",
+    "app/services/browser_sign_in_session.py",
     "app/api/routes/v1/browser_sign_ins.py",
 ]
 # Mirrors `[tool.coverage.run] omit` - one definition of "ours", asserted equal
@@ -1382,6 +1383,7 @@ include = [
     "app/repositories/browser_sign_in.py",
     "app/schemas/browser_sign_in.py",
     "app/services/browser_sign_in.py",
+    "app/services/browser_sign_in_session.py",
     "app/api/routes/v1/browser_sign_ins.py",
 ]
 branch = true

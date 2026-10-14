@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -17,8 +17,22 @@ const state = vi.hoisted(() => ({
   error: null as unknown,
   forget: vi.fn(),
 }));
+const signing = vi.hoisted(() => ({
+  available: false,
+  start: vi.fn(),
+  isStarting: false,
+  push: vi.fn(),
+}));
 
-vi.mock("@/hooks/use-browser-sign-ins", () => ({ useBrowserSignIns: () => state }));
+vi.mock("@/hooks/use-browser-sign-ins", () => ({
+  useBrowserSignIns: () => state,
+  useSignInToSite: () => signing,
+}));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: signing.push }),
+  usePathname: () => "/settings/sign-ins",
+}));
+vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 
 function mount() {
   render(
@@ -33,6 +47,9 @@ beforeEach(() => {
   state.isLoading = false;
   state.error = null;
   state.forget.mockReset();
+  signing.available = false;
+  signing.start.mockReset();
+  signing.push.mockReset();
 });
 
 describe("the sites your agents' browser starts signed in to", () => {
@@ -78,5 +95,55 @@ describe("the sites your agents' browser starts signed in to", () => {
     state.isLoading = true;
     mount();
     expect(screen.queryByRole("button", { name: "Forget" })).toBeNull();
+  });
+});
+
+describe("signing in to a site from here", () => {
+  it("is not offered by a deployment with no browser for it", () => {
+    mount();
+
+    expect(screen.queryByRole("button", { name: "Sign in to a site" })).toBeNull();
+  });
+
+  it("opens the browser on the site typed, then shows its live view", async () => {
+    signing.available = true;
+    signing.start.mockResolvedValue({ run_id: "sign-in-1", call_id: "sign-in" });
+    mount();
+
+    fireEvent.click(screen.getByRole("button", { name: "Sign in to a site" }));
+    fireEvent.change(screen.getByPlaceholderText("linkedin.com/login"), {
+      target: { value: "github.com/login" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Open browser" }));
+
+    // A bare host is given its scheme: the browser needs an address.
+    await waitFor(() => expect(signing.push).toHaveBeenCalledWith("/browse/sign-in-1/sign-in"));
+    expect(signing.start).toHaveBeenCalledWith("https://github.com/login");
+  });
+
+  it("puts a refused address under the field, and closes on Cancel", async () => {
+    const { ApiError } = await import("@/lib/api-error");
+    signing.available = true;
+    signing.start.mockRejectedValue(
+      new ApiError(400, "Blocked", {
+        error: {
+          code: "BAD_REQUEST",
+          message: "That address is inside the network.",
+          details: { fields: [{ field: "url", message: "That address is inside the network." }] },
+        },
+      }),
+    );
+    mount();
+
+    fireEvent.click(screen.getByRole("button", { name: "Sign in to a site" }));
+    fireEvent.change(screen.getByPlaceholderText("linkedin.com/login"), {
+      target: { value: "http://10.0.0.5" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Open browser" }));
+
+    expect(await screen.findByText("That address is inside the network.")).toBeVisible();
+    expect(signing.start).toHaveBeenCalledWith("http://10.0.0.5");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 });

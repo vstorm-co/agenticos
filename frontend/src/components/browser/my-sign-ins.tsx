@@ -1,21 +1,46 @@
 "use client";
 
-import { Globe, KeyRound } from "lucide-react";
+import { useState } from "react";
+import { Globe, KeyRound, LogIn } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { Button, Card } from "@/components/ui";
-import { useBrowserSignIns } from "@/hooks/use-browser-sign-ins";
+import { useBrowserSignIns, useSignInToSite } from "@/hooks/use-browser-sign-ins";
+
+import { SignInToSiteDialog } from "./sign-in-to-site-dialog";
 
 /**
  * The sites your agents' browser starts signed in to, and forgetting one (#2129).
  *
- * A sign-in arrives here only one way: you took the browser over during a
- * browse acting as you, signed in, and handed it back with "Keep me signed in"
- * ticked. Forgetting it means the next browse starts signed out there. What a
- * sign-in holds - cookies, storage - is never shown, and no route returns it.
+ * A sign-in arrives here two ways, both of them you signing in yourself and
+ * handing the browser back with "Keep me signed in" ticked: in a browse acting
+ * as you that you took over, or in one you open here with "Sign in to a site".
+ * Forgetting it means the next browse starts signed out there. What a sign-in
+ * holds - cookies, storage - is never shown, and no route returns it.
  */
 export function MySignIns() {
+  const t = useTranslations("pages.signIns");
+  const { available } = useSignInToSite();
+  const [signingIn, setSigningIn] = useState(false);
+
+  return (
+    <div className="space-y-4">
+      {available && (
+        <div className="flex justify-end">
+          <Button size="sm" onClick={() => setSigningIn(true)} data-tour="sign-in-to-site">
+            <LogIn className="h-4 w-4" aria-hidden />
+            {t("signInToSite")}
+          </Button>
+        </div>
+      )}
+      <SignInList />
+      {signingIn && <SignInToSiteDialog onClose={() => setSigningIn(false)} />}
+    </div>
+  );
+}
+
+function SignInList() {
   const t = useTranslations("pages.signIns");
   const format = useFormatter();
   const { signIns, isLoading, error, forget } = useBrowserSignIns();

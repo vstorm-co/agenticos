@@ -3437,6 +3437,10 @@
         "title": "Albo zacznij od pomysłu",
         "body": "Gotowe rutyny - poranny przegląd, tygodniowe podsumowanie, cogodzinna kontrola - każda z porą, o której by działała. Wybierz jedną, a nowy harmonogram otworzy się już wypełniony."
       },
+      "sign-in-to-site": {
+        "title": "Zaloguj się do strony",
+        "body": "Otwórz przeglądarkę na stronie tylko dla siebie, zaloguj się i oddaj ją z Keep me signed in - przeglądarka Twoich agentów będzie tam odtąd startować zalogowana."
+      },
       "my-sign-ins": {
         "title": "Strony, na których zostajesz zalogowany",
         "body": "Gdy zalogujesz się podczas przeglądania i zapamiętasz logowanie, przeglądarka Twoich agentów następnym razem startuje tam zalogowana. Zapomnij stronę, a kolejne przeglądanie zacznie się wylogowane."
@@ -4587,13 +4591,20 @@
       "ideasHint": "Wybierz jeden, a otworzy się jako nowy harmonogram, już wypełniony - wybierz agenta, popraw co chcesz, zapisz."
     },
     "signIns": {
-      "title": "Logowania w przeglądarce",
+      "cancel": "Anuluj",
       "description": "Strony, na których przeglądarka Twoich agentów startuje zalogowana, gdy działa w Twoim imieniu. Zapamiętywane tylko wtedy, gdy oddajesz przeglądarkę z zaznaczonym Zapamiętaj logowanie.",
       "empty": "Brak zapamiętanych logowań",
-      "emptyHint": "Przejmij przeglądarkę podczas przeglądania, zaloguj się i oddaj ją z zaznaczonym Zapamiętaj logowanie - strona pojawi się tutaj.",
+      "emptyHint": "Zaloguj się tutaj do strony albo przejmij przeglądarkę podczas przeglądania i oddaj ją z zaznaczonym Keep me signed in - strona pojawi się tutaj.",
+      "forget": "Zapomnij",
+      "openBrowser": "Otwórz przeglądarkę",
       "saved": "Zapisano {saved}",
       "savedAndUsed": "Zapisano {saved} · ostatnio użyto {used}",
-      "forget": "Zapomnij"
+      "signInDescription": "Otwiera przeglądarkę na tej stronie tylko dla Ciebie. Zaloguj się, oddaj ją z zaznaczonym Keep me signed in, a przeglądarka Twoich agentów będzie tam od razu zalogowana.",
+      "signInTitle": "Zaloguj się do strony",
+      "signInToSite": "Zaloguj się do strony",
+      "siteLabel": "Strona",
+      "sitePlaceholder": "linkedin.com/login",
+      "title": "Logowania w przeglądarce"
     }
   },
   "profile": {
