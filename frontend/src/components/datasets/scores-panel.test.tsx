@@ -60,6 +60,7 @@ describe("ScoresPanel", () => {
     render(<ScoresPanel datasetId="d1" canDecide />);
 
     expect(screen.getByText("No scores yet")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Activity" })).toHaveAttribute("href", "/runs");
   });
 
   it("narrows to the review queue, back to the first page", async () => {

@@ -5743,7 +5743,7 @@
       "onlyAwaitingReview": "Only awaiting review",
       "noScores": "No scores yet",
       "nothingAwaitingReview": "Nothing is waiting for review",
-      "noScoresBody": "Score a run against a case from Activity, and the result is kept here.",
+      "noScoresBody": "Open a run in <link>Activity</link> and score it against a case - the result is kept here.",
       "passed": "Passed",
       "failed": "Failed",
       "unscored": "Unscored",
@@ -5784,7 +5784,9 @@
       "problem": {
         "noScorer": "Turn on at least one scorer - with every scorer off, no case can be scored.",
         "noCriterion": "Give the judge at least one criterion, or turn it off - it has nothing to grade."
-      }
+      },
+      "willRun": "Runs {scorers}.",
+      "judgeSpends": "The judge's grading is a run of the eval judge, charged to its budget."
     },
     "title": "Datasets",
     "pageDescription": "The questions your agents are tested on. Every change to a dataset's cases makes a new version, so two eval runs on one version saw the same questions.",

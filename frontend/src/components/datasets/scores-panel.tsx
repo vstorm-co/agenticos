@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { ClipboardCheck } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -9,6 +10,7 @@ import { ErrorState, LoadingState } from "@/components/states";
 import { ListCard, ListCardEmpty, PAGE_SIZE, Pager, Switch } from "@/components/ui";
 import { useScores } from "@/hooks/use-scoring";
 import { getErrorMessage } from "@/lib/api-error";
+import { ROUTES } from "@/lib/constants";
 import { ScoreCard, type Verdict } from "./score-card";
 
 interface ScoresPanelProps {
@@ -77,7 +79,13 @@ export function ScoresPanel({ datasetId, canDecide }: ScoresPanelProps) {
         <ListCardEmpty
           icon={ClipboardCheck}
           title={pending ? t("nothingAwaitingReview") : t("noScores")}
-          description={t("noScoresBody")}
+          description={t.rich("noScoresBody", {
+            link: (chunks) => (
+              <Link href={ROUTES.RUNS} className="underline">
+                {chunks}
+              </Link>
+            ),
+          })}
         />
       ) : (
         <div className="space-y-4">

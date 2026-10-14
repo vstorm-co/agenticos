@@ -3361,7 +3361,7 @@
       "onlyAwaitingReview": "Tylko czekające na przegląd",
       "noScores": "Brak wyników",
       "nothingAwaitingReview": "Nic nie czeka na przegląd",
-      "noScoresBody": "Oceń run względem przypadku z poziomu Activity, a wynik zostanie zapisany tutaj.",
+      "noScoresBody": "Otwórz run w <link>Activity</link> i oceń go względem przypadku - wynik zostanie zapisany tutaj.",
       "passed": "Zaliczony",
       "failed": "Niezaliczony",
       "unscored": "Bez oceny",
@@ -3402,7 +3402,9 @@
       "problem": {
         "noScorer": "Włącz co najmniej jednego oceniacza - gdy wszystkie są wyłączone, żadnego przypadku nie da się ocenić.",
         "noCriterion": "Daj sędziemu co najmniej jedno kryterium albo go wyłącz - nie ma czego oceniać."
-      }
+      },
+      "willRun": "Uruchamia: {scorers}.",
+      "judgeSpends": "Ocena sędziego to run sędziego ewaluacji, rozliczany z jego budżetu."
     },
     "title": "Datasety",
     "pageDescription": "Pytania, na których testujesz agentów. Każda zmiana przypadków w datasecie tworzy nową wersję, więc dwa runy eval na jednej wersji widziały te same pytania.",
