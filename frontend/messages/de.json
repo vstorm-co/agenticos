@@ -1895,7 +1895,7 @@
           "description": "Hier erscheinen Berichte und Dashboards, die ein Agent veröffentlicht."
         }
       },
-      "reviewQueue": {
+      "review-queue": {
         "title": "Wartet auf Prüfung",
         "description": "Eval-Ergebnisse, die auf das Urteil eines Menschen warten.",
         "waiting": "{count, plural, =1 {1 Ergebnis wartet} other {# Ergebnisse warten}} auf ein Urteil",

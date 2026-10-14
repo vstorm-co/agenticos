@@ -1159,7 +1159,7 @@
           "description": "Tu pojawią się raporty i dashboardy opublikowane przez agenta."
         }
       },
-      "reviewQueue": {
+      "review-queue": {
         "title": "Do przeglądu",
         "description": "Wyniki ewaluacji czekające na werdykt człowieka.",
         "waiting": "{count, plural, one {# wynik czeka} few {# wyniki czekają} many {# wyników czeka} other {# wyniku czeka}} na werdykt",

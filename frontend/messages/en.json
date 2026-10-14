@@ -1909,7 +1909,7 @@
           "description": "Reports and dashboards an agent publishes appear here."
         }
       },
-      "reviewQueue": {
+      "review-queue": {
         "title": "Awaiting review",
         "description": "Eval results waiting for a person's verdict.",
         "waiting": "{count, plural, =1 {1 result waits} other {# results wait}} for a verdict",
