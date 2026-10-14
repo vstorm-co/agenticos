@@ -372,7 +372,6 @@ async def test_an_abandoned_run_is_failed_and_frees_its_slots(db) -> None:
     assert run.status == EvalRunStatus.FAILED.value
     assert run.ended_at == _NOW
     assert sorted(case.status for case in cases) == ["failed", "skipped", "skipped"]
-    # Nothing of this organization is running any more, so a new run can claim.
     assert claimed.id in {case.id for case in cases if case.error}
 
 
