@@ -77,8 +77,8 @@ async def list_visible(
         shared_ids: Dataset ids explicitly shared with this member.
         shared_with_me: Narrow to rows shared with the caller and not their own.
         edit_scope: Narrow to the rows the caller may also edit: their role's
-            scope for editing, with `edit_ids` granted at edit level. None, or
-            `Scope.ALL`, narrows nothing.
+            scope for editing, with `edit_ids` granted at edit level. None
+            narrows nothing.
     """
     where = [Dataset.organization_id == organization_id]
     if shared_with_me:
@@ -101,7 +101,7 @@ async def list_visible(
                 shared_ids=shared_ids,
             )
         )
-    if edit_scope is not None and edit_scope is not Scope.ALL:
+    if edit_scope is not None:
         where.append(
             reached_by_scope(
                 Dataset.owner_user_id,

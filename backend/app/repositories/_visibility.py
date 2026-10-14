@@ -11,7 +11,7 @@ other (#545).
 from collections.abc import Sequence
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, and_, false, or_
+from sqlalchemy import ColumnElement, and_, false, or_, true
 from sqlalchemy.orm import InstrumentedAttribute
 
 from app.core.permissions import Scope
@@ -84,10 +84,11 @@ def reached_by_scope(
 ) -> ColumnElement[bool]:
     """Rows a role scope reaches, or an explicit grant does - `resolve_access` as SQL.
 
-    The scope arms mirror `_scope_allows` in `app/services/access.py`; the grant
-    arm is the ids granted at the level the permission needs. `Scope.ALL` reaches
-    every row, which the caller expresses by adding no condition at all.
+    The scope arms mirror `_scope_allows` in `app/services/access.py`, every one
+    of them; the grant arm is the ids granted at the level the permission needs.
     """
+    if scope is Scope.ALL:
+        return true()
     granted = id_col.in_(granted_ids) if granted_ids else false()
     owned = and_(owner_col.is_not(None), owner_col == user_id)
     if scope is Scope.TEAM:
