@@ -57,20 +57,20 @@ AgenticOS is a sovereign, self-hosted layer for your company's AI agents: they w
 
 <table>
 <tr>
-<td width="50%"><a href="docs/assets/screens/light/agent-builder.png"><img src="docs/assets/screens/light/agent-builder.png" alt="Agent builder with instructions, model selection and a published version"></a><br><b>Build in the browser.</b> Instructions, model and tools; publish versions.</td>
-<td width="50%"><a href="docs/assets/screens/light/chat.png"><img src="docs/assets/screens/light/chat.png" alt="A sales CSV analysed in chat with a regional revenue chart"></a><br><b>Work with files and code.</b> A CSV in, a chart and findings out.</td>
+<td width="50%"><a href="docs/assets/screens/light/agent-builder.webp"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/agent-builder.webp"><img src="docs/assets/screens/light/agent-builder.webp" alt="Agent builder with instructions, model selection and a published version"></picture></a><br><b>Build in the browser.</b> Instructions, model and tools; publish versions.</td>
+<td width="50%"><a href="docs/assets/screens/light/chat.webp"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/chat.webp"><img src="docs/assets/screens/light/chat.webp" alt="A revenue CSV analysed in chat and published as a dashboard app"></picture></a><br><b>Work with files and code.</b> A CSV in, a chart and findings out.</td>
 </tr>
 <tr>
-<td><a href="docs/assets/screens/light/skills.png"><img src="docs/assets/screens/light/skills.png" alt="Skills library filtered to Design, Engineering, Finance and Research"></a><br><b>Teach how your team works.</b> Skills written once, reused by every agent.</td>
-<td><a href="docs/assets/screens/light/knowledge-collection.png"><img src="docs/assets/screens/light/knowledge-collection.png" alt="A knowledge collection with an indexed document and its parser"></a><br><b>Answer from your documents.</b> Upload or sync, then cite.</td>
+<td><a href="docs/assets/screens/light/skills.webp"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/skills.webp"><img src="docs/assets/screens/light/skills.webp" alt="Skills library with each skill's category, audience and the agents that use it"></picture></a><br><b>Teach how your team works.</b> Skills written once, reused by every agent.</td>
+<td><a href="docs/assets/screens/light/knowledge-collection.webp"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/knowledge-collection.webp"><img src="docs/assets/screens/light/knowledge-collection.webp" alt="A knowledge base with its indexed documents, parser and status"></picture></a><br><b>Answer from your documents.</b> Upload or sync, then cite.</td>
 </tr>
 <tr>
-<td><a href="docs/assets/screens/light/artifact-detail.png"><img src="docs/assets/screens/light/artifact-detail.png" alt="Meridian sales dashboard built by an agent, labelled as demo data"></a><br><b>Publish results as pages.</b> Stable links and versions. Demo data.</td>
-<td><a href="docs/assets/screens/light/dashboard.png"><img src="docs/assets/screens/light/dashboard.png" alt="Dashboard with usage totals, recorded spend, run trends and outcomes"></a><br><b>See usage and spend.</b> Runs, outcomes and budgets in one view.</td>
+<td><a href="docs/assets/screens/light/app-detail.webp"><img src="docs/assets/screens/light/app-detail.webp" alt="A revenue dashboard an agent built from a CSV and published as an app"></a><br><b>Publish results as pages.</b> Stable links and versions. Demo data.</td>
+<td><a href="docs/assets/screens/light/dashboard.webp"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/dashboard.webp"><img src="docs/assets/screens/light/dashboard.webp" alt="Dashboard with usage totals, recorded spend, run trends and outcomes"></picture></a><br><b>See usage and spend.</b> Runs, outcomes and budgets in one view.</td>
 </tr>
 <tr>
-<td><a href="docs/assets/screens/light/agents.png"><img src="docs/assets/screens/light/agents.png" alt="Agent catalog with published agents and their visibility"></a><br><b>A catalog of agents.</b> Private, shared with a group, or company-wide.</td>
-<td><a href="docs/assets/screens/light/groups.png"><img src="docs/assets/screens/light/groups.png" alt="Organization groups for Engineering, Finance, Operations and Research"></a><br><b>Access follows your organization.</b> Roles, groups and company sign-in.</td>
+<td><a href="docs/assets/screens/light/agents.webp"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/agents.webp"><img src="docs/assets/screens/light/agents.webp" alt="Agent catalog with published agents, their categories and visibility"></picture></a><br><b>A catalog of agents.</b> Private, shared with a group, or company-wide.</td>
+<td><a href="docs/assets/screens/light/groups.webp"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/groups.webp"><img src="docs/assets/screens/light/groups.webp" alt="Organization groups for Engineering, Finance, Marketing, Operations, Sales and Support"></picture></a><br><b>Access follows your organization.</b> Roles, groups and company sign-in.</td>
 </tr>
 </table>
 

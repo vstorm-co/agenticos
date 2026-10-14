@@ -1,4 +1,4 @@
-<!-- source_sha: 82caf917bac9 -->
+<!-- source_sha: 79d784fba66a -->
 
 <div align="center">
 
@@ -59,20 +59,20 @@ AgenticOS ist eine souveräne, selbst gehostete Schicht für die KI-Agenten dein
 
 <table>
 <tr>
-<td width="50%"><a href="docs/assets/screens/light/agent-builder.png"><img src="docs/assets/screens/light/agent-builder.png" alt="Agent Builder mit Anweisungen, Modellauswahl und einer veröffentlichten Version"></a><br><b>Im Browser erstellen.</b> Anweisungen, Modell und Werkzeuge; Versionen veröffentlichen.</td>
-<td width="50%"><a href="docs/assets/screens/light/chat.png"><img src="docs/assets/screens/light/chat.png" alt="Eine Umsatz-CSV, im Chat analysiert, mit einem Umsatzdiagramm nach Region"></a><br><b>Mit Dateien und Code arbeiten.</b> Eine CSV hinein, ein Diagramm und Erkenntnisse heraus.</td>
+<td width="50%"><a href="docs/assets/screens/light/agent-builder.webp"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/agent-builder.webp"><img src="docs/assets/screens/light/agent-builder.webp" alt="Agent Builder mit Anweisungen, Modellauswahl und einer veröffentlichten Version"></picture></a><br><b>Im Browser erstellen.</b> Anweisungen, Modell und Werkzeuge; Versionen veröffentlichen.</td>
+<td width="50%"><a href="docs/assets/screens/light/chat.webp"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/chat.webp"><img src="docs/assets/screens/light/chat.webp" alt="Eine Umsatz-CSV, im Chat analysiert und als Dashboard-App veröffentlicht"></picture></a><br><b>Mit Dateien und Code arbeiten.</b> Eine CSV hinein, ein Diagramm und Erkenntnisse heraus.</td>
 </tr>
 <tr>
-<td><a href="docs/assets/screens/light/skills.png"><img src="docs/assets/screens/light/skills.png" alt="Skills-Bibliothek mit den Filtern Design, Engineering, Finance und Research"></a><br><b>Die Arbeitsweise des Teams vermitteln.</b> Skills einmal schreiben, von jedem Agenten nutzen.</td>
-<td><a href="docs/assets/screens/light/knowledge-collection.png"><img src="docs/assets/screens/light/knowledge-collection.png" alt="Eine Wissenssammlung mit einem indexierten Dokument und seinem Parser"></a><br><b>Aus deinen Dokumenten antworten.</b> Hochladen oder synchronisieren, dann zitieren.</td>
+<td><a href="docs/assets/screens/light/skills.webp"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/skills.webp"><img src="docs/assets/screens/light/skills.webp" alt="Skills-Bibliothek mit Kategorie, Zielgruppe und den Agenten, die jeden Skill nutzen"></picture></a><br><b>Die Arbeitsweise des Teams vermitteln.</b> Skills einmal schreiben, von jedem Agenten nutzen.</td>
+<td><a href="docs/assets/screens/light/knowledge-collection.webp"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/knowledge-collection.webp"><img src="docs/assets/screens/light/knowledge-collection.webp" alt="Eine Wissensdatenbank mit indexierten Dokumenten, Parser und Status"></picture></a><br><b>Aus deinen Dokumenten antworten.</b> Hochladen oder synchronisieren, dann zitieren.</td>
 </tr>
 <tr>
-<td><a href="docs/assets/screens/light/artifact-detail.png"><img src="docs/assets/screens/light/artifact-detail.png" alt="Von einem Agenten erstelltes Meridian-Vertriebsdashboard, als Demodaten gekennzeichnet"></a><br><b>Ergebnisse als Seiten veröffentlichen.</b> Feste Links und Versionen. Demodaten.</td>
-<td><a href="docs/assets/screens/light/dashboard.png"><img src="docs/assets/screens/light/dashboard.png" alt="Dashboard mit Nutzungssummen, erfassten Ausgaben, Run-Verlauf und Ergebnissen"></a><br><b>Nutzung und Ausgaben sehen.</b> Runs, Ergebnisse und Budgets in einer Ansicht.</td>
+<td><a href="docs/assets/screens/light/app-detail.webp"><img src="docs/assets/screens/light/app-detail.webp" alt="Ein Umsatz-Dashboard, das ein Agent aus einer CSV gebaut und als App veröffentlicht hat"></a><br><b>Ergebnisse als Seiten veröffentlichen.</b> Feste Links und Versionen. Demodaten.</td>
+<td><a href="docs/assets/screens/light/dashboard.webp"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/dashboard.webp"><img src="docs/assets/screens/light/dashboard.webp" alt="Dashboard mit Nutzungssummen, erfassten Ausgaben, Run-Verlauf und Ergebnissen"></picture></a><br><b>Nutzung und Ausgaben sehen.</b> Runs, Ergebnisse und Budgets in einer Ansicht.</td>
 </tr>
 <tr>
-<td><a href="docs/assets/screens/light/agents.png"><img src="docs/assets/screens/light/agents.png" alt="Agentenkatalog mit veröffentlichten Agenten und ihrer Sichtbarkeit"></a><br><b>Ein Katalog von Agenten.</b> Privat, mit einer Gruppe geteilt oder unternehmensweit.</td>
-<td><a href="docs/assets/screens/light/groups.png"><img src="docs/assets/screens/light/groups.png" alt="Organisationsgruppen Engineering, Finance, Operations und Research"></a><br><b>Zugriff folgt deiner Organisation.</b> Rollen, Gruppen und Unternehmensanmeldung.</td>
+<td><a href="docs/assets/screens/light/agents.webp"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/agents.webp"><img src="docs/assets/screens/light/agents.webp" alt="Agentenkatalog mit veröffentlichten Agenten, ihren Kategorien und ihrer Sichtbarkeit"></picture></a><br><b>Ein Katalog von Agenten.</b> Privat, mit einer Gruppe geteilt oder unternehmensweit.</td>
+<td><a href="docs/assets/screens/light/groups.webp"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/dark/groups.webp"><img src="docs/assets/screens/light/groups.webp" alt="Organisationsgruppen Engineering, Finance, Marketing, Operations, Sales und Support"></picture></a><br><b>Zugriff folgt deiner Organisation.</b> Rollen, Gruppen und Unternehmensanmeldung.</td>
 </tr>
 </table>
 

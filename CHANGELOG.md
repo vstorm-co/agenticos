@@ -622,6 +622,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **Every console screen is pictured again, in both themes.** The README's
+  eight screenshots and the placeholders in "Every screen in the console" are
+  new captures of the current interface - 41 screens, light and dark - taken
+  from a demo organization whose company and figures are made up and whose
+  conversations and published app are real runs. The screens page gains
+  Apps, one app, members, roles, groups and your settings, and the chat and
+  documents sections describe what those screens now show.
+  `docs/assets/screens/capture.mjs` retakes the set against any running
+  deployment; `ORG`, `AGENT` and `CHAT` choose what it shows.
 - **A link to a deployment unfurls in the new colours.** The Open Graph
   image drops the lime-on-black of the old brand for the mark's deep violet,
   with the title's key word in the blob's blue and the mark drawn large
