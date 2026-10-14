@@ -198,7 +198,7 @@ class TestPrepare:
         """
         ctx = _ctx()
         service = AgentRunnerService(_db())
-        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None)
         spec = AgentSpec(name="Support", model_profile_id=uuid.uuid4())
         run = MagicMock(id=uuid.uuid4())
         conversation_id = uuid.uuid4()
@@ -252,7 +252,7 @@ class TestPrepare:
         """
         ctx = _ctx()
         service = AgentRunnerService(_db())
-        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None)
         spec = AgentSpec(name="Support", model_profile_id=uuid.uuid4())
         built = MagicMock()
 
@@ -297,7 +297,7 @@ class TestPrepare:
             deleted_id: None,
             foreign_id: MagicMock(organization_id=uuid.uuid4(), collection_name="kb_other_tenant"),
         }
-        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None)
         spec = AgentSpec(name="Support", collection_ids=[live_id, deleted_id, foreign_id])
 
         async def get_collections(_db, ids):
@@ -340,7 +340,7 @@ class TestPrepare:
             cid: MagicMock(organization_id=ctx.organization_id, collection_name=f"kb{n}")
             for n, cid in enumerate(ids)
         }
-        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None)
         spec = AgentSpec(name="Support", collection_ids=ids)
 
         async def get_collections(_db, given):
@@ -382,7 +382,7 @@ class TestPrepare:
         """
         ctx = _ctx()
         service = AgentRunnerService(_db())
-        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None)
         refs = [
             OrgMcpServerRef(connection_id=uuid.uuid4()),
             OrgMcpServerRef(connection_id=uuid.uuid4()),
@@ -441,7 +441,7 @@ class TestPrepare:
             subject_is_publisher_fallback=True,
         )
         service = AgentRunnerService(_db())
-        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None)
         spec = AgentSpec(name="Support", mcp_servers=[OrgMcpServerRef(connection_id=uuid.uuid4())])
 
         with (
@@ -490,7 +490,7 @@ class TestPrepare:
             subject_is_publisher_fallback=True,
         )
         service = AgentRunnerService(_db())
-        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None)
         spec = AgentSpec(name="Support")
 
         with (
@@ -527,7 +527,7 @@ class TestPrepare:
         ctx = _ctx()
         service = AgentRunnerService(_db())
         run = _parked_run()
-        agent = MagicMock(id=run.agent_id, current_version_id=run.agent_version_id)
+        agent = MagicMock(id=run.agent_id, current_version_id=run.agent_version_id, system_key=None)
         spec = AgentSpec(name="Support", mcp_servers=[OrgMcpServerRef(connection_id=uuid.uuid4())])
 
         with (
@@ -570,7 +570,7 @@ class TestPrepare:
         service = AgentRunnerService(_db())
         exposure_id = uuid.uuid4()
         run = _parked_run(exposure_id=exposure_id, surface=RunSurface.MATTERMOST.value)
-        agent = MagicMock(id=run.agent_id, current_version_id=run.agent_version_id)
+        agent = MagicMock(id=run.agent_id, current_version_id=run.agent_version_id, system_key=None)
         spec = AgentSpec(name="Support")
         exposure = MagicMock(
             id=exposure_id, prompt="Answer in Mattermost style.", tools=["get_channel_info"]
@@ -618,7 +618,7 @@ class TestPrepare:
         ctx = _ctx()
         service = AgentRunnerService(_db())
         run = _parked_run()  # exposure_id is None by default
-        agent = MagicMock(id=run.agent_id, current_version_id=run.agent_version_id)
+        agent = MagicMock(id=run.agent_id, current_version_id=run.agent_version_id, system_key=None)
         spec = AgentSpec(name="Support")
 
         with (
@@ -657,7 +657,7 @@ class TestPrepare:
     async def _period_lookups(ctx) -> dict[str, object]:
         """The two spend lookups the runner hands the factory, by argument name."""
         service = AgentRunnerService(_db())
-        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None)
         run = MagicMock(id=uuid.uuid4())
 
         with (
@@ -862,7 +862,7 @@ class TestAPlanThatOutlivesTheTurn:
     async def test_a_fresh_turn_seeds_the_plan_its_conversation_left(self):
         ctx = _ctx()
         service = AgentRunnerService(_db())
-        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None)
         spec = AgentSpec(name="Support", model_profile_id=uuid.uuid4())
         conversation = MagicMock(
             overhead_tokens=None,
@@ -904,7 +904,7 @@ class TestAPlanThatOutlivesTheTurn:
         November with the tail reminder calling it "your current plan"."""
         ctx = _ctx()
         service = AgentRunnerService(_db())
-        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None)
         spec = AgentSpec(name="Support", model_profile_id=uuid.uuid4())
         conversation = MagicMock(
             overhead_tokens=None,
@@ -953,7 +953,7 @@ class TestAPlanThatOutlivesTheTurn:
                 "plan": [{"id": "bb22", "content": "Ship the fix", "status": "in_progress"}],
             },
         )
-        agent = MagicMock(id=run.agent_id, current_version_id=run.agent_version_id)
+        agent = MagicMock(id=run.agent_id, current_version_id=run.agent_version_id, system_key=None)
         spec = AgentSpec(name="Support")
         stale = MagicMock(
             overhead_tokens=None,
@@ -2454,7 +2454,9 @@ class TestResume:
             ),
             patch("app.services.agent_runner.build_agent", return_value=built) as build,
             patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()) as finish,
-            patch.object(service.registry, "get", new=AsyncMock(return_value=MagicMock())),
+            patch.object(
+                service.registry, "get", new=AsyncMock(return_value=MagicMock(system_key=None))
+            ),
             patch.object(
                 service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
             ),
@@ -2499,7 +2501,9 @@ class TestResume:
             ),
             patch("app.services.agent_runner.build_agent", return_value=self._built()) as build,
             patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
-            patch.object(service.registry, "get", new=AsyncMock(return_value=MagicMock())),
+            patch.object(
+                service.registry, "get", new=AsyncMock(return_value=MagicMock(system_key=None))
+            ),
             patch.object(
                 service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
             ),
@@ -2767,7 +2771,9 @@ class TestResume:
             ),
             patch("app.services.agent_runner.build_agent", return_value=built),
             patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
-            patch.object(service.registry, "get", new=AsyncMock(return_value=MagicMock())),
+            patch.object(
+                service.registry, "get", new=AsyncMock(return_value=MagicMock(system_key=None))
+            ),
             patch.object(
                 service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
             ),
@@ -2810,7 +2816,9 @@ class TestResume:
             ),
             patch("app.services.agent_runner.build_agent", return_value=self._built()),
             patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
-            patch.object(service.registry, "get", new=AsyncMock(return_value=MagicMock())),
+            patch.object(
+                service.registry, "get", new=AsyncMock(return_value=MagicMock(system_key=None))
+            ),
             patch.object(
                 service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
             ),
@@ -2877,7 +2885,9 @@ class TestResume:
             ),
             patch("app.services.agent_runner.build_agent", return_value=built),
             patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
-            patch.object(service.registry, "get", new=AsyncMock(return_value=MagicMock())),
+            patch.object(
+                service.registry, "get", new=AsyncMock(return_value=MagicMock(system_key=None))
+            ),
             patch.object(
                 service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
             ),
@@ -2914,7 +2924,9 @@ class TestResume:
             ),
             patch("app.services.agent_runner.build_agent", return_value=built) as build,
             patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()) as finish,
-            patch.object(service.registry, "get", new=AsyncMock(return_value=MagicMock())),
+            patch.object(
+                service.registry, "get", new=AsyncMock(return_value=MagicMock(system_key=None))
+            ),
             patch.object(
                 service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
             ),
@@ -2954,7 +2966,9 @@ class TestResume:
             ),
             patch("app.services.agent_runner.build_agent", return_value=built),
             patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
-            patch.object(service.registry, "get", new=AsyncMock(return_value=MagicMock())),
+            patch.object(
+                service.registry, "get", new=AsyncMock(return_value=MagicMock(system_key=None))
+            ),
             patch.object(
                 service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
             ),
@@ -3098,7 +3112,9 @@ class TestResume:
                 "app.services.agent_runner.agent_repo.get_version",
                 new=AsyncMock(return_value=None),
             ),
-            patch.object(service.registry, "get", new=AsyncMock(return_value=MagicMock())),
+            patch.object(
+                service.registry, "get", new=AsyncMock(return_value=MagicMock(system_key=None))
+            ),
             pytest.raises(BadRequestError, match="no longer exists"),
         ):
             await service.resume(_ctx(), run.id)
@@ -3116,7 +3132,9 @@ class TestResume:
                 "app.services.agent_runner.agent_run_repo.list_approvals_for_run",
                 new=AsyncMock(return_value=[]),
             ),
-            patch.object(service.registry, "get", new=AsyncMock(return_value=MagicMock())),
+            patch.object(
+                service.registry, "get", new=AsyncMock(return_value=MagicMock(system_key=None))
+            ),
             pytest.raises(BadRequestError, match="no longer exists"),
         ):
             await service.resume(_ctx(), run.id)
@@ -3158,7 +3176,9 @@ class TestResume:
             ),
             patch("app.services.agent_runner.build_agent", return_value=built),
             patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
-            patch.object(service.registry, "get", new=AsyncMock(return_value=MagicMock())),
+            patch.object(
+                service.registry, "get", new=AsyncMock(return_value=MagicMock(system_key=None))
+            ),
             patch.object(
                 service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
             ),
@@ -3216,7 +3236,9 @@ class TestResume:
                 "app.services.agent_runner.agent_repo.get_version",
                 new=AsyncMock(return_value=version),
             ),
-            patch.object(service.registry, "get", new=AsyncMock(return_value=MagicMock())),
+            patch.object(
+                service.registry, "get", new=AsyncMock(return_value=MagicMock(system_key=None))
+            ),
             patch.object(
                 service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
             ),
@@ -3280,7 +3302,9 @@ class TestResume:
                 "app.services.agent_runner.agent_run_repo.finish_run",
                 new=AsyncMock(side_effect=record_terminal_status),
             ),
-            patch.object(service.registry, "get", new=AsyncMock(return_value=MagicMock())),
+            patch.object(
+                service.registry, "get", new=AsyncMock(return_value=MagicMock(system_key=None))
+            ),
             patch.object(
                 service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
             ),
@@ -3315,7 +3339,7 @@ class TestWhoTheRunSaysItIs:
     async def _built_with(ctx: AuthContext) -> dict[str, object]:
         """Prepare a run and hand back what the factory was called with."""
         service = AgentRunnerService(_db())
-        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None)
 
         with (
             patch.object(
@@ -3360,7 +3384,7 @@ class TestWhoTheRunSaysItIs:
         surface - it simply has no person to attribute it to.
         """
         service = AgentRunnerService(_db())
-        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None)
 
         with (
             patch.object(
@@ -3394,7 +3418,7 @@ class TestWhoTheRunSaysItIs:
         """
         identity_id = uuid.uuid4()
         service = AgentRunnerService(_db())
-        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None)
         ctx = AuthContext(
             user_id=uuid.uuid4(),
             organization_id=uuid.uuid4(),
@@ -3428,7 +3452,7 @@ class TestWhoTheRunSaysItIs:
     async def test_a_run_from_anywhere_else_records_no_chat_account(self):
         """The dashboard, the playground and the API are reached as a person."""
         service = AgentRunnerService(_db())
-        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None)
 
         with (
             patch.object(
@@ -3484,7 +3508,7 @@ class TestARunThatArrivedThroughABinding:
     async def _prepare(exposure, *, run=None):
         """Prepare a run and hand back the row that was opened and the caps built."""
         service = AgentRunnerService(_db())
-        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None)
         opened = run or MagicMock(id=uuid.uuid4(), exposure_id=exposure.id if exposure else None)
 
         with (
@@ -3516,7 +3540,7 @@ class TestARunThatArrivedThroughABinding:
         environment_id = uuid.uuid4()
         exposure = _exposure(environment_id=environment_id)
         service = AgentRunnerService(_db())
-        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None)
         pinned_version_id = uuid.uuid4()
 
         with (
@@ -3559,7 +3583,7 @@ class TestARunThatArrivedThroughABinding:
         environment_id = uuid.uuid4()
         exposure = _exposure(environment_id=environment_id)
         service = AgentRunnerService(_db())
-        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None)
         listed = AsyncMock(return_value=rows)
         with (
             patch.object(
@@ -3802,7 +3826,7 @@ class TestTracingSecret:
         """
         ctx = _ctx()
         service = AgentRunnerService(_db())
-        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None)
         token_secret = uuid.uuid4()
         spec = AgentSpec(
             name="Traced",
@@ -3847,7 +3871,7 @@ class TestTheWorkspaceReachesTheAgent:
     @staticmethod
     async def _prepare(spec, skills=()):
         service = AgentRunnerService(_db())
-        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None)
         opened = MagicMock(id=uuid.uuid4(), exposure_id=None)
 
         with (
@@ -3949,7 +3973,7 @@ class TestWhatTheChannelLetsTheAgentLookUp:
     async def _built(*, exposure, directory):
         """Prepare a run and hand back what `build_agent` was given."""
         service = AgentRunnerService(_db())
-        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None)
 
         with (
             patch.object(
@@ -4433,7 +4457,7 @@ class TestWhatAPreparedRunSaysThePersonCannotReach:
     async def test_the_gaps_are_named_with_the_link_that_fixes_each(self):
         ctx = _ctx()
         service = AgentRunnerService(_db())
-        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None)
         spec = AgentSpec(name="Support")
 
         with (
@@ -4479,7 +4503,7 @@ class TestWhatAPreparedRunSaysThePersonCannotReach:
         the author's to fix, so it is still briefed."""
         ctx = _ctx()
         service = AgentRunnerService(_db())
-        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None)
         spec = AgentSpec(
             name="Support",
             mcp_servers=[
@@ -4539,7 +4563,7 @@ class TestWhatAPreparedRunSaysThePersonCannotReach:
     async def test_a_run_whose_bindings_all_resolved_reports_nothing(self):
         ctx = _ctx()
         service = AgentRunnerService(_db())
-        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None)
 
         with (
             patch.object(
@@ -4572,7 +4596,7 @@ class TestAnIsolatedRun:
     @pytest.mark.anyio
     async def test_the_isolation_reaches_the_agent_and_the_prepared_run(self):
         service = AgentRunnerService(_db())
-        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None)
         isolation = RunIsolation()
 
         with (

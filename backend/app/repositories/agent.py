@@ -101,13 +101,18 @@ def _visible_clauses(
     shared_ids: list[UUID],
     shared_with_me: bool,
     include_archived: bool,
+    system: bool,
 ) -> list[ColumnElement[bool]]:
     """The rows a member may list, before any discovery filter narrows them.
 
     Shared by `list_visible` and `list_visible_labels` so the filter's choices
-    can never be drawn from a wider set than the listing they filter.
+    can never be drawn from a wider set than the listing they filter. `system`
+    lists the platform's own agents instead of the organization's.
     """
-    where: list[ColumnElement[bool]] = [Agent.organization_id == organization_id]
+    where: list[ColumnElement[bool]] = [
+        Agent.organization_id == organization_id,
+        Agent.system_key.is_not(None) if system else Agent.system_key.is_(None),
+    ]
     if not include_archived:
         where.append(Agent.status != AgentStatus.ARCHIVED.value)
     if shared_with_me:
@@ -141,6 +146,7 @@ async def list_visible(
     shared_ids: list[UUID],
     shared_with_me: bool = False,
     include_archived: bool = False,
+    system: bool = False,
     categories: Sequence[str] = (),
     tags: Sequence[str] = (),
     skip: int = 0,
@@ -173,6 +179,7 @@ async def list_visible(
         shared_ids=shared_ids,
         shared_with_me=shared_with_me,
         include_archived=include_archived,
+        system=system,
     )
     # Guard on the (already-normalized) list being non-empty: a blank param that
     # normalized to `[]` upstream must apply no predicate rather than match `{}`.
@@ -198,6 +205,7 @@ async def list_visible_labels(
     shared_ids: list[UUID],
     shared_with_me: bool = False,
     include_archived: bool = False,
+    system: bool = False,
 ) -> tuple[list[str], list[str]]:
     """Every distinct category and tag on the agents this member may list.
 
@@ -214,6 +222,7 @@ async def list_visible_labels(
         shared_ids=shared_ids,
         shared_with_me=shared_with_me,
         include_archived=include_archived,
+        system=system,
     )
 
     async def distinct(column: InstrumentedAttribute[list[str]]) -> list[str]:

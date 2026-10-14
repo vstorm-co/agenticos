@@ -157,6 +157,7 @@ from app.agents.subagent_runtime import (
     ResumedDelegation,
     SubagentRuntime,
 )
+from app.agents.system_agents import refuse_system_agent
 from app.core.config import settings
 from app.core.exceptions import (
     AuthorizationError,
@@ -2269,6 +2270,10 @@ class AgentRunnerService:
         that created it - at the run's own agent (agenticos#175) and inside a nested
         delegate (agenticos#254) alike.
         """
+        # A system agent runs only through the system agent runner, on the eval
+        # surface - here, so a resumed run and every fresh surface are held to it.
+        if surface != RunSurface.EVAL:
+            refuse_system_agent(agent, action=f"a {surface.value} run")
         # A caller's override wins over the spec's choice. Only the model is
         # replaced - instructions, tools, budgets and the approval gate are the
         # agent's, so this cannot be used to run something the agent is not.
@@ -3057,6 +3062,7 @@ class AgentRunnerService:
                 message=f"A delegate this agent is pinned to, '{delegate.name}', is archived",
                 details={"agent_id": str(ref.agent_id), "slug": delegate.slug},
             )
+        refuse_system_agent(delegate, action="a delegate")
         version = await agent_repo.get_version(
             self.db, ref.agent_version_id, organization_id=ctx.organization_id
         )

@@ -222,6 +222,28 @@ class SystemAgentUnavailableError(BadRequestError):
         self.reason = reason
 
 
+class SystemAgentRestrictedError(BadRequestError):
+    """A system agent was asked to do what only an ordinary agent does (400).
+
+    A system agent runs for the platform - the eval judge grades scores - and
+    only through the system agent runner. It is never chatted with, exposed on a
+    channel, embedded, scheduled or delegated to. `action` names what was refused.
+    """
+
+    message = "This is a system agent"
+    code = "SYSTEM_AGENT_RESTRICTED"
+
+    def __init__(self, *, name: str, agent_id: UUID, action: str) -> None:
+        super().__init__(
+            message=(
+                f"'{name}' is a system agent: the platform runs it, so it cannot be "
+                f"used for {action}."
+            ),
+            details={"agent_id": agent_id, "action": action},
+        )
+        self.action = action
+
+
 class SystemAgentRunError(BadRequestError):
     """A system agent's run ended without an answer to read (400).
 

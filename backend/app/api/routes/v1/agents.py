@@ -217,6 +217,9 @@ async def list_agents(
         False, description="Only what was shared with the caller - never their own rows"
     ),
     include_archived: bool = Query(False),
+    system: bool = Query(
+        False, description="List the platform's system agents instead of the organization's"
+    ),
     category: Annotated[
         list[str], Query(description="Keep agents in any of these categories")
     ] = [],  # noqa: B006
@@ -234,13 +237,14 @@ async def list_agents(
         ctx,
         shared_with_me=shared_with_me,
         include_archived=include_archived,
+        system=system,
         categories=category,
         tags=tag,
         skip=skip,
         limit=limit,
     )
     categories, tags = await service.list_labels(
-        ctx, shared_with_me=shared_with_me, include_archived=include_archived
+        ctx, shared_with_me=shared_with_me, include_archived=include_archived, system=system
     )
     return AgentList(items=items, total=total, categories=categories, tags=tags)
 

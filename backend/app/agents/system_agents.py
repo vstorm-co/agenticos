@@ -1,11 +1,14 @@
 """The agents the platform seeds into every organization.
 
-A system agent is an ordinary agent row - visible in the Agents list, editable,
-metered against its own budget and the organization's - that the platform itself
-starts: the eval judge, the case generator, the authoring assistant. Its runs are
-runs like any other, so they are budget-checked before each model call, priced
-and listed in Activity, and an organization reads and changes the instructions
-that drive them.
+A system agent is an agent row - editable, metered against its own budget and
+the organization's - that the platform itself starts: the eval judge, the case
+generator, the authoring assistant. Its runs are runs like any other, so they are
+budget-checked before each model call, priced and listed in Activity, and an
+organization reads and changes the instructions that drive them.
+
+It is not an agent people use. It is listed apart from the others, and only the
+system agent runner runs it: chat, the API, channels, embeds, schedules and
+delegation all refuse it (`refuse_system_agent`).
 
 Each definition is what a new organization starts with. Once seeded, the row
 belongs to the organization: an edit is kept, and nothing re-applies the
@@ -16,6 +19,16 @@ how the platform finds the row again whatever it has since been renamed to.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Protocol
+from uuid import UUID
+
+from app.core.exceptions import SystemAgentRestrictedError
+
+
+class _AgentRow(Protocol):
+    id: UUID
+    name: str
+    system_key: str | None
 
 
 @dataclass(frozen=True)
@@ -64,6 +77,16 @@ JUDGE = SystemAgentDef(
 )
 
 SYSTEM_AGENTS: tuple[SystemAgentDef, ...] = (JUDGE,)
+
+
+def refuse_system_agent(agent: _AgentRow, *, action: str) -> None:
+    """Refuse `action` on a system agent; an ordinary agent passes.
+
+    Raises:
+        SystemAgentRestrictedError: The agent is a system agent.
+    """
+    if agent.system_key is not None:
+        raise SystemAgentRestrictedError(name=agent.name, agent_id=agent.id, action=action)
 
 
 def system_agent(key: str) -> SystemAgentDef:
