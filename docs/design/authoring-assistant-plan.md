@@ -36,8 +36,9 @@ can switch it off entirely.**
   body and resources served in place of the current ones.
 - **Replay becomes an eval run.** [Decision 9](#decision-9--replay-test-a-draft-against-the-prompts-users-already-sent)'s
   pairs come from a dataset made from real conversations; tool calls are
-  answered from the recordings by #2112; a draft runs through the
-  explicit-spec path and is compared with a baseline by #2113. Those runs are
+  answered from the recordings by #2112; a draft runs through an
+  explicit-spec path that #2113 adds to `prepare`, and is compared with a
+  baseline by #2113. Those runs are
   stamped `eval`, so no `RunSurface.REPLAY` is added. Decision 9's rules —
   matching, divergence, the frozen candidate, attribution, holding the model
   and resources constant — stand, and are now owed by #2112 and #2113.
@@ -60,7 +61,7 @@ can switch it off entirely.**
 | 6 — synthetic evaluation is out | reversed: #2110, #2111, #2114, #2115 |
 | 7 — one review grammar | #2117, #2118, #2114 |
 | 8 — the assistant also verifies | #2117 |
-| 9 — replay | #2112 (recordings), #2113 (draft runs, comparison) |
+| 9 — replay | #2112 (recordings), #2113 (the explicit-spec path in `prepare`, draft runs, comparison) |
 | 10 — the organization switch | #2111, extended by #2114, #2117 and #2119 |
 | SoL-Pi 1 — paired baseline | #2113; used by #2116, #2117 and #2118 |
 | SoL-Pi 2 — pinned judge | #2111, #2113 |
@@ -220,7 +221,9 @@ for measurement and isolation, not its mechanisms.
   score before there is anything to group.
 - **Environments, promotion and `tracks_latest` work as Decision 9 assumed.**
   Per-environment connections (#2112) are new. `get_runnable_spec` refuses
-  drafts; the explicit-spec path is threaded through `prepare`.
+  drafts and `prepare` always resolves the published spec through it; there
+  is no explicit-spec path yet. #2113 adds one, with an explicit candidate
+  spec validated caller-scoped and no version attribution.
 - **A Datasets resource fits the owned-resource machinery** — Skill's model,
   `resolve_access`, the shared `resource_grants` table and the sharing
   router. Immutable dataset versions follow `AgentVersion`, not the skill's
@@ -1121,8 +1124,8 @@ it is finished, so these answers are final for the implementation.
    way.
 5. **Decided proposals are kept.** They are the record of why an agent
    changed. No sweeper in v1.
-6. **A draft runs through the explicit-spec path** in `prepare`, with
-   Decision 9's three obligations — #2113.
+6. **A draft runs through an explicit-spec path** that #2113 adds to
+   `prepare`, with Decision 9's three obligations.
 7. **One organization switch**, covering the assistant, case generation,
    the judge and the knowledge-gap drafts; deterministic evals stay
    available while it is off — #52.
