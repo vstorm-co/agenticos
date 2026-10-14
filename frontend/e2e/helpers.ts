@@ -494,8 +494,11 @@ export async function chooseLlamaParseKey(
 }
 
 export async function chooseEmbeddingKey(page: Page, dialog: Locator, name: string): Promise<void> {
-  await dialog.locator("summary", { hasText: "Embeddings" }).click();
-  const key = dialog.getByRole("combobox", { name: "Key" });
+  // The section is open in the dialog: the model and the key are decided at
+  // creation, so nothing has to be unfolded to reach them.
+  const key = dialog
+    .locator('[data-tour="kb-dialog-embeddings"]')
+    .getByRole("combobox", { name: "Key" });
   await key.click();
   await page.getByRole("option", { name: new RegExp(name) }).click();
   await expect(key).toHaveText(new RegExp(name));
