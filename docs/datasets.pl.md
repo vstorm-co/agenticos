@@ -1,5 +1,5 @@
 ---
-source_sha: "43166d9903cd"
+source_sha: "74f1c7e43545"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -37,6 +37,15 @@ kontrprzykład, oczekiwane wywołanie narzędzia albo sprawdzenie - co najmniej
 jedno z czterech. Przypadek z samym wejściem nigdy nie mógłby nie przejść, więc
 jest odrzucany: formularz go nie zapisze, API odpowiada 422 ze wskazaniem
 `reference_answer`, a import podaje numer wiersza.
+
+Dobry przypadek jest mały: jedno pytanie i ta jedna rzecz, którą poprawna
+odpowiedź musi zrobić dobrze. Zwykle wystarczy odpowiedź wzorcowa albo
+kontrprzykład. Oczekiwane wywołania narzędzi dodaj, gdy agent ma działać, a nie
+tylko odpowiadać, sprawdzenia - gdy regułę da się podać dokładnie, a rozmowę
+przed wejściem - tylko gdy pytanie od niej zależy. Notatka jest dla następnego
+czytelnika: co poszło źle albo czego przypadek pilnuje. Przy tworzeniu
+pierwszego datasetu konsola proponuje przewodnik, który kończy się napisaniem
+pierwszego przypadku pole po polu.
 
 Przypadek wzięty z rozmowy zachowuje też odnośnik do runa, rozmowy i
 wiadomości, z których pochodzi. Pytanie i odpowiedź są kopiowane do przypadku,
@@ -107,12 +116,17 @@ usuwa ten jeden `'`. Eksport jest zapisywany w [dzienniku audytu](governance.md#
 
 Są dwie drogi i obie tworzą taki sam przypadek:
 
-- **W czacie** oceń odpowiedź łapką w dół. Okno, które pyta, co poszło źle,
-  proponuje też **Dodaj tę odpowiedź do datasetu**: zaznacz to, wybierz dataset
-  i to, jako co zachować odpowiedź, i wyślij. Najpierw zapisuje się ocena, a
-  przypadek jest dodawany po niej, więc twój komentarz staje się notatką
-  przypadku. To dwa osobne zapisy - jeśli dodanie zostanie odrzucone, ocena
-  zostaje, a komunikat mówi, która połowa się nie udała.
+- **W czacie** oceń odpowiedź, a ocena zdecyduje, jako co zostanie zachowana.
+  Po łapce w górę potwierdzenie proponuje **Dodaj do datasetu**: wybierz
+  dataset, a odpowiedź zostanie zachowana jako odpowiedź wzorcowa. Po łapce w
+  dół okno, które pyta, co poszło źle, proponuje też **Dodaj tę odpowiedź do
+  datasetu**: zaznacz to, wybierz dataset i wyślij, a odpowiedź zostanie
+  zachowana jako kontrprzykład. Najpierw zapisuje się ocena, a przypadek jest
+  dodawany po niej, więc twój komentarz staje się notatką przypadku. To dwa
+  osobne zapisy - jeśli dodanie zostanie odrzucone, ocena zostaje, a komunikat
+  mówi, która połowa się nie udała. Późniejsze cofnięcie oceny zostawia
+  przypadek na miejscu: to kopia, wersjonowana razem z datasetem. Konsola
+  pamięta ostatnio użyty dataset, więc kolejne dodanie to jedno kliknięcie.
 - **W Aktywności** każda tura agenta ma przycisk **Dodaj do datasetu**. To
   miejsce kuracji, więc dobrą odpowiedź równie łatwo zachować jako wzorcową, jak
   złą jako kontrprzykład.

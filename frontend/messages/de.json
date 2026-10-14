@@ -657,7 +657,19 @@
     "eachPersonsOwnAccount": "Das eigene Konto jeder Person",
     "useEachPersonsOwnAccount": "Das eigene Konto jeder Person verwenden",
     "eachPersonsOwnAccountHint": "Wer mit diesem Agent spricht, verbindet sein eigenes Konto, und der Agent spricht als diese Person mit dem Dienst – im Dashboard, in Direktnachrichten und in Kanälen gleichermaßen. Nicht verfügbar für API-Schlüssel, das Widget, Zeitpläne und Trigger, wo niemand angemeldet ist.",
-    "everyToolThisServerOffers": "Jedes Tool, das er anbietet"
+    "everyToolThisServerOffers": "Jedes Tool, das er anbietet",
+    "testConnectionsFor": "Testverbindungen für {name}",
+    "testConnectionsHint": "Runs in diesem Environment, Evals eingeschlossen, beantworten jedes Binding unten mit seinem Testsystem. Ein hier abgeschaltetes Binding tut nichts - es fällt nie auf die Produktion zurück.",
+    "testConnectionKindLabel": "Was ersetzt wird",
+    "testConnectionKindMcp": "MCP-Server",
+    "testConnectionKindSecret": "Vault-Schlüssel",
+    "productionSide": "Produktion",
+    "testSide": "Testersatz",
+    "testSideFor": "Testersatz für {name}",
+    "bindingOffHere": "In diesem Environment aus",
+    "testSideUnusable": "Hier aus: Die Testverbindung ist deaktiviert oder nicht angemeldet",
+    "testConnectionsSaved": "Testverbindungen gespeichert",
+    "failedTestConnections": "Die Testverbindungen konnten nicht gespeichert werden"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -1898,11 +1910,23 @@
       },
       "datasets": {
         "title": "Datasets",
-        "description": "Die zuletzt geänderten Sammlungen von Testfällen.",
+        "description": "Die zuletzt geänderten Datasets und woran ihre Fälle die Antwort messen.",
         "cases": "{count, plural, =1 {1 Fall} other {# Fälle}} · v{version}",
         "empty": {
           "title": "Noch keine Datasets",
           "description": "Testfälle, die Sie für Evals sammeln, erscheinen hier."
+        },
+        "stat": {
+          "reference": "{count, plural, =1 {1 Referenz} other {# Referenzen}}",
+          "counter": "{count, plural, =1 {1 Gegenbeispiel} other {# Gegenbeispiele}}",
+          "toolCalls": "{count, plural, =1 {1 mit Tool-Aufrufen} other {# mit Tool-Aufrufen}}",
+          "checks": "{count, plural, =1 {1 mit Prüfungen} other {# mit Prüfungen}}"
+        },
+        "source": {
+          "conversation": "{count} aus dem Chat",
+          "import": "{count} importiert",
+          "manual": "{count} von Hand",
+          "synthetic": "{count} generiert"
         }
       }
     },
@@ -2744,7 +2768,7 @@
       },
       "create-dataset": {
         "title": "Ein Dataset anlegen?",
-        "body": "Ein Dataset enthält die Fragen, an denen Ihre Agents getestet werden. Möchten Sie jetzt Ihr erstes anlegen? Wir führen Sie durch."
+        "body": "Ein Dataset enthält die Fragen, an denen Ihre Agents getestet werden. Möchten Sie jetzt Ihr erstes anlegen und gemeinsam einen ersten guten Fall schreiben? Wir führen Sie durch."
       }
     },
     "steps": {
@@ -2771,6 +2795,10 @@
       "agent-history": {
         "title": "Jede Version, aufbewahrt",
         "body": "Jede Veröffentlichung friert den Spec als Version ein, die Sie in ein Environment heben, auf die Sie zurückrollen oder gegen die Sie die Run-Historie lesen können."
+      },
+      "agent-test-connections": {
+        "title": "Testverbindungen",
+        "body": "Ein benanntes Environment kann die MCP-Server und Vault-Schlüssel des Agents durch Testversionen ersetzen - ein Sandbox-CRM, ein Testpostfach. Dort laufen Evals, und ein schreibendes Tool ohne Testverbindung wird angehalten und aufgezeichnet statt ausgeführt."
       },
       "agent-instructions": {
         "title": "Die Instruktionen sind das Verhalten",
@@ -3218,7 +3246,7 @@
       },
       "datasets-new": {
         "title": "Testfälle sammeln",
-        "body": "Ein Dataset enthält die Fragen, an denen ein Agent getestet wird. Legen Sie hier eines an und fügen Sie Fälle von Hand, aus einer Datei, aus dem Dialog zum Daumen nach unten im Chat oder aus einem Schritt in der Aktivität hinzu."
+        "body": "Ein Dataset enthält die Fragen, an denen ein Agent getestet wird. Legen Sie hier eines an und fügen Sie Fälle von Hand, aus einer Datei, aus einer im Chat bewerteten Antwort oder aus einem Schritt in der Aktivität hinzu."
       },
       "runs-score-against-case": {
         "title": "Diesen Run bewerten",
@@ -3247,6 +3275,42 @@
       "flow-dataset-field-create": {
         "title": "Anlegen",
         "body": "Wählen Sie Erstellen. Wir machen weiter, sobald es gespeichert ist."
+      },
+      "flow-dataset-open": {
+        "title": "Öffnen Sie Ihr Dataset",
+        "body": "Es ist die erste Karte - die zuletzt geänderte. Öffnen Sie sie, um den ersten Fall hinzuzufügen."
+      },
+      "flow-dataset-add-case": {
+        "title": "Fügen Sie Ihren ersten Fall hinzu",
+        "body": "Wählen Sie Fall hinzufügen. Ein Fall ist eine Frage und die Beschreibung einer guten Antwort darauf."
+      },
+      "flow-dataset-case-question": {
+        "title": "Was der Agent gefragt wird",
+        "body": "Die Eingabe ist die Nachricht, auf die der Agent antwortet. Fügen Sie das Gespräch davor nur hinzu, wenn die Frage von früheren Zügen abhängt. Dann wählen Sie Weiter."
+      },
+      "flow-dataset-case-answers": {
+        "title": "Eine gute Antwort und eine schlechte",
+        "body": "Die Referenzantwort sagt, was eine gute Antwort enthält; ein Judge vergleicht die Antwort des Agents damit. Das Gegenbeispiel ist eine Antwort, die bekanntermaßen falsch ist - oft die negativ bewertete. Meist genügt eines von beiden."
+      },
+      "flow-dataset-case-tools": {
+        "title": "Die Tools, die er aufrufen soll",
+        "body": "Listen Sie die Tools auf, die der Agent aufrufen muss, mit den Argumenten, die übereinstimmen müssen. Wählen Sie den Abgleich: in beliebiger Reihenfolge, in dieser Reihenfolge mit anderen dazwischen oder genau diese und keine anderen."
+      },
+      "flow-dataset-case-checks": {
+        "title": "Regeln für die Antwort",
+        "body": "Eine Prüfung ist eine Regel, nach der die Antwort bewertet wird, etwa dass sie 30 Tage nennt. Jede nennt ihren Typ und die Parameter dieser Regel."
+      },
+      "flow-dataset-case-labels": {
+        "title": "Tags und eine Notiz",
+        "body": "Tags gruppieren Ergebnisse, etwa billing oder refusal. Die Notiz sagt, wozu der Fall da ist - was schiefging oder was er absichert."
+      },
+      "flow-dataset-case-save": {
+        "title": "Speichern Sie den Fall",
+        "body": "Ein Fall muss sagen, woran die Antwort gemessen wird: eine Referenzantwort, ein Gegenbeispiel, ein Tool-Aufruf oder eine Prüfung. Solange keines davon da ist, bleibt Fall speichern aus und sagt, was fehlt."
+      },
+      "flow-dataset-sources": {
+        "title": "Woher die nächsten Fälle kommen",
+        "body": "Schreiben Sie sie hier, oder importieren Sie hier eine CSV- oder JSONL-Datei. Bewerten Sie im Chat eine Antwort positiv oder negativ und fügen Sie sie hinzu - ein Daumen nach oben behält sie als Referenz, einer nach unten als Gegenbeispiel. In der Aktivität fügen Sie einen beliebigen Agent-Zug eines Runs hinzu."
       }
     }
   },
@@ -5627,6 +5691,7 @@
     "needsExpectation": "Fügen Sie eine Referenzantwort, ein Gegenbeispiel, einen erwarteten Tool-Aufruf oder eine Prüfung hinzu: Ein Fall braucht etwas, woran die Antwort gemessen wird.",
     "addToDataset": "Zum Dataset hinzufügen",
     "addToDatasetBody": "Mit der Antwort kommen die Frage, das Gespräch davor und der Kommentar zum Daumen nach unten.",
+    "addAsReferenceBody": "Sie haben diese Antwort positiv bewertet, daher wird sie als Referenzantwort behalten. Die Frage und das Gespräch davor kommen mit.",
     "noDatasetToAddTo": "Es gibt kein Dataset, zu dem Sie hinzufügen dürfen. <link>Legen Sie zuerst eines an</link>.",
     "dataset": "Dataset",
     "keepAnswerAs": "Antwort behalten als",

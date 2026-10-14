@@ -1,5 +1,5 @@
 ---
-source_sha: "0f382acc604e"
+source_sha: "342fa7b17aae"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -431,6 +431,21 @@ antes de que empiece el turno, y los sondeos corren a la vez.
 Es un intercambio deliberado. El endpoint `/test` y `last_status` son cómo te
 enteras, y el [rastro de auditoría](governance.md#audit) registra lo que se
 ejecutó de verdad.
+
+### En un entorno de prueba, y en un eval { #in-a-test-environment-and-in-an-eval }
+
+Un [entorno](environments.md#test-connections) con nombre puede responder a un
+binding de la organización con una conexión de prueba — un CRM sandbox en
+`staging`. El turno llega entonces al servidor de prueba con el nombre de la
+conexión de producción, así que el modelo ve las mismas herramientas; si la
+conexión de prueba ya no existe o está desactivada, el binding queda apagado en
+ese turno y nunca se llega a producción en su lugar.
+
+En un eval, una herramienta MCP se ejecuta en una conexión de producción solo
+cuando su servidor la marca con `readOnlyHint`. Cualquier otra llamada se
+retiene y se registra con sus argumentos en lugar de ejecutarse. La indicación
+es una afirmación del propio servidor, así que revisa qué marca un servidor como
+de solo lectura antes de evaluar contra una conexión de producción.
 
 ### Conectar uno desde el Builder { #connecting-one-from-the-builder }
 

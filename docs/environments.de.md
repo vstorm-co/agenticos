@@ -1,5 +1,5 @@
 ---
-source_sha: "6377722666ce"
+source_sha: "8bd34216f6f5"
 ---
 
 # Umgebungen { #environments }
@@ -25,6 +25,7 @@ schlichte Oberfläche, wenn niemand etwas anderes gesagt hat.
 | **Version** | Welche veröffentlichte Version hier antwortet. Einen ungehefteten Zustand gibt es nicht |
 | **Tracks latest** | Ob eine Veröffentlichung diese Umgebung von sich aus umhängt. Standardmäßig aus |
 | **Tracing** | Ein Logfire-Write-Token aus dem Vault, damit die Runs dieser Umgebung in ihrem eigenen Projekt landen |
+| **Testverbindungen** | MCP-Server und Vault-Schlüssel, die diese Umgebung durch Testversionen ersetzt — ein Sandbox-CRM, ein Testpostfach. Nur benannte Umgebungen |
 
 !!! info "Es gibt keine Umgebung ohne Version"
 
@@ -91,6 +92,71 @@ Eine Umgebung mit einem Run, der noch läuft oder auf eine Freigabe wartet, läs
 sich erst entfernen, wenn der Run endet: Das Löschen würde diesen Run der Standardumgebung übergeben und seine
 Seiten denen von Produktion.
 
+## Testverbindungen { #test-connections }
+
+Eine Version ist überall derselbe Spec, also würde `staging` sonst dasselbe CRM
+und dasselbe Postfach erreichen wie `production`. Eine benannte Umgebung kann ein
+Binding stattdessen mit einer **Testverbindung** beantworten: einen
+organisationsweiten [MCP-Server](mcp.md) mit einem Sandbox-Server oder den
+Vault-Schlüssel einer Capability mit einem Testschlüssel. Der Spec ändert sich
+nicht, also nimmt das Heraufstufen einer Version kein Test-Credential mit.
+
+| Binding | Ersetzt durch | Was das Modell sieht |
+|---|---|---|
+| Eine organisationsweite MCP-Verbindung | Eine andere organisationsweite MCP-Verbindung | Die Tool-Namen der Produktionsverbindung, sodass Staging und Produktion vergleichbar sind |
+| Der Vault-Schlüssel einer Capability | Ein anderer Schlüssel derselben Art und desselben Zwecks | Nichts: Die Capability erfährt nie, welchen Schlüssel sie bekommen hat |
+
+Jeder Run in der Umgebung nutzt sie: ein an `staging` gebundener Slack-Bot, ein
+API-Aufruf, der sie nennt, ein Zeitplan und jeder Delegat, den diese Runs
+aufrufen. Die Tools einer Testverbindung werden durch die Allowlist der
+Produktionsverbindung, die eigene der Testverbindung und die des Bindings
+eingeschränkt.
+
+!!! warning "Aus, nie die Produktion"
+
+    Ein Binding lässt sich in einer Umgebung abschalten statt ersetzen. Ebenso
+    eines, dessen Testseite gelöscht, deaktiviert wurde oder ihre Credentials
+    verloren hat: Das Binding bleibt dort dunkel, bis jemand eine andere
+    Testverbindung wählt. Die Produktionsseite ist nie der Ersatz. Eine
+    Capability, deren Testschlüssel gelöscht wurde, verweigert den Run, statt
+    ohne ihren Schlüssel zu laufen.
+
+Die Standardumgebung trägt keine Testverbindungen — sie ist das, was eine
+Oberfläche ohne genannte Umgebung ausführt, also die Produktion. Beide Seiten
+einer Ersetzung müssen der Organisation gehören, und ein Testschlüssel muss für
+die Person sichtbar sein, die ihn einträgt. Gespeichert werden nur IDs; ein
+Testschlüssel bleibt im [Vault](secrets.md), und der Audit-Eintrag hält fest,
+wie viele Ersetzungen es gibt, nicht, was sie enthalten.
+
+### In einem Eval { #in-an-eval }
+
+Ein Eval führt den Agent wirklich aus, also würden seine Tools wirklich handeln:
+Ein Agent, der E-Mails sendet, würde pro Fall eine senden. Ein **isoliert**
+gestarteter Run — so läuft ein Eval — führt ein Tool nur aus, wenn das sicher ist:
+
+| Das Tool | Was passiert |
+|---|---|
+| Erreicht eine Testverbindung der Umgebung | Läuft, gegen das Testsystem |
+| Liest nur | Läuft auf der normalen Verbindung |
+| Schreibt, ohne Testverbindung | **Wird nicht ausgeführt.** Als beabsichtigter Aufruf mit seinen Argumenten aufgezeichnet |
+
+Ein MCP-Tool liest nur, wenn sein Server das mit `readOnlyHint` sagt. Das Tool
+einer Capability erklärt es in der Registry, und der
+[Katalog](reference/capabilities.md#what-an-eval-runs) führt auf, welche es tun.
+**Ein Tool, das nichts erklärt, schreibt.** Das Modell erfährt, dass der Aufruf
+nicht gesendet wurde, und der beabsichtigte Aufruf wird für die Bewertung mit
+dem Run aufbewahrt.
+
+Ein isolierter Run kann auch aus der Aufzeichnung des Runs beantwortet werden,
+aus dem ein Fall stammt — aus den Aufrufen, die sein Transkript behalten hat. Ein
+Aufruf wird über sein Tool, seine Argumente und seine Reihenfolge unter
+identischen Aufrufen zugeordnet und bekommt das ursprüngliche Ergebnis; ein
+Aufruf, den die Aufzeichnung nicht enthält, wird nicht ausgeführt und als
+abweichend aufgezeichnet. Ein Run, dessen Transkript einen Aufruf verloren hat,
+wird gar nicht wiedergegeben. Ein isolierter Run hat niemanden, den er um eine
+Freigabe bitten kann, also wird ein gesperrter Aufruf ebenfalls nicht ausgeführt
+und als freigabepflichtig aufgezeichnet.
+
 ## Tracing pro Umgebung { #tracing-per-environment }
 
 Eine Umgebung kann ihr eigenes Logfire-Write-Token tragen, versiegelt
@@ -131,5 +197,8 @@ Kunde einer Version begegnet, die niemand ausgeliefert hat.
   öffentliches Widget verschiedene Versionen eines Agents ausliefern können.
 - **Ein Rollback ist ein Umhängen**, weil alte Versionen lesbar und ausführbar
   bleiben.
+- Eine benannte Umgebung kann Bindings durch **Testverbindungen** ersetzen; ein
+  Binding ohne eine ist dort aus, nie die Produktion. In einem Eval wird ein
+  schreibendes Tool ohne Testverbindung **aufgezeichnet, nicht ausgeführt**.
 - Die Standardumgebung wird vom Veröffentlichen verwaltet und ist hier bewusst
   nicht bearbeitbar.

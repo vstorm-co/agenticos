@@ -17,6 +17,26 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **Environments can run on test connections.** A named environment can answer
+  an organization MCP connection or a capability's vault key with a test one -
+  a sandbox CRM, a test mailbox - so a staging bot, an API call naming the
+  environment and every delegate those runs call reach the test system. MCP
+  tools keep the production connection's names. A test side that is deleted or
+  disabled switches the binding off; production is never the fallback, and the
+  default environment carries no overrides. Managed in the Builder's history
+  tab, next to each named environment.
+- **Isolated runs, for evals.** A run started isolated executes only tools that
+  read - MCP tools marked `readOnlyHint`, capability tools declared `read_only`
+  in the registry - and calls that reach a test connection. A tool that writes
+  without one is not executed; the call and its arguments are kept in the new
+  `intercepted_tool_calls` table, as is a call the agent gates behind an
+  approval, which an isolated run cannot ask for. An isolated run can also be
+  answered from the calls an earlier run's transcript kept, matched by tool,
+  arguments and order; a run whose transcript lost a call is not replayed at
+  all. Eval runs will start them; nothing in the product does yet.
+
 ## [0.0.535] - 2026-10-09
 
 ### Fixed

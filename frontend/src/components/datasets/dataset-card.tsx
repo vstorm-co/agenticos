@@ -19,7 +19,11 @@ export function DatasetCard({ dataset, onDelete }: DatasetCardProps) {
   const tc = useTranslations("common");
   return (
     <Card className="group hover:border-foreground/20 relative h-full">
-      <Link href={`${ROUTES.DATASETS}/${dataset.id}`} className="flex h-full flex-col gap-1.5 p-4">
+      <Link
+        href={`${ROUTES.DATASETS}/${dataset.id}`}
+        data-tour="dataset-card-open"
+        className="flex h-full flex-col gap-1.5 p-4"
+      >
         <span className="flex items-center gap-2 pr-8">
           <FlaskConical className="text-muted-foreground h-4 w-4 shrink-0" aria-hidden />
           <span className="text-foreground truncate text-sm font-medium">{dataset.name}</span>

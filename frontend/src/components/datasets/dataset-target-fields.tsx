@@ -23,17 +23,19 @@ interface DatasetTargetFieldsProps {
   isLoading: boolean;
   datasetId: string;
   onDatasetChange: (id: string) => void;
-  answerAs: AnswerAs;
-  onAnswerAsChange: (next: AnswerAs) => void;
+  /**
+   * Asked only where the answer could be either: in Activity. In chat the rating
+   * already said which, so the question is not shown.
+   */
+  answerAs?: { value: AnswerAs; onChange: (next: AnswerAs) => void };
   /** Keeps two of these on one page from sharing input ids. */
   idPrefix: string;
 }
 
 /**
- * Which dataset an answer goes into, and whether it is kept as the bad answer or the good one.
- *
- * Shared by "Add to dataset" in Activity and the rate-down dialog in chat, so the
- * two ask the same two questions in the same words.
+ * Which dataset an answer goes into and, where it is asked, whether it is kept as
+ * the bad answer or the good one. Shared by every way an answer is added, so they
+ * ask in the same words.
  */
 export function DatasetTargetFields({
   editable,
@@ -41,7 +43,6 @@ export function DatasetTargetFields({
   datasetId,
   onDatasetChange,
   answerAs,
-  onAnswerAsChange,
   idPrefix,
 }: DatasetTargetFieldsProps) {
   const t = useTranslations("datasets");
@@ -74,17 +75,22 @@ export function DatasetTargetFields({
           </SelectContent>
         </Select>
       </FormField>
-      <FormField htmlFor={`${idPrefix}-answer-as`} label={t("keepAnswerAs")}>
-        <Select value={answerAs} onValueChange={(next) => onAnswerAsChange(next as AnswerAs)}>
-          <SelectTrigger id={`${idPrefix}-answer-as`}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="counter_example">{t("field.counter_example")}</SelectItem>
-            <SelectItem value="reference_answer">{t("field.reference_answer")}</SelectItem>
-          </SelectContent>
-        </Select>
-      </FormField>
+      {answerAs && (
+        <FormField htmlFor={`${idPrefix}-answer-as`} label={t("keepAnswerAs")}>
+          <Select
+            value={answerAs.value}
+            onValueChange={(next) => answerAs.onChange(next as AnswerAs)}
+          >
+            <SelectTrigger id={`${idPrefix}-answer-as`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="counter_example">{t("field.counter_example")}</SelectItem>
+              <SelectItem value="reference_answer">{t("field.reference_answer")}</SelectItem>
+            </SelectContent>
+          </Select>
+        </FormField>
+      )}
     </div>
   );
 }

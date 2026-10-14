@@ -32,6 +32,10 @@ logger = logging.getLogger(__name__)
 # deployment, and no installation ever tuned it.
 CONNECT_TIMEOUT_SECS = 3.0
 
+#: Tool metadata saying which side of an environment override a tool came from.
+#: Stamped here after the server answered, so a server cannot claim it.
+MCP_ORIGIN = "agenticos_mcp"
+
 
 class McpProbeError(Exception):
     """A failed liveness probe, with its root cause already unwrapped.
@@ -75,6 +79,7 @@ class McpServerSpec:
     headers: dict[str, str] = field(default_factory=dict)
     # None = expose every tool the server offers.
     allowed_tools: list[str] | None = None
+    test: bool = False
 
 
 @asynccontextmanager
@@ -217,7 +222,9 @@ def _make_toolset(spec: McpServerSpec) -> Any:
     if spec.allowed_tools is not None:
         allowed = set(spec.allowed_tools)
         server = server.filtered(lambda _ctx, tool: tool.name in allowed)
-    return server.prefixed(tool_prefix(spec.name))
+    return server.prefixed(tool_prefix(spec.name)).with_metadata(
+        **{MCP_ORIGIN: {"test": spec.test}}
+    )
 
 
 def _dedupe_by_prefix(specs: list[McpServerSpec]) -> list[McpServerSpec]:

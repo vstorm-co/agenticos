@@ -60,10 +60,12 @@ class MemoryFilesConfig(BaseModel):
         CapabilityToolInfo(
             id="list_memory",
             description="List your notes for this conversation, by name and description.",
+            read_only=True,
         ),
         CapabilityToolInfo(
             id="read_memory",
             description="Read one note's body by its name.",
+            read_only=True,
         ),
         CapabilityToolInfo(
             id="write_memory",

@@ -22,6 +22,7 @@ from app.agents.capabilities import (
     REGISTRY,
     CapabilityBinding,
     CapabilityBuildContext,
+    CapabilityDef,
     CapabilityToolInfo,
     ProviderExecuted,
     ToolOverride,
@@ -504,6 +505,72 @@ class TestEffectiveTools:
             get("knowledge").effective_tools({"search_docuemnts": ToolOverride(name="typo")})
             == get("knowledge").tools
         )
+
+
+class TestReadOnlyDeclarations:
+    """Which tools an eval may run against the normal connections.
+
+    Pinned as a table, so a new tool - or a capability nobody classified - fails
+    here and somebody decides, rather than an eval blocking it or running it by
+    accident.
+    """
+
+    WRITES = frozenset(
+        {
+            ("artifacts", "publish_artifact"),
+            ("browser_choice", "browse_page"),
+            ("browser_use", "browse_web"),
+            ("image_generation", "generate_image"),
+            ("memory_files", "write_memory"),
+            ("memory_files", "edit_memory"),
+            ("memory_files", "delete_memory"),
+            ("memory_mem0", "remember"),
+            ("sandbox", "write_file"),
+            ("sandbox", "edit_file"),
+            ("sandbox", "execute"),
+        }
+    )
+
+    def test_every_declared_tool_is_classified_as_the_table_says(self):
+        writes = {
+            (definition.id, tool.id)
+            for definition in all_capabilities()
+            for tool in definition.tools
+            if not definition.tool_is_read_only(tool)
+        }
+
+        assert writes == self.WRITES
+
+    def test_a_capability_that_declares_nothing_writes(self):
+        tool = CapabilityToolInfo(id="send_email", description="Send it.")
+        definition = CapabilityDef(
+            id="mailer",
+            name="Mailer",
+            category="test",
+            description="Sends mail.",
+            builder=lambda _ctx: None,
+            tools=(tool,),
+        )
+
+        assert definition.tool_is_read_only(tool) is False
+
+    def test_a_tool_declaration_beats_its_capabilitys(self):
+        (read_artifact,) = (t for t in get("artifacts").tools if t.id == "read_artifact")
+
+        assert get("artifacts").read_only is False
+        assert get("artifacts").tool_is_read_only(read_artifact) is True
+
+    def test_a_rename_keeps_the_declaration(self):
+        """The eval guard reads effective tools; a rename must not make a read write."""
+        (tool,) = (
+            t
+            for t in get("memory_files").effective_tools(
+                {"read_memory": ToolOverride(name="look_up_note")}
+            )
+            if t.id == "read_memory"
+        )
+
+        assert (tool.name, tool.read_only) == ("look_up_note", True)
 
 
 class TestProviderExecutedDeclarations:

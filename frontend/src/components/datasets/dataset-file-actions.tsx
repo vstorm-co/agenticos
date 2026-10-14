@@ -74,7 +74,7 @@ export function DatasetFileActions({ datasetId, version, onImport }: DatasetFile
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2" data-tour="dataset-file-actions">
       {onImport !== undefined && (
         <>
           <input

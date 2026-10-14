@@ -402,6 +402,19 @@ turn starts, and the probes run concurrently.
 That is a deliberate trade. The `/test` endpoint and `last_status` are how you find
 out, and the [audit trail](governance.md#audit) records what actually ran.
 
+### In a test environment, and in an eval
+
+A named [environment](environments.md#test-connections) can answer an
+organization binding with a test connection — a sandbox CRM in `staging`. The
+turn then reaches the test server under the production connection's name, so the
+model sees the same tools; if the test connection is gone or disabled, the
+binding is off for that turn and production is never reached instead.
+
+In an eval, an MCP tool runs on a production connection only when its server
+marks it `readOnlyHint`. Every other call is held and recorded with its
+arguments rather than executed. The hint is the server's own claim, so check
+what a server marks read-only before evaluating against a production connection.
+
 ### Connecting one from the Builder
 
 An agent's **MCP servers** tab lists the whole catalog, not only what has

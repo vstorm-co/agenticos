@@ -1174,11 +1174,23 @@
       },
       "datasets": {
         "title": "Datasety",
-        "description": "Ostatnio zmieniane datasety przypadków testowych.",
+        "description": "Ostatnio zmieniane datasety i to, z czym ich przypadki porównują odpowiedź.",
         "cases": "{count, plural, one {1 przypadek} few {# przypadki} many {# przypadków} other {# przypadku}} · v{version}",
         "empty": {
           "title": "Brak datasetów",
           "description": "Tu pojawią się przypadki testowe zbierane do evali."
+        },
+        "stat": {
+          "reference": "{count} z odpowiedzią wzorcową",
+          "counter": "{count} z kontrprzykładem",
+          "toolCalls": "{count} z wywołaniami narzędzi",
+          "checks": "{count} ze sprawdzeniami"
+        },
+        "source": {
+          "conversation": "{count} z czatu",
+          "import": "{count} z importu",
+          "manual": "{count} ręcznie",
+          "synthetic": "{count} wygenerowane"
         }
       }
     },
@@ -1481,7 +1493,7 @@
       },
       "create-dataset": {
         "title": "Utworzyć dataset?",
-        "body": "Dataset zawiera pytania, na których testujesz agentów. Chcesz teraz utworzyć pierwszy? Przeprowadzimy Cię przez to."
+        "body": "Dataset trzyma pytania, na których testujesz agentów. Chcesz utworzyć pierwszy i razem napisać pierwszy dobry przypadek? Przeprowadzimy cię przez to."
       }
     },
     "steps": {
@@ -1508,6 +1520,10 @@
       "agent-history": {
         "title": "Każda wersja zachowana",
         "body": "Każda publikacja zamraża specyfikację jako wersję, którą możesz wypromować do środowiska, cofnąć się do niej albo odczytać względem niej historię uruchomień."
+      },
+      "agent-test-connections": {
+        "title": "Połączenia testowe",
+        "body": "Nazwane środowisko może zastąpić serwery MCP i klucze z vault agenta testowymi - sandboxowym CRM, testową skrzynką. Tam działają evale, a narzędzie, które zapisuje i nie ma połączenia testowego, jest wstrzymywane i zapisywane zamiast uruchamiane."
       },
       "agent-instructions": {
         "title": "Instrukcje to zachowanie",
@@ -1919,7 +1935,7 @@
       },
       "datasets-new": {
         "title": "Zbieraj przypadki testowe",
-        "body": "Dataset zawiera pytania, na których testujesz agenta. Utwórz go tutaj, a potem dodawaj przypadki ręcznie, z pliku, z okna łapki w dół w czacie albo z tury w Aktywności."
+        "body": "Dataset zawiera pytania, na których testujesz agenta. Utwórz go tutaj, a potem dodawaj przypadki ręcznie, z pliku, z odpowiedzi ocenionej w czacie łapką w górę albo w dół, albo z tury w Aktywności."
       },
       "runs-score-against-case": {
         "title": "Oceń ten run",
@@ -1948,6 +1964,42 @@
       "flow-dataset-field-create": {
         "title": "Utwórz go",
         "body": "Wybierz Utwórz. Pójdziemy dalej, gdy tylko zostanie zapisany."
+      },
+      "flow-dataset-open": {
+        "title": "Otwórz swój dataset",
+        "body": "To pierwsza karta - ostatnio zmieniona. Otwórz ją, żeby dodać pierwszy przypadek."
+      },
+      "flow-dataset-add-case": {
+        "title": "Dodaj pierwszy przypadek",
+        "body": "Wybierz Dodaj przypadek. Przypadek to jedno pytanie i opis tego, jak wygląda dobra odpowiedź."
+      },
+      "flow-dataset-case-question": {
+        "title": "O co pytany jest agent",
+        "body": "Wejście to wiadomość, na którą odpowiada agent. Rozmowę przed nim dodaj tylko wtedy, gdy pytanie zależy od wcześniejszych tur. Potem wybierz Dalej."
+      },
+      "flow-dataset-case-answers": {
+        "title": "Dobra odpowiedź i zła",
+        "body": "Odpowiedź wzorcowa mówi, co zawiera dobra odpowiedź; judge porównuje z nią odpowiedź agenta. Kontrprzykład to odpowiedź, o której wiadomo, że jest błędna - często ta oceniona łapką w dół. Zwykle wystarczy jedna z nich."
+      },
+      "flow-dataset-case-tools": {
+        "title": "Narzędzia, które powinien wywołać",
+        "body": "Wypisz narzędzia, które agent musi wywołać, z argumentami, które muszą się zgadzać. Wybierz sposób dopasowania: w dowolnej kolejności, w tej kolejności z innymi pomiędzy albo dokładnie te i żadnych innych."
+      },
+      "flow-dataset-case-checks": {
+        "title": "Reguły dotyczące odpowiedzi",
+        "body": "Sprawdzenie to reguła, według której oceniana jest odpowiedź, np. że wspomina 30 dni. Każde podaje swój typ i parametry tej reguły."
+      },
+      "flow-dataset-case-labels": {
+        "title": "Tagi i notatka",
+        "body": "Tagi grupują wyniki, np. billing albo refusal. Notatka mówi, po co jest przypadek - co poszło źle albo czego pilnuje."
+      },
+      "flow-dataset-case-save": {
+        "title": "Zapisz przypadek",
+        "body": "Przypadek musi mówić, z czym porównuje się odpowiedź: odpowiedź wzorcowa, kontrprzykład, wywołanie narzędzia albo sprawdzenie. Dopóki nie ma żadnego, Zapisz przypadek jest nieaktywne i mówi, czego brakuje."
+      },
+      "flow-dataset-sources": {
+        "title": "Skąd biorą się kolejne przypadki",
+        "body": "Pisz je tutaj albo importuj tu plik CSV lub JSONL. W czacie oceń odpowiedź łapką w górę albo w dół i dodaj ją - łapka w górę zachowuje ją jako wzorcową, łapka w dół jako kontrprzykład. W Aktywności dodaj dowolną turę agenta z runa."
       }
     }
   },
@@ -3052,7 +3104,19 @@
     "youNotVisitorsWhich": "Dla Ciebie, nie dla odwiedzających - które to umiejscowienie.",
     "yourBackendSignsToken": "Twój backend podpisuje token, który weryfikujemy",
     "zoom": "Powiększ",
-    "zoomOut": "Pomniejsz"
+    "zoomOut": "Pomniejsz",
+    "testConnectionsFor": "Połączenia testowe dla {name}",
+    "testConnectionsHint": "Runy w tym środowisku, łącznie z evalami, odpowiadają na każdy binding poniżej jego systemem testowym. Binding wyłączony tutaj nic nie robi - nigdy nie wraca do produkcji.",
+    "testConnectionKindLabel": "Co zastąpić",
+    "testConnectionKindMcp": "Serwer MCP",
+    "testConnectionKindSecret": "Klucz z vault",
+    "productionSide": "Produkcja",
+    "testSide": "Zamiennik testowy",
+    "testSideFor": "Zamiennik testowy dla {name}",
+    "bindingOffHere": "Wyłączone w tym środowisku",
+    "testSideUnusable": "Wyłączone tutaj: połączenie testowe jest wyłączone albo niezalogowane",
+    "testConnectionsSaved": "Połączenia testowe zapisane",
+    "failedTestConnections": "Nie udało się zapisać połączeń testowych"
   },
   "steps": {
     "skills-gallery": {
@@ -3387,6 +3451,7 @@
     "needsExpectation": "Dodaj odpowiedź wzorcową, kontrprzykład, oczekiwane wywołanie narzędzia albo sprawdzenie: przypadek potrzebuje czegoś, z czym porówna odpowiedź.",
     "addToDataset": "Dodaj do datasetu",
     "addToDatasetBody": "Razem z odpowiedzią trafiają pytanie, wcześniejsza część rozmowy i komentarz zostawiony z łapką w dół.",
+    "addAsReferenceBody": "Ta odpowiedź dostała łapkę w górę, więc zostanie zachowana jako odpowiedź wzorcowa. Razem z nią trafiają pytanie i wcześniejsza część rozmowy.",
     "noDatasetToAddTo": "Nie ma datasetu, do którego możesz dodać. Najpierw <link>utwórz dataset</link>.",
     "dataset": "Dataset",
     "keepAnswerAs": "Zachowaj odpowiedź jako",

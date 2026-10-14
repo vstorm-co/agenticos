@@ -14,6 +14,12 @@ export const AGENT_BUILDER = "agent-builder";
 export const KB_DETAIL = "kb-detail";
 
 /**
+ * A dataset's own page, `/datasets/<id>`, collapsed the same way: its cases, its
+ * scoring and its scores. The walk opens the first dataset the reader can see.
+ */
+export const DATASET_DETAIL = "dataset-detail";
+
+/**
  * The two organization detail routes, collapsed the same way. Unlike the builder
  * and the collection — one detail route each — an organization opens onto two,
  * `/orgs/<id>/members` and `/orgs/<id>/roles`, so it takes two identities chained
@@ -60,9 +66,6 @@ export const SETTINGS_DETAIL = "settings-detail";
  * in place, once the reader has opened one of their own.
  */
 export const WORKSPACE_DETAIL = "workspace-detail";
-
-/** A dataset, `/datasets/<id>`, collapsed the same way: its cases, its scoring, its scores. */
-export const DATASET_DETAIL = "dataset-detail";
 
 /**
  * One stop on the guided tour.
@@ -259,6 +262,16 @@ export const TOUR_STEPS: readonly TourStep[] = [
     activate: "agent-tab-history",
     permission: Perm.agentsView,
     inTour: true,
+  },
+  // On the first named environment's test-connections toggle, which only an
+  // agent with one renders and only a publisher sees.
+  {
+    id: "agent-test-connections",
+    page: AGENT_BUILDER,
+    target: "environment-connections",
+    activate: "agent-tab-history",
+    permission: Perm.agentsPublish,
+    optional: true,
   },
   {
     id: "agent-publish",
