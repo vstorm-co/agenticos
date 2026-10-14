@@ -5,6 +5,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.audit import record_audit
 from app.core.config import settings
 from app.core.exceptions import (
     AlreadyExistsError,
@@ -315,9 +316,21 @@ class OrganizationService:
                 self.db, org, allowed=data.chat_may_waive_approvals
             )
 
-        if data.ai_assistance_enabled is not None:
+        if (
+            data.ai_assistance_enabled is not None
+            and data.ai_assistance_enabled != org.ai_assistance_enabled
+        ):
             org = await organization_repo.set_ai_assistance(
                 self.db, org, enabled=data.ai_assistance_enabled
+            )
+            await record_audit(
+                self.db,
+                actor_user_id=requester_id,
+                action="organization.ai_assistance",
+                organization_id=org.id,
+                target_type="organization",
+                target_id=str(org.id),
+                details={"enabled": data.ai_assistance_enabled},
             )
 
         return await organization_repo.update(

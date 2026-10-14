@@ -1,5 +1,5 @@
 ---
-source_sha: "1e91d2e2de69"
+source_sha: "02144b8f1d9d"
 ---
 
 # Governance { #governance }
@@ -1421,7 +1421,9 @@ el generador de casos, el asistente de autoría y los borradores de lagunas de
 conocimiento que vienen después. Está desactivado por defecto, tanto en una
 organización que existía antes del interruptor como en una nueva: si los
 modelos califican y redactan es una decisión de la organización, y lo activa
-quien tenga `org:settings`.
+quien tenga `org:settings`. Cada cambio queda registrado en el
+[registro de auditoría](#audit) como `organization.ai_assistance`, con quién lo
+hizo.
 
 Cuando está desactivado, el servicio que iniciaría un run así lo rechaza, sea
 cual sea el cliente que lo pida: un control oculto no es la frontera. La
