@@ -1,6 +1,6 @@
 "use client";
 
-import { MessageCircleQuestion } from "lucide-react";
+import { Lightbulb, MessageCircleQuestion } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { useLinger, useSmoothText } from "@/hooks/use-smooth-text";
@@ -10,7 +10,6 @@ import { useInChatScope } from "@/stores/chat-scope-context";
 import type { McpServerRef } from "@/lib/tool-steps";
 import type { MessagePart } from "@/types";
 import { AgentSteps } from "./agent-step";
-import { ThinkingOrb } from "@/components/ui/thinking-orb";
 import { MarkdownContent } from "./markdown-content";
 import { ToolCallCard } from "./tool-call-card";
 import { YouFace } from "./you-face";
@@ -154,16 +153,14 @@ export function ThinkingBlock({
           bordered panel around it gives it more weight on the page than the answer
           itself - which is backwards, and was the loudest thing in every turn. */}
       <summary className="text-muted-foreground hover:text-foreground/80 flex cursor-pointer items-center gap-2 text-[13px] select-none">
-        {/* The same mark either way: moving while the reasoning arrives, frozen
-            once it is done. Swapping it for a different glyph at the end drew
-            the eye to a change that meant nothing. */}
-        <ThinkingOrb
-          state="breathing"
-          size={20}
-          paused={!isStreaming}
-          className="-my-2 h-6 w-6 opacity-80"
-        />
-        {t("thoughtAboutIt")}
+        {/* A bulb, not the orb. The orb is the turn at work, and it sits on the
+            line above while the turn runs - two of them stacked read as the same
+            thing said twice. This row is an aside you can open, drawn like the
+            steps beside it: its own mark in the same slot, then its name. */}
+        <span aria-hidden className="flex h-6 w-6 shrink-0 items-center justify-center">
+          <Lightbulb className="h-3.5 w-3.5" />
+        </span>
+        <span className={cn(isStreaming && "shimmer-text")}>{t("thoughtAboutIt")}</span>
       </summary>
       {/* Markdown, not a `<pre>`. Reasoning is written the way the answer is - the
           models that expose it head each block with `**Analyzing attached files**`

@@ -457,6 +457,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **"Thought about it" no longer wears the working orb.** While a turn ran,
+  "Working for 9s…" and the reasoning under it showed the same orb one
+  above the other. The reasoning row now has a bulb in the step slot, like
+  the steps beside it, and its label shimmers while it is still arriving.
+
 - **The collapsed chat list is the same list, narrower.** The rail used to
   show the first eight threads in server order under its own row of
   buttons, so collapsing dropped the Unread and Favourites bands and the
