@@ -1034,3 +1034,39 @@ async def test_a_source_deleted_after_the_draft_is_left_out_and_the_rest_stays(d
 
     assert detail.draft is not None
     assert [s.label for s in detail.draft.sources] == ["kept.pdf"]
+
+
+async def test_a_topic_none_of_whose_questions_count_any_more_cannot_be_drafted(
+    db, monkeypatch
+) -> None:
+    ctx = await _owner(db)
+    _, _, topic_id = await _a_topic(db, ctx)
+    monkeypatch.setattr("app.core.config.settings.KNOWLEDGE_GAP_MIN_SIMILARITY", 0.0)
+
+    with (
+        patch("app.services.knowledge_gaps.SystemAgentRunner.run", new=AsyncMock()) as run_it,
+        pytest.raises(NotFoundError),
+    ):
+        await KnowledgeGapService(db).draft(ctx, topic_id)
+
+    run_it.assert_not_awaited()
+
+
+async def test_a_draft_resting_only_on_questions_reads_back_without_documents(db) -> None:
+    ctx = await _owner(db)
+    _, _, topic_id = await _a_topic(db, ctx)
+    question = next(iter((await KnowledgeGapService(db).read(ctx, topic_id)).questions))
+
+    await KnowledgeGapService(db).record_draft(
+        ctx,
+        KnowledgeGapReport(
+            topic_id=topic_id,
+            title="Parking",
+            content="Text",
+            sources=[KnowledgeGapSource(kind="question", id=question.search_id)],
+        ),
+    )
+
+    detail = await KnowledgeGapService(db).read(ctx, topic_id)
+    assert detail.draft is not None
+    assert [(s.kind, s.label) for s in detail.draft.sources] == [("question", question.query)]
