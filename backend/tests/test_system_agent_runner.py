@@ -17,6 +17,7 @@ from pydantic import BaseModel, ValidationError
 from app.agents.system_agents import JUDGE
 from app.core.exceptions import (
     AiAssistanceDisabledError,
+    NotFoundError,
     SystemAgentOutputError,
     SystemAgentRunError,
     SystemAgentUnavailableError,
@@ -150,6 +151,27 @@ class TestRun:
             await runner.run(_ctx(), key=JUDGE.key, prompt="Grade it", output_type=Verdict)
 
         assert raised.value.reason == reason
+        execute.assert_not_awaited()
+
+    async def test_a_runnable_agent_is_handed_back_without_a_run(self, monkeypatch) -> None:
+        agent = _agent()
+        runner, execute = _runner(monkeypatch, agent=agent)
+
+        assert await runner.require_runnable(_ctx(), key=JUDGE.key) is agent
+        execute.assert_not_awaited()
+
+    async def test_an_unreachable_model_is_refused_before_any_run(self, monkeypatch) -> None:
+        runner, execute = _runner(monkeypatch)
+        monkeypatch.setattr(
+            system_agent_runner.ModelProfileService,
+            "resolve",
+            AsyncMock(side_effect=NotFoundError(message="Model profile not found")),
+        )
+
+        with pytest.raises(SystemAgentUnavailableError) as raised:
+            await runner.run(_ctx(), key=JUDGE.key, prompt="Grade it", output_type=Verdict)
+
+        assert raised.value.reason == "no_model"
         execute.assert_not_awaited()
 
     @pytest.mark.parametrize(
