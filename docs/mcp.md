@@ -550,7 +550,7 @@ that the description is honest — and a mirrored registry cannot make that prom
     Cross-referenced against this catalog, **four** of those hosts belonged to a
     company most readers would recognise and were missing here — CircleCI, New
     Relic, Statsig and Lusha, all four now listed. The rest of the uncovered
-    5,000-odd are single-project servers, proxies on `workers.dev`, SEO tools and
+    hosts are single-project servers, proxies on `workers.dev`, SEO tools and
     games: alphabetically the first few are a land-price lookup, a contractor
     bidding tool and a Hungarian window-quote service.
 
@@ -561,7 +561,8 @@ that the description is honest — and a mirrored registry cannot make that prom
 ### The registry is in the same list, and in the database
 
 So the mirror is shipped too, and **/mcp is one list of all of them** — the
-curated hundred first, then 5,703 mirrored servers, paged. Not a curated grid
+curated catalog first, then the mirrored registry, paged: 4,700+ servers, the
+count the gallery shows. Not a curated grid
 with a search that reaches further: one list, one pager, one count.
 
 That needed a table. `mcp_registry_servers` is deployment-wide and has no
@@ -571,7 +572,7 @@ the other way, and the difference is that a catalog is not tenant data. It is
 filled by `agenticos cmd mcp-registry-sync`, from the bundled snapshot or, with
 `--fetch`, from the live registry.
 
-Held in the database because a file cannot be paged. 5,703 entries in memory
+Held in the database because a file cannot be paged. Thousands of entries in memory
 could answer "servers matching 'linear'" and could not answer "the fourth page of
 all of them" without loading the lot and slicing it. The ranking moved into SQL
 with it, for the same reason: ranking a page is ranking whatever that page

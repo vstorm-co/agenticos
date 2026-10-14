@@ -1,5 +1,5 @@
 ---
-source_sha: "83b5148aaf63"
+source_sha: "05ff7bf4ae50"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -607,7 +607,7 @@ angesehen hat, dass der Auth-Flow funktioniert, dass die Beschreibung ehrlich is
     Gegen diesen Katalog abgeglichen gehörten **vier** dieser Hosts zu einem
     Unternehmen, das die meisten Leser wiedererkennen würden, und fehlten hier —
     CircleCI, New Relic, Statsig und Lusha, alle vier jetzt gelistet. Der Rest der
-    rund 5.000 nicht abgedeckten sind Einzelprojekt-Server, Proxys auf
+    nicht abgedeckten Hosts sind Einzelprojekt-Server, Proxys auf
     `workers.dev`, SEO-Werkzeuge und Spiele: alphabetisch sind die ersten paar eine
     Grundstückspreis-Abfrage, ein Werkzeug für Handwerkerangebote und ein
     ungarischer Fensterkalkulationsdienst.
@@ -620,7 +620,8 @@ angesehen hat, dass der Auth-Flow funktioniert, dass die Beschreibung ehrlich is
 ### Die Registry steht in derselben Liste, und in der Datenbank { #the-registry-is-in-the-same-list-and-in-the-database }
 
 Der Spiegel wird also mitgeliefert, und **/mcp ist eine Liste über alle** — die
-kuratierten hundert zuerst, dann 5.703 gespiegelte Server, seitenweise. Kein
+kuratierte Katalog zuerst, dann das gespiegelte Register, seitenweise: über 4.700
+Server, die Zahl, die die Galerie zeigt. Kein
 kuratiertes Raster mit einer Suche, die weiter reicht: eine Liste, ein Pager, eine
 Zählung.
 
@@ -632,7 +633,7 @@ wird von `agenticos cmd mcp-registry-sync` gefüllt, aus dem mitgelieferten Snap
 oder, mit `--fetch`, aus der Live-Registry.
 
 In der Datenbank gehalten, weil sich eine Datei nicht seitenweise ausgeben lässt.
-5.703 Einträge im Speicher könnten „Server, die auf 'linear' passen“ beantworten
+Tausende Einträge im Speicher könnten „Server, die auf 'linear' passen“ beantworten
 und nicht „die vierte Seite von allen“, ohne alles zu laden und zu schneiden. Die
 Rangfolge ist aus demselben Grund mit in SQL gewandert: Eine Seite zu ranken heißt,
 zu ranken, was auf dieser Seite zufällig stand. Drei Bänder — der Server, der

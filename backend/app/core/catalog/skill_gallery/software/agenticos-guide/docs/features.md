@@ -114,11 +114,12 @@ endpoint.
 Connect a server and its tools appear in the Toolbox, namespaced so two servers
 offering `search` do not collide.
 
-**5,802 servers are in the picker.** 99 of the common ones — GitHub, Linear,
-Notion, Slack, Stripe, Postgres — arrive with their OAuth flows already wired,
-because somebody here connected each of them and checked it. The other 5,703 are
-mirrored from the public MCP registry and searchable by name: nobody here
-reviewed those, and the list says which kind a row is.
+**4,700+ servers are in the gallery** - the count the MCP servers page shows.
+The common ones - GitHub, Linear, Notion, Slack, Stripe, Postgres - arrive with
+their OAuth flows already wired, because somebody here connected each of them
+and checked it. The rest are mirrored from the public MCP registry and
+searchable by name: nobody here reviewed those, the list says which kind a row
+is, and a listing a check found dead, broken or duplicated is left out.
 
 !!! info
 

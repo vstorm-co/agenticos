@@ -1,5 +1,5 @@
 ---
-source_sha: "089e7fa03d78"
+source_sha: "dc1db9e6554c"
 ---
 
 # Funciones { #features }
@@ -121,12 +121,13 @@ devuelve jamás.
 Conecta un servidor y sus tools aparecen en la Toolbox, con espacio de nombres
 propio para que dos servidores que ofrecen `search` no choquen.
 
-**Hay 5.802 servidores en el selector.** 99 de los más habituales — GitHub,
-Linear, Notion, Slack, Stripe, Postgres — llegan con sus flujos de OAuth ya
-cableados, porque aquí alguien conectó cada uno de ellos y lo comprobó. Los
-otros 5.703 están replicados del registro público de MCP y se pueden buscar por
-nombre: a esos no los ha revisado nadie de aquí, y la lista dice de qué tipo es
-cada fila.
+**Hay más de 4.700 servidores en la galería**: la cifra que muestra la página
+MCP servers. Los más habituales - GitHub, Linear, Notion, Slack, Stripe,
+Postgres - llegan con sus flujos de OAuth ya cableados, porque aquí alguien
+conectó cada uno de ellos y lo comprobó. El resto están replicados del registro
+público de MCP y se pueden buscar por nombre: a esos no los ha revisado nadie de
+aquí, la lista dice de qué tipo es cada fila, y una entrada que una comprobación
+encontró caída, rota o duplicada no aparece.
 
 !!! info
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "089e7fa03d78"
+source_sha: "dc1db9e6554c"
 ---
 
 # Funktionen { #features }
@@ -126,11 +126,13 @@ Endpunkt je zurückgegeben.
 Verbinden Sie einen Server, und seine Tools erscheinen in der Toolbox — mit
 Namensraum, damit zwei Server, die beide `search` anbieten, nicht kollidieren.
 
-**5.802 Server stehen im Picker.** 99 der gängigen — GitHub, Linear, Notion,
-Slack, Stripe, Postgres — kommen mit bereits verdrahteten OAuth-Flows, weil hier
-jemand jeden davon verbunden und geprüft hat. Die übrigen 5.703 sind aus dem
-öffentlichen MCP-Register gespiegelt und nach Namen durchsuchbar: die hat hier
-niemand geprüft, und die Liste sagt, welcher Art eine Zeile ist.
+**Über 4.700 Server stehen in der Galerie** - die Zahl, die die Seite MCP servers
+anzeigt. Die gängigen - GitHub, Linear, Notion, Slack, Stripe, Postgres - kommen
+mit bereits verdrahteten OAuth-Flows, weil hier jemand jeden davon verbunden und
+geprüft hat. Die übrigen sind aus dem öffentlichen MCP-Register gespiegelt und
+nach Namen durchsuchbar: die hat hier niemand geprüft, die Liste sagt, welcher
+Art eine Zeile ist, und ein Eintrag, den eine Prüfung als tot, defekt oder
+doppelt erkannt hat, fehlt.
 
 !!! info
 

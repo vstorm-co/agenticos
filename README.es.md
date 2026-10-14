@@ -1,4 +1,4 @@
-<!-- source_sha: 09538101c2de -->
+<!-- source_sha: c69514cfbe34 -->
 
 <div align="center">
 
@@ -101,9 +101,9 @@ Funciona en tu propia infraestructura con Docker Compose y es compatible con 27 
 
 **Cómo encaja AgenticOS en una empresa:** departamentos como finanzas, operaciones o la dirección usan agentes compartidos en el chat web, Slack o un workspace privado. Tus sistemas llaman a los agentes mediante la API, y los eventos o las programaciones los inician automáticamente. Cada solicitud pasa por los mismos controles: roles, budgets, aprobaciones, guardrails y un run registrado. Tus datos, vectores, sandboxes de código, el vault de credenciales y los modelos locales opcionales permanecen en tu infraestructura. Los modelos alojados, las herramientas SaaS y las fuentes de documentos externas solo se usan cuando las configuras.
 
-<img src="docs/assets/readme/figures.webp" alt="26 capabilities integradas, activadas por agente; 8 lugares donde responde un agente; 27 providers de modelos, alojados, en tu nube o locales; 5 fuentes de sincronización de documentos; más de 5700 entradas de servidores MCP y 99 servidores seleccionados; 29 tutoriales, cada uno con una comprobación que puedes ejecutar." width="100%">
+<img src="docs/assets/readme/figures.webp" alt="26 capabilities integradas, activadas por agente; 8 lugares donde responde un agente; 27 providers de modelos, alojados, en tu nube o locales; 5 fuentes de sincronización de documentos; más de 4700 servidores MCP en la galería; 29 tutoriales, cada uno con una comprobación que puedes ejecutar." width="100%">
 
-<p align="center"><sub><b>De un vistazo:</b> 26 capabilities integradas · 8 lugares donde responde un agente · 27 providers de modelos · 5 fuentes de sincronización de documentos · más de 5700 entradas de servidores MCP y 99 servidores seleccionados · 29 tutoriales.</sub></p>
+<p align="center"><sub><b>De un vistazo:</b> 26 capabilities integradas · 8 lugares donde responde un agente · 27 providers de modelos · 5 fuentes de sincronización de documentos · más de 4700 servidores MCP en la galería · 29 tutoriales.</sub></p>
 
 ## ✨ Qué puedes hacer
 
@@ -150,7 +150,7 @@ AgenticOS conecta los agentes con los modelos, las herramientas de chat, las apl
 | Conectar | Cómo | Más información |
 |---|---|---|
 | **Herramientas de chat** | Publica un agente en Slack, Mattermost o Telegram, un widget para sitios web, una página alojada, la API o un WebSocket | [Canales](https://vstorm-co.github.io/agenticos/es/channels/) |
-| **Herramientas de negocio** | 99 servidores MCP seleccionados (Notion, GitHub, Jira, HubSpot, Stripe…) más **más de 5700 entradas del registro** y tus propios servidores; elige qué herramientas puede llamar cada agente | [MCP](https://vstorm-co.github.io/agenticos/es/mcp/) |
+| **Herramientas de negocio** | **más de 4700 servidores MCP** en la galería (Notion, GitHub, Jira, HubSpot, Stripe…) y tus propios servidores; elige qué herramientas puede llamar cada agente | [MCP](https://vstorm-co.github.io/agenticos/es/mcp/) |
 | **Documentos** | Sincroniza Google Drive, S3/MinIO, repositorios Git, sitios web, SharePoint y OneDrive en bases de conocimiento | [Fuentes de sincronización](https://vstorm-co.github.io/agenticos/es/howto/configure-sync-sources/) |
 | **Eventos** | Inicia agentes según un horario, una nueva issue de GitHub, un mensaje de Gmail o un webhook firmado | [Rutinas](https://vstorm-co.github.io/agenticos/es/triggers/) |
 | **Modelos** | 27 providers, tu contrato en la nube (Azure, Bedrock, Vertex) o modelos locales (Ollama, vLLM) | [Modelos](https://vstorm-co.github.io/agenticos/es/models/) |

@@ -1,5 +1,5 @@
 ---
-source_sha: "089e7fa03d78"
+source_sha: "dc1db9e6554c"
 ---
 
 # Funkcje { #features }
@@ -120,11 +120,13 @@ Klucze są per organizacja, zapieczętowane w vaulcie i nigdy nie zwracane przez
 Podłącz serwer, a jego narzędzia pojawią się w Toolboksie, z przestrzenią nazw,
 więc dwa serwery oferujące `search` nie zderzą się ze sobą.
 
-**W wyborze jest 5802 serwerów.** 99 tych popularnych — GitHub, Linear, Notion,
-Slack, Stripe, Postgres — przychodzi z gotowo podłączonymi przepływami OAuth, bo
-ktoś tutaj podłączył każdy z nich i to sprawdził. Pozostałe 5703 są lustrzaną
-kopią publicznego rejestru MCP i da się je wyszukać po nazwie: nikt tutaj ich nie
-przejrzał, a lista mówi, którego rodzaju jest dany wiersz.
+**W galerii jest ponad 4700 serwerów** - tyle, ile pokazuje strona MCP servers.
+Te popularne - GitHub, Linear, Notion, Slack, Stripe, Postgres - przychodzą
+z gotowo podłączonymi przepływami OAuth, bo ktoś tutaj podłączył każdy z nich
+i to sprawdził. Pozostałe są lustrzaną kopią publicznego rejestru MCP i da się je
+wyszukać po nazwie: nikt tutaj ich nie przejrzał, lista mówi, którego rodzaju
+jest dany wiersz, a wpisu, który sprawdzenie uznało za martwy, zepsuty albo
+zdublowany, na niej nie ma.
 
 !!! info
 

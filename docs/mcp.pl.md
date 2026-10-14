@@ -1,5 +1,5 @@
 ---
-source_sha: "83b5148aaf63"
+source_sha: "05ff7bf4ae50"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -579,7 +579,7 @@ działa, że opis jest uczciwy — a odbity rejestr takiej obietnicy złożyć n
     Po zestawieniu z tym katalogiem **cztery** z tych hostów należały do firmy,
     którą większość czytelników by rozpoznała, i tutaj ich brakowało — CircleCI,
     New Relic, Statsig i Lusha, wszystkie cztery są już na liście. Reszta
-    z nieobjętych pięciu tysięcy z okładem to serwery jednoprojektowe, proxy na
+    z nieobjętych hostów to serwery jednoprojektowe, proxy na
     `workers.dev`, narzędzia SEO i gry: alfabetycznie pierwsze z brzegu to
     wyszukiwarka cen gruntów, narzędzie do przetargów dla wykonawców i węgierski
     serwis wyceny okien.
@@ -591,8 +591,8 @@ działa, że opis jest uczciwy — a odbity rejestr takiej obietnicy złożyć n
 ### Rejestr jest na tej samej liście i w bazie danych { #the-registry-is-in-the-same-list-and-in-the-database }
 
 Lustro jest więc dostarczane razem z nim, a **/mcp to jedna lista ich
-wszystkich** — najpierw wyselekcjonowana setka, potem 5703 odbite serwery,
-stronicowane. Nie wyselekcjonowana siatka z wyszukiwarką sięgającą dalej: jedna
+wszystkich** — najpierw wyselekcjonowany katalog, potem odbity rejestr, stronicowane:
+ponad 4700 serwerów, tyle, ile pokazuje galeria. Nie wyselekcjonowana siatka z wyszukiwarką sięgającą dalej: jedna
 lista, jeden pager, jeden licznik.
 
 To wymagało tabeli. `mcp_registry_servers` jest wspólna dla całego deploymentu
@@ -602,7 +602,7 @@ pytanie odwrotnie, a różnica polega na tym, że katalog nie jest danymi tenant
 Wypełnia ją `agenticos cmd mcp-registry-sync`, z dołączonego snapshotu albo,
 z `--fetch`, z żywego rejestru.
 
-Trzymane w bazie danych, bo pliku nie da się stronicować. Mając 5703 wpisy
+Trzymane w bazie danych, bo pliku nie da się stronicować. Mając tysiące wpisów
 w pamięci, dałoby się odpowiedzieć na „serwery pasujące do »linear«”, ale nie na
 „czwartą stronę ich wszystkich” bez wczytania całości i pokrojenia jej. Wraz
 z tym do SQL-a przeniosło się rankowanie, z tego samego powodu: rankowanie strony

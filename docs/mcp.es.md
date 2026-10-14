@@ -1,5 +1,5 @@
 ---
-source_sha: "83b5148aaf63"
+source_sha: "05ff7bf4ae50"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -594,8 +594,8 @@ puede hacer esa promesa.
 
     Cruzado con este catálogo, **cuatro** de esos hosts pertenecían a una empresa
     que la mayoría de los lectores reconocería y faltaban aquí — CircleCI, New
-    Relic, Statsig y Lusha, los cuatro ya listados. El resto de los algo más de
-    5.000 sin cubrir son servidores de un solo proyecto, proxies en `workers.dev`,
+    Relic, Statsig y Lusha, los cuatro ya listados. El resto de los hosts
+    sin cubrir son servidores de un solo proyecto, proxies en `workers.dev`,
     herramientas de SEO y juegos: alfabéticamente, los primeros son una consulta de
     precios del suelo, una herramienta de licitación para contratistas y un
     servicio húngaro de presupuestos de ventanas.
@@ -608,7 +608,8 @@ puede hacer esa promesa.
 ### El registro está en la misma lista, y en la base de datos { #the-registry-is-in-the-same-list-and-in-the-database }
 
 Así que el espejo también se envía, y **/mcp es una sola lista con todos ellos** —
-el centenar curado primero, y luego 5.703 servidores replicados, paginados. No una
+el catálogo curado primero, y luego el registro replicado, paginados: más de
+4.700 servidores, la cifra que muestra la galería. No una
 rejilla curada con una búsqueda que llega más lejos: una lista, un paginador, un
 recuento.
 
@@ -619,8 +620,8 @@ revés, y la diferencia es que un catálogo no son datos de un tenant. La llena
 `agenticos cmd mcp-registry-sync`, desde la instantánea empaquetada o, con
 `--fetch`, desde el registro en vivo.
 
-Guardado en la base de datos porque un archivo no se puede paginar. Cinco mil
-setecientas tres entradas en memoria podrían responder a «servidores que casan con
+Guardado en la base de datos porque un archivo no se puede paginar. Miles de
+entradas en memoria podrían responder a «servidores que casan con
 'linear'» y no podrían responder a «la cuarta página de todos ellos» sin cargarlo
 todo y cortarlo. El ranking se movió a SQL con ello, por la misma razón: ordenar
 una página es ordenar lo que esa página haya contenido. Tres bandas — el servidor

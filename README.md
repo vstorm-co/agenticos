@@ -99,9 +99,9 @@ It runs on your own infrastructure with Docker Compose and works with 27 model p
 
 **How AgenticOS fits into a company:** departments such as finance, operations or the board use shared agents in web chat, Slack or a private workspace. Your systems call agents through the API, and events or schedules start them automatically. Every request passes the same controls: roles, budgets, approvals, guardrails and a recorded run. Your data, vectors, code sandboxes, the credential vault and optional local models stay on your infrastructure. Hosted models, SaaS tools and document sources outside are used only when you configure them.
 
-<img src="docs/assets/readme/figures.webp" alt="26 built-in capabilities, switched on per agent; 8 places an agent answers; 27 model providers, hosted, your cloud or local; 5 document sync sources; 5,700+ MCP server listings plus 99 curated servers; 29 tutorials, each with a check you can run." width="100%">
+<img src="docs/assets/readme/figures.webp" alt="26 built-in capabilities, switched on per agent; 8 places an agent answers; 27 model providers, hosted, your cloud or local; 5 document sync sources; 4,700+ MCP servers in the gallery; 29 tutorials, each with a check you can run." width="100%">
 
-<p align="center"><sub><b>At a glance:</b> 26 built-in capabilities · 8 places an agent answers · 27 model providers · 5 document sync sources · 5,700+ MCP server listings and 99 curated servers · 29 tutorials.</sub></p>
+<p align="center"><sub><b>At a glance:</b> 26 built-in capabilities · 8 places an agent answers · 27 model providers · 5 document sync sources · 4,700+ MCP servers · 29 tutorials.</sub></p>
 
 ## ✨ What you can do
 
@@ -148,7 +148,7 @@ AgenticOS connects agents to the models, chat tools, business apps and document 
 | Connect | How | Read |
 |---|---|---|
 | **Chat tools** | Publish an agent to Slack, Mattermost or Telegram, a website widget, a hosted page, the API or a WebSocket | [Channels](https://vstorm-co.github.io/agenticos/channels/) |
-| **Business tools** | 99 curated MCP servers (Notion, GitHub, Jira, HubSpot, Stripe…) plus **5,700+ registry listings** and your own servers; choose which tools each agent may call | [MCP](https://vstorm-co.github.io/agenticos/mcp/) |
+| **Business tools** | **4,700+ MCP servers** in the gallery (Notion, GitHub, Jira, HubSpot, Stripe…) and your own servers; choose which tools each agent may call | [MCP](https://vstorm-co.github.io/agenticos/mcp/) |
 | **Documents** | Sync Google Drive, S3/MinIO, Git repositories, websites, SharePoint and OneDrive into knowledge bases | [Sync sources](https://vstorm-co.github.io/agenticos/howto/configure-sync-sources/) |
 | **Events** | Start agents on a schedule, a new GitHub issue, a Gmail message or a signed webhook | [Routines](https://vstorm-co.github.io/agenticos/triggers/) |
 | **Models** | 27 providers, your cloud contract (Azure, Bedrock, Vertex) or local models (Ollama, vLLM) | [Models](https://vstorm-co.github.io/agenticos/models/) |
