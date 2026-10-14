@@ -49,7 +49,7 @@ export function AddToDatasetDialog({
 }: AddToDatasetDialogProps) {
   const t = useTranslations("datasets");
   const tErrors = useTranslations("errors");
-  const { editable, isLoading, target, choose, remember } = useDatasetTarget();
+  const { editable, isLoading, search, target, choose, remember } = useDatasetTarget();
   const add = useAddToDataset();
   const [answerAs, setAnswerAs] = useState<AnswerAs>(initial);
 
@@ -78,6 +78,7 @@ export function AddToDatasetDialog({
           isLoading={isLoading}
           datasetId={target?.id ?? ""}
           onDatasetChange={choose}
+          search={search}
           answerAs={askAnswerAs ? { value: answerAs, onChange: setAnswerAs } : undefined}
           idPrefix="add-to-dataset"
         />

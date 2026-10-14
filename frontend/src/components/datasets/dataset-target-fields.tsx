@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui";
 import type { AddFromMessage } from "@/hooks/use-datasets";
+import { SearchInput } from "@/components/ui/list-controls";
 import { ROUTES } from "@/lib/constants";
 import type { Dataset } from "@/types/datasets";
 
@@ -28,6 +29,8 @@ interface DatasetTargetFieldsProps {
    * already said which, so the question is not shown.
    */
   answerAs?: { value: AnswerAs; onChange: (next: AnswerAs) => void };
+  /** A search over every dataset, offered once the listing stops short of them all. */
+  search?: { value: string; onChange: (value: string) => void } | null;
   /** Keeps two of these on one page from sharing input ids. */
   idPrefix: string;
 }
@@ -43,10 +46,19 @@ export function DatasetTargetFields({
   datasetId,
   onDatasetChange,
   answerAs,
+  search,
   idPrefix,
 }: DatasetTargetFieldsProps) {
   const t = useTranslations("datasets");
-  if (!isLoading && editable.length === 0) {
+  const finder = search && (
+    <SearchInput
+      value={search.value}
+      onChange={search.onChange}
+      placeholder={t("findDataset")}
+      className="sm:w-full"
+    />
+  );
+  if (!isLoading && editable.length === 0 && !search?.value) {
     return (
       <p className="text-muted-foreground text-sm">
         {t.rich("noDatasetToAddTo", {
@@ -61,6 +73,7 @@ export function DatasetTargetFields({
   }
   return (
     <div className="space-y-4">
+      {finder}
       <FormField htmlFor={`${idPrefix}-dataset`} label={t("dataset")}>
         <Select value={datasetId} onValueChange={onDatasetChange}>
           <SelectTrigger id={`${idPrefix}-dataset`}>

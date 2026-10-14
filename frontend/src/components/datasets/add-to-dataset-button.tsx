@@ -5,9 +5,8 @@ import { FlaskConical } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui";
-import { usePermissions } from "@/hooks/use-permissions";
-import { Perm } from "@/types/permissions";
 import { AddToDatasetDialog } from "./add-to-dataset-dialog";
+import { useCanAddToDataset } from "./use-dataset-target";
 
 interface AddToDatasetButtonProps {
   messageId: string;
@@ -20,14 +19,13 @@ interface AddToDatasetButtonProps {
  * rating decides: a thumbs-up offers it as a reference, a thumbs-down as a
  * counter-example.
  *
- * Not rendered for somebody whose role edits no dataset: the dialog would offer
- * them nothing to add to.
+ * Not rendered for somebody with no dataset to add to - by role, or by a grant.
  */
 export function AddToDatasetButton({ messageId, ratedDown }: AddToDatasetButtonProps) {
   const t = useTranslations("datasets");
-  const { can } = usePermissions();
+  const canAdd = useCanAddToDataset();
   const [open, setOpen] = useState(false);
-  if (!can(Perm.datasetsEdit)) return null;
+  if (!canAdd) return null;
   return (
     <>
       <Button
