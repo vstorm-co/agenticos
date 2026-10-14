@@ -54,6 +54,23 @@ describe("the sources under an answer", () => {
     expect(container.querySelectorAll(".lucide-globe")).toHaveLength(4);
   });
 
+  it("shows one of each kind of source before a second of any", () => {
+    const sources = [
+      passage(1, "a.md"),
+      passage(2, "b.md"),
+      passage(3, "c.md"),
+      page(4, "https://github.com/acme/api"),
+      page(5, "https://blog.example/"),
+      page(6, "https://github.com/acme/web"),
+    ];
+    const { container } = render(<MessageSources sources={sources} onOpen={vi.fn()} />);
+
+    // A file, GitHub and the web all make the cut ahead of a second file.
+    const marks = container.querySelectorAll("button > span:first-child > span");
+    expect(marks).toHaveLength(4);
+    expect(container.querySelectorAll("button .lucide-globe")).toHaveLength(1);
+  });
+
   it("names where each document is, and how many of its passages were cited", async () => {
     await expand([
       passage(1, "refunds.md"),

@@ -7,13 +7,35 @@ import { useState } from "react";
 import { SourceViewer, type CitedFile } from "@/components/kb/source-viewer";
 import { useKnowledgeBaseFor } from "@/hooks/use-knowledge-bases";
 import { sourceDocuments, type SourceDocument, type SourceItem } from "@/lib/chat-sources";
-import { hostOf } from "@/lib/link-brands";
+import { brandForUrl, hostOf } from "@/lib/link-brands";
 import { cn } from "@/lib/utils";
 
 import { SourceMark } from "./source-mark";
 
 /** Beyond this the stack is a smudge; the rest are counted instead. */
 const MAX_SHOWN = 4;
+
+/** What a document's mark looks like: any file, or a page's service. */
+function markOf(doc: SourceDocument): string {
+  return doc.type === "rag" ? "file" : ((doc.url && brandForUrl(doc.url)) ?? "web");
+}
+
+/**
+ * The documents the stack shows: one of each kind of mark first, then the rest
+ * in the order they were cited. Four marks of one handbook's files say less than
+ * a file, GitHub and Notion side by side.
+ */
+function variedFirst(documents: SourceDocument[]): SourceDocument[] {
+  const seen = new Set<string>();
+  const distinct: SourceDocument[] = [];
+  const repeats: SourceDocument[] = [];
+  for (const doc of documents) {
+    const mark = markOf(doc);
+    (seen.has(mark) ? repeats : distinct).push(doc);
+    seen.add(mark);
+  }
+  return [...distinct, ...repeats].slice(0, MAX_SHOWN);
+}
 
 /**
  * What an answer drew on, under it: the documents as a stack of marks, opening
@@ -37,7 +59,7 @@ export function MessageSources({
   const [opened, setOpened] = useState<CitedFile | null>(null);
   const baseFor = useKnowledgeBaseFor();
   const documents = sourceDocuments(sources);
-  const shown = documents.slice(0, MAX_SHOWN);
+  const shown = variedFirst(documents);
 
   return (
     <div className="space-y-2">

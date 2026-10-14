@@ -157,6 +157,40 @@ describe("the knowledge search", () => {
     expect(container.querySelector('[title="Relevance: 0.22"]')).toHaveClass("bg-foreground/25");
   });
 
+  it("draws a known service's own logo, and a globe for any other site", () => {
+    const mixed = JSON.stringify({
+      kind: "web_search",
+      results: [
+        { title: "Repo", url: "https://github.com/acme/api" },
+        { title: "Blog", url: "https://blog.example/post" },
+      ],
+    });
+
+    const { container } = render(<WebSearchResults data={parseWebSearch(mixed)!} />);
+
+    expect(container.querySelectorAll(".lucide-globe")).toHaveLength(1);
+    expect(screen.getByText("github.com")).toBeInTheDocument();
+  });
+
+  it("names a hit with no title by its site", () => {
+    const untitled = JSON.stringify({
+      kind: "web_search",
+      results: [{ title: "", url: "https://ledgerly.example/pricing" }],
+    });
+
+    render(<WebSearchResults data={parseWebSearch(untitled)!} />);
+
+    expect(screen.getAllByText("ledgerly.example")).toHaveLength(2);
+  });
+
+  it("names a hit with neither a title nor a readable address by what it was given", () => {
+    const bare = JSON.stringify({ kind: "web_search", results: [{ title: "", url: "nowhere" }] });
+
+    render(<WebSearchResults data={parseWebSearch(bare)!} />);
+
+    expect(screen.getAllByText("nowhere")).toHaveLength(2);
+  });
+
   it("says a search that found nothing found nothing", () => {
     // Not the same as a failed search, and not the same as no search.
     render(<RAGSearchResults result="No relevant documents found for your query." />);
@@ -262,9 +296,11 @@ describe("the web search", () => {
     expect(screen.getByText("Fourteen days.")).toHaveClass("whitespace-pre-wrap");
   });
 
-  it("shows the query and the relevance only in the deep-dive view", () => {
+  it("says what was searched for, and shows relevance only in the deep-dive view", () => {
+    // The query heads the cards in the chat too: "searched the web" says nothing
+    // about whether the agent asked the right question.
     const { rerender } = render(<WebSearchResults data={parseWebSearch(PAYLOAD)!} />);
-    expect(screen.queryByText(/refund law/)).toBeNull();
+    expect(screen.getByText(/refund law/)).toBeInTheDocument();
     expect(screen.queryByText("92%")).toBeNull();
 
     rerender(<WebSearchResults data={parseWebSearch(PAYLOAD)!} detailed />);
