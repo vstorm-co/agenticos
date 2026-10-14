@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import UUID
@@ -32,15 +33,20 @@ from app.core.exceptions import AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext, Perm, Scope
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.knowledge_gap import KnowledgeGapTopic, KnowledgeSearch, TopicStatus
+from app.db.models.rag_document import RAGDocument
 from app.repositories import agent_repo, knowledge_base_repo, knowledge_gap_repo
 from app.repositories.knowledge_gap import DraftingRow, TopicRow
 from app.schemas.knowledge_gap import (
+    MAX_DRAFT_SOURCES,
     KnowledgeGapAgent,
     KnowledgeGapCasesAdded,
+    KnowledgeGapCollectionCount,
     KnowledgeGapDraft,
     KnowledgeGapDraftRead,
     KnowledgeGapQuestion,
     KnowledgeGapReport,
+    KnowledgeGapSource,
+    KnowledgeGapSourceRead,
     KnowledgeGapTopicDetail,
     KnowledgeGapTopicList,
     KnowledgeGapTopicRead,
@@ -69,6 +75,9 @@ TOPIC_TO_DATASET = 200
 
 DRAFT_QUESTIONS = 20
 """The most recent questions a drafting model is shown."""
+
+DRAFT_DOCUMENTS = 20
+"""The most documents a drafting model is offered to cite."""
 
 EXAMPLES = 3
 
@@ -149,14 +158,37 @@ def _clip(text: str | None, limit: int) -> str:
     return text if len(text) <= limit else f"{text[:limit]}..."
 
 
-def _drafting_prompt(knowledge_base: str, material: list[DraftingRow]) -> str:
-    """The questions a draft is for, numbered, each with what is known about it."""
+# How the knowledge capability names the document a passage came from.
+_FOUND_SOURCE = re.compile(
+    r"^\[\d+\] Source: (.+?)"
+    r"(?:, page [^,\[(]+|, chunk [^,\[(]+| \[[^\]]*\]|, with surrounding text)* \(score: ",
+    re.MULTILINE,
+)
+
+
+def _found_filenames(material: list[DraftingRow]) -> list[str]:
+    """The file names the topic's searches returned passages from, first seen first."""
+    names = (
+        match.group(1) for row in material for match in _FOUND_SOURCE.finditer(row.found or "")
+    )
+    return list(dict.fromkeys(names))
+
+
+def _drafting_prompt(
+    knowledge_base: str, material: list[DraftingRow], documents: list[RAGDocument]
+) -> str:
+    """The questions a draft is for and the documents it may cite, each numbered."""
     parts = [
         f'The knowledge base "{knowledge_base}" could not answer these questions. '
-        "Draft the passage that would answer them. In `answers`, list the numbers of "
-        "the questions your draft answers; in `sources`, the documents you used from "
-        "what the agent found.",
+        "Draft the passage that would answer them. In `questions`, list the numbers of "
+        "the questions your draft answers; in `documents`, the numbers of the documents "
+        "below whose content your draft builds on. Cite only numbers listed here.",
     ]
+    if documents:
+        parts.append(
+            "## Documents the agent found\n"
+            + "\n".join(f"{n}. {doc.filename}" for n, doc in enumerate(documents, start=1))
+        )
     for number, row in enumerate(material, start=1):
         parts.append(
             f"## Question {number}\n"
@@ -169,17 +201,11 @@ def _drafting_prompt(knowledge_base: str, material: list[DraftingRow]) -> str:
     return "\n\n".join(parts)
 
 
-def _draft_read(topic: KnowledgeGapTopic) -> KnowledgeGapDraftRead | None:
-    if topic.draft_content is None or topic.drafted_at is None:
-        return None
-    return KnowledgeGapDraftRead(
-        title=topic.draft_title or "",
-        content=topic.draft_content,
-        answers=[UUID(answer) for answer in topic.draft_answers],
-        sources=topic.draft_sources,
-        drafted_at=topic.drafted_at,
-        run_id=topic.draft_run_id,
-    )
+def _cited[T](numbers: list[int], numbered: list[T]) -> tuple[list[T], int]:
+    """What a model cited by number, and how many of its numbers named nothing."""
+    distinct_numbers = list(dict.fromkeys(numbers))
+    cited = [numbered[n - 1] for n in distinct_numbers if 1 <= n <= len(numbered)]
+    return cited, len(distinct_numbers) - len(cited)
 
 
 class KnowledgeGapService:
@@ -261,8 +287,28 @@ class KnowledgeGapService:
             threshold=threshold,
             agent_id=agent_id,
         )
+        counts = await knowledge_gap_repo.topics_per_knowledge_base(
+            self.db,
+            organization_id=ctx.organization_id,
+            knowledge_base_ids=knowledge_base_ids,
+            threshold=threshold,
+            status=status,
+            agent_id=agent_id,
+        )
+        bases = await knowledge_base_repo.get_by_ids(self.db, [kb_id for kb_id, _, _ in counts])
         return KnowledgeGapTopicList(
-            items=await self._reads(ctx, rows), total=total, ungrouped=ungrouped
+            items=await self._reads(ctx, rows),
+            total=total,
+            by_knowledge_base=[
+                KnowledgeGapCollectionCount(
+                    knowledge_base_id=kb_id,
+                    knowledge_base_name=bases[kb_id].name,
+                    topics=topics,
+                    questions=questions,
+                )
+                for kb_id, topics, questions in counts
+            ],
+            ungrouped=ungrouped,
         )
 
     async def list_for_knowledge_base(
@@ -404,7 +450,7 @@ class KnowledgeGapService:
                 )
                 for q in questions
             ],
-            draft=_draft_read(topic),
+            draft=await self._draft_read(ctx, topic),
         )
 
     async def draft(self, ctx: AuthContext, topic_id: UUID) -> KnowledgeGapTopicDetail:
@@ -440,38 +486,56 @@ class KnowledgeGapService:
         if not material:
             raise NotFoundError(message="Topic not found", details={"topic_id": topic_id})
         kb = await self._knowledge_base(ctx, topic.knowledge_base_id)
+        documents = await knowledge_gap_repo.documents_named(
+            self.db,
+            kb.id,
+            _found_filenames(material),
+            organization_id=ctx.organization_id,
+            limit=DRAFT_DOCUMENTS,
+        )
         result = await SystemAgentRunner(self.db).run(
             ctx,
             key=KNOWLEDGE_GAP_DRAFTER.key,
-            prompt=_drafting_prompt(kb.name, material),
+            prompt=_drafting_prompt(kb.name, material, documents),
             output_type=KnowledgeGapDraft,
         )
-        numbered = [row.search.id for row in material]
+        cited_documents, unknown_documents = _cited(result.output.documents, documents)
+        cited_questions, unknown_questions = _cited(
+            result.output.questions, [row.search for row in material]
+        )
         await self.record_draft(
             ctx,
             KnowledgeGapReport(
                 topic_id=topic.id,
                 title=result.output.title,
                 content=result.output.content,
-                answers=[
-                    numbered[number - 1]
-                    for number in result.output.answers
-                    if 1 <= number <= len(numbered)
+                sources=[
+                    *(KnowledgeGapSource(kind="document", id=doc.id) for doc in cited_documents),
+                    *(KnowledgeGapSource(kind="question", id=s.id) for s in cited_questions),
                 ],
-                sources=result.output.sources,
             ),
             run_id=result.run.id,
+            unverified=unknown_documents + unknown_questions,
         )
         return await self.read(ctx, topic.id)
 
     async def record_draft(
-        self, ctx: AuthContext, report: KnowledgeGapReport, *, run_id: UUID | None = None
+        self,
+        ctx: AuthContext,
+        report: KnowledgeGapReport,
+        *,
+        run_id: UUID | None = None,
+        unverified: int = 0,
     ) -> None:
         """Keep proposed content on a topic, replacing any earlier draft.
 
-        The one way a passage reaches a topic, whoever drafted it. An answer that
-        names a search outside the topic is dropped rather than kept as evidence
-        for the wrong questions, and any credential the text repeats is redacted.
+        The one way a passage reaches a topic, whoever drafted it. Every source is
+        verified first: a document must belong to the topic's knowledge base, a
+        question must be one of the topic's searches. One that is not is left
+        out and counted with `unverified` - which the caller passes for sources
+        it could not even resolve - so the draft never shows a source nobody
+        checked. At most :data:`MAX_DRAFT_SOURCES` are kept. Any credential the
+        text repeats is redacted.
 
         Raises:
             AuthorizationError: For a caller without `runs:view` across the organization.
@@ -479,21 +543,73 @@ class KnowledgeGapService:
         """
         _require_runs_view(ctx)
         topic = await self._topic(ctx, report.topic_id)
-        members = await knowledge_gap_repo.member_search_ids(
+        named = list(dict.fromkeys((source.kind, source.id) for source in report.sources))
+        questions = await knowledge_gap_repo.member_queries(
             self.db, topic.id, organization_id=ctx.organization_id
         )
+        documents = await knowledge_gap_repo.documents_in(
+            self.db,
+            topic.knowledge_base_id,
+            [source_id for kind, source_id in named if kind == "document"],
+            organization_id=ctx.organization_id,
+        )
+        verified = [
+            {"kind": kind, "id": str(source_id)}
+            for kind, source_id in named
+            if (kind == "document" and source_id in documents)
+            or (kind == "question" and source_id in questions)
+        ]
         await knowledge_gap_repo.update_topic(
             self.db,
             topic=topic,
             update_data={
                 "draft_title": _redacted(report.title),
                 "draft_content": _redacted(report.content),
-                "draft_answers": [str(a) for a in dict.fromkeys(report.answers) if a in members],
-                "draft_sources": [_redacted(source) for source in report.sources],
+                "draft_sources": verified[:MAX_DRAFT_SOURCES],
+                "draft_unverified": unverified + len(named) - len(verified),
                 "draft_run_id": run_id,
                 "drafted_by_user_id": ctx.user_id,
                 "drafted_at": datetime.now(UTC),
             },
+        )
+
+    async def _draft_read(
+        self, ctx: AuthContext, topic: KnowledgeGapTopic
+    ) -> KnowledgeGapDraftRead | None:
+        """A topic's draft, with each source named - and left out if it is gone since."""
+        if topic.draft_content is None or topic.drafted_at is None:
+            return None
+        questions = await knowledge_gap_repo.member_queries(
+            self.db, topic.id, organization_id=ctx.organization_id
+        )
+        documents = await knowledge_gap_repo.documents_in(
+            self.db,
+            topic.knowledge_base_id,
+            [UUID(s["id"]) for s in topic.draft_sources if s["kind"] == "document"],
+            organization_id=ctx.organization_id,
+        )
+        sources: list[KnowledgeGapSourceRead] = []
+        for source in topic.draft_sources:
+            source_id = UUID(source["id"])
+            if source["kind"] == "document" and source_id in documents:
+                sources.append(
+                    KnowledgeGapSourceRead(
+                        kind="document", id=source_id, label=documents[source_id].filename
+                    )
+                )
+            elif source["kind"] == "question" and source_id in questions:
+                sources.append(
+                    KnowledgeGapSourceRead(
+                        kind="question", id=source_id, label=questions[source_id]
+                    )
+                )
+        return KnowledgeGapDraftRead(
+            title=topic.draft_title or "",
+            content=topic.draft_content,
+            sources=sources,
+            unverified=topic.draft_unverified,
+            drafted_at=topic.drafted_at,
+            run_id=topic.draft_run_id,
         )
 
     async def set_status(
@@ -629,6 +745,7 @@ class KnowledgeGapService:
             organization_id=organization_id,
             embedding_model=kb.embedding_model,
         )
+        width = len(next(iter(vectors.values())))
         clusters = _assign(
             [(search.id, vectors[search.query]) for search in misses],
             [
@@ -639,6 +756,8 @@ class KnowledgeGapService:
                     searches=[],
                 )
                 for topic, size in stored
+                # A model whose width changed under the same name is another space.
+                if len(topic.centroid) == width
             ],
             threshold=TOPIC_SIMILARITY,
         )

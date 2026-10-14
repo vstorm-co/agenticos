@@ -34,6 +34,7 @@ from app.db.models.conversation import Message, ToolCall
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.knowledge_gap import KnowledgeGapMember, KnowledgeGapTopic, KnowledgeSearch
 from app.db.models.message_rating import MessageRating
+from app.db.models.rag_document import RAGDocument
 from app.schemas.knowledge_gap import KnowledgeSearchRecord
 
 
@@ -302,6 +303,42 @@ async def list_topics(
     ], total
 
 
+async def topics_per_knowledge_base(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    knowledge_base_ids: Sequence[UUID],
+    threshold: float,
+    status: str | None,
+    agent_id: UUID | None,
+) -> list[tuple[UUID, int, int]]:
+    """`(knowledge base, topics, questions)` for each base holding a topic, most asked first."""
+    per_topic = (
+        select(
+            KnowledgeGapTopic.knowledge_base_id.label("knowledge_base_id"),
+            func.count(KnowledgeSearch.id).label("questions"),
+        )
+        .join(KnowledgeGapMember, KnowledgeGapMember.topic_id == KnowledgeGapTopic.id)
+        .join(KnowledgeSearch, KnowledgeSearch.id == KnowledgeGapMember.search_id)
+        .where(
+            KnowledgeGapTopic.organization_id == organization_id,
+            KnowledgeGapTopic.knowledge_base_id.in_(list(knowledge_base_ids)),
+            *_members(organization_id=organization_id, threshold=threshold, agent_id=agent_id),
+        )
+        .group_by(KnowledgeGapTopic.id)
+    )
+    if status is not None:
+        per_topic = per_topic.where(KnowledgeGapTopic.status == status)
+    topics = per_topic.subquery()
+    questions = func.sum(topics.c.questions)
+    result = await db.execute(
+        select(topics.c.knowledge_base_id, func.count(), questions)
+        .group_by(topics.c.knowledge_base_id)
+        .order_by(questions.desc(), topics.c.knowledge_base_id)
+    )
+    return [(row[0], row[1], int(row[2])) for row in result.all()]
+
+
 async def count_ungrouped(
     db: AsyncSession,
     *,
@@ -475,15 +512,60 @@ async def drafting_material(
     ]
 
 
-async def member_search_ids(
+async def member_queries(
     db: AsyncSession, topic_id: UUID, *, organization_id: UUID
-) -> set[UUID]:
+) -> dict[UUID, str]:
+    """The searches a topic holds, each with its query."""
     result = await db.execute(
-        select(KnowledgeGapMember.search_id)
-        .join(KnowledgeSearch, KnowledgeSearch.id == KnowledgeGapMember.search_id)
+        select(KnowledgeSearch.id, KnowledgeSearch.query)
+        .join(KnowledgeGapMember, KnowledgeGapMember.search_id == KnowledgeSearch.id)
         .where(
             KnowledgeGapMember.topic_id == topic_id,
             KnowledgeSearch.organization_id == organization_id,
         )
     )
-    return set(result.scalars().all())
+    return {row[0]: row[1] for row in result.all()}
+
+
+async def documents_named(
+    db: AsyncSession,
+    knowledge_base_id: UUID,
+    filenames: Sequence[str],
+    *,
+    organization_id: UUID,
+    limit: int,
+) -> list[RAGDocument]:
+    """A knowledge base's documents carrying any of these file names, oldest first."""
+    if not filenames:
+        return []
+    result = await db.execute(
+        select(RAGDocument)
+        .where(
+            RAGDocument.organization_id == organization_id,
+            RAGDocument.knowledge_base_id == knowledge_base_id,
+            RAGDocument.filename.in_(list(filenames)),
+        )
+        .order_by(RAGDocument.filename, RAGDocument.id)
+        .limit(limit)
+    )
+    return list(result.scalars().all())
+
+
+async def documents_in(
+    db: AsyncSession,
+    knowledge_base_id: UUID,
+    document_ids: Sequence[UUID],
+    *,
+    organization_id: UUID,
+) -> dict[UUID, RAGDocument]:
+    """The documents among these ids that belong to this knowledge base."""
+    if not document_ids:
+        return {}
+    result = await db.execute(
+        select(RAGDocument).where(
+            RAGDocument.organization_id == organization_id,
+            RAGDocument.knowledge_base_id == knowledge_base_id,
+            RAGDocument.id.in_(list(document_ids)),
+        )
+    )
+    return {document.id: document for document in result.scalars().all()}

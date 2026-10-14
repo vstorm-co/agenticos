@@ -29,23 +29,40 @@ class KnowledgeGapAgent(BaseSchema):
     name: str
 
 
+MAX_DRAFT_SOURCES = 12
+"""The most sources a draft keeps, once verified."""
+
+
 class KnowledgeGapDraft(BaseSchema):
     """The passage a drafting model proposes for a topic, as it answers.
 
-    Questions are named by the number they were given in the prompt, which a
-    model copies reliably, where an id it would have to repeat it may garble.
+    Documents and questions are cited by the number they were given in the
+    prompt, which a model copies reliably, where an id it would have to repeat
+    it may garble.
     """
 
     title: str = Field(min_length=1, max_length=200)
     content: str = Field(min_length=1, max_length=20_000, description="Markdown")
-    answers: list[int] = Field(
-        default_factory=list, description="The numbers of the questions the draft answers"
-    )
-    sources: list[str] = Field(
+    documents: list[int] = Field(
         default_factory=list,
-        max_length=20,
-        description="The documents of what the agent found that the draft builds on",
+        max_length=50,
+        description="The numbers of the documents the draft builds on",
     )
+    questions: list[int] = Field(
+        default_factory=list,
+        max_length=50,
+        description="The numbers of the questions the draft answers",
+    )
+
+
+SourceKind = Literal["document", "question"]
+
+
+class KnowledgeGapSource(BaseSchema):
+    """What a draft rests on: a document of the knowledge base, or one of the topic's questions."""
+
+    kind: SourceKind
+    id: UUID = Field(description="A document's id, or a search's id for a question")
 
 
 class KnowledgeGapReport(BaseSchema):
@@ -53,22 +70,28 @@ class KnowledgeGapReport(BaseSchema):
 
     The contract a drafting run and the authoring assistant both report through.
     It proposes content and nothing more: a person reads it and adds a document.
+    Every source is verified before the draft is kept - a document must be in the
+    topic's knowledge base, a question must be one of the topic's - and one that
+    is not is left out and counted, never shown.
     """
 
     topic_id: UUID
     title: str = Field(min_length=1, max_length=200)
     content: str = Field(min_length=1, max_length=20_000)
-    answers: list[UUID] = Field(
-        default_factory=list, description="The topic's searches the passage answers"
-    )
-    sources: list[str] = Field(default_factory=list, max_length=20)
+    sources: list[KnowledgeGapSource] = Field(default_factory=list, max_length=50)
+
+
+class KnowledgeGapSourceRead(KnowledgeGapSource):
+    label: str = Field(description="The document's file name, or the question as searched")
 
 
 class KnowledgeGapDraftRead(BaseSchema):
     title: str
     content: str
-    answers: list[UUID]
-    sources: list[str]
+    sources: list[KnowledgeGapSourceRead] = Field(
+        description="Verified sources that still exist; at most twelve"
+    )
+    unverified: int = Field(description="Sources the draft named that could not be verified")
     drafted_at: datetime
     run_id: UUID | None = Field(description="The run that wrote it, in Activity")
 
@@ -93,9 +116,19 @@ class KnowledgeGapTopicRead(BaseSchema):
     has_draft: bool = False
 
 
+class KnowledgeGapCollectionCount(BaseSchema):
+    knowledge_base_id: UUID
+    knowledge_base_name: str
+    topics: int
+    questions: int
+
+
 class KnowledgeGapTopicList(BaseSchema):
     items: list[KnowledgeGapTopicRead]
     total: int
+    by_knowledge_base: list[KnowledgeGapCollectionCount] = Field(
+        description="Every topic matching the filters, counted per knowledge base"
+    )
     ungrouped: int = Field(
         description="Misses waiting for the next grouping pass, so not in any topic yet"
     )

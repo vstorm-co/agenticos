@@ -110,17 +110,12 @@ def upgrade() -> None:
         sa.Column("draft_title", sa.Text(), nullable=True),
         sa.Column("draft_content", sa.Text(), nullable=True),
         sa.Column(
-            "draft_answers",
-            postgresql.JSONB(astext_type=sa.Text()),
-            server_default="[]",
-            nullable=False,
-        ),
-        sa.Column(
             "draft_sources",
             postgresql.JSONB(astext_type=sa.Text()),
             server_default="[]",
             nullable=False,
         ),
+        sa.Column("draft_unverified", sa.Integer(), server_default="0", nullable=False),
         sa.Column("draft_run_id", sa.UUID(), nullable=True),
         sa.Column("drafted_by_user_id", sa.UUID(), nullable=True),
         sa.Column("drafted_at", sa.DateTime(timezone=True), nullable=True),

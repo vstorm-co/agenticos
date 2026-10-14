@@ -201,6 +201,34 @@ class TestGroupPending:
         update.assert_not_awaited()
         assert [pair[0] for pair in add.await_args.args[1]] == [fresh.id]
 
+    async def test_a_topic_of_another_width_is_another_space_and_does_not_break_the_pass(self):
+        narrow = MagicMock(id=uuid.uuid4(), centroid=[1.0, 0.0])
+        embedder = MagicMock(embed_queries=MagicMock(return_value=[[1.0, 0.0, 0.0]]))
+        fresh = MagicMock(id=uuid.uuid4())
+
+        with (
+            patch(
+                f"{_SERVICE}.knowledge_gap_repo.ungrouped_misses",
+                new=AsyncMock(return_value=[_search("parking")]),
+            ),
+            patch(f"{_SERVICE}.knowledge_base_repo.get_by_id", new=AsyncMock(return_value=_kb())),
+            patch(f"{_SERVICE}.embeddings_for_collection", new=AsyncMock(return_value=MagicMock())),
+            patch(f"{_SERVICE}.embedder_for", return_value=embedder),
+            patch(
+                f"{_SERVICE}.knowledge_gap_repo.topics_in_space",
+                new=AsyncMock(return_value=[(narrow, 3)]),
+            ),
+            patch(f"{_SERVICE}.knowledge_gap_repo.update_topic", new=AsyncMock()) as update,
+            patch(f"{_SERVICE}.knowledge_gap_repo.create_topic", new=AsyncMock(return_value=fresh)),
+            patch(f"{_SERVICE}.knowledge_gap_repo.add_members", new=AsyncMock()) as add,
+        ):
+            await KnowledgeGapService(MagicMock()).group_pending(
+                organization_id=ORG, knowledge_base_id=KB
+            )
+
+        update.assert_not_awaited()
+        assert [pair[0] for pair in add.await_args.args[1]] == [fresh.id]
+
     @pytest.mark.parametrize(
         "kb", [None, _kb(organization_id=uuid.uuid4())], ids=["gone", "another organization"]
     )
@@ -332,10 +360,11 @@ class TestTheDraftingPrompt:
             )
         ]
 
-        prompt = _drafting_prompt("Handbook", rows)
+        prompt = _drafting_prompt("Handbook", rows, [])
 
         assert '"Handbook"' in prompt
         assert "## Question 1" in prompt
         assert "Found: -" in prompt
         assert "x" * 1_500 + "..." in prompt
         assert "x" * 1_501 not in prompt
+        assert "Documents the agent found" not in prompt

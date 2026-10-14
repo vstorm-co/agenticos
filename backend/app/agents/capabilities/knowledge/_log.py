@@ -11,6 +11,9 @@ from app.services.rag.models import SearchResult
 
 KNOWLEDGE_SEARCH_LOG_RESOURCE = "knowledge_search_log"
 
+MAX_QUERY_CHARS = 1_000
+"""How much of a query is kept: enough to group and read it, bounded for the embedding batch."""
+
 
 @dataclass
 class KnowledgeSearchLog:
@@ -54,7 +57,7 @@ class KnowledgeSearchLog:
             KnowledgeSearchRecord(
                 agent_id=self.agent_id,
                 knowledge_base_ids=knowledge_base_ids,
-                query=query,
+                query=query[:MAX_QUERY_CHARS],
                 result_count=len(results),
                 top_similarity=max(similarities, default=None),
             )

@@ -70,6 +70,13 @@ class TestTheLog:
         assert record.result_count == 2
         assert record.top_similarity == 0.58
 
+    def test_a_runaway_query_is_kept_to_its_first_thousand_characters(self):
+        log = _log()
+
+        log.record("q" * 5_000, ["kb_a"], [])
+
+        assert log.records[0].query == "q" * 1_000
+
     def test_a_search_that_found_nothing_has_no_similarity(self):
         log = _log()
 

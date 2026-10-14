@@ -53,10 +53,16 @@ from app.db.models.knowledge_gap import (
 )
 from app.db.models.message_rating import MessageRating
 from app.db.models.organization import Organization, OrganizationMember
+from app.db.models.rag_document import RAGDocument
 from app.db.models.user import User
 from app.repositories import knowledge_gap_repo
 from app.schemas.dataset import DatasetCreate
-from app.schemas.knowledge_gap import KnowledgeGapDraft, KnowledgeGapReport, KnowledgeSearchRecord
+from app.schemas.knowledge_gap import (
+    KnowledgeGapDraft,
+    KnowledgeGapReport,
+    KnowledgeGapSource,
+    KnowledgeSearchRecord,
+)
 from app.services.dataset import DatasetService
 from app.services.knowledge_gaps import KnowledgeGapService
 from app.services.personal_data import PersonalDataService
@@ -615,6 +621,11 @@ async def test_the_organizations_gaps_leave_out_a_knowledge_base_the_caller_cann
 
     assert {t.knowledge_base_name for t in owners.items} == {kb.name, private.name}
     assert [t.knowledge_base_id for t in operators.items] == [kb.id]
+    assert [(c.knowledge_base_name, c.topics, c.questions) for c in owners.by_knowledge_base] == [
+        (kb.name, 1, 2),
+        (private.name, 1, 1),
+    ]
+    assert [c.knowledge_base_id for c in operators.by_knowledge_base] == [kb.id]
 
 
 async def test_an_agents_gaps_hold_only_its_own_questions(db) -> None:
@@ -822,26 +833,42 @@ def _drafter(output: KnowledgeGapDraft, run: AgentRun) -> Iterator[AsyncMock]:
         yield run_it
 
 
-async def test_a_draft_is_written_from_the_topics_questions_and_kept_for_a_person(db) -> None:
+async def _document(db, ctx: AuthContext, kb: KnowledgeBase, filename: str) -> RAGDocument:
+    document = RAGDocument(
+        id=uuid.uuid4(),
+        collection_name=kb.collection_name,
+        filename=filename,
+        filesize=10,
+        filetype="pdf",
+        organization_id=kb.organization_id,
+        knowledge_base_id=kb.id,
+    )
+    db.add(document)
+    await db.flush()
+    return document
+
+
+async def test_a_draft_cites_only_the_documents_and_questions_it_was_shown(db) -> None:
     ctx = await _owner(db)
     kb, agent, topic_id = await _a_topic(db, ctx)
+    garage = await _document(db, ctx, kb, "garage.pdf")
     first_answer = (
         (await db.execute(select(Message).where(Message.content == "I could not find that.")))
         .scalars()
         .first()
     )
     assert first_answer is not None
-    await _found(db, first_answer, "visitor parking", "Garage opening hours: 7-19")
-    detail = await KnowledgeGapService(db).read(ctx, topic_id)
-    numbered = {q.query: q.search_id for q in detail.questions}
+    await _found(
+        db, first_answer, "visitor parking", "[1] Source: garage.pdf, page 2 (score: 0.210)\nHours"
+    )
     drafting_run, _ = await _turn(db, ctx, agent)
 
     with _drafter(
         KnowledgeGapDraft(
             title="Visitor parking",
             content="Visitors park on level [level]. Key: ghp_" + "a" * 36,
-            answers=[1, 2, 7],
-            sources=["garage.pdf"],
+            documents=[1, 4],
+            questions=[1, 2, 7],
         ),
         drafting_run,
     ) as run_it:
@@ -849,14 +876,20 @@ async def test_a_draft_is_written_from_the_topics_questions_and_kept_for_a_perso
 
     prompt = run_it.await_args.kwargs["prompt"]
     assert kb.name in prompt
+    assert "1. garage.pdf" in prompt
     assert "Where can visitors park?" in prompt
     assert "No parking info" in prompt
     assert run_it.await_args.kwargs["key"] == "knowledge_gap_drafter"
     assert drafted.draft is not None
     assert drafted.draft.title == "Visitor parking"
     assert "ghp_" not in drafted.draft.content
-    assert set(drafted.draft.answers) <= set(numbered.values())
-    assert len(drafted.draft.answers) == 2
+    documents = [s for s in drafted.draft.sources if s.kind == "document"]
+    assert [(d.id, d.label) for d in documents] == [(garage.id, "garage.pdf")]
+    assert {s.label for s in drafted.draft.sources if s.kind == "question"} == {
+        "visitor parking",
+        "parking permit",
+    }
+    assert drafted.draft.unverified == 2
     assert drafted.draft.run_id == drafting_run.id
     listed = await KnowledgeGapService(db).list_for_knowledge_base(ctx, kb.id)
     assert [t.has_draft for t in listed.items] == [True]
@@ -913,25 +946,91 @@ async def test_another_organizations_topic_cannot_be_drafted_or_reported_on(db) 
         )
 
 
-async def test_a_report_keeps_only_answers_from_its_own_topic(db) -> None:
+async def test_a_report_keeps_only_sources_it_can_verify(db) -> None:
     ctx = await _owner(db)
-    _, _, topic_id = await _a_topic(db, ctx)
-    kb = await _knowledge_base(db, ctx, "other")
+    stranger = await _owner(db)
+    kb, _, topic_id = await _a_topic(db, ctx)
+    other_kb = await _knowledge_base(db, ctx, "other")
+    theirs_kb = await _knowledge_base(db, stranger, "theirs")
+    mine = await _document(db, ctx, kb, "handbook.pdf")
+    elsewhere = await _document(db, ctx, other_kb, "other.pdf")
+    foreign = await _document(db, stranger, theirs_kb, "theirs.pdf")
     run, _ = await _turn(db, ctx, await _agent(db, ctx))
-    await _searched(db, ctx, run, kb, query="lunch")
-    elsewhere = (
+    await _searched(db, ctx, run, other_kb, query="lunch")
+    other_search = (
         await db.execute(select(KnowledgeSearch.id).where(KnowledgeSearch.query == "lunch"))
     ).scalar_one()
-    mine = next(iter((await KnowledgeGapService(db).read(ctx, topic_id)).questions)).search_id
+    question = next(iter((await KnowledgeGapService(db).read(ctx, topic_id)).questions)).search_id
 
     await KnowledgeGapService(db).record_draft(
         ctx,
         KnowledgeGapReport(
-            topic_id=topic_id, title="Parking", content="Text", answers=[mine, elsewhere]
+            topic_id=topic_id,
+            title="Parking",
+            content="Text",
+            sources=[
+                KnowledgeGapSource(kind="document", id=mine.id),
+                KnowledgeGapSource(kind="document", id=elsewhere.id),
+                KnowledgeGapSource(kind="document", id=foreign.id),
+                KnowledgeGapSource(kind="question", id=question),
+                KnowledgeGapSource(kind="question", id=other_search),
+                KnowledgeGapSource(kind="document", id=uuid.uuid4()),
+            ],
         ),
     )
 
     detail = await KnowledgeGapService(db).read(ctx, topic_id)
     assert detail.draft is not None
-    assert detail.draft.answers == [mine]
+    assert [(s.kind, s.id) for s in detail.draft.sources] == [
+        ("document", mine.id),
+        ("question", question),
+    ]
+    assert detail.draft.unverified == 4
     assert detail.draft.run_id is None
+
+
+async def test_a_draft_keeps_at_most_twelve_sources(db) -> None:
+    ctx = await _owner(db)
+    kb, _, topic_id = await _a_topic(db, ctx)
+    documents = [await _document(db, ctx, kb, f"doc{n}.pdf") for n in range(15)]
+
+    await KnowledgeGapService(db).record_draft(
+        ctx,
+        KnowledgeGapReport(
+            topic_id=topic_id,
+            title="Parking",
+            content="Text",
+            sources=[KnowledgeGapSource(kind="document", id=d.id) for d in documents],
+        ),
+    )
+
+    detail = await KnowledgeGapService(db).read(ctx, topic_id)
+    assert detail.draft is not None
+    assert len(detail.draft.sources) == 12
+    assert detail.draft.unverified == 0
+
+
+async def test_a_source_deleted_after_the_draft_is_left_out_and_the_rest_stays(db) -> None:
+    ctx = await _owner(db)
+    kb, _, topic_id = await _a_topic(db, ctx)
+    kept = await _document(db, ctx, kb, "kept.pdf")
+    gone = await _document(db, ctx, kb, "gone.pdf")
+    await KnowledgeGapService(db).record_draft(
+        ctx,
+        KnowledgeGapReport(
+            topic_id=topic_id,
+            title="Parking",
+            content="Text",
+            sources=[
+                KnowledgeGapSource(kind="document", id=kept.id),
+                KnowledgeGapSource(kind="document", id=gone.id),
+            ],
+        ),
+    )
+    await db.delete(gone)
+    await db.flush()
+
+    detail = await KnowledgeGapService(db).read(ctx, topic_id)
+
+    assert detail.draft is not None
+    assert [s.label for s in detail.draft.sources] == ["kept.pdf"]

@@ -149,12 +149,13 @@ class KnowledgeGapTopic(Base):
     # Never added to a collection by the platform; a person checks it and adds a document.
     draft_title: Mapped[str | None] = mapped_column(Text, nullable=True)
     draft_content: Mapped[str | None] = mapped_column(Text, nullable=True)
-    # The searches the draft says it answers; each was a member when it was recorded.
-    draft_answers: Mapped[list[str]] = mapped_column(
+    # `{"kind": "document" | "question", "id": ...}`, each verified when it was recorded.
+    draft_sources: Mapped[list[dict[str, str]]] = mapped_column(
         JSONB, nullable=False, default=list, server_default="[]"
     )
-    draft_sources: Mapped[list[str]] = mapped_column(
-        JSONB, nullable=False, default=list, server_default="[]"
+    # Sources the draft named that could not be verified, and were left out.
+    draft_unverified: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
     )
     draft_run_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
