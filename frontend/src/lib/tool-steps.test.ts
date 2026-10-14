@@ -140,6 +140,29 @@ describe("a call from an MCP server", () => {
     expect(step.logoDomain).toBe("mcp.linear.app");
   });
 
+  it("says what a server's tool does once, not the service twice", () => {
+    // Notion names its tools `notion-search`, and the connection was called "notion":
+    // the step read "notion · Notion-search".
+    const servers = [{ name: "notion", url: "https://mcp.notion.com/mcp" }];
+
+    expect(toolStep("notion_notion-search", {}, true, t, servers).label).toBe("Notion · Search");
+    expect(toolStep("notion_notion-create-pages", {}, true, t, servers).label).toBe(
+      "Notion · Create pages",
+    );
+    // A tool that is nothing but the service's name keeps it.
+    expect(toolStep("notion_notion_", {}, true, t, servers).label).toBe("Notion · Notion");
+    // And one with no words at all is shown as it was named.
+    expect(toolStep("notion__", {}, true, t, servers).label).toBe("Notion · _");
+  });
+
+  it("keeps a connection's name as it was written when somebody chose its case", () => {
+    const step = toolStep("github_work_create_issue", {}, true, t, [
+      { name: "GitHub work", url: "https://api.githubcopilot.com/mcp/" },
+    ]);
+
+    expect(step.label).toBe("GitHub work · Create issue");
+  });
+
   it("prefers the longest prefix, because connection names nest", () => {
     // "github" and "github_work" both match `github_work_create_issue`, and only the
     // longer one is right.
