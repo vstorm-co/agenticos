@@ -8,7 +8,6 @@ import {
   DRAFT_AGENT_NAME,
   SEEDED_AGENT_NAME,
   openAgent,
-  openBuilderTab,
 } from "./helpers";
 
 test.use({ storageState: AUTH_STATE });
@@ -40,9 +39,14 @@ test.use({ storageState: AUTH_STATE });
  */
 async function openSharing(page: Page, agent: string): Promise<Locator> {
   await openAgent(page, agent);
-  await openBuilderTab(page, "Availability");
+  return openShareDialog(page);
+}
 
-  const panel = page.getByRole("tabpanel");
+/** The Share dialog off the agent header, beside Publish, once it holds real data. */
+async function openShareDialog(page: Page): Promise<Locator> {
+  await page.getByRole("button", { name: "Share", exact: true }).click();
+
+  const panel = page.getByRole("dialog");
   // The panel renders a spinner until both the sharing state and the member
   // list arrive, and the owner's row is built from the second - so this is the
   // point at which anything below is reading real data rather than a default.
@@ -72,58 +76,52 @@ test.describe("Sharing", () => {
     await expect(level).toHaveText("Can use");
 
     await page.reload();
-    await openBuilderTab(page, "Availability");
+    await openShareDialog(page);
     await expect(panel.getByLabel(`Access for ${COLLEAGUE_EMAIL}`)).toHaveText("Can use");
 
     await panel.getByRole("button", { name: `Remove ${COLLEAGUE_EMAIL}` }).click();
     await expect(panel.getByLabel(`Access for ${COLLEAGUE_EMAIL}`)).toHaveCount(0);
 
     await page.reload();
-    await openBuilderTab(page, "Availability");
+    await openShareDialog(page);
     await expect(panel.getByLabel(`Access for ${COLLEAGUE_EMAIL}`)).toHaveCount(0);
     await expect(panel.getByText("Not shared with anyone yet.")).toBeVisible();
   });
 
-  test("says who each visibility reaches before it is chosen", async ({ page }) => {
+  test("says who the general access reaches", async ({ page }) => {
     const panel = await openSharing(page, SEEDED_AGENT_NAME);
 
-    // "Private", "Team" and "Organization" mean nothing on their own — the
-    // sentence under each is the only place the blast radius is stated.
-    await expect(panel.getByRole("radio", { name: "Private" })).toBeVisible();
+    // "Everyone in the organization" means nothing on its own - the sentence
+    // under it is the only place the blast radius is stated. Which one shows is
+    // the agent's stored visibility: bootstrap publishes this one to the
+    // organization, because it is the agent that explains the platform.
+    const access = panel.getByRole("combobox", { name: "General access" });
+    await expect(access).toHaveText("Everyone in the organization");
     await expect(
       panel.getByText("Everyone in the organization who can view agents at all."),
     ).toBeVisible();
-
-    // Which one is selected is the agent's stored visibility, not a default the
-    // component picked. Bootstrap publishes this one to the organization: it is
-    // the agent that explains the platform, and an explanation the second person
-    // to look cannot find is not one.
-    await expect(panel.getByRole("radio", { name: "Organization" })).toBeChecked();
-    await expect(panel.getByRole("radio", { name: "Private" })).not.toBeChecked();
   });
 
   test("a change of visibility is stored, not just shown", async ({ page }) => {
     const panel = await openSharing(page, DRAFT_AGENT_NAME);
+    const access = panel.getByRole("combobox", { name: "General access" });
 
-    // "Organization", because "Team" is no longer offered: this deployment has
-    // no teams, so the option is rendered only for a row already set to it, to
-    // be seen and moved off. Two visibilities are what there is to choose
-    // between, which is what this moves between.
-    //
-    // Clicked rather than `check()`ed: the radio is controlled by the stored
-    // visibility, so it stays where it was until the write comes back. `check()`
-    // asserts the box flipped the instant it was clicked, which here would be
-    // asserting that the UI lied optimistically.
-    await panel.getByRole("radio", { name: "Organization" }).click();
-    await expect(panel.getByRole("radio", { name: "Organization" })).toBeChecked();
+    await access.click();
+    await page.getByRole("option", { name: "Everyone in the organization" }).click();
+    await expect(access).toHaveText("Everyone in the organization");
 
     await page.reload();
-    await openBuilderTab(page, "Availability");
-    await expect(panel.getByRole("radio", { name: "Organization" })).toBeChecked();
+    const reopened = await openShareDialog(page);
+    await expect(reopened.getByRole("combobox", { name: "General access" })).toHaveText(
+      "Everyone in the organization",
+    );
 
     // Put it back: the draft is a shared fixture, and a test that leaves the
     // database somewhere else than it found it is a test that only works once.
-    await panel.getByRole("radio", { name: "Private" }).click();
-    await expect(panel.getByRole("radio", { name: "Private" })).toBeChecked();
+    await reopened.getByRole("combobox", { name: "General access" }).click();
+    await page.getByRole("option", { name: "Only people with access" }).click();
+    await expect(reopened.getByRole("combobox", { name: "General access" })).toHaveText(
+      "Only people with access",
+    );
   });
 });

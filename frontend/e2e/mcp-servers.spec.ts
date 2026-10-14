@@ -52,7 +52,7 @@ test.describe("MCP servers", () => {
       // the verb that connects it. The category, the address and the auth it
       // needs are in the server's own dialog, one click away.
       await expect(
-        card.getByRole("button", { name: "Connect" }),
+        card.getByRole("button", { name: "Connect", exact: true }),
         `${server} should offer to connect`,
       ).toBeVisible();
     }
