@@ -415,6 +415,14 @@ CALLS: tuple[Call, ...] = (
         Perm.MCP_MANAGE,
         body={"is_enabled": False},
     ),
+    # Believing a server's `readOnlyHint` lets an eval call its tools live, so it is
+    # the same authority as editing the connection, not a lesser one.
+    Call(
+        "PATCH",
+        "/mcp-connections/{connection_id}",
+        Perm.MCP_MANAGE,
+        body={"trust_read_only_hints": True},
+    ),
     Call("DELETE", "/mcp-connections/{connection_id}", Perm.MCP_MANAGE),
     Call("POST", "/mcp-connections/{connection_id}/test", Perm.MCP_MANAGE),
     # Knowledge bases: the collection routes carry the role gate; every

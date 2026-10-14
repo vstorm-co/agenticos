@@ -13,7 +13,7 @@ header — it replays that page's walkthrough, and a page whose header carries n
 The landing page is an **arrangeable grid of widgets**, and it is the answer to
 "what is happening" without opening five pages.
 
-Thirty-six cards exist. You will not see all of them: **a card is gated on the
+Thirty-eight cards exist. You will not see all of them: **a card is gated on the
 permission its data needs**, so a widget you may not read is never mounted and
 its queries are never issued — except your own notifications, below, which need
 only that you are signed in. An empty band disappears with its heading rather
@@ -29,7 +29,7 @@ They arrive grouped into bands:
 | **Usage** | Runs, outcomes, surfaces, latency, spend, model mix, version comparison |
 | **People** | Members, active users, ratings, who is doing what |
 | **Sandboxes** | [Capacity, live sessions, policy](sandbox.md) |
-| **Workspace** | Yours: your agents, your conversations, your activity, what was shared with you |
+| **Workspace** | Yours: your agents, your conversations, your activity, what was shared with you, and your [datasets](datasets.md) with what their cases test against |
 
 ### Rearranging it
 
@@ -174,7 +174,7 @@ quiet one.
 
 ## Recap
 
-- The dashboard is **thirty-six widgets** you arrange yourself, saved per
+- The dashboard is **thirty-eight widgets** you arrange yourself, saved per
   person and per organization — all but your own notifications gated on the
   permission their data needs.
 - A saved arrangement **can hide and reorder but never reveal** — the gate runs

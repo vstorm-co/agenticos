@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Literal, get_args
 from uuid import UUID
 
 from pydantic import ConfigDict, Field, JsonValue, ValidationError, field_validator, model_validator
@@ -183,7 +183,38 @@ class DatasetCaseUpdate(BaseSchema):
         return None if checks is None else _known_checks(checks)
 
 
-class DatasetCaseRead(DatasetCaseContent):
+class EditedCaseContent(DatasetCaseContent):
+    """An edit merged onto a stored case.
+
+    The stored tags and checks are kept as they were written, so a rule that
+    tightened since does not refuse an edit to another field; the case as a whole
+    must still expect something.
+    """
+
+    @field_validator("tags", mode="before")
+    @classmethod
+    def _tags(cls, tags: list[str]) -> list[str]:
+        # Stored tags were cleaned on the way in; re-cleaning on the way out
+        # would turn a later tightening of the rule into a listing that 500s.
+        return tags
+
+    @field_validator("checks")
+    @classmethod
+    def _checks(cls, checks: list[CaseCheck]) -> list[CaseCheck]:
+        # The same reason: a check stored before a rule tightened is still read.
+        return checks
+
+
+class StoredCaseContent(EditedCaseContent):
+    """A case's content as a stored revision holds it, read without re-judging it."""
+
+    @model_validator(mode="after")
+    def _expects_something(self) -> StoredCaseContent:
+        # Cases stored before a case had to expect something still list and export.
+        return self
+
+
+class DatasetCaseRead(StoredCaseContent):
     """One case as a version holds it.
 
     `case_id` is the case across its edits; `id` is this revision of it, which is
@@ -199,24 +230,6 @@ class DatasetCaseRead(DatasetCaseContent):
     source_document_id: UUID | None = None
     created_by_user_id: UUID | None = None
     created_at: datetime
-
-    @field_validator("tags", mode="before")
-    @classmethod
-    def _tags(cls, tags: list[str]) -> list[str]:
-        # Stored tags were cleaned on the way in; re-cleaning on the way out
-        # would turn a later tightening of the rule into a listing that 500s.
-        return tags
-
-    @field_validator("checks")
-    @classmethod
-    def _checks(cls, checks: list[CaseCheck]) -> list[CaseCheck]:
-        # The same reason: a check stored before a rule tightened is still read.
-        return checks
-
-    @model_validator(mode="after")
-    def _expects_something(self) -> DatasetCaseRead:
-        # Cases stored before a case had to expect something still list and export.
-        return self
 
 
 class DatasetCaseList(BaseSchema):
@@ -237,6 +250,30 @@ class DatasetUpdate(BaseSchema):
     description: str | None = Field(default=None, max_length=500)
 
 
+class DatasetTagCount(BaseSchema):
+    tag: str
+    cases: int
+
+
+class DatasetStats(BaseSchema):
+    """What the newest version's cases test against, counted.
+
+    One case can count under several of the expectations - a reference answer
+    and a check, say - so those four do not sum to the case count; the sources do.
+    """
+
+    with_reference: int = Field(default=0, description="Cases with a reference answer")
+    with_counter_example: int = Field(default=0, description="Cases with a counter-example")
+    with_tool_calls: int = Field(default=0, description="Cases expecting at least one tool call")
+    with_checks: int = Field(default=0, description="Cases with at least one check")
+    by_source: dict[CaseSourceLiteral, int] = Field(
+        default_factory=lambda: dict.fromkeys(get_args(CaseSourceLiteral), 0)
+    )
+    top_tags: list[DatasetTagCount] = Field(
+        default_factory=list, description="The most used tags, most used first"
+    )
+
+
 class DatasetRead(BaseSchema):
     id: UUID
     name: str
@@ -255,6 +292,7 @@ class DatasetRead(BaseSchema):
     scoring: DatasetScoring = Field(
         default_factory=DatasetScoring, description="How this dataset's cases are scored"
     )
+    stats: DatasetStats = Field(default_factory=DatasetStats)
     created_at: datetime
     updated_at: datetime | None = None
 

@@ -119,6 +119,14 @@ from app.agents.connect_on_use import (
 from app.agents.deps import AgentDeps, CompactionSink
 from app.agents.factory import BuiltAgent, build_agent
 from app.agents.failures import run_failure_summary
+from app.agents.isolation import (
+    CallRow,
+    RunIsolation,
+    ToolClass,
+    ToolRecording,
+    capability_tools,
+    recorded_calls,
+)
 from app.agents.manifest import as_payload, fit
 from app.agents.model_resolver import ModelRequestSpec
 from app.agents.observability import current_trace_id
@@ -159,10 +167,12 @@ from app.core.exceptions import (
 from app.core.permissions import AuthContext, Perm
 from app.core.secret_kinds import StorableSecret
 from app.db.models.agent import Agent, AgentStatus
+from app.db.models.agent_environment import ConnectionKind
 from app.db.models.agent_exposure import AgentExposure
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunOrder, RunStatus, RunSurface
 from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Message
+from app.db.models.intercepted_tool_call import InterceptedToolCall
 from app.db.models.run_manifest import RunManifest
 from app.db.session import get_worker_db_context
 from app.repositories import (
@@ -172,6 +182,7 @@ from app.repositories import (
     agent_run_repo,
     chat_file_repo,
     conversation_repo,
+    intercepted_tool_call_repo,
     knowledge_base_repo,
     message_rating_repo,
     organization_repo,
@@ -269,6 +280,59 @@ def _secret_ids(spec: AgentSpec) -> list[UUID]:
     if spec.observability and spec.observability.token_secret_id:
         ids.append(spec.observability.token_secret_id)
     return ids
+
+
+@dataclass(frozen=True)
+class _TestConnections:
+    """What the run's environment answers with test systems instead.
+
+    Both maps are keyed by the id a spec names. A value of `None` is a binding
+    whose test side was deleted: it is off in this environment, never answered
+    by the production side.
+    """
+
+    mcp: Mapping[UUID, UUID | None] = field(default_factory=dict)
+    secrets: Mapping[UUID, UUID | None] = field(default_factory=dict)
+
+
+def _with_test_secrets(
+    spec: AgentSpec, overrides: Mapping[UUID, UUID | None]
+) -> tuple[AgentSpec, frozenset[str]]:
+    """The spec with each overridden capability secret pointing at its test one,
+    and the ids of the bindings that were swapped.
+
+    Swapped on the spec rather than at unsealing, so the one resolver that
+    yields plaintext stays the only one and the capability never learns it was
+    handed a test key. The swapped bindings are named rather than recognised by
+    their new secret afterwards: a binding that holds that test key in its own
+    right was never swapped. A disabled binding builds nothing, so it is left
+    alone - and never refused for a test key it would not use.
+
+    Raises:
+        BadRequestError: If an override's test secret was deleted. The
+            capability cannot run without a key, and the production one is the
+            key this environment exists to keep it away from.
+    """
+    capabilities: list[CapabilityBindingSpec] = []
+    swapped: set[str] = set()
+    for binding in spec.capabilities:
+        if not binding.enabled or binding.secret_id is None or binding.secret_id not in overrides:
+            capabilities.append(binding)
+            continue
+        test_id = overrides[binding.secret_id]
+        if test_id is None:
+            raise BadRequestError(
+                message=(
+                    f"The test key this environment uses for capability '{binding.id}' was "
+                    "deleted. Choose another one in the environment, or remove the override."
+                ),
+                details={"capability_id": binding.id},
+            )
+        capabilities.append(binding.model_copy(update={"secret_id": test_id}))
+        swapped.add(binding.id)
+    if not swapped:
+        return spec, frozenset()
+    return spec.model_copy(update={"capabilities": capabilities}), frozenset(swapped)
 
 
 def _delegate_workspace(spec: AgentSpec, shared: list[CapabilityBindingSpec]) -> DelegateWorkspace:
@@ -1166,6 +1230,11 @@ class PreparedRun:
     failed open on the path where somebody had said no (#1326).
     """
 
+    isolation: RunIsolation | None = None
+    """How this run treats its tools when it is isolated - an eval - and what it
+    held back, for :meth:`AgentRunnerService.finish` to write. `None` is every
+    other run, whose tools act on the world."""
+
     @property
     def deps(self) -> AgentDeps:
         return self.built.deps
@@ -1651,6 +1720,12 @@ class _Delegation:
     """One stash for the whole tree, because a delegation three levels down parks
     the run somebody started and is continued from that run's stored state."""
 
+    test_connections: _TestConnections
+    """The run's environment overrides, which every level of the tree honours."""
+
+    isolation: RunIsolation | None
+    """The run's isolation, when it is an eval, which every level of the tree is under."""
+
     profiles: dict[str, ModelRequestSpec] = field(default_factory=dict)
     """The organization's model catalog, resolved at most once and only if asked for.
 
@@ -1712,6 +1787,7 @@ def _delegate_builder(
     resources: dict[str, Any],
     secrets: Mapping[UUID, StorableSecret],
     extra_toolsets: list[AbstractToolset[Any]],
+    test_bindings: frozenset[str] = frozenset(),
 ) -> Callable[[], PydanticAgent[Any, Any]]:
     """A closure that builds one delegate, with nothing left to look up.
 
@@ -1750,6 +1826,8 @@ def _delegate_builder(
             # delegate meters nothing the parent can see, and the parent's cap
             # stops binding at exactly the moment delegation multiplies spend.
             shared_budget=delegation.budget.guard,
+            isolation=delegation.isolation,
+            test_bindings=test_bindings,
         ).agent
 
     return build
@@ -1981,6 +2059,7 @@ class AgentRunnerService:
         approval_mode: ApprovalMode = ApprovalMode.FOLLOW_AGENT,
         on_compaction: CompactionSink | None = None,
         request_connection: ConnectionCallback | None = None,
+        isolation: RunIsolation | None = None,
     ) -> PreparedRun:
         """Assemble everything a run needs and open its row.
 
@@ -2025,6 +2104,10 @@ class AgentRunnerService:
                 binding they have not connected is offered to the model as
                 `connect_account` rather than briefed as unavailable - so nobody
                 is asked to connect a service the agent never reaches for.
+            isolation: Run isolated, as an eval does: only reads and calls to the
+                environment's test connections execute, everything else is held
+                and recorded, and a recording - when given - answers calls
+                instead. See :mod:`app.agents.isolation`.
 
         Raises:
             BadRequestError: If the agent is unpublished, archived, or its spec
@@ -2066,6 +2149,7 @@ class AgentRunnerService:
             # Passed in rather than set on the built deps like `on_compaction`:
             # whether a gap is briefed or offered as a tool decides what is built.
             request_connection=request_connection,
+            isolation=isolation,
         )
         if on_compaction is not None:
             # Set on the built deps rather than passed into `_assemble`: it is a
@@ -2153,6 +2237,7 @@ class AgentRunnerService:
         environment_id: UUID | None = None,
         plan_items: list[dict[str, Any]] | None = None,
         request_connection: ConnectionCallback | None = None,
+        isolation: RunIsolation | None = None,
     ) -> PreparedRun:
         """Build the agent for a run, opening its row unless one is being resumed.
 
@@ -2238,6 +2323,16 @@ class AgentRunnerService:
         if channel_directory is not None:
             resources[CHANNEL_DIRECTORY_RESOURCE] = channel_directory
 
+        # Read off the run on a resume, so a continuation reaches the systems
+        # the run began on.
+        test_connections = await self._test_connections(
+            ctx,
+            environment_id=(
+                existing_run.environment_id if existing_run is not None else environment_id
+            ),
+        )
+        spec, test_bindings = _with_test_secrets(spec, test_connections.secrets)
+
         # Unsealed here and handed straight to the factory, which hands them to
         # the capability instances that declared them. They are kept out of
         # `resources` deliberately: a resource may end up in a log line and a
@@ -2309,6 +2404,7 @@ class AgentRunnerService:
             organization_id=ctx.organization_id,
             refs=spec.mcp_servers,
             sender_user_id=personal_mcp_user_id,
+            test_connections=test_connections.mcp,
         )
         spec_toolsets = resolved.toolsets
         on_use, briefed = _connect_on_use(
@@ -2472,6 +2568,8 @@ class AgentRunnerService:
             runtimes=runtimes,
             delegations=delegations,
             stash=stash,
+            test_connections=test_connections,
+            isolation=isolation,
         )
         if runtime is not None:
             resources[SUBAGENT_RUNTIME_RESOURCE] = runtime
@@ -2517,6 +2615,8 @@ class AgentRunnerService:
             # advanced, so it counts across turns rather than resetting each one.
             recorded_overhead=recorded.overhead,
             recorded_reminder_state=recorded.reminder_state,
+            isolation=isolation,
+            test_bindings=test_bindings,
         )
 
         # Both only assignable now, and both before the run starts. The guard and
@@ -2559,6 +2659,7 @@ class AgentRunnerService:
                 audience_room_key=audience.room_key,
                 subject_is_publisher_fallback=subject_is_publisher_fallback,
             ),
+            isolation=isolation,
         )
 
     async def _delegation_runtime(
@@ -2578,6 +2679,8 @@ class AgentRunnerService:
         runtimes: list[SubagentRuntime],
         delegations: list[RecordedDelegation],
         stash: DelegationStash,
+        test_connections: _TestConnections,
+        isolation: RunIsolation | None,
     ) -> SubagentRuntime | None:
         """The delegation tree this run may reach, or `None` if it delegates to none.
 
@@ -2604,6 +2707,12 @@ class AgentRunnerService:
                 continuation finds one. Given to every level of the tree, because
                 the run being continued is the one somebody started however deep
                 the delegation that parked it was.
+            test_connections: The run's environment overrides, applied at every
+                level: a delegate binding the production CRM reaches the sandbox
+                in staging, exactly as the agent that delegated to it does.
+            isolation: The run's isolation, shared by the whole tree, so a
+                delegate's write is held - and recorded in the run's one list -
+                exactly as its parent's is.
 
         Raises:
             BadRequestError: If a pin names a version that is gone, if a delegate
@@ -2636,6 +2745,8 @@ class AgentRunnerService:
             attribution=attribution,
             runtimes=runtimes,
             stash=stash,
+            test_connections=test_connections,
+            isolation=isolation,
         )
         # `max_depth` counts levels of delegation *including this agent's own*, so
         # the budget left below this level is one less. The subtraction is the whole
@@ -3020,11 +3131,13 @@ class AgentRunnerService:
         model = await self.models.resolve(ctx, profile_id=runnable.model_profile_id)
         # Recorded now so the child's run row can name the model that answered.
         delegation.attribution[ref.agent_version_id] = model
+        runnable, test_bindings = _with_test_secrets(runnable, delegation.test_connections.secrets)
         resolved = await build_toolsets_for_agent(
             self.db,
             organization_id=ctx.organization_id,
             refs=runnable.mcp_servers,
             sender_user_id=delegation.personal_mcp_user_id,
+            test_connections=delegation.test_connections.mcp,
         )
         toolsets = resolved.toolsets
         # Briefed like the parent: a delegate may bind a service the parent does
@@ -3052,6 +3165,7 @@ class AgentRunnerService:
                 resources=delegate_resources,
                 secrets=secrets,
                 extra_toolsets=toolsets,
+                test_bindings=test_bindings,
             ),
             max_steps=runnable.max_steps,
             preferred_mode=ref.preferred_mode,
@@ -3285,6 +3399,94 @@ class AgentRunnerService:
                     extra={"run_id": str(parent.id), "delegation_id": str(delegation.id)},
                 )
 
+    async def _write_interceptions(self, prepared: PreparedRun) -> None:
+        """Write what an isolated run held back, and forget it.
+
+        Written with the run rather than as each call happens, for the reason
+        approvals are: the session is shared by everything in the run, and a
+        tool call is no place to write on it. Not guarded like the manifest: an
+        eval whose intended calls were lost is an eval that cannot be scored, so
+        a failure here fails the run's write as loudly as its own row would.
+        """
+        isolation = prepared.isolation
+        if isolation is None or not isolation.intercepted:
+            return
+        held, isolation.intercepted = isolation.intercepted, []
+        await intercepted_tool_call_repo.add_many(
+            self.db,
+            run_id=prepared.run.id,
+            organization_id=prepared.run.organization_id,
+            calls=[
+                InterceptedToolCall(
+                    agent_id=call.agent_id,
+                    tool_call_id=call.tool_call_id,
+                    tool_name=call.tool_name,
+                    tool_id=call.tool_id,
+                    args=call.args,
+                    outcome=call.outcome.value,
+                    reason=None if call.reason is None else call.reason.value,
+                )
+                for call in held
+            ],
+        )
+
+    async def tool_recording(self, ctx: AuthContext, run_id: UUID) -> ToolRecording:
+        """The calls a past run made, ready to answer an isolated run's calls.
+
+        Read from the run's `tool_calls` rows - the arguments and the result of
+        every call its transcript kept - in the order they were made, and
+        resolved to stable ids through the version that answered, so a candidate
+        that renamed a tool still matches its own recorded calls. A call that
+        never returned is left out: there is nothing to answer it with.
+
+        The manifest is the check that no row is missing. Its request waterfall
+        names every call the model asked for, and survives every trim; a call it
+        names that has no row means the transcript lost part of the run. A row
+        whose call never returned passes that check and answers nothing, so the
+        candidate's matching call is divergent - a fact about the original run.
+        Within a turn written without `parts` the order of identical calls is
+        not known; see :func:`conversation_repo.list_tool_calls_for_run`.
+
+        Raises:
+            NotFoundError: If the run is not this caller's to read.
+            BadRequestError: If the run cannot be replayed whole - it kept no
+                manifest, or its transcript is missing a call the manifest names.
+                A partial recording would answer some calls and call the rest
+                divergent, which reads as the agent's doing.
+        """
+        run = await self.get_run(ctx, run_id)
+        manifest = await run_manifest_repo.get_by_run(self.db, run.id, ctx.organization_id)
+        rows = await conversation_repo.list_tool_calls_for_run(
+            self.db, run_id=run.id, organization_id=ctx.organization_id
+        )
+        requested = Counter(
+            name
+            for request in (manifest.payload if manifest else {}).get("requests", [])
+            for name in request.get("tool_calls", [])
+        )
+        if manifest is None or requested - Counter(call.tool_name for call, _ in rows):
+            raise BadRequestError(
+                message="That run kept no complete record of its tool calls to answer from",
+                details={"run_id": run.id},
+            )
+        tools: dict[str, ToolClass] = {}
+        if run.agent_version_id is not None:
+            version = await agent_repo.get_version(
+                self.db, run.agent_version_id, organization_id=ctx.organization_id
+            )
+            if version is not None:
+                tools = capability_tools(AgentSpec.model_validate(version.spec))
+        return ToolRecording(
+            recorded_calls(
+                [
+                    CallRow(tool_name=call.tool_name, args=call.args, result=call.result)
+                    for call, _ in rows
+                    if call.result is not None
+                ],
+                tools=tools,
+            )
+        )
+
     async def _write_approvals(self, prepared: PreparedRun) -> None:
         """Write the approval rows the run parked, once, off the shared session.
 
@@ -3448,6 +3650,7 @@ class AgentRunnerService:
         # is where the deferral is paid back. Before the parent's terminal write,
         # so the rows the `paused_state` names exist by the time it is stored.
         await self._write_approvals(prepared)
+        await self._write_interceptions(prepared)
 
         parked = (
             None
@@ -3658,6 +3861,7 @@ class AgentRunnerService:
         stream: RunStream | None = None,
         on_compaction: CompactionSink | None = None,
         model_profile_id: UUID | None = None,
+        isolation: RunIsolation | None = None,
     ) -> tuple[str, AgentRun]:
         """Run an agent to completion and return its answer.
 
@@ -3665,7 +3869,9 @@ class AgentRunnerService:
         stream call :meth:`prepare` and :meth:`finish` around their own loop.
 
         `environment_id` runs the version that environment pins - the API's way
-        of exercising a dev environment before promoting it.
+        of exercising a dev environment before promoting it. With `isolation` it
+        is how an eval runs: on that environment's test connections, with every
+        other write held and recorded.
 
         `model_profile_id` runs it on another model, as :meth:`prepare` describes.
 
@@ -3706,6 +3912,7 @@ class AgentRunnerService:
             environment_id=environment_id,
             on_compaction=on_compaction,
             model_profile_id=model_profile_id,
+            isolation=isolation,
         )
         # `str | list[Any]`, not `str`: an attached image is folded in as
         # `BinaryContent` beside the text, and narrowing that back to a string
@@ -4025,6 +4232,27 @@ class AgentRunnerService:
             # two sources of truth.
             approved_args[tool_call_id] = approval.tool_args
         return decided, _resume_plan(state, approved_args)
+
+    async def _test_connections(
+        self, ctx: AuthContext, *, environment_id: UUID | None
+    ) -> _TestConnections:
+        """The overrides of the environment this run names.
+
+        None for a run naming no environment: that is the default environment,
+        which the environment service refuses overrides on - production keeps
+        the connections its spec binds.
+        """
+        if environment_id is None:
+            return _TestConnections()
+        rows = await agent_environment_repo.list_connections(
+            self.db, environment_ids=[environment_id], organization_id=ctx.organization_id
+        )
+        return _TestConnections(
+            mcp={row.production_id: row.test_id for row in rows if row.kind == ConnectionKind.MCP},
+            secrets={
+                row.production_id: row.test_id for row in rows if row.kind == ConnectionKind.SECRET
+            },
+        )
 
     async def _with_environment_observability(
         self, ctx: AuthContext, spec: AgentSpec, *, environment_id: UUID | None

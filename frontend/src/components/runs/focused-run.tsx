@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 
+import { ScoreRunButton } from "@/components/datasets/score-run-button";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { RunStatusBadge } from "@/components/agents/status-badge";
 import { SurfaceIcon, surfaceLabel } from "@/components/runs/surface-icon";
@@ -217,6 +218,9 @@ export function FocusedRun({
                 <Play className="h-4 w-4" aria-hidden />
                 {t("resumeRun")}
               </Button>
+            )}
+            {run.conversation_id !== null && can(Perm.datasetsRun) && (
+              <ScoreRunButton runId={run.id} />
             )}
             <Button
               variant="outline"

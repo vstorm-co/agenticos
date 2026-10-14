@@ -1,5 +1,5 @@
 ---
-source_sha: "f9095b371b20"
+source_sha: "ea4b578bb095"
 ---
 
 # Die Konsole { #the-console }
@@ -17,7 +17,7 @@ Seite, deren Kopfzeile kein "?" trägt, hat keinen Rundgang abzuspielen.
 Die Startseite ist ein **anordenbares Raster aus Widgets**, und sie ist die
 Antwort auf die Frage "was passiert gerade", ohne fünf Seiten zu öffnen.
 
-Es gibt sechsunddreißig Karten. Sie werden nicht alle davon sehen: **eine Karte
+Es gibt achtunddreißig Karten. Sie werden nicht alle davon sehen: **eine Karte
 hängt an der Berechtigung, die ihre Daten verlangen**, also wird ein Widget, das
 Sie nicht lesen dürfen, nie eingehängt und seine Abfragen werden nie gestellt —
 außer Ihren eigenen Benachrichtigungen weiter unten, die nur verlangen, dass Sie
@@ -34,7 +34,7 @@ Sie kommen in Gruppen an:
 | **Usage** | Runs, Ergebnisse, Oberflächen, Latenz, Ausgaben, Modellmix, Versionsvergleich |
 | **People** | Mitglieder, aktive Nutzer, Bewertungen, wer was tut |
 | **Sandboxes** | [Kapazität, laufende Sessions, Policy](sandbox.md) |
-| **Workspace** | Ihrer: Ihre Agents, Ihre Unterhaltungen, Ihre Aktivität, was mit Ihnen geteilt wurde |
+| **Workspace** | Ihrer: Ihre Agents, Ihre Unterhaltungen, Ihre Aktivität, was mit Ihnen geteilt wurde, und Ihre [Datasets](datasets.md) mit dem, woran ihre Fälle die Antwort messen |
 
 ### Sie neu anordnen { #rearranging-it }
 
@@ -196,7 +196,7 @@ dem ein echtes Problem als ein stilles gelesen wird.
 
 ## Zusammenfassung { #recap }
 
-- Das Dashboard besteht aus **sechsunddreißig Widgets**, die Sie selbst
+- Das Dashboard besteht aus **achtunddreißig Widgets**, die Sie selbst
   anordnen, gespeichert pro Person und pro Organisation — alle außer Ihren
   eigenen Benachrichtigungen hängen an der Berechtigung, die ihre Daten
   verlangen.

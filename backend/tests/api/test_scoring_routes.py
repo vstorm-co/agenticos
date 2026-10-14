@@ -22,7 +22,7 @@ from app.core.config import settings
 from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
 from app.schemas.dataset import DatasetRead
-from app.schemas.scoring import CaseScoreList, CaseScoreRead, ScorerResult
+from app.schemas.scoring import CaseScoreList, CaseScoreRead, ReviewQueue, ScorerResult
 
 pytestmark = pytest.mark.anyio
 
@@ -58,7 +58,7 @@ def service() -> MagicMock:
     stub.set_scoring = AsyncMock(return_value=_DATASET)
     stub.score_run = AsyncMock(return_value=_SCORE)
     stub.list_scores = AsyncMock(return_value=CaseScoreList(items=[_SCORE], total=1))
-    stub.review_queue = AsyncMock(return_value=CaseScoreList(items=[_SCORE], total=1))
+    stub.review_queue = AsyncMock(return_value=ReviewQueue(items=[], total=1, datasets=[]))
     stub.set_verdict = AsyncMock(return_value=_SCORE)
     stub.request_review = AsyncMock(return_value=_SCORE)
     return stub

@@ -6,10 +6,12 @@ with an extra call, a missing one and a reordered pair.
 
 from __future__ import annotations
 
+import time
 import uuid
 from decimal import Decimal
 
 import pytest
+from pydantic import ValidationError
 
 from app.schemas.scoring import (
     DatasetScoring,
@@ -21,6 +23,9 @@ from app.schemas.scoring import (
 )
 from app.services.scorers import (
     MAX_MATCH_TEXT,
+    MAX_QUOTE,
+    MAX_QUOTES,
+    MAX_REASON,
     CaseView,
     JudgeGrade,
     JudgeVerdict,
@@ -79,6 +84,15 @@ class TestTextChecks:
 
         assert result.status == status
         assert result.score == (1.0 if status == "pass" else 0.0)
+
+    @pytest.mark.security
+    def test_a_pattern_that_backtracks_without_end_stops_as_an_error(self) -> None:
+        started = time.monotonic()
+
+        result = _check({"type": "regex", "value": r"^(a|a)*$"}, _answer("a" * 40 + "b"))
+
+        assert (result.status, result.reason_code) == ("error", "pattern_timeout")
+        assert time.monotonic() - started < 2
 
     def test_a_path_reads_into_a_json_answer(self) -> None:
         answer = _answer('```json\n{"items": [{"name": "Refund"}]}\n```')
@@ -391,7 +405,7 @@ class TestGrades:
             ]
         )
 
-        results = graded(criteria, verdict, scale_max=5, pass_at=4, run_id=run_id)
+        results = graded(criteria, verdict, answer="", scale_max=5, pass_at=4, run_id=run_id)
 
         assert [(r.name, r.status, r.score, r.reason) for r in results] == [
             ("correctness", "pass", 0.8, "4/5: Right date"),
@@ -404,11 +418,71 @@ class TestGrades:
         criteria = judge_criteria(_case(), TestJudgeCriteria()._scoring(), [])[:1]
 
         [result] = graded(
-            criteria, JudgeVerdict(grades=grades), scale_max=5, pass_at=4, run_id=uuid.uuid4()
+            criteria,
+            JudgeVerdict(grades=grades),
+            answer="",
+            scale_max=5,
+            pass_at=4,
+            run_id=uuid.uuid4(),
         )
 
         assert result.status == "error"
         assert result.reason_code == "judge_ungraded"
+
+    def test_a_quote_not_in_the_answer_is_flagged_and_the_grade_stands(self) -> None:
+        criteria = judge_criteria(_case(), TestJudgeCriteria()._scoring(), [])
+        verdict = JudgeVerdict(
+            grades=[
+                JudgeGrade(id="r1", score=4, reason="Right", quotes=["within 30 days"]),
+                JudgeGrade(id="r2", score=5, reason="Warm", quotes=["Happy to help", "x" * 200]),
+            ]
+        )
+
+        results = graded(
+            criteria,
+            verdict,
+            answer="You can return it within 30 days.",
+            scale_max=5,
+            pass_at=4,
+            run_id=uuid.uuid4(),
+        )
+
+        assert [(r.status, r.reason) for r in results] == [
+            ("pass", "4/5: Right"),
+            (
+                "pass",
+                f'5/5: Warm [not in the answer, unverified: "Happy to help", "{"x" * 80}…"]',
+            ),
+        ]
+
+    def test_a_flag_survives_a_reason_at_the_length_limit(self) -> None:
+        criteria = judge_criteria(_case(), TestJudgeCriteria()._scoring(), [])[:1]
+        verdict = JudgeVerdict(
+            grades=[JudgeGrade(id="r1", score=4, reason="r" * 3000, quotes=["absent"])]
+        )
+
+        [result] = graded(criteria, verdict, answer="", scale_max=5, pass_at=4, run_id=uuid.uuid4())
+
+        assert len(result.reason) == MAX_REASON
+        assert result.reason.endswith('[not in the answer, unverified: "absent"]')
+
+    def test_a_flag_however_long_leaves_the_grade_and_the_limit(self) -> None:
+        criteria = judge_criteria(_case(), TestJudgeCriteria()._scoring(), [])[:1]
+        escaped = ["\x01" * MAX_QUOTE] * MAX_QUOTES
+        verdict = JudgeVerdict(grades=[JudgeGrade(id="r1", score=4, reason="r", quotes=escaped)])
+
+        [result] = graded(criteria, verdict, answer="", scale_max=5, pass_at=4, run_id=uuid.uuid4())
+
+        assert len(result.reason) <= MAX_REASON
+        assert result.reason.startswith("4/5: r [not in the answer, unverified: ")
+        assert result.status == "pass"
+
+    @pytest.mark.parametrize("quotes", [["q"] * (MAX_QUOTES + 1), ["q" * (MAX_QUOTE + 1)], [""]])
+    def test_quotes_past_the_limits_are_not_a_valid_verdict(self, quotes) -> None:
+        with pytest.raises(ValidationError):
+            JudgeVerdict.model_validate(
+                {"grades": [{"id": "r1", "score": 4, "reason": "r", "quotes": quotes}]}
+            )
 
     def test_not_graded_says_why_on_every_criterion(self) -> None:
         criteria = judge_criteria(_case(), TestJudgeCriteria()._scoring(), [])

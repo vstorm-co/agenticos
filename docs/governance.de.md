@@ -1,5 +1,5 @@
 ---
-source_sha: "c070f50e41ec"
+source_sha: "1e91d2e2de69"
 ---
 
 # Governance { #governance }
@@ -1532,6 +1532,31 @@ beide Zahlen sehen maßgeblich aus.
 
 Das Senden blockiert nie und löst nie in den Aufrufer hinein aus: Ein Run, der
 bereits geendet hat, darf nicht noch einmal scheitern, weil SMTP ausgefallen war.
+
+## KI-Unterstützung { #ai-assistance }
+
+Ein Schalter in den Einstellungen der Organisation auf ihrer Mitgliederseite
+entscheidet, ob Modelle die Evals und das Authoring der Organisation
+unterstützen: den Eval-Judge, der [Dataset-Scores](datasets.md#judge) bewertet,
+und den Fall-Generator, den Authoring-Assistenten und die Entwürfe zu
+Wissenslücken, die nach ihm kommen. Er ist standardmäßig aus, für eine
+Organisation, die es vor dem Schalter gab, wie für eine neue: Ob Modelle
+bewerten und entwerfen, entscheidet die Organisation, und wer `org:settings`
+hat, schaltet ihn ein.
+
+Ist er aus, lehnt der Service, der einen solchen Run starten würde, ihn ab,
+gleich welcher Client fragt - ein ausgeblendetes Bedienelement ist nicht die
+Grenze. Das Scoring führt weiterhin seine regelbasierten Prüfungen und den
+Abgleich der Tool-Aufrufe aus, hält die Kriterien des Judge mit der Begründung
+als übersprungen fest und lässt einen Fall, dessen Judge erforderlich war,
+unbewertet statt bestanden. Urteile von Menschen bleiben verfügbar.
+
+Diese Funktionen laufen als [System-Agents](concepts.md#system-agents). Jeder
+Run ist ein gewöhnlicher Run: Er wird vor jedem Modellaufruf gegen das eigene
+Monatsbudget des Agents und das der Organisation geprüft, seine Kosten werden
+aufgezeichnet, und er wird in Activity unter der Oberfläche `eval` aufgeführt.
+Ein System-Agent startet mit einem eigenen Budget - das des Judge beträgt 5 $
+im Monat -, das sich wie das jedes Agents ändern lässt.
 
 ## Audit { #audit }
 

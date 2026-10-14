@@ -32,7 +32,6 @@ const MARKS = {
   // is a 422, and the branch that writes these surfaces adds them there.
   schedule: CalendarClock,
   trigger: Zap,
-  // Evaluation work - a judge scoring an answer, an eval run's cases.
   eval: FlaskConical,
 } as const;
 

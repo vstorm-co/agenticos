@@ -215,7 +215,7 @@ retranslated is how a stale translation stops being visible.
 | Skills — format, library, skills vs knowledge | `docs/skills.md` |
 | Context files — standing knowledge bound to agents | `docs/context.md` |
 | Datasets — versioned eval cases, import/export, Add to dataset | `docs/datasets.md` |
-| Named environments, promotion, per-environment tracing | `docs/environments.md` |
+| Named environments, promotion, per-environment tracing, test connections, isolated (eval) runs | `docs/environments.md` |
 | Surfaces: widget, WebSocket, Slack, Telegram | `docs/channels.md` |
 | Published pages: artifacts, versions, public links, isolation | `docs/artifacts.md` |
 | The desktop app: a Tauri shell around a deployment's console | `docs/desktop.md` |

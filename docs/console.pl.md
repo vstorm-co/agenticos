@@ -1,5 +1,5 @@
 ---
-source_sha: "f9095b371b20"
+source_sha: "ea4b578bb095"
 ---
 
 # Konsola { #the-console }
@@ -17,7 +17,7 @@ nie ma przewodnika do odtworzenia.
 Strona startowa to **układalna siatka widgetów** i jest odpowiedzią na pytanie
 "co się dzieje" bez otwierania pięciu stron.
 
-Istnieje trzydzieści sześć kart. Nie zobaczysz wszystkich: **karta jest
+Istnieje trzydzieści osiem kart. Nie zobaczysz wszystkich: **karta jest
 bramkowana uprawnieniem, którego wymagają jej dane**, więc widget, którego nie
 możesz odczytać, nigdy się nie montuje, a jego zapytania nigdy nie wychodzą —
 poza twoimi własnymi powiadomieniami, niżej, które wymagają tylko tego, żebyś
@@ -34,7 +34,7 @@ Karty przychodzą pogrupowane w pasy:
 | **Usage** | Runy, wyniki, powierzchnie, opóźnienia, wydatki, miks modeli, porównanie wersji |
 | **People** | Członkowie, aktywni użytkownicy, oceny, kto co robi |
 | **Sandboxes** | [Pojemność, żywe sesje, polityka](sandbox.md) |
-| **Workspace** | Twoje: twoje agenty, twoje rozmowy, twoja aktywność, co zostało ci udostępnione |
+| **Workspace** | Twoje: twoje agenty, twoje rozmowy, twoja aktywność, co zostało ci udostępnione, i twoje [datasety](datasets.md) z tym, z czym porównują odpowiedź ich przypadki |
 
 ### Zmiana układu { #rearranging-it }
 
@@ -183,7 +183,7 @@ problem zostaje odczytany jako cisza.
 
 ## Podsumowanie { #recap }
 
-- Dashboard to **trzydzieści sześć widgetów**, które układasz sam, zapisywanych
+- Dashboard to **trzydzieści osiem widgetów**, które układasz sam, zapisywanych
   per osoba i per organizacja — wszystkie poza twoimi własnymi powiadomieniami
   bramkowane uprawnieniem, którego wymagają ich dane.
 - Zapisany układ **może ukrywać i zmieniać kolejność, ale nigdy nie odsłania** —

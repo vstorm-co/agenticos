@@ -1,7 +1,8 @@
 "use client";
 
 import { use, useState } from "react";
-import { FlaskConical, Plus, Sparkles } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { FlaskConical, Pencil, Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -9,14 +10,25 @@ import { CaseEditorDialog } from "@/components/datasets/case-editor-dialog";
 import { draftOf, EMPTY_DRAFT, type CaseDraft } from "@/components/datasets/case-form";
 import { CaseRow } from "@/components/datasets/case-row";
 import { DatasetFileActions } from "@/components/datasets/dataset-file-actions";
-import { GenerateCasesDialog } from "@/components/datasets/generate-cases-dialog";
-import { ProposedCases } from "@/components/datasets/proposed-cases";
+import { EditDatasetDialog } from "@/components/datasets/edit-dataset-dialog";
+import { ScoresPanel } from "@/components/datasets/scores-panel";
+import { ScoringPanel } from "@/components/datasets/scoring-panel";
 import { VersionSelect } from "@/components/datasets/version-select";
 import { SharingPanel } from "@/components/sharing/sharing-panel";
 import { ErrorState, LoadingState } from "@/components/states";
-import { Badge, Button, ListCard, ListCardEmpty, PAGE_SIZE, Pager } from "@/components/ui";
+import {
+  Badge,
+  Button,
+  ListCard,
+  ListCardEmpty,
+  PAGE_SIZE,
+  Pager,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui";
 import { useDataset, useDatasetCases, useDatasetVersions } from "@/hooks/use-datasets";
-import { useOrganizations } from "@/hooks/use-organizations";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import type { DatasetCase, DatasetCaseContent } from "@/types/datasets";
@@ -24,6 +36,8 @@ import type { DatasetCase, DatasetCaseContent } from "@/types/datasets";
 interface PageProps {
   params: Promise<{ id: string }>;
 }
+
+const TABS = ["cases", "scoring", "scores"];
 
 /** What the case dialog is showing: a new case, or one from the list. */
 type Editing = { draft: CaseDraft; item: DatasetCase | null } | null;
@@ -39,16 +53,18 @@ export default function DatasetPage({ params }: PageProps) {
   const t = useTranslations("datasets");
   const tc = useTranslations("common");
   const tErrors = useTranslations("errors");
+  const asked = useSearchParams().get("tab");
   const [version, setVersion] = useState<number | null>(null);
   const [page, setPage] = useState(0);
   const [editing, setEditing] = useState<Editing>(null);
-  const [generating, setGenerating] = useState(false);
-  const { dataset, error: datasetError } = useDataset(id);
+  const [editingDetails, setEditingDetails] = useState(false);
+  const { dataset, error: datasetError, update } = useDataset(id);
   const { versions } = useDatasetVersions(id);
   const cases = useDatasetCases(id, { version, skip: page * PAGE_SIZE, limit: PAGE_SIZE });
-  // Hidden only once the organization is known to have switched it off; the
-  // backend refuses a generation either way.
-  const aiAssistance = useOrganizations().activeOrg?.ai_assistance_enabled !== false;
+  const pageCount = Math.max(1, Math.ceil(cases.total / PAGE_SIZE));
+  // Removing the last case of the last page leaves that page empty; step back to
+  // the page that still exists, the adjust-state-while-rendering way.
+  if (!cases.isLoading && page >= pageCount) setPage(pageCount - 1);
 
   if (datasetError) {
     return <ErrorState description={getErrorMessage(datasetError, tErrors)} />;
@@ -77,91 +93,119 @@ export default function DatasetPage({ params }: PageProps) {
           ) : undefined
         }
         actions={
-          editable ? (
-            <div className="flex flex-wrap items-center gap-2">
-              {aiAssistance && (
+          dataset.can_edit ? (
+            <>
+              <Button variant="outline" onClick={() => setEditingDetails(true)}>
+                <Pencil className="h-4 w-4" />
+                {t("editDetails")}
+              </Button>
+              {editable && (
                 <Button
-                  variant="outline"
-                  data-tour="datasets-generate"
-                  onClick={() => setGenerating(true)}
+                  data-tour="datasets-add-case"
+                  onClick={() => setEditing({ draft: EMPTY_DRAFT, item: null })}
                 >
-                  <Sparkles className="h-4 w-4" />
-                  {t("generateCases")}
+                  <Plus className="h-4 w-4" />
+                  {t("addCase")}
                 </Button>
               )}
-              <Button
-                data-tour="datasets-add-case"
-                onClick={() => setEditing({ draft: EMPTY_DRAFT, item: null })}
-              >
-                <Plus className="h-4 w-4" />
-                {t("addCase")}
-              </Button>
-            </div>
+            </>
           ) : undefined
         }
       />
 
-      <ProposedCases datasetId={id} canEdit={dataset.can_edit} />
-
-      <ListCard
-        title={t("cases")}
-        counted={t("caseCount", { count: cases.total })}
-        controls={
-          <div className="flex flex-wrap items-center gap-2">
-            {versions.length > 0 && (
-              <VersionSelect
-                versions={versions}
-                value={version}
-                onChange={(next) => {
-                  setVersion(next);
-                  setPage(0);
-                }}
-              />
-            )}
-            <DatasetFileActions
-              datasetId={id}
-              version={version}
-              onImport={editable ? (file) => cases.importFile.mutateAsync(file) : undefined}
-            />
-          </div>
-        }
+      <Tabs
+        defaultValue={asked !== null && TABS.includes(asked) ? asked : "cases"}
+        className="space-y-4"
       >
-        {cases.isLoading ? (
-          <LoadingState variant="skeleton-cards" rows={2} />
-        ) : cases.error ? (
-          <ErrorState
-            description={getErrorMessage(cases.error, tErrors)}
-            cta={{ label: tc("retry"), onClick: () => void cases.refetch() }}
-          />
-        ) : cases.cases.length === 0 ? (
-          <ListCardEmpty icon={FlaskConical} title={t("noCases")} description={t("noCasesBody")} />
-        ) : (
-          <div className="space-y-4">
-            <ul>
-              {cases.cases.map((item) => (
-                <CaseRow
-                  key={item.id}
-                  item={item}
-                  onOpen={() => setEditing({ draft: draftOf(item), item })}
-                  onRemove={editable ? () => cases.remove.mutate(item.case_id) : undefined}
+        <TabsList>
+          <TabsTrigger value="cases">{t("cases")}</TabsTrigger>
+          <TabsTrigger value="scoring" data-tour="datasets-scoring-tab">
+            {t("scoring.title")}
+          </TabsTrigger>
+          <TabsTrigger value="scores" data-tour="datasets-scores-tab">
+            {t("scoring.scores")}
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="cases">
+          <ListCard
+            title={t("cases")}
+            counted={t("caseCount", { count: cases.total })}
+            controls={
+              <div className="flex flex-wrap items-center gap-2">
+                {versions.length > 0 && (
+                  <VersionSelect
+                    versions={versions}
+                    latest={dataset.latest_version}
+                    value={version}
+                    onChange={(next) => {
+                      setVersion(next);
+                      setPage(0);
+                    }}
+                  />
+                )}
+                <DatasetFileActions
+                  datasetId={id}
+                  version={version}
+                  onImport={editable ? (file) => cases.importFile.mutateAsync(file) : undefined}
                 />
-              ))}
-            </ul>
-            <Pager
-              page={page}
-              pageCount={Math.max(1, Math.ceil(cases.total / PAGE_SIZE))}
-              matched={cases.total}
-              total={cases.total}
-              onPage={setPage}
-              counted={t("caseCount", { count: cases.total })}
-            />
-          </div>
-        )}
-      </ListCard>
+              </div>
+            }
+          >
+            {cases.isLoading ? (
+              <LoadingState variant="skeleton-cards" rows={2} />
+            ) : cases.error ? (
+              <ErrorState
+                description={getErrorMessage(cases.error, tErrors)}
+                cta={{ label: tc("retry"), onClick: () => void cases.refetch() }}
+              />
+            ) : cases.cases.length === 0 ? (
+              <ListCardEmpty
+                icon={FlaskConical}
+                title={t("noCases")}
+                description={t("noCasesBody")}
+              />
+            ) : (
+              <div className="space-y-4">
+                <ul>
+                  {cases.cases.map((item) => (
+                    <CaseRow
+                      key={item.id}
+                      item={item}
+                      onOpen={() => setEditing({ draft: draftOf(item), item })}
+                      onRemove={editable ? () => cases.remove.mutate(item.case_id) : undefined}
+                    />
+                  ))}
+                </ul>
+                <Pager
+                  page={page}
+                  pageCount={pageCount}
+                  matched={cases.total}
+                  total={cases.total}
+                  onPage={setPage}
+                  counted={t("caseCount", { count: cases.total })}
+                />
+              </div>
+            )}
+          </ListCard>
+        </TabsContent>
+        <TabsContent value="scoring">
+          <ScoringPanel
+            key={JSON.stringify(dataset.scoring)}
+            datasetId={id}
+            scoring={dataset.scoring}
+            canEdit={dataset.can_edit}
+          />
+        </TabsContent>
+        <TabsContent value="scores">
+          <ScoresPanel datasetId={id} canDecide={dataset.can_edit} />
+        </TabsContent>
+      </Tabs>
 
       <SharingPanel resourceType="dataset" resourceId={id} canManage={dataset.can_edit} />
 
-      {generating && <GenerateCasesDialog datasetId={id} open onOpenChange={setGenerating} />}
+      {editingDetails && (
+        <EditDatasetDialog dataset={dataset} onOpenChange={setEditingDetails} update={update} />
+      )}
 
       {editing !== null && (
         <CaseEditorDialog

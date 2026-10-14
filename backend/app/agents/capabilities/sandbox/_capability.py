@@ -23,11 +23,16 @@ from pydantic_ai_backends.toolsets.descriptions import TOOL_TEXT
 from app.agents.capabilities._registry import CapabilityToolInfo
 from app.agents.capabilities.sandbox._permissions import workspace_ruleset
 
+# What leaves the workspace as it was. A workspace can outlive the run, so a
+# write to it is a write an eval must not make.
+_READS = frozenset({"ls", "read_file", "glob", "grep"})
+
 WORKSPACE_TOOLS: tuple[CapabilityToolInfo, ...] = tuple(
     CapabilityToolInfo(
         id=tool_id,
         description=TOOL_TEXT[tool_id].summary,
         side_effecting=tool_id == "execute",
+        read_only=tool_id in _READS,
     )
     for tool_id in ("ls", "read_file", "glob", "grep", "write_file", "edit_file", "execute")
 )

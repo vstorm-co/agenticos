@@ -105,22 +105,44 @@ async def test_each_route_answers_with_its_status(client: OpenClient) -> None:
     dataset = f"/{_DATASET.id}"
     case = f"{dataset}/cases/{_CASE.case_id}"
     async with client() as http:
-        assert (await http.get(_url())).json()["total"] == 1
-        assert (await http.post(_url(), json={"name": "refunds"})).status_code == 201
-        assert (await http.get(_url(dataset))).json()["can_edit"] is True
-        assert (await http.patch(_url(dataset), json={"description": "x"})).status_code == 200
-        assert (await http.get(_url(f"{dataset}/versions"))).json()["items"][0]["number"] == 2
-        assert (await http.get(_url(f"{dataset}/cases?version=1"))).json()["version"] == 1
-        assert (
-            await http.post(_url(f"{dataset}/cases"), json={"input": "q", "reference_answer": "a"})
-        ).status_code == 201
+        listed = await http.get(_url())
+        created = await http.post(_url(), json={"name": "refunds"})
+        read = await http.get(_url(dataset))
+        renamed = await http.patch(_url(dataset), json={"description": "x"})
+        versions = await http.get(_url(f"{dataset}/versions"))
+        cases = await http.get(_url(f"{dataset}/cases?version=1"))
+        added = await http.post(
+            _url(f"{dataset}/cases"), json={"input": "q", "reference_answer": "a"}
+        )
         from_message = await http.post(
             _url(f"{dataset}/cases/from-message"), json={"message_id": str(uuid.uuid4())}
         )
-        assert from_message.status_code == 201
-        assert (await http.patch(_url(case), json={"note": "n"})).status_code == 200
-        assert (await http.delete(_url(case))).status_code == 204
-        assert (await http.delete(_url(dataset))).status_code == 204
+        edited = await http.patch(_url(case), json={"note": "n"})
+        removed = await http.delete(_url(case))
+        deleted = await http.delete(_url(dataset))
+
+    assert listed.json()["total"] == 1
+    assert created.status_code == 201
+    assert read.json()["can_edit"] is True
+    assert renamed.status_code == 200
+    assert versions.json()["items"][0]["number"] == 2
+    assert cases.json()["version"] == 1
+    assert added.status_code == 201
+    assert from_message.status_code == 201
+    assert edited.status_code == 200
+    assert removed.status_code == 204
+    assert deleted.status_code == 204
+
+
+async def test_the_listing_narrows_to_what_the_caller_may_edit_when_asked(
+    client: OpenClient, service: MagicMock
+) -> None:
+    async with client() as http:
+        await http.get(_url("?editable=true&limit=1"))
+        await http.get(_url())
+    asked, plain = service.list_readable.await_args_list
+    assert (asked.kwargs["editable"], asked.kwargs["limit"]) == (True, 1)
+    assert plain.kwargs["editable"] is False
 
 
 async def test_a_case_that_expects_nothing_is_refused_naming_the_field(

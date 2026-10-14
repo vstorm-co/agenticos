@@ -23,17 +23,33 @@ from sqlalchemy import select
 from app.agents.model_resolver import ModelRequestSpec
 from app.agents.spec import AgentSpec
 from app.agents.system_agents import JUDGE
-from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
+from app.core.exceptions import (
+    AuthorizationError,
+    BadRequestError,
+    NotFoundError,
+    NothingToScoreError,
+)
 from app.core.permissions import AuthContext, OrgRoleName
 from app.core.secret_kinds import ApiKeySecret, SecretKind, seal_secret
 from app.core.vault import VaultScope
 from app.db.models.agent import AgentStatus
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.credential import ModelProfile
+from app.db.models.intercepted_tool_call import (
+    InterceptedToolCall,
+    InterceptionOutcome,
+    InterceptionReason,
+)
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.user import User
-from app.repositories import agent_repo, agent_run_repo, conversation_repo, dataset_repo
+from app.repositories import (
+    agent_repo,
+    agent_run_repo,
+    conversation_repo,
+    dataset_repo,
+    intercepted_tool_call_repo,
+)
 from app.schemas.dataset import DatasetCaseCreate, DatasetCreate, ExpectedToolCall
 from app.schemas.scoring import (
     CaseScoreCreate,
@@ -44,6 +60,7 @@ from app.schemas.scoring import (
     ReferenceScorer,
     ReviewScorer,
     RubricCriterion,
+    TrajectoryScorer,
 )
 from app.services.agent_registry import AgentRegistryService
 from app.services.dataset import DatasetService
@@ -73,6 +90,7 @@ class Judge:
         self.calls = 0
         self.grades = grades or {}
         self.reason = reason
+        self.quotes: list[str] = []
 
     def model(self) -> FunctionModel:
         async def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
@@ -80,7 +98,12 @@ class Judge:
             prompt = str(messages[-1].parts[-1].content)  # type: ignore[union-attr]
             ids = re.findall(r"^- (\w+) \(", prompt, flags=re.MULTILINE)
             grades = [
-                {"id": item, "score": self.grades.get(item, 5), "reason": self.reason}
+                {
+                    "id": item,
+                    "score": self.grades.get(item, 5),
+                    "reason": self.reason,
+                    "quotes": self.quotes,
+                }
                 for item in ids
             ]
             return ModelResponse(parts=[TextPart(json.dumps({"grades": grades}))])
@@ -114,6 +137,7 @@ async def _tenant(db) -> Tenant:
         name="Acme",
         slug=f"acme-{uuid.uuid4().hex[:8]}",
         created_by_user_id=owner.id,
+        ai_assistance_enabled=True,
     )
     db.add(organization)
     await db.flush()
@@ -305,6 +329,40 @@ class TestScoringARun:
         assert score.passed is False
         assert score.run_id == run.id
 
+    async def test_a_score_pins_the_judge_that_graded_it(self, db, judge) -> None:
+        tenant = await _tenant(db)
+        profile = await _model(db, tenant)
+        dataset, case = await _dataset(db, tenant, scoring=_rubric())
+        run = await _scored_run(db, tenant)
+        scoring = ScoringService(db)
+        judge_agent = await SystemAgentService(db).ensure(
+            organization_id=tenant.organization.id, key=JUDGE.key
+        )
+
+        first = await scoring.score_run(
+            tenant.ctx, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
+        )
+        again = await scoring.score_run(
+            tenant.ctx, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
+        )
+        await scoring.set_scoring(
+            tenant.ctx,
+            dataset.id,
+            DatasetScoring(judge=JudgeScorer(enabled=True, criteria=RUBRIC[:1])),
+        )
+        narrower = await scoring.score_run(
+            tenant.ctx, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
+        )
+
+        assert first.judge is not None and narrower.judge is not None
+        assert (first.judge.agent_version_id, first.judge.spec_version) == (
+            judge_agent.current_version_id,
+            1,
+        )
+        assert first.judge.model_profile_id == profile.id
+        assert again.judge == first.judge
+        assert narrower.judge.rubric_hash != first.judge.rubric_hash
+
     async def test_the_judge_is_a_recorded_eval_run_in_activity(self, db, judge) -> None:
         tenant = await _tenant(db)
         await _model(db, tenant)
@@ -326,6 +384,7 @@ class TestScoringARun:
         assert {r.judge_run_id for r in score.results if r.scorer == "judge"} == {judged.id}
         assert judge.calls == 1
 
+    @pytest.mark.security
     async def test_a_spent_judge_budget_is_refused_before_the_model_and_still_recorded(
         self, db, judge
     ) -> None:
@@ -382,6 +441,47 @@ class TestScoringARun:
         assert answer.latency_ms == 1500
         assert answer.cost_usd == Decimal("0.004")
 
+    async def test_a_write_the_isolated_run_blocked_still_meets_the_expected_call(
+        self, db, judge
+    ) -> None:
+        tenant = await _tenant(db)
+        dataset, case = await _dataset(db, tenant, scoring=DatasetScoring())
+        run = await _scored_run(db, tenant)
+        await intercepted_tool_call_repo.add_many(
+            db,
+            run_id=run.id,
+            organization_id=tenant.organization.id,
+            calls=[
+                InterceptedToolCall(
+                    tool_call_id="call-lookup",
+                    tool_name="lookup_order",
+                    tool_id="tool:lookup_order",
+                    args={"order": 7},
+                    outcome=InterceptionOutcome.BLOCKED,
+                    reason=InterceptionReason.WRITES,
+                ),
+                InterceptedToolCall(
+                    tool_call_id="call-search",
+                    tool_name="search_kb",
+                    tool_id="tool:search_kb",
+                    args={"query": "refunds", "limit": 5},
+                    outcome=InterceptionOutcome.REPLAYED,
+                ),
+            ],
+        )
+
+        score = await ScoringService(db).score_run(
+            tenant.ctx, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
+        )
+
+        [trajectory] = [r for r in score.results if r.scorer == "trajectory"]
+        assert trajectory.status == "pass"
+        assert (
+            trajectory.reason
+            == "Called search_kb, lookup_order (lookup_order blocked, not executed)"
+        )
+        assert score.passed is True
+
     async def test_a_reference_answer_is_graded_by_the_judge(self, db, judge) -> None:
         tenant = await _tenant(db)
         await _model(db, tenant)
@@ -399,6 +499,24 @@ class TestScoringARun:
         assert reference.status == "fail"
         assert score.passed is False
 
+    async def test_a_quote_the_answer_does_not_hold_is_flagged_on_a_kept_score(
+        self, db, judge
+    ) -> None:
+        tenant = await _tenant(db)
+        await _model(db, tenant)
+        dataset, case = await _dataset(db, tenant, scoring=_rubric())
+        run = await _scored_run(db, tenant)
+        judge.quotes = ['"days": 30', "ninety days"]
+
+        score = await ScoringService(db).score_run(
+            tenant.ctx, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
+        )
+
+        reasons = {r.reason for r in score.results if r.scorer == "judge"}
+        assert reasons == {'5/5: Looks right [not in the answer, unverified: "ninety days"]'}
+        assert score.passed is True
+
+    @pytest.mark.security
     async def test_a_secret_the_judge_quotes_is_not_kept(self, db, judge) -> None:
         tenant = await _tenant(db)
         await _model(db, tenant)
@@ -457,6 +575,7 @@ class TestWhenTheJudgeCannotRun:
         judged = [r for r in score.results if r.scorer == "judge"]
         assert {(r.status, r.reason_code) for r in judged} == {("skipped", "ai_assistance_off")}
         assert score.passed is None
+        assert score.judge is None
         assert judge.calls == 0
         assert await _eval_runs(db, tenant) == []
 
@@ -599,15 +718,31 @@ class TestVerdicts:
             tenant.ctx, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
         )
 
-        queue = await service.review_queue(tenant.ctx)
+        everything, other = await _dataset(
+            db, tenant, scoring=DatasetScoring(review=ReviewScorer(select="all"))
+        )
+        for _ in range(2):
+            await service.score_run(
+                tenant.ctx, everything.id, other.case_id, CaseScoreCreate(run_id=run.id)
+            )
+
+        queue = await service.review_queue(tenant.ctx, limit=1)
         pending = await service.list_scores(tenant.ctx, dataset.id, pending=True)
         for_case = await service.list_scores(tenant.ctx, dataset.id, case_id=case.case_id)
 
-        assert [item.id for item in queue.items] == [scored.id]
+        names = {dataset.id: dataset.name, everything.id: everything.name}
+        [oldest] = queue.items
+        assert oldest.dataset_name == names[oldest.dataset_id]
+        assert queue.total == 3
+        assert [(d.dataset_id, d.failed, d.unscored, d.passed) for d in queue.datasets] == [
+            (everything.id, 0, 0, 2),
+            (dataset.id, 1, 0, 0),
+        ]
         assert [item.id for item in pending.items] == [scored.id]
         assert for_case.total == 1
 
 
+@pytest.mark.security
 class TestRefusals:
     async def test_another_organization_s_dataset_is_not_found(self, db, judge) -> None:
         mine, theirs = await _tenant(db), await _tenant(db)
@@ -685,8 +820,52 @@ class TestRefusals:
             await ScoringService(db).set_scoring(
                 mine.ctx,
                 dataset.id,
-                DatasetScoring(judge=JudgeScorer(enabled=True, model_profile_id=foreign.id)),
+                DatasetScoring(
+                    judge=JudgeScorer(enabled=True, criteria=RUBRIC, model_profile_id=foreign.id)
+                ),
             )
+
+    @pytest.mark.parametrize(
+        ("scoring", "field"),
+        [
+            (
+                DatasetScoring(
+                    checks=ChecksScorer(enabled=False), trajectory=TrajectoryScorer(enabled=False)
+                ),
+                "checks.enabled",
+            ),
+            (DatasetScoring(judge=JudgeScorer(enabled=True)), "judge.criteria"),
+        ],
+    )
+    async def test_a_scoring_that_can_score_nothing_is_refused(
+        self, db, judge, scoring, field
+    ) -> None:
+        tenant = await _tenant(db)
+        dataset, _ = await _dataset(db, tenant, scoring=DatasetScoring())
+
+        with pytest.raises(BadRequestError) as refused:
+            await ScoringService(db).set_scoring(tenant.ctx, dataset.id, scoring)
+
+        assert [problem["field"] for problem in refused.value.details["fields"]] == [field]
+
+    async def test_a_case_the_scorers_have_nothing_to_check_on_keeps_no_score(
+        self, db, judge
+    ) -> None:
+        tenant = await _tenant(db)
+        dataset, _ = await _dataset(db, tenant, scoring=DatasetScoring())
+        bare = await DatasetService(db).add_case(
+            tenant.ctx, dataset.id, DatasetCaseCreate(input="Hi?", reference_answer="Hello.")
+        )
+        run = await _scored_run(db, tenant)
+        scoring = ScoringService(db)
+
+        with pytest.raises(NothingToScoreError):
+            await scoring.score_run(
+                tenant.ctx, dataset.id, bare.case_id, CaseScoreCreate(run_id=run.id)
+            )
+
+        assert (await scoring.list_scores(tenant.ctx, dataset.id)).total == 0
+        assert judge.calls == 0
 
     async def test_a_score_from_another_dataset_is_not_found(self, db, judge) -> None:
         tenant = await _tenant(db)
@@ -712,7 +891,8 @@ class TestRefusals:
         )
         member = await _join(db, tenant, OrgRoleName.MEMBER)
 
-        assert (await ScoringService(db).review_queue(member)).total == 0
+        hidden = await ScoringService(db).review_queue(member)
+        assert (hidden.total, hidden.datasets) == (0, [])
         assert (await ScoringService(db).review_queue(tenant.ctx)).total == 1
 
     async def test_a_case_the_version_does_not_hold_is_not_found(self, db, judge) -> None:

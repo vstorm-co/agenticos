@@ -19,6 +19,7 @@ function connection(overrides: Partial<OrgMcpConnectionRecord> = {}): OrgMcpConn
     last_checked_at: null,
     catalog_key: "notion",
     is_default: false,
+    trust_read_only_hints: false,
     label: null,
     last_tools: null,
     granted_scopes: null,

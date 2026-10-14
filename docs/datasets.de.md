@@ -1,5 +1,5 @@
 ---
-source_sha: "698438cc9d00"
+source_sha: "67db81f56383"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -28,7 +28,7 @@ gestellt hat, und eine Antwort, die ihn wirklich enttäuscht hat.
 | Referenzantwort | Was eine gute Antwort sagt |
 | Gegenbeispiel | Eine Antwort, die bekanntermaßen falsch ist |
 | Erwartete Tool-Aufrufe | Die Tools, die der Agent aufrufen soll, jeweils mit den Argumenten, die passen müssen. Argumente, die ein Fall nicht nennt, werden ignoriert. Ein Fall legt auch fest, wie die Aufrufe abgeglichen werden: `any` in beliebiger Reihenfolge, `in_order` in der angegebenen Reihenfolge mit anderen Aufrufen dazwischen, oder `exact` - genau diese, in dieser Reihenfolge, und keine anderen |
-| Prüfungen | Regeln für die Antwort, jede ein Objekt, dessen `type` die Regel benennt, mit deren Parametern daneben. Ein Fall bewahrt sie auf; das Scoring liest sie und entscheidet, welche Typen es gibt |
+| Prüfungen | Regeln für die Antwort, jede ein Objekt, dessen `type` die Regel benennt, mit deren Parametern daneben. [Scoring](#checks) listet die Typen auf, und ein Fall mit einem Typ, den es nicht kennt, wird abgelehnt |
 | Tags | Labels zum Gruppieren von Ergebnissen, etwa `billing` oder `refusal` |
 | Notiz | Warum es den Fall gibt - was schiefging oder was er absichert |
 | Quelle | `manual`, `import`, `conversation` oder `synthetic` - von der Plattform gesetzt, nicht eingegeben |
@@ -38,6 +38,15 @@ ein Gegenbeispiel, ein erwarteter Tool-Aufruf oder eine Prüfung - mindestens
 eines davon. Ein Fall nur mit einer Eingabe könnte nie scheitern, deshalb wird er
 abgelehnt: Das Formular speichert ihn nicht, die API antwortet mit 422 und nennt
 `reference_answer`, und ein Import nennt die Zeile.
+
+Ein guter Fall ist klein: eine Frage und das eine, was eine richtige Antwort
+richtig machen muss. Meist genügt eine Referenzantwort oder ein Gegenbeispiel.
+Fügen Sie erwartete Tool-Aufrufe hinzu, wenn der Agent handeln statt nur
+antworten soll, Prüfungen, wenn sich eine Regel genau angeben lässt, und das
+Gespräch vor der Eingabe nur, wenn die Frage davon abhängt. Die Notiz ist für
+die nächste Person, die den Fall liest: was schiefging oder was er absichert.
+Beim Anlegen Ihres ersten Datasets bietet die Konsole eine geführte Tour an, die
+mit dem ersten Fall endet, Feld für Feld.
 
 Ein Fall aus einem Gespräch behält außerdem einen Verweis auf den Run, das
 Gespräch und die Nachricht, aus denen er stammt. Frage und Antwort werden in den
@@ -61,8 +70,17 @@ Ergebnissen vom Agent und nicht vom Test. Die Dataset-Seite zeigt standardmäßi
 die neueste Version; eine ältere wählen Sie in der Versionsliste. Eine ältere
 Version ist schreibgeschützt.
 
-Ein Dataset umzubenennen oder seine Beschreibung zu ändern erzeugt keine
-Version, weil keines von beiden einen Fall ändert.
+Ein Dataset mit **Details bearbeiten** auf seiner Seite umzubenennen oder seine
+Beschreibung zu ändern erzeugt keine Version, weil keines von beiden einen Fall
+ändert.
+
+Die Versionsliste zeigt die hundert neuesten Versionen; eine ältere öffnen Sie,
+indem Sie ihre Nummer eingeben. Jede Version hält eine Zeile pro Fall, daher
+halten die Versionen einer Organisation zusammen höchstens
+`DATASET_MAX_VERSION_ROWS_PER_ORG` Zeilen (standardmäßig 5 Millionen, siehe
+[Konfiguration](configuration.md#datasets)). Eine Änderung darüber wird
+abgelehnt und nennt, wie viele belegt sind; das Löschen eines Datasets gibt
+seine Zeilen frei.
 
 ## Fälle hinzufügen { #adding-cases }
 
@@ -112,9 +130,27 @@ Export wird im [Audit-Log](governance.md#audit) festgehalten.
 
 ### Aus einem Gespräch oder einem Run { #add-to-dataset }
 
-Jede Agent-Antwort im Chat und jeder Agent-Zug in **Aktivität** hat ein
-Bedienelement **Zum Dataset hinzufügen**. Wählen Sie ein Dataset, und der Fall
-entsteht aus diesem Zug:
+Es gibt zwei Wege, und beide erzeugen denselben Fall:
+
+- **Im Chat** bewerten Sie die Antwort, und die Bewertung entscheidet, als was
+  sie behalten wird. Nach einem Daumen nach oben bietet die Bestätigung **Zum
+  Dataset hinzufügen** an: Dataset wählen, und die Antwort wird als
+  Referenzantwort behalten. Nach einem Daumen nach unten bietet der Dialog, der
+  fragt, was schiefging, auch **Diese Antwort zu einem Dataset hinzufügen** an:
+  Haken setzen, Dataset wählen und absenden, und die Antwort wird als
+  Gegenbeispiel behalten. Zuerst wird die Bewertung gespeichert, danach der Fall
+  angelegt, sodass Ihr Kommentar zur Notiz des Falls wird. Es sind zwei
+  getrennte Schreibvorgänge - wird das Hinzufügen abgelehnt, bleibt die
+  Bewertung, und die Meldung sagt, welcher Teil fehlschlug. Wird die Bewertung
+  später entfernt, bleibt der Fall: Er ist eine Kopie, versioniert mit seinem
+  Dataset. Die Konsole merkt sich das zuletzt verwendete Dataset, sodass das
+  nächste Hinzufügen ein Klick ist.
+- **In Aktivität** hat jeder Agent-Zug ein Bedienelement **Zum Dataset
+  hinzufügen**. Hier werden Antworten kuratiert, daher lässt sich eine gute
+  Antwort ebenso leicht als Referenz behalten wie eine schlechte als
+  Gegenbeispiel.
+
+In beiden Fällen entsteht der Fall aus diesem Zug:
 
 - die Frage wird zur Eingabe, die Züge davor werden zum Gespräch vor der
   Eingabe;
@@ -123,7 +159,7 @@ entsteht aus diesem Zug:
   beiden;
 - der neueste Kommentar zu einem Daumen nach unten wird zur Notiz.
 
-Das Bedienelement sehen Mitglieder, die ein Dataset bearbeiten dürfen. Die
+Beide Wege sehen nur Mitglieder, die ein Dataset bearbeiten dürfen. Die
 Nachricht muss zu Ihrer Organisation gehören, und Sie müssen sie lesen dürfen:
 Entweder Sie haben `runs:view`, womit Sie wie in Aktivität jeden Run der
 Organisation lesen, oder Sie können das Gespräch öffnen. Eine Nachricht aus
@@ -199,6 +235,139 @@ Generierung schwärzt außerdem die Fragen und Abschnitte, die sie dem Generator
 übergibt, bevor sie an das Modell gehen. Der Audit-Eintrag der Änderung hält
 fest, wie viele Werte geschwärzt wurden, nie die Werte selbst.
 
+## Scoring { #scoring }
+
+Ein Dataset legt auf seinem Tab **Scoring** fest, wie seine Fälle bewertet
+werden. Vier Scorer können auf einen Fall angewendet werden, und jeder wird ein-
+oder ausgeschaltet und als erforderlich markiert oder nicht:
+
+| Scorer | Was er vergleicht | Kosten |
+|---|---|---|
+| Prüfungen | Die Antwort mit den Regeln des Falls und mit Standardregeln, die das Dataset jedem Fall mitgibt | Keine |
+| Tool-Aufrufe | Die Tools, die der Agent aufgerufen hat, mit den erwarteten Aufrufen des Falls | Keine |
+| Judge | Die Antwort anhand einer Rubrik benannter Kriterien, bewertet vom Eval-Judge | Ein Run des Judge |
+| Referenzantwort | Die Antwort mit der Referenzantwort des Falls, bewertet vom Eval-Judge | Derselbe Run des Judge |
+
+Jeder Scorer liefert bestanden oder nicht bestanden, einen Score von 0 bis 1 und
+eine Begründung. Ein Fall **besteht**, wenn jeder erforderliche Scorer besteht.
+Konnte ein erforderlicher Scorer nicht laufen - der Judge war ausgeschaltet,
+sein Budget war aufgebraucht -, ist der Fall **unbewertet**, nicht bestanden:
+Ein Ergebnis, das niemand geprüft hat, zählt nicht als bestanden.
+
+Die Konfiguration wird nicht mit den Fällen versioniert, weil die Art, wie ein
+Team bewertet, nicht das ist, was es fragt. Jeder Score bewahrt eine Kopie der
+Konfiguration auf, mit der er berechnet wurde, sodass ein älterer Score auch
+nach einer Änderung der Konfiguration noch sagt, wie er zustande kam.
+
+Eine Konfiguration, die nichts bewerten könnte, wird abgelehnt: alle Scorer
+ausgeschaltet oder der Judge eingeschaltet ohne ein Kriterium. Ebenso die
+Bewertung eines Falls, an dem keiner der konfigurierten Scorer etwas zu prüfen
+hat - nichts wird gespeichert, und der Judge wird nicht aufgerufen.
+
+### Prüfungen { #checks }
+
+| `type` | Parameter | Besteht, wenn |
+|---|---|---|
+| `contains`, `not_contains` | `value`, optional `path`, `case_sensitive` | Die Antwort den Wert enthält oder nicht enthält |
+| `equals` | `value`, optional `path`, `case_sensitive` | Die Antwort ohne umgebende Leerzeichen der Wert ist |
+| `regex` | `value` (höchstens 500 Zeichen), optional `path`, `case_sensitive` | Das Muster irgendwo in der Antwort passt |
+| `json_schema` | `schema`, optional `path` | Die Antwort JSON ist, das dem JSON Schema entspricht |
+| `max_cost_usd` | `value` | Der Run nicht mehr als das gekostet hat |
+| `max_latency_ms` | `value` | Der Run nicht länger als das gedauert hat |
+| `judge` | `criterion` | Der Eval-Judge das Kriterium mit der Bestehensgrenze oder höher bewertet |
+
+`path` liest in eine Antwort hinein, die JSON ist: `items.0.name` ist der Name
+des ersten Elements. Ohne ihn liest eine Regel die ganze Antwort. Textregeln
+unterscheiden nicht zwischen Groß- und Kleinschreibung, außer `case_sensitive`
+ist true. Ein Muster wird geprüft, wenn der Fall geschrieben wird, und eine Regel
+liest höchstens die ersten 100.000 Zeichen einer Antwort. Ein Muster, das auf
+einer Antwort länger als eine Zehntelsekunde braucht, wird abgebrochen und als
+Fehler festgehalten, damit ein einzelnes Muster das Scoring nicht aufhalten
+kann.
+
+Eine `judge`-Prüfung ist ein Kriterium nur für einen Fall, bewertet im selben
+Judge-Run wie die Rubrik des Datasets. Verwenden Sie sie für das, was eine Regel
+nicht ausdrücken kann, etwa „lehnt ab und verrät die Adresse des Kunden nicht“.
+
+### Tool-Aufrufe { #trajectory }
+
+Die Aufrufe des Agents werden mit den erwarteten Aufrufen des Falls nach
+Tool-Name und nach jedem Argument abgeglichen, das der Fall nennt. Der
+Reihenfolgemodus des Falls entscheidet, was besteht: Mit `any` hat jeder
+erwartete Aufruf stattgefunden; mit `in_order` fanden sie in der aufgeführten
+Reihenfolge statt; mit `exact` sind sie die einzigen Aufrufe und in dieser
+Reihenfolge. Die Begründung nennt, was fehlte, was nicht erwartet war oder dass
+die Reihenfolge abwich. Ein Schreibvorgang, den ein isolierter Run blockiert
+hat, zählt weiterhin als Aufruf, den der Agent gemacht hat.
+
+Ein Aufruf wird über den Tool-Namen abgeglichen, den der Run aufgezeichnet hat,
+also den Namen nach einer etwaigen Überschreibung im Spec. Ein Fall, der vor der
+Umbenennung eines Tools geschrieben wurde, erwartet den alten Namen.
+
+### Der Judge { #judge }
+
+Der Judge ist der **Eval judge**, ein Agent, den die Plattform jeder
+Organisation hinzufügt (siehe [System-Agents](concepts.md#system-agents)). Er
+läuft als die Person, die den Score angefordert hat: Ihr Zugriff auf ihn wird
+geprüft, er wird vor dem Modellaufruf gegen sein eigenes Budget und das der
+Organisation geprüft, und sein Run erscheint in Activity unter der Oberfläche
+`eval`. Seine Anweisungen lassen sich wie die jedes Agents bearbeiten, und ein
+Dataset kann ein anderes Modell für ihn festlegen.
+
+Der Judge läuft nur, wo die [KI-Unterstützung](governance.md#ai-assistance)
+eingeschaltet ist, und sie ist aus, bis ein Administrator sie für die
+Organisation einschaltet. Bis dahin werden die Kriterien des Judge und der
+Referenzantwort als übersprungen festgehalten, nur die regelbasierten Scorer
+bewerten, und der Tab Scoring sagt das, mit einem Link zum Schalter für den,
+der ihn ändern darf.
+
+Jedes Kriterium wird von 1 bis zum oberen Ende der Skala bewertet und besteht ab
+der Bestehensgrenze. Kann der Judge nicht bewerten, werden seine Kriterien als
+übersprungen oder als Fehler festgehalten, mit einer Begründung, die die
+Ursache nennt: KI-Unterstützung ist ausgeschaltet, der Judge hat keine
+veröffentlichte Version, er ist archiviert, die Person darf ihn nicht ausführen,
+oder sein Budget ist aufgebraucht. Die regelbasierten Scorer bewerten trotzdem.
+
+Eine Bewertung darf die Antwort zitieren, bis zu 12 Stellen; ein Zitat, das die
+Antwort nicht wörtlich enthält, wird in der Begründung als nicht verifiziert
+genannt, und die Bewertung bleibt bestehen. Jedes Ergebnis hält den Judge fest,
+der es bewertet hat - sein Modellprofil, die Version seiner Spec und einen Hash
+der Rubrik -, damit Ergebnisse verschiedener Judges nicht als gleichwertig
+verglichen werden.
+
+### Review und Urteile { #review }
+
+Ein Dataset kann Ergebnisse in eine **Review-Warteschlange** schicken: keine,
+bis jemand eines schickt, jedes Ergebnis, das nicht bestanden hat, oder jedes
+Ergebnis. Der Tab Scores zeigt die Ergebnisse eines Datasets, und die
+Dashboard-Karte **Awaiting review** zeigt die Warteschlange über alle Datasets,
+die Sie sehen können: wie viele Ergebnisse nicht bestanden haben, nicht bewertet
+werden konnten oder bestanden haben, und in welchen Datasets, jedes öffnet sich
+auf seinem Tab Scores. Die Karte ist standardmäßig auf dem Dashboard.
+
+Das Urteil einer Person wird neben den Ergebnissen der Scorer gespeichert und
+entscheidet über das Ergebnis. Es ändert nie, was der Judge gesagt hat: Die
+Bewertungen und Begründungen des Judge bleiben am Score, nachdem er überstimmt
+wurde. Ein Urteil kann zurückgezogen werden, und der Score wartet dann wieder
+auf ein Review.
+
+### Einen Run bewerten { #scoring-a-run }
+
+Öffnen Sie in **Activity** einen Run und wählen Sie **Score against a case**.
+Wählen Sie das Dataset und den Fall, und die Antwort und die Tool-Aufrufe des
+Runs werden mit jedem Scorer bewertet, den das Dataset konfiguriert. Ein Run
+ohne Transkript hat keine Antwort, die sich bewerten ließe.
+
+| Um | Brauchen Sie |
+|---|---|
+| Zu ändern, wie ein Dataset bewertet wird | `datasets:edit` darauf |
+| Einen Run dagegen zu bewerten | `datasets:run` darauf und `runs:view` |
+| Seine Scores zu lesen | `datasets:view` darauf |
+| Ein Urteil festzuhalten oder zurückzuziehen | `datasets:edit` darauf |
+
+Eine Begründung, die der Judge geschrieben hat, durchläuft vor dem Speichern
+dieselbe Schwärzung von Zugangsdaten wie ein Fall.
+
 ## Zugriff { #access }
 
 Ein Dataset ist eine geteilte Ressource mit Besitzer, Sichtbarkeit und Grants,
@@ -234,6 +403,12 @@ wer ihn hinzugefügt hat, falls das die gelöschte Person war. Es bleibt der Tex
 der weiterhin personenbezogene Daten enthalten kann, die jemand eingegeben hat,
 und erst mit dem Löschen des Falls verschwindet. Siehe
 [Datenschutz](data-protection.md#what-deletion-reaches).
+
+Ein Score wird auf dieselbe Weise aufbewahrt. Wird der Run entfernt, den er
+bewertet hat, bleibt der Score ohne die Verbindung zu ihm, und wird die Person
+gelöscht, die ihn angefordert oder entschieden hat, wird ihr Name aus ihm
+entfernt. Die Begründung eines Judge kann die Antwort zitieren, die er bewertet
+hat.
 
 Ein generierter Fall, der noch auf eine Entscheidung wartet, wird nicht so
 aufbewahrt. Wird das Gespräch gelöscht, aus dem er entworfen wurde, oder die

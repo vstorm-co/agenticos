@@ -6,7 +6,9 @@ own columns and decides the outcome when there is one, so overriding the judge
 never erases what the judge said.
 
 Each row keeps the scoring configuration it was computed with, because a
-dataset's configuration is not versioned and may change after the score.
+dataset's configuration is not versioned and may change after the score, and
+which judge graded it, so a comparison between two scores can tell whether the
+same judge graded both.
 """
 
 import uuid
@@ -57,6 +59,8 @@ class CaseScore(Base):
     )
     scoring: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     results: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False)
+    # Null when no judge graded the answer.
+    judge: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     passed: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     review_state: Mapped[str] = mapped_column(
         String(16), nullable=False, default="none", server_default="none"

@@ -44,6 +44,7 @@ const BUILDER_STEPS = [
   "agent-limits",
   "agent-availability",
   "agent-history",
+  "agent-test-connections",
   "agent-publish",
 ];
 
@@ -246,7 +247,11 @@ describe("stepsForPage", () => {
       stepsForPage("/agents/some-id", (permission) => permission === Perm.agentsView).map(
         (step) => step.id,
       ),
-    ).toEqual(BUILDER_STEPS.filter((id) => id !== "agent-publish"));
+    ).toEqual(
+      // Both are agents:publish: publishing, and the test connections a
+      // publisher manages per environment.
+      BUILDER_STEPS.filter((id) => id !== "agent-publish" && id !== "agent-test-connections"),
+    );
   });
 
   it("walks the list and then the whole collection when asked from the Knowledge list", () => {
@@ -270,6 +275,7 @@ describe("stepsForPage", () => {
       "activity-runs",
       "activity-spend",
       "run-detail-input",
+      "runs-score-against-case",
     ]);
   });
 

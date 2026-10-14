@@ -1,5 +1,5 @@
 ---
-source_sha: "f9095b371b20"
+source_sha: "ea4b578bb095"
 ---
 
 # La consola { #the-console }
@@ -17,7 +17,7 @@ página cuya cabecera no lleva "?" no tiene recorrido que reproducir.
 La página de inicio es una **cuadrícula de widgets que tú ordenas**, y es la
 respuesta a "qué está pasando" sin abrir cinco páginas.
 
-Existen treinta y seis tarjetas. No las verás todas: **cada tarjeta está
+Existen treinta y ocho tarjetas. No las verás todas: **cada tarjeta está
 protegida por el permiso que necesitan sus datos**, así que un widget que no
 puedes leer nunca se monta y sus consultas nunca se lanzan — excepto tus
 propias notificaciones, más abajo, que solo necesitan que hayas iniciado
@@ -34,7 +34,7 @@ Llegan agrupadas en bandas:
 | **Usage** | Runs, resultados, superficies, latencia, gasto, mezcla de modelos, comparación de versiones |
 | **People** | Miembros, usuarios activos, valoraciones, quién hace qué |
 | **Sandboxes** | [Capacidad, sesiones en curso, política](sandbox.md) |
-| **Workspace** | Lo tuyo: tus agents, tus conversaciones, tu actividad, lo que han compartido contigo |
+| **Workspace** | Lo tuyo: tus agents, tus conversaciones, tu actividad, lo que han compartido contigo y tus [datasets](datasets.md) con aquello contra lo que prueban sus casos |
 
 ### Reordenarlo { #rearranging-it }
 
@@ -182,7 +182,7 @@ que un problema real se lea como algo tranquilo.
 
 ## Recapitulación { #recap }
 
-- El dashboard son **treinta y seis widgets** que ordenas tú, guardados por
+- El dashboard son **treinta y ocho widgets** que ordenas tú, guardados por
   persona y por organización — todos menos tus propias notificaciones
   protegidos por el permiso que necesitan sus datos.
 - Una disposición guardada **puede ocultar y reordenar, pero nunca revelar** — la

@@ -39,6 +39,7 @@ from app.schemas.scoring import (
     CaseScoreRead,
     CaseVerdict,
     DatasetScoring,
+    ReviewQueue,
 )
 from app.services.dataset_files import MAX_IMPORT_BYTES
 
@@ -54,18 +55,27 @@ async def list_datasets(
     shared_with_me: bool = Query(
         False, description="Only what was shared with the caller - never their own rows"
     ),
+    editable: bool = Query(
+        False, description="Only the datasets the caller may change, by role or by a grant"
+    ),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
     """The datasets the caller may see, each with its newest version and case count."""
     return await service.list_readable(
-        ctx, shared_with_me=shared_with_me, search=q, sort=sort, skip=skip, limit=limit
+        ctx,
+        shared_with_me=shared_with_me,
+        editable=editable,
+        search=q,
+        sort=sort,
+        skip=skip,
+        limit=limit,
     )
 
 
 @router.get(
     "/review-queue",
-    response_model=CaseScoreList,
+    response_model=ReviewQueue,
     dependencies=[Depends(require(Perm.DATASETS_VIEW))],
 )
 async def list_review_queue(

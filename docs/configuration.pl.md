@@ -1,5 +1,5 @@
 ---
-source_sha: "130cbafc773f"
+source_sha: "59a130434689"
 ---
 
 # Konfiguracja { #configuration }
@@ -694,6 +694,14 @@ podpisuje na nim adresy treści, a frontend dodaje je do `frame-src` konsoli.
 Ustaw je w środowisku backendu i w środowisku frontendu; pliki compose przekazują
 je obu. Wartość tylko w jednym z nich daje pustą ramkę, bo przeglądarka odmawia
 załadowania strony z originu, na który konsola nie pozwoliła.
+
+## Datasety { #datasets }
+
+Przypadki testowe, na których działają evale. Zobacz [Datasety](datasets.md).
+
+| Zmienna | Domyślnie | Opis |
+|----------|---------|-------------|
+| `DATASET_MAX_VERSION_ROWS_PER_ORG` | `5000000` | Ile wierszy przypadków mogą łącznie trzymać wersje datasetów jednej organizacji. Każda zmiana zapisuje wersję z wierszem na przypadek, więc dataset z 10 000 przypadków edytowany 500 razy trzyma 5 milionów. Zmiana ponad limit jest odrzucana z podaniem, ile jest zajęte; usunięcie niepotrzebnych datasetów zwalnia ich wiersze. Limit jest przybliżony: każda zmiana jest sprawdzana osobno, więc zmiany w różnych datasetach w tej samej chwili mogą go nieznacznie przekroczyć. Chroni miejsce w bazie, nie służy do rozliczeń |
 
 ## Workspace'y agentów { #agent-workspaces }
 

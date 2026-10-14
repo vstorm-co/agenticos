@@ -29,6 +29,10 @@ export interface DatasetQuery {
   sort?: DatasetSort;
   skip?: number;
   limit?: number;
+  /** Only the datasets the caller may change, by role or by a grant. */
+  editable?: boolean;
+  /** False holds the request until it is needed, as a picker behind a checkbox is. */
+  enabled?: boolean;
 }
 
 export interface NewDataset {
@@ -47,22 +51,26 @@ export function useDatasets({
   sort = "name",
   skip = 0,
   limit = PAGE_SIZE,
+  editable = false,
+  enabled = true,
 }: DatasetQuery = {}) {
   const t = useTranslations("datasets");
   const tErrors = useTranslations("errors");
   const queryClient = useQueryClient();
 
-  const { data, isLoading, error, refetch } = useQuery({
-    queryKey: qk.datasets.list({ search, sort, skip, limit }),
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
+    queryKey: qk.datasets.list({ search, sort, skip, limit, editable }),
     queryFn: () => {
       const params = new URLSearchParams();
       if (search) params.set("q", search);
+      if (editable) params.set("editable", "true");
       params.set("sort", sort);
       params.set("skip", String(skip));
       params.set("limit", String(limit));
       return apiClient.get<DatasetList>(`/datasets?${params}`);
     },
     placeholderData: (previous) => previous,
+    enabled,
   });
 
   const invalidate = useCallback(
@@ -93,6 +101,7 @@ export function useDatasets({
     datasets: data?.items ?? [],
     total: data?.total ?? 0,
     isLoading,
+    isFetching,
     error,
     refetch,
     create,
@@ -149,6 +158,8 @@ export function useDatasetCases(
       if (version !== null) params.set("version", String(version));
       return apiClient.get<DatasetCaseList>(`/datasets/${datasetId}/cases?${params}`);
     },
+    // A picker asks before a dataset is chosen; there is nothing to read until one is.
+    enabled: datasetId !== "",
     placeholderData: (previous) => previous,
   });
 

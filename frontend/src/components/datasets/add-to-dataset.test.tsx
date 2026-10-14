@@ -9,13 +9,22 @@ const state = vi.hoisted(() => ({
   granted: [] as string[],
   datasets: [] as { id: string; name: string; can_edit: boolean }[],
   isLoading: false,
+  total: 0,
+  lastQuery: undefined as unknown,
   add: vi.fn(),
 }));
 vi.mock("@/hooks/use-permissions", () => ({
   usePermissions: () => ({ can: (perm: string) => state.granted.includes(perm) }),
 }));
 vi.mock("@/hooks/use-datasets", () => ({
-  useDatasets: () => ({ datasets: state.datasets, isLoading: state.isLoading }),
+  // The server's `editable` filter, as the listing applies it.
+  useDatasets: (query: { editable?: boolean }) => {
+    state.lastQuery = query;
+    const rows = query.editable
+      ? state.datasets.filter((dataset) => dataset.can_edit)
+      : state.datasets;
+    return { datasets: rows, total: state.total || rows.length, isLoading: state.isLoading };
+  },
   useAddToDataset: () => ({ mutateAsync: state.add, isPending: false }),
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -33,12 +42,43 @@ describe("Add to dataset", () => {
       { id: "d3", name: "returns", can_edit: true },
     ];
     state.isLoading = false;
+    state.total = 0;
   });
 
   it("is not offered to somebody who edits no dataset", () => {
     state.granted = [Perm.datasetsView];
+    state.datasets = [{ id: "d2", name: "read only", can_edit: false }];
     render(<AddToDatasetButton messageId="m1" ratedDown />);
     expect(screen.queryByRole("button", { name: "Add to dataset" })).toBeNull();
+  });
+
+  it("is offered to somebody an edit grant lets add to one dataset", async () => {
+    state.granted = [Perm.datasetsView];
+    state.add.mockResolvedValue({});
+    render(<AddToDatasetButton messageId="m1" ratedDown />);
+    await open();
+    await userEvent.click(screen.getByRole("button", { name: "Add" }));
+    await waitFor(() => expect(state.add).toHaveBeenCalled());
+  });
+
+  it("asks the server for any one dataset the caller may edit, not a page of recent ones", () => {
+    state.granted = [Perm.datasetsView];
+    render(<AddToDatasetButton messageId="m1" ratedDown />);
+    expect(state.lastQuery).toEqual({ limit: 1, editable: true, enabled: true });
+    expect(screen.getByRole("button", { name: "Add to dataset" })).toBeInTheDocument();
+  });
+
+  it("searches every dataset once the list stops short of them all", async () => {
+    state.total = 250;
+    render(<AddToDatasetButton messageId="m1" ratedDown />);
+    await open();
+    await userEvent.type(screen.getByPlaceholderText("Find a dataset"), "ret");
+    await waitFor(() =>
+      expect(state.lastQuery).toEqual(expect.objectContaining({ search: "ret" })),
+    );
+    state.datasets = [];
+    await userEvent.type(screen.getByPlaceholderText("Find a dataset"), "x");
+    expect(screen.getByPlaceholderText("Find a dataset")).toBeInTheDocument();
   });
 
   it("adds a rated-down answer as the counter-example to the first dataset it may edit", async () => {
@@ -62,7 +102,7 @@ describe("Add to dataset", () => {
 
   it("keeps an answer nobody rated down as the reference, into the dataset chosen", async () => {
     state.add.mockResolvedValue({});
-    render(<AddToDatasetButton messageId="m2" ratedDown={false} variant="icon" />);
+    render(<AddToDatasetButton messageId="m2" ratedDown={false} />);
     await open();
     await userEvent.click(screen.getByRole("combobox", { name: "Dataset" }));
     await userEvent.click(screen.getByRole("option", { name: "returns" }));

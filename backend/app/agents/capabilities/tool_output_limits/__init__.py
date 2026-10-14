@@ -44,6 +44,7 @@ __all__ = [
 
 @register(
     id="tool_output_limits",
+    read_only=True,
     name="Tool output limits",
     category="utility",
     description=(

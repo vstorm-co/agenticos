@@ -13,6 +13,7 @@ from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -51,6 +52,7 @@ from app.agents.capabilities.planning import PLANNING_STORE_RESOURCE
 from app.agents.capabilities.sandbox import WORKSPACE_RESOURCE
 from app.agents.capabilities.sandbox._capability import build_workspace
 from app.agents.connect_on_use import ConnectionRequest, ConnectOnUse
+from app.agents.isolation import InterceptedCall, RecordedCall, RunIsolation, ToolRecording
 from app.agents.spec import (
     AgentSpec,
     CapabilityBindingSpec,
@@ -61,7 +63,9 @@ from app.agents.spec import (
 from app.agents.subagent_runtime import DelegationSpend, DelegationStash, ParkedDelegation
 from app.core.exceptions import BadRequestError, NotFoundError, RunExecutionError
 from app.core.permissions import AuthContext, OrgRoleName
+from app.db.models.agent_environment import AgentEnvironmentConnection
 from app.db.models.agent_run import ApprovalStatus, RunStatus, RunSurface
+from app.db.models.intercepted_tool_call import InterceptionOutcome, InterceptionReason
 from app.services.agent_runner import (
     AgentRunnerService,
     ApprovalChannel,
@@ -73,6 +77,7 @@ from app.services.agent_runner import (
     RunSegment,
     _connect_on_use,
     _with_personal_service_gaps,
+    _with_test_secrets,
     month_start,
     run_failure_summary,
 )
@@ -412,6 +417,8 @@ class TestPrepare:
             # An API run has no person at the keyboard - the context is the key
             # holder's - so no personal binding may reach for anybody's account.
             "sender_user_id": None,
+            # A run naming no environment is production, which swaps nothing.
+            "test_connections": {},
         }
         # Alongside what the surface brought, not instead of it: the WebSocket
         # chat still attaches its own, and dropping either half would leave an
@@ -3522,6 +3529,10 @@ class TestARunThatArrivedThroughABinding:
                 "app.services.agent_runner.agent_environment_repo.get",
                 new=AsyncMock(return_value=None),
             ),
+            patch(
+                "app.services.agent_runner.agent_environment_repo.list_connections",
+                new=AsyncMock(return_value=[]),
+            ),
             patch.object(
                 service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
             ),
@@ -3540,6 +3551,101 @@ class TestARunThatArrivedThroughABinding:
         # The run records the version the environment resolved, not the
         # default of the moment - or history would lie about what answered.
         assert opened["agent_version_id"] == pinned_version_id
+
+    @staticmethod
+    async def _prepare_in_staging(
+        spec: AgentSpec, rows: list[AgentEnvironmentConnection]
+    ) -> tuple[AsyncMock, AsyncMock, MagicMock]:
+        environment_id = uuid.uuid4()
+        exposure = _exposure(environment_id=environment_id)
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        listed = AsyncMock(return_value=rows)
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, spec, uuid.uuid4())),
+            ),
+            patch(
+                "app.services.agent_runner.agent_environment_repo.get",
+                new=AsyncMock(return_value=None),
+            ),
+            patch("app.services.agent_runner.agent_environment_repo.list_connections", new=listed),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch.object(
+                service.secrets, "resolve_for_bindings", new=AsyncMock(return_value={})
+            ) as unsealed,
+            patch(
+                "app.services.agent_runner.build_toolsets_for_agent",
+                new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
+            ) as toolsets,
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch("app.services.agent_runner.build_agent") as build,
+        ):
+            await service.prepare(_ctx(), agent.id, exposure=exposure)
+        assert listed.await_args.kwargs["environment_ids"] == [environment_id]
+        return toolsets, unsealed, build
+
+    @pytest.mark.anyio
+    async def test_a_staging_bot_reaches_the_environments_test_connections(self):
+        """The same mechanism an eval uses, outside one: a bot bound to staging
+        answers with the sandbox CRM and the test key, never production's."""
+        crm, sandbox = uuid.uuid4(), uuid.uuid4()
+        live_key, test_key = uuid.uuid4(), uuid.uuid4()
+        spec = AgentSpec(
+            name="Support",
+            mcp_servers=[OrgMcpServerRef(connection_id=crm)],
+            capabilities=[
+                CapabilityBindingSpec(id="clock"),
+                CapabilityBindingSpec(
+                    id="web_research", config={"provider": "tavily"}, secret_id=live_key
+                ),
+            ],
+        )
+
+        toolsets, unsealed, build = await self._prepare_in_staging(
+            spec,
+            [
+                AgentEnvironmentConnection(
+                    kind="mcp", production_id=crm, test_connection_id=sandbox
+                ),
+                AgentEnvironmentConnection(
+                    kind="secret", production_id=live_key, test_secret_id=test_key
+                ),
+            ],
+        )
+
+        assert toolsets.await_args.kwargs["test_connections"] == {crm: sandbox}
+        assert unsealed.await_args.args[1] == [test_key]
+        assert [(b.id, b.secret_id) for b in build.call_args.args[0].capabilities] == [
+            ("clock", None),
+            ("web_research", test_key),
+        ]
+
+    @pytest.mark.anyio
+    async def test_a_deleted_test_key_refuses_the_run_rather_than_use_production(self):
+        live_key = uuid.uuid4()
+        spec = AgentSpec(
+            name="Support",
+            capabilities=[
+                CapabilityBindingSpec(
+                    id="web_research", config={"provider": "tavily"}, secret_id=live_key
+                )
+            ],
+        )
+
+        with pytest.raises(BadRequestError, match="test key"):
+            await self._prepare_in_staging(
+                spec,
+                [AgentEnvironmentConnection(kind="secret", production_id=live_key)],
+            )
 
     @pytest.mark.anyio
     async def test_the_run_records_the_binding_that_admitted_it(self):
@@ -4458,3 +4564,288 @@ class TestWhatAPreparedRunSaysThePersonCannotReach:
             prepared = await service.prepare(ctx, agent.id)
 
         assert prepared.personal_service_gaps == []
+
+
+class TestAnIsolatedRun:
+    """An eval's run: the runner threads the isolation and writes what it held."""
+
+    @pytest.mark.anyio
+    async def test_the_isolation_reaches_the_agent_and_the_prepared_run(self):
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        isolation = RunIsolation()
+
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, AgentSpec(name="Support"), uuid.uuid4())),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch("app.services.agent_runner.build_agent") as build,
+        ):
+            prepared = await service.prepare(_ctx(), agent.id, isolation=isolation)
+
+        assert build.call_args.kwargs["isolation"] is isolation
+        assert build.call_args.kwargs["test_bindings"] == frozenset()
+        assert prepared.isolation is isolation
+
+    @pytest.mark.anyio
+    async def test_execute_runs_isolated_when_asked(self):
+        service = AgentRunnerService(_db())
+        isolation = RunIsolation()
+
+        prepare = AsyncMock(side_effect=RuntimeError("stop"))
+        with patch.object(service, "prepare", new=prepare), pytest.raises(RuntimeError):
+            await service.execute(_ctx(), uuid.uuid4(), "hi", isolation=isolation)
+
+        assert prepare.await_args.kwargs["isolation"] is isolation
+
+    @pytest.mark.anyio
+    async def test_finishing_writes_the_held_calls_once(self):
+        """A run finished twice must not write its calls twice."""
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        prepared.isolation = RunIsolation(
+            intercepted=[
+                InterceptedCall(
+                    agent_id=None,
+                    tool_call_id="call-1",
+                    tool_name="crm_create",
+                    tool_id="tool:crm_create",
+                    args={"name": "Ada"},
+                    outcome=InterceptionOutcome.BLOCKED,
+                    reason=InterceptionReason.WRITES,
+                )
+            ]
+        )
+        written = AsyncMock()
+
+        with (
+            patch("app.services.agent_runner.intercepted_tool_call_repo.add_many", new=written),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+        ):
+            await service.finish(prepared, status=RunStatus.COMPLETED)
+            await service.finish(prepared, status=RunStatus.COMPLETED)
+
+        written.assert_awaited_once()
+        (row,) = written.await_args.kwargs["calls"]
+        assert (row.tool_call_id, row.tool_name, row.args, row.outcome, row.reason) == (
+            "call-1",
+            "crm_create",
+            {"name": "Ada"},
+            "blocked",
+            "writes",
+        )
+        assert written.await_args.kwargs["run_id"] == prepared.run.id
+
+
+def _row(
+    name: str,
+    args: dict[str, Any],
+    result: str | None,
+    *,
+    call_id: str,
+    at: datetime,
+    turn: MagicMock,
+) -> tuple[MagicMock, MagicMock]:
+    return (
+        MagicMock(tool_name=name, args=args, result=result, tool_call_id=call_id, started_at=at),
+        turn,
+    )
+
+
+class TestARecordingOfAPastRun:
+    """Answered from the run's `tool_calls` rows; the manifest only checks they are whole."""
+
+    START = datetime(2026, 10, 1, tzinfo=UTC)
+
+    @staticmethod
+    def _manifest(*calls: str, truncated: bool = False) -> SimpleNamespace:
+        # A trimmed manifest has lost its messages but never its request waterfall.
+        return SimpleNamespace(
+            truncated=truncated,
+            payload={"messages": [], "requests": [{"tool_calls": list(calls)}, {"tool_calls": []}]},
+        )
+
+    async def _recording(
+        self,
+        rows: list[tuple[MagicMock, MagicMock]],
+        manifest: SimpleNamespace | None,
+        *,
+        spec: AgentSpec | None = None,
+    ) -> ToolRecording:
+        service = AgentRunnerService(_db())
+        run = MagicMock(id=uuid.uuid4(), agent_version_id=None if spec is None else uuid.uuid4())
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.get_run", new=AsyncMock(return_value=run)
+            ),
+            patch(
+                "app.services.agent_runner.run_manifest_repo.get_by_run",
+                new=AsyncMock(return_value=manifest),
+            ),
+            patch(
+                "app.services.agent_runner.conversation_repo.list_tool_calls_for_run",
+                new=AsyncMock(return_value=rows),
+            ),
+            patch(
+                "app.services.agent_runner.agent_repo.get_version",
+                new=AsyncMock(
+                    return_value=None if spec is None else SimpleNamespace(spec=spec.model_dump())
+                ),
+            ),
+        ):
+            return await service.tool_recording(_ctx(), uuid.uuid4())
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_a_run_with_no_manifest_cannot_be_replayed(self):
+        """Without it nothing says whether the rows are the whole run."""
+        turn = MagicMock(id=uuid.uuid4(), parts=None)
+        rows = [_row("crm_find", {}, "x", call_id="a", at=self.START, turn=turn)]
+
+        with pytest.raises(BadRequestError, match="no complete record"):
+            await self._recording(rows, None)
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_a_call_the_manifest_names_with_no_row_refuses_the_whole_recording(self):
+        """Never a partial replay: the missing call would read as the agent's divergence."""
+        turn = MagicMock(id=uuid.uuid4(), parts=None)
+        rows = [_row("crm_find", {}, "x", call_id="a", at=self.START, turn=turn)]
+
+        with pytest.raises(BadRequestError, match="no complete record"):
+            await self._recording(rows, self._manifest("crm_find", "crm_create"))
+
+    @pytest.mark.anyio
+    async def test_a_trimmed_manifest_still_vouches_for_complete_rows(self):
+        """`fit()` drops messages first and keeps the waterfall, and the rows are the source."""
+        turn = MagicMock(id=uuid.uuid4(), parts=None)
+        rows = [_row("crm_find", {"name": "Ada"}, "Ada", call_id="a", at=self.START, turn=turn)]
+
+        recording = await self._recording(rows, self._manifest("crm_find", truncated=True))
+
+        assert recording.answer("tool:crm_find", {"name": "Ada"}) == RecordedCall(
+            "tool:crm_find", '{"name":"Ada"}', "Ada"
+        )
+
+    @pytest.mark.anyio
+    async def test_calls_are_answered_in_the_order_the_repository_gives_them(self):
+        turn = MagicMock(id=uuid.uuid4(), parts=None)
+        rows = [
+            _row("now", {}, "first", call_id="b", at=self.START, turn=turn),
+            _row("now", {}, "second", call_id="a", at=self.START, turn=turn),
+        ]
+
+        recording = await self._recording(rows, self._manifest("now", "now"))
+
+        assert [recording.answer("tool:now", {}) for _ in range(2)] == [
+            RecordedCall("tool:now", "{}", "first"),
+            RecordedCall("tool:now", "{}", "second"),
+        ]
+
+    @pytest.mark.anyio
+    async def test_a_renamed_tool_resolves_through_the_version_that_answered(self):
+        turn = MagicMock(id=uuid.uuid4(), parts=None)
+        spec = AgentSpec(
+            name="Notes",
+            capabilities=[
+                {"id": "memory_files", "tool_overrides": {"read_memory": {"name": "look_up_note"}}}
+            ],
+        )
+        rows = [
+            _row("look_up_note", {"name": "a"}, "A", call_id="a", at=self.START, turn=turn),
+            _row("look_up_note", {"name": "b"}, None, call_id="b", at=self.START, turn=turn),
+        ]
+
+        recording = await self._recording(
+            rows, self._manifest("look_up_note", "look_up_note"), spec=spec
+        )
+
+        assert recording.answer("capability:memory_files.read_memory", {"name": "a"}) is not None
+        # A call that never returned has nothing to answer with.
+        assert recording.answer("capability:memory_files.read_memory", {"name": "b"}) is None
+
+    @pytest.mark.anyio
+    async def test_a_version_that_is_gone_leaves_plain_names(self):
+        turn = MagicMock(id=uuid.uuid4(), parts=None)
+        rows = [_row("look_up_note", {}, "A", call_id="a", at=self.START, turn=turn)]
+        service = AgentRunnerService(_db())
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.get_run",
+                new=AsyncMock(return_value=MagicMock(agent_version_id=uuid.uuid4())),
+            ),
+            patch(
+                "app.services.agent_runner.run_manifest_repo.get_by_run",
+                new=AsyncMock(return_value=self._manifest("look_up_note")),
+            ),
+            patch(
+                "app.services.agent_runner.conversation_repo.list_tool_calls_for_run",
+                new=AsyncMock(return_value=rows),
+            ),
+            patch(
+                "app.services.agent_runner.agent_repo.get_version", new=AsyncMock(return_value=None)
+            ),
+        ):
+            recording = await service.tool_recording(_ctx(), uuid.uuid4())
+
+        assert recording.answer("tool:look_up_note", {}) is not None
+
+
+class TestSwappingTestKeys:
+    """Which bindings an environment's test keys reach, and which they do not."""
+
+    def test_only_a_binding_that_held_the_production_key_counts_as_swapped(self):
+        """A binding that holds the test key in its own right was never swapped,
+        so nothing it does may be taken for a call to a test system."""
+        live, test = uuid.uuid4(), uuid.uuid4()
+        spec = AgentSpec(
+            name="Support",
+            capabilities=[
+                {"id": "web_research", "config": {"provider": "tavily"}, "secret_id": live},
+                {"id": "memory_mem0", "config": {}, "secret_id": test},
+            ],
+        )
+
+        swapped_spec, swapped = _with_test_secrets(spec, {live: test})
+
+        assert swapped == frozenset({"web_research"})
+        assert [binding.secret_id for binding in swapped_spec.capabilities] == [test, test]
+
+    def test_a_disabled_binding_is_neither_swapped_nor_refused(self):
+        """It builds nothing, so a test key deleted since is no reason to stop the run."""
+        live = uuid.uuid4()
+        spec = AgentSpec(
+            name="Support",
+            capabilities=[
+                {
+                    "id": "web_research",
+                    "config": {"provider": "tavily"},
+                    "secret_id": live,
+                    "enabled": False,
+                }
+            ],
+        )
+
+        assert _with_test_secrets(spec, {live: None}) == (spec, frozenset())
+
+    def test_an_enabled_binding_on_a_deleted_test_key_is_refused(self):
+        live = uuid.uuid4()
+        spec = AgentSpec(
+            name="Support",
+            capabilities=[
+                {"id": "web_research", "config": {"provider": "tavily"}, "secret_id": live}
+            ],
+        )
+
+        with pytest.raises(BadRequestError):
+            _with_test_secrets(spec, {live: None})

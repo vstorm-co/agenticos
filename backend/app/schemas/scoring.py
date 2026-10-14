@@ -9,11 +9,11 @@ a person's verdict on it.
 
 from __future__ import annotations
 
-import re
 from datetime import datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
+import regex
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
 from pydantic import (
@@ -27,8 +27,6 @@ from pydantic import (
 
 from app.schemas.base import BaseSchema
 
-# A pattern is compiled from a person's input and run over a model's answer; both
-# are bounded, so a pathological pattern costs a bounded amount of backtracking.
 MAX_PATTERN = 500
 MAX_CHECK_VALUE = 2000
 MAX_CRITERION = 1000
@@ -57,8 +55,8 @@ class TextCheck(BaseSchema):
             if len(self.value) > MAX_PATTERN:
                 raise ValueError(f"A pattern is at most {MAX_PATTERN} characters")
             try:
-                re.compile(self.value)
-            except re.error as exc:
+                regex.compile(self.value)
+            except regex.error as exc:
                 raise ValueError(f"Not a valid regular expression: {exc}") from exc
         return self
 
@@ -208,6 +206,21 @@ class CaseVerdict(BaseSchema):
     note: str | None = Field(default=None, max_length=2000)
 
 
+class JudgePin(BaseSchema):
+    """Which judge graded a score.
+
+    Two scores are graded alike only when every field matches. `rubric_hash`
+    fingerprints what the judge was asked: each criterion it graded and the
+    scale. `model_profile_id` is the model it ran on - the dataset's choice, or
+    the one its version publishes on.
+    """
+
+    model_profile_id: UUID | None = None
+    agent_version_id: UUID | None = None
+    spec_version: int | None = None
+    rubric_hash: str
+
+
 class CaseScoreRead(BaseSchema):
     """One run's answer scored against one case.
 
@@ -223,6 +236,7 @@ class CaseScoreRead(BaseSchema):
     case_revision_id: UUID
     run_id: UUID | None = None
     results: list[ScorerResult]
+    judge: JudgePin | None = None
     passed: bool | None = None
     review_state: ReviewState
     human_passed: bool | None = None
@@ -241,3 +255,28 @@ class CaseScoreRead(BaseSchema):
 class CaseScoreList(BaseSchema):
     items: list[CaseScoreRead]
     total: int
+
+
+class PendingScore(CaseScoreRead):
+    """A score in the review queue, with the dataset it belongs to."""
+
+    dataset_name: str
+
+
+class PendingDataset(BaseSchema):
+    """How many scores wait in one dataset, by what the scorers concluded."""
+
+    dataset_id: UUID
+    name: str
+    failed: int = 0
+    unscored: int = 0
+    passed: int = 0
+
+
+class ReviewQueue(BaseSchema):
+    """Scores waiting for a verdict: a page of them, oldest first, and every
+    dataset that holds any, most waiting first."""
+
+    items: list[PendingScore]
+    total: int
+    datasets: list[PendingDataset]

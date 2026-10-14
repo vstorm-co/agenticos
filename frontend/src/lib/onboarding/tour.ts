@@ -13,7 +13,10 @@ export const AGENT_BUILDER = "agent-builder";
 /** The knowledge-base detail view, `/rag/<id>`, collapsed to one identity the same way. */
 export const KB_DETAIL = "kb-detail";
 
-/** One dataset, `/datasets/<id>`, collapsed the same way. */
+/**
+ * A dataset's own page, `/datasets/<id>`, collapsed the same way: its cases, its
+ * scoring and its scores. The walk opens the first dataset the reader can see.
+ */
 export const DATASET_DETAIL = "dataset-detail";
 
 /**
@@ -260,6 +263,16 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.agentsView,
     inTour: true,
   },
+  // On the first named environment's test-connections toggle, which only an
+  // agent with one renders and only a publisher sees.
+  {
+    id: "agent-test-connections",
+    page: AGENT_BUILDER,
+    target: "environment-connections",
+    activate: "agent-tab-history",
+    permission: Perm.agentsPublish,
+    optional: true,
+  },
   {
     id: "agent-publish",
     page: AGENT_BUILDER,
@@ -393,6 +406,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.runsView,
     optional: true,
   },
+  // Only on a focused run with an answer, for somebody who may run evals.
+  {
+    id: "runs-score-against-case",
+    page: ROUTES.RUNS,
+    target: "runs-score-against-case",
+    permission: Perm.datasetsRun,
+    optional: true,
+  },
 
   {
     id: "knowledge-new",
@@ -470,6 +491,23 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "kb-sync",
     activate: "kb-tab-sync",
     permission: Perm.collectionsView,
+  },
+
+  // Each tab stop selects its own tab; the scores stop anchors on the review filter
+  // because the list below it can hold any number of results.
+  {
+    id: "dataset-scoring",
+    page: DATASET_DETAIL,
+    target: "datasets-scoring",
+    activate: "datasets-scoring-tab",
+    permission: Perm.datasetsView,
+  },
+  {
+    id: "dataset-scores",
+    page: DATASET_DETAIL,
+    target: "datasets-review-filter",
+    activate: "datasets-scores-tab",
+    permission: Perm.datasetsView,
   },
 
   { id: "orgs-new", page: ROUTES.ORGS, target: "orgs-new" },
@@ -627,6 +665,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
 const SECTION_FLOWS: readonly (readonly string[])[] = [
   [ROUTES.AGENTS, AGENT_BUILDER],
   [ROUTES.RAG, KB_DETAIL],
+  [ROUTES.DATASETS, DATASET_DETAIL],
   [ROUTES.ORGS, ORG_MEMBERS, ORG_ROLES],
 ];
 

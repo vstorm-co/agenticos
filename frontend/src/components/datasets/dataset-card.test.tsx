@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+import { DEFAULT_SCORING } from "@/lib/scoring";
 import type { Dataset } from "@/types/datasets";
 import { DatasetCard } from "./dataset-card";
 
@@ -15,6 +16,15 @@ const DATASET: Dataset = {
   case_count: 12,
   can_edit: true,
   pending_proposals: 0,
+  scoring: DEFAULT_SCORING,
+  stats: {
+    with_reference: 0,
+    with_counter_example: 0,
+    with_tool_calls: 0,
+    with_checks: 0,
+    by_source: { manual: 0, import: 0, conversation: 0, synthetic: 0 },
+    top_tags: [],
+  },
   created_at: "2026-10-13T00:00:00Z",
   updated_at: null,
 };

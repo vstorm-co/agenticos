@@ -281,8 +281,13 @@ export const qk = {
   },
   datasets: {
     all: () => ["datasets"] as const,
-    list: (query: { search: string; sort: string; skip: number; limit: number }) =>
-      ["datasets", "list", query] as const,
+    list: (query: {
+      search: string;
+      sort: string;
+      skip: number;
+      limit: number;
+      editable: boolean;
+    }) => ["datasets", "list", query] as const,
     detail: (id: string) => ["datasets", id] as const,
     versions: (id: string) => ["datasets", id, "versions"] as const,
     cases: (id: string, query: { version: number | null; skip: number; limit: number }) =>
@@ -290,6 +295,14 @@ export const qk = {
     generations: (id: string) => ["datasets", id, "generations"] as const,
     proposals: (id: string, query: { skip: number; limit: number }) =>
       ["datasets", id, "proposals", query] as const,
+    allScores: (id: string) => ["datasets", id, "scores"] as const,
+    scores: (
+      id: string,
+      query: { caseId: string | null; pending: boolean; skip: number; limit: number },
+    ) => ["datasets", id, "scores", query] as const,
+    allReviewQueue: () => ["datasets", "review-queue"] as const,
+    reviewQueue: (query: { skip: number; limit: number }) =>
+      ["datasets", "review-queue", query] as const,
   },
   context: {
     all: () => ["context"] as const,

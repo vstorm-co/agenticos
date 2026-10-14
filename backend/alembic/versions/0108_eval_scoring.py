@@ -9,13 +9,14 @@ No existing agent becomes a system agent: one is seeded the first time something
 needs it.
 
 `organizations.ai_assistance_enabled` is the one switch for every model-backed
-eval and authoring feature. On by default, because an organization that has
-changed nothing should get the features the release adds; one that does not want
-models judging or drafting turns it off, and the services refuse from then on.
+eval and authoring feature. Off by default, for every organization the migration
+finds as for every new one: whether models judge and draft here is the
+organization's decision, so nothing model-backed runs until an admin turns it on.
 
 `datasets.scoring` holds how a dataset's cases are scored. It is not versioned
 with the cases - how a team grades is not what it asks - so `case_scores` keeps
-the configuration each score was computed with beside its results. A score
+the configuration each score was computed with beside its results, and which
+judge graded it - model profile, spec version, rubric hash. A score
 outlives the run it read (`SET NULL`), and a person's verdict lives in its own
 columns so it never overwrites what the judge said.
 
@@ -24,7 +25,7 @@ which agents were seeded, whether an organization had switched AI assistance
 off, every dataset's scoring configuration and every score.
 
 Revision ID: 0108_eval_scoring
-Revises: 0106_datasets
+Revises: 0107_environment_connections
 Create Date: 2026-10-13
 """
 
@@ -36,7 +37,7 @@ from sqlalchemy.dialects import postgresql
 from alembic import op
 
 revision: str = "0108_eval_scoring"
-down_revision: str | None = "0106_datasets"
+down_revision: str | None = "0107_environment_connections"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
@@ -48,7 +49,7 @@ def upgrade() -> None:
             "ai_assistance_enabled",
             sa.Boolean(),
             nullable=False,
-            server_default=sa.text("true"),
+            server_default=sa.text("false"),
         ),
     )
     op.add_column("agents", sa.Column("system_key", sa.String(length=64), nullable=True))
@@ -78,6 +79,7 @@ def upgrade() -> None:
         sa.Column("run_id", sa.UUID(), nullable=True),
         sa.Column("scoring", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
         sa.Column("results", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+        sa.Column("judge", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
         sa.Column("passed", sa.Boolean(), nullable=True),
         sa.Column("review_state", sa.String(length=16), server_default="none", nullable=False),
         sa.Column("human_passed", sa.Boolean(), nullable=True),

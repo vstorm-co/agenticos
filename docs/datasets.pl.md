@@ -1,5 +1,5 @@
 ---
-source_sha: "698438cc9d00"
+source_sha: "67db81f56383"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -28,7 +28,7 @@ zawiodła.
 | Odpowiedź wzorcowa | Co mówi dobra odpowiedź |
 | Kontrprzykład | Odpowiedź, o której wiadomo, że jest błędna |
 | Oczekiwane wywołania narzędzi | Narzędzia, które agent powinien wywołać, każde z argumentami, które muszą się zgadzać. Argumenty, których przypadek nie wymienia, są pomijane. Przypadek mówi też, jak dopasować wywołania: `any` - w dowolnej kolejności, `in_order` - w podanej kolejności, z innymi wywołaniami pomiędzy, albo `exact` - dokładnie te, w tej kolejności i żadnych innych |
-| Sprawdzenia | Reguły dotyczące odpowiedzi, każda jako obiekt, którego `type` nazywa regułę, a obok są jej parametry. Przypadek je przechowuje; ocenianie je czyta i decyduje, jakie typy istnieją |
+| Sprawdzenia | Reguły dotyczące odpowiedzi, każda jako obiekt, którego `type` nazywa regułę, a obok są jej parametry. [Ocenianie](#checks) wymienia typy, a przypadek z typem, którego nie zna, jest odrzucany |
 | Tagi | Etykiety do grupowania wyników, np. `billing` albo `refusal` |
 | Notatka | Po co jest ten przypadek - co poszło źle albo czego pilnuje |
 | Źródło | `manual`, `import`, `conversation` albo `synthetic` - ustawia je platforma, nie wpisuje się go |
@@ -38,6 +38,15 @@ kontrprzykład, oczekiwane wywołanie narzędzia albo sprawdzenie - co najmniej
 jedno z czterech. Przypadek z samym wejściem nigdy nie mógłby nie przejść, więc
 jest odrzucany: formularz go nie zapisze, API odpowiada 422 ze wskazaniem
 `reference_answer`, a import podaje numer wiersza.
+
+Dobry przypadek jest mały: jedno pytanie i ta jedna rzecz, którą poprawna
+odpowiedź musi zrobić dobrze. Zwykle wystarczy odpowiedź wzorcowa albo
+kontrprzykład. Oczekiwane wywołania narzędzi dodaj, gdy agent ma działać, a nie
+tylko odpowiadać, sprawdzenia - gdy regułę da się podać dokładnie, a rozmowę
+przed wejściem - tylko gdy pytanie od niej zależy. Notatka jest dla następnego
+czytelnika: co poszło źle albo czego przypadek pilnuje. Przy tworzeniu
+pierwszego datasetu konsola proponuje przewodnik, który kończy się napisaniem
+pierwszego przypadku pole po polu.
 
 Przypadek wzięty z rozmowy zachowuje też odnośnik do runa, rozmowy i
 wiadomości, z których pochodzi. Pytanie i odpowiedź są kopiowane do przypadku,
@@ -57,8 +66,15 @@ widziały te same pytania, więc różnica w wynikach pochodzi od agenta, a nie 
 testu. Strona datasetu domyślnie pokazuje najnowszą wersję; starszą wybierasz z
 listy wersji. Starsza wersja jest tylko do odczytu.
 
-Zmiana nazwy datasetu albo jego opisu nie tworzy wersji, bo żadna z nich nie
-zmienia przypadku.
+Zmiana nazwy datasetu albo jego opisu, przyciskiem **Edytuj szczegóły** na jego
+stronie, nie tworzy wersji, bo żadna z nich nie zmienia przypadku.
+
+Lista wersji pokazuje sto najnowszych; starszą otwiera się, wpisując jej numer.
+Każda wersja trzyma wiersz na przypadek, więc wersje jednej organizacji
+trzymają łącznie najwyżej `DATASET_MAX_VERSION_ROWS_PER_ORG` wierszy (domyślnie
+5 milionów, zobacz [Konfiguracja](configuration.md#datasets)). Zmiana ponad to
+jest odrzucana z podaniem, ile jest zajęte; usunięcie datasetu zwalnia jego
+wiersze.
 
 ## Dodawanie przypadków { #adding-cases }
 
@@ -106,8 +122,24 @@ usuwa ten jeden `'`. Eksport jest zapisywany w [dzienniku audytu](governance.md#
 
 ### Z rozmowy albo runa { #add-to-dataset }
 
-Każda odpowiedź agenta w czacie i każda tura agenta w **Aktywności** ma
-przycisk **Dodaj do datasetu**. Wybierz dataset, a przypadek powstanie z tej tury:
+Są dwie drogi i obie tworzą taki sam przypadek:
+
+- **W czacie** oceń odpowiedź, a ocena zdecyduje, jako co zostanie zachowana.
+  Po łapce w górę potwierdzenie proponuje **Dodaj do datasetu**: wybierz
+  dataset, a odpowiedź zostanie zachowana jako odpowiedź wzorcowa. Po łapce w
+  dół okno, które pyta, co poszło źle, proponuje też **Dodaj tę odpowiedź do
+  datasetu**: zaznacz to, wybierz dataset i wyślij, a odpowiedź zostanie
+  zachowana jako kontrprzykład. Najpierw zapisuje się ocena, a przypadek jest
+  dodawany po niej, więc twój komentarz staje się notatką przypadku. To dwa
+  osobne zapisy - jeśli dodanie zostanie odrzucone, ocena zostaje, a komunikat
+  mówi, która połowa się nie udała. Późniejsze cofnięcie oceny zostawia
+  przypadek na miejscu: to kopia, wersjonowana razem z datasetem. Konsola
+  pamięta ostatnio użyty dataset, więc kolejne dodanie to jedno kliknięcie.
+- **W Aktywności** każda tura agenta ma przycisk **Dodaj do datasetu**. To
+  miejsce kuracji, więc dobrą odpowiedź równie łatwo zachować jako wzorcową, jak
+  złą jako kontrprzykład.
+
+W obu przypadkach przypadek powstaje z tej tury:
 
 - pytanie staje się wejściem, a tury przed nim - rozmową przed wejściem;
 - odpowiedź staje się kontrprzykładem. Jeśli nikt nie ocenił jej łapką w dół,
@@ -115,7 +147,7 @@ przycisk **Dodaj do datasetu**. Wybierz dataset, a przypadek powstanie z tej tur
   dwóch;
 - najnowszy komentarz zostawiony z łapką w dół staje się notatką.
 
-Przycisk widzą członkowie, którzy mogą edytować jakiś dataset. Wiadomość musi
+Obie drogi widzą tylko członkowie, którzy mogą edytować jakiś dataset. Wiadomość musi
 należeć do twojej organizacji i musisz móc ją przeczytać: albo masz
 `runs:view`, które czyta każdy run w organizacji tak jak Aktywność, albo możesz
 otworzyć rozmowę. Wiadomość z innej organizacji jest odrzucana tak, jakby nie
@@ -189,6 +221,133 @@ każdej drogi dodania przypadku. Generowanie redaguje też pytania i fragmenty
 przekazywane generatorowi, zanim trafią do modelu. Wpis audytu dla zmiany
 zapisuje, ile wartości zredagowano, nigdy same wartości.
 
+## Ocenianie { #scoring }
+
+Dataset określa, jak oceniane są jego przypadki, na karcie **Scoring**. Do
+jednego przypadku mogą mieć zastosowanie cztery oceniacze, a każdy z nich
+włącza się albo wyłącza i oznacza jako wymagany albo nie:
+
+| Oceniacz | Co porównuje | Koszt |
+|---|---|---|
+| Sprawdzenia | Odpowiedź z regułami przypadku oraz z domyślnymi regułami, które dataset nadaje każdemu przypadkowi | Nic |
+| Wywołania narzędzi | Narzędzia wywołane przez agenta z oczekiwanymi wywołaniami przypadku | Nic |
+| Sędzia | Odpowiedź z rubryką nazwanych kryteriów, ocenianą przez sędziego evali | Jeden run sędziego |
+| Odpowiedź wzorcowa | Odpowiedź z odpowiedzią wzorcową przypadku, ocenianą przez sędziego evali | Ten sam run sędziego |
+
+Każdy oceniacz zwraca zaliczenie albo niezaliczenie, wynik od 0 do 1 i
+uzasadnienie. Przypadek **zalicza**, gdy zalicza go każdy wymagany oceniacz.
+Gdy wymagany oceniacz nie mógł zadziałać - sędzia był wyłączony, jego budżet
+się wyczerpał - przypadek jest **nieoceniony**, a nie zaliczony: wynik, którego
+nikt nie sprawdził, nie liczy się jako zaliczenie.
+
+Konfiguracja nie jest wersjonowana razem z przypadkami, bo to, jak zespół
+ocenia, nie jest tym, o co pyta. Każdy wynik przechowuje kopię konfiguracji, z
+którą został obliczony, więc starszy wynik nadal mówi, jak do niego doszło, po
+zmianie konfiguracji.
+
+Konfiguracja, która nie mogłaby niczego ocenić, jest odrzucana: wszystkie
+oceniacze wyłączone albo sędzia włączony bez żadnego kryterium. Tak samo ocena
+przypadku, w którym żaden ze skonfigurowanych oceniaczy nie ma czego sprawdzić -
+nic nie jest zapisywane, a sędzia nie jest wywoływany.
+
+### Sprawdzenia { #checks }
+
+| `type` | Parametry | Zalicza, gdy |
+|---|---|---|
+| `contains`, `not_contains` | `value`, opcjonalnie `path`, `case_sensitive` | Odpowiedź zawiera wartość albo jej nie zawiera |
+| `equals` | `value`, opcjonalnie `path`, `case_sensitive` | Odpowiedź po obcięciu białych znaków jest tą wartością |
+| `regex` | `value` (najwyżej 500 znaków), opcjonalnie `path`, `case_sensitive` | Wzorzec pasuje w dowolnym miejscu odpowiedzi |
+| `json_schema` | `schema`, opcjonalnie `path` | Odpowiedź to JSON zgodny z JSON Schema |
+| `max_cost_usd` | `value` | Run kosztował nie więcej niż tyle |
+| `max_latency_ms` | `value` | Run trwał nie dłużej niż tyle |
+| `judge` | `criterion` | Sędzia evali ocenia kryterium na progu zaliczenia lub wyżej |
+
+`path` sięga do wnętrza odpowiedzi, która jest JSON-em: `items.0.name` to nazwa
+pierwszego elementu. Bez niego reguła czyta całą odpowiedź. Reguły tekstowe nie
+rozróżniają wielkości liter, chyba że `case_sensitive` ma wartość true. Wzorzec
+jest sprawdzany przy zapisie przypadku, a reguła czyta najwyżej pierwsze 100 000
+znaków odpowiedzi. Wzorzec, który na jakiejś odpowiedzi działa dłużej niż
+dziesiątą część sekundy, zostaje przerwany i zapisany jako błąd, więc jeden
+wzorzec nie może zatrzymać oceniania.
+
+Sprawdzenie `judge` to kryterium tylko dla jednego przypadku, oceniane w tym
+samym runie sędziego co rubryka datasetu. Używaj go do tego, czego reguła nie
+wyrazi, np. „odmawia i nie ujawnia adresu klienta”.
+
+### Wywołania narzędzi { #trajectory }
+
+Wywołania agenta są dopasowywane do oczekiwanych wywołań przypadku po nazwie
+narzędzia i po każdym argumencie, który przypadek wymienia. Tryb kolejności
+przypadku decyduje, co zalicza: przy `any` nastąpiło każde oczekiwane
+wywołanie; przy `in_order` nastąpiły w podanej kolejności; przy `exact` są
+jedynymi wywołaniami i są w tej kolejności. Uzasadnienie wymienia, czego
+brakowało, czego się nie spodziewano albo że kolejność była inna. Zapis, który
+zablokował izolowany run, nadal liczy się jako wywołanie wykonane przez agenta.
+
+Wywołanie jest dopasowywane po nazwie narzędzia zapisanej przez run, czyli po
+nazwie po ewentualnym nadpisaniu w specu. Przypadek napisany przed zmianą nazwy
+narzędzia oczekuje starej nazwy.
+
+### Sędzia { #judge }
+
+Sędzią jest **Eval judge**, agent, którego platforma dodaje do każdej
+organizacji (zobacz [Agenci systemowi](concepts.md#system-agents)). Działa jako
+osoba, która poprosiła o ocenę: sprawdzany jest jej dostęp do niego, przed
+wywołaniem modelu sprawdzany jest jego własny budżet i budżet organizacji, a
+jego run pojawia się w Activity pod powierzchnią `eval`. Jego instrukcje można
+edytować jak instrukcje każdego agenta, a dataset może wskazać dla niego inny
+model.
+
+Sędzia działa tylko tam, gdzie włączone jest [wsparcie AI](governance.md#ai-assistance),
+a jest ono wyłączone, dopóki administrator nie włączy go dla organizacji. Do
+tego czasu kryteria sędziego i odpowiedzi wzorcowej są zapisywane jako
+pominięte, oceniają tylko oceniacze oparte na regułach, a karta Scoring mówi o
+tym i podaje link do przełącznika temu, kto może go zmienić.
+
+Każde kryterium jest oceniane od 1 do górnej granicy skali i zalicza na progu
+zaliczenia lub wyżej. Gdy sędzia nie może ocenić, jego kryteria są zapisywane
+jako pominięte albo jako błędy, z uzasadnieniem podającym przyczynę: wsparcie
+AI jest wyłączone, sędzia nie ma opublikowanej wersji, jest zarchiwizowany,
+osoba nie może go uruchomić albo jego budżet się wyczerpał. Oceniacze oparte na
+regułach nadal oceniają.
+
+Ocena może cytować odpowiedź, do 12 fragmentów; cytat, którego odpowiedź nie
+zawiera słowo w słowo, jest wskazany w uzasadnieniu jako niezweryfikowany, a
+ocena pozostaje. Każdy wynik zapisuje sędziego, który go ocenił - jego profil
+modelu, wersję spec i hash rubryki - więc wyniki od różnych sędziów nie są
+porównywane jak równe z równym.
+
+### Przegląd i werdykty { #review }
+
+Dataset może wysyłać wyniki do **kolejki przeglądu**: żadnych, dopóki ktoś
+jakiegoś nie wyśle, każdy wynik, który nie zaliczył, albo każdy wynik. Karta
+Scores pokazuje wyniki datasetu, a karta pulpitu **Awaiting review** pokazuje
+kolejkę ze wszystkich datasetów, które widzisz: ile wyników nie zaliczyło, nie
+dało się ocenić albo zaliczyło, i w których datasetach, a każdy otwiera się na
+karcie Scores. Karta jest domyślnie na pulpicie.
+
+Werdykt osoby jest zapisywany obok wyników oceniaczy i rozstrzyga o rezultacie.
+Nigdy nie zmienia tego, co powiedział sędzia: oceny i uzasadnienia sędziego
+zostają w wyniku po tym, jak werdykt je uchyli. Werdykt można wycofać, a wtedy
+wynik znowu czeka na przegląd.
+
+### Ocenianie runa { #scoring-a-run }
+
+W **Activity** otwórz run i wybierz **Score against a case**. Wybierz dataset i
+przypadek, a odpowiedź i wywołania narzędzi runa zostaną ocenione każdym
+oceniaczem, który dataset konfiguruje. Run bez transkryptu nie ma odpowiedzi do
+oceny.
+
+| Aby | Potrzebujesz |
+|---|---|
+| Zmienić sposób oceniania datasetu | `datasets:edit` na nim |
+| Ocenić run względem niego | `datasets:run` na nim oraz `runs:view` |
+| Czytać jego wyniki | `datasets:view` na nim |
+| Zapisać albo wycofać werdykt | `datasets:edit` na nim |
+
+Uzasadnienie napisane przez sędziego przechodzi przed zapisaniem przez tę samą
+redakcję poświadczeń co przypadek.
+
 ## Dostęp { #access }
 
 Dataset jest współdzielonym zasobem z właścicielem, widocznością i
@@ -223,6 +382,11 @@ czyszczone: run, rozmowa i wiadomość, z których pochodzi, oraz to, kto go dod
 jeśli była to wymazywana osoba. Zostaje tekst - który może nadal zawierać dane
 osobowe wpisane przez kogoś i znika dopiero po usunięciu przypadku. Zobacz
 [Ochrona danych](data-protection.md#what-deletion-reaches).
+
+Wynik jest przechowywany tak samo. Gdy run, który ocenił, zostanie usunięty,
+wynik zostaje bez powiązania z nim, a gdy osoba, która o niego poprosiła albo o
+nim rozstrzygnęła, zostanie wymazana, jej nazwisko jest z niego czyszczone.
+Uzasadnienie sędziego może cytować ocenianą odpowiedź.
 
 Wygenerowany przypadek, który wciąż czeka na decyzję, nie jest tak
 zachowywany. Gdy rozmowa, z której go przygotowano, zostanie usunięta albo

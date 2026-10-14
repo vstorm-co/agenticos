@@ -18,6 +18,7 @@ __all__ = ["SAFE_SKILL_TOOLS", "Skills", "to_toolkit_skill"]
 
 @register(
     id="skills",
+    read_only=True,
     name="Skills",
     category="knowledge",
     description="Load the organization's written know-how on demand, one skill at a time.",
