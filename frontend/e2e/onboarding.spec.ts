@@ -138,7 +138,7 @@ test.describe("Onboarding", () => {
     // renders a heading too, and against `toBeVisible()` alone the count below
     // would pass without the admin header ever having been on screen.
     await page.goto("/admin/users");
-    await expect(pageHeading(page, "Workspace administration")).toBeVisible();
+    await expect(pageHeading(page, "Administration")).toBeVisible();
     await expect(page.getByRole("button", { name: HELP })).toHaveCount(0);
   });
 });

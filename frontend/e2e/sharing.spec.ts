@@ -6,7 +6,6 @@ import {
   AUTH_STATE,
   COLLEAGUE_EMAIL,
   DRAFT_AGENT_NAME,
-  OWNER_EMAIL,
   SEEDED_AGENT_NAME,
   openAgent,
   openBuilderTab,
@@ -45,9 +44,9 @@ async function openSharing(page: Page, agent: string): Promise<Locator> {
 
   const panel = page.getByRole("tabpanel");
   // The panel renders a spinner until both the sharing state and the member
-  // list arrive, and the owner's email comes from the second — so this is the
+  // list arrive, and the owner's row is built from the second - so this is the
   // point at which anything below is reading real data rather than a default.
-  await expect(panel.getByText(`Owned by ${OWNER_EMAIL}`)).toBeVisible();
+  await expect(panel.getByText("Owner", { exact: true })).toBeVisible();
   return panel;
 }
 

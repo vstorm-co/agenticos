@@ -20,13 +20,8 @@ test.use({ storageState: AUTH_STATE });
  * asserts on the organization server `seed.setup.ts` connects.
  */
 
-/** Servers every deployment ships, and the auth each one needs. */
-const CATALOG = [
-  { server: "GitHub", category: "development" },
-  { server: "PostgreSQL", category: "data" },
-  { server: "Notion", category: "knowledge" },
-  { server: "Sentry", category: "observability" },
-];
+/** Servers every deployment ships. */
+const CATALOG = ["GitHub", "PostgreSQL", "Notion", "Sentry"];
 
 /**
  * Bring the seeded custom server into view.
@@ -50,22 +45,17 @@ test.describe("MCP servers", () => {
     await page.goto("/mcp-servers");
     await expect(pageHeading(page, "MCP servers")).toBeVisible();
 
-    for (const { server, category } of CATALOG) {
+    for (const server of CATALOG) {
       const card = page.getByRole("group", { name: server });
       await expect(card, `${server} should be in the catalog`).toBeVisible();
-      // The category is on the card rather than a section heading above it. It
-      // stopped being a heading when the page became a grid: this catalog has
-      // one entry per category, so every section held a single card.
+      // Every card has the same foot whatever its state: where it stands, and
+      // the verb that connects it. The category, the address and the auth it
+      // needs are in the server's own dialog, one click away.
       await expect(
-        card.getByText(category, { exact: true }),
-        `${server} should say it is a ${category} server`,
+        card.getByRole("button", { name: "Connect" }),
+        `${server} should offer to connect`,
       ).toBeVisible();
     }
-
-    // Auth is the thing that actually varies between servers, so it is on the
-    // row rather than behind a click. Both kinds are represented above.
-    await expect(page.getByText("API token").first()).toBeVisible();
-    await expect(page.getByText("OAuth").first()).toBeVisible();
   });
 
   test("says how many accounts each server holds, and opens them", async ({ page }) => {
@@ -79,8 +69,8 @@ test.describe("MCP servers", () => {
     // The count is a number beside a mark; the button's name says it in words.
     const manage = card.getByRole("button", { name: /^Manage \d+ connections? on/ });
 
+    // The count is in the button's name; what it shows is the account's state.
     await expect(manage).toBeVisible();
-    await expect(manage).toContainText(/\d/);
 
     await manage.click();
     // By their headings: the dialog also says "Yours" in the caption under it,
@@ -99,14 +89,16 @@ test.describe("MCP servers", () => {
     await page.goto("/mcp-servers");
     await expect(pageHeading(page, "MCP servers")).toBeVisible();
 
+    // A baked full-colour logo where the catalog has one, a brand glyph where
+    // it does not: either way the mark is the first image on the card.
     const mark = (server: string) =>
-      page.getByRole("group", { name: server }).locator("svg[aria-hidden] path").first();
+      page.getByRole("group", { name: server }).locator("img, svg").first();
 
     await expect(mark("GitHub")).toBeAttached();
     await expect(mark("Sentry")).toBeAttached();
 
-    const github = await mark("GitHub").getAttribute("d");
-    const sentry = await mark("Sentry").getAttribute("d");
+    const github = await mark("GitHub").evaluate((node) => node.outerHTML);
+    const sentry = await mark("Sentry").evaluate((node) => node.outerHTML);
     expect(github, "GitHub's card has no brand mark").toBeTruthy();
     expect(sentry, "every card is drawing the same glyph").not.toBe(github);
   });

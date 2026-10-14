@@ -498,11 +498,11 @@ jobs:
       - name: Seed an organization, a model and a published agent
         # Idempotent, and the fixture the whole suite asserts against: an owner
         # to sign in as, an organization to be scoped to, and the published
-        # agent @getting-started.
+        # agent @claude-code-like.
         #
         # `BOOTSTRAP_API_KEY` is what makes that last part true, and this step ran
         # without it - so bootstrap stopped at "No openai key given", created no
-        # `openai default` model profile, and left @getting-started a *draft*.
+        # `openai default` model profile, and left the starter agent a *draft*.
         # Thirty-seven specs assert against that profile or against a published
         # agent, so the job could not pass however good the specs were.
         #

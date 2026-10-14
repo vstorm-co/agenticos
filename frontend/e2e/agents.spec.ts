@@ -99,7 +99,9 @@ function fieldLabel(field: string): string {
  */
 async function findServer(page: Page, name: string): Promise<Locator> {
   await page.getByPlaceholder("Search servers…").fill(name);
-  const server = page.getByRole("checkbox", { name, exact: true });
+  // A switch on the server's card - the same control a capability has - since the
+  // picker became cards with their own settings.
+  const server = page.getByRole("switch", { name: `Use ${name} in this agent`, exact: true });
   await expect(server).toBeVisible();
   return server;
 }
@@ -266,10 +268,10 @@ test.describe("Agents", () => {
     // Builder that renders its shell while the agent fails to load shows the
     // same headings and none of this.
     await expect(pageStatus(page)).toContainText("published");
-    await expect(page.getByText("Explains what this platform does")).toBeVisible();
+    await expect(page.getByText(/general-purpose agent in the style of Claude Code/)).toBeVisible();
 
     await expect(page.getByRole("textbox", { name: "Instructions" })).toHaveValue(
-      /You are the Getting Started agent on AgenticOS/,
+      /You are a capable, general-purpose assistant/,
     );
 
     // The model section leads with the profile this agent actually runs on, and
@@ -602,6 +604,9 @@ test.describe("Agents", () => {
 
     if ((await server.getAttribute("aria-checked")) !== "true") {
       await server.click();
+      // Switching a server on opens its settings, to ask whose account it uses;
+      // the organization's is already chosen, so they close as they are.
+      await page.getByRole("dialog").getByRole("button", { name: "Done" }).click();
       await expect(unsaved(page)).toBeVisible();
       await saveDraft(page);
     }
