@@ -12,6 +12,7 @@ import { rehypeStreamWords } from "@/lib/stream-words";
 import { cn } from "@/lib/utils";
 
 import { CollapsibleBlock } from "./collapsible-block";
+import { MarkdownQuote } from "./markdown-quote";
 import { MarkdownTable } from "./markdown-table";
 import type { MarkdownContentProps } from "./markdown-content";
 
@@ -308,14 +309,7 @@ export function MarkdownContent({
         );
       },
       blockquote({ children, ...props }) {
-        return (
-          <blockquote
-            className="border-brand/40 text-foreground/75 my-3 border-l-2 pl-4 italic"
-            {...props}
-          >
-            {children}
-          </blockquote>
-        );
+        return <MarkdownQuote {...props}>{children}</MarkdownQuote>;
       },
       table({ children, ...props }) {
         return <MarkdownTable {...props}>{children}</MarkdownTable>;

@@ -995,7 +995,8 @@
       "copiedToClipboard": "Copied to clipboard",
       "copy": "Copy",
       "copyTable": "Copy table",
-      "copyToClipboard": "Copy to clipboard"
+      "copyToClipboard": "Copy to clipboard",
+      "copyQuote": "Copy quote"
     },
     "copyLink": "Link copied to clipboard",
     "copyShareLink": "Copy share link",

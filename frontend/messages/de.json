@@ -995,7 +995,8 @@
       "copiedToClipboard": "In die Zwischenablage kopiert",
       "copy": "Kopieren",
       "copyTable": "Tabelle kopieren",
-      "copyToClipboard": "In die Zwischenablage kopieren"
+      "copyToClipboard": "In die Zwischenablage kopieren",
+      "copyQuote": "Zitat kopieren"
     },
     "copyLink": "Link in die Zwischenablage kopiert",
     "copyShareLink": "Freigabelink kopieren",

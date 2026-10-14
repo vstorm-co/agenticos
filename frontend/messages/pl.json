@@ -995,7 +995,8 @@
       "copiedToClipboard": "Skopiowano do schowka",
       "copy": "Kopiuj",
       "copyTable": "Kopiuj tabelę",
-      "copyToClipboard": "Kopiuj do schowka"
+      "copyToClipboard": "Kopiuj do schowka",
+      "copyQuote": "Kopiuj cytat"
     },
     "copyLink": "Link skopiowany do schowka",
     "copyShareLink": "Kopiuj link do udostępnienia",

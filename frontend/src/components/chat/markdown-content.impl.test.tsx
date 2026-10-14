@@ -132,6 +132,27 @@ describe("rendering an answer", () => {
     vi.unstubAllGlobals();
   });
 
+  it("copies a quote as its paragraphs, a suggested reply ready to paste", async () => {
+    const write = vi.fn().mockResolvedValue(undefined);
+    const received: Record<string, Blob>[] = [];
+    class FakeClipboardItem {
+      constructor(items: Record<string, Blob>) {
+        received.push(items);
+      }
+    }
+    vi.stubGlobal("navigator", { clipboard: { write, writeText: vi.fn() } });
+    vi.stubGlobal("ClipboardItem", FakeClipboardItem);
+    markdown("> Thanks for asking. **Payment links** are not ready yet.\n>\n> The Ledgerly team");
+
+    await userEvent.click(screen.getByRole("button", { name: "Copy quote" }));
+
+    expect(await received[0]?.["text/plain"]?.text()).toBe(
+      "Thanks for asking. Payment links are not ready yet.\n\nThe Ledgerly team",
+    );
+    expect(screen.getByRole("button", { name: "Copied to clipboard" })).toBeInTheDocument();
+    vi.unstubAllGlobals();
+  });
+
   it("shows a fenced block's language, and offers it for copying", () => {
     // The one thing people take out of a chat answer.
     markdown("```python\nprint(1)\n```");
