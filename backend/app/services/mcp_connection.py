@@ -1607,7 +1607,10 @@ class McpConnectionService:
             action="mcp_connection.updated",
             target_type="mcp_connection",
             target_id=str(connection.id),
-            details={"fields": sorted(edited_fields)},
+            details={
+                "fields": sorted(edited_fields),
+                **(_trust_details(connection) if "trust_read_only_hints" in edited_fields else {}),
+            },
         )
         return connection
 
@@ -1916,6 +1919,7 @@ async def build_toolsets_for_agent(
             url=connection.url,
             headers=headers,
             allowed_tools=_narrowed_tools(connection.allowed_tools, ref.allowed_tools),
+            trust_read_only_hints=connection.trust_read_only_hints,
         )
         specs.append(spec)
         bindings[id(spec)] = f"the connection {connection.name!r}"
@@ -1950,6 +1954,20 @@ async def build_toolsets_for_agent(
         toolsets=[toolset for spec, toolset in reachable if id(spec) not in dropped],
         unavailable=unavailable,
     )
+
+
+def _trust_details(connection: McpConnection) -> dict[str, Any]:
+    """What believing this server's `readOnlyHint` covers: how many of its tools claim it.
+
+    Counted from the last probe, so the count is null until anything reached it.
+    """
+    tools = connection.last_tools
+    return {
+        "trust_read_only_hints": connection.trust_read_only_hints,
+        "read_only_hint_tools": None
+        if tools is None
+        else sum(1 for tool in tools if tool.get("read_only_hint") is True),
+    }
 
 
 async def _test_spec(
@@ -1989,6 +2007,7 @@ async def _test_spec(
         headers=headers,
         allowed_tools=_narrowed_tools(test.allowed_tools, ceiling),
         test=True,
+        trust_read_only_hints=test.trust_read_only_hints,
     )
 
 

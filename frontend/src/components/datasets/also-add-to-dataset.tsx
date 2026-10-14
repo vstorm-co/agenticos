@@ -6,11 +6,9 @@ import { toast } from "sonner";
 
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAddToDataset } from "@/hooks/use-datasets";
-import { usePermissions } from "@/hooks/use-permissions";
 import { getErrorMessage } from "@/lib/api-error";
-import { Perm } from "@/types/permissions";
 import { DatasetTargetFields } from "./dataset-target-fields";
-import { useDatasetTarget } from "./use-dataset-target";
+import { useCanAddToDataset, useDatasetTarget } from "./use-dataset-target";
 
 export interface AlsoAddToDatasetHandle {
   /**
@@ -30,15 +28,14 @@ interface AlsoAddToDatasetProps {
  *
  * A rated-down answer is kept as the counter-example: the rating already said
  * it is wrong. The rating is saved first, so its comment is there to become the
- * case's note. Not rendered for somebody whose role edits no dataset.
+ * case's note. Not rendered for somebody with no dataset to add to.
  */
 export function AlsoAddToDataset({ messageId, ref }: AlsoAddToDatasetProps) {
   const t = useTranslations("datasets");
   const tErrors = useTranslations("errors");
-  const { can } = usePermissions();
-  const allowed = can(Perm.datasetsEdit);
+  const allowed = useCanAddToDataset();
   const [wanted, setWanted] = useState(false);
-  const { editable, isLoading, target, choose, remember } = useDatasetTarget({
+  const { editable, isLoading, search, target, choose, remember } = useDatasetTarget({
     enabled: allowed && wanted,
   });
   const add = useAddToDataset();
@@ -73,6 +70,7 @@ export function AlsoAddToDataset({ messageId, ref }: AlsoAddToDatasetProps) {
           isLoading={isLoading}
           datasetId={target?.id ?? ""}
           onDatasetChange={choose}
+          search={search}
           idPrefix="rate-down"
         />
       )}

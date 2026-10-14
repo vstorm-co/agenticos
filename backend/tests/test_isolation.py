@@ -8,6 +8,9 @@ entered - a mock of the handler cannot say that.
 
 from __future__ import annotations
 
+import dataclasses
+import datetime
+import json
 import uuid
 from typing import Any
 from unittest.mock import AsyncMock
@@ -25,11 +28,13 @@ from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.tools import ToolDefinition
 from pydantic_ai.toolsets import AbstractToolset, FunctionToolset
 
-from app.agents.capabilities import load_builtins
+from app.agents.capabilities import REGISTRY, load_builtins
+from app.agents.capabilities import get as get_capability
 from app.agents.capabilities.approval import ApprovalGate
 from app.agents.deps import AgentDeps
 from app.agents.factory import build_agent
 from app.agents.isolation import (
+    MAX_RECORDED_ARGS_CHARS,
     CallRow,
     IsolationGuard,
     RecordedCall,
@@ -39,6 +44,7 @@ from app.agents.isolation import (
     capability_tools,
     classify,
     normalized_args,
+    recorded_args,
     recorded_calls,
 )
 from app.agents.mcp import MCP_ORIGIN
@@ -61,8 +67,13 @@ class _World:
     def __init__(self) -> None:
         self.effects: list[tuple[str, str]] = []
 
-    def toolset(self, tool: str, *, test: bool, read_only: bool) -> AbstractToolset[Any]:
-        """One MCP-shaped tool: stamped with its origin, annotated by its server."""
+    def toolset(
+        self, tool: str, *, test: bool, read_only: bool, trusted: bool = True
+    ) -> AbstractToolset[Any]:
+        """One MCP-shaped tool: stamped with its origin, annotated by its server.
+
+        `trusted` is whether its connection believes the server's annotations.
+        """
         toolset: FunctionToolset[Any] = FunctionToolset()
         effects = self.effects
 
@@ -72,7 +83,10 @@ class _World:
 
         toolset.add_function(act, name=tool)
         return toolset.with_metadata(
-            **{MCP_ORIGIN: {"test": test}, "annotations": {"readOnlyHint": read_only}}
+            **{
+                MCP_ORIGIN: {"test": test, "trust_read_only_hints": trusted},
+                "annotations": {"readOnlyHint": read_only},
+            }
         )
 
 
@@ -106,6 +120,34 @@ async def _run(
     )
     result = await agent.run("go", deps=AgentDeps())
     return result.output
+
+
+class TestTheArgumentsAHeldCallKeeps:
+    async def test_they_are_what_the_model_sent_and_fit_a_json_column(self):
+        """Validated arguments hold a `date` here, which the JSONB write cannot
+        serialize - and losing that write loses the eval's whole trajectory."""
+        isolation = RunIsolation()
+        toolset: FunctionToolset[Any] = FunctionToolset()
+
+        def schedule(on: datetime.date, note: str = "") -> str:
+            raise AssertionError("a held call must not run")
+
+        toolset.add_function(schedule)
+
+        await _run(isolation, [toolset], _calls_then_answers(("schedule", {"on": "2026-10-14"})))
+
+        (held,) = isolation.intercepted
+        assert held.args == {"on": "2026-10-14"}
+        assert json.loads(json.dumps(held.args)) == held.args
+
+    def test_an_outsized_argument_list_is_kept_as_its_size(self):
+        call = ToolCallPart(
+            tool_name="send",
+            args={"body": "x" * MAX_RECORDED_ARGS_CHARS},
+            tool_call_id="c",
+        )
+
+        assert recorded_args(call) == {"truncated": True, "chars": MAX_RECORDED_ARGS_CHARS + 12}
 
 
 class TestWhatAnIsolatedRunExecutes:
@@ -157,6 +199,28 @@ class TestWhatAnIsolatedRunExecutes:
 
         assert world.effects == [("crm_find", "Ada"), ("sandbox_create", "Ada")]
         assert [call.tool_name for call in isolation.intercepted] == ["crm_create"]
+
+    async def test_a_production_tool_claiming_to_read_is_held_unless_its_connection_trusts_it(
+        self,
+    ):
+        """`readOnlyHint` is the server's word: a write mislabelled as a read must
+        not reach production because the server said so."""
+        world = _World()
+        isolation = RunIsolation()
+
+        await _run(
+            isolation,
+            [
+                world.toolset("crm_purge", test=False, read_only=True, trusted=False),
+                world.toolset("docs_find", test=False, read_only=True, trusted=True),
+            ],
+            _calls_then_answers(("crm_purge", {"name": "Ada"}), ("docs_find", {"name": "Ada"})),
+        )
+
+        assert world.effects == [("docs_find", "Ada")]
+        assert [(call.tool_name, call.outcome, call.reason) for call in isolation.intercepted] == [
+            ("crm_purge", InterceptionOutcome.BLOCKED, InterceptionReason.WRITES)
+        ]
 
     async def test_a_recording_answers_the_same_call_without_executing_it(self):
         world = _World()
@@ -247,17 +311,27 @@ class TestWhatAnIsolatedRunExecutes:
 
 
 class TestClassification:
-    def test_an_mcp_tool_reads_only_when_its_server_says_so(self):
+    def test_an_mcp_tool_reads_only_when_its_server_says_so_and_is_believed(self):
+        def tool(*, hint: bool | None, trusted: bool) -> ToolDefinition:
+            return ToolDefinition(
+                name="crm_find",
+                metadata={
+                    MCP_ORIGIN: {"test": False, "trust_read_only_hints": trusted},
+                    "annotations": None if hint is None else {"readOnlyHint": hint},
+                },
+            )
+
+        assert classify(tool(hint=True, trusted=True), {}).read_only is True
+        assert classify(tool(hint=True, trusted=False), {}).read_only is False
+        assert classify(tool(hint=None, trusted=True), {}).read_only is False
+
+    def test_a_stamp_from_before_trust_existed_believes_no_hint(self):
         stamped = ToolDefinition(
             name="crm_find",
             metadata={MCP_ORIGIN: {"test": False}, "annotations": {"readOnlyHint": True}},
         )
-        unannotated = ToolDefinition(
-            name="crm_find", metadata={MCP_ORIGIN: {"test": False}, "annotations": None}
-        )
 
-        assert classify(stamped, {}) == ToolClass("tool:crm_find", read_only=True)
-        assert classify(unannotated, {}) == ToolClass("tool:crm_find", read_only=False)
+        assert classify(stamped, {}) == ToolClass("tool:crm_find", read_only=False)
 
     def test_an_mcp_tool_is_never_mistaken_for_a_registry_tool_of_the_same_name(self):
         """The stamp decides, not the name: a server cannot borrow a read's identity."""
@@ -296,15 +370,27 @@ class TestClassification:
         assert tools["look_up_note"] == ToolClass("capability:memory_files.read_memory", True)
         assert tools["write_memory"].read_only is False
 
-    def test_a_binding_on_a_test_key_reaches_a_test_system(self):
-        test_key, live_key = uuid.uuid4(), uuid.uuid4()
+    def test_a_swapped_key_reaches_a_test_system_only_where_the_capability_says_so(
+        self, monkeypatch
+    ):
+        """A key can stand in for a credential while a URL in the config still
+        points the writes at production, so the swap alone proves nothing."""
         spec = AgentSpec(
             name="Memory",
-            capabilities=[{"id": "memory_mem0", "config": {}, "secret_id": test_key}],
+            capabilities=[{"id": "memory_mem0", "config": {}, "secret_id": uuid.uuid4()}],
+        )
+        swapped = frozenset({"memory_mem0"})
+
+        assert not capability_tools(spec, test_bindings=swapped)["remember"].test
+
+        monkeypatch.setitem(
+            REGISTRY,
+            "memory_mem0",
+            dataclasses.replace(get_capability("memory_mem0"), test_key_isolates=True),
         )
 
-        assert capability_tools(spec, test_secret_ids=frozenset({test_key}))["remember"].test
-        assert not capability_tools(spec, test_secret_ids=frozenset({live_key}))["remember"].test
+        assert capability_tools(spec, test_bindings=swapped)["remember"].test
+        assert not capability_tools(spec, test_bindings=frozenset())["remember"].test
 
 
 class TestRecordings:

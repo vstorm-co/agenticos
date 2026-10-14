@@ -2743,6 +2743,8 @@
     "theOrganizations": "The organization's",
     "toolSelectionSaved": "Tool selection saved.",
     "tools": "Tools",
+    "trustReadOnlyHints": "Let evals call tools this server marks read-only",
+    "trustReadOnlyHintsHint": "Evals hold every call to a production server unless you trust it: the read-only mark is the server's own claim. {count, plural, =0 {No tool here claims it.} =1 {1 tool here claims it.} other {# tools here claim it.}}",
     "toolsFrom": "Tools from \"{name}\"",
     "toolsSelected": "{on} of {total} on",
     "unreachable": "Unreachable",
@@ -5764,6 +5766,12 @@
     "importRowProblem": "Row {row}: {message}",
     "importRowFieldProblem": "Row {row}, {field}: {message}",
     "checkCount": "{count, plural, =1 {1 check} other {# checks}}",
-    "hasNote": "Note"
+    "hasNote": "Note",
+    "editDetails": "Edit details",
+    "editDetailsBody": "What the dataset is called and what it is for. Changing them makes no new version: no case changes.",
+    "saveDetails": "Save",
+    "detailsSaved": "Saved",
+    "olderVersion": "Older version #",
+    "findDataset": "Find a dataset"
   }
 }

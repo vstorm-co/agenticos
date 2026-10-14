@@ -295,29 +295,29 @@ class _TestConnections:
     mcp: Mapping[UUID, UUID | None] = field(default_factory=dict)
     secrets: Mapping[UUID, UUID | None] = field(default_factory=dict)
 
-    @property
-    def test_secret_ids(self) -> frozenset[UUID]:
-        """The vault secrets that stand in for production ones in this run."""
-        return frozenset(test for test in self.secrets.values() if test is not None)
 
-
-def _with_test_secrets(spec: AgentSpec, overrides: Mapping[UUID, UUID | None]) -> AgentSpec:
-    """The spec with each overridden capability secret pointing at its test one.
+def _with_test_secrets(
+    spec: AgentSpec, overrides: Mapping[UUID, UUID | None]
+) -> tuple[AgentSpec, frozenset[str]]:
+    """The spec with each overridden capability secret pointing at its test one,
+    and the ids of the bindings that were swapped.
 
     Swapped on the spec rather than at unsealing, so the one resolver that
     yields plaintext stays the only one and the capability never learns it was
-    handed a test key.
+    handed a test key. The swapped bindings are named rather than recognised by
+    their new secret afterwards: a binding that holds that test key in its own
+    right was never swapped. A disabled binding builds nothing, so it is left
+    alone - and never refused for a test key it would not use.
 
     Raises:
         BadRequestError: If an override's test secret was deleted. The
             capability cannot run without a key, and the production one is the
             key this environment exists to keep it away from.
     """
-    if not any(binding.secret_id in overrides for binding in spec.capabilities):
-        return spec
     capabilities: list[CapabilityBindingSpec] = []
+    swapped: set[str] = set()
     for binding in spec.capabilities:
-        if binding.secret_id is None or binding.secret_id not in overrides:
+        if not binding.enabled or binding.secret_id is None or binding.secret_id not in overrides:
             capabilities.append(binding)
             continue
         test_id = overrides[binding.secret_id]
@@ -330,7 +330,10 @@ def _with_test_secrets(spec: AgentSpec, overrides: Mapping[UUID, UUID | None]) -
                 details={"capability_id": binding.id},
             )
         capabilities.append(binding.model_copy(update={"secret_id": test_id}))
-    return spec.model_copy(update={"capabilities": capabilities})
+        swapped.add(binding.id)
+    if not swapped:
+        return spec, frozenset()
+    return spec.model_copy(update={"capabilities": capabilities}), frozenset(swapped)
 
 
 def _delegate_workspace(spec: AgentSpec, shared: list[CapabilityBindingSpec]) -> DelegateWorkspace:
@@ -1785,6 +1788,7 @@ def _delegate_builder(
     resources: dict[str, Any],
     secrets: Mapping[UUID, StorableSecret],
     extra_toolsets: list[AbstractToolset[Any]],
+    test_bindings: frozenset[str] = frozenset(),
 ) -> Callable[[], PydanticAgent[Any, Any]]:
     """A closure that builds one delegate, with nothing left to look up.
 
@@ -1824,7 +1828,7 @@ def _delegate_builder(
             # stops binding at exactly the moment delegation multiplies spend.
             shared_budget=delegation.budget.guard,
             isolation=delegation.isolation,
-            test_secret_ids=delegation.test_connections.test_secret_ids,
+            test_bindings=test_bindings,
         ).agent
 
     return build
@@ -2341,7 +2345,7 @@ class AgentRunnerService:
                 existing_run.environment_id if existing_run is not None else environment_id
             ),
         )
-        spec = _with_test_secrets(spec, test_connections.secrets)
+        spec, test_bindings = _with_test_secrets(spec, test_connections.secrets)
 
         # Unsealed here and handed straight to the factory, which hands them to
         # the capability instances that declared them. They are kept out of
@@ -2626,7 +2630,7 @@ class AgentRunnerService:
             recorded_overhead=recorded.overhead,
             recorded_reminder_state=recorded.reminder_state,
             isolation=isolation,
-            test_secret_ids=test_connections.test_secret_ids,
+            test_bindings=test_bindings,
         )
 
         # Both only assignable now, and both before the run starts. The guard and
@@ -3141,7 +3145,7 @@ class AgentRunnerService:
         model = await self.models.resolve(ctx, profile_id=runnable.model_profile_id)
         # Recorded now so the child's run row can name the model that answered.
         delegation.attribution[ref.agent_version_id] = model
-        runnable = _with_test_secrets(runnable, delegation.test_connections.secrets)
+        runnable, test_bindings = _with_test_secrets(runnable, delegation.test_connections.secrets)
         resolved = await build_toolsets_for_agent(
             self.db,
             organization_id=ctx.organization_id,
@@ -3175,6 +3179,7 @@ class AgentRunnerService:
                 resources=delegate_resources,
                 secrets=secrets,
                 extra_toolsets=toolsets,
+                test_bindings=test_bindings,
             ),
             max_steps=runnable.max_steps,
             preferred_mode=ref.preferred_mode,

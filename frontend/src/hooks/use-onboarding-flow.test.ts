@@ -32,6 +32,7 @@ const rig = vi.hoisted(() => ({
   groupsOrg: "",
   routines: 0,
   datasetCases: [] as number[],
+  datasetsFetching: false,
   anyRunnable: true,
   anyRunnableLoading: false,
   anyRunnableFetching: false,
@@ -97,6 +98,7 @@ vi.mock("@/hooks/use-datasets", () => ({
     total: rig.datasetCases.length,
     datasets: rig.datasetCases.map((case_count) => ({ case_count })),
     isLoading: false,
+    isFetching: rig.datasetsFetching,
   }),
 }));
 vi.mock("@/hooks/use-can-create-trigger", () => ({
@@ -133,6 +135,7 @@ vi.mock("@/lib/onboarding/flows", async () => {
 
 beforeEach(() => {
   rig.datasetCases = [];
+  rig.datasetsFetching = false;
   rig.agentTotal = 0;
   rig.agentsLoading = false;
   rig.agentsList = [];
@@ -346,6 +349,24 @@ describe("useOnboardingFlow", () => {
     expect(result.current.signalMet).toBe(false);
 
     rig.datasetCases = [1, 4];
+    rerender();
+    expect(result.current.signalMet).toBe(true);
+  });
+
+  it("takes no baseline from a dataset count a refetch is about to replace", () => {
+    rig.datasetsFetching = true;
+    rig.datasetCases = [0];
+    const { result, rerender } = renderHook(() => useOnboardingFlow());
+    act(() => useOnboardingStore.getState().openFlow("create-dataset"));
+    const saveAt = result.current.steps.findIndex((s) => s.id === "flow-dataset-case-save");
+    act(() => useOnboardingStore.getState().setIndex(saveAt));
+
+    rig.datasetsFetching = false;
+    rig.datasetCases = [1];
+    rerender();
+    expect(result.current.signalMet).toBe(false);
+
+    rig.datasetCases = [2];
     rerender();
     expect(result.current.signalMet).toBe(true);
   });

@@ -12,14 +12,12 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  FormField,
-  Input,
-  Textarea,
 } from "@/components/ui";
 import { useDatasets } from "@/hooks/use-datasets";
 import { submitFailure } from "@/lib/api-error";
 import { DIALOG_FORM } from "@/lib/dialog-sizes";
 import type { Dataset } from "@/types/datasets";
+import { DatasetDetailsFields } from "./dataset-details-fields";
 
 interface CreateDatasetDialogProps {
   open: boolean;
@@ -65,28 +63,14 @@ export function CreateDatasetDialog({ open, onOpenChange, onCreated }: CreateDat
           <DialogTitle>{t("newDataset")}</DialogTitle>
           <DialogDescription>{t("newDatasetBody")}</DialogDescription>
         </DialogHeader>
-        <div className="space-y-4">
-          <FormField htmlFor="dataset-name" label={t("name")} error={errors.name} required>
-            <Input
-              data-tour="datasets-dialog-name"
-              maxLength={120}
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-            />
-          </FormField>
-          <FormField
-            htmlFor="dataset-description"
-            label={t("description")}
-            error={errors.description}
-          >
-            <Textarea
-              rows={3}
-              maxLength={500}
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-            />
-          </FormField>
-        </div>
+        <DatasetDetailsFields
+          name={name}
+          onNameChange={setName}
+          description={description}
+          onDescriptionChange={setDescription}
+          errors={errors}
+          nameTour="datasets-dialog-name"
+        />
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("cancel")}
