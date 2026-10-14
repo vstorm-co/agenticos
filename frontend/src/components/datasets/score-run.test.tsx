@@ -22,6 +22,7 @@ const state = vi.hoisted(() => ({
   cases: {} as Record<string, Kase[]>,
   caseTotal: null as number | null,
   casesError: null as Error | null,
+  refetchCases: vi.fn(),
   caseCalls: [] as { datasetId: string; skip?: number }[],
   searches: [] as string[],
   score: vi.fn(),
@@ -49,7 +50,7 @@ vi.mock("@/hooks/use-datasets", () => ({
       cases,
       total: state.caseTotal ?? cases.length,
       error: state.casesError,
-      refetch: vi.fn(),
+      refetch: state.refetchCases,
     };
   },
 }));
@@ -199,6 +200,8 @@ describe("Score against a case", () => {
     await open();
 
     expect(screen.getByText("Cases unavailable")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(state.refetchCases).toHaveBeenCalled();
   });
 
   it("takes the case from the dataset chosen, shortening a long question", async () => {
