@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useConversations } from "@/hooks";
@@ -9,7 +9,6 @@ import { Button, Skeleton } from "@/components/ui";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/components/ui";
 import { IconButton } from "@/components/ui";
 import { ConversationAgents } from "@/components/agents/conversation-agents";
-import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { cn, setUrlParam, timeAgo } from "@/lib/utils";
 import { useChatBandsStore, useChatSidebarStore } from "@/stores";
 import {
@@ -373,55 +372,39 @@ export function byAge(
   return AGES.filter((age) => groups.has(age)).map((age) => ({ age, rows: groups.get(age)! }));
 }
 
-function ConversationList({
-  conversations = [],
-  total,
-  view,
-  onViewChange,
-  isFiltered,
-  onClearFilters,
-  currentConversationId,
-  isLoading,
-  onSelect,
-  onDelete,
-  onArchive,
-  onUnarchive,
-  onFavourite,
-  onRename,
-  onNavigate,
-  onLoadMore,
-  datedOrder,
-}: ConversationListProps) {
+/** One band of the list: what heads it, and the threads under it. */
+interface Band {
+  key: string;
+  heading: string | null;
+  icon: "star" | "unread" | null;
+  rows: Conversation[];
+}
+
+/**
+ * The list, split into the starred run at the top and everything else.
+ *
+ * A split of what arrived rather than a filter over it: the server has
+ * already put the favourites first - it has to, because the list is paged and
+ * a favourite sorted into page two by recency would sit under fifty threads
+ * that are not (#929) - so this reads the run off the front and heads it.
+ *
+ * One band, not two: the rest of the list keeps the heading it always had,
+ * which is the count above it. A second "Everything else" would be a label on
+ * the absence of a label.
+ *
+ * Not in the archived view. A star survives archiving, but the band is the
+ * active list's, and a band inside the archive would be a second place to
+ * look for what archiving just moved.
+ */
+function useBands(
+  conversations: Conversation[],
+  currentConversationId: string | null,
+  isArchivedView: boolean,
+  datedOrder: boolean,
+): Band[] {
   const t = useTranslations("chat");
   const ts = useTranslations("chat.sidebar");
-  const [shareConversationId, setShareConversationId] = useState<string | null>(null);
-
-  const handleSelect = (id: string) => {
-    onSelect(id);
-    onNavigate?.();
-  };
-
-  const isArchivedView = view === "archived";
-  const collapsedBands = useChatBandsStore((state) => state.collapsed);
-  const toggleBand = useChatBandsStore((state) => state.toggle);
-
-  /**
-   * The list, split into the starred run at the top and everything else.
-   *
-   * A split of what arrived rather than a filter over it: the server has
-   * already put the favourites first - it has to, because the list is paged and
-   * a favourite sorted into page two by recency would sit under fifty threads
-   * that are not (#929) - so this reads the run off the front and heads it.
-   *
-   * One band, not two: the rest of the list keeps the heading it always had,
-   * which is the count above it. A second "Everything else" would be a label on
-   * the absence of a label.
-   *
-   * Not in the archived view. A star survives archiving, but the band is the
-   * active list's, and a band inside the archive would be a second place to
-   * look for what archiving just moved.
-   */
-  const bands = useMemo(() => {
+  return useMemo((): Band[] => {
     // Threads with an answer the reader has not seen lead the list, as an inbox
     // does, and leave the band they would otherwise sit in. Not the open one,
     // which is being read, nor in the archive.
@@ -459,6 +442,41 @@ function ConversationList({
           : []),
     ];
   }, [conversations, currentConversationId, isArchivedView, datedOrder, t, ts]);
+}
+
+function ConversationList({
+  conversations = [],
+  total,
+  view,
+  onViewChange,
+  isFiltered,
+  onClearFilters,
+  currentConversationId,
+  isLoading,
+  onSelect,
+  onDelete,
+  onArchive,
+  onUnarchive,
+  onFavourite,
+  onRename,
+  onNavigate,
+  onLoadMore,
+  datedOrder,
+}: ConversationListProps) {
+  const t = useTranslations("chat");
+  const ts = useTranslations("chat.sidebar");
+  const [shareConversationId, setShareConversationId] = useState<string | null>(null);
+
+  const handleSelect = (id: string) => {
+    onSelect(id);
+    onNavigate?.();
+  };
+
+  const isArchivedView = view === "archived";
+  const collapsedBands = useChatBandsStore((state) => state.collapsed);
+  const toggleBand = useChatBandsStore((state) => state.toggle);
+
+  const bands = useBands(conversations, currentConversationId, isArchivedView, datedOrder);
 
   // Scrolling to the foot is what asks for the next page, and a list with folded
   // bands, or a short first page, has no foot to scroll to - Yesterday then never
@@ -730,8 +748,10 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
   // app heads its list: search in a window of its own, the filters, and a new
   // chat. A row of them under the header, and a search box and a New chat
   // button before that, sat between the title and the first conversation.
-  const toolbar = (afterNewChat?: () => void) => (
-    <div className="flex items-center gap-0.5">
+  // The rail stands the same three in a column, in the same order, so collapsing
+  // the list changes its width and nothing a hand has learned.
+  const toolbar = (afterNewChat?: () => void, column = false) => (
+    <div className={cn("flex items-center gap-0.5", column && "flex-col")}>
       <IconButton
         size="icon"
         aria-label={ts("searchLabel")}
@@ -750,6 +770,7 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
         onHideApiChange={changeHideApi}
         view={view}
         onViewChange={changeView}
+        beside={column}
       />
       <IconButton
         size="icon"
@@ -782,17 +803,9 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
       <>
         {searchDialog}
         <CollapsedSidebar
-          conversations={conversations}
-          currentConversationId={currentConversationId}
-          view={view}
+          {...listProps}
+          toolbar={toolbar(undefined, true)}
           onExpand={() => setIsCollapsed(false)}
-          onSearch={() => setSearchOpen(true)}
-          onViewChange={(next) => {
-            changeView(next);
-            setIsCollapsed(false);
-          }}
-          onSelect={selectConversation}
-          onNewChat={startNewChat}
           className={className}
         />
       </>
@@ -836,145 +849,158 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
   );
 }
 
-/** How many threads the rail offers. Enough to reach yesterday's work, few enough
- *  to leave the rail a rail rather than a second list. */
-const RAIL_CONVERSATIONS = 8;
-
 /**
- * The sidebar as a 48px rail.
+ * The sidebar as a 48px rail: the same list, with the titles taken away.
  *
- * It used to hold two buttons - expand, and new chat - which meant collapsing the
- * sidebar gave up everything except the width. Switching to yesterday's thread cost
- * expanding, clicking and collapsing again, so nobody collapsed it.
- *
- * What it holds now is what a rail can hold honestly: the recent threads, as the
- * face of whichever agent answered in each, and the two controls that are more than
- * "expand" - search opens the sidebar with the cursor already in the box, and
- * Archived opens it on that tab. Sort and the agent filter are deliberately absent:
- * both are a menu, and a menu hanging off a 48px rail is the expanded sidebar with
- * extra steps.
+ * It used to be a different thing - expand, new chat, search and an Archive
+ * button over the first eight threads in server order - so collapsing the list
+ * moved its controls, dropped the unread and favourite bands, and lost the dot
+ * that says an answer is waiting. Now it reads the bands the list does, heads
+ * each with the same mark (a divider where the list has a date), folds a band
+ * the list has folded, draws each thread's face with its unread dot, and keeps
+ * the list's own three controls in the list's order. The filter's popover opens
+ * beside the rail rather than under a 48px column.
  */
 function CollapsedSidebar({
   conversations,
-  currentConversationId,
   view,
-  onExpand,
-  onSearch,
-  onViewChange,
+  currentConversationId,
+  isLoading,
   onSelect,
-  onNewChat,
+  onLoadMore,
+  datedOrder,
+  toolbar,
+  onExpand,
   className,
-}: {
-  conversations: Conversation[];
-  currentConversationId: string | null;
-  view: ConversationView;
+}: Pick<
+  ConversationListProps,
+  | "conversations"
+  | "view"
+  | "currentConversationId"
+  | "isLoading"
+  | "onSelect"
+  | "onLoadMore"
+  | "datedOrder"
+> & {
+  toolbar: ReactNode;
   onExpand: () => void;
-  onSearch: () => void;
-  onViewChange: (view: ConversationView) => void;
-  onSelect: (id: string) => void;
-  onNewChat: () => void;
   className?: string;
 }) {
   const t = useTranslations("chat");
   const ts = useTranslations("chat.sidebar");
-  const recent = conversations.slice(0, RAIL_CONVERSATIONS);
+  const isArchivedView = view === "archived";
+  const bands = useBands(conversations, currentConversationId, isArchivedView, datedOrder);
+  const collapsedBands = useChatBandsStore((state) => state.collapsed);
+  const toggleBand = useChatBandsStore((state) => state.toggle);
 
   return (
-    <div
-      className={cn(
-        "bg-sidebar hidden w-12 shrink-0 flex-col items-center border-r py-4 md:flex",
-        className,
-      )}
-    >
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-10 w-10 p-0"
-        onClick={onExpand}
-        aria-label={ts("expand")}
-      >
-        <ChevronRight className="h-4 w-4" aria-hidden />
-      </Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-10 w-10 p-0"
-        onClick={onNewChat}
-        title={ts("newChat")}
-        aria-label={ts("newChatLabel")}
-      >
-        <SquarePen className="h-4 w-4" aria-hidden />
-      </Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-10 w-10 p-0"
-        onClick={onSearch}
-        title={ts("searchLabel")}
-        aria-label={ts("searchLabel")}
-      >
-        <Search className="h-4 w-4" aria-hidden />
-      </Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        className={cn("h-10 w-10 p-0", view === "archived" && "text-foreground bg-secondary")}
-        onClick={() => onViewChange(view === "archived" ? "active" : "archived")}
-        title={ts("archived")}
-        aria-label={ts("archived")}
-      >
-        <Archive className="h-4 w-4" aria-hidden />
-      </Button>
+    <div className={cn("bg-sidebar hidden w-12 shrink-0 flex-col border-r md:flex", className)}>
+      {/* The same 48px header the list has, with its chevron where the list's is. */}
+      <div className="flex h-12 shrink-0 items-center justify-center border-b">
+        <IconButton
+          size="icon"
+          onClick={onExpand}
+          aria-label={ts("expand")}
+          title={ts("expand")}
+          className={HEADER_ICON}
+        >
+          <ChevronRight />
+        </IconButton>
+      </div>
+      <div className="flex shrink-0 justify-center py-2">{toolbar}</div>
+      <span aria-hidden className="bg-border mx-auto h-px w-6 shrink-0" />
 
-      {recent.length > 0 && (
-        <>
-          <span aria-hidden className="bg-border my-2 h-px w-6" />
-          {/* A list, so a screen reader is told these are threads rather than four
-              more toolbar buttons. The rail does not scroll: past eight, the
-              sidebar is the place to look. */}
-          <ul className="flex flex-col items-center gap-1">
-            {recent.map((conversation) => {
-              const agent = conversation.agents?.[0];
-              const title = conversation.title || t("newConversation");
-              const isActive = conversation.id === currentConversationId;
-              return (
-                <li key={conversation.id}>
-                  <button
-                    type="button"
-                    onClick={() => onSelect(conversation.id)}
-                    title={title}
-                    aria-label={title}
-                    aria-current={isActive ? "true" : undefined}
-                    className={cn(
-                      "relative flex h-10 w-10 items-center justify-center rounded-lg transition-colors",
-                      isActive
-                        ? "bg-accent text-foreground"
-                        : "text-muted-foreground hover:bg-secondary/50 hover:text-secondary-foreground",
-                    )}
-                  >
-                    {isActive && (
-                      <span
-                        aria-hidden
-                        className="bg-foreground absolute top-1/2 left-0 h-5 w-0.5 -translate-y-1/2 rounded-r-full"
-                      />
-                    )}
-                    {agent ? (
-                      <AgentAvatar
-                        agentId={agent.id}
-                        slug={agent.slug}
-                        hasAvatar={agent.has_avatar}
-                        size="sm"
-                      />
-                    ) : (
-                      <MessageSquare className="h-4 w-4" aria-hidden />
-                    )}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </>
-      )}
+      <div
+        className="flex flex-1 scrollbar-none flex-col items-center overflow-y-auto py-1"
+        onScroll={(e) => {
+          const el = e.currentTarget;
+          if (!isLoading && el.scrollHeight - el.scrollTop - el.clientHeight < 100) {
+            onLoadMore?.();
+          }
+        }}
+      >
+        {isArchivedView && (
+          <span
+            title={ts("archived")}
+            aria-label={ts("archived")}
+            role="img"
+            className="text-muted-foreground flex h-8 w-10 items-center justify-center"
+          >
+            <Archive className="h-3.5 w-3.5" aria-hidden />
+          </span>
+        )}
+        {bands.map(({ key, heading, icon, rows }, index) => {
+          const folded = heading !== null && collapsedBands.includes(key);
+          return (
+            <div key={key} className="flex flex-col items-center gap-0.5">
+              {heading !== null && (
+                // The band's heading, shrunk to its mark: the list's icon where it
+                // has one, a short rule where it has a date. It folds the band in
+                // both places, because it is the same setting.
+                <button
+                  type="button"
+                  aria-expanded={!folded}
+                  aria-label={heading}
+                  title={heading}
+                  onClick={() => toggleBand(key)}
+                  className="text-muted-foreground hover:text-foreground flex h-7 w-10 items-center justify-center rounded-md transition-colors"
+                >
+                  {icon === "star" ? (
+                    <Star className="h-3.5 w-3.5" aria-hidden />
+                  ) : icon === "unread" ? (
+                    <Inbox className="h-3.5 w-3.5" aria-hidden />
+                  ) : (
+                    <span
+                      aria-hidden
+                      className={cn(
+                        "h-px w-4 bg-current opacity-40",
+                        index === 0 && !isArchivedView && "opacity-0",
+                      )}
+                    />
+                  )}
+                </button>
+              )}
+              {!folded &&
+                rows.map((conversation) => {
+                  const title = conversation.title || t("newConversation");
+                  const isActive = conversation.id === currentConversationId;
+                  const unread = conversation.unread === true && !isActive;
+                  return (
+                    <button
+                      key={conversation.id}
+                      type="button"
+                      onClick={() => onSelect(conversation.id)}
+                      title={title}
+                      aria-label={title}
+                      aria-current={isActive ? "true" : undefined}
+                      className={cn(
+                        "relative flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors",
+                        isActive ? "bg-accent" : "hover:bg-accent/60",
+                      )}
+                    >
+                      <span className="relative">
+                        {conversation.agents && conversation.agents.length > 0 ? (
+                          <ConversationAgents agents={conversation.agents} showName={false} />
+                        ) : (
+                          <span className="flex size-6 items-center justify-center">
+                            <MessageSquare className="text-muted-foreground h-4 w-4" aria-hidden />
+                          </span>
+                        )}
+                        {unread && (
+                          <span
+                            role="status"
+                            aria-label={ts("unread")}
+                            className="unread-dot ring-sidebar absolute -top-px -right-px h-2 w-2 rounded-full ring-2"
+                          />
+                        )}
+                      </span>
+                    </button>
+                  );
+                })}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

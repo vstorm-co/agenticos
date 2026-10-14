@@ -238,7 +238,8 @@ describe("the collapsed rail", () => {
     await userEvent.click(
       within(list()).getByRole("button", { name: "Collapse conversations sidebar" }),
     );
-    return screen.getByRole("button", { name: "Expand conversations sidebar" })
+    // The chevron sits in the rail's header, one level under the rail itself.
+    return screen.getByRole("button", { name: "Expand conversations sidebar" }).parentElement!
       .parentElement as HTMLElement;
   }
 
@@ -282,12 +283,46 @@ describe("the collapsed rail", () => {
     expect(await within(rail).findByRole("button", { name: "New conversation" })).toBeVisible();
   });
 
-  it("expands onto the archived tab", async () => {
+  it("switches to the archive through the same filters the list has", async () => {
     const rail = await collapse();
 
-    await userEvent.click(within(rail).getByRole("button", { name: "Archived" }));
+    await userEvent.click(within(rail).getByRole("button", { name: "Filter and sort" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Archived" }));
 
     await waitFor(() => expect(listRequests().at(-1)).toContain("archived_only=true"));
+    expect(await within(rail).findByRole("img", { name: "Archived" })).toBeVisible();
+  });
+
+  it("keeps the list's bands, its order and its unread dot", async () => {
+    serve([
+      conversation("c-1", "Quarterly numbers", true),
+      { ...conversation("c-2", "Refund policy"), unread: true } as never,
+    ]);
+    const rail = await collapse();
+
+    const unread = await within(rail).findByRole("button", { name: "Unread" });
+    const favourites = within(rail).getByRole("button", { name: "Favourites" });
+    const refund = within(rail).getByRole("button", { name: "Refund policy" });
+    const numbers = within(rail).getByRole("button", { name: "Quarterly numbers" });
+    // Unread leads, as it does in the list, then the starred run.
+    expect(unread.compareDocumentPosition(refund) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(
+      refund.compareDocumentPosition(favourites) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      favourites.compareDocumentPosition(numbers) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(within(refund).getByRole("status", { name: "New answer" })).toBeInTheDocument();
+  });
+
+  it("folds a band from the rail, the same setting the list keeps", async () => {
+    serve([conversation("c-1", "Quarterly numbers", true)]);
+    const rail = await collapse();
+
+    await userEvent.click(await within(rail).findByRole("button", { name: "Favourites" }));
+
+    expect(within(rail).queryByRole("button", { name: "Quarterly numbers" })).toBeNull();
+    expect(useChatBandsStore.getState().collapsed).toContain("favourites");
   });
 
   it("searches from the rail in the same window", async () => {

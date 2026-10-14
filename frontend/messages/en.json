@@ -1163,7 +1163,6 @@
       "counted": "{count, plural, =1 {1 conversation} other {# conversations}}",
       "expand": "Expand conversations sidebar",
       "newChat": "New chat",
-      "newChatLabel": "New chat",
       "noArchived": "No archived conversations",
       "noMatches": "Nothing matches",
       "noMatchesHint": "No conversation matches this search or agent.",

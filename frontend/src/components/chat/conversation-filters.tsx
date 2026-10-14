@@ -57,6 +57,8 @@ interface ConversationFiltersProps {
   /** The active threads or the archive. */
   view: "active" | "archived";
   onViewChange: (view: "active" | "archived") => void;
+  /** Open beside the button rather than under it - from the collapsed rail. */
+  beside?: boolean;
 }
 
 /**
@@ -87,6 +89,7 @@ export function ConversationFilters({
   onHideApiChange,
   view,
   onViewChange,
+  beside = false,
 }: ConversationFiltersProps) {
   const t = useTranslations("chat.sidebar");
   const { agents } = useAgents({ includeArchived: true });
@@ -109,7 +112,11 @@ export function ConversationFilters({
           )}
         </button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-72 space-y-4 p-4">
+      <PopoverContent
+        side={beside ? "right" : "bottom"}
+        align={beside ? "start" : "end"}
+        className="w-72 space-y-4 p-4"
+      >
         <div className={SEGMENTED_CLASS} role="group" aria-label={t("show")}>
           {(["active", "archived"] as const).map((option) => (
             <button

@@ -1163,7 +1163,6 @@
       "counted": "{count, plural, =1 {1 Unterhaltung} other {# Unterhaltungen}}",
       "expand": "Unterhaltungsleiste ausklappen",
       "newChat": "Neuer Chat",
-      "newChatLabel": "Neuer Chat",
       "noArchived": "Keine archivierten Unterhaltungen",
       "noMatches": "Nichts passt",
       "noMatchesHint": "Keine Unterhaltung passt zu dieser Suche oder diesem Agent.",

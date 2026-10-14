@@ -457,6 +457,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **The collapsed chat list is the same list, narrower.** The rail used to
+  show the first eight threads in server order under its own row of
+  buttons, so collapsing dropped the Unread and Favourites bands and the
+  unread dot and moved every control. It now reads the bands the list
+  does - each headed by the list's own mark, a short rule where the list
+  has a date, foldable from either - draws each thread's face with its
+  unread dot, scrolls and pages like the list, and keeps search, filters
+  and new chat in the list's order, with the filters opening beside it.
+
 - **A browser that does not answer is the agent's to say, not a failed run.**
   When the browser service is down or its address is wrong, the agent is
   told so and tells the person an administrator needs to start it, instead

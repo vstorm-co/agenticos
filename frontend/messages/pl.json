@@ -1163,7 +1163,6 @@
       "counted": "{count, plural, one {1 rozmowa} few {# rozmowy} many {# rozmów} other {# rozmowy}}",
       "expand": "Rozwiń panel rozmów",
       "newChat": "Nowy czat",
-      "newChatLabel": "Nowy czat",
       "noArchived": "Brak zarchiwizowanych rozmów",
       "noMatches": "Nic nie pasuje",
       "noMatchesHint": "Żadna rozmowa nie pasuje do tego wyszukiwania lub agenta.",
