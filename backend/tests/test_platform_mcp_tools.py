@@ -127,7 +127,11 @@ def server(api: MagicMock) -> FastMCP:
                 {"json": {"collection_name": "policies", "query": "refunds", "limit": 4}},
             ),
         ),
-        ("list_skills", {}, ("GET", "/skills", {})),
+        (
+            "list_skills",
+            {"skip": 50},
+            ("GET", "/skills", {"params": {"limit": 50, "skip": 50}}),
+        ),
         ("list_capabilities", {}, ("GET", "/agents/capabilities", {})),
         (
             "create_agent_draft",
@@ -146,7 +150,11 @@ def server(api: MagicMock) -> FastMCP:
                 },
             ),
         ),
-        ("list_members", {}, ("GET", f"/orgs/{ORG}/members", {})),
+        (
+            "list_members",
+            {"limit": 10},
+            ("GET", f"/orgs/{ORG}/members", {"params": {"limit": 10, "skip": 0}}),
+        ),
         (
             "invite_member",
             {"email": "ada@example.com"},

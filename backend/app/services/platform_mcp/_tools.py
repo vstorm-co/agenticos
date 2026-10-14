@@ -182,16 +182,20 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         """
         return await api.request("GET", "/agents/capabilities")
 
-    async def list_skills() -> dict[str, Any]:
+    async def list_skills(limit: int = 50, skip: int = 0) -> dict[str, Any]:
         """The skills this caller can see. Needs `skills:view`."""
-        return await api.request("GET", "/skills")
+        return await api.request("GET", "/skills", params={"limit": limit, "skip": skip})
 
-    async def list_members() -> dict[str, Any]:
+    async def list_members(limit: int = 50, skip: int = 0) -> dict[str, Any]:
         """The members of this connection's organization, with their roles."""
         me = await api.request("GET", "/me/permissions")
         if "organization_id" not in me:
             return me
-        return await api.request("GET", f"/orgs/{me['organization_id']}/members")
+        return await api.request(
+            "GET",
+            f"/orgs/{me['organization_id']}/members",
+            params={"limit": limit, "skip": skip},
+        )
 
     async def invite_member(email: str, role: InviteRole = "member") -> dict[str, Any]:
         """Invite somebody to this organization by email. Needs `members:manage`.

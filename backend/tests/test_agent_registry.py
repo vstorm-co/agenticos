@@ -1582,6 +1582,36 @@ class TestValidateSpec:
         ]
 
     @pytest.mark.anyio
+    async def test_a_specialists_unknown_variable_is_refused_on_its_form(self):
+        """Codex on #2062: a typo in a specialist's instructions reached the model."""
+        spec = _spec(
+            capabilities=[
+                {
+                    "id": "subagents",
+                    "config": {
+                        "inline": [
+                            {
+                                "name": "researcher",
+                                "description": "Looks things up in the handbook.",
+                                "instructions": "Answer {{custmer_name}} for {{user_name}}.",
+                            }
+                        ]
+                    },
+                }
+            ],
+            model_profile_id=None,
+        )
+
+        with pytest.raises(BadRequestError) as refused:
+            await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+
+        assert {
+            "field": "specialists.researcher.instructions",
+            "message": ANY,
+        } in refused.value.details["fields"]
+        assert any("custmer_name" in problem for problem in refused.value.details["problems"])
+
+    @pytest.mark.anyio
     async def test_a_spec_whose_problems_name_no_field_carries_no_fields_key(self):
         """An empty list would be a claim that nothing can be marked, which a
         reader has to tell apart from a refusal that never names one."""

@@ -251,9 +251,7 @@ async def add_group_member(
     Requires `members:manage`, or leading this group - which the service decides,
     since a role gate here could not see who leads which group.
     """
-    member, email, full_name = await service.add_member(
-        org_id, group_id, data.user_id, ctx.subject_id
-    )
+    member, email, full_name = await service.add_member(org_id, group_id, data.user_id, ctx)
     return GroupMemberRead(
         user_id=member.user_id,
         email=email,
@@ -273,7 +271,7 @@ async def remove_group_member(
     org_id: UUID, group_id: UUID, member_user_id: UUID, service: GroupSvc, ctx: PathOrgAuth
 ) -> None:
     """Take somebody out of the group. Requires `members:manage`, or leading this group."""
-    await service.remove_member(org_id, group_id, member_user_id, ctx.subject_id)
+    await service.remove_member(org_id, group_id, member_user_id, ctx)
 
 
 @router.patch(

@@ -103,10 +103,10 @@ class TestTheLead:
         )
         assert member.is_lead
 
-        await service.add_member(organization.id, finance.id, newcomer.user_id, lead.user_id)
-        await service.remove_member(organization.id, finance.id, newcomer.user_id, lead.user_id)
+        await service.add_member(organization.id, finance.id, newcomer.user_id, lead)
+        await service.remove_member(organization.id, finance.id, newcomer.user_id, lead)
         with pytest.raises(AuthorizationError):
-            await service.add_member(organization.id, sales.id, newcomer.user_id, lead.user_id)
+            await service.add_member(organization.id, sales.id, newcomer.user_id, lead)
 
     async def test_only_an_administrator_names_a_lead(self, db: AsyncSession) -> None:
         organization, owner = await _setup(db)

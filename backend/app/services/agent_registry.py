@@ -1837,6 +1837,9 @@ class AgentRegistryService:
         # can be broken, or borrowed from another organization.
         if specialist.model_profile_id is not None:
             problems.add(await self._model_profile_problems(ctx, specialist.model_profile_id))
+        # Its instructions are filled the way the parent's are, so a typo in a
+        # variable is refused here too rather than sent to the model as braces.
+        problems.merge(_variable_problems(specialist.to_agent_spec(fallback_model_profile_id=None)))
         return problems.within_specialist(specialist.name)
 
     async def _resolve_pins(self, ctx: AuthContext, refs: Sequence[SubagentRef]) -> _ResolvedPins:

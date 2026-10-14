@@ -16,6 +16,7 @@ from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
 
 from app.core.exceptions import AlreadyExistsError, AuthorizationError, NotFoundError
+from app.core.permissions import AuthContext, Perm
 from app.db.models.directory_mapping import DirectoryGroupMapping
 from app.db.models.group import Group, GroupMember
 from app.db.models.resource_grant import ResourceGrant
@@ -29,6 +30,7 @@ from app.services.group import GroupService
 pytestmark = pytest.mark.anyio
 
 ORG, CALLER = uuid.uuid4(), uuid.uuid4()
+OWNER = AuthContext(user_id=CALLER, organization_id=ORG, role="owner")
 
 
 class _Savepoint:
@@ -146,7 +148,7 @@ class TestGroupServiceRefusals:
             groups.get = AsyncMock(return_value=group)
             groups.get_member = AsyncMock(return_value=None)
             groups.add_member = AsyncMock(side_effect=_race())
-            await GroupService(_db()).add_member(ORG, group.id, uuid.uuid4(), CALLER)
+            await GroupService(_db()).add_member(ORG, group.id, uuid.uuid4(), OWNER)
 
     async def test_adding_someone_already_added_by_hand_changes_nothing(self):
         group = MagicMock(id=uuid.uuid4())
@@ -163,7 +165,7 @@ class TestGroupServiceRefusals:
             groups.get_member = AsyncMock(return_value=row[0])
             groups.set_member_source = AsyncMock()
             groups.get_member_row = AsyncMock(return_value=row)
-            assert await GroupService(_db()).add_member(ORG, group.id, uuid.uuid4(), CALLER) == row
+            assert await GroupService(_db()).add_member(ORG, group.id, uuid.uuid4(), OWNER) == row
 
         groups.set_member_source.assert_not_awaited()
         audit.assert_not_awaited()
@@ -183,7 +185,7 @@ class TestGroupServiceRefusals:
             groups.get_member = AsyncMock(return_value=None)
             groups.add_member = AsyncMock()
             groups.get_member_row = AsyncMock(return_value=None)
-            await GroupService(_db()).add_member(ORG, group.id, uuid.uuid4(), CALLER)
+            await GroupService(_db()).add_member(ORG, group.id, uuid.uuid4(), OWNER)
 
     async def test_removing_someone_who_is_not_in_the_group_is_not_found(self):
         with (
@@ -196,7 +198,29 @@ class TestGroupServiceRefusals:
         ):
             groups.get = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
             groups.get_member = AsyncMock(return_value=None)
-            await GroupService(_db()).remove_member(ORG, uuid.uuid4(), uuid.uuid4(), CALLER)
+            await GroupService(_db()).remove_member(ORG, uuid.uuid4(), uuid.uuid4(), OWNER)
+
+
+@pytest.mark.security
+async def test_a_key_without_members_manage_cannot_change_a_group_even_for_its_lead():
+    """Codex on #2062: the issuer's lead standing must not reach through a narrowed key."""
+    key = AuthContext(
+        user_id=CALLER,
+        organization_id=ORG,
+        role="owner",
+        api_key_id=uuid.uuid4(),
+        key_scopes=frozenset({Perm.AGENTS_VIEW}),
+    )
+    with (
+        patch(
+            "app.services.group.member_repo.get",
+            new=AsyncMock(return_value=_membership("owner")),
+        ),
+        patch("app.services.group.group_repo") as groups,
+        pytest.raises(AuthorizationError, match="members:manage"),
+    ):
+        groups.get_member = AsyncMock(return_value=MagicMock(is_lead=True))
+        await GroupService(_db()).add_member(ORG, uuid.uuid4(), uuid.uuid4(), key)
 
 
 class TestDirectoryMappingRefusals:

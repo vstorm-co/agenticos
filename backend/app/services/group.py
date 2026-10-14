@@ -81,13 +81,23 @@ class GroupService:
             raise AuthorizationError(message="You cannot manage groups in this organization")
 
     async def _require_member_manager(
-        self, organization_id: UUID, group_id: UUID, requester_id: UUID
+        self, organization_id: UUID, group_id: UUID, ctx: AuthContext
     ) -> None:
-        """Who may change who is in a group: `members:manage`, or the group's own lead."""
-        membership = await self._membership(organization_id, requester_id)
-        if role_has(membership.role, Perm.MEMBERS_MANAGE):
+        """Who may change who is in a group: `members:manage`, or the group's own lead.
+
+        Read from the caller's context rather than re-derived from their role, so
+        an API key is held to the permissions it was issued with. Leading a group
+        is a person's standing, not a permission a key can carry: a key needs
+        `members:manage`.
+        """
+        await self._membership(organization_id, ctx.subject_id)
+        if ctx.has(Perm.MEMBERS_MANAGE):
             return
-        lead = await group_repo.get_member(self.db, group_id=group_id, user_id=requester_id)
+        if ctx.api_key_id is not None:
+            raise AuthorizationError(
+                message="An API key needs members:manage to change who is in a group"
+            )
+        lead = await group_repo.get_member(self.db, group_id=group_id, user_id=ctx.subject_id)
         if lead is None or not lead.is_lead:
             raise AuthorizationError(
                 message="Only an administrator or the group's lead can change who is in it"
@@ -292,7 +302,7 @@ class GroupService:
         ]
 
     async def add_member(
-        self, organization_id: UUID, group_id: UUID, user_id: UUID, requester_id: UUID
+        self, organization_id: UUID, group_id: UUID, user_id: UUID, ctx: AuthContext
     ) -> tuple[GroupMember, str, str | None]:
         """Put a member of the organization in a group, by hand.
 
@@ -305,7 +315,8 @@ class GroupService:
                 group reaches what was shared with it, and an outsider in one
                 would reach this organization's resources.
         """
-        await self._require_member_manager(organization_id, group_id, requester_id)
+        await self._require_member_manager(organization_id, group_id, ctx)
+        requester_id = ctx.subject_id
         group = await self._group(organization_id, group_id)
         if await member_repo.get(self.db, organization_id=organization_id, user_id=user_id) is None:
             raise BadRequestError(
@@ -356,10 +367,11 @@ class GroupService:
         return await self._member_row(group.id, user_id)
 
     async def remove_member(
-        self, organization_id: UUID, group_id: UUID, user_id: UUID, requester_id: UUID
+        self, organization_id: UUID, group_id: UUID, user_id: UUID, ctx: AuthContext
     ) -> None:
         """Take somebody out of a group, whoever put them there."""
-        await self._require_member_manager(organization_id, group_id, requester_id)
+        await self._require_member_manager(organization_id, group_id, ctx)
+        requester_id = ctx.subject_id
         group = await self._group(organization_id, group_id)
         member = await group_repo.get_member(self.db, group_id=group.id, user_id=user_id)
         if member is None:
