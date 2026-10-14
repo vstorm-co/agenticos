@@ -1,5 +1,5 @@
 ---
-source_sha: "1bd22ff5edac"
+source_sha: "881c07a559a1"
 ---
 
 # Koncepcje { #concepts }
@@ -574,11 +574,17 @@ odpowiedzi na potrzeby [oceniania datasetów](datasets.md#judge). To są
 organizacja utworzona wcześniej dostaje danego agenta wtedy, gdy coś po raz
 pierwszy go potrzebuje.
 
-Agent systemowy jest zwykłym agentem. Jest widoczny w Agents z plakietką
-**System**, jego instrukcje i model można edytować, można go udostępnić, a jego
-runy są sprawdzane względem budżetu i zapisywane jak każde inne. Startuje z
-niewielkim własnym miesięcznym budżetem, żeby nowa organizacja nie mogła
-przypadkiem wydać całego swojego budżetu na ewaluację.
+Agent systemowy należy do platformy, a nie jest agentem, którego używają ludzie.
+Agents pokazuje go osobno, w zwiniętej sekcji **System agents** z plakietką
+**System**, i pomija go w każdym wyborze agenta. Kto ma `agents:edit`, otwiera go,
+żeby zmienić jego instrukcje, model i budżet, a jego runy są sprawdzane względem
+budżetu i zapisywane jak każde inne. Startuje z niewielkim własnym miesięcznym
+budżetem, żeby nowa organizacja nie mogła przypadkiem wydać całego swojego
+budżetu na ewaluację.
+
+Uruchamia go tylko platforma. Czat, API, embed albo publiczna strona, kanał,
+harmonogram i delegowanie z innego agenta odmawiają go w usłudze, która
+uruchomiłaby run, a nie tylko w konsoli.
 
 Gdy organizacja ma już profil modelu, agent jest publikowany na najstarszym z
 nich. Bez profilu jest tworzony jako draft, a człowiek wybiera mu model i go

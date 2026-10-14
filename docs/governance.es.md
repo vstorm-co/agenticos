@@ -1,5 +1,5 @@
 ---
-source_sha: "02144b8f1d9d"
+source_sha: "8c94f2fc2c52"
 ---
 
 # Governance { #governance }
@@ -1438,6 +1438,11 @@ agent y el de la organización antes de cada llamada al modelo, su coste se
 registra y aparece en Activity bajo la superficie `eval`. Un agent del sistema
 empieza con un budget propio (el del juez es de $5 al mes), que se puede cambiar
 como el de cualquier agent.
+
+Un agent del sistema nunca se expone: no se le puede conectar un canal, un
+embed, una página pública ni una programación, ningún agent puede delegar en
+él, y un run suyo en cualquier superficie que no sea `eval` se rechaza. Su gasto
+solo lo inician las funciones descritas arriba.
 
 ## Auditoría { #audit }
 

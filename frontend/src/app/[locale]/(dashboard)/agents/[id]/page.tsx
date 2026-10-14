@@ -258,6 +258,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
   const canEdit = can(Perm.agentsEdit);
   const canPublish = can(Perm.agentsPublish);
+  // The platform runs a system agent; nobody chats with it or makes it available.
+  const isSystem = agent?.system_key != null;
 
   // The stale-reference check reads a reference as dead when its id is absent
   // from a list, so it must not run until every list it consults has *succeeded*:
@@ -779,15 +781,17 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 Only a published agent has a version to run - the chat's own
                 picker offers no others - so a draft says what unlocks it
                 instead of opening a chat that would answer as somebody else. */}
-            <Button
-              variant="outline"
-              onClick={openInChat}
-              disabled={!isPublished}
-              title={isPublished ? undefined : t("publishAgentChatWith")}
-            >
-              <MessageSquare className="h-4 w-4" />
-              {t("openChat")}
-            </Button>
+            {!isSystem && (
+              <Button
+                variant="outline"
+                onClick={openInChat}
+                disabled={!isPublished}
+                title={isPublished ? undefined : t("publishAgentChatWith")}
+              >
+                <MessageSquare className="h-4 w-4" />
+                {t("openChat")}
+              </Button>
+            )}
             {/* Beside the chat button rather than in the overflow menu: the
                 map answers "what is this agent" and that question comes up
                 before publishing, not after somebody goes looking for it. */}
@@ -1076,9 +1080,11 @@ export default function AgentBuilderPage({ params }: PageProps) {
           <TabsTrigger value="limits" data-tour="agent-tab-limits">
             {t("limits")}
           </TabsTrigger>
-          <TabsTrigger value="availability" data-tour="agent-tab-availability">
-            {t("availability")}
-          </TabsTrigger>
+          {!isSystem && (
+            <TabsTrigger value="availability" data-tour="agent-tab-availability">
+              {t("availability")}
+            </TabsTrigger>
+          )}
           <TabsTrigger value="history" data-tour="agent-tab-history">
             {t("history")}
           </TabsTrigger>
@@ -1376,7 +1382,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           />
         </TabsContent>
 
-        <TabsContent value="availability" className="mt-6 space-y-6">
+        <TabsContent value="availability" className="mt-6 space-y-6" hidden={isSystem}>
           <div data-tour="agent-availability">
             <ExposuresPanel
               agentId={id}

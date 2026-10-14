@@ -1,5 +1,5 @@
 ---
-source_sha: "02144b8f1d9d"
+source_sha: "8c94f2fc2c52"
 ---
 
 # Governance { #governance }
@@ -1468,6 +1468,11 @@ własnego miesięcznego budżetu agenta i budżetu organizacji, jego koszt jest
 zapisywany, a on sam jest widoczny w Activity pod powierzchnią `eval`. Agent
 systemowy startuje z własnym budżetem - budżet sędziego to $5 miesięcznie -
 który można zmienić jak budżet każdego agenta.
+
+Agent systemowy nigdy nie jest wystawiany: nie da się podpiąć do niego kanału,
+embedu, publicznej strony ani harmonogramu, żaden agent nie może do niego
+delegować, a run na jakiejkolwiek powierzchni poza `eval` jest odrzucany. Jego
+wydatki pochodzą więc tylko z funkcji opisanych wyżej.
 
 ## Audyt { #audit }
 

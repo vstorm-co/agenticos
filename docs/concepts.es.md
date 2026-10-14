@@ -1,5 +1,5 @@
 ---
-source_sha: "1bd22ff5edac"
+source_sha: "881c07a559a1"
 ---
 
 # Conceptos { #concepts }
@@ -579,11 +579,17 @@ califica respuestas para la [puntuación de datasets](datasets.md#judge). Son
 **agents del sistema**. Cada organización los recibe al crearse, y una
 organización creada antes recibe uno la primera vez que algo lo necesita.
 
-Un agent del sistema es un agent normal. Aparece en Agents con una insignia
-**System**, sus instrucciones y su modelo se pueden editar, se puede compartir,
-y sus runs se comprueban contra el budget y se registran como cualquier otro.
+Un agent del sistema es de la plataforma, no un agent que usen las personas.
+Agents lo muestra aparte, en una sección plegada **System agents** con una
+insignia **System**, y lo deja fuera de cualquier selector de agents. Quien tiene
+`agents:edit` lo abre para cambiar sus instrucciones, su modelo y su budget, y
+sus runs se comprueban contra el budget y se registran como cualquier otro.
 Empieza con un budget mensual pequeño propio, para que una organización nueva
 no pueda gastar por accidente todo su budget en evaluación.
+
+Solo la plataforma lo ejecuta. El chat, la API, un embed o una página pública,
+un canal, una programación y la delegación desde otro agent lo rechazan, en el
+servicio que iniciaría el run y no solo en la consola.
 
 Cuando la organización ya tiene un perfil de modelo, el agent se publica sobre
 el más antiguo. Sin ninguno, se crea como borrador, y una persona elige su

@@ -96,6 +96,13 @@ describe("AgentCard", () => {
     expect(screen.getByText("System")).toBeInTheDocument();
   });
 
+  it("lets an editor open a card with no menu, as a system agent's has none", () => {
+    render(<AgentCard agent={agent({ system_key: "eval_judge", name: "Eval judge" })} canEdit />);
+
+    expect(screen.getByRole("link", { name: "Edit Eval judge" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /more actions/i })).toBeNull();
+  });
+
   it("marks nothing on an agent a person made", () => {
     mount();
 

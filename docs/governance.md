@@ -1364,6 +1364,11 @@ listed in Activity under the `eval` surface. A system agent starts with a
 budget of its own - the judge's is $5 a month - which can be changed like any
 agent's.
 
+A system agent is never exposed: no channel, embed, public page or schedule can
+be attached to it, no agent can delegate to it, and a run of it on any surface
+but `eval` is refused. Its spend therefore stays the platform's own, started
+only by the features above.
+
 ## Audit
 
 Actions that change access or spend money are recorded with an actor, and a context

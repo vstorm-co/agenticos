@@ -554,11 +554,16 @@ judge** grades answers for [dataset scoring](datasets.md#judge). These are
 **system agents**. Every organization gets them when it is created, and an
 organization created earlier gets one the first time something needs it.
 
-A system agent is an ordinary agent. It is listed in Agents with a **System**
-badge, its instructions and model can be edited, it can be shared, and its runs
-are budget-checked and recorded like any other. It starts with a small monthly
-budget of its own, so a new organization cannot spend its whole budget on
-evaluation by accident.
+A system agent is the platform's, not an agent people use. Agents lists it apart,
+under a folded **System agents** section with a **System** badge, and leaves it
+out of every agent picker. Whoever holds `agents:edit` opens it to change its
+instructions, model and budget, and its runs are budget-checked and recorded
+like any other. It starts with a small monthly budget of its own, so a new
+organization cannot spend its whole budget on evaluation by accident.
+
+Only the platform runs it. Chat, the API, an embed or a public page, a channel,
+a schedule and delegation from another agent all refuse it, in the service that
+would start the run rather than only in the console.
 
 When the organization already has a model profile, the agent is published on
 the oldest one. Without one, it is created as a draft, and a person picks its

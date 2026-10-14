@@ -354,7 +354,7 @@
     "noCapabilityOrToolMatches": "No capability or tool matches “{query}”.",
     "noDelegatesYet": "No delegates yet. Only a published agent can be one - there is a version to pin.",
     "systemAgent": "System",
-    "systemAgentHint": "Seeded by the platform and started by it, for example to judge eval answers. You can edit it like any agent.",
+    "systemAgentHint": "Run by the platform, for example to judge eval answers. Nobody chats with it or delegates to it; its instructions, model and budget can be edited.",
     "noDescription": "No description.",
     "noInstructionsWritten": "No instructions written",
     "noKey": "no key",
@@ -673,7 +673,9 @@
     "bindingOffHere": "Off in this environment",
     "testSideUnusable": "Off here: the test connection is disabled or not signed in",
     "testConnectionsSaved": "Test connections saved",
-    "failedTestConnections": "The test connections could not be saved"
+    "failedTestConnections": "The test connections could not be saved",
+    "systemAgents": "{count, plural, =1 {System agent (1)} other {System agents (#)}}",
+    "systemAgentsHint": "Run by the platform for you - the eval judge grades scores. They cannot be chatted with, put on a channel, scheduled or delegated to; open one to change its instructions, model or budget."
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",

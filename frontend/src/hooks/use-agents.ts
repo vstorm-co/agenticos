@@ -32,6 +32,19 @@ export interface PromoteSpecialist {
 }
 
 /**
+ * The platform's system agents - the eval judge and its kind - which every other
+ * agent list leaves out. Opened and edited like any agent; never run by hand.
+ */
+export function useSystemAgents() {
+  const { data, isLoading, error } = useQuery({
+    queryKey: qk.agents.system(),
+    queryFn: () =>
+      apiClient.get<AgentList>("/agents", { params: { system: "true", limit: "100" } }),
+  });
+  return { agents: data?.items ?? [], total: data?.total ?? 0, isLoading, error };
+}
+
+/**
  * The agent registry.
  *
  * Mutations invalidate rather than patch the cache. An agent's status and

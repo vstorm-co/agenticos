@@ -2817,7 +2817,7 @@
     "noCapabilityOrToolMatches": "Żadna capability ani narzędzie nie pasuje do „{query}”.",
     "noDelegatesYet": "Brak delegatów. Tylko opublikowany agent może nim być - jest wtedy wersja do przypięcia.",
     "systemAgent": "Systemowy",
-    "systemAgentHint": "Dodany przez platformę i przez nią uruchamiany, np. do oceniania odpowiedzi w ewaluacjach. Możesz go edytować jak każdego agenta.",
+    "systemAgentHint": "Uruchamia go platforma, na przykład do oceniania odpowiedzi w ewaluacjach. Nikt z nim nie rozmawia ani nie deleguje do niego zadań; jego instrukcje, model i budżet można edytować.",
     "noDescription": "Brak opisu.",
     "noInstructionsWritten": "Nie napisano instrukcji",
     "noKey": "brak klucza",
@@ -3119,7 +3119,9 @@
     "bindingOffHere": "Wyłączone w tym środowisku",
     "testSideUnusable": "Wyłączone tutaj: połączenie testowe jest wyłączone albo niezalogowane",
     "testConnectionsSaved": "Połączenia testowe zapisane",
-    "failedTestConnections": "Nie udało się zapisać połączeń testowych"
+    "failedTestConnections": "Nie udało się zapisać połączeń testowych",
+    "systemAgents": "{count, plural, one {Agent systemowy (#)} few {Agenci systemowi (#)} many {Agenci systemowi (#)} other {Agenci systemowi (#)}}",
+    "systemAgentsHint": "Uruchamia je platforma - sędzia ewaluacji ocenia wyniki. Nie da się z nimi rozmawiać, podpiąć ich do kanału, zaplanować ani zrobić z nich delegata; otwórz agenta, żeby zmienić jego instrukcje, model albo budżet."
   },
   "steps": {
     "skills-gallery": {

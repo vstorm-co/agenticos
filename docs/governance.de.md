@@ -1,5 +1,5 @@
 ---
-source_sha: "02144b8f1d9d"
+source_sha: "8c94f2fc2c52"
 ---
 
 # Governance { #governance }
@@ -1558,6 +1558,11 @@ Monatsbudget des Agents und das der Organisation geprüft, seine Kosten werden
 aufgezeichnet, und er wird in Activity unter der Oberfläche `eval` aufgeführt.
 Ein System-Agent startet mit einem eigenen Budget - das des Judge beträgt 5 $
 im Monat -, das sich wie das jedes Agents ändern lässt.
+
+Ein System-Agent wird nie bereitgestellt: Kein Kanal, kein Embed, keine
+öffentliche Seite und kein Zeitplan lassen sich an ihn hängen, kein Agent kann
+an ihn delegieren, und ein Run auf einer anderen Oberfläche als `eval` wird
+abgelehnt. Seine Ausgaben entstehen daher nur durch die Funktionen oben.
 
 ## Audit { #audit }
 

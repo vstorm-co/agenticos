@@ -1,5 +1,5 @@
 ---
-source_sha: "1bd22ff5edac"
+source_sha: "881c07a559a1"
 ---
 
 # Begriffe { #concepts }
@@ -606,12 +606,17 @@ Der **Eval judge** bewertet Antworten für das
 Organisation erhält sie bei ihrer Erstellung, und eine früher erstellte
 Organisation erhält einen, sobald etwas ihn zum ersten Mal braucht.
 
-Ein System-Agent ist ein gewöhnlicher Agent. Er steht in Agents mit einem
-**System**-Badge, seine Instruktionen und sein Modell lassen sich bearbeiten, er
-kann geteilt werden, und seine Runs werden wie alle anderen gegen das Budget
-geprüft und aufgezeichnet. Er startet mit einem eigenen kleinen Monatsbudget,
-damit eine neue Organisation nicht versehentlich ihr ganzes Budget für
-Evaluierung ausgibt.
+Ein System-Agent gehört der Plattform und ist kein Agent, den Menschen benutzen.
+Agents führt ihn getrennt, in einem eingeklappten Abschnitt **System agents** mit
+einem **System**-Badge, und lässt ihn in jeder Agent-Auswahl weg. Wer
+`agents:edit` hat, öffnet ihn, um Instruktionen, Modell und Budget zu ändern,
+und seine Runs werden wie alle anderen gegen das Budget geprüft und
+aufgezeichnet. Er startet mit einem eigenen kleinen Monatsbudget, damit eine
+neue Organisation nicht versehentlich ihr ganzes Budget für Evaluierung ausgibt.
+
+Nur die Plattform führt ihn aus. Chat, API, ein Embed oder eine öffentliche
+Seite, ein Kanal, ein Zeitplan und die Delegation durch einen anderen Agent
+lehnen ihn ab, im Service, der den Run starten würde, nicht nur in der Konsole.
 
 Hat die Organisation bereits ein Model-Profil, wird der Agent auf dem ältesten
 veröffentlicht. Ohne eines wird er als Draft angelegt, und ein Mensch wählt sein

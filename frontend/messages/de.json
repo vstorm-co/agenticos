@@ -354,7 +354,7 @@
     "noCapabilityOrToolMatches": "Keine Capability und kein Tool passt zu „{query}“.",
     "noDelegatesYet": "Noch keine Delegaten. Nur ein veröffentlichter Agent kann einer sein – dann gibt es eine Version zum Festsetzen.",
     "systemAgent": "System",
-    "systemAgentHint": "Von der Plattform angelegt und von ihr gestartet, etwa um Eval-Antworten zu bewerten. Sie können ihn wie jeden Agenten bearbeiten.",
+    "systemAgentHint": "Von der Plattform ausgeführt, etwa um Eval-Antworten zu bewerten. Niemand chattet mit ihm oder delegiert an ihn; Anweisungen, Modell und Budget lassen sich bearbeiten.",
     "noDescription": "Keine Beschreibung.",
     "noInstructionsWritten": "Keine Instruktionen geschrieben",
     "noKey": "kein Schlüssel",
@@ -669,7 +669,9 @@
     "bindingOffHere": "In diesem Environment aus",
     "testSideUnusable": "Hier aus: Die Testverbindung ist deaktiviert oder nicht angemeldet",
     "testConnectionsSaved": "Testverbindungen gespeichert",
-    "failedTestConnections": "Die Testverbindungen konnten nicht gespeichert werden"
+    "failedTestConnections": "Die Testverbindungen konnten nicht gespeichert werden",
+    "systemAgents": "{count, plural, =1 {System-Agent (1)} other {System-Agents (#)}}",
+    "systemAgentsHint": "Die Plattform führt sie für Sie aus - der Eval-Bewerter bewertet Ergebnisse. Mit ihnen lässt sich nicht chatten, sie lassen sich keinem Kanal zuweisen, nicht planen und nicht als Delegate nutzen; öffnen Sie einen, um Anweisungen, Modell oder Budget zu ändern."
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
