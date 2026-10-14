@@ -609,8 +609,10 @@ class _FakePage:
         text: str = "the page text",
         image: str | None = "data:image/jpeg;base64,AAAA",
         refuse: str | None = None,
+        painted: tuple[str, ...] = (),
     ) -> None:
         self._snapshots = list(snapshots) or [_snapshot()]
+        self._painted = painted
         self._text = text
         self._image = image
         self._refuse = refuse
@@ -650,6 +652,17 @@ class _FakePage:
     async def screenshot(self) -> str | None:
         self.shots += 1
         return self._image
+
+    @asynccontextmanager
+    async def stream(self, deliver: Any) -> AsyncGenerator[None, None]:
+        """Paints `painted` as the stream opens - a page loading while watched."""
+        self.done.append("stream:on")
+        for image in self._painted:
+            await deliver(image)
+        try:
+            yield
+        finally:
+            self.done.append("stream:off")
 
     async def read(self) -> str:
         return self._text
@@ -948,7 +961,10 @@ class TestThePageIsTheSizeOfTheWindowWatchingIt:
 
         # Both, in order, so the page ends the size of the window as it is now;
         # input for a tab nobody holds is dropped.
-        assert page.done == ["resize:800x1000@1", "resize:640x900@2"]
+        assert [done for done in page.done if done.startswith("resize")] == [
+            "resize:800x1000@1",
+            "resize:640x900@2",
+        ]
         # The first snapshot was taken at the old size, so the step reads a new one.
         assert frames.of("browser_frame")[0].url == "https://example.test/after"
 
@@ -1227,6 +1243,39 @@ class TestWhatASurfaceIsShown:
         seen: list[Any] = []
         await _browse(_FakePage(), _decider(DONE, seen=seen), sink=_Frames(), preview=True)
         assert seen[0][3] is None
+
+    async def test_a_watched_page_streams_its_paints_between_the_steps(self):
+        """A scroll or a page loading shows as it happens, not when the next step lands."""
+        frames = _Frames()
+        page = _FakePage(painted=("data:image/jpeg;base64,PAINT1", "data:image/jpeg;base64,PAINT2"))
+
+        await _browse(page, _decider(DONE), sink=frames, preview=True)
+
+        images = [frame.image for frame in frames.of("browser_frame")]
+        assert images[:2] == ["data:image/jpeg;base64,PAINT1", "data:image/jpeg;base64,PAINT2"]
+        # Open for the whole browse and closed when it ends, whatever the outcome.
+        assert page.done[0] == "stream:on"
+        assert page.done[-1] == "stream:off"
+
+    async def test_nobody_watching_streams_nothing(self):
+        page = _FakePage(painted=("data:image/jpeg;base64,PAINT",))
+
+        await _browse(page, _decider(DONE), sink=_Frames(), preview=False)
+
+        assert "stream:on" not in page.done
+
+    async def test_a_reader_who_left_stops_the_stream_too(self):
+        frames = _Frames(delivers=False)
+        page = _FakePage(painted=("data:image/jpeg;base64,P1", "data:image/jpeg;base64,P2"))
+
+        result = await _browse(page, _decider(DONE), sink=frames, preview=True)
+
+        assert result.outcome == "done"
+        # The first paint found nobody; neither the second nor a step's picture is sent.
+        assert [frame.image for frame in frames.of("browser_frame")] == [
+            "data:image/jpeg;base64,P1"
+        ]
+        assert page.shots == 0
 
     async def test_a_page_with_no_picture_sends_no_frame(self):
         frames = _Frames()

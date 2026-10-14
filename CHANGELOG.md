@@ -579,7 +579,10 @@ Two things are versioned separately from this file and worth knowing about:
   reads like the site in a browser rather than a shrunk laptop screen
   (`resize` on the live view's socket, applied between steps). The
   agent's cursor moves to what it is about to click or type into and
-  shows the click (`browser_pointer` frames).
+  shows the click (`browser_pointer` frames). While somebody watches, the
+  page streams as it paints (a CDP screencast, about twelve frames a
+  second) rather than one picture per step, so a scroll or a page loading
+  shows as it happens.
 
 - **AgenticOS has a new mark: the blob its own name draws.** The light
   face the avatar library draws for "agenticos", on a deep violet tile,

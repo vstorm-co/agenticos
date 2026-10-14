@@ -18,8 +18,9 @@ from __future__ import annotations
 import asyncio
 import ipaddress
 import json
-from collections.abc import AsyncGenerator, Sequence
-from contextlib import asynccontextmanager
+import logging
+from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
+from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlsplit
@@ -79,7 +80,14 @@ quiet would otherwise hold the agent's turn open for as long as the run may live
 
 _EVAL_ATTEMPTS = 5
 _READY_ATTEMPTS = 20
+logger = logging.getLogger(__name__)
+
 _EVAL_BACKOFF = 0.25
+
+STREAM_GAP = 0.08
+"""Seconds between two streamed frames: about twelve a second, smooth to a reader
+and a tenth of what the browser can paint, so a page animating at sixty frames a
+second does not become sixty JPEGs a second over the socket."""
 _SETTLE_MS = 400
 _VIEWPORT_RATIO = 0.75
 """Viewport height as a fraction of its width - a 4:3 window, not a phone.
@@ -794,6 +802,66 @@ class CdpPage:
         )
         data = shot.get("data")
         return f"data:image/jpeg;base64,{data}" if data else None
+
+    @asynccontextmanager
+    async def stream(  # pragma: no cover - needs a live browser
+        self, deliver: Callable[[str], Awaitable[None]]
+    ) -> AsyncGenerator[None, None]:
+        """Hand every paint of the page to `deliver`, as a JPEG `data:` URL, until the block ends.
+
+        A screencast rather than a screenshot per step: the browser sends a frame
+        whenever the page paints - a scroll, a menu opening, a page loading - so
+        a person watches the page move instead of a slide every few seconds,
+        while the model is still deciding. Each frame is the viewport at its
+        current size and density, the same picture `screenshot` takes.
+
+        The frame handler runs inside the client's receive loop, which is also
+        what reads every command's answer, so it only parks the newest frame;
+        acknowledging and delivering happen in a task of their own. A frame
+        that arrives while one is being delivered replaces the parked one, so a
+        slow socket gets the page as it is now rather than a queue of the past.
+        The stream is a preview: a failure ends the stream and nothing else.
+        """
+        parked: list[dict[str, Any]] = []
+        arrived = asyncio.Event()
+        streaming = True
+
+        def on_frame(event: dict[str, Any], session_id: str | None) -> None:
+            if streaming and session_id == self._session:
+                parked[:] = [event]
+                arrived.set()
+
+        async def pump() -> None:
+            try:
+                while True:
+                    await arrived.wait()
+                    arrived.clear()
+                    frame = parked.pop()
+                    await self._client.send.Page.screencastFrameAck(
+                        params={"sessionId": frame["sessionId"]}, session_id=self._session
+                    )
+                    await deliver(f"data:image/jpeg;base64,{frame['data']}")
+                    await asyncio.sleep(STREAM_GAP)
+            except (RuntimeError, ConnectionError, OSError) as stopped:
+                logger.debug("browser stream stopped: %s", stopped)
+
+        self._client.register.Page.screencastFrame(on_frame)
+        await self._client.send.Page.startScreencast(
+            params={"format": "jpeg", "quality": 60, "everyNthFrame": 1},
+            session_id=self._session,
+        )
+        task = asyncio.create_task(pump())
+        try:
+            yield
+        finally:
+            streaming = False
+            task.cancel()
+            with suppress(asyncio.CancelledError):
+                await task
+            # The tab may already be gone - the browse ended because it closed -
+            # and a stream that cannot be stopped is a stream already stopped.
+            with suppress(RuntimeError, ConnectionError, OSError):
+                await self._client.send.Page.stopScreencast(session_id=self._session)
 
     async def click_at(  # pragma: no cover - needs a live browser
         self, x: float, y: float

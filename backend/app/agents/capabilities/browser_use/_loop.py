@@ -28,6 +28,7 @@ something useful to say.
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
+from contextlib import AbstractAsyncContextManager, nullcontext
 from dataclasses import dataclass
 from hashlib import sha256
 from typing import Protocol
@@ -110,6 +111,11 @@ class PageSession(Protocol):
 
     async def snapshot(self) -> Snapshot:
         """The page as it is now: its URL, its title, its words and what can be chosen."""
+
+    def stream(
+        self, deliver: Callable[[str], Awaitable[None]]
+    ) -> AbstractAsyncContextManager[None]:
+        """Hand the page's paints to `deliver` as JPEG `data:` URLs while the block runs."""
 
     async def click(self, element: Element) -> None:
         """Press an element, resolved and verified where it is now."""
@@ -270,106 +276,152 @@ async def run_browse(
         )
     )
 
-    recent: list[str] = []
-    for taken in range(1, policy.max_steps + 1):
-        session.steps += 1
-        step_no = session.steps
-        held = False
-        resized = False
-        if control is not None:
-            # Between steps, never inside one: a person taking over waits for the
-            # action in flight to finish, so the tab is never driven by two at once.
-            waiting, resized = await _between_steps(page, control)
-            if waiting is not None:
-                await _held(
-                    session, control, emit, call_id=call_id, by=waiting.by, remember=remember
-                )
-                held = True
-        # A resized page has laid itself out again, so the first step's snapshot
-        # - taken before the loop - would offer elements where they no longer are.
-        if taken > 1 or held or resized:
-            snapshot = await page.snapshot()
-
-        image: str | None = None
-        if previews_land or policy.vision:
-            image = await page.screenshot()
-        if previews_land and image is not None:
+    async def push(image: str) -> None:
+        """One painted frame of the page, to whoever is still watching."""
+        nonlocal previews_land
+        if previews_land:
             previews_land = await emit(
-                BrowserEvent(
-                    kind="browser_frame",
-                    call_id=call_id,
-                    step=step_no,
-                    url=snapshot.url,
-                    title=snapshot.title,
-                    image=image,
-                )
+                BrowserEvent(kind="browser_frame", call_id=call_id, step=session.steps, image=image)
             )
 
-        step = await decide(
-            task, snapshot, session.history, session.memory, image if policy.vision else None
-        )
-        session.memory = step.memory
-        action = step.action
-        element = _element_at(
-            snapshot, action.index if isinstance(action, (Click, TypeText, Select)) else None
-        )
-        await emit(
-            BrowserEvent(
-                kind="browser_step",
-                call_id=call_id,
-                step=step_no,
-                url=snapshot.url,
-                title=snapshot.title,
-                operation=_OPERATION[type(action)],
-                target=_target(action, element),
-                reason=step.next_goal,
-            )
-        )
-        if previews_land and element is not None:
-            # Where the agent is about to press, for the cursor a person watches
-            # move across the page - only while somebody is watching, and before
-            # the action, so the cursor arrives as the click happens.
-            spot = await page.point(element)
-            if spot is not None:
-                await emit(
-                    BrowserEvent(
-                        kind="browser_pointer",
-                        call_id=call_id,
-                        step=step_no,
-                        x=spot[0],
-                        y=spot[1],
-                    )
-                )
-
-        if isinstance(action, Done):
-            return await _finish(
-                emit,
-                session,
-                call_id=call_id,
-                outcome="done",
-                taken=taken,
-                text=action.answer,
-                # The answer itself, so the panel says what was found rather than
-                # that something was. Model-written; a surface renders it as data.
-                detail=action.answer[:_DETAIL_LIMIT],
-                snapshot=snapshot,
-            )
-        if isinstance(action, AskPerson):
-            arrived = None
+    # The page as it paints, for as long as somebody watches - a scroll or a page
+    # loading shows as it happens, not as a slide when the next step is taken.
+    # The step's own picture below still carries the address and the title.
+    async with page.stream(push) if previews_land else nullcontext():
+        recent: list[str] = []
+        for taken in range(1, policy.max_steps + 1):
+            session.steps += 1
+            step_no = session.steps
+            held = False
+            resized = False
             if control is not None:
-                await emit(
+                # Between steps, never inside one: a person taking over waits for the
+                # action in flight to finish, so the tab is never driven by two at once.
+                waiting, resized = await _between_steps(page, control)
+                if waiting is not None:
+                    await _held(
+                        session, control, emit, call_id=call_id, by=waiting.by, remember=remember
+                    )
+                    held = True
+            # A resized page has laid itself out again, so the first step's snapshot
+            # - taken before the loop - would offer elements where they no longer are.
+            if taken > 1 or held or resized:
+                snapshot = await page.snapshot()
+
+            image: str | None = None
+            if previews_land or policy.vision:
+                image = await page.screenshot()
+            if previews_land and image is not None:
+                previews_land = await emit(
                     BrowserEvent(
-                        kind="browser_needs_person",
+                        kind="browser_frame",
                         call_id=call_id,
                         step=step_no,
                         url=snapshot.url,
                         title=snapshot.title,
-                        detail=action.reason,
+                        image=image,
                     )
                 )
-                arrived = await _await_person(control)
-            if arrived is None or control is None:
-                reason = f"It needed a person and nobody took the browser over: {action.reason}"
+
+            step = await decide(
+                task, snapshot, session.history, session.memory, image if policy.vision else None
+            )
+            session.memory = step.memory
+            action = step.action
+            element = _element_at(
+                snapshot, action.index if isinstance(action, (Click, TypeText, Select)) else None
+            )
+            await emit(
+                BrowserEvent(
+                    kind="browser_step",
+                    call_id=call_id,
+                    step=step_no,
+                    url=snapshot.url,
+                    title=snapshot.title,
+                    operation=_OPERATION[type(action)],
+                    target=_target(action, element),
+                    reason=step.next_goal,
+                )
+            )
+            if previews_land and element is not None:
+                # Where the agent is about to press, for the cursor a person watches
+                # move across the page - only while somebody is watching, and before
+                # the action, so the cursor arrives as the click happens.
+                spot = await page.point(element)
+                if spot is not None:
+                    await emit(
+                        BrowserEvent(
+                            kind="browser_pointer",
+                            call_id=call_id,
+                            step=step_no,
+                            x=spot[0],
+                            y=spot[1],
+                        )
+                    )
+
+            if isinstance(action, Done):
+                return await _finish(
+                    emit,
+                    session,
+                    call_id=call_id,
+                    outcome="done",
+                    taken=taken,
+                    text=action.answer,
+                    # The answer itself, so the panel says what was found rather than
+                    # that something was. Model-written; a surface renders it as data.
+                    detail=action.answer[:_DETAIL_LIMIT],
+                    snapshot=snapshot,
+                )
+            if isinstance(action, AskPerson):
+                arrived = None
+                if control is not None:
+                    await emit(
+                        BrowserEvent(
+                            kind="browser_needs_person",
+                            call_id=call_id,
+                            step=step_no,
+                            url=snapshot.url,
+                            title=snapshot.title,
+                            detail=action.reason,
+                        )
+                    )
+                    arrived = await _await_person(control)
+                if arrived is None or control is None:
+                    reason = f"It needed a person and nobody took the browser over: {action.reason}"
+                    return await _finish(
+                        emit,
+                        session,
+                        call_id=call_id,
+                        outcome="blocked",
+                        taken=taken,
+                        text=_remembered(session, reason),
+                        detail=reason,
+                        snapshot=snapshot,
+                    )
+                session.history += (f"step {step_no}: {step.next_goal} - asked a person",)
+                await _held(
+                    session, control, emit, call_id=call_id, by=arrived.by, remember=remember
+                )
+                continue
+            if isinstance(action, Blocked):
+                return await _finish(
+                    emit,
+                    session,
+                    call_id=call_id,
+                    outcome="blocked",
+                    taken=taken,
+                    text=_remembered(session, action.reason),
+                    detail=action.reason,
+                    snapshot=snapshot,
+                )
+
+            signature = _signature(snapshot, step)
+            recent.append(signature)
+            if recent[-REPEAT_LIMIT:].count(signature) == REPEAT_LIMIT:
+                reason = (
+                    f"The same action was chosen {REPEAT_LIMIT} times running without "
+                    f"changing the page."
+                )
                 return await _finish(
                     emit,
                     session,
@@ -380,65 +432,33 @@ async def run_browse(
                     detail=reason,
                     snapshot=snapshot,
                 )
-            session.history += (f"step {step_no}: {step.next_goal} - asked a person",)
-            await _held(session, control, emit, call_id=call_id, by=arrived.by, remember=remember)
-            continue
-        if isinstance(action, Blocked):
-            return await _finish(
-                emit,
-                session,
-                call_id=call_id,
-                outcome="blocked",
-                taken=taken,
-                text=_remembered(session, action.reason),
-                detail=action.reason,
-                snapshot=snapshot,
-            )
 
-        signature = _signature(snapshot, step)
-        recent.append(signature)
-        if recent[-REPEAT_LIMIT:].count(signature) == REPEAT_LIMIT:
-            reason = (
-                f"The same action was chosen {REPEAT_LIMIT} times running without "
-                f"changing the page."
-            )
-            return await _finish(
-                emit,
-                session,
-                call_id=call_id,
-                outcome="blocked",
-                taken=taken,
-                text=_remembered(session, reason),
-                detail=reason,
-                snapshot=snapshot,
-            )
+            try:
+                result = await _act(page, step, element)
+            except StaleElement as refused:
+                # The page moved between the snapshot and the decision, or the number
+                # named nothing. The action did not happen and the next snapshot
+                # describes what is there now - one wasted step with a reason the
+                # model reads, not the end of the browse. The repeat guard is what
+                # stops a page that does this for ever.
+                result = f"refused: {refused}"
+            session.history += (f"step {step_no}: {step.next_goal} - {result}",)
+            await page.settle()
 
-        try:
-            result = await _act(page, step, element)
-        except StaleElement as refused:
-            # The page moved between the snapshot and the decision, or the number
-            # named nothing. The action did not happen and the next snapshot
-            # describes what is there now - one wasted step with a reason the
-            # model reads, not the end of the browse. The repeat guard is what
-            # stops a page that does this for ever.
-            result = f"refused: {refused}"
-        session.history += (f"step {step_no}: {step.next_goal} - {result}",)
-        await page.settle()
-
-    reason = (
-        f"Stopped after {policy.max_steps} steps without finishing. Call again without "
-        f"a start_url to continue in the same tab."
-    )
-    return await _finish(
-        emit,
-        session,
-        call_id=call_id,
-        outcome="exhausted",
-        taken=policy.max_steps,
-        text=_remembered(session, reason),
-        detail=reason,
-        snapshot=snapshot,
-    )
+        reason = (
+            f"Stopped after {policy.max_steps} steps without finishing. Call again without "
+            f"a start_url to continue in the same tab."
+        )
+        return await _finish(
+            emit,
+            session,
+            call_id=call_id,
+            outcome="exhausted",
+            taken=policy.max_steps,
+            text=_remembered(session, reason),
+            detail=reason,
+            snapshot=snapshot,
+        )
 
 
 _OPERATION: dict[type, str] = {
