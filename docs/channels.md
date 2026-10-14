@@ -1153,6 +1153,9 @@ Pressing one decides or answers, the run continues, and its answer is posted in
 the same chat; the pressed message keeps what was asked and shows what was
 chosen.
 
+A question that takes several answers stays open: each press adds or removes an
+option, the chat is told what is picked so far, and **Done** sends them.
+
 An approval reads as the agent asking, in its own voice: what it wants to do and
 the one argument that says what it is about — *I need your approval to **search in
 Notion**: “what's new in releases”*. A tool from an MCP server is named by its

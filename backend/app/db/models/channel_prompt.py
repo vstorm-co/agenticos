@@ -16,7 +16,17 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    false,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -59,6 +69,11 @@ class ChannelPrompt(Base, TimestampMixin):
     tool_call_id: Mapped[str | None] = mapped_column(Text, nullable=True)
     question_index: Mapped[int | None] = mapped_column(Integer, nullable=True)
     choices: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    multi_select: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
+    """A question several of whose choices may be picked: presses toggle into
+    `answer` and its Done button answers it."""
     answer: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     answered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 

@@ -577,6 +577,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **A question in Slack, Telegram or Mattermost answers as the person it was
+  asked** (Codex review of #2062). Another member's press is refused before
+  anything is written; a question taking several answers collects them until
+  **Done**; and a question the chat never received no longer holds the run.
+
 - **A new chat no longer waits behind an answer from another one.** Opening a
   new chat - or another conversation - while an agent was still answering left
   the composer busy, so the next message went into a queue behind an answer that

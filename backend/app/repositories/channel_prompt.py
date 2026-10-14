@@ -22,6 +22,7 @@ async def create(
     approval_id: UUID | None = None,
     tool_call_id: str | None = None,
     question_index: int | None = None,
+    multi_select: bool = False,
 ) -> ChannelPrompt:
     prompt = ChannelPrompt(
         organization_id=organization_id,
@@ -33,6 +34,7 @@ async def create(
         approval_id=approval_id,
         tool_call_id=tool_call_id,
         question_index=question_index,
+        multi_select=multi_select,
     )
     db.add(prompt)
     await db.flush()
@@ -63,6 +65,21 @@ async def answer(
     await db.flush()
     await db.refresh(prompt)
     return prompt
+
+
+async def pick(db: AsyncSession, *, prompt: ChannelPrompt, selected: list[str]) -> ChannelPrompt:
+    """Record a multi-select question's choices so far, leaving it unanswered."""
+    prompt.answer = {"selected": selected}
+    await db.flush()
+    await db.refresh(prompt)
+    return prompt
+
+
+async def delete(db: AsyncSession, prompts: list[ChannelPrompt]) -> None:
+    """Remove prompts that never reached the chat."""
+    for prompt in prompts:
+        await db.delete(prompt)
+    await db.flush()
 
 
 async def for_call(db: AsyncSession, *, run_id: UUID, tool_call_id: str) -> list[ChannelPrompt]:

@@ -30,6 +30,7 @@ from app.services.channels.base import (
 from app.services.channels.prompts import (
     ALREADY,
     LINK_FIRST,
+    NOT_ASKED,
     NOT_YOURS,
     SKIP,
     ChannelPrompts,
@@ -62,6 +63,7 @@ def _prompt(kind: str = APPROVAL, **fields: Any) -> MagicMock:
         "choices": ["Approve", "Reject"] if kind == APPROVAL else ["Formal", "Casual"],
         "answer": None,
         "answered_at": None,
+        "multi_select": False,
     }
     return MagicMock(**{**defaults, **fields})
 
@@ -89,6 +91,7 @@ class _Patched:
         identity = MagicMock(id=uuid.uuid4(), user_id=USER) if role is not None else None
         membership = MagicMock(role=role) if role is not None else None
         self.answered: list[dict[str, Any]] = []
+        self.picked: list[list[str]] = []
 
         async def answer(db: Any, *, prompt: MagicMock, value: dict[str, Any]) -> MagicMock:
             prompt.answer = value
@@ -107,7 +110,18 @@ class _Patched:
                 new=AsyncMock(return_value=identity),
             ),
             patch(f"{_MODULE}.member_repo.get_active", new=AsyncMock(return_value=membership)),
+            # The run asked the person pressing, unless a test says otherwise.
+            patch(
+                f"{_MODULE}.agent_run_repo.get_run",
+                new=AsyncMock(return_value=MagicMock(id=RUN, user_id=USER)),
+            ),
+            patch(f"{_MODULE}.channel_prompt_repo.pick", new=self._pick),
         ]
+
+    async def _pick(self, db: Any, *, prompt: MagicMock, selected: list[str]) -> MagicMock:
+        prompt.answer = {"selected": selected}
+        self.picked.append(selected)
+        return prompt
 
     def __enter__(self) -> _Patched:
         for p in self.patches:
@@ -196,7 +210,7 @@ class TestOffering:
 
         async def create(db: Any, **fields: Any) -> MagicMock:
             created.append(fields)
-            return MagicMock(id=uuid.uuid4(), **fields)
+            return MagicMock(id=uuid.uuid4(), **{"multi_select": False, **fields})
 
         with _Patched(bot=bot, prompt=None, role="member") as env:
             with (
@@ -225,6 +239,42 @@ class TestOffering:
         assert [choice.label for choice in sent[1].choices] == ["Formal", "Casual", SKIP]
         assert sent[2].text == "Anything else?"
         assert sent[0].bot_id == str(bot.id)
+
+    async def test_a_question_the_chat_never_got_leaves_no_row_behind(self):
+        """Codex on #2062: a call is answered once all its rows are, so an
+        undelivered one held the run forever."""
+        bot = _bot()
+        asked = ParkedQuestion(
+            tool_call_id="ask-1",
+            questions=[
+                QuestionItem(question="One?", options=[QuestionChoice(label="A")]),
+                QuestionItem(
+                    question="Two?", options=[QuestionChoice(label="B")], multi_select=True
+                ),
+            ],
+        )
+        service = ChannelPrompts(MagicMock())
+        rows: list[MagicMock] = []
+
+        async def create(db: Any, **fields: Any) -> MagicMock:
+            rows.append(MagicMock(id=uuid.uuid4(), **fields))
+            return rows[-1]
+
+        with _Patched(bot=bot, prompt=None, role="member") as env:
+            env.adapter.send_prompt = AsyncMock(side_effect=[None, RuntimeError("slack down")])
+            with (
+                patch(f"{_MODULE}.channel_prompt_repo.create", new=create),
+                patch(f"{_MODULE}.channel_prompt_repo.delete", new=AsyncMock()) as delete,
+                patch.object(service.runner, "parked_calls", new=AsyncMock(return_value=[])),
+                patch.object(
+                    service.runner, "parked_questions", new=AsyncMock(return_value=[asked])
+                ),
+            ):
+                await service.offer(bot, platform="slack", platform_chat_id="C1", run_id=RUN)
+            second = env.adapter.send_prompt.await_args_list[1].args[1]
+
+        delete.assert_awaited_once_with(service.db, rows)
+        assert [choice.label for choice in second.choices] == ["B", "Done", SKIP]
 
     async def test_a_run_gone_or_a_failure_offers_nothing_and_raises_nothing(self):
         bot = _bot()
@@ -379,6 +429,50 @@ class TestPressingAQuestion:
                 answer = service.runner.answer
                 await service.press(_press(prompt, choice, bot))
             return env, answer
+
+    async def test_somebody_else_pressing_writes_nothing(self):
+        """Codex on #2062: a colleague's press in a shared channel used the question up."""
+        bot = _bot()
+        prompt = _prompt(QUESTION)
+        service = ChannelPrompts(MagicMock())
+        with (
+            _Patched(bot=bot, prompt=prompt, role="member") as env,
+            patch(
+                f"{_MODULE}.agent_run_repo.get_run",
+                new=AsyncMock(return_value=MagicMock(id=RUN, user_id=uuid.uuid4())),
+            ),
+        ):
+            await service.press(_press(prompt, 0, bot))
+
+        assert env.answered == []
+        assert env.said() == [NOT_ASKED]
+
+    async def test_a_multi_select_collects_choices_until_done(self):
+        prompt = _prompt(QUESTION, multi_select=True)
+        env, answer = await self._press(choice=0, siblings=[prompt])
+        assert env.picked == [["Formal"]]
+        assert env.said() == ["Picked: Formal. Press Done when that is all."]
+        answer.assert_not_awaited()
+        env.adapter.settle_prompt.assert_not_awaited()
+
+        env, answer = await self._press(choice=1, siblings=[prompt])
+        assert env.picked == [["Formal", "Casual"]]
+        env, answer = await self._press(choice=0, siblings=[prompt])
+        assert env.picked == [["Casual"]]
+        env, answer = await self._press(choice=0, siblings=[prompt])
+
+        env, answer = await self._press(choice=len(prompt.choices), siblings=[prompt])
+        assert answer.await_args.args[2] == {"ask-1": [{"selected": ["Casual", "Formal"]}]}
+        assert env.adapter.settle_prompt.await_args.args[2] == "Answered: Casual, Formal"
+
+    async def test_done_with_nothing_picked_is_a_skip(self):
+        prompt = _prompt(QUESTION, multi_select=True)
+        env, answer = await self._press(choice=0, siblings=[prompt])
+        env, answer = await self._press(choice=0, siblings=[prompt])
+        assert env.said() == ["Nothing picked yet. Choose one or more, then press Done."]
+
+        env, answer = await self._press(choice=2, siblings=[prompt])
+        assert answer.await_args.args[2] == {"ask-1": [{"skipped": True}]}
 
     async def test_the_last_question_answered_answers_the_call(self):
         env, answer = await self._press(choice=1, siblings=[_prompt(QUESTION)])

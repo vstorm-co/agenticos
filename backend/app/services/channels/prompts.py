@@ -55,9 +55,11 @@ logger = logging.getLogger(__name__)
 APPROVE = "Approve"
 REJECT = "Reject"
 SKIP = "Skip"
+DONE = "Done"
 LINK_FIRST = "Link your account first - send /link to this bot - and press again."
 ALREADY = "That has already been answered."
 NOT_YOURS = "Only somebody who may approve tool calls can decide this one."
+NOT_ASKED = "This question was asked of somebody else."
 NOBODY = UUID(int=0)
 _SUMMARY_SHOWN = 200
 """How much of a gated call's telling argument the approval message quotes."""
@@ -149,6 +151,18 @@ def approval_text(tool_name: str, args: dict[str, object]) -> str:
     return f"I need your approval to *{call_action(tool_name)}*{about}"
 
 
+def _selected(prompt: ChannelPrompt) -> list[str]:
+    """The choices a multi-select question has collected so far."""
+    selected = (prompt.answer or {}).get("selected")
+    return [str(label) for label in selected] if isinstance(selected, list) else []
+
+
+def _picked_so_far(picked: list[str]) -> str:
+    if not picked:
+        return f"Nothing picked yet. Choose one or more, then press {DONE}."
+    return f"Picked: {', '.join(picked)}. Press {DONE} when that is all."
+
+
 class ChannelPrompts:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
@@ -207,23 +221,33 @@ class ChannelPrompts:
                 ),
             )
         for parked in await self.runner.parked_questions(reader, run):
-            for index, question in enumerate(parked.questions):
-                prompt = await channel_prompt_repo.create(
-                    self.db,
-                    organization_id=bot.organization_id,
-                    bot_id=bot.id,
-                    run_id=run.id,
-                    platform_chat_id=platform_chat_id,
-                    kind=QUESTION,
-                    tool_call_id=parked.tool_call_id,
-                    question_index=index,
-                    choices=[option.label for option in question.options],
-                )
-                heading = f"*{question.header}* - " if question.header else ""
-                await adapter.send_prompt(
-                    token,
-                    self._message(bot, prompt, f"{heading}{question.question}", skippable=True),
-                )
+            offered: list[ChannelPrompt] = []
+            try:
+                for index, question in enumerate(parked.questions):
+                    prompt = await channel_prompt_repo.create(
+                        self.db,
+                        organization_id=bot.organization_id,
+                        bot_id=bot.id,
+                        run_id=run.id,
+                        platform_chat_id=platform_chat_id,
+                        kind=QUESTION,
+                        tool_call_id=parked.tool_call_id,
+                        question_index=index,
+                        choices=[option.label for option in question.options],
+                        multi_select=question.multi_select,
+                    )
+                    offered.append(prompt)
+                    heading = f"*{question.header}* - " if question.header else ""
+                    await adapter.send_prompt(
+                        token,
+                        self._message(bot, prompt, f"{heading}{question.question}", skippable=True),
+                    )
+            except Exception:
+                # A call is answered once all its rows are, so a row the chat never
+                # saw would hold it forever. None of them stay: the console still
+                # reaches the question.
+                await channel_prompt_repo.delete(self.db, offered)
+                raise
 
     @staticmethod
     def _message(
@@ -236,6 +260,9 @@ class ChannelPrompts:
             )
             for index, label in enumerate(prompt.choices)
         ]
+        if prompt.multi_select:
+            done = press_value(prompt.id.hex, len(prompt.choices))
+            choices.append(ChannelChoice(label=DONE, value=done, style="primary"))
         if skippable:
             choices.append(ChannelChoice(label=SKIP, value=press_value(prompt.id.hex, None)))
         return PromptMessage(
@@ -284,6 +311,10 @@ class ChannelPrompts:
             await say(LINK_FIRST)
             return
         try:
+            if prompt.multi_select and choice is not None and choice < len(prompt.choices):
+                picked = await self._toggle(ctx, prompt, choice)
+                await say(_picked_so_far(picked))
+                return
             segment = await (
                 self._decide(ctx, prompt, choice)
                 if prompt.kind == APPROVAL
@@ -325,14 +356,23 @@ class ChannelPrompts:
     async def _answer(
         self, ctx: AuthContext, prompt: ChannelPrompt, choice: int | None
     ) -> RunSegment | None:
-        """Record the pick; answer the call once every one of its questions is."""
-        picked = (
-            {"selected": [prompt.choices[choice]]}
-            if choice is not None and choice < len(prompt.choices)
-            else {"skipped": True}
-        )
+        """Record the pick; answer the call once every one of its questions is.
+
+        Raises:
+            AuthorizationError: The presser is not the person the run asked -
+                refused before anything is written, so a colleague's press in a
+                shared channel leaves the question for its person.
+        """
+        await self._require_asked(ctx, prompt)
         if prompt.tool_call_id is None:  # pragma: no cover - the table's check constraint
             return None
+        so_far = _selected(prompt)
+        if prompt.multi_select and choice == len(prompt.choices):
+            picked: dict[str, object] = {"selected": so_far} if so_far else {"skipped": True}
+        elif choice is not None and choice < len(prompt.choices):
+            picked = {"selected": [prompt.choices[choice]]}
+        else:
+            picked = {"skipped": True}
         await channel_prompt_repo.answer(self.db, prompt=prompt, value=picked)
         asked = await channel_prompt_repo.for_call(
             self.db, run_id=prompt.run_id, tool_call_id=prompt.tool_call_id
@@ -343,6 +383,23 @@ class ChannelPrompts:
             ctx, prompt.run_id, {prompt.tool_call_id: [row.answer or {} for row in asked]}
         )
 
+    async def _require_asked(self, ctx: AuthContext, prompt: ChannelPrompt) -> None:
+        """Refuse anybody but the person the run asked, before anything is written."""
+        run = await agent_run_repo.get_run(
+            self.db, prompt.run_id, organization_id=ctx.organization_id
+        )
+        if run is None or run.user_id != ctx.user_id:
+            raise AuthorizationError(message=NOT_ASKED)
+
+    async def _toggle(self, ctx: AuthContext, prompt: ChannelPrompt, choice: int) -> list[str]:
+        """Add or remove one choice of a multi-select question; it stays open."""
+        await self._require_asked(ctx, prompt)
+        label = prompt.choices[choice]
+        so_far = _selected(prompt)
+        picked = [c for c in so_far if c != label] if label in so_far else [*so_far, label]
+        await channel_prompt_repo.pick(self.db, prompt=prompt, selected=picked)
+        return picked
+
     @staticmethod
     def _chosen(prompt: ChannelPrompt) -> str:
         """What the pressed message reads once its buttons are gone."""
@@ -350,4 +407,6 @@ class ChannelPrompts:
         if prompt.kind == APPROVAL:
             return "Approved." if answer.get("approved") else "Rejected."
         selected = answer.get("selected")
-        return f"Answered: {selected[0]}" if isinstance(selected, list) and selected else "Skipped."
+        if not isinstance(selected, list) or not selected:
+            return "Skipped."
+        return f"Answered: {', '.join(str(label) for label in selected)}"

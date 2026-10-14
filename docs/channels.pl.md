@@ -1,5 +1,5 @@
 ---
-source_sha: "2c916397f4c0"
+source_sha: "ceece440c25d"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1183,6 +1183,10 @@ człowieka: wywołanie narzędzia z bramką czeka na decyzję albo agent zadaje 
 **Approve** i **Reject**, wiadomość na każde pytanie z jego opcjami i **Skip**.
 Naciśnięcie decyduje albo odpowiada, run idzie dalej, a jego odpowiedź trafia do
 tego samego czatu; naciśnięta wiadomość zachowuje pytanie i pokazuje wybór.
+
+Pytanie, na które można wybrać kilka odpowiedzi, zostaje otwarte: każde
+kliknięcie dodaje albo usuwa opcję, czat dostaje to, co wybrano do tej pory, a
+**Done** je wysyła.
 
 Akceptacja brzmi jak prośba agenta, jego własnym głosem: co chce zrobić i jeden
 argument, który mówi, czego to dotyczy — *I need your approval to **search in

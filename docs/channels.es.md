@@ -1,5 +1,5 @@
 ---
-source_sha: "2c916397f4c0"
+source_sha: "ceece440c25d"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1198,6 +1198,9 @@ aprobación con **Approve** y **Reject**, un mensaje por pregunta con sus opcion
 y **Skip**. Pulsar uno decide o responde, el run continúa y su respuesta se
 publica en el mismo chat; el mensaje pulsado conserva la pregunta y muestra lo
 elegido.
+
+Una pregunta que admite varias respuestas queda abierta: cada pulsación añade o
+quita una opción, el chat recibe lo elegido hasta ahora y **Done** las envía.
 
 Una aprobación se lee como una petición del agent, con su propia voz: lo que quiere
 hacer y el único argumento que dice de qué trata — *I need your approval to

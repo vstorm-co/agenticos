@@ -1,5 +1,5 @@
 ---
-source_sha: "2c916397f4c0"
+source_sha: "ceece440c25d"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1265,6 +1265,10 @@ ist — eine Nachricht pro Freigabe mit **Approve** und **Reject**, eine Nachric
 pro Frage mit ihren Optionen und **Skip**. Ein Druck entscheidet oder antwortet,
 der Run läuft weiter, und seine Antwort erscheint im selben Chat; die gedrückte
 Nachricht behält die Frage und zeigt die Wahl.
+
+Eine Frage mit mehreren Antworten bleibt offen: Jeder Druck fügt eine Option
+hinzu oder nimmt sie weg, der Chat erfährt, was bisher gewählt ist, und **Done**
+schickt sie ab.
 
 Eine Freigabe liest sich als Bitte des Agents, in seiner eigenen Stimme: was er tun
 will und das eine Argument, das sagt, worum es geht — *I need your approval to
