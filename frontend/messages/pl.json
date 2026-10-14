@@ -5323,7 +5323,8 @@
     "reviewAnswers": "Twoje odpowiedzi",
     "goToQuestion": "Przejdź do pytania {step}",
     "skipped": "Pominięte",
-    "sendAnswers": "Wyślij odpowiedzi"
+    "sendAnswers": "Wyślij odpowiedzi",
+    "backToOptions": "Wróć do opcji"
   },
   "vault": {
     "access": "Dostęp",

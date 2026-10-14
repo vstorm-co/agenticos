@@ -156,6 +156,21 @@ describe("QuestionPrompt", () => {
     expect(onComplete).not.toHaveBeenCalled();
   });
 
+  it("lets a multi-select come back from its own answer to continue with the picks", async () => {
+    const onComplete = vi.fn();
+    render(<QuestionPrompt questions={[CHANNELS]} onComplete={onComplete} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /Slack/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Something else/ }));
+    expect(screen.queryByRole("button", { name: "Continue" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Back to the options" }));
+    await userEvent.click(screen.getByRole("button", { name: /Something else/ }));
+    await userEvent.keyboard("{Escape}");
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+    expect(onComplete).toHaveBeenCalledWith([{ answer: "", selected: ["Slack"], skipped: false }]);
+  });
+
   it("disables everything while the connection is down", () => {
     render(<QuestionPrompt questions={[AUDIENCE, FREE]} disabled onComplete={vi.fn()} />);
 

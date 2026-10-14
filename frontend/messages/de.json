@@ -5436,7 +5436,8 @@
     "reviewAnswers": "Ihre Antworten",
     "goToQuestion": "Zu Frage {step}",
     "skipped": "Übersprungen",
-    "sendAnswers": "Antworten senden"
+    "sendAnswers": "Antworten senden",
+    "backToOptions": "Zurück zu den Optionen"
   },
   "vault": {
     "access": "Zugriff",

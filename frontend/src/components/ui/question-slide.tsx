@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { Check, Pencil } from "lucide-react";
+import { Check, Pencil, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { cn } from "@/lib/utils";
@@ -200,6 +200,12 @@ export function QuestionSlide({
                   event.preventDefault();
                   submitCustom();
                 }
+                // Back to the options - the only way back for a multi-select,
+                // whose Continue lives on the other side of this row.
+                if (event.key === "Escape" && options.length > 0) {
+                  event.preventDefault();
+                  setCustomOpen(false);
+                }
               }}
               className="text-foreground placeholder:text-muted-foreground min-w-0 flex-1 bg-transparent text-base outline-none sm:text-sm"
             />
@@ -211,6 +217,18 @@ export function QuestionSlide({
             >
               {t("useThisAnswer")}
             </button>
+            {options.length > 0 && (
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={() => setCustomOpen(false)}
+                aria-label={t("backToOptions")}
+                title={t("backToOptions")}
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
             {trailing}
           </>
         ) : (

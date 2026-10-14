@@ -5553,7 +5553,8 @@
     "reviewAnswers": "Your answers",
     "goToQuestion": "Go to question {step}",
     "skipped": "Skipped",
-    "sendAnswers": "Send answers"
+    "sendAnswers": "Send answers",
+    "backToOptions": "Back to the options"
   },
   "vault": {
     "access": "Access",
