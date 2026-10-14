@@ -532,6 +532,12 @@ Two things are versioned separately from this file and worth knowing about:
   reads like the site in a browser rather than a shrunk laptop screen
   (`resize` on the live view's socket, applied between steps).
 
+- **A new install opens with the Architect and Claude Code like.**
+  `bootstrap` installs the Architect and the Claude Code like template,
+  visible to the organization and published on the bootstrapped model
+  where the deployment can run them. The Getting Started agent and its
+  `AGENTS.md` context file are no longer created.
+
 - **Markdown fields show their structure while you write.** An agent's
   instructions, a skill's files and every other Markdown field are set in
   the text face with headings and bold drawn bold, the markers dimmed,

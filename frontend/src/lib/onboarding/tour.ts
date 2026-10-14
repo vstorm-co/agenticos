@@ -190,7 +190,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   { id: "agents-filters", page: ROUTES.AGENTS, target: "agents-filters" },
 
   // The builder, entered from the Agents list. The engine opens an example agent
-  // (the seeded "Getting Started", or the first one there is), switches to the
+  // (the seeded "Claude Code like", or the first one there is), switches to the
   // named tab, then spotlights the section. The launch pass takes one per tab —
   // enough for a short line on each section; the "?" adds the sub-cards (model,
   // MCP) the launch leaves out.

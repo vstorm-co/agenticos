@@ -1034,7 +1034,9 @@ class AgentRegistryService:
             and await resolve_access(self.db, ctx, row, Perm.SKILLS_VIEW, resource_type=SKILL)
         ]
 
-    async def install_template(self, ctx: AuthContext, key: str) -> TemplateInstallResult:
+    async def install_template(
+        self, ctx: AuthContext, key: str, *, visibility: Visibility = Visibility.PRIVATE
+    ) -> TemplateInstallResult:
         """Create a draft agent from a shipped template, with its skills.
 
         A **draft**, deliberately. The template cannot name a model - this
@@ -1073,7 +1075,7 @@ class AgentRegistryService:
                 else None
             ),
         )
-        agent = await self.create(ctx, spec)
+        agent = await self.create(ctx, spec, visibility=visibility)
         return TemplateInstallResult(
             agent_id=agent.id,
             slug=agent.slug,

@@ -18,11 +18,12 @@ from app.agents.model_resolver import PROVIDERS
 from app.commands import bootstrap as bootstrap_cmd
 from app.commands.bootstrap import (
     DEFAULT_MODELS,
-    DEMO_CAPABILITIES,
-    _resolve_demo_agent,
+    STARTER_TEMPLATE,
     _resolve_model,
     _resolve_organization,
+    _resolve_starter_agents,
 )
+from app.core.exceptions import BadRequestError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.resource_grant import Visibility
 
@@ -187,168 +188,91 @@ class TestModel:
         assert create_profile.call_args.kwargs["model"] == "gpt-4o-mini"
 
 
-class TestTheAgentsFile:
-    """`AGENTS.md`, which the demo agent reads before explaining the platform.
+class TestStarterAgents:
+    """The Architect and Claude Code like - what a new organization opens with."""
 
-    Bootstrap is idempotent, and this is the part of it that writes a document
-    somebody may have edited - so a second run has to find the file rather than
-    collide with it or overwrite what is in it.
-    """
+    @staticmethod
+    def _patches(*, existing=None, assistant_status="ready", publish=None):
+        agent = MagicMock(id=uuid.uuid4(), draft_spec={"name": "Claude Code like"})
+        install = AsyncMock(return_value=MagicMock(agent_id=agent.id))
+        mocks = {
+            "state": AsyncMock(return_value=MagicMock(status=assistant_status, name="Architect")),
+            "get_by_slug": AsyncMock(return_value=existing),
+            "install": install,
+            "get": AsyncMock(return_value=agent),
+            "save_draft": AsyncMock(),
+            "publish": publish or AsyncMock(),
+            "sandbox": AsyncMock(return_value=True),
+        }
+        return (
+            agent,
+            mocks,
+            (
+                patch("app.commands.bootstrap.AssistantService.state", new=mocks["state"]),
+                patch("app.commands.bootstrap.agent_repo.get_by_slug", new=mocks["get_by_slug"]),
+                patch(
+                    "app.commands.bootstrap.AgentRegistryService.install_template",
+                    new=mocks["install"],
+                ),
+                patch("app.commands.bootstrap.AgentRegistryService.get", new=mocks["get"]),
+                patch(
+                    "app.commands.bootstrap.AgentRegistryService.save_draft",
+                    new=mocks["save_draft"],
+                ),
+                patch("app.commands.bootstrap.AgentRegistryService.publish", new=mocks["publish"]),
+                patch(
+                    "app.commands.bootstrap.SandboxConnectionService.ensure_local_connection",
+                    new=mocks["sandbox"],
+                ),
+            ),
+        )
+
+    @staticmethod
+    async def _run(patches, profile_id):
+        from contextlib import ExitStack
+
+        with ExitStack() as stack:
+            for item in patches:
+                stack.enter_context(item)
+            await _resolve_starter_agents(MagicMock(), _ctx(), profile_id)
 
     @pytest.mark.anyio
-    async def test_a_second_run_keeps_the_file_the_operator_has_edited(self):
-        existing = MagicMock(id=uuid.uuid4())
-        with (
-            patch(
-                "app.commands.bootstrap.context_repo.get_by_name",
-                new=AsyncMock(return_value=existing),
-            ),
-            patch("app.commands.bootstrap.ContextService.create", new=AsyncMock()) as create,
-        ):
-            found = await bootstrap_cmd._resolve_agents_md(MagicMock(), _ctx())
-
-        assert found == existing.id
-        create.assert_not_awaited()
-
-    @pytest.mark.anyio
-    async def test_the_first_run_writes_it_for_the_whole_organization(self):
-        # Private would make the file invisible to everyone but the bootstrapper,
-        # and it is the explanation every agent in the organization reads.
-        created = MagicMock(id=uuid.uuid4())
-        with (
-            patch(
-                "app.commands.bootstrap.context_repo.get_by_name",
-                new=AsyncMock(return_value=None),
-            ),
-            patch(
-                "app.commands.bootstrap.ContextService.create",
-                new=AsyncMock(return_value=created),
-            ) as create,
-        ):
-            assert await bootstrap_cmd._resolve_agents_md(MagicMock(), _ctx()) == created.id
-
-        assert create.await_args.kwargs["name"] == bootstrap_cmd.AGENTS_MD_NAME
-        assert create.await_args.kwargs["visibility"] == Visibility.ORG
-
-
-class TestBundledSkills:
-    @pytest.mark.anyio
-    async def test_a_skill_the_deployment_does_not_ship_is_simply_absent(self):
-        """Not a publish that fails. A catalog is allowed to change, and an agent
-        missing one shipped skill is a smaller problem than a bootstrap that
-        stops."""
-        one = MagicMock(id=uuid.uuid4())
-        answers = [one] + [None] * 20
-        with patch(
-            "app.commands.bootstrap.skill_repo.get_by_name",
-            new=AsyncMock(side_effect=answers),
-        ):
-            found = await bootstrap_cmd._bundled_skill_ids(MagicMock(), _ctx())
-
-        assert found == [one.id]
-
-
-class TestDemoAgent:
-    @pytest.mark.anyio
-    async def test_a_second_run_does_not_create_a_second_agent(self):
-        """Re-running a setup script is what people do when unsure it worked."""
-        with (
-            patch(
-                "app.commands.bootstrap.agent_repo.get_by_slug",
-                new=AsyncMock(return_value=MagicMock()),
-            ),
-            patch("app.commands.bootstrap.AgentRegistryService.create", new=AsyncMock()) as create,
-        ):
-            await _resolve_demo_agent(MagicMock(), _ctx(), uuid.uuid4())
-
-        create.assert_not_awaited()
-
-    @pytest.mark.anyio
-    async def test_without_a_model_the_demo_agent_stays_a_draft(self):
-        """Publish validation refuses a spec with no model, so bootstrap does
-        not try - the agent is left one key away from working, and says so."""
-        agent = MagicMock(id=uuid.uuid4())
-        with (
-            patch(
-                "app.commands.bootstrap.agent_repo.get_by_slug",
-                new=AsyncMock(return_value=None),
-            ),
-            patch(
-                "app.commands.bootstrap._resolve_agents_md",
-                new=AsyncMock(return_value=uuid.uuid4()),
-            ),
-            patch("app.commands.bootstrap._bundled_skill_ids", new=AsyncMock(return_value=[])),
-            patch(
-                "app.commands.bootstrap.AgentRegistryService.create",
-                new=AsyncMock(return_value=agent),
-            ) as create,
-            patch(
-                "app.commands.bootstrap.AgentRegistryService.publish", new=AsyncMock()
-            ) as publish,
-        ):
-            await _resolve_demo_agent(MagicMock(), _ctx(), None)
-
-        create.assert_awaited_once()
-        publish.assert_not_awaited()
-
-    @pytest.mark.anyio
-    async def test_the_demo_agent_is_published_not_left_as_a_draft(self):
-        """A draft cannot run, which would defeat the point of bootstrapping."""
-        agent = MagicMock(id=uuid.uuid4())
-        with (
-            patch(
-                "app.commands.bootstrap.agent_repo.get_by_slug",
-                new=AsyncMock(return_value=None),
-            ),
-            patch(
-                "app.commands.bootstrap._resolve_agents_md",
-                new=AsyncMock(return_value=uuid.uuid4()),
-            ),
-            patch("app.commands.bootstrap._bundled_skill_ids", new=AsyncMock(return_value=[])),
-            patch(
-                "app.commands.bootstrap.AgentRegistryService.create",
-                new=AsyncMock(return_value=agent),
-            ),
-            patch(
-                "app.commands.bootstrap.AgentRegistryService.publish", new=AsyncMock()
-            ) as publish,
-        ):
-            await _resolve_demo_agent(MagicMock(), _ctx(), uuid.uuid4())
-
-        publish.assert_awaited_once()
-
-    @pytest.mark.anyio
-    async def test_the_demo_agent_runs_on_the_bootstrapped_model(self):
-        agent = MagicMock(id=uuid.uuid4())
+    async def test_both_are_installed_and_the_starter_runs_on_the_bootstrapped_model(self):
         profile_id = uuid.uuid4()
-        with (
-            patch(
-                "app.commands.bootstrap.agent_repo.get_by_slug",
-                new=AsyncMock(return_value=None),
-            ),
-            patch(
-                "app.commands.bootstrap._resolve_agents_md",
-                new=AsyncMock(return_value=uuid.uuid4()),
-            ),
-            patch("app.commands.bootstrap._bundled_skill_ids", new=AsyncMock(return_value=[])),
-            patch(
-                "app.commands.bootstrap.AgentRegistryService.create",
-                new=AsyncMock(return_value=agent),
-            ) as create,
-            patch("app.commands.bootstrap.AgentRegistryService.publish", new=AsyncMock()),
-        ):
-            await _resolve_demo_agent(MagicMock(), _ctx(), profile_id)
+        agent, mocks, patches = self._patches()
 
-        spec = create.call_args.args[1]
+        await self._run(patches, profile_id)
+
+        mocks["state"].assert_awaited_once()
+        # From its template, and visible to the organization rather than to the
+        # bootstrapper alone.
+        assert mocks["install"].await_args.args[1] == STARTER_TEMPLATE
+        assert mocks["install"].await_args.kwargs["visibility"] == Visibility.ORG
+        spec = mocks["save_draft"].await_args.args[2]
         assert spec.model_profile_id == profile_id
-        # The shipped set, not a hand-written copy of it: this test is about the
-        # spec carrying what bootstrap decided, and the decision lives there.
-        assert [c.id for c in spec.capabilities] == [
-            capability["id"] for capability in DEMO_CAPABILITIES
-        ]
-        # Everything in it runs on one API key: no sandbox service to stand up,
-        # no second credential for search. That is the claim bootstrap makes.
-        assert {c.id for c in spec.capabilities} >= {"web_research", "sandbox", "subagents"}
+        mocks["publish"].assert_awaited_once()
+
+    @pytest.mark.anyio
+    async def test_without_a_model_both_stay_drafts(self):
+        _, mocks, patches = self._patches(assistant_status="needs_model")
+        await self._run(patches, None)
+        mocks["install"].assert_awaited_once()
+        mocks["publish"].assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_second_run_does_not_install_a_second_one(self):
+        """Re-running a setup script is what people do when unsure it worked."""
+        _, mocks, patches = self._patches(existing=MagicMock())
+        await self._run(patches, uuid.uuid4())
+        mocks["install"].assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_spec_this_deployment_cannot_publish_is_left_a_draft(self):
+        """No sandbox to give it, say - the agent waits, the bootstrap does not stop."""
+        publish = AsyncMock(side_effect=BadRequestError(message="No sandbox"))
+        _, mocks, patches = self._patches(publish=publish)
+        await self._run(patches, uuid.uuid4())
+        publish.assert_awaited_once()
 
 
 class TestEndToEnd:
@@ -411,7 +335,7 @@ class TestEndToEnd:
                 "app.commands.bootstrap._resolve_model",
                 new=AsyncMock(return_value=profile_id),
             ) as resolve_model,
-            patch("app.commands.bootstrap._resolve_demo_agent", new=AsyncMock()) as demo,
+            patch("app.commands.bootstrap._resolve_starter_agents", new=AsyncMock()) as demo,
         ):
             await _bootstrap(
                 "admin@example.com", "password123", "Acme", "openai", "sk-test-1234", None
@@ -451,7 +375,7 @@ class TestEndToEnd:
                 new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
             ),
             patch("app.commands.bootstrap._resolve_model", new=AsyncMock(return_value=None)),
-            patch("app.commands.bootstrap._resolve_demo_agent", new=AsyncMock()),
+            patch("app.commands.bootstrap._resolve_starter_agents", new=AsyncMock()),
         ):
             await _bootstrap("admin@example.com", "password123", "Acme", "openai", None, None)
 
@@ -476,7 +400,7 @@ class TestEndToEnd:
                 new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
             ),
             patch("app.commands.bootstrap._resolve_model", new=AsyncMock(return_value=None)),
-            patch("app.commands.bootstrap._resolve_demo_agent", new=AsyncMock()),
+            patch("app.commands.bootstrap._resolve_starter_agents", new=AsyncMock()),
         ):
             await _bootstrap("admin@example.com", "password123", "Acme", "openai", None, None)
 
@@ -492,26 +416,3 @@ class TestEndToEnd:
 
         assert result.exit_code == 0
         run.assert_called_once()
-
-
-class TestDemoInstructions:
-    """What the shipped agent is told, where getting it wrong is visible to a client."""
-
-    def test_the_demo_agent_is_told_which_language_to_answer_in(self):
-        """A greeting in one language was answered in a different one entirely.
-
-        Asked "co tma" - Polish, mistyped - the agent replied in Czech, because
-        nothing told it what to do with a question that was not English and a
-        model will happily guess. The rule has to be explicit and it has to be a
-        request that switches it, not a guess: inferring the language from the
-        question is the behaviour that produced the Czech.
-        """
-        from app.commands.bootstrap import DEMO_INSTRUCTIONS
-
-        # Wrapped to the file's width, so the assertion reads the sentence rather
-        # than the line breaks the prompt happens to carry.
-        said = " ".join(DEMO_INSTRUCTIONS.split())
-
-        assert "**Answer in English**, whatever language the question arrives in." in said
-        assert "Switch only when somebody asks you to in as many words" in said
-        assert "Do not infer a language from the question" in said
