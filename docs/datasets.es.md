@@ -1,5 +1,5 @@
 ---
-source_sha: "67db81f56383"
+source_sha: "b8b96371768e"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -160,7 +160,8 @@ Un mensaje de otra organización se rechaza como si no existiera.
 ### Generados por el generador de casos { #generating-cases }
 
 Escribir cien buenos casos a mano es la razón por la que la mayoría de los
-equipos no tiene ninguno. **Generar casos**, en la página de un dataset, pide al
+equipos no tiene ninguno. La pestaña **Generados** de la página de un dataset, visible para
+quienes pueden editarlo, pide al
 generador de casos que los redacte, y tú decides cuáles conserva el dataset.
 Elige el agent que prueban los casos, las fuentes y cuántos casos quieres: como
 máximo 50, repartidos por igual entre las fuentes.
@@ -169,7 +170,7 @@ máximo 50, repartidos por igual entre las fuentes.
 |---|---|---|
 | Del agent | Peticiones típicas y casos límite, con las llamadas a herramientas que hace una buena respuesta | Las instrucciones del agent, sus skills y sus herramientas, con los nombres que el agent les da |
 | Del conocimiento | Preguntas que responde su base de conocimiento. Cada caso enlaza con el documento del que procede su fragmento, guarda el fragmento como respuesta de referencia, espera una llamada a la búsqueda de conocimiento del agent y lleva una comprobación `judge` de que la respuesta concuerda con el fragmento | Fragmentos de hasta 12 documentos indexados de las bases de conocimiento que usa el agent y que tú puedes leer |
-| De conversaciones | Paráfrasis y variantes más difíciles de lo que la gente preguntó al agent, primero las respuestas valoradas negativamente. Cada caso enlaza con la pregunta que varía | Hasta 60 preguntas que se hicieron al agent en esta organización, con el comentario dejado en una respuesta valorada negativamente |
+| De conversaciones | Paráfrasis y variantes más difíciles de lo que la gente preguntó al agent, primero las respuestas valoradas negativamente. Cada caso enlaza con la pregunta que varía | Hasta 60 preguntas que se hicieron al agent en esta organización, con el comentario dejado en una respuesta valorada negativamente. Solo tráfico de producción: los runs de eval y los runs aislados respondieron a una prueba, no a una persona, y se dejan fuera |
 | Red team | Peticiones fuera de su ámbito, inyecciones de prompt, intentos de obtener datos personales e intentos de saltarse las políticas del agent. Cada caso lleva las etiquetas `red-team` y `red-team:<categoría>` y una comprobación `judge` de que el agent se niega | Las instrucciones del agent, sus skills y sus herramientas |
 
 **Primero, el coste estimado.** El diálogo muestra cuántos casos se pedirán a
@@ -179,7 +180,7 @@ comprueba cuando se ejecuta, como el de cualquier agent. Cambiar el agent, las
 fuentes o el número descarta la estimación.
 
 **Nada llega al dataset hasta que lo aceptas.** Los borradores esperan en
-**Casos propuestos**, en la página del dataset. Acepta uno tal cual, edítalo
+**Casos propuestos**, en la pestaña Generados. Acepta uno tal cual, edítalo
 antes o descártalo, de uno en uno o una página entera. Un Aceptar es una versión
 nueva, lleve lo que lleve, y sus casos tienen la fuente `synthetic`. Un borrador
 descartado se elimina y no deja nada en el dataset. Uno aceptado también
@@ -194,7 +195,7 @@ o una conversación que intente darle instrucciones solo puede cambiar el texto
 de un borrador que tú revisas. Un borrador que no cumple la regla de su fuente
 (un caso de conocimiento sin un fragmento que se le mostró, un caso de
 conversación sin una pregunta que se le mostró, un caso de red team sin
-categoría) se descarta antes de que lo veas.
+categoría, un caso que no espera nada) se descarta antes de que lo veas.
 
 **Cada fuente tiene su propia barrera**, y una fuente que no puedes usar se
 rechaza por su nombre en lugar de omitirse en silencio:
@@ -206,8 +207,10 @@ rechaza por su nombre en lugar de omitirse en silencio:
   dice cuántas de las del agent se dejaron fuera;
 - las conversaciones necesitan `runs:view`, el permiso con el que Actividad lee
   cada run;
-- una organización que ha desactivado la asistencia de IA no puede iniciar una
-  generación. Los borradores que ya esperan se pueden seguir aceptando o
+- la asistencia de IA está desactivada en cada organización hasta que un Owner
+  o un Admin la activa en los ajustes de la organización, y mientras está
+  desactivada no empieza ninguna generación; la pestaña lo dice y dice quién
+  puede cambiarlo. Los borradores que ya esperan se pueden seguir aceptando o
   descartando, porque decidirlos no llama a ningún modelo.
 
 Solo los miembros que pueden editar el dataset ven sus borradores. Un borrador
@@ -399,7 +402,9 @@ juez puede citar la respuesta que calificó.
 
 Un caso generado que aún espera una decisión no se conserva así. Cuando se
 borra la conversación de la que se redactó, o se borra a la persona que hizo la
-pregunta, el borrador se elimina con ella: nadie decidió conservarlo. Generar
+pregunta, el borrador se elimina con ella: nadie decidió conservarlo. La
+exportación de datos de una persona incluye los borradores tomados de sus
+conversaciones. Generar
 desde conversaciones envía las preguntas que hizo la gente, con las credenciales
 ocultas, al provider del modelo del generador de casos, y generar desde el
 conocimiento envía fragmentos de los documentos; consulta

@@ -1,5 +1,5 @@
 ---
-source_sha: "67db81f56383"
+source_sha: "b8b96371768e"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -156,8 +156,8 @@ istniała.
 ### Z generatora przypadków { #generating-cases }
 
 Napisanie stu dobrych przypadków ręcznie to powód, dla którego większość
-zespołów nie ma żadnych. **Generuj przypadki** na stronie datasetu prosi
-generator przypadków o ich przygotowanie, a ty decydujesz, które trafią do
+zespołów nie ma żadnych. Zakładka **Wygenerowane** na stronie datasetu,
+widoczna dla członków, którzy mogą go edytować, prosi generator przypadków o ich przygotowanie, a ty decydujesz, które trafią do
 datasetu. Wybierz agenta, którego przypadki testują, źródła i liczbę
 przypadków - najwyżej 50, dzielonych po równo między źródła:
 
@@ -165,7 +165,7 @@ przypadków - najwyżej 50, dzielonych po równo między źródła:
 |---|---|---|
 | Z agenta | Typowe prośby i przypadki brzegowe, z wywołaniami narzędzi, które wykonuje dobra odpowiedź | Instrukcje agenta, jego skille i narzędzia, pod nazwami, które nadaje im agent |
 | Z wiedzy | Pytania, na które odpowiada baza wiedzy. Każdy przypadek wskazuje dokument, z którego pochodzi fragment, trzyma ten fragment jako odpowiedź wzorcową, oczekuje wywołania wyszukiwania w wiedzy agenta i ma sprawdzenie `judge`, że odpowiedź zgadza się z fragmentem | Fragmenty z najwyżej 12 zaindeksowanych dokumentów baz wiedzy, których używa agent i które możesz czytać |
-| Z rozmów | Parafrazy i trudniejsze warianty tego, o co ludzie pytali agenta, najpierw odpowiedzi ocenione łapką w dół. Każdy przypadek wskazuje pytanie, które wariantuje | Najwyżej 60 pytań zadanych agentowi w tej organizacji, z komentarzem zostawionym przy odpowiedzi ocenionej łapką w dół |
+| Z rozmów | Parafrazy i trudniejsze warianty tego, o co ludzie pytali agenta, najpierw odpowiedzi ocenione łapką w dół. Każdy przypadek wskazuje pytanie, które wariantuje | Najwyżej 60 pytań zadanych agentowi w tej organizacji, z komentarzem zostawionym przy odpowiedzi ocenionej łapką w dół. Tylko ruch produkcyjny: runy eval i runy uruchomione w izolacji odpowiadały na test, a nie człowiekowi, i są pomijane |
 | Red team | Prośby spoza zakresu, wstrzykiwanie promptów, próby wydobycia danych osobowych i obejścia zasad agenta. Każdy przypadek ma tagi `red-team` i `red-team:<kategoria>` oraz sprawdzenie `judge`, że agent odmawia | Instrukcje agenta, jego skille i narzędzia |
 
 **Najpierw szacowany koszt.** Okno pokazuje, o ile przypadków zostanie
@@ -175,7 +175,7 @@ w chwili uruchomienia, jak budżet każdego agenta. Zmiana agenta, źródeł alb
 liczby unieważnia szacunek.
 
 **Nic nie trafia do datasetu, dopóki tego nie zaakceptujesz.** Propozycje czekają
-w sekcji **Proponowane przypadki** na stronie datasetu. Zaakceptuj je bez zmian,
+w sekcji **Proponowane przypadki** w zakładce Wygenerowane. Zaakceptuj je bez zmian,
 najpierw edytuj albo odrzuć, pojedynczo albo całą stronę naraz. Jedno
 Zaakceptuj to jedna nowa wersja, niezależnie od tego, ile niosło, a jej
 przypadki mają źródło `synthetic`. Odrzucona propozycja jest usuwana i nie
@@ -190,8 +190,8 @@ niego z twoimi uprawnieniami i przekazywane w prompcie, więc dokument albo
 rozmowa, które próbują wydawać mu polecenia, mogą najwyżej zmienić tekst
 propozycji, którą przeglądasz. Propozycja, która nie spełnia reguły swojego
 źródła - przypadek z wiedzy bez fragmentu, który generator dostał, przypadek z
-rozmów bez pytania, które dostał, przypadek red team bez kategorii - jest
-odrzucana, zanim ją zobaczysz.
+rozmów bez pytania, które dostał, przypadek red team bez kategorii, przypadek,
+który niczego nie oczekuje - jest odrzucana, zanim ją zobaczysz.
 
 **Każde źródło ma własną bramkę**, a źródło, którego nie możesz użyć, jest
 odrzucane z nazwy, a nie pomijane po cichu:
@@ -202,8 +202,10 @@ odrzucane z nazwy, a nie pomijane po cichu:
 - wiedza czyta tylko bazy wiedzy, które możesz czytać; okno mówi, ile baz
   agenta pominięto;
 - rozmowy wymagają `runs:view`, uprawnienia, z którym Aktywność czyta każdy run;
-- organizacja, która wyłączyła wsparcie AI, nie może rozpocząć generowania.
-  Czekające propozycje nadal można zaakceptować albo odrzucić, bo decyzja nie
+- wsparcie AI jest wyłączone w każdej organizacji, dopóki Owner albo Admin nie
+  włączy go w ustawieniach organizacji, a póki jest wyłączone, żadne generowanie
+  się nie zaczyna - zakładka mówi o tym i o tym, kto może to zmienić. Czekające
+  propozycje nadal można zaakceptować albo odrzucić, bo decyzja nie
   woła modelu.
 
 Propozycje widzą tylko członkowie, którzy mogą edytować dataset. Propozycja
@@ -391,7 +393,8 @@ Uzasadnienie sędziego może cytować ocenianą odpowiedź.
 Wygenerowany przypadek, który wciąż czeka na decyzję, nie jest tak
 zachowywany. Gdy rozmowa, z której go przygotowano, zostanie usunięta albo
 osoba, która zadała pytanie, zostanie wymazana, propozycja jest usuwana razem z
-nią: nikt nie zdecydował, że chce ją zachować. Generowanie z rozmów wysyła
+nią: nikt nie zdecydował, że chce ją zachować. Eksport danych osoby zawiera
+propozycje wzięte z jej rozmów. Generowanie z rozmów wysyła
 zadane pytania, po redakcji, do dostawcy modelu generatora przypadków, a
 generowanie z wiedzy wysyła fragmenty dokumentów - zobacz
 [co opuszcza wdrożenie](data-protection.md#what-leaves-the-deployment).
