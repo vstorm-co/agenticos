@@ -1,5 +1,5 @@
 ---
-source_sha: "850efeb9c9f0"
+source_sha: "5fdd76faaad9"
 ---
 
 # Permisos { #permissions }
@@ -279,7 +279,9 @@ exposición lo alcanza, así que esto decide quién lo ve, no lo que hace.
 | `edit` | además cambiarlo |
 
 En la consola es un solo diálogo, como se comparte un documento: el botón
-**Share** de un agent añade una persona o un grupo con un nivel, lista quién tiene
+**Share** de un agent, un skill, una base de conocimiento o un archivo de contexto
+- en cualquier momento después de crearlo, no solo al crearlo - añade una persona
+o un grupo con un nivel, lista quién tiene
 acceso con el propietario primero y fija el **acceso general** - *Only people with
 access* es `private`, *Everyone in the organization* es `org`.
 

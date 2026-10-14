@@ -255,8 +255,9 @@ who can see it, not what it does.
 | `use` | also run or attach it |
 | `edit` | also change it |
 
-In the console this is one dialog, the way a document is shared: an agent's
-**Share** button adds a person or a group at a level, lists who has access with
+In the console this is one dialog, the way a document is shared: the **Share**
+button on an agent, a skill, a knowledge base or a context file - at any time
+after it was made, not only when it is created - adds a person or a group at a level, lists who has access with
 the owner first, and sets **General access** - *Only people with access* is
 `private`, *Everyone in the organization* is `org`.
 

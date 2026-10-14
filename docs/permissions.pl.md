@@ -1,5 +1,5 @@
 ---
-source_sha: "850efeb9c9f0"
+source_sha: "5fdd76faaad9"
 ---
 
 # Uprawnienia { #permissions }
@@ -270,7 +270,8 @@ robi.
 | `edit` | dodatkowo go zmienić |
 
 W konsoli to jeden dialog, tak jak udostępnia się dokument: przycisk **Share**
-agenta dodaje osobę lub grupę na danym poziomie, pokazuje, kto ma dostęp, z
+przy agencie, skillu, bazie wiedzy lub pliku kontekstu - w dowolnej chwili po
+utworzeniu, nie tylko przy tworzeniu - dodaje osobę lub grupę na danym poziomie, pokazuje, kto ma dostęp, z
 właścicielem na początku, i ustawia **Dostęp ogólny** - *Tylko osoby z dostępem*
 to `private`, *Wszyscy w organizacji* to `org`.
 

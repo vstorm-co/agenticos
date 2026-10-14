@@ -22,7 +22,7 @@ export type GrantLevel = "read" | "use" | "edit";
 
 /** The resource kinds that carry an owner, a visibility and a grant list. */
 export type SharingResourceType =
-  "agent" | "skill" | "collection" | "secret" | "artifact" | "mcp_connection";
+  "agent" | "skill" | "collection" | "context" | "secret" | "artifact" | "mcp_connection";
 
 interface GrantBase {
   id: string;

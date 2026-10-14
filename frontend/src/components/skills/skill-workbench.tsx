@@ -13,6 +13,7 @@ import {
   Switch,
 } from "@/components/ui";
 import { FileEditor } from "@/components/files";
+import { ShareResourceButton } from "@/components/sharing/share-resource-button";
 import { FilePane, FileTree, NewFileForm, UploadButton } from "@/components/skills/skill-files";
 import { CategoryInput } from "@/components/skills/category-input";
 import { buildTree } from "@/lib/file-tree";
@@ -237,6 +238,13 @@ export function SkillWorkbench({
       )}
 
       <DialogFooter>
+        <ShareResourceButton
+          resourceType="skill"
+          resourceId={skill.id}
+          name={skill.name}
+          canManage={canEdit}
+          className="sm:mr-auto"
+        />
         <Button variant="outline" onClick={onCancel}>
           {canEdit ? t("cancel2") : t("close")}
         </Button>

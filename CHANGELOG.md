@@ -473,6 +473,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Skills, knowledge bases and context files can be re-shared after they
+  exist.** Their audience was set once, in the dialog that created them, so a
+  skill made for yourself could never be handed to the organization or a
+  group. Each now has the agent page's **Share** - the skill's and the
+  context file's dialog footer, the knowledge base's header - with people,
+  groups and general access; the sharing panel learned the context type, and
+  its reach text no longer calls context files and MCP servers "secrets".
+
 - **The README's videos show on a phone.** GitHub's mobile views drop a
   `<video>` tag, so both demos were blank there; each is now its poster
   with a Watch pill and its length, linked to the video, in all four

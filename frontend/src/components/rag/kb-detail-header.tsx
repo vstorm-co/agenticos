@@ -11,6 +11,7 @@ import {
 import { useTranslations } from "next-intl";
 
 import { AddToAgent } from "@/components/agents/add-to-agent";
+import { ShareResourceButton } from "@/components/sharing/share-resource-button";
 import { PageHeader } from "@/components/dashboard/page-header";
 import {
   Button,
@@ -62,6 +63,12 @@ export function KBDetailHeader({
       actions={
         <>
           <AddToAgent resource={{ kind: "collection", id: kb.id }} name={kb.name} size="default" />
+          <ShareResourceButton
+            resourceType="collection"
+            resourceId={kb.id}
+            name={kb.name}
+            canManage={mayEdit}
+          />
           <Button variant="outline" onClick={onRefresh} disabled={isLoading}>
             <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
             {t("refresh")}

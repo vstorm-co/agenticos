@@ -1,5 +1,5 @@
 ---
-source_sha: "850efeb9c9f0"
+source_sha: "5fdd76faaad9"
 ---
 
 # Berechtigungen { #permissions }
@@ -285,7 +285,9 @@ ihn sieht, nicht was er tut.
 | `edit` | sie außerdem zu ändern |
 
 In der Konsole ist das ein Dialog, so wie man ein Dokument teilt: Der Button
-**Share** eines Agents fügt eine Person oder Gruppe auf einer Stufe hinzu, listet
+**Share** eines Agents, eines Skills, einer Wissensdatenbank oder einer
+Kontextdatei - jederzeit nach dem Anlegen, nicht nur dabei - fügt eine Person
+oder Gruppe auf einer Stufe hinzu, listet
 auf, wer Zugriff hat, den Besitzer zuerst, und setzt den **Allgemeinen Zugriff** -
 *Nur Personen mit Zugriff* ist `private`, *Alle in der Organisation* ist `org`.
 

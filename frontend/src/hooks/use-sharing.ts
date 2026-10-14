@@ -30,6 +30,7 @@ const SHARING_ROOT = {
   // path the app has never served - and went unnoticed because the panel is
   // only mounted on agents so far.
   collection: "/kb",
+  context: "/context",
   secret: "/secrets",
   artifact: "/apps",
   // An organization's MCP server, narrowed to the groups that use it (#2072).
@@ -48,6 +49,7 @@ const RESOURCE_KEYS = {
   agent: qk.agents.all,
   skill: qk.skills.all,
   collection: qk.kb.all,
+  context: qk.context.all,
   secret: qk.secrets.all,
   artifact: qk.artifacts.all,
   mcp_connection: qk.mcpConnections.org,
