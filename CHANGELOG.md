@@ -457,6 +457,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Agent templates' instructions are whole paragraphs.** Every shipped
+  template, the Architect and Claude Code like among them, was hard-wrapped
+  at the repository's 80 columns, so an installed agent's instructions read
+  as a column of short lines in the Builder and in its exported spec. The
+  thirty templates and their inline specialists are rewritten as one line
+  per paragraph or list item, and a test refuses a hard wrap in the
+  catalog.
+
 - **Recent failures says "4 times" instead of a red "× 4" pill.** The
   count of a repeated failure moves from a red badge beside the agent's
   name into the line that says what happened, as words ("4 times", "4

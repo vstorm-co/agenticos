@@ -5,6 +5,8 @@ refusal here is one somebody meets while the manifest is still in front of them
 rather than at publish, weeks later, in an organization that installed it.
 """
 
+import re
+
 import pytest
 
 from app.services import agent_templates
@@ -158,3 +160,52 @@ class TestMcpBindings:
         )
 
         assert agent_templates.catalog() == ()
+
+
+def _instruction_texts(value: object) -> list[str]:
+    """Every `instructions` string under a template's bindings, at any depth."""
+    if isinstance(value, dict):
+        found = [v for k, v in value.items() if k == "instructions" and isinstance(v, str)]
+        return found + [t for v in value.values() for t in _instruction_texts(v)]
+    if isinstance(value, list | tuple):
+        return [t for v in value for t in _instruction_texts(v)]
+    return []
+
+
+def _wrapped_lines(text: str) -> list[str]:
+    """Lines that continue the sentence above them - a hard wrap, not a new block."""
+    starts_block = ("- ", "* ", "+ ", "#", ">", "|", "```", "~~~")
+    wrapped, fenced, previous = [], False, ""
+    for line in text.split("\n"):
+        stripped = line.strip()
+        if stripped.startswith(("```", "~~~")):
+            fenced = not fenced
+        elif (
+            not fenced
+            and stripped
+            and previous
+            and not previous.startswith(("|", "#"))
+            and not stripped.startswith(starts_block)
+            and not re.match(r"\d+[.)] ", stripped)
+        ):
+            wrapped.append(stripped)
+        previous = "" if fenced else stripped
+    return wrapped
+
+
+class TestShippedInstructions:
+    """The catalog the product ships, read as an installed agent reads it."""
+
+    def test_instructions_are_whole_paragraphs_not_80_column_lines(self):
+        """The Builder's editor and the spec export show the text as written, so a
+        template hard-wrapped for the repository arrived as a column of short
+        lines in every agent installed from it."""
+        offenders = {
+            template.key: lines
+            for industry in agent_templates.catalog()
+            for template in industry.templates
+            for text in [template.instructions, *_instruction_texts(template.capabilities)]
+            if (lines := _wrapped_lines(text))
+        }
+
+        assert offenders == {}
