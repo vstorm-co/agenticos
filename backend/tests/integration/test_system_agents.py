@@ -194,12 +194,12 @@ class TestSeeding:
 
         assert await agent_repo.get_system(db, organization_id=theirs.id, key=JUDGE.key) is None
 
-    async def test_the_agents_listing_marks_the_judge_as_a_system_agent(self, db) -> None:
+    async def test_the_system_listing_marks_the_judge_as_a_system_agent(self, db) -> None:
         organization, owner = await _organization(db)
         await SystemAgentService(db).ensure(organization_id=organization.id, key=JUDGE.key)
         ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER)
 
-        listed, _ = await AgentRegistryService(db).list_agents(ctx)
+        listed, _ = await AgentRegistryService(db).list_agents(ctx, system=True)
 
         assert [agent.system_key for agent in listed] == [JUDGE.key]
 
