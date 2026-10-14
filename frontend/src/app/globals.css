@@ -2274,3 +2274,75 @@
     --card-pad: 1.5rem;
   }
 }
+
+/* Delegation (#4h): one agent handing work to others. A delegate hops while it
+   works - staggered, so a fan-out reads as a team talking rather than one
+   pulse - and a brief travels along the lane out to it, the answer back once it
+   has one. Every one of these is decoration on a status said in words beside
+   it, so all of them stop under reduced motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .blob-hop {
+    animation: blob-hop 1.25s var(--ease-out) infinite;
+    transform-origin: 50% 100%;
+  }
+  .handoff-out {
+    animation: handoff-out 1.5s linear infinite;
+  }
+  .handoff-back {
+    animation: handoff-back 0.9s var(--ease-out) 1 both;
+  }
+  .handoff-pulse {
+    animation: handoff-pulse 1.6s ease-in-out infinite;
+  }
+}
+@keyframes blob-hop {
+  0%,
+  100% {
+    transform: translateY(0) scale(1, 1);
+  }
+  25% {
+    transform: translateY(-5px) scale(0.94, 1.06);
+  }
+  50% {
+    transform: translateY(0) scale(1.08, 0.92);
+  }
+  65% {
+    transform: translateY(-1.5px) scale(0.99, 1.01);
+  }
+}
+@keyframes handoff-out {
+  0% {
+    left: 0%;
+    opacity: 0;
+  }
+  15%,
+  85% {
+    opacity: 1;
+  }
+  100% {
+    left: 100%;
+    opacity: 0;
+  }
+}
+@keyframes handoff-back {
+  0% {
+    left: 100%;
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    left: 0%;
+    opacity: 0;
+  }
+}
+@keyframes handoff-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--color-foreground) 18%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 5px color-mix(in oklab, var(--color-foreground) 0%, transparent);
+  }
+}

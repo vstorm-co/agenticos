@@ -629,3 +629,57 @@ describe("a tool call in the transcript", () => {
     expect(screen.queryByText("undefined")).toBeNull();
   });
 });
+
+describe("one agent asking another", () => {
+  const asking = (overrides: Partial<ToolCall> = {}) =>
+    render(
+      <ToolCallCard
+        mcpServers={[]}
+        agents={[
+          { id: "a-fin", slug: "finance-analyst", name: "Finance Analyst", has_avatar: false },
+        ]}
+        toolCall={{
+          id: "t1",
+          name: "task",
+          args: { subagent_type: "finance-analyst", description: "Where does MRR stand?" },
+          status: "completed",
+          result: "MRR is €153k.",
+          ...overrides,
+        }}
+      />,
+    );
+
+  it("names the agent that was asked, by the name it goes by", () => {
+    asking();
+
+    expect(screen.getByRole("button", { name: /Asked Finance Analyst/ })).toBeInTheDocument();
+  });
+
+  it("says it is still asking while the delegate works", () => {
+    asking({ status: "running", result: undefined });
+
+    expect(screen.getByText("Asking Finance Analyst")).toBeInTheDocument();
+  });
+
+  it("opens onto the brief and the answer, folding a long brief", async () => {
+    asking();
+
+    await userEvent.click(screen.getByRole("button", { name: /Asked Finance Analyst/ }));
+
+    expect(screen.getByText("Where does MRR stand?")).toBeInTheDocument();
+    expect(screen.getByText("MRR is €153k.")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Show more" }));
+    expect(screen.getByRole("button", { name: "Show less" })).toBeInTheDocument();
+  });
+
+  it("names a delegate the reader cannot see from its handle, without a brief it never got", async () => {
+    asking({ args: { subagent_type: "quarterly-report-researcher" }, result: "" });
+
+    await userEvent.click(
+      screen.getByRole("button", { name: /Asked Quarterly report researcher/ }),
+    );
+
+    expect(screen.queryByText("Brief")).toBeNull();
+    expect(screen.queryByText("Answer")).toBeNull();
+  });
+});

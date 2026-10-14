@@ -17,6 +17,9 @@ import { PlanToolResult } from "./tool-results/plan";
 import { AskedResult, parseAsked } from "./tool-results/asked";
 import { GenericToolResult, RawToolView } from "./tool-results/generic";
 import { RunPythonResult } from "./tool-results/run-python";
+import { DelegationResult } from "./tool-results/delegation";
+import { AgentAvatar } from "@/components/agents/agent-avatar";
+import { delegateNamed, type DelegateRef } from "@/lib/delegations";
 import { WorkspaceToolResult } from "./tool-results/workspace";
 import type { McpServerRef } from "@/lib/tool-steps";
 import { useTranslations } from "next-intl";
@@ -49,6 +52,13 @@ interface ToolCallCardProps {
    * is a line they can open if they want it.
    */
   startOpen?: boolean;
+  /**
+   * The agents the reader can see, for naming the one a delegation asked.
+   *
+   * Passed like `mcpServers` and for the same reason; a surface with none still
+   * names the delegate from its slug.
+   */
+  agents?: readonly DelegateRef[];
 }
 
 /**
@@ -71,6 +81,7 @@ export function ToolCallCard({
   conversationId,
   mcpServers,
   startOpen = false,
+  agents = [],
 }: ToolCallCardProps) {
   const t = useTranslations("chat.tools");
   // What this side knows about the tool: its icon, its wording, and which renderer
@@ -174,12 +185,38 @@ export function ToolCallCard({
     }
   }
 
+  // One agent asking another reads as that, with the delegate's own face.
+  const delegate =
+    renderer === "delegation" && typeof toolCall.args?.subagent_type === "string"
+      ? delegateNamed(toolCall.args.subagent_type, agents)
+      : null;
+  const brief =
+    delegate !== null && typeof toolCall.args?.description === "string"
+      ? toolCall.args.description
+      : null;
+
   return (
     <AgentStep
-      label={step.label}
-      detail={isRunning ? null : step.detail}
+      label={
+        delegate === null
+          ? step.label
+          : t(isRunning ? "askingAgent" : "askedAgent", { name: delegate.name })
+      }
+      detail={isRunning || delegate !== null ? null : step.detail}
       kind={step.kind}
       logoDomain={step.logoDomain}
+      mark={
+        delegate === null ? undefined : (
+          <AgentAvatar
+            agentId={delegate.id ?? delegate.slug}
+            slug={delegate.slug}
+            hasAvatar={delegate.has_avatar}
+            colorSlot={delegate.avatar_color}
+            size="sm"
+            className="-my-1 h-5 w-5"
+          />
+        )
+      }
       state={isParked ? "parked" : isRunning ? "running" : isError ? "error" : "done"}
       parkedOn={toolCall.status === "awaiting_answer" ? "answer" : "approval"}
       expanded={expanded}
@@ -234,6 +271,8 @@ export function ToolCallCard({
         <PlanToolResult toolCall={toolCall} resultText={resultText} />
       ) : asked !== null ? (
         <AskedResult asked={asked} />
+      ) : delegate !== null ? (
+        <DelegationResult brief={brief} answer={resultText} />
       ) : renderer === "workspace" ? (
         <WorkspaceToolResult
           toolCall={toolCall}

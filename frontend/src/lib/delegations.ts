@@ -270,3 +270,27 @@ export function childrenOf(current: Delegation[], taskId: string): Delegation[] 
 export function rootsOf(current: Delegation[]): Delegation[] {
   return current.filter((delegation) => delegation.parentTaskId === null);
 }
+
+/** What a delegate is known by: enough to draw its face and say its name. */
+export interface DelegateRef {
+  id: string | null;
+  slug: string;
+  name: string;
+  has_avatar?: boolean;
+  avatar_color?: number | null;
+}
+
+/**
+ * The agent a delegation went to, by the slug the model names it with.
+ *
+ * The agents the reader can see answer with their own name and face. A delegate
+ * they cannot see, or a specialist the parent defined inline, still reads as a
+ * name - `finance-analyst` as *Finance analyst* - and gets the face its slug
+ * seeds, which is the face the agent wears when nobody chose one.
+ */
+export function delegateNamed(slug: string, agents: readonly DelegateRef[]): DelegateRef {
+  const known = agents.find((agent) => agent.slug === slug);
+  if (known) return known;
+  const words = slug.replace(/[-_]+/g, " ").trim();
+  return { id: null, slug, name: words.charAt(0).toUpperCase() + words.slice(1) };
+}

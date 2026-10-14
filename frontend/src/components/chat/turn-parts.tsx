@@ -7,6 +7,7 @@ import { useLinger, useSmoothText } from "@/hooks/use-smooth-text";
 import { toolEntry } from "@/lib/tool-catalog";
 import { cn } from "@/lib/utils";
 import { useInChatScope } from "@/stores/chat-scope-context";
+import type { DelegateRef } from "@/lib/delegations";
 import type { McpServerRef } from "@/lib/tool-steps";
 import type { MessagePart, ToolCall } from "@/types";
 import { AgentSteps } from "./agent-step";
@@ -42,6 +43,7 @@ export function TurnParts({
   isStreaming,
   isUser,
   mcpServers,
+  agents = [],
   openLastStep = false,
   conversationId,
   onCiteClick,
@@ -54,6 +56,8 @@ export function TurnParts({
   isUser: boolean;
   /** The organization's MCP connections, or empty where the caller has none to offer. */
   mcpServers: McpServerRef[];
+  /** The agents the reader can see, for naming a delegate; empty on a public page. */
+  agents?: readonly DelegateRef[];
   openLastStep?: boolean;
   conversationId?: string;
   onCiteClick?: (index: number) => void;
@@ -84,6 +88,7 @@ export function TurnParts({
               toolCall={part.toolCall!}
               conversationId={conversationId}
               mcpServers={mcpServers}
+              agents={agents}
               // The last call of that turn, which is the one whose result the
               // reader is here for.
               startOpen={openLastStep && run.isLast && step === run.parts.length - 1}

@@ -1012,7 +1012,10 @@
       "specialistPromoted": "{name} zamieniony na szkic agenta",
       "stopped": "zatrzymane",
       "tokens": "{input, number} tokenów wejścia · {output, number} wyjścia",
-      "working": "pracuje…"
+      "working": "pracuje…",
+      "teamAtWork": "Zespół przy pracy",
+      "teamOnThis": "Kto nad tym pracował",
+      "askedCount": "{count, plural, =1 {Zapytano 1 agenta} few {Zapytano # agentów} many {Zapytano # agentów} other {Zapytano # agenta}}"
     },
     "delete": "Usuń",
     "describeIssue": "Opisz problem... (opcjonalnie)",
@@ -1367,7 +1370,11 @@
       "readMemory": "Odczyt wspomnienia",
       "writeMemory": "Zapis do pamięci",
       "editMemory": "Aktualizacja wspomnienia",
-      "deleteMemory": "Zapomnienie wspomnienia"
+      "deleteMemory": "Zapomnienie wspomnienia",
+      "askingAgent": "Pyta: {name}",
+      "askedAgent": "Zapytano: {name}",
+      "delegationBrief": "Zlecenie",
+      "delegationAnswer": "Odpowiedź"
     },
     "turnWasStopped": "zatrzymano",
     "unfavourite": "Usuń z ulubionych",

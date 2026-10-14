@@ -1012,7 +1012,10 @@
       "specialistPromoted": "{name} zu einem Entwurfs-Agent gemacht",
       "stopped": "gestoppt",
       "tokens": "{input, number} Eingabe · {output, number} Ausgabe-Token",
-      "working": "arbeitet …"
+      "working": "arbeitet …",
+      "teamAtWork": "Das Team bei der Arbeit",
+      "teamOnThis": "Wer daran gearbeitet hat",
+      "askedCount": "{count, plural, =1 {1 Agent gefragt} other {# Agents gefragt}}"
     },
     "delete": "Löschen",
     "describeIssue": "Beschreiben Sie das Problem … (optional)",
@@ -1367,7 +1370,11 @@
       "readMemory": "Erinnerung lesen",
       "writeMemory": "Im Gedächtnis speichern",
       "editMemory": "Erinnerung aktualisieren",
-      "deleteMemory": "Erinnerung vergessen"
+      "deleteMemory": "Erinnerung vergessen",
+      "askingAgent": "Fragt {name}",
+      "askedAgent": "{name} gefragt",
+      "delegationBrief": "Auftrag",
+      "delegationAnswer": "Antwort"
     },
     "turnWasStopped": "gestoppt",
     "unfavourite": "Aus den Favoriten entfernen",

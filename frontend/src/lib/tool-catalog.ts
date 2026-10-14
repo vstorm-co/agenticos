@@ -69,6 +69,7 @@ export type ToolRenderer =
   | "context-list"
   | "plan"
   | "asked"
+  | "delegation"
   | "workspace"
   | "generic";
 
@@ -352,7 +353,9 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
 
   // subagents - the parent's half of a delegation. The delegate's own run is a panel
   // of its own, built from `subagent_*` frames rather than from these calls.
-  task: { kind: "delegate", render: "generic", captionKey: "handingWork" },
+  // `task` is one agent asking another, and is drawn as that: the delegate's face
+  // and name on the step, the brief and the answer under it.
+  task: { kind: "delegate", render: "delegation", captionKey: "handingWork" },
   check_task: { kind: "delegate", render: "generic", captionKey: "checkingDelegate" },
   wait_tasks: { kind: "delegate", render: "generic", captionKey: "waitingDelegates" },
   list_active_tasks: {

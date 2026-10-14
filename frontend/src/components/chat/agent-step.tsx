@@ -74,6 +74,11 @@ interface AgentStepProps {
   label: string;
   /** An MCP server's domain, whose logo stands in for the icon. */
   logoDomain?: string | null;
+  /**
+   * What stands in for the icon once the step has landed - a delegate's face, so
+   * "Asked Finance Analyst" is drawn with the agent that was asked.
+   */
+  mark?: ReactNode;
   /** The subject, when the label did not already carry it. */
   detail?: string | null;
   kind: StepKind;
@@ -108,6 +113,7 @@ interface AgentStepProps {
 export function AgentStep({
   label,
   logoDomain,
+  mark,
   detail,
   kind,
   state,
@@ -136,6 +142,8 @@ export function AgentStep({
         // itself says which kind of busy, which is the difference between waiting
         // and following along. The mark comes back the moment the call lands.
         <ThinkingOrb state={STEP_ORBS[kind]} size={20} className="-my-2 -ml-1 h-7 w-7" />
+      ) : mark !== undefined && state !== "parked" ? (
+        mark
       ) : brand !== null ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={brand} alt="" className="h-3.5 w-3.5 shrink-0 rounded-sm" />

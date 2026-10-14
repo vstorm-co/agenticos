@@ -69,7 +69,7 @@ describe("DelegationPanels - one panel per delegation", () => {
     // A delegation whose brief nobody can see is a black box that costs money.
     render(<DelegationPanels delegations={[delegation()]} />);
 
-    expect(screen.getByText("researcher")).toBeInTheDocument();
+    expect(screen.getByText("Researcher")).toBeInTheDocument();
     expect(screen.getByText("working…")).toBeInTheDocument();
     expect(screen.getByText("find three papers on retrieval")).toBeInTheDocument();
   });
@@ -104,7 +104,7 @@ describe("DelegationPanels - open while it runs, closed once it is over", () => 
     );
 
     expect(screen.queryByTestId("markdown")).toBeNull();
-    expect(screen.getByText("researcher")).toBeInTheDocument();
+    expect(screen.getByText("Researcher")).toBeInTheDocument();
     expect(screen.getByText("finished")).toBeInTheDocument();
     expect(screen.getByText("$0.0042")).toBeInTheDocument();
   });
@@ -235,9 +235,9 @@ describe("DelegationPanels - nesting", () => {
       />,
     );
 
-    const parent = screen.getByText("researcher").closest("div.border-l");
+    const parent = screen.getByText("Researcher").closest("div.border-l");
     expect(parent).not.toBeNull();
-    expect(parent!).toContainElement(screen.getByText("assistant"));
+    expect(parent!).toContainElement(screen.getByText("Assistant"));
   });
 
   it("hides a nested delegation with its parent", () => {
@@ -252,6 +252,6 @@ describe("DelegationPanels - nesting", () => {
       />,
     );
 
-    expect(screen.queryByText("assistant")).toBeNull();
+    expect(screen.queryByText("Assistant")).toBeNull();
   });
 });

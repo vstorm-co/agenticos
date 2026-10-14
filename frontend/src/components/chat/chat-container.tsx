@@ -625,6 +625,8 @@ function ChatUI({
   // The rail's ticks, built from the transcript already on screen rather than
   // from a query of its own: one list, drawn twice.
   const { agents: knownAgents } = useAgents({ includeArchived: true });
+  // The agent this thread is addressed to, which is the one handing work out.
+  const delegatingAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
   const { user: authUser } = useAuthStore();
   const agentNames = useMemo(
     () =>
@@ -741,7 +743,11 @@ function ChatUI({
             {/* After the transcript, not inside it: a delegation is a second agent's
                 conversation happening inside one turn of this one, and it can still be
                 streaming when the turn it belongs to has already answered. */}
-            <DelegationPanels delegations={delegations} />
+            <DelegationPanels
+              delegations={delegations}
+              agents={knownAgents}
+              parent={knownAgents.find((agent) => agent.id === delegatingAgentId)}
+            />
           </div>
         </div>
         {/* The floating dock: banners, the composer, the caption. Over the

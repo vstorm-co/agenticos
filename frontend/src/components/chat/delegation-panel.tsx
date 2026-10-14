@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { ChevronDown, CopyPlus, Users } from "lucide-react";
+import { ChevronDown, CopyPlus } from "lucide-react";
 import { toast } from "sonner";
 
 import { getErrorMessage } from "@/lib/api-error";
@@ -11,14 +11,15 @@ import { useAgents, useModelProviders, usePermissions } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import { newSpecialist, specialistNameError } from "@/lib/agent-spec";
 import { cn } from "@/lib/utils";
-import { childrenOf, rootsOf } from "@/lib/delegations";
+import { childrenOf, delegateNamed, rootsOf, type DelegateRef } from "@/lib/delegations";
+import { AgentAvatar } from "@/components/agents/agent-avatar";
+import { DelegationHandoff } from "./delegation-handoff";
 import { toolStep } from "@/lib/tool-steps";
 import { Button } from "@/components/ui";
 import { Perm } from "@/types/permissions";
 import type { Delegation, DelegationStatus, SpecialistDefinition } from "@/types";
 import { AgentStep } from "./agent-step";
 import { MarkdownContent } from "./markdown-content";
-import { ThinkingOrb } from "@/components/ui/thinking-orb";
 
 /**
  * What the specialists are doing, one collapsible block per delegation.
@@ -37,12 +38,45 @@ import { ThinkingOrb } from "@/components/ui/thinking-orb";
  * `max_depth`, and "the researcher is working" and "the researcher's own assistant
  * is working" are different sentences.
  */
-export function DelegationPanels({ delegations }: { delegations: Delegation[] }) {
+export function DelegationPanels({
+  delegations,
+  agents = [],
+  parent,
+}: {
+  delegations: Delegation[];
+  /** The agents the reader can see, which give a delegate its name and face. */
+  agents?: readonly DelegateRef[];
+  /** The agent that handed the work out, at the head of the strip. */
+  parent?: DelegateRef;
+}) {
   if (delegations.length === 0) return null;
+  const roots = rootsOf(delegations);
+  // The team at work, over the panels, while any of it is still out. Once all of
+  // it is back the strip under the answer says who did what, and these panels
+  // stay for what only they hold - the run behind each, promoting a specialist.
+  const working = roots.some(
+    (delegation) => delegation.status === "running" || delegation.status === "awaiting_approval",
+  );
   return (
     <div className="space-y-1 pb-2">
-      {rootsOf(delegations).map((delegation) => (
-        <DelegationPanel key={delegation.taskId} delegation={delegation} all={delegations} />
+      {working && (
+        <DelegationHandoff
+          parent={parent}
+          named={false}
+          lanes={roots.map((delegation) => ({
+            key: delegation.taskId,
+            delegate: delegateNamed(delegation.subagent, agents),
+            status: delegation.status,
+          }))}
+        />
+      )}
+      {roots.map((delegation) => (
+        <DelegationPanel
+          key={delegation.taskId}
+          delegation={delegation}
+          all={delegations}
+          agents={agents}
+        />
       ))}
     </div>
   );
@@ -87,7 +121,15 @@ const STATUS_KEY: Record<DelegationStatus, string> = {
  * worth a line they can open. The header keeps the name, the outcome and the cost
  * either way, so closing hides nothing a reader needs in order to decide to look.
  */
-function DelegationPanel({ delegation, all }: { delegation: Delegation; all: Delegation[] }) {
+function DelegationPanel({
+  delegation,
+  all,
+  agents,
+}: {
+  delegation: Delegation;
+  all: Delegation[];
+  agents: readonly DelegateRef[];
+}) {
   const t = useTranslations("chat.delegation");
   const tTools = useTranslations("chat.tools");
   const { can } = usePermissions();
@@ -109,6 +151,7 @@ function DelegationPanel({ delegation, all }: { delegation: Delegation; all: Del
   }
 
   const children = childrenOf(all, delegation.taskId);
+  const delegate = delegateNamed(delegation.subagent, agents);
 
   return (
     <div className="border-foreground/10 border-l pl-3.5">
@@ -122,15 +165,21 @@ function DelegationPanel({ delegation, all }: { delegation: Delegation; all: Del
             delegate tool: a constellation wiring itself, which is what handing
             work to another agent looks like. Once it lands the glyph comes
             back, because the panel is then a record rather than a report. */}
-        {delegation.status === "running" ? (
-          <ThinkingOrb state="connecting" size={20} className="-my-2 -ml-1 h-7 w-7" />
-        ) : (
-          <Users className={cn("h-3.5 w-3.5 shrink-0", TONE[delegation.status])} aria-hidden />
-        )}
+        {/* The delegate's own face, thinking while it works - the same face it
+            wears in the agent list and on its own conversations. */}
+        <AgentAvatar
+          agentId={delegate.id ?? delegate.slug}
+          slug={delegate.slug}
+          hasAvatar={delegate.has_avatar}
+          colorSlot={delegate.avatar_color}
+          size="sm"
+          thinking={delegation.status === "running"}
+          className="h-5 w-5"
+        />
         <span className="text-foreground/80 min-w-0 truncate text-[13px] font-medium">
-          {delegation.subagent}
+          {delegate.name}
         </span>
-        <span className="text-muted-foreground shrink-0 text-[13px]">
+        <span className={cn("shrink-0 text-[13px]", TONE[delegation.status])}>
           {t(STATUS_KEY[delegation.status])}
         </span>
         {/* A background delegation reports *after* the parent has answered, so
@@ -247,7 +296,7 @@ function DelegationPanel({ delegation, all }: { delegation: Delegation; all: Del
               partway through, so its own delegates belong after what it had said by
               then rather than above it. */}
           {children.map((child) => (
-            <DelegationPanel key={child.taskId} delegation={child} all={all} />
+            <DelegationPanel key={child.taskId} delegation={child} all={all} agents={agents} />
           ))}
         </div>
       )}

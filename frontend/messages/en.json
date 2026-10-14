@@ -1012,7 +1012,10 @@
       "specialistPromoted": "Promoted {name} to a draft agent",
       "stopped": "stopped",
       "tokens": "{input, number} input · {output, number} output tokens",
-      "working": "working…"
+      "working": "working…",
+      "teamAtWork": "The team at work",
+      "teamOnThis": "Who worked on this",
+      "askedCount": "{count, plural, =1 {Asked 1 agent} other {Asked # agents}}"
     },
     "delete": "Delete",
     "describeIssue": "Describe the issue... (optional)",
@@ -1367,7 +1370,11 @@
       "readMemory": "Read a memory",
       "writeMemory": "Save to memory",
       "editMemory": "Update a memory",
-      "deleteMemory": "Forget a memory"
+      "deleteMemory": "Forget a memory",
+      "askingAgent": "Asking {name}",
+      "askedAgent": "Asked {name}",
+      "delegationBrief": "Brief",
+      "delegationAnswer": "Answer"
     },
     "turnWasStopped": "stopped",
     "unfavourite": "Remove from favourites",

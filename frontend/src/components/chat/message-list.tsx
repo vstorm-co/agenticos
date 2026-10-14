@@ -153,6 +153,7 @@ export function MessageList({ messages, onRegenerate, pins }: MessageListProps) 
             turnUsage={turnUsage(messages, index)}
             openLastStep={index === openStepsAt}
             pins={pins}
+            agents={agents}
             onRegenerate={
               onRegenerate && index === lastAssistantIndex && !message.isStreaming
                 ? () => onRegenerate(message.id)

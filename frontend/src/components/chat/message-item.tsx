@@ -11,6 +11,7 @@ import { foldWork, runsOf, TextBubble, ThinkingBlock, TurnParts } from "./turn-p
 import type { PinnedPrompts } from "./chat-container";
 import { CopyButton } from "./copy-button";
 import { MessageSources } from "./message-sources";
+import { TurnDelegations } from "./turn-delegations";
 import { RoundedCost } from "./message-cost";
 import { YouFace } from "./you-face";
 import { TURN_ACTION } from "./turn-action";
@@ -27,6 +28,7 @@ import { getFileUrl } from "@/lib/file-api";
 import { isRenderSafeImage } from "@/lib/file-kinds";
 import { FileCard } from "@/components/files";
 import { extractSources, toolCallsOf } from "@/lib/chat-sources";
+import type { DelegateRef } from "@/lib/delegations";
 import { publishedApps, PublishedArtifactResult } from "./tool-results/artifact";
 
 interface MessageItemProps {
@@ -75,6 +77,8 @@ interface MessageItemProps {
   onRegenerate?: () => void;
   /** In the test panel: a question can be pinned to ask again after each change (#2075). */
   pins?: PinnedPrompts;
+  /** The agents the reader can see, which name the one a delegation asked. */
+  agents?: readonly DelegateRef[];
 }
 
 export function MessageItem({
@@ -87,6 +91,7 @@ export function MessageItem({
   openLastStep = false,
   onRegenerate,
   pins,
+  agents = [],
 }: MessageItemProps) {
   const t = useTranslations("chat");
   const tInput = useTranslations("chat.input");
@@ -139,6 +144,7 @@ export function MessageItem({
           agentId={agent.id}
           slug={agent.slug}
           hasAvatar={agent.has_avatar}
+          colorSlot={agent.avatar_color}
           size="md"
           thinking={Boolean(message.isStreaming)}
           className="h-full w-full border-0"
@@ -264,6 +270,7 @@ export function MessageItem({
           message={message}
           isUser={isUser}
           mcpServers={mcpServers}
+          agents={agents}
           openLastStep={openLastStep}
           endsTurn={endsTurn}
           onCiteClick={onCiteClick}
@@ -278,6 +285,10 @@ export function MessageItem({
               <PublishedArtifactResult key={app.artifactId} data={app} />
             ))}
           </div>
+        )}
+
+        {!isUser && !message.isStreaming && endsTurn && (
+          <TurnDelegations toolCalls={toolCallsOf(message)} parent={agent} agents={agents} />
         )}
 
         {hasSources && !isUser && (
@@ -380,6 +391,7 @@ function MessageBody({
   message,
   isUser,
   mcpServers,
+  agents,
   openLastStep,
   endsTurn,
   onCiteClick,
@@ -387,6 +399,7 @@ function MessageBody({
   message: ChatMessage;
   isUser: boolean;
   mcpServers: ReturnType<typeof useMcpToolServers>;
+  agents: readonly DelegateRef[];
   openLastStep: boolean;
   /** The run's span is said once, under the turn's last segment. */
   endsTurn: boolean;
@@ -428,6 +441,7 @@ function MessageBody({
           isStreaming={Boolean(message.isStreaming)}
           isUser={isUser}
           mcpServers={mcpServers}
+          agents={agents}
           openLastStep={openLastStep}
           conversationId={message.conversationId}
           onCiteClick={onCiteClick}
@@ -462,6 +476,7 @@ function MessageBody({
                     toolCall={toolCall}
                     conversationId={message.conversationId}
                     mcpServers={mcpServers}
+                    agents={agents}
                     startOpen={openLastStep && step === legacyCalls.length - 1}
                   />
                 ))}

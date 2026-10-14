@@ -159,6 +159,8 @@ export default defineConfig({
         "src/components/chat/message-sources.tsx",
         "src/components/chat/source-mark.tsx",
         "src/components/chat/markdown-quote.tsx",
+        "src/components/chat/delegation-handoff.tsx",
+        "src/components/chat/turn-delegations.tsx",
         "src/components/chat/tool-call-card.tsx",
         "src/components/chat/tool-approval-dialog.tsx",
         "src/components/chat/agent-draft-proposal.tsx",
