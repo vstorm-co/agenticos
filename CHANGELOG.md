@@ -473,6 +473,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **The browser tab shows the new mark.** The favicon and home-screen icon
+  were served at an unchanging `/icon`, and browsers keep a favicon long past
+  any cache header, so a tab that had ever opened the console went on showing
+  the previous logo. Both addresses now carry a version derived from the mark
+  itself, which `bun run gen:logo` writes beside it, and the app manifest no
+  longer declares the 32-pixel PNG as an SVG.
 - **Skills, knowledge bases and context files can be re-shared after they
   exist.** Their audience was set once, in the dialog that created them, so a
   skill made for yourself could never be handed to the organization or a
