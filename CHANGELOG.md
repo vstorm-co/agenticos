@@ -549,6 +549,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **The Architect answers in the person's language.** Its instructions said
+  nothing about language, so a one-word "hej" was answered in Swedish. It now
+  answers in the language the person writes in, and for a message too short to
+  tell, in the language of their earlier messages, else English.
+
 - **The Architect's bubble no longer covers a phone screen.** On a phone the
   bubble took about 40% of the screen on every page; there the button now carries
   a dot instead. And the approvals it has raised stay raised for the browser
