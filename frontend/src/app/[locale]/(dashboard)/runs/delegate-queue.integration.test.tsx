@@ -134,7 +134,7 @@ describe("the approvals queue, under delegation", () => {
 
     // Same tool, twice. What separates them is the actor, and each row carries
     // exactly one.
-    expect(await screen.findAllByText("send_email")).toHaveLength(2);
+    expect(await screen.findAllByText(/send email/i)).toHaveLength(2);
 
     const published = row("Asked by researcher");
     const inline = row("Asked by summariser");
@@ -154,7 +154,7 @@ describe("the approvals queue, under delegation", () => {
     render(<RunsPage />, { wrapper });
     await openApprovals();
 
-    expect(await screen.findByText("send_email")).toBeVisible();
+    expect(await screen.findByText(/send email/i)).toBeVisible();
     expect(screen.queryByText(/Asked by \w/)).toBeNull();
     expect(screen.queryByText("Inline specialist")).toBeNull();
   });
