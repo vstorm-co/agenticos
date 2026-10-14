@@ -1951,6 +1951,7 @@ class AgentRegistryService:
         # is write-only: a `spec_version: 3` YAML publishes carrying constructs
         # this code understands and stays labelled 3.
         spec.spec_version = SPEC_VERSION
+        frozen = spec.model_dump(mode="json")
 
         number = await agent_repo.next_version_number(self.db, agent_id=agent.id)
         version = await agent_repo.create_version(
@@ -1958,12 +1959,17 @@ class AgentRegistryService:
             agent_id=agent.id,
             organization_id=ctx.organization_id,
             version=number,
-            spec=spec.model_dump(mode="json"),
+            spec=frozen,
             note=note,
             published_by_user_id=ctx.user_id,
         )
+        # The draft takes the stamped copy too: left at the number it was saved
+        # with, a draft that is exactly what was just published reads as
+        # "differs from" it, and stays that way until somebody edits it.
         await agent_repo.update(
-            self.db, agent=agent, update_data={"status": AgentStatus.PUBLISHED.value}
+            self.db,
+            agent=agent,
+            update_data={"status": AgentStatus.PUBLISHED.value, "draft_spec": frozen},
         )
         # `current_version_id` is the default environment's pointer, so the step
         # that moves environments is the step that moves it - see below.

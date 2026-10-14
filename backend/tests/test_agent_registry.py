@@ -15,7 +15,7 @@ the run history keeps saying what was actually live at the time.
 """
 
 import uuid
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
@@ -2190,7 +2190,7 @@ class TestPublish:
         # Two writes to the agent row, and only one of them names a version: the
         # status is publish's, the pointer is the default environment's.
         assert [call.kwargs["update_data"] for call in update.await_args_list] == [
-            {"status": AgentStatus.PUBLISHED.value},
+            {"status": AgentStatus.PUBLISHED.value, "draft_spec": ANY},
             {"current_version_id": version.id},
         ]
 
@@ -2219,7 +2219,9 @@ class TestPublish:
                 f"{REGISTRY_PATH}.agent_repo.create_version",
                 new=AsyncMock(return_value=version),
             ) as create_version,
-            patch(f"{REGISTRY_PATH}.agent_repo.update", new=AsyncMock(return_value=agent)),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.update", new=AsyncMock(return_value=agent)
+            ) as update,
             patch(f"{REGISTRY_PATH}.agent_environment_repo") as environments,
             patch(f"{REGISTRY_PATH}.record_audit", new=AsyncMock()),
         ):
@@ -2230,6 +2232,14 @@ class TestPublish:
             await AgentRegistryService(_db()).publish(ctx, agent.id)
 
         assert create_version.call_args.kwargs["spec"]["spec_version"] == SPEC_VERSION
+        # And the draft with it, or the console reads the agent it just
+        # published as "draft differs from v3".
+        drafts = [
+            call.kwargs["update_data"]["draft_spec"]
+            for call in update.await_args_list
+            if "draft_spec" in call.kwargs["update_data"]
+        ]
+        assert drafts == [create_version.call_args.kwargs["spec"]]
 
     @pytest.mark.anyio
     async def test_a_default_that_follows_latest_takes_the_agents_pointer_with_it(self):
@@ -2275,7 +2285,7 @@ class TestPublish:
 
         assert environments.update.await_args.kwargs["update_data"] == {"version_id": version.id}
         assert [call.kwargs["update_data"] for call in update.await_args_list] == [
-            {"status": AgentStatus.PUBLISHED.value},
+            {"status": AgentStatus.PUBLISHED.value, "draft_spec": ANY},
             {"current_version_id": version.id},
         ]
 
@@ -2315,7 +2325,7 @@ class TestPublish:
 
         environments.update.assert_not_awaited()
         assert [call.kwargs["update_data"] for call in update.await_args_list] == [
-            {"status": AgentStatus.PUBLISHED.value},
+            {"status": AgentStatus.PUBLISHED.value, "draft_spec": ANY},
             {"current_version_id": pinned_at},
         ]
 
