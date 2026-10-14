@@ -1,5 +1,5 @@
 ---
-source_sha: "5d922dd0b522"
+source_sha: "512bef978a71"
 ---
 
 # Añade una capability { #add-a-capability }
@@ -229,7 +229,7 @@ modo. Aquí es donde vive el razonamiento, no en el mensaje del commit.
     `test_every_file_in_a_platform_package_is_gated` existe para que siga siendo
     cierto. Editar esas listas es para un *paquete* de plataforma nuevo, fuera de
     los que ya cubren los globs. Ver `## Testing` en
-    `CLAUDE.md`, y `tests/test_capability_registry.py` para el estilo.
+    `AGENTS.md`, y `tests/test_capability_registry.py` para el estilo.
 
 Vale la pena cubrir en concreto:
 

@@ -218,7 +218,7 @@ reasoning lives, not in the commit message.
     `test_every_file_in_a_platform_package_is_gated` exists to keep that true.
     Editing those lists is for a new platform *package*, outside the ones already
     globbed. See `## Testing` in
-`CLAUDE.md`, and `tests/test_capability_registry.py` for the style.
+`AGENTS.md`, and `tests/test_capability_registry.py` for the style.
 
 Worth covering specifically:
 

@@ -26,7 +26,7 @@ wrong produces a "fix" that contradicts the project's own header and recent hist
      their origin (a PR number like `(#123)`, a ticket prefix like `(PROJ-123)`, a commit
      hash, a date, or a mix). Mirror what you find — do not invent a ticket prefix or
      category set the repo doesn't already use.
-   - If the repo has a rule file or doc describing the changelog (check `CLAUDE.md`,
+   - If the repo has a rule file or doc describing the changelog (check `AGENTS.md`,
      `CONTRIBUTING.md`, or a comment in the file header), follow it as the source of truth
      over inference from history.
 

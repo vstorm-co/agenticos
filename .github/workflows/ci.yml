@@ -29,7 +29,7 @@ on:
     branches: [main, master]
   pull_request:
 
-# One run per branch. `CLAUDE.md` asks for a commit and a push per finished piece,
+# One run per branch. `AGENTS.md` asks for a commit and a push per finished piece,
 # which is right - but with nothing cancelling, each push started a fresh 24-minute
 # matrix and left the previous one running to completion, answering a question
 # about a commit nobody was waiting on. 75 of the 369 runs in the first six days of

@@ -3,7 +3,7 @@
 #937. `sync_sources.config` held the credential - a Google service account JSON
 or an AWS key pair - encrypted by `app/core/crypto.py`: one deployment-wide
 Fernet key over every tenant's secret, which is the weakness the vault exists to
-remove and the one place `CLAUDE.md`'s "there is no second mechanism" was untrue.
+remove and the one place `AGENTS.md`'s "there is no second mechanism" was untrue.
 
 Three refusals carry the change, and each one is a thing the foreign key cannot
 say:

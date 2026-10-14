@@ -301,7 +301,7 @@ deps-upgrade-all:
 #
 # The frontend half was missing entirely until #143: `make lint` ran ruff, ty and
 # the guard scripts, while CI additionally ran eslint, prettier and tsc - so
-# `make lint` passed on a branch with a type error in a `.tsx`, and CLAUDE.md's
+# `make lint` passed on a branch with a type error in a `.tsx`, and AGENTS.md's
 # "ruff + ty + eslint + tsc" described a command that ran half of that.
 lint: lint-backend lint-frontend lint-spelling lint-precommit
 

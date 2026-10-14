@@ -1,5 +1,5 @@
 ---
-source_sha: "5d922dd0b522"
+source_sha: "512bef978a71"
 ---
 
 # Eine Capability hinzufügen { #add-a-capability }
@@ -231,7 +231,7 @@ Commit-Nachricht.
     `test_every_file_in_a_platform_package_is_gated` gibt es, damit das so
     bleibt. Diese Listen zu bearbeiten ist für ein neues Plattform-*Paket*
     außerhalb der bereits erfassten Globs. Siehe `## Testing` in
-    `CLAUDE.md` und `tests/test_capability_registry.py` für den Stil.
+    `AGENTS.md` und `tests/test_capability_registry.py` für den Stil.
 
 Was sich besonders zu prüfen lohnt:
 

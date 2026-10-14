@@ -1,4 +1,7 @@
-# CLAUDE.md — AgenticOS
+# AGENTS.md — AgenticOS
+
+The one instruction file for coding agents in this repository - Claude Code, Codex
+and any other. There is no `CLAUDE.md`; this is it.
 
 Project-wide decisions and pointers to task-specific guidance. Read relevant rules,
 skills and documentation as needed. Keep detailed procedures and incident history
@@ -110,7 +113,7 @@ Skills live in `.claude/skills/<name>/SKILL.md`. Read the skills matching the ta
 ```bash
 make dev                                          # postgres, redis, api, worker, frontend
 make platform-bootstrap BOOTSTRAP_API_KEY=sk-...  # an org, an owner, a model, an agent
-make check                                        # aggregate pre-PR checks; excludes e2e
+make check                                        # every CI job but e2e - CI runs it, not your laptop
 ```
 
 `make help` lists the rest. Day to day:
@@ -134,17 +137,26 @@ make check                                        # aggregate pre-PR checks; exc
 
 ## Verification
 
-During implementation, run tests covering the change. Run frontend commands from
-`frontend/`, backend commands from `backend/` and make targets from the root.
+**Do not run the full suites on a laptop; CI runs them.** `make test`,
+`make test-frontend-cov`, `make check`, `make test-e2e` and a whole-directory pytest
+or vitest take tens of minutes and load the machine somebody is working on. Locally,
+run small batches: the test files covering what you changed, `make lint` or the half
+of it for the side you touched, and `make db-check` after a model change. Run
+frontend commands from `frontend/`, backend commands from `backend/` and make
+targets from the root.
 
-Before pushing, run `make lint` and the coverage gate for the side changed:
-`make test` and/or `make test-frontend-cov`. A passing run without coverage does
-not verify that gate. Before a PR, run `make check`. Report failures and unavailable
-checks. See `.claude/rules/testing.md` for scoped commands.
+```bash
+cd backend && uv run pytest tests/test_attachments.py tests/test_transcript.py -q
+cd frontend && bunx vitest run src/components/chat/chat-container.integration.test.tsx
+```
 
-Inspect CI for the current commit. A later push can cancel an earlier run, and
-path-filtered jobs may be skipped. Consult `docs/branching.md` and workflow files
-for CI behaviour rather than assuming local commands and CI are identical.
+The coverage gates, integration tests, e2e and the rest of `make check` are what
+GitHub Actions runs on every push. Push, then read the run for that commit's SHA:
+`gh run list --branch <branch>`, then `gh run view <id> --log-failed` for a red job.
+A later push can cancel an earlier run, and path-filtered jobs may be skipped, so a
+green run belongs to the SHA it ran on. Report failures with the job and the error,
+and say when a gate has not run yet. See `docs/branching.md` and the workflow files
+for CI behaviour, and `.claude/rules/testing.md` for scoped commands.
 
 ## Environment
 

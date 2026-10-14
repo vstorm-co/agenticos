@@ -61,7 +61,7 @@ repos:
   # `type(scope): summary`, checked on the message rather than trusted to
   # habit. Only the shape is enforced, not the scope vocabulary: a list of
   # allowed scopes goes stale and then people argue with the hook instead of
-  # writing the subject. The vocabulary CLAUDE.md suggests is a suggestion.
+  # writing the subject. The vocabulary AGENTS.md suggests is a suggestion.
   - repo: https://github.com/compilerla/conventional-pre-commit
     rev: v4.2.0
     hooks:

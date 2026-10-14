@@ -21,7 +21,7 @@ operational layer; it does not paraphrase the doc.
 
 ## Where to write when behaviour changes
 
-The table in `CLAUDE.md` under `## Documentation` maps topic → page. Keep it current
+The table in `AGENTS.md` under `## Documentation` maps topic → page. Keep it current
 when you add a page.
 
 ## Three things that silently render wrong
@@ -90,7 +90,7 @@ people → Keep it under control → the recipes. A page added there belongs at 
 position.
 
 **Files stay flat in `docs/`.** The nav does the grouping. Those paths are named in
-`CLAUDE.md`, in these skills, in `scripts/docs_drift.py` and in backend docstrings, so
+`AGENTS.md`, in these skills, in `scripts/docs_drift.py` and in backend docstrings, so
 moving a file to get a prettier URL invalidates all of them.
 
 `release-notes.md` is `CHANGELOG.md`, substituted at build time by
@@ -117,7 +117,7 @@ are the two that do.
 1. Write it in `docs/` (or `docs/howto/`, `docs/reference/`).
 2. Add it to `nav` in `mkdocs.yml`, **at the position it belongs at** — a page outside
    the nav is a build warning under `--strict`.
-3. Cross-link it from the pages a reader arrives from, and from `CLAUDE.md`'s table.
+3. Cross-link it from the pages a reader arrives from, and from `AGENTS.md`'s table.
 4. `make docs-build` and check the anchors.
 
 ## Voice

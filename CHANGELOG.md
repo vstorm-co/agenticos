@@ -630,6 +630,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **`AGENTS.md` is the one instruction file for coding agents.** `CLAUDE.md`
+  is gone - Claude Code reads `AGENTS.md` when a repository has no
+  `CLAUDE.md`, and Codex reads it already - and every skill, command, rule,
+  page and the review workflow point at it. It now says what the testing
+  rules already implied: run the tests covering a change on a laptop, and
+  leave the full suites, the coverage gates and e2e to GitHub Actions, which
+  runs them on every push.
 - **Both presentations wear the new brand and show the current console.**
   The 14-slide introduction and the 44-slide tour drop the red and beige for
   the mark's violet, open on the animated mark, and use blobatar characters

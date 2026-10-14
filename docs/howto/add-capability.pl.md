@@ -1,5 +1,5 @@
 ---
-source_sha: "5d922dd0b522"
+source_sha: "512bef978a71"
 ---
 
 # Dodaj capability { #add-a-capability }
@@ -223,7 +223,7 @@ a nie w wiadomości commita.
     `test_every_file_in_a_platform_package_is_gated` istnieje po to, by tak
     pozostało. Edytowanie tych list jest od nowej *paczki* platformowej, spoza
     tych już objętych globem. Zobacz `## Testing` w
-    `CLAUDE.md`, a `tests/test_capability_registry.py` — dla stylu.
+    `AGENTS.md`, a `tests/test_capability_registry.py` — dla stylu.
 
 Warto pokryć w szczególności:
 
