@@ -652,6 +652,7 @@ it lasts an hour after the browse last did anything.
 | `candidate_cap` | 60 | 2–200; how many elements may be offered in one step |
 | `preview` | `true` | send the viewport to the chat while the browse runs |
 | `preview_width` | 1024 | 320–1920; the viewport width, and so the width of the frames |
+| `step_model_profile_id` | empty | a model profile `browse_web` asks for each step instead of the agent's - a cheaper model makes a long browse cheaper, and quicker only where its provider answers quickly (Claude Haiku through OpenRouter took as long per step as Sonnet); empty uses the agent's model, and the agent's own browser tools always do |
 
 **The browser is one you run, and the operator says which.** There is no Chromium in
 the API image: `cdp_url` points at a browser service an operator runs and isolates.

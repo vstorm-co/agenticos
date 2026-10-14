@@ -99,6 +99,11 @@ from app.agents.capabilities.approval import (
     ApprovalRejected,
     ApprovalRequest,
 )
+from app.agents.capabilities.browser_use import (
+    BROWSER_CAPABILITY_ID,
+    BROWSER_STEP_MODEL_RESOURCE,
+    WebBrowserConfig,
+)
 from app.agents.capabilities.budget import (
     BudgetExceeded,
     BudgetGuard,
@@ -2078,6 +2083,15 @@ def failed_run_error(run: AgentRun, exc: Exception) -> RunFailedError:
     )
 
 
+def _browser_step_profile(spec: AgentSpec) -> UUID | None:
+    """The model profile the agent named for `browse_web`'s steps, if it named one."""
+    for binding in spec.capabilities:
+        if binding.id == BROWSER_CAPABILITY_ID and binding.enabled:
+            config = WebBrowserConfig.model_validate(binding.config)
+            return config.step_model_profile_id
+    return None
+
+
 class AgentRunnerService:
     """Prepare, execute and account for agent runs."""
 
@@ -2519,6 +2533,13 @@ class AgentRunnerService:
         # here" are worse than none, because the model keeps trying.
         if channel_directory is not None:
             resources[CHANNEL_DIRECTORY_RESOURCE] = channel_directory
+        step_profile = _browser_step_profile(spec)
+        if step_profile is not None:
+            # Built here, where the vault and the session are: a fast model for
+            # `browse_web`'s steps, which are most of a browse's time.
+            resources[BROWSER_STEP_MODEL_RESOURCE] = (
+                await self.models.resolve(ctx, profile_id=step_profile)
+            ).build()
 
         # Unsealed here and handed straight to the factory, which hands them to
         # the capability instances that declared them. They are kept out of

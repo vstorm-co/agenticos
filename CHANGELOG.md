@@ -19,6 +19,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **A separate model for `browse_web`'s steps.** The web browser's new
+  `step_model_profile_id` names a model profile each browse step asks instead of
+  the agent's own model - steps are most of a browse's time and cost - chosen in
+  the capability's advanced settings from the same picker as the agent's model,
+  and checked at publish like any profile. A step now gets three tries at a
+  well-formed answer, and an action named by its kind with its fields beside it
+  is accepted, which is how Claude Haiku answers.
+
 - **The agent can drive the browser itself.** Beside `browse_web`, which hands a
   whole task to a loop that asks the model for every step, the web browser now
   gives the agent `browser_open`, `browser_read`, `browser_click`,

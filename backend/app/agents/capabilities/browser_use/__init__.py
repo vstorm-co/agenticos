@@ -1,9 +1,11 @@
 """A real web browser the agent works step by step, on the run's own model."""
 
 from urllib.parse import urlsplit
+from uuid import UUID
 
 from pydantic import BaseModel, Field, JsonValue
 from pydantic_ai.capabilities import AbstractCapability
+from pydantic_ai.models import Model
 
 from app.agents.capabilities._registry import (
     CapabilityBuildContext,
@@ -15,9 +17,20 @@ from app.agents.capabilities.browser_use._elements import HARD_CANDIDATE_CAP
 from app.core.config import settings
 from app.core.sanitize import UrlRefusedError
 
-__all__ = ["BROWSER_CAPABILITY_ID", "WebBrowser", "WebBrowserConfig", "validate_cdp_url"]
+__all__ = [
+    "BROWSER_CAPABILITY_ID",
+    "BROWSER_STEP_MODEL_RESOURCE",
+    "WebBrowser",
+    "WebBrowserConfig",
+    "validate_cdp_url",
+]
 
 BROWSER_CAPABILITY_ID = "browser_use"
+
+BROWSER_STEP_MODEL_RESOURCE = "browser_step_model"
+"""The built model `browse_web` asks for each step, resolved by the runner from
+`step_model_profile_id` - building one needs the database and the vault, which a
+capability builder does not have."""
 
 _DEFAULT_CDP_PORT = 9222
 """Chromium's own default debugging port, which is what a suggestion should guess."""
@@ -128,6 +141,18 @@ class WebBrowserConfig(BaseModel):
             "Send the viewport to the chat while the browse runs, so a person can "
             "watch it. Costs one JPEG per step on the socket."
         ),
+    )
+    step_model_profile_id: UUID | None = Field(
+        title="Model for each browse step",
+        default=None,
+        description=(
+            "A model profile `browse_web` asks for each step instead of the agent's own. "
+            "Steps are most of a browse's time and cost, so a cheaper model here makes a "
+            "long browse cheaper, and quicker where its provider answers quickly - "
+            "measure it, since a small model through a slow gateway is no faster. Empty "
+            "uses the agent's model. The agent's own browser tools always use it."
+        ),
+        json_schema_extra={"x-widget": "model-profile", "x-advanced": True},
     )
     preview_width: int = Field(
         title="Viewport width (pixels)",
@@ -273,7 +298,9 @@ def _build(ctx: CapabilityBuildContext) -> AbstractCapability[object]:
     better at publish.
     """
     config = ctx.config if isinstance(ctx.config, WebBrowserConfig) else WebBrowserConfig()
+    step_model = ctx.resources.get(BROWSER_STEP_MODEL_RESOURCE)
     return WebBrowser(
+        step_model=step_model if isinstance(step_model, Model) else None,
         cdp_url=config.cdp_url,
         allowed_domains=config.allowed_domains,
         max_steps=config.max_steps,

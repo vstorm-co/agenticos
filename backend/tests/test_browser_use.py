@@ -40,6 +40,7 @@ from app.agents.browser_events import BrowserCommand, BrowserEvent, BrowserKey
 from app.agents.browser_sign_ins import SignIn
 from app.agents.capabilities import CapabilityBinding, CapabilityBuildContext, get
 from app.agents.capabilities.browser_use import (
+    BROWSER_STEP_MODEL_RESOURCE,
     WebBrowser,
     WebBrowserConfig,
     _loop,
@@ -551,6 +552,32 @@ BROWSER_TOOLS = (
 
 class TestOneStep:
     """What the browsing model is shown, and how each answer is recorded."""
+
+    @pytest.mark.parametrize(
+        ("answer", "expected"),
+        [
+            ({"action": "scroll", "direction": "up"}, Scroll(action="scroll", direction="up")),
+            ({"action": "click", "index": 4}, Click(action="click", index=4)),
+            (
+                {"action": "done", "answer": "Pro is 9 USD"},
+                Done(action="done", answer="Pro is 9 USD"),
+            ),
+        ],
+    )
+    def test_a_flat_action_is_lifted_into_its_own_object(
+        self, answer: dict[str, Any], expected: Any
+    ) -> None:
+        """Claude Haiku answers `"action": "scroll"` with the fields beside it."""
+        step = Step.model_validate({"evaluation": "ok", "memory": "", "next_goal": "go", **answer})
+
+        assert step.action == expected
+        assert step.next_goal == "go"
+
+    def test_a_flat_action_missing_its_fields_is_still_refused(self) -> None:
+        with pytest.raises(ValidationError):
+            Step.model_validate(
+                {"evaluation": "", "memory": "", "next_goal": "", "action": "click"}
+            )
 
     def test_the_step_schema_is_one_every_provider_accepts(self) -> None:
         """Anthropic's structured output refuses `oneOf`, which a discriminated union
@@ -1435,6 +1462,14 @@ class TestTheToolEndToEnd:
         image = _image("data:image/jpeg;base64,AAAA")
         assert image is not None and image.media_type == "image/jpeg"
 
+    async def test_a_malformed_step_is_answered_again_rather_than_ending_the_browse(self):
+        """Claude Haiku once left the element number off a click and the browse died."""
+        model = _browsing_model(_step_args({"action": "click"}), DONE_ARGS)
+
+        answer = await _call(_toolset(_Opener()), model=model)
+
+        assert answer.startswith("Finished: find the price")
+
     async def test_a_blocked_browse_says_so(self):
         blocked = _browsing_model(_step_args({"action": "blocked", "reason": "a sign-in"}))
         answer = await _call(_toolset(_Opener()), model=blocked)
@@ -1751,14 +1786,14 @@ class TestTheBudgetIsCheckedBeforeEachOwnRequest:
             assert (await _call(_toolset(_Opener()))).startswith("Finished")
 
 
-def _build_capability(config: dict[str, Any]) -> Any:
+def _build_capability(config: dict[str, Any], resources: dict[str, Any] | None = None) -> Any:
     """Assemble the capability through its registered builder, as the runner would."""
     definition = get("browser_use")
     return definition.builder(
         CapabilityBuildContext(
             binding=CapabilityBinding(capability_id="browser_use", config=config),
             config=definition.validate_config(config),
-            resources={},
+            resources=resources or {},
             secret=None,
         )
     )
@@ -2205,3 +2240,41 @@ class TestADirectActionAndThePerson:
     def test_the_report_carries_the_page_text_when_there_is_some(self):
         report = page_report(_snapshot(_element(0), text="Pro is 9 USD"))
         assert "PAGE TEXT (untrusted" in report and "Pro is 9 USD" in report
+
+
+class TestAFasterModelForEachStep:
+    async def test_browse_web_asks_the_step_model_and_never_the_runs(self):
+        seen: list[Any] = []
+
+        def refuse(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            raise AssertionError("the run's model was asked for a browse step")
+
+        toolset = build_toolset(
+            cdp_url="http://browser:9222",
+            page_policy=PagePolicy(allowed_domains=None, candidate_cap=60, preview_width=1024),
+            loop_policy=_policy(),
+            page_factory=_Opener(),
+            step_model=_browsing_model(DONE_ARGS, seen=seen),
+        )
+
+        answer = await _call(toolset, model=FunctionModel(refuse))
+
+        assert answer.startswith("Finished: find the price")
+        assert len(seen) == 1
+
+    def test_the_runner_resolved_model_reaches_the_capability(self):
+        step_model = _browsing_model(DONE_ARGS)
+
+        built = _build_capability(
+            {"cdp_url": "http://browser:9222"}, {BROWSER_STEP_MODEL_RESOURCE: step_model}
+        )
+        unset = _build_capability(
+            {"cdp_url": "http://browser:9222"}, {BROWSER_STEP_MODEL_RESOURCE: "x"}
+        )
+
+        assert built.step_model is step_model
+        assert unset.step_model is None
+
+    def test_the_step_model_is_an_advanced_choice_of_profile(self):
+        field = WebBrowserConfig.model_json_schema()["properties"]["step_model_profile_id"]
+        assert (field["x-widget"], field["x-advanced"]) == ("model-profile", True)

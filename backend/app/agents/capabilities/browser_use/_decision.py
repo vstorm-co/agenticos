@@ -21,7 +21,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.agents.capabilities.browser_use._elements import Snapshot, render_table
 
@@ -114,6 +114,10 @@ class AskPerson(BaseModel):
 Action = Click | TypeText | Select | Scroll | Navigate | GoBack | Wait | Done | Blocked | AskPerson
 
 
+_ACTION_FIELDS = frozenset({"index", "text", "option", "direction", "url", "answer", "reason"})
+"""Every field an action carries besides its kind, as a flat answer puts them."""
+
+
 class Step(BaseModel):
     """One step's decision: a judgement of the last action, a memory, and the next action."""
 
@@ -132,6 +136,22 @@ class Step(BaseModel):
     )
     next_goal: str = Field(description="What this step's action is for, in one sentence.")
     action: Action
+
+    @model_validator(mode="before")
+    @classmethod
+    def _flat_action(cls, data: object) -> object:
+        """Accept an action named by its kind, with its fields beside it.
+
+        A small model asked for this shape often answers `"action": "scroll",
+        "direction": "down"` rather than nesting the action - which failed every
+        step on Claude Haiku. The fields an action takes are lifted into it; the
+        action's own validation still decides whether they are enough.
+        """
+        if not isinstance(data, dict) or not isinstance(data.get("action"), str):
+            return data
+        lifted = {key: value for key, value in data.items() if key in _ACTION_FIELDS}
+        rest = {key: value for key, value in data.items() if key not in _ACTION_FIELDS}
+        return {**rest, "action": {"action": data["action"], **lifted}}
 
 
 INSTRUCTIONS = """\

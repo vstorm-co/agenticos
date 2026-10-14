@@ -1482,6 +1482,33 @@ class TestValidateSpec:
         assert any(problem.startswith("Collection not found:") for problem in problems)
 
     @pytest.mark.anyio
+    async def test_a_browser_step_model_from_nowhere_is_refused_at_publish(self, monkeypatch):
+        """The step model is a reference to a profile, like the agent's own - one
+        deleted since, or another organization's, would fail every browse."""
+        monkeypatch.setattr(settings, "BROWSER_CDP_ALLOWED_HOSTS", ["browser"])
+        spec = _spec(
+            capabilities=[
+                {
+                    "id": "browser_use",
+                    "config": {
+                        "cdp_url": "http://browser:9222",
+                        "step_model_profile_id": str(uuid.uuid4()),
+                    },
+                }
+            ],
+            model_profile_id=uuid.uuid4(),
+        )
+        found = AsyncMock(side_effect=[MagicMock(), None])
+
+        with (
+            patch(f"{REGISTRY_PATH}.credential_repo.get_profile", new=found),
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+
+        assert refused.value.details["problems"] == ["The selected model profile no longer exists"]
+
+    @pytest.mark.anyio
     async def test_a_refused_capability_config_names_the_input_as_well_as_the_capability(self):
         """This is the path a Builder submission takes, and it discarded the field.
 

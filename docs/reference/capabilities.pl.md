@@ -1,5 +1,5 @@
 ---
-source_sha: "962197938851"
+source_sha: "fea77a6261c0"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -693,6 +693,7 @@ przeglądania.
 | `candidate_cap` | 60 | 2–200; ile elementów można zaproponować w jednym kroku |
 | `preview` | `true` | wysyłaj widok przeglądarki do czatu w trakcie przeglądania |
 | `preview_width` | 1024 | 320–1920; szerokość widoku, a więc i klatek |
+| `step_model_profile_id` | puste | profil modelu, o który `browse_web` pyta w każdym kroku zamiast modelu agenta - tańszy model obniża koszt długiego browse, a przyspiesza go tylko tam, gdzie jego dostawca odpowiada szybko (Claude Haiku przez OpenRouter był na krok tak samo wolny jak Sonnet); puste to model agenta, a własne narzędzia przeglądarki agenta zawsze go używają |
 
 **Przeglądarkę uruchamiasz ty, a operator mówi którą.** W obrazie API nie ma Chromium:
 `cdp_url` wskazuje usługę przeglądarki, którą operator uruchamia i izoluje. Pliki

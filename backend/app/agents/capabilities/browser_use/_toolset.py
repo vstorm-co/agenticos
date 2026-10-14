@@ -290,6 +290,7 @@ def build_toolset(
     page_policy: PagePolicy,
     loop_policy: LoopPolicy,
     page_factory: PageFactory | None = None,
+    step_model: Model | None = None,
 ) -> BrowserToolset:
     """`browse_web` and the agent's own browser tools, bound to the browser seam."""
     open_browser = page_factory if page_factory is not None else open_page
@@ -334,11 +335,20 @@ def build_toolset(
         sink, control, run_id = await _live(ctx.deps, call_id, task)
         person = _signed_in_as(ctx.deps)
         remember = None if person is None else _remembering(person)
+        # The agent's own step model where it named one - a cheaper or
+        # faster-serving model for the steps, which are most of a browse - else
+        # the run's.
         # `ctx.model` is typed `AbstractModel`; a run's model is always a concrete
-        # `Model`, which `MeteredModel` (a `WrapperModel`) needs.
-        browser_model = MeteredModel(cast(Model, ctx.model))
+        # `Model`, which `MeteredModel` (a `WrapperModel`) needs. Either way it is
+        # metered against the run's budget.
+        browser_model = MeteredModel(
+            step_model if step_model is not None else cast(Model, ctx.model)
+        )
+        # Three tries at a well-formed step: a small model sometimes leaves out a
+        # field (a click with no element number), and reading the refusal is
+        # enough for it to answer again - one malformed step ended the browse.
         stepper: Agent[None, Step] = Agent(
-            browser_model, output_type=Step, instructions=INSTRUCTIONS
+            browser_model, output_type=Step, instructions=INSTRUCTIONS, retries={"output": 3}
         )
 
         async def decide(

@@ -1,5 +1,5 @@
 ---
-source_sha: "962197938851"
+source_sha: "fea77a6261c0"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -734,6 +734,7 @@ bestehen.
 | `candidate_cap` | 60 | 2–200; wie viele Elemente in einem Schritt angeboten werden dürfen |
 | `preview` | `true` | sendet die Ansicht in den Chat, während das Browsen läuft |
 | `preview_width` | 1024 | 320–1920; die Breite der Ansicht und damit der Vorschaubilder |
+| `step_model_profile_id` | leer | ein Modellprofil, das `browse_web` bei jedem Schritt statt des Modells des Agents fragt - ein günstigeres Modell macht einen langen Browse günstiger und nur dort schneller, wo sein Anbieter schnell antwortet (Claude Haiku über OpenRouter brauchte pro Schritt so lange wie Sonnet); leer heißt das Modell des Agents, das seine eigenen Browser-Tools immer nutzen |
 
 **Den Browser betreiben Sie, und der Betreiber sagt welchen.** Im API-Image ist kein
 Chromium: `cdp_url` zeigt auf einen Browser-Dienst, den ein Betreiber betreibt und

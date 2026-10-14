@@ -40,6 +40,7 @@ from pydantic_ai_harness.planning import PlanItem
 from app.agents.ask_user import park_the_question
 from app.agents.audience import RunAudience
 from app.agents.capabilities.approval import ApprovalGranted, ApprovalRejected
+from app.agents.capabilities.browser_use import BROWSER_STEP_MODEL_RESOURCE
 from app.agents.capabilities.budget import (
     BudgetExceeded,
     BudgetScope,
@@ -4100,6 +4101,81 @@ class TestWhatTheChannelLetsTheAgentLookUp:
 
         assert CHANNEL_DIRECTORY_RESOURCE not in built["resources"]
         assert spec.capabilities == []
+
+
+class TestTheBrowsersStepModel:
+    """A fast model for `browse_web`'s steps reaches the capability built, not the run."""
+
+    @staticmethod
+    async def _built(spec: AgentSpec) -> tuple[dict[str, Any], AsyncMock]:
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        step_model = MagicMock(name="fast-model")
+        resolve = AsyncMock(
+            side_effect=lambda ctx, profile_id=None: MagicMock(
+                label="m", build=MagicMock(return_value=step_model)
+            )
+        )
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
+            ),
+            patch.object(service.models, "resolve", new=resolve),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch("app.services.agent_runner.build_agent") as build,
+        ):
+            await service.prepare(_ctx(), agent.id)
+        return build.call_args.kwargs["resources"], resolve
+
+    @pytest.mark.anyio
+    async def test_a_named_step_model_is_resolved_and_handed_to_the_browser(self):
+        profile = uuid.uuid4()
+        spec = AgentSpec(
+            name="Researcher",
+            capabilities=[
+                {
+                    "id": "browser_use",
+                    "config": {
+                        "cdp_url": "http://browser:9222",
+                        "step_model_profile_id": str(profile),
+                    },
+                }
+            ],
+        )
+
+        resources, resolve = await self._built(spec)
+
+        assert BROWSER_STEP_MODEL_RESOURCE in resources
+        assert profile in [call.kwargs.get("profile_id") for call in resolve.await_args_list]
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        "capabilities",
+        [
+            [],
+            [{"id": "browser_use", "config": {"cdp_url": "http://browser:9222"}}],
+            [
+                {
+                    "id": "browser_use",
+                    "enabled": False,
+                    "config": {
+                        "cdp_url": "http://browser:9222",
+                        "step_model_profile_id": str(uuid.uuid4()),
+                    },
+                }
+            ],
+        ],
+    )
+    async def test_without_one_the_browser_uses_the_runs_model(self, capabilities):
+        resources, _ = await self._built(AgentSpec(name="Researcher", capabilities=capabilities))
+
+        assert BROWSER_STEP_MODEL_RESOURCE not in resources
 
 
 class TestTheDownRatedMarker:

@@ -693,6 +693,12 @@ export interface JsonSchemaProperty {
    */
   "x-advanced"?: boolean;
   /**
+   * A control the form draws for a value that is a reference rather than text:
+   * `model-profile` is one of the organization's model profiles, chosen from
+   * the same picker the Builder uses for the agent's own model.
+   */
+  "x-widget"?: "model-profile";
+  /**
    * What a `list[...]` holds. Only `{"type": "string"}` is rendered; anything
    * else is the richer editor the generated form deliberately does not grow.
    */

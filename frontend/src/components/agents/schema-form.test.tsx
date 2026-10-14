@@ -5,6 +5,34 @@ import userEvent from "@testing-library/user-event";
 import { SchemaForm } from "./schema-form";
 import type { JsonSchema } from "@/types/agents";
 
+vi.mock("@/hooks", () => ({
+  useModelProviders: () => ({ profiles: [{ id: "p-fast" }], profilesStatus: "ready" }),
+}));
+
+// The picker has its own tests; here it stands in as the value it shows and the
+// two answers it can give - a profile, or back to the agent's own model.
+vi.mock("@/components/agents/model-profile-picker", () => ({
+  ModelProfilePicker: ({
+    value,
+    profiles,
+    onChange,
+  }: {
+    value: string | null;
+    profiles: { id: string }[];
+    onChange: (id: string | null) => void;
+  }) => (
+    <div>
+      <span>picked: {value ?? "none"}</span>
+      <button type="button" onClick={() => onChange(profiles[0]!.id)}>
+        choose
+      </button>
+      <button type="button" onClick={() => onChange(null)}>
+        clear
+      </button>
+    </div>
+  ),
+}));
+
 const SCHEMA: JsonSchema = {
   type: "object",
   properties: {
@@ -1014,5 +1042,43 @@ describe("advanced settings (#2070)", () => {
 
   it("opens where an advanced field was refused", () => {
     expect(fold({}, { max_results: "Too many" })).toHaveAttribute("open");
+  });
+
+  it("draws a model profile picker for a field that names one", async () => {
+    const schema: JsonSchema = {
+      type: "object",
+      properties: {
+        step_model_profile_id: {
+          title: "Model for each browse step",
+          anyOf: [{ type: "string", format: "uuid" }, { type: "null" }],
+          "x-widget": "model-profile",
+        },
+      },
+    };
+    const onChange = vi.fn();
+    render(
+      <SchemaForm
+        schema={schema}
+        value={{ step_model_profile_id: "p-old" }}
+        onChange={onChange}
+        idPrefix="browser_use"
+      />,
+    );
+
+    expect(screen.getByText("picked: p-old")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "choose" }));
+    expect(onChange).toHaveBeenLastCalledWith({ step_model_profile_id: "p-fast" });
+    await userEvent.click(screen.getByRole("button", { name: "clear" }));
+    expect(onChange).toHaveBeenLastCalledWith({});
+  });
+
+  it("shows no profile picked where the field is unset", () => {
+    const schema: JsonSchema = {
+      type: "object",
+      properties: { step_model_profile_id: { "x-widget": "model-profile" } },
+    };
+    render(<SchemaForm schema={schema} value={{}} onChange={vi.fn()} idPrefix="b" />);
+
+    expect(screen.getByText("picked: none")).toBeInTheDocument();
   });
 });

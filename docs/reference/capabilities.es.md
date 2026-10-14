@@ -1,5 +1,5 @@
 ---
-source_sha: "962197938851"
+source_sha: "fea77a6261c0"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -702,6 +702,7 @@ de la navegación.
 | `candidate_cap` | 60 | 2–200; cuántos elementos se pueden ofrecer en un paso |
 | `preview` | `true` | envía la vista del navegador al chat mientras navega |
 | `preview_width` | 1024 | 320–1920; el ancho de la vista y, por tanto, de los fotogramas |
+| `step_model_profile_id` | vacío | un perfil de modelo al que `browse_web` pregunta en cada paso en lugar del modelo del agent - un modelo más barato abarata un browse largo, y solo lo acelera donde su proveedor responde rápido (Claude Haiku por OpenRouter tardó por paso lo mismo que Sonnet); vacío usa el modelo del agent, que sus propias herramientas de navegador usan siempre |
 
 **El navegador lo opera usted, y el operador dice cuál.** No hay Chromium en la imagen
 de la API: `cdp_url` apunta a un servicio de navegador que un operador ejecuta y aísla.

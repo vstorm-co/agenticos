@@ -15,7 +15,9 @@ import {
   Switch,
   Textarea,
 } from "@/components/ui";
+import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
 import { BrandIcon, type BrandName } from "@/components/icons/brand-icon";
+import { useModelProviders } from "@/hooks";
 import { ProviderIcon } from "@/components/vault/provider-icon";
 import { BRAND_GLYPHS } from "@/lib/brand-glyphs.generated";
 import type { FieldCopy, FieldCopyFor } from "@/components/agents/capability-field-copy";
@@ -299,6 +301,14 @@ function SchemaField({
         />
       )}
 
+      {kind === "modelProfile" && (
+        <SchemaModelProfile
+          value={typeof value === "string" ? value : null}
+          disabled={disabled}
+          onChange={(profileId) => onChange(profileId ?? undefined)}
+        />
+      )}
+
       {kind === "string" && multiline && (
         /* The same control the agent's own instructions get. A prompt is
            paragraphs - a one-line box for one is a field nobody can read what
@@ -419,7 +429,33 @@ function SchemaField({
   );
 }
 
-type FieldKind = "string" | "number" | "boolean" | "enum" | "stringList";
+/**
+ * A model profile for a capability's own use - `browse_web`'s step model - from
+ * the same picker as the agent's model. Its own component, so the query it
+ * reads is made only by a form that has such a field.
+ */
+function SchemaModelProfile({
+  value,
+  disabled,
+  onChange,
+}: {
+  value: string | null;
+  disabled?: boolean;
+  onChange: (profileId: string | null) => void;
+}) {
+  const { profiles, profilesStatus } = useModelProviders();
+  return (
+    <ModelProfilePicker
+      profiles={profiles}
+      profilesStatus={profilesStatus}
+      value={value}
+      disabled={disabled}
+      onChange={onChange}
+    />
+  );
+}
+
+type FieldKind = "string" | "number" | "boolean" | "enum" | "stringList" | "modelProfile";
 
 /**
  * What kind of input a property needs.
@@ -429,6 +465,7 @@ type FieldKind = "string" | "number" | "boolean" | "enum" | "stringList";
  * that, every optional field would fall through to a text box.
  */
 function resolveKind(property: JsonSchemaProperty): FieldKind {
+  if (property["x-widget"] === "model-profile") return "modelProfile";
   // Before the type check, not after: a `Literal` is a string, and a text box
   // for a closed set of values is a way to type one the backend will refuse.
   if (enumChoices(property) !== null) return "enum";

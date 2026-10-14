@@ -1409,6 +1409,8 @@ class AgentRegistryService:
             problems.merge(_config_problems(binding.id, exc))
         else:
             problems.add(_browser_problems(config))
+            if isinstance(config, WebBrowserConfig) and config.step_model_profile_id is not None:
+                problems.add(await self._model_profile_problems(ctx, config.step_model_profile_id))
             problems.add(ungateable_tool_problems(binding, definition, config))
         # A tool_approval key that matches nothing is the dangerous kind of
         # typo: it is not an error at run time, it is silence - the tool the
