@@ -160,6 +160,37 @@ describe("useEvalComparison", () => {
   });
 });
 
+describe("useEvalComparison while the run is live", () => {
+  it("reads the verdict again until the run finishes, so it does not freeze early", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      vi.mocked(apiClient.get)
+        .mockResolvedValueOnce({ verdict: "no_difference" })
+        .mockResolvedValue({ verdict: "worse" });
+      const { result, rerender } = renderHook(({ live }) => useEvalComparison("run-1", { live }), {
+        wrapper,
+        initialProps: { live: true },
+      });
+      await waitFor(() => expect(result.current.comparison?.verdict).toBe("no_difference"));
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(3_000);
+      });
+      await waitFor(() => expect(result.current.comparison?.verdict).toBe("worse"));
+
+      // Finished: no more reads.
+      rerender({ live: false });
+      const reads = vi.mocked(apiClient.get).mock.calls.length;
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10_000);
+      });
+      expect(vi.mocked(apiClient.get).mock.calls.length).toBe(reads);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
 describe("useRecentEvalRuns", () => {
   it("reads the organization's latest runs, and nothing when held back", async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ items: [evalRun()], total: 1 });

@@ -13,7 +13,7 @@ export function EstimateSummary({ estimate }: { estimate: EvalRunEstimate }) {
   const t = useTranslations("evals.estimate");
   const locale = useLocale();
   return (
-    <div className="bg-muted/40 space-y-3 rounded-lg border p-4 text-sm" data-tour="evals-estimate">
+    <div className="bg-muted/40 space-y-3 rounded-lg border p-4 text-sm">
       <ul className="space-y-1">
         {estimate.arms.map((arm, index) => (
           <li key={index} className="flex items-center justify-between gap-3">

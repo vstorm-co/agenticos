@@ -78,8 +78,9 @@ describe("EvalRunView", () => {
     await userEvent.click(screen.getByRole("button", { name: "Stop" }));
     expect(cancel.mutate).toHaveBeenCalled();
     expect(toastError).toHaveBeenCalled();
-    // A live run's table is read again while it answers.
+    // A live run's table and its verdict are read again while it answers.
     expect(state.casesArgs.at(-1)).toEqual(["run-1", expect.objectContaining({ live: true })]);
+    expect(state.comparisonArgs.at(-1)).toEqual(["run-1", { arm: "arm-1", live: true }]);
   });
 
   it("compares the model a reader picks when several ran", async () => {
@@ -88,11 +89,11 @@ describe("EvalRunView", () => {
       run: evalRun({ arms: [arm(), arm({ id: "arm-2", model_label: "claude" })] }),
     };
     render(<EvalRunView agentId="agent-1" runId="run-1" />);
-    expect(state.comparisonArgs.at(-1)).toEqual(["run-1", { arm: "arm-1" }]);
+    expect(state.comparisonArgs.at(-1)).toEqual(["run-1", { arm: "arm-1", live: false }]);
 
     await userEvent.click(screen.getByRole("combobox", { name: "Compare this model" }));
     await userEvent.click(screen.getByRole("option", { name: "claude" }));
-    expect(state.comparisonArgs.at(-1)).toEqual(["run-1", { arm: "arm-2" }]);
+    expect(state.comparisonArgs.at(-1)).toEqual(["run-1", { arm: "arm-2", live: false }]);
   });
 
   it("filters the cases by outcome and tag, back to the first page", async () => {

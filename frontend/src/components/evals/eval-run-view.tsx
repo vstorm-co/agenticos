@@ -83,7 +83,10 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
   const candidates = run?.arms.filter((arm) => arm.role === "candidate") ?? [];
   const [arm, setArm] = useState<string | null>(null);
   const focus = arm ?? candidates[0]?.id ?? null;
-  const { comparison } = useEvalComparison(runId, { arm: focus });
+  const { comparison } = useEvalComparison(runId, {
+    arm: focus,
+    live: run !== undefined && isLive(run.status),
+  });
 
   if (isLoading) return <LoadingState variant="skeleton-cards" rows={3} />;
   if (error || !run) {

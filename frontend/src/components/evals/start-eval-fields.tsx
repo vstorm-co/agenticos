@@ -72,7 +72,7 @@ export function StartEvalFields({
       <div className="space-y-1.5">
         <Label>{t("dataset")}</Label>
         <Select value={request.dataset_id} onValueChange={(id) => set({ dataset_id: id })}>
-          <SelectTrigger data-tour="evals-dataset" aria-label={t("dataset")}>
+          <SelectTrigger aria-label={t("dataset")}>
             <SelectValue placeholder={t("datasetPlaceholder")} />
           </SelectTrigger>
           <SelectContent>

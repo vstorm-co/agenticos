@@ -59,7 +59,7 @@ export function ComparisonCard({
   const t = useTranslations("evals.comparison");
   const { baseline, verdict, efficiency } = comparison;
   return (
-    <Card data-tour="evals-comparison">
+    <Card>
       <CardHeader className="space-y-1.5">
         <CardTitle className="flex items-center gap-2">
           {t("title")}

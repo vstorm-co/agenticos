@@ -115,7 +115,6 @@ export function StartEvalDialog({
           </Button>
           {quote ? (
             <Button
-              data-tour="evals-run"
               disabled={!quote.affordable || start.isPending}
               onClick={() => void run().catch(() => undefined)}
             >

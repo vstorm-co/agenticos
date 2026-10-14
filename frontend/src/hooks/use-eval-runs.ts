@@ -117,10 +117,18 @@ export function useEvalCases(
   };
 }
 
-/** A candidate arm against its baseline - the default one unless another run is named. */
+/**
+ * A candidate arm against its baseline - the default one unless another run is
+ * named. Read again while the run is live, since its verdict moves with every
+ * case answered and nothing else marks it stale when the run finishes.
+ */
 export function useEvalComparison(
   runId: string,
-  { arm = null, baseline = null }: { arm?: string | null; baseline?: string | null } = {},
+  {
+    arm = null,
+    baseline = null,
+    live = false,
+  }: { arm?: string | null; baseline?: string | null; live?: boolean } = {},
 ) {
   const query = useQuery({
     queryKey: qk.evalRuns.comparison(runId, { arm, baseline }),
@@ -131,6 +139,7 @@ export function useEvalComparison(
       const suffix = params.size ? `?${params}` : "";
       return apiClient.get<EvalComparison>(`/eval-runs/${runId}/comparison${suffix}`);
     },
+    refetchInterval: live ? LIVE_POLL_MS : false,
   });
   return {
     comparison: query.data,

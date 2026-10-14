@@ -76,7 +76,7 @@ export function CaseTable({ run, flips }: { run: EvalRun; flips: CaseFlip[] }) {
   const flipOf = new Map(flips.map((flip) => [flip.case_id, flip]));
 
   return (
-    <Card data-tour="evals-cases">
+    <Card>
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
         <CardTitle>{t("title", { count: total })}</CardTitle>
         <div className="flex flex-wrap gap-2">
