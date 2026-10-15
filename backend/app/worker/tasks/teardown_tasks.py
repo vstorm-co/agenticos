@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
@@ -38,6 +37,8 @@ from app.core.config import settings
 from app.core.logging import setup_logging
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+
     from sqlalchemy.ext.asyncio import AsyncSession
 
     from app.services.rag.vectorstore import PgVectorStore

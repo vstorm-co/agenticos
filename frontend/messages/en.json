@@ -3787,6 +3787,10 @@
       "my-sign-ins": {
         "title": "Sites you stay signed in to",
         "body": "When you sign in during a browse and keep the sign-in, your agents' browser starts signed in there next time. Forget a site and the next browse starts signed out."
+      },
+      "agent-identity": {
+        "title": "Call it something recognizable",
+        "body": "The name is what people pick in chat and find in the catalog. A duplicate starts as its source with a suffix, so rename it here; the handle other agents reach it by stays the same."
       }
     },
     "chooseLanguage": "Language"
@@ -4144,7 +4148,12 @@
       "inCategoryUse": "Categories already in use",
       "inTagUse": "Tags already in use",
       "mcpToolLoad": "These MCP servers give the model {count} tools on every request - roughly {tokens, number} tokens before anyone types, and more tools than a model chooses between well. Tool search keeps them out of the way until the agent looks one up.",
-      "mcpToolLoadEnable": "Turn on Tool search"
+      "mcpToolLoadEnable": "Turn on Tool search",
+      "agentDescriptionLabel": "Description",
+      "agentNameLabel": "Name",
+      "agentNameRequired": "An agent needs a name.",
+      "identity": "Name and description",
+      "identityHelp": "Saved with the draft. Renaming keeps the handle @{slug}, so delegations and mentions wired to it keep working."
     },
     "auth": {
       "backSign": "Back to sign in",

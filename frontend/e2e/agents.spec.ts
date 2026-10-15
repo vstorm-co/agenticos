@@ -264,7 +264,9 @@ test.describe("Agents", () => {
     // Builder that renders its shell while the agent fails to load shows the
     // same headings and none of this.
     await expect(pageStatus(page)).toContainText("published");
-    await expect(page.getByText(/general-purpose agent in the style of Claude Code/)).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Description" })).toHaveValue(
+      /general-purpose agent in the style of Claude Code/,
+    );
 
     await expect(page.getByRole("textbox", { name: "Instructions" })).toHaveValue(
       /You are a capable, general-purpose assistant/,

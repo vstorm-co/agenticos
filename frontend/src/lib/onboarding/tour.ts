@@ -204,10 +204,20 @@ export const TOUR_STEPS: readonly TourStep[] = [
   {
     id: "agent-instructions",
     page: AGENT_BUILDER,
-    target: "agent-instructions",
+    // The header, not the card: the card holds the editor and the model picker
+    // and lit half the screen. The coach's own step keeps the card (`flows.ts`),
+    // because it has the reader type into it.
+    target: "agent-instructions-header",
     activate: "agent-tab-build",
     permission: Perm.agentsView,
     inTour: true,
+  },
+  {
+    id: "agent-identity",
+    page: AGENT_BUILDER,
+    target: "agent-identity",
+    activate: "agent-tab-build",
+    permission: Perm.agentsView,
   },
   {
     id: "agent-model",
@@ -219,7 +229,9 @@ export const TOUR_STEPS: readonly TourStep[] = [
   {
     id: "agent-toolbox",
     page: AGENT_BUILDER,
-    target: "agent-capabilities",
+    // The header, for the reason the instructions stop takes one: the card is the
+    // whole capability list. The coach keeps the card to have the reader use it.
+    target: "agent-capabilities-header",
     activate: "agent-tab-toolbox",
     permission: Perm.agentsView,
     inTour: true,

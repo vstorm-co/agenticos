@@ -1,5 +1,5 @@
 ---
-source_sha: "148788537e60"
+source_sha: "308da4d9b778"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -568,6 +568,13 @@ rechazan, y el rechazo llega al modelo como un error reintentable y no como una
 página vacía: un rechazo con forma de resultado es uno que el modelo esquiva al
 responder sin decir que tuvo que hacerlo. A la biblioteca se le puede indicar que
 permita direcciones locales; aquí nada expone eso.
+
+Cualquiera de los dos fallos, como cualquier otro (un 403, un tiempo de espera
+agotado), es un reintento solo mientras a la herramienta le quede un intento.
+Pydantic AI cuenta los reintentos por herramienta y no por URL, así que el segundo
+sitio que rechazara al agente terminaría todo el run; en el último intento el
+mismo mensaje vuelve en su lugar como resultado de la herramienta, y el modelo
+pasa a otra fuente o responde sin ella.
 
 !!! warning "Los filtros de dominio no son la frontera de seguridad — `safe_download` sí"
 

@@ -3669,6 +3669,10 @@
       "my-sign-ins": {
         "title": "Seiten, auf denen du angemeldet bleibst",
         "body": "Wenn du dich während eines Browses anmeldest und die Anmeldung behältst, startet der Browser deiner Agents dort beim nächsten Mal angemeldet. Vergiss eine Seite, und der nächste Browse startet abgemeldet."
+      },
+      "agent-identity": {
+        "title": "Geben Sie ihm einen erkennbaren Namen",
+        "body": "Den Namen wählt man im Chat aus und findet ihn im Katalog. Ein Duplikat beginnt mit dem Namen seiner Vorlage und einem Zusatz, benennen Sie es also hier um; das Handle, über das andere Agents es erreichen, bleibt gleich."
       }
     },
     "chooseLanguage": "Sprache"
@@ -4026,7 +4030,12 @@
       "inCategoryUse": "Bereits verwendete Kategorien",
       "inTagUse": "Bereits verwendete Tags",
       "mcpToolLoad": "Diese MCP-Server geben dem Modell bei jeder Anfrage {count} Werkzeuge - etwa {tokens, number} Tokens, bevor jemand etwas schreibt, und mehr Werkzeuge, als ein Modell gut auseinanderhält. Die Tool-Suche hält sie zurück, bis der Agent eines nachschlägt.",
-      "mcpToolLoadEnable": "Tool-Suche einschalten"
+      "mcpToolLoadEnable": "Tool-Suche einschalten",
+      "agentDescriptionLabel": "Beschreibung",
+      "agentNameLabel": "Name",
+      "agentNameRequired": "Ein Agent braucht einen Namen.",
+      "identity": "Name und Beschreibung",
+      "identityHelp": "Wird mit dem Entwurf gespeichert. Eine Umbenennung behält das Handle @{slug}, Delegationen und Erwähnungen, die darauf zeigen, funktionieren also weiter."
     },
     "auth": {
       "backSign": "Zurück zur Anmeldung",

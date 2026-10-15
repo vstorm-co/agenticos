@@ -1388,16 +1388,8 @@
  * spotlight cut-out moves. driver.js positions the popover inline against the
  * highlighted element, so the pin has to win with `!important`, and the arrow
  * (which would point at nothing from a fixed spot) is hidden.
- *
- * `display: block !important` is what keeps the caption from blinking as the
- * spotlight glides. With `animate` on, driver hides the popover at the start of
- * every transition (an inline `display: none`) and only rebuilds it at the
- * halfway point, so a pinned caption would vanish for ~200ms each step. The
- * `!important` overrides that inline hide, so the old caption holds until the
- * rebuilt one replaces it in the same frame — an invisible swap, no blink.
  */
 .driver-popover.tour-popover {
-  display: block !important;
   position: fixed !important;
   bottom: 1.5rem !important;
   top: auto !important;
@@ -1449,6 +1441,23 @@
 .driver-popover.tour-popover .tour-language button[aria-pressed="true"] {
   background-color: var(--color-accent);
   color: var(--color-foreground);
+}
+
+/*
+ * Leave what the browser put above the tour clickable. driver.css switches
+ * pointer events off for every element under `body.driver-active`, which
+ * reaches past the product into whatever a browser extension injected there: a
+ * password manager's save prompt stayed on screen, unclosable, for the whole
+ * walk. The product does not need the rule: driver's transparent overlay
+ * (z 10000) sits over every page element, and the spotlight layer below it
+ * (`.tour-spotlight`) is a full-screen shield that catches what falls through
+ * the overlay's hole. So each element gets back its user-agent default, and
+ * only something stacked above both can take the click. That is an extension's
+ * prompt, or a toast. The overlay keeps driver's `none` (its path takes the
+ * clicks), and so does everything inside the spotlight layer.
+ */
+body.driver-active *:not(.driver-overlay, .tour-spotlight, .tour-spotlight *) {
+  pointer-events: revert;
 }
 
 /* The top-pinned variant, for chat: the composer is at the bottom, so a caption
@@ -1520,14 +1529,114 @@
 }
 
 /*
- * The other half of keeping the caption still: driver rebuilds the popover each
- * step while the body carries `driver-fade`, so its fade-in keyframe would replay
- * and flash the pinned text. Suppressed here. The overlay is a different element,
- * animated by its cut-out path rather than this keyframe, so the light still
- * glides smoothly from one control to the next.
+ * The tour's light, drawn by `tour-spotlight.ts` rather than by driver.js: a dim
+ * with a cut-out over the control, and a ring with a beacon on the cut-out's edge.
+ *
+ * The dim alone could not carry it. driver.js's near-black overlay over the dark
+ * theme's near-black page left the lit control at 1.1:1 against everything around
+ * it (5:1 in light), and no opacity fixes that: there is no darker than black to
+ * dim to. So the *where* is a colour rather than a brightness — a ring in its own
+ * highlight hue, not the brand, which is a near-neutral grey and would read as one
+ * more border. Green, a step darker on the light theme and a step brighter on the
+ * dark one so it holds its contrast against both; not red, which this product
+ * spends on errors and destructive actions. The beacon on the ring's corner pings
+ * outward, so the eye finds the frame even when it surrounds a large card.
+ *
+ * Below driver's own overlay (z 10000) and far below its caption. The layer
+ * itself is a transparent shield over the whole page: driver's overlay leaves a
+ * hole over the control, and without the shield a click in that hole's padding
+ * reached whatever was next to the control. Its children take no clicks.
+ * Reduced motion stills the beacon; the ring's travel is turned off in the
+ * script.
  */
-.driver-fade .driver-popover.tour-popover {
-  animation: none;
+.tour-spotlight {
+  --tour-highlight: oklch(55% 0.17 150);
+  --tour-dim: rgb(10 10 10 / 0.6);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) .tour-spotlight {
+    --tour-highlight: oklch(80% 0.19 150);
+    --tour-dim: rgb(0 0 0 / 0.72);
+  }
+}
+
+:root.dark .tour-spotlight {
+  --tour-highlight: oklch(80% 0.19 150);
+  --tour-dim: rgb(0 0 0 / 0.72);
+}
+
+/* `body` for the weight to beat driver.css's `.driver-active *`, which would
+   switch the shield off. */
+body .tour-spotlight {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: auto;
+}
+
+.tour-spotlight-dim {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  fill: var(--tour-dim);
+  fill-rule: evenodd;
+}
+
+.tour-spotlight-ring {
+  position: fixed;
+  pointer-events: none;
+  opacity: 0;
+  box-shadow:
+    0 0 0 2px var(--tour-highlight),
+    0 0 0 6px color-mix(in oklab, var(--tour-highlight) 22%, transparent),
+    0 0 28px 4px color-mix(in oklab, var(--tour-highlight) 35%, transparent);
+  transition: opacity 0.25s ease;
+}
+
+.tour-spotlight-ring.is-visible {
+  opacity: 1;
+}
+
+.tour-spotlight-beacon {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 12px;
+  height: 12px;
+  border-radius: 9999px;
+  background: var(--tour-highlight);
+  box-shadow: 0 0 0 2px var(--color-background);
+  transform: translate(50%, -50%);
+}
+
+.tour-spotlight-beacon::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--tour-highlight);
+  animation: tour-beacon-ping 1.6s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+@keyframes tour-beacon-ping {
+  0% {
+    transform: scale(1);
+    opacity: 0.75;
+  }
+  75%,
+  100% {
+    transform: scale(2.8);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tour-spotlight-beacon::after {
+    animation: none;
+  }
 }
 
 /*

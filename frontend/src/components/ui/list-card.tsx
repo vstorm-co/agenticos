@@ -25,6 +25,7 @@ export function ListCard({
   namedByPage = false,
   empty = false,
   contentClassName,
+  headerTour,
   children,
   ...rest
 }: {
@@ -53,12 +54,19 @@ export function ListCard({
    */
   empty?: boolean;
   contentClassName?: string;
+  /**
+   * A walkthrough anchor (`data-tour`) on the header alone. A stop that describes
+   * the card spotlights this rather than the card, whose body is the whole list —
+   * lighting a catalog taller than the screen highlights nothing.
+   */
+  headerTour?: string;
   children: ReactNode;
 } & HTMLAttributes<HTMLDivElement>) {
   if (namedByPage) {
     return (
       <Card {...rest}>
         <CardHeader
+          data-tour={headerTour}
           className={cn(
             "flex-col gap-3 space-y-0 border-b px-4 py-3 sm:min-h-14 sm:flex-row sm:items-center sm:justify-between sm:px-5",
             empty && "sr-only",
@@ -79,7 +87,10 @@ export function ListCard({
       {/* A column on a phone: beside a search box and three filters the title
           was squeezed to "Catalo", and it is the one thing in the header that
           says what the card is. */}
-      <CardHeader className="flex-col gap-3 space-y-0 border-b px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+      <CardHeader
+        data-tour={headerTour}
+        className="flex-col gap-3 space-y-0 border-b px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5"
+      >
         <div className="shrink-0 space-y-1">
           <CardTitle className="text-sm">{title}</CardTitle>
           <CardDescription className="text-xs">

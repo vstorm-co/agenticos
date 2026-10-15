@@ -107,6 +107,7 @@ import {
   TabsTrigger,
   MarkdownModeToggle,
   type MarkdownMode,
+  Textarea,
 } from "@/components/ui";
 import {
   useAgent,
@@ -405,7 +406,18 @@ export default function AgentBuilderPage({ params }: PageProps) {
   });
   const attempts = useRef<{ payload: string; tries: number }>({ payload: "", tries: 0 });
   useEffect(() => {
-    if (!canEdit || !spec || !agent?.draft_spec || !isDirty || storing || remote.held) return;
+    // A blank name is a 422 from the spec, so it waits here with the field
+    // saying why rather than spending both attempts on a refusal.
+    if (
+      !canEdit ||
+      !spec ||
+      !agent?.draft_spec ||
+      !isDirty ||
+      storing ||
+      remote.held ||
+      !spec.name.trim()
+    )
+      return;
     const payload = JSON.stringify(spec);
     if (payload === attempts.current.payload && attempts.current.tries >= 2) return;
     const timer = setTimeout(() => {
@@ -949,7 +961,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
               {canPublish && (
                 <Button
                   onClick={handlePublish}
-                  disabled={publish.isPending}
+                  disabled={publish.isPending || !spec?.name.trim()}
                   data-tour="agent-publish"
                   // First in the row a phone scrolls, rather than past its edge.
                   className="max-md:order-first"
@@ -1290,6 +1302,47 @@ export default function AgentBuilderPage({ params }: PageProps) {
           </TabsList>
 
           <TabsContent value="build" className="mt-6 space-y-6">
+            {/* The name is spec like everything else here, and autosaves with it:
+                a duplicate arrives as "<name> (copy)" and this is where it stops
+                being one. The handle is the row's, fixed at creation, so renaming
+                never breaks a delegation or an @mention wired to it. */}
+            <Card data-tour="agent-identity">
+              <CardHeader>
+                <CardTitle>{t("identity")}</CardTitle>
+                <CardDescription>{t("identityHelp", { slug: agent.slug })}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="agent-name">{t("agentNameLabel")}</Label>
+                  <Input
+                    id="agent-name"
+                    value={spec.name}
+                    maxLength={128}
+                    disabled={!canEdit}
+                    aria-invalid={!spec.name.trim()}
+                    aria-describedby={spec.name.trim() ? undefined : "agent-name-error"}
+                    onChange={(event) => update({ name: event.target.value })}
+                  />
+                  {!spec.name.trim() && (
+                    <p id="agent-name-error" className="text-destructive text-xs">
+                      {t("agentNameRequired")}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="agent-description">{t("agentDescriptionLabel")}</Label>
+                  <Textarea
+                    id="agent-description"
+                    value={spec.description ?? ""}
+                    maxLength={1000}
+                    rows={2}
+                    disabled={!canEdit}
+                    onChange={(event) => update({ description: event.target.value || null })}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
             <Card data-tour="agent-instructions">
               <CardHeader className="flex-row items-start gap-3 space-y-0">
                 <div className="min-w-0 flex-1 space-y-1.5">

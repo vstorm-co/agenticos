@@ -587,6 +587,22 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **The walkthrough's light can be found, and follows a path the eye can
+  follow.** In the dark theme the spotlighted control stood at 1.1:1 against the
+  dimmed page, so the reader could not tell what a caption described. The tour
+  now draws its own spotlight: a green ring with a pinging beacon on the
+  control, a step darker in the light theme and brighter in the dark one. Moves
+  between controls are eased over 280-700ms instead of crossing the screen in
+  about 200ms. A stop no longer climbs to a tab that is already open and drops
+  back down. Stops with no control dim the page instead of shrinking the light
+  to a dot in the middle. A control the pinned caption would cover is scrolled
+  clear of it. The instructions, capabilities and MCP catalog stops light their
+  card's header instead of a card up to three screens tall.
+- **Browser extensions stay usable during the walkthrough.** driver.js turned
+  off clicks for everything in the page, including what extensions inject: a
+  password manager's prompt could not be closed until the tour ended. The page
+  itself is still held under the tour.
+
 - **A browse signed in to a person's sites is theirs alone, and a key is held to its
   scopes on the live view** (Codex review of #2062). A browse carrying someone's kept
   sign-ins is no longer watched or driven by run viewers or agent editors; an
@@ -1129,6 +1145,40 @@ Two things are versioned separately from this file and worth knowing about:
   and the content addresses keep their old names (#2071).
 - **Backend dependencies upgraded to their newest releases**, with the
   context-manager annotations the newer typeshed requires (#2005).
+
+## [0.0.538] - 2026-10-15
+
+### Changed
+
+- **Backend dependencies move up.** Pydantic AI 2.55.0 with pydantic-ai-harness
+  0.55.0 and pydantic-ai-skills 2.1.0, FastAPI 0.143.1, Logfire 5.2.0,
+  genai-prices 0.1.13, asyncpg 0.32.0, the Anthropic SDK 1.13.0, the OpenAI SDK
+  3.29.0, pydantic-ai-backend 0.2.33, llama-cloud 2.18.0, boto3 1.43.111,
+  tavily-python 0.8.5, phonenumberslite 9.0.41, ruff 0.17.0 and ty 0.0.86; the
+  floors in `pyproject.toml` follow. ty 0.0.86 deprecates annotating a context
+  manager's generator as an `Iterator`, so the nineteen that did now return a
+  `Generator` or `AsyncGenerator`. Folds in Dependabot's #2132.
+
+## [0.0.537] - 2026-10-15
+
+### Fixed
+
+- **An agent can be renamed in the Builder.** The name and description are
+  spec fields, and the API stored them with the draft, but no Builder control
+  edited them. A duplicate therefore kept the name "<name> (copy)". The Build
+  tab now opens on a name and description card that autosaves with the rest
+  of the draft. A blank name is flagged and not sent. The handle (`@slug`)
+  stays the same, so delegations and mentions wired to it keep working.
+
+## [0.0.536] - 2026-10-15
+
+### Fixed
+
+- **A second page that refuses `web_fetch` no longer ends the run.** Pydantic AI
+  counts retries per tool, not per URL, so two sites answering 403 (or any two
+  failed fetches) in one run failed it with `UnexpectedModelBehavior: Tool
+  'web_fetch' exceeded max retries count of 1`. A failed fetch is now a retry
+  while the tool has one left and the same message as its result once it has not.
 
 ## [0.0.535] - 2026-10-09
 

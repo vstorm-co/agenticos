@@ -3557,6 +3557,10 @@
       "my-sign-ins": {
         "title": "Strony, na których zostajesz zalogowany",
         "body": "Gdy zalogujesz się podczas przeglądania i zapamiętasz logowanie, przeglądarka Twoich agentów następnym razem startuje tam zalogowana. Zapomnij stronę, a kolejne przeglądanie zacznie się wylogowane."
+      },
+      "agent-identity": {
+        "title": "Nadaj mu rozpoznawalną nazwę",
+        "body": "Nazwę wybiera się w czacie i znajduje w katalogu. Duplikat zaczyna od nazwy źródła z dopiskiem, więc zmień ją tutaj; handle, przez który inne agenty do niego trafiają, pozostaje ten sam."
       }
     },
     "chooseLanguage": "Język"
@@ -3914,7 +3918,12 @@
       "inCategoryUse": "Kategorie już w użyciu",
       "inTagUse": "Tagi już w użyciu",
       "mcpToolLoad": "Te serwery MCP dają modelowi {count} narzędzi przy każdym zapytaniu - to około {tokens, number} tokenów, zanim ktokolwiek coś napisze, i więcej narzędzi, niż model dobrze rozróżnia. Wyszukiwanie narzędzi chowa je, dopóki agent nie poszuka konkretnego.",
-      "mcpToolLoadEnable": "Włącz wyszukiwanie narzędzi"
+      "mcpToolLoadEnable": "Włącz wyszukiwanie narzędzi",
+      "agentDescriptionLabel": "Opis",
+      "agentNameLabel": "Nazwa",
+      "agentNameRequired": "Agent potrzebuje nazwy.",
+      "identity": "Nazwa i opis",
+      "identityHelp": "Zapisywane razem ze szkicem. Zmiana nazwy zachowuje handle @{slug}, więc delegacje i wzmianki, które na niego wskazują, działają dalej."
     },
     "auth": {
       "backSign": "Wróć do logowania",
