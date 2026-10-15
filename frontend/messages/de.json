@@ -5597,7 +5597,6 @@
       "trajectoryHint": "Die Tools, die der Agent aufgerufen hat, gegen die erwarteten Aufrufe des Falls, im Reihenfolgemodus des Falls.",
       "judgeHint": "Der Bewerter benotet jede Antwort nach den folgenden Kriterien. Jede Benotung ist ein Run in Activity.",
       "judgeModel": "Modell des Bewerters",
-      "judgeOwnModel": "Das eigene Modell des Bewerters",
       "scaleMax": "Oberes Ende der Skala",
       "passAt": "Bestanden ab",
       "criterionName": "Name des Kriteriums",
@@ -5704,7 +5703,6 @@
       "createJudgeBody": "Ein Bewerter ist ein Agent: Was Sie hier schreiben, ist sein Prompt, den seine Seite später bearbeitet. Die Kriterien bleiben bei diesem Dataset.",
       "judgeName": "Name",
       "judgeInstructions": "Anweisungen",
-      "judgeOldestModel": "Das erste Modell der Organisation",
       "createJudge": "Bewerter anlegen",
       "judgeCreated": "{name} bewertet jetzt dieses Dataset",
       "cancel": "Abbrechen",
@@ -5763,7 +5761,10 @@
       "judgeKnowledgeHint": "Alles, woran er bewertet und was die Fälle nicht sagen - eine Richtlinie, eine Preisliste, Hausregeln. Es wird den Anweisungen des Bewerters hinzugefügt.",
       "judgeKnowledgePlaceholder": "Bestellungen können innerhalb von 30 Tagen nach Lieferung zurückgegeben werden. Geöffnete Software wird nicht erstattet.",
       "unsavedChanges": "Nicht gespeicherte Änderungen",
-      "discard": "Verwerfen"
+      "discard": "Verwerfen",
+      "judgeGradesOn": "Bewertet auf <model></model>",
+      "judgeModelOnItsPage": "Sein Modell wird auf seiner eigenen Seite geändert.",
+      "judgeNoModelYet": "Die Organisation hat noch kein Modell, daher wird der Bewerter als Entwurf angelegt. Fügen Sie ein Modell hinzu und veröffentlichen Sie den Bewerter dann auf seiner Seite."
     },
     "title": "Datasets",
     "pageDescription": "Die Fragen, an denen Ihre Agents getestet werden. Jede Änderung an den Fällen eines Datasets erzeugt eine neue Version, sodass zwei Eval-Runs auf einer Version dieselben Fragen gesehen haben.",

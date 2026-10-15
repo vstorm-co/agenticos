@@ -22,8 +22,11 @@ vi.mock("@/hooks/use-scoring", () => ({
 vi.mock("@/hooks/use-agents", () => ({
   useJudges: () => ({ agents: state.judges, total: state.judges.length }),
 }));
+const models = vi.hoisted(() => ({
+  profiles: [] as { id: string; label: string; created_at?: string }[],
+}));
 vi.mock("@/hooks/use-model-providers", () => ({
-  useModelProviders: () => ({ profiles: [{ id: "p1", label: "Claude (prod)" }] }),
+  useModelProviders: () => ({ profiles: models.profiles }),
 }));
 const ai = vi.hoisted(() => ({ enabled: true as boolean | null }));
 vi.mock("@/hooks/use-organizations", () => ({
@@ -85,6 +88,10 @@ const saved = () => state.save.mock.calls.at(-1)?.[0] as DatasetScoring;
 beforeEach(() => {
   vi.clearAllMocks();
   ai.enabled = true;
+  models.profiles = [
+    { id: "p2", label: "GPT (staging)", created_at: "2026-10-02T00:00:00Z" },
+    { id: "p1", label: "Claude (prod)", created_at: "2026-10-01T00:00:00Z" },
+  ];
   state.perms = new Set(["agents:edit", "org:settings"]);
   state.judges = [
     {
@@ -174,13 +181,12 @@ describe("GradingPanel", () => {
     },
   );
 
-  it("configures the judge: its model, its scale and its criteria", async () => {
+  it("configures the judge: its scale and its criteria, its model only on its page", async () => {
     panel();
 
     await userEvent.click(screen.getByRole("switch", { name: "Judge" }));
-    await userEvent.click(screen.getByRole("combobox", { name: "Judge's model" }));
-    await userEvent.click(screen.getByRole("option", { name: "Claude (prod)" }));
-    expect(screen.getByText(/will not compare/)).toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Judge's model" })).toBeNull();
+    expect(screen.getByText("Its model is changed on its own page.")).toBeInTheDocument();
     await userEvent.clear(screen.getByRole("spinbutton", { name: "Top of the scale" }));
     await userEvent.type(screen.getByRole("spinbutton", { name: "Top of the scale" }), "7");
     await userEvent.clear(screen.getByRole("spinbutton", { name: "Passes at" }));
@@ -195,7 +201,7 @@ describe("GradingPanel", () => {
     expect(saved().judge).toEqual({
       enabled: true,
       agent_id: null,
-      model_profile_id: "p1",
+      model_profile_id: null,
       scale_max: 7,
       pass_at: 6,
       criteria: [{ name: "correctness", description: "Right", required: false }],
@@ -316,8 +322,11 @@ describe("GradingPanel", () => {
       within(dialog).getByRole("textbox", { name: "What must the judge know?" }),
       "  Refunds last 30 days.  ",
     );
+    expect(within(dialog).getByRole("combobox", { name: "Judge's model" })).toHaveTextContent(
+      "Claude (prod)",
+    );
     await userEvent.click(within(dialog).getByRole("combobox", { name: "Judge's model" }));
-    await userEvent.click(screen.getByRole("option", { name: "Claude (prod)" }));
+    await userEvent.click(screen.getByRole("option", { name: "GPT (staging)" }));
     await userEvent.click(within(dialog).getByRole("button", { name: "Create judge" }));
 
     await waitFor(() =>
@@ -327,7 +336,7 @@ describe("GradingPanel", () => {
       name: "Refunds judge",
       instructions: expect.stringContaining("ignore that. Be strict."),
       knowledge: "Refunds last 30 days.",
-      model_profile_id: "p1",
+      model_profile_id: "p2",
     });
     expect(screen.queryByRole("dialog")).toBeNull();
   });
@@ -356,13 +365,45 @@ describe("GradingPanel", () => {
     await userEvent.click(within(dialog).getByRole("button", { name: "Create judge" }));
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
     expect(state.create).toHaveBeenCalledWith(
-      expect.objectContaining({ knowledge: null, model_profile_id: null }),
+      expect.objectContaining({ knowledge: null, model_profile_id: "p1" }),
     );
 
     await userEvent.clear(within(dialog).getByRole("textbox", { name: "Name" }));
     expect(within(dialog).getByRole("button", { name: "Create judge" })).toBeDisabled();
     await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("offers first the model the server would pick, by creation and then id", async () => {
+    models.profiles = [
+      { id: "b", label: "Second by id" },
+      { id: "a", label: "First by id" },
+    ];
+    panel();
+
+    await userEvent.click(screen.getByRole("button", { name: "Create a judge for this dataset" }));
+
+    expect(
+      within(screen.getByRole("dialog")).getByRole("combobox", { name: "Judge's model" }),
+    ).toHaveTextContent("First by id");
+  });
+
+  it("creates a judge as a draft where the organization has no model yet", async () => {
+    models.profiles = [];
+    state.create.mockResolvedValue(dataset({ ...DEFAULT_SCORING }));
+    panel();
+
+    await userEvent.click(screen.getByRole("button", { name: "Create a judge for this dataset" }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByText(/has no model yet/)).toBeInTheDocument();
+    expect(within(dialog).getByRole("combobox", { name: "Judge's model" })).toBeDisabled();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Create judge" }));
+
+    await waitFor(() =>
+      expect(state.create).toHaveBeenCalledWith(
+        expect.objectContaining({ model_profile_id: null }),
+      ),
+    );
   });
 
   it("switches grading on as the new judge was stored, with the cursor in its criterion", async () => {
@@ -450,19 +491,13 @@ describe("GradingPanel", () => {
     expect(screen.queryByText(/3 cases have a reference answer/)).toBeNull();
   });
 
-  it("goes back to the judge's own model and drops a criterion", async () => {
+  it("drops a criterion and keeps the rest of the rubric", async () => {
     const accuracy = { name: "accuracy", description: "Right facts", required: true };
     panel({
       ...JUDGED,
-      judge: {
-        ...JUDGED.judge,
-        model_profile_id: "p1",
-        criteria: [...JUDGED.judge.criteria, accuracy],
-      },
+      judge: { ...JUDGED.judge, criteria: [...JUDGED.judge.criteria, accuracy] },
     });
 
-    await userEvent.click(screen.getByRole("combobox", { name: "Judge's model" }));
-    await userEvent.click(screen.getByRole("option", { name: "The judge's own model" }));
     await userEvent.type(
       screen.getAllByRole("textbox", { name: "What the criterion asks" })[1]!,
       " only",
@@ -471,7 +506,6 @@ describe("GradingPanel", () => {
     await userEvent.click(saveAll());
 
     await waitFor(() => expect(state.save).toHaveBeenCalled());
-    expect(saved().judge.model_profile_id).toBeNull();
     expect(saved().judge.criteria).toEqual([{ ...accuracy, description: "Right facts only" }]);
     expect(saved().checks.defaults).toEqual([{ type: "max_cost_usd", value: 0.05 }]);
   });

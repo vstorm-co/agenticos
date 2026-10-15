@@ -49,7 +49,6 @@ from app.repositories import (
     agent_repo,
     case_score_repo,
     conversation_repo,
-    credential_repo,
     dataset_repo,
     intercepted_tool_call_repo,
 )
@@ -205,8 +204,7 @@ class ScoringService:
             NotFoundError: The dataset is not one the caller may edit.
             BadRequestError: Every scorer is off, the judge is on with nothing to
                 grade, the judge picked is not one of the organization's judges,
-                the judge's model is not one of the organization's, or the
-                judge or the reference comparison is turned on while AI
+                or the judge or the reference comparison is turned on while AI
                 assistance is off. One already on stays on, and is skipped.
         """
         dataset = await self.datasets.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
@@ -237,14 +235,6 @@ class ScoringService:
             judge = await agent_repo.get(self.db, judge_id, organization_id=ctx.organization_id)
             if judge is None or judge.kind != AgentKind.JUDGE.value:
                 raise refused_field("judge.agent_id", "This organization has no such judge")
-        profile_id = data.judge.model_profile_id
-        if profile_id is not None and (
-            await credential_repo.get_profile(
-                self.db, profile_id, organization_id=ctx.organization_id
-            )
-            is None
-        ):
-            raise refused_field("judge.model_profile_id", "This organization has no such model")
         await dataset_repo.update(
             self.db,
             dataset=dataset,
@@ -555,7 +545,6 @@ class ScoringService:
                 prompt=judge_prompt(case, answer, criteria, scale_max=scoring.judge.scale_max),
                 output_type=JudgeVerdict,
                 agent_id=scoring.judge.agent_id,
-                model_profile_id=scoring.judge.model_profile_id,
             )
         except AiAssistanceDisabledError as exc:
             skipped = not_graded(
@@ -614,7 +603,7 @@ class ScoringService:
         published = None if version is None else version.spec.get("model_profile_id")
         return JudgePin(
             agent_id=run.agent_id,
-            model_profile_id=scoring.judge.model_profile_id or published,
+            model_profile_id=published,
             agent_version_id=run.agent_version_id,
             spec_version=None if version is None else version.version,
             rubric_hash=rubric_hash(criteria, scale_max=scoring.judge.scale_max),

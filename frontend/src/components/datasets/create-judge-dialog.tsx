@@ -27,8 +27,14 @@ import { submitFailure } from "@/lib/api-error";
 import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import type { Dataset } from "@/types/datasets";
+import type { ModelProfile } from "@/types/providers";
 
-const OLDEST = "oldest";
+/** The model a judge is offered first: the organization's oldest, which the server would pick. */
+function oldest(profiles: ModelProfile[]): ModelProfile | undefined {
+  return profiles.toSorted(
+    (a, b) => (a.created_at ?? "").localeCompare(b.created_at ?? "") || a.id.localeCompare(b.id),
+  )[0];
+}
 
 interface CreateJudgeDialogProps {
   dataset: Dataset;
@@ -58,7 +64,8 @@ export function CreateJudgeDialog({ dataset, onOpenChange, onCreated }: CreateJu
     }),
   );
   const [knowledge, setKnowledge] = useState("");
-  const [model, setModel] = useState(OLDEST);
+  const [chosen, setChosen] = useState<string | null>(null);
+  const model = chosen ?? oldest(profiles)?.id ?? null;
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
 
   async function submit() {
@@ -67,7 +74,7 @@ export function CreateJudgeDialog({ dataset, onOpenChange, onCreated }: CreateJu
         name: name.trim(),
         instructions: instructions.trim(),
         knowledge: knowledge.trim() === "" ? null : knowledge.trim(),
-        model_profile_id: model === OLDEST ? null : model,
+        model_profile_id: model,
       });
       onCreated(updated);
       toast.success(t("judgeCreated", { name: name.trim() }));
@@ -129,13 +136,17 @@ export function CreateJudgeDialog({ dataset, onOpenChange, onCreated }: CreateJu
               onChange={(event) => setKnowledge(event.target.value)}
             />
           </FormField>
-          <FormField htmlFor="judge-model" label={t("judgeModel")} error={errors.model_profile_id}>
-            <Select value={model} onValueChange={setModel}>
+          <FormField
+            htmlFor="judge-model"
+            label={t("judgeModel")}
+            description={model === null ? t("judgeNoModelYet") : undefined}
+            error={errors.model_profile_id}
+          >
+            <Select value={model ?? ""} onValueChange={setChosen} disabled={model === null}>
               <SelectTrigger id="judge-model">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={OLDEST}>{t("judgeOldestModel")}</SelectItem>
+              <SelectContent position="popper" className="max-h-64">
                 {profiles.map((profile) => (
                   <SelectItem key={profile.id} value={profile.id}>
                     {profile.label}

@@ -1,5 +1,5 @@
 ---
-source_sha: "027531ca370c"
+source_sha: "a36cb8c7d187"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -287,8 +287,8 @@ gleich mit ein: den Bewerter, mit einem Startkriterium zum Ersetzen, wenn das
 Dataset keines hat, und den Vergleich mit der Referenzantwort, wenn ein Fall
 eine hat. Die Kriterien, die Skala und die Bestehensgrenze bleiben am Dataset;
 Prompt, Modell und Budget des Bewerters werden auf seiner eigenen Seite
-bearbeitet, und ein Dataset kann weiterhin ein anderes Modell für ihn
-festlegen.
+bearbeitet, dem einzigen Ort, an dem sein Modell festgelegt wird; die Karte
+Bewerter zeigt es an.
 
 Ein Bewerter läuft als die Person, die den Score angefordert hat: Ihr Zugriff
 auf ihn wird geprüft, er wird vor dem Modellaufruf gegen sein eigenes Budget und
@@ -344,10 +344,10 @@ Jedes Ergebnis hält den Bewerter fest, der es bewertet hat - den Bewerter-Agent
 sein Modellprofil, die Version seines Specs, einen Hash der Rubrik und die
 Version der Aufgabe, die die Plattform jedem Bewerter übergibt -, damit
 Ergebnisse verschiedener Bewerter nicht als gleichwertig verglichen werden. Den
-Bewerter oder sein Modell zu wechseln ist erlaubt; vor dem Wechsel des
-Bewerters fragt die Konsole zuerst nach, und die Karte Bewerter sagt, dass sich
-die vorher bewerteten Scores nicht mit den danach bewerteten vergleichen
-lassen.
+Bewerter oder sein Modell auf seiner Seite zu wechseln ist erlaubt; vor dem
+Wechsel des Bewerters fragt die Konsole zuerst nach, und die Karte Bewerter
+sagt, dass sich die vorher bewerteten Scores nicht mit den danach bewerteten
+vergleichen lassen.
 
 ### Prüfung { #review }
 

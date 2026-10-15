@@ -1277,19 +1277,28 @@ class TestRefusals:
                 member, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
             )
 
-    async def test_a_judge_model_from_another_organization_is_refused(self, db, judge) -> None:
+    async def test_a_model_named_for_the_judge_is_accepted_and_dropped(self, db, judge) -> None:
         mine, theirs = await _tenant(db), await _tenant(db)
         foreign = await _model(db, theirs)
         dataset, _ = await _dataset(db, mine, scoring=DatasetScoring())
 
-        with pytest.raises(BadRequestError, match="no such model"):
-            await ScoringService(db).set_scoring(
-                mine.ctx,
-                dataset.id,
-                DatasetScoring(
-                    judge=JudgeScorer(enabled=True, criteria=RUBRIC, model_profile_id=foreign.id)
-                ),
-            )
+        saved = await ScoringService(db).set_scoring(
+            mine.ctx,
+            dataset.id,
+            DatasetScoring.model_validate(
+                {
+                    "judge": {
+                        "enabled": True,
+                        "criteria": [c.model_dump() for c in RUBRIC],
+                        "model_profile_id": str(foreign.id),
+                    }
+                }
+            ),
+        )
+
+        assert saved.scoring.judge.model_profile_id is None
+        row = await dataset_repo.get(db, dataset.id, organization_id=mine.organization.id)
+        assert row is not None and row.scoring["judge"]["model_profile_id"] is None
 
     @pytest.mark.parametrize(
         ("scoring", "field"),

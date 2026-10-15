@@ -3359,7 +3359,6 @@
       "trajectoryHint": "Narzędzia wywołane przez agenta w porównaniu z oczekiwanymi wywołaniami przypadku, w trybie kolejności przypadku.",
       "judgeHint": "Sędzia ocenia każdą odpowiedź według poniższych kryteriów. Każda ocena to run w Activity.",
       "judgeModel": "Model sędziego",
-      "judgeOwnModel": "Własny model sędziego",
       "scaleMax": "Górna granica skali",
       "passAt": "Zalicza od",
       "criterionName": "Nazwa kryterium",
@@ -3466,7 +3465,6 @@
       "createJudgeBody": "Sędzia to agent: to, co tu napiszesz, jest jego promptem, który potem zmienisz na jego stronie. Kryteria zostają na tym datasecie.",
       "judgeName": "Nazwa",
       "judgeInstructions": "Instrukcje",
-      "judgeOldestModel": "Pierwszy model organizacji",
       "createJudge": "Utwórz sędziego",
       "judgeCreated": "{name} ocenia teraz ten dataset",
       "cancel": "Anuluj",
@@ -3525,7 +3523,10 @@
       "judgeKnowledgeHint": "Wszystko, względem czego ocenia, a czego przypadki nie mówią - polityka, cennik, zasady firmy. Zostanie dodane do instrukcji sędziego.",
       "judgeKnowledgePlaceholder": "Zamówienie można zwrócić w ciągu 30 dni od dostawy. Otwarte oprogramowanie nie podlega zwrotowi.",
       "unsavedChanges": "Niezapisane zmiany",
-      "discard": "Odrzuć"
+      "discard": "Odrzuć",
+      "judgeGradesOn": "Ocenia na <model></model>",
+      "judgeModelOnItsPage": "Jego model zmienia się na jego własnej stronie.",
+      "judgeNoModelYet": "Organizacja nie ma jeszcze modelu, więc sędzia zostanie utworzony jako szkic. Dodaj model, a potem opublikuj sędziego na jego stronie."
     },
     "title": "Datasety",
     "pageDescription": "Pytania, na których testujesz agentów. Każda zmiana przypadków w datasecie tworzy nową wersję, więc dwa runy eval na jednej wersji widziały te same pytania.",

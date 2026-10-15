@@ -1,5 +1,5 @@
 ---
-source_sha: "027531ca370c"
+source_sha: "a36cb8c7d187"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -275,7 +275,7 @@ calificación: el juez, con un criterio inicial para sustituir cuando el dataset
 no tiene ninguno, y la comparación con la respuesta de referencia cuando algún
 caso la tiene. Los criterios, la escala y la nota de aprobado se quedan en el
 dataset; el prompt, el modelo y el budget del juez se editan en su propia
-página, y un dataset puede seguir indicando otro modelo para él.
+página, el único lugar donde se fija su modelo; la tarjeta Judge lo muestra.
 
 Un juez se ejecuta como la persona que pidió la puntuación: se comprueba su
 acceso a él, se comprueba contra su propio budget y el de la organización antes
@@ -326,10 +326,10 @@ se mantiene.
 Cada puntuación registra el juez que la calificó - el agent juez, su perfil de
 modelo, la versión de su spec, un hash de la rúbrica y la versión de la tarea
 que la plataforma entrega a cada juez - para que las puntuaciones de jueces
-distintos no se comparen como equivalentes. Cambiar el juez o su modelo está
-permitido; cambiar de juez pide confirmación antes, y la tarjeta Judge avisa de
-que las puntuaciones calificadas antes no serán comparables con las calificadas
-después.
+distintos no se comparen como equivalentes. Cambiar el juez, o su modelo en su
+página, está permitido; cambiar de juez pide confirmación antes, y la tarjeta
+Judge avisa de que las puntuaciones calificadas antes no serán comparables con
+las calificadas después.
 
 ### Revisión { #review }
 

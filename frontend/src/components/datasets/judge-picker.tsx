@@ -69,13 +69,20 @@ export function JudgePicker({ value, onChange, disabled, onCreate }: JudgePicker
         </Select>
       </FormField>
       {picked && (
-        <span className="text-muted-foreground flex items-center gap-1 pb-2 text-xs">
-          <span className="font-mono">
-            {picked.published_model?.label ?? t("judgeUnpublished")}
-          </span>
+        <span className="text-muted-foreground flex flex-wrap items-center gap-1 pb-2 text-xs">
+          {picked.published_model ? (
+            <span>
+              {t.rich("judgeGradesOn", {
+                model: () => <span className="font-mono">{picked.published_model!.label}</span>,
+              })}
+            </span>
+          ) : (
+            <span className="font-mono">{t("judgeUnpublished")}</span>
+          )}
           <Button variant="link" size="sm" className="h-auto" asChild>
             <Link href={ROUTES.AGENT_DETAIL(picked.id)}>{t("judgeOpen")}</Link>
           </Button>
+          <span>{t("judgeModelOnItsPage")}</span>
         </span>
       )}
       {onCreate && (

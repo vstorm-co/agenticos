@@ -1,5 +1,5 @@
 ---
-source_sha: "027531ca370c"
+source_sha: "a36cb8c7d187"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -269,8 +269,8 @@ Gdy wsparcie AI jest włączone, utworzenie go od razu włącza też ocenianie:
 sędziego, z kryterium startowym do zastąpienia, gdy dataset nie ma żadnego,
 oraz porównanie z odpowiedzią wzorcową, gdy któryś przypadek ją ma. Kryteria,
 skala i próg zaliczenia zostają na datasecie; prompt, model i budżet sędziego
-edytuje się na jego własnej stronie, a dataset nadal może wskazać dla niego
-inny model.
+edytuje się na jego własnej stronie, jedynym miejscu, gdzie ustawia się jego
+model; karta Sędzia go pokazuje.
 
 Sędzia działa jako osoba, która poprosiła o ocenę: sprawdzany jest jej dostęp do
 niego, przed wywołaniem modelu sprawdzany jest jego własny budżet i budżet
@@ -321,9 +321,9 @@ pokazywany w osobnej linii pod uzasadnieniem, a ocena pozostaje.
 Każdy wynik zapisuje sędziego, który go ocenił - agenta sędziego, jego profil
 modelu, wersję spec, hash rubryki i wersję zadania, które platforma przekazuje
 każdemu sędziemu - więc wyniki od różnych sędziów nie są porównywane jak równe z
-równym. Zmiana sędziego albo jego modelu jest dozwolona; przełączenie sędziego
-wymaga najpierw potwierdzenia, a karta Sędzia mówi, że wyniki ocenione
-wcześniej nie będą porównywalne z ocenianymi później.
+równym. Zmiana sędziego albo jego modelu na jego stronie jest dozwolona;
+przełączenie sędziego wymaga najpierw potwierdzenia, a karta Sędzia mówi, że
+wyniki ocenione wcześniej nie będą porównywalne z ocenianymi później.
 
 ### Przegląd { #review }
 

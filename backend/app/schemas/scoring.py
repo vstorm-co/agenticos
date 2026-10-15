@@ -188,16 +188,28 @@ class JudgeScorer(BaseSchema):
 
     `agent_id` is the dataset's own judge, one of the organization's judges;
     null is the platform's default eval judge. Each criterion is graded from 1
-    to `scale_max` and passes at `pass_at` or above. `model_profile_id` runs the
-    judge on another model than the one it publishes on.
+    to `scale_max` and passes at `pass_at` or above. A judge grades on the model
+    its own page publishes it on.
     """
 
     enabled: bool = False
     agent_id: UUID | None = None
-    model_profile_id: UUID | None = None
+    model_profile_id: UUID | None = Field(
+        default=None,
+        description=(
+            "Withdrawn: a judge grades on the model its own page publishes it on. "
+            "Still accepted, so an older client's request validates, and always null."
+        ),
+        json_schema_extra={"deprecated": True},
+    )
     scale_max: int = Field(default=5, ge=2, le=10)
     pass_at: int = Field(default=4, ge=1, le=10)
     criteria: list[RubricCriterion] = Field(default_factory=list, max_length=20)
+
+    @field_validator("model_profile_id")
+    @classmethod
+    def _withdrawn(cls, _: UUID | None) -> None:
+        return None
 
     @model_validator(mode="after")
     def _pass_mark_on_the_scale(self) -> JudgeScorer:

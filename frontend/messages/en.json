@@ -5739,7 +5739,6 @@
       "trajectoryHint": "The tools the agent called against the case's expected calls, in the case's order mode.",
       "judgeHint": "The judge grades every answer on the criteria below. Each grade is a run in Activity.",
       "judgeModel": "Judge's model",
-      "judgeOwnModel": "The judge's own model",
       "scaleMax": "Top of the scale",
       "passAt": "Passes at",
       "criterionName": "Criterion name",
@@ -5846,7 +5845,6 @@
       "createJudgeBody": "A judge is an agent: what you write here is its prompt, which its page edits later. The criteria stay on this dataset.",
       "judgeName": "Name",
       "judgeInstructions": "Instructions",
-      "judgeOldestModel": "The organization's first model",
       "createJudge": "Create judge",
       "judgeCreated": "{name} now grades this dataset",
       "cancel": "Cancel",
@@ -5905,7 +5903,10 @@
       "judgeKnowledgeHint": "Anything it grades against that the cases do not say - a policy, a price list, house rules. It is added to the judge's instructions.",
       "judgeKnowledgePlaceholder": "Orders can be returned within 30 days of delivery. Opened software is not refundable.",
       "unsavedChanges": "Unsaved changes",
-      "discard": "Discard"
+      "discard": "Discard",
+      "judgeGradesOn": "Grades on <model></model>",
+      "judgeModelOnItsPage": "Its model is changed on its own page.",
+      "judgeNoModelYet": "The organization has no model yet, so the judge is created as a draft. Add a model, then publish the judge on its page."
     },
     "title": "Datasets",
     "pageDescription": "The questions your agents are tested on. Every change to a dataset's cases makes a new version, so two eval runs on one version saw the same questions.",

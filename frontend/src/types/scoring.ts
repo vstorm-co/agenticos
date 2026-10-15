@@ -26,6 +26,7 @@ export interface DatasetScoring {
     enabled: boolean;
     /** The dataset's own judge; null is the default eval judge. */
     agent_id: string | null;
+    /** Withdrawn and always null: a judge grades on the model its own page sets. */
     model_profile_id: string | null;
     scale_max: number;
     pass_at: number;

@@ -258,7 +258,7 @@ Where AI assistance is on, creating it switches grading on as well: the judge,
 on a starting criterion to replace when the dataset has none, and the reference
 comparison when a case has a reference answer. The criteria, the scale and the
 pass mark stay on the dataset; the judge's prompt, model and budget are edited
-on its own page, and a dataset can still name another model for it.
+on its own page, the one place its model is set; the Judge card shows it.
 
 A judge runs as the person who asked for the score: their access to it is
 checked, it is checked against its own budget and the organization's before the
@@ -305,9 +305,9 @@ line under the reason, and the grade stands.
 Each score records the judge that graded it - the judge agent, its model
 profile, its spec version, a hash of the rubric and the version of the task the
 platform hands every judge - so scores from different judges are not compared as
-like for like. Changing the judge or its model is allowed; switching the judge
-asks first, and the Judge card says that the scores graded before will not
-compare with the ones graded after.
+like for like. Changing the judge, or its model on its page, is allowed;
+switching the judge asks first, and the Judge card says that the scores graded
+before will not compare with the ones graded after.
 
 ### Review { #review }
 
