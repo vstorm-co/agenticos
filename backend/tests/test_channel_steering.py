@@ -97,6 +97,23 @@ async def test_a_message_from_the_person_whose_turn_it_is_joins_that_turn():
     assert [text for text, _inbox, _aside in turns.seen] == ["draft the report"]
 
 
+@pytest.mark.security
+async def test_a_remark_not_addressed_to_the_bot_does_not_join_the_turn():
+    """Review on #2062: the starter's word to a colleague in the thread was fed to
+    the model and stored; a second after the turn it is ignored, and now too."""
+    from dataclasses import replace
+
+    remark = replace(_message("thanks, I'll check with Ola"), chat_type="group", addressed=False)
+    turns = await _route_two(remark)
+
+    # Not steered into the running turn; routed as a message of its own, which
+    # the router then ignores as overheard.
+    assert [text for text, _inbox, _aside in turns.seen] == [
+        "draft the report",
+        "thanks, I'll check with Ola",
+    ]
+
+
 async def test_a_colleagues_message_is_a_turn_of_its_own():
     turns = await _route_two(_message("what about Q3?", user="U2"))
 
