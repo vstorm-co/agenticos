@@ -650,7 +650,17 @@ Two things are versioned separately from this file and worth knowing about:
   run-as-me is withdrawn by a publish made through the creator's key or by an
   impersonator; listings name departments only for `members:view`; a lead
   without `runs:view` is offered no run link; and Settings says when the
-  assistant could not be read.
+  assistant could not be read. A ninth round and a second review: a platform
+  MCP binding never runs below `writes`; a resumed run's delegates and
+  `{{variables}}` stay on its own person; a hosted browser is never handed kept
+  sign-ins and leaves no cookies in a shared context; steers and `/btw` asides
+  meet the input guardrails; a call a guardrail refuses is still recorded as
+  spent; an unlinked channel sender's question, or a delegate's on a channel, is
+  declined rather than parked; department totals leave out runs no department
+  cap holds; a key needs `org:settings` to read retention; impersonation keeps
+  no browser sign-in; a lead cannot remove a co-lead; OAuth registration refuses
+  script redirect URIs; a failed fallback chain answers 502 and a failed run
+  names its conversation; and Ctrl+V attaches a pasted picture or file in chat.
 
 - **New chat starts a new conversation.** The console sends `conversation_id: null`
   for a new chat, and the session read it as "no id given" and carried on in the
