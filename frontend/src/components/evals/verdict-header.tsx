@@ -182,7 +182,13 @@ export function VerdictHeader({
             {candidate.source === "draft" && can(Perm.agentsPublish) && (
               <Button
                 size="sm"
-                variant={comparison?.verdict === "worse" ? "outline" : "default"}
+                variant={
+                  comparison &&
+                  comparison.regressions_confirmed === 0 &&
+                  comparison.verdict !== "worse"
+                    ? "default"
+                    : "outline"
+                }
                 asChild
               >
                 <Link href={`${ROUTES.AGENTS}/${agentId}?tab=build&publish=1`}>

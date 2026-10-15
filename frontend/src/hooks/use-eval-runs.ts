@@ -210,10 +210,11 @@ export function useSendToReview(runId: string, datasetId: string) {
 }
 
 /** A dataset's runs over the agents the caller may see, newest first. */
-export function useDatasetEvalRuns(datasetId: string, { limit = 100 } = {}) {
+export function useDatasetEvalRuns(datasetId: string, { limit = 100, enabled = true } = {}) {
   const query = useQuery({
     queryKey: qk.evalRuns.forDataset(datasetId, limit),
     queryFn: () => apiClient.get<EvalRunList>(`/datasets/${datasetId}/eval-runs?limit=${limit}`),
+    enabled,
     refetchInterval: (current) =>
       current.state.data?.items.some((run) => isLive(run.status)) ? LIVE_POLL_MS : false,
   });

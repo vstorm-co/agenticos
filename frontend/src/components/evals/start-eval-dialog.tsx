@@ -22,7 +22,7 @@ import {
 } from "@/components/ui";
 import { useAgents } from "@/hooks";
 import { useDatasets } from "@/hooks/use-datasets";
-import { useEvalRuns } from "@/hooks/use-eval-runs";
+import { useDatasetEvalRuns, useEvalRuns } from "@/hooks/use-eval-runs";
 import { usePermissions } from "@/hooks/use-permissions";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
@@ -74,13 +74,23 @@ export function StartEvalDialog({
   const router = useRouter();
   const { can } = usePermissions();
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
-  const [agentId, setAgentId] = useState(givenAgent);
+  const [chosenAgent, setChosenAgent] = useState<string | null>(null);
   const [chosenTarget, setChosenTarget] = useState<EvalTarget | null>(givenTarget ?? null);
   const [request, setRequest] = useState<EvalRunRequest>({
     ...BLANK,
     dataset_id: givenDataset ?? "",
   });
   const { agents } = useAgents({ enabled: givenAgent === null });
+  const { runs: datasetRuns } = useDatasetEvalRuns(givenDataset ?? "", {
+    enabled: givenAgent === null && givenDataset !== undefined,
+  });
+  const testable = agents.filter((agent) => agent.kind !== "judge" && agent.can_run);
+  // Started from a dataset: the agent last measured on it, else the only one there is.
+  const offeredAgent =
+    datasetRuns.find((run) => testable.some((agent) => agent.id === run.agent_id))?.agent_id ??
+    (testable.length === 1 ? testable[0]?.id : undefined) ??
+    null;
+  const agentId = givenAgent ?? chosenAgent ?? offeredAgent;
   const { runs, estimate, start } = useEvalRuns(agentId);
   const { datasets } = useDatasets({ sort: "name", limit: 100 });
   const { currentVersion, targets, preferred } = useEvalTarget(agentId);
@@ -143,7 +153,7 @@ export function StartEvalDialog({
               <Select
                 value={agentId ?? ""}
                 onValueChange={(id) => {
-                  setAgentId(id);
+                  setChosenAgent(id);
                   setChosenTarget(null);
                 }}
               >
@@ -151,13 +161,11 @@ export function StartEvalDialog({
                   <SelectValue placeholder={t("fields.agentPlaceholder")} />
                 </SelectTrigger>
                 <SelectContent>
-                  {agents
-                    .filter((agent) => agent.kind !== "judge" && agent.can_run)
-                    .map((agent) => (
-                      <SelectItem key={agent.id} value={agent.id}>
-                        {agent.name}
-                      </SelectItem>
-                    ))}
+                  {testable.map((agent) => (
+                    <SelectItem key={agent.id} value={agent.id}>
+                      {agent.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

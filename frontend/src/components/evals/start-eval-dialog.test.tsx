@@ -47,6 +47,13 @@ vi.mock("@/stores/org-store", () => ({
 }));
 
 const DRAFT = { instructions: "Answer refunds kindly." };
+const AGENTS = [
+  { id: "agent-1", name: "Refund desk", can_run: true, kind: "agent" },
+  { id: "agent-2", name: "Shipping desk", can_run: true, kind: "agent" },
+  { id: "judge", name: "Eval judge", can_run: true, kind: "judge" },
+  { id: "locked", name: "Payroll", can_run: false, kind: "agent" },
+];
+const agentList = vi.hoisted(() => ({ items: [] as unknown[] }));
 const agentState = vi.hoisted(() => ({
   currentVersionId: "v7" as string | null,
   liveSpec: {} as Record<string, unknown>,
@@ -61,22 +68,18 @@ vi.mock("@/hooks", () => ({
   useAgentVersion: (_: string | null, versionId: string | null) => ({
     version: versionId === null ? undefined : { version: 7, spec: agentState.liveSpec },
   }),
-  useAgents: () => ({
-    agents: [
-      { id: "agent-1", name: "Refund desk", can_run: true, kind: "agent" },
-      { id: "judge", name: "Eval judge", can_run: true, kind: "judge" },
-      { id: "locked", name: "Payroll", can_run: false, kind: "agent" },
-    ],
-  }),
+  useAgents: () => ({ agents: agentList.items }),
 }));
 
 const hooks = vi.hoisted(() => ({
   estimate: undefined as unknown,
   start: undefined as unknown,
   runs: [] as unknown[],
+  datasetRuns: [] as unknown[],
 }));
 vi.mock("@/hooks/use-eval-runs", () => ({
   useEvalRuns: () => ({ runs: hooks.runs, estimate: hooks.estimate, start: hooks.start }),
+  useDatasetEvalRuns: () => ({ runs: hooks.datasetRuns }),
 }));
 const datasets = vi.hoisted(() => ({ items: [] as unknown[] }));
 vi.mock("@/hooks/use-datasets", () => ({
@@ -140,6 +143,8 @@ beforeEach(() => {
   agentState.liveSpec = { instructions: "Answer refunds." };
   datasets.items = [REFUNDS, { id: "ds-2", name: "empty", case_count: 0, latest_version: 0 }];
   hooks.runs = [];
+  hooks.datasetRuns = [];
+  agentList.items = [...AGENTS];
   hooks.estimate = mutation();
   hooks.start = mutation();
 });
@@ -263,6 +268,19 @@ describe("StartEvalDialog", () => {
 
     expect(screen.getByRole("radio", { name: /The draft against v7/ })).toBeChecked();
     await waitFor(() => expect(estimated()).toHaveBeenCalledWith(COMPARE));
+  });
+
+  it("offers the agent last measured on the dataset it starts from", () => {
+    hooks.datasetRuns = [evalRun({ agent_id: "judge" }), evalRun({ agent_id: "agent-2" })];
+    open({ agentId: null, datasetId: "ds-1" });
+    expect(screen.getByRole("combobox", { name: "Agent" })).toHaveTextContent("Shipping desk");
+    expect(screen.getByRole("radio", { name: /The draft against v7/ })).toBeChecked();
+  });
+
+  it("offers the only agent there is to test", () => {
+    agentList.items = AGENTS.filter((agent) => agent.id !== "agent-2");
+    open({ agentId: null, datasetId: "ds-1" });
+    expect(screen.getByRole("combobox", { name: "Agent" })).toHaveTextContent("Refund desk");
   });
 
   it("opens on what the caller asked to test", () => {

@@ -159,13 +159,28 @@ describe("EvalRunView", () => {
     expect(state.casesArgs.at(-1)).toEqual(["run-1", expect.objectContaining({ caseIds: null })]);
   });
 
-  it("puts Publish first when the draft did no harm", () => {
+  it("puts Publish first only when nothing broke for sure", () => {
     worseDraft();
-    state.comparison = { ...(state.comparison as object), verdict: "better" };
+    state.comparison = {
+      ...(state.comparison as object),
+      verdict: "better",
+      regressions_confirmed: 0,
+    };
     access.allowed = new Set([Perm.agentsPublish]);
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    const { unmount } = render(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.getByRole("heading", { name: /Draft is better than v6/ })).toBeVisible();
-    expect(screen.getByRole("link", { name: "Publish" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Publish" }).className).toContain("bg-primary");
+    unmount();
+
+    // A confirmed regression is a reason not to publish, even when the sample
+    // is too small for a verdict.
+    state.comparison = {
+      ...(state.comparison as object),
+      verdict: "inconclusive",
+      regressions_confirmed: 3,
+    };
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(screen.getByRole("link", { name: "Publish" }).className).not.toContain("bg-primary");
   });
 
   it("shows no verdict for a run with no candidate to give one about", () => {
