@@ -269,13 +269,16 @@ class EvalCaseRead(BaseSchema):
 
 
 class EvalCaseLinkRead(BaseSchema):
-    """Which eval run and case one agent run answered - where its answer is read."""
+    """Which eval run and case one agent run answered or graded - where it is read."""
 
     eval_run_id: UUID
     agent_id: UUID
     case_id: UUID
     dataset_name: str
     case_input: str
+    graded: bool = Field(
+        default=False, description="The run is the judge grading the case, not the agent answering"
+    )
 
 
 class EvalCaseList(BaseSchema):
