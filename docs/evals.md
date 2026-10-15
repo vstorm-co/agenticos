@@ -19,18 +19,42 @@ the same run, so the two meet the same provider on the same day.
 
 ## In the console { #in-the-console }
 
-An agent's **Evals** tab lists its runs, newest first, with each candidate's
-pass rate, the cost and the status. **Run evals** opens the start dialog:
-choose the dataset, what runs, the environment, the models and whether the
-previous version runs beside it, then **Estimate cost**. The run starts only
-from the button that names the estimated amount, under the line that says what
-the agent's and the organization's budgets keep after it.
+An agent's **Evals** tab opens on a line chart of its pass rate over time, a
+line per dataset, each point labelled with what ran - a draft drawn hollow.
+Below it are its runs, grouped by dataset, each naming what was tested against
+what, its verdict (Worse · 4 broke, First result, Pending) and each model's
+pass rate.
 
-A run's page shows its progress while it answers, every arm's results side by
-side, the comparison with its baseline, and the cases - filtered by outcome or
-tag, each opening onto every arm's answers, calls and scorer reasons. The
-dashboard's **Eval runs** card lists the organization's latest runs, and a run
-in Activity stamped `eval` links back to its agent's Evals tab.
+**Run evals** opens the start dialog on the obvious answer: the draft against
+the live version when the draft differs from it, the live version alone when it
+does not, and the draft alone for an agent nobody published. The dataset the
+agent was last measured on - or the only one there is - is already chosen; the
+environment, recordings and reruns are under **Advanced**. The cost is worked
+out as the fields settle and says what grades the answers and what the agent's
+and the organization's budgets keep after it; the run starts only from the
+button that names the amount. **Draft differs from vN** on the agent's page
+carries a **Test draft** button that opens the same dialog, and the publish
+dialog says what the draft's last run found - or that it was not tested since
+it last changed - without holding the publish back.
+
+A run's page opens on its verdict as a sentence - which side did better, by how
+many confirmed cases, and the pass rate before and after - with what to do next:
+see what changed between the two versions (History opens on that comparison),
+show the cases that broke, go back to Build, or publish the draft. While the run
+answers it says how many first answers are in and the comparison waits for both
+sides.
+
+Below the verdict are the sides next to each other, how the two compare, and the
+cases - each row with a pass or fail dot per side, filtered by outcome or tag,
+each opening onto what the case expects and every side's answers, calls and
+scorer reasons. Picking a tag reads the sides, the changes and the cases under
+it; the verdict stays over every case.
+
+The dashboard's **Eval runs** card lists the organization's latest runs with
+their agent and verdict. An eval's cases and the judge's grading are kept out
+of every other dashboard figure, and Activity hides them unless its surface
+filter asks for every surface or for evals alone; an eval case opened there
+names its eval run and links to it.
 
 ## Starting a run { #starting-a-run }
 
@@ -54,9 +78,10 @@ turns it on. While it is off the judge does not run: a case is decided by its
 checks and its expected tool calls, the judge's criteria are recorded as
 skipped, and the estimate counts no judge.
 
-An agent with no history on a model is estimated at
-`EVAL_FALLBACK_CASE_COST_USD` per case, and the estimate says it is a guess
-(`basis: "fallback"`). The baseline's cost is part of the total, unless a
+An agent with no history on a model is estimated as a typical case -
+`EVAL_FALLBACK_INPUT_TOKENS` in, `EVAL_FALLBACK_OUTPUT_TOKENS` out - at the
+model's own price, or at `EVAL_FALLBACK_CASE_COST_USD` for a model nothing
+prices, and the estimate says it is a rough guess (`basis: "fallback"`). The baseline's cost is part of the total, unless a
 recent matching baseline is reused, in which case it costs nothing and the
 estimate names the run it reuses.
 
@@ -71,7 +96,8 @@ estimate shows what each cap keeps once the run has spent its total:
 Starting refuses with `402` before anything is written when the total is more
 than either cap has left. Confirmation reruns (below) are not part of that
 check, because they only happen to cases that flip; the estimate shows the most
-they can add as `rerun_ceiling_usd`. Every case is still checked against both
+they can add as `rerun_ceiling_usd`, which the run keeps so a run that spent
+past its estimate says why. Every case is still checked against both
 caps before each model request, as any run is, and a case that runs into a cap
 stops the whole eval run as `budget_exceeded`.
 
@@ -92,9 +118,12 @@ A run that could not tell anybody anything is refused before it is estimated:
 ## What each case runs as { #what-each-case-runs-as }
 
 Every case is an ordinary agent run with the surface `eval`. It is checked
-against the budgets before each model request, its cost is recorded, and it is
-listed in Activity, where the surface filter keeps it apart from production
-traffic. It runs as the person who started the eval, with their current role,
+against the budgets before each model request and its cost is recorded. It is
+kept out of the dashboard's usage figures, which count production alone and
+report the eval traffic's cost beside it (`cost.eval_usd`), and run history
+leaves it out when asked to (`?exclude_surface=eval`). Its single-run read
+names the eval run and case it answered (`eval_case`), for a reader who may see
+the dataset. It runs as the person who started the eval, with their current role,
 and does not read or write their personal memory.
 
 Each case runs **isolated**, as [Environments](environments.md) describes: a
@@ -151,12 +180,22 @@ A case whose required scorer could not run is **undecided**, never a pass. A
 person's verdict in the [review queue](datasets.md#review) replaces the
 scorers' outcome for that case, and the run's numbers follow it.
 
+A finished run keeps its first candidate's verdict, counts and pass rates as
+`outcome`, so a listing reads them without comparing every run again. It is
+compared again when a person has decided one of the scores it rests on since.
+
 ```text
-GET /api/v1/agents/{agent_id}/eval-runs      an agent's runs, newest first
-GET /api/v1/eval-runs/{id}                   one run, with each arm's summary
-GET /api/v1/eval-runs/{id}/cases             cases and every attempt; ?outcome=, ?tag=, ?arm_id=
+GET /api/v1/agents/{agent_id}/eval-runs      an agent's runs, newest first; ?draft=current
+GET /api/v1/datasets/{dataset_id}/eval-runs  a dataset's runs over the agents the reader may see
+GET /api/v1/eval-runs/{id}                   one run, with each arm's summary and its outcome
+GET /api/v1/eval-runs/{id}/cases             cases, what each expects, and every attempt;
+                                             ?outcome=, ?tag=, ?arm_id=, ?case_id=
 GET /api/v1/eval-runs/{id}/comparison        a candidate arm against its baseline
 ```
+
+`?draft=current` keeps the runs that tested the draft as it stands now - the
+same spec, whatever order its keys were stored in - which is what the publish
+dialog reads.
 
 ## Comparing with a baseline { #comparing-with-a-baseline }
 
@@ -231,7 +270,9 @@ first model named, and every arm is compared with it.
 | `EVAL_BASELINE_CACHE_HOURS` | `24` | How old a matching baseline may be and still be reused |
 | `EVAL_SIGNIFICANCE` | `0.05` | The level below which confirmed flips are a verdict |
 | `EVAL_EFFICIENCY_TOLERANCE` | `0.05` | A relative change in cost, tokens or latency counted as none |
-| `EVAL_FALLBACK_CASE_COST_USD` | `0.05` | The estimate per case on a model with no history |
+| `EVAL_FALLBACK_INPUT_TOKENS` | `2000` | The input tokens a case is priced at on a model with no history |
+| `EVAL_FALLBACK_OUTPUT_TOKENS` | `400` | The output tokens a case is priced at on a model with no history |
+| `EVAL_FALLBACK_CASE_COST_USD` | `0.05` | The estimate per case on a model with no history and no known price |
 | `EVAL_ESTIMATE_SAMPLE` | `50` | How many recent runs the estimate averages |
 | `EVAL_ABANDONED_AFTER_MINUTES` | `30` | How long a run may stand still before the sweep fails it |
 
@@ -245,7 +286,9 @@ The judge, when one scores the dataset, needs what
 
 Reading a run needs `runs:view`, and that the reader can see both the agent and
 the dataset - a run over a dataset the reader cannot open is not listed, and
-asking for it by id answers `404`, as a run of another organization does.
+asking for it by id answers `404`, as a run of another organization does. A
+dataset's runs also need `datasets:view` on it, and list only the agents the
+reader may see.
 
 ## What a run keeps { #what-a-run-keeps }
 

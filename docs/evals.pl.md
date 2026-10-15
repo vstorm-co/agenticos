@@ -1,5 +1,5 @@
 ---
-source_sha: "4e152a7318a3"
+source_sha: "ea851b196b65"
 title: "Eval runy"
 description: "Eval run odpowiada na każdy przypadek datasetu wersją agenta albo jego draftem, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -21,19 +21,45 @@ samego dnia.
 
 ## W konsoli { #in-the-console }
 
-Zakładka **Evals** agenta wymienia jego runy, od najnowszego, z odsetkiem
-zaliczeń każdego kandydata, kosztem i statusem. **Run evals** otwiera dialog
-startu: wybierz dataset, to, co się uruchamia, środowisko, modele i to, czy
-obok ma działać poprzednia wersja, a potem **Estimate cost**. Run startuje
-dopiero z przycisku z szacowaną kwotą, pod linijką mówiącą, ile zostanie w
-budżecie agenta i organizacji.
+Zakładka **Evals** agenta otwiera się wykresem liniowym jego odsetka zaliczeń
+w czasie, z linią na każdy dataset i każdym punktem opisanym tym, co się
+uruchomiło - draft jest rysowany jako pusty punkt. Pod wykresem są jego runy,
+pogrupowane po datasecie, każdy z tym, co testowano względem czego, z
+werdyktem (Worse · 4 broke, First result, Pending) i odsetkiem zaliczeń
+każdego modelu.
 
-Strona runa pokazuje postęp, gdy run odpowiada, wyniki każdego ramienia obok
-siebie, porównanie z baseline'em i przypadki - filtrowane po wyniku lub tagu,
-każdy z odpowiedziami, wywołaniami i uzasadnieniami oceniających dla każdego
-ramienia. Karta **Eval runs** na dashboardzie wymienia ostatnie runy
-organizacji, a run oznaczony w Activity jako `eval` linkuje do zakładki Evals
-swojego agenta.
+**Run evals** otwiera dialog startu od razu na oczywistej odpowiedzi: draft
+względem bieżącej opublikowanej wersji, gdy draft się od niej różni, sama
+opublikowana wersja, gdy się nie różni, i sam draft dla agenta, którego nikt
+nie opublikował. Dataset, na którym agent był ostatnio mierzony - albo jedyny,
+jaki istnieje - jest już wybrany; środowisko, nagrania i powtórki są pod
+**Advanced**. Koszt jest wyliczany, gdy pola się ustalą, i mówi, co ocenia
+odpowiedzi oraz ile zostanie potem w budżecie agenta i organizacji; run
+startuje dopiero z przycisku, który podaje tę kwotę. **Draft differs from vN**
+na stronie agenta ma przycisk **Test draft**, który otwiera ten sam dialog, a
+dialog publikacji mówi, co znalazł ostatni run draftu - albo że draftu nie
+testowano od jego ostatniej zmiany - nie wstrzymując publikacji.
+
+Strona runa otwiera się jego werdyktem w postaci zdania - która strona
+wypadła lepiej, o ile potwierdzonych przypadków i jaki był odsetek zaliczeń
+przed i po - razem z tym, co zrobić dalej: zobaczyć, co zmieniło się między
+obiema wersjami (History otwiera się na tym porównaniu), pokazać przypadki,
+które się zepsuły, wrócić do Build albo opublikować draft. Gdy run odpowiada,
+strona mówi, ile pierwszych odpowiedzi już jest, a porównanie czeka na obie
+strony.
+
+Pod werdyktem są obie strony obok siebie, to, jak wypadają w porównaniu, i
+przypadki - każdy wiersz z kropką zaliczenia lub niezaliczenia dla każdej
+strony, filtrowane po wyniku lub tagu, każdy otwierający się na to, czego
+przypadek oczekuje, oraz na odpowiedzi, wywołania i uzasadnienia oceniających
+każdej strony. Wybrany tag zawęża do siebie strony, zmiany i przypadki; werdykt
+nadal obejmuje wszystkie przypadki.
+
+Karta **Eval runs** na dashboardzie wymienia ostatnie runy organizacji z ich
+agentem i werdyktem. Przypadki evala i ocenianie sędziego nie wchodzą do żadnej
+innej liczby na dashboardzie, a Activity je ukrywa, chyba że jej filtr
+powierzchni prosi o wszystkie powierzchnie albo tylko o evale; otwarty tam
+przypadek evala wskazuje swój eval run i do niego linkuje.
 
 ## Uruchamianie runa { #starting-a-run }
 
@@ -57,8 +83,10 @@ nie włączy. Gdy jest wyłączone, sędzia nie działa: przypadek rozstrzygają
 checki i oczekiwane wywołania narzędzi, kryteria sędziego są zapisywane jako
 pominięte, a szacunek nie liczy sędziego.
 
-Agent bez historii na danym modelu jest szacowany na
-`EVAL_FALLBACK_CASE_COST_USD` za przypadek, a szacunek mówi, że to zgadywanie
+Agent bez historii na danym modelu jest szacowany jako typowy przypadek -
+`EVAL_FALLBACK_INPUT_TOKENS` na wejściu, `EVAL_FALLBACK_OUTPUT_TOKENS` na
+wyjściu - według ceny samego modelu, albo na `EVAL_FALLBACK_CASE_COST_USD` dla
+modelu, którego ceny nic nie zna, a szacunek mówi, że to zgrubne zgadywanie
 (`basis: "fallback"`). Koszt baseline'u wchodzi do sumy, chyba że użyty zostanie
 niedawny pasujący baseline - wtedy nic nie kosztuje, a szacunek wskazuje run,
 który wykorzystuje.
@@ -74,10 +102,11 @@ pokazuje, ile każdy limit zachowa po wydaniu sumy przez run:
 Uruchomienie jest odrzucane z `402`, zanim cokolwiek zostanie zapisane, gdy suma
 przekracza to, co zostało w którymkolwiek limicie. Powtórki potwierdzające
 (niżej) nie wchodzą do tego sprawdzenia, bo dotyczą tylko przypadków, które się
-odwróciły; szacunek pokazuje, ile najwyżej mogą dodać, jako `rerun_ceiling_usd`.
-Każdy przypadek i tak jest sprawdzany względem obu limitów przed każdym
-żądaniem do modelu, jak każdy run, a przypadek, który trafi na limit, zatrzymuje
-cały eval run jako `budget_exceeded`.
+odwróciły; szacunek pokazuje, ile najwyżej mogą dodać, jako `rerun_ceiling_usd`,
+który run zachowuje, żeby run, który wydał więcej, niż szacowano, mówił
+dlaczego. Każdy przypadek i tak jest sprawdzany względem obu limitów przed
+każdym żądaniem do modelu, jak każdy run, a przypadek, który trafi na limit,
+zatrzymuje cały eval run jako `budget_exceeded`.
 
 ### Co jest odrzucane { #what-is-refused }
 
@@ -98,10 +127,13 @@ oszacowany:
 ## Jako co działa każdy przypadek { #what-each-case-runs-as }
 
 Każdy przypadek to zwykły run agenta z powierzchnią `eval`. Jest sprawdzany
-względem budżetów przed każdym żądaniem do modelu, jego koszt jest zapisywany i
-pojawia się w Activity, gdzie filtr powierzchni oddziela go od ruchu
-produkcyjnego. Działa jako osoba, która uruchomiła eval, z jej obecną rolą, i
-nie czyta ani nie zapisuje jej osobistej pamięci.
+względem budżetów przed każdym żądaniem do modelu, a jego koszt jest
+zapisywany. Nie wchodzi do liczb użycia na dashboardzie, które liczą tylko
+produkcję i podają koszt ruchu evali obok (`cost.eval_usd`), a historia runów
+go pomija, gdy się o to poprosi (`?exclude_surface=eval`). Odczyt pojedynczego
+runa wskazuje eval run i przypadek, na który odpowiadał (`eval_case`),
+czytającemu, który może widzieć dataset. Działa jako osoba, która uruchomiła
+eval, z jej obecną rolą, i nie czyta ani nie zapisuje jej osobistej pamięci.
 
 Każdy przypadek działa **w izolacji**, jak opisują [Środowiska](environments.md):
 narzędzie z testowym połączeniem w środowisku runa działa na nim, narzędzie, o
@@ -161,12 +193,23 @@ Przypadek, którego wymagany oceniający nie mógł zadziałać, jest
 [kolejce przeglądu](datasets.md#review) zastępuje wynik oceniających dla tego
 przypadku, a liczby runa idą za nim.
 
+Zakończony run zachowuje werdykt, liczniki i odsetki zaliczeń swojego
+pierwszego kandydata jako `outcome`, więc lista odczytuje je bez ponownego
+porównywania każdego runa. Jest porównywany ponownie, gdy od tego czasu osoba
+rozstrzygnęła którąś z ocen, na których się opiera.
+
 ```text
-GET /api/v1/agents/{agent_id}/eval-runs      an agent's runs, newest first
-GET /api/v1/eval-runs/{id}                   one run, with each arm's summary
-GET /api/v1/eval-runs/{id}/cases             cases and every attempt; ?outcome=, ?tag=, ?arm_id=
+GET /api/v1/agents/{agent_id}/eval-runs      an agent's runs, newest first; ?draft=current
+GET /api/v1/datasets/{dataset_id}/eval-runs  a dataset's runs over the agents the reader may see
+GET /api/v1/eval-runs/{id}                   one run, with each arm's summary and its outcome
+GET /api/v1/eval-runs/{id}/cases             cases, what each expects, and every attempt;
+                                             ?outcome=, ?tag=, ?arm_id=, ?case_id=
 GET /api/v1/eval-runs/{id}/comparison        a candidate arm against its baseline
 ```
+
+`?draft=current` zostawia runy, które testowały draft w obecnym stanie - ten
+sam spec, niezależnie od kolejności, w jakiej zapisano jego klucze - i to
+właśnie czyta dialog publikacji.
 
 ## Porównanie z baseline'em { #comparing-with-a-baseline }
 
@@ -244,7 +287,9 @@ porównywane.
 | `EVAL_BASELINE_CACHE_HOURS` | `24` | Jak stary może być pasujący baseline, żeby nadal go użyć |
 | `EVAL_SIGNIFICANCE` | `0.05` | Poziom, poniżej którego potwierdzone odwrócenia są werdyktem |
 | `EVAL_EFFICIENCY_TOLERANCE` | `0.05` | Względna zmiana kosztu, tokenów lub latencji liczona jako brak zmiany |
-| `EVAL_FALLBACK_CASE_COST_USD` | `0.05` | Szacunek na przypadek na modelu bez historii |
+| `EVAL_FALLBACK_INPUT_TOKENS` | `2000` | Tokeny wejściowe, według których wyceniany jest przypadek na modelu bez historii |
+| `EVAL_FALLBACK_OUTPUT_TOKENS` | `400` | Tokeny wyjściowe, według których wyceniany jest przypadek na modelu bez historii |
+| `EVAL_FALLBACK_CASE_COST_USD` | `0.05` | Szacunek na przypadek na modelu bez historii i bez znanej ceny |
 | `EVAL_ESTIMATE_SAMPLE` | `50` | Ile ostatnich runów uśrednia szacunek |
 | `EVAL_ABANDONED_AFTER_MINUTES` | `30` | Jak długo run może stać, zanim sweep zakończy go błędem |
 
@@ -258,7 +303,8 @@ dataset, wymaga tego, co mówi [ocenianie](datasets.md#scoring).
 Odczyt runa wymaga `runs:view` oraz tego, by czytający widział i agenta, i
 dataset - run na datasecie, którego czytający nie może otworzyć, nie jest
 wyświetlany, a prośba o niego po id odpowiada `404`, tak jak run innej
-organizacji.
+organizacji. Runy datasetu wymagają też `datasets:view` na nim i wymieniają
+tylko agentów, których czytający może widzieć.
 
 ## Co run zachowuje { #what-a-run-keeps }
 

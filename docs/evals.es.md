@@ -1,5 +1,5 @@
 ---
-source_sha: "4e152a7318a3"
+source_sha: "ea851b196b65"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -21,20 +21,47 @@ encuentren con el mismo provider el mismo día.
 
 ## En la consola { #in-the-console }
 
-La pestaña **Evals** de un agent lista sus runs, del más reciente al más
-antiguo, con la tasa de aprobados de cada candidato, el coste y el estado.
-**Run evals** abre el diálogo de inicio: elige el dataset, qué se ejecuta, el
-entorno, los modelos y si la versión anterior se ejecuta a su lado, y luego
-**Estimate cost**. El run solo empieza desde el botón que indica el importe
-estimado, bajo la línea que dice lo que conservan después los budgets del agent
-y de la organización.
+La pestaña **Evals** de un agent se abre con un gráfico de líneas de su tasa
+de aprobados a lo largo del tiempo, una línea por dataset, cada punto
+etiquetado con lo que se ejecutó - un borrador, dibujado hueco. Debajo están
+sus runs, agrupados por dataset, cada uno indicando qué se probó frente a qué,
+su veredicto (Worse · 4 broke, First result, Pending) y la tasa de aprobados de
+cada modelo.
 
-La página de un run muestra su progreso mientras responde, los resultados de
-cada brazo en paralelo, la comparación con su baseline y los casos - filtrados
-por resultado o etiqueta, cada uno con las respuestas, llamadas y motivos de los
-evaluadores de cada brazo. La tarjeta **Eval runs** del dashboard lista los runs
-más recientes de la organización, y un run marcado como `eval` en Activity
-enlaza con la pestaña Evals de su agent.
+**Run evals** abre el diálogo de inicio con la respuesta obvia: el borrador
+frente a la versión publicada actual cuando el borrador difiere de ella, la
+versión publicada sola cuando no, y el borrador solo para un agent que nadie ha
+publicado. El dataset con el que se midió el agent por última vez - o el único
+que hay - ya está elegido; el entorno, las grabaciones y las repeticiones están
+en **Advanced**. El coste se calcula a medida que se asientan los campos y dice
+qué califica las respuestas y lo que conservan después los budgets del agent y
+de la organización; el run solo empieza desde el botón que indica el importe.
+**Draft differs from vN** en la página del agent lleva un botón **Test draft**
+que abre el mismo diálogo, y el diálogo de publicación dice lo que encontró el
+último run del borrador - o que no se ha probado desde su último cambio - sin
+frenar la publicación.
+
+La página de un run se abre con su veredicto en forma de frase - qué lado lo
+hizo mejor, por cuántos casos confirmados, y la tasa de aprobados antes y
+después - junto con qué hacer a continuación: ver qué cambió entre las dos
+versiones (History se abre en esa comparación), mostrar los casos que se
+rompieron, volver a Build o publicar el borrador. Mientras el run responde,
+dice cuántas primeras respuestas hay ya, y la comparación espera a los dos
+lados.
+
+Bajo el veredicto están los lados uno junto al otro, cómo se comparan y los
+casos - cada fila con un punto de aprobado o fallido por lado, filtrados por
+resultado o etiqueta, cada uno abriendo lo que espera el caso y las respuestas,
+llamadas y motivos de los evaluadores de cada lado. Al elegir una etiqueta, los
+lados, los cambios y los casos se leen dentro de ella; el veredicto sigue
+abarcando todos los casos.
+
+La tarjeta **Eval runs** del dashboard lista los runs más recientes de la
+organización con su agent y su veredicto. Los casos de un eval y la
+calificación del juez quedan fuera de cualquier otra cifra del dashboard, y
+Activity los oculta salvo que su filtro de superficie pida todas las
+superficies o solo los evals; un caso de eval abierto allí nombra su eval run y
+enlaza con él.
 
 ## Iniciar un run { #starting-a-run }
 
@@ -59,11 +86,13 @@ caso se decide por sus checks y sus llamadas a herramientas esperadas, los
 criterios del juez se registran como omitidos y la estimación no cuenta el
 juez.
 
-Un agent sin historial en un modelo se estima en `EVAL_FALLBACK_CASE_COST_USD`
-por caso, y la estimación dice que es una suposición (`basis: "fallback"`). El
-coste del baseline forma parte del total, salvo que se reutilice un baseline
-reciente que coincida; en ese caso no cuesta nada y la estimación nombra el run
-que reutiliza.
+Un agent sin historial en un modelo se estima como un caso típico -
+`EVAL_FALLBACK_INPUT_TOKENS` de entrada, `EVAL_FALLBACK_OUTPUT_TOKENS` de
+salida - al precio propio del modelo, o en `EVAL_FALLBACK_CASE_COST_USD` para
+un modelo sin precio conocido, y la estimación dice que es una suposición
+aproximada (`basis: "fallback"`). El coste del baseline forma parte del total, salvo que se
+reutilice un baseline reciente que coincida; en ese caso no cuesta nada y la
+estimación nombra el run que reutiliza.
 
 ### El budget que deja { #the-budget-it-leaves }
 
@@ -77,7 +106,8 @@ Iniciarlo se rechaza con `402` antes de escribir nada cuando el total supera lo
 que le queda a cualquiera de los dos límites. Las repeticiones de confirmación
 (más abajo) no entran en esa comprobación, porque solo afectan a los casos que
 cambian; la estimación muestra lo máximo que pueden añadir como
-`rerun_ceiling_usd`. Cada caso se sigue comprobando contra ambos límites antes
+`rerun_ceiling_usd`, que el run conserva para que un run que gastó más de lo
+estimado diga por qué. Cada caso se sigue comprobando contra ambos límites antes
 de cada petición al modelo, como cualquier run, y un caso que choca con un
 límite detiene todo el eval run como `budget_exceeded`.
 
@@ -99,10 +129,13 @@ Un run que no podría decirle nada a nadie se rechaza antes de estimarse:
 ## Cómo se ejecuta cada caso { #what-each-case-runs-as }
 
 Cada caso es un run normal del agent con la superficie `eval`. Se comprueba
-contra los budgets antes de cada petición al modelo, se registra su coste y
-aparece en Activity, donde el filtro de superficie lo separa del tráfico de
-producción. Se ejecuta como la persona que inició el eval, con su rol actual, y
-no lee ni escribe su memoria personal.
+contra los budgets antes de cada petición al modelo y se registra su coste.
+Queda fuera de las cifras de uso del dashboard, que cuentan solo la producción e
+informan del coste del tráfico de evals a su lado (`cost.eval_usd`), y el
+historial de runs lo omite cuando se le pide (`?exclude_surface=eval`). Su
+lectura individual nombra el eval run y el caso al que respondió (`eval_case`),
+para un lector que pueda ver el dataset. Se ejecuta como la persona que inició
+el eval, con su rol actual, y no lee ni escribe su memoria personal.
 
 Cada caso se ejecuta **aislado**, como describe [Entornos](environments.md):
 una herramienta con una conexión de prueba en el entorno del run se ejecuta
@@ -162,12 +195,23 @@ nunca aprobado. El veredicto de una persona en la
 [cola de revisión](datasets.md#review) sustituye el resultado de los
 evaluadores para ese caso, y las cifras del run lo siguen.
 
+Un run terminado conserva el veredicto, los recuentos y las tasas de aprobados
+de su primer candidato como `outcome`, para que un listado los lea sin volver a
+comparar cada run. Se vuelve a comparar cuando, desde entonces, una persona ha
+decidido alguna de las puntuaciones en las que se basa.
+
 ```text
-GET /api/v1/agents/{agent_id}/eval-runs      an agent's runs, newest first
-GET /api/v1/eval-runs/{id}                   one run, with each arm's summary
-GET /api/v1/eval-runs/{id}/cases             cases and every attempt; ?outcome=, ?tag=, ?arm_id=
+GET /api/v1/agents/{agent_id}/eval-runs      an agent's runs, newest first; ?draft=current
+GET /api/v1/datasets/{dataset_id}/eval-runs  a dataset's runs over the agents the reader may see
+GET /api/v1/eval-runs/{id}                   one run, with each arm's summary and its outcome
+GET /api/v1/eval-runs/{id}/cases             cases, what each expects, and every attempt;
+                                             ?outcome=, ?tag=, ?arm_id=, ?case_id=
 GET /api/v1/eval-runs/{id}/comparison        a candidate arm against its baseline
 ```
+
+`?draft=current` conserva los runs que probaron el borrador tal como está
+ahora - el mismo spec, sea cual sea el orden en que se guardaron sus claves -,
+que es lo que lee el diálogo de publicación.
 
 ## Comparar con un baseline { #comparing-with-a-baseline }
 
@@ -246,7 +290,9 @@ el baseline se ejecuta en el primer modelo indicado y cada brazo se compara con
 | `EVAL_BASELINE_CACHE_HOURS` | `24` | Qué antigüedad puede tener un baseline coincidente para reutilizarse |
 | `EVAL_SIGNIFICANCE` | `0.05` | El nivel por debajo del cual los cambios confirmados son un veredicto |
 | `EVAL_EFFICIENCY_TOLERANCE` | `0.05` | Un cambio relativo de coste, tokens o latencia que cuenta como ninguno |
-| `EVAL_FALLBACK_CASE_COST_USD` | `0.05` | La estimación por caso en un modelo sin historial |
+| `EVAL_FALLBACK_INPUT_TOKENS` | `2000` | Los tokens de entrada con los que se calcula el precio de un caso en un modelo sin historial |
+| `EVAL_FALLBACK_OUTPUT_TOKENS` | `400` | Los tokens de salida con los que se calcula el precio de un caso en un modelo sin historial |
+| `EVAL_FALLBACK_CASE_COST_USD` | `0.05` | La estimación por caso en un modelo sin historial ni precio conocido |
 | `EVAL_ESTIMATE_SAMPLE` | `50` | Cuántos runs recientes promedia la estimación |
 | `EVAL_ABANDONED_AFTER_MINUTES` | `30` | Cuánto puede estar parado un run antes de que el barrido lo dé por fallido |
 
@@ -260,7 +306,9 @@ la [puntuación](datasets.md#scoring).
 
 Leer un run requiere `runs:view` y que el lector pueda ver tanto el agent como
 el dataset: un run sobre un dataset que el lector no puede abrir no se lista, y
-pedirlo por id responde `404`, igual que un run de otra organización.
+pedirlo por id responde `404`, igual que un run de otra organización. Los runs
+de un dataset requieren además `datasets:view` sobre él, y solo listan los
+agents que el lector puede ver.
 
 ## Qué conserva un run { #what-a-run-keeps }
 
